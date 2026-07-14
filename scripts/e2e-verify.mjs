@@ -47,7 +47,7 @@ try {
   await page.keyboard.press('Escape')
 
   // 4. 3D mode
-  await page.locator('button[aria-pressed]').filter({ hasText: '3D' }).first().click({ force: true })
+  await page.locator('button[aria-pressed]').filter({ hasText: '3D' }).first().click({ force: true, noWaitAfter: true })
   const readyOk = await page
     .waitForFunction(() => document.body.innerText.includes('Drag to rotate'), { timeout: 60000 })
     .then(() => true)
@@ -86,7 +86,7 @@ try {
     )
     if (durl) fs.writeFileSync(out('e2-3d-tee'), Buffer.from(durl.split(',')[1], 'base64'))
     // camera snap + hoodie in 3D
-    await page.getByText('Pullover Hoodie').click({ force: true, timeout: 8000 })
+    await page.getByText('Pullover Hoodie').click({ force: true, timeout: 8000, noWaitAfter: true })
     await page.waitForTimeout(9000)
     const durl2 = await page.evaluate(
       () =>
@@ -106,12 +106,12 @@ try {
   }
 
   // 5. back to 2D, hoodie art
-  await page.locator('button[aria-pressed]').filter({ hasText: '2D' }).first().click({ force: true })
+  await page.locator('button[aria-pressed]').filter({ hasText: '2D' }).first().click({ force: true, noWaitAfter: true })
   await page.waitForTimeout(1500)
   await shot('e4-hoodie-2d')
 
   // 6. order modal quote math
-  await page.getByRole('button', { name: /Continue/ }).click()
+  await page.getByRole('button', { name: /Continue/ }).click({ noWaitAfter: true })
   await page.waitForTimeout(1500)
   const total = await page.evaluate(() => document.body.innerText.match(/\$[\d,.]+/g)?.slice(-1)[0])
   ok('order-modal-quote', !!total, total ?? '')

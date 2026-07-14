@@ -52,7 +52,7 @@ export default function TopBar() {
           <FolderOpen size={15} />
           <span className="hidden lg:inline">My designs</span>
         </button>
-        <button className="btn btn-ghost" onClick={saveNow} aria-label="Save design">
+        <button className="btn btn-ghost hidden sm:inline-flex" onClick={saveNow} aria-label="Save design">
           <Save size={15} />
           <span className="hidden lg:inline">Save</span>
         </button>

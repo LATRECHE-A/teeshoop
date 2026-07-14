@@ -20,7 +20,7 @@ export function Brand() {
   return (
     <div className="flex items-center gap-2.5 select-none">
       <RegMark />
-      <div className="leading-none">
+      <div className="leading-none max-sm:hidden">
         <div className="font-display text-[15px] font-bold tracking-[0.24em] text-tx">
           TSHOP
         </div>
