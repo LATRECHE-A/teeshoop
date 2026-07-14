@@ -44,11 +44,10 @@ const ROW_CHUNK = 160
  * `ort-wasm-simd-threaded.wasm` from that prefix — the shared vite config
  * copies exactly those two files.
  *
- * `/ort/` is the contracted flat path; vite-plugin-static-copy v4 actually
- * lands the files under `/ort/node_modules/onnxruntime-web/dist/` (v4
- * preserves source directory structure). The bare node_modules path is a
- * dev-server-only safety net. Probe the wasm magic bytes once and use the
- * first prefix that is real, so this module works with either layout.
+ * `/ort/` is the contracted flat path (the runtime is committed at
+ * public/ort/). The bare node_modules path is a dev-server-only safety net.
+ * Probe the wasm magic bytes once and use the first prefix that is real, so
+ * this module works with either layout.
  */
 const WASM_FILE = 'ort-wasm-simd-threaded.wasm'
 const WASM_BASE_CANDIDATES = [
@@ -154,9 +153,15 @@ async function fetchModel(onPct: (pct: number) => void): Promise<Uint8Array> {
 
 async function createSession(): Promise<ort.InferenceSession> {
   if (!ortConfigured) {
-    // wasm binaries are served from the site's own /ort/ path (vite config
-    // copies them there). Single-threaded: no COOP/COEP requirement.
-    ort.env.wasm.wasmPaths = await resolveWasmPaths()
+    // Object-form override: hand ort ONLY the .wasm binary URL and keep the
+    // JS glue that is embedded in the ort.wasm bundle build. A string prefix
+    // would make ort dynamic-import `<prefix>/ort-wasm-simd-threaded.mjs`,
+    // which vite dev refuses for public-directory files ("assets in public
+    // cannot be imported as modules"). Single-threaded: no COOP/COEP needed.
+    const base = await resolveWasmPaths()
+    ort.env.wasm.wasmPaths = {
+      wasm: new URL(`${base}${WASM_FILE}`, globalThis.location.href).toString(),
+    }
     ort.env.wasm.numThreads = 1
     ort.env.logLevel = 'error'
     ortConfigured = true

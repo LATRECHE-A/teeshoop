@@ -86,6 +86,7 @@ function Cell(props: {
 function App() {
   const q = new URLSearchParams(location.search)
   const only = q.get('only')
+  const cell = Number(q.get('cell') ?? 300)
   const [areas, setAreas] = useState(q.get('areas') !== '0')
   const [shadeAll, setShadeAll] = useState(q.get('shade') === '1')
 
@@ -139,7 +140,7 @@ function App() {
                 g={g}
                 s={s}
                 color={c}
-                size={300}
+                size={cell}
                 area={areas}
                 shade={shadeAll}
               />
@@ -153,7 +154,7 @@ function App() {
               g={g}
               s={s}
               color="#FFFFFF"
-              size={300}
+              size={cell}
               area={areas}
               shade
               label={`${g} · ${s} · body+shade (multiply)`}

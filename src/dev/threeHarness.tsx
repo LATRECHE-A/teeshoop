@@ -23,7 +23,7 @@ const PRINT_SIZES: Record<'tee' | 'hoodie', Record<Side, { wIn: number; hIn: num
  * harness approximations of what the A1 art will provide. */
 const AREA_OFFSET_Y_IN: Record<'tee' | 'hoodie', Record<Side, number>> = {
   tee: { front: -2.25, back: -1.25 },
-  hoodie: { front: -3.0, back: -1.5 },
+  hoodie: { front: -2.0, back: -1.0 },
 }
 const COLORS = ['#FFFFFF', '#191C20', '#C0272D', '#1F2A44']
 
@@ -127,8 +127,8 @@ function drawBlobCard(canvas: HTMLCanvasElement, wIn: number, hIn: number, withD
   ctx.clearRect(0, 0, w, h)
 
   const grad = ctx.createLinearGradient(0, 0, 0, h)
-  grad.addColorStop(0, '#4A515B')
-  grad.addColorStop(1, '#383F48')
+  grad.addColorStop(0, '#79828E')
+  grad.addColorStop(1, '#5C646E')
   ctx.fillStyle = grad
 
   // sleeves (drawn first, slightly darker)
@@ -141,7 +141,7 @@ function drawBlobCard(canvas: HTMLCanvasElement, wIn: number, hIn: number, withD
     ctx.fill()
     ctx.restore()
   }
-  ctx.fillStyle = '#3D444E'
+  ctx.fillStyle = '#565E68'
   sleeve(1)
   sleeve(-1)
 

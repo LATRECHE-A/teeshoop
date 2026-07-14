@@ -322,7 +322,14 @@ export default function CustomSetupModal() {
         try {
           const blob = await getAssetBlob(meta.id)
           if (blob) {
-            const cut = await removeBackground(blob)
+            // Never let a stuck removal wedge the wizard — fall back to the
+            // full photo after 90s (user can retry from Uploads later).
+            const cut = await Promise.race([
+              removeBackground(blob),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('timeout')), 90_000),
+              ),
+            ])
             setAssets(await setAssetCutout(meta.id, cut))
             invalidateCustomBBox(meta.id)
             setDraft({ ...base, useCutout: true, processing: false })

@@ -31,11 +31,8 @@ function defs(p: string): string {
 <radialGradient id="${p}-hl" cx="0.36" cy="0.28" r="0.6">
 <stop offset="0" stop-color="#fff" stop-opacity="0.10"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
 </radialGradient>
-<linearGradient id="${p}-shr" x1="0.6" y1="0" x2="1" y2="0">
-<stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.13"/>
-</linearGradient>
-<linearGradient id="${p}-shl" x1="0.2" y1="0" x2="0" y2="0">
-<stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.07"/>
+<linearGradient id="${p}-shx" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#000" stop-opacity="0.07"/><stop offset="0.18" stop-color="#000" stop-opacity="0"/><stop offset="0.62" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.13"/>
 </linearGradient>
 <linearGradient id="${p}-shb" x1="0" y1="0.76" x2="0" y2="1">
 <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.08"/>
@@ -48,8 +45,7 @@ ${grainDefs(p, 11)}
 /** Flat washes: key light top-left, right/left/bottom falloff, sleeve tones. */
 function washes(p: string): string {
   return `<rect x="24" y="36" width="752" height="736" fill="url(#${p}-hl)"/>
-<rect x="24" y="36" width="752" height="736" fill="url(#${p}-shr)"/>
-<rect x="24" y="36" width="752" height="736" fill="url(#${p}-shl)"/>
+<rect x="24" y="36" width="752" height="736" fill="url(#${p}-shx)"/>
 <rect x="24" y="36" width="752" height="736" fill="url(#${p}-shb)"/>
 <path d="${SLEEVE_R}" fill="rgba(0,0,0,0.07)"/>
 <path d="${SLEEVE_L}" fill="rgba(255,255,255,0.04)"/>`
@@ -72,47 +68,34 @@ ${collar}`
 /** Drape wrinkles — dark stroke paired with a light echo. */
 function wrinkles(front: boolean): string {
   const chest = front
-    ? `${soft('M382 398C404 407 432 407 454 399', 0.05, 4)}
-${soft('M370 468C396 477 428 477 452 469', 0.045, 4)}`
+    ? `${soft('M384 398C404 406 430 406 452 399', 0.04, 4)}
+${soft('M372 468C396 476 426 476 450 469', 0.035, 4)}`
     : `${soft('M340 294C380 304 420 304 460 294', 0.05, 4)}
 ${soft('M356 430C390 438 424 438 452 431', 0.04, 4)}`
   return `${soft('M648 310C606 330 560 342 516 346', 0.09, 4.5)}
 ${soft('M644 302C606 322 564 334 522 338', 0.05, 4, true)}
 ${soft('M152 310C192 328 234 338 276 342', 0.07, 4.5)}
 ${soft('M156 302C194 320 234 330 272 334', 0.045, 4, true)}
-${soft('M336 644C328 682 332 712 326 740', 0.09, 4.5)}
-${soft('M331 644C323 682 327 712 321 740', 0.05, 3.5, true)}
-${soft('M468 652C474 690 470 716 474 742', 0.09, 4.5)}
-${soft('M463 652C469 690 465 716 469 742', 0.05, 3.5, true)}
+${soft('M336 644C328 682 332 712 326 740M468 652C474 690 470 716 474 742', 0.09, 4.5)}
+${soft('M331 644C323 682 327 712 321 740M463 652C469 690 465 716 469 742', 0.05, 3.5, true)}
 ${chest}
 ${soft('M652 138C680 154 702 172 714 188', 0.09, 4)}
-${soft('M657 130C686 146 708 164 720 180', 0.05, 3.5, true)}
-${soft('M648 210C670 226 686 242 696 258', 0.07, 4)}
-${soft('M148 138C120 154 98 172 86 188', 0.07, 4)}
-${soft('M143 130C114 146 92 164 80 180', 0.05, 3.5, true)}
+${soft('M657 130C686 146 708 164 720 180M143 130C114 146 92 164 80 180', 0.05, 3.5, true)}
+${soft('M648 210C670 226 686 242 696 258M148 138C120 154 98 172 86 188', 0.07, 4)}
 ${soft('M152 210C130 226 114 242 104 258', 0.05, 4)}`
 }
 
 /** Crisp seams + double-needle stitching (dark line paired with light echo). */
 function seams(): string {
   return `<g fill="none" stroke-linecap="round">
-<path d="M482 56C536 66 598 83 641 102" stroke="rgba(0,0,0,0.13)" stroke-width="1.6"/>
-<path d="M481 59C535 69 597 86 639 105" stroke="rgba(255,255,255,0.07)" stroke-width="1.4"/>
-<path d="M318 56C264 66 202 83 159 102" stroke="rgba(0,0,0,0.13)" stroke-width="1.6"/>
-<path d="M319 59C265 69 203 86 161 105" stroke="rgba(255,255,255,0.07)" stroke-width="1.4"/>
-<path d="M644 102C626 152 621 236 666 296" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
-<path d="M647 104C629 155 624 238 669 298" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-<path d="M156 102C174 152 179 236 134 296" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
-<path d="M153 104C171 155 176 238 131 298" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-<path d="M744 190C738 238 718 288 684 327" stroke="rgba(0,0,0,0.13)" stroke-width="1.5"/>
-<path d="M739 188C733 236 713 286 679 324" stroke="rgba(0,0,0,0.13)" stroke-width="1.5"/>
-<path d="M747 191C741 239 721 289 687 328" stroke="rgba(255,255,255,0.07)" stroke-width="1.4"/>
-<path d="M56 190C62 238 82 288 116 327" stroke="rgba(0,0,0,0.13)" stroke-width="1.5"/>
-<path d="M61 188C67 236 87 286 121 324" stroke="rgba(0,0,0,0.13)" stroke-width="1.5"/>
-<path d="M53 191C59 239 79 289 113 328" stroke="rgba(255,255,255,0.07)" stroke-width="1.4"/>
-<path d="M651 727C566 736 478 739 400 739C322 739 234 736 149 727" stroke="rgba(0,0,0,0.13)" stroke-width="1.5"/>
-<path d="M651 733C566 742 478 745 400 745C322 745 234 742 149 733" stroke="rgba(0,0,0,0.13)" stroke-width="1.5"/>
-<path d="M650 736C566 745 478 748 400 748C322 748 234 745 150 736" stroke="rgba(255,255,255,0.07)" stroke-width="1.4"/>
+<path d="M482 56C536 66 598 83 641 102M318 56C264 66 202 83 159 102" stroke="#000" stroke-opacity="0.13" stroke-width="1.6"/>
+<path d="M481 59C535 69 597 86 639 105M319 59C265 69 203 86 161 105" stroke="#fff" stroke-opacity="0.07" stroke-width="1.4"/>
+<path d="M644 102C626 152 621 236 666 296M156 102C174 152 179 236 134 296" stroke="#000" stroke-opacity="0.14" stroke-width="1.7"/>
+<path d="M647 104C629 155 624 238 669 298M153 104C171 155 176 238 131 298" stroke="#fff" stroke-opacity="0.06" stroke-width="1.4"/>
+<path d="M744 190C738 238 718 288 684 327M739 188C733 236 713 286 679 324M56 190C62 238 82 288 116 327M61 188C67 236 87 286 121 324" stroke="#000" stroke-opacity="0.13" stroke-width="1.5"/>
+<path d="M747 191C741 239 721 289 687 328M53 191C59 239 79 289 113 328" stroke="#fff" stroke-opacity="0.07" stroke-width="1.4"/>
+<path d="M651 727C566 736 478 739 400 739C322 739 234 736 149 727M651 733C566 742 478 745 400 745C322 745 234 742 149 733" stroke="#000" stroke-opacity="0.13" stroke-width="1.5"/>
+<path d="M650 736C566 745 478 748 400 748C322 748 234 745 150 736" stroke="#fff" stroke-opacity="0.07" stroke-width="1.4"/>
 </g>`
 }
 
@@ -210,13 +193,13 @@ export const TEE: GarmentArt = {
   sides: {
     front: {
       body: body('t-f', true),
-      shade: shade('t-fs', true),
+      shade: shade('t-f', true),
       // top edge ≈3″ below the front collar seam (seam ≈ y126)
       printAreaPx: { x: 250, y: 200, w: 300, h: 400 },
     },
     back: {
       body: body('t-b', false),
-      shade: shade('t-bs', false),
+      shade: shade('t-b', false),
       // top edge ≈4″ below the back collar seam (seam ≈ y67)
       printAreaPx: { x: 250, y: 168, w: 300, h: 400 },
     },

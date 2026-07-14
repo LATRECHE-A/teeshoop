@@ -1,29 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { viteStaticCopy } from 'vite-plugin-static-copy'
 import { fileURLToPath } from 'node:url'
 
+// onnxruntime-web's wasm runtime is committed at public/ort/ (see README) —
+// only the plain single-thread+simd build; the jsep/asyncify variants are
+// >25 MiB, which Cloudflare's per-file asset limit rejects.
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    // onnxruntime-web loads its wasm binary from /ort/ at runtime. Only the
-    // plain single-thread+simd build is shipped — the jsep/asyncify variants
-    // are >25 MiB, which Cloudflare's per-file asset limit rejects.
-    viteStaticCopy({
-      targets: [
-        {
-          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
-          dest: 'ort',
-        },
-        {
-          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
-          dest: 'ort',
-        },
-      ],
-    }),
-  ],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

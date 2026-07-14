@@ -48,7 +48,8 @@ export interface CustomCardProps {
 export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
   const primary = front ?? back
   const frontTex = useSourceTexture(front)
-  const backTex = useSourceTexture(back)
+  // The back face is a π-rotated plane; u-flip so the photo isn't mirrored.
+  const backTex = useSourceTexture(back, true)
   // Missing back → the front's alpha silhouette filled with a neutral fabric
   // tone (looks like the blank reverse of the garment).
   const blankBackTex = useSilhouetteTexture(back ? null : front, BLANK_BACK)

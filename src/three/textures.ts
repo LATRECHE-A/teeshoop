@@ -25,10 +25,26 @@ function makeCanvasTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
   return tex
 }
 
-/** Live texture view of a DecalSource/CardSource canvas. */
-export function useSourceTexture(src: SourceLike | null | undefined): THREE.CanvasTexture | null {
+/**
+ * Live texture view of a DecalSource/CardSource canvas.
+ * `mirrorX` flips U (u' = 1-u) — used by the custom card's back face, which
+ * is a π-rotated plane: without the flip a real back photo would read
+ * horizontally mirrored.
+ */
+export function useSourceTexture(
+  src: SourceLike | null | undefined,
+  mirrorX = false,
+): THREE.CanvasTexture | null {
   const canvas = src?.canvas ?? null
-  const tex = useMemo(() => (canvas ? makeCanvasTexture(canvas) : null), [canvas])
+  const tex = useMemo(() => {
+    if (!canvas) return null
+    const t = makeCanvasTexture(canvas)
+    if (mirrorX) {
+      t.repeat.x = -1
+      t.offset.x = 1
+    }
+    return t
+  }, [canvas, mirrorX])
   useEffect(() => () => tex?.dispose(), [tex])
   const version = src?.version ?? 0
   useEffect(() => {

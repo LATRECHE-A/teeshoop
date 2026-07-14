@@ -6,7 +6,7 @@
  * inside a procedural studio stage. All scene math uses 1 world unit = 1 inch
  * so print decals are dimensionally exact (see src/three/calibration.ts).
  */
-import { Suspense, useCallback, useEffect, useRef, useState, type JSX, type ReactNode } from 'react'
+import { Suspense, useCallback, useEffect, useState, type JSX, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
 import { Float } from '@react-three/drei'
@@ -111,7 +111,6 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
   const reducedMotion = usePrefersReducedMotion()
   const [heightIn, setHeightIn] = useState(24)
   const onMeasured = useCallback((h: number) => setHeightIn(h), [])
-  const lostHandler = useRef<((e: Event) => void) | null>(null)
 
   if (!webgl) {
     return (
@@ -155,12 +154,12 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
           powerPreference: 'high-performance',
         }}
         onCreated={({ gl }) => {
-          const onLost = (e: Event) => {
+          // Listener lifetime is tied to this canvas element; a remount (key
+          // bump) discards both together.
+          gl.domElement.addEventListener('webglcontextlost', (e) => {
             e.preventDefault()
             setContextLost(true)
-          }
-          lostHandler.current = onLost
-          gl.domElement.addEventListener('webglcontextlost', onLost)
+          })
         }}
       >
         <StudioEnvironment />

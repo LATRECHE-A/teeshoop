@@ -58,9 +58,11 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // ~29in) — the model is a slightly cropped/boxy fit. Width mapping stays
     // 1:1 with the bbox: sleeves hang down like the 2D art.
     widthFraction: 1.0,
-    // Print-area center sits a touch high on the cropped torso; push down.
-    decalNudgeYIn: { front: 0.6, back: 0.6 },
-    decalDepthFraction: 0.15,
+    // The torso is ~0.83x the height of the 29in 2D art, so 2D print-area
+    // offsets land too close to the collar; push down and use a slightly
+    // deeper projector so the top decal rows survive the shoulder curvature.
+    decalNudgeYIn: { front: 1.2, back: 1.2 },
+    decalDepthFraction: 0.18,
     decalInset: 0.22,
     roughness: 0.94,
     envMapIntensity: 1.0,
@@ -73,9 +75,14 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // the sleeves stand away from the body, hence widthFraction < 1.
     url: '/models/hoodie.glb',
     rotateY: 0,
-    widthFraction: 0.8,
-    decalNudgeYIn: { front: 0, back: 0 },
-    decalDepthFraction: 0.15,
+    // A-pose arms inflate the bbox; measured against the 12in grid decal,
+    // 0.66 puts the body (pit-to-pit) at ~22in for a 23in laid-flat hoodie.
+    widthFraction: 0.66,
+    // Keep prints clear of the hood: front sits between drawcords and pocket;
+    // the back print must start BELOW the hanging hood or its projector
+    // catches the hood's top fold (seen as smears from the front).
+    decalNudgeYIn: { front: 1.2, back: 2.2 },
+    decalDepthFraction: 0.18,
     decalInset: 0.22,
     roughness: 0.92,
     envMapIntensity: 1.0,

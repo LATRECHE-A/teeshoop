@@ -62,6 +62,15 @@ export function StudioEnvironment() {
         scale={[2.5, 6, 1]}
         target={[0, 0, 0]}
       />
+      {/* rear fill — keeps the BACK view legible (it faces away from the key) */}
+      <Lightformer
+        form="rect"
+        intensity={1.5}
+        color="#e6ecf5"
+        position={[-2, 4.5, -8]}
+        scale={[7, 4.5, 1]}
+        target={[0, 0, 0]}
+      />
     </Environment>
   )
 }
