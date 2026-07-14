@@ -399,7 +399,12 @@ export class EditorEngine {
     if (seq !== this.syncSeq || this.destroyed) return
 
     this.layout = layout
-    await this.updateGarmentVisual(design, side)
+    try {
+      await this.updateGarmentVisual(design, side)
+    } catch {
+      // A garment raster that fails to decode must not blank the editor —
+      // keep the previous visual and still render layers + outline.
+    }
     if (seq !== this.syncSeq || this.destroyed) return
     this.updateAreaOutline()
 
