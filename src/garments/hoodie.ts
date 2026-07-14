@@ -3,45 +3,49 @@
  *
  * viewBox 0 0 800 800 · 25 px/inch · chest width 23″ (575 px) · length ≈29″.
  * Front and back share ONE outer silhouette (body + steep hanging sleeves +
- * ribbed cuffs + ribbed waistband + hood dome above the shoulders). The front
- * shows the lined hood opening V with drawcords + kangaroo pocket; the back
- * shows the hood hanging over the yoke. Shading is paired dark≈14% /
- * light≈8% so it reads on white AND black garments; everything is clipped to
- * the silhouette. Blurred shapes are batched into a few filter groups.
+ * ribbed cuffs + ribbed waistband + generous hood dome above the shoulders).
+ * Front: wide lined hood opening, crossed rim bands, drawcords with aglets,
+ * kangaroo pocket below the print area. Back: hood hanging over the yoke.
+ * Shading is paired dark≈14% / light≈8%; everything clipped to the silhouette.
+ * No feGaussianBlur in body art (see soft.ts) — cheap on software rasterizers.
  */
 import type { GarmentArt } from '@/lib/types'
+import { blob, grainDefs, grainRect, soft, softDefs } from './soft'
 
-/** Outer silhouette — identical for front/back. Bounds x 26..774, y 42..766. */
+/** Outer silhouette — identical for front/back. Bounds x 34..766, y 40..762. */
 const SIL =
-  'M250 102C262 64 326 42 400 42C474 42 538 64 550 102' +
-  'C596 116 646 134 674 152C738 192 766 262 772 350C778 448 770 556 755 642' +
-  'C752 668 748 690 740 710C722 713 700 715 682 715C681 730 680 745 678 758' +
-  'C590 764 490 766 400 766C310 766 210 764 122 758C120 745 119 730 118 715' +
-  'C100 715 78 713 60 710C52 690 48 668 45 642C30 556 22 448 28 350' +
-  'C34 262 62 192 126 152C154 134 204 116 250 102Z'
+  'M246 102C258 62 320 40 400 40C480 40 542 62 554 102' +
+  'C598 114 648 132 676 150C726 182 754 254 764 346C770 442 762 552 752 640' +
+  'C749 666 744 690 738 708C720 710 700 706 684 700C682 720 680 738 678 754' +
+  'C590 760 490 762 400 762C310 762 210 760 122 754C120 738 118 720 116 700' +
+  'C100 706 80 710 62 708C56 690 51 666 48 640C38 552 30 442 36 346' +
+  'C46 254 74 182 124 150C152 132 202 114 246 102Z'
 
 const SLEEVE_R =
-  'M674 152C738 192 766 262 772 350C778 448 770 556 755 642C726 647 696 649 666 648C658 570 650 470 646 348C646 280 652 210 674 152Z'
+  'M676 150C726 182 754 254 764 346C770 442 762 552 752 640C726 646 696 651 668 650C660 570 654 470 650 352C646 285 654 205 676 150Z'
 const SLEEVE_L =
-  'M126 152C62 192 34 262 28 350C22 448 30 556 45 642C74 647 104 649 134 648C142 570 150 470 154 348C154 280 148 210 126 152Z'
+  'M124 150C74 182 46 254 36 346C30 442 38 552 48 640C74 646 104 651 132 650C140 570 146 470 150 352C154 285 146 205 124 150Z'
 const CUFF_R =
-  'M755 642C752 668 748 690 740 710C712 714 684 718 658 720C658 700 660 672 666 648C696 649 726 647 755 642Z'
+  'M752 640C749 666 744 690 738 708C720 710 700 706 684 700C678 682 672 664 668 650C696 651 726 646 752 640Z'
 const CUFF_L =
-  'M45 642C48 668 52 690 60 710C88 714 116 718 142 720C142 700 140 672 134 648C104 649 74 647 45 642Z'
+  'M48 640C51 666 56 690 62 708C80 710 100 706 116 700C122 682 128 664 132 650C104 651 74 646 48 640Z'
 const BAND =
-  'M118 697C240 702 560 702 682 697C681 715 680 738 678 758C590 764 490 766 400 766C310 766 210 764 122 758C120 738 119 715 118 697Z'
+  'M116 700C240 704 560 704 684 700C682 720 680 738 678 754C590 760 490 762 400 762C310 762 210 760 122 754C120 738 118 720 116 700Z'
 const POCKET =
-  'M262 578C350 581 450 581 538 578C556 618 572 656 585 690C470 697 330 697 215 691C228 656 244 618 262 578Z'
+  'M262 578C350 581 450 581 538 578C556 618 573 658 588 694C470 700 330 700 212 694C227 658 244 618 262 578Z'
 const LINING =
-  'M312 92C340 76 460 76 488 92C470 136 436 172 408 204L400 211L392 204C364 172 330 136 312 92Z'
+  'M306 88C336 70 464 70 494 88C478 140 446 172 410 196L400 202L390 196C354 172 322 140 306 88Z'
 /** Hood hanging over the back — bottom edge sweep. */
 const HOOD_BACK =
-  'M250 102C246 150 258 196 292 224C330 250 366 243 400 243C434 243 470 250 508 224C542 196 554 150 550 102'
+  'M246 102C242 152 256 198 290 226C328 252 364 245 400 245C436 245 472 252 510 226C544 198 558 152 554 102'
 
 function defs(p: string): string {
   return `<defs>
 <path id="${p}-sil" d="${SIL}"/>
 <clipPath id="${p}-clip"><use href="#${p}-sil"/></clipPath>
+<clipPath id="${p}-ckr"><path d="${CUFF_R}"/></clipPath>
+<clipPath id="${p}-ckl"><path d="${CUFF_L}"/></clipPath>
+<clipPath id="${p}-bk"><path d="${BAND}"/></clipPath>
 <radialGradient id="${p}-hl" cx="0.36" cy="0.26" r="0.62">
 <stop offset="0" stop-color="#fff" stop-opacity="0.10"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
 </radialGradient>
@@ -54,227 +58,239 @@ function defs(p: string): string {
 <linearGradient id="${p}-shb" x1="0" y1="0.78" x2="0" y2="1">
 <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.08"/>
 </linearGradient>
-<filter id="${p}-b3" x="-8%" y="-8%" width="116%" height="116%"><feGaussianBlur stdDeviation="3"/></filter>
-<filter id="${p}-b6" x="-12%" y="-12%" width="124%" height="124%"><feGaussianBlur stdDeviation="6"/></filter>
-<filter id="${p}-b8" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="8"/></filter>
-<filter id="${p}-gr" x="-2%" y="-2%" width="104%" height="104%">
-<feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="1" seed="23" stitchTiles="stitch"/>
-<feColorMatrix type="matrix" values="0 0 0 0 0.62 0 0 0 0 0.62 0 0 0 0 0.62 0.35 0.35 0.35 0 0"/>
-</filter>
+${softDefs(p)}
+${grainDefs(p, 23)}
 </defs>`
 }
 
 /** Unfiltered fills: washes, sleeve/cuff/band tones, pocket + lining bases. */
 function baseFills(p: string, front: boolean): string {
-  return `<rect width="800" height="800" fill="url(#${p}-hl)"/>
-<rect width="800" height="800" fill="url(#${p}-shr)"/>
-<rect width="800" height="800" fill="url(#${p}-shl)"/>
-<rect width="800" height="800" fill="url(#${p}-shb)"/>
+  return `<rect x="26" y="34" width="748" height="736" fill="url(#${p}-hl)"/>
+<rect x="26" y="34" width="748" height="736" fill="url(#${p}-shr)"/>
+<rect x="26" y="34" width="748" height="736" fill="url(#${p}-shl)"/>
+<rect x="26" y="34" width="748" height="736" fill="url(#${p}-shb)"/>
 <path d="${SLEEVE_R}" fill="rgba(0,0,0,0.06)"/>
 <path d="${SLEEVE_L}" fill="rgba(255,255,255,0.035)"/>
 <path d="${CUFF_R}" fill="rgba(0,0,0,0.05)"/>
 <path d="${CUFF_L}" fill="rgba(0,0,0,0.05)"/>
 <path d="${BAND}" fill="rgba(0,0,0,0.05)"/>
-${front ? `<path d="${POCKET}" fill="rgba(255,255,255,0.035)"/>\n<path d="${LINING}" fill="rgba(0,0,0,0.32)"/>` : ''}`
+${front ? `<path d="${POCKET}" fill="rgba(255,255,255,0.035)"/>` : ''}`
 }
 
-/** One blurred group (σ=6): big soft shadows + volume highlights. */
-function softB6(p: string, front: boolean): string {
-  const side = front
-    ? `<ellipse cx="350" cy="62" rx="86" ry="18" transform="rotate(-6 350 62)" fill="rgba(255,255,255,0.07)"/>
-<circle cx="400" cy="196" r="12" fill="rgba(0,0,0,0.18)"/>
-<path d="M266 584C350 587 450 587 534 584" fill="none" stroke="rgba(0,0,0,0.09)" stroke-width="9"/>`
-    : `<ellipse cx="348" cy="98" rx="88" ry="38" transform="rotate(-12 348 98)" fill="rgba(255,255,255,0.06)"/>
-<path d="M520 130C530 170 520 205 500 222" fill="none" stroke="rgba(0,0,0,0.09)" stroke-width="8" stroke-linecap="round"/>`
-  return `<g filter="url(#${p}-b6)">
-<path d="M672 156C732 196 760 264 766 350C772 446 764 554 750 638" fill="none" stroke="rgba(0,0,0,0.07)" stroke-width="9"/>
-<ellipse cx="652" cy="360" rx="18" ry="30" transform="rotate(-15 652 360)" fill="rgba(0,0,0,0.11)"/>
-<ellipse cx="148" cy="360" rx="18" ry="30" transform="rotate(15 148 360)" fill="rgba(0,0,0,0.08)"/>
-<path d="M640 352C644 470 652 570 660 646" fill="none" stroke="rgba(0,0,0,0.12)" stroke-width="8"/>
-<path d="M160 352C156 470 148 570 140 646" fill="none" stroke="rgba(0,0,0,0.09)" stroke-width="8"/>
-<ellipse cx="688" cy="714" rx="20" ry="9" fill="rgba(0,0,0,0.12)"/>
-<ellipse cx="112" cy="714" rx="20" ry="9" fill="rgba(0,0,0,0.10)"/>
-${side}
+/** Soft shadows/highlights common to both sides. */
+function softCommon(p: string): string {
+  return `${soft('M674 154C722 186 750 258 760 346C766 442 758 552 748 636', 0.07, 9)}
+${blob(p, 656, 368, 26, 40, -12, 0.11)}
+${blob(p, 144, 368, 26, 40, 12, 0.08)}
+${soft('M644 356C648 470 654 570 662 648', 0.12, 8)}
+${soft('M156 356C152 470 146 570 138 648', 0.09, 8)}
+${blob(p, 690, 704, 18, 8, 0, 0.1)}
+${blob(p, 110, 704, 18, 8, 0, 0.08)}
+${soft('M118 697C240 702 560 702 682 697', 0.08, 5)}`
+}
+
+/** Sleeve drape rings + cuff gathers, both arms. */
+function sleeveFolds(): string {
+  return `${soft('M692 330C714 322 732 324 750 316', 0.08, 4)}
+${soft('M690 323C712 315 730 317 748 309', 0.045, 3.5, true)}
+${soft('M690 444C714 436 734 440 754 432', 0.07, 4)}
+${soft('M688 437C712 429 732 433 752 425', 0.04, 3.5, true)}
+${soft('M696 556C714 550 732 552 748 546', 0.06, 4)}
+${soft('M694 549C712 543 730 545 746 539', 0.035, 3.5, true)}
+${soft('M108 330C86 322 68 324 50 316', 0.06, 4)}
+${soft('M110 323C88 315 70 317 52 309', 0.04, 3.5, true)}
+${soft('M110 444C86 436 66 440 46 432', 0.055, 4)}
+${soft('M112 437C88 429 68 433 48 425', 0.035, 3.5, true)}
+${soft('M104 556C86 550 68 552 52 546', 0.05, 4)}
+${soft('M690 610L697 641', 0.1, 3)}
+${soft('M712 604L715 639', 0.1, 3)}
+${soft('M733 600L734 637', 0.09, 3)}
+${soft('M703 607L707 640', 0.05, 2.5, true)}
+${soft('M723 602L724 638', 0.05, 2.5, true)}
+${soft('M110 610L103 641', 0.09, 3)}
+${soft('M88 604L85 639', 0.09, 3)}
+${soft('M67 600L66 637', 0.08, 3)}
+${soft('M97 607L93 640', 0.05, 2.5, true)}
+${soft('M77 602L76 638', 0.05, 2.5, true)}`
+}
+
+/** Body folds per side. */
+function bodyFolds(front: boolean): string {
+  if (front) {
+    return `${soft('M632 386C578 402 532 408 504 408', 0.09, 5)}
+${soft('M628 378C580 394 536 400 508 400', 0.05, 4, true)}
+${soft('M168 386C222 402 268 408 296 408', 0.07, 5)}
+${soft('M172 378C220 394 264 400 292 400', 0.04, 4, true)}
+${soft('M372 430C398 440 432 440 458 432', 0.05, 4)}
+${soft('M366 500C394 509 428 509 454 501', 0.04, 4)}
+${soft('M336 542C333 556 335 566 333 574', 0.06, 3.5)}
+${soft('M462 544C465 558 463 568 465 575', 0.06, 3.5)}`
+  }
+  return `${soft('M342 282C338 350 344 420 340 480', 0.06, 4)}
+${soft('M336 282C332 350 338 420 334 480', 0.04, 3.5, true)}
+${soft('M458 285C462 353 456 423 460 483', 0.06, 4)}
+${soft('M464 285C468 353 462 423 466 483', 0.04, 3.5, true)}
+${soft('M632 400C578 416 530 424 494 426', 0.08, 5)}
+${soft('M628 392C580 408 534 416 500 418', 0.05, 4, true)}
+${soft('M168 400C222 416 270 424 306 426', 0.06, 5)}
+${soft('M172 392C220 408 266 416 300 418', 0.04, 4, true)}
+${soft('M362 600C356 640 360 668 356 690', 0.06, 4)}
+${soft('M357 600C351 640 355 668 351 690', 0.04, 3.5, true)}
+${soft('M442 604C448 644 444 672 448 692', 0.06, 4)}
+${soft('M447 604C453 644 449 672 453 692', 0.04, 3.5, true)}`
+}
+
+/** Ribbing ticks (clipped) + crisp seams shared by both sides. */
+function ribsAndSeams(p: string): string {
+  return `<g clip-path="url(#${p}-ckr)" fill="none" stroke-linecap="butt">
+<path d="M668 676C696 673 722 670 750 670" stroke="rgba(0,0,0,0.10)" stroke-width="76" stroke-dasharray="1.8 3.1"/>
+<path d="M668 676C696 673 722 670 750 670" stroke="rgba(255,255,255,0.055)" stroke-width="76" stroke-dasharray="1.8 3.1" stroke-dashoffset="2.45"/>
+</g>
+<g clip-path="url(#${p}-ckl)" fill="none" stroke-linecap="butt">
+<path d="M132 676C104 673 78 670 50 670" stroke="rgba(0,0,0,0.10)" stroke-width="76" stroke-dasharray="1.8 3.1"/>
+<path d="M132 676C104 673 78 670 50 670" stroke="rgba(255,255,255,0.055)" stroke-width="76" stroke-dasharray="1.8 3.1" stroke-dashoffset="2.45"/>
+</g>
+<g clip-path="url(#${p}-bk)" fill="none" stroke-linecap="butt">
+<path d="M116 730C300 734 500 734 684 730" stroke="rgba(0,0,0,0.095)" stroke-width="58" stroke-dasharray="2 3.4"/>
+<path d="M116 730C300 734 500 734 684 730" stroke="rgba(255,255,255,0.055)" stroke-width="58" stroke-dasharray="2 3.4" stroke-dashoffset="2.7"/>
+</g>
+<g fill="none" stroke-linecap="round">
+<path d="M676 152C654 205 646 285 650 350" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
+<path d="M679 154C657 207 649 287 653 352" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
+<path d="M124 152C146 205 154 285 150 350" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
+<path d="M121 154C143 207 151 287 147 352" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
+<path d="M650 352C654 470 660 570 668 648" stroke="rgba(0,0,0,0.15)" stroke-width="1.8"/>
+<path d="M653 354C657 470 663 570 671 648" stroke="rgba(255,255,255,0.05)" stroke-width="2.2"/>
+<path d="M150 352C146 470 140 570 132 648" stroke="rgba(0,0,0,0.15)" stroke-width="1.8"/>
+<path d="M147 354C143 470 137 570 129 648" stroke="rgba(255,255,255,0.05)" stroke-width="2.2"/>
+<path d="M752 641C726 647 696 652 668 651" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
+<path d="M752 643.5C726 649.5 696 654.5 668 653.5" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
+<path d="M48 641C74 647 104 652 132 651" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
+<path d="M48 643.5C74 649.5 104 654.5 132 653.5" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
+<path d="M116 701C240 706 560 706 684 701" stroke="rgba(0,0,0,0.15)" stroke-width="1.8"/>
+<path d="M116 703.5C240 708.5 560 708.5 684 703.5" stroke="rgba(255,255,255,0.07)" stroke-width="1.4"/>
+<path d="M684 703L678 752" stroke="rgba(0,0,0,0.10)" stroke-width="1.5"/>
+<path d="M116 703L122 752" stroke="rgba(0,0,0,0.10)" stroke-width="1.5"/>
+<path d="M556 104C598 118 648 136 674 150" stroke="rgba(0,0,0,0.12)" stroke-width="1.6"/>
+<path d="M555 107C597 121 647 139 672 152" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
+<path d="M244 104C202 118 152 136 126 150" stroke="rgba(0,0,0,0.12)" stroke-width="1.6"/>
+<path d="M245 107C203 121 153 139 128 152" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
 </g>`
 }
 
-/** One blurred group (σ=3): folds, drape rings, gathers, soft contacts. */
-function softB3(p: string, front: boolean): string {
-  const side = front
-    ? `<path d="M640 380C570 400 500 408 462 408" stroke="rgba(0,0,0,0.09)" stroke-width="5"/>
-<path d="M636 372C572 392 506 400 468 400" stroke="rgba(255,255,255,0.05)" stroke-width="4"/>
-<path d="M160 380C230 398 296 406 334 406" stroke="rgba(0,0,0,0.07)" stroke-width="5"/>
-<path d="M164 372C232 390 296 398 330 398" stroke="rgba(255,255,255,0.04)" stroke-width="4"/>
-<path d="M372 430C398 440 432 440 458 432" stroke="rgba(0,0,0,0.05)" stroke-width="4"/>
-<path d="M366 500C394 509 428 509 454 501" stroke="rgba(0,0,0,0.04)" stroke-width="4"/>
-<path d="M336 540C333 556 335 566 333 574" stroke="rgba(0,0,0,0.06)" stroke-width="3.5"/>
-<path d="M462 542C465 558 463 568 465 575" stroke="rgba(0,0,0,0.06)" stroke-width="3.5"/>
-<path d="M540 582C557 620 572 656 583 686" stroke="rgba(0,0,0,0.13)" stroke-width="5"/>
-<path d="M260 582C243 620 228 656 217 686" stroke="rgba(0,0,0,0.11)" stroke-width="5"/>
-<path d="M336 604C332 640 336 668 332 690" stroke="rgba(0,0,0,0.06)" stroke-width="4"/>
-<path d="M331 604C327 640 331 668 327 690" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M468 606C472 642 468 670 472 690" stroke="rgba(0,0,0,0.06)" stroke-width="4"/>
-<path d="M473 606C477 642 473 670 477 690" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M220 689C330 695 470 695 582 689" stroke="rgba(0,0,0,0.07)" stroke-width="4"/>
-<path d="M254 100C270 92 288 88 306 90" stroke="rgba(0,0,0,0.10)" stroke-width="6"/>
-<path d="M546 100C530 92 512 88 494 90" stroke="rgba(0,0,0,0.12)" stroke-width="6"/>
-<path d="M330 70C334 78 342 84 352 88" stroke="rgba(0,0,0,0.08)" stroke-width="3"/>
-<path d="M470 70C466 78 458 84 448 88" stroke="rgba(0,0,0,0.08)" stroke-width="3"/>
-<path d="M316 92C344 79 456 79 484 92" stroke="rgba(0,0,0,0.22)" stroke-width="7"/>
-<path d="M352 106C356 134 366 158 376 176" stroke="rgba(255,255,255,0.05)" stroke-width="3"/>
-<path d="M400 110C400 140 400 170 400 192" stroke="rgba(0,0,0,0.12)" stroke-width="3"/>
-<path d="M448 106C444 134 434 158 424 176" stroke="rgba(255,255,255,0.04)" stroke-width="3"/>`
-    : `<path d="M342 282C338 350 344 420 340 480" stroke="rgba(0,0,0,0.06)" stroke-width="4"/>
-<path d="M336 282C332 350 338 420 334 480" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M458 285C462 353 456 423 460 483" stroke="rgba(0,0,0,0.06)" stroke-width="4"/>
-<path d="M464 285C468 353 462 423 466 483" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M638 400C580 416 528 424 492 426" stroke="rgba(0,0,0,0.08)" stroke-width="5"/>
-<path d="M634 392C582 408 534 416 498 418" stroke="rgba(255,255,255,0.05)" stroke-width="4"/>
-<path d="M162 400C220 416 272 424 308 426" stroke="rgba(0,0,0,0.06)" stroke-width="5"/>
-<path d="M166 392C222 408 274 416 310 418" stroke="rgba(255,255,255,0.04)" stroke-width="4"/>
-<path d="M362 600C356 640 360 668 356 690" stroke="rgba(0,0,0,0.06)" stroke-width="4"/>
-<path d="M357 600C351 640 355 668 351 690" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M442 604C448 644 444 672 448 692" stroke="rgba(0,0,0,0.06)" stroke-width="4"/>
-<path d="M447 604C453 644 449 672 453 692" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M332 116C324 156 332 198 350 222" stroke="rgba(0,0,0,0.10)" stroke-width="4"/>
-<path d="M326 112C318 154 326 196 344 220" stroke="rgba(255,255,255,0.05)" stroke-width="3.5"/>
-<path d="M468 116C476 156 468 198 450 222" stroke="rgba(0,0,0,0.10)" stroke-width="4"/>
-<path d="M474 112C482 154 474 196 456 220" stroke="rgba(255,255,255,0.05)" stroke-width="3.5"/>
-<path d="M368 208C378 222 390 228 398 229" stroke="rgba(0,0,0,0.08)" stroke-width="3"/>
-<path d="M432 208C422 222 410 228 402 229" stroke="rgba(0,0,0,0.08)" stroke-width="3"/>`
-  return `<g fill="none" stroke-linecap="round" filter="url(#${p}-b3)">
-<path d="M688 318C708 310 726 312 744 304" stroke="rgba(0,0,0,0.09)" stroke-width="4"/>
-<path d="M686 311C706 303 726 305 742 297" stroke="rgba(255,255,255,0.05)" stroke-width="3.5"/>
-<path d="M684 432C706 424 726 428 748 420" stroke="rgba(0,0,0,0.08)" stroke-width="4"/>
-<path d="M682 425C704 417 724 421 746 413" stroke="rgba(255,255,255,0.045)" stroke-width="3.5"/>
-<path d="M690 546C708 540 724 542 742 536" stroke="rgba(0,0,0,0.07)" stroke-width="4"/>
-<path d="M688 539C706 533 722 535 740 529" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M112 318C92 310 74 312 56 304" stroke="rgba(0,0,0,0.07)" stroke-width="4"/>
-<path d="M114 311C94 303 74 305 58 297" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M116 432C94 424 74 428 52 420" stroke="rgba(0,0,0,0.06)" stroke-width="4"/>
-<path d="M118 425C96 417 76 421 54 413" stroke="rgba(255,255,255,0.04)" stroke-width="3.5"/>
-<path d="M110 546C92 540 76 542 58 536" stroke="rgba(0,0,0,0.05)" stroke-width="4"/>
-<path d="M694 612L700 642" stroke="rgba(0,0,0,0.10)" stroke-width="3"/>
-<path d="M716 606L718 640" stroke="rgba(0,0,0,0.10)" stroke-width="3"/>
-<path d="M736 602L736 638" stroke="rgba(0,0,0,0.09)" stroke-width="3"/>
-<path d="M706 610L710 641" stroke="rgba(255,255,255,0.05)" stroke-width="2.5"/>
-<path d="M726 604L727 639" stroke="rgba(255,255,255,0.05)" stroke-width="2.5"/>
-<path d="M106 612L100 642" stroke="rgba(0,0,0,0.09)" stroke-width="3"/>
-<path d="M84 606L82 640" stroke="rgba(0,0,0,0.09)" stroke-width="3"/>
-<path d="M64 602L64 638" stroke="rgba(0,0,0,0.08)" stroke-width="3"/>
-<path d="M94 610L90 641" stroke="rgba(255,255,255,0.05)" stroke-width="2.5"/>
-<path d="M74 604L73 639" stroke="rgba(255,255,255,0.05)" stroke-width="2.5"/>
-<path d="M120 694C240 699 560 699 680 694" stroke="rgba(0,0,0,0.08)" stroke-width="5"/>
-${side}
-</g>`
-}
-
-/** Crisp lines: seams, edges, stitches, ribbing ticks. */
-function crisp(front: boolean): string {
-  const ribs = `<g fill="none" stroke-linecap="butt">
-<path d="M662 684C690 682 718 678 747 676" stroke="rgba(0,0,0,0.10)" stroke-width="74" stroke-dasharray="1.8 3.1"/>
-<path d="M662 684C690 682 718 678 747 676" stroke="rgba(255,255,255,0.055)" stroke-width="74" stroke-dasharray="1.8 3.1" stroke-dashoffset="2.45"/>
-<path d="M138 684C110 682 82 678 53 676" stroke="rgba(0,0,0,0.10)" stroke-width="74" stroke-dasharray="1.8 3.1"/>
-<path d="M138 684C110 682 82 678 53 676" stroke="rgba(255,255,255,0.055)" stroke-width="74" stroke-dasharray="1.8 3.1" stroke-dashoffset="2.45"/>
-<path d="M126 730C300 734 500 734 674 730" stroke="rgba(0,0,0,0.095)" stroke-width="52" stroke-dasharray="2 3.4"/>
-<path d="M126 730C300 734 500 734 674 730" stroke="rgba(255,255,255,0.055)" stroke-width="52" stroke-dasharray="2 3.4" stroke-dashoffset="2.7"/>
-</g>`
-  const seams = `<g fill="none" stroke-linecap="round">
-<path d="M672 154C652 210 646 280 646 346" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
-<path d="M675 156C655 212 649 282 649 348" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-<path d="M128 154C148 210 154 280 154 346" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
-<path d="M125 156C145 212 151 282 151 348" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-<path d="M646 350C650 470 658 570 666 646" stroke="rgba(0,0,0,0.15)" stroke-width="1.8"/>
-<path d="M649 352C653 470 661 570 669 646" stroke="rgba(255,255,255,0.05)" stroke-width="2.5"/>
-<path d="M154 350C150 470 142 570 134 646" stroke="rgba(0,0,0,0.15)" stroke-width="1.8"/>
-<path d="M151 352C147 470 139 570 131 646" stroke="rgba(255,255,255,0.05)" stroke-width="2.5"/>
-<path d="M755 643C726 648 696 650 666 649" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
-<path d="M755 645.5C726 650.5 696 652.5 666 651.5" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-<path d="M45 643C74 648 104 650 134 649" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
-<path d="M45 645.5C74 650.5 104 652.5 134 651.5" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-<path d="M118 698C240 703 560 703 682 698" stroke="rgba(0,0,0,0.15)" stroke-width="1.8"/>
-<path d="M118 700.5C240 705.5 560 705.5 682 700.5" stroke="rgba(255,255,255,0.07)" stroke-width="1.4"/>
-<path d="M682 700L678 756" stroke="rgba(0,0,0,0.10)" stroke-width="1.5"/>
-<path d="M118 700L122 756" stroke="rgba(0,0,0,0.10)" stroke-width="1.5"/>
-<path d="M552 104C596 118 646 136 672 152" stroke="rgba(0,0,0,0.12)" stroke-width="1.6"/>
-<path d="M551 107C595 121 645 139 670 154" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-<path d="M248 104C204 118 154 136 128 152" stroke="rgba(0,0,0,0.12)" stroke-width="1.6"/>
-<path d="M249 107C205 121 155 139 130 154" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-</g>`
-  const pocketEdges = `<g fill="none" stroke-linecap="round">
+/** Kangaroo pocket details (front only). */
+function pocket(): string {
+  return `${soft('M266 584C350 587 450 587 534 584', 0.09, 9)}
+${soft('M540 582C558 621 573 659 585 691', 0.13, 5)}
+${soft('M260 582C242 621 227 659 215 691', 0.11, 5)}
+${soft('M336 604C332 640 336 668 332 690', 0.06, 4)}
+${soft('M331 604C327 640 331 668 327 690', 0.04, 3.5, true)}
+${soft('M468 606C472 642 468 670 472 690', 0.06, 4)}
+${soft('M473 606C477 642 473 670 477 690', 0.04, 3.5, true)}
+${soft('M218 692C330 698 470 698 584 692', 0.07, 4)}
+<g fill="none" stroke-linecap="round">
 <path d="M262 575.5C350 578.5 450 578.5 538 575.5" stroke="rgba(255,255,255,0.07)" stroke-width="1.4"/>
 <path d="M262 578C350 581 450 581 538 578" stroke="rgba(0,0,0,0.15)" stroke-width="1.7"/>
 <path d="M266 585C350 588 450 588 534 585" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
 <path d="M266 591C350 594 450 594 534 591" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
 <path d="M266 594C350 597 450 597 534 594" stroke="rgba(255,255,255,0.05)" stroke-width="1.2"/>
-<path d="M538 578C556 618 572 656 585 690" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
-<path d="M262 578C244 618 228 656 215 691" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
-<path d="M528 582C545 620 560 655 573 688" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
-<path d="M521 585C538 622 552 656 565 689" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
-<path d="M532 581C549 619 564 654 577 687" stroke="rgba(255,255,255,0.05)" stroke-width="1.2"/>
-<path d="M272 582C255 620 240 655 227 688" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
-<path d="M279 585C262 622 248 656 235 689" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
-<path d="M268 581C251 619 236 654 223 687" stroke="rgba(255,255,255,0.05)" stroke-width="1.2"/>
+<path d="M538 578C556 618 573 658 588 694" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
+<path d="M262 578C244 618 227 658 212 694" stroke="rgba(0,0,0,0.14)" stroke-width="1.7"/>
+<path d="M528 582C545 621 561 658 575 692" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
+<path d="M521 585C538 624 554 660 567 693" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
+<path d="M532 581C549 620 565 657 579 691" stroke="rgba(255,255,255,0.05)" stroke-width="1.2"/>
+<path d="M272 582C255 621 239 658 225 692" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
+<path d="M279 585C262 624 246 660 233 693" stroke="rgba(0,0,0,0.11)" stroke-width="1.3"/>
+<path d="M268 581C251 620 235 657 221 691" stroke="rgba(255,255,255,0.05)" stroke-width="1.2"/>
 </g>`
-  const hoodFront = `<g fill="none" stroke-linecap="round">
-<path d="M373 197C368 219 362 231 356 245" stroke="rgba(0,0,0,0.30)" stroke-width="7"/>
-<path d="M373 197C368 219 362 231 356 245" stroke="#D8DBDE" stroke-width="4.6"/>
-<path d="M427 197C433 220 440 233 445 247" stroke="rgba(0,0,0,0.30)" stroke-width="7"/>
-<path d="M427 197C433 220 440 233 445 247" stroke="#D8DBDE" stroke-width="4.6"/>
-<path d="M356 245L351 260" stroke="rgba(0,0,0,0.30)" stroke-width="8"/>
-<path d="M356 245L351 260" stroke="#AEB4BC" stroke-width="5.6"/>
-<path d="M354.5 247.5L352.5 253.5" stroke="rgba(255,255,255,0.35)" stroke-width="1.4"/>
-<path d="M445 247L449 262" stroke="rgba(0,0,0,0.30)" stroke-width="8"/>
-<path d="M445 247L449 262" stroke="#AEB4BC" stroke-width="5.6"/>
-<path d="M446 249.5L447.6 255.5" stroke="rgba(255,255,255,0.35)" stroke-width="1.4"/>
-</g>
+}
+
+/** Front: generous dome, wide lined opening, crossed rims, cords, grommets. */
+function hoodFront(p: string): string {
+  return `<g>
+${blob(p, 345, 60, 100, 20, -6, 0.09, true)}
+${soft('M250 100C266 92 284 88 302 90', 0.1, 6)}
+${soft('M550 100C534 92 516 88 498 90', 0.12, 6)}
+${soft('M326 66C330 74 340 82 350 86', 0.08, 3)}
+${soft('M474 66C470 74 460 82 450 86', 0.08, 3)}
+<path d="${LINING}" fill="rgba(0,0,0,0.32)"/>
+${soft('M310 88C340 74 460 74 490 88', 0.2, 7)}
+${soft('M348 102C354 130 364 152 374 170', 0.05, 3, true)}
+${soft('M400 106C400 134 400 162 400 186', 0.12, 3)}
+${soft('M452 102C446 130 436 152 426 170', 0.04, 3, true)}
+${blob(p, 400, 188, 16, 14, 0, 0.16)}
 <g fill="none">
-<path d="M488 92C468 138 435 176 404 210" stroke="__COLOR__" stroke-width="14"/>
-<path d="M488 92C468 138 435 176 404 210" stroke="rgba(0,0,0,0.06)" stroke-width="14"/>
-<path d="M494 95C474 141 441 181 409 215" stroke="rgba(0,0,0,0.16)" stroke-width="1.5"/>
-<path d="M482 89C462 135 429 171 399 205" stroke="rgba(0,0,0,0.12)" stroke-width="1.3"/>
-<path d="M491 94C471 140 438 179 406 213" stroke="rgba(0,0,0,0.09)" stroke-width="1.1"/>
-<path d="M486 91C466 137 433 174 402 208" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
-<path d="M312 92C332 138 365 176 396 210" stroke="__COLOR__" stroke-width="14"/>
-<path d="M312 92C332 138 365 176 396 210" stroke="rgba(255,255,255,0.05)" stroke-width="14"/>
-<path d="M306 95C326 141 359 181 391 215" stroke="rgba(0,0,0,0.16)" stroke-width="1.5"/>
-<path d="M318 89C338 135 371 171 401 205" stroke="rgba(0,0,0,0.12)" stroke-width="1.3"/>
-<path d="M309 94C329 140 362 179 394 213" stroke="rgba(0,0,0,0.09)" stroke-width="1.1"/>
-<path d="M314 91C334 137 367 174 398 208" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+<path d="M494 88C480 136 448 172 410 202" stroke="__COLOR__" stroke-width="15"/>
+<path d="M494 88C480 136 448 172 410 202" stroke="rgba(0,0,0,0.06)" stroke-width="15"/>
+<path d="M501 90C487 138 455 176 415 208" stroke="rgba(0,0,0,0.16)" stroke-width="1.5"/>
+<path d="M487 86C473 134 441 168 405 196" stroke="rgba(0,0,0,0.12)" stroke-width="1.3"/>
+<path d="M492 88C478 136 446 172 408 200" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
 </g>
-<circle cx="373" cy="193" r="6.2" fill="#B9BFC7" stroke="rgba(0,0,0,0.35)" stroke-width="1.2"/>
-<circle cx="373" cy="193" r="2.6" fill="#3A3F46"/>
-<circle cx="427" cy="193" r="6.2" fill="#B9BFC7" stroke="rgba(0,0,0,0.35)" stroke-width="1.2"/>
-<circle cx="427" cy="193" r="2.6" fill="#3A3F46"/>`
-  const hoodBack = `<g fill="none" stroke-linecap="round">
-<path d="M400 46C398 110 402 175 400 238" stroke="rgba(0,0,0,0.13)" stroke-width="1.7"/>
-<path d="M403 46C401 110 405 175 403 238" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
-<path d="M254 98C250 146 262 190 296 216C332 240 368 234 400 234C432 234 468 240 504 216C536 190 548 146 546 98" stroke="rgba(0,0,0,0.09)" stroke-width="1.3"/>
-<path d="${HOOD_BACK}" stroke="rgba(0,0,0,0.16)" stroke-width="2"/>
-<path d="M250 104.5C246 152.5 258 198.5 292 226.5C330 252.5 366 245.5 400 245.5C434 245.5 470 252.5 508 226.5C542 198.5 554 152.5 550 104.5" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+${soft('M396 192C398 197 400 202 401 207', 0.14, 5)}
+<g fill="none">
+<path d="M306 88C320 136 352 172 390 202" stroke="__COLOR__" stroke-width="15"/>
+<path d="M306 88C320 136 352 172 390 202" stroke="rgba(255,255,255,0.05)" stroke-width="15"/>
+<path d="M299 90C313 138 345 176 385 208" stroke="rgba(0,0,0,0.16)" stroke-width="1.5"/>
+<path d="M313 86C327 134 359 168 395 196" stroke="rgba(0,0,0,0.12)" stroke-width="1.3"/>
+<path d="M308 88C322 136 354 172 392 200" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+</g>
+<g fill="none" stroke-linecap="round">
+<path d="M376 195C369 212 368 228 358 242" stroke="rgba(0,0,0,0.30)" stroke-width="7"/>
+<path d="M376 195C369 212 368 228 358 242" stroke="#D8DBDE" stroke-width="4.6"/>
+<path d="M424 195C432 214 434 230 443 245" stroke="rgba(0,0,0,0.30)" stroke-width="7"/>
+<path d="M424 195C432 214 434 230 443 245" stroke="#D8DBDE" stroke-width="4.6"/>
+<path d="M358 242L352 257" stroke="rgba(0,0,0,0.30)" stroke-width="8"/>
+<path d="M358 242L352 257" stroke="#AEB4BC" stroke-width="5.6"/>
+<path d="M356.2 244.8L354 250.8" stroke="rgba(255,255,255,0.35)" stroke-width="1.4"/>
+<path d="M443 245L447 260" stroke="rgba(0,0,0,0.30)" stroke-width="8"/>
+<path d="M443 245L447 260" stroke="#AEB4BC" stroke-width="5.6"/>
+<path d="M444.2 247.6L445.8 253.6" stroke="rgba(255,255,255,0.35)" stroke-width="1.4"/>
+</g>
+<circle cx="376" cy="190" r="6.2" fill="#B9BFC7" stroke="rgba(0,0,0,0.35)" stroke-width="1.2"/>
+<circle cx="376" cy="190" r="2.6" fill="#3A3F46"/>
+<circle cx="424" cy="190" r="6.2" fill="#B9BFC7" stroke="rgba(0,0,0,0.35)" stroke-width="1.2"/>
+<circle cx="424" cy="190" r="2.6" fill="#3A3F46"/>
 </g>`
-  return `${ribs}
-${seams}
-${front ? pocketEdges + hoodFront : hoodBack}`
+}
+
+/** Back: hood hanging over the shoulders/yoke with drape + cast shadow. */
+function hoodBack(p: string): string {
+  return `<g>
+${soft('M246 112C242 160 256 205 290 233C328 259 364 252 400 252C436 252 472 259 510 233C544 205 558 160 554 112', 0.12, 14)}
+${blob(p, 346, 96, 100, 42, -12, 0.07, true)}
+${soft('M524 130C534 170 524 205 504 224', 0.09, 8)}
+${soft('M330 116C322 156 330 198 348 224', 0.1, 4)}
+${soft('M324 112C316 154 324 196 342 220', 0.05, 3.5, true)}
+${soft('M470 116C478 156 470 198 452 224', 0.1, 4)}
+${soft('M476 112C484 154 476 196 458 220', 0.05, 3.5, true)}
+${soft('M366 210C376 224 388 230 397 231', 0.08, 3)}
+${soft('M434 210C424 224 412 230 403 231', 0.08, 3)}
+<g fill="none" stroke-linecap="round">
+<path d="M400 46C398 110 402 175 400 240" stroke="rgba(0,0,0,0.13)" stroke-width="1.7"/>
+<path d="M403 46C401 110 405 175 403 240" stroke="rgba(255,255,255,0.06)" stroke-width="1.4"/>
+<path d="M252 98C248 146 260 192 294 218C330 242 366 236 400 236C434 236 470 242 506 218C538 192 552 146 548 98" stroke="rgba(0,0,0,0.09)" stroke-width="1.3"/>
+<path d="${HOOD_BACK}" stroke="rgba(0,0,0,0.16)" stroke-width="2"/>
+<path d="M246 104.5C242 154.5 256 200.5 290 228.5C328 254.5 364 247.5 400 247.5C436 247.5 472 254.5 510 228.5C544 200.5 558 154.5 554 104.5" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+</g>
+</g>`
 }
 
 function body(p: string, front: boolean): string {
-  const backCast = front
-    ? ''
-    : `<path d="M250 110C246 158 258 204 292 232C330 258 366 251 400 251C434 251 470 258 508 232C542 204 554 158 550 110" fill="none" stroke="rgba(0,0,0,0.13)" stroke-width="14" filter="url(#${p}-b8)"/>`
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">
 ${defs(p)}
 <use href="#${p}-sil" fill="__COLOR__"/>
 <g clip-path="url(#${p}-clip)">
 <use href="#${p}-sil" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="7"/>
 ${baseFills(p, front)}
-${softB6(p, front)}
-${backCast}
-${softB3(p, front)}
-${crisp(front)}
-<rect x="24" y="36" width="752" height="736" filter="url(#${p}-gr)" opacity="0.025"/>
+${softCommon(p)}
+${sleeveFolds()}
+${bodyFolds(front)}
+${ribsAndSeams(p)}
+${front ? pocket() : ''}
+${front ? hoodFront(p) : hoodBack(p)}
 <use href="#${p}-sil" fill="none" stroke="rgba(0,0,0,0.16)" stroke-width="3"/>
 </g>
+${grainRect(p)}
 </svg>`
 }
 
@@ -286,12 +302,12 @@ function shade(p: string, front: boolean): string {
 <circle cx="400" cy="278" r="26" fill="rgba(0,0,0,0.09)"/>
 <path d="M372 430C398 440 432 440 458 432" stroke-width="9" stroke="rgba(0,0,0,0.07)"/>
 <path d="M366 500C394 509 428 509 454 501" stroke-width="9" stroke="rgba(0,0,0,0.06)"/>
-<path d="M545 396C512 408 486 412 458 412" stroke-width="11" stroke="rgba(0,0,0,0.07)"/>`
+<path d="M540 396C510 408 486 412 458 412" stroke-width="11" stroke="rgba(0,0,0,0.07)"/>`
     : `<path d="M310 262C350 288 450 288 490 262" stroke-width="34" stroke="rgba(0,0,0,0.16)"/>
 <rect x="224" y="320" width="44" height="240" rx="22" fill="rgba(0,0,0,0.11)"/>
 <rect x="532" y="315" width="46" height="250" rx="23" fill="rgba(0,0,0,0.14)"/>
 <path d="M400 330C398 400 402 470 400 540" stroke-width="10" stroke="rgba(0,0,0,0.06)"/>
-<path d="M545 400C512 412 486 416 458 416" stroke-width="11" stroke="rgba(0,0,0,0.07)"/>`
+<path d="M540 400C510 412 486 416 458 416" stroke-width="11" stroke="rgba(0,0,0,0.07)"/>`
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">
 <defs><filter id="${p}-sb" x="-15%" y="-15%" width="130%" height="130%"><feGaussianBlur stdDeviation="9"/></filter></defs>
 <g fill="none" stroke-linecap="round" filter="url(#${p}-sb)">
@@ -313,7 +329,7 @@ export const HOODIE: GarmentArt = {
     front: {
       body: body('h-f', true),
       shade: shade('h-fs', true),
-      // below the drawcord tips (y≈262); bottom clears the pocket top (y578)
+      // below the drawcord tips (y≈260); bottom clears the pocket top (y578)
       printAreaPx: { x: 250, y: 268, w: 300, h: 300 },
     },
     back: {

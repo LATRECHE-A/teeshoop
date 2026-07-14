@@ -6,6 +6,10 @@
  * When OffscreenCanvas is unavailable, index.ts dynamically imports it on the
  * main thread instead and passes a `yieldFn` so long loops give the UI air.
  */
+// NOTE: the shared vite config aliases 'onnxruntime-web' →
+// 'onnxruntime-web/wasm' (wasm-EP-only build, keeps the 26 MB jsep binary out
+// of the deploy). Import the ROOT specifier — importing the /wasm subpath
+// directly would collide with that prefix alias.
 import * as ort from 'onnxruntime-web'
 import {
   MODEL_SIZE,
@@ -35,25 +39,22 @@ export const MAX_SOURCE_EDGE = 2048
 const ROW_CHUNK = 160
 
 /**
- * Where the ort wasm BINARY lives. Only the binary is overridden (object form
- * of `wasmPaths`) so onnxruntime-web keeps using its embedded JS glue — a
- * string prefix would make it dynamically import `ort-wasm-simd-threaded.
- * jsep.mjs` from that prefix, and the vite config only copies `*.wasm`.
+ * Where the ort runtime files live. With a string `wasmPaths` prefix ort
+ * dynamically imports `ort-wasm-simd-threaded.mjs` (JS glue) and fetches
+ * `ort-wasm-simd-threaded.wasm` from that prefix — the shared vite config
+ * copies exactly those two files.
  *
- * `/ort/` is the contracted flat path; the current vite-plugin-static-copy v4
- * config actually lands files under `/ort/node_modules/onnxruntime-web/dist/`
- * (v4 preserves source directory structure). The dev-server node_modules path
- * is a last-resort fallback. Probe the wasm magic bytes once and use the
- * first URL that is real, so this module works with either layout.
- *
- * The default `onnxruntime-web` import is the jsep build (wasm + webgpu), so
- * its glue pairs with `ort-wasm-simd-threaded.jsep.wasm`.
+ * `/ort/` is the contracted flat path; vite-plugin-static-copy v4 actually
+ * lands the files under `/ort/node_modules/onnxruntime-web/dist/` (v4
+ * preserves source directory structure). The bare node_modules path is a
+ * dev-server-only safety net. Probe the wasm magic bytes once and use the
+ * first prefix that is real, so this module works with either layout.
  */
-const WASM_FILE = 'ort-wasm-simd-threaded.jsep.wasm'
-const WASM_URL_CANDIDATES = [
-  `/ort/${WASM_FILE}`,
-  `/ort/node_modules/onnxruntime-web/dist/${WASM_FILE}`,
-  `/node_modules/onnxruntime-web/dist/${WASM_FILE}`,
+const WASM_FILE = 'ort-wasm-simd-threaded.wasm'
+const WASM_BASE_CANDIDATES = [
+  '/ort/',
+  '/ort/node_modules/onnxruntime-web/dist/',
+  '/node_modules/onnxruntime-web/dist/',
 ] as const
 
 async function sniffWasm(url: string): Promise<boolean> {
@@ -90,13 +91,11 @@ async function sniffWasm(url: string): Promise<boolean> {
   }
 }
 
-async function resolveWasmPaths(): Promise<
-  string | { wasm: string }
-> {
-  for (const url of WASM_URL_CANDIDATES) {
-    if (await sniffWasm(url)) return { wasm: url }
+async function resolveWasmPaths(): Promise<string> {
+  for (const base of WASM_BASE_CANDIDATES) {
+    if (await sniffWasm(`${base}${WASM_FILE}`)) return base
   }
-  return '/ort/' // contracted default; lets ort surface its own error
+  return WASM_BASE_CANDIDATES[0] // contracted default; ort surfaces the error
 }
 
 let ortConfigured = false

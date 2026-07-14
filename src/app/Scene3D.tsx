@@ -1,14 +1,44 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { Play, RotateCcw, Square } from 'lucide-react'
 import clsx from 'clsx'
-import type { CardSource, DecalSource, Design, Side } from '@/lib/types'
+import type { CardSource, DecalSource, Design, Garment3DProps, Side } from '@/lib/types'
 import { GARMENTS } from '@/garments'
 import { renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { useStore } from '@/state/store'
 import { RegMark } from './Brand'
 import { garmentColorHex } from '@/lib/renderDesign'
 
-const Garment3D = lazy(() => import('@/three'))
+const loadGarment3D = () => lazy(() => import('@/three'))
+
+/**
+ * React.lazy caches a failed chunk load forever — without this boundary one
+ * flaky request would blank the 3D stage until a full page reload.
+ */
+class Retry3DBoundary extends Component<
+  { children: ReactNode; onRetry: () => void },
+  { failed: boolean }
+> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <Fallback title="The 3D studio did not load" body="Usually a brief connection hiccup. Your design is untouched.">
+        <button
+          className="btn mt-1"
+          onClick={() => {
+            this.setState({ failed: false })
+            this.props.onRetry()
+          }}
+        >
+          Try again
+        </button>
+      </Fallback>
+    )
+  }
+}
 
 function webglOk(): boolean {
   try {
@@ -78,12 +108,21 @@ function useDesignTextures(design: Design): Sources | null {
   return sources
 }
 
-function Fallback({ title, body }: { title: string; body: string }) {
+function Fallback({
+  title,
+  body,
+  children,
+}: {
+  title: string
+  body: string
+  children?: ReactNode
+}) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
       <RegMark size={40} className="opacity-70" />
       <div className="font-display text-[15px] font-bold text-tx">{title}</div>
       <div className="max-w-sm text-[13px] leading-relaxed text-tx2">{body}</div>
+      {children}
     </div>
   )
 }
@@ -95,6 +134,7 @@ export default function Scene3D() {
   const setAutoRotate = useStore((s) => s.setAutoRotate)
   const requestView = useStore((s) => s.requestView)
   const [ready, setReady] = useState(false)
+  const [Garment3D, setGarment3D] = useState<ComponentType<Garment3DProps>>(loadGarment3D)
   const gl = useMemo(webglOk, [])
   const sources = useDesignTextures(design)
 
@@ -124,6 +164,7 @@ export default function Scene3D() {
 
   return (
     <div className="absolute inset-0 canvas-surface">
+      <Retry3DBoundary onRetry={() => setGarment3D(loadGarment3D)}>
       <Suspense
         fallback={
           <div className="flex h-full flex-col items-center justify-center gap-4">
@@ -148,6 +189,7 @@ export default function Scene3D() {
           onReady={() => setReady(true)}
         />
       </Suspense>
+      </Retry3DBoundary>
 
       {/* 3D controls */}
       <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur">

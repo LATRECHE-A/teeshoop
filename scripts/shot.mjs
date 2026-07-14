@@ -17,7 +17,8 @@ const browser = await chromium.launch({
 })
 const page = await browser.newPage({
   viewport: { width: Number(w), height: Number(h) },
-  deviceScaleFactor: 2,
+  // dpr 1: headless swiftshader hangs capturing hidpi canvas-heavy pages
+  deviceScaleFactor: 1,
 })
 page.on('pageerror', (e) => console.error('[pageerror]', e.message))
 page.on('console', (m) => {
