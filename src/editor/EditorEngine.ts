@@ -210,7 +210,11 @@ export class EditorEngine {
 
   setPanMode(on: boolean): void {
     this.panMode = on
+    // In pan mode the design layers must not swallow pointer events —
+    // otherwise dragging over a layer moves the layer instead of the canvas.
+    this.designGroup.listening(!on)
     this.stage.container().style.cursor = on ? 'grab' : 'default'
+    if (!on) this.panning = false
   }
 
   // ---------------------------------------------------------------- events
@@ -272,7 +276,10 @@ export class EditorEngine {
     if (!setup) {
       return { ppi: 25, area: { x: 250, y: 200, w: 300, h: 400 } }
     }
-    const info = await getCustomSideInfo(setup, widthIn)
+    // A missing/corrupt photo must degrade to the default area, not wedge
+    // the whole sync.
+    const info = await getCustomSideInfo(setup, widthIn).catch(() => null)
+    if (!info) return { ppi: 25, area: { x: 250, y: 200, w: 300, h: 400 } }
     const gHIn = info.bbox.h / info.pxPerInch
     const ppi = Math.min((VIEW - 120) / widthIn, (VIEW - 90) / gHIn)
     const a = setup.printArea
@@ -284,7 +291,7 @@ export class EditorEngine {
     }
   }
 
-  private async updateGarmentVisual(design: Design, side: Side): Promise<void> {
+  private async updateGarmentVisual(design: Design, side: Side, seq: number): Promise<void> {
     if (design.garmentId !== 'custom') {
       const art = GARMENTS[design.garmentId]
       const hex = garmentColorHex(design)
@@ -293,6 +300,7 @@ export class EditorEngine {
         `garment:${design.garmentId}:${side}:${hex}:${px}`,
         withSvgSize(art.sides[side].body.replaceAll('__COLOR__', hex), px, px),
       )
+      if (seq !== this.syncSeq || this.destroyed) return
       this.garmentNode.setAttrs({
         image: img,
         x: 0,
@@ -311,6 +319,7 @@ export class EditorEngine {
       return
     }
     const info = await getCustomSideInfo(setup, widthIn)
+    if (seq !== this.syncSeq || this.destroyed) return
     const gHIn = info.bbox.h / info.pxPerInch
     const ppi = this.layout.ppi
     const w = widthIn * ppi
@@ -329,7 +338,6 @@ export class EditorEngine {
   private updateAreaOutline(): void {
     this.areaGroup.destroyChildren()
     const { area, ppi } = this.layout
-    const strokeW = 1.2 / this.world.scaleX()
     this.areaGroup.add(
       new Konva.Rect({
         x: area.x,
@@ -338,7 +346,9 @@ export class EditorEngine {
         height: area.h,
         stroke: 'rgba(154,165,180,0.55)',
         dash: [6, 6],
-        strokeWidth: strokeW,
+        strokeWidth: 1.2,
+        // screen-constant width; dividing by zoom as well would make the
+        // boundary sub-pixel when zoomed in
         strokeScaleEnabled: false,
       }),
     )
@@ -400,7 +410,7 @@ export class EditorEngine {
 
     this.layout = layout
     try {
-      await this.updateGarmentVisual(design, side)
+      await this.updateGarmentVisual(design, side, seq)
     } catch {
       // A garment raster that fails to decode must not blank the editor —
       // keep the previous visual and still render layers + outline.
@@ -569,8 +579,11 @@ export class EditorEngine {
       }
       if (layer.type === 'text') {
         const next = Math.max(0.12, layer.fontSizeIn * scaleY)
-        ;(patch as Partial<Layer> & { fontSizeIn: number }).fontSizeIn =
-          Math.round(next * 100) / 100
+        const p = patch as Partial<Layer> & { fontSizeIn: number; strokeWidthIn?: number }
+        p.fontSizeIn = Math.round(next * 100) / 100
+        // outline thickness scales with the glyphs, or the look pops on release
+        if (layer.strokeWidthIn > 0)
+          p.strokeWidthIn = Math.round(layer.strokeWidthIn * scaleY * 1000) / 1000
       } else {
         const p = patch as Partial<Layer> & { wIn: number; hIn: number }
         p.wIn = Math.max(0.15, ((node.width() * scaleX) / ppi) * 1)

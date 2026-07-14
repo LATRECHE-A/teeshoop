@@ -132,7 +132,9 @@ export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigP
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((s) => s.camera)
   const goal = useRef<THREE.Spherical | null>(null)
-  const lastNonce = useRef<number | null>(null)
+  // Seed with the CURRENT nonce so an old request doesn't replay (and snap
+  // the camera uninvited) every time the user re-enters 3D mode.
+  const lastNonce = useRef<number | null>(viewRequest?.nonce ?? null)
 
   useEffect(() => {
     if (!viewRequest || viewRequest.nonce === lastNonce.current) return

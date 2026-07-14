@@ -112,8 +112,10 @@ export default function UploadsPanel() {
   }
 
   const del = async (asset: AssetMeta) => {
+    // Pull it out of the active design first so no layer dangles.
+    useStore.getState().purgeAsset(asset.id)
     setAssets(await removeAsset(asset.id))
-    toast('info', `Removed “${asset.name}” from the library`)
+    toast('info', `Removed “${asset.name}” from the library and the design`)
   }
 
   return (

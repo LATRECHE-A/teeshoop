@@ -17,15 +17,16 @@ export function useKeyboardShortcuts(): void {
       const s = useStore.getState()
       const mod = e.ctrlKey || e.metaKey
 
+      const openModal = (Object.keys(s.modals) as (keyof typeof s.modals)[]).find(
+        (k) => s.modals[k],
+      )
       if (e.key === 'Escape') {
-        const open = (Object.keys(s.modals) as (keyof typeof s.modals)[]).find(
-          (k) => s.modals[k],
-        )
-        if (open) s.closeModal(open)
+        if (openModal) s.closeModal(openModal)
         else s.select(null)
         return
       }
-      if (inField(e)) return
+      // While a dialog is up, no shortcut may mutate the design behind it.
+      if (openModal || inField(e)) return
 
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()

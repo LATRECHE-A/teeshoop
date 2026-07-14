@@ -304,6 +304,21 @@ export default function CustomSetupModal() {
   const [back, setBack] = useState<SideDraft | null>(design.custom?.back ?? null)
   const removeSupported = isBgRemovalSupported()
 
+  // Narrowing the garment after areas were placed must pull them back onto it.
+  const reclampForWidth = (w: number) => {
+    const fit = (d: SideDraft | null): SideDraft | null => {
+      if (!d) return d
+      const a = d.printArea
+      const wIn = Math.min(a.wIn, w)
+      return {
+        ...d,
+        printArea: { ...a, wIn, xIn: clamp(a.xIn, 0, Math.max(0, w - wIn)) },
+      }
+    }
+    setFront(fit)
+    setBack(fit)
+  }
+
   const upload = (side: Side) => async (file: File) => {
     const setDraft = side === 'front' ? setFront : setBack
     try {
@@ -319,6 +334,10 @@ export default function CustomSetupModal() {
       setDraft(base)
 
       if (removeSupported) {
+        // Guarded with functional updates: if the user replaced the photo
+        // while this job ran, the stale completion must not resurrect it.
+        const ifCurrent = (fn: (d: SideDraft) => SideDraft) => (prev: SideDraft | null) =>
+          prev?.assetId === meta.id ? fn(prev) : prev
         try {
           const blob = await getAssetBlob(meta.id)
           if (blob) {
@@ -332,13 +351,13 @@ export default function CustomSetupModal() {
             ])
             setAssets(await setAssetCutout(meta.id, cut))
             invalidateCustomBBox(meta.id)
-            setDraft({ ...base, useCutout: true, processing: false })
+            setDraft(ifCurrent((d) => ({ ...d, useCutout: true, processing: false })))
             return
           }
         } catch {
           toast('warn', 'Background removal failed — using the full photo')
         }
-        setDraft({ ...base, processing: false })
+        setDraft(ifCurrent((d) => ({ ...d, processing: false })))
       }
     } catch {
       toast('error', 'Could not read that photo')
@@ -354,7 +373,12 @@ export default function CustomSetupModal() {
       d ? { assetId: d.assetId, useCutout: d.useCutout, printArea: d.printArea } : null
     setCustom({ widthIn, front: stripped(front), back: stripped(back) })
     closeModal('customSetup')
-    toast('ok', 'Your garment is set up — design away')
+    const hasBackLayers = design.layers.some((l) => l.side === 'back')
+    if (!back && hasBackLayers) {
+      toast('warn', 'This design has back-side elements — add a back photo to see and edit them')
+    } else {
+      toast('ok', 'Your garment is set up — design away')
+    }
   }
 
   return (
@@ -391,7 +415,11 @@ export default function CustomSetupModal() {
               max={30}
               step={0.5}
               value={widthIn}
-              onChange={(e) => setWidthIn(Number(e.target.value))}
+              onChange={(e) => {
+                const w = Number(e.target.value)
+                setWidthIn(w)
+                reclampForWidth(w)
+              }}
             />
             <span className="mono-dim w-12 shrink-0 text-right text-cy">{fmtIn(widthIn)}</span>
           </div>

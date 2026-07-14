@@ -22,7 +22,8 @@ export default function OrderModal() {
     (sideLayers(design, 'front').length > 0 ? 1 : 0) +
     (sideLayers(design, 'back').length > 0 ? 1 : 0)
   const qty = Object.values(sizes).reduce((a, b) => a + b, 0)
-  const q = quote(design.garmentId, Math.max(1, printedSides), Math.max(1, qty))
+  const unit = quote(design.garmentId, Math.max(1, printedSides), Math.max(1, qty))
+  const q = qty === 0 ? { ...unit, totalUsd: 0 } : unit
 
   const garmentName =
     design.garmentId === 'custom'

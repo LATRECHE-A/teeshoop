@@ -24,21 +24,48 @@ async function writeIndex(index: AssetMeta[]): Promise<AssetMeta[]> {
   return index
 }
 
+/** Decode an svg blob via HTMLImageElement (createImageBitmap rejects svgs). */
+async function decodeSvg(file: Blob): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = new Image()
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('Could not decode SVG'))
+      img.src = url
+    })
+    if (!img.naturalWidth || !img.naturalHeight)
+      throw new Error('SVG has no intrinsic size')
+    return img
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+}
+
 /** Decode, downscale to ≤2048px long edge, store, return updated meta. */
 export async function addAsset(file: Blob, name: string): Promise<AssetMeta> {
-  const bitmap = await createImageBitmap(file)
-  let { width, height } = bitmap
+  const isSvg = file.type === 'image/svg+xml'
+  const source: ImageBitmap | HTMLImageElement = isSvg
+    ? await decodeSvg(file)
+    : await createImageBitmap(file)
+  let width = 'naturalWidth' in source ? source.naturalWidth : source.width
+  let height = 'naturalHeight' in source ? source.naturalHeight : source.height
   let stored: Blob = file
 
-  if (Math.max(width, height) > MAX_EDGE || file.type === 'image/webp') {
-    const scale = Math.min(1, MAX_EDGE / Math.max(width, height))
-    width = Math.round(width * scale)
-    height = Math.round(height * scale)
+  // svgs are rasterized crisply at up to MAX_EDGE so the rest of the
+  // pipeline (cutouts, print export, thumbnails) sees plain bitmaps.
+  if (isSvg || Math.max(width, height) > MAX_EDGE || file.type === 'image/webp') {
+    const scale = isSvg
+      ? MAX_EDGE / Math.max(width, height)
+      : Math.min(1, MAX_EDGE / Math.max(width, height))
+    width = Math.max(1, Math.round(width * scale))
+    height = Math.max(1, Math.round(height * scale))
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
     const ctx = canvas.getContext('2d')!
-    ctx.drawImage(bitmap, 0, 0, width, height)
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(source, 0, 0, width, height)
     const isPhoto = file.type === 'image/jpeg'
     stored = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
@@ -48,7 +75,7 @@ export async function addAsset(file: Blob, name: string): Promise<AssetMeta> {
       ),
     )
   }
-  bitmap.close()
+  if ('close' in source) source.close()
 
   const meta: AssetMeta = {
     id: nanoid(10),
@@ -130,11 +157,16 @@ export function ensureAssetImage(
     const url = URL.createObjectURL(blob)
     const img = new Image()
     img.decoding = 'async'
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve()
-      img.onerror = () => reject(new Error('Could not decode image'))
-      img.src = url
-    })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('Could not decode image'))
+        img.src = url
+      })
+    } catch (err) {
+      URL.revokeObjectURL(url)
+      throw err
+    }
     entry.img = img
     entry.url = url
     return img

@@ -37,15 +37,23 @@ export default function EditorCanvas() {
     })
     ro.observe(host)
 
-    const onKey = (e: KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return
       const t = e.target as HTMLElement
-      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return
+      // Only hijack Space when nothing interactive owns the keyboard —
+      // buttons/inputs keep their native Space behavior.
+      if (t !== document.body) return
       e.preventDefault()
-      engine.setPanMode(e.type === 'keydown')
+      engine.setPanMode(true)
     }
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('keyup', onKey)
+    // Always release pan on keyup/blur, wherever focus went mid-press.
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') engine.setPanMode(false)
+    }
+    const onBlur = () => engine.setPanMode(false)
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
 
     const onZoomEvent = (e: Event) => {
       const action = (e as CustomEvent<string>).detail
@@ -57,8 +65,9 @@ export default function EditorCanvas() {
 
     return () => {
       ro.disconnect()
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('keyup', onKey)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
       window.removeEventListener('tshop:zoom', onZoomEvent)
       engine.destroy()
       engineRef.current = null

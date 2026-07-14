@@ -76,6 +76,7 @@ interface StoreState {
   addGraphicLayer(graphicId: string): void
   patchLayer(id: string, patch: Partial<Layer>, opts?: { transient?: boolean }): void
   removeLayer(id: string): void
+  purgeAsset(assetId: string): void
   duplicateLayer(id: string): void
   moveLayer(id: string, dir: 'up' | 'down'): void
   renameDesign(name: string): void
@@ -109,6 +110,9 @@ function clampLayersToArea(design: Design): Design {
 }
 
 let layerCounter = 1
+
+/** Pre-gesture design snapshot (drag / slider scrub); see patchLayer. */
+let gestureStart: Design | null = null
 
 export const useStore = create<StoreState>()(
   temporal(
@@ -273,24 +277,79 @@ export const useStore = create<StoreState>()(
               ),
             }),
           }))
+        const t = useStore.temporal.getState()
         if (opts?.transient) {
-          const t = useStore.temporal.getState()
+          // Gesture in progress (drag / slider scrub): remember the state the
+          // gesture STARTED from, and keep the intermediate frames out of
+          // history.
+          gestureStart ??= get().design
           t.pause()
           apply()
           t.resume()
+        } else if (
+          gestureStart &&
+          gestureStart.id === get().design.id &&
+          gestureStart.layers.some((l) => l.id === id)
+        ) {
+          // Commit of a gesture: rewind (unrecorded) to the pre-gesture
+          // state, then apply the final patch as ONE recorded step — so undo
+          // returns exactly to where the drag began.
+          t.pause()
+          set({ design: gestureStart })
+          t.resume()
+          gestureStart = null
+          apply()
         } else {
+          gestureStart = null
           apply()
         }
       },
 
-      removeLayer: (id) =>
+      removeLayer: (id) => {
+        // No-op removals (stale selection after undo) must not pollute the
+        // history and wipe the redo stack.
+        if (!get().design.layers.some((l) => l.id === id)) {
+          set({ selectedId: null })
+          return
+        }
         set((s) => ({
           design: touch({
             ...s.design,
             layers: s.design.layers.filter((l) => l.id !== id),
           }),
           selectedId: s.selectedId === id ? null : s.selectedId,
-        })),
+        }))
+      },
+
+      /** Remove every layer (and custom-garment reference) using an asset. */
+      purgeAsset: (assetId: string) => {
+        const s = get()
+        const layers = s.design.layers.filter(
+          (l) => l.type !== 'image' || l.assetId !== assetId,
+        )
+        let custom = s.design.custom
+        if (custom?.front?.assetId === assetId || custom?.back?.assetId === assetId) {
+          custom = {
+            ...custom,
+            front: custom.front?.assetId === assetId ? null : custom.front,
+            back: custom.back?.assetId === assetId ? null : custom.back,
+          }
+          if (!custom.front) custom = null
+        }
+        if (layers.length === s.design.layers.length && custom === s.design.custom) return
+        set({
+          design: touch({
+            ...clampLayersToArea({
+              ...s.design,
+              layers,
+              custom,
+              garmentId:
+                s.design.garmentId === 'custom' && !custom ? 'tee' : s.design.garmentId,
+            }),
+          }),
+          selectedId: null,
+        })
+      },
 
       duplicateLayer: (id) => {
         const s = get()
@@ -328,11 +387,13 @@ export const useStore = create<StoreState>()(
         set((s) => ({ design: touch({ ...s.design, name: name || 'Untitled' }) })),
 
       loadDesign: (design) => {
+        gestureStart = null
         set({ design, selectedId: null, activeSide: 'front' })
         useStore.temporal.getState().clear()
       },
 
       newDesign: () => {
+        gestureStart = null
         const fresh: Design = {
           id: nanoid(10),
           name: 'Untitled design',

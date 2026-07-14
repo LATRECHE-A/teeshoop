@@ -4,6 +4,7 @@
  * designs (compressed into the URL hash).
  */
 import { get, set, del } from 'idb-keyval'
+import { nanoid } from 'nanoid'
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import type { AssetMeta, Design, SavedDesignMeta } from '@/lib/types'
 import { useStore } from './store'
@@ -120,10 +121,21 @@ export async function hydrateStore(): Promise<void> {
     s.toast('warn', 'Local storage is unavailable — designs will not persist')
   }
 
-  // shared design in the URL wins
+  // shared design in the URL wins — but never at the cost of the visitor's
+  // own autosaved draft, and always as a COPY (fresh id) so saving the
+  // shared design can't overwrite a library original with the same id.
   const shared = parseShareHash(location.hash)
   if (shared) {
-    s.loadDesign({ ...shared, id: shared.id || 'shared', updatedAt: Date.now() })
+    try {
+      const prev = await get<Design>(CURRENT_KEY)
+      if (prev?.layers?.length) {
+        s.setSavedDesigns(await renderAndSave(prev))
+        s.toast('info', `Your draft “${prev.name}” was saved to My designs`)
+      }
+    } catch {
+      /* storage unavailable — still load the shared design */
+    }
+    s.loadDesign({ ...shared, id: nanoid(10), updatedAt: Date.now() })
     history.replaceState(null, '', location.pathname + location.search)
     s.toast('ok', 'Shared design loaded — it is yours to edit now')
     s.markHydrated()

@@ -26,8 +26,14 @@ export default function TextPanel() {
   const fonts = FONTS.filter((f) => cat === 'all' || f.category === cat)
 
   const pickFont = (family: string) => {
-    if (selected) patchLayer(selected.id, { fontFamily: family })
-    else addTextLayer()
+    if (selected) {
+      patchLayer(selected.id, { fontFamily: family })
+      return
+    }
+    // No text selected: create one *in the clicked font*.
+    addTextLayer()
+    const newId = useStore.getState().selectedId
+    if (newId) patchLayer(newId, { fontFamily: family })
   }
 
   return (

@@ -62,9 +62,16 @@ interface Sources {
 function useDesignTextures(design: Design): Sources | null {
   const [sources, setSources] = useState<Sources | null>(null)
   const version = useRef(0)
+  const lastGarment = useRef(design.garmentId)
 
   useEffect(() => {
     let cancelled = false
+    // Garment switched: drop the old garment's decals immediately instead of
+    // showing them (wrong size/placement) for a debounce tick.
+    if (lastGarment.current !== design.garmentId) {
+      lastGarment.current = design.garmentId
+      setSources(null)
+    }
     const t = setTimeout(async () => {
       try {
         const v = ++version.current
