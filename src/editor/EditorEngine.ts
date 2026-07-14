@@ -122,8 +122,11 @@ export class EditorEngine {
         const c = (ctx as unknown as { _context: CanvasRenderingContext2D })._context
         c.save()
         c.translate(shape.width() / 2, shape.height() / 2)
-        drawLayerContent(c, layer, this.layout.ppi)
-        c.restore()
+        try {
+          drawLayerContent(c, layer, this.layout.ppi)
+        } finally {
+          c.restore()
+        }
       },
     })
     this.world.add(this.ghost)
@@ -411,7 +414,12 @@ export class EditorEngine {
         this.nodes.set(layer.id, node)
         this.designGroup.add(node)
       }
-      this.applyLayerToNode(node, layer)
+      try {
+        this.applyLayerToNode(node, layer)
+      } catch {
+        // A bad measure on one layer must never take down the whole canvas.
+        ;(node as Konva.Shape).setAttrs({ layerRef: layer, width: 10, height: 10 })
+      }
       node.zIndex(i)
     })
 
@@ -462,12 +470,16 @@ export class EditorEngine {
       draggable: true,
       name: 'design-layer',
       sceneFunc: (ctx, shape) => {
-        const l = shape.getAttr('layerRef') as Layer
+        const l = shape.getAttr('layerRef') as Layer | undefined
+        if (!l) return
         const c = (ctx as unknown as { _context: CanvasRenderingContext2D })._context
         c.save()
         c.translate(shape.width() / 2, shape.height() / 2)
-        drawLayerContent(c, l, this.layout.ppi)
-        c.restore()
+        try {
+          drawLayerContent(c, l, this.layout.ppi)
+        } finally {
+          c.restore()
+        }
       },
       hitFunc: (ctx, shape) => {
         ctx.beginPath()
@@ -501,6 +513,13 @@ export class EditorEngine {
 
   private bindNodeEvents(node: Konva.Shape): void {
     const id = () => node.getAttr('layerId') as string
+
+    node.on('mouseenter', () => {
+      if (!this.panMode) this.stage.container().style.cursor = 'move'
+    })
+    node.on('mouseleave', () => {
+      if (!this.panMode) this.stage.container().style.cursor = 'default'
+    })
 
     node.on('mousedown touchstart', () => {
       if (this.panMode) return

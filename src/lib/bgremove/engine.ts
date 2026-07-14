@@ -35,15 +35,25 @@ export const MAX_SOURCE_EDGE = 2048
 const ROW_CHUNK = 160
 
 /**
- * Where the ort wasm binaries live. `/ort/` is the contracted path; the
- * current vite-plugin-static-copy v4 config actually lands them under
- * `/ort/node_modules/onnxruntime-web/dist/` (v4 preserves source directory
- * structure). Probe the magic bytes once and use whichever base is real, so
- * this module keeps working if the integrator later flattens the copy.
+ * Where the ort wasm BINARY lives. Only the binary is overridden (object form
+ * of `wasmPaths`) so onnxruntime-web keeps using its embedded JS glue — a
+ * string prefix would make it dynamically import `ort-wasm-simd-threaded.
+ * jsep.mjs` from that prefix, and the vite config only copies `*.wasm`.
+ *
+ * `/ort/` is the contracted flat path; the current vite-plugin-static-copy v4
+ * config actually lands files under `/ort/node_modules/onnxruntime-web/dist/`
+ * (v4 preserves source directory structure). The dev-server node_modules path
+ * is a last-resort fallback. Probe the wasm magic bytes once and use the
+ * first URL that is real, so this module works with either layout.
+ *
+ * The default `onnxruntime-web` import is the jsep build (wasm + webgpu), so
+ * its glue pairs with `ort-wasm-simd-threaded.jsep.wasm`.
  */
-const WASM_BASE_CANDIDATES = [
-  '/ort/',
-  '/ort/node_modules/onnxruntime-web/dist/',
+const WASM_FILE = 'ort-wasm-simd-threaded.jsep.wasm'
+const WASM_URL_CANDIDATES = [
+  `/ort/${WASM_FILE}`,
+  `/ort/node_modules/onnxruntime-web/dist/${WASM_FILE}`,
+  `/node_modules/onnxruntime-web/dist/${WASM_FILE}`,
 ] as const
 
 async function sniffWasm(url: string): Promise<boolean> {
@@ -80,11 +90,13 @@ async function sniffWasm(url: string): Promise<boolean> {
   }
 }
 
-async function resolveWasmBase(): Promise<string> {
-  for (const base of WASM_BASE_CANDIDATES) {
-    if (await sniffWasm(`${base}ort-wasm-simd-threaded.wasm`)) return base
+async function resolveWasmPaths(): Promise<
+  string | { wasm: string }
+> {
+  for (const url of WASM_URL_CANDIDATES) {
+    if (await sniffWasm(url)) return { wasm: url }
   }
-  return WASM_BASE_CANDIDATES[0]
+  return '/ort/' // contracted default; lets ort surface its own error
 }
 
 let ortConfigured = false
@@ -145,7 +157,7 @@ async function createSession(): Promise<ort.InferenceSession> {
   if (!ortConfigured) {
     // wasm binaries are served from the site's own /ort/ path (vite config
     // copies them there). Single-threaded: no COOP/COEP requirement.
-    ort.env.wasm.wasmPaths = '/ort/'
+    ort.env.wasm.wasmPaths = await resolveWasmPaths()
     ort.env.wasm.numThreads = 1
     ort.env.logLevel = 'error'
     ortConfigured = true

@@ -104,7 +104,12 @@ export function markSeen(): void {
   }
 }
 
+let hydrateStarted = false
+
 export async function hydrateStore(): Promise<void> {
+  // React StrictMode mounts effects twice in dev — hydrate exactly once.
+  if (hydrateStarted) return
+  hydrateStarted = true
   const s = useStore.getState()
 
   // assets + saved designs

@@ -8,13 +8,28 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    // onnxruntime-web loads its wasm binaries from /ort/ at runtime
+    // onnxruntime-web loads its wasm binary from /ort/ at runtime. Only the
+    // plain single-thread+simd build is shipped — the jsep/asyncify variants
+    // are >25 MiB, which Cloudflare's per-file asset limit rejects.
     viteStaticCopy({
-      targets: [{ src: 'node_modules/onnxruntime-web/dist/*.wasm', dest: 'ort' }],
+      targets: [
+        {
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
+          dest: 'ort',
+        },
+        {
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
+          dest: 'ort',
+        },
+      ],
     }),
   ],
   resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // wasm-EP-only build: keeps the WebGPU (jsep) wasm out of the bundle
+      'onnxruntime-web': 'onnxruntime-web/wasm',
+    },
   },
   build: {
     target: 'es2022',

@@ -25,6 +25,6 @@ page.on('console', (m) => {
 })
 await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 })
 await page.waitForTimeout(Number(wait))
-await page.screenshot({ path: out })
+await page.screenshot({ path: out, animations: 'disabled', timeout: 45000 })
 await browser.close()
 console.log('saved', out)

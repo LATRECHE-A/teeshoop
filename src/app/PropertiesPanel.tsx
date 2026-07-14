@@ -80,7 +80,7 @@ function ColorSwatches({
           aria-label={`Ink ${hex}`}
           onClick={() => onPick(hex)}
           className={clsx(
-            'h-5.5 w-5.5 h-[22px] w-[22px] rounded-full border transition-transform hover:scale-110',
+            'h-[22px] w-[22px] rounded-full border transition-transform hover:scale-110',
             value.toLowerCase() === hex.toLowerCase()
               ? 'border-cy ring-2 ring-cy/40'
               : 'border-black/40',

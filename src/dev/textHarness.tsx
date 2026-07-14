@@ -101,6 +101,7 @@ function runSelfTest(measureCtx: CanvasRenderingContext2D): SelfTest {
 
   const scratch = document.createElement('canvas')
   const result: SelfTest = { samples: 0, maxSizeDev: 0, maxCenterDev: 0, worst: '—' }
+  let worstDev = -1
 
   for (const { name, cfg } of configs) {
     // Measure with the sheet ctx, draw with the scratch ctx: proves the two
@@ -126,7 +127,7 @@ function runSelfTest(measureCtx: CanvasRenderingContext2D): SelfTest {
     for (let y = 0; y < h; y++) {
       const rowOff = y * w * 4
       for (let x = 0; x < w; x++) {
-        if (px[rowOff + x * 4 + 3] > 10) {
+        if (px[rowOff + x * 4 + 3] > 0) {
           if (x < minX) minX = x
           if (x > maxX) maxX = x
           if (y < minY) minY = y
@@ -144,7 +145,10 @@ function runSelfTest(measureCtx: CanvasRenderingContext2D): SelfTest {
     )
     result.samples++
     const dev = Math.max(sizeDev, centerDev)
-    if (dev > Math.max(result.maxSizeDev, result.maxCenterDev)) result.worst = name
+    if (dev > worstDev) {
+      worstDev = dev
+      result.worst = name
+    }
     if (sizeDev > result.maxSizeDev) result.maxSizeDev = sizeDev
     if (centerDev > result.maxCenterDev) result.maxCenterDev = centerDev
   }

@@ -3,7 +3,13 @@ import { Camera, RefreshCw, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
-import { addAsset, getAssetBlob, listAssets, setAssetCutout } from '@/state/assets'
+import {
+  addAsset,
+  ensureAssetImage,
+  getAssetBlob,
+  listAssets,
+  setAssetCutout,
+} from '@/state/assets'
 import { isBgRemovalSupported, removeBackground } from '@/lib/bgremove'
 import { defaultCustomPrintArea, getCustomSideInfo, invalidateCustomBBox } from '@/lib/custom'
 import type { CustomSideSetup, RectIn, Side } from '@/lib/types'
@@ -215,7 +221,6 @@ function PhotoTile({
       return
     }
     void (async () => {
-      const { ensureAssetImage } = await import('@/state/assets')
       try {
         const img = await ensureAssetImage(draft.assetId, draft.useCutout ? 'cutout' : 'original')
         if (on) setThumb(img.src)

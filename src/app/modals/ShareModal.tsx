@@ -10,6 +10,7 @@ import {
   importDesignFile,
 } from '@/state/persist'
 import { getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
+import { listAssets } from '@/state/assets'
 import { downloadBlob, downloadCanvasPng, slugify } from '@/lib/download'
 import { fmtIn } from '@/lib/units'
 import type { Side } from '@/lib/types'
@@ -191,9 +192,7 @@ export default function ShareModal() {
                   try {
                     const d = await importDesignFile(f)
                     loadDesign(d)
-                    useStore.getState().setAssets(
-                      await (await import('@/state/assets')).listAssets(),
-                    )
+                    useStore.getState().setAssets(await listAssets())
                     closeModal('share')
                     toast('ok', `Loaded “${d.name}”`)
                   } catch {

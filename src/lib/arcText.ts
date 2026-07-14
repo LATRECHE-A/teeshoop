@@ -55,11 +55,12 @@ interface GlyphPlace {
   rot: number
   /**
    * Ink box in glyph-local coordinates (anchor at the advance midpoint on
-   * the baseline, +y down), already expanded for stroke. `bands` (raster-
-   * refined pictographs only) are horizontal ink slices used for a tighter
-   * union under rotation. Null = paints nothing (whitespace).
+   * the baseline, +y down), stroke coverage included. `bands` are raster-
+   * refined horizontal ink slices (SHARED cache arrays, anchored at the
+   * glyph origin — shift by `-adv/2` when using) for a tighter union under
+   * rotation. Null = paints nothing (whitespace).
    */
-  ink: { l: number; t: number; r: number; b: number; bands: InkBox[] | null } | null
+  ink: { l: number; t: number; r: number; b: number; bands: readonly InkBox[] | null } | null
 }
 
 interface ArcLayout {
@@ -123,15 +124,19 @@ interface RasterInk {
 }
 
 /**
- * Color-emoji bitmaps paint inside (or occasionally outside) the box that
- * TextMetrics reports, so for pictographic glyphs we rasterize the glyph
- * once, scan the actually painted pixels and cache the true ink geometry
- * (keyed by font + glyph). Returns null when rasterization is unavailable
- * or paints nothing — callers then keep the reported metrics.
+ * Rasterize a glyph once (fill + stroke exactly as drawArcText paints it),
+ * scan the painted pixels, and cache the true ink geometry, keyed by
+ * font + stroke width + glyph. Needed because (a) color-emoji bitmaps only
+ * nominally match the TextMetrics box, and (b) on a curve a single rotated
+ * rectangle overbounds round glyph shapes — thin horizontal bands keep the
+ * rotated bbox union tight. Returns null when rasterization is
+ * unavailable, paints nothing, or the glyph is too large — callers then
+ * keep the reported metrics.
  */
 const rasterCache = new Map<string, RasterInk | null>()
-const RASTER_CACHE_MAX = 256
+const RASTER_CACHE_MAX = 512
 const RASTER_PAD = 8
+const RASTER_MAX = 2048
 let rasterCtx: CanvasRenderingContext2D | null | undefined
 
 function rasterInkBox(
@@ -141,8 +146,9 @@ function rasterInkBox(
   aA: number,
   aR: number,
   aD: number,
+  strokeWidth: number,
 ): RasterInk | null {
-  const key = `${font}\u0000${g}`
+  const key = `${font}/${strokeWidth}\u0000${g}`
   const cached = rasterCache.get(key)
   if (cached !== undefined) return cached
 
@@ -156,9 +162,13 @@ function rasterInkBox(
   }
   if (!rasterCtx) return null
 
-  const w = Math.min(2048, Math.ceil(aL + aR) + RASTER_PAD * 2)
-  const h = Math.min(2048, Math.ceil(aA + aD) + RASTER_PAD * 2)
-  if (w <= RASTER_PAD * 2 || h <= RASTER_PAD * 2) return null
+  const margin = RASTER_PAD + Math.ceil(strokeWidth)
+  const w = Math.ceil(aL + aR) + margin * 2
+  const h = Math.ceil(aA + aD) + margin * 2
+  // Degenerate or too large to raster faithfully → keep reported metrics.
+  if (w <= margin * 2 || h <= margin * 2 || w > RASTER_MAX || h > RASTER_MAX) {
+    return null
+  }
   const ctx = rasterCtx
   const canvas = ctx.canvas
   if (canvas.width < w) canvas.width = w
@@ -168,8 +178,16 @@ function rasterInkBox(
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = '#000'
-  const ax = Math.ceil(aL) + RASTER_PAD
-  const ay = Math.ceil(aA) + RASTER_PAD
+  const ax = Math.ceil(aL) + margin
+  const ay = Math.ceil(aA) + margin
+  if (strokeWidth > 0) {
+    ctx.strokeStyle = '#000'
+    ctx.lineWidth = strokeWidth
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
+    ctx.miterLimit = 2
+    ctx.strokeText(g, ax, ay)
+  }
   ctx.fillText(g, ax, ay)
 
   const px = ctx.getImageData(0, 0, w, h).data
@@ -204,10 +222,10 @@ function rasterInkBox(
       r: maxX + 1 - ax,
       b: maxY + 1 - ay,
     }
-    // Collapse rows into ~4px horizontal bands (max 16) so the bbox stays
+    // Collapse rows into ~1px horizontal bands (max 96) so the bbox stays
     // tight when the glyph is rotated along the arc.
     const inkH = maxY - minY + 1
-    const bandCount = Math.max(1, Math.min(16, Math.ceil(inkH / 4)))
+    const bandCount = Math.max(1, Math.min(96, inkH))
     const bandH = inkH / bandCount
     const bands: InkBox[] = []
     for (let bi = 0; bi < bandCount; bi++) {
@@ -261,6 +279,11 @@ function layoutArcText(
   const fallbackAscent = fontSize * ASCENT_EM
   const fallbackDescent = fontSize * DESCENT_EM
 
+  const curve = Number.isFinite(cfg.curve)
+    ? Math.max(-100, Math.min(100, cfg.curve))
+    : 0
+  const curved = Math.abs(curve) >= STRAIGHT_THRESHOLD
+
   // ---- pass 1: metrics ----------------------------------------------------
   const advances = new Array<number>(n)
   const inkBoxes = new Array<GlyphPlace['ink']>(n)
@@ -289,48 +312,44 @@ function layoutArcText(
     let right = useActual ? aR : adv
     let top = useActual ? -aA : -fallbackAscent
     let bottom = useActual ? aD : fallbackDescent
-    // Reported metrics are exact for vector glyphs but only nominal for
-    // color-emoji bitmaps — refine those against the real raster.
-    let bands: InkBox[] | null = null
-    if (PICTOGRAPHIC_RE.test(g)) {
-      const rb = rasterInkBox(ctx.font, g, -left, -top, right, bottom)
+    // Refine against the real raster (cached per font+stroke+glyph) when
+    // it matters: color-emoji bitmaps misreport their metrics even
+    // upright, and on a curve a single rotated rectangle overbounds round
+    // glyph shapes — banded ink keeps the rotated union tight. Straight
+    // vector text keeps the zero-cost TextMetrics path.
+    let bands: readonly InkBox[] | null = null
+    let refined = false
+    if (curved || PICTOGRAPHIC_RE.test(g)) {
+      const rb = rasterInkBox(ctx.font, g, -left, -top, right, bottom, pad * 2)
       if (rb) {
+        // Raster boxes already include the stroke coverage.
         left = rb.box.l
         top = rb.box.t
         right = rb.box.r
         bottom = rb.box.b
         bands = rb.bands
+        refined = true
       }
     }
     if (right <= left || bottom <= top) {
       inkBoxes[i] = null // paints nothing (e.g. zero-width glyph)
       continue
     }
-    // Re-anchor to the advance midpoint and expand for the stroke.
+    // Re-anchor to the advance midpoint; expand unrefined boxes for the
+    // stroke (refined ones measured it from the raster).
     const half = adv / 2
+    const inkPad = refined ? 0 : pad
     inkBoxes[i] = {
-      l: left - half - pad,
-      t: top - pad,
-      r: right - half + pad,
-      b: bottom + pad,
-      bands: bands
-        ? bands.map((bb) => ({
-            l: bb.l - half - pad,
-            t: bb.t - pad,
-            r: bb.r - half + pad,
-            b: bb.b + pad,
-          }))
-        : null,
+      l: left - half - inkPad,
+      t: top - inkPad,
+      r: right - half + inkPad,
+      b: bottom + inkPad,
+      bands, // raw raster bands — shift by -adv/2 when unioning
     }
   }
 
   const totalArcLength = totalAdvance + spacing * (n - 1)
   const safeLength = Math.max(totalArcLength, 1e-3)
-
-  const curve = Number.isFinite(cfg.curve)
-    ? Math.max(-100, Math.min(100, cfg.curve))
-    : 0
-  const curved = Math.abs(curve) >= STRAIGHT_THRESHOLD
 
   let sweep = 0
   let radius = 0
@@ -382,16 +401,24 @@ function layoutArcText(
     hasInk = true
     const cos = Math.cos(rot)
     const sin = Math.sin(rot)
-    // Transform the 4 corners of the local ink box into raw coordinates.
-    for (let corner = 0; corner < 4; corner++) {
-      const lx = corner === 0 || corner === 2 ? ink.l : ink.r
-      const ly = corner < 2 ? ink.t : ink.b
-      const px = x + lx * cos - ly * sin
-      const py = y + lx * sin + ly * cos
-      if (px < minX) minX = px
-      if (px > maxX) maxX = px
-      if (py < minY) minY = py
-      if (py > maxY) maxY = py
+    // Transform the local ink boxes (bands when available, else the whole
+    // box) into raw coordinates and grow the union. Bands are raw raster
+    // geometry anchored at the glyph origin → shift to the advance mid.
+    const parts = ink.bands
+    const partCount = parts ? parts.length : 1
+    const shift = parts ? adv / 2 : 0
+    for (let p = 0; p < partCount; p++) {
+      const bx = parts ? parts[p] : ink
+      for (let corner = 0; corner < 4; corner++) {
+        const lx = (corner === 0 || corner === 2 ? bx.l : bx.r) - shift
+        const ly = corner < 2 ? bx.t : bx.b
+        const px = x + lx * cos - ly * sin
+        const py = y + lx * sin + ly * cos
+        if (px < minX) minX = px
+        if (px > maxX) maxX = px
+        if (py < minY) minY = py
+        if (py > maxY) maxY = py
+      }
     }
   }
 
