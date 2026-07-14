@@ -21,9 +21,14 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        manualChunks: {
-          three: ['three', '@react-three/fiber', '@react-three/drei'],
-          konva: ['konva'],
+        manualChunks(id: string) {
+          if (
+            id.includes('node_modules/three') ||
+            id.includes('node_modules/@react-three')
+          )
+            return 'three'
+          if (id.includes('node_modules/konva')) return 'konva'
+          return undefined
         },
       },
     },
