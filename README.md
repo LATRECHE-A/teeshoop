@@ -4,6 +4,10 @@ A one-page custom apparel design studio for **Tshop** — customers design tees,
 hoodies, or their own shipped-in garments, preview the result in 2D and true
 3D, and hand over print-ready artwork with a quote request.
 
+| 2D editor | 3D preview | Hoodie |
+| --- | --- | --- |
+| ![2D editor](docs/screens/editor.png) | ![3D preview](docs/screens/3d-tee.png) | ![Hoodie](docs/screens/hoodie.png) |
+
 Built as a fully static site: no backend, no accounts, no tracking. Everything
 (designs, uploads, AI background removal) runs and stays in the visitor's
 browser.

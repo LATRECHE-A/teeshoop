@@ -54,6 +54,19 @@ export default function ShortcutsModal() {
           </section>
         ))}
       </div>
+      <p className="mt-6 border-t border-line pt-3 text-[10.5px] leading-relaxed text-tx3">
+        3D hoodie model based on{' '}
+        <a
+          className="underline decoration-line2 underline-offset-2 hover:text-tx2"
+          href="https://sketchfab.com/3d-models/hoodie-2c674228f1e946b5b8f508f8f818e130"
+          target="_blank"
+          rel="noreferrer"
+        >
+          “Hoodie” by yogaminggames
+        </a>{' '}
+        (CC-BY-4.0, simplified & recolored) · t-shirt model CC0 via pmndrs
+        market · fonts via Google Fonts (OFL) · icons by lucide (ISC).
+      </p>
     </Modal>
   )
 }
