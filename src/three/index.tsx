@@ -146,7 +146,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
       <Canvas
         key={canvasKey}
         dpr={[1, 1.75]}
-        camera={{ position: homeCameraPosition(66), fov: 26, near: 1, far: 700 }}
+        camera={{ position: homeCameraPosition(78), fov: 26, near: 1, far: 700 }}
         gl={{
           alpha: true,
           antialias: true,

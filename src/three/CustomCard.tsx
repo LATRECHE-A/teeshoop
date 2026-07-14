@@ -48,8 +48,10 @@ export interface CustomCardProps {
 export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
   const primary = front ?? back
   const frontTex = useSourceTexture(front)
-  // The back face is a π-rotated plane; u-flip so the photo isn't mirrored.
-  const backTex = useSourceTexture(back, true)
+  // Note: the back face is a π-rotated plane, and that rotation alone makes
+  // its texture read correctly from behind (no u-flip needed — verified with
+  // the harness "BACK" wordmark).
+  const backTex = useSourceTexture(back)
   // Missing back → the front's alpha silhouette filled with a neutral fabric
   // tone (looks like the blank reverse of the garment).
   const blankBackTex = useSilhouetteTexture(back ? null : front, BLANK_BACK)
@@ -86,7 +88,8 @@ export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
           />
         </mesh>
       )}
-      {/* Dark mid layer, slightly enlarged: reads as the slab's edge. */}
+      {/* Dark mid layer, slightly enlarged: reads as the slab's edge.
+          The emissive floor keeps it legible over the near-black app bg. */}
       {rimTex && (
         <mesh geometry={frontCard.geometry} scale={[1.02, 1.015, 1]}>
           <meshStandardMaterial
@@ -94,6 +97,7 @@ export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
             alphaTest={0.35}
             roughness={0.95}
             metalness={0}
+            emissive="#10141B"
             side={THREE.DoubleSide}
           />
         </mesh>
@@ -106,6 +110,10 @@ export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
               alphaTest={0.35}
               roughness={0.9}
               metalness={0}
+              // The blank reverse (#242A33 silhouette) would otherwise crush
+              // to the backdrop under the moody rear lighting. alphaTest
+              // already confines fragments to the silhouette cutout.
+              emissive={back ? '#000000' : '#232932'}
               side={THREE.FrontSide}
             />
           </mesh>

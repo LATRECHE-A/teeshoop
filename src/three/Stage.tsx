@@ -131,7 +131,7 @@ export interface CameraRigProps {
 export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigProps) {
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((s) => s.camera)
-  const goal = useRef<THREE.Vector3 | null>(null)
+  const goal = useRef<THREE.Spherical | null>(null)
   const lastNonce = useRef<number | null>(null)
 
   useEffect(() => {
@@ -140,13 +140,9 @@ export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigP
     // Keep the user's current distance (clamped to a pleasant range) and
     // swing around to the requested side.
     const radius = THREE.MathUtils.clamp(camera.position.length(), 48, 96)
-    const target = new THREE.Vector3().setFromSphericalCoords(
-      radius,
-      VIEW_POLAR[viewRequest.view],
-      VIEW_AZIMUTH[viewRequest.view],
-    )
+    const target = new THREE.Spherical(radius, VIEW_POLAR[viewRequest.view], VIEW_AZIMUTH[viewRequest.view])
     if (reducedMotion) {
-      camera.position.copy(target)
+      camera.position.setFromSpherical(target)
       const controls = controlsRef.current
       if (controls) {
         controls.target.set(0, 0, 0)
@@ -157,14 +153,31 @@ export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigP
     }
   }, [viewRequest, camera, reducedMotion])
 
-  // Smooth exponential damp toward the requested view (never a jump-cut).
+  // Smooth exponential damp toward the requested view — in SPHERICAL space,
+  // so the camera arcs around the garment instead of cutting straight
+  // through it (and never jump-cuts).
   useFrame((_, delta) => {
     const controls = controlsRef.current
     if (!goal.current || !controls) return
+    const current = SPHERICAL.setFromVector3(camera.position)
+    const wrap = (a: number) => THREE.MathUtils.euclideanModulo(a + Math.PI, Math.PI * 2) - Math.PI
+    const dTheta = wrap(goal.current.theta - current.theta)
+    const dPhi = goal.current.phi - current.phi
+    const dRadius = goal.current.radius - current.radius
     const k = 1 - Math.exp(-Math.min(delta, 0.05) * 6)
-    camera.position.lerp(goal.current, k)
+    current.theta += dTheta * k
+    current.phi += dPhi * k
+    current.radius += dRadius * k
+    camera.position.setFromSpherical(current)
     controls.target.lerp(ORIGIN, k)
-    if (camera.position.distanceToSquared(goal.current) < 0.02) goal.current = null
+    // Re-aim immediately: OrbitControls only re-orients on ITS update pass,
+    // which may run before this write — without this, slow frames render one
+    // step with a stale orientation and the garment "vanishes" mid-snap.
+    camera.lookAt(controls.target)
+    if (Math.abs(dTheta) < 0.02 && Math.abs(dPhi) < 0.02 && Math.abs(dRadius) < 0.5) {
+      goal.current = null
+      controls.update()
+    }
   })
 
   // The user grabbing the controls cancels any in-flight snap animation.
@@ -177,6 +190,19 @@ export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigP
     controls.addEventListener('start', cancel)
     return () => controls.removeEventListener('start', cancel)
   }, [])
+
+  // dev-only pose probe for headless debugging
+  useFrame(() => {
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { __pose?: unknown }).__pose = {
+        cam: camera.position.toArray().map((n) => Math.round(n * 10) / 10),
+        tgt: controlsRef.current?.target.toArray().map((n) => Math.round(n * 10) / 10),
+        goal: goal.current
+          ? { r: goal.current.radius, phi: goal.current.phi, theta: goal.current.theta }
+          : null,
+      }
+    }
+  })
 
   return (
     <OrbitControls
@@ -196,3 +222,4 @@ export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigP
 }
 
 const ORIGIN = new THREE.Vector3(0, 0, 0)
+const SPHERICAL = new THREE.Spherical()
