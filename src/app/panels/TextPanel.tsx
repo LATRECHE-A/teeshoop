@@ -3,17 +3,13 @@ import clsx from 'clsx'
 import { Plus } from 'lucide-react'
 import { FONTS } from '@/lib/fonts'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 import type { TextLayer } from '@/lib/types'
 
-const CATEGORIES = [
-  { id: 'all', name: 'All' },
-  { id: 'block', name: 'Block' },
-  { id: 'display', name: 'Display' },
-  { id: 'script', name: 'Script' },
-  { id: 'retro', name: 'Retro' },
-] as const
+const CATEGORIES = ['all', 'block', 'display', 'script', 'retro'] as const
 
 export default function TextPanel() {
+  const t = useT()
   const [cat, setCat] = useState<string>('all')
   const addTextLayer = useStore((s) => s.addTextLayer)
   const patchLayer = useStore((s) => s.patchLayer)
@@ -40,29 +36,29 @@ export default function TextPanel() {
     <div className="flex flex-col gap-4 p-3.5">
       <button className="btn w-full justify-center border-cy/40 bg-cy/10 text-cy hover:bg-cy/15" onClick={() => addTextLayer()}>
         <Plus size={15} />
-        Add text
+        {t('text.add_text')}
       </button>
 
       {selected && (
         <div className="rounded-md border border-line bg-bg1 px-2.5 py-2 text-[11.5px] text-tx2">
-          Picking a font below restyles{' '}
-          <span className="font-semibold text-tx">“{selected.name}”</span>. Full
-          text options are in the panel on the right.
+          {t('text.restyle_pre')}{' '}
+          <span className="font-semibold text-tx">{t('text.restyle_name', { name: selected.name })}</span>
+          {t('text.restyle_post')}
         </div>
       )}
 
       <section>
         <div className="mb-2 flex flex-wrap gap-1">
-          {CATEGORIES.map((c) => (
+          {CATEGORIES.map((id) => (
             <button
-              key={c.id}
-              onClick={() => setCat(c.id)}
+              key={id}
+              onClick={() => setCat(id)}
               className={clsx(
                 'chip transition-colors',
-                cat === c.id && 'border-cy/50 bg-cy/10 text-cy',
+                cat === id && 'border-cy/50 bg-cy/10 text-cy',
               )}
             >
-              {c.name}
+              {t(`text.cat_${id}`)}
             </button>
           ))}
         </div>
@@ -83,7 +79,7 @@ export default function TextPanel() {
                 {f.label}
               </span>
               <span className="text-[10px] uppercase tracking-wider text-tx3">
-                {f.category}
+                {t(`text.tag_${f.category}`)}
               </span>
             </button>
           ))}

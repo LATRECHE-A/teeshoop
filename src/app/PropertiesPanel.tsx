@@ -19,6 +19,7 @@ import { INK_COLORS } from '@/content/palettes'
 import type { GraphicLayer, ImageLayer, Layer, TextLayer } from '@/lib/types'
 import { fmtIn } from '@/lib/units'
 import { measureLayer } from '@/lib/renderDesign'
+import { useT } from '@/i18n'
 
 // ---------------------------------------------------------------- controls
 
@@ -72,12 +73,13 @@ function ColorSwatches({
   value: string
   onPick: (hex: string) => void
 }) {
+  const t = useT()
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {INK_COLORS.map((hex) => (
         <button
           key={hex}
-          aria-label={`Ink ${hex}`}
+          aria-label={t('props.ink_swatch', { hex })}
           onClick={() => onPick(hex)}
           className={clsx(
             'h-[22px] w-[22px] rounded-full border transition-transform hover:scale-110',
@@ -90,7 +92,7 @@ function ColorSwatches({
       ))}
       <label
         className="relative h-[22px] w-[22px] cursor-pointer overflow-hidden rounded-full border border-line"
-        title="Custom color"
+        title={t('props.custom_color')}
         style={{
           background:
             'conic-gradient(#FF3D8F,#FFC940,#3ADC97,#35C7FF,#7B6CFF,#FF3D8F)',
@@ -108,6 +110,7 @@ function ColorSwatches({
 }
 
 function FontSelect({ value, onPick }: { value: string; onPick: (f: string) => void }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -149,7 +152,7 @@ function FontSelect({ value, onPick }: { value: string; onPick: (f: string) => v
                 <span style={{ fontFamily: `"${f.family}"` }} className="text-[16px] text-tx">
                   {f.label}
                 </span>
-                <span className="text-[9.5px] uppercase tracking-wider text-tx3">{f.category}</span>
+                <span className="text-[9.5px] uppercase tracking-wider text-tx3">{t('props.font_cat_' + f.category)}</span>
               </button>
             </li>
           ))}
@@ -171,6 +174,7 @@ export default function PropertiesPanel() {
   const duplicateLayer = useStore((s) => s.duplicateLayer)
   const setPanel = useStore((s) => s.setPanel)
   const assets = useStore((s) => s.assets)
+  const t = useT()
 
   const layer = design.layers.find((l) => l.id === selectedId)
   if (!layer || mode !== '2d') return null
@@ -180,21 +184,21 @@ export default function PropertiesPanel() {
 
   return (
     <aside
-      aria-label="Layer properties"
+      aria-label={t('props.layer_props')}
       className="absolute right-3 top-3 bottom-3 z-20 flex w-[264px] flex-col overflow-hidden rounded-xl border border-line bg-bg2/95 shadow-2xl backdrop-blur"
     >
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-line pl-3.5 pr-2">
         <span className="panel-title">
-          {layer.type === 'text' ? 'Text' : layer.type === 'image' ? 'Image' : 'Graphic'}
+          {layer.type === 'text' ? t('props.type_text') : layer.type === 'image' ? t('props.type_image') : t('props.type_graphic')}
         </span>
         <div className="flex items-center">
-          <button className="iconbtn h-7 w-7" title="Duplicate (Ctrl+D)" onClick={() => duplicateLayer(layer.id)}>
+          <button className="iconbtn h-7 w-7" title={t('props.duplicate_hint')} onClick={() => duplicateLayer(layer.id)}>
             <Copy size={13} />
           </button>
-          <button className="iconbtn h-7 w-7 text-dg" title="Delete (Del)" onClick={() => removeLayer(layer.id)}>
+          <button className="iconbtn h-7 w-7 text-dg" title={t('props.delete_hint')} onClick={() => removeLayer(layer.id)}>
             <Trash2 size={13} />
           </button>
-          <button className="iconbtn h-7 w-7" aria-label="Close" onClick={() => select(null)}>
+          <button className="iconbtn h-7 w-7" aria-label={t('common.close')} onClick={() => select(null)}>
             <X size={14} />
           </button>
         </div>
@@ -225,10 +229,11 @@ function TextProps({
   layer: TextLayer
   patch: (p: Partial<TextLayer>, commit?: boolean) => void
 }) {
+  const t = useT()
   const curved = Math.abs(layer.curve) >= 2
   return (
     <>
-      <Row label="Content">
+      <Row label={t('props.content')}>
         <textarea
           className="input h-16 resize-none py-1.5 leading-snug"
           value={layer.text}
@@ -238,10 +243,10 @@ function TextProps({
           }
         />
       </Row>
-      <Row label="Font">
+      <Row label={t('props.font')}>
         <FontSelect value={layer.fontFamily} onPick={(fontFamily) => patch({ fontFamily })} />
       </Row>
-      <Row label="Size">
+      <Row label={t('props.size')}>
         <Slider
           value={layer.fontSizeIn}
           min={0.25}
@@ -251,20 +256,20 @@ function TextProps({
           onChange={(v, commit) => patch({ fontSizeIn: v }, commit)}
         />
       </Row>
-      <Row label="Curve">
+      <Row label={t('props.curve')}>
         <Slider
           value={layer.curve}
           min={-100}
           max={100}
           step={1}
-          format={(v) => (Math.abs(v) < 2 ? 'straight' : `${v}`)}
+          format={(v) => (Math.abs(v) < 2 ? t('props.straight') : `${v}`)}
           onChange={(v, commit) => patch({ curve: Math.abs(v) < 4 ? 0 : v }, commit)}
         />
       </Row>
-      <Row label="Ink">
+      <Row label={t('props.ink')}>
         <ColorSwatches value={layer.fill} onPick={(fill) => patch({ fill })} />
       </Row>
-      <Row label="Outline">
+      <Row label={t('props.outline')}>
         <div className="flex items-center gap-2">
           <ColorSwatchesMini
             value={layer.stroke}
@@ -283,7 +288,7 @@ function TextProps({
           />
         )}
       </Row>
-      <Row label="Letter spacing">
+      <Row label={t('props.letter_spacing')}>
         <Slider
           value={layer.letterSpacingEm}
           min={-0.05}
@@ -294,7 +299,7 @@ function TextProps({
         />
       </Row>
       {!curved && layer.text.includes('\n') && (
-        <Row label="Alignment">
+        <Row label={t('props.alignment')}>
           <div className="flex gap-1">
             {(
               [
@@ -306,7 +311,7 @@ function TextProps({
               <button
                 key={al}
                 className={clsx('iconbtn', layer.align === al && 'bg-bg3 text-cy')}
-                aria-label={`Align ${al}`}
+                aria-label={t('props.align_' + al)}
                 onClick={() => patch({ align: al })}
               >
                 <Icon size={15} />
@@ -328,12 +333,13 @@ function ColorSwatchesMini({
   onPick: (hex: string) => void
   onClear: () => void
 }) {
+  const t = useT()
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <button
         onClick={onClear}
-        aria-label="No outline"
-        title="No outline"
+        aria-label={t('props.no_outline')}
+        title={t('props.no_outline')}
         className={clsx(
           'relative h-[22px] w-[22px] overflow-hidden rounded-full border',
           value === null ? 'border-cy ring-2 ring-cy/40' : 'border-line2',
@@ -344,7 +350,7 @@ function ColorSwatchesMini({
       {['#111111', '#FFFFFF', '#F2B32C', '#E03A3E', '#2454B5', '#FF3D8F'].map((hex) => (
         <button
           key={hex}
-          aria-label={`Outline ${hex}`}
+          aria-label={t('props.outline_swatch', { hex })}
           onClick={() => onPick(hex)}
           className={clsx(
             'h-[22px] w-[22px] rounded-full border transition-transform hover:scale-110',
@@ -368,40 +374,41 @@ function ImageProps({
   hasCutout: boolean
   openUploads: () => void
 }) {
+  const t = useT()
   return (
     <>
       {hasCutout ? (
-        <Row label="Background">
+        <Row label={t('props.background')}>
           <div className="flex gap-1">
             <button
               className={clsx('btn h-8 flex-1 text-[12px]', layer.useCutout && 'border-cy text-cy')}
               onClick={() => patch({ useCutout: true })}
             >
-              <Scissors size={13} /> Removed
+              <Scissors size={13} /> {t('props.bg_removed')}
             </button>
             <button
               className={clsx('btn h-8 flex-1 text-[12px]', !layer.useCutout && 'border-cy text-cy')}
               onClick={() => patch({ useCutout: false })}
             >
-              Original
+              {t('props.bg_original')}
             </button>
           </div>
         </Row>
       ) : (
         <div className="rounded-lg border border-line bg-bg1 p-2.5 text-[11.5px] leading-snug text-tx2">
-          Want just the subject without its background? Use the{' '}
+          {t('props.cutout_hint_pre')}{' '}
           <button className="font-semibold text-cy underline-offset-2 hover:underline" onClick={openUploads}>
-            scissors button
+            {t('props.cutout_hint_link')}
           </button>{' '}
-          on this image in Uploads.
+          {t('props.cutout_hint_post')}
         </div>
       )}
-      <Row label="Flip">
+      <Row label={t('props.flip')}>
         <button
           className={clsx('btn h-8 w-full text-[12px]', layer.flipX && 'border-cy text-cy')}
           onClick={() => patch({ flipX: !layer.flipX })}
         >
-          <FlipHorizontal2 size={13} /> Mirror horizontally
+          <FlipHorizontal2 size={13} /> {t('props.mirror_h')}
         </button>
       </Row>
     </>
@@ -415,17 +422,18 @@ function GraphicProps({
   layer: GraphicLayer
   patch: (p: Partial<GraphicLayer>, commit?: boolean) => void
 }) {
+  const t = useT()
   return (
     <>
-      <Row label="Ink">
+      <Row label={t('props.ink')}>
         <ColorSwatches value={layer.fill} onPick={(fill) => patch({ fill })} />
       </Row>
-      <Row label="Flip">
+      <Row label={t('props.flip')}>
         <button
           className={clsx('btn h-8 w-full text-[12px]', layer.flipX && 'border-cy text-cy')}
           onClick={() => patch({ flipX: !layer.flipX })}
         >
-          <FlipHorizontal2 size={13} /> Mirror horizontally
+          <FlipHorizontal2 size={13} /> {t('props.mirror_h')}
         </button>
       </Row>
     </>
@@ -439,10 +447,11 @@ function CommonProps({
   layer: Layer
   patch: (p: Partial<Layer>, commit?: boolean) => void
 }) {
+  const t = useT()
   const size = measureLayer(layer, 100)
   return (
     <>
-      <Row label="Opacity">
+      <Row label={t('props.opacity')}>
         <Slider
           value={layer.opacity}
           min={0.05}
@@ -452,7 +461,7 @@ function CommonProps({
           onChange={(v, commit) => patch({ opacity: v }, commit)}
         />
       </Row>
-      <Row label="Rotation">
+      <Row label={t('props.rotation')}>
         <Slider
           value={layer.rotation}
           min={-180}
@@ -462,19 +471,19 @@ function CommonProps({
           onChange={(v, commit) => patch({ rotation: v }, commit)}
         />
       </Row>
-      <Row label="Position">
+      <Row label={t('props.position')}>
         <div className="flex gap-1">
           <button className="btn h-8 flex-1 text-[12px]" onClick={() => patch({ xIn: 0 })}>
-            <AlignCenterHorizontal size={13} /> Center
+            <AlignCenterHorizontal size={13} /> {t('props.center')}
           </button>
           <button className="btn h-8 flex-1 text-[12px]" onClick={() => patch({ yIn: 0 })}>
-            <AlignCenterVertical size={13} /> Middle
+            <AlignCenterVertical size={13} /> {t('props.middle')}
           </button>
         </div>
       </Row>
       <div className="mt-1 rounded-md border border-line bg-bg1 px-2.5 py-2">
         <span className="mono-dim">
-          prints at {fmtIn(size.w / 100)} × {fmtIn(size.h / 100)}
+          {t('props.prints_at', { w: fmtIn(size.w / 100), h: fmtIn(size.h / 100) })}
         </span>
       </div>
     </>

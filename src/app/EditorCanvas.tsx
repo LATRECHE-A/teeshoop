@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { Frame, Maximize, Minus, Plus, TriangleAlert } from 'lucide-react'
+import clsx from 'clsx'
 import { EditorEngine, type SelectionInfo } from '@/editor/EditorEngine'
 import { useStore } from '@/state/store'
 import { fmtIn } from '@/lib/units'
+import { stageBackground } from '@/scenes'
+import { useT } from '@/i18n'
 
 export default function EditorCanvas() {
   const hostRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<EditorEngine | null>(null)
   const [zoomPct, setZoomPct] = useState(100)
   const [sel, setSel] = useState<SelectionInfo | null>(null)
+  const t = useT()
 
   const design = useStore((s) => s.design)
   const side = useStore((s) => s.activeSide)
   const selectedId = useStore((s) => s.selectedId)
+  const lang = useStore((s) => s.lang)
+  const scene = useStore((s) => s.scene)
+  const theme = useStore((s) => s.theme)
+  const bg = stageBackground(scene, theme)
 
   // mount engine once
   useEffect(() => {
@@ -74,17 +82,18 @@ export default function EditorCanvas() {
     }
   }, [])
 
-  // reconcile engine with state
+  // reconcile engine with state (lang re-syncs so the on-canvas print-area
+  // label re-renders in the new language)
   useEffect(() => {
     void engineRef.current?.sync({ design, side, selectedId })
-  }, [design, side, selectedId])
+  }, [design, side, selectedId, lang])
 
   const zoom = (action: 'in' | 'out' | 'fit') =>
     window.dispatchEvent(new CustomEvent('tshop:zoom', { detail: action }))
 
   return (
     <div className="absolute inset-0">
-      <div ref={hostRef} className="canvas-surface absolute inset-0" />
+      <div ref={hostRef} className={clsx('absolute inset-0', bg.className)} style={bg.style} />
 
       {/* selection dimension chip */}
       {sel && (
@@ -107,21 +116,21 @@ export default function EditorCanvas() {
       {sel?.cropped && (
         <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-yl/30 bg-yl/10 px-3 py-1.5 text-[11.5px] font-medium text-yl">
           <TriangleAlert size={13} />
-          Outside the print area — anything past the dashed line is cropped
+          {t('editor.crop_warn')}
         </div>
       )}
 
       {/* zoom HUD */}
       <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur">
-        <button className="iconbtn h-7 w-7" onClick={() => zoom('out')} aria-label="Zoom out">
+        <button className="iconbtn h-7 w-7" onClick={() => zoom('out')} aria-label={t('editor.zoom_out')}>
           <Minus size={14} />
         </button>
         <span className="mono-dim w-12 text-center">{zoomPct}%</span>
-        <button className="iconbtn h-7 w-7" onClick={() => zoom('in')} aria-label="Zoom in">
+        <button className="iconbtn h-7 w-7" onClick={() => zoom('in')} aria-label={t('editor.zoom_in')}>
           <Plus size={14} />
         </button>
         <div className="mx-0.5 h-4 w-px bg-line" />
-        <button className="iconbtn h-7 w-7" onClick={() => zoom('fit')} aria-label="Fit to screen" title="Fit (F)">
+        <button className="iconbtn h-7 w-7" onClick={() => zoom('fit')} aria-label={t('editor.fit')} title={t('editor.fit_hint')}>
           <Maximize size={13} />
         </button>
       </div>
@@ -129,7 +138,7 @@ export default function EditorCanvas() {
       {/* hint */}
       <div className="pointer-events-none absolute bottom-4 left-4 z-10 hidden items-center gap-1.5 text-[11px] text-tx3 lg:flex">
         <Frame size={12} />
-        Scroll to zoom · Space + drag to pan · Double-click text to edit
+        {t('editor.hint')}
       </div>
     </div>
   )

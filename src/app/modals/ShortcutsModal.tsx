@@ -1,42 +1,45 @@
 import Modal from './Modal'
 import { useStore } from '@/state/store'
-
-const GROUPS: { title: string; rows: [string, string][] }[] = [
-  {
-    title: 'Canvas',
-    rows: [
-      ['Scroll', 'Zoom in / out'],
-      ['Space + drag', 'Pan around'],
-      ['F', 'Fit garment to screen'],
-      ['Double-click text', 'Edit its content'],
-    ],
-  },
-  {
-    title: 'Layers',
-    rows: [
-      ['Delete / Backspace', 'Remove selected layer'],
-      ['Ctrl + D', 'Duplicate selected layer'],
-      ['Arrow keys', 'Nudge 0.05″ (Shift = 0.5″)'],
-      ['Esc', 'Deselect / close dialogs'],
-    ],
-  },
-  {
-    title: 'General',
-    rows: [
-      ['Ctrl + Z', 'Undo'],
-      ['Ctrl + Shift + Z', 'Redo'],
-      ['T', 'Add a text layer'],
-      ['?', 'This cheatsheet'],
-    ],
-  },
-]
+import { useT } from '@/i18n'
 
 export default function ShortcutsModal() {
+  const t = useT()
   const closeModal = useStore((s) => s.closeModal)
+
+  const groups: { title: string; rows: [string, string][] }[] = [
+    {
+      title: t('shortcuts.group_canvas'),
+      rows: [
+        [t('shortcuts.chord_scroll'), t('shortcuts.zoom')],
+        [t('shortcuts.chord_space_drag'), t('shortcuts.pan')],
+        ['F', t('shortcuts.fit')],
+        [t('shortcuts.chord_dblclick_text'), t('shortcuts.edit_content')],
+      ],
+    },
+    {
+      title: t('shortcuts.group_layers'),
+      rows: [
+        [t('shortcuts.chord_delete'), t('shortcuts.remove_layer')],
+        ['Ctrl + D', t('shortcuts.duplicate_layer')],
+        [t('shortcuts.chord_arrows'), t('shortcuts.nudge')],
+        ['Esc', t('shortcuts.deselect')],
+      ],
+    },
+    {
+      title: t('shortcuts.group_general'),
+      rows: [
+        ['Ctrl + Z', t('shortcuts.undo')],
+        ['Ctrl + Shift + Z', t('shortcuts.redo')],
+        ['T', t('shortcuts.add_text')],
+        ['?', t('shortcuts.cheatsheet')],
+      ],
+    },
+  ]
+
   return (
-    <Modal title="Keyboard shortcuts" onClose={() => closeModal('shortcuts')}>
+    <Modal title={t('rail.shortcuts')} onClose={() => closeModal('shortcuts')}>
       <div className="grid gap-5 sm:grid-cols-3">
-        {GROUPS.map((g) => (
+        {groups.map((g) => (
           <section key={g.title}>
             <div className="panel-title mb-2">{g.title}</div>
             <dl className="flex flex-col gap-2">
@@ -55,17 +58,16 @@ export default function ShortcutsModal() {
         ))}
       </div>
       <p className="mt-6 border-t border-line pt-3 text-[10.5px] leading-relaxed text-tx3">
-        3D hoodie model based on{' '}
+        {t('shortcuts.credits_before')}{' '}
         <a
           className="underline decoration-line2 underline-offset-2 hover:text-tx2"
           href="https://sketchfab.com/3d-models/hoodie-2c674228f1e946b5b8f508f8f818e130"
           target="_blank"
           rel="noreferrer"
         >
-          “Hoodie” by yogaminggames
+          {t('shortcuts.credits_link')}
         </a>{' '}
-        (CC-BY-4.0, simplified & recolored) · t-shirt model CC0 via pmndrs
-        market · fonts via Google Fonts (OFL) · icons by lucide (ISC).
+        {t('shortcuts.credits_after')}
       </p>
     </Modal>
   )

@@ -8,84 +8,55 @@ import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer, OrbitControls } from '@react-three/drei'
 import type { ViewSnap } from '@/lib/types'
+import type { Scene3DConfig } from '@/scenes'
 
 /**
- * Softbox rig, calibrated to match the 2D garment art's lighting: big warm
- * key from the top-left, cool rim from the right/behind, gentle low fill.
- * Positions are in the environment's own virtual scene (not garment inches).
+ * Procedural softbox rig baked into a 256px env map (no network HDRs). The
+ * light set comes from the active scene (studio / beach / forest / …) so the
+ * garment picks up that environment's key, fills, rims and colour. Positions
+ * are in the environment's own virtual scene (not garment inches).
+ *
+ * Mount this with `key={sceneId}` so switching scenes re-bakes the map.
  */
-export function StudioEnvironment() {
+export function SceneEnvironment({ config }: { config: Scene3DConfig }) {
   return (
     <Environment resolution={256} frames={1}>
-      {/* key softbox — top-left, slightly in front */}
-      <Lightformer
-        form="rect"
-        intensity={5.2}
-        color="#fff6ec"
-        position={[-5.5, 6.5, 6]}
-        scale={[8, 5.5, 1]}
-        target={[0, 0, 0]}
-      />
-      {/* cool rim — right, behind the garment */}
-      <Lightformer
-        form="rect"
-        intensity={2.6}
-        color="#a9cdff"
-        position={[8.5, 2, -5]}
-        scale={[3.2, 8, 1]}
-        target={[0, 0, 0]}
-      />
-      {/* gentle fill — low front-right */}
-      <Lightformer
-        form="rect"
-        intensity={1.05}
-        color="#e9eef6"
-        position={[3.5, -2.5, 7.5]}
-        scale={[8, 3.5, 1]}
-        target={[0, 0, 0]}
-      />
-      {/* soft overhead ring for hair-light speculars */}
-      <Lightformer
-        form="ring"
-        intensity={0.7}
-        color="#ffffff"
-        position={[0, 9, 0.5]}
-        scale={6.5}
-        target={[0, 0, 0]}
-      />
-      {/* faint cyan kicker, low left-behind (brand energy) */}
-      <Lightformer
-        form="rect"
-        intensity={0.5}
-        color="#35c7ff"
-        position={[-8, 0, -6]}
-        scale={[2.5, 6, 1]}
-        target={[0, 0, 0]}
-      />
-      {/* rear fill — keeps the BACK view legible (it faces away from the key) */}
-      <Lightformer
-        form="rect"
-        intensity={1.5}
-        color="#e6ecf5"
-        position={[-2, 4.5, -8]}
-        scale={[7, 4.5, 1]}
-        target={[0, 0, 0]}
-      />
+      {config.lightformers.map((lf, i) => (
+        <Lightformer
+          key={i}
+          form={lf.form ?? 'rect'}
+          intensity={lf.intensity}
+          color={lf.color}
+          position={lf.position}
+          scale={lf.scale}
+          target={lf.target ?? [0, 0, 0]}
+        />
+      ))}
     </Environment>
   )
 }
 
-export function Floor({ heightIn, widthIn }: { heightIn: number; widthIn: number }) {
+export function Floor({
+  heightIn,
+  widthIn,
+  shadowColor = '#000000',
+  shadowOpacity = 0.58,
+}: {
+  heightIn: number
+  widthIn: number
+  shadowColor?: string
+  shadowOpacity?: number
+}) {
   const floorY = -(heightIn / 2) - 1.1
   return (
     <ContactShadows
       position={[0, floorY, 0]}
-      opacity={0.58}
+      opacity={shadowOpacity}
       scale={widthIn * 2.7}
       blur={2.1}
       far={heightIn * 0.55}
       resolution={512}
-      color="#000000"
+      color={shadowColor}
     />
   )
 }

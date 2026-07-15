@@ -3,6 +3,7 @@ import { Camera, RefreshCw, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 import {
   addAsset,
   ensureAssetImage,
@@ -29,6 +30,7 @@ function PrintAreaPlacer({
   widthIn: number
   onChange: (area: RectIn) => void
 }) {
+  const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const [disp, setDisp] = useState<{ w: number; h: number; ppi: number } | null>(null)
@@ -175,7 +177,7 @@ function PrintAreaPlacer({
           className="chip hover:border-cy/50 hover:text-cy"
           onClick={() => onChange(clampArea(defaultCustomPrintArea(widthIn, gHIn || 28)))}
         >
-          Center chest
+          {t('custom.center_chest')}
         </button>
         <button
           className="chip hover:border-cy/50 hover:text-cy"
@@ -190,9 +192,9 @@ function PrintAreaPlacer({
             )
           }
         >
-          Full side
+          {t('custom.full_side')}
         </button>
-        <span className="text-[10.5px] text-tx3">Drag the box to where we should print</span>
+        <span className="text-[10.5px] text-tx3">{t('custom.drag_hint')}</span>
       </div>
     </div>
   )
@@ -211,6 +213,7 @@ function PhotoTile({
   onToggleCutout: (use: boolean) => void
   removeSupported: boolean
 }) {
+  const t = useT()
   const inputRef = useRef<HTMLInputElement>(null)
   const [thumb, setThumb] = useState<string | null>(null)
 
@@ -254,36 +257,36 @@ function PhotoTile({
         )}
       >
         {thumb ? (
-          <img src={thumb} alt={`${side} of your garment`} className="h-full w-full object-contain p-1" />
+          <img src={thumb} alt={t('custom.photo_alt', { side: t('side.' + side) })} className="h-full w-full object-contain p-1" />
         ) : (
           <>
             <Camera size={20} className="text-cy" />
-            <span className="text-[12px] font-medium capitalize text-tx">{side} photo{side === 'back' && ' (optional)'}</span>
+            <span className="text-[12px] font-medium capitalize text-tx">{t('side.' + side)} {t('custom.photo_word')}{side === 'back' && ' ' + t('custom.optional')}</span>
             <span className="px-4 text-center text-[10.5px] leading-snug text-tx3">
-              Lay the garment flat, shoot straight-on in even light
+              {t('custom.photo_tip')}
             </span>
           </>
         )}
         {draft?.processing && (
           <span className="absolute inset-0 flex items-center justify-center gap-2 bg-bg0/80 text-[12px] text-cy backdrop-blur-[2px]">
-            <Wand2 size={14} className="animate-pulse" /> Removing background…
+            <Wand2 size={14} className="animate-pulse" /> {t('custom.removing_bg')}
           </span>
         )}
       </button>
       {draft && (
         <div className="flex items-center justify-between gap-2">
           <button className="chip hover:border-cy/50 hover:text-cy" onClick={() => inputRef.current?.click()}>
-            <RefreshCw size={10} /> Replace
+            <RefreshCw size={10} /> {t('common.replace')}
           </button>
           {removeSupported && (
             <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-tx2">
               <input
                 type="checkbox"
-                className="accent-[#35C7FF]"
+                className="accent-cy"
                 checked={draft.useCutout}
                 onChange={(e) => onToggleCutout(e.target.checked)}
               />
-              Cutout background
+              {t('custom.cutout_bg')}
             </label>
           )}
         </div>
@@ -293,6 +296,7 @@ function PhotoTile({
 }
 
 export default function CustomSetupModal() {
+  const t = useT()
   const design = useStore((s) => s.design)
   const closeModal = useStore((s) => s.closeModal)
   const setCustom = useStore((s) => s.setCustom)
@@ -322,7 +326,7 @@ export default function CustomSetupModal() {
   const upload = (side: Side) => async (file: File) => {
     const setDraft = side === 'front' ? setFront : setBack
     try {
-      const meta = await addAsset(file, `${side} — ${file.name}`)
+      const meta = await addAsset(file, `${t('side.' + side)} — ${file.name}`)
       setAssets(await listAssets())
       const gHIn = (meta.height / meta.width) * widthIn
       const base: SideDraft = {
@@ -355,18 +359,18 @@ export default function CustomSetupModal() {
             return
           }
         } catch {
-          toast('warn', 'Background removal failed — using the full photo')
+          toast('warn', t('toast.bg_removed_fallback'))
         }
         setDraft(ifCurrent((d) => ({ ...d, processing: false })))
       }
     } catch {
-      toast('error', 'Could not read that photo')
+      toast('error', t('toast.photo_read_failed'))
     }
   }
 
   const save = () => {
     if (!front) {
-      toast('warn', 'Add at least the front photo')
+      toast('warn', t('toast.need_front'))
       return
     }
     const stripped = (d: SideDraft | null): CustomSideSetup | null =>
@@ -375,16 +379,16 @@ export default function CustomSetupModal() {
     closeModal('customSetup')
     const hasBackLayers = design.layers.some((l) => l.side === 'back')
     if (!back && hasBackLayers) {
-      toast('warn', 'This design has back-side elements — add a back photo to see and edit them')
+      toast('warn', t('toast.back_elements'))
     } else {
-      toast('ok', 'Your garment is set up — design away')
+      toast('ok', t('toast.garment_ready'))
     }
   }
 
   return (
     <Modal
-      title="Print on your own garment"
-      subtitle="You ship it to us, we decorate it. Photos let you preview the design in place — in 2D and 3D."
+      title={t('custom.title')}
+      subtitle={t('custom.subtitle')}
       onClose={() => closeModal('customSetup')}
       size="lg"
     >
@@ -407,7 +411,7 @@ export default function CustomSetupModal() {
         </div>
 
         <section>
-          <div className="panel-title mb-2">Garment width — measured flat, pit to pit ×2</div>
+          <div className="panel-title mb-2">{t('custom.width_label')}</div>
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -424,13 +428,13 @@ export default function CustomSetupModal() {
             <span className="mono-dim w-12 shrink-0 text-right text-cy">{fmtIn(widthIn)}</span>
           </div>
           <p className="mt-1 text-[11px] text-tx3">
-            This keeps every element true to size on the preview and the print.
+            {t('custom.width_hint')}
           </p>
         </section>
 
         {front && !front.processing && (
           <section>
-            <div className="panel-title mb-2">Front print area</div>
+            <div className="panel-title mb-2">{t('custom.print_area_side', { side: t('side.front') })}</div>
             <PrintAreaPlacer
               setup={front}
               widthIn={widthIn}
@@ -440,7 +444,7 @@ export default function CustomSetupModal() {
         )}
         {back && !back.processing && (
           <section>
-            <div className="panel-title mb-2">Back print area</div>
+            <div className="panel-title mb-2">{t('custom.print_area_side', { side: t('side.back') })}</div>
             <PrintAreaPlacer
               setup={back}
               widthIn={widthIn}
@@ -451,10 +455,10 @@ export default function CustomSetupModal() {
 
         <div className="flex justify-end gap-2 border-t border-line pt-4">
           <button className="btn btn-ghost" onClick={() => closeModal('customSetup')}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className="btn btn-primary" onClick={save} disabled={!front || front.processing}>
-            Use this garment
+            {t('custom.use_garment')}
           </button>
         </div>
       </div>

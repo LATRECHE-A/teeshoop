@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CloudUpload, Plus, Scissors, Trash2, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 import {
   addAsset,
   ensureAssetImage,
@@ -29,12 +30,13 @@ export function useAssetThumb(id: string): string | null {
 }
 
 export function AssetThumb({ asset, onPick }: { asset: AssetMeta; onPick: () => void }) {
+  const t = useT()
   const src = useAssetThumb(asset.id)
   return (
     <button
       onClick={onPick}
-      className="relative aspect-square overflow-hidden rounded-lg border border-line bg-[repeating-conic-gradient(#1F2630_0%_25%,#181D25_0%_50%)] bg-[length:14px_14px] transition-colors hover:border-cy/60"
-      title={`Add “${asset.name}” to the design`}
+      className="checkerboard relative aspect-square overflow-hidden rounded-lg border border-line transition-colors hover:border-cy/60"
+      title={t('uploads.add_thumb', { name: asset.name })}
     >
       {src && <img src={src} alt={asset.name} className="h-full w-full object-contain" draggable={false} />}
     </button>
@@ -42,6 +44,7 @@ export function AssetThumb({ asset, onPick }: { asset: AssetMeta; onPick: () => 
 }
 
 export default function UploadsPanel() {
+  const t = useT()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
   const [processing, setProcessing] = useState<Record<string, number>>({})
@@ -54,19 +57,19 @@ export default function UploadsPanel() {
     let added = 0
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) {
-        toast('warn', `“${file.name}” is not an image`)
+        toast('warn', t('toast.not_image', { name: file.name }))
         continue
       }
       try {
         await addAsset(file, file.name)
         added++
       } catch {
-        toast('error', `Could not read “${file.name}”`)
+        toast('error', t('toast.read_failed_name', { name: file.name }))
       }
     }
     if (added > 0) {
       setAssets(await listAssets())
-      toast('ok', added === 1 ? 'Added to your library' : `Added ${added} images`)
+      toast('ok', added === 1 ? t('toast.added_one') : t('toast.added_many', { n: added }))
     }
   }
 
@@ -83,7 +86,7 @@ export default function UploadsPanel() {
 
   const cutout = async (asset: AssetMeta) => {
     if (!isBgRemovalSupported()) {
-      toast('warn', 'Background removal is not supported in this browser')
+      toast('warn', t('toast.bg_not_supported'))
       return
     }
     setProcessing((p) => ({ ...p, [asset.id]: 0 }))
@@ -100,9 +103,9 @@ export default function UploadsPanel() {
       })
       setAssets(await setAssetCutout(asset.id, result))
       invalidateCustomBBox(asset.id)
-      toast('ok', `Background removed from “${asset.name}”`)
+      toast('ok', t('toast.bg_removed_name', { name: asset.name }))
     } catch {
-      toast('error', 'Background removal failed — try a different photo')
+      toast('error', t('toast.bg_failed_retry'))
     } finally {
       setProcessing((p) => {
         const { [asset.id]: _drop, ...rest } = p
@@ -115,7 +118,7 @@ export default function UploadsPanel() {
     // Pull it out of the active design first so no layer dangles.
     useStore.getState().purgeAsset(asset.id)
     setAssets(await removeAsset(asset.id))
-    toast('info', `Removed “${asset.name}” from the library and the design`)
+    toast('info', t('toast.removed_from_lib', { name: asset.name }))
   }
 
   return (
@@ -149,25 +152,24 @@ export default function UploadsPanel() {
         )}
       >
         <CloudUpload size={22} className="text-cy" />
-        <div className="text-[12.5px] font-medium text-tx">Upload images</div>
-        <div className="text-[11px] text-tx3">Click, drop files, or paste — PNG · JPG · SVG</div>
+        <div className="text-[12.5px] font-medium text-tx">{t('uploads.upload_images')}</div>
+        <div className="text-[11px] text-tx3">{t('uploads.upload_hint')}</div>
       </button>
 
       {assets.length === 0 ? (
         <div className="rounded-lg border border-line bg-bg1 p-3 text-[12px] leading-relaxed text-tx2">
-          Your library is empty. Uploads stay on this device and appear here so
-          you can reuse them across designs.
+          {t('uploads.library_empty')}
         </div>
       ) : (
         <section>
-          <div className="panel-title mb-2">Library · {assets.length}</div>
+          <div className="panel-title mb-2">{t('uploads.library_count', { n: assets.length })}</div>
           <div className="grid grid-cols-2 gap-2">
             {assets.map((a) => (
               <div key={a.id} className="group relative">
                 <AssetThumb asset={a} onPick={() => addImageLayer(a)} />
                 {a.hasCutout && (
                   <span className="absolute left-1.5 top-1.5 rounded bg-ok/15 px-1.5 py-px text-[9px] font-bold tracking-wide text-ok">
-                    CUTOUT
+                    {t('uploads.cutout_badge')}
                   </span>
                 )}
                 {processing[a.id] !== undefined ? (
@@ -184,7 +186,7 @@ export default function UploadsPanel() {
                   <div className="absolute inset-x-1.5 bottom-1.5 flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       className="iconbtn h-7 w-7 bg-bg1/90 text-tx backdrop-blur"
-                      title="Add to design"
+                      title={t('uploads.add_to_design')}
                       onClick={() => addImageLayer(a)}
                     >
                       <Plus size={13} />
@@ -192,7 +194,7 @@ export default function UploadsPanel() {
                     {!a.hasCutout && (
                       <button
                         className="iconbtn h-7 w-7 bg-bg1/90 text-cy backdrop-blur"
-                        title="Remove background"
+                        title={t('uploads.remove_bg')}
                         onClick={() => void cutout(a)}
                       >
                         <Scissors size={13} />
@@ -200,7 +202,7 @@ export default function UploadsPanel() {
                     )}
                     <button
                       className="iconbtn h-7 w-7 bg-bg1/90 text-dg backdrop-blur"
-                      title="Delete from library"
+                      title={t('uploads.delete_from_lib')}
                       onClick={() => void del(a)}
                     >
                       <Trash2 size={13} />
@@ -212,7 +214,7 @@ export default function UploadsPanel() {
           </div>
           <p className="mt-2.5 text-[11px] leading-relaxed text-tx3">
             <Scissors size={11} className="mr-1 inline" />
-            Remove background runs on your device — nothing is uploaded anywhere.
+            {t('uploads.bg_local_note')}
           </p>
         </section>
       )}

@@ -1,8 +1,10 @@
 import clsx from 'clsx'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 import type { Side } from '@/lib/types'
 
 export default function SideSwitcher() {
+  const t = useT()
   const side = useStore((s) => s.activeSide)
   const setSide = useStore((s) => s.setSide)
   const layers = useStore((s) => s.design.layers)
@@ -17,7 +19,7 @@ export default function SideSwitcher() {
       onClick={() => setSide(sd)}
       disabled={sd === 'back' && backDisabled}
       aria-pressed={side === sd}
-      title={sd === 'back' && backDisabled ? 'Add a back photo in the garment setup to design the back' : undefined}
+      title={sd === 'back' && backDisabled ? t('side.back_locked') : undefined}
       className={clsx(
         'relative flex h-8 items-center gap-1.5 rounded-full px-4 text-[12.5px] font-semibold transition-colors',
         side === sd ? 'bg-bg3 text-tx' : 'text-tx3 hover:text-tx2',
@@ -37,8 +39,8 @@ export default function SideSwitcher() {
 
   return (
     <div className="pointer-events-auto flex items-center rounded-full border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur">
-      <Btn sd="front" label="Front" />
-      <Btn sd="back" label="Back" />
+      <Btn sd="front" label={t('side.front')} />
+      <Btn sd="back" label={t('side.back')} />
     </div>
   )
 }

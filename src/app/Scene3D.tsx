@@ -7,6 +7,8 @@ import { renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { useStore } from '@/state/store'
 import { RegMark } from './Brand'
 import { garmentColorHex } from '@/lib/renderDesign'
+import { stageBackground } from '@/scenes'
+import { t, useT } from '@/i18n'
 
 const loadGarment3D = () => lazy(() => import('@/three'))
 
@@ -25,7 +27,7 @@ class Retry3DBoundary extends Component<
   render() {
     if (!this.state.failed) return this.props.children
     return (
-      <Fallback title="The 3D studio did not load" body="Usually a brief connection hiccup. Your design is untouched.">
+      <Fallback title={t('three.failed_title')} body={t('three.failed_body')}>
         <button
           className="btn mt-1"
           onClick={() => {
@@ -33,7 +35,7 @@ class Retry3DBoundary extends Component<
             this.props.onRetry()
           }}
         >
-          Try again
+          {t('three.try_again')}
         </button>
       </Fallback>
     )
@@ -78,12 +80,38 @@ function useDesignTextures(design: Design): Sources | null {
         const next: Sources = { front: null, back: null, customFront: null, customBack: null }
 
         if (design.garmentId === 'custom') {
+          const widthIn = design.custom?.widthIn ?? 20
+          // Render each supplied side, then auto-scale to a consistent
+          // footprint: widths already map bbox→widthIn, but heights/framing can
+          // differ, so pad the shorter side's canvas at the BOTTOM to the same
+          // inch height. printArea is stored top-left-relative and both garment
+          // and design are drawn from the top-left, so bottom padding keeps
+          // every placement valid while front/back register (shoulders align)
+          // in 2D, 3D and the extruded back cap.
+          const rendered: { side: Side; canvas: HTMLCanvasElement }[] = []
           for (const side of ['front', 'back'] as Side[]) {
-            const setup = design.custom?.[side]
-            if (!setup) continue
-            const widthIn = design.custom?.widthIn ?? 20
-            const canvas = await renderMockup(design, side, 1100)
-            next[side === 'front' ? 'customFront' : 'customBack'] = {
+            if (!design.custom?.[side]) continue
+            rendered.push({ side, canvas: await renderMockup(design, side, 1100) })
+          }
+          const hIns = rendered.map((r) => (widthIn * r.canvas.height) / r.canvas.width)
+          let unifiedHIn = hIns.length ? Math.max(...hIns) : 0
+          const minH = hIns.length ? Math.min(...hIns) : 0
+          // Framings too different (bad crop/zoom) — don't force a runaway pad.
+          if (unifiedHIn > 0 && minH > 0 && unifiedHIn / minH > 1.7) unifiedHIn = 0
+          for (const r of rendered) {
+            let canvas = r.canvas
+            const natHIn = (widthIn * canvas.height) / canvas.width
+            if (unifiedHIn > 0 && natHIn < unifiedHIn - 1e-3) {
+              const padded = document.createElement('canvas')
+              padded.width = canvas.width
+              padded.height = Math.max(2, Math.round((canvas.width * unifiedHIn) / widthIn))
+              const pctx = padded.getContext('2d')
+              if (pctx) {
+                pctx.drawImage(canvas, 0, 0)
+                canvas = padded
+              }
+            }
+            next[r.side === 'front' ? 'customFront' : 'customBack'] = {
               canvas,
               version: v,
               wIn: widthIn,
@@ -140,6 +168,9 @@ export default function Scene3D() {
   const autoRotate = useStore((s) => s.autoRotate)
   const setAutoRotate = useStore((s) => s.setAutoRotate)
   const requestView = useStore((s) => s.requestView)
+  const scene = useStore((s) => s.scene)
+  const theme = useStore((s) => s.theme)
+  const tr = useT()
   const [ready, setReady] = useState(false)
   const [Garment3D, setGarment3D] = useState<ComponentType<Garment3DProps>>(loadGarment3D)
   const gl = useMemo(webglOk, [])
@@ -158,8 +189,8 @@ export default function Scene3D() {
   if (!gl) {
     return (
       <Fallback
-        title="3D preview is unavailable on this device"
-        body="Your browser blocked WebGL. The 2D editor has everything you need — your design and its exact print placement are identical in both views."
+        title={tr('three.unavailable_title')}
+        body={tr('three.unavailable_body')}
       />
     )
   }
@@ -169,20 +200,23 @@ export default function Scene3D() {
       ? design.custom?.widthIn ?? 20
       : GARMENTS[design.garmentId].widthIn
 
+  const bg = stageBackground(scene, theme)
+
   return (
-    <div className="absolute inset-0 canvas-surface">
+    <div className={clsx('absolute inset-0', bg.className)} style={bg.style}>
       <Retry3DBoundary onRetry={() => setGarment3D(loadGarment3D)}>
       <Suspense
         fallback={
           <div className="flex h-full flex-col items-center justify-center gap-4">
             <RegMark size={44} className="spin-slow" />
-            <div className="text-[13px] text-tx2">Warming up the 3D studio…</div>
+            <div className="text-[13px] text-tx2">{tr('three.warming')}</div>
           </div>
         }
       >
         <Garment3D
           garment={design.garmentId}
           colorHex={garmentColorHex(design)}
+          scene={scene}
           front={sources?.front ?? null}
           back={sources?.back ?? null}
           custom={{
@@ -206,23 +240,23 @@ export default function Scene3D() {
             className="btn btn-ghost h-7 px-2 text-[11px]"
             onClick={() => requestView(v)}
           >
-            {v === 'front' ? 'Front' : v === 'back' ? 'Back' : '¾ view'}
+            {v === 'front' ? tr('three.front') : v === 'back' ? tr('three.back') : tr('three.threequarter')}
           </button>
         ))}
         <div className="mx-0.5 h-4 w-px bg-line" />
         <button
           className={clsx('iconbtn h-7 w-7', autoRotate && 'text-cy')}
           onClick={() => setAutoRotate(!autoRotate)}
-          aria-label={autoRotate ? 'Stop turntable' : 'Start turntable'}
-          title="Turntable"
+          aria-label={autoRotate ? tr('three.stop_turntable') : tr('three.start_turntable')}
+          title={tr('three.turntable')}
         >
           {autoRotate ? <Square size={13} /> : <Play size={13} />}
         </button>
         <button
           className="iconbtn h-7 w-7"
           onClick={() => requestView('threequarter')}
-          aria-label="Reset camera"
-          title="Reset camera"
+          aria-label={tr('three.reset_camera')}
+          title={tr('three.reset_camera')}
         >
           <RotateCcw size={13} />
         </button>
@@ -230,7 +264,7 @@ export default function Scene3D() {
 
       {ready && (
         <div className="pointer-events-none absolute bottom-4 left-4 z-10 hidden text-[11px] text-tx3 lg:block">
-          Drag to rotate · Scroll to zoom · Right-drag to pan
+          {tr('three.hint')}
         </div>
       )}
     </div>

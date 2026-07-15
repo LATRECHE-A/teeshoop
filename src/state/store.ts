@@ -19,6 +19,15 @@ import { GRAPHICS } from '@/content/graphics'
 import { makeSampleDesign } from '@/content/sampleDesign'
 import { getAreaSizeIn } from '@/lib/renderDesign'
 import { clamp } from '@/lib/units'
+import { setCurrentLang, type Lang } from '@/i18n/lang'
+import type { SceneId } from '@/scenes'
+import {
+  applyLang,
+  applyTheme,
+  loadPrefs,
+  savePrefs,
+  type Theme,
+} from './prefs'
 
 export type PanelId = 'product' | 'text' | 'uploads' | 'graphics' | 'layers'
 export type Mode = '2d' | '3d'
@@ -52,7 +61,15 @@ interface StoreState {
   viewRequest: { view: 'front' | 'back' | 'threequarter'; nonce: number } | null
   autoRotate: boolean
 
+  // --- ui preferences (persisted separately from the design; not undoable)
+  theme: Theme
+  lang: Lang
+  scene: SceneId
+
   // --- ui actions
+  setTheme(theme: Theme): void
+  setLang(lang: Lang): void
+  setScene(scene: SceneId): void
   setMode(mode: Mode): void
   setSide(side: Side): void
   select(id: string | null): void
@@ -114,6 +131,14 @@ let layerCounter = 1
 /** Pre-gesture design snapshot (drag / slider scrub); see patchLayer. */
 let gestureStart: Design | null = null
 
+// Load persisted UI prefs once and reflect them onto <html> + the i18n runtime
+// before the first render (the inline script in index.html already set the
+// theme/lang attributes to avoid a flash; this keeps them authoritative).
+const initialPrefs = loadPrefs()
+setCurrentLang(initialPrefs.lang)
+applyTheme(initialPrefs.theme)
+applyLang(initialPrefs.lang)
+
 export const useStore = create<StoreState>()(
   temporal(
     (set, get) => ({
@@ -129,7 +154,25 @@ export const useStore = create<StoreState>()(
       hydrated: false,
       viewRequest: null,
       autoRotate: false,
+      theme: initialPrefs.theme,
+      lang: initialPrefs.lang,
+      scene: initialPrefs.scene,
 
+      setTheme: (theme) => {
+        applyTheme(theme)
+        set({ theme })
+        savePrefs({ theme, lang: get().lang, scene: get().scene })
+      },
+      setLang: (lang) => {
+        setCurrentLang(lang)
+        applyLang(lang)
+        set({ lang })
+        savePrefs({ theme: get().theme, lang, scene: get().scene })
+      },
+      setScene: (scene) => {
+        set({ scene })
+        savePrefs({ theme: get().theme, lang: get().lang, scene })
+      },
       setMode: (mode) => {
         set({ mode })
         if (mode === '3d') set({ selectedId: null })

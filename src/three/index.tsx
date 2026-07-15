@@ -11,9 +11,10 @@ import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
 import { Float } from '@react-three/drei'
 import type { Garment3DProps } from '@/lib/types'
-import { CameraRig, Floor, ReadyPing, StudioEnvironment, homeCameraPosition } from './Stage'
+import { getScene } from '@/scenes'
+import { CameraRig, Floor, ReadyPing, SceneEnvironment, homeCameraPosition } from './Stage'
 import { GarmentModel } from './GarmentModel'
-import { CustomCard } from './CustomCard'
+import { CustomGarment } from './ExtrudedGarment'
 
 export type { Garment3DProps } from '@/lib/types'
 
@@ -105,6 +106,8 @@ function SwayGroup({ enabled, children }: { enabled: boolean; children: ReactNod
  */
 export default function Garment3D(props: Garment3DProps): JSX.Element {
   const { garment, onReady } = props
+  const scene = props.scene ?? 'studio'
+  const cfg = getScene(scene).three
   const [webgl] = useState(isWebGLAvailable)
   const [contextLost, setContextLost] = useState(false)
   const [canvasKey, setCanvasKey] = useState(0)
@@ -162,7 +165,13 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
           })
         }}
       >
-        <StudioEnvironment />
+        {/* Re-key on scene id so the env map re-bakes when the scene changes. */}
+        <SceneEnvironment key={scene} config={cfg} />
+        {cfg.hemisphere && (
+          <hemisphereLight
+            args={[cfg.hemisphere.sky, cfg.hemisphere.ground, cfg.hemisphere.intensity]}
+          />
+        )}
         <CameraRig
           viewRequest={props.viewRequest}
           autoRotate={props.autoRotate}
@@ -171,9 +180,10 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
         <Suspense fallback={null}>
           <SwayGroup enabled={!reducedMotion}>
             {garment === 'custom' ? (
-              <CustomCard
+              <CustomGarment
                 front={props.custom?.front ?? null}
                 back={props.custom?.back ?? null}
+                envIntensity={cfg.envIntensity}
                 onMeasured={onMeasured}
               />
             ) : (
@@ -184,11 +194,17 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
                 front={props.front}
                 back={props.back}
                 areaOffsetYIn={props.areaOffsetYIn}
+                envIntensity={cfg.envIntensity}
                 onMeasured={onMeasured}
               />
             )}
           </SwayGroup>
-          <Floor heightIn={heightIn} widthIn={props.garmentWidthIn} />
+          <Floor
+            heightIn={heightIn}
+            widthIn={props.garmentWidthIn}
+            shadowColor={cfg.shadowColor}
+            shadowOpacity={cfg.shadowOpacity}
+          />
           <ReadyPing onReady={onReady} />
         </Suspense>
       </Canvas>

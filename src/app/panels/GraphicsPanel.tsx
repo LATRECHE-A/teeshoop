@@ -3,8 +3,10 @@ import clsx from 'clsx'
 import { Search } from 'lucide-react'
 import { GRAPHIC_CATEGORIES, GRAPHICS } from '@/content/graphics'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 
 export default function GraphicsPanel() {
+  const t = useT()
   const [cat, setCat] = useState<string>(GRAPHIC_CATEGORIES[0]?.id ?? 'badges')
   const [q, setQ] = useState('')
   const addGraphicLayer = useStore((s) => s.addGraphicLayer)
@@ -22,7 +24,7 @@ export default function GraphicsPanel() {
         <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-tx3" />
         <input
           className="input pl-8"
-          placeholder="Search graphics…"
+          placeholder={t('graphics.search')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -36,7 +38,7 @@ export default function GraphicsPanel() {
               onClick={() => setCat(c.id)}
               className={clsx('chip transition-colors', cat === c.id && 'border-cy/50 bg-cy/10 text-cy')}
             >
-              {c.name}
+              {t('graphics.cat_' + c.id)}
             </button>
           ))}
         </div>
@@ -48,13 +50,13 @@ export default function GraphicsPanel() {
             key={g.id}
             title={g.name}
             onClick={() => addGraphicLayer(g.id)}
-            className="flex aspect-square items-center justify-center rounded-lg border border-line bg-bg1 p-2 transition-colors hover:border-cy/60 hover:bg-bg3 [&_svg]:h-full [&_svg]:w-full"
-            dangerouslySetInnerHTML={{ __html: g.svg('#D6DCE4') }}
+            className="flex aspect-square items-center justify-center rounded-lg border border-line bg-bg1 p-2 text-tx2 transition-colors hover:border-cy/60 hover:bg-bg3 [&_svg]:h-full [&_svg]:w-full"
+            dangerouslySetInnerHTML={{ __html: g.svg('currentColor') }}
           />
         ))}
         {items.length === 0 && (
           <div className="col-span-4 rounded-lg border border-line bg-bg1 p-3 text-center text-[12px] text-tx3">
-            Nothing matches “{q}” — try another word
+            {t('graphics.empty', { q })}
           </div>
         )}
       </div>

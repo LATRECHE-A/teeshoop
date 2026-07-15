@@ -1,5 +1,6 @@
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 import clsx from 'clsx'
 
 const ICONS = {
@@ -19,6 +20,7 @@ const COLORS = {
 export default function Toasts() {
   const toasts = useStore((s) => s.toasts)
   const dismiss = useStore((s) => s.dismissToast)
+  const tr = useT()
   if (toasts.length === 0) return null
 
   return (
@@ -34,7 +36,7 @@ export default function Toasts() {
           >
             <Icon size={16} className={clsx('mt-px shrink-0', COLORS[t.kind])} />
             <div className="flex-1 text-[13px] leading-snug text-tx">{t.msg}</div>
-            <button className="iconbtn -mr-1 -mt-1 h-6 w-6" onClick={() => dismiss(t.id)} aria-label="Dismiss">
+            <button className="iconbtn -mr-1 -mt-1 h-6 w-6" onClick={() => dismiss(t.id)} aria-label={tr('common.dismiss')}>
               <X size={13} />
             </button>
           </div>

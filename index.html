@@ -1,12 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0C0F13" />
-    <meta name="description" content="Design your own custom apparel — add text, art and photos to tees, hoodies or your own garment, preview it in 2D and 3D, and get print-ready files. Tshop custom apparel studio." />
-    <title>Tshop Studio — design your own apparel</title>
+    <meta name="description" content="Personnalisez vos vêtements — ajoutez texte, visuels et photos sur des t-shirts, sweats ou votre propre vêtement, prévisualisez en 2D et 3D, et obtenez des fichiers prêts à imprimer. Tshop, studio de personnalisation textile." />
+    <title>Tshop Studio — personnalisez vos vêtements</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230C0F13'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%2335C7FF' stroke-width='2'/%3E%3Cpath d='M16 3v6M16 23v6M3 16h6M23 16h6' stroke='%23FF3D8F' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <script>
+      // No-FOUC: reflect persisted theme/language before any CSS or JS runs.
+      (function () {
+        try {
+          var p = JSON.parse(localStorage.getItem('tshop:prefs') || '{}')
+          var t = p.theme === 'light' ? 'light' : 'dark'
+          var l = p.lang === 'en' || p.lang === 'fr' ? p.lang : 'fr'
+          var r = document.documentElement
+          r.setAttribute('data-theme', t)
+          r.style.colorScheme = t
+          r.lang = l
+          var m = document.querySelector('meta[name="theme-color"]')
+          if (m) m.setAttribute('content', t === 'light' ? '#eceae3' : '#0C0F13')
+        } catch (e) {}
+      })()
+    </script>
     <style>
       #splash {
         position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column;
@@ -14,6 +30,8 @@
         background: #0C0F13; color: #EEF1F5; transition: opacity .35s ease;
         font-family: ui-sans-serif, system-ui, sans-serif;
       }
+      html[data-theme='light'] #splash { background: #ECEAE3; color: #1A1D22; }
+      html[data-theme='light'] #splash .word { color: #55606E; }
       #splash.done { opacity: 0; pointer-events: none; }
       #splash .reg { width: 54px; height: 54px; animation: spl-spin 2.4s linear infinite; }
       #splash .word { font-weight: 700; font-size: 15px; letter-spacing: .42em; text-indent: .42em; color: #9AA5B4; }

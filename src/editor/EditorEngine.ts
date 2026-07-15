@@ -21,6 +21,7 @@ import { ensureRaster, sizeBucket, withSvgSize } from '@/lib/rasterCache'
 import { getCustomSideInfo } from '@/lib/custom'
 import { computeSnap } from '@/lib/smartGuides'
 import { fmtIn } from '@/lib/units'
+import { t } from '@/i18n'
 
 export interface SelectionInfo {
   /** Screen-space bounding box of the selected node. */
@@ -385,7 +386,7 @@ export class EditorEngine {
       new Konva.Text({
         x: area.x,
         y: area.y - 20,
-        text: `PRINT AREA ${fmtIn(wIn)} × ${fmtIn(hIn)}`,
+        text: t('editor.print_area_label', { w: fmtIn(wIn), h: fmtIn(hIn) }),
         fontFamily: 'JetBrains Mono, monospace',
         fontSize: 11,
         letterSpacing: 0.8,

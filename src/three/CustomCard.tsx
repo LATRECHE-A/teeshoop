@@ -42,10 +42,12 @@ function useCurvedCard(wIn: number, hIn: number) {
 export interface CustomCardProps {
   front: CardSource | null
   back: CardSource | null
+  /** Scene lighting multiplier for the card's env-map response. */
+  envIntensity?: number
   onMeasured?: (heightIn: number) => void
 }
 
-export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
+export function CustomCard({ front, back, envIntensity = 1, onMeasured }: CustomCardProps) {
   const primary = front ?? back
   const frontTex = useSourceTexture(front)
   // Note: the back face is a π-rotated plane, and that rotation alone makes
@@ -84,6 +86,7 @@ export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
             alphaTest={0.35}
             roughness={0.85}
             metalness={0}
+            envMapIntensity={envIntensity}
             side={THREE.FrontSide}
           />
         </mesh>
@@ -98,6 +101,7 @@ export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
             roughness={0.95}
             metalness={0}
             emissive="#10141B"
+            envMapIntensity={envIntensity}
             side={THREE.DoubleSide}
           />
         </mesh>
@@ -114,6 +118,7 @@ export function CustomCard({ front, back, onMeasured }: CustomCardProps) {
               // to the backdrop under the moody rear lighting. alphaTest
               // already confines fragments to the silhouette cutout.
               emissive={back ? '#000000' : '#232932'}
+              envMapIntensity={envIntensity}
               side={THREE.FrontSide}
             />
           </mesh>

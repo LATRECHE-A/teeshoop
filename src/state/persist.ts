@@ -11,6 +11,7 @@ import { useStore } from './store'
 import { assetToDataUrl, importAsset, listAssets } from './assets'
 import { listSavedMetas, renderAndSave } from './savedDesigns'
 import { makeSampleDesign } from '@/content/sampleDesign'
+import { t } from '@/i18n'
 
 const CURRENT_KEY = 'tshop:current'
 const SEEN_KEY = 'tshop:seen'
@@ -118,7 +119,7 @@ export async function hydrateStore(): Promise<void> {
     s.setAssets(await listAssets())
     s.setSavedDesigns(await listSavedMetas())
   } catch {
-    s.toast('warn', 'Local storage is unavailable — designs will not persist')
+    s.toast('warn', t('toast.storage_unavailable'))
   }
 
   // shared design in the URL wins — but never at the cost of the visitor's
@@ -130,14 +131,14 @@ export async function hydrateStore(): Promise<void> {
       const prev = await get<Design>(CURRENT_KEY)
       if (prev?.layers?.length) {
         s.setSavedDesigns(await renderAndSave(prev))
-        s.toast('info', `Your draft “${prev.name}” was saved to My designs`)
+        s.toast('info', t('toast.draft_saved', { name: prev.name }))
       }
     } catch {
       /* storage unavailable — still load the shared design */
     }
     s.loadDesign({ ...shared, id: nanoid(10), updatedAt: Date.now() })
     history.replaceState(null, '', location.pathname + location.search)
-    s.toast('ok', 'Shared design loaded — it is yours to edit now')
+    s.toast('ok', t('toast.shared_loaded'))
     s.markHydrated()
     return
   }
@@ -155,7 +156,7 @@ export async function hydrateStore(): Promise<void> {
 
   s.loadDesign(makeSampleDesign())
   if (isFirstVisit()) {
-    s.toast('info', 'We started you off with a sample — make it yours')
+    s.toast('info', t('toast.sample_started'))
     markSeen()
   }
   s.markHydrated()

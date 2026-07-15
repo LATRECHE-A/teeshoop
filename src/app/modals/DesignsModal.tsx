@@ -4,14 +4,15 @@ import Modal from './Modal'
 import { useStore } from '@/state/store'
 import { renderAndSave } from '@/state/persist'
 import { deleteSavedDesign, loadSavedDesign } from '@/state/savedDesigns'
+import { useT, type TParams } from '@/i18n'
 
-function timeAgo(ts: number): string {
+function timeAgo(ts: number, t: (key: string, params?: TParams) => string): string {
   const s = Math.max(1, Math.round((Date.now() - ts) / 1000))
-  if (s < 60) return 'just now'
+  if (s < 60) return t('designs.time_just_now')
   const m = Math.round(s / 60)
-  if (m < 60) return `${m} min ago`
+  if (m < 60) return t('designs.time_min_ago', { m })
   const h = Math.round(m / 60)
-  if (h < 24) return `${h}h ago`
+  if (h < 24) return t('designs.time_hours_ago', { h })
   return new Date(ts).toLocaleDateString()
 }
 
@@ -22,15 +23,16 @@ export default function DesignsModal() {
   const loadDesign = useStore((s) => s.loadDesign)
   const newDesign = useStore((s) => s.newDesign)
   const toast = useStore((s) => s.toast)
+  const t = useT()
   const [busy, setBusy] = useState(false)
 
   const saveCurrent = async () => {
     setBusy(true)
     try {
       useStore.getState().setSavedDesigns(await renderAndSave(design))
-      toast('ok', `Saved “${design.name}”`)
+      toast('ok', t('toast.saved_name', { name: design.name }))
     } catch {
-      toast('error', 'Could not save — local storage may be full')
+      toast('error', t('toast.save_failed'))
     } finally {
       setBusy(false)
     }
@@ -38,33 +40,32 @@ export default function DesignsModal() {
 
   return (
     <Modal
-      title="My designs"
-      subtitle="Saved on this device — export a design file to move one between devices."
+      title={t('designs.title')}
+      subtitle={t('designs.subtitle')}
       onClose={() => closeModal('designs')}
       size="lg"
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button className="btn" disabled={busy} onClick={() => void saveCurrent()}>
           <FolderDown size={14} />
-          Save current design
+          {t('designs.save_current')}
         </button>
         <button
           className="btn btn-ghost"
           onClick={() => {
             newDesign()
             closeModal('designs')
-            toast('info', 'Fresh canvas — pick a garment and go')
+            toast('info', t('toast.fresh_canvas'))
           }}
         >
           <FilePlus2 size={14} />
-          Start blank
+          {t('designs.start_blank')}
         </button>
       </div>
 
       {saved.length === 0 ? (
         <div className="rounded-xl border border-line bg-bg1 p-6 text-center text-[13px] text-tx2">
-          Nothing saved yet. “Save current design” keeps a snapshot you can come
-          back to any time.
+          {t('designs.empty')}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -75,12 +76,12 @@ export default function DesignsModal() {
                 onClick={async () => {
                   const d = await loadSavedDesign(m.id)
                   if (!d) {
-                    toast('error', 'That design could not be loaded')
+                    toast('error', t('toast.load_failed'))
                     return
                   }
                   loadDesign(d)
                   closeModal('designs')
-                  toast('ok', `Loaded “${m.name}”`)
+                  toast('ok', t('toast.loaded_name', { name: m.name }))
                 }}
               >
                 {m.thumb ? (
@@ -92,14 +93,14 @@ export default function DesignsModal() {
               <div className="flex items-center justify-between gap-1 border-t border-line px-2.5 py-2">
                 <div className="min-w-0">
                   <div className="truncate text-[12px] font-medium text-tx">{m.name}</div>
-                  <div className="text-[10.5px] text-tx3">{timeAgo(m.updatedAt)}</div>
+                  <div className="text-[10.5px] text-tx3">{timeAgo(m.updatedAt, t)}</div>
                 </div>
                 <button
                   className="iconbtn h-7 w-7 text-dg opacity-0 transition-opacity group-hover:opacity-100"
-                  aria-label={`Delete ${m.name}`}
+                  aria-label={t('designs.delete_name', { name: m.name })}
                   onClick={async () => {
                     useStore.getState().setSavedDesigns(await deleteSavedDesign(m.id))
-                    toast('info', `Deleted “${m.name}”`)
+                    toast('info', t('toast.deleted_name', { name: m.name }))
                   }}
                 >
                   <Trash2 size={13} />

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Box, PencilRuler } from 'lucide-react'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 import clsx from 'clsx'
 
 const SEEN_3D = 'tshop:3d-tried'
@@ -12,6 +13,7 @@ const SEEN_3D = 'tshop:3d-tried'
 export default function ModeToggle() {
   const mode = useStore((s) => s.mode)
   const setMode = useStore((s) => s.setMode)
+  const t = useT()
   const [tried, setTried] = useState(() => {
     try {
       return !!localStorage.getItem(SEEN_3D)
@@ -35,7 +37,7 @@ export default function ModeToggle() {
   return (
     <div
       role="group"
-      aria-label="Preview mode"
+      aria-label={t('mode.group')}
       className={clsx(
         'relative flex h-9 items-center rounded-full border border-line bg-bg2 p-1',
         !tried && mode === '2d' && 'pulse-ring',
@@ -51,7 +53,7 @@ export default function ModeToggle() {
         )}
       >
         <PencilRuler size={14} />
-        2D
+        {t('mode.2d')}
       </button>
       <button
         type="button"
@@ -65,10 +67,10 @@ export default function ModeToggle() {
         )}
       >
         <Box size={14} className={mode === '3d' ? '' : 'text-vi'} />
-        3D
+        {t('mode.3d')}
         {!tried && (
           <span className="ml-0.5 rounded-full bg-mg/20 px-1.5 py-px text-[9px] font-bold tracking-wider text-mg">
-            TRY
+            {t('mode.try')}
           </span>
         )}
       </button>

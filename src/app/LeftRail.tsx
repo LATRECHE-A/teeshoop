@@ -1,26 +1,28 @@
 import { CircleHelp, ImagePlus, Layers, Shapes, Shirt, Type } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore, type PanelId } from '@/state/store'
+import { useT } from '@/i18n'
 
-const TABS: { id: PanelId; label: string; icon: typeof Shirt }[] = [
-  { id: 'product', label: 'Product', icon: Shirt },
-  { id: 'text', label: 'Text', icon: Type },
-  { id: 'uploads', label: 'Uploads', icon: ImagePlus },
-  { id: 'graphics', label: 'Graphics', icon: Shapes },
-  { id: 'layers', label: 'Layers', icon: Layers },
+const TABS: { id: PanelId; labelKey: string; icon: typeof Shirt }[] = [
+  { id: 'product', labelKey: 'rail.product', icon: Shirt },
+  { id: 'text', labelKey: 'rail.text', icon: Type },
+  { id: 'uploads', labelKey: 'rail.uploads', icon: ImagePlus },
+  { id: 'graphics', labelKey: 'rail.graphics', icon: Shapes },
+  { id: 'layers', labelKey: 'rail.layers', icon: Layers },
 ]
 
 export default function LeftRail() {
+  const t = useT()
   const active = useStore((s) => s.activePanel)
   const setPanel = useStore((s) => s.setPanel)
   const openModal = useStore((s) => s.openModal)
 
   return (
     <nav
-      aria-label="Editor tools"
+      aria-label={t('rail.tools')}
       className="z-20 flex w-[60px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg1 py-2"
     >
-      {TABS.map(({ id, label, icon: Icon }) => {
+      {TABS.map(({ id, labelKey, icon: Icon }) => {
         const on = active === id
         return (
           <button
@@ -34,15 +36,15 @@ export default function LeftRail() {
           >
             {on && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-cy" />}
             <Icon size={19} strokeWidth={1.8} />
-            <span className="text-[9.5px] font-medium tracking-wide">{label}</span>
+            <span className="text-[9.5px] font-medium tracking-wide">{t(labelKey)}</span>
           </button>
         )
       })}
       <div className="flex-1" />
       <button
         className="iconbtn mb-1"
-        aria-label="Keyboard shortcuts"
-        title="Keyboard shortcuts (?)"
+        aria-label={t('rail.shortcuts')}
+        title={t('rail.shortcuts_hint')}
         onClick={() => openModal('shortcuts')}
       >
         <CircleHelp size={17} />

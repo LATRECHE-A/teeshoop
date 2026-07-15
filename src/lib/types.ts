@@ -6,6 +6,7 @@
  * Pixels are a rendering concern only. This is what keeps 2D editing, 3D
  * preview and 300-DPI print export dimensionally identical.
  */
+import type { SceneId } from '@/scenes'
 
 export type Side = 'front' | 'back'
 export type GarmentId = 'tee' | 'hoodie' | 'custom'
@@ -209,6 +210,8 @@ export type ViewSnap = 'front' | 'back' | 'threequarter'
 export interface Garment3DProps {
   garment: GarmentId
   colorHex: string
+  /** Environment/lighting scene id (see src/scenes). Defaults to 'studio'. */
+  scene?: SceneId
   front: DecalSource | null
   back: DecalSource | null
   /**

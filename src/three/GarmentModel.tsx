@@ -151,6 +151,8 @@ export interface GarmentModelProps {
   front: DecalSource | null
   back: DecalSource | null
   areaOffsetYIn?: Record<Side, number>
+  /** Scene lighting multiplier for the fabric's env-map response. */
+  envIntensity?: number
   /** Reports the normalized garment height (inches) for floor/shadow layout. */
   onMeasured?: (heightIn: number) => void
 }
@@ -162,6 +164,7 @@ export function GarmentModel({
   front,
   back,
   areaOffsetYIn,
+  envIntensity = 1,
   onMeasured,
 }: GarmentModelProps) {
   const { geometry, material, heightIn } = useNormalizedGarment(garment, garmentWidthIn)
@@ -169,6 +172,13 @@ export function GarmentModel({
   useEffect(() => {
     material.color.set(colorHex)
   }, [material, colorHex])
+
+  // Scene lighting: scale the calibrated env-map response so the fabric reads
+  // brighter on the beach, moodier at night, etc.
+  useEffect(() => {
+    material.envMapIntensity = CALIBRATION[garment].envMapIntensity * envIntensity
+    material.needsUpdate = true
+  }, [material, garment, envIntensity])
 
   useEffect(() => {
     onMeasured?.(heightIn)

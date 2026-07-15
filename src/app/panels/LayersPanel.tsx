@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Copy, Image, Shapes, Trash2, Type } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 import type { Layer } from '@/lib/types'
 
 const ICONS = { text: Type, image: Image, graphic: Shapes } as const
@@ -14,6 +15,7 @@ function label(layer: Layer): string {
 }
 
 export default function LayersPanel() {
+  const t = useT()
   const design = useStore((s) => s.design)
   const side = useStore((s) => s.activeSide)
   const selectedId = useStore((s) => s.selectedId)
@@ -29,13 +31,12 @@ export default function LayersPanel() {
   return (
     <div className="flex flex-col gap-2 p-3.5">
       <div className="panel-title">
-        {side} · {layers.length} layer{layers.length === 1 ? '' : 's'}
+        {t('side.' + side)} · {t(layers.length === 1 ? 'layers.count_one' : 'layers.count_other', { n: layers.length })}
       </div>
 
       {layers.length === 0 && (
         <div className="rounded-lg border border-line bg-bg1 p-3 text-[12px] leading-relaxed text-tx2">
-          This side is blank. Add text, upload an image, or drop in a graphic —
-          then stack and reorder everything here.
+          {t('layers.empty')}
         </div>
       )}
 
@@ -60,8 +61,8 @@ export default function LayersPanel() {
                 <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <button
                     className="iconbtn h-6 w-6"
-                    title="Bring forward"
-                    aria-label="Bring forward"
+                    title={t('layers.bring_forward')}
+                    aria-label={t('layers.bring_forward')}
                     disabled={i === 0}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -72,8 +73,8 @@ export default function LayersPanel() {
                   </button>
                   <button
                     className="iconbtn h-6 w-6"
-                    title="Send backward"
-                    aria-label="Send backward"
+                    title={t('layers.send_backward')}
+                    aria-label={t('layers.send_backward')}
                     disabled={i === layers.length - 1}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -84,8 +85,8 @@ export default function LayersPanel() {
                   </button>
                   <button
                     className="iconbtn h-6 w-6"
-                    title="Duplicate"
-                    aria-label="Duplicate layer"
+                    title={t('common.duplicate')}
+                    aria-label={t('layers.duplicate_layer')}
                     onClick={(e) => {
                       e.stopPropagation()
                       duplicateLayer(layer.id)
@@ -95,8 +96,8 @@ export default function LayersPanel() {
                   </button>
                   <button
                     className="iconbtn h-6 w-6 text-dg"
-                    title="Delete"
-                    aria-label="Delete layer"
+                    title={t('common.delete')}
+                    aria-label={t('layers.delete_layer')}
                     onClick={(e) => {
                       e.stopPropagation()
                       removeLayer(layer.id)
@@ -113,8 +114,7 @@ export default function LayersPanel() {
 
       {other > 0 && (
         <div className="mt-1 text-[11px] text-tx3">
-          {other} layer{other === 1 ? '' : 's'} on the other side — switch sides
-          below the canvas to edit.
+          {t(other === 1 ? 'layers.other_side_one' : 'layers.other_side_other', { n: other })}
         </div>
       )}
     </div>

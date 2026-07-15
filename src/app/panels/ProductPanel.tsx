@@ -5,6 +5,7 @@ import { GARMENTS } from '@/garments'
 import { GARMENT_COLORS } from '@/content/palettes'
 import { PRICING } from '@/content/pricing'
 import { useStore } from '@/state/store'
+import { useT } from '@/i18n'
 import { getAreaSizeIn } from '@/lib/renderDesign'
 import { fmtIn } from '@/lib/units'
 import { withSvgSize } from '@/lib/rasterCache'
@@ -20,6 +21,7 @@ function garmentThumb(id: CatalogGarmentId, hex: string): string {
 }
 
 export default function ProductPanel() {
+  const t = useT()
   const design = useStore((s) => s.design)
   const side = useStore((s) => s.activeSide)
   const setGarment = useStore((s) => s.setGarment)
@@ -40,7 +42,7 @@ export default function ProductPanel() {
   return (
     <div className="flex flex-col gap-5 p-3.5">
       <section>
-        <div className="panel-title mb-2.5">Garment</div>
+        <div className="panel-title mb-2.5">{t('product.garment')}</div>
         <div className="grid grid-cols-2 gap-2">
           {(['tee', 'hoodie'] as const).map((id) => (
             <button
@@ -55,8 +57,10 @@ export default function ProductPanel() {
               )}
             >
               <img src={thumbs[id]} alt="" className="h-[84px] w-[84px]" draggable={false} />
-              <span className="text-[12px] font-medium text-tx">{GARMENTS[id].name}</span>
-              <span className="mono-dim">from ${PRICING[id].baseUsd.toFixed(2)}</span>
+              <span className="text-[12px] font-medium text-tx">{t('garment.' + id)}</span>
+              <span className="mono-dim">
+                {t('product.from_price', { price: PRICING[id].baseUsd.toFixed(2) })}
+              </span>
             </button>
           ))}
         </div>
@@ -75,11 +79,13 @@ export default function ProductPanel() {
             <Camera size={18} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[12.5px] font-semibold text-tx">Your own garment</span>
+            <span className="block text-[12.5px] font-semibold text-tx">
+              {t('product.your_garment')}
+            </span>
             <span className="block text-[11px] leading-snug text-tx2">
               {design.custom?.front
-                ? 'Photos configured — ship it to us, we print on it'
-                : 'Upload front & back photos, we print on what you ship us'}
+                ? t('product.your_garment_set')
+                : t('product.your_garment_cta')}
             </span>
           </span>
           {design.custom?.front && (
@@ -97,7 +103,7 @@ export default function ProductPanel() {
                   openModal('customSetup')
                 }
               }}
-              aria-label="Edit garment setup"
+              aria-label={t('product.edit_setup')}
             >
               <Pencil size={13} />
             </span>
@@ -108,17 +114,17 @@ export default function ProductPanel() {
       {!isCustom && (
         <section>
           <div className="panel-title mb-2.5">
-            Color ·{' '}
+            {t('product.color')} ·{' '}
             <span className="normal-case tracking-normal text-tx2">
-              {GARMENT_COLORS.find((c) => c.id === design.colorId)?.name}
+              {t('color.' + design.colorId)}
             </span>
           </div>
           <div className="grid grid-cols-9 gap-1.5">
             {GARMENT_COLORS.map((c) => (
               <button
                 key={c.id}
-                title={c.name}
-                aria-label={c.name}
+                title={t('color.' + c.id)}
+                aria-label={t('color.' + c.id)}
                 aria-pressed={design.colorId === c.id}
                 onClick={() => setColor(c.id)}
                 className={clsx(
@@ -135,13 +141,14 @@ export default function ProductPanel() {
       )}
 
       <section className="rounded-lg border border-line bg-bg1 p-3">
-        <div className="panel-title mb-1.5">Print area · {side}</div>
+        <div className="panel-title mb-1.5">
+          {t('product.print_area')} · {t('side.' + side)}
+        </div>
         <div className="mono-dim text-cy">
-          {fmtIn(area.wIn)} × {fmtIn(area.hIn)} @ 300 DPI
+          {t('product.print_area_size', { w: fmtIn(area.wIn), h: fmtIn(area.hIn) })}
         </div>
         <p className="mt-1.5 text-[11px] leading-relaxed text-tx3">
-          Placement is dimensionally accurate — what you lay out here is what we
-          print, at real size.
+          {t('product.print_area_note')}
         </p>
       </section>
     </div>

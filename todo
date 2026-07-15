@@ -1,23 +1,5 @@
-    [ BUSINESS IDEA ]
-        [ CONTEXT ]
-            - One of my friends runs a custom apparel decoration business, creating personalized T-shirts, hoodies, and other garments using heat transfer and embroidery.
-        [ ME ]
-            - So my friend proposed to me that I'd help him and create the most awesome and coolest and professional website for his business so he can increase his sales and reach more customers.
 
-    [ WHAT I WANT FROM YOU ]
-        - I want you to create a one-page customization interface for the website where users can design their own apparel. The interface should allow users to customize their garments in both 2D and 3D views. By default, the interface should load in 2D mode to accommodate users with less powerful computers, but there should be a clearly visible toggle button that allows users to switch to 3D mode. This toggle button should be highlighted and easily accessible to encourage users to explore the 3D customization option.
-
-    [ FEATURES TO INCLUDE ]
-        - A user-friendly design tool that allows users to add text, images, and graphics to their apparel. PS: of course these can be uploaded by the user or selected from their library of previously uploaded images. PS: when they upldate their images we should offer a background removal button to remove the background and just leave the main object of the image, so they can place it on their garment without any background.
-        - Options for selecting garment types (T-shirts, hoodies, etc.) and colors. PS: here we should also include a possibility to upload their custom garment image (so their own clothes) so they can see how their design would look on their own garment (that they will ship it to us and we will print it on their own garment), an in this case we should handle perfectly the 2D and 3D views of their own garment image (of course we should ask for a fron and back image of their garment so we can handle the 3D view properly)
-        - A preview of the customized garment in both 2D and 3D views. PS: we must implement this in the most cool and professional way possible, don't simplify this and make it look like shit. I want perfection, something that isn't just a simple 2D and 3D view, but something that looks like a real garment with realistic textures and lighting and must be a full editor like with zoom, rotate, and pan capabilities and must be able to handle multiple layers of text and images, and dimensionally accurate placement of elements on the garment.
-        - The ability to save or share the customized design before placing an order.
-
-    [ GOAL ]
-        - The goal is to create an engaging and interactive customization experience that will attract more customers and increase sales for my friend's business. PS: currently I have no website, our business name is "Tshop", and I'm asking you here to make just that one page of customization before ordering, nothing more, just so I can see the potential that we can achieve with a professional and well-designed interface. If this page is successful and impresses me and my friend then I'll ask you to create the full website for our business.
-        
-    [ TECHNOLOGIES ]
-        - You're totally free to use any technologies you think are best suited for this, use your full power of creativity and the powerful modern web technologies available to create a piece of art that will impress me and my friend. PS: like I said you're totally free, so if you want to add more features or polish details that I didn't mention explicity, feel free to do so, I trust your expertise and creativity but don't forget that I will judge the final result so take only rigorous decisions.
-
-    [ DEPLOYMENT ]
-        - Once you finish everything, create a private repo on github (call it tshop) and push the code there. then give me the steps to deploy it on cloudflare worker (I already have cloudflare account and all, just give me the settings and all the otheqr important stuff)
+TODOs:
+    - We should add different scenes with different lighting and all in the 2D and 3D views. PS: like a scene on the beach, forest, city, etc. This will help users visualize their garment in various environments and lighting conditions.
+    - We should add the light mode and dark mode (I think it's already dark moded by default) + we should make the interface fully in french by default and allow users to switch to english if they want to (language selector buttons in the header next to modes toggle buttons)
+    - if it's doable and reliable we should add depth and empty inside and all (just like our default garments) to the 3D view of the garments uploaded by users. This will help users visualize their garments in a more realistic way and see how they'd look in real life. PS: we should also auto-scale the front and back uploaded images of the garment by the user so that they show properly when we render them in 2D and 3D views for a more accurate representation and visulization of the garment.

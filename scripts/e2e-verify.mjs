@@ -1,6 +1,11 @@
 /**
  * End-to-end verification against a served build (immune to HMR reloads).
  * Usage: node scripts/e2e-verify.mjs <baseUrl> <outDir>
+ *
+ * The app now ships French-by-default with a light/dark theme and preview
+ * scenes. The main flow pins prefs to EN/dark/studio (via addInitScript) so the
+ * text assertions stay stable, and dedicated checks cover the French default,
+ * the theme toggle and scene switching.
  */
 import { chromium } from 'playwright'
 import fs from 'node:fs'
@@ -17,14 +22,40 @@ const ok = (name, pass, extra = '') => {
 const browser = await chromium.launch({
   args: ['--enable-unsafe-swiftshader', '--disable-dev-shm-usage'],
 })
-const page = await browser.newPage({ viewport: { width: 1440, height: 860 } })
-const errors = []
-page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)))
-page.on('crash', () => errors.push('PAGE CRASH'))
-const shot = (n) =>
-  page.screenshot({ path: out(n), animations: 'disabled', timeout: 30000 }).catch(() => {})
 
 try {
+  // ---- 0. French-by-default (fresh context, no stored prefs) -------------
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 860 } })
+    const p = await ctx.newPage()
+    const frErrors = []
+    p.on('pageerror', (e) => frErrors.push(e.message.slice(0, 200)))
+    await p.goto(base, { waitUntil: 'networkidle', timeout: 45000 })
+    await p.waitForTimeout(2600)
+    ok('default-lang-fr', (await p.evaluate(() => document.documentElement.lang)) === 'fr')
+    ok('default-theme-dark', (await p.evaluate(() => document.documentElement.dataset.theme)) === 'dark')
+    ok('french-continue', await p.getByRole('button', { name: /Continuer/ }).isVisible().catch(() => false))
+    ok('lang-toggle-present', (await p.getByRole('group', { name: /langue/i }).count()) > 0)
+    ok('scene-picker-present', (await p.getByRole('button', { name: /ambiance/i }).count()) > 0)
+    await p.screenshot({ path: out('e0-french-default'), animations: 'disabled', timeout: 30000 }).catch(() => {})
+    ok('french-no-errors', frErrors.length === 0, frErrors.slice(0, 2).join(' | '))
+    await ctx.close()
+  }
+
+  // ---- main flow pinned to EN / dark / studio ----------------------------
+  const context = await browser.newContext({ viewport: { width: 1440, height: 860 } })
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('tshop:prefs', JSON.stringify({ theme: 'dark', lang: 'en', scene: 'studio' }))
+    } catch {}
+  })
+  const page = await context.newPage()
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)))
+  page.on('crash', () => errors.push('PAGE CRASH'))
+  const shot = (n) =>
+    page.screenshot({ path: out(n), animations: 'disabled', timeout: 30000 }).catch(() => {})
+
   // 1. boot + sample design
   await page.goto(base, { waitUntil: 'networkidle', timeout: 45000 })
   await page.waitForTimeout(2800)
@@ -45,6 +76,24 @@ try {
   await page.waitForTimeout(400)
   await page.keyboard.press('Control+z')
   await page.keyboard.press('Escape')
+
+  // 3b. theme toggle -> light, then back to dark
+  await page.getByRole('button', { name: 'Switch to light theme' }).click({ timeout: 8000 }).catch(() => {})
+  await page.waitForTimeout(500)
+  ok('theme-light', (await page.evaluate(() => document.documentElement.dataset.theme)) === 'light')
+  await shot('e1b-light')
+  await page.getByRole('button', { name: 'Switch to dark theme' }).click({ timeout: 8000 }).catch(() => {})
+  await page.waitForTimeout(400)
+  ok('theme-back-dark', (await page.evaluate(() => document.documentElement.dataset.theme)) === 'dark')
+
+  // 3c. scene switch -> beach (backdrop applied in 2D)
+  await page.getByRole('button', { name: 'Choose scene' }).click({ timeout: 8000 }).catch(() => {})
+  await page.waitForTimeout(300)
+  await page.getByRole('option', { name: /Beach/ }).click({ timeout: 8000 }).catch(() => {})
+  await page.waitForTimeout(500)
+  const sceneApplied = await page.evaluate(() => !!document.querySelector('.scene-surface'))
+  ok('scene-beach-applied', sceneApplied)
+  await shot('e1c-beach')
 
   // 4. 3D mode
   await page.locator('button[aria-pressed]').filter({ hasText: '3D' }).first().click({ force: true, noWaitAfter: true })

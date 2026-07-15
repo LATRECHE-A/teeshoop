@@ -24,10 +24,38 @@
   --color-yl: #ffc940;
   --color-ok: #3adc97;
   --color-dg: #ff5c5c;
+  /* Elevated button hover surface (was a hard-coded dark hex). */
+  --color-bghover: #242c37;
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Space Grotesk', 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/*
+ * Light theme — a warm "studio paper" palette, not an inversion. Overrides the
+ * @theme token values (higher specificity than :root), so every `bg-*`,
+ * `text-*`, `border-*` utility recolours without touching a single class.
+ * Accents are deepened where they double as text/borders on light surfaces.
+ * Dark stays the default (the base @theme values above).
+ */
+:root[data-theme='light'] {
+  --color-bg0: #eae7df; /* stage backdrop (paper) */
+  --color-bg1: #f1efe8; /* header, rails, inputs, inner cards */
+  --color-bg2: #faf8f3; /* panels, modals, toasts */
+  --color-bg3: #e4e0d6; /* buttons, active tabs, chips */
+  --color-line: #dad5c9;
+  --color-line2: #c6c0b2;
+  --color-tx: #1b1e24;
+  --color-tx2: #55606e;
+  --color-tx3: #66707d; /* deepened for AA-ish contrast on paper */
+  --color-cy: #0e9bd6;
+  --color-mg: #e01b6e;
+  --color-vi: #6a55e8;
+  --color-yl: #c6890a;
+  --color-ok: #12a971;
+  --color-dg: #dc3a3a;
+  --color-bghover: #e9e5db;
 }
 
 @layer base {
@@ -73,7 +101,7 @@
   color: transparent;
 }
 
-/* Dotted press-table surface behind the editing canvas */
+/* Dotted press-table surface behind the editing canvas (the "studio" scene) */
 @utility canvas-surface {
   background-color: var(--color-bg0);
   background-image:
@@ -82,6 +110,24 @@
   background-size:
     100% 100%,
     22px 22px;
+}
+/* Warmer dotted paper for the light studio. */
+:root[data-theme='light'] .canvas-surface {
+  background-image:
+    radial-gradient(ellipse 90% 70% at 50% 34%, rgb(255 210 140 / 0.11), transparent 60%),
+    radial-gradient(circle, rgb(120 108 86 / 0.11) 1px, transparent 1px);
+}
+
+/*
+ * Environment scenes (beach/forest/city/…): the gradient itself is supplied
+ * inline per scene (see src/scenes). This class only adds a soft inset vignette
+ * so the garment reads against bright skies. Painted behind the transparent
+ * Konva/R3F canvas, never over the garment.
+ */
+@utility scene-surface {
+  box-shadow:
+    inset 0 -70px 130px rgb(0 0 0 / 0.2),
+    inset 0 0 220px rgb(0 0 0 / 0.12);
 }
 
 @utility mono-dim {
@@ -92,12 +138,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Transparency checker behind uploaded thumbnails — theme-aware. */
+@utility checkerboard {
+  background-image: repeating-conic-gradient(
+    var(--color-bg3) 0% 25%,
+    var(--color-bg2) 0% 50%
+  );
+  background-size: 14px 14px;
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-bg3 px-3 h-9 text-[13px] font-medium text-tx transition-colors select-none;
   }
   .btn:hover {
-    @apply border-line2 bg-[#242c37];
+    @apply border-line2;
+    background-color: var(--color-bghover);
   }
   .btn:disabled {
     @apply opacity-45 pointer-events-none;
@@ -147,7 +203,7 @@ input[type='range']::-webkit-slider-thumb {
   width: 14px;
   border-radius: 999px;
   background: var(--color-cy);
-  border: 2px solid #0c0f13;
+  border: 2px solid var(--color-bg0);
   box-shadow: 0 0 0 1px var(--color-cy);
 }
 

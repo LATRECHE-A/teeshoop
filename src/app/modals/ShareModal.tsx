@@ -14,11 +14,13 @@ import { listAssets } from '@/state/assets'
 import { downloadBlob, downloadCanvasPng, slugify } from '@/lib/download'
 import { fmtIn } from '@/lib/units'
 import type { Side } from '@/lib/types'
+import { useT } from '@/i18n'
 
 const PRINT_DPI = 300
 const MIN_EFFECTIVE_DPI = 150
 
 export default function ShareModal() {
+  const t = useT()
   const design = useStore((s) => s.design)
   const assets = useStore((s) => s.assets)
   const closeModal = useStore((s) => s.closeModal)
@@ -48,7 +50,7 @@ export default function ShareModal() {
     try {
       await fn()
     } catch {
-      toast('error', 'That export failed — try again')
+      toast('error', t('toast.export_failed'))
     } finally {
       setBusy(null)
     }
@@ -56,15 +58,15 @@ export default function ShareModal() {
 
   return (
     <Modal
-      title="Share & export"
-      subtitle="Everything stays on your device until you send it somewhere."
+      title={t('share.title')}
+      subtitle={t('share.subtitle')}
       onClose={() => closeModal('share')}
       size="lg"
     >
       <div className="grid gap-5 sm:grid-cols-[200px_1fr]">
         <div>
           {preview ? (
-            <img src={preview} alt="Design preview" className="rounded-xl border border-line bg-bg1 p-2" />
+            <img src={preview} alt={t('share.preview_alt')} className="rounded-xl border border-line bg-bg1 p-2" />
           ) : (
             <div className="aspect-square rounded-xl border border-line bg-bg1" />
           )}
@@ -72,7 +74,7 @@ export default function ShareModal() {
 
         <div className="flex flex-col gap-4">
           <section>
-            <div className="panel-title mb-2">Mockups</div>
+            <div className="panel-title mb-2">{t('share.mockups')}</div>
             <div className="flex flex-wrap gap-2">
               {(['front', 'back'] as Side[]).map((sd) => (
                 <button
@@ -87,16 +89,16 @@ export default function ShareModal() {
                   }
                 >
                   <ImageIcon size={14} />
-                  {sd === 'front' ? 'Front' : 'Back'} PNG
+                  {sd === 'front' ? t('share.front_png') : t('share.back_png')}
                 </button>
               ))}
             </div>
           </section>
 
           <section>
-            <div className="panel-title mb-2">Print-ready files · {PRINT_DPI} DPI</div>
+            <div className="panel-title mb-2">{t('share.print_ready', { dpi: PRINT_DPI })}</div>
             {sides.length === 0 ? (
-              <p className="text-[12px] text-tx3">Add something to the design first.</p>
+              <p className="text-[12px] text-tx3">{t('share.add_something')}</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {sides.map((sd) => {
@@ -105,14 +107,14 @@ export default function ShareModal() {
                   return (
                     <div key={sd} className="flex items-center gap-3 rounded-lg border border-line bg-bg1 px-3 py-2">
                       <div className="min-w-0 flex-1">
-                        <div className="text-[12.5px] font-medium capitalize text-tx">{sd}</div>
+                        <div className="text-[12.5px] font-medium capitalize text-tx">{sd === 'front' ? t('common.front') : t('common.back')}</div>
                         <div className="mono-dim">
-                          {fmtIn(area.wIn)} × {fmtIn(area.hIn)} · transparent PNG
+                          {fmtIn(area.wIn)} × {fmtIn(area.hIn)} · {t('share.transparent_png')}
                         </div>
                         {warn.length > 0 && (
                           <div className="mt-1 flex items-start gap-1 text-[11px] text-yl">
                             <TriangleAlert size={11} className="mt-px shrink-0" />
-                            May print soft: {warn.join(', ')} (below {MIN_EFFECTIVE_DPI} DPI at this size)
+                            {t('share.may_print_soft', { names: warn.join(', '), dpi: MIN_EFFECTIVE_DPI })}
                           </div>
                         )}
                       </div>
@@ -127,12 +129,12 @@ export default function ShareModal() {
                               c,
                               `tshop-${slugify(design.name)}-${sd}-${area.wIn}x${area.hIn}in-300dpi.png`,
                             )
-                            toast('ok', 'Print file saved — production ready')
+                            toast('ok', t('toast.print_saved'))
                           })
                         }
                       >
                         <Printer size={14} />
-                        {busy === `print-${sd}` ? 'Rendering…' : 'Download'}
+                        {busy === `print-${sd}` ? t('common.rendering') : t('common.download')}
                       </button>
                     </div>
                   )
@@ -142,26 +144,26 @@ export default function ShareModal() {
           </section>
 
           <section>
-            <div className="panel-title mb-2">Share</div>
+            <div className="panel-title mb-2">{t('share.share_section')}</div>
             <div className="flex flex-wrap gap-2">
               <button
                 className="btn"
                 disabled={!linkable}
                 title={
                   linkable
-                    ? 'Copy a link that opens this exact design'
-                    : 'Designs with uploaded photos are too big for a link — use the design file instead'
+                    ? t('share.link_tip')
+                    : t('share.link_tip_disabled')
                 }
                 onClick={() =>
                   run('link', async () => {
                     const url = `${location.origin}${location.pathname}${designToShareHash(design)}`
                     await navigator.clipboard.writeText(url)
-                    toast('ok', 'Link copied — anyone who opens it gets this design')
+                    toast('ok', t('toast.link_copied'))
                   })
                 }
               >
                 <Link2 size={14} />
-                Copy design link
+                {t('share.copy_link')}
               </button>
               <button
                 className="btn"
@@ -174,11 +176,11 @@ export default function ShareModal() {
                 }
               >
                 <FileDown size={14} />
-                Design file
+                {t('share.design_file')}
               </button>
               <button className="btn" onClick={() => importRef.current?.click()}>
                 <FileUp size={14} />
-                Open design file
+                {t('share.open_file')}
               </button>
               <input
                 ref={importRef}
@@ -194,17 +196,16 @@ export default function ShareModal() {
                     loadDesign(d)
                     useStore.getState().setAssets(await listAssets())
                     closeModal('share')
-                    toast('ok', `Loaded “${d.name}”`)
+                    toast('ok', t('toast.loaded_name', { name: d.name }))
                   } catch {
-                    toast('error', 'That file is not a Tshop design')
+                    toast('error', t('toast.not_tshop_file'))
                   }
                 }}
               />
             </div>
             {!linkable && (
               <p className="mt-2 text-[11px] leading-relaxed text-tx3">
-                This design uses uploaded photos, so it shares as a design file
-                (photos embedded) rather than a link.
+                {t('share.photos_note')}
               </p>
             )}
           </section>

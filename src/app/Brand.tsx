@@ -1,4 +1,4 @@
-import { BUSINESS } from '@/config'
+import { useT } from '@/i18n'
 
 /** Print registration-mark brand icon. */
 export function RegMark({ size = 22, className }: { size?: number; className?: string }) {
@@ -17,6 +17,7 @@ export function RegMark({ size = 22, className }: { size?: number; className?: s
 }
 
 export function Brand() {
+  const t = useT()
   return (
     <div className="flex items-center gap-2.5 select-none">
       <RegMark />
@@ -25,7 +26,7 @@ export function Brand() {
           TSHOP
         </div>
         <div className="mt-0.5 hidden text-[10px] tracking-[0.08em] text-tx3 sm:block">
-          {BUSINESS.tagline.toUpperCase()}
+          {t('brand.tagline').toUpperCase()}
         </div>
       </div>
     </div>

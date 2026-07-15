@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import clsx from 'clsx'
+import { useT } from '@/i18n'
 
 export default function Modal({
   title,
@@ -15,6 +16,7 @@ export default function Modal({
   children: React.ReactNode
   size?: 'md' | 'lg'
 }) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function Modal({
             <h2 className="font-display text-[16px] font-bold text-tx">{title}</h2>
             {subtitle && <p className="mt-0.5 text-[12.5px] text-tx2">{subtitle}</p>}
           </div>
-          <button data-close className="iconbtn -mr-1" onClick={onClose} aria-label="Close">
+          <button data-close className="iconbtn -mr-1" onClick={onClose} aria-label={t('common.close')}>
             <X size={17} />
           </button>
         </div>
