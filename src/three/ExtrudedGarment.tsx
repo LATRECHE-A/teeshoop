@@ -17,6 +17,7 @@ import * as THREE from 'three'
 import type { CardSource } from '@/lib/types'
 import { buildInflatedShell, canvasToSilhouette, type InflatedShell } from '@/lib/silhouette'
 import { useSilhouetteTexture, useSourceTexture } from './textures'
+import { fabricNormalTexture } from './fabric'
 import { CustomCard } from './CustomCard'
 
 // Fabric tones shared with CustomCard for a consistent custom-garment look.
@@ -69,6 +70,9 @@ function ExtrudedGarment({
   const backTex = useSourceTexture(back)
   // Missing back → the front's alpha silhouette flooded with a fabric tone.
   const blankBackTex = useSilhouetteTexture(back ? null : front, BLANK_BACK)
+  // Subtle woven-cloth grain (shading only; geometry/UVs/inches untouched).
+  const fabricN = useMemo(() => fabricNormalTexture(front.wIn / 0.9, front.hIn / 0.9), [front.wIn, front.hIn])
+  useEffect(() => () => fabricN.dispose(), [fabricN])
 
   useEffect(() => {
     onMeasured?.(heightIn)
@@ -83,6 +87,9 @@ function ExtrudedGarment({
       <mesh geometry={shell.front}>
         <meshPhysicalMaterial
           map={frontTex}
+          vertexColors
+          normalMap={fabricN}
+          normalScale={[0.35, 0.35]}
           transparent={false}
           alphaTest={0.45}
           roughness={0.86}
@@ -100,6 +107,9 @@ function ExtrudedGarment({
         {back && backTex ? (
           <meshPhysicalMaterial
             map={backTex}
+            vertexColors
+            normalMap={fabricN}
+            normalScale={[0.35, 0.35]}
             transparent={false}
             alphaTest={0.45}
             roughness={0.9}
@@ -114,6 +124,9 @@ function ExtrudedGarment({
           <meshPhysicalMaterial
             map={blankBackTex ?? undefined}
             color={blankBackTex ? '#ffffff' : BLANK_BACK}
+            vertexColors
+            normalMap={fabricN}
+            normalScale={[0.35, 0.35]}
             transparent={false}
             alphaTest={0.45}
             emissive={BLANK_BACK_EMIT}

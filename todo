@@ -1,24 +1,33 @@
 
-DONE (2026-07-16):
-    [x] 3D custom garment — now an inflated, volumetric "pillow" (distance-transform
-        Z displacement + cloth sheen material) instead of a flat card. src/lib/silhouette.ts
-        (buildInflatedShell), src/three/ExtrudedGarment.tsx. Verify: node scripts/inflate-verify.mjs
-    [x] Fully mobile/Canva-style: bottom tool-nav, slide-up panel + properties sheets,
-        safe-area (dvh + env insets), pinch-zoom / two-finger pan, bigger touch targets,
-        fixed hover-only controls. src/app/BottomNav.tsx, useIsMobile, PanelHost, PropertiesPanel,
-        EditorEngine (touch), styles.css.
-    [x] AR: editor "View in AR" -> QR (/ar.html#d=…) -> phone camera + procedural male/female
-        mannequin wearing the design (chest/back decals), device-orientation parallax + touch,
-        snapshot -> share/download, WebXR world-anchoring where supported. src/ar/*, ArModal.
-        Verify: node scripts/ar-verify.mjs
-    [x] Placement guides (NOTE: pricing intentionally left flat per decision) — A4 grid +
-        common-area zones (chest, left-chest, upper/centre back) drawn on canvas, snap to zones,
-        one-tap "place in zone" (fit). src/content/zones.ts, EditorEngine, PropertiesPanel.
+DONE (2026-07-16 rework):
+    - [x] Volumetric 3D custom garment — the flat "puffed paper" mesa is now a rounded,
+      torso-centred dome (per-row half-ellipse cross-section + distance-field edge taper +
+      baked ambient-occlusion vertex colours + a woven-cloth normal grain), Z-only so inches
+      stay exact. Catalog tee/hoodie bodies now use a MeshPhysicalMaterial cloth sheen.
+      Verify: node scripts/inflate-verify.mjs (asserts real dome curvature, not just a bulge).
+    - [x] Cross-device AR — replaced the old camera-overlay/overlay-mannequin AR entirely.
+      Now: bake the design onto a male/female mannequin -> export GLB + USDZ (three exporters)
+      -> upload to Cloudflare R2 via a Worker -> a SHORT scannable QR (/v/{id}) -> a lean viewer
+      page (own three GLTFLoader preview) with a "View in your space" button that launches
+      NATIVE AR (Android Scene Viewer / iOS Quick Look). Cross-device + works for photo/custom
+      designs. Verify: scripts/ar-verify.mjs (GLB/USDZ export) + scripts/ar-worker-verify.mjs
+      (Worker + R2 round-trip). Deploy needs `wrangler r2 bucket create tshop-ar` + a 30-day
+      lifecycle rule (see README).
+    - [x] Mobile — Canva two-tier select: a slim selection bar (edit / duplicate / delete)
+      that never covers the artwork, expanding to the full properties sheet only on "Edit";
+      the sheet hides while dragging. De-collided the zoom HUD vs the front/back/sleeve switch.
+    - [x] Sleeve print side — Side = front | back | sleeve; a shared flat-sleeve illustration
+      (4x4in print area); sleeve flows through 2D editing, 300-DPI print, zones, the order
+      count and the side switcher (catalog only — custom garments stay front/back). The 3D
+      preview shows front/back only.
+    - [x] Area-aware pricing — optional per-garment areaTiers (<=A4 is the standard, +$0; <=A3
+      +$4; oversize +$9) wired to the real placed-artwork area; the flat default stays
+      byte-identical. Delete `areaTiers` from a rule to make that garment flat again.
 
-NEXT IDEAS (not started):
-    - True sleeve print side (needs a sleeve garment art + print area; zones system already
-      ready to host it).
-    - Area-aware pricing tiers if the friend wants A4-cheaper-than-A3 quoting later
-      (zones already carry real inch sizes; wire zone -> quote()).
-    - Cross-device AR of photo designs (needs a small hosted blob store; today photos are
-      same-device only, vector designs travel in the QR link).
+POSSIBLE FUTURE:
+    - 3D sleeve decal in the preview (needs an X-axis flank projection; sleeve ships in 2D +
+      print + AR today, just not the 3D turntable).
+    - Higher-fidelity / posed AR mannequin, or a full standing figure with cloth draping.
+    - Real-device QA of native AR (iOS Quick Look USDZ + Android Scene Viewer) over HTTPS.
+    - Configure the R2 bucket + lifecycle rule and swap src/config.ts orders@tshop.example
+      for the real quote email before sharing the live link.

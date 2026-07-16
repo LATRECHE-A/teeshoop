@@ -21,7 +21,8 @@ export function sideLayers(design: Design, side: Side): Layer[] {
 
 export function getAreaSizeIn(design: Design, side: Side): SizeIn {
   if (design.garmentId === 'custom') {
-    const area = design.custom?.[side]?.printArea
+    // Custom (ship-your-own) garments are front/back only — no sleeve.
+    const area = side === 'sleeve' ? undefined : design.custom?.[side]?.printArea
     return area ? { wIn: area.wIn, hIn: area.hIn } : { wIn: 12, hIn: 16 }
   }
   return GARMENTS[design.garmentId].printAreasIn[side]
@@ -130,6 +131,36 @@ export function measureLayer(layer: Layer, ppi: number): { w: number; h: number 
 }
 
 /**
+ * Bounding-box footprint of a side's placed artwork in square inches, clamped
+ * to the print area (rotation-aware). Feeds area-aware pricing — a bigger print
+ * lands in a higher tier. Returns 0 when the side is empty.
+ */
+export function sideArtworkSqIn(design: Design, side: Side): number {
+  const layers = sideLayers(design, side)
+  if (layers.length === 0) return 0
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const l of layers) {
+    const m = measureLayer(l, 100)
+    const wI = m.w / 100
+    const hI = m.h / 100
+    const r = Math.abs(degToRad(l.rotation))
+    const hx = (wI / 2) * Math.abs(Math.cos(r)) + (hI / 2) * Math.abs(Math.sin(r))
+    const hy = (wI / 2) * Math.abs(Math.sin(r)) + (hI / 2) * Math.abs(Math.cos(r))
+    minX = Math.min(minX, l.xIn - hx)
+    maxX = Math.max(maxX, l.xIn + hx)
+    minY = Math.min(minY, l.yIn - hy)
+    maxY = Math.max(maxY, l.yIn + hy)
+  }
+  const area = getAreaSizeIn(design, side)
+  const wIn = Math.min(area.wIn, maxX - minX)
+  const hIn = Math.min(area.hIn, maxY - minY)
+  return Math.max(0, wIn) * Math.max(0, hIn)
+}
+
+/**
  * Render the full print area (transparent) at `ppi`.
  * Returns null when the side has no layers.
  */
@@ -175,7 +206,7 @@ export async function renderMockup(
   const canvas = document.createElement('canvas')
 
   if (design.garmentId === 'custom') {
-    const setup = design.custom?.[side] ?? null
+    const setup = side === 'sleeve' ? null : design.custom?.[side] ?? null
     const widthIn = design.custom?.widthIn ?? 20
     if (!setup) {
       canvas.width = widthPx

@@ -69,6 +69,10 @@ interface StoreState {
   scene: SceneId
   /** Print-placement guides (zones + grid) in the 2D editor. */
   showGuides: boolean
+  /** Mobile: is the selection sheet expanded (vs the compact action bar)? */
+  propsExpanded: boolean
+  /** A canvas layer is being dragged — mobile hides the props sheet meanwhile. */
+  dragging: boolean
 
   // --- ui actions
   setTheme(theme: Theme): void
@@ -81,6 +85,8 @@ interface StoreState {
   setSide(side: Side): void
   select(id: string | null): void
   setPanel(p: PanelId | null): void
+  setPropsExpanded(v: boolean): void
+  setDragging(v: boolean): void
   openModal(m: keyof ModalState): void
   closeModal(m: keyof ModalState): void
   toast(kind: ToastItem['kind'], msg: string): void
@@ -170,6 +176,8 @@ export const useStore = create<StoreState>()(
       lang: initialPrefs.lang,
       scene: initialPrefs.scene,
       showGuides: initialPrefs.showGuides,
+      propsExpanded: false,
+      dragging: false,
 
       setTheme: (theme) => {
         applyTheme(theme)
@@ -220,14 +228,16 @@ export const useStore = create<StoreState>()(
       },
       setMode: (mode) => {
         set({ mode })
-        if (mode === '3d') set({ selectedId: null })
+        if (mode === '3d') set({ selectedId: null, propsExpanded: false })
       },
       setSide: (side) => {
-        set({ activeSide: side, selectedId: null })
-        if (get().mode === '3d') get().requestView(side)
+        set({ activeSide: side, selectedId: null, propsExpanded: false })
+        if (get().mode === '3d' && side !== 'sleeve') get().requestView(side)
       },
-      select: (selectedId) => set({ selectedId }),
+      select: (selectedId) => set({ selectedId, propsExpanded: false }),
       setPanel: (activePanel) => set({ activePanel }),
+      setPropsExpanded: (propsExpanded) => set({ propsExpanded }),
+      setDragging: (dragging) => set({ dragging }),
       openModal: (m) => set((s) => ({ modals: { ...s.modals, [m]: true } })),
       closeModal: (m) => set((s) => ({ modals: { ...s.modals, [m]: false } })),
       toast: (kind, msg) => {
@@ -254,6 +264,8 @@ export const useStore = create<StoreState>()(
         }
         set({
           design: touch(clampLayersToArea({ ...s.design, garmentId: id })),
+          // Custom garments have no sleeve side — snap back to front.
+          ...(id === 'custom' && s.activeSide === 'sleeve' ? { activeSide: 'front' as Side, selectedId: null } : {}),
         })
       },
       setColor: (colorId) =>
@@ -267,6 +279,7 @@ export const useStore = create<StoreState>()(
               garmentId: custom ? 'custom' : s.design.garmentId === 'custom' ? 'tee' : s.design.garmentId,
             }),
           ),
+          ...(custom && s.activeSide === 'sleeve' ? { activeSide: 'front' as Side, selectedId: null } : {}),
         })),
 
       addTextLayer: (text = 'YOUR TEXT') => {

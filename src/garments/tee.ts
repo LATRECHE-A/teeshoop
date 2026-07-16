@@ -9,6 +9,7 @@
  */
 import type { GarmentArt } from '@/lib/types'
 import { blob, grainDefs, grainRect, soft, softDefs } from './soft'
+import { SLEEVE_ART, SLEEVE_AREA_IN } from './sleeve'
 
 /** Outer silhouette — identical for front/back. Bounds x ≈37..763, y ≈44..760. */
 const SIL =
@@ -189,6 +190,7 @@ export const TEE: GarmentArt = {
   printAreasIn: {
     front: { wIn: 12, hIn: 16 },
     back: { wIn: 12, hIn: 16 },
+    sleeve: SLEEVE_AREA_IN,
   },
   sides: {
     front: {
@@ -203,5 +205,6 @@ export const TEE: GarmentArt = {
       // top edge ≈4″ below the back collar seam (seam ≈ y67)
       printAreaPx: { x: 250, y: 168, w: 300, h: 400 },
     },
+    sleeve: SLEEVE_ART,
   },
 }

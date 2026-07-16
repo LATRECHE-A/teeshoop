@@ -9,6 +9,7 @@
  */
 import * as THREE from 'three'
 import { buildInflatedShell, canvasToSilhouette } from '@/lib/silhouette'
+import { fabricNormalTexture } from '@/three/fabric'
 
 const WIN = 20
 const HIN = 24
@@ -150,10 +151,14 @@ scene.add(group)
 
 if (shell) {
   const SHEEN = new THREE.Color('#dfe6f2')
+  const fabricN = fabricNormalTexture(WIN / 0.9, HIN / 0.9)
   const frontMesh = new THREE.Mesh(
     shell.front,
     new THREE.MeshPhysicalMaterial({
       map: tex(garment),
+      vertexColors: true,
+      normalMap: fabricN,
+      normalScale: new THREE.Vector2(0.35, 0.35),
       alphaTest: 0.45,
       roughness: 0.86,
       metalness: 0,
@@ -167,6 +172,9 @@ if (shell) {
     shell.back,
     new THREE.MeshPhysicalMaterial({
       map: tex(silhouetteCanvas(garment, '#242A33')),
+      vertexColors: true,
+      normalMap: fabricN,
+      normalScale: new THREE.Vector2(0.35, 0.35),
       alphaTest: 0.45,
       roughness: 0.92,
       metalness: 0,
@@ -211,10 +219,17 @@ renderer.setAnimationLoop(render)
     const g = shell?.front
     let zMin = 0
     let zMax = 0
+    let curvature = 0
     if (g) {
       g.computeBoundingBox()
       zMin = g.boundingBox!.min.z
       zMax = g.boundingBox!.max.z
+      // Fraction of front-face normals that actually tilt off +Z. A flat plateau
+      // is ~all (0,0,1) → ~0; a real dome tilts most of them.
+      const n = g.attributes.normal as THREE.BufferAttribute
+      let tilted = 0
+      for (let i = 0; i < n.count; i++) if (Math.abs(n.getZ(i)) < 0.985) tilted++
+      curvature = tilted / Math.max(1, n.count)
     }
     const gl = renderer.domElement
     const c = document.createElement('canvas')
@@ -233,6 +248,7 @@ renderer.setAnimationLoop(render)
       verts: g ? (g.attributes.position as THREE.BufferAttribute).count : 0,
       zMin,
       zMax,
+      curvature,
       thickness: shell?.depthIn ?? 0,
       coverage: cov / (c.width * c.height),
       dataUrl: gl.toDataURL('image/png'),

@@ -89,7 +89,7 @@ function useDesignTextures(design: Design): Sources | null {
           // every placement valid while front/back register (shoulders align)
           // in 2D, 3D and the extruded back cap.
           const rendered: { side: Side; canvas: HTMLCanvasElement }[] = []
-          for (const side of ['front', 'back'] as Side[]) {
+          for (const side of ['front', 'back'] as const) {
             if (!design.custom?.[side]) continue
             rendered.push({ side, canvas: await renderMockup(design, side, 1100) })
           }
@@ -120,7 +120,7 @@ function useDesignTextures(design: Design): Sources | null {
           }
         } else {
           const art = GARMENTS[design.garmentId]
-          for (const side of ['front', 'back'] as Side[]) {
+          for (const side of ['front', 'back'] as const) {
             if (sideLayers(design, side).length === 0) continue
             const area = art.printAreasIn[side]
             const ppi = TEXTURE_TARGET_PX / Math.max(area.wIn, area.hIn)
@@ -178,13 +178,13 @@ export default function Scene3D() {
   const sources = useDesignTextures(design)
 
   const areaOffsetYIn = useMemo(() => {
-    if (design.garmentId === 'custom') return { front: 0, back: 0 }
+    if (design.garmentId === 'custom') return { front: 0, back: 0, sleeve: 0 }
     const art = GARMENTS[design.garmentId]
     const off = (side: Side) => {
       const a = art.sides[side].printAreaPx
       return (a.y + a.h / 2 - 400) / art.pxPerInch
     }
-    return { front: off('front'), back: off('back') }
+    return { front: off('front'), back: off('back'), sleeve: 0 }
   }, [design.garmentId])
 
   if (!gl) {

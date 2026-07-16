@@ -55,12 +55,15 @@ try {
     const p = window.__inflate.probe()
     return { ...p, dataUrl: undefined } // strip heavy field for logging
   })
-  console.log('probe:', JSON.stringify({ verts: probe.verts, zMin: probe.zMin.toFixed(2), zMax: probe.zMax.toFixed(2), thickness: probe.thickness.toFixed(2), coverage: probe.coverage.toFixed(3), holes: await page.evaluate(() => window.__inflate.hasHoles) }))
+  console.log('probe:', JSON.stringify({ verts: probe.verts, zMin: probe.zMin.toFixed(2), zMax: probe.zMax.toFixed(2), curvature: probe.curvature.toFixed(3), thickness: probe.thickness.toFixed(2), coverage: probe.coverage.toFixed(3), holes: await page.evaluate(() => window.__inflate.hasHoles) }))
 
   if (errors.length) { console.error('❌ page errors:', errors.slice(0, 5).join(' | ')); done(1) }
   const volume = probe.zMax - probe.zMin
   if (volume < 0.8) { console.error('❌ no volume: front sheet z-range =', volume.toFixed(3)); done(1) }
   if (probe.zMax < 0.4) { console.error('❌ front does not bulge toward +Z (zMax=' + probe.zMax.toFixed(2) + ')'); done(1) }
+  // A flat "puffed paper" plateau bulges (zMax>0.4) but its normals stay ~(0,0,1).
+  // Require a real dome: a large fraction of front normals must tilt off +Z.
+  if (probe.curvature < 0.4) { console.error('❌ front is a flat plateau, not a rounded dome (curvature=' + probe.curvature.toFixed(3) + ')'); done(1) }
   if (probe.coverage < 0.05) { console.error('❌ garment not visible (coverage=' + probe.coverage.toFixed(3) + ')'); done(1) }
 
   if (OUT) {
@@ -71,7 +74,7 @@ try {
     console.log('wrote PNGs to', OUT)
   }
 
-  console.log(`✅ inflate verify PASS — verts=${probe.verts} bulge=${probe.zMax.toFixed(2)}in thickness=${probe.thickness.toFixed(2)}in coverage=${probe.coverage.toFixed(3)}`)
+  console.log(`✅ inflate verify PASS — verts=${probe.verts} bulge=${probe.zMax.toFixed(2)}in curvature=${probe.curvature.toFixed(3)} thickness=${probe.thickness.toFixed(2)}in coverage=${probe.coverage.toFixed(3)}`)
   code = 0
 } catch (e) {
   console.error('❌', e?.message || e)

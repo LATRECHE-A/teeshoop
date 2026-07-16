@@ -7,10 +7,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsc -p worker/tsconfig.json && vite build",
     "build:only": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "typecheck:worker": "tsc -p worker/tsconfig.json",
     "deploy": "npm run build && wrangler deploy"
   },
   "keywords": [],
@@ -49,6 +50,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260716.1",
     "@tailwindcss/vite": "^4.3.2",
     "@types/node": "^26.1.1",
     "@types/qrcode": "^1.5.6",

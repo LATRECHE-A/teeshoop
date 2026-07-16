@@ -6,6 +6,15 @@ import { useStore } from '@/state/store'
 
 if (import.meta.env.DEV) {
   ;(window as unknown as { __tshop: typeof useStore }).__tshop = useStore
+  // Headless AR-export probe (scripts/ar-verify.mjs) — lazily pulls the same
+  // module the AR modal uses so the export can be validated without a backend.
+  ;(window as unknown as { __arExport?: () => Promise<typeof import('@/lib/arExport')> }).__arExport = () =>
+    import('@/lib/arExport')
+  // Lets ar-verify parse an exported GLB back with GLTFLoader (the loader the AR
+  // viewer uses) — a stronger check than magic bytes.
+  ;(window as unknown as { __gltf?: () => Promise<typeof import('three/examples/jsm/loaders/GLTFLoader.js')> }).__gltf = () =>
+    import('three/examples/jsm/loaders/GLTFLoader.js')
+  ;(window as unknown as { __three?: () => Promise<typeof import('three')> }).__three = () => import('three')
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

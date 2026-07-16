@@ -12,6 +12,7 @@
  */
 import type { GarmentArt } from '@/lib/types'
 import { blob, grainDefs, grainRect, soft, softDefs } from './soft'
+import { SLEEVE_ART, SLEEVE_AREA_IN } from './sleeve'
 
 /** Outer silhouette — identical for front/back. Bounds x 34..766, y 40..762. */
 const SIL =
@@ -250,6 +251,7 @@ export const HOODIE: GarmentArt = {
   printAreasIn: {
     front: { wIn: 12, hIn: 12 },
     back: { wIn: 12, hIn: 14 },
+    sleeve: SLEEVE_AREA_IN,
   },
   sides: {
     front: {
@@ -264,5 +266,6 @@ export const HOODIE: GarmentArt = {
       // just below the hanging hood (hood bottom ≈ y248)
       printAreaPx: { x: 250, y: 255, w: 300, h: 350 },
     },
+    sleeve: SLEEVE_ART,
   },
 }

@@ -40,6 +40,9 @@ export interface EngineCallbacks {
   onEditText(id: string): void
   onZoom(pct: number): void
   onSelection(info: SelectionInfo | null): void
+  /** A layer drag started / ended (mobile hides the props sheet meanwhile). */
+  onDragStart?(): void
+  onDragEnd?(): void
 }
 
 export interface SyncState {
@@ -329,7 +332,7 @@ export class EditorEngine {
       const art = GARMENTS[design.garmentId]
       return { ppi: art.pxPerInch, area: art.sides[side].printAreaPx }
     }
-    const setup = design.custom?.[side]
+    const setup = side === 'sleeve' ? undefined : design.custom?.[side]
     const widthIn = design.custom?.widthIn ?? 20
     if (!setup) {
       return { ppi: 25, area: { x: 250, y: 200, w: 300, h: 400 } }
@@ -370,7 +373,7 @@ export class EditorEngine {
       })
       return
     }
-    const setup = design.custom?.[side]
+    const setup = side === 'sleeve' ? undefined : design.custom?.[side]
     const widthIn = design.custom?.widthIn ?? 20
     if (!setup) {
       this.garmentNode.visible(false)
@@ -695,6 +698,7 @@ export class EditorEngine {
 
     node.on('dragstart', () => {
       this.draggingNode = node
+      this.cb.onDragStart?.()
     })
 
     node.on('dragmove', () => {
@@ -713,6 +717,7 @@ export class EditorEngine {
       this.clearGuides()
       this.ghost.visible(false)
       this.cb.onPatch(id(), this.positionPatch(node), { transient: false })
+      this.cb.onDragEnd?.()
     })
 
     node.on('transform', () => {

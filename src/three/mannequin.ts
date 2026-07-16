@@ -8,10 +8,11 @@
  *
  * 1 world unit = 1 inch, matching the rest of the app, so a print sized in
  * inches lands on the chest at life size. The torso is the "shirt": its front
- * is a smooth elliptical surface the design decal wraps onto (see arScene.ts).
+ * is a smooth elliptical surface the design decal wraps onto (see arExport.ts).
  *
  * Built from a handful of meshes grouped by material (shirt vs. body) — no
- * geometry merge, so recolouring the shirt is one `material.color.set`.
+ * geometry merge, so recolouring the shirt is one `material.color.set`. All
+ * meshes use MeshStandardMaterial so the figure exports cleanly to GLB + USDZ.
  */
 import * as THREE from 'three'
 

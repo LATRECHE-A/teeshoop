@@ -32,7 +32,7 @@ export default function ShareModal() {
   const [busy, setBusy] = useState<string | null>(null)
 
   const linkable = canShareAsLink(design)
-  const sides = (['front', 'back'] as Side[]).filter(
+  const sides = (['front', 'back', 'sleeve'] as Side[]).filter(
     (sd) => sideLayers(design, sd).length > 0,
   )
 
@@ -77,22 +77,24 @@ export default function ShareModal() {
           <section>
             <div className="panel-title mb-2">{t('share.mockups')}</div>
             <div className="flex flex-wrap gap-2">
-              {(['front', 'back'] as Side[]).map((sd) => (
-                <button
-                  key={sd}
-                  className="btn"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    run(`mock-${sd}`, async () => {
-                      const c = await renderMockup(design, sd, 1600)
-                      await downloadCanvasPng(c, `tshop-${slugify(design.name)}-${sd}-mockup.png`)
-                    })
-                  }
-                >
-                  <ImageIcon size={14} />
-                  {sd === 'front' ? t('share.front_png') : t('share.back_png')}
-                </button>
-              ))}
+              {(['front', 'back', 'sleeve'] as Side[])
+                .filter((sd) => sd !== 'sleeve' || sideLayers(design, sd).length > 0)
+                .map((sd) => (
+                  <button
+                    key={sd}
+                    className="btn"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      run(`mock-${sd}`, async () => {
+                        const c = await renderMockup(design, sd, 1600)
+                        await downloadCanvasPng(c, `tshop-${slugify(design.name)}-${sd}-mockup.png`)
+                      })
+                    }
+                  >
+                    <ImageIcon size={14} />
+                    {sd === 'front' ? t('share.front_png') : sd === 'back' ? t('share.back_png') : t('share.sleeve_png')}
+                  </button>
+                ))}
             </div>
           </section>
 
@@ -108,7 +110,7 @@ export default function ShareModal() {
                   return (
                     <div key={sd} className="flex items-center gap-3 rounded-lg border border-line bg-bg1 px-3 py-2">
                       <div className="min-w-0 flex-1">
-                        <div className="text-[12.5px] font-medium capitalize text-tx">{sd === 'front' ? t('common.front') : t('common.back')}</div>
+                        <div className="text-[12.5px] font-medium capitalize text-tx">{sd === 'front' ? t('common.front') : sd === 'back' ? t('common.back') : t('common.sleeve')}</div>
                         <div className="mono-dim">
                           {fmtIn(area.wIn)} × {fmtIn(area.hIn)} · {t('share.transparent_png')}
                         </div>

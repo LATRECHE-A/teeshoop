@@ -5,8 +5,11 @@
 export async function makeQrDataUrl(text: string): Promise<string> {
   const QR = (await import('qrcode')).default
   return QR.toDataURL(text, {
-    margin: 1,
-    width: 340,
+    // A 4-module quiet zone (the spec minimum) + a large raster keep the QR
+    // scannable off a screen. This only ever encodes a SHORT /v/{id} URL now
+    // (QR version ~2–3), not a giant design hash, so modules stay coarse.
+    margin: 4,
+    width: 512,
     errorCorrectionLevel: 'M',
     color: { dark: '#0c0f13', light: '#ffffff' },
   })

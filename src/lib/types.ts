@@ -8,7 +8,7 @@
  */
 import type { SceneId } from '@/scenes'
 
-export type Side = 'front' | 'back'
+export type Side = 'front' | 'back' | 'sleeve'
 export type GarmentId = 'tee' | 'hoodie' | 'custom'
 export type CatalogGarmentId = Exclude<GarmentId, 'custom'>
 

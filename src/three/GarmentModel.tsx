@@ -59,10 +59,23 @@ function useNormalizedGarment(garment: CatalogGarmentId, garmentWidthIn: number)
     geometry.computeBoundingSphere()
 
     const srcMat = (Array.isArray(src.material) ? src.material[0] : src.material) as THREE.MeshStandardMaterial
-    const material = srcMat.clone()
-    material.roughness = calib.roughness
-    material.metalness = 0
-    material.envMapIntensity = calib.envMapIntensity
+    // Upgrade to a physical material with a cloth sheen so the tee/hoodie reads
+    // as fabric (a Fresnel grazing highlight that emphasises curvature) rather
+    // than plastic. Decals are a separate projected mesh, so inch accuracy is
+    // untouched. Copy source maps explicitly — Physical.copy(Standard) is unsafe
+    // because the Standard source lacks the sheen fields Physical.copy reads.
+    const material = new THREE.MeshPhysicalMaterial({
+      map: srcMat.map,
+      normalMap: srcMat.normalMap,
+      roughnessMap: srcMat.roughnessMap,
+      color: srcMat.color.clone(),
+      roughness: calib.roughness,
+      metalness: 0,
+      envMapIntensity: calib.envMapIntensity,
+      sheen: 0.5,
+      sheenRoughness: 0.9,
+      sheenColor: new THREE.Color('#ffffff'),
+    })
 
     return {
       geometry,

@@ -61,7 +61,7 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // The torso is ~0.83x the height of the 29in 2D art, so 2D print-area
     // offsets land too close to the collar; push down and use a slightly
     // deeper projector so the top decal rows survive the shoulder curvature.
-    decalNudgeYIn: { front: 1.2, back: 1.2 },
+    decalNudgeYIn: { front: 1.2, back: 1.2, sleeve: 0 },
     decalDepthFraction: 0.18,
     decalInset: 0.22,
     roughness: 0.94,
@@ -81,7 +81,7 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // Keep prints clear of the hood: front sits between drawcords and pocket;
     // the back print must start BELOW the hanging hood or its projector
     // catches the hood's top fold (seen as smears from the front).
-    decalNudgeYIn: { front: 1.2, back: 2.2 },
+    decalNudgeYIn: { front: 1.2, back: 2.2, sleeve: 0 },
     decalDepthFraction: 0.18,
     decalInset: 0.22,
     roughness: 0.92,

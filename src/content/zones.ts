@@ -40,6 +40,13 @@ export function zonesFor(design: Design, side: Side): PrintZone[] {
     { id: 'full', nameKey: 'zone.full', wIn, hIn, cxIn: 0, cyIn: 0 },
   ]
 
+  if (side === 'sleeve') {
+    // Sleeves take a small centred logo; paper/chest zones don't apply.
+    const s = Math.min(3, Math.min(wIn, hIn) * 0.8)
+    zones.push({ id: 'sleeve_logo', nameKey: 'zone.sleeve_logo', wIn: s, hIn: s, cxIn: 0, cyIn: 0 })
+    return zones
+  }
+
   // Standard paper sizes that physically fit, biased slightly toward the top
   // (where chest prints sit). A4 is the highlighted affordable standard.
   for (const [id, p] of [

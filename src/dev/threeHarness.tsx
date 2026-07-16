@@ -16,14 +16,14 @@ const PPI = 40 // texture pixels per inch
 
 const GARMENT_WIDTH_IN: Record<GarmentId, number> = { tee: 21.5, hoodie: 23, custom: 20 }
 const PRINT_SIZES: Record<'tee' | 'hoodie', Record<Side, { wIn: number; hIn: number }>> = {
-  tee: { front: { wIn: 12, hIn: 16 }, back: { wIn: 12, hIn: 16 } },
-  hoodie: { front: { wIn: 12, hIn: 12 }, back: { wIn: 12, hIn: 14 } },
+  tee: { front: { wIn: 12, hIn: 16 }, back: { wIn: 12, hIn: 16 }, sleeve: { wIn: 4, hIn: 4 } },
+  hoodie: { front: { wIn: 12, hIn: 12 }, back: { wIn: 12, hIn: 14 }, sleeve: { wIn: 4, hIn: 4 } },
 }
 /** Print-area center offset from garment visual center, inches (+down) —
  * harness approximations of what the A1 art will provide. */
 const AREA_OFFSET_Y_IN: Record<'tee' | 'hoodie', Record<Side, number>> = {
-  tee: { front: -2.25, back: -1.25 },
-  hoodie: { front: -2.0, back: -1.0 },
+  tee: { front: -2.25, back: -1.25, sleeve: 0 },
+  hoodie: { front: -2.0, back: -1.0, sleeve: 0 },
 }
 const COLORS = ['#FFFFFF', '#191C20', '#C0272D', '#1F2A44']
 

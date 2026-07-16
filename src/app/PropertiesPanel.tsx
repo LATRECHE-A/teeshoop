@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Copy,
   FlipHorizontal2,
+  Pencil,
   Scissors,
   Trash2,
   X,
@@ -176,29 +177,83 @@ export default function PropertiesPanel() {
   const duplicateLayer = useStore((s) => s.duplicateLayer)
   const setPanel = useStore((s) => s.setPanel)
   const activePanel = useStore((s) => s.activePanel)
+  const propsExpanded = useStore((s) => s.propsExpanded)
+  const setPropsExpanded = useStore((s) => s.setPropsExpanded)
+  const dragging = useStore((s) => s.dragging)
   const assets = useStore((s) => s.assets)
   const isMobile = useIsMobile()
   const t = useT()
 
   const layer = design.layers.find((l) => l.id === selectedId)
+
+  // The compact mobile bar reserves --tsh-selbar so floating HUDs lift above it.
+  const barVisible = isMobile && !!layer && mode === '2d' && !activePanel && !dragging && !propsExpanded
+  useEffect(() => {
+    document.documentElement.classList.toggle('has-selbar', barVisible)
+    return () => document.documentElement.classList.remove('has-selbar')
+  }, [barVisible])
+
   if (!layer || mode !== '2d') return null
   // On mobile only one bottom sheet at a time: a tool panel takes precedence.
   if (isMobile && activePanel) return null
+  // While a layer is being dragged on mobile, hide the sheet entirely so the
+  // object stays visible and movable — the fix for "the panel blocks the move".
+  if (isMobile && dragging) return null
 
   const patch = (p: Partial<Layer>, commit = true) =>
     patchLayer(layer.id, p, { transient: !commit })
 
+  const typeLabel =
+    layer.type === 'text' ? t('props.type_text') : layer.type === 'image' ? t('props.type_image') : t('props.type_graphic')
+
+  // COLLAPSED: a slim selection action bar (Canva-style) that never covers the
+  // object. Drag on the canvas to move it; tap "Edit" to open the full sheet.
+  if (isMobile && !propsExpanded) {
+    return (
+      <aside
+        aria-label={t('props.layer_props')}
+        className="sheet-mobile fixed inset-x-0 bottom-[var(--tsh-nav)] z-40 flex h-[3.25rem] items-center gap-1 border-t border-line bg-bg2/95 px-2 shadow-2xl backdrop-blur"
+      >
+        <span className="panel-title min-w-0 flex-1 truncate pl-1">{typeLabel}</span>
+        <button className="btn btn-primary h-8 px-3 text-[12px]" onClick={() => setPropsExpanded(true)}>
+          <Pencil size={13} /> {t('props.edit')}
+        </button>
+        <button className="iconbtn h-8 w-8" title={t('props.duplicate_hint')} onClick={() => duplicateLayer(layer.id)}>
+          <Copy size={14} />
+        </button>
+        <button className="iconbtn h-8 w-8 text-dg" title={t('props.delete_hint')} onClick={() => removeLayer(layer.id)}>
+          <Trash2 size={14} />
+        </button>
+        <button className="iconbtn h-8 w-8" aria-label={t('common.close')} onClick={() => select(null)}>
+          <X size={15} />
+        </button>
+      </aside>
+    )
+  }
+
+  // EXPANDED mobile sheet, or the desktop docked panel (md: styles).
   return (
     <aside
       aria-label={t('props.layer_props')}
       className="sheet-mobile fixed inset-x-0 bottom-[var(--tsh-nav)] z-40 flex max-h-[64dvh] flex-col overflow-hidden rounded-t-2xl border border-line bg-bg2/95 shadow-2xl backdrop-blur md:absolute md:inset-x-auto md:bottom-3 md:right-3 md:top-3 md:z-20 md:max-h-none md:w-[264px] md:rounded-xl"
     >
-      <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-line2 md:hidden" aria-hidden />
+      <button
+        type="button"
+        className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-line2 md:hidden"
+        aria-label={t('props.done')}
+        onClick={() => setPropsExpanded(false)}
+      />
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-line pl-3.5 pr-2">
-        <span className="panel-title">
-          {layer.type === 'text' ? t('props.type_text') : layer.type === 'image' ? t('props.type_image') : t('props.type_graphic')}
-        </span>
+        <span className="panel-title">{typeLabel}</span>
         <div className="flex items-center">
+          <button
+            className="iconbtn h-7 w-7 md:hidden"
+            aria-label={t('props.done')}
+            title={t('props.done')}
+            onClick={() => setPropsExpanded(false)}
+          >
+            <ChevronDown size={16} />
+          </button>
           <button className="iconbtn h-7 w-7" title={t('props.duplicate_hint')} onClick={() => duplicateLayer(layer.id)}>
             <Copy size={13} />
           </button>

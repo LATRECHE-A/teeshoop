@@ -1,9 +1,35 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tshop",
-  "compatibility_date": "2026-06-01",
-  "assets": {
-    "directory": "./dist",
-    "not_found_handling": "single-page-application"
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "tshop",
+	"main": "worker/index.ts",
+	"compatibility_date": "2026-06-01",
+	// Static assets (studio + viewer page) with SPA fallback. The Worker
+	// (worker/index.ts) handles /api/ar, /r2/ar/* and /v/* and otherwise falls
+	// through to these assets via the ASSETS binding.
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		// Run the Worker FIRST for the dynamic routes. Without this, a browser
+		// navigation to /v/{id} (no matching asset) hits the SPA fallback and serves
+		// the studio instead of the viewer page. Everything else stays assets-first.
+		"run_worker_first": [
+			"/api/*",
+			"/r2/*",
+			"/v/*"
+		]
+	},
+	// AR model blob store. Create it once with:  wrangler r2 bucket create tshop-ar
+	// R2 has no per-object TTL — add a lifecycle rule to expire the `ar/` prefix
+	// (see README), e.g. 30 days, so shared models don't accumulate forever.
+	"r2_buckets": [
+		{
+			"binding": "AR_BUCKET",
+			"bucket_name": "tshop-ar"
+		},
+		{
+			"bucket_name": "tshop-ar",
+			"binding": "tshop_ar"
+		}
+	]
 }

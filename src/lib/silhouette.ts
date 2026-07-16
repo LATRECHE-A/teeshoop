@@ -498,10 +498,17 @@ export function buildInflatedShell(
   const contentWin = (cW / m.W) * wIn
   const contentHin = (cH / m.H) * hIn
 
-  // Volume budget: broad rounded body, edges falling to zero.
-  const bulge = THREE.MathUtils.clamp(contentWin * 0.075, 0.85, 1.9)
-  const bulgeBack = bulge * 0.85
-  const dTarget = 0.3 * Math.min(cW, cH)
+  // Volume budget: a rounded, torso-centred dome. Z-only, so X/Y (inches) and
+  // UVs never move — inch accuracy and decal crispness are preserved exactly.
+  const bulge = THREE.MathUtils.clamp(contentWin * 0.14, 1.4, 4.2)
+  const bulgeBack = bulge * 0.8
+
+  // Normalise the distance field by its GLOBAL max so only the medial axis
+  // reaches full height. The old clamp(dist / dTarget) saturated the entire
+  // torso interior into a flat-topped mesa — the "puffed paper" look.
+  let dMax = 0
+  for (let p = 0; p < dist.length; p++) if (dist[p] < 1e8 && dist[p] > dMax) dMax = dist[p]
+  if (dMax < 1e-3) dMax = 1
 
   const sampleDist = (imgX: number, imgY: number): number => {
     // bilinear over the padded dist grid (mask index = img + 1)
@@ -523,27 +530,73 @@ export function buildInflatedShell(
   const GX = 92
   const GY = THREE.MathUtils.clamp(Math.round((GX * contentHin) / contentWin), 24, 168)
 
+  // Per-row body centre + half-width (working px) → each horizontal slice gets a
+  // half-ellipse cross-section, so the sheet reads as a rounded cylinder/torso
+  // rather than a flat billboard. Thin regions (sleeves) have a small
+  // distance-to-edge and stay low; the thick body bulges most.
+  const nRows = GY + 1
+  const rowC = new Float32Array(nRows)
+  const rowH = new Float32Array(nRows)
+  for (let j = 0; j < nRows; j++) {
+    const ry = Math.round(m.minY + (j / GY) * (cH - 1))
+    const base = (ry + 1) * W2
+    let lo = -1
+    let hi = -1
+    for (let x = m.minX; x <= m.maxX; x++) {
+      if (m.mask[base + x + 1]) {
+        if (lo < 0) lo = x
+        hi = x
+      }
+    }
+    if (hi < 0) {
+      rowC[j] = (m.minX + m.maxX) / 2
+      rowH[j] = Math.max(1, (cW - 1) / 2)
+    } else {
+      rowC[j] = (lo + hi) / 2
+      rowH[j] = Math.max(1, (hi - lo) / 2)
+    }
+  }
+
+  const smooth = (t: number): number => {
+    const x = THREE.MathUtils.clamp(t, 0, 1)
+    return x * x * (3 - 2 * x)
+  }
+
   const makeSheet = (sign: 1 | -1): THREE.BufferGeometry => {
     const amp = sign > 0 ? bulge : -bulgeBack
     const cols = GX + 1
     const rows = GY + 1
     const pos = new Float32Array(cols * rows * 3)
     const uv = new Float32Array(cols * rows * 2)
+    const col = new Float32Array(cols * rows * 3)
     for (let j = 0; j < rows; j++) {
       const fy = j / GY
       const imgY = m.minY + fy * (cH - 1)
       const Y = (0.5 - fy) * contentHin
       const v = 1 - (m.minY + fy * cH) / m.H
+      const rc = rowC[j]
+      const rh = rowH[j]
+      // Fullest around mid-torso, eased toward hem/shoulders.
+      const bias = 0.82 + 0.18 * Math.sin(THREE.MathUtils.clamp(fy, 0, 1) * Math.PI)
       for (let i = 0; i < cols; i++) {
         const fx = i / GX
         const imgX = m.minX + fx * (cW - 1)
         const X = (fx - 0.5) * contentWin
-        const nd = THREE.MathUtils.clamp(sampleDist(imgX, imgY) / dTarget, 0, 1)
-        const z = amp * Math.sin(nd * Math.PI * 0.5)
+        const nd = THREE.MathUtils.clamp(sampleDist(imgX, imgY) / dMax, 0, 1)
+        const taper = smooth(nd / 0.34) // round every rim + hole down to 0
+        const hx = THREE.MathUtils.clamp((imgX - rc) / rh, -1, 1)
+        const ellipse = Math.sqrt(Math.max(0, 1 - hx * hx)) // rounded cross-section
+        const z = amp * ellipse * taper * bias
         const k = (j * cols + i) * 3
         pos[k] = X
         pos[k + 1] = Y
         pos[k + 2] = z
+        // Free ambient occlusion baked to vertex colour: darken toward the
+        // silhouette edges + holes so the rim reads as a rounded seam/cavity.
+        const ao = 0.62 + 0.38 * smooth(nd / 0.5)
+        col[k] = ao
+        col[k + 1] = ao
+        col[k + 2] = ao
         const u = (m.minX + fx * cW) / m.W
         const t = (j * cols + i) * 2
         uv[t] = sign > 0 ? u : 1 - u
@@ -565,6 +618,7 @@ export function buildInflatedShell(
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3))
     geo.setIndex(idx)
     geo.computeVertexNormals()
     geo.computeBoundingBox()

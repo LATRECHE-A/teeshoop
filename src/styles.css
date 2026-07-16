@@ -63,6 +63,12 @@
      Sheets + floating HUDs offset by this so nothing hides behind the nav. */
   :root {
     --tsh-nav: 0px;
+    /* Height reserved for the mobile selection action bar (0 unless shown), so
+       floating HUDs lift above it. Toggled by the .has-selbar class on <html>. */
+    --tsh-selbar: 0px;
+  }
+  :root.has-selbar {
+    --tsh-selbar: 3.25rem;
   }
   @media (max-width: 767.98px) {
     :root {

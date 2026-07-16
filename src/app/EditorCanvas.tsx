@@ -38,6 +38,8 @@ export default function EditorCanvas() {
       },
       onZoom: setZoomPct,
       onSelection: setSel,
+      onDragStart: () => useStore.getState().setDragging(true),
+      onDragEnd: () => useStore.getState().setDragging(false),
     })
     engineRef.current = engine
 
@@ -116,16 +118,16 @@ export default function EditorCanvas() {
 
       {/* crop warning */}
       {sel?.cropped && (
-        <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-yl/30 bg-yl/10 px-3 py-1.5 text-[11.5px] font-medium text-yl">
+        <div className="absolute left-1/2 top-14 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-yl/30 bg-yl/10 px-3 py-1.5 text-[11.5px] font-medium text-yl md:top-3">
           <TriangleAlert size={13} />
           {t('editor.crop_warn')}
         </div>
       )}
 
       {/* zoom HUD */}
-      <div className="absolute bottom-[calc(var(--tsh-nav)+0.75rem)] right-3 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur md:bottom-4 md:right-4">
+      <div className="absolute bottom-[calc(var(--tsh-nav)+var(--tsh-selbar)+0.75rem)] right-3 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur md:bottom-4 md:right-4">
         <button
-          className={clsx('iconbtn h-7 w-7', showGuides && 'bg-bg3 text-cy')}
+          className={clsx('iconbtn hidden h-7 w-7 md:inline-flex', showGuides && 'bg-bg3 text-cy')}
           onClick={toggleGuides}
           aria-pressed={showGuides}
           aria-label={t('editor.guides')}
@@ -133,11 +135,11 @@ export default function EditorCanvas() {
         >
           <Grid3x3 size={14} />
         </button>
-        <div className="mx-0.5 h-4 w-px bg-line" />
+        <div className="mx-0.5 hidden h-4 w-px bg-line md:block" />
         <button className="iconbtn h-7 w-7" onClick={() => zoom('out')} aria-label={t('editor.zoom_out')}>
           <Minus size={14} />
         </button>
-        <span className="mono-dim w-12 text-center">{zoomPct}%</span>
+        <span className="mono-dim hidden w-12 text-center md:inline">{zoomPct}%</span>
         <button className="iconbtn h-7 w-7" onClick={() => zoom('in')} aria-label={t('editor.zoom_in')}>
           <Plus size={14} />
         </button>

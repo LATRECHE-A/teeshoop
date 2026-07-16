@@ -3,8 +3,9 @@ import { Copy, Mail, Minus, Plus } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
 import { useMockupUrl } from '../hooks/useMockup'
-import { QTY_BREAKS, SIZES, quote } from '@/content/pricing'
-import { sideLayers } from '@/lib/renderDesign'
+import { QTY_BREAKS, SIZES, areaTier, quote } from '@/content/pricing'
+import { sideArtworkSqIn, sideLayers } from '@/lib/renderDesign'
+import type { Side } from '@/lib/types'
 import { BUSINESS } from '@/config'
 import { useT } from '@/i18n'
 
@@ -18,11 +19,15 @@ export default function OrderModal() {
   const front = useMockupUrl(design, 'front', 380)
   const back = useMockupUrl(design, 'back', 380)
 
-  const printedSides =
-    (sideLayers(design, 'front').length > 0 ? 1 : 0) +
-    (sideLayers(design, 'back').length > 0 ? 1 : 0)
+  const printedSideList = (['front', 'back', 'sleeve'] as Side[]).filter(
+    (sd) => sideLayers(design, sd).length > 0,
+  )
+  const printedSides = printedSideList.length
+  const sideAreas = printedSideList.map((sd) => sideArtworkSqIn(design, sd))
+  const maxArea = sideAreas.length ? Math.max(...sideAreas) : 0
+  const tier = maxArea > 0 ? areaTier(design.garmentId, maxArea) : null
   const qty = Object.values(sizes).reduce((a, b) => a + b, 0)
-  const unit = quote(design.garmentId, Math.max(1, printedSides), Math.max(1, qty))
+  const unit = quote(design.garmentId, Math.max(1, printedSides), Math.max(1, qty), sideAreas)
   const q = qty === 0 ? { ...unit, totalUsd: 0 } : unit
 
   const garmentName =
@@ -155,6 +160,11 @@ export default function OrderModal() {
                 </span>
               ) : null}
             </div>
+            {maxArea > 0 && tier && (
+              <div className="mt-2 border-t border-line pt-2 text-[11px] text-tx3">
+                {t('order.print_area', { sqin: Math.round(maxArea), tier: t(tier.labelKey) })}
+              </div>
+            )}
           </section>
 
           <div className="flex flex-col gap-2 sm:flex-row">

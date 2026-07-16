@@ -21,7 +21,7 @@ export default function SideSwitcher() {
       aria-pressed={side === sd}
       title={sd === 'back' && backDisabled ? t('side.back_locked') : undefined}
       className={clsx(
-        'relative flex h-8 items-center gap-1.5 rounded-full px-4 text-[12.5px] font-semibold transition-colors',
+        'relative flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold transition-colors md:px-4',
         side === sd ? 'bg-bg3 text-tx' : 'text-tx3 hover:text-tx2',
         sd === 'back' && backDisabled && 'opacity-40',
       )}
@@ -41,6 +41,7 @@ export default function SideSwitcher() {
     <div className="pointer-events-auto flex items-center rounded-full border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur">
       <Btn sd="front" label={t('side.front')} />
       <Btn sd="back" label={t('side.back')} />
+      {garmentId !== 'custom' && <Btn sd="sleeve" label={t('side.sleeve')} />}
     </div>
   )
 }

@@ -19,12 +19,12 @@ export default defineConfig({
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
-      // Multi-page: the studio (index.html) + the standalone AR try-on page
-      // (ar.html). ar.html is a real built asset, so Cloudflare's SPA fallback
-      // serves it directly at /ar.html instead of rewriting to index.html.
+      // Multi-page: the studio (index.html) + the lean AR viewer page (v.html,
+      // Google <model-viewer>). The Worker serves v.html for the short /v/{id}
+      // QR URLs; model-viewer is bundled per-entry so it never bloats the studio.
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
-        ar: fileURLToPath(new URL('./ar.html', import.meta.url)),
+        viewer: fileURLToPath(new URL('./v.html', import.meta.url)),
       },
       output: {
         manualChunks(id: string) {
