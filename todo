@@ -1,5 +1,24 @@
 
-TODOs:
-    - We should add different scenes with different lighting and all in the 2D and 3D views. PS: like a scene on the beach, forest, city, etc. This will help users visualize their garment in various environments and lighting conditions.
-    - We should add the light mode and dark mode (I think it's already dark moded by default) + we should make the interface fully in french by default and allow users to switch to english if they want to (language selector buttons in the header next to modes toggle buttons)
-    - if it's doable and reliable we should add depth and empty inside and all (just like our default garments) to the 3D view of the garments uploaded by users. This will help users visualize their garments in a more realistic way and see how they'd look in real life. PS: we should also auto-scale the front and back uploaded images of the garment by the user so that they show properly when we render them in 2D and 3D views for a more accurate representation and visulization of the garment.
+DONE (2026-07-16):
+    [x] 3D custom garment — now an inflated, volumetric "pillow" (distance-transform
+        Z displacement + cloth sheen material) instead of a flat card. src/lib/silhouette.ts
+        (buildInflatedShell), src/three/ExtrudedGarment.tsx. Verify: node scripts/inflate-verify.mjs
+    [x] Fully mobile/Canva-style: bottom tool-nav, slide-up panel + properties sheets,
+        safe-area (dvh + env insets), pinch-zoom / two-finger pan, bigger touch targets,
+        fixed hover-only controls. src/app/BottomNav.tsx, useIsMobile, PanelHost, PropertiesPanel,
+        EditorEngine (touch), styles.css.
+    [x] AR: editor "View in AR" -> QR (/ar.html#d=…) -> phone camera + procedural male/female
+        mannequin wearing the design (chest/back decals), device-orientation parallax + touch,
+        snapshot -> share/download, WebXR world-anchoring where supported. src/ar/*, ArModal.
+        Verify: node scripts/ar-verify.mjs
+    [x] Placement guides (NOTE: pricing intentionally left flat per decision) — A4 grid +
+        common-area zones (chest, left-chest, upper/centre back) drawn on canvas, snap to zones,
+        one-tap "place in zone" (fit). src/content/zones.ts, EditorEngine, PropertiesPanel.
+
+NEXT IDEAS (not started):
+    - True sleeve print side (needs a sleeve garment art + print area; zones system already
+      ready to host it).
+    - Area-aware pricing tiers if the friend wants A4-cheaper-than-A3 quoting later
+      (zones already carry real inch sizes; wire zone -> quote()).
+    - Cross-device AR of photo designs (needs a small hosted blob store; today photos are
+      same-device only, vector designs travel in the QR link).

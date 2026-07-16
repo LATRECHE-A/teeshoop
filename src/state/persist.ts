@@ -5,44 +5,20 @@
  */
 import { get, set, del } from 'idb-keyval'
 import { nanoid } from 'nanoid'
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import type { AssetMeta, Design, SavedDesignMeta } from '@/lib/types'
 import { useStore } from './store'
 import { assetToDataUrl, importAsset, listAssets } from './assets'
 import { listSavedMetas, renderAndSave } from './savedDesigns'
 import { makeSampleDesign } from '@/content/sampleDesign'
+import { canShareAsLink, designToShareHash, parseShareHash } from '@/lib/shareLink'
 import { t } from '@/i18n'
 
 const CURRENT_KEY = 'tshop:current'
 const SEEN_KEY = 'tshop:seen'
 
-// --- share links ---------------------------------------------------------
-
-export function canShareAsLink(design: Design): boolean {
-  return (
-    design.garmentId !== 'custom' &&
-    design.layers.every((l) => l.type !== 'image')
-  )
-}
-
-export function designToShareHash(design: Design): string {
-  const payload = { v: 1, design: { ...design, custom: null } }
-  return `#d=${compressToEncodedURIComponent(JSON.stringify(payload))}`
-}
-
-export function parseShareHash(hash: string): Design | null {
-  const m = /^#d=(.+)$/.exec(hash)
-  if (!m) return null
-  try {
-    const json = decompressFromEncodedURIComponent(m[1])
-    if (!json) return null
-    const payload = JSON.parse(json)
-    if (payload?.v !== 1 || !payload.design?.layers) return null
-    return payload.design as Design
-  } catch {
-    return null
-  }
-}
+// Share-link codec now lives store-free in src/lib/shareLink.ts (so the AR
+// entry can reuse it without the studio bundle); re-export for existing callers.
+export { canShareAsLink, designToShareHash, parseShareHash }
 
 // --- design files --------------------------------------------------------
 

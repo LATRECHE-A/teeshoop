@@ -31,13 +31,6 @@ export interface Silhouette {
   cyn: number
 }
 
-export interface Shell {
-  geometry: THREE.ExtrudeGeometry
-  /** Dark interior backing plane; present only when there are holes. */
-  interior: THREE.BufferGeometry | null
-  depthIn: number
-}
-
 const WORK = 200 // longest working edge for the alpha trace
 const ALPHA_T = 128 // matte threshold (u2netp feather sits around 128)
 
@@ -425,90 +418,180 @@ export function canvasToSilhouette(
   return { outer, holes, cxn, cyn }
 }
 
-// --- public: silhouette → 3D shell ----------------------------------------
+// --- public: inflated ("pillow") shell -------------------------------------
 
-export function buildShell(sil: Silhouette, wIn: number, hIn: number): Shell | null {
-  const depthIn = THREE.MathUtils.clamp(wIn * 0.06, 0.8, 1.5)
-  const shape = new THREE.Shape(sil.outer)
-  for (const h of sil.holes) shape.holes.push(new THREE.Path(h))
+export interface InflatedShell {
+  /** Front sheet: photo cap, bulged toward +Z. */
+  front: THREE.BufferGeometry
+  /** Back sheet: back photo / blank, bulged toward −Z. */
+  back: THREE.BufferGeometry
+  /** Dark interior backing behind neck/arm holes; null when there are none. */
+  interior: THREE.BufferGeometry | null
+  depthIn: number
+}
 
-  let geometry: THREE.ExtrudeGeometry
-  try {
-    geometry = new THREE.ExtrudeGeometry(shape, {
-      depth: depthIn,
-      bevelEnabled: false,
-      steps: 1,
-      curveSegments: 1,
-    })
-  } catch {
-    return null
+/**
+ * Distance transform of the eroded inside mask (two-pass chamfer 1 / √2).
+ * Returns per-cell distance-to-edge in working pixels; 0 outside.
+ */
+function insideDistance(m: MaskData): Float32Array {
+  const W2 = m.W + 2
+  const H2 = m.H + 2
+  const d = new Float32Array(W2 * H2)
+  const BIG = 1e9
+  const SQ2 = Math.SQRT2
+  for (let i = 0; i < d.length; i++) d[i] = m.mask[i] ? BIG : 0
+  for (let y = 1; y < H2; y++) {
+    for (let x = 1; x < W2; x++) {
+      const i = y * W2 + x
+      if (!m.mask[i]) continue
+      let v = d[i]
+      if (d[i - 1] + 1 < v) v = d[i - 1] + 1
+      if (d[i - W2] + 1 < v) v = d[i - W2] + 1
+      if (d[i - W2 - 1] + SQ2 < v) v = d[i - W2 - 1] + SQ2
+      if (d[i - W2 + 1] + SQ2 < v) v = d[i - W2 + 1] + SQ2
+      d[i] = v
+    }
   }
-  geometry.translate(0, 0, -depthIn / 2)
+  for (let y = H2 - 2; y >= 0; y--) {
+    for (let x = W2 - 2; x >= 0; x--) {
+      const i = y * W2 + x
+      if (!m.mask[i]) continue
+      let v = d[i]
+      if (d[i + 1] + 1 < v) v = d[i + 1] + 1
+      if (d[i + W2] + 1 < v) v = d[i + W2] + 1
+      if (d[i + W2 + 1] + SQ2 < v) v = d[i + W2 + 1] + SQ2
+      if (d[i + W2 - 1] + SQ2 < v) v = d[i + W2 - 1] + SQ2
+      d[i] = v
+    }
+  }
+  return d
+}
 
-  const pos = geometry.attributes.position as THREE.BufferAttribute
-  const uv = geometry.attributes.uv as THREE.BufferAttribute
-  if (!pos || !uv) {
-    geometry.dispose()
-    return null
+/**
+ * Build a volumetric "pillow" from the composited garment canvas: two densely
+ * tessellated sheets (front photo, back photo/blank) displaced ONLY in Z by a
+ * smooth distance-to-edge profile, so the flat billboard becomes a rounded,
+ * cloth-like body. X/Y never move, so UVs — and therefore inch accuracy and
+ * decal crispness — are preserved exactly. The garment silhouette + neck/arm
+ * holes come from the texture's own alpha (alphaTest downstream), which is
+ * crisper than any mesh boundary; `sil` supplies the outer outline for the dark
+ * interior backing behind holes.
+ */
+export function buildInflatedShell(
+  canvas: HTMLCanvasElement,
+  sil: Silhouette,
+  wIn: number,
+  hIn: number,
+): InflatedShell | null {
+  if (!canvas.width || !canvas.height || wIn <= 0 || hIn <= 0) return null
+  const m = buildMask(canvas)
+  if (!m) return null
+
+  const dist = insideDistance(m)
+  const W2 = m.W + 2
+
+  // Content bbox in working px + inches.
+  const cW = m.maxX - m.minX + 1
+  const cH = m.maxY - m.minY + 1
+  if (cW < 3 || cH < 3) return null
+  const contentWin = (cW / m.W) * wIn
+  const contentHin = (cH / m.H) * hIn
+
+  // Volume budget: broad rounded body, edges falling to zero.
+  const bulge = THREE.MathUtils.clamp(contentWin * 0.075, 0.85, 1.9)
+  const bulgeBack = bulge * 0.85
+  const dTarget = 0.3 * Math.min(cW, cH)
+
+  const sampleDist = (imgX: number, imgY: number): number => {
+    // bilinear over the padded dist grid (mask index = img + 1)
+    const fx = imgX + 1
+    const fy = imgY + 1
+    const x0 = Math.max(0, Math.min(m.W, Math.floor(fx)))
+    const y0 = Math.max(0, Math.min(m.H, Math.floor(fy)))
+    const x1 = Math.min(m.W + 1, x0 + 1)
+    const y1 = Math.min(m.H + 1, y0 + 1)
+    const tx = fx - x0
+    const ty = fy - y0
+    const d00 = dist[y0 * W2 + x0]
+    const d10 = dist[y0 * W2 + x1]
+    const d01 = dist[y1 * W2 + x0]
+    const d11 = dist[y1 * W2 + x1]
+    return (d00 * (1 - tx) + d10 * tx) * (1 - ty) + (d01 * (1 - tx) + d11 * tx) * ty
   }
 
-  // NaN scan (Earcut can emit garbage without throwing).
-  for (let i = 0; i < pos.count; i++) {
-    if (!Number.isFinite(pos.getX(i)) || !Number.isFinite(pos.getY(i)) || !Number.isFinite(pos.getZ(i))) {
-      geometry.dispose()
+  const GX = 92
+  const GY = THREE.MathUtils.clamp(Math.round((GX * contentHin) / contentWin), 24, 168)
+
+  const makeSheet = (sign: 1 | -1): THREE.BufferGeometry => {
+    const amp = sign > 0 ? bulge : -bulgeBack
+    const cols = GX + 1
+    const rows = GY + 1
+    const pos = new Float32Array(cols * rows * 3)
+    const uv = new Float32Array(cols * rows * 2)
+    for (let j = 0; j < rows; j++) {
+      const fy = j / GY
+      const imgY = m.minY + fy * (cH - 1)
+      const Y = (0.5 - fy) * contentHin
+      const v = 1 - (m.minY + fy * cH) / m.H
+      for (let i = 0; i < cols; i++) {
+        const fx = i / GX
+        const imgX = m.minX + fx * (cW - 1)
+        const X = (fx - 0.5) * contentWin
+        const nd = THREE.MathUtils.clamp(sampleDist(imgX, imgY) / dTarget, 0, 1)
+        const z = amp * Math.sin(nd * Math.PI * 0.5)
+        const k = (j * cols + i) * 3
+        pos[k] = X
+        pos[k + 1] = Y
+        pos[k + 2] = z
+        const u = (m.minX + fx * cW) / m.W
+        const t = (j * cols + i) * 2
+        uv[t] = sign > 0 ? u : 1 - u
+        uv[t + 1] = v
+      }
+    }
+    const idx: number[] = []
+    for (let j = 0; j < GY; j++) {
+      for (let i = 0; i < GX; i++) {
+        const a = j * cols + i
+        const b = a + 1
+        const c = a + cols
+        const d = c + 1
+        // Front winds CCW from +Z; back reverses so its normals face −Z.
+        if (sign > 0) idx.push(a, c, b, b, c, d)
+        else idx.push(a, b, c, b, d, c)
+      }
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+    geo.setIndex(idx)
+    geo.computeVertexNormals()
+    geo.computeBoundingBox()
+    geo.computeBoundingSphere()
+    return geo
+  }
+
+  const front = makeSheet(1)
+  const back = makeSheet(-1)
+
+  // Non-finite guard (bad mask math must never reach the GPU).
+  const fpos = front.attributes.position as THREE.BufferAttribute
+  for (let i = 0; i < fpos.count; i++) {
+    if (!Number.isFinite(fpos.getX(i)) || !Number.isFinite(fpos.getY(i)) || !Number.isFinite(fpos.getZ(i))) {
+      front.dispose()
+      back.dispose()
       return null
     }
   }
 
-  // Per-triangle: classify front cap / back cap / wall, set planar cap UVs,
-  // and rebuild material groups (0 front, 1 back, 2 walls).
-  const front = depthIn / 2
-  const back = -depthIn / 2
-  const eps = depthIn * 0.02
-  const triCount = pos.count / 3
-  geometry.clearGroups()
-  let runStart = 0
-  let runMat = -1
-  const flush = (endTri: number) => {
-    if (runMat >= 0 && endTri > runStart)
-      geometry.addGroup(runStart * 3, (endTri - runStart) * 3, runMat)
+  // Dark interior backing so neck/arm holes read hollow (not see-through).
+  let interior: THREE.BufferGeometry | null = null
+  if (sil.holes.length > 0) {
+    const g = new THREE.ShapeGeometry(new THREE.Shape(sil.outer))
+    g.translate(0, 0, -bulgeBack * 0.35)
+    interior = g
   }
-  for (let t = 0; t < triCount; t++) {
-    const i0 = t * 3
-    const z0 = pos.getZ(i0)
-    const z1 = pos.getZ(i0 + 1)
-    const z2 = pos.getZ(i0 + 2)
-    const isFront = Math.abs(z0 - front) < eps && Math.abs(z1 - front) < eps && Math.abs(z2 - front) < eps
-    const isBack = Math.abs(z0 - back) < eps && Math.abs(z1 - back) < eps && Math.abs(z2 - back) < eps
-    const mat = isFront ? 0 : isBack ? 1 : 2
-    if (mat !== runMat) {
-      flush(t)
-      runStart = t
-      runMat = mat
-    }
-    if (isFront || isBack) {
-      for (let k = 0; k < 3; k++) {
-        const vi = i0 + k
-        const x = pos.getX(vi)
-        const y = pos.getY(vi)
-        let u = x / wIn + sil.cxn
-        const v = 1 - sil.cyn + y / hIn
-        if (isBack) u = 1 - u
-        uv.setXY(vi, u, v)
-      }
-    }
-  }
-  flush(triCount)
-  uv.needsUpdate = true
 
-  const interior =
-    sil.holes.length > 0
-      ? (() => {
-          const g = new THREE.ShapeGeometry(new THREE.Shape(sil.outer))
-          g.translate(0, 0, back + 0.06)
-          return g
-        })()
-      : null
-
-  return { geometry, interior, depthIn }
+  return { front, back, interior, depthIn: bulge + bulgeBack }
 }

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { FileDown, FileUp, Image as ImageIcon, Link2, Printer, TriangleAlert } from 'lucide-react'
+import { FileDown, FileUp, Image as ImageIcon, Link2, Printer, Smartphone, TriangleAlert } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
 import { useMockupUrl } from '../hooks/useMockup'
@@ -24,6 +24,7 @@ export default function ShareModal() {
   const design = useStore((s) => s.design)
   const assets = useStore((s) => s.assets)
   const closeModal = useStore((s) => s.closeModal)
+  const openModal = useStore((s) => s.openModal)
   const toast = useStore((s) => s.toast)
   const loadDesign = useStore((s) => s.loadDesign)
   const preview = useMockupUrl(design, 'front', 420)
@@ -141,6 +142,20 @@ export default function ShareModal() {
                 })}
               </div>
             )}
+          </section>
+
+          <section>
+            <div className="panel-title mb-2">{t('ar.section')}</div>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                closeModal('share')
+                openModal('ar')
+              }}
+            >
+              <Smartphone size={14} />
+              {t('ar.view_in_ar')}
+            </button>
           </section>
 
           <section>

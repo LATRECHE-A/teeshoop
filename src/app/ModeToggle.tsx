@@ -48,7 +48,7 @@ export default function ModeToggle() {
         aria-pressed={mode === '2d'}
         onClick={() => setMode('2d')}
         className={clsx(
-          'flex h-7 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold transition-colors',
+          'flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-semibold transition-colors sm:px-3',
           mode === '2d' ? 'bg-bg3 text-tx' : 'text-tx3 hover:text-tx2',
         )}
       >
@@ -60,7 +60,7 @@ export default function ModeToggle() {
         aria-pressed={mode === '3d'}
         onClick={try3d}
         className={clsx(
-          'flex h-7 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-bold transition-all',
+          'flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-bold transition-all sm:px-3',
           mode === '3d'
             ? 'grad-ink text-white shadow-[0_2px_16px_rgba(123,108,255,0.45)]'
             : 'text-grad-ink hover:brightness-125',
@@ -69,7 +69,7 @@ export default function ModeToggle() {
         <Box size={14} className={mode === '3d' ? '' : 'text-vi'} />
         {t('mode.3d')}
         {!tried && (
-          <span className="ml-0.5 rounded-full bg-mg/20 px-1.5 py-px text-[9px] font-bold tracking-wider text-mg">
+          <span className="ml-0.5 hidden rounded-full bg-mg/20 px-1.5 py-px text-[9px] font-bold tracking-wider text-mg sm:inline-block">
             {t('mode.try')}
           </span>
         )}

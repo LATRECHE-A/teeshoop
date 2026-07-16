@@ -59,10 +59,23 @@
 }
 
 @layer base {
+  /* Height of the mobile bottom tool-nav (incl. safe area). 0 on desktop.
+     Sheets + floating HUDs offset by this so nothing hides behind the nav. */
+  :root {
+    --tsh-nav: 0px;
+  }
+  @media (max-width: 767.98px) {
+    :root {
+      --tsh-nav: calc(3.5rem + env(safe-area-inset-bottom));
+    }
+  }
   html,
   body,
   #root {
     height: 100%;
+    /* dvh tracks the *visible* viewport on mobile (URL bar collapse), so the
+       bottom nav / sheets are never cropped under the browser chrome. */
+    height: 100dvh;
   }
   body {
     @apply bg-bg0 text-tx font-sans antialiased overflow-hidden;
@@ -190,6 +203,39 @@
   .chip {
     @apply inline-flex items-center gap-1 rounded-full border border-line bg-bg2 px-2.5 h-6 text-[11px] text-tx2;
   }
+
+  /* Action rows that reveal on hover on desktop but must ALWAYS show on touch
+     (no hover) — otherwise per-asset / per-layer actions are unreachable. */
+  .touch-reveal {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .group:hover .touch-reveal,
+  .group:focus-within .touch-reveal {
+    opacity: 1;
+  }
+}
+
+/* Safe-area padding for full-bleed mobile chrome (notch / home indicator). */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Coarse-pointer (touch) affordances: bigger hit areas, always-revealed rows. */
+@media (hover: none) and (pointer: coarse) {
+  .touch-reveal {
+    opacity: 1;
+  }
+  .iconbtn {
+    min-height: 2.25rem;
+    min-width: 2.25rem;
+  }
+  .chip {
+    height: 1.9rem;
+  }
 }
 
 /* Range inputs tuned for the dark chrome */
@@ -215,6 +261,25 @@ input[type='range']::-webkit-slider-thumb {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+/* Slide-up for mobile bottom sheets; desktop panels (≥md) are unaffected. */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (max-width: 767.98px) {
+  .sheet-mobile {
+    animation: sheet-up 0.22s cubic-bezier(0.33, 1, 0.68, 1) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-mobile {
+    animation: none;
   }
 }
 @keyframes pulse-ring {

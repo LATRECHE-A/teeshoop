@@ -17,7 +17,8 @@ import { GARMENTS } from '@/garments'
 import { GARMENT_COLORS } from '@/content/palettes'
 import { GRAPHICS } from '@/content/graphics'
 import { makeSampleDesign } from '@/content/sampleDesign'
-import { getAreaSizeIn } from '@/lib/renderDesign'
+import { getAreaSizeIn, measureLayer } from '@/lib/renderDesign'
+import { zonesFor } from '@/content/zones'
 import { clamp } from '@/lib/units'
 import { setCurrentLang, type Lang } from '@/i18n/lang'
 import type { SceneId } from '@/scenes'
@@ -44,6 +45,7 @@ export interface ModalState {
   designs: boolean
   share: boolean
   shortcuts: boolean
+  ar: boolean
 }
 
 interface StoreState {
@@ -65,11 +67,16 @@ interface StoreState {
   theme: Theme
   lang: Lang
   scene: SceneId
+  /** Print-placement guides (zones + grid) in the 2D editor. */
+  showGuides: boolean
 
   // --- ui actions
   setTheme(theme: Theme): void
   setLang(lang: Lang): void
   setScene(scene: SceneId): void
+  toggleGuides(): void
+  /** Move (and fit) the selected layer into a named print zone. */
+  placeInZone(zoneId: string): void
   setMode(mode: Mode): void
   setSide(side: Side): void
   select(id: string | null): void
@@ -139,6 +146,11 @@ setCurrentLang(initialPrefs.lang)
 applyTheme(initialPrefs.theme)
 applyLang(initialPrefs.lang)
 
+// On phones, start with the full canvas (no panel sheet covering it); on
+// desktop keep the Product panel open in the persistent left column.
+const bootMobile =
+  typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767.98px)').matches
+
 export const useStore = create<StoreState>()(
   temporal(
     (set, get) => ({
@@ -146,8 +158,8 @@ export const useStore = create<StoreState>()(
       activeSide: 'front',
       mode: '2d',
       selectedId: null,
-      activePanel: 'product',
-      modals: { customSetup: false, order: false, designs: false, share: false, shortcuts: false },
+      activePanel: bootMobile ? null : 'product',
+      modals: { customSetup: false, order: false, designs: false, share: false, shortcuts: false, ar: false },
       toasts: [],
       assets: [],
       savedDesigns: [],
@@ -157,21 +169,54 @@ export const useStore = create<StoreState>()(
       theme: initialPrefs.theme,
       lang: initialPrefs.lang,
       scene: initialPrefs.scene,
+      showGuides: initialPrefs.showGuides,
 
       setTheme: (theme) => {
         applyTheme(theme)
         set({ theme })
-        savePrefs({ theme, lang: get().lang, scene: get().scene })
+        savePrefs({ theme, lang: get().lang, scene: get().scene, showGuides: get().showGuides })
       },
       setLang: (lang) => {
         setCurrentLang(lang)
         applyLang(lang)
         set({ lang })
-        savePrefs({ theme: get().theme, lang, scene: get().scene })
+        savePrefs({ theme: get().theme, lang, scene: get().scene, showGuides: get().showGuides })
       },
       setScene: (scene) => {
         set({ scene })
-        savePrefs({ theme: get().theme, lang: get().lang, scene })
+        savePrefs({ theme: get().theme, lang: get().lang, scene, showGuides: get().showGuides })
+      },
+      toggleGuides: () => {
+        const showGuides = !get().showGuides
+        set({ showGuides })
+        savePrefs({ theme: get().theme, lang: get().lang, scene: get().scene, showGuides })
+      },
+      placeInZone: (zoneId) => {
+        const s = get()
+        const layer = s.design.layers.find((l) => l.id === s.selectedId)
+        if (!layer) return
+        const zone = zonesFor(s.design, layer.side).find((z) => z.id === zoneId)
+        if (!zone) return
+        // Fit the layer inside the zone (92% margin), keeping aspect.
+        const cur = measureLayer(layer, 100)
+        const cwIn = cur.w / 100
+        const chIn = cur.h / 100
+        const scale =
+          cwIn > 0 && chIn > 0
+            ? Math.min((zone.wIn * 0.92) / cwIn, (zone.hIn * 0.92) / chIn)
+            : 1
+        const patch: Partial<Layer> = { xIn: zone.cxIn, yIn: zone.cyIn }
+        if (layer.type === 'text') {
+          const p = patch as Partial<TextLayer>
+          p.fontSizeIn = Math.max(0.12, Math.round(layer.fontSizeIn * scale * 100) / 100)
+          if (layer.strokeWidthIn > 0)
+            p.strokeWidthIn = Math.round(layer.strokeWidthIn * scale * 1000) / 1000
+        } else {
+          const p = patch as Partial<ImageLayer>
+          p.wIn = Math.max(0.15, Math.round(layer.wIn * scale * 100) / 100)
+          p.hIn = Math.max(0.15, Math.round(layer.hIn * scale * 100) / 100)
+        }
+        get().patchLayer(layer.id, patch)
       },
       setMode: (mode) => {
         set({ mode })

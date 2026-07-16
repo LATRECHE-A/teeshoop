@@ -16,9 +16,11 @@ import clsx from 'clsx'
 import { useStore } from '@/state/store'
 import { FONTS, ensureFont } from '@/lib/fonts'
 import { INK_COLORS } from '@/content/palettes'
+import { zonesFor } from '@/content/zones'
 import type { GraphicLayer, ImageLayer, Layer, TextLayer } from '@/lib/types'
 import { fmtIn } from '@/lib/units'
 import { measureLayer } from '@/lib/renderDesign'
+import { useIsMobile } from './hooks/useIsMobile'
 import { useT } from '@/i18n'
 
 // ---------------------------------------------------------------- controls
@@ -173,11 +175,15 @@ export default function PropertiesPanel() {
   const removeLayer = useStore((s) => s.removeLayer)
   const duplicateLayer = useStore((s) => s.duplicateLayer)
   const setPanel = useStore((s) => s.setPanel)
+  const activePanel = useStore((s) => s.activePanel)
   const assets = useStore((s) => s.assets)
+  const isMobile = useIsMobile()
   const t = useT()
 
   const layer = design.layers.find((l) => l.id === selectedId)
   if (!layer || mode !== '2d') return null
+  // On mobile only one bottom sheet at a time: a tool panel takes precedence.
+  if (isMobile && activePanel) return null
 
   const patch = (p: Partial<Layer>, commit = true) =>
     patchLayer(layer.id, p, { transient: !commit })
@@ -185,8 +191,9 @@ export default function PropertiesPanel() {
   return (
     <aside
       aria-label={t('props.layer_props')}
-      className="absolute right-3 top-3 bottom-3 z-20 flex w-[264px] flex-col overflow-hidden rounded-xl border border-line bg-bg2/95 shadow-2xl backdrop-blur"
+      className="sheet-mobile fixed inset-x-0 bottom-[var(--tsh-nav)] z-40 flex max-h-[64dvh] flex-col overflow-hidden rounded-t-2xl border border-line bg-bg2/95 shadow-2xl backdrop-blur md:absolute md:inset-x-auto md:bottom-3 md:right-3 md:top-3 md:z-20 md:max-h-none md:w-[264px] md:rounded-xl"
     >
+      <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-line2 md:hidden" aria-hidden />
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-line pl-3.5 pr-2">
         <span className="panel-title">
           {layer.type === 'text' ? t('props.type_text') : layer.type === 'image' ? t('props.type_image') : t('props.type_graphic')}
@@ -448,7 +455,12 @@ function CommonProps({
   patch: (p: Partial<Layer>, commit?: boolean) => void
 }) {
   const t = useT()
+  const design = useStore((s) => s.design)
+  const placeInZone = useStore((s) => s.placeInZone)
+  const showGuides = useStore((s) => s.showGuides)
+  const toggleGuides = useStore((s) => s.toggleGuides)
   const size = measureLayer(layer, 100)
+  const zones = zonesFor(design, layer.side)
   return (
     <>
       <Row label={t('props.opacity')}>
@@ -480,6 +492,29 @@ function CommonProps({
             <AlignCenterVertical size={13} /> {t('props.middle')}
           </button>
         </div>
+      </Row>
+      <Row label={t('props.place_zone')}>
+        <div className="flex flex-wrap gap-1.5">
+          {zones.map((z) => (
+            <button
+              key={z.id}
+              className={clsx(
+                'chip px-2.5 transition-colors hover:border-cy hover:text-cy',
+                z.standard && 'border-cy/50 text-cy',
+              )}
+              title={t('props.place_zone_hint')}
+              onClick={() => placeInZone(z.id)}
+            >
+              {z.standard ? `★ ${t(z.nameKey)}` : t(z.nameKey)}
+            </button>
+          ))}
+        </div>
+        <button
+          className="mt-0.5 self-start text-[10.5px] text-tx3 underline-offset-2 hover:text-cy hover:underline"
+          onClick={toggleGuides}
+        >
+          {showGuides ? t('props.hide_guides') : t('props.show_guides')}
+        </button>
       </Row>
       <div className="mt-1 rounded-md border border-line bg-bg1 px-2.5 py-2">
         <span className="mono-dim">

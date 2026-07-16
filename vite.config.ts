@@ -19,6 +19,13 @@ export default defineConfig({
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
+      // Multi-page: the studio (index.html) + the standalone AR try-on page
+      // (ar.html). ar.html is a real built asset, so Cloudflare's SPA fallback
+      // serves it directly at /ar.html instead of rewriting to index.html.
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        ar: fileURLToPath(new URL('./ar.html', import.meta.url)),
+      },
       output: {
         manualChunks(id: string) {
           if (

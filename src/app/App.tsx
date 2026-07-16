@@ -3,6 +3,7 @@ import { useStore } from '@/state/store'
 import { hydrateStore, startAutosave } from '@/state/persist'
 import TopBar from './TopBar'
 import LeftRail from './LeftRail'
+import BottomNav from './BottomNav'
 import PanelHost from './panels/PanelHost'
 import CenterStage from './CenterStage'
 import PropertiesPanel from './PropertiesPanel'
@@ -31,6 +32,7 @@ export default function App() {
           <PropertiesPanel />
         </main>
       </div>
+      <BottomNav />
       <Toasts />
       <Modals />
     </div>

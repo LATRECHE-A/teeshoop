@@ -24,7 +24,7 @@ export default function Toasts() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="pointer-events-none fixed bottom-[72px] left-1/2 z-[80] flex w-[min(92vw,420px)] -translate-x-1/2 flex-col gap-2">
+    <div className="pointer-events-none fixed bottom-[calc(var(--tsh-nav)+3.25rem)] left-1/2 z-[80] flex w-[min(92vw,420px)] -translate-x-1/2 flex-col gap-2 md:bottom-[72px]">
       {toasts.map((t) => {
         const Icon = ICONS[t.kind]
         return (

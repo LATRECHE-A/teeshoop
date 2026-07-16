@@ -14,6 +14,8 @@ export interface Prefs {
   theme: Theme
   lang: Lang
   scene: SceneId
+  /** Show print-placement guides (zones + grid) in the 2D editor. */
+  showGuides: boolean
 }
 
 export const PREFS_KEY = 'tshop:prefs'
@@ -22,6 +24,7 @@ export const DEFAULT_PREFS: Prefs = {
   theme: 'dark',
   lang: DEFAULT_LANG,
   scene: 'studio',
+  showGuides: false,
 }
 
 export function loadPrefs(): Prefs {
@@ -33,6 +36,7 @@ export function loadPrefs(): Prefs {
       theme: p.theme === 'light' ? 'light' : 'dark',
       lang: isLang(p.lang) ? p.lang : DEFAULT_PREFS.lang,
       scene: isSceneId(p.scene) ? p.scene : DEFAULT_PREFS.scene,
+      showGuides: p.showGuides === true,
     }
   } catch {
     return { ...DEFAULT_PREFS }

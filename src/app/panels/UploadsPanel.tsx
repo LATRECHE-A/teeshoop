@@ -183,7 +183,7 @@ export default function UploadsPanel() {
                     </div>
                   </div>
                 ) : (
-                  <div className="absolute inset-x-1.5 bottom-1.5 flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="touch-reveal absolute inset-x-1.5 bottom-1.5 flex justify-end gap-1">
                     <button
                       className="iconbtn h-7 w-7 bg-bg1/90 text-tx backdrop-blur"
                       title={t('uploads.add_to_design')}

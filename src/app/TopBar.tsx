@@ -25,7 +25,7 @@ export default function TopBar() {
   }
 
   return (
-    <header className="z-30 flex h-14 shrink-0 items-center gap-3 border-b border-line bg-bg1 px-3 sm:px-4">
+    <header className="z-30 flex h-14 shrink-0 items-center gap-1.5 border-b border-line bg-bg1 px-3 sm:gap-3 sm:px-4">
       <Brand />
 
       <div className="mx-1 hidden h-6 w-px bg-line md:block" />
@@ -38,11 +38,11 @@ export default function TopBar() {
         onBlur={(e) => !e.target.value.trim() && renameDesign(t('topbar.untitled'))}
       />
 
-      <div className="ml-1 hidden items-center gap-0.5 sm:flex">
+      <div className="flex items-center gap-0.5 sm:ml-1">
         <button className="iconbtn" aria-label={t('topbar.undo')} title={t('topbar.undo_hint')} disabled={!canUndo} onClick={() => undo()}>
           <Undo2 size={16} className={canUndo ? '' : 'opacity-35'} />
         </button>
-        <button className="iconbtn" aria-label={t('topbar.redo')} title={t('topbar.redo_hint')} disabled={!canRedo} onClick={() => redo()}>
+        <button className="iconbtn hidden sm:inline-flex" aria-label={t('topbar.redo')} title={t('topbar.redo_hint')} disabled={!canRedo} onClick={() => redo()}>
           <Redo2 size={16} className={canRedo ? '' : 'opacity-35'} />
         </button>
       </div>

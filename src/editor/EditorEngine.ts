@@ -20,6 +20,7 @@ import {
 import { ensureRaster, sizeBucket, withSvgSize } from '@/lib/rasterCache'
 import { getCustomSideInfo } from '@/lib/custom'
 import { computeSnap } from '@/lib/smartGuides'
+import { zonesFor } from '@/content/zones'
 import { fmtIn } from '@/lib/units'
 import { t } from '@/i18n'
 
@@ -45,6 +46,8 @@ export interface SyncState {
   design: Design
   side: Side
   selectedId: string | null
+  /** Draw print-placement guides (zones + 1-inch grid) + snap to them. */
+  showGuides: boolean
 }
 
 interface LayoutInfo {
@@ -61,8 +64,10 @@ export class EditorEngine {
   private worldLayer: Konva.Layer
   private uiLayer: Konva.Layer
   private garmentNode: Konva.Image
+  private gridGroup: Konva.Group
   private designGroup: Konva.Group
   private areaGroup: Konva.Group
+  private zoneGroup: Konva.Group
   private guideGroup: Konva.Group
   private ghost: Konva.Shape
   private transformer: Konva.Transformer
@@ -73,9 +78,12 @@ export class EditorEngine {
   private state: SyncState | null = null
   private syncSeq = 0
   private fitScale = 1
+  private showGuides = false
   private panMode = false
   private panning = false
   private panStart = { x: 0, y: 0, wx: 0, wy: 0 }
+  private lastPinch: { dist: number; cx: number; cy: number } | null = null
+  private draggingNode: Konva.Shape | null = null
   private lastTransient = 0
   private destroyed = false
 
@@ -86,6 +94,9 @@ export class EditorEngine {
       width: Math.max(80, container.clientWidth),
       height: Math.max(80, container.clientHeight),
     })
+    // Own all touch gestures (pinch-zoom / two-finger pan / layer drag) instead
+    // of letting the browser scroll or zoom the page.
+    container.style.touchAction = 'none'
 
     this.worldLayer = new Konva.Layer()
     this.world = new Konva.Group()
@@ -104,11 +115,19 @@ export class EditorEngine {
     })
     this.world.add(this.garmentNode)
 
+    // Placement grid sits BELOW the artwork so the design stays legible.
+    this.gridGroup = new Konva.Group({ listening: false })
+    this.world.add(this.gridGroup)
+
     this.designGroup = new Konva.Group()
     this.world.add(this.designGroup)
 
     this.areaGroup = new Konva.Group({ listening: false })
     this.world.add(this.areaGroup)
+
+    // Zone outlines + labels sit ABOVE the artwork so they stay visible.
+    this.zoneGroup = new Konva.Group({ listening: false })
+    this.world.add(this.zoneGroup)
 
     this.guideGroup = new Konva.Group({ listening: false })
     this.world.add(this.guideGroup)
@@ -132,6 +151,8 @@ export class EditorEngine {
     })
     this.world.add(this.ghost)
 
+    // Bigger transform handles on touch devices so they're grabbable.
+    const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
     this.uiLayer = new Konva.Layer()
     this.transformer = new Konva.Transformer({
       rotateEnabled: true,
@@ -140,9 +161,9 @@ export class EditorEngine {
       anchorStroke: '#35C7FF',
       anchorFill: '#0C0F13',
       anchorCornerRadius: 2,
-      anchorSize: 9,
+      anchorSize: coarse ? 16 : 9,
       borderStroke: '#35C7FF',
-      rotateAnchorOffset: 28,
+      rotateAnchorOffset: coarse ? 34 : 28,
       keepRatio: true,
       flipEnabled: false,
       boundBoxFunc: (oldBox, newBox) =>
@@ -263,6 +284,42 @@ export class EditorEngine {
     }
     this.stage.on('mouseup touchend', endPan)
     this.stage.on('mouseleave', endPan)
+
+    // Two-finger pinch-zoom + pan (mobile). Runs alongside the single-finger
+    // handlers above (they no-op unless a pan is active).
+    this.stage.on('touchmove', (e) => {
+      const te = e.evt as TouchEvent
+      if (te.touches.length < 2) return
+      te.preventDefault()
+      // A second finger cancels any in-flight single-finger layer drag or pan.
+      if (this.draggingNode) {
+        this.draggingNode.stopDrag()
+        this.draggingNode = null
+      }
+      this.panning = false
+      const rect = this.stage.container().getBoundingClientRect()
+      const t0 = te.touches[0]
+      const t1 = te.touches[1]
+      const p0x = t0.clientX - rect.left
+      const p0y = t0.clientY - rect.top
+      const p1x = t1.clientX - rect.left
+      const p1y = t1.clientY - rect.top
+      const dist = Math.hypot(p1x - p0x, p1y - p0y)
+      const cx = (p0x + p1x) / 2
+      const cy = (p0y + p1y) / 2
+      if (this.lastPinch && this.lastPinch.dist > 0) {
+        this.applyZoom(this.world.scaleX() * (dist / this.lastPinch.dist), { x: cx, y: cy })
+        this.world.position({
+          x: this.world.x() + (cx - this.lastPinch.cx),
+          y: this.world.y() + (cy - this.lastPinch.cy),
+        })
+        this.emitSelection()
+      }
+      this.lastPinch = { dist, cx, cy }
+    })
+    this.stage.on('touchend touchcancel', (e) => {
+      if ((e.evt as TouchEvent).touches.length < 2) this.lastPinch = null
+    })
   }
 
   // ---------------------------------------------------------------- layout
@@ -398,11 +455,99 @@ export class EditorEngine {
     })
   }
 
+  // ---------------------------------------------------------- placement guides
+
+  /** Zone rectangles (excluding `full`) in world/viewBox px for the active side. */
+  private zoneRectsPx(): {
+    id: string
+    nameKey: string
+    standard?: boolean
+    x: number
+    y: number
+    w: number
+    h: number
+  }[] {
+    if (!this.state) return []
+    const { ppi, area } = this.layout
+    const cx = area.x + area.w / 2
+    const cy = area.y + area.h / 2
+    return zonesFor(this.state.design, this.state.side)
+      .filter((z) => z.id !== 'full')
+      .map((z) => ({
+        id: z.id,
+        nameKey: z.nameKey,
+        standard: z.standard,
+        w: z.wIn * ppi,
+        h: z.hIn * ppi,
+        x: cx + z.cxIn * ppi - (z.wIn * ppi) / 2,
+        y: cy + z.cyIn * ppi - (z.hIn * ppi) / 2,
+      }))
+  }
+
+  /** 1-inch grid + named zone overlays (A4 highlighted as the cheap standard). */
+  private drawPlacementGuides(): void {
+    this.gridGroup.destroyChildren()
+    this.zoneGroup.destroyChildren()
+    if (!this.showGuides) return
+    const { ppi, area } = this.layout
+
+    const grid = 'rgba(154,165,180,0.16)'
+    const cols = Math.round(area.w / ppi)
+    const rows = Math.round(area.h / ppi)
+    for (let i = 0; i <= cols; i++) {
+      const x = area.x + i * ppi
+      this.gridGroup.add(
+        new Konva.Line({ points: [x, area.y, x, area.y + area.h], stroke: grid, strokeWidth: 1, strokeScaleEnabled: false }),
+      )
+    }
+    for (let j = 0; j <= rows; j++) {
+      const y = area.y + j * ppi
+      this.gridGroup.add(
+        new Konva.Line({ points: [area.x, y, area.x + area.w, y], stroke: grid, strokeWidth: 1, strokeScaleEnabled: false }),
+      )
+    }
+
+    const SHOWN = new Set(['a4', 'chest', 'upper_back', 'left_chest', 'center_back'])
+    for (const z of this.zoneRectsPx()) {
+      if (!SHOWN.has(z.id)) continue
+      const accent = !!z.standard
+      const color = accent ? 'rgba(53,199,255,0.95)' : 'rgba(255,61,143,0.72)'
+      this.zoneGroup.add(
+        new Konva.Rect({
+          x: z.x,
+          y: z.y,
+          width: z.w,
+          height: z.h,
+          stroke: color,
+          strokeWidth: accent ? 1.7 : 1.1,
+          dash: accent ? undefined : [5, 4],
+          cornerRadius: 3,
+          strokeScaleEnabled: false,
+          fill: accent ? 'rgba(53,199,255,0.06)' : undefined,
+        }),
+      )
+      this.zoneGroup.add(
+        new Konva.Text({
+          x: z.x + 4,
+          // A4 label sits inside its top edge; the others sit ABOVE their rect
+          // so labels don't pile up near the print-area top.
+          y: accent ? z.y + 3 : z.y - 13,
+          text: accent ? `★ ${t(z.nameKey)}` : t(z.nameKey),
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 10,
+          letterSpacing: 0.4,
+          fill: color,
+        }),
+      )
+    }
+  }
+
   // ------------------------------------------------------------- reconcile
 
   async sync(state: SyncState): Promise<void> {
     const seq = ++this.syncSeq
     this.state = state
+    this.showGuides = state.showGuides
     const { design, side } = state
 
     const layout = await this.computeLayout(design, side)
@@ -418,6 +563,7 @@ export class EditorEngine {
     }
     if (seq !== this.syncSeq || this.destroyed) return
     this.updateAreaOutline()
+    this.drawPlacementGuides()
 
     const layers = sideLayers(design, side)
     const seen = new Set<string>()
@@ -547,6 +693,10 @@ export class EditorEngine {
       if (layer.type === 'text') this.cb.onEditText(id())
     })
 
+    node.on('dragstart', () => {
+      this.draggingNode = node
+    })
+
     node.on('dragmove', () => {
       this.applyDragSnapping(node)
       this.updateGhost(node)
@@ -559,6 +709,7 @@ export class EditorEngine {
     })
 
     node.on('dragend', () => {
+      this.draggingNode = null
       this.clearGuides()
       this.ghost.visible(false)
       this.cb.onPatch(id(), this.positionPatch(node), { transient: false })
@@ -611,6 +762,13 @@ export class EditorEngine {
     const rect = node.getClientRect({ relativeTo: this.world as unknown as Konva.Container })
     const xs: number[] = [area.x + area.w / 2, area.x, area.x + area.w, VIEW / 2]
     const ys: number[] = [area.y + area.h / 2, area.y, area.y + area.h]
+    // Snap to zone edges + centres when guides are on.
+    if (this.showGuides) {
+      for (const z of this.zoneRectsPx()) {
+        xs.push(z.x, z.x + z.w / 2, z.x + z.w)
+        ys.push(z.y, z.y + z.h / 2, z.y + z.h)
+      }
+    }
     for (const [otherId, other] of this.nodes) {
       if (otherId === node.getAttr('layerId')) continue
       const r = other.getClientRect({ relativeTo: this.world as unknown as Konva.Container })

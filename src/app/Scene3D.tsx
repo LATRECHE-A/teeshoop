@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
-import { Play, RotateCcw, Square } from 'lucide-react'
+import { Play, RotateCcw, Smartphone, Square } from 'lucide-react'
 import clsx from 'clsx'
 import type { CardSource, DecalSource, Design, Garment3DProps, Side } from '@/lib/types'
 import { GARMENTS } from '@/garments'
@@ -168,6 +168,7 @@ export default function Scene3D() {
   const autoRotate = useStore((s) => s.autoRotate)
   const setAutoRotate = useStore((s) => s.setAutoRotate)
   const requestView = useStore((s) => s.requestView)
+  const openModal = useStore((s) => s.openModal)
   const scene = useStore((s) => s.scene)
   const theme = useStore((s) => s.theme)
   const tr = useT()
@@ -232,8 +233,18 @@ export default function Scene3D() {
       </Suspense>
       </Retry3DBoundary>
 
+      {/* View-in-AR call to action */}
+      <button
+        className="btn absolute bottom-[calc(var(--tsh-nav)+0.75rem)] left-3 z-10 h-9 gap-1.5 border-cy/40 bg-bg1/90 px-3 text-[12px] text-cy shadow-lg backdrop-blur hover:border-cy md:bottom-4 md:left-4 md:h-8"
+        onClick={() => openModal('ar')}
+        title={tr('ar.view_in_ar')}
+      >
+        <Smartphone size={14} />
+        {tr('ar.view_in_ar')}
+      </button>
+
       {/* 3D controls */}
-      <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur">
+      <div className="absolute bottom-[calc(var(--tsh-nav)+0.75rem)] right-3 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur md:bottom-4 md:right-4">
         {(['front', 'threequarter', 'back'] as const).map((v) => (
           <button
             key={v}
@@ -263,7 +274,7 @@ export default function Scene3D() {
       </div>
 
       {ready && (
-        <div className="pointer-events-none absolute bottom-4 left-4 z-10 hidden text-[11px] text-tx3 lg:block">
+        <div className="pointer-events-none absolute bottom-14 left-4 z-10 hidden text-[11px] text-tx3 lg:block">
           {tr('three.hint')}
         </div>
       )}

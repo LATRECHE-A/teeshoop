@@ -1,3 +1,8 @@
+/**
+ * Mobile bottom tool-nav (Canva-style) — replaces the desktop LeftRail below
+ * `md`. Tapping a tool opens its panel as a slide-up sheet (PanelHost). Always
+ * visible on phones so tools stay in thumb reach; hidden on desktop.
+ */
 import { CircleHelp, ImagePlus, Layers, Shapes, Shirt, Type } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore, type PanelId } from '@/state/store'
@@ -11,7 +16,7 @@ const TABS: { id: PanelId; labelKey: string; icon: typeof Shirt }[] = [
   { id: 'layers', labelKey: 'rail.layers', icon: Layers },
 ]
 
-export default function LeftRail() {
+export default function BottomNav() {
   const t = useT()
   const active = useStore((s) => s.activePanel)
   const setPanel = useStore((s) => s.setPanel)
@@ -20,7 +25,7 @@ export default function LeftRail() {
   return (
     <nav
       aria-label={t('rail.tools')}
-      className="z-20 hidden w-[60px] shrink-0 flex-col items-center gap-1 border-r border-line bg-bg1 py-2 md:flex"
+      className="pb-safe fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-line bg-bg1/95 backdrop-blur md:hidden"
     >
       {TABS.map(({ id, labelKey, icon: Icon }) => {
         const on = active === id
@@ -30,24 +35,22 @@ export default function LeftRail() {
             onClick={() => setPanel(on ? null : id)}
             aria-pressed={on}
             className={clsx(
-              'group relative flex h-[52px] w-[52px] flex-col items-center justify-center gap-1 rounded-lg transition-colors',
-              on ? 'bg-bg3 text-cy' : 'text-tx3 hover:bg-bg2 hover:text-tx2',
+              'flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[10px] font-medium transition-colors',
+              on ? 'text-cy' : 'text-tx3',
             )}
           >
-            {on && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-cy" />}
-            <Icon size={19} strokeWidth={1.8} />
-            <span className="text-[9.5px] font-medium tracking-wide">{t(labelKey)}</span>
+            <Icon size={21} strokeWidth={1.8} />
+            {t(labelKey)}
           </button>
         )
       })}
-      <div className="flex-1" />
       <button
-        className="iconbtn mb-1"
-        aria-label={t('rail.shortcuts')}
-        title={t('rail.shortcuts_hint')}
         onClick={() => openModal('shortcuts')}
+        aria-label={t('rail.shortcuts')}
+        className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[10px] font-medium text-tx3"
       >
-        <CircleHelp size={17} />
+        <CircleHelp size={21} strokeWidth={1.8} />
+        {t('rail.help')}
       </button>
     </nav>
   )

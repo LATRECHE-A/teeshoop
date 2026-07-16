@@ -16,7 +16,7 @@ export default function CenterStage() {
         <ScenePicker />
       </div>
 
-      <div className="pointer-events-none absolute bottom-16 left-1/2 z-10 -translate-x-1/2 sm:bottom-4">
+      <div className="pointer-events-none absolute bottom-[calc(var(--tsh-nav)+0.75rem)] left-1/2 z-10 -translate-x-1/2 md:bottom-4">
         <SideSwitcher />
       </div>
     </div>

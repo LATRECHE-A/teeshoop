@@ -58,7 +58,7 @@ export default function LayersPanel() {
               >
                 <Icon size={14} className={active ? 'text-cy' : 'text-tx3'} />
                 <span className="min-w-0 flex-1 truncate text-[12.5px] text-tx">{label(layer)}</span>
-                <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <span className="touch-reveal flex items-center gap-0.5">
                   <button
                     className="iconbtn h-6 w-6"
                     title={t('layers.bring_forward')}

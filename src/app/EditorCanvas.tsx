@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Frame, Maximize, Minus, Plus, TriangleAlert } from 'lucide-react'
+import { Frame, Grid3x3, Maximize, Minus, Plus, TriangleAlert } from 'lucide-react'
 import clsx from 'clsx'
 import { EditorEngine, type SelectionInfo } from '@/editor/EditorEngine'
 import { useStore } from '@/state/store'
@@ -20,6 +20,8 @@ export default function EditorCanvas() {
   const lang = useStore((s) => s.lang)
   const scene = useStore((s) => s.scene)
   const theme = useStore((s) => s.theme)
+  const showGuides = useStore((s) => s.showGuides)
+  const toggleGuides = useStore((s) => s.toggleGuides)
   const bg = stageBackground(scene, theme)
 
   // mount engine once
@@ -85,8 +87,8 @@ export default function EditorCanvas() {
   // reconcile engine with state (lang re-syncs so the on-canvas print-area
   // label re-renders in the new language)
   useEffect(() => {
-    void engineRef.current?.sync({ design, side, selectedId })
-  }, [design, side, selectedId, lang])
+    void engineRef.current?.sync({ design, side, selectedId, showGuides })
+  }, [design, side, selectedId, lang, showGuides])
 
   const zoom = (action: 'in' | 'out' | 'fit') =>
     window.dispatchEvent(new CustomEvent('tshop:zoom', { detail: action }))
@@ -121,7 +123,17 @@ export default function EditorCanvas() {
       )}
 
       {/* zoom HUD */}
-      <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur">
+      <div className="absolute bottom-[calc(var(--tsh-nav)+0.75rem)] right-3 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur md:bottom-4 md:right-4">
+        <button
+          className={clsx('iconbtn h-7 w-7', showGuides && 'bg-bg3 text-cy')}
+          onClick={toggleGuides}
+          aria-pressed={showGuides}
+          aria-label={t('editor.guides')}
+          title={t('editor.guides_hint')}
+        >
+          <Grid3x3 size={14} />
+        </button>
+        <div className="mx-0.5 h-4 w-px bg-line" />
         <button className="iconbtn h-7 w-7" onClick={() => zoom('out')} aria-label={t('editor.zoom_out')}>
           <Minus size={14} />
         </button>
