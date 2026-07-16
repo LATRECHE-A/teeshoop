@@ -403,6 +403,7 @@ function Harness() {
             colorHex={colorHex}
             front={garment === 'custom' ? null : front}
             back={garment === 'custom' ? null : back}
+            sleeve={null}
             areaOffsetYIn={offsets ?? undefined}
             garmentWidthIn={GARMENT_WIDTH_IN[garment]}
             custom={garment === 'custom' ? { front: customFront, back: customBack } : undefined}

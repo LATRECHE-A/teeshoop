@@ -193,6 +193,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
                 garmentWidthIn={props.garmentWidthIn}
                 front={props.front}
                 back={props.back}
+                sleeve={props.sleeve}
                 areaOffsetYIn={props.areaOffsetYIn}
                 envIntensity={cfg.envIntensity}
                 onMeasured={onMeasured}

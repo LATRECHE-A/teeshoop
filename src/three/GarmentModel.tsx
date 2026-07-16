@@ -110,6 +110,17 @@ function probeSurfaceZ(geometry: THREE.BufferGeometry, xIn: number, yIn: number,
   return side === 'front' ? box.max.z * 0.9 : box.min.z * 0.9
 }
 
+/** X of the outer sleeve/arm surface at (yIn, zIn), via local raycast along ∓X. */
+function probeSurfaceX(geometry: THREE.BufferGeometry, yIn: number, zIn: number, sign: 1 | -1): number {
+  const mesh = new THREE.Mesh(geometry, PROBE_MATERIAL)
+  const ray = new THREE.Raycaster()
+  ray.set(new THREE.Vector3(sign * 1000, yIn, zIn), new THREE.Vector3(-sign, 0, 0))
+  const hits = ray.intersectObject(mesh, false)
+  if (hits.length > 0) return hits[0].point.x
+  const box = geometry.boundingBox as THREE.Box3
+  return sign > 0 ? box.max.x * 0.9 : box.min.x * 0.9
+}
+
 interface PrintDecalProps {
   geometry: THREE.BufferGeometry
   garment: CatalogGarmentId
@@ -157,12 +168,57 @@ function PrintDecal({ geometry, garment, side, source, offsetYIn }: PrintDecalPr
   )
 }
 
+interface SleeveDecalProps {
+  geometry: THREE.BufferGeometry
+  garment: CatalogGarmentId
+  source: DecalSource
+  /** +1 = one flank (+X), −1 = the other (−X). */
+  sign: 1 | -1
+}
+
+/** Project the sleeve design onto an arm flank (±X), mirroring PrintDecal's ±Z. */
+function SleeveDecal({ geometry, garment, source, sign }: SleeveDecalProps) {
+  const texture = useSourceTexture(source)
+  const calib = CALIBRATION[garment]
+
+  const placement = useMemo(() => {
+    const sl = calib.sleeve
+    const depth = Math.max(source.wIn * sl.depthFraction, 0.8)
+    const surfaceX = probeSurfaceX(geometry, sl.yIn, 0, sign)
+    const x = surfaceX - sign * depth * calib.decalInset
+    return { x, y: sl.yIn, depth }
+  }, [geometry, sign, source.wIn, calib])
+
+  if (!texture) return null
+  return (
+    <Decal
+      position={[placement.x, placement.y, 0]}
+      rotation={[0, (sign * Math.PI) / 2, sign * calib.sleeve.rotZ]}
+      scale={[source.wIn, source.hIn, placement.depth]}
+      renderOrder={2}
+    >
+      <meshStandardMaterial
+        map={texture}
+        transparent
+        polygonOffset
+        polygonOffsetFactor={-10}
+        depthTest
+        depthWrite={false}
+        toneMapped
+        roughness={0.88}
+        metalness={0}
+      />
+    </Decal>
+  )
+}
+
 export interface GarmentModelProps {
   garment: CatalogGarmentId
   colorHex: string
   garmentWidthIn: number
   front: DecalSource | null
   back: DecalSource | null
+  sleeve: DecalSource | null
   areaOffsetYIn?: Record<Side, number>
   /** Scene lighting multiplier for the fabric's env-map response. */
   envIntensity?: number
@@ -176,6 +232,7 @@ export function GarmentModel({
   garmentWidthIn,
   front,
   back,
+  sleeve,
   areaOffsetYIn,
   envIntensity = 1,
   onMeasured,
@@ -216,6 +273,12 @@ export function GarmentModel({
           source={back}
           offsetYIn={areaOffsetYIn?.back ?? 0}
         />
+      )}
+      {sleeve && (
+        <>
+          <SleeveDecal geometry={geometry} garment={garment} source={sleeve} sign={-1} />
+          <SleeveDecal geometry={geometry} garment={garment} source={sleeve} sign={1} />
+        </>
       )}
     </mesh>
   )

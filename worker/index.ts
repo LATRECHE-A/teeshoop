@@ -106,9 +106,20 @@ export default {
       return serveAr(env, blob[1], blob[2], request.method === 'HEAD')
     }
 
-    // Short viewer URL from the QR: serve the viewer SPA page for /v/{id}.
-    if (/^\/v\/[^/]+\/?$/.test(path)) {
-      return env.ASSETS.fetch(new Request(new URL('/v.html', url.origin), request))
+    // Viewer page for the QR short link (id travels as ?id=…; a /v/{id} path
+    // also works). IMPORTANT: env.ASSETS.fetch applies html_handling, so asking
+    // for the literal '/v.html' returns a 307 -> /v (extension dropped) and the
+    // binding RELAYS that redirect instead of the HTML — which strips the id and
+    // is the exact AR bug. So fetch /v.html, follow the single html_handling
+    // redirect to the canonical asset, and return the HTML with a 200 so the
+    // browser stays on the original URL (keeping ?id / the /v/{id} segment).
+    if (path === '/v' || /^\/v\/[^/]+\/?$/.test(path)) {
+      let res = await env.ASSETS.fetch(new URL('/v.html', url.origin))
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get('location')
+        if (loc) res = await env.ASSETS.fetch(new URL(loc, url.origin))
+      }
+      return new Response(res.body, { status: 200, headers: res.headers })
     }
 
     return env.ASSETS.fetch(request)

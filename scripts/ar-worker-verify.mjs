@@ -76,11 +76,16 @@ try {
     if (ct !== mime) fail(`${ext} content-type "${ct}", expected "${mime}"`)
   }
 
-  // 3) Viewer page + studio fallback.
-  const v = await fetch(`${BASE}/v/${id}`)
-  const vText = await v.text()
-  console.log('GET /v/{id}:', v.status)
-  if (v.status !== 200 || !vText.includes('ar-root')) fail('viewer page not served for /v/{id}')
+  // 3) Viewer page — for BOTH /v?id=… (the QR shape) and /v/{id}. redirect:manual
+  // so we CATCH the html_handling 307 that used to strip the id (the old test
+  // followed the redirect and silently passed).
+  for (const p of [`/v?id=${id}`, `/v/${id}`]) {
+    const v = await fetch(BASE + p, { redirect: 'manual' })
+    const vText = v.status === 200 ? await v.text() : ''
+    console.log(`GET ${p}:`, v.status, v.headers.get('location') || '')
+    if (v.status !== 200) fail(`${p} returned ${v.status} (a 3xx here is the id-stripping redirect bug)`)
+    if (!vText.includes('ar-root')) fail(`${p} did not serve the viewer page`)
+  }
   const home = await fetch(`${BASE}/`)
   const homeText = await home.text()
   if (home.status !== 200 || !homeText.includes('id="root"')) fail('studio not served at /')

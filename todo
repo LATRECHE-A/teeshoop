@@ -1,33 +1,30 @@
+RESOLVED (2026-07-16, 3rd pass — after the friend tested the deployed site):
+    - [x] AR opens ".../v" → "Modèle AR introuvable". Root cause: Cloudflare's
+      html_handling 307-redirected the WORKER's own env.ASSETS.fetch('/v.html')
+      sub-request to /v, and the binding relayed that redirect, stripping the id.
+      Fix: the Worker now follows that single redirect and returns 200 (browser
+      keeps its URL), and the QR uses /v?id=… (query, no path segment). Verified
+      with curl (307→200) + a hardened ar-worker-verify (redirect:manual, asserts
+      200 for /v?id and /v/{id}).
+    - [x] Sleeve didn't show in the 3D preview. Now projects onto BOTH arm flanks
+      in 3D (GarmentModel SleeveDecal, X-axis DecalGeometry) and in AR. Some
+      projection warp is inherent on the small curved sleeve; the print files stay
+      dimensionally exact.
+    - [x] 3D sleeve decal (was "to be implemented") — done (above).
+    - [x] Higher-fidelity AR model (the mannequin "looked like shit"). AR now bakes
+      the design onto the REAL tee/hoodie mesh (the same GLB as the 3D preview) via
+      DecalGeometry — a photoreal draped garment. The procedural mannequin is now
+      the custom (ship-your-own) garment fallback only; the AR gender toggle shows
+      only for custom.
+    - [ ] Real-device QA of native AR (iOS Quick Look USDZ + Android Scene Viewer)
+      over HTTPS — can't be tested headlessly; needs a phone on the live site.
+    - [ ] OPTIONAL: if you want a person/body WEARING the tee/hoodie in AR (vs the
+      realistic "floating garment"), that needs a sourced CC0 body mesh — say the
+      word. Best CC0 candidate found: Khronos glTF-Sample-Assets "Corset" dress-form.
 
-DONE (2026-07-16 rework):
-    - [x] Volumetric 3D custom garment — the flat "puffed paper" mesa is now a rounded,
-      torso-centred dome (per-row half-ellipse cross-section + distance-field edge taper +
-      baked ambient-occlusion vertex colours + a woven-cloth normal grain), Z-only so inches
-      stay exact. Catalog tee/hoodie bodies now use a MeshPhysicalMaterial cloth sheen.
-      Verify: node scripts/inflate-verify.mjs (asserts real dome curvature, not just a bulge).
-    - [x] Cross-device AR — replaced the old camera-overlay/overlay-mannequin AR entirely.
-      Now: bake the design onto a male/female mannequin -> export GLB + USDZ (three exporters)
-      -> upload to Cloudflare R2 via a Worker -> a SHORT scannable QR (/v/{id}) -> a lean viewer
-      page (own three GLTFLoader preview) with a "View in your space" button that launches
-      NATIVE AR (Android Scene Viewer / iOS Quick Look). Cross-device + works for photo/custom
-      designs. Verify: scripts/ar-verify.mjs (GLB/USDZ export) + scripts/ar-worker-verify.mjs
-      (Worker + R2 round-trip). Deploy needs `wrangler r2 bucket create tshop-ar` + a 30-day
-      lifecycle rule (see README).
-    - [x] Mobile — Canva two-tier select: a slim selection bar (edit / duplicate / delete)
-      that never covers the artwork, expanding to the full properties sheet only on "Edit";
-      the sheet hides while dragging. De-collided the zoom HUD vs the front/back/sleeve switch.
-    - [x] Sleeve print side — Side = front | back | sleeve; a shared flat-sleeve illustration
-      (4x4in print area); sleeve flows through 2D editing, 300-DPI print, zones, the order
-      count and the side switcher (catalog only — custom garments stay front/back). The 3D
-      preview shows front/back only.
-    - [x] Area-aware pricing — optional per-garment areaTiers (<=A4 is the standard, +$0; <=A3
-      +$4; oversize +$9) wired to the real placed-artwork area; the flat default stays
-      byte-identical. Delete `areaTiers` from a rule to make that garment flat again.
-
-POSSIBLE FUTURE:
-    - 3D sleeve decal in the preview (needs an X-axis flank projection; sleeve ships in 2D +
-      print + AR today, just not the 3D turntable).
-    - Higher-fidelity / posed AR mannequin, or a full standing figure with cloth draping.
-    - Real-device QA of native AR (iOS Quick Look USDZ + Android Scene Viewer) over HTTPS.
-    - Configure the R2 bucket + lifecycle rule and swap src/config.ts orders@tshop.example
-      for the real quote email before sharing the live link.
+--- earlier sessions (all shipped) ---
+    - [x] Volumetric 3D custom garment (rounded torso dome)
+    - [x] Cross-device native AR (Cloudflare R2 + GLB/USDZ + scannable QR)
+    - [x] Mobile Canva-style two-tier select/edit
+    - [x] Sleeve print side (2D + 300-DPI print + zones + order + now 3D + AR)
+    - [x] Area-aware pricing tiers (A4 standard < A3)

@@ -57,6 +57,7 @@ const TEXTURE_TARGET_PX = 1400
 interface Sources {
   front: DecalSource | null
   back: DecalSource | null
+  sleeve: DecalSource | null
   customFront: CardSource | null
   customBack: CardSource | null
 }
@@ -77,7 +78,7 @@ function useDesignTextures(design: Design): Sources | null {
     const t = setTimeout(async () => {
       try {
         const v = ++version.current
-        const next: Sources = { front: null, back: null, customFront: null, customBack: null }
+        const next: Sources = { front: null, back: null, sleeve: null, customFront: null, customBack: null }
 
         if (design.garmentId === 'custom') {
           const widthIn = design.custom?.widthIn ?? 20
@@ -120,7 +121,7 @@ function useDesignTextures(design: Design): Sources | null {
           }
         } else {
           const art = GARMENTS[design.garmentId]
-          for (const side of ['front', 'back'] as const) {
+          for (const side of ['front', 'back', 'sleeve'] as const) {
             if (sideLayers(design, side).length === 0) continue
             const area = art.printAreasIn[side]
             const ppi = TEXTURE_TARGET_PX / Math.max(area.wIn, area.hIn)
@@ -220,6 +221,7 @@ export default function Scene3D() {
           scene={scene}
           front={sources?.front ?? null}
           back={sources?.back ?? null}
+          sleeve={sources?.sleeve ?? null}
           custom={{
             front: sources?.customFront ?? null,
             back: sources?.customBack ?? null,

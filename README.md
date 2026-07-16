@@ -63,15 +63,16 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
 | ![Volumetric custom garment](docs/screens/3d-custom.png) | ![Hoodie](docs/screens/hoodie.png) |
 
 **Augmented reality try-on**
-- **"View in AR"** in the editor bakes the design onto a **3D mannequin** — male
-  or female, the customer's choice — exports it to **glTF (GLB) + USDZ**, uploads
-  it to the blob store, and shows a **QR of a short link**. Because the model
-  lives server-side, the QR is small (so it scans reliably) and works
+- **"View in AR"** in the editor bakes the design onto the garment in 3D — the
+  **real tee/hoodie mesh** (the same one you see in the preview), or a male/female
+  mannequin for ship-your-own garments — exports it to **glTF (GLB) + USDZ**,
+  uploads it to the blob store, and shows a **QR of a short link**. Because the
+  model lives server-side, the QR is small (so it scans reliably) and works
   **cross-device** — any phone, including for photo/custom-garment designs
 - Scanning opens a lightweight viewer page with a spinning 3D preview and a
   **"View in your space"** button that launches the phone's **native AR** —
-  Scene Viewer on Android, Quick Look on iOS — planting the life-size mannequin
-  on your real floor, with the OS's own screenshot & share
+  Scene Viewer on Android, Quick Look on iOS — planting the life-size garment on
+  your real floor, with the OS's own screenshot & share
 
 ![AR QR code](docs/screens/ar-qr.png)
 

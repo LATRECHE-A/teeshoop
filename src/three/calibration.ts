@@ -44,6 +44,13 @@ export interface ModelCalibration {
   /** Cotton look: overrides for the recolored garment material. */
   roughness: number
   envMapIntensity: number
+  /**
+   * Sleeve decal placement — an X-axis flank projection onto the arm (front/back
+   * project along ±Z). yIn = decal-centre height (world inches, +up, ≈ upper
+   * arm); depthFraction like decalDepthFraction; rotZ = per-flank tilt (radians)
+   * to follow an A-pose arm's slant (sign applied per side).
+   */
+  sleeve: { yIn: number; depthFraction: number; rotZ: number }
 }
 
 export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
@@ -66,6 +73,7 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     decalInset: 0.22,
     roughness: 0.94,
     envMapIntensity: 1.0,
+    sleeve: { yIn: 6.5, depthFraction: 0.2, rotZ: 0 },
   },
   hoodie: {
     // "Hoodie" by ShoyoX/yogaminggames (Sketchfab, CC-BY-4.0), Marvelous
@@ -86,5 +94,6 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     decalInset: 0.22,
     roughness: 0.92,
     envMapIntensity: 1.0,
+    sleeve: { yIn: 5, depthFraction: 0.34, rotZ: 0.21 },
   },
 }

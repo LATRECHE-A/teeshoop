@@ -214,6 +214,7 @@ export interface Garment3DProps {
   scene?: SceneId
   front: DecalSource | null
   back: DecalSource | null
+  sleeve: DecalSource | null
   /**
    * Vertical offset (inches, +down) of each print-area CENTER from the
    * garment's visual center — derived from GarmentSideArt.printAreaPx.

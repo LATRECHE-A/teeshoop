@@ -54,6 +54,13 @@ declare module 'three/examples/jsm/exporters/USDZExporter.js' {
   }
 }
 
+declare module 'three/examples/jsm/geometries/DecalGeometry.js' {
+  import type { BufferGeometry, Euler, Mesh, Vector3 } from 'three'
+  export class DecalGeometry extends BufferGeometry {
+    constructor(mesh: Mesh, position: Vector3, orientation: Euler, size: Vector3)
+  }
+}
+
 declare module 'three/examples/jsm/loaders/GLTFLoader.js' {
   import type { Group, LoadingManager } from 'three'
 

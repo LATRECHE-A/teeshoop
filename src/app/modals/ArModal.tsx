@@ -37,7 +37,9 @@ export default function ArModal() {
         const blobs = await buildArModel(design, gender)
         const id = await uploadArModel(blobs)
         if (!on) return
-        const link = `${location.origin}/v/${id}`
+        // The id travels as ?id=… , NOT /v/{id}: Cloudflare's html_handling
+        // rewrites /v/{id} -> /v (dropping the id) because v.html is an asset.
+        const link = `${location.origin}/v?id=${id}`
         setUrl(link)
         const dataUrl = await makeQrDataUrl(link)
         if (!on) return
@@ -84,25 +86,29 @@ export default function ArModal() {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div>
-            <div className="panel-title mb-1.5">{t('ar.gender')}</div>
-            <div className="flex gap-2">
-              {(['male', 'female'] as Gender[]).map((g) => {
-                const Icon = g === 'male' ? User : UserRound
-                return (
-                  <button
-                    key={g}
-                    className={`btn flex-1 ${gender === g ? 'btn-primary' : ''}`}
-                    aria-pressed={gender === g}
-                    onClick={() => setGender(g)}
-                  >
-                    <Icon size={15} />
-                    {g === 'male' ? t('ar.gender_male') : t('ar.gender_female')}
-                  </button>
-                )
-              })}
+          {/* The mannequin (and its gender) is only used for ship-your-own
+              custom garments; tee/hoodie AR shows the real garment itself. */}
+          {design.garmentId === 'custom' && (
+            <div>
+              <div className="panel-title mb-1.5">{t('ar.gender')}</div>
+              <div className="flex gap-2">
+                {(['male', 'female'] as Gender[]).map((g) => {
+                  const Icon = g === 'male' ? User : UserRound
+                  return (
+                    <button
+                      key={g}
+                      className={`btn flex-1 ${gender === g ? 'btn-primary' : ''}`}
+                      aria-pressed={gender === g}
+                      onClick={() => setGender(g)}
+                    >
+                      <Icon size={15} />
+                      {g === 'male' ? t('ar.gender_male') : t('ar.gender_female')}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           <div>
             <div className="panel-title mb-1.5 flex items-center gap-1.5">
