@@ -79,17 +79,79 @@ async function uploadAr(request: Request, env: Env): Promise<Response> {
   return json({ id })
 }
 
-async function serveAr(env: Env, id: string, ext: string, head: boolean): Promise<Response> {
+/** Parse a single `bytes=start-end` range against a known size; null if invalid. */
+function parseRange(header: string, size: number): { offset: number; length: number } | null {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim())
+  if (!m) return null
+  const [, s, e] = m
+  let start: number
+  let end: number
+  if (s === '') {
+    if (e === '') return null
+    const n = parseInt(e, 10) // suffix: last n bytes
+    if (!Number.isFinite(n) || n <= 0) return null
+    start = Math.max(0, size - n)
+    end = size - 1
+  } else {
+    start = parseInt(s, 10)
+    end = e === '' ? size - 1 : Math.min(parseInt(e, 10), size - 1)
+  }
+  if (!Number.isFinite(start) || start < 0 || start >= size || end < start) return null
+  return { offset: start, length: end - start + 1 }
+}
+
+/**
+ * Serve a stored blob. Full HTTP semantics — Content-Length, Accept-Ranges, and
+ * real 206 Range responses — because Android Scene Viewer's model downloader
+ * uses Range requests and rejects the object ("couldn't load") if the server
+ * ignores them.
+ */
+async function serveAr(request: Request, env: Env, id: string, ext: string, head: boolean): Promise<Response> {
   if (!ID_RE.test(id) || !MIME[ext]) return new Response('not found', { status: 404 })
-  const obj = await env.AR_BUCKET.get(`ar/${id}.${ext}`)
+  const key = `ar/${id}.${ext}`
+
+  const setCommon = (h: Headers, o: { writeHttpMetadata(h: Headers): void; httpEtag: string }) => {
+    o.writeHttpMetadata(h)
+    h.set('content-type', MIME[ext]) // force correct type even if stored stale
+    h.set('cache-control', 'public, max-age=31536000, immutable')
+    h.set('etag', o.httpEtag)
+    h.set('accept-ranges', 'bytes')
+  }
+
+  if (head) {
+    const meta = await env.AR_BUCKET.head(key)
+    if (!meta) return new Response('not found', { status: 404 })
+    const h = new Headers()
+    setCommon(h, meta)
+    h.set('content-length', String(meta.size))
+    return new Response(null, { status: 200, headers: h })
+  }
+
+  const rangeHeader = request.headers.get('range')
+  let range: { offset: number; length: number } | null = null
+  if (rangeHeader) {
+    const meta = await env.AR_BUCKET.head(key)
+    if (!meta) return new Response('not found', { status: 404 })
+    range = parseRange(rangeHeader, meta.size)
+    if (!range) {
+      const h = new Headers()
+      h.set('accept-ranges', 'bytes')
+      h.set('content-range', `bytes */${meta.size}`)
+      return new Response(null, { status: 416, headers: h })
+    }
+  }
+
+  const obj = await env.AR_BUCKET.get(key, range ? { range } : undefined)
   if (!obj) return new Response('not found', { status: 404 })
   const headers = new Headers()
-  obj.writeHttpMetadata(headers)
-  // Force the correct type even if an object was stored with a stale MIME.
-  headers.set('content-type', MIME[ext])
-  headers.set('cache-control', 'public, max-age=31536000, immutable')
-  headers.set('etag', obj.httpEtag)
-  return new Response(head ? null : obj.body, { headers })
+  setCommon(headers, obj)
+  if (range) {
+    headers.set('content-range', `bytes ${range.offset}-${range.offset + range.length - 1}/${obj.size}`)
+    headers.set('content-length', String(range.length))
+    return new Response(obj.body, { status: 206, headers })
+  }
+  headers.set('content-length', String(obj.size))
+  return new Response(obj.body, { status: 200, headers })
 }
 
 export default {
@@ -103,7 +165,7 @@ export default {
 
     const blob = path.match(/^\/r2\/ar\/([^/]+)\.(glb|usdz|png)$/)
     if (blob && (request.method === 'GET' || request.method === 'HEAD')) {
-      return serveAr(env, blob[1], blob[2], request.method === 'HEAD')
+      return serveAr(request, env, blob[1], blob[2], request.method === 'HEAD')
     }
 
     // Viewer page for the QR short link (id travels as ?id=…; a /v/{id} path

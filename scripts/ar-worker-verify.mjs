@@ -56,7 +56,9 @@ try {
 
   // 1) Upload three dummy blobs (the Worker only stores/serves bytes).
   const form = new FormData()
-  form.append('glb', new Blob([new Uint8Array([0x67, 0x6c, 0x54, 0x46, 1, 2, 3, 4])]), 'model.glb')
+  const glbBytes = new Uint8Array(2048) // realistic size so the Range asserts below are meaningful
+  glbBytes.set([0x67, 0x6c, 0x54, 0x46]) // glTF magic
+  form.append('glb', new Blob([glbBytes]), 'model.glb')
   form.append('usdz', new Blob([new Uint8Array([0x50, 0x4b, 3, 4, 9, 9])]), 'model.usdz')
   form.append('poster', new Blob([new Uint8Array([137, 80, 78, 71, 13, 10])]), 'poster.png')
   const up = await fetch(BASE + '/api/ar', { method: 'POST', body: form })
@@ -75,6 +77,25 @@ try {
     if (r.status !== 200) fail(`${ext} serve status ${r.status}`)
     if (ct !== mime) fail(`${ext} content-type "${ct}", expected "${mime}"`)
   }
+
+  // 2b) Range / HEAD semantics — Android Scene Viewer's downloader uses HEAD +
+  // ranged GETs and rejects the object ("couldn't load") if they're not honored.
+  const glbUrl = `${BASE}/r2/ar/${id}.glb`
+  const full = await fetch(glbUrl)
+  const clen = Number(full.headers.get('content-length'))
+  console.log('GLB full:', full.status, 'content-length', clen, 'accept-ranges', full.headers.get('accept-ranges'))
+  if (!Number.isFinite(clen) || clen < 1000) fail(`GLB GET missing/bad content-length: ${full.headers.get('content-length')}`)
+  if (full.headers.get('accept-ranges') !== 'bytes') fail('GLB GET missing "Accept-Ranges: bytes"')
+  const hd = await fetch(glbUrl, { method: 'HEAD' })
+  if (hd.status !== 200 || Number(hd.headers.get('content-length')) !== clen)
+    fail(`HEAD content-length ${hd.headers.get('content-length')} != ${clen}`)
+  const rg = await fetch(glbUrl, { headers: { Range: 'bytes=0-9' } })
+  const cr = rg.headers.get('content-range')
+  const rbytes = (await rg.arrayBuffer()).byteLength
+  console.log('Range bytes=0-9:', rg.status, cr, rbytes + 'B')
+  if (rg.status !== 206) fail(`Range GET status ${rg.status} (expected 206 — Scene Viewer needs range support)`)
+  if (cr !== `bytes 0-9/${clen}`) fail(`Range content-range "${cr}" (expected "bytes 0-9/${clen}")`)
+  if (rbytes !== 10) fail(`Range body ${rbytes} bytes (expected 10)`)
 
   // 3) Viewer page — for BOTH /v?id=… (the QR shape) and /v/{id}. redirect:manual
   // so we CATCH the html_handling 307 that used to strip the id (the old test

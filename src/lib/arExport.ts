@@ -138,12 +138,15 @@ async function buildCatalogFigure(
   geometry.scale(scale, scale, scale)
   geometry.computeBoundingBox()
 
+  // Scene Viewer (Filament) + iOS Quick Look are strict about a 2nd UV set and
+  // texture transforms, so drop the AO map AND the geometry's uv1/uv2, plus the
+  // normal map (its texture-transform mis-tiles). A solid recolour on the draped
+  // mesh + real lighting still reads as fabric; the design decal keeps its own map.
+  geometry.deleteAttribute('uv1')
+  geometry.deleteAttribute('uv2')
   const srcMat = (Array.isArray(src.material) ? src.material[0] : src.material) as THREE.MeshStandardMaterial
-  // USDZ-safe: MeshStandardMaterial, keep the baked AO but DROP the normal map
-  // (the tee's normal carries a texture-transform Quick Look mis-tiles).
   const material = new THREE.MeshStandardMaterial({
     map: srcMat.map ?? null,
-    aoMap: srcMat.aoMap ?? null,
     color: new THREE.Color(garmentColorHex(design)),
     roughness: calib.roughness,
     metalness: 0,
@@ -171,6 +174,12 @@ async function buildCatalogFigure(
       new THREE.Euler(0, side === 'back' ? Math.PI : 0, 0),
       new THREE.Vector3(src2.wIn, src2.hIn, depth),
     )
+    // A projection that hit no faces yields a 0-vertex primitive — valid to
+    // three but Filament rejects the whole GLB, so drop it.
+    if (decalGeo.attributes.position.count === 0) {
+      decalGeo.dispose()
+      return
+    }
     const tex = canvasTexture(canvas)
     const decalMat = new THREE.MeshStandardMaterial({
       map: tex,
@@ -202,6 +211,10 @@ async function buildCatalogFigure(
         new THREE.Euler(0, (sign * Math.PI) / 2, sign * sl.rotZ),
         new THREE.Vector3(sz.wIn, sz.hIn, depth),
       )
+      if (decalGeo.attributes.position.count === 0) {
+        decalGeo.dispose()
+        continue
+      }
       const decalMat = new THREE.MeshStandardMaterial({
         map: tex,
         transparent: true,
