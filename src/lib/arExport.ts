@@ -1,25 +1,34 @@
 /**
  * Bake the current design into the two model formats native mobile AR needs:
- *   • GLB  → Android Scene Viewer (and WebXR) via <model-viewer src>
- *   • USDZ → iOS Quick Look via <model-viewer ios-src>
+ *   • GLB  → Android Scene Viewer (and WebXR)
+ *   • USDZ → iOS Quick Look
  *
  * Runs entirely in the browser. Catalog garments (tee / hoodie) reuse the SAME
- * realistic GLB meshes as the studio 3D preview (public/models/*.glb), with the
- * design projected on as a DecalGeometry — so the AR model is a photoreal draped
- * garment, dimensionally identical to the live preview. Custom (ship-your-own)
- * garments fall back to a procedural mannequin. Decals come from the shared
- * renderer (renderPrintArea), so vector AND photo designs work, at life-size
- * (1 unit = 1 inch). The figure stands with its base at y=0 for on-floor AR.
+ * realistic GLB meshes as the studio 3D preview (public/models/*.glb); custom
+ * (ship-your-own) garments get a procedural mannequin. The design is projected
+ * on as low-poly INDEXED curved-plane decals (NOT three's DecalGeometry, whose
+ * non-indexed projected primitives + >2 transparent materials are rejected by
+ * Android Scene Viewer / Filament — see docs). Decals come from the shared
+ * renderer (renderPrintArea), so vector AND photo designs work.
  *
- * Everything in the export scene is MeshStandardMaterial — the only material the
- * three USDZExporter supports well (no MeshPhysicalMaterial/sheen, no normal map
- * with a texture-transform, which Quick Look mis-tiles).
+ * Scene-Viewer / Quick-Look hard rules honoured here (verified against Google's
+ * Scene Viewer requirements + three r185 exporter source):
+ *   - 1 glTF/USDZ unit = 1 METRE. Geometry is authored in inches, so the whole
+ *     export root is scaled by 0.0254 → life-size (~1.7 m), identical in both
+ *     formats (three's USDZExporter hardcodes metersPerUnit=1, so NO extra ×100).
+ *   - Decals are alphaMode MASK (transparent:false + alphaTest), which is
+ *     order-independent and does NOT count against the "max 2 alpha materials"
+ *     budget — so front + back + both sleeves all coexist safely.
+ *   - Geometric lift (not polygonOffset, which the exporter drops) keeps decals
+ *     off the fabric so they never z-fight.
+ *   - Every material is MeshStandardMaterial (the only material USDZExporter
+ *     supports well), textures are power-of-two, and hazardous vertex attributes
+ *     (tangent/color/skin/morph/extra-UV) are stripped from re-exported meshes.
  */
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { USDZExporter } from 'three/examples/jsm/exporters/USDZExporter.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js'
 import type { CatalogGarmentId, Design, Side } from '@/lib/types'
 import { garmentColorHex, getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { GARMENTS } from '@/garments'
@@ -28,8 +37,10 @@ import { buildMannequin, type Gender, type MannequinSide } from '@/three/mannequ
 
 const TARGET_PX = 1400 // decal render density (matches the 3D preview)
 const GAP_BELOW_COLLAR = 2.6 // in, mannequin print top under the neckline
-const DECAL_LIFT = 0.25 // in, above the mannequin fabric surface
+const DECAL_LIFT = 0.22 // in, above the fabric surface (geometric; replaces polygonOffset)
 const DECAL_BEND_MAX = THREE.MathUtils.degToRad(58)
+const INCH_TO_M = 0.0254 // glTF + USDZ are metres; author in inches, scale root once.
+const MAX_TEX = 2048 // Scene Viewer texture ceiling
 
 export type { Gender }
 
@@ -43,13 +54,52 @@ interface Disposable {
   dispose(): void
 }
 
+// ------------------------------------------------------------------ textures
+
+/** Nearest power-of-two (mobile GPUs mip cleanly only on POT). */
+function nearestPow2(n: number): number {
+  return Math.pow(2, Math.round(Math.log2(Math.max(1, n))))
+}
+
+/** Redraw a canvas at power-of-two dimensions (≤ MAX_TEX) for Filament/Quick Look. */
+function potCanvas(src: HTMLCanvasElement): HTMLCanvasElement {
+  const w = Math.min(MAX_TEX, Math.max(64, nearestPow2(src.width)))
+  const h = Math.min(MAX_TEX, Math.max(64, nearestPow2(src.height)))
+  if (w === src.width && h === src.height) return src
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const ctx = c.getContext('2d')
+  if (!ctx) return src
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(src, 0, 0, w, h)
+  return c
+}
+
 function canvasTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
-  const tex = new THREE.CanvasTexture(canvas)
+  const tex = new THREE.CanvasTexture(potCanvas(canvas))
   tex.colorSpace = THREE.SRGBColorSpace
   tex.anisotropy = 8
-  tex.flipY = true
   tex.needsUpdate = true
   return tex
+}
+
+/**
+ * Print material: alphaMode MASK. transparent:false + alphaTest makes the
+ * exporter emit MASK (not BLEND), which writes depth, sorts order-independently
+ * and is exempt from Scene Viewer's "max 2 alpha materials" limit — the reason a
+ * garment with front+back+sleeve prints previously failed to load.
+ */
+function decalMaterial(tex: THREE.Texture): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    map: tex,
+    transparent: false,
+    alphaTest: 0.5,
+    roughness: 0.85,
+    metalness: 0,
+    side: THREE.FrontSide,
+  })
 }
 
 async function renderSide(design: Design, side: Side): Promise<HTMLCanvasElement | null> {
@@ -63,6 +113,24 @@ function canvasToBlob(canvas: HTMLCanvasElement, type = 'image/png'): Promise<Bl
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('poster encode failed'))), type),
   )
+}
+
+/** A cylindrically-curved INDEXED plane hugging a surface, sized in inches. */
+function makeCurvedDecal(wIn: number, hIn: number, radius: number): THREE.PlaneGeometry {
+  const bend = Math.min(DECAL_BEND_MAX, wIn / Math.max(radius, 1))
+  const r = wIn / Math.max(bend, 1e-3)
+  const geo = new THREE.PlaneGeometry(wIn, hIn, 40, 1)
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  const nor = geo.attributes.normal as THREE.BufferAttribute
+  for (let i = 0; i < pos.count; i++) {
+    const theta = (pos.getX(i) / wIn) * bend
+    pos.setXYZ(i, r * Math.sin(theta), pos.getY(i), r * (Math.cos(theta) - 1))
+    nor.setXYZ(i, Math.sin(theta), 0, Math.cos(theta))
+  }
+  pos.needsUpdate = true
+  nor.needsUpdate = true
+  geo.computeBoundingSphere()
+  return geo
 }
 
 // ---------------------------------------------------------------- catalog GLB
@@ -102,6 +170,12 @@ function probeSurfaceX(geometry: THREE.BufferGeometry, yIn: number, zIn: number,
   return sign > 0 ? box.max.x * 0.9 : box.min.x * 0.9
 }
 
+/** Estimate the garment's half-width (radius) at a height, for decal curvature. */
+function estimateRadius(geometry: THREE.BufferGeometry, yIn: number): number {
+  const x = probeSurfaceX(geometry, yIn, 0, 1)
+  return Math.max(5, Number.isFinite(x) ? Math.abs(x) : 9)
+}
+
 /** Print-area centre offset from the garment visual centre (inches, +down). */
 function areaOffsetYIn(garment: CatalogGarmentId, side: Side): number {
   const art = GARMENTS[garment]
@@ -109,10 +183,19 @@ function areaOffsetYIn(garment: CatalogGarmentId, side: Side): number {
   return (a.y + a.h / 2 - 400) / art.pxPerInch
 }
 
+/** Strip vertex attributes Scene Viewer/Filament doesn't need and that can carry
+ *  hazards (a stray skin/morph/tangent set on a plain Mesh is invalid glTF). */
+function sanitizeGarmentGeometry(geometry: THREE.BufferGeometry, keepUV: boolean): void {
+  const drop = ['uv1', 'uv2', 'uv3', 'tangent', 'color', 'skinIndex', 'skinWeight']
+  if (!keepUV) drop.push('uv')
+  for (const a of drop) geometry.deleteAttribute(a)
+  geometry.morphAttributes = {}
+}
+
 /**
  * Build a realistic catalog garment (tee/hoodie) with the design projected on.
- * Mirrors src/three/GarmentModel.tsx (normalize to inches, raycast the surface,
- * DecalGeometry the shared-renderer canvas) but in plain three for the exporter.
+ * Mirrors src/three/GarmentModel.tsx (normalize to inches, raycast the surface)
+ * but uses low-poly curved-plane decals so the GLB loads in Scene Viewer.
  */
 async function buildCatalogFigure(
   design: Design,
@@ -138,13 +221,10 @@ async function buildCatalogFigure(
   geometry.scale(scale, scale, scale)
   geometry.computeBoundingBox()
 
-  // Scene Viewer (Filament) + iOS Quick Look are strict about a 2nd UV set and
-  // texture transforms, so drop the AO map AND the geometry's uv1/uv2, plus the
-  // normal map (its texture-transform mis-tiles). A solid recolour on the draped
-  // mesh + real lighting still reads as fabric; the design decal keeps its own map.
-  geometry.deleteAttribute('uv1')
-  geometry.deleteAttribute('uv2')
   const srcMat = (Array.isArray(src.material) ? src.material[0] : src.material) as THREE.MeshStandardMaterial
+  // Solid recolour: the tee/hoodie source maps are AO/normal only (no basecolor),
+  // dropped for Filament/Quick-Look safety. Keep uv only if there's a real map.
+  sanitizeGarmentGeometry(geometry, !!srcMat.map)
   const material = new THREE.MeshStandardMaterial({
     map: srcMat.map ?? null,
     color: new THREE.Color(garmentColorHex(design)),
@@ -158,75 +238,58 @@ async function buildCatalogFigure(
   figure.add(garmentMesh)
   const disposables: Disposable[] = [geometry, material]
 
+  const addCurvedDecal = (
+    canvas: HTMLCanvasElement,
+    sizeIn: { wIn: number; hIn: number },
+    radius: number,
+    place: (mesh: THREE.Mesh) => void,
+    tex?: THREE.CanvasTexture,
+  ) => {
+    const geo = makeCurvedDecal(sizeIn.wIn, sizeIn.hIn, radius)
+    const texture = tex ?? canvasTexture(canvas)
+    const mat = decalMaterial(texture)
+    disposables.push(geo, mat)
+    if (!tex) disposables.push(texture)
+    const mesh = new THREE.Mesh(geo, mat)
+    place(mesh)
+    figure.add(mesh)
+  }
+
+  // Front / back prints — a curved plane conformed to the torso, lifted proud.
   const sides: Side[] = ['front', 'back']
   const canvases = await Promise.all(sides.map((s) => renderSide(design, s)))
   sides.forEach((side, i) => {
     const canvas = canvases[i]
     if (!canvas) return
-    const src2 = getAreaSizeIn(design, side)
+    const sizeIn = getAreaSizeIn(design, side)
     const y = -(areaOffsetYIn(garment, side) + calib.decalNudgeYIn[side])
-    const depth = Math.max(src2.wIn * calib.decalDepthFraction, 0.8)
     const surfaceZ = probeSurfaceZ(geometry, 0, y, side)
-    const z = side === 'front' ? surfaceZ - depth * calib.decalInset : surfaceZ + depth * calib.decalInset
-    const decalGeo = new DecalGeometry(
-      garmentMesh,
-      new THREE.Vector3(0, y, z),
-      new THREE.Euler(0, side === 'back' ? Math.PI : 0, 0),
-      new THREE.Vector3(src2.wIn, src2.hIn, depth),
-    )
-    // A projection that hit no faces yields a 0-vertex primitive — valid to
-    // three but Filament rejects the whole GLB, so drop it.
-    if (decalGeo.attributes.position.count === 0) {
-      decalGeo.dispose()
-      return
-    }
-    const tex = canvasTexture(canvas)
-    const decalMat = new THREE.MeshStandardMaterial({
-      map: tex,
-      transparent: true,
-      alphaTest: 0.02,
-      polygonOffset: true,
-      polygonOffsetFactor: -10,
-      depthWrite: false,
-      roughness: 0.88,
-      metalness: 0,
+    addCurvedDecal(canvas, sizeIn, estimateRadius(geometry, y), (mesh) => {
+      mesh.position.set(0, y, side === 'front' ? surfaceZ + DECAL_LIFT : surfaceZ - DECAL_LIFT)
+      mesh.rotation.y = side === 'back' ? Math.PI : 0
     })
-    disposables.push(decalGeo, tex, decalMat)
-    figure.add(new THREE.Mesh(decalGeo, decalMat))
   })
 
-  // Sleeve print (both flanks), projected onto the arm along ±X.
+  // Sleeve print (both flanks), curved onto the arm along ±X.
   const sleeveCanvas = await renderSide(design, 'sleeve')
   if (sleeveCanvas) {
     const sz = getAreaSizeIn(design, 'sleeve')
     const sl = calib.sleeve
-    const depth = Math.max(sz.wIn * sl.depthFraction, 0.8)
     const tex = canvasTexture(sleeveCanvas)
     disposables.push(tex)
     for (const sign of [-1, 1] as const) {
       const surfaceX = probeSurfaceX(geometry, sl.yIn, 0, sign)
-      const decalGeo = new DecalGeometry(
-        garmentMesh,
-        new THREE.Vector3(surfaceX - sign * depth * calib.decalInset, sl.yIn, 0),
-        new THREE.Euler(0, (sign * Math.PI) / 2, sign * sl.rotZ),
-        new THREE.Vector3(sz.wIn, sz.hIn, depth),
+      addCurvedDecal(
+        sleeveCanvas,
+        sz,
+        Math.max(3, sz.wIn),
+        (mesh) => {
+          mesh.position.set(surfaceX + sign * DECAL_LIFT, sl.yIn, 0)
+          mesh.rotation.y = (sign * Math.PI) / 2
+          mesh.rotation.z = sign * sl.rotZ
+        },
+        tex,
       )
-      if (decalGeo.attributes.position.count === 0) {
-        decalGeo.dispose()
-        continue
-      }
-      const decalMat = new THREE.MeshStandardMaterial({
-        map: tex,
-        transparent: true,
-        alphaTest: 0.02,
-        polygonOffset: true,
-        polygonOffsetFactor: -10,
-        depthWrite: false,
-        roughness: 0.88,
-        metalness: 0,
-      })
-      disposables.push(decalGeo, decalMat)
-      figure.add(new THREE.Mesh(decalGeo, decalMat))
     }
   }
 
@@ -236,24 +299,6 @@ async function buildCatalogFigure(
 }
 
 // ---------------------------------------------------------------- mannequin (custom)
-
-/** A cylindrically-curved plane hugging the chest, sized in inches. */
-function makeCurvedDecal(wIn: number, hIn: number, radius: number): THREE.PlaneGeometry {
-  const bend = Math.min(DECAL_BEND_MAX, wIn / Math.max(radius, 1))
-  const r = wIn / bend
-  const geo = new THREE.PlaneGeometry(wIn, hIn, 40, 1)
-  const pos = geo.attributes.position as THREE.BufferAttribute
-  const nor = geo.attributes.normal as THREE.BufferAttribute
-  for (let i = 0; i < pos.count; i++) {
-    const theta = (pos.getX(i) / wIn) * bend
-    pos.setXYZ(i, r * Math.sin(theta), pos.getY(i), r * (Math.cos(theta) - 1))
-    nor.setXYZ(i, Math.sin(theta), 0, Math.cos(theta))
-  }
-  pos.needsUpdate = true
-  nor.needsUpdate = true
-  geo.computeBoundingSphere()
-  return geo
-}
 
 async function buildMannequinFigure(
   design: Design,
@@ -275,14 +320,7 @@ async function buildMannequinFigure(
     const sizeIn = getAreaSizeIn(design, side)
     const geo = makeCurvedDecal(sizeIn.wIn, sizeIn.hIn, a.radius)
     const tex = canvasTexture(canvas)
-    const mat = new THREE.MeshStandardMaterial({
-      map: tex,
-      transparent: true,
-      alphaTest: 0.02,
-      roughness: 0.82,
-      metalness: 0,
-      side: THREE.FrontSide,
-    })
+    const mat = decalMaterial(tex)
     disposables.push(geo, tex, mat)
     const mesh = new THREE.Mesh(geo, mat)
     const cy = a.topY - GAP_BELOW_COLLAR - sizeIn.hIn / 2
@@ -295,18 +333,161 @@ async function buildMannequinFigure(
   return { figure, disposables }
 }
 
+// ---------------------------------------------------------------- avatar (a real person wearing the garment)
+
 /**
- * Build the design -> AR model (GLB + USDZ + poster). Catalog garments get the
- * real garment mesh; custom garments get the mannequin. Disposes GPU resources.
+ * A realistic AI-generated figure already WEARING the garment (public/models/
+ * avatar-*.glb — a single opaque textured mesh, the safest possible Scene Viewer
+ * asset). The design is projected onto the chest/back with the same curved MASK
+ * plane used everywhere else; the plane raycasts the actual torso so it conforms
+ * to ANY body mesh. Life-size inches; grounded at y=0.
+ */
+const AVATAR = {
+  tee: '/models/avatar-tee.glb',
+  hoodie: '/models/avatar-hoodie.glb',
+  custom: '/models/avatar-tee.glb',
+  heightIn: 68, // normalise to a life-size figure
+  chestFrac: 0.72, // front/back print CENTRE as a fraction of height from the floor
+  printScale: 0.82, // the design print area is garment-sized; sit it on the chest
+}
+
+/**
+ * Recolour the chroma-key garment to the studio colour. The mannequins are
+ * generated wearing a VIVID GREEN garment; the body, trousers and the atlas
+ * padding are all desaturated, so a saturation threshold isolates the garment —
+ * sleeves and hood included — despite the fragmented Meshy UV atlas and baked
+ * shading. Each garment texel becomes the target colour scaled by its own
+ * brightness, so folds and highlights survive.
+ */
+function recolorGarment(canvas: HTMLCanvasElement, hex: string): void {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const col = new THREE.Color(hex)
+  const tr = col.r * 255
+  const tg = col.g * 255
+  const tb = col.b * 255
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const d = img.data
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i]
+    const g = d[i + 1]
+    const b = d[i + 2]
+    const max = Math.max(r, g, b)
+    // green-DOMINANT ⇒ garment fabric. Catches the vivid green AND the desaturated
+    // green fringe blended into the collar/sleeve edges, while neutral gray (body,
+    // trousers, atlas padding: g≈r≈b) and warm tones stay untouched.
+    if (g > r + 10 && g > b + 10 && max > 40) {
+      // fold shading from the source brightness, floored so dark studio colours
+      // (navy, forest) stay recognisable instead of collapsing toward black.
+      const shade = Math.max(0.45, Math.min(1.12, (max / 255) * 1.35))
+      d[i] = Math.min(255, tr * shade)
+      d[i + 1] = Math.min(255, tg * shade)
+      d[i + 2] = Math.min(255, tb * shade)
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+}
+
+/** Draw the avatar's baked texture to a POT canvas, recolour the garment to the
+ *  studio colour, and return a Filament/USDZ-safe texture (flipY matches glTF). */
+function buildGarmentTexture(map: THREE.Texture, hex: string): THREE.Texture {
+  const img = map.image as { width?: number; height?: number } | undefined
+  const w = Math.min(MAX_TEX, nearestPow2(img?.width || 2048))
+  const h = Math.min(MAX_TEX, nearestPow2(img?.height || 2048))
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const ctx = c.getContext('2d')
+  if (ctx && img) ctx.drawImage(img as CanvasImageSource, 0, 0, w, h)
+  recolorGarment(c, hex)
+  const tex = new THREE.CanvasTexture(c)
+  tex.flipY = map.flipY // glTF textures are flipY=false; a CanvasTexture defaults true
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 8
+  tex.needsUpdate = true
+  return tex
+}
+
+async function buildAvatarFigure(design: Design): Promise<{ figure: THREE.Group; disposables: Disposable[] }> {
+  const url = AVATAR[design.garmentId]
+  const gltf = await new GLTFLoader().loadAsync(url)
+  gltf.scene.updateMatrixWorld(true)
+  const src = firstMesh(gltf.scene)
+  if (!src) throw new Error(`No mesh in ${url}`)
+
+  const geometry = src.geometry.clone()
+  geometry.applyMatrix4(src.matrixWorld)
+  geometry.computeBoundingBox()
+  const box = geometry.boundingBox as THREE.Box3
+  const size = box.getSize(new THREE.Vector3())
+  const center = box.getCenter(new THREE.Vector3())
+  // centre X/Z, plant feet at y=0, uniformly scale to a life-size height.
+  geometry.translate(-center.x, -box.min.y, -center.z)
+  geometry.scale(AVATAR.heightIn / size.y, AVATAR.heightIn / size.y, AVATAR.heightIn / size.y)
+  geometry.computeBoundingBox()
+
+  sanitizeGarmentGeometry(geometry, true) // keep uv — the avatar is textured
+  const srcMat = (Array.isArray(src.material) ? src.material[0] : src.material) as THREE.MeshStandardMaterial
+  const baseMap = srcMat.map ? buildGarmentTexture(srcMat.map, garmentColorHex(design)) : null
+  const material = new THREE.MeshStandardMaterial({ map: baseMap, color: 0xffffff, roughness: 0.92, metalness: 0 })
+  const avatarMesh = new THREE.Mesh(geometry, material)
+  avatarMesh.updateMatrixWorld(true)
+
+  const figure = new THREE.Group()
+  figure.add(avatarMesh)
+  const disposables: Disposable[] = [geometry, material]
+  if (baseMap) disposables.push(baseMap)
+
+  const chestY = AVATAR.heightIn * AVATAR.chestFrac
+  const sides: Side[] = ['front', 'back']
+  const canvases = await Promise.all(sides.map((s) => renderSide(design, s)))
+  sides.forEach((side, i) => {
+    const canvas = canvases[i]
+    if (!canvas) return
+    const a = getAreaSizeIn(design, side)
+    const surfaceZ = probeSurfaceZ(geometry, 0, chestY, side)
+    const geo = makeCurvedDecal(a.wIn * AVATAR.printScale, a.hIn * AVATAR.printScale, estimateRadius(geometry, chestY))
+    const tex = canvasTexture(canvas)
+    const mat = decalMaterial(tex)
+    disposables.push(geo, tex, mat)
+    const mesh = new THREE.Mesh(geo, mat)
+    mesh.position.set(0, chestY, side === 'front' ? surfaceZ + DECAL_LIFT : surfaceZ - DECAL_LIFT)
+    mesh.rotation.y = side === 'back' ? Math.PI : 0
+    figure.add(mesh)
+  })
+
+  figure.position.y = -(geometry.boundingBox as THREE.Box3).min.y
+  return { figure, disposables }
+}
+
+/**
+ * Build the design → AR model (GLB + USDZ + poster). Primary path: a realistic
+ * figure WEARING the garment (buildAvatarFigure). If the avatar asset can't load
+ * we degrade gracefully to the garment-mesh (catalog) / mannequin (custom) path.
+ * The whole scene is scaled inches→metres so it's life-size in AR.
  */
 export async function buildArModel(design: Design, gender: Gender): Promise<ArModelBlobs> {
-  const { figure, disposables } =
-    design.garmentId === 'custom'
-      ? await buildMannequinFigure(design, gender)
-      : await buildCatalogFigure(design, design.garmentId)
+  let built: { figure: THREE.Group; disposables: Disposable[] }
+  try {
+    built = await buildAvatarFigure(design)
+  } catch {
+    built =
+      design.garmentId === 'custom'
+        ? await buildMannequinFigure(design, gender)
+        : await buildCatalogFigure(design, design.garmentId)
+  }
+  const { figure, disposables } = built
 
   const root = new THREE.Group()
   root.add(figure)
+  // Inches → metres (both GLB and USDZ declare metres). One uniform scale fixes
+  // both; USDZExporter hardcodes metersPerUnit=1 so there is NO extra ×100.
+  root.scale.setScalar(INCH_TO_M)
+  root.updateMatrixWorld(true)
+  // Re-plant feet on the floor (y=0) after scaling, using world-space bounds.
+  const grounded = new THREE.Box3().setFromObject(root)
+  root.position.y -= grounded.min.y
+  root.updateMatrixWorld(true)
 
   try {
     const glbData = (await new GLTFExporter().parseAsync(root, {
@@ -316,7 +497,7 @@ export async function buildArModel(design: Design, gender: Gender): Promise<ArMo
     })) as ArrayBuffer
 
     const usdzData = await new USDZExporter().parseAsync(root, {
-      maxTextureSize: 2048,
+      maxTextureSize: MAX_TEX,
       quickLookCompatible: true,
     })
 

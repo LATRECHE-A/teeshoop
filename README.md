@@ -63,16 +63,22 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
 | ![Volumetric custom garment](docs/screens/3d-custom.png) | ![Hoodie](docs/screens/hoodie.png) |
 
 **Augmented reality try-on**
-- **"View in AR"** in the editor bakes the design onto the garment in 3D — the
-  **real tee/hoodie mesh** (the same one you see in the preview), or a male/female
-  mannequin for ship-your-own garments — exports it to **glTF (GLB) + USDZ**,
-  uploads it to the blob store, and shows a **QR of a short link**. Because the
-  model lives server-side, the QR is small (so it scans reliably) and works
-  **cross-device** — any phone, including for photo/custom-garment designs
+- **"View in AR"** in the editor bakes the design onto a **realistic, life-size
+  display mannequin wearing the garment** — a neutral matte-gray figure (tee or
+  hoodie), the garment **recoloured to your chosen colour** and the print projected
+  onto the chest — then exports it to **glTF (GLB) + USDZ**, uploads it to the blob
+  store, and shows a **QR of a short link**. Because the model lives server-side,
+  the QR is small (so it scans reliably) and works **cross-device** — any phone,
+  including photo/custom-garment designs
 - Scanning opens a lightweight viewer page with a spinning 3D preview and a
   **"View in your space"** button that launches the phone's **native AR** —
-  Scene Viewer on Android, Quick Look on iOS — planting the life-size garment on
+  Scene Viewer on Android, Quick Look on iOS — planting the life-size mannequin on
   your real floor, with the OS's own screenshot & share
+- The exported GLB is engineered to pass Android **Scene Viewer's** strict import
+  checks (single opaque textured mesh, alpha-cutout prints so there are **0
+  transparent materials**, power-of-two textures, correct inches→metres scale) —
+  the export test (`scripts/ar-verify.mjs`) enforces all of it plus the Khronos
+  glTF-Validator on every build
 
 ![AR QR code](docs/screens/ar-qr.png)
 
@@ -187,7 +193,9 @@ domain** (e.g. `studio.tshop.com`).
 
 - T-shirt 3D model: "shirt_baked" (pmndrs market, CC0)
 - Hoodie 3D model + license: see `docs/credits/A3.md`
-- AR mannequin + flat sleeve: procedural (built in code, no external asset)
+- AR try-on avatar: AI-generated matte-gray display mannequins (Higgsfield
+  image→3D) — `public/models/avatar-{tee,hoodie}.glb`; a procedural mannequin
+  (`src/three/mannequin.ts`) is the fallback. Flat sleeve art: procedural
 - U²-Net (u2netp) saliency model: Apache-2.0, via the rembg project
 - Fonts: Google Fonts via @fontsource (OFL/Apache-2.0)
 - Icon graphics: lucide (ISC)

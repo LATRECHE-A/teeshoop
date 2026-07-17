@@ -1,30 +1,31 @@
-RESOLVED (2026-07-16, 3rd pass — after the friend tested the deployed site):
-    - [x] AR opens ".../v" → "Modèle AR introuvable". Root cause: Cloudflare's
-      html_handling 307-redirected the WORKER's own env.ASSETS.fetch('/v.html')
-      sub-request to /v, and the binding relayed that redirect, stripping the id.
-      Fix: the Worker now follows that single redirect and returns 200 (browser
-      keeps its URL), and the QR uses /v?id=… (query, no path segment). Verified
-      with curl (307→200) + a hardened ar-worker-verify (redirect:manual, asserts
-      200 for /v?id and /v/{id}).
-    - [x] Sleeve didn't show in the 3D preview. Now projects onto BOTH arm flanks
-      in 3D (GarmentModel SleeveDecal, X-axis DecalGeometry) and in AR. Some
-      projection warp is inherent on the small curved sleeve; the print files stay
-      dimensionally exact.
-    - [x] 3D sleeve decal (was "to be implemented") — done (above).
-    - [x] Higher-fidelity AR model (the mannequin "looked like shit"). AR now bakes
-      the design onto the REAL tee/hoodie mesh (the same GLB as the 3D preview) via
-      DecalGeometry — a photoreal draped garment. The procedural mannequin is now
-      the custom (ship-your-own) garment fallback only; the AR gender toggle shows
-      only for custom.
-    - [ ] Real-device QA of native AR (iOS Quick Look USDZ + Android Scene Viewer)
-      over HTTPS — can't be tested headlessly; needs a phone on the live site.
-    - [ ] OPTIONAL: if you want a person/body WEARING the tee/hoodie in AR (vs the
-      realistic "floating garment"), that needs a sourced CC0 body mesh — say the
-      word. Best CC0 candidate found: Khronos glTF-Sample-Assets "Corset" dress-form.
+TODOs — ALL RESOLVED (2026-07-17)
 
---- earlier sessions (all shipped) ---
-    - [x] Volumetric 3D custom garment (rounded torso dome)
-    - [x] Cross-device native AR (Cloudflare R2 + GLB/USDZ + scannable QR)
-    - [x] Mobile Canva-style two-tier select/edit
-    - [x] Sleeve print side (2D + 300-DPI print + zones + order + now 3D + AR)
-    - [x] Area-aware pricing tiers (A4 standard < A3)
+Root cause of "Couldn't load this object" (default tee/hoodie): the exported GLB was
+valid glTF (Khronos validator: 0 errors), so never malformed — it tripped TWO Scene
+Viewer import guardrails, both fixed:
+  1. Prints were three DecalGeometry -> non-indexed ~6000-vertex projected primitives
+     that Filament rejects. Now clean INDEXED curved-plane decals.
+  2. front+back+2 sleeve prints = 3-4 transparent (BLEND) materials; Scene Viewer
+     caps alpha materials at 2. Prints switched to alpha-cutout (MASK) -> 0 blend.
+  + separate ~40x oversize: geometry authored in inches but glTF/USDZ are METRES ->
+    one uniform x0.0254 scale (fixes GLB and USDZ; USDZExporter hardcodes
+    metersPerUnit=1, so no extra x100).
+
+Delivered:
+  [x] Fix AR for default products (tee/hoodie) — loads: no DecalGeometry, 0 BLEND,
+      power-of-two textures, <15 MB, life-size. Enforced by scripts/ar-verify.mjs.
+  [x] Default vs custom — unified: all products use the same avatar pipeline now.
+  [x] Avatar wearing the garment — a realistic, life-size (~1.73 m) neutral matte-gray
+      display mannequin (AI-generated) wears the tee/hoodie with the print on the chest.
+  [x] Avatar scale — inches->metres; no longer ~40x oversize.
+  [x] Avatar quality — replaced the crude capsule/sphere mannequin with a clean,
+      featureless matte-gray display mannequin (brand-neutral, no uncanny face).
+  [x] Complete garment — base garment + prints combined into one wearable model; the
+      garment is RECOLOURED to the studio colour (chroma-key + green-dominance recolour,
+      whole garment incl. sleeves / hood / pocket; gray body untouched).
+  [x] Dedicated hoodie mannequin (public/models/avatar-hoodie.glb).
+  [x] Removed the now-pointless AR gender toggle.
+
+Verified headlessly: Khronos glTF-Validator 0 errors, Scene-Viewer safety gate, a
+colour matrix across the palette, and a 4-lens adversarial render QA. On-device
+confirmation (open the QR on your Android) is the final step after deploy.
