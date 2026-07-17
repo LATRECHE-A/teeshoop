@@ -114,12 +114,51 @@ try {
   })
   await page.waitForTimeout(300)
 
-  // gid 'custom' is gated on an upload, so force garmentId directly for the bake.
+  // Seed a REAL ship-your-own garment (alpha-silhouette photo + matching cutout)
+  // so the custom case exercises buildCustomFigure (the inflated shell of the
+  // customer's ACTUAL garment) — not the mannequin fallback it hit before.
+  const customAssetId = await page.evaluate(async () => {
+    const assets = await window.__assets()
+    const W = 600, H = 760
+    const c = document.createElement('canvas'); c.width = W; c.height = H
+    const ctx = c.getContext('2d')
+    ctx.fillStyle = '#3a6ad0'
+    const bx = 120, by = 150, bw = 360, bh = 520, r = 60 // rounded garment body
+    ctx.beginPath()
+    ctx.moveTo(bx + r, by)
+    ctx.arcTo(bx + bw, by, bx + bw, by + bh, r)
+    ctx.arcTo(bx + bw, by + bh, bx, by + bh, r)
+    ctx.arcTo(bx, by + bh, bx, by, r)
+    ctx.arcTo(bx, by, bx + bw, by, r)
+    ctx.closePath(); ctx.fill()
+    ctx.fillRect(50, 160, 85, 200)    // left sleeve
+    ctx.fillRect(465, 160, 85, 200)   // right sleeve
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.beginPath(); ctx.ellipse(W / 2, 158, 68, 44, 0, 0, Math.PI * 2); ctx.fill() // neck hole
+    ctx.globalCompositeOperation = 'source-over'
+    const blob = await new Promise((res) => c.toBlob(res, 'image/png'))
+    const meta = await assets.addAsset(blob, 'AR test garment')
+    await assets.setAssetCutout(meta.id, blob) // same alpha image as the cutout
+    return meta.id
+  })
+
+  // Catalog forces garmentId directly; custom attaches the seeded garment.
   const bake = async (garmentId, gender) =>
-    page.evaluate(async ({ gid, g }) => {
+    page.evaluate(async ({ gid, g, customId }) => {
       const ax = await window.__arExport()
       const base = window.__tshop.getState().design
-      const design = { ...base, garmentId: gid }
+      const design =
+        gid === 'custom'
+          ? {
+              ...base,
+              garmentId: 'custom',
+              custom: {
+                widthIn: 20,
+                front: { assetId: customId, useCutout: true, printArea: { xIn: 4, yIn: 5, wIn: 12, hIn: 14 } },
+                back: null,
+              },
+            }
+          : { ...base, garmentId: gid }
       const blobs = await ax.buildArModel(design, g)
       const b64 = async (blob) => {
         const u8 = new Uint8Array(await blob.arrayBuffer())
@@ -135,10 +174,11 @@ try {
         usdzMagic: Array.from(new Uint8Array(await blobs.usdz.slice(0, 2).arrayBuffer())),
         pngMagic: Array.from(new Uint8Array(await blobs.poster.slice(0, 4).arrayBuffer())),
       }
-    }, { gid: garmentId, g: gender })
+    }, { gid: garmentId, g: gender, customId: customAssetId })
 
+  // Male + female avatars for both catalog garments, plus the real custom shell.
   const cases = [
-    ['tee', 'male'], ['tee', 'female'], ['hoodie', 'male'], ['custom', 'male'], ['custom', 'female'],
+    ['tee', 'male'], ['tee', 'female'], ['hoodie', 'male'], ['hoodie', 'female'], ['custom', 'male'],
   ]
   for (const [gid, gender] of cases) {
     const r = await bake(gid, gender)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Copy, ExternalLink, RefreshCw, Smartphone, TriangleAlert } from 'lucide-react'
+import { Copy, ExternalLink, RefreshCw, Smartphone, TriangleAlert, User, UserRound } from 'lucide-react'
 import Modal from './Modal'
+import type { Gender } from '@/lib/arExport'
 import { useStore } from '@/state/store'
 import { makeQrDataUrl } from '@/lib/qr'
 import { useMockupUrl } from '../hooks/useMockup'
@@ -16,9 +17,13 @@ export default function ArModal() {
   const preview = useMockupUrl(design, 'front', 300)
 
   const [nonce, setNonce] = useState(0)
+  const [gender, setGender] = useState<Gender>('male')
   const [phase, setPhase] = useState<Phase>('working')
   const [qr, setQr] = useState<string | null>(null)
   const [url, setUrl] = useState('')
+  // The avatar (and its gender) only applies to catalog tee/hoodie; a custom
+  // ship-your-own garment shows the uploaded garment itself, no body.
+  const showGender = design.garmentId !== 'custom'
 
   // Bake the design onto the avatar, upload GLB+USDZ+poster to R2, then show a
   // QR of the SHORT /v/{id} URL (scannable + cross-device). Re-runs on retry.
@@ -31,7 +36,7 @@ export default function ArModal() {
         // Lazy — keeps the three exporters + avatar out of the studio's initial
         // bundle until someone actually opens the AR modal.
         const { buildArModel, uploadArModel } = await import('@/lib/arExport')
-        const blobs = await buildArModel(design, 'male')
+        const blobs = await buildArModel(design, gender)
         const id = await uploadArModel(blobs)
         if (!on) return
         // The id travels as ?id=… , NOT /v/{id}: Cloudflare's html_handling
@@ -49,7 +54,8 @@ export default function ArModal() {
     return () => {
       on = false
     }
-  }, [design, nonce])
+    // Re-bake (→ new upload → new QR/link) whenever the design or gender changes.
+  }, [design, gender, nonce])
 
   const copyLink = async () => {
     try {
@@ -83,6 +89,28 @@ export default function ArModal() {
         </div>
 
         <div className="flex flex-col gap-4">
+          {showGender && (
+            <div>
+              <div className="panel-title mb-1.5">{t('ar.gender')}</div>
+              <div className="flex gap-2">
+                {(['male', 'female'] as Gender[]).map((g) => {
+                  const Icon = g === 'male' ? User : UserRound
+                  return (
+                    <button
+                      key={g}
+                      className={`btn flex-1 ${gender === g ? 'btn-primary' : ''}`}
+                      aria-pressed={gender === g}
+                      onClick={() => setGender(g)}
+                    >
+                      <Icon size={15} />
+                      {g === 'male' ? t('ar.gender_male') : t('ar.gender_female')}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div>
             <div className="panel-title mb-1.5 flex items-center gap-1.5">
               <Smartphone size={13} /> {t('ar.how_title')}

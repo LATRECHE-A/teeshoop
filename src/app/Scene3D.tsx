@@ -3,7 +3,7 @@ import { Play, RotateCcw, Smartphone, Square } from 'lucide-react'
 import clsx from 'clsx'
 import type { CardSource, DecalSource, Design, Garment3DProps, Side } from '@/lib/types'
 import { GARMENTS } from '@/garments'
-import { renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
+import { areaOffsetYIn as areaOffsetForSide, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { useStore } from '@/state/store'
 import { RegMark } from './Brand'
 import { garmentColorHex } from '@/lib/renderDesign'
@@ -180,12 +180,10 @@ export default function Scene3D() {
 
   const areaOffsetYIn = useMemo(() => {
     if (design.garmentId === 'custom') return { front: 0, back: 0, sleeve: 0 }
-    const art = GARMENTS[design.garmentId]
-    const off = (side: Side) => {
-      const a = art.sides[side].printAreaPx
-      return (a.y + a.h / 2 - 400) / art.pxPerInch
-    }
-    return { front: off('front'), back: off('back'), sleeve: 0 }
+    const g = design.garmentId
+    // Shared with the AR export (src/lib/renderDesign.areaOffsetYIn) so front
+    // and back sit at the same height in the 3D preview and in AR.
+    return { front: areaOffsetForSide(g, 'front'), back: areaOffsetForSide(g, 'back'), sleeve: 0 }
   }, [design.garmentId])
 
   if (!gl) {

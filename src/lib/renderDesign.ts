@@ -4,7 +4,8 @@
  * no Konva: the editor engine wraps the same per-layer draw calls, which is
  * what guarantees 2D/3D/print parity.
  */
-import type { Design, GraphicLayer, ImageLayer, Layer, Side, SizeIn } from '@/lib/types'
+import type { CatalogGarmentId, Design, GraphicLayer, ImageLayer, Layer, Side, SizeIn } from '@/lib/types'
+import { GARMENT_VIEW } from '@/lib/types'
 import { GARMENTS } from '@/garments'
 import { GRAPHICS } from '@/content/graphics'
 import { GARMENT_COLORS } from '@/content/palettes'
@@ -32,6 +33,19 @@ export function garmentColorHex(design: Design): string {
   return (
     GARMENT_COLORS.find((c) => c.id === design.colorId)?.hex ?? '#FFFFFF'
   )
+}
+
+/**
+ * Vertical offset (inches, +down) of a catalog side's print-area CENTRE from
+ * the garment's visual centre. Derived from GarmentSideArt.printAreaPx so the
+ * 2D editor, the 3D preview and the AR export all place front vs back at the
+ * SAME height (front and back sit at different heights on the body). Single
+ * source of truth — 3D (Scene3D) and AR (arExport) both import this.
+ */
+export function areaOffsetYIn(garment: CatalogGarmentId, side: Side): number {
+  const art = GARMENTS[garment]
+  const a = art.sides[side].printAreaPx
+  return (a.y + a.h / 2 - GARMENT_VIEW / 2) / art.pxPerInch
 }
 
 export function graphicDef(id: string) {

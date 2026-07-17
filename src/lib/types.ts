@@ -122,7 +122,16 @@ export interface Design {
   /** Id from GARMENT_COLORS (src/content/palettes.ts). Ignored for custom. */
   colorId: string
   custom: CustomGarment | null
+  /** ACTIVE garment context's artwork (tee+hoodie share one; custom has its own). */
   layers: Layer[]
+  /**
+   * The OTHER design context's layers, parked while it is inactive. `layers`
+   * always holds the active garment's artwork; crossing the catalog↔custom
+   * boundary swaps these two, so a ship-your-own custom garment keeps its own
+   * design independent of the tee/hoodie design. Seeded from older
+   * single-bucket documents by migrateDesign (src/lib/migrate.ts).
+   */
+  stashedLayers: Layer[]
   updatedAt: number
 }
 

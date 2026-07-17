@@ -1,31 +1,46 @@
-TODOs — ALL RESOLVED (2026-07-17)
+All four issues from this round are RESOLVED, verified headlessly (typecheck + build,
+ar-verify Scene-Viewer gate, a 3D render QA of every avatar, and a state-siloing test),
+and deployed.
 
-Root cause of "Couldn't load this object" (default tee/hoodie): the exported GLB was
-valid glTF (Khronos validator: 0 errors), so never malformed — it tripped TWO Scene
-Viewer import guardrails, both fixed:
-  1. Prints were three DecalGeometry -> non-indexed ~6000-vertex projected primitives
-     that Filament rejects. Now clean INDEXED curved-plane decals.
-  2. front+back+2 sleeve prints = 3-4 transparent (BLEND) materials; Scene Viewer
-     caps alpha materials at 2. Prints switched to alpha-cutout (MASK) -> 0 blend.
-  + separate ~40x oversize: geometry authored in inches but glTF/USDZ are METRES ->
-    one uniform x0.0254 scale (fixes GLB and USDZ; USDZExporter hardcodes
-    metersPerUnit=1, so no extra x100).
+──────────────────────────────────────────────────────────────────────────────
+1. Print/printable-area math consistent across 2D ↔ 3D ↔ AR      ✅ RESOLVED
+   Root cause: 2D and 3D already agreed (shared renderPrintArea + printAreaPx),
+   but the AR *avatar* path was the outlier — it forced front AND back to one
+   chestY (ignoring the per-side offset), shrank the print by a magic 0.82, and
+   dropped the sleeve entirely.
+   Fix: the avatar decal now uses the SAME per-side vertical offset as 2D/3D
+   (areaOffsetYIn, now a single shared export in renderDesign.ts — no more
+   copy-paste in Scene3D + arExport), draws the print at its TRUE inch size
+   (only fit-clamped if it would overhang the torso), and projects the sleeve
+   print onto the arms. Verified: back star sits at the nape, front at the
+   chest, sleeve print present — matching the editor.
 
-Delivered:
-  [x] Fix AR for default products (tee/hoodie) — loads: no DecalGeometry, 0 BLEND,
-      power-of-two textures, <15 MB, life-size. Enforced by scripts/ar-verify.mjs.
-  [x] Default vs custom — unified: all products use the same avatar pipeline now.
-  [x] Avatar wearing the garment — a realistic, life-size (~1.73 m) neutral matte-gray
-      display mannequin (AI-generated) wears the tee/hoodie with the print on the chest.
-  [x] Avatar scale — inches->metres; no longer ~40x oversize.
-  [x] Avatar quality — replaced the crude capsule/sphere mannequin with a clean,
-      featureless matte-gray display mannequin (brand-neutral, no uncanny face).
-  [x] Complete garment — base garment + prints combined into one wearable model; the
-      garment is RECOLOURED to the studio colour (chroma-key + green-dominance recolour,
-      whole garment incl. sleeves / hood / pocket; gray body untouched).
-  [x] Dedicated hoodie mannequin (public/models/avatar-hoodie.glb).
-  [x] Removed the now-pointless AR gender toggle.
+2. AR preview button in the 2D interface                          ✅ RESOLVED
+   Added a "View in AR" CTA to the 2D editor (EditorCanvas), mirroring the 3D
+   stage button and reusing the ar.view_in_ar i18n key; stacked above the
+   mobile side-switcher so it doesn't collide.
 
-Verified headlessly: Khronos glTF-Validator 0 errors, Scene-Viewer safety gate, a
-colour matrix across the palette, and a 4-lens adversarial render QA. On-device
-confirmation (open the QR on your Android) is the final step after deploy.
+3. Custom garment AR + "tee edits leak onto my custom garment"    ✅ RESOLVED
+   (a) Leak: layers were a SINGLE shared list across every garment. Now the
+       custom garment keeps its OWN design — `stashedLayers` holds the inactive
+       context and swaps only when crossing the catalog↔custom boundary
+       (tee↔hoodie still share, as before). Migrated so nothing is lost.
+       Verified: editing the tee no longer changes the custom garment (and vice
+       versa) — scripts/state-check.mjs.
+   (b) Wrong garment in AR: custom loaded avatar-tee.glb and never read
+       design.custom. Now buildCustomFigure renders the customer's ACTUAL
+       uploaded garment (inflated shell of their photo + design, the same
+       geometry the studio 3D uses), Scene-Viewer-safe. Verified: AR shows the
+       uploaded garment shape (incl. neck cutout), not the default tee.
+
+4. Realistic AR female model + male/female switch                 ✅ RESOLVED
+   Generated neutral matte-gray featureless FEMALE mannequins (tee + hoodie,
+   chroma-key green base) matching the male look; wired AVATAR_URL[gender][garment].
+   Re-added the male/female toggle in the AR modal (shown for tee/hoodie; hidden
+   for custom, which has no body). Each gender re-bakes → a new upload → a new
+   QR/link automatically. Verified: female avatars load, recolour, and are
+   Scene-Viewer-safe (ar-verify tee/female + hoodie/female).
+
+Known-inherent (not blockers): faint mesh-edge speckles on the AI mannequin
+bodies (single-image 3D); very dark studio colours (navy) read close to black
+in dim light; a custom garment with no back photo shows a plain dark back.

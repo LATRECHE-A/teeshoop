@@ -63,17 +63,21 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
 | ![Volumetric custom garment](docs/screens/3d-custom.png) | ![Hoodie](docs/screens/hoodie.png) |
 
 **Augmented reality try-on**
-- **"View in AR"** in the editor bakes the design onto a **realistic, life-size
-  display mannequin wearing the garment** — a neutral matte-gray figure (tee or
-  hoodie), the garment **recoloured to your chosen colour** and the print projected
-  onto the chest — then exports it to **glTF (GLB) + USDZ**, uploads it to the blob
-  store, and shows a **QR of a short link**. Because the model lives server-side,
-  the QR is small (so it scans reliably) and works **cross-device** — any phone,
-  including photo/custom-garment designs
+- **"View in AR"** — in **both** the 2D editor and the 3D preview — bakes the
+  design onto a **realistic, life-size figure wearing the garment**: a neutral
+  matte-gray display mannequin, **male or female** (switch in the modal), the
+  garment **recoloured to your chosen colour** and the print placed on the chest,
+  back and sleeves at the **same positions as the 2D/3D editor**. Ship-your-own
+  **custom garments render the customer's ACTUAL uploaded garment** (their photo,
+  inflated into volume, with the design on it) — not a stand-in tee. It exports to
+  **glTF (GLB) + USDZ**, uploads to the blob store, and shows a **QR of a short
+  link** (each gender bakes its own model, so its QR/link is distinct)
+- Because the model lives server-side, the QR is small (so it scans reliably) and
+  works **cross-device** — any phone
 - Scanning opens a lightweight viewer page with a spinning 3D preview and a
   **"View in your space"** button that launches the phone's **native AR** —
-  Scene Viewer on Android, Quick Look on iOS — planting the life-size mannequin on
-  your real floor, with the OS's own screenshot & share
+  Scene Viewer on Android, Quick Look on iOS — planting the life-size figure (or
+  your custom garment) on your real floor, with the OS's own screenshot & share
 - The exported GLB is engineered to pass Android **Scene Viewer's** strict import
   checks (single opaque textured mesh, alpha-cutout prints so there are **0
   transparent materials**, power-of-two textures, correct inches→metres scale) —
@@ -193,9 +197,10 @@ domain** (e.g. `studio.tshop.com`).
 
 - T-shirt 3D model: "shirt_baked" (pmndrs market, CC0)
 - Hoodie 3D model + license: see `docs/credits/A3.md`
-- AR try-on avatar: AI-generated matte-gray display mannequins (Higgsfield
-  image→3D) — `public/models/avatar-{tee,hoodie}.glb`; a procedural mannequin
-  (`src/three/mannequin.ts`) is the fallback. Flat sleeve art: procedural
+- AR try-on avatar: AI-generated matte-gray display mannequins, male + female
+  (Higgsfield image→3D) — `public/models/avatar-{tee,hoodie}{,-female}.glb`; a
+  procedural mannequin (`src/three/mannequin.ts`) is the fallback. Custom garments
+  render the customer's own uploaded photo (no avatar). Flat sleeve art: procedural
 - U²-Net (u2netp) saliency model: Apache-2.0, via the rembg project
 - Fonts: Google Fonts via @fontsource (OFL/Apache-2.0)
 - Icon graphics: lucide (ISC)

@@ -10,6 +10,7 @@ import { useStore } from './store'
 import { assetToDataUrl, importAsset, listAssets } from './assets'
 import { listSavedMetas, renderAndSave } from './savedDesigns'
 import { makeSampleDesign } from '@/content/sampleDesign'
+import { migrateDesign } from '@/lib/migrate'
 import { canShareAsLink, designToShareHash, parseShareHash } from '@/lib/shareLink'
 import { t } from '@/i18n'
 
@@ -34,7 +35,10 @@ interface DesignFile {
 
 export async function exportDesignFile(design: Design): Promise<Blob> {
   const ids = new Set<string>()
-  for (const l of design.layers) if (l.type === 'image') ids.add(l.assetId)
+  // Embed assets from BOTH design contexts (active + stashed) so a custom
+  // garment's images survive a round-trip even when exported from the tee.
+  for (const l of [...design.layers, ...design.stashedLayers])
+    if (l.type === 'image') ids.add(l.assetId)
   if (design.custom?.front) ids.add(design.custom.front.assetId)
   if (design.custom?.back) ids.add(design.custom.back.assetId)
 
@@ -61,7 +65,7 @@ export async function importDesignFile(blob: Blob): Promise<Design> {
   for (const [id, a] of Object.entries(file.assets ?? {})) {
     await importAsset({ ...a.meta, id }, a.dataUrl, a.cutoutDataUrl)
   }
-  return file.design
+  return migrateDesign(file.design)
 }
 
 // --- boot + autosave -----------------------------------------------------

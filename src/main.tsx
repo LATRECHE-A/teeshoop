@@ -15,6 +15,10 @@ if (import.meta.env.DEV) {
   ;(window as unknown as { __gltf?: () => Promise<typeof import('three/examples/jsm/loaders/GLTFLoader.js')> }).__gltf = () =>
     import('three/examples/jsm/loaders/GLTFLoader.js')
   ;(window as unknown as { __three?: () => Promise<typeof import('three')> }).__three = () => import('three')
+  // Lets ar-verify seed a real ship-your-own garment (asset + cutout) so the
+  // custom AR path (inflated shell) is exercised, not just the mannequin fallback.
+  ;(window as unknown as { __assets?: () => Promise<typeof import('@/state/assets')> }).__assets = () =>
+    import('@/state/assets')
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Frame, Grid3x3, Maximize, Minus, Plus, TriangleAlert } from 'lucide-react'
+import { Frame, Grid3x3, Maximize, Minus, Plus, Smartphone, TriangleAlert } from 'lucide-react'
 import clsx from 'clsx'
 import { EditorEngine, type SelectionInfo } from '@/editor/EditorEngine'
 import { useStore } from '@/state/store'
@@ -22,6 +22,7 @@ export default function EditorCanvas() {
   const theme = useStore((s) => s.theme)
   const showGuides = useStore((s) => s.showGuides)
   const toggleGuides = useStore((s) => s.toggleGuides)
+  const openModal = useStore((s) => s.openModal)
   const bg = stageBackground(scene, theme)
 
   // mount engine once
@@ -149,8 +150,19 @@ export default function EditorCanvas() {
         </button>
       </div>
 
-      {/* hint */}
-      <div className="pointer-events-none absolute bottom-4 left-4 z-10 hidden items-center gap-1.5 text-[11px] text-tx3 lg:flex">
+      {/* View-in-AR call to action — parity with the 3D stage. On phones it sits
+          above the bottom-left SideSwitcher; on desktop it takes the bottom-left. */}
+      <button
+        className="btn absolute bottom-[calc(var(--tsh-nav)+var(--tsh-selbar)+3.5rem)] left-3 z-10 h-9 gap-1.5 border-cy/40 bg-bg1/90 px-3 text-[12px] text-cy shadow-lg backdrop-blur hover:border-cy md:bottom-4 md:left-4 md:h-8"
+        onClick={() => openModal('ar')}
+        title={t('ar.view_in_ar')}
+      >
+        <Smartphone size={14} />
+        {t('ar.view_in_ar')}
+      </button>
+
+      {/* hint (desktop only; raised to clear the AR button) */}
+      <div className="pointer-events-none absolute bottom-16 left-4 z-10 hidden items-center gap-1.5 text-[11px] text-tx3 lg:flex">
         <Frame size={12} />
         {t('editor.hint')}
       </div>

@@ -11,6 +11,7 @@
  */
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import type { Design } from '@/lib/types'
+import { migrateDesign } from '@/lib/migrate'
 
 /** True when the design is fully reconstructable from a link alone. */
 export function canShareAsLink(design: Design): boolean {
@@ -20,9 +21,10 @@ export function canShareAsLink(design: Design): boolean {
   )
 }
 
-/** `#d=<lz-string>` hash carrying the vector design (custom stripped). */
+/** `#d=<lz-string>` hash carrying the vector design (custom + the inactive
+ *  layer bucket stripped — a link only reconstructs the active design). */
 export function designToShareHash(design: Design): string {
-  const payload = { v: 1, design: { ...design, custom: null } }
+  const payload = { v: 1, design: { ...design, custom: null, stashedLayers: [] } }
   return `#d=${compressToEncodedURIComponent(JSON.stringify(payload))}`
 }
 
@@ -35,7 +37,7 @@ export function parseShareHash(hash: string): Design | null {
     if (!json) return null
     const payload = JSON.parse(json)
     if (payload?.v !== 1 || !payload.design?.layers) return null
-    return payload.design as Design
+    return migrateDesign(payload.design as Design)
   } catch {
     return null
   }

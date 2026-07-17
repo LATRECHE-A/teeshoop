@@ -18,6 +18,7 @@ import { GARMENT_COLORS } from '@/content/palettes'
 import { GRAPHICS } from '@/content/graphics'
 import { makeSampleDesign } from '@/content/sampleDesign'
 import { getAreaSizeIn, measureLayer } from '@/lib/renderDesign'
+import { migrateDesign } from '@/lib/migrate'
 import { zonesFor } from '@/content/zones'
 import { clamp } from '@/lib/units'
 import { setCurrentLang, type Lang } from '@/i18n/lang'
@@ -137,6 +138,29 @@ function clampLayersToArea(design: Design): Design {
     }
   })
   return { ...design, layers }
+}
+
+/**
+ * Set the active garment, swapping the active/stashed layer buckets when
+ * crossing the catalog↔custom boundary. Tee↔hoodie (both catalog) keep sharing
+ * one design; custom keeps its own — so editing the default tee never mutates
+ * the uploaded custom garment. Callers re-clamp the newly-active layers.
+ */
+function switchGarment(design: Design, garmentId: GarmentId): Design {
+  const wasCustom = design.garmentId === 'custom'
+  const willCustom = garmentId === 'custom'
+  if (wasCustom === willCustom) return { ...design, garmentId }
+  return {
+    ...design,
+    garmentId,
+    layers: design.stashedLayers,
+    stashedLayers: design.layers,
+  }
+}
+
+/** True when moving between the catalog (tee/hoodie) and custom contexts. */
+function crossesCustomBoundary(from: GarmentId, to: GarmentId): boolean {
+  return (from === 'custom') !== (to === 'custom')
 }
 
 let layerCounter = 1
@@ -262,25 +286,34 @@ export const useStore = create<StoreState>()(
           set((st) => ({ modals: { ...st.modals, customSetup: true } }))
           return
         }
+        const crossing = crossesCustomBoundary(s.design.garmentId, id)
         set({
-          design: touch(clampLayersToArea({ ...s.design, garmentId: id })),
+          design: touch(clampLayersToArea(switchGarment(s.design, id))),
+          // Crossing to/from custom swaps to the other layer bucket — the
+          // current selection lives in the now-stashed one, so clear it.
+          ...(crossing ? { selectedId: null, propsExpanded: false } : {}),
           // Custom garments have no sleeve side — snap back to front.
-          ...(id === 'custom' && s.activeSide === 'sleeve' ? { activeSide: 'front' as Side, selectedId: null } : {}),
+          ...(id === 'custom' && s.activeSide === 'sleeve' ? { activeSide: 'front' as Side } : {}),
         })
       },
       setColor: (colorId) =>
         set((s) => ({ design: touch({ ...s.design, colorId }) })),
-      setCustom: (custom) =>
-        set((s) => ({
-          design: touch(
-            clampLayersToArea({
-              ...s.design,
-              custom,
-              garmentId: custom ? 'custom' : s.design.garmentId === 'custom' ? 'tee' : s.design.garmentId,
-            }),
-          ),
-          ...(custom && s.activeSide === 'sleeve' ? { activeSide: 'front' as Side, selectedId: null } : {}),
-        })),
+      setCustom: (custom) => {
+        const s = get()
+        const nextGarment: GarmentId = custom
+          ? 'custom'
+          : s.design.garmentId === 'custom'
+            ? 'tee'
+            : s.design.garmentId
+        const crossing = crossesCustomBoundary(s.design.garmentId, nextGarment)
+        // Swap buckets first (if crossing), then attach the custom garment.
+        const base = switchGarment(s.design, nextGarment)
+        set({
+          design: touch(clampLayersToArea({ ...base, custom })),
+          ...(crossing ? { selectedId: null } : {}),
+          ...(custom && s.activeSide === 'sleeve' ? { activeSide: 'front' as Side } : {}),
+        })
+      },
 
       addTextLayer: (text = 'YOUR TEXT') => {
         const s = get()
@@ -425,9 +458,10 @@ export const useStore = create<StoreState>()(
       /** Remove every layer (and custom-garment reference) using an asset. */
       purgeAsset: (assetId: string) => {
         const s = get()
-        const layers = s.design.layers.filter(
-          (l) => l.type !== 'image' || l.assetId !== assetId,
-        )
+        // Purge the asset from BOTH design contexts (it's a global deletion).
+        const keep = (l: Layer) => l.type !== 'image' || l.assetId !== assetId
+        const layers = s.design.layers.filter(keep)
+        const stashedLayers = s.design.stashedLayers.filter(keep)
         let custom = s.design.custom
         if (custom?.front?.assetId === assetId || custom?.back?.assetId === assetId) {
           custom = {
@@ -437,17 +471,21 @@ export const useStore = create<StoreState>()(
           }
           if (!custom.front) custom = null
         }
-        if (layers.length === s.design.layers.length && custom === s.design.custom) return
+        if (
+          layers.length === s.design.layers.length &&
+          stashedLayers.length === s.design.stashedLayers.length &&
+          custom === s.design.custom
+        )
+          return
+        // Dropping the custom garment reverts to the tee — cross the boundary.
+        const nextGarment: GarmentId =
+          s.design.garmentId === 'custom' && !custom ? 'tee' : s.design.garmentId
+        const next = switchGarment(
+          { ...s.design, layers, stashedLayers, custom },
+          nextGarment,
+        )
         set({
-          design: touch({
-            ...clampLayersToArea({
-              ...s.design,
-              layers,
-              custom,
-              garmentId:
-                s.design.garmentId === 'custom' && !custom ? 'tee' : s.design.garmentId,
-            }),
-          }),
+          design: touch(clampLayersToArea(next)),
           selectedId: null,
         })
       },
@@ -489,7 +527,7 @@ export const useStore = create<StoreState>()(
 
       loadDesign: (design) => {
         gestureStart = null
-        set({ design, selectedId: null, activeSide: 'front' })
+        set({ design: migrateDesign(design), selectedId: null, activeSide: 'front' })
         useStore.temporal.getState().clear()
       },
 
@@ -502,6 +540,7 @@ export const useStore = create<StoreState>()(
           colorId: 'white',
           custom: null,
           layers: [],
+          stashedLayers: [],
           updatedAt: Date.now(),
         }
         set({ design: fresh, selectedId: null, activeSide: 'front' })

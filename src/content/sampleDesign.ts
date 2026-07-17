@@ -99,6 +99,9 @@ export function makeSampleDesign(): Design {
     colorId: 'black',
     custom: null,
     layers: [seal, arch, subline, napeBadge],
+    // Custom (ship-your-own) garment starts blank — design it fresh on the
+    // uploaded garment; the catalog design above is never forced onto it.
+    stashedLayers: [],
     updatedAt: Date.now(),
   }
 }
