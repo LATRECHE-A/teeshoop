@@ -7,6 +7,7 @@
  */
 import { DEFAULT_LANG, isLang, type Lang } from '@/i18n/lang'
 import { isSceneId, type SceneId } from '@/scenes'
+import type { Gender } from '@/lib/types'
 
 export type Theme = 'dark' | 'light'
 
@@ -16,6 +17,8 @@ export interface Prefs {
   scene: SceneId
   /** Show print-placement guides (zones + grid) in the 2D editor. */
   showGuides: boolean
+  /** Display-mannequin silhouette shared by the 3D worn preview + AR try-on. */
+  figureGender: Gender
 }
 
 export const PREFS_KEY = 'tshop:prefs'
@@ -25,6 +28,7 @@ export const DEFAULT_PREFS: Prefs = {
   lang: DEFAULT_LANG,
   scene: 'studio',
   showGuides: false,
+  figureGender: 'male',
 }
 
 export function loadPrefs(): Prefs {
@@ -37,6 +41,7 @@ export function loadPrefs(): Prefs {
       lang: isLang(p.lang) ? p.lang : DEFAULT_PREFS.lang,
       scene: isSceneId(p.scene) ? p.scene : DEFAULT_PREFS.scene,
       showGuides: p.showGuides === true,
+      figureGender: p.figureGender === 'female' ? 'female' : 'male',
     }
   } catch {
     return { ...DEFAULT_PREFS }

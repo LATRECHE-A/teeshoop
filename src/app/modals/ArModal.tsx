@@ -17,13 +17,12 @@ export default function ArModal() {
   const preview = useMockupUrl(design, 'front', 300)
 
   const [nonce, setNonce] = useState(0)
-  const [gender, setGender] = useState<Gender>('male')
+  // Shared with the 3D worn preview so the two always agree.
+  const gender = useStore((s) => s.figureGender)
+  const setGender = useStore((s) => s.setFigureGender)
   const [phase, setPhase] = useState<Phase>('working')
   const [qr, setQr] = useState<string | null>(null)
   const [url, setUrl] = useState('')
-  // The avatar (and its gender) only applies to catalog tee/hoodie; a custom
-  // ship-your-own garment shows the uploaded garment itself, no body.
-  const showGender = design.garmentId !== 'custom'
 
   // Bake the design onto the avatar, upload GLB+USDZ+poster to R2, then show a
   // QR of the SHORT /v/{id} URL (scannable + cross-device). Re-runs on retry.
@@ -89,7 +88,7 @@ export default function ArModal() {
         </div>
 
         <div className="flex flex-col gap-4">
-          {showGender && (
+          {(
             <div>
               <div className="panel-title mb-1.5">{t('ar.gender')}</div>
               <div className="flex gap-2">

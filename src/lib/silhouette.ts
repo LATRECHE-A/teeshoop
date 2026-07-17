@@ -428,6 +428,9 @@ export interface InflatedShell {
   /** Dark interior backing behind neck/arm holes; null when there are none. */
   interior: THREE.BufferGeometry | null
   depthIn: number
+  /** Alpha-content bbox size in inches (X/Y extent of the built sheets). */
+  contentWIn: number
+  contentHIn: number
 }
 
 /**
@@ -498,10 +501,14 @@ export function buildInflatedShell(
   const contentWin = (cW / m.W) * wIn
   const contentHin = (cH / m.H) * hIn
 
-  // Volume budget: a rounded, torso-centred dome. Z-only, so X/Y (inches) and
-  // UVs never move — inch accuracy and decal crispness are preserved exactly.
-  const bulge = THREE.MathUtils.clamp(contentWin * 0.14, 1.4, 4.2)
-  const bulgeBack = bulge * 0.8
+  // Volume budget: a torso-centred garment cross-section. Z-only, so X/Y
+  // (inches) and UVs never move — inch accuracy and decal crispness are
+  // preserved exactly. The back is markedly flatter than the chest (a worn
+  // garment's reverse drapes flat), which — together with the seamed edge
+  // profile and per-row medial depth below — reads as a real garment rather
+  // than a symmetric inflatable pillow.
+  const bulge = THREE.MathUtils.clamp(contentWin * 0.15, 1.4, 4.6)
+  const bulgeBack = bulge * 0.6
 
   // Normalise the distance field by its GLOBAL max so only the medial axis
   // reaches full height. The old clamp(dist / dTarget) saturated the entire
@@ -537,15 +544,22 @@ export function buildInflatedShell(
   const nRows = GY + 1
   const rowC = new Float32Array(nRows)
   const rowH = new Float32Array(nRows)
+  // Peak medial thickness (distance-to-edge) per row: large in the round body,
+  // small on the thin sleeves — so depth follows where the garment is actually
+  // thick (chest deep, sleeves/hem shallow) instead of a uniform inflated tube.
+  const rowThick = new Float32Array(nRows)
   for (let j = 0; j < nRows; j++) {
     const ry = Math.round(m.minY + (j / GY) * (cH - 1))
     const base = (ry + 1) * W2
     let lo = -1
     let hi = -1
+    let tk = 0
     for (let x = m.minX; x <= m.maxX; x++) {
       if (m.mask[base + x + 1]) {
         if (lo < 0) lo = x
         hi = x
+        const dv = dist[base + x + 1]
+        if (dv < 1e8 && dv > tk) tk = dv
       }
     }
     if (hi < 0) {
@@ -555,6 +569,7 @@ export function buildInflatedShell(
       rowC[j] = (lo + hi) / 2
       rowH[j] = Math.max(1, (hi - lo) / 2)
     }
+    rowThick[j] = tk
   }
 
   const smooth = (t: number): number => {
@@ -576,8 +591,17 @@ export function buildInflatedShell(
       const v = 1 - (m.minY + fy * cH) / m.H
       const rc = rowC[j]
       const rh = rowH[j]
-      // Fullest around mid-torso, eased toward hem/shoulders.
-      const bias = 0.82 + 0.18 * Math.sin(THREE.MathUtils.clamp(fy, 0, 1) * Math.PI)
+      // Vertical fullness: tuck the collar/shoulder (top ~14%) and hem (bottom
+      // ~10%) in Z and peak the fullness over the upper chest — a real tee is
+      // fullest at the chest and drapes flat at the shoulders and hem, unlike
+      // the old symmetric sin() that still puffed the very top/bottom edges.
+      const vTop = smooth(THREE.MathUtils.clamp(fy / 0.14, 0, 1))
+      const vBot = smooth(THREE.MathUtils.clamp((1 - fy) / 0.1, 0, 1))
+      const chest = 0.72 + 0.28 * Math.sin(THREE.MathUtils.clamp(fy / 0.8, 0, 1) * Math.PI)
+      const bias = chest * (0.55 + 0.45 * vTop * vBot)
+      // Peak depth follows how THICK the garment is at this row (chest deep,
+      // sleeves/hem shallow) so it stops reading as one uniform inflated tube.
+      const rowDepth = THREE.MathUtils.clamp(smooth(rowThick[j] / dMax / 0.65), 0.35, 1)
       for (let i = 0; i < cols; i++) {
         const fx = i / GX
         const imgX = m.minX + fx * (cW - 1)
@@ -585,15 +609,19 @@ export function buildInflatedShell(
         const nd = THREE.MathUtils.clamp(sampleDist(imgX, imgY) / dMax, 0, 1)
         const taper = smooth(nd / 0.34) // round every rim + hole down to 0
         const hx = THREE.MathUtils.clamp((imgX - rc) / rh, -1, 1)
-        const ellipse = Math.sqrt(Math.max(0, 1 - hx * hx)) // rounded cross-section
-        const z = amp * ellipse * taper * bias
+        // cos() reaches 0 at the edge with a FINITE slope (~57°), so the front
+        // and back panels meet at a garment SEAM instead of wrapping into each
+        // other tangentially (which is what read as a sealed air-pillow).
+        const cross = Math.cos(hx * (Math.PI / 2))
+        const z = amp * cross * taper * bias * rowDepth
         const k = (j * cols + i) * 3
         pos[k] = X
         pos[k + 1] = Y
         pos[k + 2] = z
-        // Free ambient occlusion baked to vertex colour: darken toward the
-        // silhouette edges + holes so the rim reads as a rounded seam/cavity.
-        const ao = 0.62 + 0.38 * smooth(nd / 0.5)
+        // Free ambient occlusion baked to vertex colour: darken toward holes /
+        // deep concavities. Floor raised so the whole silhouette rim no longer
+        // reads as a dark vignette (which reinforced the sealed-pillow look).
+        const ao = 0.75 + 0.25 * smooth(nd / 0.5)
         col[k] = ao
         col[k + 1] = ao
         col[k + 2] = ao
@@ -647,5 +675,5 @@ export function buildInflatedShell(
     interior = g
   }
 
-  return { front, back, interior, depthIn: bulge + bulgeBack }
+  return { front, back, interior, depthIn: bulge + bulgeBack, contentWIn: contentWin, contentHIn: contentHin }
 }

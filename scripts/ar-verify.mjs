@@ -154,8 +154,10 @@ try {
               garmentId: 'custom',
               custom: {
                 widthIn: 20,
+                // Two-sided so the custom-avatar BACK conformed decal (reversed
+                // winding) is exercised, not just the front.
                 front: { assetId: customId, useCutout: true, printArea: { xIn: 4, yIn: 5, wIn: 12, hIn: 14 } },
-                back: null,
+                back: { assetId: customId, useCutout: true, printArea: { xIn: 4, yIn: 5, wIn: 12, hIn: 14 } },
               },
             }
           : { ...base, garmentId: gid }

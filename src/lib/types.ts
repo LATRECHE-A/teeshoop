@@ -11,6 +11,8 @@ import type { SceneId } from '@/scenes'
 export type Side = 'front' | 'back' | 'sleeve'
 export type GarmentId = 'tee' | 'hoodie' | 'custom'
 export type CatalogGarmentId = Exclude<GarmentId, 'custom'>
+/** Display-mannequin silhouette for the 3D preview + AR try-on. */
+export type Gender = 'male' | 'female'
 
 export interface SizeIn {
   wIn: number

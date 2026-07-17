@@ -15,8 +15,9 @@
  * meshes use MeshStandardMaterial so the figure exports cleanly to GLB + USDZ.
  */
 import * as THREE from 'three'
+import type { Gender } from '@/lib/types'
 
-export type Gender = 'male' | 'female'
+export type { Gender }
 export type MannequinSide = 'front' | 'back'
 
 /** One horizontal slice of the torso: height y (in), half-widths in x and z. */

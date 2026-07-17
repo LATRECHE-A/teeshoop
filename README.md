@@ -53,10 +53,12 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
   studio: real garment meshes with a **cloth sheen**, canvas-texture decals of
   the live design, procedural studio lighting + soft contact shadows, orbit
   controls, camera snaps, turntable, and six environment scenes
-- Custom garments render as a **rounded, cloth-like body** — the uploaded photo
-  is inflated into a torso-centred dome (per-row half-ellipse cross-section +
-  distance-field depth, baked ambient occlusion, a woven-cloth normal grain, and
-  a hollow neck) so the design drapes over real volume instead of a flat card
+- Custom garments render as a **real, volumetric garment** — the uploaded photo
+  is inflated into a torso-centred body with a **seamed** cross-section (front
+  and back panels meet at a garment seam, not a sealed pillow), **chest-full**
+  depth that tapers over the shoulders and hem, per-row medial thickness (deep
+  body, shallow sleeves), baked ambient occlusion, a woven-cloth normal grain,
+  and a hollow neck — so it reads as a garment with volume, not a balloon
 
 | Custom garment (3D) | Hoodie (3D) |
 | --- | --- |
@@ -68,8 +70,11 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
   matte-gray display mannequin, **male or female** (switch in the modal), the
   garment **recoloured to your chosen colour** and the print placed on the chest,
   back and sleeves at the **same positions as the 2D/3D editor**. Ship-your-own
-  **custom garments render the customer's ACTUAL uploaded garment** (their photo,
-  inflated into volume, with the design on it) — not a stand-in tee. It exports to
+  **custom garments are WORN on the same male/female avatar** — the customer's
+  ACTUAL uploaded garment (photo + design) is draped onto the body as a
+  surface-conforming layer over a neutral undershirt, so it reads as a person
+  wearing exactly that garment (not a stand-in tee, and no longer a bare
+  floating shell). It exports to
   **glTF (GLB) + USDZ**, uploads to the blob store, and shows a **QR of a short
   link** (each gender bakes its own model, so its QR/link is distinct)
 - Because the model lives server-side, the QR is small (so it scans reliably) and
@@ -200,7 +205,8 @@ domain** (e.g. `studio.tshop.com`).
 - AR try-on avatar: AI-generated matte-gray display mannequins, male + female
   (Higgsfield image→3D) — `public/models/avatar-{tee,hoodie}{,-female}.glb`; a
   procedural mannequin (`src/three/mannequin.ts`) is the fallback. Custom garments
-  render the customer's own uploaded photo (no avatar). Flat sleeve art: procedural
+  are worn on the same avatar (recoloured to a neutral undershirt) with the
+  uploaded garment conformed onto the body. Flat sleeve art: procedural
 - U²-Net (u2netp) saliency model: Apache-2.0, via the rembg project
 - Fonts: Google Fonts via @fontsource (OFL/Apache-2.0)
 - Icon graphics: lucide (ISC)

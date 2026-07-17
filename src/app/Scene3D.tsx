@@ -51,8 +51,9 @@ function webglOk(): boolean {
   }
 }
 
-/** Decal texture ≈ this many px on its long edge. */
-const TEXTURE_TARGET_PX = 1400
+/** Decal texture ≈ this many px on its long edge. WebGL2 keeps non-POT +
+ *  mipmaps, so this need not be a power of two (unlike the AR bake). */
+const TEXTURE_TARGET_PX = 2048
 
 interface Sources {
   front: DecalSource | null

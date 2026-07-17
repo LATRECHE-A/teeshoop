@@ -28,6 +28,15 @@ export interface ModelCalibration {
   /** Fraction of the model bbox width that equals the laid-flat width. */
   widthFraction: number
   /**
+   * How much narrower the WORN garment is than laid-flat, applied to X/Z only
+   * (height/Y preserved). A laid-flat 21.5in tee wraps to a ~17in worn front —
+   * scaling the mesh girth to the laid-flat width over-inflated the torso ~20%,
+   * so a true-inch print read undersized (~56%) vs the physically-correct worn
+   * AR view (~72%). This narrows the girth to the worn width so the SAME true-
+   * inch print reads consistently in the 3D preview and AR. 1 = laid-flat.
+   */
+  wornFactor: number
+  /**
    * Extra per-side nudge of the decal center in inches (+down). Applied on
    * top of props.areaOffsetYIn to absorb model-vs-2D-art proportion drift
    * (e.g. the tee model torso is cropped shorter than a real 29in tee).
@@ -65,6 +74,10 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // ~29in) — the model is a slightly cropped/boxy fit. Width mapping stays
     // 1:1 with the bbox: sleeves hang down like the 2D art.
     widthFraction: 1.0,
+    // A 21.5in laid-flat tee is ~17in across the worn front; 0.80 narrows the
+    // girth to that so a 12in print reads ~0.67 of the visible torso (matching
+    // the worn AR avatar) instead of the over-inflated ~0.52.
+    wornFactor: 0.8,
     // The torso is ~0.83x the height of the 29in 2D art, so 2D print-area
     // offsets land too close to the collar; push down and use a slightly
     // deeper projector so the top decal rows survive the shoulder curvature.
@@ -86,6 +99,9 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // A-pose arms inflate the bbox; measured against the 12in grid decal,
     // 0.66 puts the body (pit-to-pit) at ~22in for a 23in laid-flat hoodie.
     widthFraction: 0.66,
+    // The hoodie is modeled loose/oversized already, so it needs less worn
+    // narrowing than the tee — 0.86 trims the boxy girth without over-slimming.
+    wornFactor: 0.86,
     // Keep prints clear of the hood: front sits between drawcords and pocket;
     // the back print must start BELOW the hanging hood or its projector
     // catches the hood's top fold (seen as smears from the front).

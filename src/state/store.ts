@@ -6,6 +6,7 @@ import type {
   CustomGarment,
   Design,
   GarmentId,
+  Gender,
   GraphicLayer,
   ImageLayer,
   Layer,
@@ -70,6 +71,8 @@ interface StoreState {
   scene: SceneId
   /** Print-placement guides (zones + grid) in the 2D editor. */
   showGuides: boolean
+  /** Display-mannequin silhouette for the 3D worn preview + AR try-on. */
+  figureGender: Gender
   /** Mobile: is the selection sheet expanded (vs the compact action bar)? */
   propsExpanded: boolean
   /** A canvas layer is being dragged — mobile hides the props sheet meanwhile. */
@@ -79,6 +82,7 @@ interface StoreState {
   setTheme(theme: Theme): void
   setLang(lang: Lang): void
   setScene(scene: SceneId): void
+  setFigureGender(g: Gender): void
   toggleGuides(): void
   /** Move (and fit) the selected layer into a named print zone. */
   placeInZone(zoneId: string): void
@@ -200,28 +204,33 @@ export const useStore = create<StoreState>()(
       lang: initialPrefs.lang,
       scene: initialPrefs.scene,
       showGuides: initialPrefs.showGuides,
+      figureGender: initialPrefs.figureGender,
       propsExpanded: false,
       dragging: false,
 
       setTheme: (theme) => {
         applyTheme(theme)
         set({ theme })
-        savePrefs({ theme, lang: get().lang, scene: get().scene, showGuides: get().showGuides })
+        savePrefs({ theme, lang: get().lang, scene: get().scene, showGuides: get().showGuides, figureGender: get().figureGender })
       },
       setLang: (lang) => {
         setCurrentLang(lang)
         applyLang(lang)
         set({ lang })
-        savePrefs({ theme: get().theme, lang, scene: get().scene, showGuides: get().showGuides })
+        savePrefs({ theme: get().theme, lang, scene: get().scene, showGuides: get().showGuides, figureGender: get().figureGender })
       },
       setScene: (scene) => {
         set({ scene })
-        savePrefs({ theme: get().theme, lang: get().lang, scene, showGuides: get().showGuides })
+        savePrefs({ theme: get().theme, lang: get().lang, scene, showGuides: get().showGuides, figureGender: get().figureGender })
+      },
+      setFigureGender: (figureGender) => {
+        set({ figureGender })
+        savePrefs({ theme: get().theme, lang: get().lang, scene: get().scene, showGuides: get().showGuides, figureGender })
       },
       toggleGuides: () => {
         const showGuides = !get().showGuides
         set({ showGuides })
-        savePrefs({ theme: get().theme, lang: get().lang, scene: get().scene, showGuides })
+        savePrefs({ theme: get().theme, lang: get().lang, scene: get().scene, showGuides, figureGender: get().figureGender })
       },
       placeInZone: (zoneId) => {
         const s = get()

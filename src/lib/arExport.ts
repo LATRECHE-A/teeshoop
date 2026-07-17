@@ -29,19 +29,22 @@ import * as THREE from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { USDZExporter } from 'three/examples/jsm/exporters/USDZExporter.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import type { CatalogGarmentId, Design, Side } from '@/lib/types'
+import type { CatalogGarmentId, Design, Gender, Side } from '@/lib/types'
 import { areaOffsetYIn, garmentColorHex, getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { buildInflatedShell, canvasToSilhouette } from '@/lib/silhouette'
 import { GARMENTS } from '@/garments'
 import { CALIBRATION } from '@/three/calibration'
-import { buildMannequin, type Gender, type MannequinSide } from '@/three/mannequin'
+import { buildMannequin, type MannequinSide } from '@/three/mannequin'
+import { canvasTexture, MAX_TEX, nearestPow2, potCanvas } from '@/three/arTexture'
 
-const TARGET_PX = 1400 // decal render density (matches the 3D preview)
+// Author decals at a power of two so potCanvas keeps full resolution (1400 was
+// silently snapped down to 1024). Sleeves stay 1024 to bound texture memory.
+const TARGET_PX = 2048 // main-decal render density
+const SLEEVE_TARGET_PX = 1024
 const GAP_BELOW_COLLAR = 2.6 // in, mannequin print top under the neckline
 const DECAL_LIFT = 0.22 // in, above the fabric surface (geometric; replaces polygonOffset)
 const DECAL_BEND_MAX = THREE.MathUtils.degToRad(58)
 const INCH_TO_M = 0.0254 // glTF + USDZ are metres; author in inches, scale root once.
-const MAX_TEX = 2048 // Scene Viewer texture ceiling
 
 export type { Gender }
 
@@ -56,35 +59,6 @@ interface Disposable {
 }
 
 // ------------------------------------------------------------------ textures
-
-/** Nearest power-of-two (mobile GPUs mip cleanly only on POT). */
-function nearestPow2(n: number): number {
-  return Math.pow(2, Math.round(Math.log2(Math.max(1, n))))
-}
-
-/** Redraw a canvas at power-of-two dimensions (≤ MAX_TEX) for Filament/Quick Look. */
-function potCanvas(src: HTMLCanvasElement): HTMLCanvasElement {
-  const w = Math.min(MAX_TEX, Math.max(64, nearestPow2(src.width)))
-  const h = Math.min(MAX_TEX, Math.max(64, nearestPow2(src.height)))
-  if (w === src.width && h === src.height) return src
-  const c = document.createElement('canvas')
-  c.width = w
-  c.height = h
-  const ctx = c.getContext('2d')
-  if (!ctx) return src
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(src, 0, 0, w, h)
-  return c
-}
-
-function canvasTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
-  const tex = new THREE.CanvasTexture(potCanvas(canvas))
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = 8
-  tex.needsUpdate = true
-  return tex
-}
 
 /**
  * Print material: alphaMode MASK. transparent:false + alphaTest makes the
@@ -106,7 +80,8 @@ function decalMaterial(tex: THREE.Texture): THREE.MeshStandardMaterial {
 async function renderSide(design: Design, side: Side): Promise<HTMLCanvasElement | null> {
   if (sideLayers(design, side).length === 0) return null
   const area = getAreaSizeIn(design, side)
-  const ppi = TARGET_PX / Math.max(area.wIn, area.hIn)
+  const target = side === 'sleeve' ? SLEEVE_TARGET_PX : TARGET_PX
+  const ppi = target / Math.max(area.wIn, area.hIn)
   return renderPrintArea(design, side, ppi).catch(() => null)
 }
 
@@ -211,8 +186,12 @@ async function buildCatalogFigure(
   const size = box0.getSize(new THREE.Vector3())
   const center = box0.getCenter(new THREE.Vector3())
   geometry.translate(-center.x, -center.y, -center.z)
-  const scale = widthIn / (size.x * calib.widthFraction)
-  geometry.scale(scale, scale, scale)
+  // Narrow the girth (X/Z) to the WORN width, keep height (Y), so a true-inch
+  // decal reads the same fraction of the garment as the AR avatar (not the
+  // over-inflated laid-flat girth). Height is preserved → placement unchanged.
+  const yScale = widthIn / (size.x * calib.widthFraction)
+  const xzScale = yScale * calib.wornFactor
+  geometry.scale(xzScale, yScale, xzScale)
   geometry.computeBoundingBox()
 
   const srcMat = (Array.isArray(src.material) ? src.material[0] : src.material) as THREE.MeshStandardMaterial
@@ -346,14 +325,23 @@ const AVATAR_URL: Record<Gender, Record<CatalogGarmentId, string>> = {
 
 const AVATAR = {
   heightIn: 68, // normalise to a life-size figure
-  // The garment's VISUAL centre (the 2D-art centre) as a fraction of body
-  // height. Front/back prints then sit at this centre ∓ the SHARED
-  // areaOffsetYIn, so they land at the same relative height as in 2D/3D.
-  garmentCenterFrac: 0.72,
   // Usable flat front width as a fraction of the torso's full width — the print
   // is drawn at its TRUE inch size and only shrinks if it would overhang this.
-  frontArcFrac: 0.86,
+  frontArcFrac: 0.9,
   sleeveFrac: 0.75, // upper-arm height for the sleeve print
+}
+
+/**
+ * The worn garment's VISUAL centre as a fraction of body height, per gender ×
+ * garment — MEASURED from each avatar GLB's garment band (chroma-key green
+ * vertex scan, collar/hem percentiles). Front/back prints sit at this centre ∓
+ * the SHARED areaOffsetYIn, so they land at the SAME garment-relative height as
+ * the 2D editor and 3D preview. Replaces the single 0.72 guess, which sat ~3in
+ * too high and crowded the print into the collar.
+ */
+const GARMENT_CENTER_FRAC: Record<Gender, Record<CatalogGarmentId, number>> = {
+  male: { tee: 0.676, hoodie: 0.688 },
+  female: { tee: 0.666, hoodie: 0.666 },
 }
 
 /**
@@ -447,8 +435,9 @@ async function buildAvatarFigure(
   const disposables: Disposable[] = [geometry, material]
   if (baseMap) disposables.push(baseMap)
 
-  // The garment's 2D-art centre maps to this absolute height on the figure.
-  const garmentCenterY = AVATAR.heightIn * AVATAR.garmentCenterFrac
+  // The garment's 2D-art centre maps to this absolute height on the figure —
+  // measured per (gender, garment) so the print lands mid-chest, not at the neck.
+  const garmentCenterY = AVATAR.heightIn * GARMENT_CENTER_FRAC[gender][garment]
 
   // Front / back — TRUE inch size (fit-clamped to the torso), placed per-side at
   // garmentCentre ∓ areaOffsetYIn so the worn print matches the 2D editor and
@@ -526,14 +515,202 @@ function blankBackCanvas(front: HTMLCanvasElement): HTMLCanvasElement {
   return c
 }
 
+// ---------------------------------------------------------------- custom, worn on the avatar
+
+const CUSTOM_UNDERSHIRT_HEX = '#d3cec3' // neutral body/undershirt tone under the garment
+
 /**
- * The customer's OWN uploaded garment in AR — the exact same inflated "pillow"
- * the studio 3D preview builds (src/three/ExtrudedGarment via silhouette.ts):
- * the garment photo + design composited on the front cap, bulged from the
- * cutout alpha — but with Scene-Viewer-safe materials (MeshStandardMaterial,
- * alpha MASK, indexed geometry, POT textures). Falls back to a gently curved
- * double-sided card when the upload has no clean cutout to extrude. Throws when
- * there is no usable custom side so buildArModel degrades to the mannequin.
+ * A garment-shaped plane that HUGS the avatar torso: a subdivided plane whose
+ * every vertex is raycast onto the body surface (both the horizontal AND the
+ * vertical curve), lifted just proud. Misses (the garment overhanging the torso)
+ * fall back to the centre-column surface at that height, so the garment drapes
+ * over the sides instead of clipping into the body or floating flat.
+ */
+function buildConformedDecal(
+  wIn: number,
+  hIn: number,
+  cyIn: number,
+  target: THREE.BufferGeometry,
+  side: Side,
+  liftIn: number,
+): THREE.BufferGeometry {
+  const geo = new THREE.PlaneGeometry(wIn, hIn, 24, 36)
+  geo.translate(0, cyIn, 0)
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  const mesh = new THREE.Mesh(target, PROBE_MATERIAL)
+  const ray = new THREE.Raycaster()
+  const sign = side === 'front' ? 1 : -1
+  const box = target.boundingBox as THREE.Box3
+  const fallbackZ = sign * Math.abs(box.max.z) * 0.55
+  const probe = (x: number, y: number): number | null => {
+    ray.set(new THREE.Vector3(x, y, sign * 1000), new THREE.Vector3(0, 0, -sign))
+    const hits = ray.intersectObject(mesh, false)
+    return hits.length ? hits[0].point.z : null
+  }
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i)
+    const y = pos.getY(i)
+    const z = probe(x, y) ?? probe(0, y) ?? fallbackZ
+    pos.setZ(i, z + sign * liftIn)
+  }
+  pos.needsUpdate = true
+  if (side === 'back') {
+    // The plane winds +Z, so displacing only Z leaves the (single-sided) front
+    // face pointing +Z — INTO the body — and the rear viewer sees a culled back
+    // face. Reverse the triangle winding so the FrontSide points −Z (toward the
+    // rear), and mirror the UVs (u→1−u) so the back print reads correctly from
+    // behind — the parity the catalog/avatar decals get from rotation.y = π
+    // (which we can't use here: the geometry already carries absolute −Z depth).
+    const idx = geo.index
+    if (idx) {
+      const a = idx.array
+      for (let i = 0; i < a.length; i += 3) {
+        const t = a[i + 1]
+        a[i + 1] = a[i + 2]
+        a[i + 2] = t
+      }
+      idx.needsUpdate = true
+    }
+    const uv = geo.attributes.uv as THREE.BufferAttribute
+    for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i))
+    uv.needsUpdate = true
+  }
+  geo.computeVertexNormals()
+  geo.computeBoundingSphere()
+  return geo
+}
+
+/**
+ * Central fraction of a laid-flat garment composite that is the BODY (not the
+ * spread sleeves): body width (median of the lower rows = waist/hem) ÷ max width
+ * (chest + sleeves). Cropping the decal to this drops the sleeves — which would
+ * otherwise project as flat flaps off an arms-down body — so the avatar's own
+ * neutral sleeves show there instead. ~1 for a sleeveless/rectangular upload.
+ */
+function bodyCropFraction(canvas: HTMLCanvasElement): number {
+  const W = 120
+  const H = Math.max(2, Math.round((canvas.height / canvas.width) * W))
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const ctx = c.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return 1
+  ctx.drawImage(canvas, 0, 0, W, H)
+  const d = ctx.getImageData(0, 0, W, H).data
+  const widths: number[] = []
+  let maxW = 0
+  for (let y = 0; y < H; y++) {
+    let lo = -1
+    let hi = -1
+    for (let x = 0; x < W; x++) {
+      if (d[(y * W + x) * 4 + 3] > 80) {
+        if (lo < 0) lo = x
+        hi = x
+      }
+    }
+    const w = hi >= 0 ? hi - lo + 1 : 0
+    widths.push(w)
+    if (w > maxW) maxW = w
+  }
+  if (maxW <= 0) return 1
+  const lower = widths.slice(Math.floor(H * 0.45)).filter((w) => w > 0).sort((a, b) => a - b)
+  if (!lower.length) return 1
+  const bodyW = lower[Math.floor(lower.length / 2)]
+  return THREE.MathUtils.clamp((bodyW / maxW) * 1.12, 0.5, 1)
+}
+
+/**
+ * The customer's OWN uploaded garment, WORN on a realistic avatar — the primary
+ * custom AR path. The gendered avatar's own garment is recoloured to a neutral
+ * undershirt tone (the "body"), and the uploaded garment (photo + design,
+ * composited through the SHARED renderer) is projected onto the torso as a
+ * body-conforming decal at its TRUE inch size, centred on the worn-garment band.
+ * Outside the garment's silhouette the neutral body shows, so it reads as a
+ * person wearing exactly the uploaded garment. Scene-Viewer-safe throughout.
+ */
+async function buildCustomAvatarFigure(
+  design: Design,
+  gender: Gender,
+): Promise<{ figure: THREE.Group; disposables: Disposable[] }> {
+  const hasFront = !!design.custom?.front
+  const hasBack = !!design.custom?.back
+  if (!hasFront && !hasBack) throw new Error('custom garment has no sides')
+  const widthIn = design.custom?.widthIn ?? 20
+
+  const url = AVATAR_URL[gender].tee // a generic body in a plain tee
+  const gltf = await new GLTFLoader().loadAsync(url)
+  gltf.scene.updateMatrixWorld(true)
+  const src = firstMesh(gltf.scene)
+  if (!src) throw new Error(`No mesh in ${url}`)
+
+  const geometry = src.geometry.clone()
+  geometry.applyMatrix4(src.matrixWorld)
+  geometry.computeBoundingBox()
+  const box = geometry.boundingBox as THREE.Box3
+  const size = box.getSize(new THREE.Vector3())
+  const center = box.getCenter(new THREE.Vector3())
+  geometry.translate(-center.x, -box.min.y, -center.z)
+  geometry.scale(AVATAR.heightIn / size.y, AVATAR.heightIn / size.y, AVATAR.heightIn / size.y)
+  geometry.computeBoundingBox()
+
+  sanitizeGarmentGeometry(geometry, true)
+  const srcMat = (Array.isArray(src.material) ? src.material[0] : src.material) as THREE.MeshStandardMaterial
+  const baseMap = srcMat.map ? buildGarmentTexture(srcMat.map, CUSTOM_UNDERSHIRT_HEX) : null
+  const material = new THREE.MeshStandardMaterial({
+    map: baseMap,
+    color: baseMap ? 0xffffff : new THREE.Color(CUSTOM_UNDERSHIRT_HEX),
+    roughness: 0.92,
+    metalness: 0,
+  })
+  const avatarMesh = new THREE.Mesh(geometry, material)
+
+  const figure = new THREE.Group()
+  figure.add(avatarMesh)
+  const disposables: Disposable[] = [geometry, material]
+  if (baseMap) disposables.push(baseMap)
+
+  // The uploaded garment's visual centre → the same worn band the catalog uses.
+  const garmentCenterY = AVATAR.heightIn * GARMENT_CENTER_FRAC[gender].tee
+
+  // Which composite faces forward vs back (a back-only upload faces forward).
+  const plan: { side: Side; src: Side }[] = hasFront
+    ? [{ side: 'front', src: 'front' }, ...(hasBack ? [{ side: 'back' as Side, src: 'back' as Side }] : [])]
+    : [{ side: 'front', src: 'back' }]
+
+  // Crop the sleeves once (from the forward composite) so they don't flap.
+  const firstCanvas = await renderMockup(design, plan[0].src, 1100)
+  const cropFrac = bodyCropFraction(firstCanvas)
+  for (const { side, src: srcSide } of plan) {
+    const canvas = srcSide === plan[0].src ? firstCanvas : await renderMockup(design, srcSide, 1100)
+    const gW = widthIn * cropFrac
+    const gH = (widthIn * canvas.height) / canvas.width // height is unchanged by the horizontal crop
+    let useCanvas = canvas
+    if (cropFrac < 0.98) {
+      const cw = Math.max(2, Math.round(canvas.width * cropFrac))
+      const cx = Math.round((canvas.width - cw) / 2)
+      const cc = document.createElement('canvas')
+      cc.width = cw
+      cc.height = canvas.height
+      cc.getContext('2d')?.drawImage(canvas, cx, 0, cw, canvas.height, 0, 0, cw, canvas.height)
+      useCanvas = cc
+    }
+    const geo = buildConformedDecal(gW, gH, garmentCenterY, geometry, side, DECAL_LIFT * 2)
+    const tex = canvasTexture(useCanvas)
+    const mat = decalMaterial(tex)
+    disposables.push(geo, tex, mat)
+    figure.add(new THREE.Mesh(geo, mat))
+  }
+
+  figure.position.y = -(geometry.boundingBox as THREE.Box3).min.y
+  return { figure, disposables }
+}
+
+/**
+ * The customer's OWN uploaded garment as a bare inflated "pillow" (no body) —
+ * the fallback when the avatar can't load. Same shell the studio 3D preview
+ * builds (silhouette.ts): garment photo + design on the front cap, bulged from
+ * the cutout alpha, Scene-Viewer-safe. Falls back again to a curved card when
+ * the upload has no clean cutout. Throws when there is no usable custom side.
  */
 async function buildCustomFigure(
   design: Design,
@@ -625,12 +802,17 @@ async function buildCustomFigure(
 export async function buildArModel(design: Design, gender: Gender): Promise<ArModelBlobs> {
   let built: { figure: THREE.Group; disposables: Disposable[] }
   if (design.garmentId === 'custom') {
-    // Custom (ship-your-own): render the customer's ACTUAL uploaded garment, not
-    // the tee avatar. Degrade to the procedural mannequin if the shell fails.
+    // Custom (ship-your-own): the customer's ACTUAL uploaded garment WORN on a
+    // realistic male/female avatar. Degrade to the bare inflated shell, then the
+    // procedural mannequin, if the avatar / cutout can't be built.
     try {
-      built = await buildCustomFigure(design)
+      built = await buildCustomAvatarFigure(design, gender)
     } catch {
-      built = await buildMannequinFigure(design, gender)
+      try {
+        built = await buildCustomFigure(design)
+      } catch {
+        built = await buildMannequinFigure(design, gender)
+      }
     }
   } else {
     // Catalog (tee/hoodie): a gendered figure wearing the garment; fall back to

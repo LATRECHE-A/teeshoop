@@ -164,30 +164,38 @@ export interface CustomGarmentProps {
   onMeasured?: (heightIn: number) => void
 }
 
-/** Inflated shell when the cutout allows it, else the curved card. */
+/**
+ * The uploaded garment shown as a real, volumetric 3D garment: the reshaped
+ * inflated shell (silhouette.ts) — a seamed, chest-full, shoulder/hem-tucked
+ * body, no longer a symmetric balloon. Prominent and clear for editing; the AR
+ * try-on then shows the same garment WORN on a body. Falls back to the curved
+ * card when the upload has no clean cutout.
+ */
 export function CustomGarment({ front, back, envIntensity = 1, onMeasured }: CustomGarmentProps) {
-  const primary = front ?? back
-  const wIn = front?.wIn ?? primary?.wIn ?? 20
-  const hIn = front?.hIn ?? primary?.hIn ?? 24
-  const shell = useInflatedShell(front, wIn, hIn)
+  // A back-only upload faces FORWARD (parity with 2D / poster / AR), never a
+  // blank front card.
+  const fwd = front ?? back
+  const rev = front ? back : null
+  const wIn = fwd?.wIn ?? 20
+  const hIn = fwd?.hIn ?? 24
+  const shell = useInflatedShell(fwd, wIn, hIn)
 
-  // DEV probe (see Stage.tsx __pose) — which representation is live.
   useEffect(() => {
     if (import.meta.env.DEV)
-      (window as unknown as { __custom3d?: string }).__custom3d = shell && front ? 'inflate' : 'card'
-  }, [shell, front])
+      (window as unknown as { __custom3d?: string }).__custom3d = shell && fwd ? 'inflate' : 'card'
+  }, [shell, fwd])
 
-  if (shell && front) {
+  if (shell && fwd) {
     return (
       <ExtrudedGarment
         shell={shell}
-        front={front}
-        back={back}
+        front={fwd}
+        back={rev}
         envIntensity={envIntensity}
-        heightIn={Math.max(hIn, back?.hIn ?? hIn)}
+        heightIn={Math.max(hIn, rev?.hIn ?? hIn)}
         onMeasured={onMeasured}
       />
     )
   }
-  return <CustomCard front={front} back={back} envIntensity={envIntensity} onMeasured={onMeasured} />
+  return <CustomCard front={fwd} back={rev} envIntensity={envIntensity} onMeasured={onMeasured} />
 }

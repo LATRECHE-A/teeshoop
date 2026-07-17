@@ -53,8 +53,13 @@ function useNormalizedGarment(garment: CatalogGarmentId, garmentWidthIn: number)
     const size = box.getSize(new THREE.Vector3())
     const center = box.getCenter(new THREE.Vector3())
     geometry.translate(-center.x, -center.y, -center.z)
-    const scale = garmentWidthIn / (size.x * calib.widthFraction)
-    geometry.scale(scale, scale, scale)
+    // Narrow the girth (X/Z) to the WORN width, keeping height (Y): mapping the
+    // laid-flat width onto the worn torso over-inflated the girth ~20%, so a
+    // true-inch print read undersized vs the worn AR avatar. Height is
+    // preserved → areaOffsetYIn/decalNudge, Floor and camera framing unchanged.
+    const yScale = garmentWidthIn / (size.x * calib.widthFraction)
+    const xzScale = yScale * calib.wornFactor
+    geometry.scale(xzScale, yScale, xzScale)
     geometry.computeBoundingBox()
     geometry.computeBoundingSphere()
 
@@ -80,8 +85,8 @@ function useNormalizedGarment(garment: CatalogGarmentId, garmentWidthIn: number)
     return {
       geometry,
       material,
-      heightIn: size.y * scale,
-      depthIn: size.z * scale,
+      heightIn: size.y * yScale,
+      depthIn: size.z * xzScale,
     }
   }, [gltf, calib, garmentWidthIn])
 
@@ -136,14 +141,27 @@ function PrintDecal({ geometry, garment, side, source, offsetYIn }: PrintDecalPr
 
   const placement = useMemo(() => {
     const y = -(offsetYIn + calib.decalNudgeYIn[side])
-    const depth = Math.max(source.wIn * calib.decalDepthFraction, 0.8)
-    const surfaceZ = probeSurfaceZ(geometry, 0, y, side)
-    // Bias the thin projection box toward the garment interior so surface
-    // that curves away at the decal edges is still inside the box, while the
-    // box stays far too shallow to ever reach the opposite side.
-    const z = side === 'front' ? surfaceZ - depth * calib.decalInset : surfaceZ + depth * calib.decalInset
-    return { y, z, depth }
-  }, [geometry, side, offsetYIn, source.wIn, calib])
+    const hw = source.wIn / 2
+    const hh = source.hIn / 2
+    // Probe the surface Z across the WHOLE print footprint (centre + the four
+    // mid-edges), not just the centre: a tall print spans the torso's vertical
+    // curvature, so a width-only box clipped its top/bottom rows. The box must
+    // span [zMin,zMax] of the footprint so every row projects.
+    const zs = [
+      probeSurfaceZ(geometry, 0, y, side),
+      probeSurfaceZ(geometry, -hw, y, side),
+      probeSurfaceZ(geometry, hw, y, side),
+      probeSurfaceZ(geometry, 0, y + hh, side),
+      probeSurfaceZ(geometry, 0, y - hh, side),
+    ]
+    const zMin = Math.min(...zs)
+    const zMax = Math.max(...zs)
+    const halfDepth = Math.abs((geometry.boundingBox as THREE.Box3).max.z)
+    // Clamp the box depth to < 0.55·halfDepth so a front box never reaches the
+    // back hemisphere (which would bleed the front print through to the back).
+    const depth = THREE.MathUtils.clamp(zMax - zMin + 1.0, 0.8, 0.55 * halfDepth)
+    return { y, z: (zMin + zMax) / 2, depth }
+  }, [geometry, side, offsetYIn, source.wIn, source.hIn, calib])
 
   if (!texture) return null
   return (

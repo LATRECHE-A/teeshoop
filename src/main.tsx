@@ -19,6 +19,10 @@ if (import.meta.env.DEV) {
   // custom AR path (inflated shell) is exercised, not just the mannequin fallback.
   ;(window as unknown as { __assets?: () => Promise<typeof import('@/state/assets')> }).__assets = () =>
     import('@/state/assets')
+  // Lets scripts/parity-verify.mjs call the SHARED renderer (the 2D truth) to
+  // measure 2D-vs-3D-vs-AR print size/placement parity.
+  ;(window as unknown as { __render?: () => Promise<typeof import('@/lib/renderDesign')> }).__render = () =>
+    import('@/lib/renderDesign')
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
