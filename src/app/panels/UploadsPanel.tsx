@@ -29,13 +29,23 @@ export function useAssetThumb(id: string): string | null {
   return src
 }
 
+/** MIME-ish type carrying an asset id through an HTML5 drag to the canvas. */
+export const ASSET_DRAG_TYPE = 'application/x-tshop-asset'
+
 export function AssetThumb({ asset, onPick }: { asset: AssetMeta; onPick: () => void }) {
   const t = useT()
   const src = useAssetThumb(asset.id)
   return (
     <button
       onClick={onPick}
-      className="checkerboard relative aspect-square overflow-hidden rounded-lg border border-line transition-colors hover:border-cy/60"
+      draggable
+      onDragStart={(e) => {
+        // Drag straight onto the canvas: EditorCanvas reads this id and drops
+        // the image into the hovered placement zone (or at the pointer).
+        e.dataTransfer.setData(ASSET_DRAG_TYPE, asset.id)
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      className="checkerboard relative aspect-square cursor-grab overflow-hidden rounded-lg border border-line transition-colors hover:border-cy/60"
       title={t('uploads.add_thumb', { name: asset.name })}
     >
       {src && <img src={src} alt={asset.name} className="h-full w-full object-contain" draggable={false} />}

@@ -1,4 +1,5 @@
-import { FolderOpen, Redo2, Save, Share2, Undo2 } from 'lucide-react'
+import { useState } from 'react'
+import { FolderOpen, Layers, PackagePlus, Redo2, Save, Share2, ShoppingBag, Undo2, Wrench } from 'lucide-react'
 import { Brand } from './Brand'
 import ModeToggle from './ModeToggle'
 import ThemeToggle from './ThemeToggle'
@@ -6,14 +7,19 @@ import LangToggle from './LangToggle'
 import { redo, undo, useHistoryDepth, useStore } from '@/state/store'
 import { renderAndSave } from '@/state/persist'
 import { useT } from '@/i18n'
+import { useBasketT } from './modals/basketI18n'
 
 export default function TopBar() {
   const design = useStore((s) => s.design)
   const renameDesign = useStore((s) => s.renameDesign)
   const openModal = useStore((s) => s.openModal)
   const toast = useStore((s) => s.toast)
+  // Garments in the basket (quantity-weighted) — the badge count.
+  const basketCount = useStore((s) => s.basket.reduce((n, l) => n + l.qty, 0))
   const { canUndo, canRedo } = useHistoryDepth()
+  const [adminOpen, setAdminOpen] = useState(false)
   const t = useT()
+  const bt = useBasketT()
 
   const saveNow = async () => {
     try {
@@ -57,6 +63,45 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-1.5">
+        {/* Admin tools: DTF gang sheets + product ingest (desktop only) */}
+        <div className="relative hidden sm:block">
+          <button
+            className="iconbtn"
+            aria-label={t('admin.menu')}
+            aria-expanded={adminOpen}
+            title={t('admin.menu')}
+            onClick={() => setAdminOpen((v) => !v)}
+          >
+            <Wrench size={15} />
+          </button>
+          {adminOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setAdminOpen(false)} />
+              <div className="absolute right-0 top-10 z-40 w-56 rounded-lg border border-line bg-bg1 p-1 shadow-xl">
+                <button
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12.5px] text-tx transition-colors hover:bg-bg3"
+                  onClick={() => {
+                    setAdminOpen(false)
+                    openModal('dtf')
+                  }}
+                >
+                  <Layers size={14} className="text-cy" />
+                  {t('admin.dtf')}
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12.5px] text-tx transition-colors hover:bg-bg3"
+                  onClick={() => {
+                    setAdminOpen(false)
+                    openModal('adminIngest')
+                  }}
+                >
+                  <PackagePlus size={14} className="text-cy" />
+                  {t('admin.products')}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <button className="btn btn-ghost hidden sm:inline-flex" onClick={() => openModal('designs')}>
           <FolderOpen size={15} />
           <span className="hidden lg:inline">{t('topbar.my_designs')}</span>
@@ -64,6 +109,20 @@ export default function TopBar() {
         <button className="btn btn-ghost hidden sm:inline-flex" onClick={saveNow} aria-label={t('topbar.save_design')}>
           <Save size={15} />
           <span className="hidden lg:inline">{t('common.save')}</span>
+        </button>
+        <button
+          className="btn btn-ghost relative"
+          onClick={() => openModal('basket')}
+          aria-label={bt('basket.open')}
+          title={basketCount > 0 ? bt('basket.count', { n: basketCount }) : bt('basket.open')}
+        >
+          <ShoppingBag size={15} />
+          <span className="hidden lg:inline">{bt('basket.title')}</span>
+          {basketCount > 0 && (
+            <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-cy px-1 text-center text-[10px] font-bold leading-4 text-bg0">
+              {basketCount > 99 ? '99+' : basketCount}
+            </span>
+          )}
         </button>
         <button className="btn" onClick={() => openModal('share')}>
           <Share2 size={15} />

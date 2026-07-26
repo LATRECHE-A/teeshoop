@@ -191,6 +191,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
                 garment={garment}
                 colorHex={props.colorHex}
                 garmentWidthIn={props.garmentWidthIn}
+                sizeId={props.sizeId}
                 front={props.front}
                 back={props.back}
                 sleeve={props.sleeve}

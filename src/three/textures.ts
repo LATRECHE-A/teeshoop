@@ -38,6 +38,26 @@ export function useSourceTexture(src: SourceLike | null | undefined): THREE.Canv
 }
 
 /**
+ * Wrap a generated tangent-space normal-map canvas (e.g. the photo-wrinkle map
+ * from `buildWrinkleNormalCanvas` / `InflatedShell.normalMapCanvas`) as a
+ * texture. Normal maps are raw linear data — NoColorSpace, flipY like the
+ * photo it was derived from so texels stay aligned with the color map.
+ */
+export function useNormalMapTexture(canvas: HTMLCanvasElement | null | undefined): THREE.CanvasTexture | null {
+  const tex = useMemo(() => {
+    if (!canvas) return null
+    const t = new THREE.CanvasTexture(canvas)
+    t.colorSpace = THREE.NoColorSpace
+    t.anisotropy = 4
+    t.flipY = true
+    t.needsUpdate = true
+    return t
+  }, [canvas])
+  useEffect(() => () => tex?.dispose(), [tex])
+  return tex
+}
+
+/**
  * A texture of the source's ALPHA SILHOUETTE flooded with a solid color
  * (used for the blank reverse + thickness rim of custom-garment cards).
  * Redraws when the source version bumps.

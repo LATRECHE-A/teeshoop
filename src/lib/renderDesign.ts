@@ -7,6 +7,7 @@
 import type { CatalogGarmentId, Design, GraphicLayer, ImageLayer, Layer, Side, SizeIn } from '@/lib/types'
 import { GARMENT_VIEW } from '@/lib/types'
 import { GARMENTS } from '@/garments'
+import { SIZE_CHARTS, sizeScale, type SizeId } from '@/content/sizeChart'
 import { GRAPHICS } from '@/content/graphics'
 import { GARMENT_COLORS } from '@/content/palettes'
 import { ensureFont } from '@/lib/fonts'
@@ -15,18 +16,26 @@ import { ensureRaster, getRaster, sizeBucket, withSvgSize } from '@/lib/rasterCa
 import { drawTextLayer, getMeasureCtx, measureTextLayer } from '@/lib/textRender'
 import { getCustomSideInfo, getCachedCustomImage } from '@/lib/custom'
 import { degToRad } from '@/lib/units'
+import { printScaleK, scaleAreaIn, scaleLayers } from '@/lib/printScale'
 
 export function sideLayers(design: Design, side: Side): Layer[] {
   return design.layers.filter((l) => l.side === side)
 }
 
-export function getAreaSizeIn(design: Design, side: Side): SizeIn {
+/**
+ * Print-area size in inches. With a `size`, the area is GRADED by the design's
+ * print-scale factor — a 3XL really does have more printable width than an S,
+ * and artwork stored at the base size scales into it by the same factor, so the
+ * design keeps the same relative footprint on every size.
+ */
+export function getAreaSizeIn(design: Design, side: Side, size?: SizeId): SizeIn {
+  const k = printScaleK(design, size)
   if (design.garmentId === 'custom') {
     // Custom (ship-your-own) garments are front/back only — no sleeve.
     const area = side === 'sleeve' ? undefined : design.custom?.[side]?.printArea
-    return area ? { wIn: area.wIn, hIn: area.hIn } : { wIn: 12, hIn: 16 }
+    return scaleAreaIn(area ? { wIn: area.wIn, hIn: area.hIn } : { wIn: 12, hIn: 16 }, k)
   }
-  return GARMENTS[design.garmentId].printAreasIn[side]
+  return scaleAreaIn(GARMENTS[design.garmentId].printAreasIn[side], k)
 }
 
 export function garmentColorHex(design: Design): string {
@@ -41,11 +50,61 @@ export function garmentColorHex(design: Design): string {
  * 2D editor, the 3D preview and the AR export all place front vs back at the
  * SAME height (front and back sit at different heights on the body). Single
  * source of truth — 3D (Scene3D) and AR (arExport) both import this.
+ *
+ * With a `size`, accounts for the garment scaling about its collar anchor
+ * (print placement is collar-anchored, so the print-area centre shifts relative
+ * to the garment's visual centre as the body scales). Omitting `size` keeps the
+ * historical nominal-size value.
+ *
+ * `k` is the print grading factor (src/lib/printScale.ts). At k = 1 the print
+ * area keeps its authored position — a size-invariant drop below the collar. At
+ * k ≠ 1 the area is scaled about the SAME collar anchor the art uses, so the
+ * whole composition (drop below collar and area size alike) grades together and
+ * every size reads identically.
  */
-export function areaOffsetYIn(garment: CatalogGarmentId, side: Side): number {
+export function areaOffsetYIn(
+  garment: CatalogGarmentId,
+  side: Side,
+  size?: SizeId,
+  k = 1,
+): number {
   const art = GARMENTS[garment]
   const a = art.sides[side].printAreaPx
-  return (a.y + a.h / 2 - GARMENT_VIEW / 2) / art.pxPerInch
+  const anchorY = art.sides[side].collarPx.y
+  const printCenterY = anchorY + (a.y + a.h / 2 - anchorY) * k
+  if (!size || size === SIZE_CHARTS[garment].nominal)
+    return (printCenterY - GARMENT_VIEW / 2) / art.pxPerInch
+  const s = sizeScale(garment, size)
+  const sy = side === 'sleeve' ? s.sleeve : s.sy
+  const visualCenterY = anchorY + (GARMENT_VIEW / 2 - anchorY) * sy
+  return (printCenterY - visualCenterY) / art.pxPerInch
+}
+
+export interface GarmentDrawTransform {
+  sx: number
+  sy: number
+  /** Node offset (viewBox px) for art drawn at (0,0,800,800) then scaled. */
+  x: number
+  y: number
+}
+
+/**
+ * Scale + offset that renders the nominal-size 800px garment art at `size`,
+ * anchored at the collar seam (the point pro print placement measures from,
+ * which is size-invariant). Print areas / layers stay untouched — only the
+ * garment body/shade art moves.
+ */
+export function garmentDrawTransform(
+  garment: CatalogGarmentId,
+  side: Side,
+  size: SizeId,
+): GarmentDrawTransform {
+  const art = GARMENTS[garment]
+  const s = sizeScale(garment, size)
+  const sx = side === 'sleeve' ? s.sleeve : s.sx
+  const sy = side === 'sleeve' ? s.sleeve : s.sy
+  const c = art.sides[side].collarPx
+  return { sx, sy, x: c.x * (1 - sx), y: c.y * (1 - sy) }
 }
 
 export function graphicDef(id: string) {
@@ -175,19 +234,26 @@ export function sideArtworkSqIn(design: Design, side: Side): number {
 }
 
 /**
- * Render the full print area (transparent) at `ppi`.
- * Returns null when the side has no layers.
+ * Render the full print area (transparent) at `ppi` — this canvas IS the
+ * physical transfer, so it is where grading has to be real rather than a
+ * preview trick. With a `size`, both the area and every layer are scaled by the
+ * design's grading factor, producing a genuinely larger transfer for a larger
+ * garment. Returns null when the side has no layers.
  */
 export async function renderPrintArea(
   design: Design,
   side: Side,
   ppi: number,
+  size?: SizeId,
 ): Promise<HTMLCanvasElement | null> {
-  const layers = sideLayers(design, side)
+  const k = printScaleK(design, size)
+  const layers = scaleLayers(sideLayers(design, side), k)
   if (layers.length === 0) return null
-  await prepareSide(design, side, ppi)
+  // Font/image rasters are cached per (layer, ppi); grading changes the drawn
+  // size, so prepare at the EFFECTIVE resolution or graded text renders blurry.
+  await prepareSide(design, side, ppi * k)
 
-  const area = getAreaSizeIn(design, side)
+  const area = getAreaSizeIn(design, side, size)
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(2, Math.round(area.wIn * ppi))
   canvas.height = Math.max(2, Math.round(area.hIn * ppi))
@@ -210,12 +276,17 @@ export async function renderPrintArea(
 
 /**
  * Composite garment + design + shading for thumbnails / share images.
- * Always returns a square-ish canvas on transparent background.
+ * Returns a square-ish canvas on transparent background: `widthPx` square at
+ * the nominal size, grown symmetrically-as-needed (never smaller) when a
+ * larger `size` pushes the scaled art outside the 800px viewBox.
+ * `size` scales catalog garment art about its collar anchor (design + print
+ * area stay at true physical scale); omitted → nominal art size.
  */
 export async function renderMockup(
   design: Design,
   side: Side,
   widthPx: number,
+  size?: SizeId,
 ): Promise<HTMLCanvasElement> {
   const canvas = document.createElement('canvas')
 
@@ -245,16 +316,17 @@ export async function renderMockup(
       canvas.height,
     )
     const ppiOut = widthPx / widthIn
-    const design2 = await renderPrintArea(design, side, Math.min(140, ppiOut * 2))
+    const design2 = await renderPrintArea(design, side, Math.min(140, ppiOut * 2), size)
     if (design2) {
+      // Grading scales the area about its own top-centre: the drop below the
+      // collar and the area itself grade together, matching the catalog path
+      // where both scale about the collar anchor.
+      const k = printScaleK(design, size)
       const a = setup.printArea
-      ctx.drawImage(
-        design2,
-        a.xIn * ppiOut,
-        a.yIn * ppiOut,
-        a.wIn * ppiOut,
-        a.hIn * ppiOut,
-      )
+      const wIn = a.wIn * k
+      const hIn = a.hIn * k
+      const xIn = a.xIn + (a.wIn - wIn) / 2
+      ctx.drawImage(design2, xIn * ppiOut, a.yIn * k * ppiOut, wIn * ppiOut, hIn * ppiOut)
     }
     return canvas
   }
@@ -272,30 +344,71 @@ export async function renderMockup(
     withSvgSize(sideArt.shade, 800, 800),
   )
 
-  canvas.width = widthPx
-  canvas.height = widthPx
+  const s = widthPx / 800
+  const tf = garmentDrawTransform(
+    design.garmentId,
+    side,
+    size ?? SIZE_CHARTS[design.garmentId].nominal,
+  )
+  // Sizes above nominal scale the art past the 800px viewBox, which a fixed
+  // square canvas would clip (sleeve tips, hem). Grow the canvas to the union
+  // of the viewBox and the drawn art and shift the origin, so every draw below
+  // keeps viewBox coordinates. Nominal (and smaller) sizes stay square.
+  const minX = Math.min(0, tf.x)
+  const minY = Math.min(0, tf.y)
+  const maxX = Math.max(800, tf.x + 800 * tf.sx)
+  const maxY = Math.max(800, tf.y + 800 * tf.sy)
+  canvas.width = Math.round((maxX - minX) * s)
+  canvas.height = Math.round((maxY - minY) * s)
   const ctx = canvas.getContext('2d')!
   ctx.imageSmoothingQuality = 'high'
-  const s = widthPx / 800
-  ctx.drawImage(body, 0, 0, widthPx, widthPx)
+  ctx.translate(-minX * s, -minY * s)
+  ctx.drawImage(body, tf.x * s, tf.y * s, widthPx * tf.sx, widthPx * tf.sy)
 
   const ppiOut = art.pxPerInch * s
   const designCanvas = await renderPrintArea(
     design,
     side,
     Math.min(160, ppiOut * 2),
+    size,
   )
   if (designCanvas) {
-    const a = sideArt.printAreaPx
+    const c = art.sides[side].collarPx
+    // Grading scales the print area about the SAME collar anchor the art uses,
+    // so the drop below the collar and the area itself grade together. k = 1
+    // leaves the authored rect untouched.
+    const k = printScaleK(design, size)
+    const pa = sideArt.printAreaPx
+    const a = {
+      x: c.x + (pa.x - c.x) * k,
+      y: c.y + (pa.y - c.y) * k,
+      w: pa.w * k,
+      h: pa.h * k,
+    }
     // Multiply the garment's shading into the print, clipped to the print's
     // own alpha, so ink inherits fabric folds without darkening the fabric.
+    // The shade art scales with the garment, so the crop that overlaps the
+    // print area is the (graded) print rect mapped back into unscaled art
+    // coords about the collar anchor: p = collar + (a − collar) / scale.
+    const srcX = c.x + (a.x - c.x) / tf.sx
+    const srcY = c.y + (a.y - c.y) / tf.sy
     const tmp = document.createElement('canvas')
     tmp.width = Math.max(2, Math.round(a.w * s))
     tmp.height = Math.max(2, Math.round(a.h * s))
     const tctx = tmp.getContext('2d')!
     tctx.drawImage(designCanvas, 0, 0, tmp.width, tmp.height)
     tctx.globalCompositeOperation = 'multiply'
-    tctx.drawImage(shade, a.x, a.y, a.w, a.h, 0, 0, tmp.width, tmp.height)
+    tctx.drawImage(
+      shade,
+      srcX,
+      srcY,
+      a.w / tf.sx,
+      a.h / tf.sy,
+      0,
+      0,
+      tmp.width,
+      tmp.height,
+    )
     tctx.globalCompositeOperation = 'destination-in'
     tctx.drawImage(designCanvas, 0, 0, tmp.width, tmp.height)
     ctx.drawImage(tmp, a.x * s, a.y * s, a.w * s, a.h * s)

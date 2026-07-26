@@ -13,6 +13,8 @@ export type GarmentId = 'tee' | 'hoodie' | 'custom'
 export type CatalogGarmentId = Exclude<GarmentId, 'custom'>
 /** Display-mannequin silhouette for the 3D preview + AR try-on. */
 export type Gender = 'male' | 'female'
+/** Chart size. The real dimensions live in src/content/sizeChart.ts. */
+export type SizeId = 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL'
 
 export interface SizeIn {
   wIn: number
@@ -111,6 +113,31 @@ export interface CustomGarment {
   widthIn: number
   front: CustomSideSetup | null
   back: CustomSideSetup | null
+  /**
+   * Half-chest (cm) per size from the supplier's own chart, captured when the
+   * product was applied. Lets print-size grading work for ship-your-own /
+   * ingested garments exactly as it does for catalog ones; absent ⇒ no grading
+   * (k = 1), never a guess. `widthIn` above is this chart read at `baseSize`.
+   */
+  halfChestCmBySize?: Partial<Record<SizeId, number>>
+}
+
+/**
+ * How artwork responds to garment size.
+ *  - `fixed`  — one physical print for every size (one film, cheapest). The
+ *    print sits a size-invariant distance below the collar, the classic
+ *    single-transfer convention.
+ *  - `scaled` — artwork and print area are GRADED: both scale uniformly with
+ *    the garment's chest so a 3XL carries a proportionally larger print and
+ *    every size reads identically. Costs more film: each size is a distinct
+ *    piece on the gang sheet.
+ */
+export type PrintScaleMode = 'fixed' | 'scaled'
+
+export interface PrintScale {
+  mode: PrintScaleMode
+  /** The size the design's inch geometry is authored at (k = 1 here). */
+  baseSize: SizeId
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +161,13 @@ export interface Design {
    * single-bucket documents by migrateDesign (src/lib/migrate.ts).
    */
   stashedLayers: Layer[]
+  /**
+   * Print grading policy. Layer geometry above is stored ONCE, in inches, at
+   * `printScale.baseSize`; every other size is derived by a single uniform
+   * factor (see src/lib/printScale.ts). Absent on documents saved before
+   * grading existed — migrateDesign fills it in.
+   */
+  printScale?: PrintScale
   updatedAt: number
 }
 
@@ -181,6 +215,13 @@ export interface GarmentSideArt {
   shade: string
   /** Print area in viewBox pixels. */
   printAreaPx: RectPx
+  /**
+   * Collar-seam centre (viewBox px) — the fixed point the art scales about
+   * when rendering non-nominal sizes (professional print placement is
+   * measured from the collar and is size-invariant). For the sleeve side this
+   * is the print-area top centre (cap seam proxy).
+   */
+  collarPx: { x: number; y: number }
 }
 
 export interface GarmentArt {
@@ -234,6 +275,12 @@ export interface Garment3DProps {
   areaOffsetYIn?: Record<Side, number>
   /** Garment real width for scale calibration. */
   garmentWidthIn: number
+  /**
+   * Previewed chart size. garmentWidthIn already carries the half-chest ratio;
+   * this additionally stretches the mesh LENGTH by the chart's body-length
+   * ratio, which is what areaOffsetYIn assumes. Catalog garments only.
+   */
+  sizeId?: SizeId
   custom?: { front: CardSource | null; back: CardSource | null }
   autoRotate: boolean
   /** Camera snap request; apply when nonce changes. */

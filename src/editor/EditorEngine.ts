@@ -13,6 +13,7 @@ import { GARMENTS } from '@/garments'
 import {
   drawLayerContent,
   garmentColorHex,
+  garmentDrawTransform,
   measureLayer,
   prepareSide,
   sideLayers,
@@ -20,8 +21,10 @@ import {
 import { ensureRaster, sizeBucket, withSvgSize } from '@/lib/rasterCache'
 import { getCustomSideInfo } from '@/lib/custom'
 import { computeSnap } from '@/lib/smartGuides'
-import { zonesFor } from '@/content/zones'
-import { fmtIn } from '@/lib/units'
+import { uploadZonesFor, zonesFor } from '@/content/zones'
+import { DEFAULT_SIZE, type SizeId } from '@/content/sizeChart'
+import { printScaleK } from '@/lib/printScale'
+import { fmtIn, fmtCm, inToCm } from '@/lib/units'
 import { t } from '@/i18n'
 
 export interface SelectionInfo {
@@ -43,6 +46,8 @@ export interface EngineCallbacks {
   /** A layer drag started / ended (mobile hides the props sheet meanwhile). */
   onDragStart?(): void
   onDragEnd?(): void
+  /** An upload zone was clicked/tapped; rect is in client (viewport) px. */
+  onZoneAction?(zoneId: string, rect: { x: number; y: number; w: number; h: number }): void
 }
 
 export interface SyncState {
@@ -51,11 +56,20 @@ export interface SyncState {
   selectedId: string | null
   /** Draw print-placement guides (zones + 1-inch grid) + snap to them. */
   showGuides: boolean
+  /** Garment size the catalog art renders at (real cm dimensions). */
+  previewSize: SizeId
 }
 
 interface LayoutInfo {
+  /** Canvas px per BASE-size inch (already multiplied by the grading factor). */
   ppi: number
   area: RectPx
+  /**
+   * Print grading factor in force. Geometry maths never needs it (it is baked
+   * into `ppi` and `area`), but PHYSICAL readouts do: base inches × k = the real
+   * printed size on the previewed garment.
+   */
+  k: number
 }
 
 const VIEW = 800
@@ -68,6 +82,7 @@ export class EditorEngine {
   private uiLayer: Konva.Layer
   private garmentNode: Konva.Image
   private gridGroup: Konva.Group
+  private uploadGroup: Konva.Group
   private designGroup: Konva.Group
   private areaGroup: Konva.Group
   private zoneGroup: Konva.Group
@@ -77,7 +92,7 @@ export class EditorEngine {
   private nodes = new Map<string, Konva.Shape | Konva.Image>()
 
   private cb: EngineCallbacks
-  private layout: LayoutInfo = { ppi: 25, area: { x: 250, y: 163, w: 300, h: 400 } }
+  private layout: LayoutInfo = { ppi: 25, area: { x: 250, y: 163, w: 300, h: 400 }, k: 1 }
   private state: SyncState | null = null
   private syncSeq = 0
   private fitScale = 1
@@ -89,6 +104,10 @@ export class EditorEngine {
   private draggingNode: Konva.Shape | null = null
   private lastTransient = 0
   private destroyed = false
+  /** An external (HTML5) drag is over the canvas — show upload targets. */
+  private dropActive = false
+  private dropHoverId: string | null = null
+  private uploadRects = new Map<string, Konva.Rect>()
 
   constructor(container: HTMLDivElement, cb: EngineCallbacks) {
     this.cb = cb
@@ -121,6 +140,11 @@ export class EditorEngine {
     // Placement grid sits BELOW the artwork so the design stays legible.
     this.gridGroup = new Konva.Group({ listening: false })
     this.world.add(this.gridGroup)
+
+    // Upload-target zones sit BELOW the artwork: clicks on a placed layer win,
+    // clicks on an empty spot inside a zone trigger the zone's upload action.
+    this.uploadGroup = new Konva.Group()
+    this.world.add(this.uploadGroup)
 
     this.designGroup = new Konva.Group()
     this.world.add(this.designGroup)
@@ -327,28 +351,56 @@ export class EditorEngine {
 
   // ---------------------------------------------------------------- layout
 
+  /**
+   * Print-area rect (canvas px) + pixels-per-inch for the active side.
+   *
+   * GRADING: layer geometry is stored in BASE-size inches, so both the area rect
+   * and `ppi` are multiplied by the grading factor k. They cancel on write-back
+   * — `px / (ppi·k)` yields base inches — which is why every drag/resize handler
+   * below needs no knowledge of grading at all. `ppi` therefore means "canvas px
+   * per BASE inch"; physical readouts multiply by k separately.
+   */
   private async computeLayout(design: Design, side: Side): Promise<LayoutInfo> {
+    const k = printScaleK(design, this.state?.previewSize ?? DEFAULT_SIZE)
     if (design.garmentId !== 'custom') {
       const art = GARMENTS[design.garmentId]
-      return { ppi: art.pxPerInch, area: art.sides[side].printAreaPx }
+      const pa = art.sides[side].printAreaPx
+      if (k === 1) return { ppi: art.pxPerInch, area: pa, k }
+      // Scale about the collar anchor, exactly as the garment art does.
+      const c = art.sides[side].collarPx
+      return {
+        ppi: art.pxPerInch * k,
+        area: {
+          x: c.x + (pa.x - c.x) * k,
+          y: c.y + (pa.y - c.y) * k,
+          w: pa.w * k,
+          h: pa.h * k,
+        },
+        k,
+      }
     }
     const setup = side === 'sleeve' ? undefined : design.custom?.[side]
     const widthIn = design.custom?.widthIn ?? 20
     if (!setup) {
-      return { ppi: 25, area: { x: 250, y: 200, w: 300, h: 400 } }
+      return { ppi: 25 * k, area: { x: 250, y: 200, w: 300, h: 400 }, k }
     }
     // A missing/corrupt photo must degrade to the default area, not wedge
     // the whole sync.
     const info = await getCustomSideInfo(setup, widthIn).catch(() => null)
-    if (!info) return { ppi: 25, area: { x: 250, y: 200, w: 300, h: 400 } }
+    if (!info) return { ppi: 25 * k, area: { x: 250, y: 200, w: 300, h: 400 }, k }
     const gHIn = info.bbox.h / info.pxPerInch
     const ppi = Math.min((VIEW - 120) / widthIn, (VIEW - 90) / gHIn)
     const a = setup.printArea
     const gx = (VIEW - widthIn * ppi) / 2
     const gy = (VIEW - gHIn * ppi) / 2
+    // Same grading as the custom mockup path: about the area's top-centre.
+    const wIn = a.wIn * k
+    const hIn = a.hIn * k
+    const xIn = a.xIn + (a.wIn - wIn) / 2
     return {
-      ppi,
-      area: { x: gx + a.xIn * ppi, y: gy + a.yIn * ppi, w: a.wIn * ppi, h: a.hIn * ppi },
+      ppi: ppi * k,
+      area: { x: gx + xIn * ppi, y: gy + a.yIn * k * ppi, w: wIn * ppi, h: hIn * ppi },
+      k,
     }
   }
 
@@ -362,10 +414,19 @@ export class EditorEngine {
         withSvgSize(art.sides[side].body.replaceAll('__COLOR__', hex), px, px),
       )
       if (seq !== this.syncSeq || this.destroyed) return
+      // Scale the garment art about its collar anchor for the preview size —
+      // the print area (and every layer) stays at true physical scale.
+      const tf = garmentDrawTransform(
+        design.garmentId,
+        side,
+        this.state?.previewSize ?? DEFAULT_SIZE,
+      )
       this.garmentNode.setAttrs({
         image: img,
-        x: 0,
-        y: 0,
+        x: tf.x,
+        y: tf.y,
+        scaleX: tf.sx,
+        scaleY: tf.sy,
         width: VIEW,
         height: VIEW,
         crop: undefined,
@@ -390,6 +451,8 @@ export class EditorEngine {
       crop: { x: info.bbox.x, y: info.bbox.y, width: info.bbox.w, height: info.bbox.h },
       x: (VIEW - w) / 2,
       y: (VIEW - h) / 2,
+      scaleX: 1,
+      scaleY: 1,
       width: w,
       height: h,
       visible: true,
@@ -440,13 +503,18 @@ export class EditorEngine {
         }),
       )
     }
-    const wIn = area.w / ppi
-    const hIn = area.h / ppi
+    // Base inches × k = the PHYSICAL area on the previewed size.
+    const wIn = (area.w / ppi) * this.layout.k
+    const hIn = (area.h / ppi) * this.layout.k
     this.areaGroup.add(
       new Konva.Text({
         x: area.x,
         y: area.y - 20,
-        text: t('editor.print_area_label', { w: fmtIn(wIn), h: fmtIn(hIn) }),
+        // cm is the customer-facing unit; inches stay as the pro reference.
+        text: t('editor.print_area_label', {
+          w: `${fmtCm(inToCm(wIn))} (${fmtIn(wIn)})`,
+          h: `${fmtCm(inToCm(hIn))} (${fmtIn(hIn)})`,
+        }),
         fontFamily: 'JetBrains Mono, monospace',
         fontSize: 11,
         letterSpacing: 0.8,
@@ -510,9 +578,10 @@ export class EditorEngine {
       )
     }
 
-    const SHOWN = new Set(['a4', 'chest', 'upper_back', 'left_chest', 'center_back'])
+    // Only the affordable-standard paper format here — the semantic placement
+    // spots are interactive upload zones drawn by drawUploadZones().
     for (const z of this.zoneRectsPx()) {
-      if (!SHOWN.has(z.id)) continue
+      if (!z.standard) continue
       const accent = !!z.standard
       const color = accent ? 'rgba(53,199,255,0.95)' : 'rgba(255,61,143,0.72)'
       this.zoneGroup.add(
@@ -545,6 +614,183 @@ export class EditorEngine {
     }
   }
 
+  // ------------------------------------------------- upload zones (targets)
+
+  /** Upload-target zone rects in world/viewBox px for the active side. */
+  private uploadZoneRectsPx(): {
+    id: string
+    nameKey: string
+    x: number
+    y: number
+    w: number
+    h: number
+  }[] {
+    if (!this.state) return []
+    const { ppi, area } = this.layout
+    const cx = area.x + area.w / 2
+    const cy = area.y + area.h / 2
+    return uploadZonesFor(this.state.design, this.state.side).map((z) => ({
+      id: z.id,
+      nameKey: z.nameKey,
+      w: z.wIn * ppi,
+      h: z.hIn * ppi,
+      x: cx + z.cxIn * ppi - (z.wIn * ppi) / 2,
+      y: cy + z.cyIn * ppi - (z.hIn * ppi) / 2,
+    }))
+  }
+
+  /**
+   * Upload spots show whenever they help: while something is dragged over the
+   * canvas, while guides are on, or on an empty side (the "choose a spot"
+   * empty state). Custom garments need a photo before spots make sense.
+   */
+  private uploadZonesVisible(): boolean {
+    const s = this.state
+    if (!s) return false
+    if (s.design.garmentId === 'custom') {
+      const setup = s.side === 'sleeve' ? null : s.design.custom?.[s.side]
+      if (!setup) return false
+    }
+    if (this.dropActive) return true
+    return this.showGuides || sideLayers(s.design, s.side).length === 0
+  }
+
+  private zoneBaseStyle(hover: boolean) {
+    return {
+      stroke: hover ? 'rgba(53,199,255,0.95)' : 'rgba(53,199,255,0.55)',
+      strokeWidth: hover ? 1.8 : 1.2,
+      fill: hover ? 'rgba(53,199,255,0.10)' : 'rgba(53,199,255,0.04)',
+    }
+  }
+
+  private drawUploadZones(): void {
+    this.uploadGroup.destroyChildren()
+    this.uploadRects.clear()
+    if (!this.uploadZonesVisible()) return
+    for (const z of this.uploadZoneRectsPx()) {
+      const rect = new Konva.Rect({
+        x: z.x,
+        y: z.y,
+        width: z.w,
+        height: z.h,
+        cornerRadius: 6,
+        dash: [6, 5],
+        strokeScaleEnabled: false,
+        name: 'upload-zone',
+        ...this.zoneBaseStyle(this.dropHoverId === z.id),
+      })
+      rect.setAttr('zoneId', z.id)
+      rect.on('mouseenter', () => {
+        if (this.panMode) return
+        this.stage.container().style.cursor = 'pointer'
+        rect.setAttrs(this.zoneBaseStyle(true))
+      })
+      rect.on('mouseleave', () => {
+        this.stage.container().style.cursor = this.panMode ? 'grab' : 'default'
+        if (this.dropHoverId !== z.id) rect.setAttrs(this.zoneBaseStyle(false))
+      })
+      rect.on('click tap', (e) => {
+        e.cancelBubble = true
+        this.cb.onZoneAction?.(z.id, this.clientRectFor(z))
+      })
+      this.uploadGroup.add(rect)
+      this.uploadRects.set(z.id, rect)
+
+      const cyan = 'rgba(53,199,255,0.85)'
+      this.uploadGroup.add(
+        new Konva.Text({
+          x: z.x,
+          y: z.y + z.h / 2 - 15,
+          width: z.w,
+          align: 'center',
+          text: '+',
+          fontSize: 17,
+          fontStyle: 'bold',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fill: cyan,
+          listening: false,
+        }),
+      )
+      this.uploadGroup.add(
+        new Konva.Text({
+          x: z.x,
+          y: z.y + z.h / 2 + 5,
+          width: z.w,
+          align: 'center',
+          text: t(z.nameKey),
+          fontSize: 9.5,
+          letterSpacing: 0.3,
+          fontFamily: 'JetBrains Mono, monospace',
+          fill: cyan,
+          listening: false,
+        }),
+      )
+    }
+  }
+
+  /** World-px rect → client (viewport) px, for anchoring popovers. */
+  private clientRectFor(z: { x: number; y: number; w: number; h: number }): {
+    x: number
+    y: number
+    w: number
+    h: number
+  } {
+    const tr = this.world.getAbsoluteTransform()
+    const tl = tr.point({ x: z.x, y: z.y })
+    const br = tr.point({ x: z.x + z.w, y: z.y + z.h })
+    const host = this.stage.container().getBoundingClientRect()
+    return { x: host.left + tl.x, y: host.top + tl.y, w: br.x - tl.x, h: br.y - tl.y }
+  }
+
+  /** Show/hide upload targets for an external (HTML5) drag session. */
+  setDropActive(v: boolean): void {
+    if (this.dropActive === v) return
+    this.dropActive = v
+    if (!v) this.dropHoverId = null
+    this.drawUploadZones()
+  }
+
+  /**
+   * Hit-test upload zones at a client point (HTML5 dragover has no Konva
+   * events); highlights the hovered zone and returns its id.
+   */
+  dropTargetAt(clientX: number, clientY: number): string | null {
+    // Never snap into a spot that isn't drawn (custom side without a photo).
+    if (!this.uploadZonesVisible()) return null
+    const host = this.stage.container().getBoundingClientRect()
+    const inv = this.world.getAbsoluteTransform().copy().invert()
+    const p = inv.point({ x: clientX - host.left, y: clientY - host.top })
+    let hit: string | null = null
+    for (const z of this.uploadZoneRectsPx()) {
+      if (p.x >= z.x && p.x <= z.x + z.w && p.y >= z.y && p.y <= z.y + z.h) {
+        hit = z.id
+        break
+      }
+    }
+    if (hit !== this.dropHoverId) {
+      this.dropHoverId = hit
+      for (const [id, rect] of this.uploadRects)
+        rect.setAttrs(this.zoneBaseStyle(id === hit))
+    }
+    return hit
+  }
+
+  /** Client point → inches relative to the print-area centre (clamped). */
+  inchPointAt(clientX: number, clientY: number): { xIn: number; yIn: number } {
+    const host = this.stage.container().getBoundingClientRect()
+    const inv = this.world.getAbsoluteTransform().copy().invert()
+    const p = inv.point({ x: clientX - host.left, y: clientY - host.top })
+    const { area, ppi } = this.layout
+    const xIn = (p.x - (area.x + area.w / 2)) / ppi
+    const yIn = (p.y - (area.y + area.h / 2)) / ppi
+    const maxX = area.w / 2 / ppi
+    const maxY = area.h / 2 / ppi
+    return {
+      xIn: Math.max(-maxX, Math.min(maxX, Math.round(xIn * 100) / 100)),
+      yIn: Math.max(-maxY, Math.min(maxY, Math.round(yIn * 100) / 100)),
+    }
+  }
+
   // ------------------------------------------------------------- reconcile
 
   async sync(state: SyncState): Promise<void> {
@@ -567,6 +813,7 @@ export class EditorEngine {
     if (seq !== this.syncSeq || this.destroyed) return
     this.updateAreaOutline()
     this.drawPlacementGuides()
+    this.drawUploadZones()
 
     const layers = sideLayers(design, side)
     const seen = new Set<string>()

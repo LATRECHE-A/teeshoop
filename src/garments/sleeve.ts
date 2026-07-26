@@ -59,4 +59,6 @@ export const SLEEVE_ART: GarmentSideArt = {
   body: body(),
   shade: shade(),
   printAreaPx: { x: 350, y: 350, w: 100, h: 100 },
+  // Sleeves scale about the print-area top centre (cap-seam proxy).
+  collarPx: { x: 400, y: 350 },
 }

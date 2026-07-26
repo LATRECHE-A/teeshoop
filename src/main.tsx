@@ -23,6 +23,10 @@ if (import.meta.env.DEV) {
   // measure 2D-vs-3D-vs-AR print size/placement parity.
   ;(window as unknown as { __render?: () => Promise<typeof import('@/lib/renderDesign')> }).__render = () =>
     import('@/lib/renderDesign')
+  // The official cm chart, so parity-verify can assert the rendered garment
+  // really scales by the chart's chest/body-length ratios at every size.
+  ;(window as unknown as { __sizes?: () => Promise<typeof import('@/content/sizeChart')> }).__sizes = () =>
+    import('@/content/sizeChart')
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

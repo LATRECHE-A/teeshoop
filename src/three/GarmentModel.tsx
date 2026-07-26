@@ -3,7 +3,8 @@
  *
  * 1 world unit = 1 inch. The GLB geometry is normalized once per
  * (model, garmentWidthIn): baked to scene orientation, centered on its bbox
- * center and scaled so bboxWidth * widthFraction === garmentWidthIn.
+ * center and scaled so bboxWidth * widthFraction === garmentWidthIn (height
+ * follows the size chart's body-length ratio, see lengthOverWidthRatio).
  * Decals are then sized wIn x hIn world units directly, and their center Y is
  * garment-visual-center (y=0) minus areaOffsetYIn (+down ⇒ -y), plus a
  * per-model calibration nudge (src/three/calibration.ts).
@@ -11,7 +12,8 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { Decal, useGLTF } from '@react-three/drei'
-import type { CatalogGarmentId, DecalSource, Side } from '@/lib/types'
+import type { CatalogGarmentId, DecalSource, Side, SizeId } from '@/lib/types'
+import { sizeScale } from '@/content/sizeChart'
 import { CALIBRATION } from './calibration'
 import { useSourceTexture } from './textures'
 
@@ -35,7 +37,23 @@ function firstMesh(root: THREE.Object3D, name?: string): THREE.Mesh | null {
   return found
 }
 
-function useNormalizedGarment(garment: CatalogGarmentId, garmentWidthIn: number): NormalizedGarment {
+/**
+ * Extra vertical stretch on top of the width-derived scale, so the mesh length
+ * follows the chart's BODY-LENGTH ratio (sy) while X/Z keep following the
+ * half-chest ratio (sx) that `garmentWidthIn` already carries. Undefined size
+ * ⇒ 1, i.e. the nominal-size proportions (the dev harness passes no size).
+ */
+function lengthOverWidthRatio(garment: CatalogGarmentId, sizeId?: SizeId): number {
+  if (!sizeId) return 1
+  const { sx, sy } = sizeScale(garment, sizeId)
+  return sy / sx
+}
+
+function useNormalizedGarment(
+  garment: CatalogGarmentId,
+  garmentWidthIn: number,
+  sizeId?: SizeId,
+): NormalizedGarment {
   const calib = CALIBRATION[garment]
   const gltf = useGLTF(calib.url, false, false)
 
@@ -53,12 +71,15 @@ function useNormalizedGarment(garment: CatalogGarmentId, garmentWidthIn: number)
     const size = box.getSize(new THREE.Vector3())
     const center = box.getCenter(new THREE.Vector3())
     geometry.translate(-center.x, -center.y, -center.z)
-    // Narrow the girth (X/Z) to the WORN width, keeping height (Y): mapping the
-    // laid-flat width onto the worn torso over-inflated the girth ~20%, so a
-    // true-inch print read undersized vs the worn AR avatar. Height is
-    // preserved → areaOffsetYIn/decalNudge, Floor and camera framing unchanged.
-    const yScale = garmentWidthIn / (size.x * calib.widthFraction)
-    const xzScale = yScale * calib.wornFactor
+    // Narrow the girth (X/Z) to the WORN width: mapping the laid-flat width
+    // onto the worn torso over-inflated the girth ~20%, so a true-inch print
+    // read undersized vs the worn AR avatar. Height follows the chart's
+    // body-length ratio instead of the chest ratio — the 2D art stretches by
+    // sy about the collar and areaOffsetYIn assumes exactly that, so a
+    // chest-scaled height would drift the collar-relative print placement.
+    const widthScale = garmentWidthIn / (size.x * calib.widthFraction)
+    const yScale = widthScale * lengthOverWidthRatio(garment, sizeId)
+    const xzScale = widthScale * calib.wornFactor
     geometry.scale(xzScale, yScale, xzScale)
     geometry.computeBoundingBox()
     geometry.computeBoundingSphere()
@@ -88,7 +109,7 @@ function useNormalizedGarment(garment: CatalogGarmentId, garmentWidthIn: number)
       heightIn: size.y * yScale,
       depthIn: size.z * xzScale,
     }
-  }, [gltf, calib, garmentWidthIn])
+  }, [gltf, garment, calib, garmentWidthIn, sizeId])
 
   useEffect(
     () => () => {
@@ -234,6 +255,8 @@ export interface GarmentModelProps {
   garment: CatalogGarmentId
   colorHex: string
   garmentWidthIn: number
+  /** Previewed chart size; stretches the mesh length by the body-length ratio. */
+  sizeId?: SizeId
   front: DecalSource | null
   back: DecalSource | null
   sleeve: DecalSource | null
@@ -248,6 +271,7 @@ export function GarmentModel({
   garment,
   colorHex,
   garmentWidthIn,
+  sizeId,
   front,
   back,
   sleeve,
@@ -255,7 +279,7 @@ export function GarmentModel({
   envIntensity = 1,
   onMeasured,
 }: GarmentModelProps) {
-  const { geometry, material, heightIn } = useNormalizedGarment(garment, garmentWidthIn)
+  const { geometry, material, heightIn } = useNormalizedGarment(garment, garmentWidthIn, sizeId)
 
   useEffect(() => {
     material.color.set(colorHex)

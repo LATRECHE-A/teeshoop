@@ -8,6 +8,7 @@
 import { DEFAULT_LANG, isLang, type Lang } from '@/i18n/lang'
 import { isSceneId, type SceneId } from '@/scenes'
 import type { Gender } from '@/lib/types'
+import { DEFAULT_SIZE, isSizeId, type SizeId } from '@/content/sizeChart'
 
 export type Theme = 'dark' | 'light'
 
@@ -19,6 +20,8 @@ export interface Prefs {
   showGuides: boolean
   /** Display-mannequin silhouette shared by the 3D worn preview + AR try-on. */
   figureGender: Gender
+  /** Garment size the 2D/3D/AR previews render at (real cm dimensions). */
+  previewSize: SizeId
 }
 
 export const PREFS_KEY = 'tshop:prefs'
@@ -29,6 +32,7 @@ export const DEFAULT_PREFS: Prefs = {
   scene: 'studio',
   showGuides: false,
   figureGender: 'male',
+  previewSize: DEFAULT_SIZE,
 }
 
 export function loadPrefs(): Prefs {
@@ -42,6 +46,7 @@ export function loadPrefs(): Prefs {
       scene: isSceneId(p.scene) ? p.scene : DEFAULT_PREFS.scene,
       showGuides: p.showGuides === true,
       figureGender: p.figureGender === 'female' ? 'female' : 'male',
+      previewSize: isSizeId(p.previewSize) ? p.previewSize : DEFAULT_PREFS.previewSize,
     }
   } catch {
     return { ...DEFAULT_PREFS }

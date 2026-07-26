@@ -14,7 +14,7 @@ import {
 import { isBgRemovalSupported, removeBackground } from '@/lib/bgremove'
 import { defaultCustomPrintArea, getCustomSideInfo, invalidateCustomBBox } from '@/lib/custom'
 import type { CustomSideSetup, RectIn, Side } from '@/lib/types'
-import { clamp, fmtIn } from '@/lib/units'
+import { clamp, fmtCm, fmtIn, inToCm } from '@/lib/units'
 
 interface SideDraft extends CustomSideSetup {
   processing?: boolean
@@ -155,7 +155,7 @@ function PrintAreaPlacer({
             onPointerDown={start('move')}
           >
             <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-bg1/95 px-1.5 py-0.5 font-mono text-[10px] text-cy">
-              {fmtIn(area.wIn)} × {fmtIn(area.hIn)}
+              {fmtCm(inToCm(area.wIn))} × {fmtCm(inToCm(area.hIn))} ({fmtIn(area.wIn)} × {fmtIn(area.hIn)})
             </span>
             {(['nw', 'ne', 'sw', 'se'] as const).map((k) => (
               <span
@@ -425,7 +425,10 @@ export default function CustomSetupModal() {
                 reclampForWidth(w)
               }}
             />
-            <span className="mono-dim w-12 shrink-0 text-right text-cy">{fmtIn(widthIn)}</span>
+            <span className="mono-dim w-24 shrink-0 text-right text-cy">
+              {fmtCm(inToCm(widthIn))}
+              <span className="text-tx3"> · {fmtIn(widthIn)}</span>
+            </span>
           </div>
           <p className="mt-1 text-[11px] text-tx3">
             {t('custom.width_hint')}

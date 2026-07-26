@@ -2,8 +2,9 @@ import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type C
 import { Play, RotateCcw, Smartphone, Square } from 'lucide-react'
 import clsx from 'clsx'
 import type { CardSource, DecalSource, Design, Garment3DProps, Side } from '@/lib/types'
-import { GARMENTS } from '@/garments'
-import { areaOffsetYIn as areaOffsetForSide, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
+import { garmentWidthInFor, type SizeId } from '@/content/sizeChart'
+import { areaOffsetYIn as areaOffsetForSide, getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
+import { printScaleK } from '@/lib/printScale'
 import { useStore } from '@/state/store'
 import { RegMark } from './Brand'
 import { garmentColorHex } from '@/lib/renderDesign'
@@ -63,7 +64,13 @@ interface Sources {
   customBack: CardSource | null
 }
 
-function useDesignTextures(design: Design): Sources | null {
+/**
+ * Decal textures for the previewed size. Every render path here is an OUTPUT
+ * path, so it passes `size`: the print area and the artwork inside it are both
+ * graded (src/lib/printScale.ts), which is what makes the 3D preview agree with
+ * 2D, AR and the DTF sheet at every size. Stored layer geometry is untouched.
+ */
+function useDesignTextures(design: Design, size: SizeId): Sources | null {
   const [sources, setSources] = useState<Sources | null>(null)
   const version = useRef(0)
   const lastGarment = useRef(design.garmentId)
@@ -93,7 +100,7 @@ function useDesignTextures(design: Design): Sources | null {
           const rendered: { side: Side; canvas: HTMLCanvasElement }[] = []
           for (const side of ['front', 'back'] as const) {
             if (!design.custom?.[side]) continue
-            rendered.push({ side, canvas: await renderMockup(design, side, 1100) })
+            rendered.push({ side, canvas: await renderMockup(design, side, 1100, size) })
           }
           const hIns = rendered.map((r) => (widthIn * r.canvas.height) / r.canvas.width)
           let unifiedHIn = hIns.length ? Math.max(...hIns) : 0
@@ -121,12 +128,13 @@ function useDesignTextures(design: Design): Sources | null {
             }
           }
         } else {
-          const art = GARMENTS[design.garmentId]
           for (const side of ['front', 'back', 'sleeve'] as const) {
             if (sideLayers(design, side).length === 0) continue
-            const area = art.printAreasIn[side]
+            // GRADED area: the decal's world size is the print area at THIS
+            // size, so a 3XL carries a proportionally bigger print than an S.
+            const area = getAreaSizeIn(design, side, size)
             const ppi = TEXTURE_TARGET_PX / Math.max(area.wIn, area.hIn)
-            const canvas = await renderPrintArea(design, side, ppi)
+            const canvas = await renderPrintArea(design, side, ppi, size)
             if (canvas)
               next[side] = { canvas, version: v, wIn: area.wIn, hIn: area.hIn }
           }
@@ -140,7 +148,7 @@ function useDesignTextures(design: Design): Sources | null {
       cancelled = true
       clearTimeout(t)
     }
-  }, [design])
+  }, [design, size])
 
   return sources
 }
@@ -173,19 +181,29 @@ export default function Scene3D() {
   const openModal = useStore((s) => s.openModal)
   const scene = useStore((s) => s.scene)
   const theme = useStore((s) => s.theme)
+  const previewSize = useStore((s) => s.previewSize)
   const tr = useT()
   const [ready, setReady] = useState(false)
   const [Garment3D, setGarment3D] = useState<ComponentType<Garment3DProps>>(loadGarment3D)
   const gl = useMemo(webglOk, [])
-  const sources = useDesignTextures(design)
+  const sources = useDesignTextures(design, previewSize)
+  // Print grading factor for the previewed size — 1 in `fixed` mode.
+  const k = printScaleK(design, previewSize)
 
   const areaOffsetYIn = useMemo(() => {
     if (design.garmentId === 'custom') return { front: 0, back: 0, sleeve: 0 }
     const g = design.garmentId
     // Shared with the AR export (src/lib/renderDesign.areaOffsetYIn) so front
-    // and back sit at the same height in the 3D preview and in AR.
-    return { front: areaOffsetForSide(g, 'front'), back: areaOffsetForSide(g, 'back'), sleeve: 0 }
-  }, [design.garmentId])
+    // and back sit at the same height in the 3D preview and in AR — including
+    // the collar-anchored shift when previewing a non-nominal size, and the
+    // graded drop below the collar (`k`), which scales the print area about
+    // that same collar anchor so placement grades with the artwork.
+    return {
+      front: areaOffsetForSide(g, 'front', previewSize, k),
+      back: areaOffsetForSide(g, 'back', previewSize, k),
+      sleeve: 0,
+    }
+  }, [design.garmentId, previewSize, k])
 
   if (!gl) {
     return (
@@ -196,10 +214,12 @@ export default function Scene3D() {
     )
   }
 
+  // Custom garments carry their own real width; catalog garments take the
+  // laid-flat chest width of the selected size from the official cm chart.
   const garmentWidthIn =
     design.garmentId === 'custom'
       ? design.custom?.widthIn ?? 20
-      : GARMENTS[design.garmentId].widthIn
+      : garmentWidthInFor(design.garmentId, previewSize)
 
   const bg = stageBackground(scene, theme)
 
@@ -227,6 +247,7 @@ export default function Scene3D() {
           }}
           areaOffsetYIn={areaOffsetYIn}
           garmentWidthIn={garmentWidthIn}
+          sizeId={design.garmentId === 'custom' ? undefined : previewSize}
           autoRotate={autoRotate}
           viewRequest={viewRequest}
           onReady={() => setReady(true)}

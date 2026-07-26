@@ -20,6 +20,8 @@ export default function ArModal() {
   // Shared with the 3D worn preview so the two always agree.
   const gender = useStore((s) => s.figureGender)
   const setGender = useStore((s) => s.setFigureGender)
+  // Shared preview size → the life-size AR garment matches the selected size.
+  const previewSize = useStore((s) => s.previewSize)
   const [phase, setPhase] = useState<Phase>('working')
   const [qr, setQr] = useState<string | null>(null)
   const [url, setUrl] = useState('')
@@ -35,7 +37,7 @@ export default function ArModal() {
         // Lazy — keeps the three exporters + avatar out of the studio's initial
         // bundle until someone actually opens the AR modal.
         const { buildArModel, uploadArModel } = await import('@/lib/arExport')
-        const blobs = await buildArModel(design, gender)
+        const blobs = await buildArModel(design, gender, previewSize)
         const id = await uploadArModel(blobs)
         if (!on) return
         // The id travels as ?id=… , NOT /v/{id}: Cloudflare's html_handling
@@ -53,8 +55,9 @@ export default function ArModal() {
     return () => {
       on = false
     }
-    // Re-bake (→ new upload → new QR/link) whenever the design or gender changes.
-  }, [design, gender, nonce])
+    // Re-bake (→ new upload → new QR/link) whenever the design, gender or
+    // preview size changes.
+  }, [design, gender, previewSize, nonce])
 
   const copyLink = async () => {
     try {

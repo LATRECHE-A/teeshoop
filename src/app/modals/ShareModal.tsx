@@ -10,6 +10,7 @@ import {
   importDesignFile,
 } from '@/state/persist'
 import { getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
+import { printScaleK } from '@/lib/printScale'
 import { listAssets } from '@/state/assets'
 import { downloadBlob, downloadCanvasPng, slugify } from '@/lib/download'
 import { fmtIn } from '@/lib/units'
@@ -27,6 +28,7 @@ export default function ShareModal() {
   const openModal = useStore((s) => s.openModal)
   const toast = useStore((s) => s.toast)
   const loadDesign = useStore((s) => s.loadDesign)
+  const previewSize = useStore((s) => s.previewSize)
   const preview = useMockupUrl(design, 'front', 420)
   const importRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -36,13 +38,17 @@ export default function ShareModal() {
     (sd) => sideLayers(design, sd).length > 0,
   )
 
+  // Effective DPI is measured against the PHYSICAL width, so a graded-up size
+  // (the same pixels stretched over a wider print) must be able to trip the
+  // soft-print warning that the base size did not.
+  const k = printScaleK(design, previewSize)
   const lowResLayers = (side: Side): string[] =>
     sideLayers(design, side)
       .filter((l) => l.type === 'image')
       .filter((l) => {
         const a = assets.find((x) => x.id === (l as { assetId: string }).assetId)
         if (!a) return false
-        return a.width / (l as { wIn: number }).wIn < MIN_EFFECTIVE_DPI
+        return a.width / ((l as { wIn: number }).wIn * k) < MIN_EFFECTIVE_DPI
       })
       .map((l) => l.name)
 
@@ -86,7 +92,7 @@ export default function ShareModal() {
                     disabled={busy !== null}
                     onClick={() =>
                       run(`mock-${sd}`, async () => {
-                        const c = await renderMockup(design, sd, 1600)
+                        const c = await renderMockup(design, sd, 1600, previewSize)
                         await downloadCanvasPng(c, `tshop-${slugify(design.name)}-${sd}-mockup.png`)
                       })
                     }
@@ -99,13 +105,19 @@ export default function ShareModal() {
           </section>
 
           <section>
-            <div className="panel-title mb-2">{t('share.print_ready', { dpi: PRINT_DPI })}</div>
+            {/* The size is part of the deliverable now: a graded print differs
+                physically per size, so it is shown next to the DPI. */}
+            <div className="panel-title mb-2">
+              {t('share.print_ready', { dpi: PRINT_DPI })} · {previewSize}
+            </div>
             {sides.length === 0 ? (
               <p className="text-[12px] text-tx3">{t('share.add_something')}</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {sides.map((sd) => {
-                  const area = getAreaSizeIn(design, sd)
+                  // Graded to the previewed size — this listing describes the
+                  // file the printer receives, so it must match renderPrintArea.
+                  const area = getAreaSizeIn(design, sd, previewSize)
                   const warn = lowResLayers(sd)
                   return (
                     <div key={sd} className="flex items-center gap-3 rounded-lg border border-line bg-bg1 px-3 py-2">
@@ -126,11 +138,15 @@ export default function ShareModal() {
                         disabled={busy !== null}
                         onClick={() =>
                           run(`print-${sd}`, async () => {
-                            const c = await renderPrintArea(design, sd, PRINT_DPI)
+                            const c = await renderPrintArea(design, sd, PRINT_DPI, previewSize)
                             if (!c) return
+                            // Grading makes the physical size size-dependent —
+                            // name the file after the size it was graded to, or
+                            // two sizes of the same design are indistinguishable
+                            // on the printer's desk.
                             await downloadCanvasPng(
                               c,
-                              `tshop-${slugify(design.name)}-${sd}-${area.wIn}x${area.hIn}in-300dpi.png`,
+                              `tshop-${slugify(design.name)}-${sd}-${previewSize}-${area.wIn.toFixed(1)}x${area.hIn.toFixed(1)}in-300dpi.png`,
                             )
                             toast('ok', t('toast.print_saved'))
                           })

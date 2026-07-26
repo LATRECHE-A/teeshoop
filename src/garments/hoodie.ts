@@ -259,12 +259,16 @@ export const HOODIE: GarmentArt = {
       shade: shade('h-f', true),
       // below the drawcord tips (y≈260); bottom clears the pocket top (y578)
       printAreaPx: { x: 250, y: 268, w: 300, h: 300 },
+      // hood-to-body neck seam behind the hood rim
+      collarPx: { x: 400, y: 193 },
     },
     back: {
       body: body('h-b', false),
       shade: shade('h-b', false),
       // just below the hanging hood (hood bottom ≈ y248)
       printAreaPx: { x: 250, y: 255, w: 300, h: 350 },
+      // neck seam under the hanging hood
+      collarPx: { x: 400, y: 155 },
     },
     sleeve: SLEEVE_ART,
   },

@@ -1,23 +1,40 @@
 /**
- * Silhouette extrusion for user-uploaded ("ship your own") garments.
+ * Silhouette tracing + Poisson inflation for user-uploaded ("ship your own")
+ * garments.
  *
  * Given the composited front canvas of a custom garment (which carries the
- * u2netp cutout alpha whenever the customer used background removal), trace the
- * garment outline + interior holes and build a shallow 3D shell: a silhouette-
- * shaped ExtrudeGeometry with a photo front cap, photo/blank back cap and dark
- * fabric-toned walls. A neck/underarm hole in the cutout reveals a dark interior
- * backing plane, so it reads hollow like the catalog GLBs.
+ * u2netp cutout alpha whenever the customer used background removal):
  *
- * This is best-effort and STRICTLY GATED: `canvasToSilhouette` returns null for
- * anything ambiguous (opaque original photo, degenerate/self-intersecting
- * outline, multiple components, …), and the caller falls back to the proven
- * curved CustomCard. The extrude never replaces a working card when unsure.
+ *  1. `canvasToSilhouette` traces the garment outline + interior holes
+ *     (marching squares → Douglas–Peucker) with ~8 safety gates; anything
+ *     ambiguous returns null and the caller falls back to the proven curved
+ *     CustomCard.
+ *  2. `buildInflatedShell` builds a hollow garment shell: two open sheets on a
+ *     shared (GX+1)×(GY+1) grid displaced ONLY in Z by the principled
+ *     inflation of Baran & Lehtinen, "Notes on Inflating Curves" (2009) — the
+ *     discrete Poisson equation ∇²h = −4 solved on the inside-mask grid with
+ *     red–black SOR, then z = amp · flatten(seamRemap(√(h/hMax))). A disk
+ *     inflates to a hemisphere, a strip to an elliptical cylinder; the seam
+ *     remap turns the rim's vertical tangent into a finite-slope garment seam
+ *     (pure √ reads as a sealed air-pillow) and the tanh flatten keeps the
+ *     chest reading as fabric rather than a balloon.
  *
- * Geometry facts pinned against three r185: ExtrudeGeometry is non-indexed and
- * its cap UVs are raw shape coords, so we overwrite UVs + rebuild material
- * groups by per-triangle z classification (front cap +D/2, back −D/2, walls
- * between). Earcut never throws on self-intersection, so we validate the polygon
- * before and scan for non-finite positions after.
+ * The shell is HOLLOW: each sheet gets an inward-facing LINING duplicate
+ * (z pulled toward the mid-plane, winding flipped), so looking through the
+ * neck/hem alpha openings you see the shaded inside of the opposite panel
+ * with real parallax. Two single-sided interior catch planes cover the
+ * degenerate straight-through ray (all four sheets share the same alpha
+ * holes). Photo-derived wrinkle detail: a mid-frequency luminance band
+ * displaces Z (big folds are geometric) and a high-pass + knit-grain height
+ * field becomes a tangent-space normal map (`normalMapCanvas`).
+ *
+ * HARD INVARIANTS: X/Y vertex positions and UVs never move — displacement is
+ * Z-only, which is what guarantees print/decal inch accuracy and crispness.
+ * The visible outline is cut by the texture's own alpha (alphaTest
+ * downstream), not the mesh boundary. Back sheet mirrors u (1−u). Front winds
+ * CCW from +Z, back reversed. Output is deterministic (fold phases are seeded
+ * from mask statistics, never Math.random/Date.now), and a non-finite vertex
+ * guard returns null → CustomCard fallback.
  */
 import * as THREE from 'three'
 
@@ -418,36 +435,122 @@ export function canvasToSilhouette(
   return { outer, holes, cxn, cyn }
 }
 
-// --- public: inflated ("pillow") shell -------------------------------------
+// --- Poisson inflation (Baran & Lehtinen 2009) ------------------------------
 
-export interface InflatedShell {
-  /** Front sheet: photo cap, bulged toward +Z. */
-  front: THREE.BufferGeometry
-  /** Back sheet: back photo / blank, bulged toward −Z. */
-  back: THREE.BufferGeometry
-  /** Dark interior backing behind neck/arm holes; null when there are none. */
-  interior: THREE.BufferGeometry | null
-  depthIn: number
-  /** Alpha-content bbox size in inches (X/Y extent of the built sheets). */
-  contentWIn: number
-  contentHIn: number
+/**
+ * Solve the discrete Poisson equation ∇²h = −4 on the inside-mask grid with
+ * h = 0 outside (Dirichlet), via red–black SOR directly on the ≤200px working
+ * mask. For a disk of radius R the exact solution is h = R² − r², so √h is a
+ * hemisphere; a strip gives an elliptical cylinder — the principled inflation
+ * of Baran & Lehtinen, "Notes on Inflating Curves" (2009), §2.
+ */
+function poissonInflate(m: MaskData): { h: Float32Array; hMax: number } {
+  const W2 = m.W + 2
+  const h = new Float32Array(W2 * (m.H + 2))
+  const OMEGA = 1.92 // near-optimal SOR relaxation for a ~200-cell grid
+  const ITER = 340
+  // Sweep only the content bbox (mask is 0 outside it) — pure speed, no
+  // change in the solution.
+  const yLo = m.minY + 1
+  const yHi = m.maxY + 1
+  const xLo = m.minX + 1
+  const xHi = m.maxX + 1
+  for (let it = 0; it < ITER; it++) {
+    for (let parity = 0; parity < 2; parity++) {
+      for (let y = yLo; y <= yHi; y++) {
+        const row = y * W2
+        for (let x = ((xLo + y) & 1) === parity ? xLo : xLo + 1; x <= xHi; x += 2) {
+          const i = row + x
+          if (!m.mask[i]) continue
+          const v = 0.25 * (h[i - 1] + h[i + 1] + h[i - W2] + h[i + W2] + 4)
+          h[i] += OMEGA * (v - h[i])
+        }
+      }
+    }
+  }
+  let hMax = 0
+  for (let i = 0; i < h.length; i++) if (h[i] > hMax) hMax = h[i]
+  return { h, hMax: hMax || 1 }
+}
+
+/** Flood the exterior: empty cells reachable from the padded border. */
+function exteriorFlood(m: MaskData): Uint8Array {
+  const W2 = m.W + 2
+  const H2 = m.H + 2
+  const n = W2 * H2
+  const ext = new Uint8Array(n)
+  const queue = new Int32Array(n)
+  let qh = 0
+  let qt = 0
+  ext[0] = 1
+  queue[qt++] = 0
+  while (qh < qt) {
+    const i = queue[qh++]
+    const x = i % W2
+    const y = (i / W2) | 0
+    if (x > 0 && !ext[i - 1] && !m.mask[i - 1]) {
+      ext[i - 1] = 1
+      queue[qt++] = i - 1
+    }
+    if (x < W2 - 1 && !ext[i + 1] && !m.mask[i + 1]) {
+      ext[i + 1] = 1
+      queue[qt++] = i + 1
+    }
+    if (y > 0 && !ext[i - W2] && !m.mask[i - W2]) {
+      ext[i - W2] = 1
+      queue[qt++] = i - W2
+    }
+    if (y < H2 - 1 && !ext[i + W2] && !m.mask[i + W2]) {
+      ext[i + W2] = 1
+      queue[qt++] = i + W2
+    }
+  }
+  return ext
 }
 
 /**
- * Distance transform of the eroded inside mask (two-pass chamfer 1 / √2).
- * Returns per-cell distance-to-edge in working pixels; 0 outside.
+ * Fill ENCLOSED holes (neck/underarm cutouts) into the mask. The Poisson
+ * solve must run on this filled domain: with hole cells at h = 0 the sheet
+ * dives into a CRATER at the collar, and the crater's opaque descending wall
+ * occludes the lining from every oblique angle (a "sealed funnel" — the
+ * hollow read dies). Filled, the sheet stays a smooth dome and the texture
+ * alpha cuts a true WINDOW in it, with the lining visible behind.
  */
-function insideDistance(m: MaskData): Float32Array {
+function fillHoles(m: MaskData, ext: Uint8Array): MaskData {
+  const filled = new Uint8Array(m.mask.length)
+  let any = false
+  for (let i = 0; i < filled.length; i++) {
+    const f = m.mask[i] || (!ext[i] ? 1 : 0)
+    filled[i] = f
+    if (f && !m.mask[i]) any = true
+  }
+  return any ? { ...m, mask: filled } : m
+}
+
+/**
+ * Chamfer distance (working px) to the nearest ENCLOSED hole (neck/underarm
+ * cutouts). Exterior background is excluded via the border flood fill. Null
+ * when the mask has no enclosed holes.
+ */
+function holeDistanceField(m: MaskData, ext: Uint8Array): Float32Array | null {
   const W2 = m.W + 2
   const H2 = m.H + 2
-  const d = new Float32Array(W2 * H2)
+  const n = W2 * H2
+  // Seeds: empty cells NOT reachable from outside ⇒ enclosed holes.
+  const d = new Float32Array(n)
   const BIG = 1e9
+  let any = false
+  for (let i = 0; i < n; i++) {
+    const isHole = !m.mask[i] && !ext[i]
+    d[i] = isHole ? 0 : BIG
+    if (isHole) any = true
+  }
+  if (!any) return null
+  // Two-pass chamfer (1 / √2) over the whole grid.
   const SQ2 = Math.SQRT2
-  for (let i = 0; i < d.length; i++) d[i] = m.mask[i] ? BIG : 0
   for (let y = 1; y < H2; y++) {
-    for (let x = 1; x < W2; x++) {
+    for (let x = 1; x < W2 - 1; x++) {
       const i = y * W2 + x
-      if (!m.mask[i]) continue
       let v = d[i]
       if (d[i - 1] + 1 < v) v = d[i - 1] + 1
       if (d[i - W2] + 1 < v) v = d[i - W2] + 1
@@ -457,9 +560,8 @@ function insideDistance(m: MaskData): Float32Array {
     }
   }
   for (let y = H2 - 2; y >= 0; y--) {
-    for (let x = W2 - 2; x >= 0; x--) {
+    for (let x = W2 - 2; x >= 1; x--) {
       const i = y * W2 + x
-      if (!m.mask[i]) continue
       let v = d[i]
       if (d[i + 1] + 1 < v) v = d[i + 1] + 1
       if (d[i + W2] + 1 < v) v = d[i + W2] + 1
@@ -471,15 +573,244 @@ function insideDistance(m: MaskData): Float32Array {
   return d
 }
 
+// --- photo analysis: wrinkle bands + normal map -----------------------------
+
+/** Long working edge for luminance analysis (blurs are O(n), radius-free). */
+const PHOTO = 768
+
+interface LumField {
+  W: number
+  H: number
+  lum: Float32Array // 0..255
+  a: Float32Array // 0..1
+}
+
+function readLumAlpha(canvas: HTMLCanvasElement, mirrorX: boolean): LumField | null {
+  if (!canvas.width || !canvas.height) return null
+  const scale = Math.min(1, PHOTO / Math.max(canvas.width, canvas.height))
+  const W = Math.max(4, Math.round(canvas.width * scale))
+  const H = Math.max(4, Math.round(canvas.height * scale))
+  const off = document.createElement('canvas')
+  off.width = W
+  off.height = H
+  const ctx = off.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+  ctx.imageSmoothingEnabled = true
+  if (mirrorX) {
+    ctx.translate(W, 0)
+    ctx.scale(-1, 1)
+  }
+  ctx.drawImage(canvas, 0, 0, W, H)
+  const data = ctx.getImageData(0, 0, W, H).data
+  const lum = new Float32Array(W * H)
+  const a = new Float32Array(W * H)
+  for (let i = 0, p = 0; i < lum.length; i++, p += 4) {
+    lum[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2]
+    a[i] = data[p + 3] / 255
+  }
+  return { W, H, lum, a }
+}
+
+/** Separable box blur (edge-clamped) via per-line prefix sums; O(n), radius-free. */
+function boxBlur(src: Float32Array, W: number, H: number, r: number): Float32Array {
+  const tmp = new Float32Array(W * H)
+  const out = new Float32Array(W * H)
+  const pre = new Float64Array(Math.max(W, H) + 1)
+  for (let y = 0; y < H; y++) {
+    const o = y * W
+    pre[0] = 0
+    for (let x = 0; x < W; x++) pre[x + 1] = pre[x] + src[o + x]
+    for (let x = 0; x < W; x++) {
+      const s = Math.max(0, x - r)
+      const e = Math.min(W, x + r + 1)
+      tmp[o + x] = (pre[e] - pre[s]) / (e - s)
+    }
+  }
+  for (let x = 0; x < W; x++) {
+    pre[0] = 0
+    for (let y = 0; y < H; y++) pre[y + 1] = pre[y] + tmp[y * W + x]
+    for (let y = 0; y < H; y++) {
+      const s = Math.max(0, y - r)
+      const e = Math.min(H, y + r + 1)
+      out[y * W + x] = (pre[e] - pre[s]) / (e - s)
+    }
+  }
+  return out
+}
+
+/** Alpha-weighted (normalised) box blur — transparent surroundings don't darken
+ *  the garment edge the way a plain blur would. */
+function blurNorm(f: LumField, r: number): Float32Array {
+  const { W, H, lum, a } = f
+  const wl = new Float32Array(W * H)
+  for (let i = 0; i < wl.length; i++) wl[i] = lum[i] * a[i]
+  const bl = boxBlur(wl, W, H, r)
+  const ba = boxBlur(a, W, H, r)
+  const out = new Float32Array(W * H)
+  for (let i = 0; i < out.length; i++) out[i] = bl[i] / Math.max(ba[i], 1e-4)
+  return out
+}
+
 /**
- * Build a volumetric "pillow" from the composited garment canvas: two densely
- * tessellated sheets (front photo, back photo/blank) displaced ONLY in Z by a
- * smooth distance-to-edge profile, so the flat billboard becomes a rounded,
- * cloth-like body. X/Y never move, so UVs — and therefore inch accuracy and
- * decal crispness — are preserved exactly. The garment silhouette + neck/arm
- * holes come from the texture's own alpha (alphaTest downstream), which is
- * crisper than any mesh boundary; `sil` supplies the outer outline for the dark
- * interior backing behind holes.
+ * Tangent-space normal map from a garment photo: height = luminance high-pass
+ * (folds/wrinkles) + a coarse knit grain (true mm thread pitch is sub-pixel at
+ * this resolution — fabric.ts still tiles the physical weave for fallbacks),
+ * normals via Scharr gradients. OpenGL green-up convention; pair with a
+ * flipY=true CanvasTexture, colorSpace NoColorSpace.
+ */
+function wrinkleNormalFrom(f: LumField, wIn: number, hIn: number): HTMLCanvasElement | null {
+  const { W, H, lum, a } = f
+  const rHp = Math.max(2, Math.round(Math.max(W, H) * 0.011))
+  const base = blurNorm(f, rHp)
+  const height = new Float32Array(W * H)
+  const TAU = Math.PI * 2
+  const GRAIN_PERIOD = 0.18 // in — coarse knit grain, low amplitude
+  // weave(x,y) = sin(xPh)·cos(yPh) + 0.45·sin(yPh) + 0.45·sin(xPh)
+  //            = sinX[x]·(cos(yPh) + 0.45) + 0.45·sin(yPh) — hoist per row/col.
+  const sinX = new Float32Array(W)
+  for (let x = 0; x < W; x++) sinX[x] = Math.sin(((x / W) * wIn * TAU) / GRAIN_PERIOD)
+  for (let y = 0; y < H; y++) {
+    const yPh = ((y / H) * hIn * TAU) / GRAIN_PERIOD
+    const rowA = Math.cos(yPh) + 0.45
+    const rowB = 0.45 * Math.sin(yPh)
+    const o = y * W
+    for (let x = 0; x < W; x++) {
+      const i = o + x
+      let hp = (lum[i] - base[i]) / 70
+      if (hp > 1) hp = 1
+      else if (hp < -1) hp = -1
+      height[i] = hp * a[i] + 0.14 * (sinX[x] * rowA + rowB)
+    }
+  }
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const ctx = c.getContext('2d')
+  if (!ctx) return null
+  const img = ctx.createImageData(W, H)
+  const px = img.data
+  const S = 1.4 // gradient → normal steepness
+  for (let y = 0; y < H; y++) {
+    // Edge-clamped neighbour row offsets (no per-sample clamping closures).
+    const ym = (y > 0 ? y - 1 : 0) * W
+    const y0 = y * W
+    const yp = (y < H - 1 ? y + 1 : H - 1) * W
+    for (let x = 0; x < W; x++) {
+      const i = y0 + x
+      const p = i * 4
+      if (a[i] < 0.1) {
+        px[p] = 128
+        px[p + 1] = 128
+        px[p + 2] = 255
+        px[p + 3] = 255
+        continue
+      }
+      const xm = x > 0 ? x - 1 : 0
+      const xp = x < W - 1 ? x + 1 : W - 1
+      // Scharr 3×3
+      const gx =
+        (3 * (height[ym + xp] - height[ym + xm]) +
+          10 * (height[y0 + xp] - height[y0 + xm]) +
+          3 * (height[yp + xp] - height[yp + xm])) /
+        32
+      const gy =
+        (3 * (height[yp + xm] - height[ym + xm]) +
+          10 * (height[yp + x] - height[ym + x]) +
+          3 * (height[yp + xp] - height[ym + xp])) /
+        32
+      // canvas y grows downward but UV v grows upward (flipY) ⇒ +gy is +green.
+      let nx = -gx * S
+      let ny = gy * S
+      let nz = 1
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz)
+      nx /= len
+      ny /= len
+      nz /= len
+      px[p] = Math.round((nx * 0.5 + 0.5) * 255)
+      px[p + 1] = Math.round((ny * 0.5 + 0.5) * 255)
+      px[p + 2] = Math.round((nz * 0.5 + 0.5) * 255)
+      px[p + 3] = 255
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+  return c
+}
+
+/**
+ * Public wrapper: photo → wrinkle+grain normal map canvas (null when the
+ * canvas is unreadable). `mirrorX` pre-mirrors the photo so the map stays
+ * correct on sheets that sample u mirrored (the back sheet uses 1−u).
+ */
+export function buildWrinkleNormalCanvas(
+  canvas: HTMLCanvasElement,
+  wIn: number,
+  hIn: number,
+  opts?: { mirrorX?: boolean },
+): HTMLCanvasElement | null {
+  const f = readLumAlpha(canvas, !!opts?.mirrorX)
+  return f ? wrinkleNormalFrom(f, wIn, hIn) : null
+}
+
+// --- public: inflated hollow shell -----------------------------------------
+
+export interface InflatedShell {
+  /** Front sheet: photo cap, bulged toward +Z. */
+  front: THREE.BufferGeometry
+  /** Back sheet: back photo / blank, bulged toward −Z. */
+  back: THREE.BufferGeometry
+  /**
+   * Dark interior catch plane behind neck/arm holes (faces +Z — covers the
+   * straight-through ray from the FRONT); null when there are no holes.
+   * Render single-sided — the preview and arExport both do.
+   */
+  interior: THREE.BufferGeometry | null
+  /** Twin catch plane facing −Z for BACK-side views; null when no holes. */
+  interiorFront?: THREE.BufferGeometry | null
+  /** Interior lining: front sheet pulled inward, winding flipped so it faces
+   *  INTO the cavity (−Z). Same UVs/alpha as the front sheet. */
+  liningFront?: THREE.BufferGeometry
+  /** Interior lining: back sheet pulled inward, faces INTO the cavity (+Z). */
+  liningBack?: THREE.BufferGeometry
+  /** Photo wrinkle + knit-grain tangent-space normal map (front canvas). */
+  normalMapCanvas?: HTMLCanvasElement
+  depthIn: number
+  /** Alpha-content bbox size in inches (X/Y extent of the built sheets). */
+  contentWIn: number
+  contentHIn: number
+}
+
+const smooth = (t: number): number => {
+  const x = THREE.MathUtils.clamp(t, 0, 1)
+  return x * x * (3 - 2 * x)
+}
+
+/** Reverse an indexed geometry's winding (and normals): faces flip sides. */
+function flipWinding(g: THREE.BufferGeometry): void {
+  const idx = g.index
+  if (idx) {
+    const arr = idx.array as Uint16Array | Uint32Array
+    for (let i = 0; i < arr.length; i += 3) {
+      const t = arr[i + 1]
+      arr[i + 1] = arr[i + 2]
+      arr[i + 2] = t
+    }
+    idx.needsUpdate = true
+  }
+  const nor = g.attributes.normal as THREE.BufferAttribute | undefined
+  if (nor) {
+    for (let i = 0; i < nor.count; i++) nor.setXYZ(i, -nor.getX(i), -nor.getY(i), -nor.getZ(i))
+    nor.needsUpdate = true
+  }
+}
+
+/**
+ * Build a hollow, seamed garment shell from the composited garment canvas:
+ * front + back sheets (Poisson-inflated, Z-only), inward-facing lining
+ * duplicates (the hollow look), interior catch planes behind holes, baked
+ * vertex AO, deterministic hem-drape folds and photo-derived mid-frequency
+ * wrinkle displacement. X/Y and UVs never move → inch accuracy and decal
+ * crispness are preserved exactly; the silhouette + holes come from the
+ * texture's own alpha (alphaTest downstream).
  */
 export function buildInflatedShell(
   canvas: HTMLCanvasElement,
@@ -491,9 +822,6 @@ export function buildInflatedShell(
   const m = buildMask(canvas)
   if (!m) return null
 
-  const dist = insideDistance(m)
-  const W2 = m.W + 2
-
   // Content bbox in working px + inches.
   const cW = m.maxX - m.minX + 1
   const cH = m.maxY - m.minY + 1
@@ -501,24 +829,40 @@ export function buildInflatedShell(
   const contentWin = (cW / m.W) * wIn
   const contentHin = (cH / m.H) * hIn
 
-  // Volume budget: a torso-centred garment cross-section. Z-only, so X/Y
-  // (inches) and UVs never move — inch accuracy and decal crispness are
-  // preserved exactly. The back is markedly flatter than the chest (a worn
-  // garment's reverse drapes flat), which — together with the seamed edge
-  // profile and per-row medial depth below — reads as a real garment rather
-  // than a symmetric inflatable pillow.
-  const bulge = THREE.MathUtils.clamp(contentWin * 0.15, 1.4, 4.6)
-  const bulgeBack = bulge * 0.6
+  // Inflate over the hole-FILLED domain (smooth dome, alpha cuts the window);
+  // AO still darkens toward the real holes below.
+  const ext = exteriorFlood(m)
+  const { h, hMax } = poissonInflate(fillHoles(m, ext))
+  const holeD = holeDistanceField(m, ext)
+  const photoField = readLumAlpha(canvas, false)
 
-  // Normalise the distance field by its GLOBAL max so only the medial axis
-  // reaches full height. The old clamp(dist / dTarget) saturated the entire
-  // torso interior into a flat-topped mesa — the "puffed paper" look.
-  let dMax = 0
-  for (let p = 0; p < dist.length; p++) if (dist[p] < 1e8 && dist[p] > dMax) dMax = dist[p]
-  if (dMax < 1e-3) dMax = 1
+  // Mid-frequency luminance band → geometric wrinkles (big soft folds).
+  let mid: Float32Array | null = null
+  let midW = 0
+  let midH = 0
+  if (photoField) {
+    const long = Math.max(photoField.W, photoField.H)
+    const bMid = blurNorm(photoField, Math.max(3, Math.round(long * 0.03)))
+    const bBig = blurNorm(photoField, Math.max(8, Math.round(long * 0.085)))
+    mid = new Float32Array(photoField.W * photoField.H)
+    let mMax = 0
+    for (let i = 0; i < mid.length; i++) {
+      const v = photoField.a[i] > 0.5 ? bMid[i] - bBig[i] : 0
+      mid[i] = v
+      const av = Math.abs(v)
+      if (av > mMax) mMax = av
+    }
+    if (mMax > 1e-4) {
+      for (let i = 0; i < mid.length; i++) mid[i] = THREE.MathUtils.clamp(mid[i] / mMax, -1, 1)
+    }
+    midW = photoField.W
+    midH = photoField.H
+  }
+  const normalMapCanvas = photoField ? wrinkleNormalFrom(photoField, wIn, hIn) : null
 
-  const sampleDist = (imgX: number, imgY: number): number => {
-    // bilinear over the padded dist grid (mask index = img + 1)
+  const W2 = m.W + 2
+  /** Bilinear sample of a padded working-grid field at image coords. */
+  const sampleField = (field: Float32Array, imgX: number, imgY: number): number => {
     const fx = imgX + 1
     const fy = imgY + 1
     const x0 = Math.max(0, Math.min(m.W, Math.floor(fx)))
@@ -527,153 +871,259 @@ export function buildInflatedShell(
     const y1 = Math.min(m.H + 1, y0 + 1)
     const tx = fx - x0
     const ty = fy - y0
-    const d00 = dist[y0 * W2 + x0]
-    const d10 = dist[y0 * W2 + x1]
-    const d01 = dist[y1 * W2 + x0]
-    const d11 = dist[y1 * W2 + x1]
+    const d00 = field[y0 * W2 + x0]
+    const d10 = field[y0 * W2 + x1]
+    const d01 = field[y1 * W2 + x0]
+    const d11 = field[y1 * W2 + x1]
+    return (d00 * (1 - tx) + d10 * tx) * (1 - ty) + (d01 * (1 - tx) + d11 * tx) * ty
+  }
+  /** Bilinear sample of the photo mid band at normalised canvas coords. */
+  const sampleMid = (nx: number, ny: number): number => {
+    if (!mid) return 0
+    const fx = THREE.MathUtils.clamp(nx * midW - 0.5, 0, midW - 1)
+    const fy = THREE.MathUtils.clamp(ny * midH - 0.5, 0, midH - 1)
+    const x0 = Math.floor(fx)
+    const y0 = Math.floor(fy)
+    const x1 = Math.min(midW - 1, x0 + 1)
+    const y1 = Math.min(midH - 1, y0 + 1)
+    const tx = fx - x0
+    const ty = fy - y0
+    const d00 = mid[y0 * midW + x0]
+    const d10 = mid[y0 * midW + x1]
+    const d01 = mid[y1 * midW + x0]
+    const d11 = mid[y1 * midW + x1]
     return (d00 * (1 - tx) + d10 * tx) * (1 - ty) + (d01 * (1 - tx) + d11 * tx) * ty
   }
 
-  const GX = 92
-  const GY = THREE.MathUtils.clamp(Math.round((GX * contentHin) / contentWin), 24, 168)
+  // Volume budget: chest depth from garment width; the back drapes flatter.
+  const bulge = THREE.MathUtils.clamp(contentWin * 0.15, 1.4, 4.6)
+  const bulgeBack = bulge * 0.6
 
-  // Per-row body centre + half-width (working px) → each horizontal slice gets a
-  // half-ellipse cross-section, so the sheet reads as a rounded cylinder/torso
-  // rather than a flat billboard. Thin regions (sleeves) have a small
-  // distance-to-edge and stay low; the thick body bulges most.
-  const nRows = GY + 1
-  const rowC = new Float32Array(nRows)
-  const rowH = new Float32Array(nRows)
-  // Peak medial thickness (distance-to-edge) per row: large in the round body,
-  // small on the thin sleeves — so depth follows where the garment is actually
-  // thick (chest deep, sleeves/hem shallow) instead of a uniform inflated tube.
-  const rowThick = new Float32Array(nRows)
-  for (let j = 0; j < nRows; j++) {
-    const ry = Math.round(m.minY + (j / GY) * (cH - 1))
-    const base = (ry + 1) * W2
-    let lo = -1
-    let hi = -1
-    let tk = 0
-    for (let x = m.minX; x <= m.maxX; x++) {
-      if (m.mask[base + x + 1]) {
-        if (lo < 0) lo = x
-        hi = x
-        const dv = dist[base + x + 1]
-        if (dv < 1e8 && dv > tk) tk = dv
-      }
-    }
-    if (hi < 0) {
-      rowC[j] = (m.minX + m.maxX) / 2
-      rowH[j] = Math.max(1, (cW - 1) / 2)
-    } else {
-      rowC[j] = (lo + hi) / 2
-      rowH[j] = Math.max(1, (hi - lo) / 2)
-    }
-    rowThick[j] = tk
+  // Seam remap: softens the rim's vertical √-tangent into a finite-slope
+  // garment seam (pure √ reads as a sealed air-pillow — the old failure mode).
+  const SEAM_EPS = 0.35
+  const e2 = SEAM_EPS * SEAM_EPS
+  const seamNorm = Math.sqrt(1 + e2) - SEAM_EPS
+  const seamRemap = (u: number): number => (Math.sqrt(u * u + e2) - SEAM_EPS) / seamNorm
+  // Flatness remap: the chest reads as fabric, not a balloon.
+  const FLAT_A = 1.5
+  const flatNorm = Math.tanh(FLAT_A)
+  const flatten = (u: number): number => Math.tanh(FLAT_A * u) / flatNorm
+
+  // Deterministic drape-fold phases, seeded from mask statistics.
+  const TAU = Math.PI * 2
+  const phase1 = (m.coverage * 97.13) % TAU
+  const phase2 = (((cW * 13 + cH * 7) % 257) / 257) * TAU
+  const FOLD_AMP = 0.3 // in, at the hem
+  const MID_AMP = 0.11 // in, geometric wrinkle displacement
+  const inPerPx = wIn / m.W
+
+  const GX = 112
+  const GY = THREE.MathUtils.clamp(Math.round((GX * contentHin) / contentWin), 24, 208)
+  const cols = GX + 1
+  const rows = GY + 1
+  const nVerts = cols * rows
+
+  interface SheetData {
+    pos: Float32Array
+    uv: Float32Array
+    col: Float32Array
   }
 
-  const smooth = (t: number): number => {
-    const x = THREE.MathUtils.clamp(t, 0, 1)
-    return x * x * (3 - 2 * x)
-  }
-
-  const makeSheet = (sign: 1 | -1): THREE.BufferGeometry => {
+  const buildSheetData = (sign: 1 | -1): SheetData => {
     const amp = sign > 0 ? bulge : -bulgeBack
-    const cols = GX + 1
-    const rows = GY + 1
-    const pos = new Float32Array(cols * rows * 3)
-    const uv = new Float32Array(cols * rows * 2)
-    const col = new Float32Array(cols * rows * 3)
+    const pos = new Float32Array(nVerts * 3)
+    const uv = new Float32Array(nVerts * 2)
+    const col = new Float32Array(nVerts * 3)
     for (let j = 0; j < rows; j++) {
       const fy = j / GY
       const imgY = m.minY + fy * (cH - 1)
       const Y = (0.5 - fy) * contentHin
-      const v = 1 - (m.minY + fy * cH) / m.H
-      const rc = rowC[j]
-      const rh = rowH[j]
-      // Vertical fullness: tuck the collar/shoulder (top ~14%) and hem (bottom
-      // ~10%) in Z and peak the fullness over the upper chest — a real tee is
-      // fullest at the chest and drapes flat at the shoulders and hem, unlike
-      // the old symmetric sin() that still puffed the very top/bottom edges.
-      const vTop = smooth(THREE.MathUtils.clamp(fy / 0.14, 0, 1))
-      const vBot = smooth(THREE.MathUtils.clamp((1 - fy) / 0.1, 0, 1))
-      const chest = 0.72 + 0.28 * Math.sin(THREE.MathUtils.clamp(fy / 0.8, 0, 1) * Math.PI)
-      const bias = chest * (0.55 + 0.45 * vTop * vBot)
-      // Peak depth follows how THICK the garment is at this row (chest deep,
-      // sleeves/hem shallow) so it stops reading as one uniform inflated tube.
-      const rowDepth = THREE.MathUtils.clamp(smooth(rowThick[j] / dMax / 0.65), 0.35, 1)
+      const ny = (m.minY + fy * cH) / m.H
+      const v = 1 - ny
+      // Collar tuck (top ~14%) and hem tuck (bottom ~10%): a worn garment is
+      // fullest at the chest and drapes flat at shoulders and hem.
+      const vTop = smooth(fy / 0.14)
+      const vBot = smooth((1 - fy) / 0.1)
+      const tuck = 0.55 + 0.45 * vTop * vBot
+      // Hem drape ramps in below the chest; sleeves droop in the upper corners.
+      const foldRamp = smooth((fy - 0.32) / 0.55)
+      const sUp = smooth((0.5 - fy) / 0.35)
       for (let i = 0; i < cols; i++) {
         const fx = i / GX
         const imgX = m.minX + fx * (cW - 1)
         const X = (fx - 0.5) * contentWin
-        const nd = THREE.MathUtils.clamp(sampleDist(imgX, imgY) / dMax, 0, 1)
-        const taper = smooth(nd / 0.34) // round every rim + hole down to 0
-        const hx = THREE.MathUtils.clamp((imgX - rc) / rh, -1, 1)
-        // cos() reaches 0 at the edge with a FINITE slope (~57°), so the front
-        // and back panels meet at a garment SEAM instead of wrapping into each
-        // other tangentially (which is what read as a sealed air-pillow).
-        const cross = Math.cos(hx * (Math.PI / 2))
-        const z = amp * cross * taper * bias * rowDepth
+        const nx = (m.minX + fx * cW) / m.W
+        const hv = Math.max(0, sampleField(h, imgX, imgY))
+        const u01 = Math.min(1, Math.sqrt(hv / hMax))
+        const prof = flatten(seamRemap(u01))
+        const rimFade = smooth(u01 / 0.22) // wrinkles/folds vanish at the seam
+        const sSide = smooth((Math.abs(X) / (contentWin * 0.5) - 0.52) / 0.3)
+        const droop = 1 - 0.22 * sSide * sUp
+        let z = amp * prof * tuck * droop
+        // Perturbation headroom: near the seam the base depth shrinks faster
+        // than rimFade, so an unscaled fold trough (≤0.41in) could push the
+        // front sheet through z=0 and into the back sheet / lining. Scaling by
+        // smooth(|z|/0.6) keeps every perturbation strictly smaller than the
+        // base depth (worst case ≈0.41·smooth(b/0.6) < b for all b > 0).
+        const headroom = smooth(Math.abs(z) / 0.6)
+        // Deterministic hem drape: superposed sinusoids, chest→hem amplitude.
+        const fold =
+          FOLD_AMP *
+          foldRamp *
+          (0.62 * Math.sin((TAU * X) / 3.6 + phase1) + 0.38 * Math.sin((TAU * X) / 2.6 + phase2))
+        z += sign * fold * rimFade * headroom * (sign > 0 ? 1 : 0.55)
+        // Photo mid-band → geometric wrinkles (front sheet: that's the photo).
+        const mv = sign > 0 ? sampleMid(nx, ny) : 0
+        if (sign > 0) z += MID_AMP * mv * rimFade * headroom
         const k = (j * cols + i) * 3
         pos[k] = X
         pos[k + 1] = Y
         pos[k + 2] = z
-        // Free ambient occlusion baked to vertex colour: darken toward holes /
-        // deep concavities. Floor raised so the whole silhouette rim no longer
-        // reads as a dark vignette (which reinforced the sealed-pillow look).
-        const ao = 0.75 + 0.25 * smooth(nd / 0.5)
+        // Opening-aware AO: darken toward holes + strong Poisson concavities;
+        // floored so the rim never vignettes.
+        let ao = 0.78 + 0.22 * smooth(u01 / 0.4)
+        if (holeD) {
+          const dIn = sampleField(holeD, imgX, imgY) * inPerPx
+          ao *= 0.8 + 0.2 * smooth(dIn / 1.6)
+        }
+        ao -= 0.08 * Math.max(0, -mv) * rimFade // crease shadows
+        ao = THREE.MathUtils.clamp(ao, 0.72, 1)
         col[k] = ao
         col[k + 1] = ao
         col[k + 2] = ao
-        const u = (m.minX + fx * cW) / m.W
         const t = (j * cols + i) * 2
+        const u = (m.minX + fx * cW) / m.W
         uv[t] = sign > 0 ? u : 1 - u
         uv[t + 1] = v
       }
     }
-    const idx: number[] = []
+    return { pos, uv, col }
+  }
+
+  // Grid index; `ccwFromFront` = winds CCW seen from +Z (front-facing).
+  const gridIndex = (ccwFromFront: boolean): Uint32Array => {
+    const idx = new Uint32Array(GX * GY * 6)
+    let p = 0
     for (let j = 0; j < GY; j++) {
       for (let i = 0; i < GX; i++) {
         const a = j * cols + i
         const b = a + 1
         const c = a + cols
         const d = c + 1
-        // Front winds CCW from +Z; back reverses so its normals face −Z.
-        if (sign > 0) idx.push(a, c, b, b, c, d)
-        else idx.push(a, b, c, b, d, c)
+        if (ccwFromFront) {
+          idx[p++] = a
+          idx[p++] = c
+          idx[p++] = b
+          idx[p++] = b
+          idx[p++] = c
+          idx[p++] = d
+        } else {
+          idx[p++] = a
+          idx[p++] = b
+          idx[p++] = c
+          idx[p++] = b
+          idx[p++] = d
+          idx[p++] = c
+        }
       }
     }
+    return idx
+  }
+
+  const makeGeo = (pos: Float32Array, uv: Float32Array, col: Float32Array, ccw: boolean): THREE.BufferGeometry => {
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3))
-    geo.setIndex(idx)
+    geo.setIndex(new THREE.BufferAttribute(gridIndex(ccw), 1))
     geo.computeVertexNormals()
     geo.computeBoundingBox()
     geo.computeBoundingSphere()
     return geo
   }
 
-  const front = makeSheet(1)
-  const back = makeSheet(-1)
+  const frontData = buildSheetData(1)
+  const backData = buildSheetData(-1)
 
   // Non-finite guard (bad mask math must never reach the GPU).
-  const fpos = front.attributes.position as THREE.BufferAttribute
-  for (let i = 0; i < fpos.count; i++) {
-    if (!Number.isFinite(fpos.getX(i)) || !Number.isFinite(fpos.getY(i)) || !Number.isFinite(fpos.getZ(i))) {
-      front.dispose()
-      back.dispose()
-      return null
+  for (const arr of [frontData.pos, backData.pos]) {
+    for (let i = 0; i < arr.length; i++) {
+      if (!Number.isFinite(arr[i])) return null
     }
   }
 
-  // Dark interior backing so neck/arm holes read hollow (not see-through).
+  // Interior LINING: each sheet duplicated with z pulled toward the mid-plane
+  // (z·0.82 pushed 0.18in inward, clamped so it never crosses z=0 or its
+  // parent) and winding flipped so faces point INTO the cavity. Through the
+  // neck/hem alpha openings you see the shaded inside of the opposite panel
+  // with real parallax — the hollow-garment read.
+  const liningZ = (z: number, front: boolean): number =>
+    front ? Math.max(z * 0.82 - 0.18, z * 0.3) : Math.min(z * 0.82 + 0.18, z * 0.3)
+  const buildLining = (src: SheetData, front: boolean): SheetData => {
+    const pos = src.pos.slice()
+    const col = src.col.slice()
+    for (let i = 0; i < nVerts; i++) {
+      pos[i * 3 + 2] = liningZ(src.pos[i * 3 + 2], front)
+      col[i * 3] *= 0.6
+      col[i * 3 + 1] *= 0.6
+      col[i * 3 + 2] *= 0.6
+    }
+    return { pos, uv: src.uv.slice(), col }
+  }
+  const liningFrontData = buildLining(frontData, true)
+  const liningBackData = buildLining(backData, false)
+
+  const front = makeGeo(frontData.pos, frontData.uv, frontData.col, true)
+  const back = makeGeo(backData.pos, backData.uv, backData.col, false)
+  // Linings face the opposite way of their parent (into the cavity).
+  const liningFront = makeGeo(liningFrontData.pos, liningFrontData.uv, liningFrontData.col, false)
+  const liningBack = makeGeo(liningBackData.pos, liningBackData.uv, liningBackData.col, true)
+
+  // Interior catch planes: the four sheets share the same alpha holes, so a
+  // straight-through ray would exit the garment entirely. One plane per view
+  // side, single-sided so neither can halo through the rim from the wrong
+  // side (arExport consumes both planes single-sided too).
+  // Each plane sits STRICTLY BEHIND its side's lining and inside its sheet:
+  // deep enough that the parallax lining is what you see through the openings
+  // (a shallower plane would occlude the lining over the whole chest — flat
+  // black hole again), yet never poking through its own sheet. The nominal
+  // 0.91·amp − 0.09 assumes an unperturbed sheet: folds/wrinkles lift a sheet
+  // by up to FOLD_AMP + MID_AMP and its lining by 0.82× that, which overshoots
+  // the fixed fraction on narrow shells (bulge < ~2.7in), so the lining's
+  // MEASURED reach is used as a floor.
+  const liningReach = (d: SheetData): number => {
+    let z = 0
+    for (let i = 0; i < nVerts; i++) {
+      const v = Math.abs(d.pos[i * 3 + 2])
+      if (v > z) z = v
+    }
+    return z
+  }
+  const planeDepth = (amp: number, lining: SheetData): number =>
+    Math.max(0.91 * amp - 0.09, liningReach(lining) + 0.03)
   let interior: THREE.BufferGeometry | null = null
+  let interiorFront: THREE.BufferGeometry | null = null
   if (sil.holes.length > 0) {
-    const g = new THREE.ShapeGeometry(new THREE.Shape(sil.outer))
-    g.translate(0, 0, -bulgeBack * 0.35)
-    interior = g
+    const gBack = new THREE.ShapeGeometry(new THREE.Shape(sil.outer))
+    gBack.translate(0, 0, -planeDepth(bulgeBack, liningBackData))
+    interior = gBack // faces +Z (ShapeGeometry default): front-view catch
+    const gFront = new THREE.ShapeGeometry(new THREE.Shape(sil.outer))
+    flipWinding(gFront)
+    gFront.translate(0, 0, planeDepth(bulge, liningFrontData))
+    interiorFront = gFront // faces −Z: back-view catch
   }
 
-  return { front, back, interior, depthIn: bulge + bulgeBack, contentWIn: contentWin, contentHIn: contentHin }
+  return {
+    front,
+    back,
+    interior,
+    interiorFront,
+    liningFront,
+    liningBack,
+    normalMapCanvas: normalMapCanvas ?? undefined,
+    depthIn: bulge + bulgeBack,
+    contentWIn: contentWin,
+    contentHIn: contentHin,
+  }
 }

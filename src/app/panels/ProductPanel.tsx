@@ -1,15 +1,56 @@
 import { useMemo } from 'react'
-import { Camera, Pencil } from 'lucide-react'
+import { Camera, Pencil, Store } from 'lucide-react'
 import clsx from 'clsx'
 import { GARMENTS } from '@/garments'
 import { GARMENT_COLORS } from '@/content/palettes'
 import { PRICING } from '@/content/pricing'
+import { SIZE_CHARTS, SIZE_IDS } from '@/content/sizeChart'
 import { useStore } from '@/state/store'
 import { useT } from '@/i18n'
+import { useCatalogT } from '@/app/modals/catalogI18n'
 import { getAreaSizeIn } from '@/lib/renderDesign'
-import { fmtIn } from '@/lib/units'
+import { gradableSizes, printScaleOf } from '@/lib/printScale'
+import { fmtCm, fmtIn, fmtSizeDual, inToCm } from '@/lib/units'
 import { withSvgSize } from '@/lib/rasterCache'
-import type { CatalogGarmentId } from '@/lib/types'
+import type { CatalogGarmentId, PrintScaleMode } from '@/lib/types'
+
+/**
+ * Print-grading strings. `messages.ts` is owned by the i18n integrator, so
+ * they live here as literals — French first, English fallback — exactly like a
+ * module side-file, minus the file. See the report for the keys to merge.
+ */
+const GRADE_I18N = {
+  fr: {
+    title: 'Échelle d’impression',
+    scaled: 'Proportionnelle',
+    fixed: 'Identique',
+    hint_scaled:
+      'L’impression grandit avec le vêtement : toutes les tailles ont le même rendu. Un film par taille — plus cher.',
+    hint_fixed:
+      'Une seule impression physique pour toutes les tailles : un seul film — moins cher, mais le motif paraît petit sur un 3XL.',
+    base: 'Taille de référence',
+    base_note:
+      'Vos dimensions sont mémorisées sur cette taille. En changer réinterprète le design : il grandit ou rétrécit sur les autres tailles.',
+    unavailable:
+      'Ce vêtement n’a pas de guide des tailles : l’impression reste identique sur toutes les tailles.',
+    for_size: 'Taille',
+  },
+  en: {
+    title: 'Print scaling',
+    scaled: 'Proportional',
+    fixed: 'Same on every size',
+    hint_scaled:
+      'The print grows with the garment, so every size reads the same. One film per size — costs more.',
+    hint_fixed:
+      'One physical print for every size: a single film — cheaper, but the artwork looks small on a 3XL.',
+    base: 'Reference size',
+    base_note:
+      'Your dimensions are stored on this size. Changing it re-interprets the design: it grows or shrinks on the other sizes.',
+    unavailable:
+      'This garment has no size chart — the print stays identical on every size.',
+    for_size: 'Size',
+  },
+} as const
 
 function garmentThumb(id: CatalogGarmentId, hex: string): string {
   const svg = withSvgSize(
@@ -22,11 +63,19 @@ function garmentThumb(id: CatalogGarmentId, hex: string): string {
 
 export default function ProductPanel() {
   const t = useT()
+  // Supplier-catalogue strings live in the module's own side-file.
+  const ct = useCatalogT()
   const design = useStore((s) => s.design)
   const side = useStore((s) => s.activeSide)
   const setGarment = useStore((s) => s.setGarment)
   const setColor = useStore((s) => s.setColor)
   const openModal = useStore((s) => s.openModal)
+  const previewSize = useStore((s) => s.previewSize)
+  const setPreviewSize = useStore((s) => s.setPreviewSize)
+  const setPrintScaleMode = useStore((s) => s.setPrintScaleMode)
+  const setPrintBaseSize = useStore((s) => s.setPrintBaseSize)
+  const lang = useStore((s) => s.lang)
+  const g = (k: keyof typeof GRADE_I18N.fr) => (GRADE_I18N[lang] ?? GRADE_I18N.fr)[k]
 
   const thumbs = useMemo(
     () => ({
@@ -36,8 +85,13 @@ export default function ProductPanel() {
     [],
   )
 
-  const area = getAreaSizeIn(design, side)
+  // READ path (display only) — graded, so the number tells the truth about the
+  // size being previewed. Every WRITE path still uses the base-space area.
+  const area = getAreaSizeIn(design, side, previewSize)
   const isCustom = design.garmentId === 'custom'
+  const printScale = printScaleOf(design)
+  const baseSizes = gradableSizes(design)
+  const canGrade = baseSizes.length > 1
 
   return (
     <div className="flex flex-col gap-5 p-3.5">
@@ -109,6 +163,23 @@ export default function ProductPanel() {
             </span>
           )}
         </button>
+
+        <button
+          onClick={() => openModal('catalog')}
+          className="mt-2 flex w-full items-center gap-3 rounded-xl border border-line bg-bg1 p-3 text-left transition-colors hover:border-cy/60"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-bg3 text-cy">
+            <Store size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12.5px] font-semibold text-tx">
+              {ct('catalog.entry.title')}
+            </span>
+            <span className="block text-[11px] leading-snug text-tx2">
+              {ct('catalog.entry.cta')}
+            </span>
+          </span>
+        </button>
       </section>
 
       {!isCustom && (
@@ -140,12 +211,137 @@ export default function ProductPanel() {
         </section>
       )}
 
+      {!isCustom && (
+        <section>
+          <div className="panel-title mb-2.5">
+            {t('product.size')} ·{' '}
+            <span className="normal-case tracking-normal text-tx2">{previewSize}</span>
+          </div>
+          <div className="flex gap-1">
+            {SIZE_IDS.map((sz) => (
+              <button
+                key={sz}
+                onClick={() => setPreviewSize(sz)}
+                aria-pressed={previewSize === sz}
+                className={clsx(
+                  'btn h-8 flex-1 px-0 text-[11px]',
+                  previewSize === sz && 'btn-primary',
+                )}
+              >
+                {sz}
+              </button>
+            ))}
+          </div>
+          {/* Physical print area for the size being previewed — under grading
+              this changes as the chips are clicked, which is the feedback that
+              makes the feature believable. */}
+          <div className="mono-dim mt-2 text-[11px] text-tx2">
+            {t('product.print_area')} · {t('side.' + side)} : {fmtSizeDual(area.wIn, area.hIn)}
+          </div>
+          {(() => {
+            const chart = SIZE_CHARTS[design.garmentId as CatalogGarmentId]
+            const spec = chart.sizes[previewSize]
+            return (
+              <>
+                <div className="mono-dim mt-2 text-[11px] leading-relaxed text-cy">
+                  {t('product.size_dims', {
+                    chest: fmtCm(spec.halfChestCm),
+                    length: fmtCm(spec.bodyLengthCm),
+                    sleeve: fmtCm(spec.sleeveLengthCm),
+                  })}
+                </div>
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-[11px] text-tx3 transition-colors hover:text-tx2">
+                    {t('product.size_chart')} · {chart.brandRef}
+                  </summary>
+                  <table className="mono-dim mt-2 w-full text-left text-[10.5px]">
+                    <thead>
+                      <tr className="text-tx3">
+                        <th className="py-0.5 font-normal" />
+                        <th className="py-0.5 font-normal">{t('product.chest')}</th>
+                        <th className="py-0.5 font-normal">{t('product.length')}</th>
+                        <th className="py-0.5 font-normal">{t('product.sleeve')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {SIZE_IDS.map((sz) => {
+                        const sp = chart.sizes[sz]
+                        return (
+                          <tr key={sz} className={clsx(sz === previewSize ? 'text-cy' : 'text-tx2')}>
+                            <td className="py-0.5 font-bold">{sz}</td>
+                            <td className="py-0.5">{sp.halfChestCm}</td>
+                            <td className="py-0.5">{sp.bodyLengthCm}</td>
+                            <td className="py-0.5">{sp.sleeveLengthCm}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  <p className="mt-1 text-[10px] leading-relaxed text-tx3">
+                    {t('product.size_chart_note')}
+                  </p>
+                </details>
+              </>
+            )
+          })()}
+        </section>
+      )}
+
+      <section>
+        <div className="panel-title mb-2.5">{g('title')}</div>
+        <div className="flex gap-1">
+          {(['scaled', 'fixed'] as PrintScaleMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setPrintScaleMode(m)}
+              aria-pressed={printScale.mode === m}
+              className={clsx(
+                'btn h-8 flex-1 px-1 text-[11px]',
+                printScale.mode === m && 'btn-primary',
+              )}
+            >
+              {g(m)}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-tx3">
+          {printScale.mode === 'scaled' ? g('hint_scaled') : g('hint_fixed')}
+        </p>
+        {printScale.mode === 'scaled' &&
+          (canGrade ? (
+            <>
+              <div className="panel-title mb-1.5 mt-3">{g('base')}</div>
+              <div className="flex gap-1">
+                {baseSizes.map((sz) => (
+                  <button
+                    key={sz}
+                    onClick={() => setPrintBaseSize(sz)}
+                    aria-pressed={printScale.baseSize === sz}
+                    className={clsx(
+                      'btn h-8 flex-1 px-0 text-[11px]',
+                      printScale.baseSize === sz && 'border-cy text-cy',
+                    )}
+                  >
+                    {sz}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-tx3">{g('base_note')}</p>
+            </>
+          ) : (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-yl">{g('unavailable')}</p>
+          ))}
+      </section>
+
       <section className="rounded-lg border border-line bg-bg1 p-3">
         <div className="panel-title mb-1.5">
-          {t('product.print_area')} · {t('side.' + side)}
+          {t('product.print_area')} · {t('side.' + side)} · {g('for_size')} {previewSize}
         </div>
         <div className="mono-dim text-cy">
-          {t('product.print_area_size', { w: fmtIn(area.wIn), h: fmtIn(area.hIn) })}
+          {t('product.print_area_size', {
+            w: `${fmtCm(inToCm(area.wIn))} (${fmtIn(area.wIn)})`,
+            h: `${fmtCm(inToCm(area.hIn))} (${fmtIn(area.hIn)})`,
+          })}
         </div>
         <p className="mt-1.5 text-[11px] leading-relaxed text-tx3">
           {t('product.print_area_note')}

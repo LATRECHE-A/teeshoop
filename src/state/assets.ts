@@ -3,7 +3,7 @@
  * HTMLImageElement cache so canvas renderers can draw synchronously after an
  * async `ensure` step.
  */
-import { get, set, del } from 'idb-keyval'
+import { get, set, del, update } from 'idb-keyval'
 import { nanoid } from 'nanoid'
 import type { AssetMeta } from '@/lib/types'
 
@@ -19,9 +19,20 @@ export async function listAssets(): Promise<AssetMeta[]> {
   return (await get<AssetMeta[]>(INDEX_KEY)) ?? []
 }
 
-async function writeIndex(index: AssetMeta[]): Promise<AssetMeta[]> {
-  await set(INDEX_KEY, index)
-  return index
+/**
+ * Read-modify-write the shared index inside ONE idb transaction — photo
+ * ingests (bg removal) and uploads run concurrently, and a plain
+ * listAssets()+set() pair silently loses the slower writer's row/flag.
+ */
+async function mutateIndex(
+  fn: (index: AssetMeta[]) => AssetMeta[],
+): Promise<AssetMeta[]> {
+  let next: AssetMeta[] = []
+  await update<AssetMeta[]>(INDEX_KEY, (index) => {
+    next = fn(index ?? [])
+    return next
+  })
+  return next
 }
 
 /** Decode an svg blob via HTMLImageElement (createImageBitmap rejects svgs). */
@@ -86,8 +97,7 @@ export async function addAsset(file: Blob, name: string): Promise<AssetMeta> {
     createdAt: Date.now(),
   }
   await set(blobKey(meta.id, false), stored)
-  const index = await listAssets()
-  await writeIndex([meta, ...index])
+  await mutateIndex((index) => [meta, ...index])
   return meta
 }
 
@@ -104,8 +114,7 @@ export async function setAssetCutout(
 ): Promise<AssetMeta[]> {
   await set(blobKey(id, true), blob)
   invalidateAssetImage(id, 'cutout')
-  const index = await listAssets()
-  return writeIndex(
+  return mutateIndex((index) =>
     index.map((a) => (a.id === id ? { ...a, hasCutout: true } : a)),
   )
 }
@@ -115,8 +124,7 @@ export async function removeAsset(id: string): Promise<AssetMeta[]> {
   await del(blobKey(id, true))
   invalidateAssetImage(id, 'original')
   invalidateAssetImage(id, 'cutout')
-  const index = await listAssets()
-  return writeIndex(index.filter((a) => a.id !== id))
+  return mutateIndex((index) => index.filter((a) => a.id !== id))
 }
 
 // --- runtime image cache -----------------------------------------------
@@ -205,16 +213,17 @@ export async function importAsset(
   dataUrl: string,
   cutoutDataUrl?: string | null,
 ): Promise<void> {
-  const index = await listAssets()
   const orig = await (await fetch(dataUrl)).blob()
   await set(blobKey(meta.id, false), orig)
   if (cutoutDataUrl) {
     const cut = await (await fetch(cutoutDataUrl)).blob()
     await set(blobKey(meta.id, true), cut)
   }
-  if (!index.some((a) => a.id === meta.id)) {
-    await writeIndex([{ ...meta, hasCutout: !!cutoutDataUrl }, ...index])
-  }
+  await mutateIndex((index) =>
+    index.some((a) => a.id === meta.id)
+      ? index
+      : [{ ...meta, hasCutout: !!cutoutDataUrl }, ...index],
+  )
   invalidateAssetImage(meta.id, 'original')
   invalidateAssetImage(meta.id, 'cutout')
 }

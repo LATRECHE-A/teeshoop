@@ -198,12 +198,14 @@ export const TEE: GarmentArt = {
       shade: shade('t-f', true),
       // top edge ≈3″ below the front collar seam (seam ≈ y126)
       printAreaPx: { x: 250, y: 200, w: 300, h: 400 },
+      collarPx: { x: 400, y: 125 },
     },
     back: {
       body: body('t-b', false),
       shade: shade('t-b', false),
       // top edge ≈4″ below the back collar seam (seam ≈ y67)
       printAreaPx: { x: 250, y: 168, w: 300, h: 400 },
+      collarPx: { x: 400, y: 68 },
     },
     sleeve: SLEEVE_ART,
   },

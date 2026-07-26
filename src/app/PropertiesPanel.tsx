@@ -19,10 +19,18 @@ import { FONTS, ensureFont } from '@/lib/fonts'
 import { INK_COLORS } from '@/content/palettes'
 import { zonesFor } from '@/content/zones'
 import type { GraphicLayer, ImageLayer, Layer, TextLayer } from '@/lib/types'
-import { fmtIn } from '@/lib/units'
+import { fmtCm, fmtIn, inToCm } from '@/lib/units'
 import { measureLayer } from '@/lib/renderDesign'
+import { printScaleK, scaleLayer } from '@/lib/printScale'
 import { useIsMobile } from './hooks/useIsMobile'
 import { useT } from '@/i18n'
+
+/**
+ * "on size X" suffix for the physical-size readout. `messages.ts` is owned by
+ * the i18n integrator, so this literal lives here — French first, English
+ * fallback. See the report for the key to merge.
+ */
+const ON_SIZE = { fr: 'sur la taille', en: 'on size' } as const
 
 // ---------------------------------------------------------------- controls
 
@@ -514,8 +522,14 @@ function CommonProps({
   const placeInZone = useStore((s) => s.placeInZone)
   const showGuides = useStore((s) => s.showGuides)
   const toggleGuides = useStore((s) => s.toggleGuides)
-  const size = measureLayer(layer, 100)
+  const previewSize = useStore((s) => s.previewSize)
+  const lang = useStore((s) => s.lang)
   const zones = zonesFor(design, layer.side)
+  // The stored geometry is base-space; what the customer receives is that
+  // geometry graded to the previewed size. Show the PHYSICAL result — the whole
+  // point of grading is invisible if this readout stays at the base value.
+  // (Read-only: nothing here writes back, so base space is untouched.)
+  const size = measureLayer(scaleLayer(layer, printScaleK(design, previewSize)), 100)
   return (
     <>
       <Row label={t('props.opacity')}>
@@ -573,7 +587,13 @@ function CommonProps({
       </Row>
       <div className="mt-1 rounded-md border border-line bg-bg1 px-2.5 py-2">
         <span className="mono-dim">
-          {t('props.prints_at', { w: fmtIn(size.w / 100), h: fmtIn(size.h / 100) })}
+          {t('props.prints_at', {
+            w: `${fmtCm(inToCm(size.w / 100))} (${fmtIn(size.w / 100)})`,
+            h: `${fmtCm(inToCm(size.h / 100))} (${fmtIn(size.h / 100)})`,
+          })}{' '}
+          <span className="text-cy">
+            {(ON_SIZE[lang] ?? ON_SIZE.fr)} {previewSize}
+          </span>
         </span>
       </div>
     </>
