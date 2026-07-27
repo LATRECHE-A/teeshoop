@@ -43,14 +43,18 @@ export function preflight(pieces: DtfPiece[], proc: DtfProcess): PreflightIssue[
     out.push({ level, pieceKey, code, message })
 
   // Largest artwork box the process can physically print, margins included.
+  // The two margins are different constraints — the side one is the printer's
+  // laize limit, the end one a scissor cut — so a supplier quoting a printable
+  // width (side margin 0) must not have that 0 applied to the length as well.
+  const marginEnd = typeof gl.marginEndCm === 'number' ? gl.marginEndCm : gl.marginCm
   const usableWCm = Math.max(0, proc.printableWidthCm - 2 * gl.marginCm)
-  const usableLCm = Math.max(0, proc.maxLengthCm - 2 * gl.marginCm)
+  const usableLCm = Math.max(0, proc.maxLengthCm - 2 * marginEnd)
   // On fixed billing each format is its own box; a piece must fit at least one.
   const boxes: { w: number; h: number; label: string }[] =
     proc.billing === 'fixed'
       ? proc.formats.map((f) => ({
           w: Math.max(0, f.wCm - 2 * gl.marginCm),
-          h: Math.max(0, f.hCm - 2 * gl.marginCm),
+          h: Math.max(0, f.hCm - 2 * marginEnd),
           label: f.label,
         }))
       : [{ w: usableWCm, h: usableLCm, label: `${fmt1(proc.printableWidthCm)} cm` }]

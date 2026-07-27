@@ -1,10 +1,21 @@
 /**
  * Headless verification for the DTF gang-sheet module.
- * Boots Vite dev, loads dev/dtf.html, runs the pure nesting engine's
- * geometry assertions in-page (determinism, gap-aware non-overlap, width
- * bounds, straight full-width corridors, qty expansion, rotation rules,
- * max-length split, utilization floor) and screenshots the admin modal
- * twice (default view, then supplier switch + guides off).
+ *
+ * Boots Vite dev, loads dev/dtf.html and runs three suites in-page against the
+ * real bundle, then screenshots the admin modal:
+ *
+ *  1. SHELF PACKER — determinism, gap-aware non-overlap, width bounds, straight
+ *     full-width corridors, qty expansion, rotation rules, max-length split.
+ *  2. TRUE-SHAPE PACKER — determinism across three consecutive runs AND across
+ *     Worker vs inline, "never worse than the shelf packer", sheet-edge and
+ *     billing-step bounds, bbox non-overlap at interlock 0, and an INK-LEVEL
+ *     collision audit on real rendered artwork (bounding boxes legitimately
+ *     overlap once pieces interlock, so only rasterised ink can prove clearance).
+ *  3. ZIP EXPORT — the archive is cracked open HERE, in Node, with a
+ *     hand-rolled reader: every member's CRC-32 is recomputed from its stored
+ *     bytes, and every PNG's IHDR width/height is checked against the pixel
+ *     size its sheet's cm geometry and DPI imply.
+ *
  *   DTF_OUT_DIR=/abs/dir node scripts/dtf-verify.mjs
  */
 import { spawn } from 'node:child_process'
@@ -14,6 +25,159 @@ import { chromium } from 'playwright'
 const PORT = 5198
 const BASE = `http://localhost:${PORT}`
 const OUT = process.env.DTF_OUT_DIR
+
+// ---------------------------------------------------------------------------
+// ZIP reader — deliberately hand-rolled and independent of src/lib/zip.ts
+// ---------------------------------------------------------------------------
+// Verifying a writer with its own reader proves only that it is
+// self-consistent. This one parses the archive the way `unzip` does: find the
+// EOCD, walk the central directory, follow each record's local-header offset,
+// and recompute the CRC-32 from the bytes actually stored there.
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256)
+  for (let n = 0; n < 256; n++) {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    t[n] = c >>> 0
+  }
+  return t
+})()
+
+const crc32 = (buf) => {
+  let c = 0xffffffff
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8)
+  return (c ^ 0xffffffff) >>> 0
+}
+
+/** Central-directory listing: name → { data, crcOk }. Throws on a malformed archive. */
+function readZip(buf) {
+  let eocd = -1
+  for (let i = buf.length - 22; i >= 0 && i > buf.length - 22 - 0xffff; i--)
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocd = i
+      break
+    }
+  if (eocd < 0) throw new Error('no end-of-central-directory record — archive is truncated')
+  const count = buf.readUInt16LE(eocd + 10)
+  let off = buf.readUInt32LE(eocd + 16)
+  const out = new Map()
+  for (let n = 0; n < count; n++) {
+    if (buf.readUInt32LE(off) !== 0x02014b50)
+      throw new Error(`central directory entry ${n} has a bad signature`)
+    const crc = buf.readUInt32LE(off + 16)
+    const compSize = buf.readUInt32LE(off + 20)
+    const nameLen = buf.readUInt16LE(off + 28)
+    const extraLen = buf.readUInt16LE(off + 30)
+    const commentLen = buf.readUInt16LE(off + 32)
+    const local = buf.readUInt32LE(off + 42)
+    const name = buf.toString('utf8', off + 46, off + 46 + nameLen)
+    if (buf.readUInt32LE(local) !== 0x04034b50)
+      throw new Error(`local header for ${name} has a bad signature`)
+    const lNameLen = buf.readUInt16LE(local + 26)
+    const lExtraLen = buf.readUInt16LE(local + 28)
+    const start = local + 30 + lNameLen + lExtraLen
+    const data = buf.subarray(start, start + compSize)
+    out.set(name, { data, crcOk: crc32(data) === crc, method: buf.readUInt16LE(off + 10) })
+    off += 46 + nameLen + extraLen + commentLen
+  }
+  return out
+}
+
+/** PNG IHDR — signature check plus the declared pixel dimensions. */
+function pngSize(buf) {
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+  for (let i = 0; i < 8; i++) if (buf[i] !== sig[i]) return null
+  if (buf.toString('ascii', 12, 16) !== 'IHDR') return null
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
+}
+
+const CM_PER_IN = 2.54
+/** Exactly what renderSheet does: max(2, round(cm × dpi ÷ 2.54)). */
+const pxFor = (cm, dpi) => Math.max(2, Math.round((cm * dpi) / CM_PER_IN))
+
+function checkZip(buf, result, info) {
+  const fails = []
+  let entries
+  try {
+    entries = readZip(buf)
+  } catch (e) {
+    return [`unreadable archive: ${e.message}`]
+  }
+
+  for (const [name, m] of entries) {
+    if (!m.crcOk) fails.push(`${name}: CRC-32 does not match the stored bytes`)
+    if (m.method !== 0) fails.push(`${name}: method ${m.method}, expected 0 (store)`)
+  }
+
+  const names = [...entries.keys()]
+  const folder = names[0]?.split('/')[0]
+  if (!folder) return ['archive has no top-level folder']
+  if (!names.every((n) => n.startsWith(folder + '/')))
+    fails.push('archive members are not all inside ONE top-level folder')
+
+  for (const req of ['manifeste.json', 'LISEZ-MOI.txt'])
+    if (!entries.has(`${folder}/${req}`)) fails.push(`missing ${req}`)
+
+  // Every sheet must contribute one print PNG and one cutting plan, each at the
+  // exact pixel size its cm geometry and DPI imply — this is the check that
+  // catches a sheet silently rendered at the wrong scale.
+  for (let i = 0; i < result.sheets.length; i++) {
+    const s = result.sheets[i]
+    const num = String(i + 1).padStart(2, '0')
+    for (const [dir, dpi] of [
+      ['impression', info.dpis[i]],
+      ['decoupe', info.cutplanDpi],
+    ]) {
+      const key = `${folder}/${dir}/planche-${num}.png`
+      const m = entries.get(key)
+      if (!m) {
+        fails.push(`missing ${key}`)
+        continue
+      }
+      const size = pngSize(m.data)
+      if (!size) {
+        fails.push(`${key} is not a PNG`)
+        continue
+      }
+      const want = { w: pxFor(s.widthCm, dpi), h: pxFor(s.lengthCm, dpi) }
+      if (size.w !== want.w || size.h !== want.h)
+        fails.push(
+          `${key}: ${size.w}×${size.h} px, expected ${want.w}×${want.h} ` +
+            `(${s.widthCm}×${s.lengthCm} cm @ ${dpi} dpi)`,
+        )
+    }
+  }
+
+  const manifest = entries.get(`${folder}/manifeste.json`)
+  if (manifest) {
+    let m
+    try {
+      m = JSON.parse(manifest.data.toString('utf8'))
+    } catch {
+      fails.push('manifeste.json is not valid JSON')
+    }
+    if (m) {
+      if (m.sheets?.length !== result.sheets.length)
+        fails.push(`manifest lists ${m.sheets?.length} sheets, the result has ${result.sheets.length}`)
+      if (m.totals?.pieces !== result.totalPieces)
+        fails.push(`manifest totals.pieces ${m.totals?.pieces} ≠ ${result.totalPieces}`)
+      if (!m.orderName) fails.push('manifest carries no order name')
+      if (!m.nesting || typeof m.nesting.flip !== 'boolean')
+        fails.push('manifest does not record the flip permission')
+    }
+  }
+
+  const readme = entries.get(`${folder}/LISEZ-MOI.txt`)
+  if (readme) {
+    const txt = readme.data.toString('utf8')
+    for (const needle of ['DOSSIER D’IMPRESSION DTF', 'FOURNISSEUR', 'PLANCHES', 'VISUELS'])
+      if (!txt.includes(needle)) fails.push(`LISEZ-MOI is missing its "${needle}" section`)
+  }
+
+  if (!info.fileName.endsWith('.zip')) fails.push(`archive name ${info.fileName} is not a .zip`)
+  return fails
+}
 
 const waitFor = (url, ms = 30000) =>
   new Promise((res, rej) => {
@@ -48,7 +212,10 @@ try {
   page.on('pageerror', (e) => errors.push(e.message))
   page.on('console', (m) => m.type() === 'error' && errors.push('[console] ' + m.text()))
 
-  await page.goto(BASE + '/dev/dtf.html', { waitUntil: 'networkidle', timeout: 45000 })
+  // 'networkidle' never settles here: this harness spawns a Web Worker, whose
+  // vite HMR socket keeps the network permanently busy. The real readiness
+  // signal is window.__dtf, which the next statement already waits on.
+  await page.goto(BASE + '/dev/dtf.html', { waitUntil: 'load', timeout: 45000 })
   await page.waitForFunction(() => !!window.__dtf, { timeout: 20000 })
 
   // ------------------------------------------------------------------
@@ -199,10 +366,406 @@ try {
   }
 
   // ------------------------------------------------------------------
-  // Modal screenshots (2 rounds)
+  // True-shape packer suite
   // ------------------------------------------------------------------
-  await page.waitForFunction(() => window.__dtf.previewReady(), { timeout: 25000 })
-  await page.waitForTimeout(500)
+  const shapeSuite = await page.evaluate(async () => {
+    const { nest, shape, shapeAsync, samplePieces, collisionCheck, interlockMax } = window.__dtf
+    const interlockStops = window.__dtf.interlockStops
+    const fails = []
+    const TOL = 1e-3
+
+    // Real artwork through the real pipeline: rendered pieces + alpha masks.
+    // Nothing synthetic — a mask bug that only bites the studio's own output
+    // has to be able to fail here.
+    const rendered = await samplePieces(64)
+    if (rendered.length === 0) fails.push('samplePieces produced nothing to nest')
+    const pieces = rendered.map((p, i) => ({
+      id: p.key,
+      sourceKey: p.key,
+      wCm: p.wCm,
+      hCm: p.hCm,
+      qty: [7, 5, 4, 3][i % 4],
+      allowRotate: true,
+      ...(p.mask ? { mask: p.mask.mask, maskW: p.mask.maskW, maskH: p.mask.maskH } : {}),
+    }))
+    const totalQty = pieces.reduce((a, p) => a + p.qty, 0)
+
+    // Researched defaults: 58 cm printable, 5 mm gap, zero edge margin. The
+    // short max length keeps the verification archive encodable in seconds
+    // while still exercising the multi-sheet split.
+    const geom = {
+      printableWidthCm: 58,
+      maxLengthCm: 90,
+      gapCm: 0.5,
+      edgeMarginCm: 0,
+      edgeMarginSideCm: 0,
+      edgeMarginEndCm: 0,
+      billingStepCm: 10,
+    }
+    const job = (maxInterlockCm, restarts = 8) => ({
+      pieces,
+      options: { ...geom, maxInterlockCm, restarts },
+    })
+
+    const bounds = (res, o, tag) => {
+      const side = o.edgeMarginSideCm ?? o.edgeMarginCm
+      const end = o.edgeMarginEndCm ?? o.edgeMarginCm
+      let placed = 0
+      for (let si = 0; si < res.sheets.length; si++) {
+        const s = res.sheets[si]
+        placed += s.placements.length
+        for (const p of s.placements) {
+          if (p.xCm < side - TOL) fails.push(`${tag}#${si}: ${p.id} past the left edge`)
+          if (p.xCm + p.wCm > s.widthCm - side + TOL)
+            fails.push(`${tag}#${si}: ${p.id} past the right edge`)
+          if (p.yCm < end - TOL) fails.push(`${tag}#${si}: ${p.id} past the top edge`)
+          // A piece may never straddle a billed-sheet boundary: everything on
+          // sheet k must live inside that sheet's own extent.
+          if (p.yCm + p.hCm > s.rawLengthCm - end + TOL)
+            fails.push(`${tag}#${si}: ${p.id} past the sheet's raw extent`)
+          if (p.yCm + p.hCm > s.lengthCm + TOL)
+            fails.push(`${tag}#${si}: ${p.id} past the BILLED length (straddles the cut)`)
+        }
+        if (s.rawLengthCm > o.maxLengthCm + TOL)
+          fails.push(`${tag}#${si}: raw ${s.rawLengthCm} > max ${o.maxLengthCm}`)
+        if (s.lengthCm > o.maxLengthCm + TOL)
+          fails.push(`${tag}#${si}: billed ${s.lengthCm} > max ${o.maxLengthCm}`)
+        if (Math.abs(s.lengthCm / 10 - Math.round(s.lengthCm / 10)) > 1e-6)
+          fails.push(`${tag}#${si}: billed ${s.lengthCm} is not a 10 cm step`)
+        if (s.lengthCm + 1e-6 < s.rawLengthCm)
+          fails.push(`${tag}#${si}: billed ${s.lengthCm} < raw ${s.rawLengthCm}`)
+      }
+      if (placed + res.unplaceable.length * 0 !== res.totalPieces)
+        fails.push(`${tag}: totalPieces ${res.totalPieces} ≠ ${placed} placements`)
+      if (placed !== totalQty)
+        fails.push(`${tag}: placed ${placed} of ${totalQty} copies — pieces went missing`)
+    }
+
+    // --- determinism: three consecutive runs, byte for byte ---------------
+    const a = shape(job(interlockMax))
+    const b = shape(job(interlockMax))
+    const c = shape(job(interlockMax))
+    const sa = JSON.stringify(a)
+    if (sa !== JSON.stringify(b) || sa !== JSON.stringify(c))
+      fails.push('determinism: three identical runs disagreed')
+    if (sa !== JSON.stringify(shape({ ...job(interlockMax), pieces: [...pieces].reverse() })))
+      fails.push('determinism: input ORDER changed the layout')
+
+    // --- determinism: Worker vs inline ------------------------------------
+    const viaWorker = await shapeAsync(job(interlockMax))
+    if (sa !== JSON.stringify(viaWorker))
+      fails.push('determinism: the Worker and the inline run disagreed')
+
+    // --- determinism WITH pieces that cannot be placed ---------------------
+    // `unplaceable` reaches the manifest and the README. Gathered in input
+    // order it made two exports of the same order differ purely because the
+    // operator had reordered the queue — invisible to a suite where every
+    // piece fits, which is why this case is spelled out.
+    {
+      const dud = [
+        { id: 'zzz-wide', sourceKey: 'zzz-wide', wCm: 90, hCm: 9, qty: 2, allowRotate: false },
+        { id: 'aaa-long', sourceKey: 'aaa-long', wCm: 9, hCm: 400, qty: 2, allowRotate: false },
+        { id: 'mmm-zero', sourceKey: 'mmm-zero', wCm: 0, hCm: 0, qty: 2, allowRotate: true },
+        ...pieces,
+      ]
+      const opt = { ...geom, maxInterlockCm: interlockMax, restarts: 6 }
+      const fwd = shape({ pieces: dud, options: opt })
+      const rev = shape({ pieces: [...dud].reverse(), options: opt })
+      if (JSON.stringify(fwd) !== JSON.stringify(rev))
+        fails.push('determinism: input ORDER changed the result once pieces are unplaceable')
+      const un = fwd.unplaceable
+      if ([...un].sort().join() !== un.join())
+        fails.push(`unplaceable is not in a stable order: ${un.join(',')}`)
+      if (un.length !== 3) fails.push(`expected 3 unplaceable ids, got ${un.join(',')}`)
+      if (fwd.totalPieces !== totalQty)
+        fails.push(`unplaceable run placed ${fwd.totalPieces} of ${totalQty} good copies`)
+      // and the shelf packer must agree about the ordering, since either one
+      // can be the winner the manifest ends up describing
+      const sh = nest([...dud].reverse(), geom)
+      if (sh.unplaceable.join() !== un.join())
+        fails.push(`shelf unplaceable ${sh.unplaceable.join(',')} ≠ true-shape ${un.join(',')}`)
+    }
+
+    // --- a bigger interlock ceiling is NEVER worse -------------------------
+    // Greedy BLF is not monotone in the dip allowance, so the packer sweeps
+    // every rung at or below the ceiling. Without that sweep the slider's
+    // "maximum fill" measurably bought MORE film than its 12 cm stop, which is
+    // the single fastest way to lose an operator's trust in the feature.
+    {
+      let bestSoFar = Infinity
+      const seq = []
+      for (const stop of interlockStops) {
+        const r = shape(job(stop, 8))
+        seq.push(r.totalLengthCm)
+        if (r.totalLengthCm > bestSoFar + TOL)
+          fails.push(
+            `interlock: ceiling ${stop} cm gave ${r.totalLengthCm} cm, worse than a lower stop's ${bestSoFar} cm`,
+          )
+        bestSoFar = Math.min(bestSoFar, r.totalLengthCm)
+      }
+      window.__dtfInterlockSeq = seq
+    }
+
+    // --- the printable width is usable to the last millimetre -------------
+    // Every profile is dilated by half a gap on all four sides; the outer half
+    // has no neighbour, so it must be swallowed by the sheet edge exactly as
+    // the shelf packer does it. Three 19 cm pieces + two 5 mm gaps = 58 cm on
+    // the nose: if the packer only fits two, it is silently renting out the
+    // roll's last centimetre.
+    {
+      const w3 = [{ id: 'w3', sourceKey: 'w3', wCm: 19, hCm: 10, qty: 9, allowRotate: false }]
+      const r = shape({ pieces: w3, options: { ...geom, maxInterlockCm: interlockMax, restarts: 8 } })
+      const perRow = new Map()
+      for (const s of r.sheets)
+        for (const p of s.placements) {
+          const k = Math.round(p.yCm * 100)
+          perRow.set(k, (perRow.get(k) ?? 0) + 1)
+        }
+      const widest = Math.max(0, ...perRow.values())
+      if (widest < 3)
+        fails.push(`exact-width fit: only ${widest} of 3 pieces per 58 cm row`)
+      // a piece exactly the printable width must not become unplaceable either
+      const full = shape({
+        pieces: [
+          { id: 'full', sourceKey: 'full', wCm: 58, hCm: 12, qty: 2, allowRotate: false },
+          ...pieces,
+        ],
+        options: { ...geom, maxInterlockCm: interlockMax, restarts: 4 },
+      })
+      if (full.unplaceable.length)
+        fails.push(`full-width piece reported unplaceable: ${full.unplaceable.join(',')}`)
+    }
+
+    // --- never worse than the shelf packer --------------------------------
+    const shelf = nest(pieces, geom)
+    for (const [tag, r] of [
+      ['strips', shape(job(0))],
+      ['interlock2', shape(job(2))],
+      ['maxfill', a],
+    ]) {
+      bounds(r, geom, tag)
+      if (r.totalLengthCm > shelf.totalLengthCm + TOL)
+        fails.push(`${tag}: ${r.totalLengthCm} cm is WORSE than the shelf packer's ${shelf.totalLengthCm}`)
+      if (r.totalPieces !== shelf.totalPieces)
+        fails.push(`${tag}: placed ${r.totalPieces}, shelf placed ${shelf.totalPieces}`)
+    }
+
+    // --- interlock 0 ⇒ bounding boxes stay gap-apart -----------------------
+    // At zero interlock the packer drops to bbox profiles, so the cheap AABB
+    // test is valid and it is exactly the "hand-cuttable" promise being made.
+    const strips = shape(job(0))
+    for (const s of strips.sheets)
+      for (let i = 0; i < s.placements.length; i++)
+        for (let j = i + 1; j < s.placements.length; j++) {
+          const p = s.placements[i]
+          const q = s.placements[j]
+          if (
+            p.xCm < q.xCm + q.wCm + geom.gapCm - TOL &&
+            q.xCm < p.xCm + p.wCm + geom.gapCm - TOL &&
+            p.yCm < q.yCm + q.hCm + geom.gapCm - TOL &&
+            q.yCm < p.yCm + p.hCm + geom.gapCm - TOL
+          )
+            fails.push(`strips: ${p.id} and ${q.id} are closer than the gap`)
+        }
+
+    // --- ink-level clearance on the interlocked result --------------------
+    // The only honest overlap test once pieces tuck into each other. Measured
+    // on a raster, so the tolerance is two pixels of quantisation.
+    const PX = 8
+    const audits = []
+    for (let i = 0; i < Math.min(2, a.sheets.length); i++) {
+      const audit = await collisionCheck(a, i, PX, geom.gapCm + 0.3)
+      audits.push({ sheet: i, ...audit, minClearanceCm: Math.round(audit.minClearanceCm * 100) / 100 })
+      if (audit.missing > 0) fails.push(`collision#${i}: ${audit.missing} placements had no artwork`)
+      if (audit.overlaps > 0)
+        fails.push(`collision#${i}: ${audit.overlaps} ink cells owned by two pieces`)
+      if (audit.minClearanceCm < geom.gapCm - 2 / PX)
+        fails.push(
+          `collision#${i}: closest ink ${audit.minClearanceCm.toFixed(3)} cm < gap ${geom.gapCm} cm`,
+        )
+    }
+
+    // --- rotation permission is still obeyed ------------------------------
+    const noRot = shape({
+      pieces: pieces.map((p) => ({ ...p, allowRotate: false })),
+      options: { ...geom, maxInterlockCm: interlockMax, restarts: 4 },
+    })
+    for (const s of noRot.sheets)
+      for (const p of s.placements)
+        if (p.rotated || (p.rotCw ?? 0) !== 0)
+          fails.push(`rotation applied to an allowRotate:false piece (${p.id})`)
+
+    // --- 180°/270° only when the artwork declares it has no "up" ----------
+    for (const s of a.sheets)
+      for (const p of s.placements)
+        if ((p.rotCw ?? 0) === 180 || (p.rotCw ?? 0) === 270)
+          fails.push(`flip emitted without allowFlip (${p.id} at ${p.rotCw}°)`)
+
+    // --- flips appear ONLY when asked for, and still respect the geometry --
+    const flipped = shape({
+      pieces: pieces.map((p) => ({ ...p, allowFlip: true })),
+      options: { ...geom, maxInterlockCm: interlockMax, restarts: 8 },
+    })
+    bounds(flipped, geom, 'flip')
+    if (flipped.totalLengthCm > a.totalLengthCm + TOL)
+      fails.push(`flip: ${flipped.totalLengthCm} cm is worse than without flips (${a.totalLengthCm})`)
+
+    // --- FIXED billing drives the same packer through nestFixedWith -------
+    // Different seam, different failure mode: the inner packer is scored on
+    // how full the FIRST sheet comes out, and every piece must still land
+    // inside the catalogue format that was actually bought.
+    const fixedSupplier = window.__dtf.suppliers().find((s) => s.id === 'ohmydtf')
+    let fixedStats = null
+    if (fixedSupplier) {
+      const fp = fixedSupplier.processes.find((p) => p.billing === 'fixed')
+      const fx = shape({
+        pieces,
+        options: { ...geom, gapCm: 0.5, maxInterlockCm: interlockMax, restarts: 4 },
+        supplier: fixedSupplier,
+        process: fp,
+      })
+      if (fx.billing !== 'fixed') fails.push(`fixed: billing came back "${fx.billing}"`)
+      for (const s of fx.sheets) {
+        const f = fp.formats.find((x) => x.id === s.formatId)
+        if (!f) {
+          fails.push(`fixed: sheet ${s.index} has an unknown format "${s.formatId}"`)
+          continue
+        }
+        if (Math.abs(s.widthCm - f.wCm) > TOL || Math.abs(s.lengthCm - f.hCm) > TOL)
+          fails.push(`fixed: sheet ${s.index} is ${s.widthCm}×${s.lengthCm}, format is ${f.wCm}×${f.hCm}`)
+        for (const p of s.placements)
+          if (p.xCm + p.wCm > f.wCm + TOL || p.yCm + p.hCm > f.hCm + TOL)
+            fails.push(`fixed: ${p.id} overflows format ${f.id}`)
+      }
+      if (fx.totalPieces !== totalQty)
+        fails.push(`fixed: placed ${fx.totalPieces} of ${totalQty}`)
+      // The bill must beat every "just buy one format over and over" plan —
+      // cheapest-€-per-piece-per-sheet is myopic and used to lose to exactly
+      // those. This is the assertion that keeps the wrapper honest.
+      const bill = (r) =>
+        r.sheets.reduce(
+          (a, s) => a + (fp.formats.find((f) => f.id === s.formatId)?.priceEur ?? 0),
+          0,
+        )
+      const mixed = bill(fx)
+      for (const f of fp.formats) {
+        const solo = shape({
+          pieces,
+          options: { ...geom, gapCm: 0.5, maxInterlockCm: interlockMax, restarts: 4 },
+          supplier: fixedSupplier,
+          process: { ...fp, formats: [f] },
+        })
+        if (solo.totalPieces === totalQty && bill(solo) < mixed - 1e-6)
+          fails.push(
+            `fixed: buying only "${f.id}" costs ${bill(solo).toFixed(2)} €, the chosen mix costs ${mixed.toFixed(2)} €`,
+          )
+      }
+      fixedStats = {
+        sheets: fx.sheets.length,
+        formats: fx.sheets.map((s) => s.formatId),
+        eur: Math.round(mixed * 100) / 100,
+      }
+      if (JSON.stringify(fx) !== JSON.stringify(shape({
+        pieces,
+        options: { ...geom, gapCm: 0.5, maxInterlockCm: interlockMax, restarts: 4 },
+        supplier: fixedSupplier,
+        process: fp,
+      })))
+        fails.push('fixed: two identical runs disagreed')
+    }
+
+    return {
+      fails,
+      result: a,
+      stats: {
+        pieces: totalQty,
+        interlockSeq: window.__dtfInterlockSeq,
+        shelfCm: shelf.totalLengthCm,
+        stripsCm: strips.totalLengthCm,
+        maxfillCm: a.totalLengthCm,
+        gainPct: Math.round(((shelf.totalLengthCm - a.totalLengthCm) / shelf.totalLengthCm) * 1000) / 10,
+        flipCm: flipped.totalLengthCm,
+        inkUtil: a.totalInkUtilization ?? null,
+        sheets: a.sheets.length,
+        fixed: fixedStats,
+        audits,
+      },
+    }
+  })
+
+  console.log('trueshape stats:', JSON.stringify(shapeSuite.stats))
+  if (shapeSuite.fails.length) {
+    console.error(`❌ ${shapeSuite.fails.length} true-shape assertion(s) failed:`)
+    for (const f of shapeSuite.fails.slice(0, 20)) console.error('  -', f)
+    done(1)
+  }
+
+  // ------------------------------------------------------------------
+  // ZIP export suite — the archive is opened here, in Node
+  // ------------------------------------------------------------------
+  const zipInfo = await page.evaluate(
+    (result) => window.__dtf.sampleOrderZip(result, 200),
+    shapeSuite.result,
+  )
+  // An export whose artwork is missing must FAIL LOUDLY. renderSheet skips a
+  // placement it has no pixels for — right for a live preview, catastrophic
+  // for an export, because the archive still looks complete (right sheet
+  // count, plausible manifest) while one transfer is simply not on the film.
+  const partial = await page.evaluate(
+    (result) => window.__dtf.sampleOrderZip(result, 120, { dropFirstSource: true }),
+    shapeSuite.result,
+  )
+  if (!partial.refused) {
+    console.error('❌ the ZIP export shipped an archive with missing artwork instead of refusing')
+    done(1)
+  }
+  console.log(`zip refusal on missing artwork: ${partial.message}`)
+
+  // The cutting-plan legend must describe the lines that are actually drawn.
+  // Only the SHELF packer draws full-width corridors plus vertical trims; the
+  // true-shape packer at interlock 0 draws neither, so promising "puis les
+  // verticales" there sends someone cutting lines that do not exist.
+  const legends = await page.evaluate(() => window.__dtf.legendProbe())
+  for (const l of legends)
+    if (l.promisesVerticals !== l.drawsVerticals) {
+      console.error(
+        `❌ cutting-plan legend mismatch (${l.tag}): legend "${l.legend}" but shelf rows = ${l.drawsVerticals}`,
+      )
+      done(1)
+    }
+  console.log('plan legends:', legends.map((l) => `${l.tag}=${l.drawsVerticals ? 'shelf' : 'free'}`).join(' '))
+
+  const zipFails = checkZip(
+    Buffer.from(zipInfo.base64, 'base64'),
+    shapeSuite.result,
+    zipInfo,
+  )
+  if (zipFails.length) {
+    console.error(`❌ ${zipFails.length} zip assertion(s) failed:`)
+    for (const f of zipFails.slice(0, 20)) console.error('  -', f)
+    done(1)
+  }
+  console.log(
+    `zip: ${zipInfo.fileName} — ${(Buffer.from(zipInfo.base64, 'base64').length / 1024).toFixed(0)} KiB, ` +
+      `${shapeSuite.result.sheets.length} sheet(s), every PNG at the exact implied pixel size`,
+  )
+
+  // ------------------------------------------------------------------
+  // Modal rounds (the packer runs off-thread here, so wait for it to settle)
+  // ------------------------------------------------------------------
+  const settled = () =>
+    page.waitForFunction(
+      () => window.__dtf.previewReady() && !document.querySelector('[data-dtf="nest-busy"]'),
+      { timeout: 60000 },
+    )
+
+  // The suites above drove `shapeAsync`, and the nesting client is a singleton
+  // that TERMINATES a superseded job — so they stole the modal's worker. Change
+  // a real nesting input to make it ask again, which is also the only way these
+  // screenshots show an optimised layout rather than the shelf fallback.
+  await page.selectOption('select[data-dtf="restarts"]', '6')
+  await settled()
+  await page.waitForTimeout(400)
   if (OUT) {
     mkdirSync(OUT, { recursive: true })
     await page.screenshot({ path: `${OUT}/dtf-modal-1.png` })
@@ -211,7 +774,7 @@ try {
   // Round 2: express supplier + guides off — preview must re-nest live.
   await page.selectOption('select[data-dtf="supplier-select"]', 'royaldtf')
   await page.click('input[data-dtf="guides-toggle"]')
-  await page.waitForFunction(() => window.__dtf.previewReady(), { timeout: 15000 })
+  await settled()
   await page.waitForTimeout(400)
   const round2 = await page.evaluate(() => ({
     sheets: document.querySelectorAll('canvas[data-dtf="sheet-canvas"]').length,
@@ -223,11 +786,59 @@ try {
   }
   if (OUT) await page.screenshot({ path: `${OUT}/dtf-modal-2.png` })
 
-  // Round 3: advanced supplier profile + saved-designs picker open.
+  // Round 3: the max-fill end of the slider + flips on, with the ZIP naming
+  // prompt open. Everything the operator touches to get the smallest bill.
+  await page.click('input[data-dtf="guides-toggle"]')
+  // Keyboard, not `el.value = …`: React tracks the DOM value itself and treats
+  // a direct write as "unchanged", so the slider would silently not move and
+  // the round would screenshot the default instead of the max-fill end.
+  await page.focus('input[data-dtf="interlock"]')
+  await page.keyboard.press('End')
+  await page.check('input[data-dtf="allow-flip"]')
+  const stop = await page.$eval('input[data-dtf="interlock"]', (el) => ({
+    v: el.value,
+    max: el.max,
+  }))
+  if (stop.v !== stop.max) {
+    console.error(`❌ interlock slider stuck at ${stop.v}/${stop.max}`)
+    done(1)
+  }
+  await settled()
+  await page.click('[data-dtf="export-zip"]')
+  await page.waitForSelector('input[data-dtf="zip-name"]', { timeout: 5000 })
+  await page.waitForTimeout(300)
+  if (OUT) await page.screenshot({ path: `${OUT}/dtf-modal-3.png` })
+
+  // Round 4: FIXED-format supplier — a different billing model, a different
+  // cutting plan, and the branch where the packer is scored per sheet bought.
+  await page.click('[data-dtf="zip-cancel"]')
+  await page.selectOption('select[data-dtf="supplier-select"]', 'ohmydtf')
+  // The cost panel must never quote catalogue billing against roll sheets, so
+  // the per-format lines are the signal that the fixed result is really on
+  // screen — waiting on the spinner alone would sample the transition.
+  await page.waitForSelector('[data-dtf="format-lines"]', { timeout: 60000 })
+  await settled()
+  await page.waitForTimeout(400)
+  const round4 = await page.evaluate(() => ({
+    sheets: document.querySelectorAll('canvas[data-dtf="sheet-canvas"]').length,
+    formats: document.querySelector('[data-dtf="format-lines"]')?.textContent ?? '',
+  }))
+  if (round4.sheets < 1) {
+    console.error('❌ no preview sheets on the fixed-format supplier')
+    done(1)
+  }
+  if (!round4.formats) {
+    console.error('❌ fixed-format supplier showed no per-format cost lines')
+    done(1)
+  }
+  console.log('fixed-format mix:', round4.formats.trim())
+  if (OUT) await page.screenshot({ path: `${OUT}/dtf-modal-4.png` })
+
+  // Round 5: advanced supplier profile + saved-designs picker open.
   await page.click('[data-dtf="advanced-toggle"]')
   await page.click('[data-dtf="add-saved"]')
   await page.waitForTimeout(400)
-  if (OUT) await page.screenshot({ path: `${OUT}/dtf-modal-3.png` })
+  if (OUT) await page.screenshot({ path: `${OUT}/dtf-modal-5.png` })
 
   if (errors.length) {
     console.error('❌ page errors:', errors.slice(0, 5).join(' | '))

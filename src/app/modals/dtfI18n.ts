@@ -50,7 +50,37 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.settings.billing_fixed': 'À la feuille (formats fixes)',
     'dtf.settings.gap': 'Espacement (cm)',
     'dtf.settings.margin': 'Marge bord (cm)',
+    'dtf.settings.margin_side': 'Marge côtés (cm)',
+    'dtf.settings.margin_end': 'Marge bouts (cm)',
+    'dtf.settings.sheet_w': 'Laize planche (cm, max {max})',
+    'dtf.settings.sheet_len': 'Longueur max (cm, max {max})',
+    'dtf.settings.sheet_reset': 'Revenir aux maximums du fournisseur',
+    'dtf.settings.g_margin_end': 'Marge bouts conseillée (cm)',
+    'dtf.settings.billing_step': 'Pas de facturation (cm)',
+    'dtf.settings.billing_step_hint':
+      '10 = 0,1 mètre linéaire. Un fournisseur qui facture au mètre entier (100) annule tout gain inférieur à 1 m.',
+    'dtf.source.published':
+      'Marge publiée par le fournisseur.',
+    'dtf.source.printable-width':
+      'Marge 0 : les {w} cm annoncés SONT la laize imprimable — le fournisseur ne publie ni marge ni fond perdu. Faites une planche test avant de basculer la production.',
+    'dtf.source.house':
+      'Marge maison (3 mm) : ce fournisseur ne publie ni marge ni laize imprimable.',
+    'dtf.source.inferred':
+      'Marge déduite, non publiée par le fournisseur — à confirmer avec une planche test.',
+    'dtf.fill.title': 'Remplissage',
+    'dtf.fill.left': 'Découpe facile',
+    'dtf.fill.right': 'Remplissage max',
+    'dtf.fill.strips': 'bandes droites',
+    'dtf.fill.max': 'maximum',
+    'dtf.fill.cm': 'jeu {v} cm',
+    'dtf.fill.restarts': 'Recherche',
+    'dtf.fill.restarts_opt': '{n} essais',
+    'dtf.fill.working': 'Optimisation {n}/{total}…',
+    'dtf.fill.saved': '−{cm} cm ({pct} %) contre les bandes droites',
     'dtf.settings.rotate': 'Rotation 90° autorisée',
+    'dtf.settings.flip': 'Retournement 180°/270° autorisé',
+    'dtf.settings.flip_hint':
+      'Gagne environ 5 % de rouleau, mais uniquement si aucun visuel n’a de haut : un transfert pressé à l’envers est perdu. Le plan de découpe fléche le haut de chaque pièce.',
     'dtf.settings.guides': 'Guides de découpe (aperçu)',
     'dtf.settings.advanced': 'Profil fournisseur (avancé)',
     'dtf.settings.identity': 'Identité',
@@ -113,6 +143,11 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.stats.pieces': 'Pièces',
     'dtf.stats.length': 'Longueur facturée',
     'dtf.stats.util': 'Remplissage',
+    'dtf.stats.ink': 'encre {v} %',
+    // « boîtes » peut dépasser 100 % : en imbrication les boîtes englobantes se
+    // chevauchent, c'est précisément ce qu'on cherche. « encre » est le vrai
+    // taux de film imprimé, donc il passe en premier.
+    'dtf.stats.util_both': 'encre {ink} % · boîtes {box} %',
     'dtf.stats.dpi': 'DPI effectif',
     'dtf.stats.cost': 'Coût estimé',
     'dtf.stats.cost_detail': '{print} € impression + {ship} € port · {tier}',
@@ -150,6 +185,20 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.export.done': 'Export terminé',
     'dtf.export.failed': 'Export impossible',
     'dtf.export.blocked': 'Corrigez les erreurs de prépresse avant d’exporter',
+    'dtf.zip.action': 'Télécharger le dossier (.zip) — {n} planche(s)',
+    'dtf.zip.name_label': 'Nom de la commande',
+    'dtf.zip.name_hint':
+      'Sert à nommer l’archive, avec la date, le fournisseur et le nombre de planches.',
+    'dtf.zip.confirm': 'Exporter',
+    'dtf.zip.cancel': 'Annuler',
+    'dtf.zip.busy': '{label} ({n}/{total})…',
+    'dtf.zip.step_art': 'Rendu des visuels haute définition',
+    'dtf.zip.done': '{name} téléchargé',
+    'dtf.zip.contents':
+      'L’archive contient les PNG d’impression, les plans de découpe, le manifeste JSON et un LISEZ-MOI.',
+    'dtf.zip.one_sheet': 'Télécharger seulement la planche {n}',
+    'dtf.zip.default_basket': 'Commande panier {date} ({n} lignes)',
+    'dtf.zip.default_fallback': 'Commande DTF {date}',
   },
   en: {
     'dtf.title': 'DTF gang sheets',
@@ -190,8 +239,37 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.settings.billing_fixed': 'Per sheet (fixed formats)',
     'dtf.settings.gap': 'Spacing (cm)',
     'dtf.settings.margin': 'Edge margin (cm)',
+    'dtf.settings.margin_side': 'Side margin (cm)',
+    'dtf.settings.margin_end': 'End margin (cm)',
+    'dtf.settings.sheet_w': 'Sheet width (cm, max {max})',
+    'dtf.settings.sheet_len': 'Max length (cm, max {max})',
+    'dtf.settings.sheet_reset': 'Back to the supplier maximums',
+    'dtf.settings.g_margin_end': 'Recommended end margin (cm)',
+    'dtf.settings.billing_step': 'Billing step (cm)',
+    'dtf.settings.billing_step_hint':
+      '10 = 0.1 linear metre. A supplier billing whole metres (100) wipes out every gain under 1 m.',
+    'dtf.source.published': 'Margin published by the supplier.',
+    'dtf.source.printable-width':
+      'Margin 0: the quoted {w} cm ARE the printable width — this supplier publishes no margin and no bleed. Order a test sheet before switching production to it.',
+    'dtf.source.house':
+      'House margin (3 mm): this supplier publishes neither a margin nor a printable width.',
+    'dtf.source.inferred':
+      'Margin inferred, not published by the supplier — confirm with a test sheet.',
+    'dtf.fill.title': 'Fill',
+    'dtf.fill.left': 'Easy cutting',
+    'dtf.fill.right': 'Max fill',
+    'dtf.fill.strips': 'straight strips',
+    'dtf.fill.max': 'maximum',
+    'dtf.fill.cm': '{v} cm interlock',
+    'dtf.fill.restarts': 'Search',
+    'dtf.fill.restarts_opt': '{n} restarts',
+    'dtf.fill.working': 'Optimising {n}/{total}…',
+    'dtf.fill.saved': '−{cm} cm ({pct} %) against straight strips',
     'dtf.settings.rotate': 'Allow 90° rotation',
+    'dtf.settings.flip': 'Allow 180°/270° flips',
     'dtf.settings.guides': 'Cut guides (preview)',
+    'dtf.settings.flip_hint':
+      'Worth roughly 5 % of the roll, but only if no design has an "up": a transfer pressed upside down is scrap. The cutting plan arrows each piece’s up.',
     'dtf.settings.advanced': 'Supplier profile (advanced)',
     'dtf.settings.identity': 'Identity',
     'dtf.settings.name': 'Name',
@@ -253,6 +331,8 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.stats.pieces': 'Pieces',
     'dtf.stats.length': 'Billed length',
     'dtf.stats.util': 'Fill',
+    'dtf.stats.ink': 'ink {v} %',
+    'dtf.stats.util_both': 'ink {ink} % · boxes {box} %',
     'dtf.stats.dpi': 'Effective DPI',
     'dtf.stats.cost': 'Estimated cost',
     'dtf.stats.cost_detail': '{print} € print + {ship} € shipping · {tier}',
@@ -289,6 +369,20 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.export.done': 'Export finished',
     'dtf.export.failed': 'Export failed',
     'dtf.export.blocked': 'Fix the prepress errors before exporting',
+    'dtf.zip.action': 'Download the package (.zip) — {n} sheet(s)',
+    'dtf.zip.name_label': 'Order name',
+    'dtf.zip.name_hint':
+      'Used to name the archive, along with the date, the supplier and the sheet count.',
+    'dtf.zip.confirm': 'Export',
+    'dtf.zip.cancel': 'Cancel',
+    'dtf.zip.busy': '{label} ({n}/{total})…',
+    'dtf.zip.step_art': 'Rendering high-resolution artwork',
+    'dtf.zip.done': '{name} downloaded',
+    'dtf.zip.contents':
+      'The archive holds the print PNGs, the cutting plans, the JSON manifest and a README.',
+    'dtf.zip.one_sheet': 'Download sheet {n} only',
+    'dtf.zip.default_basket': 'Basket order {date} ({n} lines)',
+    'dtf.zip.default_fallback': 'DTF order {date}',
   },
 }
 

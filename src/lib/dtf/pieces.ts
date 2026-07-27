@@ -181,6 +181,76 @@ export async function renderPiece(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Alpha mask (the true-shape packer's input)
+// ---------------------------------------------------------------------------
+
+/**
+ * Alpha floor for "there is ink here", 0–255.
+ *
+ * Anti-aliased edges and soft drop shadows mean `alpha > 0` covers far more
+ * area than the visible print, so thresholding at 1 would quietly turn
+ * true-shape nesting back into bounding-box nesting — all of the complexity,
+ * none of the gain. 8/255 keeps a genuinely feathered edge while discarding
+ * the invisible tail.
+ */
+export const MASK_ALPHA_FLOOR = 8
+
+/** Target mask cell size, cm. Finer than the packer's grid, so it resamples down. */
+const MASK_CELL_CM = 0.1
+
+export interface PieceMask {
+  /** Row-major, 1 = ink. Spans exactly the piece's wCm × hCm bounding box. */
+  mask: Uint8Array
+  maskW: number
+  maskH: number
+  /** Inked cells ÷ total cells — how much of the box the artwork really uses. */
+  fillRatio: number
+}
+
+/**
+ * Alpha mask of a rendered piece, for `trueshape.ts`.
+ *
+ * A mask cell is ink when ANY source pixel landing in it clears the alpha
+ * floor. That direction is the safe one: the mask may only ever be too big,
+ * which costs a sliver of film, never too small, which would let two transfers
+ * touch. Cells are capped at one per source pixel so every cell is backed by
+ * real pixels — an upsampled mask would have holes the artwork does not have.
+ *
+ * Returns null when the canvas is unreadable (tainted, zero-sized) or when
+ * nothing clears the floor; callers then nest the bounding box, which is what
+ * the tool did before this existed.
+ */
+export function pieceMask(piece: RenderedPiece): PieceMask | null {
+  const c = piece.canvas
+  if (c.width < 1 || c.height < 1) return null
+  let data: Uint8ClampedArray
+  try {
+    const ctx = c.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    data = ctx.getImageData(0, 0, c.width, c.height).data
+  } catch {
+    return null
+  }
+  const maskW = Math.max(1, Math.min(c.width, Math.round(piece.wCm / MASK_CELL_CM)))
+  const maskH = Math.max(1, Math.min(c.height, Math.round(piece.hCm / MASK_CELL_CM)))
+  const mask = new Uint8Array(maskW * maskH)
+  let ink = 0
+  for (let y = 0; y < c.height; y++) {
+    const my = Math.min(maskH - 1, Math.floor((y * maskH) / c.height))
+    const row = y * c.width
+    for (let x = 0; x < c.width; x++) {
+      if (data[(row + x) * 4 + 3] < MASK_ALPHA_FLOOR) continue
+      const i = my * maskW + Math.min(maskW - 1, Math.floor((x * maskW) / c.width))
+      if (mask[i]) continue
+      mask[i] = 1
+      ink++
+    }
+  }
+  if (ink === 0) return null
+  return { mask, maskW, maskH, fillRatio: ink / (maskW * maskH) }
+}
+
 /** Printed sides of a design (front/back/sleeve that carry layers). */
 export function printedSides(design: Design): Side[] {
   return (['front', 'back', 'sleeve'] as Side[]).filter(

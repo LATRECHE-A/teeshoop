@@ -6,8 +6,17 @@
  * process (DTF textile / UV-DTF), auto-nest onto that process's geometry
  * (open-ended roll billed per linear metre, or catalogue sheet formats billed
  * per sheet), preflight the artwork against the process guidelines, preview the
- * result live, then export the supplier print PNG(s), a cutting-plan PNG per
- * sheet and a JSON manifest.
+ * result live, then download the WHOLE order as one .zip.
+ *
+ * TWO NESTERS, ONE PREVIEW. The shelf packer (nesting.ts) runs synchronously
+ * so the preview is never empty, then the true-shape packer (trueshape.ts) runs
+ * in a Worker and replaces it. Because the true-shape packer keeps the shelf
+ * result as its own restart #0, the displayed layout can only ever get better —
+ * never worse than what the operator saw a moment ago.
+ *
+ * ONE DOWNLOAD. Browsers throttle and silently drop bursts of programmatic
+ * downloads, so a 12-sheet order used to arrive incomplete. The export is now a
+ * single named archive; see lib/dtf/zipExport.ts.
  *
  * Everything the automation depends on is editable here and persisted: process
  * geometry, price tiers, sheet formats and every prepress rule. cm is
@@ -17,33 +26,44 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ChevronDown,
-  FileJson,
-  Image as ImageIcon,
+  Download,
+  FileArchive,
+  Loader2,
   Plus,
   RefreshCcw,
   Save,
-  Scissors,
   ShoppingBag,
   Trash2,
 } from 'lucide-react'
 import clsx from 'clsx'
 import Modal from './Modal'
+import { APP_VERSION } from '@/config'
 import { useStore } from '@/state/store'
 import { listSavedMetas, loadSavedDesign } from '@/state/savedDesigns'
 import { linePrintedSides, type BasketLine } from '@/state/basket'
-import { downloadBlob, slugify } from '@/lib/download'
+import { downloadBlob } from '@/lib/download'
 import {
   nest,
   type DtfPiece,
   type DtfSheet,
   type NestOptions,
+  type NestResult,
 } from '@/lib/dtf/nesting'
 import {
+  pieceMask,
   pieceSourceKey,
   printedSides,
   renderPiece,
+  type PieceMask,
   type RenderedPiece,
 } from '@/lib/dtf/pieces'
+import {
+  INTERLOCK_MAX_CM,
+  INTERLOCK_STOPS_CM,
+  type ShapePiece,
+} from '@/lib/dtf/trueshape'
+import { createNestClient } from '@/lib/dtf/nestClient'
+import { buildOrderZip, planLegend } from '@/lib/dtf/zipExport'
 import { hasErrors, preflight, type PreflightIssue } from '@/lib/dtf/preflight'
 import { isGraded, printScaleK } from '@/lib/printScale'
 import {
@@ -59,13 +79,7 @@ import {
   type SheetFormat,
   type SupplierProfile,
 } from '@/lib/dtf/suppliers'
-import {
-  buildManifest,
-  clampSheetDpi,
-  renderSheet,
-  sheetToPngBlob,
-  SHEET_TARGET_DPI,
-} from '@/lib/dtf/sheet'
+import { clampSheetDpi, renderSheet, sheetToPngBlob, SHEET_TARGET_DPI } from '@/lib/dtf/sheet'
 import { useDtfT } from './dtfI18n'
 import type { Design, SavedDesignMeta, Side, SizeId } from '@/lib/types'
 
@@ -74,6 +88,22 @@ const PREVIEW_DPI = 28
 /** Cutting-plan export density — crisp guides, small files. */
 const CUTPLAN_DPI = 64
 const DEFAULT_QTY = 10
+
+/**
+ * Interlock slider stops, cm — OWNED BY THE PACKER, not by this file. The
+ * "a bigger setting is never worse" guarantee is stated over exactly that rung
+ * set (trueshape.ts), so offering a stop it does not sweep would reintroduce
+ * the anomaly where dragging to "maximum fill" buys MORE film.
+ */
+const INTERLOCK_STOPS = INTERLOCK_STOPS_CM
+/**
+ * Default: 2 cm. Real tucking, still obviously cuttable by hand. Shipping
+ * "maximum fill" by default would hand someone an hour of scissor work to save
+ * film they did not know they were saving.
+ */
+const DEFAULT_INTERLOCK_INDEX = INTERLOCK_STOPS.indexOf(2)
+/** Restart counts offered. A COUNT, never a time budget — see trueshape.ts. */
+const RESTART_CHOICES = [6, 12, 24]
 
 interface QueueRow {
   /** Stable row identity, nest piece id AND rendered-piece cache key. */
@@ -178,6 +208,7 @@ const bootProcess = (list: SupplierProfile[]): DtfProcess | null =>
 
 export default function DtfModal() {
   const t = useDtfT()
+  const lang = useStore((s) => s.lang)
   const design = useStore((s) => s.design)
   const basket = useStore((s) => s.basket)
   const openModal = useStore((s) => s.openModal)
@@ -223,19 +254,42 @@ export default function DtfModal() {
     ? (processOf(supplier, processId) ?? supplier.processes[0] ?? null)
     : null
 
-  const [gap, setGap] = useState(() => bootProcess(suppliers)?.guidelines.gapCm ?? 0.8)
-  const [margin, setMargin] = useState(
-    () => bootProcess(suppliers)?.guidelines.marginCm ?? 1,
+  const [gap, setGap] = useState(() => bootProcess(suppliers)?.guidelines.gapCm ?? 0.5)
+  const [marginSide, setMarginSide] = useState(
+    () => bootProcess(suppliers)?.guidelines.marginCm ?? 0,
+  )
+  const [marginEnd, setMarginEnd] = useState(
+    () => bootProcess(suppliers)?.guidelines.marginEndCm ?? 0,
   )
   const [allowRotate, setAllowRotate] = useState(true)
+  /**
+   * 180°/270° as well as 90°. Measured worth 4,6 % of the roll on the benchmark
+   * — real money — but it is OFF by default and always will be: a transfer
+   * pressed upside down is scrap, and only the operator knows whether their
+   * artwork has an "up".
+   */
+  const [allowFlip, setAllowFlip] = useState(false)
   const [guides, setGuides] = useState(true)
   const [advanced, setAdvanced] = useState(false)
+  const [interlockIdx, setInterlockIdx] = useState(DEFAULT_INTERLOCK_INDEX)
+  const [restarts, setRestarts] = useState(RESTART_CHOICES[1])
+  /** Operator override of the sheet geometry; null = the supplier's maximum. */
+  const [sheetWCm, setSheetWCm] = useState<number | null>(null)
+  const [sheetLenCm, setSheetLenCm] = useState<number | null>(null)
+  const interlockCm = INTERLOCK_STOPS[interlockIdx] ?? 0
 
-  /** Spacing follows the process guidelines on every switch (never on edit). */
+  /**
+   * Spacing AND sheet geometry follow the process guidelines on every switch
+   * (never on edit). The geometry override has to reset too: 58 cm typed for
+   * DTF+ would silently overflow a 55 cm supplier.
+   */
   const adoptSpacing = (p: DtfProcess | null | undefined) => {
     if (!p) return
     setGap(p.guidelines.gapCm)
-    setMargin(p.guidelines.marginCm)
+    setMarginSide(p.guidelines.marginCm)
+    setMarginEnd(p.guidelines.marginEndCm ?? p.guidelines.marginCm)
+    setSheetWCm(null)
+    setSheetLenCm(null)
   }
 
   const pickSupplier = (id: string) => {
@@ -297,23 +351,67 @@ export default function DtfModal() {
   const pieceOf = (key: string): PieceState =>
     cacheRef.current.get(key) ?? { status: 'pending' }
 
+  // --- sheet geometry -------------------------------------------------------
+  // The process declares the supplier's MAXIMUM; the operator may nest onto a
+  // narrower/shorter sheet (a 50 × 250 job on a 58 cm roll is legitimate), but
+  // never onto a bigger one — that file would come back rejected or cropped.
+  const maxWCm = proc?.printableWidthCm ?? 58
+  const maxLenCm = proc?.maxLengthCm ?? 250
+  const effWCm = clampNum(sheetWCm ?? maxWCm, 1, maxWCm)
+  const effLenCm = clampNum(sheetLenCm ?? maxLenCm, 1, maxLenCm)
+  /**
+   * The process as actually used, so nesting AND preflight see ONE geometry.
+   * The operator's spacing overrides the supplier's recommendation here too:
+   * preflight judging "does it fit" against a 0 cm margin while the nester
+   * packs on 1 cm reports a clean sheet and then drops the piece into
+   * `unplaceable`, which is two contradictory answers to the same question.
+   */
+  const effProc = useMemo(
+    () =>
+      proc
+        ? {
+            ...proc,
+            printableWidthCm: effWCm,
+            maxLengthCm: effLenCm,
+            guidelines: { ...proc.guidelines, marginCm: marginSide, marginEndCm: marginEnd },
+          }
+        : null,
+    [proc, effWCm, effLenCm, marginSide, marginEnd],
+  )
+
   // --- nesting + preflight --------------------------------------------------
   const options: NestOptions = useMemo(
     () => ({
-      printableWidthCm: proc?.printableWidthCm ?? 58,
-      maxLengthCm: proc?.maxLengthCm ?? 250,
+      printableWidthCm: effWCm,
+      maxLengthCm: effLenCm,
       gapCm: gap,
-      edgeMarginCm: margin,
+      edgeMarginCm: marginSide,
+      edgeMarginSideCm: marginSide,
+      edgeMarginEndCm: marginEnd,
+      billingStepCm: proc?.billingStepCm ?? 10,
     }),
-    [proc, gap, margin],
+    [effWCm, effLenCm, gap, marginSide, marginEnd, proc],
   )
 
+  // Alpha masks feed the true-shape packer. Keyed by the RenderedPiece object
+  // itself, so a re-render invalidates the mask automatically and a stale
+  // outline can never be nested against fresh artwork.
+  const maskRef = useRef(new WeakMap<RenderedPiece, PieceMask | null>())
+  const maskOf = (p: RenderedPiece): PieceMask | null => {
+    const hit = maskRef.current.get(p)
+    if (hit !== undefined) return hit
+    const m = pieceMask(p)
+    maskRef.current.set(p, m)
+    return m
+  }
+
   const pieces = useMemo(() => {
-    const out: DtfPiece[] = []
+    const out: ShapePiece[] = []
     for (const row of rows) {
       const st = pieceOf(row.key)
       if (st.status !== 'ok' || row.qty <= 0) continue
       const p = st.piece
+      const mask = maskOf(p)
       out.push({
         id: row.key,
         sourceKey: row.key,
@@ -321,6 +419,8 @@ export default function DtfModal() {
         hCm: p.hCm,
         qty: row.qty,
         allowRotate,
+        ...(allowFlip ? { allowFlip: true } : {}),
+        ...(mask ? { mask: mask.mask, maskW: mask.maskW, maskH: mask.maskH } : {}),
         // Prepress metadata for preflight: source pixels at the PLACED size
         // (p.srcDpi is the artwork's native ceiling, never the preview DPI —
         // all-vector artwork reports null and simply skips the DPI check).
@@ -333,14 +433,65 @@ export default function DtfModal() {
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, allowRotate, pieceVersion])
+  }, [rows, allowRotate, allowFlip, pieceVersion])
 
-  const result = useMemo(
-    () => (proc ? nest(pieces, proc, options) : nest(pieces, options)),
-    [pieces, proc, options],
+  // Instant, never-empty baseline. The optimiser below can only improve on it.
+  const shelfResult = useMemo(
+    () => (effProc ? nest(pieces, effProc, options) : nest(pieces, options)),
+    [pieces, effProc, options],
   )
+  const [optimised, setOptimised] = useState<NestResult | null>(null)
+  const [nestBusy, setNestBusy] = useState<{ done: number; total: number } | null>(null)
+  // Our OWN nesting channel. A module-shared one would let this modal's effect
+  // cleanup terminate a job some other consumer started (the dev harness mounts
+  // this modal alongside its own nesting entry point) — and vice versa.
+  const nester = useMemo(() => createNestClient(), [])
+  useEffect(() => () => nester.cancel(), [nester])
 
-  const issues = useMemo(() => (proc ? preflight(pieces, proc) : []), [pieces, proc])
+  useEffect(() => {
+    if (pieces.length === 0) {
+      setOptimised(null)
+      return
+    }
+    let alive = true
+    // Drop the previous optimised layout BEFORE asking for a new one. Keeping
+    // it would leave a layout — and the price computed from it — belonging to
+    // the OLD supplier on screen: switch from a per-metre roll to a per-sheet
+    // catalogue and the cost panel quotes fixed-format billing against roll
+    // sheets that carry no format at all. `shelfResult` is recomputed
+    // synchronously from the new geometry, so nothing is ever blank.
+    setOptimised(null)
+    setNestBusy({ done: 0, total: restarts })
+    nester.nest(
+      {
+        pieces,
+        options: { ...options, maxInterlockCm: interlockCm, restarts },
+        ...(supplier ? { supplier } : {}),
+        ...(effProc ? { process: effProc } : {}),
+      },
+      { onProgress: (done, total) => alive && setNestBusy({ done, total }) },
+    )
+      .then((r) => {
+        if (!alive) return
+        setOptimised(r)
+        setNestBusy(null)
+      })
+      .catch(() => {
+        // The shelf result stays on screen: a failed optimisation must never
+        // leave the operator without a layout.
+        if (!alive) return
+        setOptimised(null)
+        setNestBusy(null)
+      })
+    return () => {
+      alive = false
+      nester.cancel()
+    }
+  }, [pieces, options, interlockCm, restarts, supplier, effProc, nester])
+
+  const result = optimised ?? shelfResult
+
+  const issues = useMemo(() => (effProc ? preflight(pieces, effProc) : []), [pieces, effProc])
   const errorCount = issues.filter((i) => i.level === 'error').length
   const warnCount = issues.length - errorCount
   const [forceExport, setForceExport] = useState(false)
@@ -379,10 +530,15 @@ export default function DtfModal() {
   )
   const effectiveDpi = effectiveDpis.length ? Math.min(...effectiveDpis) : targetDpi
   const cost =
-    supplier && proc && result.sheets.length > 0
-      ? estimateCost(supplier, proc, result.sheets)
+    supplier && effProc && result.sheets.length > 0
+      ? estimateCost(supplier, effProc, result.sheets)
       : null
   const fixed = proc?.billing === 'fixed'
+  /** How much film the optimiser saved against the straight-strip baseline. */
+  const savedCm =
+    optimised && shelfResult.totalLengthCm > optimised.totalLengthCm
+      ? shelfResult.totalLengthCm - optimised.totalLengthCm
+      : 0
 
   // --- grading trade-off ----------------------------------------------------
   // A graded design needs one transfer PER SIZE — that is the real cost of
@@ -420,18 +576,18 @@ export default function DtfModal() {
   /** Null unless grading actually multiplies transfers on THIS order. */
   const tradeoff = useMemo(() => {
     if (singleSizePieces.length >= pieces.length) return null
-    const r = proc
-      ? nest(singleSizePieces, proc, options)
+    const r = effProc
+      ? nest(singleSizePieces, effProc, options)
       : nest(singleSizePieces, options)
     return {
       transfers: pieces.length,
       singleTransfers: singleSizePieces.length,
       cost:
-        supplier && proc && r.sheets.length > 0
-          ? estimateCost(supplier, proc, r.sheets)
+        supplier && effProc && r.sheets.length > 0
+          ? estimateCost(supplier, effProc, r.sheets)
           : null,
     }
-  }, [singleSizePieces, pieces, proc, supplier, options])
+  }, [singleSizePieces, pieces, effProc, supplier, options])
 
   // --- saved-designs picker ----------------------------------------------------
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -460,9 +616,25 @@ export default function DtfModal() {
 
   // --- exports ------------------------------------------------------------------
   const [busy, setBusy] = useState<string | null>(null)
-  const baseName = `dtf-${supplier?.id ?? 'roll'}-${proc?.id ?? 'dtf'}-${slugify(design.name)}`
+  const [askName, setAskName] = useState(false)
+  const [orderName, setOrderName] = useState('')
 
   const canExport = !busy && result.sheets.length > 0 && !blocked
+
+  /**
+   * What the operator most likely wants the order called. The basket is the
+   * real order but carries no name of its own, so it contributes its size;
+   * a manual queue falls back to the design being worked on.
+   */
+  const defaultOrderName = useMemo(() => {
+    const d = new Date()
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate(),
+    ).padStart(2, '0')}`
+    return fromBasket && basket.length > 0
+      ? t('dtf.zip.default_basket', { n: basket.length, date: stamp })
+      : design.name || t('dtf.zip.default_fallback', { date: stamp })
+  }, [fromBasket, basket.length, design.name, t])
 
   const renderHiResSources = async (
     dpi: number,
@@ -481,60 +653,8 @@ export default function DtfModal() {
     return map
   }
 
-  const exportPrint = async () => {
-    if (!canExport) return
-    setBusy(t('dtf.export.busy', { n: 0, total: result.sheets.length }))
-    try {
-      const maxDpi = Math.max(...effectiveDpis)
-      const sources = await renderHiResSources(maxDpi, (n, total) =>
-        setBusy(t('dtf.export.busy', { n, total: total + result.sheets.length })),
-      )
-      for (let i = 0; i < result.sheets.length; i++) {
-        setBusy(t('dtf.export.busy', { n: i + 1, total: result.sheets.length }))
-        const { canvas } = renderSheet(result.sheets[i], result.options, sources, {
-          dpi: effectiveDpis[i],
-          guides: false,
-          background: null,
-        })
-        const blob = await sheetToPngBlob(canvas)
-        downloadBlob(blob, `${baseName}-planche-${i + 1}-impression.png`)
-      }
-      toast('ok', t('dtf.export.done'))
-    } catch {
-      toast('error', t('dtf.export.failed'))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const exportCutplan = async () => {
-    if (!canExport) return
-    setBusy(t('dtf.export.busy', { n: 1, total: result.sheets.length }))
-    try {
-      const labels = new Map<string, string>()
-      for (const row of rows) labels.set(row.key, labelOf(row.key))
-      for (let i = 0; i < result.sheets.length; i++) {
-        setBusy(t('dtf.export.busy', { n: i + 1, total: result.sheets.length }))
-        const { canvas } = renderSheet(result.sheets[i], result.options, previewSources, {
-          dpi: CUTPLAN_DPI,
-          guides: true,
-          background: '#F4F6F8',
-          labels,
-        })
-        const blob = await sheetToPngBlob(canvas)
-        downloadBlob(blob, `${baseName}-planche-${i + 1}-decoupe.png`)
-      }
-      toast('ok', t('dtf.export.done'))
-    } catch {
-      toast('error', t('dtf.export.failed'))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const exportManifest = () => {
-    if (!supplier || !proc || !canExport) return
-    const manifestPieces = rows
+  const manifestPieces = () =>
+    rows
       .map((row) => {
         const st = pieceOf(row.key)
         if (st.status !== 'ok') return null
@@ -547,21 +667,81 @@ export default function DtfModal() {
         }
       })
       .filter((p): p is NonNullable<typeof p> => p !== null)
-    const manifest = buildManifest({
-      result,
-      supplier,
-      process: proc,
-      cost,
-      requestedDpi: targetDpi,
-      effectiveDpis,
-      pieces: manifestPieces,
-      preflight: issues,
-    })
-    downloadBlob(
-      new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }),
-      `${baseName}-manifeste.json`,
-    )
-    toast('ok', t('dtf.export.done'))
+
+  const exportZip = async () => {
+    if (!supplier || !proc || !canExport) return
+    const name = orderName.trim() || defaultOrderName
+    setAskName(false)
+    // ONE timestamp for the archive name, the ZIP dates, the manifest and the
+    // README — a second clock reading would make them disagree.
+    const date = new Date()
+    setBusy(t('dtf.zip.busy', { label: t('dtf.zip.step_art'), n: 0, total: 1 }))
+    try {
+      const maxDpi = Math.max(...effectiveDpis, targetDpi)
+      const sources = await renderHiResSources(maxDpi, (n, total) =>
+        setBusy(t('dtf.zip.busy', { label: t('dtf.zip.step_art'), n, total })),
+      )
+      const labels = new Map<string, string>()
+      for (const row of rows) labels.set(row.key, labelOf(row.key))
+      const { blob, fileName } = await buildOrderZip(
+        {
+          orderName: name,
+          date,
+          lang,
+          appVersion: APP_VERSION,
+          result,
+          supplier,
+          process: proc,
+          cost,
+          preflight: issues,
+          pieces: manifestPieces(),
+          labels,
+          sources,
+          planSources: previewSources,
+          effectiveDpis,
+          requestedDpi: targetDpi,
+          cutplanDpi: CUTPLAN_DPI,
+          restarts,
+          flip: allowFlip,
+        },
+        (p) => setBusy(t('dtf.zip.busy', { label: p.label, n: p.done, total: p.total })),
+      )
+      downloadBlob(blob, fileName)
+      toast('ok', t('dtf.zip.done', { name: fileName }))
+    } catch {
+      toast('error', t('dtf.export.failed'))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** Secondary path: one sheet's print PNG, for a re-send or a spot check. */
+  const exportOneSheet = async (i: number) => {
+    if (!supplier || !canExport) return
+    setBusy(t('dtf.zip.busy', { label: t('dtf.zip.step_art'), n: 0, total: 1 }))
+    try {
+      const dpi = effectiveDpis[i] ?? targetDpi
+      const sources = await renderHiResSources(dpi, (n, total) =>
+        setBusy(t('dtf.zip.busy', { label: t('dtf.zip.step_art'), n, total })),
+      )
+      const { canvas } = renderSheet(result.sheets[i], result.options, sources, {
+        dpi,
+        guides: false,
+        background: null,
+      })
+      const blob = await sheetToPngBlob(canvas)
+      canvas.width = 1
+      canvas.height = 1
+      downloadBlob(
+        blob,
+        `${slugFile(orderName.trim() || defaultOrderName)}-planche-${i + 1}.png`,
+      )
+      toast('ok', t('dtf.export.done'))
+    } catch {
+      toast('error', t('dtf.export.failed'))
+    } finally {
+      setBusy(null)
+    }
   }
 
   const saveProfiles = () => {
@@ -836,7 +1016,7 @@ export default function DtfModal() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <NumField
                   label={t('dtf.settings.gap')}
                   value={gap}
@@ -845,13 +1025,105 @@ export default function DtfModal() {
                   onChange={setGap}
                 />
                 <NumField
-                  label={t('dtf.settings.margin')}
-                  value={margin}
+                  label={t('dtf.settings.margin_side')}
+                  value={marginSide}
                   min={0}
                   step={0.1}
-                  onChange={setMargin}
+                  onChange={setMarginSide}
+                />
+                <NumField
+                  label={t('dtf.settings.margin_end')}
+                  value={marginEnd}
+                  min={0}
+                  step={0.1}
+                  onChange={setMarginEnd}
                 />
               </div>
+              {proc && (
+                <div className="mt-1 text-[10.5px] leading-relaxed text-tx3">
+                  {t(`dtf.source.${proc.guidelines.marginSource ?? 'house'}`, {
+                    w: fmtCm(proc.printableWidthCm),
+                  })}
+                </div>
+              )}
+
+              {/* Sheet geometry — the operator may go narrower/shorter, never bigger. */}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <NumField
+                  label={t('dtf.settings.sheet_w', { max: fmtCm(maxWCm) })}
+                  value={effWCm}
+                  min={1}
+                  step={1}
+                  onChange={(v) => setSheetWCm(Math.min(v, maxWCm))}
+                />
+                <NumField
+                  label={t('dtf.settings.sheet_len', { max: fmtCm(maxLenCm) })}
+                  value={effLenCm}
+                  min={1}
+                  step={10}
+                  onChange={(v) => setSheetLenCm(Math.min(v, maxLenCm))}
+                />
+              </div>
+              {(sheetWCm !== null || sheetLenCm !== null) && (
+                <button
+                  className="btn btn-ghost mt-1 h-6 text-[11px]"
+                  onClick={() => {
+                    setSheetWCm(null)
+                    setSheetLenCm(null)
+                  }}
+                >
+                  <RefreshCcw size={11} />
+                  {t('dtf.settings.sheet_reset')}
+                </button>
+              )}
+
+              {/* The one knob that decides fill vs cutting comfort. */}
+              <div className="mt-3">
+                <div className="mb-1 flex items-baseline justify-between gap-2">
+                  <span className="text-[11.5px] text-tx2">{t('dtf.fill.title')}</span>
+                  <span className="font-mono text-[11px] text-cy">
+                    {interlockCm >= INTERLOCK_MAX_CM
+                      ? t('dtf.fill.max')
+                      : interlockCm === 0
+                        ? t('dtf.fill.strips')
+                        : t('dtf.fill.cm', { v: fmtCm(interlockCm) })}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  className="w-full accent-cy"
+                  data-dtf="interlock"
+                  min={0}
+                  max={INTERLOCK_STOPS.length - 1}
+                  step={1}
+                  value={interlockIdx}
+                  aria-label={t('dtf.fill.title')}
+                  onChange={(e) => setInterlockIdx(Number(e.target.value))}
+                />
+                <div className="flex justify-between text-[10px] text-tx3">
+                  <span>{t('dtf.fill.left')}</span>
+                  <span>{t('dtf.fill.right')}</span>
+                </div>
+              </div>
+
+              <label className="mt-2 block">
+                <span className="mb-1 block text-[11.5px] text-tx2">
+                  {t('dtf.fill.restarts')}
+                </span>
+                <select
+                  className="input h-8 text-[12px]"
+                  data-dtf="restarts"
+                  value={restarts}
+                  onChange={(e) => setRestarts(Number(e.target.value))}
+                >
+                  {RESTART_CHOICES.map((n) => (
+                    <option key={n} value={n}>
+                      {t('dtf.fill.restarts_opt', { n })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <label className="mt-2 flex items-center gap-2 text-[12.5px] text-tx2">
                 <input
                   type="checkbox"
@@ -859,6 +1131,21 @@ export default function DtfModal() {
                   onChange={(e) => setAllowRotate(e.target.checked)}
                 />
                 {t('dtf.settings.rotate')}
+              </label>
+              <label className="mt-1.5 flex items-start gap-2 text-[12.5px] text-tx2">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  data-dtf="allow-flip"
+                  checked={allowFlip}
+                  onChange={(e) => setAllowFlip(e.target.checked)}
+                />
+                <span>
+                  {t('dtf.settings.flip')}
+                  <span className="block text-[10.5px] leading-relaxed text-tx3">
+                    {t('dtf.settings.flip_hint')}
+                  </span>
+                </span>
               </label>
               <label className="mt-1.5 flex items-center gap-2 text-[12.5px] text-tx2">
                 <input
@@ -895,10 +1182,28 @@ export default function DtfModal() {
               )}
               <Stat
                 label={t('dtf.stats.util')}
-                value={`${Math.round(result.totalUtilization * 100)} %`}
+                value={fillText(result.totalUtilization, result.totalInkUtilization, t)}
                 mono={mono}
               />
               <Stat label={t('dtf.stats.dpi')} value={String(effectiveDpi)} mono={mono} />
+              {nestBusy ? (
+                <span
+                  className="flex items-center gap-1.5 text-[11px] text-tx3"
+                  data-dtf="nest-busy"
+                >
+                  <Loader2 size={12} className="animate-spin" />
+                  {t('dtf.fill.working', { n: nestBusy.done, total: nestBusy.total })}
+                </span>
+              ) : (
+                savedCm > 0 && (
+                  <span className="text-[11px] text-cy" data-dtf="nest-gain">
+                    {t('dtf.fill.saved', {
+                      cm: fmtCm(savedCm),
+                      pct: Math.round((savedCm / shelfResult.totalLengthCm) * 100),
+                    })}
+                  </span>
+                )
+              )}
               {cost && (
                 <span className="ml-auto text-right">
                   <span className="block text-[10px] uppercase tracking-wide text-tx3">
@@ -1022,23 +1327,35 @@ export default function DtfModal() {
               <div className="flex max-h-[40vh] flex-col gap-3 overflow-y-auto pr-1">
                 {result.sheets.map((sheet, i) => (
                   <div key={i}>
-                    <div className="mb-1 font-mono text-[11px] text-tx3">
-                      {sheet.formatId
-                        ? t('dtf.preview.sheet_fixed', {
-                            n: i + 1,
-                            label:
-                              proc?.formats.find((f) => f.id === sheet.formatId)?.label ??
-                              sheet.formatId,
-                            w: sheet.widthCm.toFixed(0),
-                            len: sheet.lengthCm.toFixed(0),
-                          })
-                        : t('dtf.preview.sheet', {
-                            n: i + 1,
-                            len: sheet.lengthCm.toFixed(0),
-                            w: sheet.widthCm.toFixed(0),
-                          })}
-                      {' · '}
-                      {Math.round(sheet.utilization * 100)} %
+                    <div className="mb-1 flex items-center gap-2 font-mono text-[11px] text-tx3">
+                      <span className="min-w-0 truncate">
+                        {sheet.formatId
+                          ? t('dtf.preview.sheet_fixed', {
+                              n: i + 1,
+                              label:
+                                proc?.formats.find((f) => f.id === sheet.formatId)?.label ??
+                                sheet.formatId,
+                              w: sheet.widthCm.toFixed(0),
+                              len: sheet.lengthCm.toFixed(0),
+                            })
+                          : t('dtf.preview.sheet', {
+                              n: i + 1,
+                              len: sheet.lengthCm.toFixed(0),
+                              w: sheet.widthCm.toFixed(0),
+                            })}
+                        {' · '}
+                        {fillText(sheet.utilization, sheet.inkUtilization, t)}
+                      </span>
+                      <button
+                        className="iconbtn ml-auto h-6 w-6 shrink-0 text-tx3"
+                        data-dtf="export-one"
+                        disabled={!canExport}
+                        aria-label={t('dtf.zip.one_sheet', { n: i + 1 })}
+                        title={t('dtf.zip.one_sheet', { n: i + 1 })}
+                        onClick={() => void exportOneSheet(i)}
+                      >
+                        <Download size={12} />
+                      </button>
                     </div>
                     <SheetPreview
                       sheet={sheet}
@@ -1054,37 +1371,66 @@ export default function DtfModal() {
               </div>
             )}
 
-            <div className="mt-auto flex flex-wrap gap-2">
+            {/* ONE download. Naming the order is part of the export, not an
+                afterthought: the archive is what the print shop receives. */}
+            <div className="mt-auto flex flex-col gap-2">
+              {askName && (
+                <div className="flex flex-wrap items-end gap-2 rounded-lg border border-line bg-bg1 p-2.5">
+                  <label className="min-w-[180px] flex-1">
+                    <span className="mb-1 block text-[11.5px] text-tx2">
+                      {t('dtf.zip.name_label')}
+                    </span>
+                    <input
+                      className="input h-8 text-[12.5px]"
+                      data-dtf="zip-name"
+                      autoFocus
+                      value={orderName}
+                      placeholder={defaultOrderName}
+                      aria-label={t('dtf.zip.name_label')}
+                      onChange={(e) => setOrderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void exportZip()
+                        if (e.key === 'Escape') setAskName(false)
+                      }}
+                    />
+                  </label>
+                  <button
+                    className="btn btn-primary h-8 justify-center"
+                    data-dtf="zip-confirm"
+                    onClick={() => void exportZip()}
+                  >
+                    <FileArchive size={13} />
+                    {t('dtf.zip.confirm')}
+                  </button>
+                  <button
+                    className="btn btn-ghost h-8 justify-center"
+                    data-dtf="zip-cancel"
+                    onClick={() => setAskName(false)}
+                  >
+                    {t('dtf.zip.cancel')}
+                  </button>
+                  <div className="w-full text-[10.5px] leading-relaxed text-tx3">
+                    {t('dtf.zip.name_hint')}
+                  </div>
+                </div>
+              )}
               <button
-                className="btn btn-primary h-9 flex-1 justify-center"
-                data-dtf="export-print"
+                className="btn btn-primary h-9 w-full justify-center"
+                data-dtf="export-zip"
                 disabled={!canExport}
                 title={blocked ? t('dtf.export.blocked') : undefined}
-                onClick={() => void exportPrint()}
+                onClick={() => {
+                  if (!orderName) setOrderName(defaultOrderName)
+                  setAskName(true)
+                }}
               >
-                <ImageIcon size={14} />
-                {busy ?? t('dtf.export.print')}
+                <FileArchive size={14} />
+                {busy ?? t('dtf.zip.action', { n: result.sheets.length })}
               </button>
-              <button
-                className="btn h-9 flex-1 justify-center"
-                data-dtf="export-cutplan"
-                disabled={!canExport}
-                title={blocked ? t('dtf.export.blocked') : undefined}
-                onClick={() => void exportCutplan()}
-              >
-                <Scissors size={14} />
-                {t('dtf.export.cutplan')}
-              </button>
-              <button
-                className="btn h-9 flex-1 justify-center"
-                data-dtf="export-manifest"
-                disabled={!canExport}
-                title={blocked ? t('dtf.export.blocked') : undefined}
-                onClick={exportManifest}
-              >
-                <FileJson size={14} />
-                {t('dtf.export.manifest')}
-              </button>
+              <div className="text-[10.5px] leading-relaxed text-tx3">
+                {t('dtf.zip.contents')} ·{' '}
+                <span className="text-tx2">{planLegend(result, lang)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1253,6 +1599,14 @@ export default function DtfModal() {
                     step={0.5}
                     onChange={(v) => patchProcess({ minOrderLm: v > 0 ? v : undefined })}
                   />
+                  <NumField
+                    label={t('dtf.settings.billing_step')}
+                    hint={t('dtf.settings.billing_step_hint')}
+                    value={proc.billingStepCm ?? 10}
+                    min={0.1}
+                    step={1}
+                    onChange={(v) => patchProcess({ billingStepCm: v })}
+                  />
                 </div>
               </div>
 
@@ -1294,6 +1648,13 @@ export default function DtfModal() {
                     min={0}
                     step={0.1}
                     onChange={(v) => patchGuidelines({ marginCm: v })}
+                  />
+                  <NumField
+                    label={t('dtf.settings.g_margin_end')}
+                    value={proc.guidelines.marginEndCm ?? 0}
+                    min={0}
+                    step={0.1}
+                    onChange={(v) => patchGuidelines({ marginEndCm: v })}
                   />
                   <NumField
                     label={t('dtf.settings.g_gap')}
@@ -1549,6 +1910,42 @@ export default function DtfModal() {
 
 /** €-delta with an explicit sign — "+3.40" reads as a surcharge, "3.40" does not. */
 const signedEur = (v: number): string => (v > 0 ? '+' : '') + v.toFixed(2)
+
+const clampNum = (v: number, lo: number, hi: number): number =>
+  Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo
+
+/** cm with at most one decimal, French-style — "58" and "0,5", never "58.0". */
+const fmtCm = (v: number): string =>
+  (Math.round(v * 10) / 10).toString().replace('.', ',')
+
+/**
+ * Fill readout. When the true-shape packer measured real ink coverage, the INK
+ * figure leads and the bounding-box one is labelled as such — because once
+ * pieces interlock their boxes overlap and the box figure legitimately goes
+ * past 100 %. Shown bare, "117 %" reads as a bug; shown as "encre 31 % · boîtes
+ * 117 %" it reads as what it is, a sheet whose boxes overlap by 17 %.
+ */
+const fillText = (
+  box: number,
+  ink: number | undefined,
+  t: ReturnType<typeof useDtfT>,
+): string =>
+  ink === undefined
+    ? `${Math.round(box * 100)} %`
+    : t('dtf.stats.util_both', {
+        ink: Math.round(ink * 100),
+        box: Math.round(box * 100),
+      })
+
+/** ASCII-safe stem for a single-file download (the ZIP keeps accents). */
+const slugFile = (s: string): string =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || 'dtf'
 
 /** Merge queue rows, summing quantities of rows that share a key. */
 function mergeRows(cur: QueueRow[], add: QueueRow[]): QueueRow[] {

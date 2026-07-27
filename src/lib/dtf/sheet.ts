@@ -4,10 +4,18 @@
  * Two render modes off one code path (parity by construction):
  *  - PRINT file: transparent background, artwork only (guides OFF) — this is
  *    the PNG uploaded to the DTF supplier.
- *  - CUTTING PLAN: same geometry with the cut-guide layer ON (dashed
- *    full-width corridor lines at shelf boundaries offset gap/2, dashed
- *    verticals between pieces, thin rounded outline per piece at bbox+gap/2,
- *    optional labels) on a light paper-friendly background.
+ *  - CUTTING PLAN: the same geometry with the cut-guide layer ON, on a light
+ *    paper-friendly background.
+ *
+ * THE CUTTING PLAN DEPENDS ON THE PACKER, and pretending otherwise is how you
+ * hand an operator a plan whose lines cut through artwork. The shelf packer
+ * produces genuine full-width corridors, so its plan draws them plus the
+ * vertical trims between neighbours — one long chop, then verticals. The
+ * true-shape packer produces no rows at all, so its plan draws (a) the maximal
+ * EMPTY BANDS, which are the full-width chops that do exist, and (b) the
+ * per-piece outline at bbox + clearance, which is what you actually cut
+ * around. The legend states which mode produced the sheet, because the two
+ * plans look similar and are cut very differently.
  *
  * DPI is auto-clamped so one canvas stays under ~140 M px, but never below
  * the supplier's minimum DPI — the effective value is surfaced to the UI.
@@ -55,6 +63,12 @@ export interface SheetRenderOpts {
   background?: string | null
   /** sourceKey → human label, drawn on the cutting plan next to each piece. */
   labels?: ReadonlyMap<string, string>
+  /**
+   * One line printed on the plan saying which packer and which interlock
+   * produced it. Without it the operator cannot tell a straight-cut sheet from
+   * an interlocked one, and they are cut differently.
+   */
+  legend?: string
 }
 
 export interface SheetRenderResult {
@@ -103,20 +117,55 @@ export function renderSheet(
     const y = p.yCm * pxPerCm
     const w = p.wCm * pxPerCm
     const h = p.hCm * pxPerCm
+    // `rotCw` is authoritative when present (the true-shape packer can emit
+    // 180°/270°); `rotated` is the shelf packer's two-state legacy form.
+    // Canvas y grows downward, so a positive angle IS clockwise.
+    const deg = p.rotCw ?? (p.rotated ? 90 : 0)
+    const quarter = deg === 90 || deg === 270
     ctx.save()
     ctx.translate(x + w / 2, y + h / 2)
-    if (p.rotated) ctx.rotate(Math.PI / 2)
-    // Source canvas is in INPUT orientation; when rotated the placed w/h are
-    // swapped, so the unrotated draw size is (h × w).
-    const dw = p.rotated ? h : w
-    const dh = p.rotated ? w : h
+    if (deg !== 0) ctx.rotate((deg * Math.PI) / 180)
+    // Source canvas is in INPUT orientation; at a quarter turn the placed w/h
+    // are swapped, so the unrotated draw size is (h × w).
+    const dw = quarter ? h : w
+    const dh = quarter ? w : h
     ctx.drawImage(src.canvas, -dw / 2, -dh / 2, dw, dh)
     ctx.restore()
   }
 
-  if (opts.guides) drawGuides(ctx, sheet, options, widthCm, pxPerCm, opts.labels)
+  if (opts.guides) drawGuides(ctx, sheet, options, widthCm, pxPerCm, opts.labels, opts.legend)
 
   return { canvas, dpi: opts.dpi, pxPerCm }
+}
+
+/** A full-width chop is only worth drawing when a blade can actually follow it. */
+const MIN_BAND_CM = 1
+
+/**
+ * Rows of the sheet that NO piece occupies, clearance included — the
+ * full-width chops that genuinely exist. On a shelf-packed sheet these are
+ * exactly the inter-shelf corridors; on a true-shape sheet there are usually
+ * only two or three, and drawing the shelf corridors there would slice through
+ * artwork.
+ */
+export function emptyBandsCm(
+  sheet: DtfSheet,
+  gapCm: number,
+): { fromCm: number; toCm: number }[] {
+  if (sheet.placements.length === 0) return []
+  const spans = sheet.placements
+    .map((p) => ({ a: p.yCm - gapCm / 2, b: p.yCm + p.hCm + gapCm / 2 }))
+    .sort((x, y) => x.a - y.a)
+  const bands: { fromCm: number; toCm: number }[] = []
+  let reach = spans[0].b
+  for (let i = 1; i < spans.length; i++) {
+    if (spans[i].a > reach) bands.push({ fromCm: reach, toCm: spans[i].a })
+    if (spans[i].b > reach) reach = spans[i].b
+  }
+  // The billing tail after the last piece is a chop too, and it is the one the
+  // operator most wants to see: it is the film that was paid for and not used.
+  if (sheet.lengthCm > reach) bands.push({ fromCm: reach, toCm: sheet.lengthCm })
+  return bands.filter((b) => b.toCm - b.fromCm >= MIN_BAND_CM)
 }
 
 function drawGuides(
@@ -126,26 +175,14 @@ function drawGuides(
   widthCm: number,
   pxPerCm: number,
   labels?: ReadonlyMap<string, string>,
+  legend?: string,
 ): void {
   const gap = options.gapCm
   const W = widthCm * pxPerCm
   const lw = Math.max(1, Math.round(pxPerCm * 0.035)) // ≈ 0.35 mm
   const dash = [lw * 6, lw * 5]
-
-  // Group placements per shelf (top-aligned ⇒ yCm equals the shelf top).
-  const perShelf: (typeof sheet.placements)[] = sheet.shelfYsCm.map(() => [])
-  for (const p of sheet.placements) {
-    let si = 0
-    let bd = Infinity
-    for (let i = 0; i < sheet.shelfYsCm.length; i++) {
-      const d = Math.abs(sheet.shelfYsCm[i] - p.yCm)
-      if (d < bd) {
-        bd = d
-        si = i
-      }
-    }
-    perShelf[si].push(p)
-  }
+  /** Shelf rows exist ⇒ the shelf packer made this sheet. */
+  const shelves = sheet.shelfYsCm.length > 0
 
   ctx.save()
   ctx.lineWidth = lw
@@ -161,37 +198,61 @@ function drawGuides(
     ctx.restore()
   }
 
-  // Full-width straight corridor cuts: below each shelf, offset gap/2.
-  for (let i = 0; i < sheet.shelfYsCm.length; i++) {
-    const y = (sheet.shelfYsCm[i] + sheet.shelfHsCm[i] + gap / 2) * pxPerCm
-    ctx.beginPath()
-    ctx.moveTo(0, y)
-    ctx.lineTo(W, y)
-    ctx.stroke()
-  }
+  if (shelves) {
+    // --- shelf packer: straight full-width corridors + vertical trims -------
+    const perShelf: (typeof sheet.placements)[] = sheet.shelfYsCm.map(() => [])
+    for (const p of sheet.placements) {
+      let si = 0
+      let bd = Infinity
+      for (let i = 0; i < sheet.shelfYsCm.length; i++) {
+        const d = Math.abs(sheet.shelfYsCm[i] - p.yCm)
+        if (d < bd) {
+          bd = d
+          si = i
+        }
+      }
+      perShelf[si].push(p)
+    }
 
-  // Dashed verticals between pieces of one shelf (+ trailing trim cut).
-  for (let i = 0; i < perShelf.length; i++) {
-    const row = [...perShelf[i]].sort((a, b) => a.xCm - b.xCm)
-    if (row.length === 0) continue
-    const yTop = (sheet.shelfYsCm[i] - gap / 2) * pxPerCm
-    const yBot = (sheet.shelfYsCm[i] + sheet.shelfHsCm[i] + gap / 2) * pxPerCm
-    const cuts: number[] = []
-    for (let k = 0; k < row.length - 1; k++)
-      cuts.push(row[k].xCm + row[k].wCm + gap / 2)
-    const last = row[row.length - 1]
-    const rightEdge = last.xCm + last.wCm
-    if (rightEdge + gap < widthCm - options.edgeMarginCm) cuts.push(rightEdge + gap / 2)
-    for (const cx of cuts) {
-      const x = cx * pxPerCm
+    for (let i = 0; i < sheet.shelfYsCm.length; i++) {
+      const y = (sheet.shelfYsCm[i] + sheet.shelfHsCm[i] + gap / 2) * pxPerCm
       ctx.beginPath()
-      ctx.moveTo(x, Math.max(0, yTop))
-      ctx.lineTo(x, yBot)
+      ctx.moveTo(0, y)
+      ctx.lineTo(W, y)
+      ctx.stroke()
+    }
+
+    for (let i = 0; i < perShelf.length; i++) {
+      const row = [...perShelf[i]].sort((a, b) => a.xCm - b.xCm)
+      if (row.length === 0) continue
+      const yTop = (sheet.shelfYsCm[i] - gap / 2) * pxPerCm
+      const yBot = (sheet.shelfYsCm[i] + sheet.shelfHsCm[i] + gap / 2) * pxPerCm
+      const cuts: number[] = []
+      for (let k = 0; k < row.length - 1; k++) cuts.push(row[k].xCm + row[k].wCm + gap / 2)
+      const last = row[row.length - 1]
+      const rightEdge = last.xCm + last.wCm
+      if (rightEdge + gap < widthCm - options.edgeMarginCm) cuts.push(rightEdge + gap / 2)
+      for (const cx of cuts) {
+        const x = cx * pxPerCm
+        ctx.beginPath()
+        ctx.moveTo(x, Math.max(0, yTop))
+        ctx.lineTo(x, yBot)
+        ctx.stroke()
+      }
+    }
+  } else {
+    // --- true-shape: only the chops that really exist ----------------------
+    for (const b of emptyBandsCm(sheet, gap)) {
+      const y = ((b.fromCm + b.toCm) / 2) * pxPerCm
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(W, y)
       ctx.stroke()
     }
   }
 
-  // Per-piece rounded outline at bbox + gap/2.
+  // Per-piece rounded outline at bbox + gap/2 — on an interlocked sheet this
+  // is THE cut line, so it is drawn last and stays opaque.
   ctx.strokeStyle = GUIDE_BOX
   ctx.setLineDash([])
   ctx.globalAlpha = 0.85
@@ -216,16 +277,37 @@ function drawGuides(
     for (const p of sheet.placements) {
       const label = labels.get(p.sourceKey)
       if (!label) continue
+      const deg = p.rotCw ?? (p.rotated ? 90 : 0)
+      // The orientation arrow is not decoration: with four rotations in play,
+      // a sleeve print handed over without one gets pressed sideways.
+      const text = deg === 0 ? label : `${ARROWS[deg]} ${label}`
       ctx.fillText(
-        label,
+        text,
         (p.xCm + 0.15) * pxPerCm,
         (p.yCm + 0.12) * pxPerCm,
         (p.wCm - 0.3) * pxPerCm,
       )
     }
   }
+
+  if (legend) {
+    ctx.globalAlpha = 1
+    ctx.setLineDash([])
+    const fs = Math.max(8, 0.36 * pxPerCm)
+    ctx.font = `${fs}px "JetBrains Mono", monospace`
+    ctx.textBaseline = 'top'
+    const pad = fs * 0.5
+    const tw = ctx.measureText(legend).width
+    ctx.fillStyle = 'rgba(255,255,255,0.88)'
+    ctx.fillRect(0, 0, Math.min(W, tw + 2 * pad), fs + 2 * pad)
+    ctx.fillStyle = GUIDE_TEXT
+    ctx.fillText(legend, pad, pad, W - 2 * pad)
+  }
   ctx.restore()
 }
+
+/** Which way is "up" for a rotated transfer, in one glyph. */
+const ARROWS: Record<number, string> = { 90: '▶', 180: '▼', 270: '◀' }
 
 /** Encode a rendered sheet as a PNG blob. */
 export function sheetToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -252,6 +334,22 @@ export interface ManifestPiece {
 export interface DtfManifest {
   generatedAt: string
   tool: 'tshop-dtf'
+  /** App build the archive came from — the first thing to check on a dispute. */
+  appVersion: string
+  /** Operator's order / basket name; the archive is named from it. */
+  orderName: string
+  /**
+   * How the layout was produced. Reproducing a manifest requires ALL of these:
+   * same packer, same interlock, same restart count, same flip permission —
+   * change any one and the placements move.
+   */
+  nesting: {
+    packer: 'shelf' | 'trueshape'
+    interlockCm: number
+    restarts: number
+    /** 180°/270° were allowed (artwork declared to have no "up"). */
+    flip: boolean
+  }
   supplier: {
     id: string
     name: string
@@ -281,6 +379,8 @@ export interface DtfManifest {
     lengthCm: number
     rawLengthCm: number
     utilization: number
+    /** Real ink coverage; absent when the shelf packer produced the sheet. */
+    inkUtilization?: number
     placements: {
       id: string
       sourceKey: string
@@ -289,6 +389,7 @@ export interface DtfManifest {
       wCm: number
       hCm: number
       rotated: boolean
+      rotCw?: 0 | 90 | 180 | 270
     }[]
   }[]
   totals: {
@@ -296,12 +397,20 @@ export interface DtfManifest {
     lengthCm: number
     lengthM: number
     utilization: number
+    inkUtilization?: number
     unplaceable: string[]
   }
   cost: CostBreakdown | null
 }
 
-/** Assemble the order-tracking manifest (JSON-serializable). */
+/**
+ * Assemble the order-tracking manifest (JSON-serializable).
+ *
+ * `generatedAt` is a PARAMETER, not a `Date.now()` read: the whole export —
+ * archive name, ZIP member timestamps, README and manifest — must agree on one
+ * instant, and a function that reads the clock cannot be re-run to reproduce
+ * a delivered archive.
+ */
 export function buildManifest(args: {
   result: NestResult
   supplier: SupplierProfile
@@ -311,11 +420,24 @@ export function buildManifest(args: {
   effectiveDpis: number[]
   pieces: ManifestPiece[]
   preflight?: PreflightIssue[]
+  orderName?: string
+  appVersion?: string
+  restarts?: number
+  flip?: boolean
+  generatedAt?: Date
 }): DtfManifest {
   const { result, supplier, process: proc } = args
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt: (args.generatedAt ?? new Date()).toISOString(),
     tool: 'tshop-dtf',
+    appVersion: args.appVersion ?? '',
+    orderName: args.orderName ?? '',
+    nesting: {
+      packer: result.packer,
+      interlockCm: result.interlockCm,
+      restarts: args.restarts ?? 1,
+      flip: args.flip ?? false,
+    },
     supplier: {
       id: supplier.id,
       name: supplier.name,
@@ -344,6 +466,7 @@ export function buildManifest(args: {
       lengthCm: s.lengthCm,
       rawLengthCm: s.rawLengthCm,
       utilization: s.utilization,
+      ...(s.inkUtilization !== undefined ? { inkUtilization: s.inkUtilization } : {}),
       placements: s.placements.map((p) => ({ ...p })),
     })),
     totals: {
@@ -351,6 +474,9 @@ export function buildManifest(args: {
       lengthCm: result.totalLengthCm,
       lengthM: result.totalLengthM,
       utilization: result.totalUtilization,
+      ...(result.totalInkUtilization !== undefined
+        ? { inkUtilization: result.totalInkUtilization }
+        : {}),
       unplaceable: result.unplaceable,
     },
     cost: args.cost,

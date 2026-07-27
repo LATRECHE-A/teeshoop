@@ -34,6 +34,15 @@ export interface SheetFormat {
   priceEur: number
 }
 
+/**
+ * Where a spacing figure comes from. Nesting burns real money at the edges, so
+ * the UI has to be able to say whether a margin is a supplier RULE, a
+ * consequence of the supplier quoting a *printable* width (in which case the
+ * honest margin is 0), or a house floor we invented because nobody published
+ * anything. Guessing silently is how the current 1 cm margin got there.
+ */
+export type SpacingSource = 'published' | 'printable-width' | 'house' | 'inferred'
+
 /** Machine-checkable prepress rules — the input of preflight.ts. */
 export interface DtfGuidelines {
   minDpi: number
@@ -43,10 +52,22 @@ export interface DtfGuidelines {
   minLineMmWhite: number
   /** Smallest legible text, pt at final size. */
   minTextPt: number
-  /** Recommended clear space from the sheet/roll edge, cm. */
+  /**
+   * Clear space at the two LONG edges (the laize limit), cm. Legitimately 0
+   * when the supplier quotes a printable width — that width IS the safe area.
+   */
   marginCm: number
+  /**
+   * Clear space at the two SHORT edges, cm. On a roll these are a scissor cut,
+   * not a printer edge, so 0 is normal; a fixed format may want a real value.
+   */
+  marginEndCm?: number
   /** Recommended artwork-to-artwork spacing, cm. */
   gapCm: number
+  /** Provenance of `marginCm` / `marginEndCm`, surfaced in the admin UI. */
+  marginSource?: SpacingSource
+  /** Provenance of `gapCm`. */
+  gapSource?: SpacingSource
   /** Hard cap on a SINGLE design (cm); null = only the process geometry caps it. */
   maxDesignWCm: number | null
   maxDesignHCm: number | null
@@ -62,11 +83,20 @@ export interface DtfProcess {
   id: ProcessId
   label: string
   billing: BillingModel
-  /** Width usable for artwork in one print file (cm). */
+  /**
+   * Width usable for artwork in one print file (cm) — the supplier's MAXIMUM.
+   * The operator may nest onto a narrower sheet, never a wider one.
+   */
   printableWidthCm: number
   rollWidthCm: number
-  /** Max length of one print file / sheet (cm). */
+  /** Max length of one print file / sheet (cm) — again the supplier maximum. */
   maxLengthCm: number
+  /**
+   * Billing granularity in cm. 10 = 0.1 lm, which is what most roll suppliers
+   * invoice; a supplier that bills whole metres (100) makes every packing gain
+   * below one metre worth exactly nothing, so this is not a detail.
+   */
+  billingStepCm?: number
   /** Roll billing only — sorted by minLm ascending. */
   priceTiers: PriceTier[]
   /** Fixed billing only — the purchasable catalogue. */
@@ -106,14 +136,36 @@ export interface SupplierProfile {
 // Defaults (researched — see docs/credits/DTF.md for sources + uncertainties)
 // ---------------------------------------------------------------------------
 
-/** House floors used wherever a supplier publishes no figure of its own. */
+/**
+ * House floors used wherever a supplier publishes no figure of its own.
+ *
+ * SPACING (relevé 2026-07, sources dans docs/credits/DTF.md)
+ * ---------------------------------------------------------
+ * Four EU printers publish a spacing rule and NOBODY publishes more than one:
+ * DTF-Blitz « Mindestens 5 mm Abstand zwischen den Motiven » (+ « Ein
+ * zusätzlicher Beschnitt muss nicht berücksichtigt werden » ⇒ zero bleed),
+ * DTF-Profis « Mindestens 4 mm » (5–10 mm pour la découpe manuelle),
+ * ZebraTransfers « 1 à 2 cm », Tissus Print « 5 mm minimum de marge
+ * intérieure ». 5 mm is therefore the strictest PUBLISHED minimum and 4 mm the
+ * absolute floor — never go below it.
+ *
+ * The 3 mm side margin here is a house floor for suppliers that publish
+ * neither a margin nor a printable width. Where a supplier DOES quote a
+ * printable width (DTF+ 58 cm, dtfaprofesionales 55 cm…), that width already
+ * IS the safe area and the margin belongs at 0 — see `marginSource`. The
+ * previous 1,0 cm / 0,8 cm defaults were house inventions with no supplier
+ * backing and cost ≈ 4 % of every roll on their own.
+ */
 const BASE_GUIDELINES: DtfGuidelines = {
   minDpi: 300,
   minLineMmColour: 1.0,
   minLineMmWhite: 0.5,
   minTextPt: 8,
-  marginCm: 1.0,
-  gapCm: 0.8,
+  marginCm: 0.3,
+  marginEndCm: 0,
+  marginSource: 'house',
+  gapCm: 0.5,
+  gapSource: 'published',
   maxDesignWCm: null,
   maxDesignHCm: null,
   fileFormats: ['png'],
@@ -132,7 +184,9 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
     url: 'https://dtfplus.eu',
     printsFrom: 'Rzeszów, Pologne (UPS)',
     vatBasis: 'HT',
-    shippingEur: 8,
+    // Relevé 2026-07 : la grille du site indique 9 € standard / 12 € express
+    // vers la France (l'ancien 8 € n'existe plus).
+    shippingEur: 9,
     freeShipAtEur: null,
     freeShipAtLm: 20,
     minOrderLm: 1,
@@ -147,6 +201,10 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
       '147,30 €). Ne jamais commander entre 15 et 19,9 lm. ' +
       'Coupure 10 h CET pour une expédition le jour même · presse 130 °C / 6–8 s / pression ' +
       'forte · UV-DTF : minimum 0,5 lm, séchage 24–48 h avant pose (tarifs UV-DTF à confirmer). ' +
+      '⚠ MARGE BORD 0 DÉDUITE, NON PUBLIÉE : leurs spécifications ne mentionnent ni marge, ' +
+      'ni fond perdu, ni zone de sécurité — on en déduit que les 58 cm annoncés SONT la laize ' +
+      'imprimable. Commander une planche test de 1 lm avec une grille au bord avant de basculer ' +
+      'la production dessus. L’espacement 5 mm est emprunté à DTF-Blitz (DTF+ n’en publie aucun). ' +
       '⚠ Les CGV excluent la variation colorimétrique des motifs de réclamation : le contrôle ' +
       'couleur est à notre charge.',
     processes: [
@@ -165,11 +223,18 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
           { minLm: 50, eurPerLm: 5.5 },
         ],
         minOrderLm: 1,
+        billingStepCm: 10,
         guidelines: g({
           minDpi: 200,
           minLineMmColour: 1.0,
           minLineMmWhite: 0.5,
           minTextPt: 8,
+          // 58 cm est la « project width » annoncée : c'est déjà la zone sûre.
+          marginCm: 0,
+          marginEndCm: 0,
+          marginSource: 'printable-width',
+          gapCm: 0.5,
+          gapSource: 'house',
           fileFormats: ['pdf', 'png'],
           colourMode: 'CMJN ou RVB',
           transparency: 'PNG à fond transparent ou PDF avec transparence',
@@ -194,8 +259,12 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
           { minLm: 10, eurPerLm: 7.0 },
         ],
         minOrderLm: 0.5,
+        billingStepCm: 10,
         guidelines: g({
           minDpi: 250,
+          marginCm: 0,
+          marginEndCm: 0,
+          marginSource: 'printable-width',
           // Le minimum de 0,5 mm en blanc est celui du DTF STANDARD ; en UV-DTF
           // le blanc monte à 0,8 mm (couleur 1,0 mm dans les deux procédés).
           minLineMmColour: 1.0,
@@ -208,6 +277,57 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
           transparency: 'Fond transparent obligatoire',
           whiteUnderbase: 'Couche blanche réduite de 0,15 mm par rapport à la couleur',
           cutting: 'Prédécoupe · séchage 24–48 h avant application',
+        }),
+      },
+    ],
+  },
+  {
+    id: 'impressiondtf',
+    name: 'Impression-DTF (France)',
+    url: 'https://impression-dtf.com',
+    printsFrom: 'France (atelier français, encres OEKO-TEX)',
+    vatBasis: 'HT',
+    // Port non publié sous le franco : 0 = inconnu, à confirmer avant devis.
+    shippingEur: 0,
+    freeShipAtEur: 100,
+    freeShipAtLm: null,
+    minOrderLm: 0,
+    minOrderEur: 0,
+    daysToParis: '72–96 h (éco) · 48 h (standard) · 24 h (express)',
+    notes:
+      'MEILLEUR €/m² VÉRIFIÉ (9,73 € HT/m² en éco) et, contrairement à DTF+, AUCUN numéro de ' +
+      'TVA intracommunautaire exigé — c’est ce qui en fait le choix par défaut. Production ' +
+      'française, encres OEKO-TEX, aucun minimum de commande, port offert dès 100 € HT. ' +
+      '⚠ LE TARIF DÉPEND DU DÉLAI, pas de la quantité : 5,45 € HT/ml en économique 72–96 h ' +
+      '(encodé ici), 6,54 € HT/ml en standard 48 h, 8,72 € HT/ml en express 24 h — changez le ' +
+      'palier ci-dessous si vous commandez en urgence. ' +
+      '⚠ À CONFIRMER auprès du fournisseur : la longueur maximale par fichier (non publiée — ' +
+      '100 cm prudent ici), le coût du port sous 100 € HT, et la quantité derrière chaque ' +
+      '« à partir de ». 300 DPI minimum exigés.',
+    processes: [
+      {
+        id: 'dtf',
+        label: 'DTF textile',
+        billing: 'roll',
+        printableWidthCm: 56,
+        rollWidthCm: 60,
+        maxLengthCm: 100,
+        formats: [],
+        priceTiers: [{ minLm: 1, eurPerLm: 5.45 }],
+        minOrderLm: 0,
+        billingStepCm: 10,
+        guidelines: g({
+          minDpi: 300,
+          marginCm: 0.3,
+          marginEndCm: 0,
+          marginSource: 'house',
+          gapCm: 0.5,
+          gapSource: 'house',
+          fileFormats: ['png', 'pdf', 'ai', 'psd'],
+          colourMode: 'Non précisé — fournir en RVB ou CMJN',
+          transparency: 'PNG à fond transparent recommandé',
+          whiteUnderbase: 'Blanc automatique généré par le RIP',
+          cutting: 'Découpe manuelle aux ciseaux',
         }),
       },
     ],
@@ -237,27 +357,37 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
         id: 'dtf',
         label: 'DTF textile',
         billing: 'fixed',
-        printableWidthCm: 56,
-        rollWidthCm: 56,
+        printableWidthCm: 55,
+        rollWidthCm: 55,
         maxLengthCm: 200,
         priceTiers: [],
-        // Relevé 2026-07 sur ohmydtf.com. ATTENTION : leurs « A4/A3/A2 » ne sont PAS
-        // les formats ISO (A4 = 21 × 28 et non 21 × 29,7). Toujours gabarier sur les
-        // cm du fournisseur, jamais sur l’ISO, sinon le visuel déborde.
+        // Relevé 2026-07 sur ohmydtf.com/collections/all. ATTENTION : leurs
+        // « A4/A3/A2 » ne sont PAS les formats ISO (A4 = 21 × 28 et non
+        // 21 × 29,7). Toujours gabarier sur les cm du fournisseur, jamais sur
+        // l’ISO, sinon le visuel déborde. Les grands formats font 55 cm de
+        // large (et non 56) et l'A2 fait 40 × 57 — un fichier de 56 cm posé
+        // sur une feuille de 55 était rogné en silence.
         formats: [
           { id: 'coeur', label: 'Cœur 10 × 10 cm', wCm: 10, hCm: 10, priceEur: 2.5 },
           { id: 'a4', label: 'A4 21 × 28 cm', wCm: 21, hCm: 28, priceEur: 4.9 },
           { id: 'a3', label: 'A3 28 × 42 cm', wCm: 28, hCm: 42, priceEur: 7.2 },
-          { id: 'a2', label: 'A2 42 × 56 cm', wCm: 42, hCm: 56, priceEur: 13.3 },
-          { id: 'm1', label: '1 m (56 × 100 cm)', wCm: 56, hCm: 100, priceEur: 17.0 },
-          { id: 'm2', label: '2 m (56 × 200 cm)', wCm: 56, hCm: 200, priceEur: 32.0 },
+          { id: 'a2', label: 'A2 40 × 57 cm', wCm: 40, hCm: 57, priceEur: 13.3 },
+          { id: 'm1', label: '1 m (55 × 100 cm)', wCm: 55, hCm: 100, priceEur: 17.0 },
+          { id: 'm2', label: '2 m (55 × 200 cm)', wCm: 55, hCm: 200, priceEur: 32.0 },
         ],
         guidelines: g({
           minDpi: 300,
           minLineMmColour: 0.6,
           minLineMmWhite: 0.6,
           minTextPt: 8,
-          maxDesignWCm: 56,
+          // Formats fixes : la feuille livrée est coupée au format, donc on
+          // garde 3 mm de sécurité sur les quatre bords (rien n'est publié).
+          marginCm: 0.3,
+          marginEndCm: 0.3,
+          marginSource: 'house',
+          gapCm: 0.5,
+          gapSource: 'house',
+          maxDesignWCm: 55,
           maxDesignHCm: 200,
           fileFormats: ['ai', 'psd', 'pdf', 'tiff'],
           colourMode: 'CMJN',
@@ -311,7 +441,10 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
     minOrderLm: 1,
     minOrderEur: 49,
     daysToParis: '1–2 j (DHL Express)',
-    notes: 'Feuilles 56 × 100 cm facturées au métré · commande minimum 49 €.',
+    notes:
+      'Feuilles 56 × 100 cm facturées au métré · commande minimum 49 €. ' +
+      '⚠ TARIFS NON REVÉRIFIÉS (relevé 2026-07 : la page tarifaire renvoie une 404) — ' +
+      'demander une grille à jour avant tout devis client.',
     processes: [
       {
         id: 'dtf',
@@ -352,7 +485,10 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
     minOrderLm: 1,
     minOrderEur: 0,
     daysToParis: '2–3 j',
-    notes: 'Production française · longueur max par fichier non documentée (250 cm prudent).',
+    notes:
+      'Production française · longueur max par fichier non documentée (250 cm prudent). ' +
+      '⚠ TARIFS NON REVÉRIFIÉS (relevé 2026-07 : le site ne publie plus de grille) — ' +
+      'confirmer avant de chiffrer.',
     processes: [
       {
         id: 'dtf',
@@ -635,6 +771,12 @@ function validGuidelines(v: unknown): v is DtfGuidelines {
     if (!isNum(o[k]) || (o[k] as number) <= 0) return false
   for (const k of ['marginCm', 'gapCm'] as const)
     if (!isNum(o[k]) || (o[k] as number) < 0) return false
+  // Optional split margin: absent is fine (falls back to marginCm), present
+  // must still be a usable number rather than a typo that silently reads as 0.
+  if (o.marginEndCm !== undefined && (!isNum(o.marginEndCm) || (o.marginEndCm as number) < 0))
+    return false
+  for (const k of ['marginSource', 'gapSource'] as const)
+    if (o[k] !== undefined && !isStr(o[k])) return false
   for (const k of ['maxDesignWCm', 'maxDesignHCm'] as const)
     if (o[k] !== null && (!isNum(o[k]) || (o[k] as number) <= 0)) return false
   if (!Array.isArray(o.fileFormats) || !o.fileFormats.every(isStr)) return false
@@ -652,6 +794,11 @@ function validProcess(v: unknown): v is DtfProcess {
   for (const k of ['printableWidthCm', 'rollWidthCm', 'maxLengthCm'] as const)
     if (!isNum(o[k]) || (o[k] as number) <= 0) return false
   if (o.minOrderLm !== undefined && (!isNum(o.minOrderLm) || (o.minOrderLm as number) < 0))
+    return false
+  if (
+    o.billingStepCm !== undefined &&
+    (!isNum(o.billingStepCm) || (o.billingStepCm as number) <= 0)
+  )
     return false
   if (!Array.isArray(o.priceTiers) || !Array.isArray(o.formats)) return false
   for (const t of o.priceTiers as unknown[]) {

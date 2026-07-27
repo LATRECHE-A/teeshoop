@@ -19,11 +19,18 @@
  *   inch-based design geometry is converted at the pieces.ts bridge).
  * - The requested `gapCm` is implemented as a half-gap inflation on all four
  *   sides of every piece, so artwork-to-artwork spacing is exactly `gapCm`
- *   and artwork keeps `edgeMarginCm` (+0) from the roll edges.
- * - `lengthCm` per sheet is rounded UP to 10 cm (0.1 lm) billing steps, capped
- *   at `maxLengthCm`; `rawLengthCm` keeps the exact artwork extent incl.
- *   margins. On a fixed format `lengthCm` is the FORMAT height (the whole
- *   sheet is paid for) while `rawLengthCm` still reports the used extent.
+ *   and artwork keeps the edge margin (+0) from the sheet edges.
+ * - The edge margin is TWO numbers because the two constraints are physically
+ *   different: `edgeMarginSideCm` is the printer's laize limit (some suppliers
+ *   quote a *printable* width, in which case it is legitimately 0), while
+ *   `edgeMarginEndCm` guards the two short edges, which on a roll are a scissor
+ *   cut rather than a printer edge and are therefore usually 0 as well. A
+ *   single `edgeMarginCm` is still accepted and feeds both.
+ * - `lengthCm` per sheet is rounded UP to `billingStepCm` (default 10 cm =
+ *   0.1 lm) billing steps, capped at `maxLengthCm`; `rawLengthCm` keeps the
+ *   exact artwork extent incl. margins. On a fixed format `lengthCm` is the
+ *   FORMAT height (the whole sheet is paid for) while `rawLengthCm` still
+ *   reports the used extent.
  */
 // Type-only import: erased at build time, so there is no runtime module cycle
 // with suppliers.ts (which type-imports DtfSheet back).
@@ -55,7 +62,64 @@ export interface NestOptions {
   printableWidthCm: number
   maxLengthCm: number
   gapCm: number
+  /**
+   * Legacy single edge margin. Kept as the fallback both split margins read
+   * when they are absent, so every pre-split caller keeps its exact geometry.
+   */
   edgeMarginCm: number
+  /** Clear space at the two LONG edges (the printer's laize limit). */
+  edgeMarginSideCm?: number
+  /** Clear space at the two SHORT edges (a scissor cut, not a printer edge). */
+  edgeMarginEndCm?: number
+  /** Billing granularity, cm. 10 = 0.1 linear metre, the common default. */
+  billingStepCm?: number
+}
+
+/** Every geometry number the packers actually use, defaulted and clamped once. */
+export interface ResolvedNestOptions {
+  widthCm: number
+  maxLengthCm: number
+  gapCm: number
+  sideMarginCm: number
+  endMarginCm: number
+  billingStepCm: number
+}
+
+/** Default billing step: 0.1 linear metre. */
+export const BILLING_STEP_CM = 10
+
+/**
+ * Fill in the split margins and the billing step. Single source of truth so the
+ * shelf packer and the true-shape packer can never disagree about what a
+ * `NestOptions` means.
+ */
+export function resolveNestOptions(o: NestOptions): ResolvedNestOptions {
+  const legacy = Math.max(0, o.edgeMarginCm || 0)
+  const num = (v: number | undefined, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback
+  return {
+    widthCm: Math.max(0, o.printableWidthCm),
+    maxLengthCm: Math.max(0, o.maxLengthCm),
+    gapCm: Math.max(0, o.gapCm),
+    sideMarginCm: num(o.edgeMarginSideCm, legacy),
+    endMarginCm: num(o.edgeMarginEndCm, legacy),
+    billingStepCm: Math.max(0.1, num(o.billingStepCm, BILLING_STEP_CM)),
+  }
+}
+
+/** Echo the effective geometry back into a result, split fields included. */
+export function echoOptions(r: ResolvedNestOptions): NestOptions {
+  return {
+    printableWidthCm: r4(r.widthCm),
+    maxLengthCm: r4(r.maxLengthCm),
+    gapCm: r4(r.gapCm),
+    // The legacy field keeps reading as "the margin" for old consumers; the
+    // side margin is the one that bounds x, which is what they all meant.
+    edgeMarginCm: r4(r.sideMarginCm),
+    edgeMarginSideCm: r4(r.sideMarginCm),
+    edgeMarginEndCm: r4(r.endMarginCm),
+    billingStepCm: r4(r.billingStepCm),
+  }
 }
 
 export interface DtfPlacement {
@@ -70,6 +134,13 @@ export interface DtfPlacement {
   hCm: number
   /** True when placed 90° to the INPUT orientation (wCm/hCm as given). */
   rotated: boolean
+  /**
+   * Clockwise rotation applied to the source canvas, degrees. Absent means
+   * `rotated ? 90 : 0` — the only two values the shelf packer can produce.
+   * The true-shape packer can also emit 180/270 when the artwork declares it
+   * has no "up", and renderers must honour this field when it is present.
+   */
+  rotCw?: 0 | 90 | 180 | 270
 }
 
 export interface DtfSheet {
@@ -80,30 +151,54 @@ export interface DtfSheet {
   /** Catalogue format this sheet is billed as; null on roll billing. */
   formatId: string | null
   placements: DtfPlacement[]
-  /** Top edge (cm) of each shelf's artwork row. */
+  /**
+   * Top edge (cm) of each shelf's artwork row. EMPTY on a true-shape result —
+   * there are no shelves there, and the cutting plan derives its chop lines
+   * from the placements instead.
+   */
   shelfYsCm: number[]
   /** Artwork height (cm) of each shelf — parallel to `shelfYsCm`. */
   shelfHsCm: number[]
   /** Exact extent: last artwork bottom + edge margin. */
   rawLengthCm: number
-  /** Billed length: `rawLengthCm` rounded UP to 10 cm steps, ≤ `maxLengthCm`. */
+  /** Billed length: `rawLengthCm` rounded UP to the billing step, ≤ `maxLengthCm`. */
   lengthCm: number
-  /** Σ placed artwork area ÷ (printableWidth × billed length). */
+  /**
+   * Σ placed artwork BBOX area ÷ (printableWidth × billed length).
+   *
+   * May legitimately exceed 1 on a true-shape sheet: interlocked pieces have
+   * OVERLAPPING bounding boxes (that is the entire point), so the sum of the
+   * boxes can be larger than the film. That is information, not a bug — it
+   * says how much the boxes overlap — but `inkUtilization` is the honest
+   * "how much of the film is printed" number whenever it is present.
+   */
   utilization: number
+  /**
+   * Σ placed INK area ÷ (printableWidth × billed length) — only the true-shape
+   * packer can measure it. This is the honest number: `utilization` counts the
+   * transparent corners of every bounding box as if they were printed.
+   */
+  inkUtilization?: number
 }
 
 export interface NestResult {
   sheets: DtfSheet[]
-  /** Which packer produced this result. */
+  /** Which billing model produced this result. */
   billing: BillingModel
+  /** Which packer produced it — the cutting plan legend states this. */
+  packer: 'shelf' | 'trueshape'
+  /** How far a piece was allowed to tuck under its neighbours (cm). */
+  interlockCm: number
   options: NestOptions
   /** Placements across all sheets (= Σ qty of placeable pieces). */
   totalPieces: number
   /** Σ billed sheet lengths. */
   totalLengthCm: number
   totalLengthM: number
-  /** Σ areas ÷ (width × Σ billed lengths); 0 when nothing placed. */
+  /** Σ bbox areas ÷ (width × Σ billed lengths); 0 when nothing placed. */
   totalUtilization: number
+  /** Σ ink areas ÷ (width × Σ billed lengths); absent on the shelf packer. */
+  totalInkUtilization?: number
   /** Input piece ids whose geometry can never fit (even alone, both ways). */
   unplaceable: string[]
 }
@@ -111,8 +206,6 @@ export interface NestResult {
 const EPS = 1e-6
 /** Accept a shorter piece into a taller shelf only above this height ratio. */
 const SHELF_FILL_RATIO = 0.75
-/** Billing step: 0.1 linear metre. */
-const BILLING_STEP_CM = 10
 
 const r4 = (v: number) => Math.round(v * 10000) / 10000
 
@@ -163,12 +256,16 @@ function rawLengthOf(totalInflH: number, gap: number, margin: number): number {
  * (including input order: instances are re-sorted with a total order).
  */
 export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
-  const gap = Math.max(0, options.gapCm)
-  const margin = Math.max(0, options.edgeMarginCm)
-  const width = Math.max(0, options.printableWidthCm)
-  const maxLen = Math.max(0, options.maxLengthCm)
+  const R = resolveNestOptions(options)
+  const gap = R.gapCm
+  /** Side margin bounds x; the end margin bounds y. They are not the same. */
+  const side = R.sideMarginCm
+  const margin = R.endMarginCm
+  const width = R.widthCm
+  const maxLen = R.maxLengthCm
+  const step = R.billingStepCm
   /** Usable width in inflated space (margins swallow the outer half-gaps). */
-  const usableW = width - 2 * margin + gap
+  const usableW = width - 2 * side + gap
 
   const unplaceable: string[] = []
   const instances: Instance[] = []
@@ -224,7 +321,7 @@ export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
     sheet.placements.push({
       id: `${inst.baseId}#${inst.copy}`,
       sourceKey: inst.sourceKey,
-      xCm: r4(margin + shelf.usedW),
+      xCm: r4(side + shelf.usedW),
       yCm: r4(margin + shelf.yInfl), // top-aligned → straight under-corridor
       wCm: r4(w),
       hCm: r4(h),
@@ -328,7 +425,7 @@ export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
     // length (raw ≤ maxLen by construction, so the artwork always fits).
     const billed = Math.min(
       maxLen,
-      Math.max(BILLING_STEP_CM, Math.ceil((raw - EPS) / BILLING_STEP_CM) * BILLING_STEP_CM),
+      Math.max(step, Math.ceil((raw - EPS) / step) * step),
     )
     const area = s.placements.reduce((a, p) => a + p.wCm * p.hCm, 0)
     sumBilled += billed
@@ -349,14 +446,25 @@ export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
   return {
     sheets: outSheets,
     billing: 'roll',
-    options: { printableWidthCm: width, maxLengthCm: maxLen, gapCm: gap, edgeMarginCm: margin },
+    packer: 'shelf',
+    interlockCm: 0,
+    options: echoOptions(R),
     totalPieces: outSheets.reduce((a, s) => a + s.placements.length, 0),
     totalLengthCm: r4(sumBilled),
     totalLengthM: r4(sumBilled / 100),
     totalUtilization: width * sumBilled > 0 ? r4(sumArea / (width * sumBilled)) : 0,
-    unplaceable,
+    unplaceable: stableIds(unplaceable),
   }
 }
+
+/**
+ * De-duplicate and sort a list of piece ids. `unplaceable` reaches the manifest
+ * and the README, so gathering it in INPUT order would make two exports of the
+ * same order differ purely because the operator reordered the queue — which is
+ * exactly the determinism the module claims. Sorting also makes the two packers
+ * agree on how they present the same set.
+ */
+const stableIds = (ids: string[]): string[] => [...new Set(ids)].sort()
 
 // ---------------------------------------------------------------------------
 // Fixed-format packer
@@ -376,24 +484,31 @@ export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
  *   3. emit the winner, remove the pieces it consumed, repeat until nothing
  *      can be placed any more.
  *
- * LIMITS (accepted on purpose): no global optimisation and no backtracking, so
- * the LAST sheet is often half empty and a mix that two A3 would cover can end
- * up on one 1 m sheet (or vice-versa) when the per-piece scores are close.
- * Rotation still obeys `allowRotate`; a piece that fits no format at all comes
- * back in `unplaceable` rather than being silently dropped. NOTE: the edge
- * margin applies to every format, so a 1 cm margin leaves only 8 × 8 cm usable
- * on a 10 × 10 cm sheet — small formats need a smaller margin to be reachable.
+ * LIMITS (accepted on purpose): no backtracking, so the LAST sheet is often
+ * half empty. Rotation still obeys `allowRotate`; a piece that fits no format
+ * at all comes back in `unplaceable` rather than being silently dropped. NOTE:
+ * the edge margin applies to every format, so a 1 cm margin leaves only 8 × 8
+ * cm usable on a 10 × 10 cm sheet — small formats need a smaller margin to be
+ * reachable.
+ *
+ * The inner packer is a PARAMETER (`packRoll`) so the true-shape packer can
+ * reuse this whole format-selection loop unchanged: the only thing that differs
+ * between the two is how one candidate sheet gets filled. `packRoll` receives
+ * the caller's own piece objects with only `id`/`qty` rewritten, so extra
+ * fields it needs (alpha masks, flip permissions) survive the round trip even
+ * though `DtfPiece` does not declare them.
  */
-function nestFixed(
+export type RollPacker = (pieces: DtfPiece[], options: NestOptions) => NestResult
+
+function greedyFixed(
   pieces: DtfPiece[],
-  formats: SheetFormat[],
+  cands: SheetFormat[],
   options: NestOptions,
+  packRoll: RollPacker,
 ): NestResult {
-  const gap = Math.max(0, options.gapCm)
-  const margin = Math.max(0, options.edgeMarginCm)
-  const cands = formats.filter(
-    (f) => Number.isFinite(f.wCm) && Number.isFinite(f.hCm) && f.wCm > 0 && f.hCm > 0,
-  )
+  const R = resolveNestOptions(options)
+  const gap = R.gapCm
+  const margin = R.sideMarginCm
 
   interface Spec {
     piece: DtfPiece
@@ -417,7 +532,12 @@ function nestFixed(
   const outSheets: DtfSheet[] = []
   let sumBilled = 0
   let sumArea = 0
+  let sumInk = 0
   let sumCapacity = 0
+  /** Ink utilisation is only meaningful when EVERY sheet reported it. */
+  let inkKnown = true
+  let innerPacker: 'shelf' | 'trueshape' = 'shelf'
+  let innerInterlockCm = 0
   // Each accepted sheet consumes ≥ 1 copy, so the total qty bounds the loop.
   const guard = specs.reduce((a, s) => a + s.left, 0)
 
@@ -433,12 +553,19 @@ function nestFixed(
 
     let best: { fmt: SheetFormat; sheet: DtfSheet; score: number } | null = null
     for (const f of cands) {
-      const one = nestRoll(remaining, {
+      const packed = packRoll(remaining, {
+        ...options,
         printableWidthCm: f.wCm,
         maxLengthCm: f.hCm,
         gapCm: gap,
         edgeMarginCm: margin,
-      }).sheets[0]
+        edgeMarginSideCm: R.sideMarginCm,
+        edgeMarginEndCm: R.endMarginCm,
+        billingStepCm: R.billingStepCm,
+      })
+      innerPacker = packed.packer
+      innerInterlockCm = packed.interlockCm
+      const one = packed.sheets[0]
       if (!one || one.placements.length === 0) continue
       const score = f.priceEur / one.placements.length
       if (
@@ -478,7 +605,25 @@ function nestFixed(
       // The whole format is paid for and physically delivered.
       lengthCm: r4(best.fmt.hCm),
       utilization: capacity > 0 ? r4(area / capacity) : 0,
+      ...(best.sheet.inkUtilization !== undefined
+        ? {
+            inkUtilization:
+              capacity > 0
+                ? r4(
+                    (best.sheet.inkUtilization *
+                      best.sheet.widthCm *
+                      best.sheet.lengthCm) /
+                      capacity,
+                  )
+                : 0,
+          }
+        : {}),
     })
+    sumInk +=
+      best.sheet.inkUtilization !== undefined
+        ? best.sheet.inkUtilization * best.sheet.widthCm * best.sheet.lengthCm
+        : 0
+    inkKnown = inkKnown && best.sheet.inkUtilization !== undefined
   }
 
   for (const s of specs)
@@ -489,19 +634,116 @@ function nestFixed(
   return {
     sheets: outSheets,
     billing: 'fixed',
-    options: {
-      printableWidthCm: r4(widest || options.printableWidthCm),
-      maxLengthCm: r4(longest || options.maxLengthCm),
-      gapCm: gap,
-      edgeMarginCm: margin,
-    },
+    packer: innerPacker,
+    interlockCm: innerInterlockCm,
+    options: echoOptions({
+      ...R,
+      widthCm: widest || R.widthCm,
+      maxLengthCm: longest || R.maxLengthCm,
+    }),
     totalPieces: outSheets.reduce((a, s) => a + s.placements.length, 0),
     totalLengthCm: r4(sumBilled),
     totalLengthM: r4(sumBilled / 100),
     totalUtilization: sumCapacity > 0 ? r4(sumArea / sumCapacity) : 0,
-    unplaceable,
+    ...(inkKnown && outSheets.length > 0
+      ? { totalInkUtilization: sumCapacity > 0 ? r4(sumInk / sumCapacity) : 0 }
+      : {}),
+    unplaceable: stableIds(unplaceable),
   }
 }
+
+/** What a fixed-format solution actually costs: Σ the price of each sheet bought. */
+function priceOf(res: NestResult, formats: SheetFormat[]): number {
+  let sum = 0
+  for (const s of res.sheets) sum += formats.find((f) => f.id === s.formatId)?.priceEur ?? 0
+  return sum
+}
+
+/**
+ * Fixed-format binning, scored on the ONLY number that matters: the total bill.
+ *
+ * WHY THIS WRAPPER EXISTS. `greedyFixed` buys, each round, the format with the
+ * best € per piece placed on that one sheet. That is myopic and it costs real
+ * money: measured on a real order of 19 small back prints (≈ 4 × 4 cm) and 19
+ * chest prints (≈ 21 × 23 cm) at OhMyDTF, the greedy buys five 10 × 10 "cœur"
+ * sheets at €0,63/pièce for the small ones and then still has to buy a 2 m
+ * sheet for the big ones — €44,50, when the 2 m sheet alone holds the entire
+ * order for €32. Cheapest-per-piece is not cheapest.
+ *
+ * The fix is not a search, it is a handful of RESTRICTED CATALOGUES, each one a
+ * decision a human would make out loud, all run through the same greedy and
+ * scored on the bill:
+ *   - the whole catalogue (always a candidate, so this can never be worse than
+ *     the plain greedy);
+ *   - each format ON ITS OWN — the "just buy the 2 m sheet" answer above;
+ *   - "nothing smaller than F", for each F — the "stop buying cœur sheets"
+ *     answer. It is a distinct family, not a rounding of the previous one: the
+ *     greedy above ends up buying THREE 1 m sheets (€51) where one 2 m plus one
+ *     1 m holds the same order for €49, and only a plan that still has both big
+ *     formats available but no small ones finds that. The doc's own rule —
+ *     "never route gang sheets through A4/A3/cœur, 2–11× the €/m² of a metre" —
+ *     is exactly this lever.
+ * Cost is ≤ 2F+1 passes with F ≈ 6, and duplicated catalogues are dropped.
+ *
+ * Ranking is lexicographic and total — fewer pieces left behind, then cheaper,
+ * then fewer sheets, then the format sequence as a string — so two runs on the
+ * same input always buy the same thing.
+ */
+export function nestFixedWith(
+  pieces: DtfPiece[],
+  formats: SheetFormat[],
+  options: NestOptions,
+  packRoll: RollPacker,
+): NestResult {
+  const cands = formats.filter(
+    (f) => Number.isFinite(f.wCm) && Number.isFinite(f.hCm) && f.wCm > 0 && f.hCm > 0,
+  )
+  const plans: SheetFormat[][] = [cands]
+  // A restricted plan only ever helps when there is a mix to be blind about.
+  if (cands.length > 1) {
+    const seen = new Set([cands.map((f) => f.id).join(',')])
+    const add = (plan: SheetFormat[]) => {
+      const key = plan.map((f) => f.id).join(',')
+      if (plan.length > 0 && !seen.has(key)) {
+        seen.add(key)
+        plans.push(plan)
+      }
+    }
+    for (const f of cands) add([f])
+    for (const f of cands) add(cands.filter((x) => x.wCm * x.hCm >= f.wCm * f.hCm - EPS))
+  }
+
+  let best: NestResult | null = null
+  let bestKey: [number, number, number, string] | null = null
+  for (const plan of plans) {
+    const r = greedyFixed(pieces, plan, options, packRoll)
+    const key: [number, number, number, string] = [
+      r.unplaceable.length,
+      r4(priceOf(r, cands)),
+      r.sheets.length,
+      r.sheets.map((s) => s.formatId ?? '').join(','),
+    ]
+    if (
+      bestKey === null ||
+      key[0] < bestKey[0] ||
+      (key[0] === bestKey[0] &&
+        (key[1] < bestKey[1] - EPS ||
+          (Math.abs(key[1] - bestKey[1]) <= EPS &&
+            (key[2] < bestKey[2] || (key[2] === bestKey[2] && key[3] < bestKey[3])))))
+    ) {
+      best = r
+      bestKey = key
+    }
+  }
+  return best ?? greedyFixed(pieces, cands, options, packRoll)
+}
+
+/** Fixed-format binning with the classic shelf packer. */
+const nestFixed = (
+  pieces: DtfPiece[],
+  formats: SheetFormat[],
+  options: NestOptions,
+): NestResult => nestFixedWith(pieces, formats, options, nestRoll)
 
 /**
  * Nest against a supplier PROCESS, dispatching on its billing model.
@@ -521,11 +763,26 @@ export function nest(
   b?: NestOptions,
 ): NestResult {
   if (!b) return nestRoll(pieces, a as NestOptions)
-  const proc = a as DtfProcess
-  if (proc.billing === 'fixed') return nestFixed(pieces, proc.formats, b)
-  return nestRoll(pieces, {
-    ...b,
+  return nestWith(pieces, a as DtfProcess, b, nestRoll)
+}
+
+/**
+ * `nest`, with the roll packer as a parameter — the seam the true-shape packer
+ * plugs into so BOTH billing models get the better nesting without duplicating
+ * the process-geometry override or the fixed-format selection loop.
+ */
+export function nestWith(
+  pieces: DtfPiece[],
+  proc: DtfProcess,
+  opts: NestOptions,
+  packRoll: RollPacker,
+): NestResult {
+  const geometry: NestOptions = {
+    ...opts,
     printableWidthCm: proc.printableWidthCm,
     maxLengthCm: proc.maxLengthCm,
-  })
+    billingStepCm: opts.billingStepCm ?? proc.billingStepCm ?? BILLING_STEP_CM,
+  }
+  if (proc.billing === 'fixed') return nestFixedWith(pieces, proc.formats, geometry, packRoll)
+  return packRoll(pieces, geometry)
 }
