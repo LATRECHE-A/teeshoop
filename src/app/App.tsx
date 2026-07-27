@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useStore } from '@/state/store'
-import { hydrateStore, startAutosave } from '@/state/persist'
+import { hydrateStore, startAutosave, startBoardAutosave } from '@/state/persist'
 import TopBar from './TopBar'
 import LeftRail from './LeftRail'
 import BottomNav from './BottomNav'
@@ -17,8 +17,12 @@ export default function App() {
 
   useEffect(() => {
     void hydrateStore()
-    const stop = startAutosave()
-    return stop
+    const stopAutosave = startAutosave()
+    const stopBoardAutosave = startBoardAutosave()
+    return () => {
+      stopAutosave()
+      stopBoardAutosave()
+    }
   }, [])
 
   return (

@@ -3,7 +3,7 @@ import { Play, RotateCcw, Smartphone, Square } from 'lucide-react'
 import clsx from 'clsx'
 import type { CardSource, DecalSource, Design, Garment3DProps, Side } from '@/lib/types'
 import { garmentWidthInFor, type SizeId } from '@/content/sizeChart'
-import { areaOffsetYIn as areaOffsetForSide, getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
+import { getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { printScaleK } from '@/lib/printScale'
 import { useStore } from '@/state/store'
 import { RegMark } from './Brand'
@@ -182,6 +182,9 @@ export default function Scene3D() {
   const scene = useStore((s) => s.scene)
   const theme = useStore((s) => s.theme)
   const previewSize = useStore((s) => s.previewSize)
+  // AR is a single-garment try-on; board mode withdraws the offer (see
+  // src/app/board/BoardStage2D.tsx for the rest of the board's chrome rules).
+  const boardOn = useStore((s) => s.board.on)
   const tr = useT()
   const [ready, setReady] = useState(false)
   const [Garment3D, setGarment3D] = useState<ComponentType<Garment3DProps>>(loadGarment3D)
@@ -189,21 +192,6 @@ export default function Scene3D() {
   const sources = useDesignTextures(design, previewSize)
   // Print grading factor for the previewed size — 1 in `fixed` mode.
   const k = printScaleK(design, previewSize)
-
-  const areaOffsetYIn = useMemo(() => {
-    if (design.garmentId === 'custom') return { front: 0, back: 0, sleeve: 0 }
-    const g = design.garmentId
-    // Shared with the AR export (src/lib/renderDesign.areaOffsetYIn) so front
-    // and back sit at the same height in the 3D preview and in AR — including
-    // the collar-anchored shift when previewing a non-nominal size, and the
-    // graded drop below the collar (`k`), which scales the print area about
-    // that same collar anchor so placement grades with the artwork.
-    return {
-      front: areaOffsetForSide(g, 'front', previewSize, k),
-      back: areaOffsetForSide(g, 'back', previewSize, k),
-      sleeve: 0,
-    }
-  }, [design.garmentId, previewSize, k])
 
   if (!gl) {
     return (
@@ -245,7 +233,7 @@ export default function Scene3D() {
             front: sources?.customFront ?? null,
             back: sources?.customBack ?? null,
           }}
-          areaOffsetYIn={areaOffsetYIn}
+          printK={k}
           garmentWidthIn={garmentWidthIn}
           sizeId={design.garmentId === 'custom' ? undefined : previewSize}
           autoRotate={autoRotate}
@@ -256,14 +244,16 @@ export default function Scene3D() {
       </Retry3DBoundary>
 
       {/* View-in-AR call to action */}
-      <button
-        className="btn absolute bottom-[calc(var(--tsh-nav)+0.75rem)] left-3 z-10 h-9 gap-1.5 border-cy/40 bg-bg1/90 px-3 text-[12px] text-cy shadow-lg backdrop-blur hover:border-cy md:bottom-4 md:left-4 md:h-8"
-        onClick={() => openModal('ar')}
-        title={tr('ar.view_in_ar')}
-      >
-        <Smartphone size={14} />
-        {tr('ar.view_in_ar')}
-      </button>
+      {!boardOn && (
+        <button
+          className="btn absolute bottom-[calc(var(--tsh-nav)+0.75rem)] left-3 z-10 h-9 gap-1.5 border-cy/40 bg-bg1/90 px-3 text-[12px] text-cy shadow-lg backdrop-blur hover:border-cy md:bottom-4 md:left-4 md:h-8"
+          onClick={() => openModal('ar')}
+          title={tr('ar.view_in_ar')}
+        >
+          <Smartphone size={14} />
+          {tr('ar.view_in_ar')}
+        </button>
+      )}
 
       {/* 3D controls */}
       <div className="absolute bottom-[calc(var(--tsh-nav)+0.75rem)] right-3 z-10 flex items-center gap-1 rounded-lg border border-line bg-bg1/90 p-1 shadow-lg backdrop-blur md:bottom-4 md:right-4">

@@ -3,7 +3,7 @@
  * (hydrate / saved-design load / import / share-link) so older persisted
  * documents upgrade in exactly one place instead of ad-hoc guards.
  */
-import type { Design, Layer } from '@/lib/types'
+import type { CustomSideSetup, Design, Layer } from '@/lib/types'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
 import { DEFAULT_PRINT_SCALE_MODE } from '@/lib/printScale'
 
@@ -22,6 +22,11 @@ import { DEFAULT_PRINT_SCALE_MODE } from '@/lib/printScale'
  *    stored. Legacy geometry was authored against the default size with no
  *    grading, which is exactly `baseSize: DEFAULT_SIZE` — so the design renders
  *    identically at its base size and only gains graded output at other sizes.
+ *
+ * 3. `custom.<side>.origin` — photo provenance. A side without it predates
+ *    generated backs and is therefore a real photo; stamping it explicitly
+ *    means every downstream badge can read one field instead of reasoning
+ *    about absence. Cheap: no asset I/O, idempotent, O(1) per design.
  */
 export function migrateDesign(design: Design): Design {
   const d = design as Design & { stashedLayers?: Layer[] }
@@ -30,5 +35,13 @@ export function migrateDesign(design: Design): Design {
     out = { ...out, stashedLayers: design.layers.map((l) => ({ ...l }) as Layer) }
   if (!out.printScale)
     out = { ...out, printScale: { mode: DEFAULT_PRINT_SCALE_MODE, baseSize: DEFAULT_SIZE } }
+  if (out.custom) {
+    const stamp = (s: CustomSideSetup | null) =>
+      s && s.origin === undefined ? { ...s, origin: 'photo' as const } : s
+    const front = stamp(out.custom.front)
+    const back = stamp(out.custom.back)
+    if (front !== out.custom.front || back !== out.custom.back)
+      out = { ...out, custom: { ...out.custom, front, back } }
+  }
   return out
 }

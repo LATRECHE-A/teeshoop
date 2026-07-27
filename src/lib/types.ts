@@ -106,6 +106,14 @@ export interface CustomSideSetup {
    * where the bounding box width equals CustomGarment.widthIn.
    */
   printArea: RectIn
+  /**
+   * Where the image came from. `'generated'` = RECONSTRUCTED from the other
+   * side because no real photo exists (src/lib/ingest/pipeline.ts), so every
+   * surface showing it must say so. Absent ⇒ `'photo'`: documents written
+   * before provenance existed all held real photos. Mirrors
+   * ProductSideDef.origin and is carried across by ingest/apply.ts.
+   */
+  origin?: 'photo' | 'generated'
 }
 
 export interface CustomGarment {
@@ -268,17 +276,16 @@ export interface Garment3DProps {
   back: DecalSource | null
   sleeve: DecalSource | null
   /**
-   * Vertical offset (inches, +down) of each print-area CENTER from the
-   * garment's visual center — derived from GarmentSideArt.printAreaPx.
-   * Undefined for custom garments (CardSource is already composited).
+   * Print grading factor for the previewed size (src/lib/printScale.ts). The
+   * print area's drop below the collar grades with the artwork, so the 3D
+   * anchor needs it. 1 in `fixed` mode. Catalog garments only.
    */
-  areaOffsetYIn?: Record<Side, number>
-  /** Garment real width for scale calibration. */
+  printK?: number
+  /** Garment real width — used for stage/floor layout and custom garments. */
   garmentWidthIn: number
   /**
-   * Previewed chart size. garmentWidthIn already carries the half-chest ratio;
-   * this additionally stretches the mesh LENGTH by the chart's body-length
-   * ratio, which is what areaOffsetYIn assumes. Catalog garments only.
+   * Previewed chart size. Catalog garments are scaled from the official cm
+   * chart: girth from the half-chest, length from the body length.
    */
   sizeId?: SizeId
   custom?: { front: CardSource | null; back: CardSource | null }

@@ -27,6 +27,27 @@ if (import.meta.env.DEV) {
   // really scales by the chart's chest/body-length ratios at every size.
   ;(window as unknown as { __sizes?: () => Promise<typeof import('@/content/sizeChart')> }).__sizes = () =>
     import('@/content/sizeChart')
+  // Lets scripts/fabric-verify.mjs measure the arc-length unwrap and the fabric
+  // mapping built on it — against the tee's own isometric UV atlas and against
+  // arc walked directly on the mesh cross-sections. The 3D print placement is
+  // pure geometry, so it is provable without a single rendered pixel.
+  ;(
+    window as unknown as {
+      __fabric?: () => Promise<{
+        unwrap: typeof import('@/three/fabricUnwrap')
+        decal: typeof import('@/three/decalGeom')
+        frame: typeof import('@/three/garmentFrame')
+        calibration: typeof import('@/three/calibration')
+        zones: typeof import('@/content/zones')
+      }>
+    }
+  ).__fabric = async () => ({
+    unwrap: await import('@/three/fabricUnwrap'),
+    decal: await import('@/three/decalGeom'),
+    frame: await import('@/three/garmentFrame'),
+    calibration: await import('@/three/calibration'),
+    zones: await import('@/content/zones'),
+  })
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

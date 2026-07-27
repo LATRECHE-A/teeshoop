@@ -2,6 +2,7 @@ import { CircleHelp, ImagePlus, Layers, Shapes, Shirt, Type } from 'lucide-react
 import clsx from 'clsx'
 import { useStore, type PanelId } from '@/state/store'
 import { useT } from '@/i18n'
+import { useBoardT } from './board/boardI18n'
 
 const TABS: { id: PanelId; labelKey: string; icon: typeof Shirt }[] = [
   { id: 'product', labelKey: 'rail.product', icon: Shirt },
@@ -13,9 +14,13 @@ const TABS: { id: PanelId; labelKey: string; icon: typeof Shirt }[] = [
 
 export default function LeftRail() {
   const t = useT()
+  const bt = useBoardT()
   const active = useStore((s) => s.activePanel)
   const setPanel = useStore((s) => s.setPanel)
   const openModal = useStore((s) => s.openModal)
+  // Nothing to edit until a product is picked. DISABLED, never hidden: the
+  // layout must not jump between the board and a focused product.
+  const locked = useStore((s) => s.board.on && !s.board.focusedId)
 
   return (
     <nav
@@ -29,9 +34,13 @@ export default function LeftRail() {
             key={id}
             onClick={() => setPanel(on ? null : id)}
             aria-pressed={on}
+            disabled={locked}
+            aria-disabled={locked}
+            title={locked ? bt('board.tools_locked') : undefined}
             className={clsx(
               'group relative flex h-[52px] w-[52px] flex-col items-center justify-center gap-1 rounded-lg transition-colors',
               on ? 'bg-bg3 text-cy' : 'text-tx3 hover:bg-bg2 hover:text-tx2',
+              locked && 'opacity-40',
             )}
           >
             {on && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-cy" />}

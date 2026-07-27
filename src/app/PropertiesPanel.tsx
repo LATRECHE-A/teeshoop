@@ -189,19 +189,23 @@ export default function PropertiesPanel() {
   const setPropsExpanded = useStore((s) => s.setPropsExpanded)
   const dragging = useStore((s) => s.dragging)
   const assets = useStore((s) => s.assets)
+  // Browsing the board: nothing is selected and nothing may be, so the
+  // selection UI (and its reserved mobile strip) must stay out of the way.
+  const boardBrowsing = useStore((s) => s.board.on && !s.board.focusedId)
   const isMobile = useIsMobile()
   const t = useT()
 
   const layer = design.layers.find((l) => l.id === selectedId)
 
   // The compact mobile bar reserves --tsh-selbar so floating HUDs lift above it.
-  const barVisible = isMobile && !!layer && mode === '2d' && !activePanel && !dragging && !propsExpanded
+  const barVisible =
+    isMobile && !!layer && mode === '2d' && !activePanel && !dragging && !propsExpanded && !boardBrowsing
   useEffect(() => {
     document.documentElement.classList.toggle('has-selbar', barVisible)
     return () => document.documentElement.classList.remove('has-selbar')
   }, [barVisible])
 
-  if (!layer || mode !== '2d') return null
+  if (!layer || mode !== '2d' || boardBrowsing) return null
   // On mobile only one bottom sheet at a time: a tool panel takes precedence.
   if (isMobile && activePanel) return null
   // While a layer is being dragged on mobile, hide the sheet entirely so the

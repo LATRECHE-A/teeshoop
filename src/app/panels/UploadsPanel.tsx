@@ -13,6 +13,7 @@ import {
 } from '@/state/assets'
 import { isBgRemovalSupported, removeBackground } from '@/lib/bgremove'
 import { invalidateCustomBBox } from '@/lib/custom'
+import { invalidateGarmentAnatomy } from '@/lib/garmentAnatomy'
 import type { AssetMeta } from '@/lib/types'
 
 export function useAssetThumb(id: string): string | null {
@@ -113,6 +114,7 @@ export default function UploadsPanel() {
       })
       setAssets(await setAssetCutout(asset.id, result))
       invalidateCustomBBox(asset.id)
+      invalidateGarmentAnatomy(asset.id)
       toast('ok', t('toast.bg_removed_name', { name: asset.name }))
     } catch {
       toast('error', t('toast.bg_failed_retry'))

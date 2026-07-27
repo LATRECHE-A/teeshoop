@@ -19,7 +19,10 @@ export default function PanelHost() {
   const t = useT()
   const panel = useStore((s) => s.activePanel)
   const setPanel = useStore((s) => s.setPanel)
-  if (!panel) return null
+  // Belt and braces: enterBoard/unfocusLine already null activePanel, but a
+  // tool sheet floating over the board would edit the WRONG document.
+  const boardBrowsing = useStore((s) => s.board.on && !s.board.focusedId)
+  if (!panel || boardBrowsing) return null
 
   return (
     <>

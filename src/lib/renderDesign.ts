@@ -31,9 +31,29 @@ export function sideLayers(design: Design, side: Side): Layer[] {
 export function getAreaSizeIn(design: Design, side: Side, size?: SizeId): SizeIn {
   const k = printScaleK(design, size)
   if (design.garmentId === 'custom') {
-    // Custom (ship-your-own) garments are front/back only — no sleeve.
-    const area = side === 'sleeve' ? undefined : design.custom?.[side]?.printArea
-    return scaleAreaIn(area ? { wIn: area.wIn, hIn: area.hIn } : { wIn: 12, hIn: 16 }, k)
+    // Custom (ship-your-own) garments are front/back only — no sleeve — and
+    // only the front is mandatory, so a side can carry artwork while carrying
+    // no print area of its own (drop the back photo from a design that already
+    // has back layers, which the setup modal warns about but permits).
+    //
+    // THE OTHER SIDE IS THE ANSWER, not a default. Front and back are the same
+    // physical garment: a back print occupies the front's area mirrored about
+    // the centre line, and a mirror does not change a size. So the derivation
+    // is exact, and it is the number a print shop would use.
+    //
+    // This used to fall back to a hard-coded 12 × 16, and that guess did not
+    // stop at the preview — it sized the layout, it was priced, and it was
+    // written into a DTF transfer at a dimension nobody had ever measured. A
+    // fabricated print size is worse than no print at all, so the one case with
+    // nothing to derive from (a sleeve, which a ship-your-own garment does not
+    // have) refuses instead: a zero area makes `renderPrintArea` return null and
+    // `dtf/pieces.ts` drop the piece, so nothing reaches a printer. Artwork
+    // cannot in fact be stranded on a custom sleeve — the catalog↔custom switch
+    // stashes layers rather than carrying them across (state/store.ts
+    // switchGarment) — but zero is what the truth is if it ever were.
+    const c = design.custom
+    const area = side === 'sleeve' ? null : (c?.[side] ?? c?.front ?? c?.back)?.printArea
+    return area ? scaleAreaIn({ wIn: area.wIn, hIn: area.hIn }, k) : { wIn: 0, hIn: 0 }
   }
   return scaleAreaIn(GARMENTS[design.garmentId].printAreasIn[side], k)
 }
@@ -78,6 +98,37 @@ export function areaOffsetYIn(
   const sy = side === 'sleeve' ? s.sleeve : s.sy
   const visualCenterY = anchorY + (GARMENT_VIEW / 2 - anchorY) * sy
   return (printCenterY - visualCenterY) / art.pxPerInch
+}
+
+/**
+ * Distance (inches, +down) from a side's COLLAR SEAM to its print-area centre —
+ * read straight off the 2D art, which is where the number is authored.
+ *
+ * This is the anchor the 3D preview and the AR bake hang prints from, because
+ * it is the anchor a print shop uses: professional placement is measured in cm
+ * below the collar and is size-invariant. `k` is the print grading factor, so
+ * the drop and the area scale together about the same seam, exactly as
+ * areaOffsetYIn and renderMockup already do in 2D.
+ */
+export function printDropBelowCollarIn(
+  garment: CatalogGarmentId,
+  side: Side,
+  k = 1,
+): number {
+  const art = GARMENTS[garment]
+  const a = art.sides[side].printAreaPx
+  return ((a.y + a.h / 2 - art.sides[side].collarPx.y) * k) / art.pxPerInch
+}
+
+/**
+ * How much LOWER this side's drawn collar seam sits than the front one, inches.
+ * A neckline scoops deeper at the front than at the back, so one measured mesh
+ * landmark (the front seam) plus this offset pins both panels — which matters
+ * on the hoodie, whose back seam is hidden under the hood.
+ */
+export function collarSeamDropIn(garment: CatalogGarmentId, side: Side): number {
+  const art = GARMENTS[garment]
+  return (art.sides[side].collarPx.y - art.sides.front.collarPx.y) / art.pxPerInch
 }
 
 export interface GarmentDrawTransform {
@@ -254,6 +305,11 @@ export async function renderPrintArea(
   await prepareSide(design, side, ppi * k)
 
   const area = getAreaSizeIn(design, side, size)
+  // A zero area is `getAreaSizeIn` refusing: this garment has no such side and
+  // no other side to derive one from. Returning null is the refusal every
+  // caller already handles (they skip the decal, drop the DTF piece); inventing
+  // a canvas here is exactly how a made-up print size would reach a transfer.
+  if (!(area.wIn > 0) || !(area.hIn > 0)) return null
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(2, Math.round(area.wIn * ppi))
   canvas.height = Math.max(2, Math.round(area.hIn * ppi))

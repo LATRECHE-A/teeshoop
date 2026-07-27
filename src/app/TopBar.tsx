@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FolderOpen, Layers, PackagePlus, Redo2, Save, Share2, ShoppingBag, Undo2, Wrench } from 'lucide-react'
+import { FolderOpen, Layers, LayoutGrid, PackagePlus, Redo2, Save, Share2, ShoppingBag, Undo2, Wrench, X } from 'lucide-react'
 import { Brand } from './Brand'
 import ModeToggle from './ModeToggle'
 import ThemeToggle from './ThemeToggle'
@@ -8,6 +8,7 @@ import { redo, undo, useHistoryDepth, useStore } from '@/state/store'
 import { renderAndSave } from '@/state/persist'
 import { useT } from '@/i18n'
 import { useBasketT } from './modals/basketI18n'
+import { useBoardT } from './board/boardI18n'
 
 export default function TopBar() {
   const design = useStore((s) => s.design)
@@ -17,9 +18,12 @@ export default function TopBar() {
   // Garments in the basket (quantity-weighted) — the badge count.
   const basketCount = useStore((s) => s.basket.reduce((n, l) => n + l.qty, 0))
   const { canUndo, canRedo } = useHistoryDepth()
+  const boardOn = useStore((s) => s.board.on)
+  const exitBoard = useStore((s) => s.exitBoard)
   const [adminOpen, setAdminOpen] = useState(false)
   const t = useT()
   const bt = useBasketT()
+  const bdt = useBoardT()
 
   const saveNow = async () => {
     try {
@@ -52,6 +56,23 @@ export default function TopBar() {
           <Redo2 size={16} className={canRedo ? '' : 'opacity-35'} />
         </button>
       </div>
+
+      {/* Board indicator. The board owns its own toolbar, so this stays a chip:
+          it exists so the app chrome never lies about which document the tools
+          apply to, not as a second exit. Icon-only below 2xl: this bar already
+          wraps "Partager & exporter" at 1440 with nothing added to it. */}
+      {boardOn && (
+        <button
+          className="hidden items-center gap-1.5 rounded-full border border-cy/40 bg-cy/10 px-2 py-1 text-[11.5px] font-medium text-cy transition-colors hover:bg-cy/20 sm:flex"
+          onClick={exitBoard}
+          aria-label={bdt('board.exit')}
+          title={bdt('board.exit')}
+        >
+          <LayoutGrid size={13} />
+          <span className="hidden 2xl:inline">{bdt('board.title')}</span>
+          <X size={12} className="opacity-70" />
+        </button>
+      )}
 
       {/* Center cluster: 2D/3D toggle, plus theme + language (desktop). */}
       <div className="flex flex-1 items-center justify-center gap-2.5">

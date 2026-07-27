@@ -7,6 +7,7 @@ import { CircleHelp, ImagePlus, Layers, Shapes, Shirt, Type } from 'lucide-react
 import clsx from 'clsx'
 import { useStore, type PanelId } from '@/state/store'
 import { useT } from '@/i18n'
+import { useBoardT } from './board/boardI18n'
 
 const TABS: { id: PanelId; labelKey: string; icon: typeof Shirt }[] = [
   { id: 'product', labelKey: 'rail.product', icon: Shirt },
@@ -18,9 +19,12 @@ const TABS: { id: PanelId; labelKey: string; icon: typeof Shirt }[] = [
 
 export default function BottomNav() {
   const t = useT()
+  const bt = useBoardT()
   const active = useStore((s) => s.activePanel)
   const setPanel = useStore((s) => s.setPanel)
   const openModal = useStore((s) => s.openModal)
+  // Same rule as the desktop rail: locked, not hidden (see LeftRail).
+  const locked = useStore((s) => s.board.on && !s.board.focusedId)
 
   return (
     <nav
@@ -34,9 +38,13 @@ export default function BottomNav() {
             key={id}
             onClick={() => setPanel(on ? null : id)}
             aria-pressed={on}
+            disabled={locked}
+            aria-disabled={locked}
+            title={locked ? bt('board.tools_locked') : undefined}
             className={clsx(
               'flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[10px] font-medium transition-colors',
               on ? 'text-cy' : 'text-tx3',
+              locked && 'opacity-40',
             )}
           >
             <Icon size={21} strokeWidth={1.8} />
