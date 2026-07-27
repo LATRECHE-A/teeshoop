@@ -115,8 +115,9 @@ try {
   await page.waitForTimeout(300)
 
   // Seed a REAL ship-your-own garment (alpha-silhouette photo + matching cutout)
-  // so the custom case exercises buildCustomFigure (the inflated shell of the
-  // customer's ACTUAL garment) — not the mannequin fallback it hit before.
+  // so the custom cases carry the customer's ACTUAL garment — the conformed
+  // decal on the avatar, and (with the avatar blocked) buildCustomFigure's
+  // inflated shell — instead of the mannequin fallback they hit before.
   const customAssetId = await page.evaluate(async () => {
     const assets = await window.__assets()
     const W = 600, H = 760
@@ -179,12 +180,33 @@ try {
     }, { gid: garmentId, g: gender, customId: customAssetId })
 
   // Male + female avatars for both catalog garments, plus the real custom shell.
+  //
+  // The last three block the avatar GLB. That matters: the avatar is the PRIMARY
+  // path, so buildCatalogFigure — the fabric-space decal grid laid on the
+  // catalog MESH (src/three/decalGeom.buildFabricDecal) — is only ever reached
+  // when the avatar fails to load, and would otherwise ship to Scene Viewer
+  // having never been through the validator once.
+  //
+  // custom/no-avatar is there for the SAME reason and was missing: plain
+  // 'custom' reaches buildCustomAvatarFigure (a conformed decal on the avatar,
+  // 3 primitives / 3 materials), NOT buildCustomFigure, so the inflated shell —
+  // four alpha-cut sheets, two interior planes and the two CLOTH-THICKNESS rim
+  // strips (silhouette.buildInflatedShell's rimFront/rimBack, the only OPAQUE
+  // materials this exporter emits) — had never been validated at all. Blocking
+  // the avatar is what puts it through: 6 primitives / 6 materials, 0 BLEND.
   const cases = [
     ['tee', 'male'], ['tee', 'female'], ['hoodie', 'male'], ['hoodie', 'female'], ['custom', 'male'],
+    ['tee', 'male', 'no-avatar'], ['hoodie', 'male', 'no-avatar'], ['custom', 'male', 'no-avatar'],
   ]
-  for (const [gid, gender] of cases) {
+  for (const [gid, gender, mode] of cases) {
+    if (mode === 'no-avatar') await page.route('**/models/avatar-*.glb', (route) => route.abort())
+    else await page.unroute('**/models/avatar-*.glb')
     const r = await bake(gid, gender)
-    if (errors.length) fail(`${gid}/${gender} page errors: ` + errors.slice(0, 4).join(' | '))
+    // The blocked avatar fetch is the point of the no-avatar cases, so its own
+    // network error is expected; anything else still fails the run.
+    const real = mode === 'no-avatar' ? errors.filter((e) => !e.includes('Failed to load resource')) : errors
+    if (real.length) fail(`${gid}/${gender} page errors: ` + real.slice(0, 4).join(' | '))
+    errors.length = 0
     const buf = Buffer.from(r.glb, 'base64')
     const { json, bin } = parseGlb(buf)
 
@@ -236,7 +258,7 @@ try {
     if (heightM > 2.2) fail(`${gid}: figure ${heightM.toFixed(2)}m tall — inches-as-metres scale bug`)
 
     console.log(
-      `✅ ${gid}/${gender} — glb=${(buf.byteLength / 1024).toFixed(0)}KB usdz=${(r.usdzSize / 1024).toFixed(0)}KB ` +
+      `✅ ${gid}/${gender}${mode ? "/" + mode : ""} — glb=${(buf.byteLength / 1024).toFixed(0)}KB usdz=${(r.usdzSize / 1024).toFixed(0)}KB ` +
       `val:${iss.numErrors}E/${iss.numWarnings}W blend:${blendCount} h≈${heightM.toFixed(2)}m`,
     )
   }

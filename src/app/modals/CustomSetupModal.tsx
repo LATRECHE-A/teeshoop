@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, RefreshCw, Wand2 } from 'lucide-react'
+import { Camera, RefreshCw, Sparkles, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
 import Modal from './Modal'
+import PrintAreaPlacer from '@/app/PrintAreaPlacer'
 import { useStore } from '@/state/store'
 import { useT } from '@/i18n'
 import {
@@ -12,192 +13,22 @@ import {
   setAssetCutout,
 } from '@/state/assets'
 import { isBgRemovalSupported, removeBackground } from '@/lib/bgremove'
-import { defaultCustomPrintArea, getCustomSideInfo, invalidateCustomBBox } from '@/lib/custom'
-import type { CustomSideSetup, RectIn, Side } from '@/lib/types'
-import { clamp, fmtCm, fmtIn, inToCm } from '@/lib/units'
+import { defaultCustomPrintArea, invalidateCustomBBox } from '@/lib/custom'
+import { invalidateGarmentAnatomy } from '@/lib/garmentAnatomy'
+import {
+  GARMENT_SHAPES,
+  getShapeOverride,
+  setShapeOverride,
+  type GarmentShape,
+} from '@/lib/garmentShape'
+import { detectGarmentShape, type ShapeDetection } from '@/lib/silhouette'
+import { generateBackSide, IngestPhotoError } from '@/lib/ingest/pipeline'
+import type { CustomSideSetup, Side } from '@/lib/types'
+import { fmtCm, fmtIn, inToCm } from '@/lib/units'
+import { shapeKey, useShapeT } from './customShapeI18n'
 
 interface SideDraft extends CustomSideSetup {
   processing?: boolean
-}
-
-/** Interactive print-area placement over the customer's garment photo. */
-function PrintAreaPlacer({
-  setup,
-  widthIn,
-  onChange,
-}: {
-  setup: CustomSideSetup
-  widthIn: number
-  onChange: (area: RectIn) => void
-}) {
-  const t = useT()
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const boxRef = useRef<HTMLDivElement>(null)
-  const [disp, setDisp] = useState<{ w: number; h: number; ppi: number } | null>(null)
-  const drag = useRef<{
-    kind: 'move' | 'nw' | 'ne' | 'sw' | 'se'
-    startX: number
-    startY: number
-    area: RectIn
-  } | null>(null)
-
-  // draw the garment photo cropped to its bounding box
-  useEffect(() => {
-    let on = true
-    void (async () => {
-      const info = await getCustomSideInfo(setup, widthIn)
-      if (!on || !canvasRef.current) return
-      const maxW = 430
-      const maxH = 280
-      const gHIn = info.bbox.h / info.pxPerInch
-      const ppi = Math.min(maxW / widthIn, maxH / gHIn)
-      const w = Math.round(widthIn * ppi)
-      const h = Math.round(gHIn * ppi)
-      const canvas = canvasRef.current
-      canvas.width = w * 2
-      canvas.height = h * 2
-      canvas.style.width = `${w}px`
-      canvas.style.height = `${h}px`
-      const ctx = canvas.getContext('2d')!
-      ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(
-        info.img,
-        info.bbox.x,
-        info.bbox.y,
-        info.bbox.w,
-        info.bbox.h,
-        0,
-        0,
-        canvas.width,
-        canvas.height,
-      )
-      setDisp({ w, h, ppi })
-    })()
-    return () => {
-      on = false
-    }
-  }, [setup, widthIn])
-
-  const area = setup.printArea
-
-  const clampArea = (a: RectIn): RectIn => {
-    if (!disp) return a
-    const gH = disp.h / disp.ppi
-    const wIn = clamp(a.wIn, 3, widthIn)
-    const hIn = clamp(a.hIn, 3, gH)
-    return {
-      wIn,
-      hIn,
-      xIn: clamp(a.xIn, 0, widthIn - wIn),
-      yIn: clamp(a.yIn, 0, gH - hIn),
-    }
-  }
-
-  useEffect(() => {
-    const move = (e: PointerEvent) => {
-      const d = drag.current
-      if (!d || !disp) return
-      const dxIn = (e.clientX - d.startX) / disp.ppi
-      const dyIn = (e.clientY - d.startY) / disp.ppi
-      const a = { ...d.area }
-      if (d.kind === 'move') {
-        a.xIn += dxIn
-        a.yIn += dyIn
-      } else {
-        if (d.kind.includes('w')) {
-          a.xIn += dxIn
-          a.wIn -= dxIn
-        } else {
-          a.wIn += dxIn
-        }
-        if (d.kind.includes('n')) {
-          a.yIn += dyIn
-          a.hIn -= dyIn
-        } else {
-          a.hIn += dyIn
-        }
-      }
-      onChange(clampArea(a))
-    }
-    const up = () => {
-      drag.current = null
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    return () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [disp, widthIn])
-
-  const start = (kind: NonNullable<typeof drag.current>['kind']) => (e: React.PointerEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    drag.current = { kind, startX: e.clientX, startY: e.clientY, area }
-  }
-
-  const gHIn = disp ? disp.h / disp.ppi : 0
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="relative mx-auto select-none" ref={boxRef}>
-        <canvas ref={canvasRef} className="rounded-lg bg-bg0" />
-        {disp && (
-          <div
-            className="absolute cursor-move border-2 border-cy bg-cy/10"
-            style={{
-              left: area.xIn * disp.ppi,
-              top: area.yIn * disp.ppi,
-              width: area.wIn * disp.ppi,
-              height: area.hIn * disp.ppi,
-            }}
-            onPointerDown={start('move')}
-          >
-            <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-bg1/95 px-1.5 py-0.5 font-mono text-[10px] text-cy">
-              {fmtCm(inToCm(area.wIn))} × {fmtCm(inToCm(area.hIn))} ({fmtIn(area.wIn)} × {fmtIn(area.hIn)})
-            </span>
-            {(['nw', 'ne', 'sw', 'se'] as const).map((k) => (
-              <span
-                key={k}
-                onPointerDown={start(k)}
-                className={clsx(
-                  'absolute h-3 w-3 rounded-full border-2 border-bg0 bg-cy',
-                  k.includes('n') ? '-top-1.5' : '-bottom-1.5',
-                  k.includes('w') ? '-left-1.5' : '-right-1.5',
-                  (k === 'nw' || k === 'se') ? 'cursor-nwse-resize' : 'cursor-nesw-resize',
-                )}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
-        <button
-          className="chip hover:border-cy/50 hover:text-cy"
-          onClick={() => onChange(clampArea(defaultCustomPrintArea(widthIn, gHIn || 28)))}
-        >
-          {t('custom.center_chest')}
-        </button>
-        <button
-          className="chip hover:border-cy/50 hover:text-cy"
-          onClick={() =>
-            onChange(
-              clampArea({
-                xIn: widthIn * 0.1,
-                yIn: (gHIn || 28) * 0.12,
-                wIn: widthIn * 0.8,
-                hIn: (gHIn || 28) * 0.72,
-              }),
-            )
-          }
-        >
-          {t('custom.full_side')}
-        </button>
-        <span className="text-[10.5px] text-tx3">{t('custom.drag_hint')}</span>
-      </div>
-    </div>
-  )
 }
 
 function PhotoTile({
@@ -206,14 +37,18 @@ function PhotoTile({
   onUpload,
   onToggleCutout,
   removeSupported,
+  extra,
 }: {
   side: Side
   draft: SideDraft | null
   onUpload: (file: File) => void
   onToggleCutout: (use: boolean) => void
   removeSupported: boolean
+  /** Side-specific controls under the tile (the back's "generate" action). */
+  extra?: React.ReactNode
 }) {
   const t = useT()
+  const ts = useShapeT()
   const inputRef = useRef<HTMLInputElement>(null)
   const [thumb, setThumb] = useState<string | null>(null)
 
@@ -272,6 +107,14 @@ function PhotoTile({
             <Wand2 size={14} className="animate-pulse" /> {t('custom.removing_bg')}
           </span>
         )}
+        {/* A reconstructed side is never allowed to pass for a photograph —
+            the badge sits ON the image, so it travels with every screenshot of
+            this dialog exactly as the baked mark travels with the pixels. */}
+        {draft?.origin === 'generated' && !draft.processing && (
+          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-bg0/85 px-1.5 py-0.5 text-[10px] font-semibold text-cy">
+            <Sparkles size={10} /> {ts('custom.back.generated')}
+          </span>
+        )}
       </button>
       {draft && (
         <div className="flex items-center justify-between gap-2">
@@ -291,12 +134,69 @@ function PhotoTile({
           )}
         </div>
       )}
+      {extra}
     </div>
+  )
+}
+
+/**
+ * Garment family picker.
+ *
+ * The 3D shell borrows a real garment mesh's depth field, and WHICH mesh is the
+ * one decision in that pipeline a silhouette can genuinely get wrong (a wide
+ * flat-lay tee and a cropped sweat read alike from the outline alone). The
+ * classifier's answer is shown, and a dropdown beats a wrong guess — so the
+ * customer can overrule it in one click instead of living with a hood on a
+ * t-shirt. 'auto' stores nothing and leaves detection in charge.
+ */
+function ShapePicker({
+  value,
+  detected,
+  isGarment,
+  onChange,
+}: {
+  value: GarmentShape | 'auto'
+  detected: GarmentShape | null
+  /** Did the upload pass the structural test at all (silhouette.ts)? */
+  isGarment: boolean
+  onChange: (v: GarmentShape | 'auto') => void
+}) {
+  const ts = useShapeT()
+  return (
+    <section>
+      <div className="panel-title mb-2">{ts('custom.shape.label')}</div>
+      <select
+        className="input"
+        data-custom="shape-select"
+        value={value}
+        onChange={(e) => onChange(e.target.value as GarmentShape | 'auto')}
+      >
+        <option value="auto">
+          {ts('custom.shape.auto')}
+          {detected && isGarment
+            ? ` — ${ts('custom.shape.auto_is', { shape: ts(shapeKey(detected)) })}`
+            : ''}
+        </option>
+        {GARMENT_SHAPES.map((s) => (
+          <option key={s} value={s}>
+            {ts(shapeKey(s))}
+          </option>
+        ))}
+      </select>
+      {/* When the structure gate refused, say so plainly and hand the decision
+          over. The 3D preview keeps the shape-agnostic shell either way, so this
+          is an offer, not an error — and naming a type here overrules the test
+          (src/lib/silhouette.ts), which is the right authority order. */}
+      <p className={clsx('mt-1 text-[11px]', isGarment ? 'text-tx3' : 'text-yl')}>
+        {isGarment ? ts('custom.shape.hint') : ts('custom.shape.unsure')}
+      </p>
+    </section>
   )
 }
 
 export default function CustomSetupModal() {
   const t = useT()
+  const ts = useShapeT()
   const design = useStore((s) => s.design)
   const closeModal = useStore((s) => s.closeModal)
   const setCustom = useStore((s) => s.setCustom)
@@ -306,25 +206,78 @@ export default function CustomSetupModal() {
   const [widthIn, setWidthIn] = useState(design.custom?.widthIn ?? 20)
   const [front, setFront] = useState<SideDraft | null>(design.custom?.front ?? null)
   const [back, setBack] = useState<SideDraft | null>(design.custom?.back ?? null)
+  const [shape, setShape] = useState<GarmentShape | 'auto'>(getShapeOverride() ?? 'auto')
+  const [detected, setDetected] = useState<ShapeDetection | null>(null)
+  const [genBack, setGenBack] = useState(false)
   const removeSupported = isBgRemovalSupported()
+  /** The live front, for async completions that must not act on a stale one. */
+  const frontRef = useRef(front)
+  frontRef.current = front
 
-  // Narrowing the garment after areas were placed must pull them back onto it.
-  const reclampForWidth = (w: number) => {
-    const fit = (d: SideDraft | null): SideDraft | null => {
-      if (!d) return d
-      const a = d.printArea
-      const wIn = Math.min(a.wIn, w)
-      return {
-        ...d,
-        printArea: { ...a, wIn, xIn: clamp(a.xIn, 0, Math.max(0, w - wIn)) },
+  // Run the shell's own classifier on the front photo so the picker can say
+  // what it found. Keyed on the photo (not the draft object) — the print-area
+  // placer rewrites the draft on every drag, and re-decoding the image for
+  // that would be pure waste.
+  const frontAsset = front?.assetId ?? null
+  const frontCutout = front?.useCutout ?? false
+  const frontBusy = front?.processing ?? false
+  useEffect(() => {
+    let on = true
+    setDetected(null)
+    if (!frontAsset || frontBusy) return
+    void (async () => {
+      try {
+        const img = await ensureAssetImage(frontAsset, frontCutout ? 'cutout' : 'original')
+        // 512 px long edge: the classifier works off a 200 px mask anyway, so
+        // anything larger only costs a decode.
+        const scale = Math.min(1, 512 / Math.max(img.naturalWidth, img.naturalHeight))
+        const c = document.createElement('canvas')
+        c.width = Math.max(2, Math.round(img.naturalWidth * scale))
+        c.height = Math.max(2, Math.round(img.naturalHeight * scale))
+        c.getContext('2d')?.drawImage(img, 0, 0, c.width, c.height)
+        const guess = detectGarmentShape(c)
+        if (on) setDetected(guess)
+      } catch {
+        if (on) setDetected(null)
       }
+    })()
+    return () => {
+      on = false
     }
+  }, [frontAsset, frontCutout, frontBusy])
+
+  /**
+   * The print area is stored in inches against a bbox whose WIDTH is the
+   * garment width, so every one of its numbers is a fraction of `widthIn` in
+   * disguise. Re-declaring the garment's width therefore has to rescale the
+   * area by the same factor: the box then stays on exactly the same spot of
+   * the photo instead of sliding across it (and can never end up hanging past
+   * a hem that just moved up).
+   */
+  const rescaleForWidth = (prev: number, next: number) => {
+    if (!(prev > 0) || !(next > 0) || prev === next) return
+    const k = next / prev
+    const fit = (d: SideDraft | null): SideDraft | null =>
+      d
+        ? {
+            ...d,
+            printArea: {
+              xIn: d.printArea.xIn * k,
+              yIn: d.printArea.yIn * k,
+              wIn: d.printArea.wIn * k,
+              hIn: d.printArea.hIn * k,
+            },
+          }
+        : d
     setFront(fit)
     setBack(fit)
   }
 
   const upload = (side: Side) => async (file: File) => {
     const setDraft = side === 'front' ? setFront : setBack
+    // A new front photo is a new garment: whatever the customer chose was about
+    // the previous one, so hand the decision back to the classifier.
+    if (side === 'front') setShape('auto')
     try {
       const meta = await addAsset(file, `${t('side.' + side)} — ${file.name}`)
       setAssets(await listAssets())
@@ -355,6 +308,7 @@ export default function CustomSetupModal() {
             ])
             setAssets(await setAssetCutout(meta.id, cut))
             invalidateCustomBBox(meta.id)
+            invalidateGarmentAnatomy(meta.id)
             setDraft(ifCurrent((d) => ({ ...d, useCutout: true, processing: false })))
             return
           }
@@ -368,13 +322,74 @@ export default function CustomSetupModal() {
     }
   }
 
+  /**
+   * Reconstruct the back from the front — the same `generateBackSide` the admin
+   * ingest flow runs, so a customer's own upload gets exactly the reconstruction
+   * a catalogued product does, provenance stamp included.
+   *
+   * NEVER AUTOMATIC, and never over anything real. It is offered only when there
+   * is no back at all (a real photo must never be replaced by a mirror of the
+   * front) and only when the front is CUT OUT: the reconstruction mirrors the
+   * front's alpha silhouette and floods it with the garment's colour, so without
+   * a cutout there is no silhouette to mirror and the result would be the
+   * photo's rectangle, background and all.
+   */
+  const generateBack = async () => {
+    if (!front || front.processing || back || !front.useCutout) return
+    const assetId = front.assetId
+    setGenBack(true)
+    try {
+      const gen = await generateBackSide(front, inToCm(widthIn), {
+        name: `${t('side.back')} — ${ts('custom.back.generated')}`,
+        at: Date.now(),
+      })
+      setAssets(await listAssets())
+      // The front may have been replaced while this ran; a back mirrored from a
+      // photo that is no longer there would be worse than none. Read the live
+      // front through a ref rather than from inside a setFront updater: an
+      // updater must be pure (React may invoke it twice), and one that commits
+      // another piece of state as a side effect is exactly the shape of bug
+      // that only ever shows up in a StrictMode build.
+      if (frontRef.current?.assetId !== assetId) return
+      setBack({
+        assetId: gen.assetId,
+        useCutout: gen.useCutout,
+        printArea: gen.printArea,
+        origin: 'generated',
+      })
+    } catch (err) {
+      toast(
+        'error',
+        err instanceof IngestPhotoError && err.code !== 'cutout_failed'
+          ? t(`ingest.err.${err.code}`)
+          : ts('custom.back.err'),
+      )
+    } finally {
+      setGenBack(false)
+    }
+  }
+
   const save = () => {
     if (!front) {
       toast('warn', t('toast.need_front'))
       return
     }
+    // `origin` rides along: it is what every downstream surface badges, and what
+    // makes the 3D preview and the AR bake treat a reconstructed panel as the
+    // reconstruction it is rather than as a second photograph.
     const stripped = (d: SideDraft | null): CustomSideSetup | null =>
-      d ? { assetId: d.assetId, useCutout: d.useCutout, printArea: d.printArea } : null
+      d
+        ? {
+            assetId: d.assetId,
+            useCutout: d.useCutout,
+            printArea: d.printArea,
+            ...(d.origin ? { origin: d.origin } : {}),
+          }
+        : null
+    // Commit the shape BEFORE setCustom: that call rebuilds the design, which
+    // is what makes the 3D preview (and the AR bake behind it) re-read the
+    // override — writing it afterwards would leave one stale frame.
+    setShapeOverride(shape === 'auto' ? null : shape)
     setCustom({ widthIn, front: stripped(front), back: stripped(back) })
     closeModal('customSetup')
     const hasBackLayers = design.layers.some((l) => l.side === 'back')
@@ -407,6 +422,24 @@ export default function CustomSetupModal() {
             onUpload={(f) => void upload('back')(f)}
             onToggleCutout={(useCutout) => back && setBack({ ...back, useCutout })}
             removeSupported={removeSupported}
+            extra={
+              front && !front.processing && !back ? (
+                <div>
+                  <button
+                    className="chip w-full justify-center hover:border-cy/50 hover:text-cy disabled:opacity-45"
+                    data-custom="generate-back"
+                    disabled={genBack || !front.useCutout}
+                    onClick={() => void generateBack()}
+                  >
+                    <Sparkles size={10} className={clsx(genBack && 'animate-pulse')} />
+                    {genBack ? ts('custom.back.generating') : ts('custom.back.generate')}
+                  </button>
+                  <p className="mt-1 text-[10.5px] leading-snug text-tx3">
+                    {front.useCutout ? ts('custom.back.hint') : ts('custom.back.needs_cutout')}
+                  </p>
+                </div>
+              ) : null
+            }
           />
         </div>
 
@@ -421,8 +454,8 @@ export default function CustomSetupModal() {
               value={widthIn}
               onChange={(e) => {
                 const w = Number(e.target.value)
+                rescaleForWidth(widthIn, w)
                 setWidthIn(w)
-                reclampForWidth(w)
               }}
             />
             <span className="mono-dim w-24 shrink-0 text-right text-cy">
@@ -435,12 +468,22 @@ export default function CustomSetupModal() {
           </p>
         </section>
 
+        {front && (
+          <ShapePicker
+            value={shape}
+            detected={detected?.shape ?? null}
+            isGarment={detected?.structure.isGarment ?? true}
+            onChange={setShape}
+          />
+        )}
+
         {front && !front.processing && (
           <section>
             <div className="panel-title mb-2">{t('custom.print_area_side', { side: t('side.front') })}</div>
             <PrintAreaPlacer
               setup={front}
               widthIn={widthIn}
+              side="front"
               onChange={(printArea) => setFront({ ...front, printArea })}
             />
           </section>
@@ -451,6 +494,7 @@ export default function CustomSetupModal() {
             <PrintAreaPlacer
               setup={back}
               widthIn={widthIn}
+              side="back"
               onChange={(printArea) => setBack({ ...back, printArea })}
             />
           </section>

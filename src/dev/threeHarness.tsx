@@ -19,12 +19,6 @@ const PRINT_SIZES: Record<'tee' | 'hoodie', Record<Side, { wIn: number; hIn: num
   tee: { front: { wIn: 12, hIn: 16 }, back: { wIn: 12, hIn: 16 }, sleeve: { wIn: 4, hIn: 4 } },
   hoodie: { front: { wIn: 12, hIn: 12 }, back: { wIn: 12, hIn: 14 }, sleeve: { wIn: 4, hIn: 4 } },
 }
-/** Print-area center offset from garment visual center, inches (+down) —
- * harness approximations of what the A1 art will provide. */
-const AREA_OFFSET_Y_IN: Record<'tee' | 'hoodie', Record<Side, number>> = {
-  tee: { front: -2.25, back: -1.25, sleeve: 0 },
-  hoodie: { front: -2.0, back: -1.0, sleeve: 0 },
-}
 const COLORS = ['#FFFFFF', '#191C20', '#C0272D', '#1F2A44']
 
 // ---------------------------------------------------------------------------
@@ -297,8 +291,6 @@ function Harness() {
     setReadyMs(Math.round(performance.now() - bootedAt.current))
   }, [])
 
-  const offsets = garment === 'custom' ? null : AREA_OFFSET_Y_IN[garment]
-
   return (
     <div className="flex h-full">
       <aside className="flex w-[268px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-line bg-bg1 p-4">
@@ -385,11 +377,6 @@ function Harness() {
 
         <div className="mt-auto flex flex-col gap-1.5 border-t border-line pt-3">
           <div className="mono-dim">garment width {GARMENT_WIDTH_IN[garment].toFixed(1)}″</div>
-          {offsets && (
-            <div className="mono-dim">
-              offsetY F {offsets.front.toFixed(2)}″ · B {offsets.back.toFixed(2)}″
-            </div>
-          )}
           <div className="mono-dim">
             ready {ready ? `✓ ${readyMs}ms` : '…'} · v{decalVersion}
           </div>
@@ -404,7 +391,6 @@ function Harness() {
             front={garment === 'custom' ? null : front}
             back={garment === 'custom' ? null : back}
             sleeve={null}
-            areaOffsetYIn={offsets ?? undefined}
             garmentWidthIn={GARMENT_WIDTH_IN[garment]}
             custom={garment === 'custom' ? { front: customFront, back: customBack } : undefined}
             autoRotate={autoRotate}

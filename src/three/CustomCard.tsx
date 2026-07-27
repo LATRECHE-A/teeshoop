@@ -8,12 +8,23 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import type { CardSource } from '@/lib/types'
-import { useSilhouetteTexture, useSourceTexture } from './textures'
+import { garmentTint, mixHex, useSilhouetteTexture, useSourceTexture } from './textures'
 
 /** Total cylindrical bend of the card, radians (~12°). */
 const BEND = (12 * Math.PI) / 180
-/** Blank reverse color when the back photo is missing (per CONTRACTS §A3). */
-const BLANK_BACK = '#242A33'
+/**
+ * Last-resort colour for the blank reverse, used only when the front photo
+ * cannot be sampled at all (a tainted or zero-sized canvas). The real blank
+ * back is flooded with the GARMENT'S OWN colour measured off the front, exactly
+ * as the inflated shell and the AR bake do — this is the TIER-3 card, the thing
+ * a customer sees when their upload could not be traced, and there is no reason
+ * for the one rung of the ladder that already looks the least like a garment to
+ * also be the only one that gets the colour wrong.
+ */
+const BLANK_BACK_FALLBACK = '#242A33'
+/** Emissive floor for the blank reverse, as a fraction of its own colour
+ *  (matches ExtrudedGarment's BLANK_BACK_EMIT_MIX). */
+const BLANK_BACK_EMIT_MIX = 0.12
 const RIM = '#161B22'
 
 function makeCurvedCard(wIn: number, hIn: number): { geometry: THREE.PlaneGeometry; sagIn: number } {
@@ -54,9 +65,14 @@ export function CustomCard({ front, back, envIntensity = 1, onMeasured }: Custom
   // its texture read correctly from behind (no u-flip needed — verified with
   // the harness "BACK" wordmark).
   const backTex = useSourceTexture(back)
-  // Missing back → the front's alpha silhouette filled with a neutral fabric
-  // tone (looks like the blank reverse of the garment).
-  const blankBackTex = useSilhouetteTexture(back ? null : front, BLANK_BACK)
+  // Missing back → the front's alpha silhouette flooded with THIS GARMENT'S
+  // own colour, measured off the photo rather than assumed.
+  const tint = useMemo(
+    () => (primary ? garmentTint(primary.canvas, BLANK_BACK_FALLBACK) : BLANK_BACK_FALLBACK),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [primary?.canvas, primary?.version],
+  )
+  const blankBackTex = useSilhouetteTexture(back ? null : front, tint)
   const rimTex = useSilhouetteTexture(primary, RIM)
 
   const wIn = primary?.wIn ?? 20
@@ -114,10 +130,12 @@ export function CustomCard({ front, back, envIntensity = 1, onMeasured }: Custom
               alphaTest={0.35}
               roughness={0.9}
               metalness={0}
-              // The blank reverse (#242A33 silhouette) would otherwise crush
-              // to the backdrop under the moody rear lighting. alphaTest
+              // The blank reverse would otherwise crush to the backdrop under
+              // the moody rear lighting; the floor is a fraction of the
+              // garment's OWN colour, so a black tee's back stops being a
+              // silhouette-shaped hole without a white one glowing. alphaTest
               // already confines fragments to the silhouette cutout.
-              emissive={back ? '#000000' : '#232932'}
+              emissive={back ? '#000000' : mixHex('#000000', tint, BLANK_BACK_EMIT_MIX)}
               envMapIntensity={envIntensity}
               side={THREE.FrontSide}
             />
