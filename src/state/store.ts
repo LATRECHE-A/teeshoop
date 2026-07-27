@@ -37,11 +37,15 @@ import {
 } from './prefs'
 import {
   clampQty,
+  lineFieldsFor,
   loadBasket,
   makeBasketLine,
   mutateBasket,
+  updateLine,
   type BasketLine,
 } from './basket'
+import { BOARD_OFF, type BoardStash, type BoardState } from './board'
+import { createHistoryRegistry, type HistoryStacks } from './history'
 
 export type PanelId = 'product' | 'text' | 'uploads' | 'graphics' | 'layers'
 export type Mode = '2d' | '3d'
@@ -81,6 +85,11 @@ interface StoreState {
   savedDesigns: SavedDesignMeta[]
   /** Order lines — snapshots, NOT part of the undoable design. */
   basket: BasketLine[]
+  /**
+   * Board mode (several basket products at once). Presentation state: never
+   * persisted, never undoable — see src/state/board.ts.
+   */
+  board: BoardState
   hydrated: boolean
   /** 3D camera snap request, consumed by the 3D stage. */
   viewRequest: { view: 'front' | 'back' | 'threequarter'; nonce: number } | null
@@ -132,6 +141,19 @@ interface StoreState {
   setBasketQty(id: string, qty: number): void
   removeBasketLine(id: string): void
   clearBasket(): void
+
+  // --- board actions (presentation; never persisted, never undoable)
+  /** Open the board on the WHOLE basket (the requested default). */
+  enterBoard(): void
+  exitBoard(): void
+  toggleBoardLine(id: string): void
+  setBoardSelection(ids: string[]): void
+  /** Swap a basket line into the live document so every editing tool works. */
+  focusLine(id: string): void
+  /** Write the focused line back and restore the user's own document. */
+  unfocusLine(): void
+  /** Mirror the focused line's live edits into the basket (crash safety). */
+  flushFocusedLine(): void
 
   // --- design actions (undoable)
   setGarment(id: GarmentId): void
@@ -216,10 +238,66 @@ function crossesCustomBoundary(from: GarmentId, to: GarmentId): boolean {
   return (from === 'custom') !== (to === 'custom')
 }
 
+/**
+ * Does this design's garment actually HAVE that side? Catalog garments have all
+ * three; a custom (ship-your-own) garment has no sleeve, and has a back only
+ * when the customer supplied a back photo — or the supplier ingest
+ * reconstructed one (CustomSideSetup.origin === 'generated').
+ *
+ * Every garment switch must re-check the active side against this: a side that
+ * does not exist cannot be drawn or edited, and leaving `activeSide` on one
+ * strands the user on a locked side with a disabled way back.
+ */
+function hasSide(design: Design, side: Side): boolean {
+  if (design.garmentId !== 'custom') return true
+  if (side === 'sleeve') return false
+  return side === 'front' || !!design.custom?.back
+}
+
 let layerCounter = 1
 
 /** Pre-gesture design snapshot (drag / slider scrub); see patchLayer. */
 let gestureStart: Design | null = null
+
+/**
+ * The user's own document, parked while a basket line is focused on the board.
+ * Module-level and non-reactive on purpose — exactly like `gestureStart` above:
+ * it must never re-render anything and must never enter the undo history.
+ */
+let boardStash: BoardStash | null = null
+
+/**
+ * Undo stacks of basket lines focused earlier in this board session. Module-level
+ * and non-reactive like `boardStash` above — and, like `board` itself, forgotten
+ * when the board closes. The user's OWN draft is NOT in here: its stacks ride in
+ * boardStash, where nothing can evict them.
+ */
+const parkedHistory = createHistoryRegistry()
+
+/**
+ * Move the live undo history aside and put `next` in its place, returning what
+ * was there. ONE temporal setState, because useHistoryDepth subscribes to that
+ * store: clearing and then installing would blink the toolbar's undo/redo
+ * buttons through a disabled frame.
+ *
+ * Copies, because zundo's undo()/redo() `splice` pastStates IN PLACE (measured:
+ * an aliased array lost an entry under a foreign undo) — parking by reference
+ * would let one document's undo rewrite another's parked stack.
+ *
+ * setState is the supported way in: zundo 2.3.0 builds `store.temporal` with a
+ * plain `createStore`, so it is an ordinary zustand store and `isTracking`,
+ * `_onSave` and `_handleSet` are left untouched.
+ */
+function swapHistory(next: HistoryStacks | null): HistoryStacks {
+  const t = useStore.temporal
+  const live = t.getState()
+  const parked: HistoryStacks = {
+    past: live.pastStates.slice(),
+    future: live.futureStates.slice(),
+  }
+  t.setState({ pastStates: next?.past ?? [], futureStates: next?.future ?? [] })
+  return parked
+}
 
 /**
  * Apply ONE transformation to both the in-memory basket and its persisted
@@ -279,6 +357,7 @@ export const useStore = create<StoreState>()(
       assets: [],
       savedDesigns: [],
       basket: [],
+      board: BOARD_OFF,
       hydrated: false,
       viewRequest: null,
       autoRotate: false,
@@ -312,6 +391,10 @@ export const useStore = create<StoreState>()(
       },
       setPreviewSize: (previewSize) => {
         set({ previewSize })
+        // While a basket line is focused the size belongs to the LINE, not to
+        // the user's prefs — it is written back by flushFocusedLine, and
+        // persisting it here would silently re-size their own draft too.
+        if (get().board.focusedId) return
         savePrefs(prefsFromState(get()))
       },
       toggleGuides: () => {
@@ -386,8 +469,154 @@ export const useStore = create<StoreState>()(
         applyBasket((lines) =>
           lines.map((l) => (l.id === id ? { ...l, qty: clampQty(qty) } : l)),
         ),
-      removeBasketLine: (id) => applyBasket((lines) => lines.filter((l) => l.id !== id)),
-      clearBasket: () => applyBasket(() => []),
+      removeBasketLine: (id) => {
+        // Deleting the line under the user's feet: give the focused document
+        // back first, so the write-back has somewhere to land and the board
+        // never points at a line that no longer exists.
+        if (get().board.focusedId === id) get().unfocusLine()
+        // …which just parked that line's undo stack. The document is gone, so its
+        // history goes with it — AFTER the unfocus, or the parking puts it back.
+        parkedHistory.drop(id)
+        applyBasket((lines) => lines.filter((l) => l.id !== id))
+        set((s) => ({
+          board: { ...s.board, selectedIds: s.board.selectedIds.filter((x) => x !== id) },
+        }))
+      },
+      clearBasket: () => {
+        if (get().board.on) get().exitBoard()
+        applyBasket(() => [])
+      },
+
+      enterBoard: () => {
+        // Re-entering from the basket while a product is focused (the basket is
+        // still reachable from the top bar): give the document back FIRST.
+        // Otherwise focusedId is cleared while the line's design is still live,
+        // and the next autosave writes it over the user's own draft.
+        if (get().board.focusedId) get().unfocusLine()
+        const s = get()
+        set({
+          board: { on: true, selectedIds: s.basket.map((l) => l.id), focusedId: null },
+          // MUST close in the same set(): the basket modal renders a fixed
+          // scrim and useKeyboardShortcuts blocks every key while any modal
+          // flag is true — forgetting this leaves the board unreachable.
+          modals: { ...s.modals, basket: false },
+          activePanel: null,
+          selectedId: null,
+          propsExpanded: false,
+        })
+      },
+
+      exitBoard: () => {
+        get().unfocusLine()
+        boardStash = null
+        // The board session is over, so are its parked line histories. Keeping
+        // them would let a stack outlive the document it describes — the line can
+        // be edited from the basket, or deleted, before the board is re-entered.
+        parkedHistory.reset()
+        set({ board: BOARD_OFF })
+      },
+
+      toggleBoardLine: (id) => {
+        if (get().board.focusedId === id) get().unfocusLine()
+        set((s) => ({
+          board: {
+            ...s.board,
+            selectedIds: s.board.selectedIds.includes(id)
+              ? s.board.selectedIds.filter((x) => x !== id)
+              : [...s.board.selectedIds, id],
+          },
+        }))
+      },
+
+      setBoardSelection: (ids) => set((s) => ({ board: { ...s.board, selectedIds: ids } })),
+
+      focusLine: (id) => {
+        const s = get()
+        if (!s.board.on || s.board.focusedId === id) return
+        if (s.board.focusedId) get().flushFocusedLine()
+        const line = get().basket.find((l) => l.id === id)
+        if (!line) return
+        // Histories move first, then the documents. The OUTGOING document's
+        // stacks are parked under its own key — the LINE id, never design.id:
+        // two lines cloned from one design share design.id AND every layer id
+        // (board-verify C2) — and the incoming line gets back whatever it left
+        // parked in this board session. Swapped WHOLE, so no snapshot of one
+        // document can ever be reachable while another one is live.
+        const parked = swapHistory(parkedHistory.take(id))
+        if (s.board.focusedId) {
+          parkedHistory.save(s.board.focusedId, parked)
+        } else {
+          // Only the FIRST focus parks the user's own document: focusing straight
+          // from one line to another must not park the OUTGOING LINE as if it
+          // were theirs. unfocusLine drops the stash once it has been restored.
+          boardStash = {
+            design: s.design,
+            previewSize: s.previewSize,
+            activeSide: s.activeSide,
+            selectedId: s.selectedId,
+            history: parked,
+          }
+        }
+        // A pending gesture belongs to the OUTGOING document. Two lines cloned
+        // from the same original share a design id, so patchLayer's rewind
+        // guard cannot tell them apart — leaving this set is a real corruption
+        // path, not a tidiness issue.
+        gestureStart = null
+        const t = useStore.temporal.getState()
+        t.pause()
+        set({
+          design: migrateDesign(structuredClone(line.design)),
+          // Written directly, NOT through setPreviewSize: this size is the
+          // line's, and savePrefs must not learn about it.
+          previewSize: line.size,
+          activeSide: 'front',
+          selectedId: null,
+          propsExpanded: false,
+          board: { ...get().board, focusedId: id },
+        })
+        t.resume()
+      },
+
+      unfocusLine: () => {
+        const s = get()
+        if (!s.board.focusedId) return
+        get().flushFocusedLine()
+        const stash = boardStash
+        // Dropped as it is handed back: the stash is the parked document, and a
+        // kept one goes stale the moment the restored draft is edited — the next
+        // focus would then park (and later restore) a superseded snapshot.
+        boardStash = null
+        gestureStart = null
+        // The other direction, same single swap: the line's stacks go back to
+        // the registry (re-focusing it in this board session restores them) and
+        // the draft gets its own back — which is what makes Ctrl+Z after the
+        // board walk the user's own edits again. `save` drops the entry itself
+        // when the line was focused without ever being edited.
+        parkedHistory.save(s.board.focusedId, swapHistory(stash?.history ?? null))
+        const t = useStore.temporal.getState()
+        t.pause()
+        set({
+          design: stash?.design ?? s.design,
+          previewSize: stash?.previewSize ?? s.previewSize,
+          activeSide: stash?.activeSide ?? 'front',
+          selectedId: null,
+          propsExpanded: false,
+          activePanel: null,
+          board: { ...get().board, focusedId: null },
+        })
+        t.resume()
+      },
+
+      flushFocusedLine: () => {
+        const s = get()
+        const id = s.board.focusedId
+        if (!id) return
+        // Built ONCE, outside applyBasket: the transformation is replayed
+        // against storage, and structuredClone inside it would hand memory and
+        // idb two different objects.
+        const fields = lineFieldsFor(structuredClone(s.design), s.previewSize)
+        applyBasket((lines) => updateLine(lines, id, fields))
+      },
 
       setGarment: (id) => {
         const s = get()
@@ -396,13 +625,18 @@ export const useStore = create<StoreState>()(
           return
         }
         const crossing = crossesCustomBoundary(s.design.garmentId, id)
+        const design = touch(clampLayersToArea(switchGarment(s.design, id)))
         set({
-          design: touch(clampLayersToArea(switchGarment(s.design, id))),
+          design,
           // Crossing to/from custom swaps to the other layer bucket — the
           // current selection lives in the now-stashed one, so clear it.
           ...(crossing ? { selectedId: null, propsExpanded: false } : {}),
-          // Custom garments have no sleeve side — snap back to front.
-          ...(id === 'custom' && s.activeSide === 'sleeve' ? { activeSide: 'front' as Side } : {}),
+          // The new garment may not have the side we were on (custom has no
+          // sleeve, and no back unless a back image exists) — snap to front
+          // rather than leave the editor pointing at a side that isn't there.
+          ...(hasSide(design, s.activeSide)
+            ? {}
+            : { activeSide: 'front' as Side, selectedId: null, propsExpanded: false }),
         })
       },
       setColor: (colorId) =>
@@ -432,15 +666,13 @@ export const useStore = create<StoreState>()(
         const crossing = crossesCustomBoundary(s.design.garmentId, nextGarment)
         // Swap buckets first (if crossing), then attach the custom garment.
         const base = switchGarment(s.design, nextGarment)
+        const design = touch(clampLayersToArea({ ...base, custom }))
         set({
-          design: touch(clampLayersToArea({ ...base, custom })),
+          design,
           ...(crossing ? { selectedId: null } : {}),
-          // Custom garments have no sleeve side, and a side without a photo is
+          // Custom garments have no sleeve side, and a side without an image is
           // locked — either way, snap back to front rather than strand the user.
-          ...(custom &&
-          (s.activeSide === 'sleeve' || (s.activeSide === 'back' && !custom.back))
-            ? { activeSide: 'front' as Side }
-            : {}),
+          ...(hasSide(design, s.activeSide) ? {} : { activeSide: 'front' as Side }),
         })
       },
 
@@ -734,12 +966,16 @@ export const useStore = create<StoreState>()(
         set((s) => ({ design: touch({ ...s.design, name: name || 'Untitled' }) })),
 
       loadDesign: (design) => {
+        // Loading an unrelated document while a basket line is focused would
+        // let the line silently absorb it on the next write-back.
+        if (get().board.on) get().exitBoard()
         gestureStart = null
         set({ design: migrateDesign(design), selectedId: null, activeSide: 'front' })
         useStore.temporal.getState().clear()
       },
 
       newDesign: () => {
+        if (get().board.on) get().exitBoard()
         gestureStart = null
         const fresh: Design = {
           id: nanoid(10),
@@ -775,12 +1011,53 @@ void loadBasket().then((stored) => {
   }))
 })
 
-export const undo = () => useStore.temporal.getState().undo()
-export const redo = () => useStore.temporal.getState().redo()
+/**
+ * Browsing the board, `design` is the user's OWN draft while the screen shows
+ * somebody else's products — so there is no document undo could act on that the
+ * user can see. useKeyboardShortcuts already refuses every design-mutating
+ * shortcut in that state; this is the same rule for the pointer, and it has to
+ * live here because the TopBar button is a second door to the same action.
+ *
+ * Without it the restored draft stacks light the toolbar back up the moment a
+ * line is un-focused (measured: draft with two text layers, one click on the
+ * board, one layer gone and nothing on screen to show it) — the button
+ * promising an undo that Ctrl+Z at the same instant refuses.
+ *
+ * FOCUSED is not browsing: that document IS on screen, and its own stack is
+ * live (src/state/history.ts).
+ */
+function browsingBoard(s: StoreState): boolean {
+  return s.board.on && !s.board.focusedId
+}
 
-/** Reactive undo/redo availability. */
+export const undo = () => {
+  if (browsingBoard(useStore.getState())) return
+  useStore.temporal.getState().undo()
+}
+export const redo = () => {
+  if (browsingBoard(useStore.getState())) return
+  useStore.temporal.getState().redo()
+}
+
+/**
+ * Basket lines whose undo history is parked. Diagnostics for
+ * scripts/board-verify.mjs, which asserts this is 0 whenever the board is off —
+ * that is what keeps the registry session-scoped (src/state/history.ts).
+ */
+export function parkedHistorySlots(): number {
+  return parkedHistory.size
+}
+
+/**
+ * Reactive undo/redo availability — what the toolbar buttons show.
+ *
+ * Gated on browsingBoard for the same reason undo()/redo() are: a lit-but-dead
+ * button is worse than a grey one, and the rail beside it is already disabled
+ * while browsing (scripts/board-verify.mjs section O).
+ */
 export function useHistoryDepth() {
   const past = useVanillaStore(useStore.temporal, (s) => s.pastStates.length)
   const future = useVanillaStore(useStore.temporal, (s) => s.futureStates.length)
-  return { canUndo: past > 0, canRedo: future > 0 }
+  const browsing = useStore(browsingBoard)
+  return { canUndo: !browsing && past > 0, canRedo: !browsing && future > 0 }
 }

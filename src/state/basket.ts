@@ -86,6 +86,37 @@ export function makeBasketLine(design: Design, size: SizeId, qty = 1): BasketLin
   }
 }
 
+/**
+ * The display fields a line derives from its design. Frozen at add time, so
+ * they must be RE-derived whenever the snapshot is rewritten — board mode lets
+ * the user rename, recolour or re-garment a line in place, and a stale label is
+ * how an order line ends up describing a product nobody ordered.
+ */
+export function lineFieldsFor(
+  design: Design,
+  size: SizeId,
+): Pick<BasketLine, 'design' | 'size' | 'label' | 'garmentLabel' | 'colorHex'> {
+  return {
+    design,
+    size,
+    label: design.name,
+    garmentLabel: garmentLabelFor(design),
+    colorHex: garmentColorHex(design),
+  }
+}
+
+/**
+ * Pure line patch — the transformation `applyBasket` replays against memory and
+ * against storage, so it must not build anything with a fresh id or timestamp.
+ */
+export function updateLine(
+  lines: BasketLine[],
+  id: string,
+  patch: Partial<BasketLine>,
+): BasketLine[] {
+  return lines.map((l) => (l.id === id ? { ...l, ...patch } : l))
+}
+
 export interface BasketTotals {
   lines: number
   /** Garments to buy (quantity-weighted). */

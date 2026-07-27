@@ -6,12 +6,13 @@
  * which is where the nesting margin comes from.
  */
 import { useMemo } from 'react'
-import { Layers, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react'
+import { Layers, LayoutGrid, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
 import { useMockupUrl } from '../hooks/useMockup'
 import { basketTotals, linePrintedSides, type BasketLine } from '@/state/basket'
 import { useBasketT } from './basketI18n'
+import { useBoardT } from '../board/boardI18n'
 import type { TParams } from '@/i18n'
 
 /** One order line — its own component so the mockup hook can run per line. */
@@ -98,6 +99,8 @@ function BasketRow({
 
 export default function BasketModal() {
   const t = useBasketT()
+  const bt = useBoardT()
+  const enterBoard = useStore((s) => s.enterBoard)
   const basket = useStore((s) => s.basket)
   const design = useStore((s) => s.design)
   const previewSize = useStore((s) => s.previewSize)
@@ -185,8 +188,15 @@ export default function BasketModal() {
           </section>
 
           <div className="mt-4 flex flex-col gap-2">
+            {/* enterBoard() closes this modal in the SAME set() — a board behind
+                a live scrim is unreachable and takes the keyboard with it. */}
+            <button className="btn h-10 justify-center" onClick={enterBoard}>
+              <LayoutGrid size={15} />
+              {bt('board.open')}
+            </button>
+            <p className="text-[11px] leading-relaxed text-tx3">{bt('board.open_hint')}</p>
             <button
-              className="btn btn-primary h-10 justify-center"
+              className="btn btn-primary mt-2 h-10 justify-center"
               onClick={() => {
                 closeModal('basket')
                 openModal('dtf')

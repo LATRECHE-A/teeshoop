@@ -22,11 +22,28 @@ export function useKeyboardShortcuts(): void {
       )
       if (e.key === 'Escape') {
         if (openModal) s.closeModal(openModal)
+        // Escape unwinds the board one level at a time: focused product →
+        // board → out. Only then does it fall back to clearing the selection.
+        else if (s.board.focusedId) s.unfocusLine()
+        else if (s.board.on) s.exitBoard()
         else s.select(null)
         return
       }
       // While a dialog is up, no shortcut may mutate the design behind it.
       if (openModal || inField(e)) return
+
+      // Browsing the board, `design` is the user's OWN document while the
+      // screen shows somebody else's products — so every design-mutating
+      // shortcut is off, and only navigation survives.
+      if (s.board.on && !s.board.focusedId) {
+        const zoom = (detail: string) =>
+          window.dispatchEvent(new CustomEvent('tshop:zoom', { detail }))
+        if (e.key.toLowerCase() === 'f' && !mod) zoom('fit')
+        else if (e.key === '+' || e.key === '=') zoom('in')
+        else if (e.key === '-' || e.key === '_') zoom('out')
+        else if (e.key === '?' || (e.shiftKey && e.key === '/')) s.openModal('shortcuts')
+        return
+      }
 
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()

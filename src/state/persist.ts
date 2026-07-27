@@ -143,14 +143,48 @@ export async function hydrateStore(): Promise<void> {
 }
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+let boardFlushTimer: ReturnType<typeof setTimeout> | null = null
 
 export function startAutosave(): () => void {
   return useStore.subscribe((state, prev) => {
     if (state.design === prev.design || !state.hydrated) return
+    // A FOCUSED basket line is not the user's draft: it round-trips to the
+    // basket (startBoardAutosave below), never to tshop:current. Without this
+    // guard, opening a board line overwrites their autosaved work and they
+    // only find out on the next reload.
+    if (state.board.focusedId) {
+      // …but the swap may have landed INSIDE the draft's own debounce window,
+      // and `prev.design` is then the last thing the user typed. Dropping that
+      // pending write silently loses it (a reload while focused would restore a
+      // draft up to 700 ms stale), so it is flushed here instead of cancelled.
+      if (autosaveTimer && !prev.board.focusedId) {
+        clearTimeout(autosaveTimer)
+        autosaveTimer = null
+        void set(CURRENT_KEY, prev.design).catch(() => undefined)
+      }
+      return
+    }
     if (autosaveTimer) clearTimeout(autosaveTimer)
     autosaveTimer = setTimeout(() => {
+      // The focus may have landed INSIDE this debounce window — re-check
+      // against live state rather than the state that scheduled the write.
+      if (useStore.getState().board.focusedId) return
       set(CURRENT_KEY, useStore.getState().design).catch(() => undefined)
     }, 700)
+  })
+}
+
+/**
+ * The focused basket line's own autosave. `unfocusLine` flushes synchronously
+ * and is the authority, but a refresh or a crash mid-focus must not lose the
+ * edits either — the app's standing promise is that work is never lost, and
+ * this keeps a focused line on the same 700 ms cadence as everything else.
+ */
+export function startBoardAutosave(): () => void {
+  return useStore.subscribe((state, prev) => {
+    if (state.design === prev.design || !state.board.focusedId) return
+    if (boardFlushTimer) clearTimeout(boardFlushTimer)
+    boardFlushTimer = setTimeout(() => useStore.getState().flushFocusedLine(), 700)
   })
 }
 
