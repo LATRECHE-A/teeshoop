@@ -255,19 +255,37 @@ try {
   const sizesOk = SIZES.filter((s) => drift[s])
   if (sizesOk.length > 1) {
     console.log('\n— cross-size drift (2D minus other view) —')
-    // Every one of these must be FLAT with size. Vertical drift (v3/va) is the
-    // guarantee areaOffsetYIn makes across the three renderers. The WIDTH ratios
-    // (rW3/rWa) are flat only because print GRADING is on: the print scales with
-    // the garment, so the size-dependent term cancels and all that remains is
-    // the constant flat-2D-vs-curved-3D projection offset. Before grading these
-    // spread 0.126 / 0.178 and could not be enforced — so this check is now the
-    // regression test for grading reaching 3D and AR at all. (Running the suite
-    // against a design pinned to `fixed` would legitimately fail it.)
+    // Vertical drift (v3/va) is the guarantee areaOffsetYIn makes across the
+    // three renderers. rW3 is flat only because print GRADING is on: the print
+    // and the garment scale together, so the size term cancels and all that is
+    // left is the constant flat-2D-vs-curved-3D projection offset — which makes
+    // it the regression test for grading reaching 3D at all.
+    //
+    // rWa is deliberately NOT enforced. The AR figure is an AVATAR: a fixed
+    // human body wearing the print (arExport.buildAvatarFigure, limitation
+    // documented at its head), so it does not grade and the print's ratio to it
+    // MUST grow with size. It is printed as a diagnostic only, and the honest
+    // AR grading assertion is rHa below.
     for (const k of ['v3', 'va', 'rW3', 'rWa']) {
       const vals = sizesOk.map((s) => drift[s][k])
       const spread = Math.max(...vals) - Math.min(...vals)
-      console.log(`  ${k.padEnd(4)} ${sizesOk.map((s, i) => `${s}=${vals[i].toFixed(3)}`).join('  ')}   spread=${spread.toFixed(3)}`)
-      if (spread > 0.05) verdict = `WARN: ${k} drift varies with size (spread ${spread.toFixed(3)}) — grading may not be reaching this view`
+      const note = k === 'rWa' ? '  (avatar does not grade — diagnostic only)' : ''
+      console.log(`  ${k.padEnd(4)} ${sizesOk.map((s, i) => `${s}=${vals[i].toFixed(3)}`).join('  ')}   spread=${spread.toFixed(3)}${note}`)
+      if (k !== 'rWa' && spread > 0.05) verdict = `WARN: ${k} drift varies with size (spread ${spread.toFixed(3)}) — grading may not be reaching this view`
+    }
+
+    // AR grading, measured the one way the avatar path allows. The body is a
+    // constant, so the print's HEIGHT against it must track k exactly. Height,
+    // not width: the print wraps around the torso, so its projected width is
+    // foreshortened by an amount that itself grows with the print.
+    const ref = sizesOk[0]
+    const kOf = (s) => chart[s].sx / chart[ref].sx
+    console.log('\n— AR print grading (print height vs the fixed avatar body) —')
+    for (const s of sizesOk) {
+      const got = rows[s].ar.ratioH / rows[ref].ar.ratioH
+      const e = Math.abs(got / kOf(s) - 1)
+      console.log(`  ${s.padEnd(3)} ${got.toFixed(3)} vs k ${kOf(s).toFixed(3)} (${(e * 100).toFixed(1)}%)`)
+      if (e > 0.03) verdict = `WARN: AR ${s} print height is ${(e * 100).toFixed(1)}% off the grading factor`
     }
   }
   if (!ok) verdict = 'INCONCLUSIVE'

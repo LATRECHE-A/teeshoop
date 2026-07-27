@@ -48,16 +48,34 @@ export function Floor({
   shadowOpacity?: number
 }) {
   const floorY = -(heightIn / 2) - 1.1
+  // drei's ContactShadows memoises two WebGLRenderTargets, a PlaneGeometry and
+  // three materials on [resolution, width, height, scale, color] — and disposes
+  // NONE of them (there is not one `dispose` call in the module). Passing a
+  // size-derived `scale` therefore orphaned two render targets on every garment
+  // or size change, unbounded, for the life of the tab.
+  //
+  // So the shadow rig is built ONCE at unit scale and sized by its PARENT
+  // instead: a uniform parent scale transforms the depth camera and its plane
+  // together, which is exactly what the `scale` prop does internally — but it
+  // never touches a memo dependency, so nothing is ever rebuilt or orphaned.
+  // Quantising `scale` was not enough: a tee and a hoodie land in different
+  // buckets, so alternating garments still leaked on every swap.
+  //
+  // `far` is in the rig's LOCAL units, so it must be divided by the parent
+  // scale to keep the shadow camera's reach at the same world depth. `blur`
+  // works in the render target's pixel space and is scale-invariant.
+  const scale = Math.max(1e-3, widthIn * 2.7)
   return (
-    <ContactShadows
-      position={[0, floorY, 0]}
-      opacity={shadowOpacity}
-      scale={widthIn * 2.7}
-      blur={2.1}
-      far={heightIn * 0.55}
-      resolution={512}
-      color={shadowColor}
-    />
+    <group position={[0, floorY, 0]} scale={scale}>
+      <ContactShadows
+        opacity={shadowOpacity}
+        scale={1}
+        blur={2.1}
+        far={(heightIn * 0.55) / scale}
+        resolution={512}
+        color={shadowColor}
+      />
+    </group>
   )
 }
 
@@ -93,26 +111,115 @@ export function homeCameraPosition(radius: number): [number, number, number] {
   return [v.x, v.y, v.z]
 }
 
+/** Head-room around the garment at the framed distance. */
+const FIT_MARGIN = 1.22
+/**
+ * Head-room around the SLEEVE SPAN. Just above 1 on purpose: the span is a hard
+ * "must not be cropped" bound, not something that deserves air around it. A
+ * measured 3XL hoodie is 52.5 in wide but only 26 in through the body, so
+ * giving the arm tips the same 22% margin as the body pushes the camera 20%
+ * further back than it has to be — which is exactly how a hoodie ended up
+ * reading SMALLER on screen than a tee it dwarfs in real life.
+ */
+const EDGE_MARGIN = 1.02
+
+/**
+ * Viewing distance that frames a garment of these inches. Garments are scaled to
+ * REAL inches, so a fixed distance either crops the big ones or strands the
+ * small ones — the rig re-fits whenever the measured mesh changes, until the
+ * user takes the controls.
+ *
+ * `torsoWidthIn` is what the framing is ABOUT: the body a customer is looking
+ * at, not the arm span an A-pose adds to the bounding box. It gets the generous
+ * margin; the full span only has to fit. In a portrait pane that is the
+ * difference between a garment that fills the frame and one that floats in it.
+ * Omitted ⇒ the whole width is treated as body (correct for a flat card).
+ */
+export function fitRadius(
+  heightIn: number,
+  fovDeg: number,
+  aspect: number,
+  widthIn = 0,
+  torsoWidthIn = widthIn,
+): number {
+  const halfV = Math.tan((fovDeg * Math.PI) / 360)
+  const halfH = halfV * Math.max(aspect, 0.2)
+  const span = Math.max(0, widthIn)
+  // Never wider than the mesh itself: a chart-derived body width is a
+  // laid-flat measure and the projected torso is narrower still.
+  const torso = Math.min(Math.max(0, torsoWidthIn), span)
+  return Math.max(
+    24,
+    (heightIn * FIT_MARGIN) / 2 / halfV,
+    (torso * FIT_MARGIN) / 2 / halfH,
+    (span * EDGE_MARGIN) / 2 / halfH,
+  )
+}
+
 export interface CameraRigProps {
   viewRequest: { view: ViewSnap; nonce: number } | null
   autoRotate: boolean
   reducedMotion: boolean
+  /** Measured garment extents (inches) — the camera frames to these. */
+  fitHeightIn?: number
+  fitWidthIn?: number
+  /** Body width without the A-pose arm span — what the framing is about. */
+  fitTorsoWidthIn?: number
 }
 
-export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigProps) {
+export function CameraRig({
+  viewRequest,
+  autoRotate,
+  reducedMotion,
+  fitHeightIn,
+  fitWidthIn,
+  fitTorsoWidthIn,
+}: CameraRigProps) {
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((s) => s.camera)
   const goal = useRef<THREE.Spherical | null>(null)
   // Seed with the CURRENT nonce so an old request doesn't replay (and snap
   // the camera uninvited) every time the user re-enters 3D mode.
   const lastNonce = useRef<number | null>(viewRequest?.nonce ?? null)
+  // The auto-fit is a first-impression convenience, not a leash: once the user
+  // has orbited or zoomed, their distance is theirs and we stop touching it.
+  const userTook = useRef(false)
+  const fitted = useRef(0)
+
+  // The framing depends on the canvas shape, so it must re-run when the canvas
+  // is reshaped. R3F's initial camera aspect is 1 until its resize observer
+  // fires, and a pane that opens narrow and widens (or a phone rotating) would
+  // otherwise keep a distance computed for a viewport that no longer exists.
+  const size = useThree((s) => s.size)
+  const perspective = camera as THREE.PerspectiveCamera
+  const radiusFor = (h: number, w: number) =>
+    fitRadius(h, perspective.fov ?? 26, perspective.aspect ?? 1, w, fitTorsoWidthIn ?? w)
+  const framed = radiusFor(fitHeightIn ?? 0, fitWidthIn ?? 0)
+
+  useEffect(() => {
+    if (userTook.current || !fitHeightIn) return
+    const radius = radiusFor(fitHeightIn, fitWidthIn ?? 0)
+    if (Math.abs(radius - fitted.current) < 0.5) return
+    fitted.current = radius
+    const dir = camera.position.length() > 1e-3 ? camera.position.clone().normalize() : new THREE.Vector3(0, 0, 1)
+    camera.position.copy(dir.multiplyScalar(radius))
+    const controls = controlsRef.current
+    if (controls) {
+      controls.target.set(0, 0, 0)
+      controls.update()
+    }
+    // radiusFor reads fov/aspect off the live camera, and `size` is what makes
+    // the aspect change — so depending on it is what makes this correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitHeightIn, fitWidthIn, fitTorsoWidthIn, camera, size])
 
   useEffect(() => {
     if (!viewRequest || viewRequest.nonce === lastNonce.current) return
     lastNonce.current = viewRequest.nonce
-    // Keep the user's current distance (clamped to a pleasant range) and
+    // Keep the user's current distance (clamped around the framed one) and
     // swing around to the requested side.
-    const radius = THREE.MathUtils.clamp(camera.position.length(), 48, 96)
+    const fit = fitted.current || camera.position.length()
+    const radius = THREE.MathUtils.clamp(camera.position.length(), fit * 0.6, fit * 1.6)
     const target = new THREE.Spherical(radius, VIEW_POLAR[viewRequest.view], VIEW_AZIMUTH[viewRequest.view])
     if (reducedMotion) {
       camera.position.setFromSpherical(target)
@@ -159,6 +266,7 @@ export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigP
     if (!controls) return
     const cancel = () => {
       goal.current = null
+      userTook.current = true
     }
     controls.addEventListener('start', cancel)
     return () => controls.removeEventListener('start', cancel)
@@ -184,8 +292,12 @@ export function CameraRig({ viewRequest, autoRotate, reducedMotion }: CameraRigP
       enableDamping
       dampingFactor={0.08}
       enablePan
-      minDistance={30}
-      maxDistance={150}
+      minDistance={20}
+      // Never below the framed distance: OrbitControls.update() clamps whatever
+      // the auto-fit just set, so a fixed ceiling would silently crop the very
+      // case the fit exists for (a 3XL hoodie, ~52 in across, in a tall narrow
+      // pane needs ~280 already).
+      maxDistance={Math.max(280, framed * 1.6)}
       minPolarAngle={0.35}
       maxPolarAngle={1.62}
       autoRotate={autoRotate}

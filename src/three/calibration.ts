@@ -1,19 +1,35 @@
 /**
- * Per-model calibration for the 3D preview (module A3).
+ * Per-model calibration for the 3D preview and the AR bake (module A3).
  *
- * World space convention: 1 world unit = 1 inch. Every model is normalized at
- * load time (see useNormalizedGarment in GarmentModel.tsx): its geometry is
- * baked to scene orientation, rotated by `rotateY`, centered on its
- * bounding-box center and uniformly scaled so that
+ * World space convention: 1 world unit = 1 inch, and the inches are PHYSICAL —
+ * the mesh is scaled so its own front panel measures the size chart's laid-flat
+ * half-chest, and its own body measures the chart's body length:
  *
- *   bboxWidth * widthFraction === garmentWidthIn   (world units = inches)
+ *   xzScale = garmentWidthIn / frontArcRaw     (girth: arc, not bbox width)
+ *   yScale  = bodyLengthIn  / (hRaw - bodyTopBelowTopRaw)
  *
- * `widthFraction` exists because a 3D model's bounding box may include
- * outstretched sleeves that the 2D laid-flat art (which defines
- * `garmentWidthIn`) drapes at the garment's side. The values below were
- * calibrated visually against the harness' 1-inch grid decal.
+ * `frontArcRaw` is measured from the mesh's own cross-sections (see
+ * src/three/fabricUnwrap.ts) rather than from its bounding box, because a
+ * bounding box includes the sleeves and says nothing about how much cloth is
+ * wrapped around the torso. This replaces the old `widthFraction` × `wornFactor`
+ * pair, which mapped the sleeve-inclusive bbox to the half-chest and then shrank
+ * it again — leaving the mesh's front panel carrying only ~63 % of the garment's
+ * real fabric, so a true-inch print was physically wider than the visible torso.
+ *
+ * VERTICAL ANCHORING is collar-relative, not centre-relative. Professional print
+ * placement is measured in cm below the collar seam, the 2D art encodes exactly
+ * that (GarmentSideArt.collarPx → printAreaPx), and the mesh exposes its own
+ * collar seam — so the print is hung from the seam on both, and the two agree
+ * without a fudge factor. The old `decalNudgeYIn` constant absorbed the drift of
+ * a centre-relative anchor on a mesh whose height was 83 % of the real garment's;
+ * with the length now physical there is nothing left for it to absorb. It also
+ * could not work for the hoodie at all, whose bounding box centre is displaced
+ * by a hood the real garment measures nothing from.
+ *
+ * Every number below was MEASURED off the shipped GLB, not eyeballed; the
+ * measurement scripts live in scripts/fabric-verify.mjs.
  */
-import type { CatalogGarmentId, Side } from '@/lib/types'
+import type { CatalogGarmentId } from '@/lib/types'
 
 export interface ModelCalibration {
   /** GLB served from /public. */
@@ -25,41 +41,39 @@ export interface ModelCalibration {
   meshName?: string
   /** Extra rotation (radians, around +Y) so the garment faces +Z. */
   rotateY: number
-  /** Fraction of the model bbox width that equals the laid-flat width. */
-  widthFraction: number
   /**
-   * How much narrower the WORN garment is than laid-flat, applied to X/Z only
-   * (height/Y preserved). A laid-flat 21.5in tee wraps to a ~17in worn front —
-   * scaling the mesh girth to the laid-flat width over-inflated the torso ~20%,
-   * so a true-inch print read undersized (~56%) vs the physically-correct worn
-   * AR view (~72%). This narrows the girth to the worn width so the SAME true-
-   * inch print reads consistently in the 3D preview and AR. 1 = laid-flat.
+   * Height window, as fractions of the raw bbox height measured DOWN FROM THE
+   * TOP, over which the cross-section is a clean torso: below the armholes (the
+   * A-pose sleeves merge into the band above them) and above the hem/pocket.
+   * The chest reference arc is the median front arc over this window.
    */
-  wornFactor: number
+  chestBandFromTop: readonly [number, number]
   /**
-   * Extra per-side nudge of the decal center in inches (+down). Applied on
-   * top of props.areaOffsetYIn to absorb model-vs-2D-art proportion drift
-   * (e.g. the tee model torso is cropped shorter than a real 29in tee).
+   * Raw-unit depth of the SHOULDER LINE below the bbox top. The chart's body
+   * length is high-point-shoulder → hem, so anything the mesh carries above the
+   * shoulder (a hood) must be excluded from the length scale or the garment
+   * renders squashed.
    */
-  decalNudgeYIn: Record<Side, number>
-  /** Decal projection depth as a fraction of the decal width (thin!). */
-  decalDepthFraction: number
+  bodyTopBelowTopRaw: number
   /**
-   * How far (fraction of depth) the projector center is pushed from the
-   * raycast surface point toward the garment interior, so the thin box still
-   * covers surface that curves away at the decal edges.
+   * Raw-unit depth of the FRONT collar seam below the bbox top — the mesh
+   * landmark prints hang from. Only the front is measured: on the hoodie the
+   * hood covers the back seam entirely, and the 2D art already knows the
+   * front-to-back seam offset (collarPx per side), so one landmark plus the
+   * art's own geometry pins both panels.
    */
-  decalInset: number
+  neckFrontBelowTopRaw: number
   /** Cotton look: overrides for the recolored garment material. */
   roughness: number
   envMapIntensity: number
   /**
    * Sleeve decal placement — an X-axis flank projection onto the arm (front/back
-   * project along ±Z). yIn = decal-centre height (world inches, +up, ≈ upper
-   * arm); depthFraction like decalDepthFraction; rotZ = per-flank tilt (radians)
-   * to follow an A-pose arm's slant (sign applied per side).
+   * map through the fabric unwrap instead). `yRaw` is the decal-centre height in
+   * raw units above the bbox centre, so it follows the mesh at every size
+   * instead of drifting as a fixed world inch; `rotZ` is the per-flank tilt
+   * (radians) that follows an A-pose arm's slant, sign applied per side.
    */
-  sleeve: { yIn: number; depthFraction: number; rotZ: number }
+  sleeve: { yRaw: number; rotZ: number }
 }
 
 export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
@@ -70,46 +84,41 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // Raw bbox 0.550w x 0.613h x 0.269d; faces +Z already.
     url: '/models/tee.glb',
     rotateY: 0,
-    // The model torso reads ~24in long at bbox width 21.5in (a real tee is
-    // ~29in) — the model is a slightly cropped/boxy fit. Width mapping stays
-    // 1:1 with the bbox: sleeves hang down like the 2D art.
-    widthFraction: 1.0,
-    // A 21.5in laid-flat tee is ~17in across the worn front; 0.80 narrows the
-    // girth to that so a 12in print reads ~0.67 of the visible torso (matching
-    // the worn AR avatar) instead of the over-inflated ~0.52.
-    wornFactor: 0.8,
-    // The torso is ~0.83x the height of the 29in 2D art, so 2D print-area
-    // offsets land too close to the collar; push down and use a slightly
-    // deeper projector so the top decal rows survive the shoulder curvature.
-    decalNudgeYIn: { front: 1.2, back: 1.2, sleeve: 0 },
-    decalDepthFraction: 0.18,
-    decalInset: 0.22,
+    // Sleeves merge into the torso band above fromTop 0.33; below 0.50 the
+    // waist starts tapering. Front arc over this window: 0.4418 ± 3.7 %.
+    chestBandFromTop: [0.36, 0.5],
+    // The bbox top IS the shoulder: the mesh's top surface reaches 60 % of its
+    // max x-extent within 0.5 % of the top.
+    bodyTopBelowTopRaw: 0.005,
+    neckFrontBelowTopRaw: 0.0475,
     roughness: 0.94,
     envMapIntensity: 1.0,
-    sleeve: { yIn: 6.5, depthFraction: 0.2, rotZ: 0 },
+    // 6.5 world in at the pre-fix yScale of 38.295 — the same physical band.
+    sleeve: { yRaw: 0.1697, rotZ: 0 },
   },
   hoodie: {
     // "Hoodie" by ShoyoX/yogaminggames (Sketchfab, CC-BY-4.0), Marvelous
     // Designer garment, simplified 375k -> 67.6k tris and re-packed (see
     // docs/credits/A3.md). Single joined mesh, untextured grey PBR material
-    // (recolors via material.color). Raw bbox 1.277w x 0.796h x 0.441d —
-    // the sleeves stand away from the body, hence widthFraction < 1.
+    // (recolors via material.color), NO UV set at all. Raw bbox
+    // 1.277w x 0.796h x 0.441d — the sleeves stand away from the body and the
+    // hood stands above it, which is why neither dimension is used for scale.
     url: '/models/hoodie.glb',
     rotateY: 0,
-    // A-pose arms inflate the bbox; measured against the 12in grid decal,
-    // 0.66 puts the body (pit-to-pit) at ~22in for a 23in laid-flat hoodie.
-    widthFraction: 0.66,
-    // The hoodie is modeled loose/oversized already, so it needs less worn
-    // narrowing than the tee — 0.86 trims the boxy girth without over-slimming.
-    wornFactor: 0.86,
-    // Keep prints clear of the hood: front sits between drawcords and pocket;
-    // the back print must start BELOW the hanging hood or its projector
-    // catches the hood's top fold (seen as smears from the front).
-    decalNudgeYIn: { front: 1.2, back: 2.2, sleeve: 0 },
-    decalDepthFraction: 0.18,
-    decalInset: 0.22,
+    // The armholes clear at fromTop 0.47 and the kangaroo pocket starts adding
+    // girth by 0.64. Front arc over this window: 0.6318, spread 6.0 % — larger
+    // than the tee's 3.6 % because this is a draped Marvelous Designer garment
+    // whose folds are real geometry, and comfortably inside the table's 20 %
+    // usability gate (scripts/fabric-verify.mjs check A prints both).
+    chestBandFromTop: [0.48, 0.62],
+    // Hood. The top surface is the hood until x reaches 0.375 of the half-width,
+    // where it drops to 0.159 below the top; extrapolating that shoulder slope
+    // back to the neck opening puts the high point of the shoulder at ~0.11.
+    bodyTopBelowTopRaw: 0.11,
+    neckFrontBelowTopRaw: 0.1403,
     roughness: 0.92,
     envMapIntensity: 1.0,
-    sleeve: { yIn: 5, depthFraction: 0.34, rotZ: 0.21 },
+    // 5 world in at the pre-fix yScale of 25.909.
+    sleeve: { yRaw: 0.193, rotZ: 0.21 },
   },
 }

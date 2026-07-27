@@ -11,8 +11,9 @@ import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
 import { Float } from '@react-three/drei'
 import type { Garment3DProps } from '@/lib/types'
+import { SIZE_IDS, garmentWidthInFor } from '@/content/sizeChart'
 import { getScene } from '@/scenes'
-import { CameraRig, Floor, ReadyPing, SceneEnvironment, homeCameraPosition } from './Stage'
+import { CameraRig, Floor, ReadyPing, SceneEnvironment, fitRadius, homeCameraPosition } from './Stage'
 import { GarmentModel } from './GarmentModel'
 import { CustomGarment } from './ExtrudedGarment'
 
@@ -91,6 +92,20 @@ function StateCard({
   )
 }
 
+/**
+ * Body width (inches) of the garment the camera is framing, WITHOUT the arm
+ * span an A-pose adds to the bounding box. Read off the size chart's laid-flat
+ * half-chest at the biggest size, because that is the same size the camera
+ * frames to (see GarmentFrame.fitWidthIn) — and because a laid-flat width is a
+ * safe upper bound on the projected torso, which curves away from the viewer.
+ * A ship-your-own garment is a flat card with no sleeves: its whole width IS
+ * the body.
+ */
+function torsoWidthIn(garment: Garment3DProps['garment'], fallbackIn: number): number {
+  if (garment === 'custom') return fallbackIn
+  return garmentWidthInFor(garment, SIZE_IDS[SIZE_IDS.length - 1])
+}
+
 function SwayGroup({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   if (!enabled) return <>{children}</>
   return (
@@ -112,8 +127,25 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
   const [contextLost, setContextLost] = useState(false)
   const [canvasKey, setCanvasKey] = useState(0)
   const reducedMotion = usePrefersReducedMotion()
-  const [heightIn, setHeightIn] = useState(24)
-  const onMeasured = useCallback((h: number) => setHeightIn(h), [])
+  // Measured mesh extents. The FLOOR follows the previewed size (its shadow is
+  // the garment's own footprint); the CAMERA frames `fit`, the biggest size in
+  // the chart, so switching S↔3XL changes the garment on screen rather than the
+  // viewing distance. Garments are scaled to real inches — a 3XL hoodie with
+  // A-pose sleeves is genuinely ~49 in across — so a fixed distance would crop.
+  const [extent, setExtent] = useState({ heightIn: 28, widthIn: 24, fitHeightIn: 28, fitWidthIn: 24 })
+  const onMeasured = useCallback(
+    (heightIn: number, widthIn?: number, fitIn?: { heightIn: number; widthIn: number }) =>
+      setExtent((prev) => {
+        const next = {
+          heightIn,
+          widthIn: widthIn ?? heightIn * 0.9,
+          fitHeightIn: fitIn?.heightIn ?? heightIn,
+          fitWidthIn: fitIn?.widthIn ?? widthIn ?? heightIn * 0.9,
+        }
+        return (Object.keys(next) as (keyof typeof next)[]).every((k) => prev[k] === next[k]) ? prev : next
+      }),
+    [],
+  )
 
   if (!webgl) {
     return (
@@ -149,7 +181,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
       <Canvas
         key={canvasKey}
         dpr={[1, 1.75]}
-        camera={{ position: homeCameraPosition(78), fov: 26, near: 1, far: 700 }}
+        camera={{ position: homeCameraPosition(fitRadius(30, 26, 1)), fov: 26, near: 1, far: 700 }}
         gl={{
           alpha: true,
           antialias: true,
@@ -176,6 +208,9 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
           viewRequest={props.viewRequest}
           autoRotate={props.autoRotate}
           reducedMotion={reducedMotion}
+          fitHeightIn={extent.fitHeightIn}
+          fitWidthIn={extent.fitWidthIn}
+          fitTorsoWidthIn={torsoWidthIn(garment, extent.fitWidthIn)}
         />
         <Suspense fallback={null}>
           <SwayGroup enabled={!reducedMotion}>
@@ -190,20 +225,19 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
               <GarmentModel
                 garment={garment}
                 colorHex={props.colorHex}
-                garmentWidthIn={props.garmentWidthIn}
                 sizeId={props.sizeId}
                 front={props.front}
                 back={props.back}
                 sleeve={props.sleeve}
-                areaOffsetYIn={props.areaOffsetYIn}
+                printK={props.printK}
                 envIntensity={cfg.envIntensity}
                 onMeasured={onMeasured}
               />
             )}
           </SwayGroup>
           <Floor
-            heightIn={heightIn}
-            widthIn={props.garmentWidthIn}
+            heightIn={extent.heightIn}
+            widthIn={extent.widthIn}
             shadowColor={cfg.shadowColor}
             shadowOpacity={cfg.shadowOpacity}
           />

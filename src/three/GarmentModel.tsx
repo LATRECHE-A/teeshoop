@@ -1,30 +1,35 @@
 /**
- * Catalog garment (tee / hoodie) with dimensionally mapped print decals.
+ * Catalog garment (tee / hoodie) with the design mapped onto the cloth.
  *
- * 1 world unit = 1 inch. The GLB geometry is normalized once per
- * (model, garmentWidthIn): baked to scene orientation, centered on its bbox
- * center and scaled so bboxWidth * widthFraction === garmentWidthIn (height
- * follows the size chart's body-length ratio, see lengthOverWidthRatio).
- * Decals are then sized wIn x hIn world units directly, and their center Y is
- * garment-visual-center (y=0) minus areaOffsetYIn (+down ⇒ -y), plus a
- * per-model calibration nudge (src/three/calibration.ts).
+ * 1 world unit = 1 inch, and the inches are physical: the GLB is normalized once
+ * per (model, size) so its own chest arc measures the size chart's laid-flat
+ * half-chest and its own body measures the chart's body length (see
+ * src/three/garmentFrame.ts and src/three/calibration.ts).
+ *
+ * The front/back print is NOT a projected decal. It is a second pass over the
+ * garment geometry whose UVs are FABRIC coordinates — inches of cloth from the
+ * centre-front line, from src/three/fabricUnwrap.ts — so a 10 cm logo covers
+ * 10 cm of cloth wherever it sits, nothing is clipped by a projector box, and
+ * the 2D editor's inches and the 3D surface are literally the same numbers.
+ * A projected decal survives only for the sleeve (a tube on its own slanted
+ * axis, which the torso unwrap does not describe) and as the fallback when a
+ * mesh cannot be unwrapped at all.
  */
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { Decal, useGLTF } from '@react-three/drei'
 import type { CatalogGarmentId, DecalSource, Side, SizeId } from '@/lib/types'
-import { sizeScale } from '@/content/sizeChart'
+import { DEFAULT_SIZE } from '@/content/sizeChart'
 import { CALIBRATION } from './calibration'
+import { buildFabricOverlay, fabricPrintMaterial } from './decalGeom'
+import { buildGarmentFrame, fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
 import { useSourceTexture } from './textures'
 
 useGLTF.preload('/models/tee.glb', false, false)
 useGLTF.preload('/models/hoodie.glb', false, false)
 
-interface NormalizedGarment {
-  geometry: THREE.BufferGeometry
-  material: THREE.MeshStandardMaterial
-  heightIn: number
-  depthIn: number
+interface NormalizedGarment extends GarmentFrame {
+  material: THREE.MeshPhysicalMaterial
 }
 
 function firstMesh(root: THREE.Object3D, name?: string): THREE.Mesh | null {
@@ -37,23 +42,7 @@ function firstMesh(root: THREE.Object3D, name?: string): THREE.Mesh | null {
   return found
 }
 
-/**
- * Extra vertical stretch on top of the width-derived scale, so the mesh length
- * follows the chart's BODY-LENGTH ratio (sy) while X/Z keep following the
- * half-chest ratio (sx) that `garmentWidthIn` already carries. Undefined size
- * ⇒ 1, i.e. the nominal-size proportions (the dev harness passes no size).
- */
-function lengthOverWidthRatio(garment: CatalogGarmentId, sizeId?: SizeId): number {
-  if (!sizeId) return 1
-  const { sx, sy } = sizeScale(garment, sizeId)
-  return sy / sx
-}
-
-function useNormalizedGarment(
-  garment: CatalogGarmentId,
-  garmentWidthIn: number,
-  sizeId?: SizeId,
-): NormalizedGarment {
+function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): NormalizedGarment {
   const calib = CALIBRATION[garment]
   const gltf = useGLTF(calib.url, false, false)
 
@@ -61,35 +50,14 @@ function useNormalizedGarment(
     gltf.scene.updateMatrixWorld(true)
     const src = firstMesh(gltf.scene, calib.meshName) ?? firstMesh(gltf.scene)
     if (!src) throw new Error(`No mesh found in ${calib.url}`)
-
-    const geometry = src.geometry.clone()
-    geometry.applyMatrix4(src.matrixWorld)
-    if (calib.rotateY !== 0) geometry.rotateY(calib.rotateY)
-
-    geometry.computeBoundingBox()
-    const box = geometry.boundingBox as THREE.Box3
-    const size = box.getSize(new THREE.Vector3())
-    const center = box.getCenter(new THREE.Vector3())
-    geometry.translate(-center.x, -center.y, -center.z)
-    // Narrow the girth (X/Z) to the WORN width: mapping the laid-flat width
-    // onto the worn torso over-inflated the girth ~20%, so a true-inch print
-    // read undersized vs the worn AR avatar. Height follows the chart's
-    // body-length ratio instead of the chest ratio — the 2D art stretches by
-    // sy about the collar and areaOffsetYIn assumes exactly that, so a
-    // chest-scaled height would drift the collar-relative print placement.
-    const widthScale = garmentWidthIn / (size.x * calib.widthFraction)
-    const yScale = widthScale * lengthOverWidthRatio(garment, sizeId)
-    const xzScale = widthScale * calib.wornFactor
-    geometry.scale(xzScale, yScale, xzScale)
-    geometry.computeBoundingBox()
-    geometry.computeBoundingSphere()
+    const frame = buildGarmentFrame(garment, src, sizeId)
 
     const srcMat = (Array.isArray(src.material) ? src.material[0] : src.material) as THREE.MeshStandardMaterial
     // Upgrade to a physical material with a cloth sheen so the tee/hoodie reads
     // as fabric (a Fresnel grazing highlight that emphasises curvature) rather
-    // than plastic. Decals are a separate projected mesh, so inch accuracy is
-    // untouched. Copy source maps explicitly — Physical.copy(Standard) is unsafe
-    // because the Standard source lacks the sheen fields Physical.copy reads.
+    // than plastic. The print is a separate pass, so inch accuracy is untouched.
+    // Copy source maps explicitly — Physical.copy(Standard) is unsafe because
+    // the Standard source lacks the sheen fields Physical.copy reads.
     const material = new THREE.MeshPhysicalMaterial({
       map: srcMat.map,
       normalMap: srcMat.normalMap,
@@ -103,13 +71,8 @@ function useNormalizedGarment(
       sheenColor: new THREE.Color('#ffffff'),
     })
 
-    return {
-      geometry,
-      material,
-      heightIn: size.y * yScale,
-      depthIn: size.z * xzScale,
-    }
-  }, [gltf, garment, calib, garmentWidthIn, sizeId])
+    return { ...frame, material }
+  }, [gltf, garment, calib, sizeId])
 
   useEffect(
     () => () => {
@@ -125,69 +88,121 @@ function useNormalizedGarment(
 const PROBE_MATERIAL = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
 
 /** Z of the outermost front/back surface at (xIn, yIn), via local raycast. */
-function probeSurfaceZ(geometry: THREE.BufferGeometry, xIn: number, yIn: number, side: Side): number {
+function probeSurfaceZ(geometry: THREE.BufferGeometry, xIn: number, yIn: number, side: Side): number | null {
   const mesh = new THREE.Mesh(geometry, PROBE_MATERIAL)
   const ray = new THREE.Raycaster()
   const sign = side === 'front' ? 1 : -1
   ray.set(new THREE.Vector3(xIn, yIn, sign * 1000), new THREE.Vector3(0, 0, -sign))
   const hits = ray.intersectObject(mesh, false)
-  if (hits.length > 0) return hits[0].point.z
-  const box = geometry.boundingBox as THREE.Box3
-  return side === 'front' ? box.max.z * 0.9 : box.min.z * 0.9
+  return hits.length > 0 ? hits[0].point.z : null
 }
 
 /** X of the outer sleeve/arm surface at (yIn, zIn), via local raycast along ∓X. */
-function probeSurfaceX(geometry: THREE.BufferGeometry, yIn: number, zIn: number, sign: 1 | -1): number {
+function probeSurfaceX(geometry: THREE.BufferGeometry, yIn: number, zIn: number, sign: 1 | -1): number | null {
   const mesh = new THREE.Mesh(geometry, PROBE_MATERIAL)
   const ray = new THREE.Raycaster()
   ray.set(new THREE.Vector3(sign * 1000, yIn, zIn), new THREE.Vector3(-sign, 0, 0))
   const hits = ray.intersectObject(mesh, false)
-  if (hits.length > 0) return hits[0].point.x
-  const box = geometry.boundingBox as THREE.Box3
-  return sign > 0 ? box.max.x * 0.9 : box.min.x * 0.9
+  return hits.length > 0 ? hits[0].point.x : null
+}
+
+/**
+ * Radius of the arm tube at a height, measured from the mesh: probe the arm's
+ * outer X across a Z sweep and take half the Z run that still hits. A sleeve
+ * print needs the projector box deep enough to reach the flanks it curves
+ * around, and the arm is ~2 in thick where the mesh is ~26 in wide — a
+ * width-derived depth is an order of magnitude wrong.
+ */
+function armRadiusIn(geometry: THREE.BufferGeometry, yIn: number, sign: 1 | -1, reachIn: number): number {
+  let zLo = Infinity
+  let zHi = -Infinity
+  for (let i = 0; i <= 24; i++) {
+    const z = -reachIn + (2 * reachIn * i) / 24
+    if (probeSurfaceX(geometry, yIn, z, sign) !== null) {
+      if (z < zLo) zLo = z
+      if (z > zHi) zHi = z
+    }
+  }
+  return Number.isFinite(zLo) && zHi > zLo ? (zHi - zLo) / 2 : reachIn / 2
+}
+
+interface PrintOverlayProps {
+  frame: GarmentFrame
+  garment: CatalogGarmentId
+  side: Exclude<Side, 'sleeve'>
+  source: DecalSource
+  /** Print grading factor for the previewed size (src/lib/printScale.ts). */
+  k: number
+}
+
+/**
+ * The print, painted in fabric space. The overlay is the garment mesh itself
+ * with fabric UVs, lifted a hair along its normals; the material discards
+ * everything outside the print rect and everything off the printable shell.
+ */
+function PrintOverlay({ frame, garment, side, source, k }: PrintOverlayProps) {
+  const texture = useSourceTexture(source)
+
+  const geometry = useMemo(
+    () => buildFabricOverlay(frame.geometry, fabricFrameFor(garment, side, frame, source.wIn, source.hIn, k)),
+    [frame, garment, side, source.wIn, source.hIn, k],
+  )
+  useEffect(() => () => geometry.dispose(), [geometry])
+
+  const material = useMemo(() => (texture ? fabricPrintMaterial(texture) : null), [texture])
+  useEffect(() => () => material?.dispose(), [material])
+
+  if (!material) return null
+  return <mesh geometry={geometry} material={material} renderOrder={2} />
 }
 
 interface PrintDecalProps {
   geometry: THREE.BufferGeometry
-  garment: CatalogGarmentId
-  side: Side
+  side: Exclude<Side, 'sleeve'>
   source: DecalSource
-  /** Print-area center offset from garment visual center, inches, +down. */
-  offsetYIn: number
+  /** World Y (inches) of the print-area centre. */
+  centreYIn: number
 }
 
-function PrintDecal({ geometry, garment, side, source, offsetYIn }: PrintDecalProps) {
+/**
+ * Fallback for a mesh the unwrap could not validate: an orthographic projector.
+ * It clips artwork that curves away from the box and maps chords rather than
+ * arc length, so it is deliberately the second choice — but a wrong-looking
+ * print beats no print, and it is what keeps an unknown ingested mesh usable.
+ */
+function PrintDecal({ geometry, side, source, centreYIn }: PrintDecalProps) {
   const texture = useSourceTexture(source)
-  const calib = CALIBRATION[garment]
 
   const placement = useMemo(() => {
-    const y = -(offsetYIn + calib.decalNudgeYIn[side])
-    const hw = source.wIn / 2
-    const hh = source.hIn / 2
-    // Probe the surface Z across the WHOLE print footprint (centre + the four
-    // mid-edges), not just the centre: a tall print spans the torso's vertical
-    // curvature, so a width-only box clipped its top/bottom rows. The box must
-    // span [zMin,zMax] of the footprint so every row projects.
-    const zs = [
-      probeSurfaceZ(geometry, 0, y, side),
-      probeSurfaceZ(geometry, -hw, y, side),
-      probeSurfaceZ(geometry, hw, y, side),
-      probeSurfaceZ(geometry, 0, y + hh, side),
-      probeSurfaceZ(geometry, 0, y - hh, side),
-    ]
-    const zMin = Math.min(...zs)
-    const zMax = Math.max(...zs)
-    const halfDepth = Math.abs((geometry.boundingBox as THREE.Box3).max.z)
-    // Clamp the box depth to < 0.55·halfDepth so a front box never reaches the
-    // back hemisphere (which would bleed the front print through to the back).
-    const depth = THREE.MathUtils.clamp(zMax - zMin + 1.0, 0.8, 0.55 * halfDepth)
-    return { y, z: (zMin + zMax) / 2, depth }
-  }, [geometry, side, offsetYIn, source.wIn, source.hIn, calib])
+    // Probe the surface Z over the WHOLE footprint (a 5×5 grid), skipping
+    // misses: the old ±half-width probes fell off the torso entirely and their
+    // bbox fallback floated the box off the fabric.
+    let zMin = Infinity
+    let zMax = -Infinity
+    for (let j = 0; j <= 4; j++) {
+      for (let i = 0; i <= 4; i++) {
+        const z = probeSurfaceZ(
+          geometry,
+          -source.wIn / 2 + (source.wIn * i) / 4,
+          centreYIn - source.hIn / 2 + (source.hIn * j) / 4,
+          side,
+        )
+        if (z === null) continue
+        if (z < zMin) zMin = z
+        if (z > zMax) zMax = z
+      }
+    }
+    const half = Math.abs((geometry.boundingBox as THREE.Box3).max.z)
+    if (!Number.isFinite(zMin)) return { z: side === 'front' ? half * 0.8 : -half * 0.8, depth: 0.8 }
+    // Clamp to < 0.55·halfDepth so a front box never reaches the back
+    // hemisphere (DecalGeometry does no normal culling, so it would bleed).
+    return { z: (zMin + zMax) / 2, depth: THREE.MathUtils.clamp(zMax - zMin + 1.0, 0.8, 0.55 * half) }
+  }, [geometry, side, centreYIn, source.wIn, source.hIn])
 
   if (!texture) return null
   return (
     <Decal
-      position={[0, placement.y, placement.z]}
+      position={[0, centreYIn, placement.z]}
       rotation={[0, side === 'back' ? Math.PI : 0, 0]}
       scale={[source.wIn, source.hIn, placement.depth]}
       renderOrder={2}
@@ -208,25 +223,37 @@ function PrintDecal({ geometry, garment, side, source, offsetYIn }: PrintDecalPr
 }
 
 interface SleeveDecalProps {
-  geometry: THREE.BufferGeometry
+  frame: GarmentFrame
   garment: CatalogGarmentId
   source: DecalSource
   /** +1 = one flank (+X), −1 = the other (−X). */
   sign: 1 | -1
 }
 
-/** Project the sleeve design onto an arm flank (±X), mirroring PrintDecal's ±Z. */
-function SleeveDecal({ geometry, garment, source, sign }: SleeveDecalProps) {
+/**
+ * The sleeve keeps a PROJECTED decal on purpose. The fabric unwrap measures arc
+ * around the garment's vertical axis; an arm is a separate tube on its own
+ * slanted axis (hence `sleeve.rotZ`), and estimating that axis from an A-pose
+ * mesh is far less stable than projecting a 4 in print onto a ~2 in-radius tube.
+ * What DID need fixing is the box: it is now sized from the arm's measured
+ * thickness, so the print no longer loses its outboard fifth.
+ */
+function SleeveDecal({ frame, garment, source, sign }: SleeveDecalProps) {
   const texture = useSourceTexture(source)
   const calib = CALIBRATION[garment]
 
   const placement = useMemo(() => {
-    const sl = calib.sleeve
-    const depth = Math.max(source.wIn * sl.depthFraction, 0.8)
-    const surfaceX = probeSurfaceX(geometry, sl.yIn, 0, sign)
-    const x = surfaceX - sign * depth * calib.decalInset
-    return { x, y: sl.yIn, depth }
-  }, [geometry, sign, source.wIn, calib])
+    const y = calib.sleeve.yRaw * frame.yScale
+    const surfaceX = probeSurfaceX(frame.geometry, y, 0, sign)
+    const r = armRadiusIn(frame.geometry, y, sign, frame.depthIn / 2)
+    // Depth must cover how far the tube falls away under the print's own half
+    // width, plus slack for the vertical curve. sagitta = r − √(r² − (w/2)²).
+    const halfW = Math.min(source.wIn / 2, r * 0.98)
+    const sagitta = r - Math.sqrt(Math.max(0, r * r - halfW * halfW))
+    const depth = Math.max(2 * sagitta + 0.6, 1.2)
+    const x = (surfaceX ?? sign * frame.depthIn) - sign * depth * 0.5
+    return { x, y, depth }
+  }, [frame, calib, sign, source.wIn])
 
   if (!texture) return null
   return (
@@ -254,32 +281,36 @@ function SleeveDecal({ geometry, garment, source, sign }: SleeveDecalProps) {
 export interface GarmentModelProps {
   garment: CatalogGarmentId
   colorHex: string
-  garmentWidthIn: number
-  /** Previewed chart size; stretches the mesh length by the body-length ratio. */
+  /** Previewed chart size; drives both the girth and the length scale. */
   sizeId?: SizeId
   front: DecalSource | null
   back: DecalSource | null
   sleeve: DecalSource | null
-  areaOffsetYIn?: Record<Side, number>
+  /** Print grading factor for the previewed size (src/lib/printScale.ts). */
+  printK?: number
   /** Scene lighting multiplier for the fabric's env-map response. */
   envIntensity?: number
-  /** Reports the normalized garment height (inches) for floor/shadow layout. */
-  onMeasured?: (heightIn: number) => void
+  /**
+   * Reports the normalized garment extents (inches). The floor follows the
+   * PREVIEWED size; the camera frames `fitIn` (the chart's biggest size) so
+   * changing size visibly changes the garment instead of the camera.
+   */
+  onMeasured?: (heightIn: number, widthIn?: number, fitIn?: { heightIn: number; widthIn: number }) => void
 }
 
 export function GarmentModel({
   garment,
   colorHex,
-  garmentWidthIn,
   sizeId,
   front,
   back,
   sleeve,
-  areaOffsetYIn,
+  printK = 1,
   envIntensity = 1,
   onMeasured,
 }: GarmentModelProps) {
-  const { geometry, material, heightIn } = useNormalizedGarment(garment, garmentWidthIn, sizeId)
+  const normalized = useNormalizedGarment(garment, sizeId ?? DEFAULT_SIZE)
+  const { geometry, material, heightIn, widthIn, fitHeightIn, fitWidthIn, table } = normalized
 
   useEffect(() => {
     material.color.set(colorHex)
@@ -293,33 +324,29 @@ export function GarmentModel({
   }, [material, garment, envIntensity])
 
   useEffect(() => {
-    onMeasured?.(heightIn)
-  }, [heightIn, onMeasured])
+    onMeasured?.(heightIn, widthIn, { heightIn: fitHeightIn, widthIn: fitWidthIn })
+  }, [heightIn, widthIn, fitHeightIn, fitWidthIn, onMeasured])
+
+  const panel = (side: Exclude<Side, 'sleeve'>, source: DecalSource) =>
+    table.usable ? (
+      <PrintOverlay frame={normalized} garment={garment} side={side} source={source} k={printK} />
+    ) : (
+      <PrintDecal
+        geometry={geometry}
+        side={side}
+        source={source}
+        centreYIn={printCentreYIn(garment, side, normalized, printK)}
+      />
+    )
 
   return (
     <mesh geometry={geometry} material={material}>
-      {front && (
-        <PrintDecal
-          geometry={geometry}
-          garment={garment}
-          side="front"
-          source={front}
-          offsetYIn={areaOffsetYIn?.front ?? 0}
-        />
-      )}
-      {back && (
-        <PrintDecal
-          geometry={geometry}
-          garment={garment}
-          side="back"
-          source={back}
-          offsetYIn={areaOffsetYIn?.back ?? 0}
-        />
-      )}
+      {front && panel('front', front)}
+      {back && panel('back', back)}
       {sleeve && (
         <>
-          <SleeveDecal geometry={geometry} garment={garment} source={sleeve} sign={-1} />
-          <SleeveDecal geometry={geometry} garment={garment} source={sleeve} sign={1} />
+          <SleeveDecal frame={normalized} garment={garment} source={sleeve} sign={-1} />
+          <SleeveDecal frame={normalized} garment={garment} source={sleeve} sign={1} />
         </>
       )}
     </mesh>
