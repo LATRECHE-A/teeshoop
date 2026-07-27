@@ -82,6 +82,10 @@ function toSide(
   return {
     assetId: side.assetId,
     useCutout: side.useCutout,
+    // Provenance MUST cross this boundary: this is the only place a product
+    // becomes a studio garment, and a dropped flag would show a reconstructed
+    // back as if it were a photograph of the real product.
+    ...(side.origin ? { origin: side.origin } : {}),
     printArea: retargetArea(side.printArea, authoredWidthIn, widthIn),
   }
 }

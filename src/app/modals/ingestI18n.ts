@@ -34,6 +34,23 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'ingest.ph.store': 'Enregistrement…',
     'ingest.ph.cutout': 'Détourage…',
     'ingest.ph.measure': 'Analyse…',
+    'ingest.ph.generate': 'Reconstitution du dos…',
+    'ingest.back.generate': 'Reconstituer le dos depuis la face',
+    'ingest.back.tag': 'Généré',
+    'ingest.back.hint':
+      'Dos reconstitué à partir de la face — aperçu, non contractuel. Remplacez-le par une vraie photo dès que vous en avez une.',
+    'ingest.back.low_symmetry':
+      'Face peu symétrique ({pct} %) : poche, empiècement ou détail décentré se retrouveront du mauvais côté sur le dos reconstitué — vérifiez avant d’enregistrer. Un boutonnage ou un zip centré, lui, est effacé automatiquement.',
+    'ingest.back.err': 'Reconstitution impossible — la photo de face doit être détourée.',
+    'ingest.back.state.generated': 'Dos reconstitué',
+    'ingest.back.state.missing': 'Sans dos',
+    'ingest.gate.title': 'Ce produit n’a pas de photo dos',
+    'ingest.gate.body':
+      'Sans dos, l’aperçu 3D affiche une plaque unie, le mannequin AR est nu de dos et le client ne peut rien imprimer au verso. Choisissez :',
+    'ingest.gate.upload': 'Téléverser la photo dos',
+    'ingest.gate.generate': 'Reconstituer depuis la face',
+    'ingest.gate.skip': 'Continuer sans dos',
+    'ingest.gate.skip_hint': 'Le produit sera marqué « sans dos » dans la bibliothèque.',
     'ingest.err.decode_failed': 'Photo illisible — réessayez avec un JPG ou PNG net.',
     'ingest.err.cutout_failed':
       'Détourage impossible sur cette photo — reprenez-la sur fond uni et bien éclairé.',
@@ -83,6 +100,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'ingest.toast.export_failed': 'Export impossible — photos introuvables',
     'ingest.toast.need_front': 'Ajoutez au moins la photo de face',
     'ingest.toast.need_size': 'Renseignez au moins une taille',
+    'ingest.toast.back_generated': 'Dos reconstitué — vérifiez la zone d’impression',
     'ingest.toast.woo_photos': 'Photos importées — vérifiez les zones d’impression',
   },
   en: {
@@ -108,6 +126,23 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'ingest.ph.store': 'Storing…',
     'ingest.ph.cutout': 'Removing background…',
     'ingest.ph.measure': 'Measuring…',
+    'ingest.ph.generate': 'Reconstructing the back…',
+    'ingest.back.generate': 'Reconstruct the back from the front',
+    'ingest.back.tag': 'Generated',
+    'ingest.back.hint':
+      'Back reconstructed from the front — a preview, not contractual. Replace it with a real photo as soon as you have one.',
+    'ingest.back.low_symmetry':
+      'The front is not very symmetric ({pct}%): a pocket, a yoke or any off-centre detail will end up on the wrong side of the reconstructed back — check it before saving. A centred placket or zip is erased automatically.',
+    'ingest.back.err': 'Cannot reconstruct — the front photo must be cut out.',
+    'ingest.back.state.generated': 'Reconstructed back',
+    'ingest.back.state.missing': 'No back',
+    'ingest.gate.title': 'This product has no back photo',
+    'ingest.gate.body':
+      'Without a back, the 3D preview shows a flat slab, the AR model is bare from behind and the customer cannot print anything on the reverse. Choose:',
+    'ingest.gate.upload': 'Upload the back photo',
+    'ingest.gate.generate': 'Reconstruct it from the front',
+    'ingest.gate.skip': 'Continue without a back',
+    'ingest.gate.skip_hint': 'The product will be flagged “no back” in the library.',
     'ingest.err.decode_failed': 'Unreadable photo — try again with a clean JPG or PNG.',
     'ingest.err.cutout_failed':
       'Could not cut out this photo — reshoot it on a plain, well-lit background.',
@@ -157,6 +192,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'ingest.toast.export_failed': 'Export failed — photos missing',
     'ingest.toast.need_front': 'Add at least the front photo',
     'ingest.toast.need_size': 'Fill in at least one size',
+    'ingest.toast.back_generated': 'Back reconstructed — check the print area',
     'ingest.toast.woo_photos': 'Photos imported — review the print areas',
   },
 }

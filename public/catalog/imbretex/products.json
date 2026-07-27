@@ -1,7 +1,7 @@
 {
  "source": "imbretex.fr (public catalogue)",
- "note": "Temporary snapshot standing in for the Imbretex API. Prices are RRP (tarif conseillé de revente), not buying prices. Front photo only — no public back view.",
- "scrapedAt": "2026-07-26T01:12:39.585Z",
+ "note": "Temporary snapshot standing in for the Imbretex API. Prices are RRP (tarif conseillé de revente), not buying prices. Front AND back views are captured whenever the supplier publishes them. The ids in `backMissing` publish no back view in ANY colourway — every colourway carrying a visuals endpoint was probed (2026-07-27: 13, 13, 2 and 2 of them, each answering a single `_front` shot), and scrapes from now on record that count per product in `backProbe`. Their `views.back` is NOT a photograph: it is a reconstruction built from the front by scripts/generate-missing-backs.mjs, flagged `origin: \"generated\"` with its provenance in `views.back.generatedFrom`, carrying an \"APERÇU · PREVIEW\" mark in the pixels, and it never enters a print file.",
+ "scrapedAt": "2026-07-26T16:00:56.556Z",
  "measurementLegend": {
   "A": "halfChestCm (largeur, laid flat)",
   "B": "bodyLengthCm (longueur)"
@@ -12,6 +12,12 @@
   "sweat-shirt_168"
  ],
  "count": 46,
+ "backMissing": [
+  "202358",
+  "202359",
+  "191135",
+  "191137"
+ ],
  "products": [
   {
    "id": "143100",
@@ -2047,22 +2053,22 @@
    "imageUrl": "https://www.imbretex.fr/resize-image/17036167/1000/1000",
    "category": "tee-shirt_185",
    "photoColour": {
-    "id": "197352",
-    "name": "AMAZONIA GREEN",
+    "id": "203623",
+    "name": "IVORY",
     "rgb": [
-     110,
-     108,
-     59
+     235,
+     235,
+     204
     ]
    },
    "views": {
     "front": {
      "file": "img/75374-front.jpg",
-     "bytes": 68732
+     "bytes": 42235
     },
     "back": {
      "file": "img/75374-back.jpg",
-     "bytes": 66097
+     "bytes": 40403
     }
    }
   },
@@ -6314,6 +6320,20 @@
     "front": {
      "file": "img/202358-front.jpg",
      "bytes": 84581
+    },
+    "back": {
+     "file": "img/202358-back.png",
+     "bytes": 141949,
+     "origin": "generated",
+     "generatedFrom": {
+      "method": "front-mirror-flood",
+      "v": 2,
+      "colorHex": "#d2d2d2",
+      "colorSource": "sampled",
+      "placketSuppressed": false,
+      "symmetry": 0.9870223749637955,
+      "at": 1785123871313
+     }
     }
    }
   },
@@ -6597,6 +6617,20 @@
     "front": {
      "file": "img/202359-front.jpg",
      "bytes": 86941
+    },
+    "back": {
+     "file": "img/202359-back.png",
+     "bytes": 142287,
+     "origin": "generated",
+     "generatedFrom": {
+      "method": "front-mirror-flood",
+      "v": 2,
+      "colorHex": "#d5d5d5",
+      "colorSource": "sampled",
+      "placketSuppressed": false,
+      "symmetry": 0.9877017217589538,
+      "at": 1785123871313
+     }
     }
    }
   },
@@ -7373,18 +7407,22 @@
    "imageUrl": "https://www.imbretex.fr/resize-image/17039103/1000/1000",
    "category": "polo_153",
    "photoColour": {
-    "id": "202005",
-    "name": "ANTHRACITE",
+    "id": "172904",
+    "name": "WHITE / BLACK",
     "rgb": [
-     48,
-     59,
-     73
+     255,
+     255,
+     255
     ]
    },
    "views": {
     "front": {
      "file": "img/171722-front.jpg",
-     "bytes": 80207
+     "bytes": 57350
+    },
+    "back": {
+     "file": "img/171722-back.jpg",
+     "bytes": 52308
     }
    }
   },
@@ -7859,22 +7897,22 @@
    "imageUrl": "https://www.imbretex.fr/resize-image/16973540/1000/1000",
    "category": "polo_153",
    "photoColour": {
-    "id": "172943",
-    "name": "BLACK",
+    "id": "172953",
+    "name": "WHITE / BLACK",
     "rgb": [
-     0,
-     0,
-     0
+     255,
+     255,
+     255
     ]
    },
    "views": {
     "front": {
      "file": "img/171723-front.jpg",
-     "bytes": 62305
+     "bytes": 58236
     },
     "back": {
      "file": "img/171723-back.jpg",
-     "bytes": 74096
+     "bytes": 67354
     }
    }
   },
@@ -8236,18 +8274,32 @@
    "imageUrl": "https://www.imbretex.fr/resize-image/16969970/1000/1000",
    "category": "polo_153",
    "photoColour": {
-    "id": "192294",
-    "name": "NAVY/WHITE",
+    "id": "192293",
+    "name": "WHITE/NAVY",
     "rgb": [
-     2,
-     13,
-     51
+     255,
+     255,
+     255
     ]
    },
    "views": {
     "front": {
      "file": "img/191135-front.jpg",
-     "bytes": 77598
+     "bytes": 48838
+    },
+    "back": {
+     "file": "img/191135-back.png",
+     "bytes": 128116,
+     "origin": "generated",
+     "generatedFrom": {
+      "method": "front-mirror-flood",
+      "v": 2,
+      "colorHex": "#e5e7e9",
+      "colorSource": "sampled",
+      "placketSuppressed": false,
+      "symmetry": 0.9724890623630689,
+      "at": 1785123871313
+     }
     }
    }
   },
@@ -8331,18 +8383,32 @@
    "imageUrl": "https://www.imbretex.fr/resize-image/16969974/1000/1000",
    "category": "polo_153",
    "photoColour": {
-    "id": "192297",
-    "name": "NAVY/WHITE",
+    "id": "192296",
+    "name": "WHITE/NAVY",
     "rgb": [
-     2,
-     13,
-     51
+     255,
+     255,
+     255
     ]
    },
    "views": {
     "front": {
      "file": "img/191137-front.jpg",
-     "bytes": 86640
+     "bytes": 73544
+    },
+    "back": {
+     "file": "img/191137-back.png",
+     "bytes": 150107,
+     "origin": "generated",
+     "generatedFrom": {
+      "method": "front-mirror-flood",
+      "v": 2,
+      "colorHex": "#e4e4e6",
+      "colorSource": "sampled",
+      "placketSuppressed": false,
+      "symmetry": 0.9419917324314168,
+      "at": 1785123871313
+     }
     }
    }
   },

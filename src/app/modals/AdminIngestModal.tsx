@@ -6,6 +6,12 @@
  *
  * UI idioms follow CustomSetupModal (photo tile + auto bg-removal + print-
  * area placer); measurements are cm-first in mono type.
+ *
+ * BACK PHOTO: this is the seam where a back-less product would otherwise enter
+ * the catalogue unnoticed, so it is where the decision is forced — upload,
+ * reconstruct from the front, or say out loud that there is no back. A
+ * reconstructed back is badged here and stays badged everywhere downstream
+ * (ProductSideDef.origin → CustomSideSetup.origin).
  */
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -16,19 +22,22 @@ import {
   Package,
   Plus,
   RefreshCw,
+  Sparkles,
   Store,
   Trash2,
+  TriangleAlert,
   Upload,
   Wand2,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { nanoid } from 'nanoid'
 import Modal from './Modal'
+import PrintAreaPlacer from '@/app/PrintAreaPlacer'
 import { useStore } from '@/state/store'
 import { ensureAssetImage, listAssets } from '@/state/assets'
 import { getCustomSideInfo } from '@/lib/custom'
 import type { RectIn } from '@/lib/types'
-import { clamp, cmToIn, fmtCm, inToCm } from '@/lib/units'
+import { cmToIn } from '@/lib/units'
 import { downloadBlob, slugify } from '@/lib/download'
 import {
   DEFAULT_SIZE,
@@ -39,6 +48,7 @@ import {
 } from '@/content/sizeChart'
 import {
   autoPrintArea,
+  generateBackSide,
   IngestPhotoError,
   normalizeGarmentPhoto,
   parseSizeTable,
@@ -52,7 +62,13 @@ import {
   saveProduct,
 } from '@/lib/ingest/store'
 import { productToCustomGarment } from '@/lib/ingest/apply'
-import type { ProductDef, ProductMeta, ProductSideDef } from '@/lib/ingest/types'
+import {
+  backSourceOf,
+  type BackSource,
+  type ProductDef,
+  type ProductMeta,
+  type ProductSideDef,
+} from '@/lib/ingest/types'
 import {
   fetchWooImage,
   fetchWooProducts,
@@ -66,8 +82,18 @@ import {
 import { useIngestT } from './ingestI18n'
 
 type TFn = ReturnType<typeof useIngestT>
-type PhotoStage = 'store' | 'cutout' | 'measure'
+type PhotoStage = 'store' | 'cutout' | 'measure' | 'generate'
 type PhotoSide = 'front' | 'back'
+
+/**
+ * Saving a back-less product is a DECISION, not an oversight — so it costs an
+ * explicit click instead of happening by default. The gate is not a hard block:
+ * ship-your-own uploads legitimately have one photo, and a real product with no
+ * back is a real thing. It just can no longer slip through silently.
+ */
+const REQUIRE_BACK_PHOTO = true
+/** Below this mirror-symmetry IoU a generated back needs a human look. */
+const LOW_SYMMETRY = 0.93
 
 /** Editor working copy of a ProductDef (front may still be missing). */
 interface Draft {
@@ -116,179 +142,6 @@ function draftHalfChestCm(d: Draft): number {
 }
 
 // ---------------------------------------------------------------------------
-// Print-area placer (CustomSetupModal pattern, cm-first labels)
-// ---------------------------------------------------------------------------
-
-function AreaPlacer({
-  setup,
-  widthIn,
-  onChange,
-  onAuto,
-  t,
-}: {
-  setup: ProductSideDef
-  widthIn: number
-  onChange: (area: RectIn) => void
-  onAuto: () => void
-  t: TFn
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [disp, setDisp] = useState<{ w: number; h: number; ppi: number } | null>(null)
-  const drag = useRef<{
-    kind: 'move' | 'nw' | 'ne' | 'sw' | 'se'
-    startX: number
-    startY: number
-    area: RectIn
-  } | null>(null)
-  // Latest onChange for the window pointermove listener (its effect only
-  // re-runs on disp/width changes — a plain closure would go stale and spread
-  // an outdated draft from the parent).
-  const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
-
-  useEffect(() => {
-    let on = true
-    void (async () => {
-      const info = await getCustomSideInfo(setup, widthIn)
-      if (!on || !canvasRef.current) return
-      const maxW = 430
-      const maxH = 280
-      const gHIn = info.bbox.h / info.pxPerInch
-      const ppi = Math.min(maxW / widthIn, maxH / gHIn)
-      const w = Math.round(widthIn * ppi)
-      const h = Math.round(gHIn * ppi)
-      const canvas = canvasRef.current
-      canvas.width = w * 2
-      canvas.height = h * 2
-      canvas.style.width = `${w}px`
-      canvas.style.height = `${h}px`
-      const ctx = canvas.getContext('2d')!
-      ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(
-        info.img,
-        info.bbox.x,
-        info.bbox.y,
-        info.bbox.w,
-        info.bbox.h,
-        0,
-        0,
-        canvas.width,
-        canvas.height,
-      )
-      setDisp({ w, h, ppi })
-    })()
-    return () => {
-      on = false
-    }
-    // The drawn photo only depends on which asset/variant is shown — NOT on
-    // printArea, which changes every drag tick.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setup.assetId, setup.useCutout, widthIn])
-
-  const area = setup.printArea
-
-  const clampArea = (a: RectIn): RectIn => {
-    if (!disp) return a
-    const gH = disp.h / disp.ppi
-    const wIn = clamp(a.wIn, 2, widthIn)
-    const hIn = clamp(a.hIn, 2, gH)
-    return {
-      wIn,
-      hIn,
-      xIn: clamp(a.xIn, 0, widthIn - wIn),
-      yIn: clamp(a.yIn, 0, gH - hIn),
-    }
-  }
-
-  useEffect(() => {
-    const move = (e: PointerEvent) => {
-      const d = drag.current
-      if (!d || !disp) return
-      const dxIn = (e.clientX - d.startX) / disp.ppi
-      const dyIn = (e.clientY - d.startY) / disp.ppi
-      const a = { ...d.area }
-      if (d.kind === 'move') {
-        a.xIn += dxIn
-        a.yIn += dyIn
-      } else {
-        if (d.kind.includes('w')) {
-          a.xIn += dxIn
-          a.wIn -= dxIn
-        } else {
-          a.wIn += dxIn
-        }
-        if (d.kind.includes('n')) {
-          a.yIn += dyIn
-          a.hIn -= dyIn
-        } else {
-          a.hIn += dyIn
-        }
-      }
-      onChangeRef.current(clampArea(a))
-    }
-    const up = () => {
-      drag.current = null
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    return () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [disp, widthIn])
-
-  const start =
-    (kind: NonNullable<typeof drag.current>['kind']) => (e: React.PointerEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      drag.current = { kind, startX: e.clientX, startY: e.clientY, area }
-    }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="relative mx-auto select-none">
-        <canvas ref={canvasRef} className="rounded-lg bg-bg0" />
-        {disp && (
-          <div
-            className="absolute cursor-move border-2 border-cy bg-cy/10"
-            style={{
-              left: area.xIn * disp.ppi,
-              top: area.yIn * disp.ppi,
-              width: area.wIn * disp.ppi,
-              height: area.hIn * disp.ppi,
-            }}
-            onPointerDown={start('move')}
-          >
-            <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-bg1/95 px-1.5 py-0.5 font-mono text-[10px] text-cy">
-              {fmtCm(inToCm(area.wIn))} × {fmtCm(inToCm(area.hIn))}
-            </span>
-            {(['nw', 'ne', 'sw', 'se'] as const).map((k) => (
-              <span
-                key={k}
-                onPointerDown={start(k)}
-                className={clsx(
-                  'absolute h-3 w-3 rounded-full border-2 border-bg0 bg-cy',
-                  k.includes('n') ? '-top-1.5' : '-bottom-1.5',
-                  k.includes('w') ? '-left-1.5' : '-right-1.5',
-                  k === 'nw' || k === 'se' ? 'cursor-nwse-resize' : 'cursor-nesw-resize',
-                )}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
-        <button className="chip hover:border-cy/50 hover:text-cy" onClick={onAuto}>
-          <Wand2 size={10} /> {t('ingest.area.auto')}
-        </button>
-        <span className="text-[10.5px] text-tx3">{t('custom.drag_hint')}</span>
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Photo tile (upload + pipeline progress)
 // ---------------------------------------------------------------------------
 
@@ -297,16 +150,24 @@ function PhotoTile({
   def,
   stage,
   onUpload,
+  onGenerate,
+  fileRef,
   t,
 }: {
   side: PhotoSide
   def: ProductSideDef | null
   stage: PhotoStage | null
   onUpload: (file: File) => void
+  /** Offered only where a reconstruction is possible and defensible. */
+  onGenerate?: () => void
+  /** Lets the save gate open this tile's picker without leaving the panel. */
+  fileRef?: React.RefObject<HTMLInputElement | null>
   t: TFn
 }) {
-  const inputRef = useRef<HTMLInputElement>(null)
+  const localRef = useRef<HTMLInputElement>(null)
+  const inputRef = fileRef ?? localRef
   const [thumb, setThumb] = useState<string | null>(null)
+  const generated = def?.origin === 'generated'
 
   useEffect(() => {
     let on = true
@@ -366,21 +227,60 @@ function PhotoTile({
             </span>
           </>
         )}
+        {generated && !stage && (
+          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full border border-yl/40 bg-yl/15 px-1.5 py-px text-[9.5px] font-medium text-yl">
+            <Sparkles size={9} /> {t('ingest.back.tag')}
+          </span>
+        )}
         {stage && (
           <span className="absolute inset-0 flex items-center justify-center gap-2 bg-bg0/80 text-[12px] text-cy backdrop-blur-[2px]">
             <Wand2 size={14} className="animate-pulse" /> {t(`ingest.ph.${stage}`)}
           </span>
         )}
       </button>
-      {def && !stage && (
-        <button
-          className="chip self-start hover:border-cy/50 hover:text-cy"
-          onClick={() => inputRef.current?.click()}
-        >
-          <RefreshCw size={10} /> {t('common.replace')}
-        </button>
+      {!stage && (
+        <div className="flex flex-wrap gap-1.5">
+          {def && (
+            <button
+              className="chip hover:border-cy/50 hover:text-cy"
+              onClick={() => inputRef.current?.click()}
+            >
+              <RefreshCw size={10} /> {t('common.replace')}
+            </button>
+          )}
+          {onGenerate && (
+            <button className="chip hover:border-yl/50 hover:text-yl" onClick={onGenerate}>
+              <Sparkles size={10} /> {t('ingest.back.generate')}
+            </button>
+          )}
+        </div>
+      )}
+      {generated && !stage && (
+        <p className="text-[10.5px] leading-snug text-tx3">{t('ingest.back.hint')}</p>
       )}
     </div>
+  )
+}
+
+/**
+ * Back-coverage chip for a library row. `real` gets NO chip on purpose — it is
+ * the norm, and badging it would turn the two states that need attention into
+ * noise. Absent (a row written before the index carried the field) reads as
+ * real too, which is what it was.
+ */
+function BackChip({ source, t }: { source: BackSource | undefined; t: TFn }) {
+  if (source !== 'generated' && source !== 'missing') return null
+  return (
+    <span
+      className={clsx(
+        'rounded-full border px-1.5 py-px font-sans text-[9.5px] font-medium',
+        source === 'generated'
+          ? 'border-yl/40 bg-yl/10 text-yl'
+          : 'border-dg/40 bg-dg/10 text-dg',
+      )}
+    >
+      {t(`ingest.back.state.${source}`)}
+    </span>
   )
 }
 
@@ -631,7 +531,7 @@ function WooSection({
           )}
         </div>
         {result && !result.ok && (
-          <p className="rounded-lg border border-danger/40 bg-danger/10 p-2.5 text-[11.5px] leading-snug text-danger">
+          <p className="rounded-lg border border-dg/40 bg-dg/10 p-2.5 text-[11.5px] leading-snug text-dg">
             {wooErrMsg(t, result.error)}
           </p>
         )}
@@ -704,7 +604,10 @@ export default function AdminIngestModal({
   })
   const [armedDelete, setArmedDelete] = useState<string | null>(null)
   const [wooBusy, setWooBusy] = useState<number | null>(null)
+  /** Pending save/apply intent, parked while the missing-back gate is shown. */
+  const [gate, setGate] = useState<'save' | 'studio' | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
+  const backFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     void (async () => {
@@ -716,6 +619,12 @@ export default function AdminIngestModal({
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // The gate is an answer to "you just asked to save THIS product"; it must not
+  // outlive the draft that raised it. Left standing it re-appears unprompted on
+  // the next back-less product opened — and "continue without a back" would
+  // then commit an intent the admin expressed about a different garment.
+  useEffect(() => setGate(null), [draft?.id])
 
   const openEdit = (p: ProductDef) => {
     setDraft({
@@ -780,6 +689,38 @@ export default function AdminIngestModal({
 
   const upload = (side: PhotoSide) => (file: File) =>
     void ingestBlob(side, file, `${t('side.' + side)} — ${file.name}`)
+
+  /**
+   * Reconstruct the back from the front. Explicit, never automatic here: an
+   * admin uploading their own photos may well have a real back coming, and a
+   * generated one would then have to be undone.
+   */
+  const generateBack = async () => {
+    if (!draft?.front) return
+    const draftId = draft.id
+    const halfChestCm = draftHalfChestCm(draft)
+    const front = draft.front
+    const label = draft.name.trim() || t('ingest.unnamed')
+    setProc((p) => ({ ...p, back: 'generate' }))
+    try {
+      const back = await generateBackSide(front, halfChestCm, {
+        name: `${label} — ${t('side.back')}`,
+        at: Date.now(),
+      })
+      setAssets(await listAssets())
+      setDraft((prev) => (prev && prev.id === draftId ? { ...prev, back } : prev))
+      toast('ok', t('ingest.toast.back_generated'))
+    } catch (err) {
+      toast(
+        'error',
+        err instanceof IngestPhotoError && err.code !== 'cutout_failed'
+          ? t(`ingest.err.${err.code}`)
+          : t('ingest.back.err'),
+      )
+    } finally {
+      setProc((p) => ({ ...p, back: null }))
+    }
+  }
 
   const suggestArea = async (side: PhotoSide) => {
     if (!draft) return
@@ -846,25 +787,32 @@ export default function AdminIngestModal({
       defaultSize: draft.sizes[draft.defaultSize] ? draft.defaultSize : covered[0],
       front: draft.front,
       back: draft.back,
+      backSource: backSourceOf(draft),
       ...(draft.notes.trim() ? { notes: draft.notes.trim() } : {}),
     }
   }
 
-  const saveDraft = async () => {
-    const p = buildProduct()
-    if (!p) return
+  const commit = async (intent: 'save' | 'studio', p: ProductDef) => {
     setMetas(await saveProduct(p))
-    toast('ok', t('ingest.toast.saved', { name: p.name }))
-    setDraft(null)
-  }
-
-  const useInStudio = async () => {
-    const p = buildProduct()
-    if (!p) return
-    setMetas(await saveProduct(p))
+    if (intent === 'save') {
+      toast('ok', t('ingest.toast.saved', { name: p.name }))
+      setDraft(null)
+      return
+    }
     setCustom(productToCustomGarment(p, p.defaultSize))
     closeModal('adminIngest')
     toast('ok', t('ingest.toast.applied', { name: p.name, size: p.defaultSize }))
+  }
+
+  /** Save / apply, through the missing-back gate (see REQUIRE_BACK_PHOTO). */
+  const submit = async (intent: 'save' | 'studio') => {
+    const p = buildProduct()
+    if (!p) return
+    if (!p.back && REQUIRE_BACK_PHOTO) {
+      setGate(intent)
+      return
+    }
+    await commit(intent, p)
   }
 
   const exportOne = async (meta: ProductMeta) => {
@@ -968,8 +916,9 @@ export default function AdminIngestModal({
                     {m.brandRef && (
                       <div className="truncate text-[10.5px] text-tx3">{m.brandRef}</div>
                     )}
-                    <div className="mt-0.5 font-mono text-[10px] text-tx2">
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-tx2">
                       {m.sizeIds.join(' · ') || t('ingest.list.sizes', { n: 0 })}
+                      <BackChip source={m.backSource} t={t} />
                     </div>
                   </div>
                   <div className="touch-reveal flex shrink-0 flex-col gap-1">
@@ -986,7 +935,10 @@ export default function AdminIngestModal({
                     <button
                       className={clsx(
                         'iconbtn h-7 w-7',
-                        armedDelete === m.id && 'bg-danger/20 text-danger',
+                        // `dg` is the theme's danger token (src/styles.css); the
+                        // `danger` name emits no utility at all, which left the
+                        // armed state visually identical to the unarmed one.
+                        armedDelete === m.id && 'bg-dg/20 text-dg',
                       )}
                       title={armedDelete === m.id ? t('ingest.list.delete_confirm') : t('common.delete')}
                       onClick={(e) => {
@@ -1046,8 +998,33 @@ export default function AdminIngestModal({
             <div className="panel-title mb-2">{t('ingest.ed.photos')}</div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <PhotoTile side="front" def={draft.front} stage={proc.front} onUpload={upload('front')} t={t} />
-              <PhotoTile side="back" def={draft.back} stage={proc.back} onUpload={upload('back')} t={t} />
+              <PhotoTile
+                side="back"
+                def={draft.back}
+                stage={proc.back}
+                onUpload={upload('back')}
+                fileRef={backFileRef}
+                // Only from a cut-out front: without a silhouette there is
+                // nothing to mirror, and a real back must never be replaced.
+                onGenerate={
+                  draft.front?.useCutout &&
+                  !proc.front &&
+                  (!draft.back || draft.back.origin === 'generated')
+                    ? () => void generateBack()
+                    : undefined
+                }
+                t={t}
+              />
             </div>
+            {draft.back?.generatedFrom &&
+              draft.back.generatedFrom.symmetry < LOW_SYMMETRY && (
+                <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-yl/40 bg-yl/10 p-2 text-[10.5px] leading-snug text-yl">
+                  <TriangleAlert size={12} className="mt-px shrink-0" />
+                  {t('ingest.back.low_symmetry', {
+                    pct: Math.round(draft.back.generatedFrom.symmetry * 100),
+                  })}
+                </p>
+              )}
           </section>
 
           {draft.front && !proc.front && (
@@ -1055,16 +1032,18 @@ export default function AdminIngestModal({
               <div className="panel-title mb-2">
                 {t('custom.print_area_side', { side: t('side.front') })}
               </div>
-              <AreaPlacer
+              <PrintAreaPlacer
                 setup={draft.front}
                 widthIn={placerWidthIn}
+                side="front"
+                minIn={2}
                 onChange={(printArea) =>
                   setDraft((prev) =>
                     prev?.front ? { ...prev, front: { ...prev.front, printArea } } : prev,
                   )
                 }
                 onAuto={() => void suggestArea('front')}
-                t={t}
+                autoLabel={t('ingest.area.auto')}
               />
             </section>
           )}
@@ -1073,16 +1052,18 @@ export default function AdminIngestModal({
               <div className="panel-title mb-2">
                 {t('custom.print_area_side', { side: t('side.back') })}
               </div>
-              <AreaPlacer
+              <PrintAreaPlacer
                 setup={draft.back}
                 widthIn={placerWidthIn}
+                side="back"
+                minIn={2}
                 onChange={(printArea) =>
                   setDraft((prev) =>
                     prev?.back ? { ...prev, back: { ...prev.back, printArea } } : prev,
                   )
                 }
                 onAuto={() => void suggestArea('back')}
-                t={t}
+                autoLabel={t('ingest.area.auto')}
               />
             </section>
           )}
@@ -1118,16 +1099,61 @@ export default function AdminIngestModal({
 
           <WooSection busyId={wooBusy} onPick={(c) => void wooPick(c)} t={t} />
 
+          {gate && !draft.back && (
+            <div className="flex flex-col gap-2 rounded-xl border border-yl/40 bg-yl/10 p-3">
+              <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-yl">
+                <TriangleAlert size={14} /> {t('ingest.gate.title')}
+              </div>
+              <p className="text-[11px] leading-snug text-tx2">{t('ingest.gate.body')}</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setGate(null)
+                    backFileRef.current?.click()
+                  }}
+                >
+                  <Upload size={13} /> {t('ingest.gate.upload')}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={!draft.front?.useCutout}
+                  onClick={() => {
+                    setGate(null)
+                    void generateBack()
+                  }}
+                >
+                  <Sparkles size={13} /> {t('ingest.gate.generate')}
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    const p = buildProduct()
+                    setGate(null)
+                    if (p) void commit(gate, p)
+                  }}
+                >
+                  {t('ingest.gate.skip')}
+                </button>
+              </div>
+              <p className="text-[10.5px] leading-snug text-tx3">{t('ingest.gate.skip_hint')}</p>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 border-t border-line pt-4">
             <button className="btn btn-ghost" onClick={() => setDraft(null)}>
               {t('common.cancel')}
             </button>
-            <button className="btn" onClick={() => void saveDraft()} disabled={!draft.front}>
+            <button
+              className="btn"
+              onClick={() => void submit('save')}
+              disabled={!draft.front || !!proc.front || !!proc.back}
+            >
               {t('ingest.save')}
             </button>
             <button
               className="btn btn-primary"
-              onClick={() => void useInStudio()}
+              onClick={() => void submit('studio')}
               disabled={!draft.front || !!proc.front || !!proc.back}
             >
               {t('ingest.use_studio')}

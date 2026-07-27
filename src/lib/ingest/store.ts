@@ -10,21 +10,72 @@ import { get, set, del, update } from 'idb-keyval'
 import type { AssetMeta } from '@/lib/types'
 import { assetToDataUrl, ensureAssetImage, importAsset, listAssets } from '@/state/assets'
 import { invalidateCustomBBox } from '@/lib/custom'
+import { invalidateGarmentAnatomy } from '@/lib/garmentAnatomy'
 import {
+  backSourceOf,
   isProductDef,
   productSizeIds,
   sanitizeSizes,
   type ProductDef,
   type ProductMeta,
+  type ProductSideDef,
 } from './types'
 
 const INDEX_KEY = 'tshop:products:index'
 const productKey = (id: string) => `tshop:product:${id}`
+/** Index schema version — bumped when a row gains a field (see listProducts). */
+const INDEX_V_KEY = 'tshop:products:indexV'
+const INDEX_V = 2
 
 const THUMB_PX = 120
 
+/**
+ * Bring a stored record up to the current schema. Everything here is additive
+ * and idempotent: a side with no `origin` predates generated backs and is
+ * therefore a real photo, and `backSource` is derivable from the record. Runs
+ * on every read so a machine that never re-saves still behaves correctly.
+ *
+ * `backSource` is RE-derived, not merely filled in: it is denormalised, and the
+ * one caller that does not compute it — importProductFile, reading a file a
+ * human may have edited — could otherwise hand us a record claiming a real back
+ * over a `generated` side. Recomputing is what makes the promise below (record
+ * and index row can never disagree) true rather than aspirational; the object
+ * is only cloned when the stored value is actually wrong, so reads stay cheap.
+ */
+function migrateProduct(p: ProductDef): ProductDef {
+  const stamp = (s: ProductSideDef | null) =>
+    s && s.origin === undefined ? { ...s, origin: 'photo' as const } : s
+  const front = stamp(p.front)!
+  const back = stamp(p.back)
+  let out = front !== p.front || back !== p.back ? { ...p, front, back } : p
+  const backSource = backSourceOf(out)
+  if (out.backSource !== backSource) out = { ...out, backSource }
+  return out
+}
+
+/**
+ * The index rows are denormalised, so a new field cannot be derived from them —
+ * it needs the records. Backfill once, guarded by a version key: at admin scale
+ * (tens of products) that is a handful of small IndexedDB reads on first load.
+ */
 export async function listProducts(): Promise<ProductMeta[]> {
-  return (await get<ProductMeta[]>(INDEX_KEY)) ?? []
+  const index = (await get<ProductMeta[]>(INDEX_KEY)) ?? []
+  if (index.length === 0 || (await get<number>(INDEX_V_KEY)) === INDEX_V) return index
+  const next = await Promise.all(
+    index.map(async (m) =>
+      m.backSource
+        ? m
+        : {
+            ...m,
+            backSource: backSourceOf(
+              (await get<ProductDef>(productKey(m.id))) ?? { back: null },
+            ),
+          },
+    ),
+  )
+  await set(INDEX_KEY, next)
+  await set(INDEX_V_KEY, INDEX_V)
+  return next
 }
 
 /** Atomic read-modify-write of the index (see mutateIndex in assets.ts). */
@@ -40,7 +91,8 @@ async function mutateIndex(
 }
 
 export async function getProduct(id: string): Promise<ProductDef | undefined> {
-  return get<ProductDef>(productKey(id))
+  const raw = await get<ProductDef>(productKey(id))
+  return raw && migrateProduct(raw)
 }
 
 /** Small front-photo data-url for the library cards ('' when unavailable). */
@@ -64,7 +116,10 @@ async function renderProductThumb(product: ProductDef): Promise<string> {
 }
 
 /** Save (or overwrite by id) with a fresh thumbnail; returns the new index. */
-export async function saveProduct(product: ProductDef): Promise<ProductMeta[]> {
+export async function saveProduct(input: ProductDef): Promise<ProductMeta[]> {
+  // Normalised on the way in as well as on the way out, so the record and its
+  // index row can never disagree about the back.
+  const product = migrateProduct(input)
   const meta: ProductMeta = {
     id: product.id,
     name: product.name,
@@ -72,6 +127,7 @@ export async function saveProduct(product: ProductDef): Promise<ProductMeta[]> {
     sizeIds: productSizeIds(product),
     thumb: await renderProductThumb(product),
     createdAt: product.createdAt,
+    backSource: backSourceOf(product),
   }
   await set(productKey(product.id), product)
   return mutateIndex((index) => [
@@ -93,8 +149,9 @@ export async function deleteProduct(id: string): Promise<ProductMeta[]> {
 // Single-product JSON file (portable between machines)
 // ---------------------------------------------------------------------------
 
+/** v1 files predate photo provenance; migrateProduct upgrades them on import. */
 interface ProductFile {
-  v: 1
+  v: 1 | 2
   app: 'tshop-product'
   product: ProductDef
   assets: Record<
@@ -119,7 +176,7 @@ export async function exportProductFile(product: ProductDef): Promise<Blob> {
       cutoutDataUrl: meta.hasCutout ? await assetToDataUrl(id, 'cutout') : null,
     }
   }
-  const file: ProductFile = { v: 1, app: 'tshop-product', product, assets }
+  const file: ProductFile = { v: 2, app: 'tshop-product', product, assets }
   return new Blob([JSON.stringify(file)], { type: 'application/json' })
 }
 
@@ -135,17 +192,24 @@ export async function importProductFile(blob: Blob): Promise<ProductDef> {
   } catch {
     throw new Error('Not a Tshop product file')
   }
-  if (file.app !== 'tshop-product' || file.v !== 1 || !isProductDef(file.product))
+  // EVERY version this app has ever written must stay importable — a file
+  // exported last week is the whole point of the format.
+  if (
+    file.app !== 'tshop-product' ||
+    (file.v !== 1 && file.v !== 2) ||
+    !isProductDef(file.product)
+  )
     throw new Error('Not a Tshop product file')
   // A hand-edited/foreign file may carry malformed size rows the guard only
   // ignores — strip them here so nothing downstream can select one.
-  const product: ProductDef = {
+  const product: ProductDef = migrateProduct({
     ...file.product,
     sizes: sanitizeSizes(file.product.sizes),
-  }
+  })
   for (const [id, a] of Object.entries(file.assets ?? {})) {
     await importAsset({ ...a.meta, id }, a.dataUrl, a.cutoutDataUrl)
     invalidateCustomBBox(id)
+    invalidateGarmentAnatomy(id)
   }
   await saveProduct(product)
   return product

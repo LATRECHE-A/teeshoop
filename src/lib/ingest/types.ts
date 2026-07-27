@@ -1,8 +1,9 @@
 /**
  * INGEST — product auto-ingest type contracts.
  *
- * A ProductDef is an admin-authored garment: two photos (front required,
- * back optional) + a per-size cm table. It converts into the studio's
+ * A ProductDef is an admin-authored garment: two photos (front required, back
+ * `real | generated | missing` — see BackSource) + a per-size cm table. It
+ * converts into the studio's
  * existing CustomGarment (src/lib/types.ts) via src/lib/ingest/apply.ts, so
  * ingested products ride the whole 2D/3D/AR custom-garment pipeline with
  * real dimensions.
@@ -31,9 +32,49 @@ import { SIZE_IDS, isSizeId } from '@/content/sizeChart'
 import type { RectIn } from '@/lib/types'
 
 /**
+ * Where a side's image came from. `'generated'` means it was RECONSTRUCTED
+ * from the other side (src/lib/ingest/pipeline.ts) because no real photo
+ * exists — a preview, never a contractual representation of the product.
+ *
+ * The field is OPTIONAL and absent means `'photo'`: every side stored before
+ * provenance existed was a real supplier/customer photo, so no persisted
+ * record has to be rewritten to be correct.
+ */
+export type SidePhotoOrigin = 'photo' | 'generated'
+
+/** Provenance of a generated side — kept for QA, support and the UI badge. */
+export interface GeneratedSideInfo {
+  method: 'front-mirror-flood'
+  /**
+   * 1 = mirrored silhouette + low-pass shading. 2 = the same, plus centred-
+   * placket suppression (a polo back must not show a button placket — see
+   * pipeline.ts). Records stamped 1 stay 1 and stay TRUE: the added pass is a
+   * no-op on any garment without a contrast band down the centre, so their
+   * pixels are already what 2 produces.
+   */
+  v: 1 | 2
+  /** sRGB hex flooded into the mirrored silhouette. */
+  colorHex: string
+  colorSource: 'supplier-swatch' | 'sampled'
+  /** From v2: a centred vertical band was found and flattened out. */
+  placketSuppressed?: boolean
+  /**
+   * Mirror-symmetry of the source SILHOUETTE (IoU against its own mirror),
+   * 1 = perfectly symmetric. Below ~0.93 the outline is asymmetric and the
+   * mirror puts a detail on the wrong side, so the admin UI escalates from
+   * "generated" to "generated — review this". It says nothing about features
+   * inside the outline (a chest pocket): see the blind-spot note in
+   * pipeline.ts, which is why the visible marking is not optional.
+   */
+  symmetry: number
+  /** Generation timestamp, passed in by the caller (this module stays pure). */
+  at: number
+}
+
+/**
  * One side of the product. Structurally compatible with CustomSideSetup on
- * purpose (assetId/useCutout/printArea) so side defs flow into the custom
- * pipeline without translation.
+ * purpose (assetId/useCutout/printArea/origin) so side defs flow into the
+ * custom pipeline without translation.
  */
 export interface ProductSideDef {
   /** Photo of this garment side, stored in the shared asset library. */
@@ -45,6 +86,22 @@ export interface ProductSideDef {
    * bbox width = halfChestCm(defaultSize) in inches. See module header.
    */
   printArea: RectIn
+  /** Absent ⇒ 'photo'. See SidePhotoOrigin. */
+  origin?: SidePhotoOrigin
+  /** Present only when origin === 'generated'. */
+  generatedFrom?: GeneratedSideInfo
+}
+
+/**
+ * Denormalised answer to "does this product have a back, and is it real?".
+ * A boolean cannot carry it: `missing` and `generated` are different products
+ * commercially, and the difference has to reach whoever chooses what to sell.
+ */
+export type BackSource = 'real' | 'generated' | 'missing'
+
+export function backSourceOf(p: Pick<ProductDef, 'back'>): BackSource {
+  if (!p.back) return 'missing'
+  return p.back.origin === 'generated' ? 'generated' : 'real'
 }
 
 export interface ProductDef {
@@ -65,7 +122,15 @@ export interface ProductDef {
    */
   defaultSize: SizeId
   front: ProductSideDef
+  /**
+   * Deliberately still nullable: ship-your-own uploads legitimately arrive
+   * front-only, and making this required would break every persisted product
+   * for a guarantee that only holds on the catalogue path. The guarantee is
+   * expressed by `backSource` + the ingest gate instead.
+   */
   back: ProductSideDef | null
+  /** Denormalised `backSourceOf(product)` for the library index. */
+  backSource?: BackSource
   notes?: string
 }
 
@@ -79,6 +144,8 @@ export interface ProductMeta {
   /** Small front-photo data-url thumbnail. */
   thumb: string
   createdAt: number
+  /** Back coverage, so the library list can flag it without loading records. */
+  backSource: BackSource
 }
 
 function isRectIn(v: unknown): v is RectIn {
@@ -92,13 +159,18 @@ function isRectIn(v: unknown): v is RectIn {
   )
 }
 
+const ORIGINS = new Set<string>(['photo', 'generated'])
+
 function isSideDef(v: unknown): v is ProductSideDef {
   if (typeof v !== 'object' || v === null) return false
   const s = v as Record<string, unknown>
   return (
     typeof s.assetId === 'string' &&
     typeof s.useCutout === 'boolean' &&
-    isRectIn(s.printArea)
+    isRectIn(s.printArea) &&
+    // Absent is the legacy (and correct) value; a hand-edited file must not be
+    // able to smuggle in an origin the UI would then fail to badge.
+    (s.origin === undefined || (typeof s.origin === 'string' && ORIGINS.has(s.origin)))
   )
 }
 

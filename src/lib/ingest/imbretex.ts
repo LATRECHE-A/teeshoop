@@ -26,8 +26,20 @@
  *    conseillé). It is NOT our purchase cost and must never be presented as
  *    one; no margin maths anywhere in the app may read it.
  */
-import type { ProductDef, ProductSideDef } from './types'
-import { autoPrintArea, normalizeGarmentPhoto } from './pipeline'
+import {
+  backSourceOf,
+  type BackSource,
+  type GeneratedSideInfo,
+  type ProductDef,
+  type ProductSideDef,
+  type SidePhotoOrigin,
+} from './types'
+import {
+  adoptGeneratedBack,
+  autoPrintArea,
+  generateBackSide,
+  normalizeGarmentPhoto,
+} from './pipeline'
 import { getCustomSideInfo } from '@/lib/custom'
 import { cmToIn } from '@/lib/units'
 import {
@@ -55,6 +67,15 @@ export interface ImbretexView {
   /** Path relative to the snapshot root, e.g. "img/190608-front.jpg". */
   file: string
   bytes?: number
+  /**
+   * Absent ⇒ a supplier PHOTOGRAPH (see SidePhotoOrigin). `'generated'` marks a
+   * reconstruction committed by scripts/generate-missing-backs.mjs for a
+   * reference the supplier publishes no back for — a preview, never a photo of
+   * the product, and the whole app is told so through `generatedFrom`.
+   */
+  origin?: SidePhotoOrigin
+  /** Present only when `origin === 'generated'`. */
+  generatedFrom?: GeneratedSideInfo
 }
 
 export interface ImbretexProduct {
@@ -76,6 +97,12 @@ export interface ImbretexProduct {
   /** RECOMMENDED RETAIL price, € — never our cost. */
   rrpEur: number | null
   colours: ImbretexColour[]
+  /**
+   * Colourways the supplier page listed, before the scraper's own 40-entry cap
+   * on `colours`. Larger than `colours.length` ⇒ some were never even seen, and
+   * `backProbe` counts them as unprobed. Absent on older snapshots.
+   */
+  colourTotal?: number
   /** Size labels as published (XS…5XL, or kids' 3…14). */
   sizes: string[]
   /** Measurement A — laid-flat half chest, cm, aligned with `sizes`. */
@@ -87,6 +114,16 @@ export interface ImbretexProduct {
   /** Colour the catalogue photos were shot in (all views share it). */
   photoColour: { id: string; name: string; rgb: [number, number, number] } | null
   views: { front?: ImbretexView; back?: ImbretexView }
+  /**
+   * How hard the scraper looked for a back, present ONLY on products where it
+   * found none — the evidence behind `backMissing`. `probed < colourways`
+   * means the claim was never made (the id goes to `backUnknown` instead), and
+   * a product whose scrape ABORTED records `probed: 0` because a probe count
+   * that was interrupted mid-product proves nothing. Absent on snapshots taken
+   * before the field existed — and absence is treated as no evidence, never as
+   * "nothing left to probe".
+   */
+  backProbe?: { colourways: number; probed: number }
   /** Supplier taxonomy slug, e.g. "tee-shirt_185" / "sweat-shirt_168". */
   category: string
 }
@@ -97,6 +134,20 @@ export interface ImbretexCatalog {
   scrapedAt: string
   measurementLegend?: Record<string, string>
   count: number
+  /**
+   * Ids for which the supplier publishes NO back view in any colourway — the
+   * scraper probes EVERY colourway with a visuals endpoint before saying so
+   * (see each product's `backProbe`), which makes this a statement about the
+   * supplier and not about the scrape. Their `views.back` is a reconstruction
+   * carrying `origin: 'generated'`, never a photograph.
+   */
+  backMissing?: string[]
+  /**
+   * Ids with no back AND an incomplete probe: back-less as far as we looked,
+   * which is a weaker claim than `backMissing` and is kept separate so nobody
+   * reads one as the other.
+   */
+  backUnknown?: string[]
   products: ImbretexProduct[]
 }
 
@@ -124,8 +175,15 @@ export class ImbretexError extends Error {
 export const IMBRETEX_ROOT = '/catalog/imbretex/'
 const SNAPSHOT_URL = `${IMBRETEX_ROOT}products.json`
 
+export interface ImbretexSnapshotMeta {
+  source: string
+  scrapedAt: string
+  /** See ImbretexCatalog.backMissing. */
+  backMissing: string[]
+}
+
 let cache: ImbretexProduct[] | null = null
-let meta: { source: string; scrapedAt: string } | null = null
+let meta: ImbretexSnapshotMeta | null = null
 /** In-flight request, shared so a StrictMode double-mount fetches once. */
 let pending: Promise<ImbretexProduct[]> | null = null
 
@@ -190,7 +248,16 @@ export async function fetchImbretexCatalog(): Promise<ImbretexProduct[]> {
     // duplicate carries no CMYK/Pantone), and the ids are used as React keys.
     const products = json.products.filter(isProduct).map(dedupeColours)
     if (products.length === 0) throw new ImbretexError('parse')
-    meta = { source: json.source ?? 'imbretex.fr', scrapedAt: json.scrapedAt ?? '' }
+    meta = {
+      source: json.source ?? 'imbretex.fr',
+      scrapedAt: json.scrapedAt ?? '',
+      // An older snapshot has no list; the products with no REAL back are then
+      // the only evidence available, which is the same conclusion. A generated
+      // back counts as missing here — the list is about the supplier.
+      backMissing: Array.isArray(json.backMissing)
+        ? json.backMissing
+        : products.filter((p) => imbretexBackSource(p) !== 'real').map((p) => p.id),
+    }
     cache = products
     return products
   })().finally(() => {
@@ -199,8 +266,8 @@ export async function fetchImbretexCatalog(): Promise<ImbretexProduct[]> {
   return pending
 }
 
-/** Snapshot provenance (source + scrape date) — null before the first fetch. */
-export function imbretexSnapshotMeta(): { source: string; scrapedAt: string } | null {
+/** Snapshot provenance (source, scrape date, back gaps) — null before fetch. */
+export function imbretexSnapshotMeta(): ImbretexSnapshotMeta | null {
   return meta
 }
 
@@ -208,6 +275,14 @@ export function imbretexSnapshotMeta(): { source: string; scrapedAt: string } | 
 export function imbretexPhotoUrl(p: ImbretexProduct, side: 'front' | 'back'): string {
   const file = p.views?.[side]?.file
   return file ? IMBRETEX_ROOT + file : ''
+}
+
+/** Where a catalogue entry's back view comes from — the same three states the
+ *  product library uses (src/lib/ingest/types.ts), one snapshot step earlier so
+ *  the browse UI can badge a reconstruction BEFORE anyone imports it. */
+export function imbretexBackSource(p: ImbretexProduct): BackSource {
+  if (!p.views?.back?.file) return 'missing'
+  return p.views.back.origin === 'generated' ? 'generated' : 'real'
 }
 
 /** True when the supplier certifies a transfer process we actually run. */
@@ -357,6 +432,7 @@ export function imbretexToProductDef(
     defaultSize,
     front: opts.front,
     back: opts.back ?? null,
+    backSource: backSourceOf({ back: opts.back ?? null }),
     notes: buildNotes(p, colour),
   }
 }
@@ -396,8 +472,15 @@ async function ingestSide(
 export interface ImbretexIngestOptions {
   colourId?: string
   defaultSize?: SizeId
-  /** Progress ticks for the modal ('back' only fires when a back view exists). */
-  onProgress?: (side: 'front' | 'back') => void
+  /** Progress ticks for the modal ('generate' fires when a back is rebuilt). */
+  onProgress?: (stage: 'front' | 'back' | 'generate') => void
+  /**
+   * Reconstruct a back when the supplier publishes none (default: yes). Set
+   * false to keep the product honestly back-less instead.
+   */
+  generateBack?: boolean
+  /** Generation timestamp — a parameter so the pipeline stays clock-free. */
+  now?: number
 }
 
 /**
@@ -406,8 +489,17 @@ export interface ImbretexIngestOptions {
  * cutout + automatic print-area suggestion), then `imbretexToProductDef`
  * attaches the real cm size table.
  *
- * A back view that fails to ingest is skipped (front-only product) — only a
- * front failure aborts.
+ * BACK GUARANTEE: four references in the snapshot have no public back view in
+ * ANY colourway (see ImbretexCatalog.backMissing). Rather than shipping a
+ * product whose 3D back is a slab and whose AR model is bare from behind, the
+ * snapshot carries a RECONSTRUCTION for them, generated once by
+ * scripts/generate-missing-backs.mjs from the same pipeline this would call —
+ * so it is adopted here, not re-derived, and arrives stamped
+ * `origin: 'generated'` with the provenance the snapshot recorded.
+ *
+ * A back that fails to ingest, or a supplier who publishes none for a product
+ * nobody has generated yet, leaves the same hole: reconstruct on the spot
+ * instead. Only a FRONT failure aborts.
  *
  * @throws ImbretexError · IngestPhotoError (see pipeline.ts)
  */
@@ -425,12 +517,39 @@ export async function ingestImbretexProduct(
   opts.onProgress?.('front')
   const front = await ingestSide(p, 'front', halfChestCm, `${p.name} — face`)
 
+  // A reconstruction is only adoptable WITH its provenance: an `origin:
+  // 'generated'` view whose `generatedFrom` is missing (hand-edited snapshot)
+  // is deliberately not ingested as anything — it falls through to being
+  // rebuilt below, where the provenance is true because we made it.
+  const snapBack = p.views?.back
+  const provenance = snapBack?.origin === 'generated' ? snapBack.generatedFrom : undefined
+
   let back: ProductSideDef | null = null
-  if (p.views?.back?.file) {
+  if (provenance) {
+    // Adopt the committed pixels AND the recorded provenance. The print area is
+    // derived from the front's, never re-detected — the collar contrast
+    // autoPrintArea needs is exactly what the low-pass removed (pipeline.ts).
+    opts.onProgress?.('generate')
+    back = await adoptGeneratedBack(
+      front,
+      await fetchPhoto(imbretexPhotoUrl(p, 'back')),
+      halfChestCm,
+      provenance,
+      { name: `${p.name} — dos (reconstitué)` },
+    ).catch(() => null)
+  } else if (snapBack?.file && snapBack.origin !== 'generated') {
     opts.onProgress?.('back')
     back = await ingestSide(p, 'back', halfChestCm, `${p.name} — dos`).catch(
       () => null,
     )
+  }
+  if (!back && opts.generateBack !== false) {
+    opts.onProgress?.('generate')
+    back = await generateBackSide(front, halfChestCm, {
+      name: `${p.name} — dos (reconstitué)`,
+      at: opts.now ?? 0,
+      colorRgb: p.photoColour?.rgb ?? null,
+    }).catch(() => null)
   }
   return imbretexToProductDef(p, {
     front,

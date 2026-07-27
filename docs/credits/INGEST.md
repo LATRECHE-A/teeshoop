@@ -11,3 +11,8 @@ No external assets, models, or code snippets were brought into this module.
   copied material.
 - Size-chart prefills reuse the project's own `src/content/sizeChart.ts`
   (Stanley/Stella official flat measurements, already credited there).
+- `public/catalog/imbretex/img/{202358,202359,191135,191137}-back.png` are not
+  supplier photographs and are not third-party assets: they are derived, by
+  `scripts/generate-missing-backs.mjs`, from the front photos already in that
+  folder (same supplier provenance as every other file there) and are marked
+  `origin: 'generated'` in `products.json` plus watermarked in the pixels.

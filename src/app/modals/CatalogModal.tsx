@@ -9,7 +9,7 @@
  * AR all work with no renderer changes.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ExternalLink, Package, RefreshCw, Search } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Package, RefreshCw, Search, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
@@ -21,6 +21,7 @@ import { saveProduct } from '@/lib/ingest/store'
 import { productToCustomGarment } from '@/lib/ingest/apply'
 import {
   fetchImbretexCatalog,
+  imbretexBackSource,
   imbretexDroppedSizes,
   imbretexPhotoUrl,
   imbretexSizes,
@@ -34,7 +35,7 @@ import {
 import { useCatalogT } from './catalogI18n'
 
 type TFn = ReturnType<typeof useCatalogT>
-type Busy = 'front' | 'back'
+type Busy = 'front' | 'back' | 'generate'
 
 /** A catalogue entry whose size run overlaps the studio's S–3XL union. */
 interface Entry {
@@ -54,6 +55,7 @@ const swatch = (rgb: [number, number, number]) => `rgb(${rgb[0]},${rgb[1]},${rgb
 function Card({ entry, onPick, t }: { entry: Entry; onPick: () => void; t: TFn }) {
   const { p } = entry
   const photo = imbretexPhotoUrl(p, 'front')
+  const backSource = imbretexBackSource(p)
   return (
     <li>
       <button
@@ -83,6 +85,13 @@ function Card({ entry, onPick, t }: { entry: Entry; onPick: () => void; t: TFn }
           {p.supplierRef}
           {p.weightGsm ? ` · ${t('catalog.card.gsm', { g: p.weightGsm })}` : ''}
         </span>
+        {/* Whoever picks a reference to sell has to see, in the grid, that its
+            back is a reconstruction — not discover it three clicks in. */}
+        {backSource !== 'real' && (
+          <span className="w-fit rounded-full border border-yl/40 bg-yl/10 px-1.5 py-px text-[9.5px] font-medium text-yl">
+            {t(backSource === 'generated' ? 'catalog.card.back_generated' : 'catalog.card.back_missing')}
+          </span>
+        )}
         <span className="mt-auto flex items-center gap-1.5 pt-1">
           {p.colours.slice(0, 6).map((c) => (
             <span
@@ -126,6 +135,7 @@ function Detail({
   t: TFn
 }) {
   const { p, sizes, sizeIds } = entry
+  const backSource = imbretexBackSource(p)
   // Default to the colourway the photos were shot in — that is what the user
   // actually sees in the preview.
   const [colourId, setColourId] = useState(
@@ -161,9 +171,9 @@ function Detail({
         <div className="flex shrink-0 gap-2 sm:w-[240px] sm:flex-col">
           {(['front', 'back'] as const).map((side) => {
             const url = imbretexPhotoUrl(p, side)
-            return url ? (
+            if (!url) return null
+            const img = (
               <img
-                key={side}
                 src={url}
                 alt={`${p.name} — ${side}`}
                 draggable={false}
@@ -172,10 +182,49 @@ function Detail({
                   side === 'front' ? 'h-44' : 'h-24',
                 )}
               />
-            ) : null
+            )
+            // The reconstruction is shown, so it is labelled ON the image: the
+            // paragraph below can be scrolled past, the picture cannot.
+            return side === 'back' && backSource === 'generated' ? (
+              // w-full so the two views still share the flex ROW this column
+              // becomes below the sm breakpoint, and self-start so the wrapper
+              // hugs the image there instead of stretching to the taller front
+              // and dropping the badge into the gap underneath it.
+              <span key={side} className="relative block w-full self-start sm:self-auto">
+                {img}
+                {/* Clamped + truncating: below the sm breakpoint this thumbnail
+                    is barely wider than the label, and a wrapping chip spilled
+                    out of the image. The full sentence sits right beside it. */}
+                <span className="absolute bottom-1 left-1 flex max-w-[calc(100%-0.5rem)] items-center gap-1 overflow-hidden whitespace-nowrap rounded-full border border-yl/40 bg-bg0/85 px-1.5 py-px text-[9.5px] font-medium text-yl">
+                  <Sparkles size={9} className="shrink-0" />
+                  <span className="truncate">{t('catalog.card.back_generated')}</span>
+                </span>
+              </span>
+            ) : (
+              <span key={side} className="block w-full self-start sm:self-auto">
+                {img}
+              </span>
+            )
           })}
-          {!p.views?.back?.file && (
-            <p className="text-[10.5px] leading-snug text-tx3">{t('catalog.detail.no_back')}</p>
+          {backSource !== 'real' && (
+            <div className="rounded-lg border border-yl/40 bg-yl/10 p-2 text-[10.5px] leading-snug text-tx2">
+              <span className="flex items-center gap-1 font-medium text-yl">
+                <Sparkles size={11} />{' '}
+                {t(
+                  backSource === 'generated'
+                    ? 'catalog.card.back_generated'
+                    : 'catalog.card.back_missing',
+                )}
+              </span>
+              <p className="mt-1">{t('catalog.detail.no_back')}</p>
+              <p className="mt-1">
+                {t(
+                  backSource === 'generated'
+                    ? 'catalog.detail.back_reconstructed'
+                    : 'catalog.detail.back_generated',
+                )}
+              </p>
+            </div>
           )}
         </div>
 
@@ -368,14 +417,23 @@ export default function CatalogModal() {
         colourId,
         defaultSize: size,
         onProgress: setBusy,
+        now: Date.now(),
       })
       await saveProduct(product)
       setAssets(await listAssets())
       setCustom(productToCustomGarment(product, product.defaultSize))
       closeModal('catalog')
+      // The toast is the last moment before the customer starts designing on
+      // that back — say which of the three it is rather than a bare "loaded".
+      const key =
+        product.backSource === 'generated'
+          ? 'catalog.toast.applied_generated'
+          : product.backSource === 'missing'
+            ? 'catalog.toast.no_back'
+            : 'catalog.toast.applied'
       toast(
-        'ok',
-        t('catalog.toast.applied', { name: product.name, size: product.defaultSize }),
+        product.backSource === 'missing' ? 'warn' : 'ok',
+        t(key, { name: product.name, size: product.defaultSize }),
       )
     } catch (err) {
       if (err instanceof ImbretexError) toast('error', t(`catalog.err.${err.code}`))
@@ -388,6 +446,12 @@ export default function CatalogModal() {
 
   const snapshot = imbretexSnapshotMeta()
   const date = snapshot?.scrapedAt ? snapshot.scrapedAt.slice(0, 10) : ''
+  // Counted over every pickable entry, NOT over `shown`: this states a fact
+  // about the supplier's catalogue, so it must not shrink to zero the moment a
+  // filter or a search term happens to hide the gaps. (References the studio
+  // cannot carry at all — kids' size runs — are already out of `entries`, so a
+  // warning about something nobody can pick is still impossible.)
+  const backGap = entries.filter((e) => imbretexBackSource(e.p) !== 'real').length
 
   return (
     <Modal
@@ -402,7 +466,7 @@ export default function CatalogModal() {
         </p>
 
         {loadErr && (
-          <p className="rounded-lg border border-danger/40 bg-danger/10 p-2.5 text-[11.5px] leading-snug text-danger">
+          <p className="rounded-lg border border-dg/40 bg-dg/10 p-2.5 text-[11.5px] leading-snug text-dg">
             {t(`catalog.err.${loadErr}`)}
           </p>
         )}
@@ -458,6 +522,11 @@ export default function CatalogModal() {
               {hidden > 0 && (
                 <p className="text-[10.5px] leading-snug text-tx3">
                   {t('catalog.hidden_sizes', { n: hidden })}
+                </p>
+              )}
+              {backGap > 0 && (
+                <p className="text-[10.5px] leading-snug text-tx3">
+                  {t('catalog.back_gap', { n: backGap })}
                 </p>
               )}
             </>

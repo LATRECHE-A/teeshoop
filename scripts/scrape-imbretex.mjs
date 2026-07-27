@@ -15,8 +15,13 @@
  *   - colours: name + swatch RGB + CMYK + Pantone
  *   - the SIZE GUIDE table: row "A" = half-chest (largeur) cm,
  *     row "B" = body length (longueur) cm, one column per size
- *   - ONE product photo (1000x1000). There is no public back view, so
- *     ingested products are front-only (the editor supports that).
+ *   - per-COLOUR photo sets (1000x1000): front / back / side. Coverage is
+ *     uneven — a given colourway may publish a front and no back — so we PROBE
+ *     colourways until one carries both (see resolveViews). A front-only
+ *     snapshot leaves the studio with nothing to show on the back of the
+ *     garment, which is why completeness outranks colour neutrality here, and
+ *     why a product that ends up back-less records how many colourways were
+ *     actually probed (`backProbe`) instead of asserting more than it checked.
  * Prices shown anonymously are "tarif conseillé de revente" (RRP), not our
  * buying price — recorded as such, never treated as cost.
  *
@@ -26,6 +31,7 @@
  *
  *   node scripts/scrape-imbretex.mjs                     # default sample
  *   IMB_PER_CAT=25 IMB_CATS=tee-shirt_185 node scripts/scrape-imbretex.mjs
+ *   node scripts/generate-missing-backs.mjs              # ALWAYS run after
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
@@ -142,6 +148,12 @@ async function parseProduct(page, id, html) {
       labelType: spec['Type d’étiquette'] || spec["Type d'étiquette"] || null,
       rrpEur: priceTxt ? Number(priceTxt[1].replace(',', '.')) : null,
       colours: colours.slice(0, 40),
+      // How many the page actually listed, BEFORE the cap above. Five products
+      // in the current catalogue sit exactly on that cap, i.e. they were very
+      // likely truncated — and a colourway we never listed is one we never
+      // probed, so `backProbe.colourways` has to count it or "we looked at all
+      // of them" becomes true by deletion (see resolveViews).
+      colourTotal: colours.length,
       sizes,
       // A = half-chest (largeur), B = body length (longueur). Imbretex does not
       // publish a sleeve measurement, so sleeveLengthCm is derived downstream.
@@ -203,31 +215,141 @@ try {
     return buf.length
   }
 
+  /** Light neutral colourways cut out cleanest and recolour best. */
+  const NEUTRAL = /^(white|blanc|natural|off\s*white|ecru|ivory)\b/i
+  /**
+   * Politeness valve, NOT a filter: it may never be the reason a colourway went
+   * unlooked-at while the snapshot claims "no back in any colourway". It is set
+   * to the same 40 that caps `colours` in parseProduct — but that cap is not a
+   * reason to relax, it is the OTHER place a colourway can go unlooked-at, and
+   * five products in the catalogue already sit exactly on it. `resolveViews`
+   * therefore counts the colourways the cap dropped into its denominator, so
+   * either limit biting produces `probed < candidates` and the claim is
+   * withheld (see `colourTotal` / `backProbe` / `backMissing` below).
+   *
+   * It was 12 while both LUX polos carry 13 colourways: the 13th was never
+   * probed, and "no back in any colourway" was asserted anyway. That happened
+   * to be true (verified live, every colourway of all four answers exactly one
+   * shot, `_front`) — next catalogue it would be a silent miss.
+   */
+  const MAX_COLOUR_PROBES = 40
+
+  /**
+   * `{front,back,…} → large-image URL` for one colourway.
+   *
+   * `null` = there was nothing to ask (no visuals endpoint). `undefined` =
+   * we ASKED and did not get an answer, which is a different fact and must
+   * stay one: folding a failed request into "this colourway publishes no back"
+   * is how a network hiccup turns into "the supplier publishes none in ANY
+   * colourway". `resolveViews` does not count an unanswered colourway.
+   */
+  async function viewsFor(colour) {
+    if (!colour?.visualsUrl) return null
+    let shots
+    try {
+      shots = await get(colour.visualsUrl, true)
+    } catch {
+      return undefined
+    }
+    const byView = {}
+    for (const s of shots || []) {
+      const view = (String(s.origin).match(/_(front|back|leftside|rightside|detail)\.[a-z]+$/i) || [])[1]
+      if (view && !byView[view.toLowerCase()]) byView[view.toLowerCase()] = s.large
+    }
+    return byView
+  }
+
+  /**
+   * Choose the colourway to snapshot: COMPLETENESS first, neutrality second.
+   *
+   * A colour's name is no evidence of which views it publishes, so we probe.
+   * Neutral colourways go first (they are the nicest to cut out) and we stop at
+   * the first one carrying BOTH front and back; a front-only colour is kept as
+   * the best-so-far in case no complete set exists at all. The previous rule —
+   * an anchored /^WHITE$/ match, else the first colour in DOM order — silently
+   * picked a front-only colourway for products whose backs are published under
+   * another name ("WHITE / WHITE"), which is how five products ended up
+   * back-less in the snapshot while the supplier published a back all along.
+   *
+   * Most products settle on the first probe; only genuinely back-less products
+   * pay the full candidate list.
+   *
+   * Returns `probed` / `candidates` alongside the pick: a back-less product's
+   * evidence is exactly "we looked at N of M colourways", and only N === M
+   * supports the claim the snapshot makes.
+   */
+  async function resolveViews(p) {
+    const candidates = [...p.colours]
+      .filter((c) => c.visualsUrl)
+      .sort((a, b) => (NEUTRAL.test(b.name) ? 1 : 0) - (NEUTRAL.test(a.name) ? 1 : 0))
+    // Colourways parseProduct's own cap dropped are unprobeable AND uncounted,
+    // which would make `probed === candidates` true for a product we only saw
+    // 40 of. Count them in: we cannot know whether they publish a visuals
+    // endpoint, so the honest denominator is the pessimistic one.
+    const unlisted = Math.max(0, (p.colourTotal ?? p.colours.length) - p.colours.length)
+    const total = candidates.length + unlisted
+    let best = null
+    let probed = 0
+    for (const c of candidates.slice(0, MAX_COLOUR_PROBES)) {
+      const byView = await viewsFor(c)
+      if (byView === undefined) continue // asked, no answer — NOT a probe
+      probed++
+      if (!byView?.front) continue
+      if (!best) best = { colour: c, byView }
+      if (byView.back) return { ...best, colour: c, byView, probed, candidates: total }
+      await sleep(DELAY_MS)
+    }
+    // Even with nothing usable found, say how far we got: a caller that has to
+    // decide whether "the supplier publishes no back" is sayable needs the
+    // count, and `null` used to hand it nothing at all (see `exhaustive`).
+    return { ...(best ?? { colour: null, byView: null }), probed, candidates: total }
+  }
+
   for (let i = 0; i < products.length; i += CONCURRENCY) {
     await Promise.all(
       products.slice(i, i + CONCURRENCY).map(async (p) => {
-        // Prefer a light, neutral colour — it cuts out cleanest and recolours best.
-        const pick =
-          p.colours.find((c) => /^(WHITE|BLANC|NATURAL|OFF WHITE)$/i.test(c.name)) ??
-          p.colours.find((c) => c.visualsUrl) ??
-          null
-        if (!pick?.visualsUrl) return
+        // Declared out here so the catch below can still record how far the
+        // probe got: a product that threw mid-download is a product we did not
+        // finish looking at, and `exhaustive` has to be able to see that.
+        let found = null
         try {
-          const shots = await get(pick.visualsUrl, true)
-          const byView = {}
-          for (const s of shots || []) {
-            const view = (String(s.origin).match(/_(front|back|leftside|rightside|detail)\.[a-z]+$/i) || [])[1]
-            if (view && !byView[view.toLowerCase()]) byView[view.toLowerCase()] = s.large
+          found = await resolveViews(p)
+          const { colour, byView, probed, candidates } = found
+          if (!colour) {
+            p.backProbe = { colourways: candidates, probed }
+            failures.push({ id: p.id, why: 'no colourway publishes a front view' })
+            return
           }
-          p.photoColour = { id: pick.id, name: pick.name, rgb: pick.rgb }
+          p.photoColour = { id: colour.id, name: colour.name, rgb: colour.rgb }
           p.views = {}
           for (const view of ['front', 'back']) {
             if (!byView[view]) continue
             const file = `${p.id}-${view}.jpg`
             p.views[view] = { file: `img/${file}`, bytes: await grab(byView[view], file) }
           }
+          // A missing BACK is a real gap, not a detail: the studio has to
+          // reconstruct one (src/lib/ingest/pipeline.ts) and say so to the
+          // customer. Record it like any other failure so it cannot go unseen —
+          // together with how hard we looked, which is the only thing that
+          // makes "the supplier publishes none" a claim rather than a guess.
           if (!p.views.front) failures.push({ id: p.id, why: 'no front view' })
+          if (!p.views.back) {
+            p.backProbe = { colourways: candidates, probed }
+            failures.push({
+              id: p.id,
+              why:
+                probed >= candidates
+                  ? `no back view (all ${candidates} colourways probed)`
+                  : `no back view — ONLY ${probed}/${candidates} colourways probed, claim withheld`,
+            })
+          }
         } catch (e) {
+          // A throw here is usually a failed image download — which can happen
+          // AFTER we saw a back URL, so the surviving probe count is no longer
+          // evidence of anything. Zero is the honest reading and keeps such a
+          // product out of `backMissing`, where it would otherwise have
+          // asserted that the supplier publishes no back at all.
+          p.backProbe = { colourways: found?.candidates ?? 0, probed: 0 }
           failures.push({ id: p.id, why: `visuals: ${String(e).slice(0, 60)}` })
         }
       }),
@@ -235,17 +357,51 @@ try {
     await sleep(DELAY_MS)
   }
 
+  // Products the supplier publishes no back view for, in ANY colourway. These
+  // are not scraper misses: they are the honest gap the studio has to cover by
+  // generating a back, and the list is what lets a check assert on it.
+  //
+  // Membership requires EXHAUSTIVE evidence — every colourway with a visuals
+  // endpoint actually probed. A product we ran out of probes on is back-less as
+  // far as the snapshot knows, but that is not the same statement, so it goes
+  // in `backUnknown` and nobody gets to read it as "the supplier has none".
+  const noBack = products.filter((p) => !p.views?.back)
+  /**
+   * NO recorded probe is the WEAKEST evidence there is, not the strongest.
+   * `(probed ?? 0) >= (colourways ?? 0)` read 0 >= 0 as "all of them" and
+   * promoted straight into `backMissing` exactly the products we learned
+   * nothing about: the ones whose every visuals endpoint threw (resolveViews
+   * returns null before it can record a probe) and the ones that fell into the
+   * catch below while downloading — including a product whose back URL we had
+   * in hand and merely failed to fetch. That is the claim this whole field
+   * exists to stop being made.
+   */
+  const exhaustive = (p) =>
+    !!p.backProbe && p.backProbe.colourways > 0 && p.backProbe.probed >= p.backProbe.colourways
+  const backMissing = noBack.filter(exhaustive).map((p) => p.id)
+  const backUnknown = noBack.filter((p) => !exhaustive(p)).map((p) => p.id)
+
   const snapshot = {
     source: 'imbretex.fr (public catalogue)',
-    note: 'Temporary snapshot standing in for the Imbretex API. Prices are RRP (tarif conseillé de revente), not buying prices. Front photo only — no public back view.',
+    note: 'Temporary snapshot standing in for the Imbretex API. Prices are RRP (tarif conseillé de revente), not buying prices. Front AND back views are captured whenever the supplier publishes them. `backMissing` lists the ids that publish no back view in ANY colourway — every colourway with a visuals endpoint was probed, see each product’s `backProbe`; `backUnknown` lists ids whose colourways were not all probed, which is a weaker statement. Run scripts/generate-missing-backs.mjs next: it reconstructs a back for the `backMissing` ids and stamps it `origin: "generated"`.',
     scrapedAt: new Date().toISOString(),
     measurementLegend: { A: 'halfChestCm (largeur, laid flat)', B: 'bodyLengthCm (longueur)' },
     categories: CATS,
     count: products.length,
+    backMissing,
+    backUnknown,
     products,
   }
   writeFileSync(`${OUT}/products.json`, JSON.stringify(snapshot, null, 1))
   console.log(`\n✅ ${products.length} products → ${OUT}/products.json`)
+  console.log(
+    `   backs: ${products.length - noBack.length}/${products.length}` +
+      (backMissing.length ? ` — none published for ${backMissing.join(', ')}` : ''),
+  )
+  if (backUnknown.length)
+    console.log(`   ⚠ under-probed (no claim made): ${backUnknown.join(', ')}`)
+  if (noBack.length)
+    console.log('   → run: node scripts/generate-missing-backs.mjs')
   if (failures.length) {
     console.log(`⚠ ${failures.length} skipped:`)
     for (const f of failures.slice(0, 12)) console.log(`   ${f.id}: ${f.why}`)
