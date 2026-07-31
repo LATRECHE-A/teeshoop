@@ -3,9 +3,16 @@
 	"name": "tshop",
 	"main": "worker/index.ts",
 	"compatibility_date": "2026-06-01",
+	// SECRETS (never in this file — it is committed):
+	//   wrangler secret put FR_WS_USER      Falk&Ross webservice account
+	//   wrangler secret put FR_WS_PASS      … and its password
+	//   wrangler secret put FR_CUSTOMER_NR  optional, only to PLACE orders
+	// Locally, the same keys go in .dev.vars (git-ignored). Declared on the
+	// Worker's Env interface in worker/falkross.ts (FalkRossEnv).
+	//
 	// Static assets (studio + viewer page) with SPA fallback. The Worker
-	// (worker/index.ts) handles /api/ar, /r2/ar/* and /v/* and otherwise falls
-	// through to these assets via the ASSETS binding.
+	// (worker/index.ts) handles /api/ar, /api/fr/*, /r2/ar/* and /v/* and
+	// otherwise falls through to these assets via the ASSETS binding.
 	"assets": {
 		"directory": "./dist",
 		"binding": "ASSETS",
@@ -13,6 +20,7 @@
 		// Run the Worker FIRST for the dynamic routes. Without this, a browser
 		// navigation to /v/{id} (no matching asset) hits the SPA fallback and serves
 		// the studio instead of the viewer page. Everything else stays assets-first.
+		// "/api/*" already covers the Falk&Ross catalogue at /api/fr/*.
 		"run_worker_first": [
 			"/api/*",
 			"/r2/*",

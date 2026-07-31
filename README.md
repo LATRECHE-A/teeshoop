@@ -151,10 +151,11 @@ round-trip via `wrangler dev`). Regenerate the README screenshots with
 ## Deploy to Cloudflare Workers
 
 The repo is configured (`wrangler.jsonc`) as a Worker that serves `dist/` as
-static assets (SPA fallback) **plus** three dynamic routes for AR:
-`POST /api/ar` (store a model), `GET /r2/ar/{id}.{ext}` (serve it with the right
-MIME), and `GET /v/{id}` (the viewer page). Camera + native AR require HTTPS,
-which Cloudflare provides.
+static assets (SPA fallback) **plus** dynamic routes for AR — `POST /api/ar`
+(store a model), `GET /r2/ar/{id}.{ext}` (serve it with the right MIME) and
+`GET /v/{id}` (the viewer page) — and for the **Falk&Ross supplier catalogue**
+(`/api/fr/*`, see below). Camera + native AR require HTTPS, which Cloudflare
+provides.
 
 **One-time setup — create the R2 bucket + an expiry rule** (models are private
 per-design and should not accumulate forever):
@@ -165,6 +166,31 @@ npx wrangler r2 bucket create tshop-ar
 # Auto-delete stored models after 30 days (R2 has no per-object TTL):
 npx wrangler r2 bucket lifecycle add tshop-ar expire-ar ar/ --expire-days 30 -y
 ```
+
+**One-time setup — Falk&Ross webservice credentials.** The supplier catalogue
+calls an authenticated API, so the credentials live as Worker secrets and are
+never committed or shipped to the browser:
+
+```sh
+npx wrangler secret put FR_WS_USER      # webservice account (NOT the webshop login)
+npx wrangler secret put FR_WS_PASS
+npx wrangler secret put FR_CUSTOMER_NR  # optional — only needed to PLACE orders
+```
+
+For local `wrangler dev`, put the same keys in **`.dev.vars`** (git-ignored).
+Without them the catalogue answers `503 config` and the UI says so; the AR
+routes are unaffected.
+
+`npm run dev` serves static assets only, so it has no `/api/*` at all. Run the
+Worker beside it and Vite forwards to it:
+
+```sh
+npx wrangler dev      # terminal 1 — the API, on :8787
+npm run dev           # terminal 2 — the studio, proxying /api to :8787
+```
+
+(Set `TSHOP_WORKER` if wrangler is on another port. With wrangler down the
+proxy fails with ECONNREFUSED rather than quietly serving the SPA's HTML.)
 
 ### Option A — one-off from your machine
 
@@ -186,6 +212,58 @@ simulated local R2 bucket — no cloud account needed).
 
 Custom domain later: Worker → **Settings → Domains & Routes → Add → Custom
 domain** (e.g. `studio.tshop.com`).
+
+## Supplier catalogue
+
+Two sources feed the **Catalogue fournisseur** modal; both map onto the same
+`ProductDef` and ride the same ingest pipeline (cutout + auto print-area +
+generated back) as an admin upload.
+
+**Falk&Ross — live API (default).** `src/lib/ingest/falkross.ts` talks only to
+our own Worker (`worker/falkross.ts`), because the supplier needs HTTP Basic
+credentials, sends no CORS headers, and serves photos that would otherwise taint
+the ingest canvas. Worker routes, all returning compact JSON:
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/fr/state` | webservice mode — `test` (simulated) vs `live` (real orders) |
+| `GET /api/fr/styles?q&kind&offset&limit` | paged, server-side-filtered style cards |
+| `GET /api/fr/style/{styleNr}` | one style: colourways, sizes, SKUs, photos |
+| `GET /api/fr/price/{styleNr}` | **our purchase cost** per SKU (`your_price`) |
+| `GET /api/fr/stock/{styleNr}` | stock per SKU |
+| `GET /api/fr/deliveries/{styleNr?}` | announced restock dates |
+| `GET /api/fr/img/{picture\|picto}/{file}` | photo proxy (CORS + 30-day cache) |
+| `POST /api/fr/order` | place an order — **not wired into the UI** |
+
+The style list is ~2350 entries and each style is a separate upstream document,
+so `/api/fr/styles` walks the list under a subrequest budget and returns
+`nextOffset`; the UI shows how much of the catalogue has actually been scanned.
+Everything derived is memoised in the Cache API (styles 24 h, prices 1 h, stock
+5 min, photos 30 days).
+
+**Falk&Ross publishes no garment measurements** — only size labels. The studio
+needs real cm per size (print placement, 3D, DTF all derive from `halfChestCm`),
+so its tables are estimated from the reference blanks in
+`src/content/sizeChart.ts`, picked by the supplier's category and sleeve groups,
+and stamped `sizeSource: 'reference-chart'` on the product. The catalogue shows
+the estimate before import, links the manufacturer's own size-spec PDF, and lets
+an admin override the table — which re-stamps it `'manual'`. Absence of
+`sizeSource` means `'supplier'`, so every previously saved product stays valid.
+
+Ordering (`placeFalkRossOrder`) is exported and documented but deliberately has
+no button: it returns the webservice mode with every attempt so a live order can
+never be mistaken for a rehearsal.
+
+**Imbretex — offline snapshot (secondary).** The committed scrape under
+`public/catalog/imbretex/` (`src/lib/ingest/imbretex.ts`). No live prices or
+stock, but it carries the supplier's own published A/B measurements, so it stays
+reachable as the fallback and as the only source with measured size tables.
+
+Sanity-check the live endpoints without a browser:
+
+```sh
+FR_WS_USER=… FR_WS_PASS=… node scripts/fr-verify.mjs
+```
 
 ## Configuration
 

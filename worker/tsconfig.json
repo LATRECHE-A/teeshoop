@@ -10,5 +10,5 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["index.ts"]
+  "include": ["index.ts", "falkross.ts", "xml.ts"]
 }

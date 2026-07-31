@@ -15,6 +15,25 @@ export default defineConfig({
       'onnxruntime-web': 'onnxruntime-web/wasm',
     },
   },
+  server: {
+    /**
+     * `npm run dev` serves static assets only — the Worker is what holds the
+     * Falk&Ross credentials, so `/api/*` does not exist here and the supplier
+     * catalogue would answer a Vite 404 (an HTML page, which the client then
+     * fails to parse as JSON — a confusing way to learn the backend is not
+     * running). Forward it to `npx wrangler dev` instead, whose default port
+     * this is; with wrangler down the proxy fails loudly with ECONNREFUSED,
+     * which at least says what is wrong.
+     *
+     * Override with `TSHOP_WORKER=http://…` if wrangler runs elsewhere.
+     */
+    proxy: {
+      '/api': {
+        target: process.env.TSHOP_WORKER ?? 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,

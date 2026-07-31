@@ -14,9 +14,74 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
   fr: {
     'catalog.title': 'Catalogue fournisseur',
     'catalog.subtitle':
-      'Les vêtements vierges Imbretex, avec leurs vraies mesures — chargez-en un dans l’éditeur.',
+      'Les vêtements vierges de nos fournisseurs — chargez-en un dans l’éditeur avec ses tailles.',
     'catalog.entry.title': 'Catalogue fournisseur',
-    'catalog.entry.cta': 'Choisir un vêtement vierge Imbretex',
+    'catalog.entry.cta': 'Choisir un vêtement vierge',
+
+    // --- sources ---------------------------------------------------------
+    'catalog.source.falkross': 'Falk&Ross',
+    'catalog.source.falkross_hint': 'API en direct · prix et stocks réels',
+    'catalog.source.imbretex': 'Imbretex',
+    'catalog.source.imbretex_hint': 'Extrait hors ligne · mesures publiées',
+
+    // --- Falk&Ross -------------------------------------------------------
+    'catalog.fr.provenance':
+      'Catalogue Falk&Ross en direct via leur webservice. Les prix affichés sont NOS PRIX D’ACHAT. Falk&Ross ne publie aucune mesure de vêtement : les tailles ci-dessous sont estimées à partir d’un gabarit de référence, et modifiables avant import.',
+    'catalog.fr.mode.test': 'Mode test',
+    'catalog.fr.mode.live': 'Mode réel',
+    'catalog.fr.mode.unknown': 'Mode inconnu',
+    'catalog.fr.filter_printable': 'Tee-shirts, polos, sweats',
+    'catalog.fr.scan_partial':
+      '{seen} références parcourues sur {total} — la recherche explore le catalogue au fur et à mesure.',
+    'catalog.fr.scan_done': 'Catalogue parcouru en entier ({total} références).',
+    'catalog.fr.scan_more': 'Continuer la recherche',
+    'catalog.fr.badge.estimated': 'Mesures estimées',
+    'catalog.fr.profile.tee': 'tee-shirt',
+    'catalog.fr.profile.hoodie': 'sweat / hoodie',
+    'catalog.fr.sizes.title': 'Mesures estimées (gabarit {profile})',
+    'catalog.fr.sizes.estimate_note':
+      'Falk&Ross ne publie aucune table de mesures. Ces valeurs proviennent de notre gabarit de référence pour ce type de vêtement : elles servent au placement de l’impression et au rendu 3D. Ce ne sont pas les mesures de ce vêtement — vérifiez-les et corrigez-les si vous les avez.',
+    'catalog.fr.sizes.manual_note':
+      'Mesures corrigées manuellement : elles seront enregistrées comme telles sur la fiche produit.',
+    'catalog.fr.sizes.edit': 'Corriger les mesures',
+    'catalog.fr.sizes.pdf': 'Fiche de mesures du fabricant (PDF)',
+    'catalog.fr.sizes.size': 'Taille',
+    'catalog.fr.sizes.chest': '½ poitrine cm',
+    'catalog.fr.sizes.body': 'Longueur cm',
+    'catalog.fr.sizes.sleeve': 'Manche cm',
+    'catalog.fr.sizes.paste_hint':
+      'Astuce : collez ici une table de mesures (Ctrl+V) — colonnes ½ poitrine, longueur, manche.',
+    'catalog.fr.sizes.paste_empty': 'Aucune mesure reconnue dans le texte collé.',
+    'catalog.fr.sizes.pasted': '{n} tailles mises à jour depuis le presse-papiers',
+    'catalog.fr.sizes.reset': 'Revenir à l’estimation',
+    'catalog.fr.sizes.reset_done': 'Mesures réinitialisées sur l’estimation',
+    'catalog.fr.back.none':
+      'Falk&Ross ne publie aucune photo dos pour cette référence. Le dos sera reconstitué à partir de la face et signalé comme aperçu partout.',
+    'catalog.fr.back.wrong_colour':
+      'Falk&Ross ne photographie le dos que dans un seul coloris, différent de celui-ci. Plutôt qu’un dos d’une autre couleur, le dos sera reconstitué à partir de la face de CE coloris, et signalé comme aperçu.',
+    'catalog.fr.neckline': 'Encolure',
+    'catalog.fr.certificates': 'Certifications',
+    'catalog.fr.sku': 'SKU',
+    'catalog.fr.cost': 'Prix d’achat',
+    'catalog.fr.cost_value': '{price} € HT',
+    'catalog.fr.cost_note':
+      'Prix d’achat négocié sur notre compte Falk&Ross — ce n’est pas un prix de vente.',
+    'catalog.fr.stock': 'Stock',
+    'catalog.fr.stock_value': '{n} pièces',
+    'catalog.fr.err.unavailable':
+      'Catalogue Falk&Ross injoignable — vérifiez la connexion ou réessayez.',
+    'catalog.fr.err.auth':
+      'Falk&Ross a refusé les identifiants du webservice (FR_WS_USER / FR_WS_PASS).',
+    'catalog.fr.err.config':
+      'Identifiants Falk&Ross non configurés sur le serveur — voir le README (wrangler secret put).',
+    'catalog.fr.err.parse': 'Réponse Falk&Ross illisible.',
+    'catalog.fr.err.not_found': 'Cette référence n’existe plus chez Falk&Ross.',
+    'catalog.fr.err.unsupported_sizes':
+      'Aucune taille de cette référence n’entre dans les tailles du studio (S–3XL).',
+    'catalog.fr.err.photo': 'Photos Falk&Ross inaccessibles pour cette référence.',
+    'catalog.fr.err.order': 'Commande refusée par Falk&Ross.',
+    'catalog.fr.err.style': 'Impossible de charger la fiche de cette référence.',
+
     'catalog.provenance':
       'Extrait public du catalogue Imbretex du {date} — en attendant leur API officielle. Prix affichés : PVC conseillés, pas nos tarifs d’achat.',
     'catalog.provenance_nodate':
@@ -51,6 +116,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.detail.size_note':
       'Mesures à plat officielles : mi-poitrine {chest} · longueur {length}.',
     'catalog.detail.sleeve_note': 'Manche {sleeve} — estimée, non publiée par Imbretex.',
+    'catalog.detail.sleeve_note_generic': 'Manche {sleeve}.',
     'catalog.detail.sizes_dropped':
       'Tailles {list} non prises en charge par le studio — ignorées.',
     'catalog.detail.marking': 'Marquages certifiés',
@@ -85,9 +151,74 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
   en: {
     'catalog.title': 'Supplier catalogue',
     'catalog.subtitle':
-      'Imbretex blanks with their real measurements — load one into the editor.',
+      'Blanks from our suppliers — load one into the editor with its size table.',
     'catalog.entry.title': 'Supplier catalogue',
-    'catalog.entry.cta': 'Pick an Imbretex blank',
+    'catalog.entry.cta': 'Pick a blank',
+
+    // --- sources ---------------------------------------------------------
+    'catalog.source.falkross': 'Falk&Ross',
+    'catalog.source.falkross_hint': 'Live API · real prices and stock',
+    'catalog.source.imbretex': 'Imbretex',
+    'catalog.source.imbretex_hint': 'Offline snapshot · published measurements',
+
+    // --- Falk&Ross -------------------------------------------------------
+    'catalog.fr.provenance':
+      'Live Falk&Ross catalogue over their webservice. Prices shown are OUR PURCHASE COST. Falk&Ross publishes no garment measurements: the size tables below are estimated from a reference blank, and editable before import.',
+    'catalog.fr.mode.test': 'Test mode',
+    'catalog.fr.mode.live': 'Live mode',
+    'catalog.fr.mode.unknown': 'Unknown mode',
+    'catalog.fr.filter_printable': 'T-shirts, polos, sweats',
+    'catalog.fr.scan_partial':
+      '{seen} of {total} references scanned — search walks the catalogue as it goes.',
+    'catalog.fr.scan_done': 'Whole catalogue scanned ({total} references).',
+    'catalog.fr.scan_more': 'Keep searching',
+    'catalog.fr.badge.estimated': 'Estimated sizes',
+    'catalog.fr.profile.tee': 't-shirt',
+    'catalog.fr.profile.hoodie': 'sweat / hoodie',
+    'catalog.fr.sizes.title': 'Estimated measurements ({profile} block)',
+    'catalog.fr.sizes.estimate_note':
+      'Falk&Ross publishes no size table. These values come from our reference blank for this garment type: they drive print placement and the 3D preview. They are NOT this garment’s measurements — check them, and correct them if you have the real ones.',
+    'catalog.fr.sizes.manual_note':
+      'Measurements corrected by hand: they will be recorded as such on the product sheet.',
+    'catalog.fr.sizes.edit': 'Correct the measurements',
+    'catalog.fr.sizes.pdf': 'Manufacturer size spec (PDF)',
+    'catalog.fr.sizes.size': 'Size',
+    'catalog.fr.sizes.chest': '½ chest cm',
+    'catalog.fr.sizes.body': 'Length cm',
+    'catalog.fr.sizes.sleeve': 'Sleeve cm',
+    'catalog.fr.sizes.paste_hint':
+      'Tip: paste a size table here (Ctrl+V) — columns half chest, length, sleeve.',
+    'catalog.fr.sizes.paste_empty': 'No measurements recognised in the pasted text.',
+    'catalog.fr.sizes.pasted': '{n} sizes updated from the clipboard',
+    'catalog.fr.sizes.reset': 'Back to the estimate',
+    'catalog.fr.sizes.reset_done': 'Measurements reset to the estimate',
+    'catalog.fr.back.none':
+      'Falk&Ross publishes no back photo for this reference. The back will be reconstructed from the front and flagged as a preview everywhere.',
+    'catalog.fr.back.wrong_colour':
+      'Falk&Ross photographs the back in one colourway only, and it is not this one. Rather than a back in the wrong colour, the back will be reconstructed from THIS colour’s front, and flagged as a preview.',
+    'catalog.fr.neckline': 'Neckline',
+    'catalog.fr.certificates': 'Certifications',
+    'catalog.fr.sku': 'SKU',
+    'catalog.fr.cost': 'Purchase price',
+    'catalog.fr.cost_value': '€{price} excl. VAT',
+    'catalog.fr.cost_note':
+      'Purchase price negotiated on our Falk&Ross account — not a selling price.',
+    'catalog.fr.stock': 'Stock',
+    'catalog.fr.stock_value': '{n} pieces',
+    'catalog.fr.err.unavailable':
+      'Falk&Ross catalogue unreachable — check the connection or try again.',
+    'catalog.fr.err.auth':
+      'Falk&Ross rejected the webservice credentials (FR_WS_USER / FR_WS_PASS).',
+    'catalog.fr.err.config':
+      'Falk&Ross credentials are not configured on the server — see the README (wrangler secret put).',
+    'catalog.fr.err.parse': 'Unreadable Falk&Ross response.',
+    'catalog.fr.err.not_found': 'This reference no longer exists at Falk&Ross.',
+    'catalog.fr.err.unsupported_sizes':
+      'None of this reference’s sizes fall inside the studio range (S–3XL).',
+    'catalog.fr.err.photo': 'Falk&Ross photos are unreachable for this reference.',
+    'catalog.fr.err.order': 'Order rejected by Falk&Ross.',
+    'catalog.fr.err.style': 'Could not load this reference’s detail.',
+
     'catalog.provenance':
       'Public snapshot of the Imbretex catalogue taken on {date} — pending their official API. Prices shown are recommended retail, not our cost.',
     'catalog.provenance_nodate':
@@ -122,6 +253,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.detail.size_note':
       'Official flat measurements: half chest {chest} · length {length}.',
     'catalog.detail.sleeve_note': 'Sleeve {sleeve} — estimated, not published by Imbretex.',
+    'catalog.detail.sleeve_note_generic': 'Sleeve {sleeve}.',
     'catalog.detail.sizes_dropped': 'Sizes {list} are outside the studio range — skipped.',
     'catalog.detail.marking': 'Certified decoration',
     'catalog.detail.spec': 'Spec sheet',

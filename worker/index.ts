@@ -1,21 +1,29 @@
 /**
- * Tshop Cloudflare Worker — the small backend behind the AR try-on.
+ * Tshop Cloudflare Worker — the small backend behind the AR try-on and the
+ * Falk&Ross supplier catalogue.
  *
- * The site is otherwise pure static assets; this Worker adds exactly three
- * dynamic routes so a design's 3D model can travel cross-device from a scanned
- * QR to native mobile AR:
+ * The site is otherwise pure static assets; this Worker adds the dynamic routes
+ * the browser cannot serve itself.
  *
+ * AR — so a design's 3D model can travel cross-device from a scanned QR to
+ * native mobile AR:
  *   POST /api/ar            store {glb, usdz, poster} → returns a short { id }
  *   GET  /r2/ar/{id}.{ext}  stream a stored blob with the correct MIME type
  *   GET  /v/{id}            serve the viewer page (v.html) for the QR short URL
+ *
+ * SUPPLIER — `/api/fr/*`, the live Falk&Ross webservice (worker/falkross.ts).
+ * It lives server-side because the credentials must not ship to a browser, the
+ * supplier sends no CORS headers, and the ingest pipeline needs untainted
+ * canvas pixels from the photos. See that module's header for the full story.
  *
  * Everything else falls through to the static assets (with SPA fallback), so
  * the studio is unaffected. Models are stored in R2 (binding AR_BUCKET); set a
  * bucket lifecycle rule to expire the `ar/` prefix (see README) since R2 has no
  * per-object TTL.
  */
+import { handleFalkRoss, type FalkRossEnv } from './falkross'
 
-interface Env {
+interface Env extends FalkRossEnv {
   ASSETS: Fetcher
   AR_BUCKET: R2Bucket
 }
@@ -155,13 +163,18 @@ async function serveAr(request: Request, env: Env, id: string, ext: string, head
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
     const path = url.pathname
 
     if (path === '/api/ar' && request.method === 'POST') {
       return uploadAr(request, env)
     }
+
+    // Supplier catalogue. Returns null for anything outside /api/fr/*, so the
+    // AR routes and the static assets below are untouched.
+    const supplier = await handleFalkRoss(request, env, ctx)
+    if (supplier) return supplier
 
     const blob = path.match(/^\/r2\/ar\/([^/]+)\.(glb|usdz|png)$/)
     if (blob && (request.method === 'GET' || request.method === 'HEAD')) {

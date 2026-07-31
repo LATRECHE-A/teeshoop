@@ -99,6 +99,28 @@ export interface ProductSideDef {
  */
 export type BackSource = 'real' | 'generated' | 'missing'
 
+/**
+ * Where the cm size table came from — the same provenance discipline
+ * `SidePhotoOrigin` applies to photos, applied to measurements.
+ *
+ *  - `'supplier'`  the manufacturer's own published flat measurements.
+ *  - `'reference-chart'` ESTIMATED from the studio's reference blanks
+ *    (src/content/sizeChart.ts) because the supplier publishes none. Falk&Ross
+ *    is the case that forced this: their webservice carries size LABELS
+ *    (`sku_size_name`/`sku_size_order`) and nothing else — no chest, no length,
+ *    no sleeve, anywhere in the API. An estimate is useful (a tee is a tee) but
+ *    it is not a measurement of THIS garment, and print placement is computed
+ *    from it, so it must never be displayed as if the supplier said it.
+ *  - `'manual'`    typed or pasted in by an admin, who owns the numbers.
+ *
+ * OPTIONAL, and absence means `'supplier'`: every record written before this
+ * field existed came from a supplier table (Imbretex publishes real A/B
+ * measurements), so no persisted product has to be rewritten to stay true.
+ */
+export type SizeSource = 'supplier' | 'reference-chart' | 'manual'
+
+const SIZE_SOURCES = new Set<string>(['supplier', 'reference-chart', 'manual'])
+
 export function backSourceOf(p: Pick<ProductDef, 'back'>): BackSource {
   if (!p.back) return 'missing'
   return p.back.origin === 'generated' ? 'generated' : 'real'
@@ -116,6 +138,8 @@ export interface ProductDef {
    * canonical SizeIds.
    */
   sizes: Partial<Record<SizeId, SizeSpecCm>>
+  /** Provenance of `sizes`. Absent ⇒ `'supplier'`. See SizeSource. */
+  sizeSource?: SizeSource
   /**
    * Size the photos + printArea were authored at (must exist in `sizes`).
    * Also the size "Use in studio" applies by default.
@@ -199,6 +223,11 @@ export function isProductDef(v: unknown): v is ProductDef {
     !isSizeId(p.defaultSize) ||
     !isSideDef(p.front) ||
     (p.back !== null && !isSideDef(p.back)) ||
+    // Absent is the legacy (and correct) value — see SizeSource. A hand-edited
+    // file must not be able to smuggle in a provenance the UI cannot badge,
+    // which for measurements would mean an estimate passing as a supplier spec.
+    (p.sizeSource !== undefined &&
+      (typeof p.sizeSource !== 'string' || !SIZE_SOURCES.has(p.sizeSource))) ||
     typeof p.sizes !== 'object' ||
     p.sizes === null
   ) {
