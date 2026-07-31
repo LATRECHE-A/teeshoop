@@ -29,6 +29,26 @@ export interface LightformerSpec {
   target?: [number, number, number]
 }
 
+/**
+ * The one SHADOW-CASTING light. An environment map alone delivers light from
+ * every direction at once, which is why the garment used to read as an
+ * inflated shell: nothing was ever occluded, so a sleeve cast nothing onto the
+ * body and a hood cast nothing into itself. This is the directional key that
+ * puts those shadows back.
+ *
+ * `direction` is where the light comes FROM, in the same virtual-scene
+ * magnitudes as the lightformers (it is normalised before use, so only the
+ * bearing matters) — keep it pointing at roughly the scene's brightest
+ * lightformer or the shading and the shadows will disagree.
+ */
+export interface KeyLightSpec {
+  direction: [number, number, number]
+  intensity: number
+  color: string
+  /** Shadow-map blur radius. Overcast/dappled scenes want a bigger number. */
+  softness: number
+}
+
 export interface Scene3DConfig {
   lightformers: LightformerSpec[]
   /** Multiplies each garment material's envMapIntensity. */
@@ -37,6 +57,7 @@ export interface Scene3DConfig {
   shadowOpacity: number
   /** Base fill so sides facing away never crush to pure black. */
   hemisphere?: { sky: string; ground: string; intensity: number }
+  key: KeyLightSpec
 }
 
 export interface SceneDef {
@@ -69,6 +90,9 @@ const STUDIO: SceneDef = {
       { form: 'rect', intensity: 0.5, color: '#35c7ff', position: [-8, 0, -6], scale: [2.5, 6, 1] },
       { form: 'rect', intensity: 1.5, color: '#e6ecf5', position: [-2, 4.5, -8], scale: [7, 4.5, 1] },
     ],
+    // Aimed at the 5.2-intensity warm softbox above and to the left; a press
+    // room's key is a big diffuser, hence the wide blur.
+    key: { direction: [-5.5, 6.5, 6], intensity: 1.25, color: '#fff6ec', softness: 5 },
   },
 }
 
@@ -93,6 +117,8 @@ const BEACH: SceneDef = {
       { form: 'rect', intensity: 2.0, color: '#cfe8ff', position: [7, 4, -6], scale: [3, 7, 1] },
       { form: 'rect', intensity: 1.6, color: '#dbeeff', position: [-3, 4, -8], scale: [7, 5, 1] },
     ],
+    // Direct sun: the hardest, brightest key of the six.
+    key: { direction: [-6, 7, 5], intensity: 2.1, color: '#fff2d6', softness: 2 },
   },
 }
 
@@ -117,6 +143,8 @@ const FOREST: SceneDef = {
       { form: 'rect', intensity: 1.6, color: '#a9c6d8', position: [7, 3, -6], scale: [3, 7, 1] },
       { form: 'rect', intensity: 1.2, color: '#86a878', position: [-3, 4, -8], scale: [7, 5, 1] },
     ],
+    // Sun through leaves — bright but broken up, so a wide penumbra.
+    key: { direction: [-5, 8, 5], intensity: 1.15, color: '#eaf6d8', softness: 8 },
   },
 }
 
@@ -140,6 +168,8 @@ const CITY: SceneDef = {
       { form: 'rect', intensity: 0.9, color: '#35c7ff', position: [8, 1, -6], scale: [2.5, 6, 1] },
       { form: 'rect', intensity: 1.3, color: '#d6dee8', position: [-2, 4.5, -8], scale: [7, 5, 1] },
     ],
+    // Overcast: the sky IS the light source, so barely any shadow direction.
+    key: { direction: [-5.5, 6.5, 6], intensity: 0.85, color: '#eef3fb', softness: 10 },
   },
 }
 
@@ -164,6 +194,8 @@ const SUNSET: SceneDef = {
       { form: 'rect', intensity: 1.4, color: '#7b6cff', position: [-3, 4, -8], scale: [7, 5, 1] },
       { form: 'ring', intensity: 0.6, color: '#ffd9a0', position: [0, 9, 0.5], scale: 6 },
     ],
+    // Low golden sun: long, warm, fairly crisp.
+    key: { direction: [-7, 2.5, 5], intensity: 1.9, color: '#ffb86b', softness: 3.5 },
   },
 }
 
@@ -187,6 +219,8 @@ const NIGHT: SceneDef = {
       { form: 'rect', intensity: 1.8, color: '#35c7ff', position: [8, 3, -6], scale: [2.5, 7, 1] },
       { form: 'rect', intensity: 1.0, color: '#2b3d6b', position: [-3, 4, -8], scale: [7, 5, 1] },
     ],
+    // Moon plus a warm practical to camera-right; dim and quite hard.
+    key: { direction: [-6, 7, 4], intensity: 0.7, color: '#b9c9ff', softness: 4 },
   },
 }
 

@@ -14,6 +14,7 @@ import { SIZE_IDS, garmentWidthInFor, sizeSpecCm, type SizeId } from '@/content/
 import { collarSeamDropIn, printDropBelowCollarIn } from '@/lib/renderDesign'
 import { cmToIn } from '@/lib/units'
 import { CALIBRATION } from './calibration'
+import { applyCavity, CAVITY_DEFAULTS, getCavity } from './clothShading'
 import { getArcTable, type ArcTable } from './fabricUnwrap'
 import type { FabricFrame } from './decalGeom'
 
@@ -31,6 +32,7 @@ export interface GarmentFrame {
    * every size the same number of pixels tall and silently erase the one thing
    * the size selector is supposed to show. Framing the largest instead means an
    * S really does look smaller than a 3XL, and nothing is ever cropped.
+   * (scripts/board-verify.mjs asserts both halves of that.)
    */
   fitHeightIn: number
   fitWidthIn: number
@@ -70,9 +72,20 @@ export function buildGarmentFrame(
   const xzScale = garmentWidthInFor(garment, sizeId) / frontArcRaw
   const bodyRaw = Math.max(1e-6, size.y - calib.bodyTopBelowTopRaw)
   const yScale = cmToIn(sizeSpecCm(garment, sizeId).bodyLengthCm) / bodyRaw
+
+  // Cavity occlusion is measured on the CENTRED, UNSCALED mesh so one buffer
+  // serves every size: the girth and length scales differ by a few per cent,
+  // which moves no crease anywhere a viewer could see. Doing it here (rather
+  // than after `scale`) is also what lets it be cached per model like the arc
+  // table beside it — it is the expensive part of loading a garment.
+  const cavity = getCavity(calib.url, geometry, { ...CAVITY_DEFAULTS, gain: calib.cloth.cavityGain })
+
   geometry.scale(xzScale, yScale, xzScale)
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
+  // After the scale, so the attribute rides the geometry the meshes actually
+  // use — `scale` does not reorder vertices, so the buffers stay aligned.
+  if (cavity) applyCavity(geometry, cavity)
 
   const biggest = SIZE_IDS[SIZE_IDS.length - 1]
   return {

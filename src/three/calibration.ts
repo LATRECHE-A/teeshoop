@@ -67,6 +67,20 @@ export interface ModelCalibration {
   roughness: number
   envMapIntensity: number
   /**
+   * Cloth shading (src/three/clothShading.ts). Both knobs exist because the two
+   * bundled meshes are opposites: the tee is a smooth inflated surface with no
+   * folds modelled at all, the hoodie is a Marvelous Designer simulation whose
+   * folds are real geometry. The same settings flatter one and ruin the other.
+   */
+  cloth: {
+    /** Drape-octave bump strength — carries the tee, redundant on the hoodie. */
+    foldStrength: number
+    /** Cavity-occlusion depth, 0-1; lower where the GLB ships a baked AO map. */
+    cavityGain: number
+    sheen: number
+    sheenRoughness: number
+  }
+  /**
    * Sleeve decal placement — an X-axis flank projection onto the arm (front/back
    * map through the fabric unwrap instead). `yRaw` is the decal-centre height in
    * raw units above the bbox centre, so it follows the mesh at every size
@@ -93,6 +107,11 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     neckFrontBelowTopRaw: 0.0475,
     roughness: 0.94,
     envMapIntensity: 1.0,
+    // The mesh is a smooth shell, so the drape octave is doing the work of the
+    // folds nobody modelled. The cavity gain is held back because this GLB
+    // ships a baked occlusion map (occlusionTexture) that already darkens the
+    // seams — stacking a full-strength cavity on top double-counts them.
+    cloth: { foldStrength: 0.045, cavityGain: 0.26, sheen: 0.35, sheenRoughness: 0.72 },
     // 6.5 world in at the pre-fix yScale of 38.295 — the same physical band.
     sleeve: { yRaw: 0.1697, rotZ: 0 },
   },
@@ -118,6 +137,11 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     neckFrontBelowTopRaw: 0.1403,
     roughness: 0.92,
     envMapIntensity: 1.0,
+    // Its folds are simulated geometry, so a drape octave on top would read as
+    // a second, contradicting set of wrinkles — it is kept to a whisper. There
+    // is no baked AO map and no UV set at all here, so the cavity term is the
+    // ONLY occlusion this garment gets and it carries the full gain.
+    cloth: { foldStrength: 0.012, cavityGain: 0.44, sheen: 0.5, sheenRoughness: 0.85 },
     // 5 world in at the pre-fix yScale of 25.909.
     sleeve: { yRaw: 0.193, rotZ: 0.21 },
   },

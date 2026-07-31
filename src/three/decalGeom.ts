@@ -50,6 +50,7 @@
  */
 import * as THREE from 'three'
 import type { Side } from '@/lib/types'
+import { applyWeaveBump, type WeaveOptions } from './clothShading'
 import {
   arcAt,
   backSeamArcAt,
@@ -150,6 +151,13 @@ export function buildFabricOverlay(
   out.setAttribute('normal', new THREE.BufferAttribute(packXYZ(geometry, 'normal'), 3))
   out.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   out.setAttribute('printReject', new THREE.BufferAttribute(reject, 1))
+  // Carry the garment's cavity occlusion onto the ink. Ink printed into the
+  // hollow under an arm is in that hollow's shade; without this the artwork
+  // keeps its own flat brightness right across a fold and reads as a sticker
+  // floating a millimetre off the cloth, which is exactly what it was doing.
+  if (geometry.getAttribute('color')) {
+    out.setAttribute('color', new THREE.BufferAttribute(packXYZ(geometry, 'color'), 3))
+  }
   out.setIndex(new THREE.BufferAttribute(packIndex(geometry), 1))
   out.computeBoundingSphere()
   return out
@@ -162,16 +170,27 @@ const FABRIC_CLIP_CACHE_KEY = 'tshop-fabric-clip'
  * fabric UVs and discards everything outside the rect or off the shell. The
  * discard (rather than ClampToEdge padding) is exact — a full-area print whose
  * ink touches the rect edge would smear across the whole garment otherwise.
+ *
+ * It is a LIT material sharing the garment's cavity occlusion and weave relief,
+ * because a print is not a sticker: a DTF or screen transfer sits in the cloth
+ * and takes the same light. It is left a little smoother than the cotton
+ * (`roughness` below the garment's ~0.93) since cured ink genuinely is — that
+ * faint sheen difference is most of what makes a print look printed.
+ *
+ * `vertexColors` is enabled only when the overlay geometry actually carries the
+ * attribute: an unbound `color` attribute reads as (0,0,0) in GL, which would
+ * paint every print solid black.
  */
-export function fabricPrintMaterial(map: THREE.Texture): THREE.MeshStandardMaterial {
+export function fabricPrintMaterial(map: THREE.Texture, cavity: boolean, weave?: WeaveOptions): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({
     map,
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    roughness: 0.88,
+    roughness: 0.78,
     metalness: 0,
     side: THREE.FrontSide,
+    vertexColors: cavity,
   })
   material.onBeforeCompile = (shader) => {
     shader.vertexShader =
@@ -185,7 +204,10 @@ export function fabricPrintMaterial(map: THREE.Texture): THREE.MeshStandardMater
       )
   }
   // Without this every material instance compiles its own program.
-  material.customProgramCacheKey = () => FABRIC_CLIP_CACHE_KEY
+  material.customProgramCacheKey = () => `${FABRIC_CLIP_CACHE_KEY}|${cavity ? 'c' : ''}`
+  // The ink follows the weave underneath it, at a fraction of the cloth's own
+  // relief — a transfer bridges the threads rather than sinking between them.
+  if (weave) applyWeaveBump(material, weave, 'tshop-print')
   return material
 }
 

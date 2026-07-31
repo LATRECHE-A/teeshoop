@@ -13,7 +13,7 @@ import { Float } from '@react-three/drei'
 import type { Garment3DProps } from '@/lib/types'
 import { SIZE_IDS, garmentWidthInFor } from '@/content/sizeChart'
 import { getScene } from '@/scenes'
-import { CameraRig, Floor, ReadyPing, SceneEnvironment, fitRadius, homeCameraPosition } from './Stage'
+import { CameraRig, Floor, KeyLight, ReadyPing, SceneEnvironment, fitRadius, homeCameraPosition } from './Stage'
 import { GarmentModel } from './GarmentModel'
 import { CustomGarment } from './ExtrudedGarment'
 
@@ -181,11 +181,24 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
       <Canvas
         key={canvasKey}
         dpr={[1, 1.75]}
+        // Variance shadow maps: the only three filter whose softness is a real,
+        // tunable radius, which each scene needs (a beach sun and a city
+        // overcast cannot share one penumbra). Light bleeding, VSM's usual
+        // failure, needs a large depth spread to appear and there is one
+        // garment in this frustum.
+        shadows="variance"
         camera={{ position: homeCameraPosition(fitRadius(30, 26, 1)), fov: 26, near: 1, far: 700 }}
         gl={{
           alpha: true,
           antialias: true,
-          toneMapping: THREE.ACESFilmicToneMapping,
+          // Neutral (KHR_PBR_neutral), not ACES. ACES is a FILM look: it pulls
+          // saturated colour toward the white point and lifts blacks, so a red
+          // garment previewed here came out a different red from the one the
+          // customer picked and the one the press will print. Neutral is the
+          // tone map built for exactly this — product colour that survives the
+          // round trip — and it is the single biggest fidelity win in the
+          // pipeline for one line.
+          toneMapping: THREE.NeutralToneMapping,
           powerPreference: 'high-performance',
         }}
         onCreated={({ gl }) => {
@@ -204,6 +217,8 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
             args={[cfg.hemisphere.sky, cfg.hemisphere.ground, cfg.hemisphere.intensity]}
           />
         )}
+        {/* Sized to the measured garment, so one rig covers a tee and a 3XL hoodie. */}
+        <KeyLight spec={cfg.key} extentIn={Math.max(extent.fitHeightIn, extent.fitWidthIn)} />
         <CameraRig
           viewRequest={props.viewRequest}
           autoRotate={props.autoRotate}

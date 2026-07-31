@@ -3,12 +3,12 @@
  * rendered into a 256px environment map (no network HDRs), grounded contact
  * shadows and a damped orbit rig with smooth view-snap animation.
  */
-import { useEffect, useRef, type ComponentRef } from 'react'
+import { useEffect, useMemo, useRef, type ComponentRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer, OrbitControls } from '@react-three/drei'
 import type { ViewSnap } from '@/lib/types'
-import type { Scene3DConfig } from '@/scenes'
+import type { KeyLightSpec, Scene3DConfig } from '@/scenes'
 
 /**
  * Procedural softbox rig baked into a 256px env map (no network HDRs). The
@@ -33,6 +33,58 @@ export function SceneEnvironment({ config }: { config: Scene3DConfig }) {
         />
       ))}
     </Environment>
+  )
+}
+
+/**
+ * The scene's one shadow-casting light, sized to the garment.
+ *
+ * The environment map is still doing almost all of the shading — this is
+ * deliberately a modest key on top of it. Its job is not brightness, it is the
+ * OCCLUSION the env map structurally cannot produce: the shadow a sleeve throws
+ * on the ribs, the dark inside a hood, the line where a kangaroo pocket lifts
+ * off the body. Those are the cues that say "solid object" rather than
+ * "airbrushed shell".
+ *
+ * The shadow camera is derived from the measured garment rather than fixed,
+ * because the same rig has to cover a 21 in tee and a 52 in hoodie: a frustum
+ * tight enough for the tee clips the hoodie's sleeves out of the shadow map,
+ * and one loose enough for the hoodie spends most of the tee's texels on empty
+ * space and turns its shadows into stairs.
+ *
+ * `normalBias` is in WORLD units, which here are inches — 0.06 in is a hair
+ * over the fabric and comfortably kills the acne a doubleSided cloth surface
+ * produces where it nearly faces the light.
+ */
+export function KeyLight({ spec, extentIn }: { spec: KeyLightSpec; extentIn: number }) {
+  const half = Math.max(14, extentIn * 0.62)
+  const distance = Math.max(90, extentIn * 2.4)
+  const position = useMemo<[number, number, number]>(() => {
+    const v = new THREE.Vector3(...spec.direction)
+    if (v.lengthSq() < 1e-6) v.set(-1, 1, 1)
+    v.normalize().multiplyScalar(distance)
+    return [v.x, v.y, v.z]
+  }, [spec.direction, distance])
+
+  return (
+    <directionalLight
+      position={position}
+      intensity={spec.intensity}
+      color={spec.color}
+      castShadow
+      shadow-mapSize-width={2048}
+      shadow-mapSize-height={2048}
+      shadow-radius={spec.softness}
+      shadow-blurSamples={12}
+      shadow-bias={-0.0006}
+      shadow-normalBias={0.06}
+      shadow-camera-near={Math.max(1, distance - half * 2.5)}
+      shadow-camera-far={distance + half * 2.5}
+      shadow-camera-left={-half}
+      shadow-camera-right={half}
+      shadow-camera-top={half}
+      shadow-camera-bottom={-half}
+    />
   )
 }
 
@@ -82,9 +134,45 @@ export function Floor({
 /** Fires onReady on the frame after the first rendered frame, once. */
 export function ReadyPing({ onReady }: { onReady?: () => void }) {
   const fired = useRef(false)
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
   useFrame(() => {
     if (fired.current) return
     fired.current = true
+    // DEV-only render probe. The lighting rig is now the difference between
+    // cloth and plastic, and every part of it (shadow map type, cast/receive
+    // flags, the cavity attribute, the copied aoMap) is invisible in a
+    // screenshot when it silently fails to apply. R3F 9 exposes no store on the
+    // canvas element, so headless checks have nowhere else to read it from.
+    if (import.meta.env.DEV) {
+      const lights: unknown[] = []
+      const meshes: unknown[] = []
+      scene.traverse((o) => {
+        const l = o as THREE.DirectionalLight
+        if (l.isLight) {
+          lights.push({ type: l.type, intensity: l.intensity, cast: !!l.castShadow, radius: l.shadow?.radius ?? null })
+        }
+        const m = o as THREE.Mesh
+        if (m.isMesh) {
+          const mat = m.material as THREE.MeshPhysicalMaterial
+          meshes.push({
+            cast: !!m.castShadow,
+            receive: !!m.receiveShadow,
+            cavityAttr: !!m.geometry.attributes.color,
+            vertexColors: !!mat.vertexColors,
+            aoMap: !!mat.aoMap,
+            normalScale: mat.normalScale?.x ?? null,
+            sheen: mat.sheen ?? null,
+          })
+        }
+      })
+      ;(window as unknown as { __scene3d?: unknown }).__scene3d = {
+        shadows: { enabled: gl.shadowMap.enabled, type: gl.shadowMap.type },
+        toneMapping: gl.toneMapping,
+        lights,
+        meshes,
+      }
+    }
     if (onReady) requestAnimationFrame(() => onReady())
   })
   return null
@@ -111,17 +199,27 @@ export function homeCameraPosition(radius: number): [number, number, number] {
   return [v.x, v.y, v.z]
 }
 
-/** Head-room around the garment at the framed distance. */
-const FIT_MARGIN = 1.22
 /**
- * Head-room around the SLEEVE SPAN. Just above 1 on purpose: the span is a hard
- * "must not be cropped" bound, not something that deserves air around it. A
- * measured 3XL hoodie is 52.5 in wide but only 26 in through the body, so
- * giving the arm tips the same 22% margin as the body pushes the camera 20%
- * further back than it has to be — which is exactly how a hoodie ended up
- * reading SMALLER on screen than a tee it dwarfs in real life.
+ * Head-room around the garment at the framed distance.
+ *
+ * 1.12, down from 1.22. The framed target is the CHART'S BIGGEST size and the
+ * preview usually shows a smaller one, so a generous margin here is air around
+ * air: it was leaving an M hoodie sitting in the middle of the pane like a
+ * thumbnail. Trimming the constant is the only lever that helps without
+ * touching the framed target itself — making the distance follow the previewed
+ * size would erase the size difference the selector exists to show, which
+ * scripts/board-verify.mjs asserts (it caught exactly that attempt).
  */
-const EDGE_MARGIN = 1.02
+const FIT_MARGIN = 1.12
+/**
+ * Head-room around the SLEEVE SPAN. Exactly 1: the span is a hard "must not be
+ * cropped" bound, not something that deserves air around it. A measured 3XL
+ * hoodie is 52.5 in wide but only 26 in through the body, so giving the arm
+ * tips the same margin as the body pushes the camera 20% further back than it
+ * has to be — which is exactly how a hoodie ended up reading SMALLER on screen
+ * than a tee it dwarfs in real life.
+ */
+const EDGE_MARGIN = 1.0
 
 /**
  * Viewing distance that frames a garment of these inches. Garments are scaled to

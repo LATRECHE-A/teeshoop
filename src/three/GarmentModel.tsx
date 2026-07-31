@@ -21,6 +21,7 @@ import { Decal, useGLTF } from '@react-three/drei'
 import type { CatalogGarmentId, DecalSource, Side, SizeId } from '@/lib/types'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
 import { CALIBRATION } from './calibration'
+import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
 import { buildFabricOverlay, fabricPrintMaterial } from './decalGeom'
 import { buildGarmentFrame, fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
 import { useSourceTexture } from './textures'
@@ -58,18 +59,29 @@ function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): Normal
     // than plastic. The print is a separate pass, so inch accuracy is untouched.
     // Copy source maps explicitly — Physical.copy(Standard) is unsafe because
     // the Standard source lacks the sheen fields Physical.copy reads.
+    //
+    // `aoMap` and `normalScale` are copied because dropping them was quietly
+    // throwing away most of the tee's shading: that GLB ships a baked occlusion
+    // map and asks for its normal map at scale 2.81, and rebuilding the
+    // material without either left a flat, waxy surface with a third of the
+    // intended relief. `aoMap` needs the geometry's `uv` and rides the
+    // texture's own `channel`, both of which survive the clone.
     const material = new THREE.MeshPhysicalMaterial({
       map: srcMat.map,
       normalMap: srcMat.normalMap,
       roughnessMap: srcMat.roughnessMap,
+      aoMap: srcMat.aoMap,
       color: srcMat.color.clone(),
       roughness: calib.roughness,
       metalness: 0,
       envMapIntensity: calib.envMapIntensity,
-      sheen: 0.5,
-      sheenRoughness: 0.9,
-      sheenColor: new THREE.Color('#ffffff'),
+      sheen: calib.cloth.sheen,
+      sheenRoughness: calib.cloth.sheenRoughness,
+      vertexColors: frame.geometry.getAttribute('color') !== undefined,
     })
+    if (srcMat.normalMap) material.normalScale.copy(srcMat.normalScale)
+    if (srcMat.aoMap) material.aoMapIntensity = 1
+    applyWeaveBump(material, { ...WEAVE_DEFAULTS, foldStrength: calib.cloth.foldStrength })
 
     return { ...frame, material }
   }, [gltf, garment, calib, sizeId])
@@ -86,6 +98,8 @@ function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): Normal
 }
 
 const PROBE_MATERIAL = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+/** Sheen mixing target — see the colour effect in GarmentModel. */
+const WHITE = new THREE.Color(1, 1, 1)
 
 /** Z of the outermost front/back surface at (xIn, yIn), via local raycast. */
 function probeSurfaceZ(geometry: THREE.BufferGeometry, xIn: number, yIn: number, side: Side): number | null {
@@ -149,11 +163,25 @@ function PrintOverlay({ frame, garment, side, source, k }: PrintOverlayProps) {
   )
   useEffect(() => () => geometry.dispose(), [geometry])
 
-  const material = useMemo(() => (texture ? fabricPrintMaterial(texture) : null), [texture])
+  const cavity = geometry.getAttribute('color') !== undefined
+  const material = useMemo(
+    () =>
+      texture
+        ? fabricPrintMaterial(texture, cavity, {
+            ...WEAVE_DEFAULTS,
+            // Ink bridges the threads: it takes the cloth's grain at roughly a
+            // third of its depth, and none of the drape octave, which belongs
+            // to the fabric's own body rather than to the film sitting on it.
+            strength: WEAVE_DEFAULTS.strength * 0.35,
+            foldStrength: 0,
+          })
+        : null,
+    [texture, cavity],
+  )
   useEffect(() => () => material?.dispose(), [material])
 
   if (!material) return null
-  return <mesh geometry={geometry} material={material} renderOrder={2} />
+  return <mesh geometry={geometry} material={material} renderOrder={2} receiveShadow />
 }
 
 interface PrintDecalProps {
@@ -312,8 +340,16 @@ export function GarmentModel({
   const normalized = useNormalizedGarment(garment, sizeId ?? DEFAULT_SIZE)
   const { geometry, material, heightIn, widthIn, fitHeightIn, fitWidthIn, table } = normalized
 
+  // The sheen lobe is the FUZZ on the fibre, so it is the fibre's own colour —
+  // a shade lighter because it is forward scatter, never a fixed white. Held
+  // fixed it behaves as an additive white film, which is invisible on a white
+  // tee and catastrophic on a dark one: a warm off-white sheen over #191C20
+  // rendered that near-black hoodie as brown. Tying it to the garment keeps
+  // every colourway honest with one line.
   useEffect(() => {
     material.color.set(colorHex)
+    material.sheenColor.set(colorHex).lerp(WHITE, 0.3)
+    material.needsUpdate = true
   }, [material, colorHex])
 
   // Scene lighting: scale the calibrated env-map response so the fabric reads
@@ -340,7 +376,7 @@ export function GarmentModel({
     )
 
   return (
-    <mesh geometry={geometry} material={material}>
+    <mesh geometry={geometry} material={material} castShadow receiveShadow>
       {front && panel('front', front)}
       {back && panel('back', back)}
       {sleeve && (
