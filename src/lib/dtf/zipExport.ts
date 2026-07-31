@@ -273,6 +273,41 @@ async function release(canvas: HTMLCanvasElement): Promise<Blob> {
 // ---------------------------------------------------------------------------
 
 /**
+ * Where one transfer goes on the garment, as a line of plain text.
+ *
+ * Two measurements, because they are the two a press table gives you for free:
+ * the drop from the TOP EDGE of the print area (a fixed distance below the
+ * collar, so it is the same on every size of a fixed design) and the offset
+ * from the CENTRE LINE (the garment's fold). "Centré" is spelled out rather
+ * than printed as 0,0 cm — the overwhelmingly common case should not read like
+ * a measurement to double-check.
+ */
+function placementLine(p: ManifestPiece, fr: boolean): string {
+  const pl = p.placement
+  if (!pl) return ''
+  const dx =
+    Math.abs(pl.centerDxCm) < 0.05
+      ? fr
+        ? 'centré'
+        : 'centred'
+      : `${n1(Math.abs(pl.centerDxCm))} cm ` +
+        (pl.centerDxCm > 0
+          ? fr
+            ? 'à droite de l’axe'
+            : 'right of centre'
+          : fr
+            ? 'à gauche de l’axe'
+            : 'left of centre')
+  return (
+    (fr ? '↳ pose : ' : '↳ placement: ') +
+    `${n1(pl.topCm)} cm ` +
+    (fr ? 'sous le haut de la zone · ' : 'below the top of the area · ') +
+    dx +
+    ` · ${fr ? 'zone' : 'area'} ${n1(pl.areaWCm)} × ${n1(pl.areaHCm)} cm`
+  )
+}
+
+/**
  * The plain-text order summary. It exists so a human — the operator, or
  * whoever opens the archive in three months — can answer "what is this, what
  * did it cost, what has to be pressed" without a JSON viewer.
@@ -396,8 +431,28 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
   }
 
   rule(fr ? 'Visuels' : 'Artwork')
-  for (const p of i.pieces)
+  // A side is printed as one transfer PER INDEPENDENT VISUAL, which is what
+  // keeps the film full — and what makes the position line below mandatory
+  // rather than nice to have: the press gets several transfers where it used to
+  // get one file, and only these numbers say which goes where.
+  if (i.pieces.some((p) => (p.parts ?? 1) > 1))
+    L.push(
+      fr
+        ? '  Certains côtés sont imprimés en PLUSIEURS transferts (un par visuel'
+        : '  Some sides print as SEVERAL transfers (one per independent visual,',
+      fr
+        ? '  indépendant, n/total ci-dessous). Poser chacun à la position indiquée,'
+        : '  n/total below). Press each one at the position given, measured from',
+      fr
+        ? '  mesurée depuis la zone d’impression — sinon le vêtement est perdu.'
+        : '  the print area — otherwise the garment is ruined.',
+      '',
+    )
+  for (const p of i.pieces) {
     L.push(`  ×${String(p.qty).padEnd(4)} ${n1(p.wCm)} × ${n1(p.hCm)} cm   ${p.label}`)
+    const pos = placementLine(p, fr)
+    if (pos) L.push(`        ${pos}`)
+  }
   if (r.unplaceable.length)
     L.push(
       '',

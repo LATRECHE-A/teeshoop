@@ -329,6 +329,31 @@ export interface ManifestPiece {
   wCm: number
   hCm: number
   qty: number
+  /**
+   * Which transfer of its side this is, and how many that side was split into.
+   * Absent on a side that prints as one piece.
+   */
+  part?: number
+  parts?: number
+  /**
+   * WHERE IT GOES on the garment: the transfer's box inside that side's
+   * (graded) print area, cm. A split side hands the press several transfers
+   * that used to be one file, and without these numbers there is nothing in the
+   * archive saying which goes where — the manifest is the traceability record,
+   * so it carries them even though nesting never reads them.
+   *
+   * `topCm` is the drop from the top edge of the print area (itself a fixed
+   * distance below the collar); `centerDxCm` is the signed offset of the
+   * transfer's centre from the area's centre line, + to the wearer's right as
+   * seen on the artwork.
+   */
+  placement?: {
+    topCm: number
+    leftCm: number
+    centerDxCm: number
+    areaWCm: number
+    areaHCm: number
+  }
 }
 
 export interface DtfManifest {

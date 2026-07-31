@@ -21,7 +21,14 @@ import { createNestClient } from '@/lib/dtf/nestClient'
 /** The harness's own nesting channel — it also mounts DtfModal, which owns one
  *  of its own; sharing would make each cancel the other's job. */
 const harnessNester = createNestClient()
-import { pieceMask, renderPiece, type PieceMask, type RenderedPiece } from '@/lib/dtf/pieces'
+import {
+  MERGE_WHOLE_SIDE_IN,
+  pieceMask,
+  piecePlacementCm,
+  renderPieces,
+  type PieceMask,
+  type RenderedPiece,
+} from '@/lib/dtf/pieces'
 import { clampSheetDpi, renderSheet } from '@/lib/dtf/sheet'
 import { buildOrderZip, planLegend } from '@/lib/dtf/zipExport'
 import { estimateCost, loadSuppliers, type CostEstimate } from '@/lib/dtf/suppliers'
@@ -43,9 +50,32 @@ declare global {
       interlockStops: readonly number[]
       suppliers: () => ReturnType<typeof loadSuppliers>
       estimate: (supplierId: string, lm: number) => CostEstimate | null
-      /** Render the sample design's sides through the real pipeline + masks. */
-      samplePieces: (dpi: number) => Promise<
-        { key: string; wCm: number; hCm: number; mask: PieceMask | null }[]
+      /**
+       * Render the sample design's sides through the real pipeline + masks.
+       *
+       * `merged: true` reproduces the pre-split behaviour — one transfer per
+       * side, empty space included — which is what the bench measures the
+       * split against. `row` is the ORDER LINE a piece came from (design side ×
+       * size): quantities belong to the line, not to the transfer, so a bench
+       * comparing split vs merged has to give every part of a line the same
+       * quantity or it is not comparing the same order.
+       */
+      samplePieces: (
+        dpi: number,
+        opts?: { merged?: boolean },
+      ) => Promise<
+        {
+          key: string
+          row: string
+          part: number
+          parts: number
+          wCm: number
+          hCm: number
+          /** Placement inside the (graded) print area, cm — the provenance. */
+          topCm: number
+          centerDxCm: number
+          mask: PieceMask | null
+        }[]
       >
       /** Rasterise a nested sheet and report the closest ink-to-ink distance. */
       collisionCheck: (
@@ -92,6 +122,31 @@ declare global {
         promisesVerticals: boolean
         drawsVerticals: boolean
       }[]
+      /**
+       * Render each side of the sample design split (one transfer per visual)
+       * and merged (the pre-split single transfer) and compare ink, boxes and
+       * placement provenance.
+       */
+      splitProbe: (dpi?: number) => Promise<
+        {
+          side: Side
+          parts: number
+          keys: string[]
+          inkSplit: number
+          inkMerged: number
+          boxSplitCm2: number
+          boxMergedCm2: number
+          placements: {
+            part: number
+            parts: number
+            topCm: number
+            centerDxCm: number
+            areaWCm: number
+            areaHCm: number
+            insideArea: boolean
+          }[]
+        }[]
+      >
       /** True once the modal preview has at least one sheet canvas drawn. */
       previewReady: () => boolean
     }
@@ -264,6 +319,8 @@ async function sampleOrderZip(
         wCm: p.wCm,
         hCm: p.hCm,
         qty: 1,
+        ...(p.parts > 1 ? { part: p.part, parts: p.parts } : {}),
+        placement: piecePlacementCm(p),
       })),
       labels,
       sources,
@@ -287,6 +344,64 @@ async function sampleOrderZip(
   for (let i = 0; i < bytes.length; i += 0x8000)
     bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
   return { base64: btoa(bin), fileName, dpis, cutplanDpi: CUTPLAN_DPI, refused: false }
+}
+
+/**
+ * Split-vs-merged audit of the real sample design, per side.
+ *
+ * The claim splitting makes is narrow and checkable: the SAME ink, in less
+ * bounding-box area, with every transfer told where it goes. So this renders
+ * each side both ways through the shipped pipeline and counts inked pixels on
+ * each — pixels, not boxes, because the whole failure mode worth fearing is a
+ * cluster crop that silently drops or duplicates artwork. Anything the split
+ * loses shows up here as missing ink; anything it double-prints (a neighbour's
+ * mark landing in two crops) shows up as extra.
+ */
+async function splitProbe(dpi = 48) {
+  const design = makeSampleDesign()
+  const inkOf = (p: RenderedPiece): number => {
+    const ctx = p.canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return 0
+    const d = ctx.getImageData(0, 0, p.canvas.width, p.canvas.height).data
+    let n = 0
+    for (let i = 3; i < d.length; i += 4) if (d[i] >= 8) n++
+    return n
+  }
+  const out = []
+  for (const side of ['front', 'back'] as Side[]) {
+    const split = await renderPieces(design, side, dpi)
+    const merged = await renderPieces(design, side, dpi, undefined, {
+      clearanceIn: MERGE_WHOLE_SIDE_IN,
+    })
+    out.push({
+      side,
+      parts: split.length,
+      keys: split.map((p) => p.sourceKey),
+      inkSplit: split.reduce((a, p) => a + inkOf(p), 0),
+      inkMerged: merged.reduce((a, p) => a + inkOf(p), 0),
+      boxSplitCm2: Math.round(split.reduce((a, p) => a + p.wCm * p.hCm, 0) * 10) / 10,
+      boxMergedCm2: Math.round(merged.reduce((a, p) => a + p.wCm * p.hCm, 0) * 10) / 10,
+      // Every transfer must be able to say where it belongs, or a split side
+      // cannot be pressed at all.
+      placements: split.map((p) => {
+        const pl = piecePlacementCm(p)
+        return {
+          part: p.part,
+          parts: p.parts,
+          topCm: Math.round(pl.topCm * 100) / 100,
+          centerDxCm: Math.round(pl.centerDxCm * 100) / 100,
+          areaWCm: Math.round(pl.areaWCm * 100) / 100,
+          areaHCm: Math.round(pl.areaHCm * 100) / 100,
+          insideArea:
+            p.areaRectIn.xIn >= -1e-6 &&
+            p.areaRectIn.yIn >= -1e-6 &&
+            p.areaRectIn.xIn + p.areaRectIn.wIn <= p.areaWIn + 1e-6 &&
+            p.areaRectIn.yIn + p.areaRectIn.hIn <= p.areaHIn + 1e-6,
+        }
+      }),
+    })
+  }
+  return out
 }
 
 /**
@@ -373,17 +488,32 @@ window.__dtf = {
     const p = loadSuppliers().find((s) => s.id === supplierId)
     return p ? estimateCost(p, lm) : null
   },
-  samplePieces: async (dpi) => {
-    const out: { key: string; wCm: number; hCm: number; mask: PieceMask | null }[] = []
+  samplePieces: async (dpi, opts = {}) => {
+    const out: Awaited<ReturnType<typeof window.__dtf.samplePieces>> = []
     const store = new Map<string, RenderedPiece>()
     const sizes: SizeId[] = ['S', 'M', 'L', 'XL']
     for (const side of ['front', 'back'] as Side[])
       for (const size of sizes) {
-        const p = await renderPiece(makeSampleDesign(), side, dpi, size)
-        if (!p) continue
-        const key = `${side}#${size}`
-        store.set(key, p)
-        out.push({ key, wCm: p.wCm, hCm: p.hCm, mask: pieceMask(p) })
+        const row = `${side}#${size}`
+        const parts = await renderPieces(makeSampleDesign(), side, dpi, size, {
+          ...(opts.merged ? { clearanceIn: MERGE_WHOLE_SIDE_IN } : {}),
+          baseKey: row,
+        })
+        for (const p of parts) {
+          store.set(p.sourceKey, p)
+          const pl = piecePlacementCm(p)
+          out.push({
+            key: p.sourceKey,
+            row,
+            part: p.part,
+            parts: p.parts,
+            wCm: p.wCm,
+            hCm: p.hCm,
+            topCm: pl.topCm,
+            centerDxCm: pl.centerDxCm,
+            mask: pieceMask(p),
+          })
+        }
       }
     window.__dtfSources = store
     return out
@@ -393,6 +523,7 @@ window.__dtf = {
   buildOrderZip,
   sampleOrderZip,
   legendProbe,
+  splitProbe,
   previewReady: () => {
     const els = document.querySelectorAll<HTMLCanvasElement>('canvas[data-dtf="sheet-canvas"]')
     if (els.length === 0) return false

@@ -162,18 +162,37 @@ try {
       ],
     }
 
-    // --- real basket: the sample design rendered through renderPiece -----
-    const rendered = await samplePieces(48)
-    instances.basket = rendered.map((p, i) => ({
-      id: p.key,
-      sourceKey: p.key,
-      wCm: p.wCm,
-      hCm: p.hCm,
-      qty: [12, 8, 6, 4][i % 4],
-      allowRotate: true,
-      ...(p.mask ? { mask: p.mask.mask, maskW: p.mask.maskW, maskH: p.mask.maskH } : {}),
-      __fill: p.mask ? p.mask.fillRatio : 1,
-    }))
+    // --- real basket: the sample design rendered through renderPieces ----
+    // TWO instances of the SAME order: `basketMerged` is the pre-split
+    // behaviour (one transfer per side, empty space and all), `basket` is one
+    // transfer per independent visual. The pair is the whole point of this
+    // bench — the difference between the two rows is the film the split saves.
+    //
+    // Quantity is per ORDER LINE, never per transfer: N garments need N copies
+    // of every visual on the side. Assigning it per piece instead would give
+    // the split instance more copies than the merged one and compare two
+    // different orders.
+    const rowQty = new Map()
+    let ri = 0
+    const qtyOf = (row) => {
+      if (!rowQty.has(row)) rowQty.set(row, [12, 8, 6, 4][ri++ % 4])
+      return rowQty.get(row)
+    }
+    const toPieces = (list) =>
+      list.map((p) => ({
+        id: p.key,
+        sourceKey: p.key,
+        wCm: p.wCm,
+        hCm: p.hCm,
+        qty: qtyOf(p.row),
+        allowRotate: true,
+        ...(p.mask ? { mask: p.mask.mask, maskW: p.mask.maskW, maskH: p.mask.maskH } : {}),
+        __fill: p.mask ? p.mask.fillRatio : 1,
+      }))
+    // Merged FIRST so the per-row quantities are assigned in row order and both
+    // instances see exactly the same ones.
+    instances.basketMerged = toPieces(await samplePieces(48, { merged: true }))
+    instances.basket = toPieces(await samplePieces(48))
 
     // 58 cm printable width, 5 mm gap, 0 margins — the researched defaults.
     const base = {
@@ -229,6 +248,7 @@ try {
       rows.push({
         instance: name,
         qty,
+        transfers: pieces.length,
         ladder,
         monotone,
         bboxFill: Math.round(bboxFill * 1000) / 1000,
@@ -276,6 +296,33 @@ try {
         `${String(r.maxFill.ms).padStart(5)} ms (12 restarts) · ` +
         `${String(r.restarts24.ms).padStart(5)} ms (24)`,
     )
+
+  // The split, measured on the real basket: same order, same settings, same
+  // packer — the only difference is whether a side is emitted as one transfer
+  // or one per independent visual.
+  const split = out.find((r) => r.instance === 'basket')
+  const mergedRow = out.find((r) => r.instance === 'basketMerged')
+  if (split && mergedRow) {
+    const ROLL_W_CM = 58
+    const m2 = (cm) => (cm * ROLL_W_CM) / 10000
+    console.log('\nUN TRANSFERT PAR VISUEL vs UN PAR CÔTÉ — panier réel')
+    console.log('-'.repeat(80))
+    const line = (tag, a, b) =>
+      console.log(
+        `${tag.padEnd(16)} ${b.lengthCm.toFixed(1).padStart(8)} cm → ` +
+          `${a.lengthCm.toFixed(1).padStart(8)} cm   ` +
+          `${m2(b.lengthCm).toFixed(2)} → ${m2(a.lengthCm).toFixed(2)} m²   ` +
+          `${pc(b.lengthCm, a.lengthCm).padStart(8)} de film en moins`,
+      )
+    line('bandes droites', split.shelf, mergedRow.shelf)
+    line('jeu 2 cm', split.interlock2, mergedRow.interlock2)
+    line('remplissage max', split.maxFill, mergedRow.maxFill)
+    console.log(
+      `transferts       ${String(mergedRow.transfers).padStart(8)}    → ` +
+        `${String(split.transfers).padStart(8)}     ` +
+        `(${mergedRow.qty} → ${split.qty} poses)`,
+    )
+  }
 
   const totalShelf = out.reduce((a, r) => a + r.shelf.lengthCm, 0)
   const totalMax = out.reduce((a, r) => a + r.maxFill.lengthCm, 0)

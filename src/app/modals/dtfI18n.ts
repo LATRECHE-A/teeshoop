@@ -37,6 +37,25 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.queue.size': 'Taille {size}',
     'dtf.queue.current_none': 'Le design en cours n’a aucun côté imprimé',
     'dtf.queue.current_added': 'Design en cours ajouté à la file',
+    'dtf.queue.transfers': '{n} transferts',
+    // Un côté peut donner plusieurs transferts : sans la position de pose, le
+    // poseur a trois films et aucune idée de leur place sur le vêtement.
+    'dtf.piece.part': '{n}/{tot}',
+    'dtf.piece.pos': 'à {top} cm du haut de la zone · {dx}',
+    // Forme courte : elle est dessinée dans la largeur de la pièce sur le plan
+    // de découpe, où il n'y a pas la place d'une phrase.
+    'dtf.piece.pos_short': '↧{top} ↔{dx} cm',
+    'dtf.piece.centered': 'centré',
+    'dtf.piece.right': '{v} cm à droite de l’axe',
+    'dtf.piece.left': '{v} cm à gauche de l’axe',
+    'dtf.split.title': 'Un transfert par visuel',
+    'dtf.split.hint':
+      'Chaque visuel indépendant est imprimé séparément : le film n’achète plus le vide entre un logo poitrine et une ligne de bas. La position de pose de chaque transfert est donnée ci-dessus, sur le plan de découpe et dans le manifeste.',
+    'dtf.split.off_hint':
+      'Tout un côté est imprimé en un seul transfert, vide compris — une seule pose, mais du film payé pour rien.',
+    'dtf.split.merge': 'Fusionner en deçà de (cm)',
+    'dtf.split.merge_hint':
+      'Deux visuels plus proches que cette distance restent un seul transfert : en dessous, ils seraient de toute façon imbriqués à l’espacement du film, et il faudrait les aligner au millimètre sur le vêtement.',
     'dtf.saved.empty': 'Aucun design enregistré',
     'dtf.saved.close': 'Fermer la liste',
     'dtf.saved.added': '« {name} » ajouté à la file',
@@ -226,6 +245,21 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.queue.size': 'Size {size}',
     'dtf.queue.current_none': 'The current design has no printed side',
     'dtf.queue.current_added': 'Current design added to the queue',
+    'dtf.queue.transfers': '{n} transfers',
+    'dtf.piece.part': '{n}/{tot}',
+    'dtf.piece.pos': '{top} cm below the top of the area · {dx}',
+    'dtf.piece.pos_short': '↧{top} ↔{dx} cm',
+    'dtf.piece.centered': 'centred',
+    'dtf.piece.right': '{v} cm right of centre',
+    'dtf.piece.left': '{v} cm left of centre',
+    'dtf.split.title': 'One transfer per visual',
+    'dtf.split.hint':
+      'Every independent visual prints on its own, so the film no longer buys the empty space between a chest logo and a hem line. Each transfer’s placement is given above, on the cutting plan and in the manifest.',
+    'dtf.split.off_hint':
+      'A whole side prints as one transfer, empty space included — one press instead of three, but film paid for nothing.',
+    'dtf.split.merge': 'Merge closer than (cm)',
+    'dtf.split.merge_hint':
+      'Two visuals closer than this stay one transfer: any closer and they would be nested at the film spacing anyway, and someone would have to align them to the millimetre on the garment.',
     'dtf.saved.empty': 'No saved designs',
     'dtf.saved.close': 'Close the list',
     'dtf.saved.added': '“{name}” added to the queue',

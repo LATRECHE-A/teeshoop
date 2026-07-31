@@ -165,13 +165,36 @@ function checkZip(buf, result, info) {
       if (!m.orderName) fails.push('manifest carries no order name')
       if (!m.nesting || typeof m.nesting.flip !== 'boolean')
         fails.push('manifest does not record the flip permission')
+      // A side printed as several transfers is only pressable if the archive
+      // says where each one goes. The manifest is the traceability record, so
+      // that is the file it has to be in — not only on screen.
+      for (const p of m.pieces ?? []) {
+        const pl = p.placement
+        if (
+          !pl ||
+          typeof pl.topCm !== 'number' ||
+          typeof pl.centerDxCm !== 'number' ||
+          !(pl.areaWCm > 0) ||
+          !(pl.areaHCm > 0)
+        )
+          fails.push(`manifest piece ${p.sourceKey} carries no usable placement`)
+        if (p.parts !== undefined && !(p.part >= 1 && p.part <= p.parts))
+          fails.push(`manifest piece ${p.sourceKey} has a bad part index ${p.part}/${p.parts}`)
+      }
     }
   }
 
   const readme = entries.get(`${folder}/LISEZ-MOI.txt`)
   if (readme) {
     const txt = readme.data.toString('utf8')
-    for (const needle of ['DOSSIER D’IMPRESSION DTF', 'FOURNISSEUR', 'PLANCHES', 'VISUELS'])
+    for (const needle of [
+      'DOSSIER D’IMPRESSION DTF',
+      'FOURNISSEUR',
+      'PLANCHES',
+      'VISUELS',
+      // The position of every transfer, in the file the workshop actually reads.
+      'pose :',
+    ])
       if (!txt.includes(needle)) fails.push(`LISEZ-MOI is missing its "${needle}" section`)
   }
 
@@ -366,6 +389,124 @@ try {
   }
 
   // ------------------------------------------------------------------
+  // Per-visual splitting — same ink, smaller boxes, every piece placed
+  // ------------------------------------------------------------------
+  // Runs BEFORE the true-shape suite on purpose: `samplePieces` publishes
+  // window.__dtfSources, which the ZIP suite later reads, and the true-shape
+  // suite re-publishes it at its own DPI as its first act.
+  const splitSuite = await page.evaluate(async () => {
+    const { splitProbe, shape, samplePieces, interlockMax } = window.__dtf
+    const fails = []
+    const probe = await splitProbe(48)
+
+    // If nothing splits, every assertion below is vacuous and the feature is
+    // untested — say so rather than passing quietly.
+    if (!probe.some((s) => s.parts > 1))
+      fails.push('no side of the sample design splits — the split suite is vacuous')
+
+    const seen = new Set()
+    for (const s of probe) {
+      // The artwork is the SAME artwork: splitting may not lose ink (a crop
+      // that clipped a neighbour's edge) or invent it (a crop that swallowed a
+      // neighbour, printing that visual twice on the garment).
+      const drift = s.inkMerged > 0 ? Math.abs(s.inkSplit - s.inkMerged) / s.inkMerged : 0
+      if (drift > 0.03)
+        fails.push(
+          `${s.side}: split ink ${s.inkSplit} vs merged ${s.inkMerged} (${(drift * 100).toFixed(1)} % drift)`,
+        )
+      // …in strictly less bounding-box area, which IS the saving.
+      if (s.boxSplitCm2 > s.boxMergedCm2 + 1e-6)
+        fails.push(`${s.side}: split boxes ${s.boxSplitCm2} cm² > merged ${s.boxMergedCm2} cm²`)
+      if (s.parts > 1 && !(s.boxSplitCm2 < s.boxMergedCm2 - 1e-6))
+        fails.push(`${s.side}: split into ${s.parts} pieces but saved no box area`)
+
+      // Identity: a side that yields ONE piece keeps its key verbatim (things
+      // persist that key), a split side numbers its parts 1..n, uniquely.
+      if (s.parts === 1 && s.keys[0].includes('~'))
+        fails.push(`${s.side}: single-piece side grew a part suffix (${s.keys[0]})`)
+      for (const k of s.keys) {
+        if (seen.has(k)) fails.push(`duplicate piece key ${k}`)
+        seen.add(k)
+      }
+      if (s.parts > 1 && !s.keys.every((k, i) => k.endsWith(`~${i + 1}`)))
+        fails.push(`${s.side}: part suffixes are not 1..n (${s.keys.join(',')})`)
+
+      // Placement provenance: every transfer knows where it goes, and "where"
+      // is inside the print area it claims to be relative to.
+      for (const pl of s.placements) {
+        if (!pl.insideArea)
+          fails.push(`${s.side} part ${pl.part}: placement rect falls outside the print area`)
+        if (!(pl.areaWCm > 0) || !(pl.areaHCm > 0))
+          fails.push(`${s.side} part ${pl.part}: placement carries no print area to be relative to`)
+        if (!Number.isFinite(pl.topCm) || !Number.isFinite(pl.centerDxCm))
+          fails.push(`${s.side} part ${pl.part}: placement is not a number`)
+      }
+      if (s.parts > 1 && s.placements.some((p, i) => p.part !== i + 1))
+        fails.push(`${s.side}: part indices are not in reading order`)
+    }
+
+    // Quantity semantics: an order line for N garments needs N copies of EVERY
+    // transfer that line's side prints as — not N of the first and one of the
+    // rest. The quantity belongs to the row, so it is assigned per row here.
+    const rendered = await samplePieces(48)
+    const rowQty = new Map()
+    let ri = 0
+    for (const p of rendered)
+      if (!rowQty.has(p.row)) rowQty.set(p.row, [7, 5, 4, 3][ri++ % 4])
+    const pieces = rendered.map((p) => ({
+      id: p.key,
+      sourceKey: p.key,
+      wCm: p.wCm,
+      hCm: p.hCm,
+      qty: rowQty.get(p.row),
+      allowRotate: true,
+      ...(p.mask ? { mask: p.mask.mask, maskW: p.mask.maskW, maskH: p.mask.maskH } : {}),
+    }))
+    const geom = {
+      printableWidthCm: 58,
+      maxLengthCm: 90,
+      gapCm: 0.5,
+      edgeMarginCm: 0,
+      edgeMarginSideCm: 0,
+      edgeMarginEndCm: 0,
+      billingStepCm: 10,
+    }
+    const r = shape({ pieces, options: { ...geom, maxInterlockCm: interlockMax, restarts: 4 } })
+    const placed = new Map()
+    for (const s of r.sheets)
+      for (const pl of s.placements) placed.set(pl.sourceKey, (placed.get(pl.sourceKey) ?? 0) + 1)
+    for (const p of pieces)
+      if ((placed.get(p.sourceKey) ?? 0) !== p.qty)
+        fails.push(
+          `qty: ${p.sourceKey} placed ${placed.get(p.sourceKey) ?? 0} times, its line ordered ${p.qty}`,
+        )
+
+    return {
+      fails,
+      stats: {
+        sides: probe.map((s) => ({
+          side: s.side,
+          parts: s.parts,
+          boxCm2: `${s.boxSplitCm2} vs ${s.boxMergedCm2}`,
+          inkDrift:
+            s.inkMerged > 0
+              ? Math.round((Math.abs(s.inkSplit - s.inkMerged) / s.inkMerged) * 1000) / 10
+              : 0,
+        })),
+        transfers: pieces.length,
+        copies: [...placed.values()].reduce((a, n) => a + n, 0),
+      },
+    }
+  })
+
+  console.log('split stats:', JSON.stringify(splitSuite.stats))
+  if (splitSuite.fails.length) {
+    console.error(`❌ ${splitSuite.fails.length} split assertion(s) failed:`)
+    for (const f of splitSuite.fails.slice(0, 20)) console.error('  -', f)
+    done(1)
+  }
+
+  // ------------------------------------------------------------------
   // True-shape packer suite
   // ------------------------------------------------------------------
   const shapeSuite = await page.evaluate(async () => {
@@ -379,12 +520,18 @@ try {
     // has to be able to fail here.
     const rendered = await samplePieces(64)
     if (rendered.length === 0) fails.push('samplePieces produced nothing to nest')
-    const pieces = rendered.map((p, i) => ({
+    // Quantity is a property of the ORDER LINE (design side × size), not of the
+    // transfer: every visual a side splits into is needed once per garment.
+    const rowQty = new Map()
+    let ri = 0
+    for (const p of rendered)
+      if (!rowQty.has(p.row)) rowQty.set(p.row, [7, 5, 4, 3][ri++ % 4])
+    const pieces = rendered.map((p) => ({
       id: p.key,
       sourceKey: p.key,
       wCm: p.wCm,
       hCm: p.hCm,
-      qty: [7, 5, 4, 3][i % 4],
+      qty: rowQty.get(p.row),
       allowRotate: true,
       ...(p.mask ? { mask: p.mask.mask, maskW: p.mask.maskW, maskH: p.mask.maskH } : {}),
     }))

@@ -50,10 +50,14 @@ import {
   type NestResult,
 } from '@/lib/dtf/nesting'
 import {
+  MERGE_WHOLE_SIDE_IN,
+  PIECE_CLEARANCE_IN,
   pieceMask,
+  piecePartKey,
+  piecePlacementCm,
   pieceSourceKey,
   printedSides,
-  renderPiece,
+  renderPieces,
   type PieceMask,
   type RenderedPiece,
 } from '@/lib/dtf/pieces'
@@ -79,7 +83,14 @@ import {
   type SheetFormat,
   type SupplierProfile,
 } from '@/lib/dtf/suppliers'
-import { clampSheetDpi, renderSheet, sheetToPngBlob, SHEET_TARGET_DPI } from '@/lib/dtf/sheet'
+import {
+  clampSheetDpi,
+  renderSheet,
+  sheetToPngBlob,
+  SHEET_TARGET_DPI,
+  type ManifestPiece,
+} from '@/lib/dtf/sheet'
+import { CM_PER_IN } from '@/lib/units'
 import { useDtfT } from './dtfI18n'
 import type { Design, SavedDesignMeta, Side, SizeId } from '@/lib/types'
 
@@ -105,8 +116,21 @@ const DEFAULT_INTERLOCK_INDEX = INTERLOCK_STOPS.indexOf(2)
 /** Restart counts offered. A COUNT, never a time budget — see trueshape.ts. */
 const RESTART_CHOICES = [6, 12, 24]
 
+/**
+ * Merge distance shown in the UI, cm — `PIECE_CLEARANCE_IN` in the operator's
+ * unit. Every visual on a side is its own transfer unless two of them sit
+ * closer than this, which is roughly the film gap they would be nested with
+ * anyway (see pieces.ts for the full argument).
+ */
+const DEFAULT_MERGE_CM = Math.round(PIECE_CLEARANCE_IN * CM_PER_IN * 100) / 100
+
 interface QueueRow {
-  /** Stable row identity, nest piece id AND rendered-piece cache key. */
+  /**
+   * Stable row identity — the render-cache key, and the BASE of every nest
+   * piece id the row produces. A row is an order line (design × side × size),
+   * not a transfer: a side split into three visuals still queues once here and
+   * emits `key`, `key~2`, `key~3` (see `piecePartKey`).
+   */
   key: string
   /**
    * The same row identity WITHOUT the size — the transfer this row would be if
@@ -128,7 +152,8 @@ interface QueueRow {
 type PieceState =
   | { status: 'pending' }
   | { status: 'empty' }
-  | { status: 'ok'; piece: RenderedPiece }
+  /** Every transfer this side splits into, in part order. */
+  | { status: 'ok'; pieces: RenderedPiece[] }
 
 interface HoverInfo {
   x: number
@@ -263,6 +288,17 @@ export default function DtfModal() {
   )
   const [allowRotate, setAllowRotate] = useState(true)
   /**
+   * Each visual on a side is its own transfer. ON by default and that is the
+   * point: grouping a whole side into one transfer buys film for the empty
+   * space between a chest logo and a hem line. Turning it OFF is the explicit
+   * escape hatch for an operator who would rather press one big transfer than
+   * three small ones — it costs film, and the panel says so.
+   */
+  const [splitPieces, setSplitPieces] = useState(true)
+  /** Two visuals closer than this stay one transfer (cm). See pieces.ts. */
+  const [mergeCm, setMergeCm] = useState(DEFAULT_MERGE_CM)
+  const clearanceIn = splitPieces ? mergeCm / CM_PER_IN : MERGE_WHOLE_SIDE_IN
+  /**
    * 180°/270° as well as 90°. Measured worth 4,6 % of the roll on the benchmark
    * — real money — but it is OFF by default and always will be: a transfer
    * pressed upside down is scrap, and only the operator knows whether their
@@ -329,27 +365,41 @@ export default function DtfModal() {
   // forever (every rows change, and StrictMode's mount→cleanup→remount, would
   // orphan the initial renders). The cache is always committed; the resulting
   // dispatch on an unmounted component is a no-op in React 18+.
+  //
+  // The split setting is part of the cache key rather than a reason to clear
+  // the map: a row's artwork genuinely differs per clearance, and keying it in
+  // means dragging the setting back and forth costs nothing and can never show
+  // pieces rendered under the previous one.
   useEffect(() => {
     for (const row of rows) {
-      if (cacheRef.current.has(row.key)) continue
-      cacheRef.current.set(row.key, { status: 'pending' })
-      renderPiece(row.design, row.side, PREVIEW_DPI, row.size)
-        .then((piece) => {
+      const ck = cacheKey(row.key, clearanceIn)
+      if (cacheRef.current.has(ck)) continue
+      cacheRef.current.set(ck, { status: 'pending' })
+      renderPieces(row.design, row.side, PREVIEW_DPI, row.size, {
+        clearanceIn,
+        baseKey: row.key,
+      })
+        .then((pieces) => {
           cacheRef.current.set(
-            row.key,
-            piece ? { status: 'ok', piece } : { status: 'empty' },
+            ck,
+            pieces.length > 0 ? { status: 'ok', pieces } : { status: 'empty' },
           )
           bumpPieces()
         })
         .catch(() => {
-          cacheRef.current.set(row.key, { status: 'empty' })
+          cacheRef.current.set(ck, { status: 'empty' })
           bumpPieces()
         })
     }
-  }, [rows])
+  }, [rows, clearanceIn])
 
   const pieceOf = (key: string): PieceState =>
-    cacheRef.current.get(key) ?? { status: 'pending' }
+    cacheRef.current.get(cacheKey(key, clearanceIn)) ?? { status: 'pending' }
+  /** The transfers a queue row produced, empty while it is still rendering. */
+  const partsOf = (key: string): RenderedPiece[] => {
+    const st = pieceOf(key)
+    return st.status === 'ok' ? st.pieces : []
+  }
 
   // --- sheet geometry -------------------------------------------------------
   // The process declares the supplier's MAXIMUM; the operator may nest onto a
@@ -405,35 +455,39 @@ export default function DtfModal() {
     return m
   }
 
+  // One nest piece per TRANSFER, not per side. The row's quantity applies to
+  // every one of them: an order line for 10 garments needs 10 copies of each of
+  // that side's visuals, not 10 of the first and one of the rest.
   const pieces = useMemo(() => {
     const out: ShapePiece[] = []
     for (const row of rows) {
-      const st = pieceOf(row.key)
-      if (st.status !== 'ok' || row.qty <= 0) continue
-      const p = st.piece
-      const mask = maskOf(p)
-      out.push({
-        id: row.key,
-        sourceKey: row.key,
-        wCm: p.wCm,
-        hCm: p.hCm,
-        qty: row.qty,
-        allowRotate,
-        ...(allowFlip ? { allowFlip: true } : {}),
-        ...(mask ? { mask: mask.mask, maskW: mask.maskW, maskH: mask.maskH } : {}),
-        // Prepress metadata for preflight: source pixels at the PLACED size
-        // (p.srcDpi is the artwork's native ceiling, never the preview DPI —
-        // all-vector artwork reports null and simply skips the DPI check).
-        ...(p.srcDpi !== null
-          ? { srcPxW: Math.round(p.srcDpi * p.wIn), srcPxH: Math.round(p.srcDpi * p.hIn) }
-          : {}),
-        // Everything the renderer emits is transparent-background by design.
-        hasAlpha: true,
-      })
+      if (row.qty <= 0) continue
+      for (const p of partsOf(row.key)) {
+        const mask = maskOf(p)
+        out.push({
+          id: p.sourceKey,
+          sourceKey: p.sourceKey,
+          wCm: p.wCm,
+          hCm: p.hCm,
+          qty: row.qty,
+          allowRotate,
+          ...(allowFlip ? { allowFlip: true } : {}),
+          ...(mask ? { mask: mask.mask, maskW: mask.maskW, maskH: mask.maskH } : {}),
+          // Prepress metadata for preflight: source pixels at the PLACED size,
+          // measured on THIS transfer's own layers (p.srcDpi is the artwork's
+          // native ceiling, never the preview DPI — all-vector artwork reports
+          // null and simply skips the DPI check).
+          ...(p.srcDpi !== null
+            ? { srcPxW: Math.round(p.srcDpi * p.wIn), srcPxH: Math.round(p.srcDpi * p.hIn) }
+            : {}),
+          // Everything the renderer emits is transparent-background by design.
+          hasAlpha: true,
+        })
+      }
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, allowRotate, allowFlip, pieceVersion])
+  }, [rows, allowRotate, allowFlip, pieceVersion, clearanceIn])
 
   // Instant, never-empty baseline. The optimiser below can only improve on it.
   const shelfResult = useMemo(
@@ -497,29 +551,54 @@ export default function DtfModal() {
   const [forceExport, setForceExport] = useState(false)
   const blocked = hasErrors(issues) && !forceExport
 
+  /** Nest piece id → the transfer it is and the order line it came from. */
+  const partsByKey = useMemo(() => {
+    const m = new Map<string, { row: QueueRow; piece: RenderedPiece }>()
+    for (const row of rows)
+      for (const p of partsOf(row.key)) m.set(p.sourceKey, { row, piece: p })
+    return m
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, pieceVersion, clearanceIn])
+
   const previewSources = useMemo(() => {
     const map = new Map<string, RenderedPiece>()
-    for (const row of rows) {
-      const st = pieceOf(row.key)
-      if (st.status === 'ok') map.set(row.key, st.piece)
-    }
+    for (const [key, { piece }] of partsByKey) map.set(key, piece)
     return map
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, pieceVersion])
+  }, [partsByKey])
 
-  const rowByKey = useMemo(() => {
-    const m = new Map<string, QueueRow>()
-    for (const r of rows) m.set(r.key, r)
-    return m
-  }, [rows])
+  /** What one QUEUE ROW is: a design side, at a size when the design grades. */
+  const rowLabel = (row: QueueRow): string =>
+    `${row.design.name} · ${t('side.' + row.side)}` + (row.size ? ` · ${row.size}` : '')
 
-  // The size belongs in the label: on a graded order the cutting plan carries
-  // several transfers of the same design and only the size tells them apart.
+  // What one TRANSFER is. The size belongs in the label because on a graded
+  // order the cutting plan carries several transfers of the same design and
+  // only the size tells them apart — and so, now, does the part and its
+  // position: once a side prints as three transfers, the cutting plan is the
+  // only place the workshop learns which is which and where each goes. Two
+  // figures, no more: the label is drawn inside the piece's own width there.
   const labelOf = (sourceKey: string): string => {
-    const row = rowByKey.get(sourceKey)
-    if (!row) return sourceKey
-    const base = `${row.design.name} · ${t('side.' + row.side)}`
-    return row.size ? `${base} · ${row.size}` : base
+    const hit = partsByKey.get(sourceKey)
+    if (!hit) return sourceKey
+    const { row, piece } = hit
+    const base = rowLabel(row)
+    if (piece.parts <= 1) return base
+    const pl = piecePlacementCm(piece)
+    return (
+      `${base} · ${t('dtf.piece.part', { n: piece.part, tot: piece.parts })} ` +
+      t('dtf.piece.pos_short', { top: fmtCm(pl.topCm), dx: signedCm(pl.centerDxCm) })
+    )
+  }
+
+  /** Full-sentence placement, for the queue list and the tooltip. */
+  const placeText = (piece: RenderedPiece): string => {
+    const pl = piecePlacementCm(piece)
+    const dx =
+      Math.abs(pl.centerDxCm) < 0.05
+        ? t('dtf.piece.centered')
+        : t(pl.centerDxCm > 0 ? 'dtf.piece.right' : 'dtf.piece.left', {
+            v: fmtCm(Math.abs(pl.centerDxCm)),
+          })
+    return t('dtf.piece.pos', { top: fmtCm(pl.topCm), dx })
   }
 
   // --- stats -----------------------------------------------------------------
@@ -551,27 +630,32 @@ export default function DtfModal() {
   const singleSizePieces = useMemo(() => {
     const acc = new Map<string, DtfPiece>()
     for (const row of rows) {
-      const st = pieceOf(row.key)
-      if (st.status !== 'ok' || row.qty <= 0) continue
-      const hit = acc.get(row.baseKey)
-      if (hit) {
-        hit.qty += row.qty
-        continue
-      }
+      if (row.qty <= 0) continue
       const k = printScaleK(row.design, row.size)
-      acc.set(row.baseKey, {
-        id: row.baseKey,
-        sourceKey: row.baseKey,
-        wCm: st.piece.wCm / k,
-        hCm: st.piece.hCm / k,
-        qty: row.qty,
-        allowRotate,
-        hasAlpha: true,
-      })
+      // Grading is uniform about the print-area centre, so it cannot change how
+      // a side splits: part n of a size IS part n of every other size, and the
+      // un-graded counterfactual merges them part by part.
+      for (const p of partsOf(row.key)) {
+        const key = piecePartKey(row.baseKey, p.part, p.parts)
+        const hit = acc.get(key)
+        if (hit) {
+          hit.qty += row.qty
+          continue
+        }
+        acc.set(key, {
+          id: key,
+          sourceKey: key,
+          wCm: p.wCm / k,
+          hCm: p.hCm / k,
+          qty: row.qty,
+          allowRotate,
+          hasAlpha: true,
+        })
+      }
     }
     return [...acc.values()]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, allowRotate, pieceVersion])
+  }, [rows, allowRotate, pieceVersion, clearanceIn])
 
   /** Null unless grading actually multiplies transfers on THIS order. */
   const tradeoff = useMemo(() => {
@@ -636,37 +720,58 @@ export default function DtfModal() {
       : design.name || t('dtf.zip.default_fallback', { date: stamp })
   }, [fromBasket, basket.length, design.name, t])
 
+  // Re-rendering is per ORDER LINE, not per placed transfer: one renderPieces
+  // call hands back every part of a side at once, so a side split into three
+  // would otherwise be re-rendered three times for the same three canvases.
   const renderHiResSources = async (
     dpi: number,
     onStep: (n: number, total: number) => void,
   ): Promise<Map<string, RenderedPiece>> => {
     const keys = new Set(result.sheets.flatMap((s) => s.placements.map((p) => p.sourceKey)))
+    const needed = new Map<string, QueueRow>()
+    for (const key of keys) {
+      const hit = partsByKey.get(key)
+      if (hit) needed.set(hit.row.key, hit.row)
+    }
     const map = new Map<string, RenderedPiece>()
     let n = 0
-    for (const key of keys) {
-      onStep(++n, keys.size)
-      const row = rowByKey.get(key)
-      if (!row) continue
-      const piece = await renderPiece(row.design, row.side, dpi, row.size)
-      if (piece) map.set(key, piece)
+    for (const row of needed.values()) {
+      onStep(++n, needed.size)
+      const parts = await renderPieces(row.design, row.side, dpi, row.size, {
+        clearanceIn,
+        baseKey: row.key,
+      })
+      for (const p of parts) if (keys.has(p.sourceKey)) map.set(p.sourceKey, p)
     }
     return map
   }
 
-  const manifestPieces = () =>
-    rows
-      .map((row) => {
-        const st = pieceOf(row.key)
-        if (st.status !== 'ok') return null
-        return {
-          sourceKey: row.key,
-          label: labelOf(row.key),
-          wCm: Math.round(st.piece.wCm * 100) / 100,
-          hCm: Math.round(st.piece.hCm * 100) / 100,
+  const manifestPieces = (): ManifestPiece[] => {
+    const out: ManifestPiece[] = []
+    for (const row of rows)
+      for (const p of partsOf(row.key)) {
+        const pl = piecePlacementCm(p)
+        out.push({
+          sourceKey: p.sourceKey,
+          label: labelOf(p.sourceKey),
+          wCm: r2(p.wCm),
+          hCm: r2(p.hCm),
           qty: row.qty,
-        }
-      })
-      .filter((p): p is NonNullable<typeof p> => p !== null)
+          ...(p.parts > 1 ? { part: p.part, parts: p.parts } : {}),
+          // Always emitted, split or not: the manifest is the traceability
+          // record, and "where on the garment" is the one thing about a
+          // transfer that nothing else in the archive states.
+          placement: {
+            topCm: r2(pl.topCm),
+            leftCm: r2(pl.leftCm),
+            centerDxCm: r2(pl.centerDxCm),
+            areaWCm: r2(pl.areaWCm),
+            areaHCm: r2(pl.areaHCm),
+          },
+        })
+      }
+    return out
+  }
 
   const exportZip = async () => {
     if (!supplier || !proc || !canExport) return
@@ -682,7 +787,7 @@ export default function DtfModal() {
         setBusy(t('dtf.zip.busy', { label: t('dtf.zip.step_art'), n, total })),
       )
       const labels = new Map<string, string>()
-      for (const row of rows) labels.set(row.key, labelOf(row.key))
+      for (const key of partsByKey.keys()) labels.set(key, labelOf(key))
       const { blob, fileName } = await buildOrderZip(
         {
           orderName: name,
@@ -835,9 +940,14 @@ export default function DtfModal() {
               <div className="flex max-h-[26vh] flex-col gap-1.5 overflow-y-auto">
                 {rows.map((row) => {
                   const st = pieceOf(row.key)
-                  const label = labelOf(row.key)
-                  const bad = result.unplaceable.includes(row.key)
-                  const rowIssues = issues.filter((i) => i.pieceKey === row.key)
+                  const parts = st.status === 'ok' ? st.pieces : []
+                  const label = rowLabel(row)
+                  // A row is an order line; its warnings are those of every
+                  // transfer it prints as.
+                  const bad = parts.some((p) => result.unplaceable.includes(p.sourceKey))
+                  const rowIssues = issues.filter((i) =>
+                    parts.some((p) => p.sourceKey === i.pieceKey),
+                  )
                   const rowErr = rowIssues.some((i) => i.level === 'error')
                   return (
                     <div
@@ -851,7 +961,9 @@ export default function DtfModal() {
                         <div className="truncate text-[12px] font-medium text-tx">{label}</div>
                         <div className="font-mono text-[10.5px] text-tx3">
                           {st.status === 'ok'
-                            ? `${st.piece.wCm.toFixed(1)} × ${st.piece.hCm.toFixed(1)} cm`
+                            ? parts.length > 1
+                              ? t('dtf.queue.transfers', { n: parts.length })
+                              : `${parts[0].wCm.toFixed(1)} × ${parts[0].hCm.toFixed(1)} cm`
                             : st.status === 'pending'
                               ? t('dtf.queue.rendering')
                               : t('dtf.queue.empty_side')}
@@ -870,6 +982,27 @@ export default function DtfModal() {
                             </span>
                           )}
                         </div>
+                        {/* Where each transfer goes. A split side is only safe
+                            to press if this is on screen, not just in the ZIP. */}
+                        {parts.length > 1 && (
+                          <ul
+                            className="mt-1 flex flex-col gap-0.5 border-l border-line pl-1.5"
+                            data-dtf="row-parts"
+                          >
+                            {parts.map((p) => (
+                              <li
+                                key={p.sourceKey}
+                                className="truncate font-mono text-[10px] text-tx3"
+                                title={placeText(p)}
+                              >
+                                <span className="text-tx2">
+                                  {t('dtf.piece.part', { n: p.part, tot: p.parts })}
+                                </span>{' '}
+                                {p.wCm.toFixed(1)} × {p.hCm.toFixed(1)} cm · {placeText(p)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                       {row.from === 'basket' ? (
                         <span
@@ -1123,6 +1256,38 @@ export default function DtfModal() {
                   ))}
                 </select>
               </label>
+
+              {/* The split. Its default is "each visual alone" and the note
+                  says what turning it off costs, because the operator paying
+                  for the film is the one who gets to decide whether three
+                  small transfers are worth less handling than one big one. */}
+              <label className="mt-3 flex items-start gap-2 text-[12.5px] text-tx2">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  data-dtf="split-pieces"
+                  checked={splitPieces}
+                  onChange={(e) => setSplitPieces(e.target.checked)}
+                />
+                <span>
+                  {t('dtf.split.title')}
+                  <span className="block text-[10.5px] leading-relaxed text-tx3">
+                    {splitPieces ? t('dtf.split.hint') : t('dtf.split.off_hint')}
+                  </span>
+                </span>
+              </label>
+              {splitPieces && (
+                <div className="mt-1.5">
+                  <NumField
+                    label={t('dtf.split.merge')}
+                    hint={t('dtf.split.merge_hint')}
+                    value={mergeCm}
+                    min={0}
+                    step={0.1}
+                    onChange={setMergeCm}
+                  />
+                </div>
+              )}
 
               <label className="mt-2 flex items-center gap-2 text-[12.5px] text-tx2">
                 <input
@@ -1910,6 +2075,21 @@ export default function DtfModal() {
 
 /** €-delta with an explicit sign — "+3.40" reads as a surcharge, "3.40" does not. */
 const signedEur = (v: number): string => (v > 0 ? '+' : '') + v.toFixed(2)
+
+/**
+ * Render-cache key. A row's transfers depend on how the side is split, so the
+ * clearance is part of the identity of what was rendered — not a reason to
+ * throw the whole cache away when the operator nudges the setting.
+ */
+const cacheKey = (rowKey: string, clearanceIn: number): string =>
+  `${rowKey}|${Math.round(clearanceIn * 1e4)}`
+
+/** Signed cm, French-style — a bare "3,2" would not say which side of the axis. */
+const signedCm = (v: number): string =>
+  (Math.abs(v) < 0.05 ? '' : v > 0 ? '+' : '−') + fmtCm(Math.abs(v))
+
+/** cm rounded to 0,1 mm — the manifest's precision for physical dimensions. */
+const r2 = (v: number): number => Math.round(v * 100) / 100
 
 const clampNum = (v: number, lo: number, hi: number): number =>
   Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo
