@@ -19,9 +19,31 @@ const ok = (name, pass, extra = '') => {
   console.log(`${pass ? 'PASS' : 'FAIL'} ${name} ${extra}`)
 }
 
+// The same GL flags the 3D capture scripts use. With only
+// --enable-unsafe-swiftshader chromium still negotiates its GL backend on its
+// own, and the 3D phase below runs several times slower for it.
 const browser = await chromium.launch({
-  args: ['--enable-unsafe-swiftshader', '--disable-dev-shm-usage'],
+  args: [
+    '--enable-unsafe-swiftshader',
+    '--use-gl=angle',
+    '--use-angle=swiftshader',
+    '--disable-gpu-sandbox',
+    '--disable-dev-shm-usage',
+  ],
 })
+
+/**
+ * Budget for anything that has to wait on the 3D stage.
+ *
+ * The first 3D mount is a software-rasterised WebGL scene plus a GLB parse and
+ * an environment bake; measured across archived runs on this box it takes
+ * 58-66 s. The gate here used to be 60 s, i.e. inside that spread, so the suite
+ * failed as a COIN FLIP — and, because the failure surfaced at whichever step
+ * happened to be waiting, it read like a different app bug each run and got
+ * mis-attributed to a shading change. On real GPU hardware this is ~1 s; the
+ * budget exists for the harness, so it is generous on purpose.
+ */
+const GL_TIMEOUT = 180000
 
 try {
   // ---- 0. French-by-default (fresh context, no stored prefs) -------------
@@ -53,8 +75,14 @@ try {
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)))
   page.on('crash', () => errors.push('PAGE CRASH'))
+  // Screenshots are evidence, never assertions — hence the swallowed error.
+  // The budget is deliberately SHORT: once the 3D stage has run,
+  // page.screenshot can hang indefinitely waiting for a compositor frame
+  // (it gets past "fonts loaded" and never returns), and a 30 s hang here used
+  // to eat the budget the NEXT step needed, which is what made the suite look
+  // like it was failing on a missing button. Losing one PNG beats losing the run.
   const shot = (n) =>
-    page.screenshot({ path: out(n), animations: 'disabled', timeout: 30000 }).catch(() => {})
+    page.screenshot({ path: out(n), animations: 'disabled', timeout: 12000 }).catch(() => {})
 
   // 1. boot + sample design
   await page.goto(base, { waitUntil: 'networkidle', timeout: 45000 })
@@ -95,10 +123,13 @@ try {
   ok('scene-beach-applied', sceneApplied)
   await shot('e1c-beach')
 
-  // 4. 3D mode
-  await page.locator('button[aria-pressed]').filter({ hasText: '3D' }).first().click({ force: true, noWaitAfter: true })
+  // 4. 3D mode.
+  // No `force`: skipping the actionability checks is what turned a stalled
+  // page into an unexplained "element not found" call log. The real error
+  // ("element is not visible", "intercepts pointer events") is the diagnostic.
+  await page.locator('button[aria-pressed]').filter({ hasText: '3D' }).first().click({ timeout: GL_TIMEOUT })
   const readyOk = await page
-    .waitForFunction(() => document.body.innerText.includes('Drag to rotate'), { timeout: 60000 })
+    .waitForFunction(() => document.body.innerText.includes('Drag to rotate'), { timeout: GL_TIMEOUT })
     .then(() => true)
     .catch(() => false)
   ok('3d-ready-signal', readyOk)
@@ -134,8 +165,11 @@ try {
         }),
     )
     if (durl) fs.writeFileSync(out('e2-3d-tee'), Buffer.from(durl.split(',')[1], 'base64'))
-    // camera snap + hoodie in 3D
-    await page.getByText('Pullover Hoodie').click({ force: true, timeout: 8000, noWaitAfter: true })
+    // camera snap + hoodie in 3D. 8 s used to be the budget here, on a page
+    // that is rendering ~2.5 s frames — the click could not resolve in time and
+    // the suite blamed a missing garment card that the previous screenshot
+    // proves was on screen.
+    await page.getByText('Pullover Hoodie').click({ timeout: GL_TIMEOUT })
     await page.waitForTimeout(9000)
     const durl2 = await page.evaluate(
       () =>
@@ -155,12 +189,18 @@ try {
   }
 
   // 5. back to 2D, hoodie art
-  await page.locator('button[aria-pressed]').filter({ hasText: '2D' }).first().click({ force: true, noWaitAfter: true })
+  await page.locator('button[aria-pressed]').filter({ hasText: '2D' }).first().click({ timeout: GL_TIMEOUT })
   await page.waitForTimeout(1500)
   await shot('e4-hoodie-2d')
 
-  // 6. order modal quote math
-  await page.getByRole('button', { name: /Continue/ }).click({ noWaitAfter: true })
+  // 6. order modal quote math.
+  // GL_TIMEOUT, not the 30 s default: everything after the 3D phase runs on a
+  // page whose compositor is still catching up, and Playwright's actionability
+  // check needs several of its slow frames. Diagnosed rather than guessed —
+  // at this point `evaluate` answers in 4 ms and this very button resolves via
+  // getByRole in 33 ms, so the page is healthy; it is only *clicking* and
+  // *screenshotting* that are slow here.
+  await page.getByRole('button', { name: /Continue/ }).click({ timeout: GL_TIMEOUT })
   await page.waitForTimeout(1500)
   const total = await page.evaluate(() => document.body.innerText.match(/\$[\d,.]+/g)?.slice(-1)[0])
   ok('order-modal-quote', !!total, total ?? '')
