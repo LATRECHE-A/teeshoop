@@ -70,6 +70,14 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.stock_value': '{n} pièces',
     'catalog.fr.err.unavailable':
       'Catalogue Falk&Ross injoignable — vérifiez la connexion ou réessayez.',
+    'catalog.fr.err.backend':
+      'Le backend local n’est pas lancé — démarrez-le avec « npm run dev » (il lance aussi l’API) ou « npx wrangler dev » dans un second terminal.',
+    'catalog.fr.err.timeout':
+      'Le catalogue Falk&Ross met trop de temps à répondre — le serveur tourne, mais une référence bloque. Réessayez.',
+    'catalog.fr.retry': 'Réessayer',
+    'catalog.fr.offline.banner':
+      'Hors ligne — catalogue en cache du {date}. Les prix et stocks peuvent avoir changé ; réessayez pour recharger les données réelles.',
+    'catalog.fr.offline.style': 'Fiche affichée depuis le cache ({date}).',
     'catalog.fr.err.auth':
       'Falk&Ross a refusé les identifiants du webservice (FR_WS_USER / FR_WS_PASS).',
     'catalog.fr.err.config':
@@ -207,6 +215,14 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.stock_value': '{n} pieces',
     'catalog.fr.err.unavailable':
       'Falk&Ross catalogue unreachable — check the connection or try again.',
+    'catalog.fr.err.backend':
+      'The local backend is not running — start it with “npm run dev” (it also starts the API) or “npx wrangler dev” in a second terminal.',
+    'catalog.fr.err.timeout':
+      'The Falk&Ross catalogue is taking too long — the server is up, but one reference is stalling. Try again.',
+    'catalog.fr.retry': 'Retry',
+    'catalog.fr.offline.banner':
+      'Offline — cached catalogue from {date}. Prices and stock may have changed; retry to reload live data.',
+    'catalog.fr.offline.style': 'Detail shown from the cache ({date}).',
     'catalog.fr.err.auth':
       'Falk&Ross rejected the webservice credentials (FR_WS_USER / FR_WS_PASS).',
     'catalog.fr.err.config':

@@ -132,23 +132,49 @@ interface FetchOpts {
   cacheTtl?: number
 }
 
+/**
+ * Per-upstream-request deadline. The supplier's CGI endpoints occasionally
+ * hang instead of failing; without a deadline that hang propagates through the
+ * Worker to the modal as an infinite spinner.
+ *
+ * THIS MUST STAY COMFORTABLY BELOW THE CLIENT'S OWN BUDGET
+ * (src/lib/ingest/falkross.ts GET_TIMEOUT_MS / BROWSE_TIMEOUT_MS). Whoever
+ * times out first decides what the user is told: the client can only say
+ * "too long", while we know *what* broke and answer a typed JSON error. When
+ * both sides used 20 s the client always aborted first — it starts its clock
+ * earlier — so this module's truthful 502 was unreachable from the browser and
+ * a single hung style was reported to the developer as "your backend is not
+ * running". Measured healthy cold cost is ~1.2 s per 12-style batch, so 10 s
+ * is ~8x headroom on a real document.
+ *
+ * NOTE this bounds the wait for RESPONSE HEADERS; the timer is cleared once
+ * they arrive so a large image body can stream to a slow client without being
+ * cut off. A body that hangs after headers is bounded by the client deadline.
+ */
+const UPSTREAM_TIMEOUT_MS = 10_000
+
 async function fetchUpstream(url: string, opts: FetchOpts = {}): Promise<Response> {
   const headers: Record<string, string> = {}
   if (opts.auth) headers.authorization = authHeader(opts.env ?? {})
   if (opts.contentType) headers['content-type'] = opts.contentType
+  const deadline = new AbortController()
+  const timer = setTimeout(() => deadline.abort(), UPSTREAM_TIMEOUT_MS)
   let res: Response
   try {
     res = await fetch(url, {
       method: opts.method ?? 'GET',
       headers,
       body: opts.body,
+      signal: deadline.signal,
       // Never let Cloudflare's edge cache an AUTHENTICATED response under a
       // URL another tenant could also request; derived payloads are cached by
       // `cachedJson` under our own zone instead.
       cf: opts.cacheTtl && !opts.auth ? { cacheTtl: opts.cacheTtl, cacheEverything: true } : undefined,
     })
   } catch {
-    throw new FrError('upstream', 502, `Falk&Ross unreachable: ${url}`)
+    throw new FrError('upstream', 502, `Falk&Ross unreachable (or timed out): ${url}`)
+  } finally {
+    clearTimeout(timer)
   }
   if (res.status === 401 || res.status === 403) {
     throw new FrError('auth', 502, 'Falk&Ross rejected the webservice credentials.')
@@ -678,6 +704,12 @@ async function loadCard(
 const MAX_SCAN = 600
 const MAX_FETCHES = 48
 const CHUNK = 12
+/**
+ * Wall-clock ceiling for one browse request, checked between batches. Worst
+ * case a batch starts just under it and over-runs by UPSTREAM_TIMEOUT_MS, so
+ * the endpoint answers by ~28 s — inside the client's 35 s browse budget.
+ */
+const BROWSE_BUDGET_MS = 18_000
 
 export interface BrowseResult {
   total: number
@@ -701,6 +733,7 @@ async function browseStyles(
   let scanned = 0
   let fetches = 0
   const start = i
+  const deadline = Date.now() + BROWSE_BUDGET_MS
 
   const matches = (c: FrCard) => {
     if (opts.kind === 'printable' && !isPrintableKind(c.kind)) return false
@@ -715,7 +748,15 @@ async function browseStyles(
     i < index.nrs.length &&
     items.length < opts.limit &&
     scanned < MAX_SCAN &&
-    fetches < MAX_FETCHES
+    fetches < MAX_FETCHES &&
+    // A WALL-CLOCK budget beside the fetch-count one. `MAX_FETCHES` bounds how
+    // much work we ask for, but not how long the supplier takes to do it: one
+    // hung document stalls its whole `Promise.all` batch for UPSTREAM_TIMEOUT_MS,
+    // and four such batches used to outlast the browser's own deadline — so the
+    // client aborted and blamed the backend. Stopping early costs nothing,
+    // because a short page with a non-null `nextOffset` is already this
+    // endpoint's contract for "more to scan" and the UI resumes from there.
+    Date.now() < deadline
   ) {
     const slice = index.nrs.slice(i, i + CHUNK)
     // Count cold styles BEFORE the batch: `loadCard` swallows its own errors,

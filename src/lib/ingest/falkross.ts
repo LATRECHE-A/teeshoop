@@ -177,6 +177,8 @@ export interface FalkRossWsState {
 
 export type FalkRossErrorCode =
   | 'unavailable'
+  | 'backend'
+  | 'timeout'
   | 'auth'
   | 'config'
   | 'parse'
@@ -205,18 +207,65 @@ function errorCodeOf(status: number, body: unknown): FalkRossErrorCode {
   return 'unavailable'
 }
 
-async function getJson<T>(path: string): Promise<T> {
+/**
+ * Client-side deadlines. A hung supplier must surface as an error the modal
+ * can act on, not a spinner that never resolves.
+ *
+ * THESE MUST STAY ABOVE THE WORKER'S OWN BUDGETS (worker/falkross.ts:
+ * UPSTREAM_TIMEOUT_MS and BROWSE_BUDGET_MS). Whoever times out first decides
+ * the message the user reads: if the client wins the race it can only say
+ * "something took too long", while the Worker knows *what* failed — bad
+ * credentials, a 502 from the supplier, a missing style — and answers a typed
+ * JSON error. Ranking the client's budget last is what lets the truthful
+ * diagnosis reach the UI.
+ */
+const GET_TIMEOUT_MS = 25_000
+/** Browse fans out over many upstream documents, so it gets its own budget
+ *  (Worker: BROWSE_BUDGET_MS + one over-running batch). */
+const BROWSE_TIMEOUT_MS = 35_000
+
+/**
+ * Map a failed `fetch` onto a code the modal can explain.
+ *
+ * A TIMEOUT IS NOT A MISSING BACKEND. `AbortSignal.timeout` rejects with a
+ * DOMException named 'TimeoutError'; a refused connection rejects with a
+ * TypeError. Only the latter means the Worker is not running, and telling
+ * someone to `npm run dev` a process that is already up — because one supplier
+ * document hung — sends them to fix the wrong thing. That misdiagnosis is
+ * exactly what this error text exists to prevent, so it must not reintroduce
+ * it one layer down.
+ *
+ * `'backend'` vs `'unavailable'` for a genuine transport failure: in dev,
+ * `/api/*` is a Vite proxy to a local `wrangler dev`, and with that down the
+ * proxy answers ECONNREFUSED or a non-JSON 500 page — "your backend is not
+ * started" is then the honest diagnosis. In production the same symptoms mean
+ * the edge is broken, and "supplier unreachable" is the better message.
+ */
+function transportError(cause?: unknown): FalkRossError {
+  if (cause instanceof DOMException && cause.name === 'TimeoutError')
+    return new FalkRossError('timeout')
+  return new FalkRossError(import.meta.env.DEV ? 'backend' : 'unavailable')
+}
+
+async function getJson<T>(path: string, opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
+  const deadline = AbortSignal.timeout(opts.timeoutMs ?? GET_TIMEOUT_MS)
+  // A caller-supplied signal (a superseded search) must cancel too — but it
+  // must not be mistaken for a timeout, so the two stay distinguishable.
+  const signal = opts.signal ? AbortSignal.any([opts.signal, deadline]) : deadline
   let res: Response
   try {
-    res = await fetch(path, { headers: { accept: 'application/json' } })
-  } catch {
-    throw new FalkRossError('unavailable')
+    res = await fetch(path, { headers: { accept: 'application/json' }, signal })
+  } catch (e) {
+    throw transportError(deadline.aborted ? deadline.reason : e)
   }
   let body: unknown
   try {
     body = await res.json()
   } catch {
-    throw new FalkRossError(res.ok ? 'parse' : 'unavailable')
+    // A response ARRIVED, so the transport works; an unparseable body from a
+    // 2xx is the supplier/Worker contract breaking, while a non-JSON error
+    // page is what Vite's proxy returns when wrangler is down.
+    throw res.ok ? new FalkRossError('parse') : transportError()
   }
   if (!res.ok) {
     throw new FalkRossError(
@@ -260,7 +309,10 @@ export async function fetchFalkRossStyles(
   params.set('kind', opts.kind ?? 'printable')
   params.set('offset', String(opts.offset ?? 0))
   params.set('limit', String(opts.limit ?? 24))
-  return getJson<FalkRossPage>(`/api/fr/styles?${params.toString()}`)
+  return getJson<FalkRossPage>(`/api/fr/styles?${params.toString()}`, {
+    timeoutMs: BROWSE_TIMEOUT_MS,
+    signal: opts.signal,
+  })
 }
 
 /** True while the catalogue has unscanned styles left. */
@@ -435,7 +487,9 @@ async function fetchPhoto(url: string): Promise<Blob> {
   if (!url) throw new FalkRossError('photo')
   let res: Response
   try {
-    res = await fetch(url)
+    // Longer than GET_TIMEOUT_MS: a cold photo is a real image download
+    // through the Worker proxy, not a JSON round trip.
+    res = await fetch(url, { signal: AbortSignal.timeout(30_000) })
   } catch {
     throw new FalkRossError('photo')
   }

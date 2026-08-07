@@ -6,7 +6,9 @@
     "doc": "docs"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite",
+    "dev:api": "wrangler dev --port 8787 --ip 127.0.0.1",
     "build": "tsc --noEmit && tsc -p worker/tsconfig.json && vite build",
     "build:only": "vite build",
     "preview": "vite preview",

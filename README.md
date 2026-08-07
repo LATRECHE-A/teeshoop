@@ -129,14 +129,20 @@ idb-keyval · lz-string · Cloudflare Worker + R2 (AR model store)
 
 ```sh
 npm install
-npm run dev        # http://localhost:5173  (studio)
+npm run dev        # BOTH: wrangler dev on :8787 (API) + vite on :5173 (studio)
+npm run dev:web    # vite only — no /api/*: the Falk&Ross catalogue and AR
+                   # upload/QR flows are down, everything else works
+npm run dev:api    # wrangler dev only (the Worker, on :8787)
 npm run build      # typecheck (app + worker) + production build into dist/
 npm run preview    # serve the production build locally
 ```
 
-Note: the **AR upload/QR flow needs the Cloudflare Worker + R2 binding**, which
-plain `npm run dev` doesn't run. Use `npx wrangler dev` (below) to exercise it
-locally; everything else works under `npm run dev`.
+`npm run dev` runs the **two processes the app actually needs**: the Cloudflare
+Worker (Falk&Ross catalogue at `/api/fr/*`, AR store at `/api/ar`) and the Vite
+dev server, which proxies `/api` to it. Credentials for the catalogue go in
+`.dev.vars` (see below). If the catalogue ever reports the backend as down,
+that message now tells you exactly this. `TSHOP_NO_WORKER=1 npm run dev` skips
+the Worker on purpose.
 
 Dev-only visual harnesses (not part of the build): `/dev/garments.html`,
 `/dev/three.html`, `/dev/inflate.html`, `/dev/text.html`, `/dev/bgremove.html`.
@@ -181,16 +187,18 @@ For local `wrangler dev`, put the same keys in **`.dev.vars`** (git-ignored).
 Without them the catalogue answers `503 config` and the UI says so; the AR
 routes are unaffected.
 
-`npm run dev` serves static assets only, so it has no `/api/*` at all. Run the
-Worker beside it and Vite forwards to it:
+`npm run dev` starts both processes (wrangler on :8787, vite proxying `/api` to
+it). The equivalent by hand, if you prefer separate terminals:
 
 ```sh
-npx wrangler dev      # terminal 1 — the API, on :8787
-npm run dev           # terminal 2 — the studio, proxying /api to :8787
+npm run dev:api       # terminal 1 — the API, on :8787
+npm run dev:web       # terminal 2 — the studio, proxying /api to :8787
 ```
 
 (Set `TSHOP_WORKER` if wrangler is on another port. With wrangler down the
-proxy fails with ECONNREFUSED rather than quietly serving the SPA's HTML.)
+proxy fails with ECONNREFUSED rather than quietly serving the SPA's HTML — and
+the catalogue modal explains itself and falls back to its last-good snapshot,
+`node scripts/catalog-verify.mjs` being the executable spec of that behaviour.)
 
 ### Option A — one-off from your machine
 

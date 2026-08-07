@@ -72,6 +72,14 @@ import {
   type FalkRossStyle,
   type FalkRossWsState,
 } from '@/lib/ingest/falkross'
+import {
+  loadFrBrowse,
+  loadFrState,
+  loadFrStyle,
+  saveFrBrowse,
+  saveFrState,
+  saveFrStyle,
+} from '@/lib/ingest/frCache'
 import { useCatalogT } from './catalogI18n'
 
 type TFn = ReturnType<typeof useCatalogT>
@@ -79,6 +87,10 @@ type Busy = 'front' | 'back' | 'generate'
 type Source = 'falkross' | 'imbretex'
 
 const swatch = (rgb: [number, number, number]) => `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`
+
+/** Snapshot stamp, shown wherever cached data replaces live data. */
+const fmtWhen = (at: number): string =>
+  new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
 // ===========================================================================
 // FALK&ROSS
@@ -201,18 +213,24 @@ function FrCard({
   onPick: () => void
   t: TFn
 }) {
+  // Snapshot replay serves the GRID from IndexedDB but the thumbs are Worker
+  // URLs — with the backend down, any thumb the HTTP cache doesn't hold 404s.
+  // A broken-image glyph reads as a bug; the same neutral block a thumb-less
+  // style gets reads as a catalogue.
+  const [thumbBroken, setThumbBroken] = useState(false)
   return (
     <li>
       <button
         onClick={onPick}
         className="flex h-full w-full flex-col gap-1.5 rounded-xl border border-line bg-bg1 p-2 text-left transition-colors hover:border-cy/50"
       >
-        {card.thumb ? (
+        {card.thumb && !thumbBroken ? (
           <img
             src={card.thumb}
             alt={card.name}
             loading="lazy"
             draggable={false}
+            onError={() => setThumbBroken(true)}
             className="h-28 w-full rounded-lg bg-bg0 object-contain"
           />
         ) : (
@@ -246,6 +264,7 @@ function FrDetail({
   prices,
   stock,
   busy,
+  cachedAt = null,
   onBack,
   onUse,
   notify,
@@ -255,6 +274,8 @@ function FrDetail({
   prices: FalkRossPrices | null
   stock: FalkRossStock | null
   busy: Busy | null
+  /** Non-null ⇒ `style` is a snapshot replay from this epoch-ms stamp. */
+  cachedAt?: number | null
   onBack: () => void
   onUse: (colourCode: string, size: SizeId, sizes?: Partial<Record<SizeId, SizeSpecCm>>) => void
   notify: (kind: 'ok' | 'warn', msg: string) => void
@@ -316,6 +337,12 @@ function FrDetail({
       <button className="chip self-start hover:border-cy/50 hover:text-cy" disabled={!!busy} onClick={onBack}>
         <ArrowLeft size={11} /> {t('catalog.back')}
       </button>
+
+      {cachedAt !== null && (
+        <p className="rounded-lg border border-yl/40 bg-yl/10 p-2.5 text-[11px] leading-snug text-tx2">
+          {t('catalog.fr.offline.style', { date: fmtWhen(cachedAt) })}
+        </p>
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="flex shrink-0 gap-2 sm:w-[240px] sm:flex-col">
@@ -545,9 +572,19 @@ function FalkRossBrowser({
   const [prices, setPrices] = useState<FalkRossPrices | null>(null)
   const [stock, setStock] = useState<FalkRossStock | null>(null)
   const [busy, setBusy] = useState<Busy | null>(null)
+  // Snapshot-replay stamps (epoch ms of the live response being replayed).
+  // Non-null ⇒ the grid / the open detail is served from the offline cache.
+  const [offlineAt, setOfflineAt] = useState<number | null>(null)
+  const [styleCachedAt, setStyleCachedAt] = useState<number | null>(null)
 
   // Guards against a stale response overwriting a newer search's results.
   const runId = useRef(0)
+  // Mirror of `items` for the snapshot writer — load() appends across rounds
+  // and must persist the ACCUMULATED grid, not one round's slice.
+  const itemsRef = useRef<FalkRossCard[]>([])
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
 
   useEffect(() => {
     const id = setTimeout(() => setQuery(q.trim()), 300)
@@ -555,13 +592,25 @@ function FalkRossBrowser({
   }, [q])
 
   useEffect(() => {
-    void fetchFalkRossState().then(setState, () => undefined)
+    void fetchFalkRossState().then(
+      (s) => {
+        setState(s)
+        void saveFrState(s)
+      },
+      // The ws-mode badge matters most when ordering; a cached mode beats an
+      // absent one and is refreshed on the next successful open.
+      () => void loadFrState().then((hit) => hit && setState(hit.data)),
+    )
   }, [])
 
   const load = useCallback(
     async (offset: number, append: boolean, rounds: number) => {
       const id = ++runId.current
       setLoading(true)
+      // Hoisted so the catch can tell "this run got nothing" from "this run
+      // was partway through and a later round failed" — see below.
+      const acc: FalkRossCard[] = append ? itemsRef.current.slice() : []
+      let last: FalkRossPage | null = null
       try {
         let cur = offset
         let found = 0
@@ -576,17 +625,50 @@ function FalkRossBrowser({
         for (let round = 0; round < rounds; round++) {
           const res = await fetchFalkRossStyles({ q: query, kind, offset: cur, limit: 24 })
           if (runId.current !== id) return
-          const first = round === 0
-          setItems((prev) => (append || !first ? [...prev, ...res.items] : res.items))
+          acc.push(...res.items)
+          last = res
+          setItems([...acc])
           setPage(res)
           setErr(null)
+          setOfflineAt(null)
           found += res.items.length
           if (res.nextOffset === null || found >= 24) break
           cur = res.nextOffset
         }
+        // Last-good snapshot for the day the backend or the supplier is down.
+        // NEVER persist an empty result: a legitimately-empty scan (a cold
+        // Worker that walked 192 styles without a match) would otherwise
+        // overwrite a good snapshot with `items: []` and permanently disable
+        // the very fallback this exists to provide.
+        if (last && acc.length > 0) void saveFrBrowse(query, kind, { items: acc, page: last })
       } catch (e) {
+        const code = e instanceof FalkRossError ? e.code : ('unavailable' as const)
+        // A LATER ROUND FAILING IS NOT AN OUTAGE. Rounds commit as they land,
+        // so by here the user may already be looking at fresh cards; replacing
+        // them with an older snapshot would be a visible downgrade, and would
+        // throw away results we never persisted. Keep what we got, save it,
+        // and let the scan-more affordance carry the retry.
+        if (acc.length > 0) {
+          if (runId.current !== id) return
+          if (last) void saveFrBrowse(query, kind, { items: acc, page: last })
+          // Keep the cards, but still say what happened: the banner carries
+          // the retry, and silently swallowing the failure would leave a
+          // half-scanned grid looking like a finished one.
+          setErr(code)
+          return
+        }
+        // Nothing live at all — replay the last-good snapshot for this query
+        // instead of a dead error page, and SAY it is a replay.
+        const hit = await loadFrBrowse(query, kind).catch(() => null)
         if (runId.current !== id) return
-        setErr(e instanceof FalkRossError ? e.code : 'unavailable')
+        if (hit && hit.data.items.length > 0) {
+          setItems(hit.data.items)
+          setPage(hit.data.page)
+          setErr(null)
+          setOfflineAt(hit.at)
+        } else {
+          setErr(code)
+        }
       } finally {
         if (runId.current === id) setLoading(false)
       }
@@ -601,16 +683,32 @@ function FalkRossBrowser({
   }, [load])
 
   // Detail: style + price + stock. Price/stock are best-effort — a catalogue
-  // that still browses without them beats one that fails whole.
+  // that still browses without them beats one that fails whole. The style
+  // itself falls back to its snapshot (prices/stock deliberately don't:
+  // their staleness costs money, and the UI already renders without them).
   useEffect(() => {
     if (!sel) return
     setStyle(null)
     setPrices(null)
     setStock(null)
+    setStyleCachedAt(null)
     let live = true
     void fetchFalkRossStyle(sel.styleNr).then(
-      (s) => live && setStyle(s),
-      () => live && toast('error', t('catalog.fr.err.style')),
+      (s) => {
+        if (!live) return
+        setStyle(s)
+        void saveFrStyle(s)
+      },
+      async () => {
+        const hit = await loadFrStyle(sel.styleNr).catch(() => null)
+        if (!live) return
+        if (hit) {
+          setStyle(hit.data)
+          setStyleCachedAt(hit.at)
+        } else {
+          toast('error', t('catalog.fr.err.style'))
+        }
+      },
     )
     void fetchFalkRossPrices(sel.styleNr).then(
       (p) => live && setPrices(p),
@@ -674,6 +772,7 @@ function FalkRossBrowser({
         prices={prices}
         stock={stock}
         busy={busy}
+        cachedAt={styleCachedAt}
         onBack={() => setSel(null)}
         onUse={(c, s, o) => void use(c, s, o)}
         notify={toast}
@@ -701,9 +800,35 @@ function FalkRossBrowser({
       </p>
 
       {err && (
-        <p className="rounded-lg border border-dg/40 bg-dg/10 p-2.5 text-[11.5px] leading-snug text-dg">
-          {t(`catalog.fr.err.${err}`)}
-        </p>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dg/40 bg-dg/10 p-2.5">
+          <p className="min-w-0 flex-1 text-[11.5px] leading-snug text-dg">
+            {t(`catalog.fr.err.${err}`)}
+          </p>
+          <button
+            className="chip shrink-0 hover:border-cy/50 hover:text-cy"
+            disabled={loading}
+            onClick={() => void load(0, false, AUTO_ROUNDS)}
+          >
+            <RefreshCw size={10} /> {t('catalog.fr.retry')}
+          </button>
+        </div>
+      )}
+
+      {/* Snapshot replay — stale, and labelled as such. The date is the point:
+          "cached" without a when forces the user to guess how much to trust it. */}
+      {offlineAt !== null && !err && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-yl/40 bg-yl/10 p-2.5">
+          <p className="min-w-0 flex-1 text-[11.5px] leading-snug text-tx2">
+            {t('catalog.fr.offline.banner', { date: fmtWhen(offlineAt) })}
+          </p>
+          <button
+            className="chip shrink-0 hover:border-cy/50 hover:text-cy"
+            disabled={loading}
+            onClick={() => void load(0, false, AUTO_ROUNDS)}
+          >
+            <RefreshCw size={10} /> {t('catalog.fr.retry')}
+          </button>
+        </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -752,7 +877,13 @@ function FalkRossBrowser({
                   total: page.total,
                 })}
           </span>
-          {page.nextOffset !== null && (
+          {/* Hidden while the grid is a snapshot replay. Appending live rows
+              onto cached ones would merge two different days into one list,
+              clear the "offline" banner because the append succeeded, and then
+              re-stamp the whole mixture with `Date.now()` — so the next outage
+              would date week-old cards as today's. The offline banner's own
+              Retry (a fresh live load from offset 0) is the correct way out. */}
+          {page.nextOffset !== null && offlineAt === null && (
             <button
               className="chip hover:border-cy/50 hover:text-cy"
               disabled={loading}
