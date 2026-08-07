@@ -23,13 +23,23 @@
  * Z displacement, high-pass → normal map). The blur this needs is the blur those
  * two already compute, so the whole correction costs one extra pass.
  *
- * THE PRINT IS DE-LIT TOO, AND THAT IS CORRECT. The canvas that arrives here is
- * the composite — garment photo with the customer's artwork already drawn on it.
- * The artwork is physically ON that cloth and was, in the mockup, lit by the
- * same lightbox; re-lighting it with the fabric is what keeps a chest logo from
- * floating. The 2D mockup, the poster and every DTF/print output are produced by
- * a different path (renderDesign / dtf) and are NOT touched by any of this — no
- * colour a customer receives on cloth is changed here.
+ * AND THEN HALF OF IT IS GIVEN BACK. Dividing shading out is only right if the
+ * geometry can put it back, and the inflated shell cannot — see
+ * `DelightResult.occlusion`, which is the shadow half of the very same field,
+ * returned as an occlusion map so it lands on the view-independent light and
+ * nowhere else. The removal and the restoration are two halves of one decision
+ * and live in one function on purpose.
+ *
+ * THE PRINT IS DE-LIT TOO, AND THAT IS CORRECT — but it is never MEASURED. The
+ * canvas that arrives here is the composite: garment photo with the customer's
+ * artwork already drawn on it. The artwork is physically ON that cloth and was,
+ * in the mockup, lit by the same lightbox, so re-lighting it with the fabric is
+ * what keeps a chest logo from floating. What it must not do is take part in
+ * estimating the light, which is why callers pass the BARE garment as `f` (see
+ * silhouette.buildDelitMaps / buildInflatedShell's `opts.photo`) and the
+ * composite as `source`. The 2D mockup, the poster and every DTF/print output
+ * are produced by a different path (renderDesign / dtf) and are NOT touched by
+ * any of this — no colour a customer receives on cloth is changed here.
  *
  * DETERMINISM: box blurs and per-pixel arithmetic on the input pixels only.
  */
@@ -170,6 +180,34 @@ const CONTENT_SPREAD = 0.25
 export interface DelightResult {
   /** The corrected albedo, or null when the photo needed no correction. */
   canvas: HTMLCanvasElement | null
+  /**
+   * The SHADOW half of what the correction removed, as a greyscale occlusion
+   * map (1 = unoccluded). Null exactly when `canvas` is.
+   *
+   * DE-LIGHTING IS ONLY HALF A CORRECTION, AND SHIPPING HALF OF IT IS WHAT MADE
+   * AN UPLOADED GARMENT READ AS A PAPER CUTOUT. Dividing the photo's own
+   * shading out is right only if the geometry can put it back, and a two-sheet
+   * inflation cannot: it has no hood to shadow its own shoulder, no sleeve
+   * rolling under an armhole, no pocket. Measured on the shipped 201270 hoodie
+   * the source photo's form spans 0.72…1.0 of its own mean and the shell
+   * returned a near-uniform white — every one of those cues gone and nothing
+   * replacing them.
+   *
+   * So the correction is SPLIT BY WHAT MOVES. Baked shading is a shadow term
+   * and a highlight term. The highlight must go: a specular that stays put
+   * while the camera orbits is the single strongest "this is a photograph"
+   * cue, and the scene's own lights make a real one. The shadow term must NOT
+   * go: occlusion is view-independent, so the photograph's is as valid at 45°
+   * as it was head-on, and it is the only record of the garment's true form we
+   * have. Handing it back as an aoMap puts it exactly where three multiplies
+   * view-independent light — indirect diffuse, sheen and env specular — and
+   * nowhere near the direct key.
+   *
+   * An occlusion map may darken and never brighten, which is why this is
+   * `min(1, 1/gain)`: where the photo was brighter than its own mean the map
+   * is 1 and the correction stands.
+   */
+  occlusion: HTMLCanvasElement | null
   /** Relative std-dev of the shading field over the garment — how lit the photo was.
    *  Reported even when no correction was applied, so "we skipped it" is a
    *  measurement rather than a silent null: below FLAT_SPREAD the photo is
@@ -220,7 +258,7 @@ export function delight(
   }
   const spread = Math.sqrt(varSum / wsum) / mean
   if (spread < FLAT_SPREAD || spread > CONTENT_SPREAD)
-    return { canvas: null, spread, gMin: 1, gMax: 1 }
+    return { canvas: null, occlusion: null, spread, gMin: 1, gMax: 1 }
 
   // Gain field at analysis resolution.
   const gain = new Float32Array(W * H)
@@ -236,6 +274,31 @@ export function delight(
     }
   }
   if (!Number.isFinite(gMin)) return null
+
+  // The occlusion half, at ANALYSIS resolution: this field is a blur of radius
+  // 8.5 % of the long edge, so 768 px carries it with room to spare and there
+  // is nothing to gain from the source's megapixels. Outside the garment it is
+  // forced to 1 — the alpha cut removes those texels on the sheets, but the rim
+  // strip samples at a UV inset and bilinear taps reach across the edge.
+  let occlusion: HTMLCanvasElement | null = null
+  const occ = document.createElement('canvas')
+  occ.width = W
+  occ.height = H
+  const octx = occ.getContext('2d')
+  if (octx) {
+    const oimg = octx.createImageData(W, H)
+    const op = oimg.data
+    for (let i = 0, p = 0; i < gain.length; i++, p += 4) {
+      const g = gain[i]
+      const o = a[i] >= 0.5 && g > 1 ? 1 / g : 1
+      op[p] = o * 255
+      op[p + 1] = op[p]
+      op[p + 2] = op[p]
+      op[p + 3] = 255
+    }
+    octx.putImageData(oimg, 0, 0)
+    occlusion = occ
+  }
 
   const out = document.createElement('canvas')
   out.width = source.width
@@ -274,5 +337,5 @@ export function delight(
     }
   }
   ctx.putImageData(img, 0, 0)
-  return { canvas: out, spread, gMin, gMax }
+  return { canvas: out, occlusion, spread, gMin, gMax }
 }

@@ -97,31 +97,46 @@ function useDesignTextures(design: Design, size: SizeId): Sources | null {
           // and design are drawn from the top-left, so bottom padding keeps
           // every placement valid while front/back register (shoulders align)
           // in 2D, 3D and the extruded back cap.
-          const rendered: { side: Side; canvas: HTMLCanvasElement }[] = []
+          // Each side twice: the composite the customer sees, and the BARE
+          // garment the 3D shell measures its light and its folds from (see
+          // CardSource.photo). The second pass is nearly free — the decoded
+          // image and its alpha bbox are already cached (lib/custom.ts), so it
+          // costs one drawImage — and it is the difference between a print
+          // sitting ON the cloth and a print embossed INTO it.
+          const rendered: { side: Side; canvas: HTMLCanvasElement; photo: HTMLCanvasElement }[] = []
           for (const side of ['front', 'back'] as const) {
             if (!design.custom?.[side]) continue
-            rendered.push({ side, canvas: await renderMockup(design, side, 1100, size) })
+            rendered.push({
+              side,
+              canvas: await renderMockup(design, side, 1100, size),
+              photo: await renderMockup(design, side, 1100, size, { artwork: false }),
+            })
           }
           const hIns = rendered.map((r) => (widthIn * r.canvas.height) / r.canvas.width)
           let unifiedHIn = hIns.length ? Math.max(...hIns) : 0
           const minH = hIns.length ? Math.min(...hIns) : 0
           // Framings too different (bad crop/zoom) — don't force a runaway pad.
           if (unifiedHIn > 0 && minH > 0 && unifiedHIn / minH > 1.7) unifiedHIn = 0
-          for (const r of rendered) {
-            let canvas = r.canvas
+          // The pad has to be applied to BOTH canvases or they stop being the
+          // same picture: every photometric field is sampled in normalised
+          // canvas coords, so one padded and one not would shift the whole
+          // measurement down the garment.
+          const padTo = (canvas: HTMLCanvasElement): HTMLCanvasElement => {
             const natHIn = (widthIn * canvas.height) / canvas.width
-            if (unifiedHIn > 0 && natHIn < unifiedHIn - 1e-3) {
-              const padded = document.createElement('canvas')
-              padded.width = canvas.width
-              padded.height = Math.max(2, Math.round((canvas.width * unifiedHIn) / widthIn))
-              const pctx = padded.getContext('2d')
-              if (pctx) {
-                pctx.drawImage(canvas, 0, 0)
-                canvas = padded
-              }
-            }
+            if (!(unifiedHIn > 0) || natHIn >= unifiedHIn - 1e-3) return canvas
+            const padded = document.createElement('canvas')
+            padded.width = canvas.width
+            padded.height = Math.max(2, Math.round((canvas.width * unifiedHIn) / widthIn))
+            const pctx = padded.getContext('2d')
+            if (!pctx) return canvas
+            pctx.drawImage(canvas, 0, 0)
+            return padded
+          }
+          for (const r of rendered) {
+            const canvas = padTo(r.canvas)
             next[r.side === 'front' ? 'customFront' : 'customBack'] = {
               canvas,
+              photo: padTo(r.photo),
               version: v,
               wIn: widthIn,
               hIn: (widthIn * canvas.height) / canvas.width,

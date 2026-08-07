@@ -40,7 +40,7 @@ import type { CatalogGarmentId, Design, Gender, Side } from '@/lib/types'
 import { areaOffsetYIn, garmentColorHex, getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { DEFAULT_SIZE, type SizeId } from '@/content/sizeChart'
 import { printScaleK } from '@/lib/printScale'
-import { buildDelitCanvas, buildInflatedShell, canvasToSilhouette } from '@/lib/silhouette'
+import { buildDelitMaps, buildInflatedShell, canvasToSilhouette } from '@/lib/silhouette'
 import { GARMENTS } from '@/garments'
 import { CALIBRATION } from '@/three/calibration'
 import { buildFabricDecal, makeCurvedDecal } from '@/three/decalGeom'
@@ -526,6 +526,42 @@ function padCanvasToHeight(src: HTMLCanvasElement, targetH: number): HTMLCanvasE
 }
 
 /**
+ * Multiply a garment's own occlusion map back into its albedo.
+ *
+ * The 3D preview keeps the two apart — albedo in `map`, occlusion in `aoMap`,
+ * so three applies the second only to view-independent light. An exported GLB
+ * has no such luxury: Scene Viewer and Quick Look each decide for themselves
+ * what to do with an occlusion texture, and the one thing both honour is base
+ * colour. Baking is lossy in exactly one way (the occlusion also dims the
+ * direct light, where the preview would not) and correct in the way that
+ * matters — the garment arrives on the phone with the form its photograph had.
+ *
+ * Returns the source untouched when there is nothing to bake, so the caller
+ * never has to branch.
+ */
+function bakeOcclusion(
+  albedo: HTMLCanvasElement,
+  occlusion: HTMLCanvasElement | null | undefined,
+): HTMLCanvasElement {
+  if (!occlusion) return albedo
+  const out = document.createElement('canvas')
+  out.width = albedo.width
+  out.height = albedo.height
+  const ctx = out.getContext('2d')
+  if (!ctx) return albedo
+  ctx.drawImage(albedo, 0, 0)
+  // `multiply` alone would also multiply the transparent surround toward black;
+  // `destination-in` against the albedo restores the cutout's own alpha, which
+  // is what the shell's alpha test and the rim's UV inset both rely on.
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.drawImage(occlusion, 0, 0, out.width, out.height)
+  ctx.globalCompositeOperation = 'destination-in'
+  ctx.drawImage(albedo, 0, 0)
+  ctx.globalCompositeOperation = 'source-over'
+  return out
+}
+
+/**
  * Silhouette-shaped back cap when the customer supplied no back photo, flooded
  * with THE GARMENT'S OWN COLOUR — measured off the front (src/three/textures.ts
  * `garmentTint`), not assumed.
@@ -765,8 +801,16 @@ async function buildCustomFigure(
 
   // Composite each supplied side (garment photo + design) through the SHARED
   // renderer — byte-identical to the studio 3D texture, so AR matches 3D.
-  let frontCanvas = await renderMockup(design, hasFront ? 'front' : 'back', 1100, sizeId)
+  const frontSide = hasFront ? 'front' : 'back'
+  let frontCanvas = await renderMockup(design, frontSide, 1100, sizeId)
   let backCanvas = hasFront && hasBack ? await renderMockup(design, 'back', 1100, sizeId) : null
+  // The bare garment behind each composite. The shell measures its photometry
+  // from this (CardSource.photo / buildInflatedShell's `opts.photo`) and the
+  // measurement moves GEOMETRY — the photo's mid-frequency band is real Z
+  // displacement — so AR must hand over exactly what the preview does or the
+  // two stop being the same garment.
+  let frontPhoto = await renderMockup(design, frontSide, 1100, sizeId, { artwork: false })
+  let backPhoto = backCanvas ? await renderMockup(design, 'back', 1100, sizeId, { artwork: false }) : null
   // Register front & back so the back design maps onto the (front-derived) shell:
   // bottom-pad the shorter to a shared height (shoulders top-align), matching the
   // studio 3D (Scene3D). Skip a runaway pad from a badly-cropped side.
@@ -776,6 +820,8 @@ async function buildCustomFigure(
     if (minH > 0 && maxH / minH <= 1.7) {
       frontCanvas = padCanvasToHeight(frontCanvas, maxH)
       backCanvas = padCanvasToHeight(backCanvas, maxH)
+      frontPhoto = padCanvasToHeight(frontPhoto, maxH)
+      if (backPhoto) backPhoto = padCanvasToHeight(backPhoto, maxH)
     }
   }
   const wIn = widthIn
@@ -785,30 +831,44 @@ async function buildCustomFigure(
   const disposables: Disposable[] = []
 
   const sil = canvasToSilhouette(frontCanvas, wIn, hIn)
-  const shell = sil ? buildInflatedShell(frontCanvas, sil, wIn, hIn) : null
+  const shell = sil ? buildInflatedShell(frontCanvas, sil, wIn, hIn, { photo: frontPhoto }) : null
 
   if (shell) {
     sanitizeGarmentGeometry(shell.front, true)
     sanitizeGarmentGeometry(shell.back, true)
     // De-lit albedo, exactly as the studio preview samples it: the photo's own
-    // lightbox gradient is divided out so Scene Viewer's / Quick Look's lighting
-    // is the only lighting, and a highlight that stays put while the phone moves
-    // (the strongest "this is a picture, not an object" cue there is) cannot
-    // happen. Falls back to the raw composite when the photo was already flat.
-    const frontTex = canvasTexture(shell.albedoCanvas ?? frontCanvas)
+    // lightbox HIGHLIGHT is divided out so Scene Viewer's / Quick Look's
+    // lighting is the only lighting, and a highlight that stays put while the
+    // phone moves (the strongest "this is a picture, not an object" cue there
+    // is) cannot happen. Falls back to the raw composite when the photo was
+    // already flat.
+    //
+    // …with the occlusion half of that same correction multiplied straight back
+    // in. The preview binds it as an aoMap; a GLB headed for Scene Viewer /
+    // Quick Look cannot rely on one being honoured, and vertex colours are
+    // stripped here anyway (sanitizeGarmentGeometry), so it is baked into the
+    // base colour instead. Without this the phone shows a flat cutout of the
+    // garment the desktop shows with its own form — the same divergence, in the
+    // one place the customer is most likely to notice it.
+    const frontTex = canvasTexture(bakeOcclusion(shell.albedoCanvas ?? frontCanvas, shell.occlusionCanvas))
     const frontMat = decalMaterial(frontTex)
     figure.add(new THREE.Mesh(shell.front, frontMat))
     disposables.push(shell.front, frontTex, frontMat)
 
-    const backPhoto = backCanvas ?? blankBackCanvas(frontCanvas)
+    // Fallback base for the reverse when the customer supplied no back shot.
+    // (Named apart from `backPhoto`, which is the BARE back — the photometric
+    // reference, not a substitute picture.)
+    const backBase = backCanvas ?? blankBackCanvas(frontCanvas)
     // A GENERATED back is a reconstruction, not a photograph: ingest mirrors the
     // front's silhouette and floods it with the garment colour, so there is no
     // lightbox gradient to divide out — and running the correction anyway would
     // work on the baked "APERÇU · PREVIEW" mark, the one thing in those pixels
     // that does vary. Same decision the studio preview makes.
-    const backSrc =
-      (backCanvas && !backGenerated && buildDelitCanvas(backCanvas)) || backPhoto
-    const backTex = canvasTexture(backSrc)
+    const backMaps =
+      backCanvas && !backGenerated
+        ? buildDelitMaps(backCanvas, backPhoto)
+        : { albedo: null, occlusion: null }
+    const backTex = canvasTexture(bakeOcclusion(backMaps.albedo ?? backBase, backMaps.occlusion))
     const backMat = decalMaterial(backTex)
     figure.add(new THREE.Mesh(shell.back, backMat))
     disposables.push(shell.back, backTex, backMat)

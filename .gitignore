@@ -9,3 +9,6 @@ dist/
 # Production values live in `wrangler secret put`, never in the repo.
 .dev.vars
 .dev.vars.*
+
+# Render-QA proof sheets (scripts/3d-shots.mjs, scripts/stage-shots.mjs).
+.qa/

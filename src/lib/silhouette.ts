@@ -53,10 +53,14 @@
  * with real parallax. Two single-sided interior catch planes cover the
  * degenerate straight-through ray (all four sheets share the same alpha
  * holes). Photo-derived wrinkle detail: a mid-frequency luminance band
- * displaces Z (big folds are geometric) and a high-pass + knit-grain height
- * field becomes a tangent-space normal map (`normalMapCanvas`); the photo's own
- * baked studio lighting is divided out into `albedoCanvas` (src/lib/photoLight.ts)
- * so the scene's lights are the only lights.
+ * displaces Z (big folds are geometric) and a high-pass height field becomes a
+ * tangent-space normal map (`normalMapCanvas`). The photo's own baked studio
+ * lighting is SPLIT rather than discarded (src/lib/photoLight.ts): the
+ * highlight half is divided out into `albedoCanvas` so the scene's lights are
+ * the only lights, and the shadow half is kept as `occlusionCanvas` — the
+ * garment's real form, which no two-sheet inflation could reconstruct. All of
+ * this is measured off the BARE garment (`opts.photo`) and never off the
+ * customer's artwork.
  *
  * HARD INVARIANTS: X/Y vertex positions and UVs never move — displacement is
  * Z-only, which is what guarantees print/decal inch accuracy and crispness, and
@@ -81,6 +85,7 @@ import {
 } from '@/lib/garmentShape'
 import { blurNorm, delight, readLumAlpha, type LumField } from '@/lib/photoLight'
 import { buildTemplateDepth, type DepthField } from '@/lib/templateDepth'
+import { computeCavity, type CavityOptions } from '@/three/clothShading'
 
 export interface Silhouette {
   /** Outer outline, inch space, centred on the alpha content bbox, CCW. */
@@ -776,35 +781,32 @@ function outerDistanceField(ext: Uint8Array, W2: number, H2: number): Float32Arr
 // --- photo analysis: wrinkle bands + normal map -----------------------------
 
 /**
- * Tangent-space normal map from a garment photo: height = luminance high-pass
- * (folds/wrinkles) + a coarse knit grain (true mm thread pitch is sub-pixel at
- * this resolution — fabric.ts still tiles the physical weave for fallbacks),
- * normals via Scharr gradients. OpenGL green-up convention; pair with a
- * flipY=true CanvasTexture, colorSpace NoColorSpace.
+ * Tangent-space normal map from a garment photo: height = the luminance
+ * high-pass, i.e. the garment's OWN folds and wrinkles and nothing else;
+ * normals via Scharr gradients. The knit grain is a separate, physically scaled
+ * octave in the shader (see the note in the body). OpenGL green-up convention;
+ * pair with a flipY=true CanvasTexture, colorSpace NoColorSpace.
  */
-function wrinkleNormalFrom(f: LumField, wIn: number, hIn: number): HTMLCanvasElement | null {
+function wrinkleNormalFrom(f: LumField): HTMLCanvasElement | null {
   const { W, H, lum, a } = f
   const rHp = Math.max(2, Math.round(Math.max(W, H) * 0.011))
   const base = blurNorm(f, rHp)
   const height = new Float32Array(W * H)
-  const TAU = Math.PI * 2
-  const GRAIN_PERIOD = 0.18 // in — coarse knit grain, low amplitude
-  // weave(x,y) = sin(xPh)·cos(yPh) + 0.45·sin(yPh) + 0.45·sin(xPh)
-  //            = sinX[x]·(cos(yPh) + 0.45) + 0.45·sin(yPh) — hoist per row/col.
-  const sinX = new Float32Array(W)
-  for (let x = 0; x < W; x++) sinX[x] = Math.sin(((x / W) * wIn * TAU) / GRAIN_PERIOD)
-  for (let y = 0; y < H; y++) {
-    const yPh = ((y / H) * hIn * TAU) / GRAIN_PERIOD
-    const rowA = Math.cos(yPh) + 0.45
-    const rowB = 0.45 * Math.sin(yPh)
-    const o = y * W
-    for (let x = 0; x < W; x++) {
-      const i = o + x
-      let hp = (lum[i] - base[i]) / 70
-      if (hp > 1) hp = 1
-      else if (hp < -1) hp = -1
-      height[i] = hp * a[i] + 0.14 * (sinX[x] * rowA + rowB)
-    }
+  // NO PROCEDURAL GRAIN OCTAVE HERE ANY MORE. This map used to add a crossed-sine
+  // knit at a 0.18 in period and 0.14 amplitude, from the days when it was the
+  // shell's only relief. `applyWeaveBump` (src/three/clothShading.ts) now gives
+  // the shell the same triplanar weave the catalog meshes get — physically
+  // scaled, and faded out once a period stops covering a couple of pixels. A
+  // baked sine has no such fade: at 0.18 in on a 23 in hoodie it lands near 6 px
+  // on screen and rules a visible chevron lattice over the whole garment (the
+  // single most-noticed artefact in the render pass that found this). Two
+  // procedural weaves at different pitches were never the intent; the one that
+  // respects Nyquist is the one that stays.
+  for (let i = 0; i < height.length; i++) {
+    let hp = (lum[i] - base[i]) / 70
+    if (hp > 1) hp = 1
+    else if (hp < -1) hp = -1
+    height[i] = hp * a[i]
   }
   const c = document.createElement('canvas')
   c.width = W
@@ -867,12 +869,10 @@ function wrinkleNormalFrom(f: LumField, wIn: number, hIn: number): HTMLCanvasEle
  */
 export function buildWrinkleNormalCanvas(
   canvas: HTMLCanvasElement,
-  wIn: number,
-  hIn: number,
   opts?: { mirrorX?: boolean },
 ): HTMLCanvasElement | null {
   const f = readLumAlpha(canvas, !!opts?.mirrorX)
-  return f ? wrinkleNormalFrom(f, wIn, hIn) : null
+  return f ? wrinkleNormalFrom(f) : null
 }
 
 /**
@@ -885,11 +885,21 @@ export function buildWrinkleNormalCanvas(
  * share its blur with the wrinkle band; the back has no wrinkle band to share
  * with, so it pays for its own pass. Null when the photo needs no correction or
  * cannot be read — callers keep the original, which is always a valid albedo.
+ *
+ * Returns the OCCLUSION half alongside it: the two come out of one blur and
+ * must never be taken from different passes, or the panel ends up de-lit by one
+ * field and re-occluded by another. `photo` overrides which pixels the LIGHTING
+ * is measured from, for the same reason `buildInflatedShell` takes one — the
+ * customer's artwork is neither light nor cloth.
  */
-export function buildDelitCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement | null {
-  const f = readLumAlpha(canvas, false)
-  if (!f) return null
-  return delight(canvas, f, blurNorm(f, shadeRadius(Math.max(f.W, f.H))))?.canvas ?? null
+export function buildDelitMaps(
+  canvas: HTMLCanvasElement,
+  photo?: HTMLCanvasElement | null,
+): { albedo: HTMLCanvasElement | null; occlusion: HTMLCanvasElement | null } {
+  const f = readLumAlpha(photo ?? canvas, false)
+  if (!f) return { albedo: null, occlusion: null }
+  const r = delight(canvas, f, blurNorm(f, shadeRadius(Math.max(f.W, f.H))))
+  return { albedo: r?.canvas ?? null, occlusion: r?.occlusion ?? null }
 }
 
 // --- public: inflated hollow shell -----------------------------------------
@@ -943,6 +953,14 @@ export interface InflatedShell {
    * original canvas, which is always a valid albedo.
    */
   albedoCanvas?: HTMLCanvasElement
+  /**
+   * The other half of that correction: the photo's own form shading, as a
+   * greyscale occlusion map for the same UVs (see photoLight.DelightResult).
+   * Bind it as `aoMap` — three multiplies it into the view-INDEPENDENT light
+   * only, which is the half of the photograph that stays true when the camera
+   * moves. Present exactly when `albedoCanvas` is.
+   */
+  occlusionCanvas?: HTMLCanvasElement
   /**
    * How lit the photo was: the relative spread of its own shading field over
    * the garment. Reported whether or not a correction was applied, so "no
@@ -1112,6 +1130,33 @@ const RIM_OUTBOARD_PX = 2
  *  the glTF validator flags. Half a thou is invisible at the weld. */
 const RIM_MIN_RING_IN = 5e-4
 
+/**
+ * Cavity occlusion for the SHEETS, held back from the catalog defaults
+ * (gain 0.42, floor 0.42) because this surface is already occluded twice over
+ * and the terms multiply:
+ *  · the opening-aware AO baked in `buildSheetData`, floored at 0.72, and
+ *  · the photo's own form shading, handed back as an `aoMap`
+ *    (photoLight.DelightResult.occlusion) — a real garment's contact darkening,
+ *    measured rather than modelled.
+ * What is left for this term is what neither of those can see: the shape the
+ * sheet took after the drape folds and the mid-band wrinkles displaced it. At
+ * 0.42 gain the stack bottoms out near 0.72 × 0.58 = 0.42 of the albedo, which
+ * is a bruise on a white garment. 0.24 with a 0.66 floor keeps the deepest
+ * trough at ~0.75 of its ridge — about what a cotton fold measures.
+ *
+ * `fine`/`broad` are in Laplacian iterations, and the sheet is a regular grid
+ * of ~0.2 in cells: 4 iterations ≈ 0.45 in (a crease), 22 ≈ 1.1 in (the hollow
+ * of a fold). The GLB defaults (5 / 28) are tuned for meshes whose spacing is
+ * nothing like this one's.
+ */
+const SHELL_CAVITY: CavityOptions = {
+  fine: 4,
+  broad: 22,
+  gain: 0.24,
+  lift: 0.04,
+  floor: 0.66,
+}
+
 /** Reverse an indexed geometry's winding (and normals): faces flip sides. */
 function flipWinding(g: THREE.BufferGeometry): void {
   const idx = g.index
@@ -1260,7 +1305,30 @@ export function buildInflatedShell(
   sil: Silhouette,
   wIn: number,
   hIn: number,
-  opts?: { shape?: GarmentShape; forcePoisson?: boolean; rim?: 'on' | 'off' },
+  opts?: {
+    shape?: GarmentShape
+    forcePoisson?: boolean
+    rim?: 'on' | 'off'
+    /**
+     * The same garment WITHOUT the customer's artwork. `canvas` is a composite —
+     * garment photo with the design already drawn on — and everything
+     * PHOTOMETRIC below reads the garment's own light and cloth out of those
+     * pixels: the shading estimate that gets divided out and handed back as
+     * occlusion, the mid-frequency band that becomes real Z displacement, and
+     * the high-pass that becomes the wrinkle normal map. A print is none of
+     * those things, and read as all three it is a disaster: an outlined
+     * wordmark came out EMBOSSED into the cloth at the same amplitude as the
+     * deepest fold (the high-pass saturates its ±1 clamp on any hard edge),
+     * while a large dark logo enters the blur as a shadow and the correction
+     * sets about brightening the customer's own ink.
+     *
+     * `canvas` stays the ALBEDO, so the artwork is still what you see and is
+     * still de-lit with the cloth it sits on. Only the measurements move.
+     * Omit it and the composite measures itself, which is the old behaviour and
+     * is exactly right for a photo that has no artwork on it yet.
+     */
+    photo?: HTMLCanvasElement | null
+  },
 ): InflatedShell | null {
   if (!canvas.width || !canvas.height || wIn <= 0 || hIn <= 0) return null
   const m = buildMask(canvas)
@@ -1319,7 +1387,12 @@ export function buildInflatedShell(
   }
   // TIER 2 — the Poisson balloon, only when tier 1 declined.
   const poisson = depth ? null : poissonInflate(filled)
-  const photoField = readLumAlpha(canvas, false)
+  // Photometry reads the garment, never the print (see opts.photo). The mask,
+  // the silhouette and the albedo all still come from `canvas`: the artwork is
+  // drawn inside the garment's own alpha, so the two agree on shape by
+  // construction, and the sheets must cut on the pixels they sample.
+  const photoSrc = opts?.photo ?? canvas
+  const photoField = readLumAlpha(photoSrc, false)
 
   // Mid-frequency luminance band → geometric wrinkles (big soft folds), and the
   // big blur doubles as the shading estimate the de-lighting divides out.
@@ -1327,6 +1400,7 @@ export function buildInflatedShell(
   let midW = 0
   let midH = 0
   let albedoCanvas: HTMLCanvasElement | undefined
+  let occlusionCanvas: HTMLCanvasElement | undefined
   let albedoSpread: number | undefined
   if (photoField) {
     const long = Math.max(photoField.W, photoField.H)
@@ -1345,11 +1419,15 @@ export function buildInflatedShell(
     }
     midW = photoField.W
     midH = photoField.H
+    // Gain measured on the GARMENT, applied to the COMPOSITE: the print rides
+    // the same correction as the cloth under it (so a chest logo cannot float
+    // off a de-lit shirt) without ever entering the estimate.
     const dl = delight(canvas, photoField, bBig)
     albedoCanvas = dl?.canvas ?? undefined
+    occlusionCanvas = dl?.occlusion ?? undefined
     albedoSpread = dl?.spread
   }
-  const normalMapCanvas = photoField ? wrinkleNormalFrom(photoField, wIn, hIn) : null
+  const normalMapCanvas = photoField ? wrinkleNormalFrom(photoField) : null
 
   const W2 = m.W + 2
   /** Bilinear sample of a padded working-grid field at image coords. */
@@ -1448,6 +1526,14 @@ export function buildInflatedShell(
     pos: Float32Array
     uv: Float32Array
     col: Float32Array
+    /**
+     * 1 on open cloth, 0 at the outline and everywhere outside the alpha —
+     * the same `smooth(dOut / band)` the seam roll is driven by, kept per
+     * vertex so the cavity measurement can be told which of these vertices are
+     * garment. Computed even when `rim === 'off'`, where it changes no
+     * geometry: it is the honest coverage mask either way.
+     */
+    seam: Float32Array
   }
 
   const buildSheetData = (sign: 1 | -1): SheetData => {
@@ -1455,6 +1541,7 @@ export function buildInflatedShell(
     const pos = new Float32Array(nVerts * 3)
     const uv = new Float32Array(nVerts * 2)
     const col = new Float32Array(nVerts * 3)
+    const seamAt = new Float32Array(nVerts)
     for (let j = 0; j < rows; j++) {
       const fy = j / GY
       const imgY = m.minY + fy * (cH - 1)
@@ -1524,7 +1611,7 @@ export function buildInflatedShell(
         // the outline, so `outerD` is large there and this is a no-op: the
         // collar keeps the full garment depth on both sheets and its lining
         // parallax is untouched.
-        if (rimOn) {
+        {
           let band = THREE.MathUtils.clamp(
             SEAM_BAND_K * Math.max(1e-4, sampleField(gapField, imgX, imgY)),
             SEAM_BAND_MIN_IN,
@@ -1541,7 +1628,12 @@ export function buildInflatedShell(
             band = Math.min(band, Math.max(SEAM_HOLE_MIN_PX * inPerPx, sampleField(holeD, imgX, imgY) * inPerPx))
           const dOut = (sampleField(outerD, imgX, imgY) - SEAM_DEAD_PX) * inPerPx
           const seam = smooth(dOut / band)
-          z = sign * HEM_HALF_IN + (z - sign * HEM_HALF_IN) * seam
+          seamAt[j * cols + i] = seam
+          // `rim: 'off'` must still reproduce the pre-thickness geometry byte
+          // for byte (scripts/inflate-verify.mjs runs every rim assertion
+          // against it and fails if they pass), so only the Z write is gated —
+          // the mask above is measurement, not shape.
+          if (rimOn) z = sign * HEM_HALF_IN + (z - sign * HEM_HALF_IN) * seam
         }
         const k = (j * cols + i) * 3
         pos[k] = X
@@ -1565,7 +1657,7 @@ export function buildInflatedShell(
         uv[t + 1] = v
       }
     }
-    return { pos, uv, col }
+    return { pos, uv, col, seam: seamAt }
   }
 
   // Grid index; `ccwFromFront` = winds CCW seen from +Z (front-facing).
@@ -1636,13 +1728,58 @@ export function buildInflatedShell(
       col[i * 3 + 1] *= 0.6
       col[i * 3 + 2] *= 0.6
     }
-    return { pos, uv: src.uv.slice(), col }
+    return { pos, uv: src.uv.slice(), col, seam: src.seam }
   }
-  const liningFrontData = buildLining(frontData, true)
-  const liningBackData = buildLining(backData, false)
 
   const front = makeGeo(frontData.pos, frontData.uv, frontData.col, true)
   const back = makeGeo(backData.pos, backData.uv, backData.col, false)
+
+  /**
+   * MEASURED CAVITY OCCLUSION, multiplied into the opening-aware AO above.
+   *
+   * The vertex AO written in `buildSheetData` is a heuristic about the DEPTH
+   * FIELD and the distance to the nearest hole. It knows nothing about the
+   * shape the sheet actually ended up with, so the hem drape, the photo's
+   * mid-band wrinkles and the collar's roll — all of them real geometry here —
+   * arrive completely unshaded under an environment that lights every direction
+   * equally. `computeCavity` measures exactly that: how far each vertex had to
+   * travel along its own normal to reach a smoothed copy of the surface.
+   *
+   * MULTIPLIED, never `applyCavity`, which would overwrite the whole `color`
+   * buffer and take the hole term, the crease term and the floor with it.
+   * Order matters and is not free: the LININGS copy these colours and scale
+   * them, and `buildRim` interpolates them onto the rim ribbon, so the multiply
+   * has to land before both or the seam shows a luminance step where the rim
+   * meets the sheet it is welded to.
+   *
+   * Masked by `seam`, which is the whole reason this could not just be switched
+   * on. The seam roll is a concavity that runs the entire length of the
+   * outline, and the sheets are FULL RECTANGLES whose outside-the-alpha
+   * vertices sit on one flat plateau — so unmasked, the standardisation sees
+   * thousands of zero samples, sigma collapses, and the roll saturates into a
+   * dark ring with a bright halo just inside it: piping drawn around the
+   * garment. With the mask the statistic is taken over cloth only and the term
+   * fades to nothing before it reaches the edge.
+   */
+  const applyShellCavity = (geo: THREE.BufferGeometry, data: SheetData): void => {
+    const cav = computeCavity(geo, SHELL_CAVITY, data.seam)
+    if (!cav) return
+    for (let i = 0; i < cav.length; i++) {
+      const m = cav[i]
+      data.col[i * 3] *= m
+      data.col[i * 3 + 1] *= m
+      data.col[i * 3 + 2] *= m
+    }
+    // Re-wrap rather than rely on `makeGeo` having kept the caller's array by
+    // reference: it does today, and a silent break here would show up as the
+    // rim disagreeing with the sheet rather than as an error.
+    geo.setAttribute('color', new THREE.BufferAttribute(data.col, 3))
+  }
+  applyShellCavity(front, frontData)
+  applyShellCavity(back, backData)
+
+  const liningFrontData = buildLining(frontData, true)
+  const liningBackData = buildLining(backData, false)
   // Linings face the opposite way of their parent (into the cavity).
   const liningFront = makeGeo(liningFrontData.pos, liningFrontData.uv, liningFrontData.col, false)
   const liningBack = makeGeo(liningBackData.pos, liningBackData.uv, liningBackData.col, true)
@@ -2143,6 +2280,7 @@ export function buildInflatedShell(
     rimBack: rim?.rimBack ?? null,
     normalMapCanvas: normalMapCanvas ?? undefined,
     albedoCanvas,
+    occlusionCanvas,
     albedoSpread,
     depthIn: bulge + bulgeBack,
     contentWIn: contentWin,

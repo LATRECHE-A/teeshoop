@@ -58,6 +58,29 @@ export function useNormalMapTexture(canvas: HTMLCanvasElement | null | undefined
 }
 
 /**
+ * Wrap a generated occlusion canvas (`InflatedShell.occlusionCanvas` — the
+ * photo's own form shading, kept back from the de-lighting) as an `aoMap`.
+ *
+ * NoColorSpace, like the normal map and for the same reason: three reads
+ * channel R and multiplies it into linear radiance, so an sRGB decode would
+ * bend the curve and darken every mid-tone. flipY matches the colour map it
+ * shares UVs with.
+ */
+export function useOcclusionTexture(canvas: HTMLCanvasElement | null | undefined): THREE.CanvasTexture | null {
+  const tex = useMemo(() => {
+    if (!canvas) return null
+    const t = new THREE.CanvasTexture(canvas)
+    t.colorSpace = THREE.NoColorSpace
+    t.anisotropy = 4
+    t.flipY = true
+    t.needsUpdate = true
+    return t
+  }, [canvas])
+  useEffect(() => () => tex?.dispose(), [tex])
+  return tex
+}
+
+/**
  * The garment's OWN colour: the alpha-weighted mean of a cutout photo.
  *
  * WHY MEASURE IT RATHER THAN PICK ONE. The blank reverse of a custom garment

@@ -12,12 +12,21 @@
  * meshes". The photo arrives with a full lighting solution already baked in, so
  * the materials sample the DE-LIT albedo the shell hands back
  * (src/lib/photoLight.ts) and let the scene's lights be the only lights; what
- * was removed comes back as real relief, split by frequency — mid-frequency
- * folds are geometry in the sheet, high-pass wrinkles + knit grain are the
- * normal map, and the openings are baked vertex AO. `alphaToCoverage` resolves
- * the alpha-tested outline against the canvas' MSAA samples instead of the hard
- * per-pixel cut alphaTest gives on its own — the silhouette is the one edge a
- * viewer studies, and it is the cheapest realism in the file.
+ * was removed comes back four ways, split by what it physically is:
+ *   · the SHADOW half of the baked lighting → `aoMap`, the photo's own form
+ *     (hood shadow, the roll under a sleeve, the pocket). This is the term the
+ *     shell's geometry cannot possibly produce, and shipping without it is what
+ *     made an uploaded garment read as a paper cutout.
+ *   · mid-frequency folds → real Z displacement in the sheet;
+ *   · high-pass wrinkles → the normal map;
+ *   · the openings and the measured cavity → vertex colours.
+ * The HIGHLIGHT half is the one thing that never comes back: it has to move
+ * when the camera does, and the scene makes a real one.
+ *
+ * `alphaToCoverage` resolves the alpha-tested outline against the canvas' MSAA
+ * samples instead of the hard per-pixel cut alphaTest gives on its own — the
+ * silhouette is the one edge a viewer studies, and it is the cheapest realism
+ * in the file.
  *
  * `CustomGarment` is the entry point: it tries to build the shell from the front
  * cutout (strictly gated inside `canvasToSilhouette`), otherwise it falls back
@@ -29,14 +38,21 @@ import * as THREE from 'three'
 import { useStore } from '@/state/store'
 import type { CardSource } from '@/lib/types'
 import {
-  buildDelitCanvas,
+  buildDelitMaps,
   buildInflatedShell,
   buildWrinkleNormalCanvas,
   canvasToSilhouette,
   type InflatedShell,
 } from '@/lib/silhouette'
 import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
-import { garmentTint, mixHex, useNormalMapTexture, useSilhouetteTexture, useSourceTexture } from './textures'
+import {
+  garmentTint,
+  mixHex,
+  useNormalMapTexture,
+  useOcclusionTexture,
+  useSilhouetteTexture,
+  useSourceTexture,
+} from './textures'
 import { fabricNormalTexture } from './fabric'
 import { CustomCard } from './CustomCard'
 
@@ -78,6 +94,17 @@ const SHELL_FOLD_STRENGTH = 0.022
  *  procedural grain reads as a uniform tile over it AND tilts the mean normal
  *  enough to dim the flat colour — both flagged by render review. */
 const SHELL_WEAVE_STRENGTH = 0.022
+/**
+ * How much of the photo's own form shading comes back as occlusion.
+ *
+ * 1.0 replays exactly what the de-lighting removed, on the indirect light only.
+ * The stage is environment-dominated, so that is most of the garment's
+ * radiance and the shell recovers the hood shadow, the roll under a sleeve and
+ * the pocket — none of which its geometry contains. It is deliberately not
+ * higher: past 1 the map darkens further than the photograph ever was, and the
+ * one thing this term must not do is invent occlusion.
+ */
+const PHOTO_AO_INTENSITY = 1
 /** Lining multiply — the inside of a garment sits in its own shadow. #adadad
  *  sRGB ≈ 0.42 LINEAR (material.color is sRGB→linear converted; #6b6b6b would
  *  be a 0.15 multiply and, stacked with the baked ×0.6 lining AO, pitch black). */
@@ -86,11 +113,12 @@ const LINING_TINT = '#adadad'
 /** Build (and dispose) an inflated shell from the front cutout; null when ungated. */
 function useInflatedShell(front: CardSource | null, wIn: number, hIn: number): InflatedShell | null {
   const canvas = front?.canvas ?? null
+  const photo = front?.photo ?? null
   const version = front?.version ?? 0
   const shell = useMemo<InflatedShell | null>(() => {
     if (!canvas) return null
     const sil = canvasToSilhouette(canvas, wIn, hIn)
-    const built = sil ? buildInflatedShell(canvas, sil, wIn, hIn) : null
+    const built = sil ? buildInflatedShell(canvas, sil, wIn, hIn, { photo }) : null
     // Explicit tangents for the wrinkle map. Without them three derives a
     // tangent frame per fragment from screen-space derivatives, which swims as
     // the garment turns — the folds appear to crawl over the cloth. The sheets
@@ -102,7 +130,7 @@ function useInflatedShell(front: CardSource | null, wIn: number, hIn: number): I
         g?.computeTangents()
     return built
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvas, version, wIn, hIn])
+  }, [canvas, photo, version, wIn, hIn])
 
   useEffect(
     () => () => {
@@ -167,23 +195,28 @@ function ExtrudedGarment({
   // (it is a no-op, `null`, on 202356's real supplier back) and moves 0.030 RMS
   // / 0.094 peak luminance, so the studio 3D back and the AR back were visibly
   // different renderings of the same garment.
-  const backDelit = useMemo(
-    () => (backCanvas && !backGenerated ? buildDelitCanvas(backCanvas) : null),
+  const backMaps = useMemo(
+    () =>
+      backCanvas && !backGenerated
+        ? buildDelitMaps(backCanvas, back?.photo ?? null)
+        : { albedo: null, occlusion: null },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [backCanvas, backVersion, backGenerated],
+    [backCanvas, backVersion, backGenerated, back?.photo],
   )
   const backTex = useSourceTexture(
     useMemo(
-      () => (back ? { canvas: backDelit ?? back.canvas, version: back.version } : null),
-      [back, backDelit],
+      () => (back ? { canvas: backMaps.albedo ?? back.canvas, version: back.version } : null),
+      [back, backMaps],
     ),
   )
   // Missing back → the front's alpha silhouette flooded with THIS GARMENT'S
-  // colour, measured off the front photo rather than assumed.
+  // colour, measured off the front photo rather than assumed. Off the BARE
+  // photo where there is one: the mean is stable under a small logo but a
+  // full-chest print would drag the reverse of a white tee toward the ink.
   const tint = useMemo(
-    () => garmentTint(front.canvas, BLANK_BACK_FALLBACK),
+    () => garmentTint(front.photo ?? front.canvas, BLANK_BACK_FALLBACK),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [front.canvas, front.version],
+    [front.photo, front.canvas, front.version],
   )
   const blankBackTex = useSilhouetteTexture(back ? null : front, tint)
   // Lighter flood for the blank back's LINING (visible through the neck).
@@ -211,14 +244,21 @@ function ExtrudedGarment({
   // u→1−u, so the front's wrinkles land exactly on the pixels they came from.
   const backNCanvas = useMemo(
     () =>
-      backCanvas && back && !backGenerated
-        ? buildWrinkleNormalCanvas(backCanvas, back.wIn, back.hIn)
-        : null,
+      backCanvas && back && !backGenerated ? buildWrinkleNormalCanvas(back.photo ?? backCanvas) : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [backCanvas, backVersion, backGenerated],
+    [backCanvas, back?.photo, backVersion, backGenerated],
   )
   const backOwnN = useNormalMapTexture(backNCanvas)
   const backN = backGenerated ? frontN : backOwnN
+
+  // The photo's own form shading, back as occlusion (see
+  // photoLight.DelightResult.occlusion). This is the term that decides whether
+  // an uploaded garment reads as cloth or as a cutout, so it is bound on every
+  // surface that samples the corresponding albedo — the sheet AND the lining
+  // behind it, which would otherwise contradict its own outside face through
+  // the collar.
+  const frontAO = useOcclusionTexture(shell.occlusionCanvas ?? null)
+  const backAO = useOcclusionTexture(backGenerated ? null : backMaps.occlusion)
   // Procedural weave fallback (blank back / shells built without a photo map).
   const fabricN = useMemo(() => fabricNormalTexture(front.wIn / 0.9, front.hIn / 0.9), [front.wIn, front.hIn])
   useEffect(() => () => fabricN.dispose(), [fabricN])
@@ -277,6 +317,8 @@ function ExtrudedGarment({
           vertexColors
           normalMap={frontN ?? fabricN}
           normalScale={frontN ? [0.6, 0.6] : [0.35, 0.35]}
+          aoMap={frontAO ?? undefined}
+          aoMapIntensity={PHOTO_AO_INTENSITY}
           transparent={false}
           alphaTest={0.45}
           alphaToCoverage
@@ -299,6 +341,8 @@ function ExtrudedGarment({
             vertexColors
             normalMap={backN ?? fabricN}
             normalScale={backN ? [0.6, 0.6] : [0.35, 0.35]}
+            aoMap={backAO ?? undefined}
+            aoMapIntensity={PHOTO_AO_INTENSITY}
             transparent={false}
             alphaTest={0.45}
             alphaToCoverage
@@ -349,6 +393,8 @@ function ExtrudedGarment({
             vertexColors
             normalMap={fabricN}
             normalScale={[0.3, 0.3]}
+            aoMap={frontAO ?? undefined}
+            aoMapIntensity={PHOTO_AO_INTENSITY}
             transparent={false}
             alphaTest={0.45}
             roughness={0.95}
@@ -366,6 +412,8 @@ function ExtrudedGarment({
             vertexColors
             normalMap={fabricN}
             normalScale={[0.3, 0.3]}
+            aoMap={back ? (backAO ?? undefined) : undefined}
+            aoMapIntensity={PHOTO_AO_INTENSITY}
             transparent={false}
             alphaTest={0.45}
             roughness={0.95}
@@ -388,7 +436,11 @@ function ExtrudedGarment({
           edge is a texel wide), and the darkened lining showed through the seam
           instead on 48–84 % of the scanlines.
           No normalMap either: a 3-px band does not need a wrinkle map, and its
-          derived tangent frame swims worst exactly there. */}
+          derived tangent frame swims worst exactly there. The aoMap IS shared
+          with the sheet, though: the rim samples the sheet's texture at an
+          inset UV, and a strip welded to the silhouette but lit differently
+          from the cloth it belongs to draws a bright outline round the
+          garment — the same class of seam artefact the rim exists to remove. */}
       {/* The weave bump is safe here where a normal MAP is not: it is
           triplanar in object space with an analytic gradient, so it needs no
           tangent frame — exactly the thing a 3-px band cannot supply. */}
@@ -398,6 +450,8 @@ function ExtrudedGarment({
             ref={clothify}
             map={frontTex}
             vertexColors
+            aoMap={frontAO ?? undefined}
+            aoMapIntensity={PHOTO_AO_INTENSITY}
             transparent={false}
             roughness={0.86}
             metalness={0}
@@ -416,6 +470,8 @@ function ExtrudedGarment({
             map={back && backTex ? backTex : (blankBackTex ?? undefined)}
             color={back && backTex ? '#ffffff' : blankBackTex ? '#ffffff' : tint}
             vertexColors
+            aoMap={back ? (backAO ?? undefined) : undefined}
+            aoMapIntensity={PHOTO_AO_INTENSITY}
             transparent={false}
             roughness={0.9}
             metalness={0}

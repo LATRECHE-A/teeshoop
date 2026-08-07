@@ -337,13 +337,22 @@ export async function renderPrintArea(
  * larger `size` pushes the scaled art outside the 800px viewBox.
  * `size` scales catalog garment art about its collar anchor (design + print
  * area stay at true physical scale); omitted → nominal art size.
+ *
+ * `opts.artwork === false` renders the BARE garment at exactly the same size
+ * and framing. It is not a preview of anything — it is the photometric
+ * reference the 3D shell measures the garment's own light, folds and colour
+ * from (see CardSource.photo). Keep the two draws sharing this one function:
+ * the moment the bare pass acquires its own scaling or cropping it stops being
+ * registered with the composite and every measurement lands a few pixels off.
  */
 export async function renderMockup(
   design: Design,
   side: Side,
   widthPx: number,
   size?: SizeId,
+  opts?: { artwork?: boolean },
 ): Promise<HTMLCanvasElement> {
+  const withArtwork = opts?.artwork !== false
   const canvas = document.createElement('canvas')
 
   if (design.garmentId === 'custom') {
@@ -372,7 +381,9 @@ export async function renderMockup(
       canvas.height,
     )
     const ppiOut = widthPx / widthIn
-    const design2 = await renderPrintArea(design, side, Math.min(140, ppiOut * 2), size)
+    const design2 = withArtwork
+      ? await renderPrintArea(design, side, Math.min(140, ppiOut * 2), size)
+      : null
     if (design2) {
       // Grading scales the area about its own top-centre: the drop below the
       // collar and the area itself grade together, matching the catalog path
@@ -422,12 +433,9 @@ export async function renderMockup(
   ctx.drawImage(body, tf.x * s, tf.y * s, widthPx * tf.sx, widthPx * tf.sy)
 
   const ppiOut = art.pxPerInch * s
-  const designCanvas = await renderPrintArea(
-    design,
-    side,
-    Math.min(160, ppiOut * 2),
-    size,
-  )
+  const designCanvas = withArtwork
+    ? await renderPrintArea(design, side, Math.min(160, ppiOut * 2), size)
+    : null
   if (designCanvas) {
     const c = art.sides[side].collarPx
     // Grading scales the print area about the SAME collar anchor the art uses,

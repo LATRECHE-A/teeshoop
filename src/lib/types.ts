@@ -263,6 +263,14 @@ export interface CardSource {
   version: number
   wIn: number
   hIn: number
+  /**
+   * The same garment WITHOUT the design — same pixel dimensions, same alpha.
+   * `canvas` is what you SEE; this is what the 3D shell MEASURES (the photo's
+   * baked lighting, its folds, its colour). A print is none of those, and the
+   * shell reading it as all three is what embossed a customer's wordmark into
+   * the cloth. Optional: a photo with no artwork on it measures itself.
+   */
+  photo?: HTMLCanvasElement
 }
 
 export type ViewSnap = 'front' | 'back' | 'threequarter'

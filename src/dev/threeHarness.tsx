@@ -5,11 +5,22 @@
  * URL params (for scripted screenshots):
  *   ?g=tee|hoodie|custom  &c=FFFFFF  &v=front|back|threequarter
  *   &rot=0|1  &fd=0|1  &bd=0|1  &bc=0|1
+ *   &cp=<supplier id>  &cw=<garment width, in>  &cpk=0|1   (see below)
+ *
+ * `cp` swaps the fake blob card for a REAL supplier photo, cut out with the
+ * app's own u2netp pipeline and composited with a print exactly as
+ * renderDesign.renderMockup does. This is the only place a real garment can be
+ * seen under the REAL stage — /dev/inflate.html lights its shells with three
+ * bare directional lamps and ACES, so it exaggerates every normal and shows
+ * nothing about sheen or the environment bake. Judge shading here, geometry
+ * there. `cpk=0` drops the print, which is what isolates "the photo shaded
+ * badly" from "the customer's artwork got treated as cloth".
  */
 import '@/styles.css'
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import Garment3D, { isWebGLAvailable } from '@/three'
+import { removeBackground } from '@/lib/bgremove'
 import type { CardSource, DecalSource, GarmentId, Side, ViewSnap } from '@/lib/types'
 
 const PPI = 40 // texture pixels per inch
@@ -190,6 +201,67 @@ const qpGarment = (['tee', 'hoodie', 'custom'] as const).find((g) => g === qp.ge
 const qpColor = /^[0-9a-fA-F]{6}$/.test(qp.get('c') ?? '') ? `#${qp.get('c')!.toUpperCase()}` : '#FFFFFF'
 const qpView = (['front', 'back', 'threequarter'] as const).find((v) => v === qp.get('v')) ?? null
 const flag = (k: string, dflt: boolean) => (qp.has(k) ? qp.get(k) === '1' : dflt)
+/** Supplier photo id (public/catalog/imbretex/img/<id>-{front,back}.jpg). */
+const qpPhoto = /^[0-9]{3,8}$/.test(qp.get('cp') ?? '') ? qp.get('cp')! : null
+const qpPhotoWidthIn = Number(qp.get('cw')) > 0 ? Number(qp.get('cw')) : 22
+
+/** Longest edge the app itself keeps for a custom-garment photo. */
+const PHOTO_EDGE = 1100
+
+/**
+ * A print, drawn where a customer's would land. High contrast on purpose: a
+ * pale logo cannot show whether the artwork is leaking into the cloth's own
+ * relief, and that leak is exactly what this harness is for.
+ */
+function drawHarnessPrint(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const cx = w / 2
+  const cy = h * 0.4
+  const r = w * 0.17
+  ctx.save()
+  ctx.fillStyle = '#E8C24A'
+  ctx.beginPath()
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5
+    const rad = i % 2 === 0 ? r : r * 0.42
+    ctx.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad)
+  }
+  ctx.closePath()
+  ctx.fill()
+  outlinedText(ctx, 'TSHOP', cx, cy + r * 1.35, `700 ${Math.round(w * 0.1)}px system-ui`, '#F4F6F9', 'rgba(0,0,0,0.5)', 4)
+  ctx.restore()
+}
+
+/**
+ * Supplier flat-lay → the canvas `CustomGarment` receives: cut out with the
+ * app's own background removal, downscaled to the app's own working edge, and
+ * composited with the print. Draws into `into` so the harness's canvas identity
+ * (and therefore the shell's memo key) is stable. Returns the aspect ratio.
+ */
+async function loadSupplierCard(
+  into: HTMLCanvasElement,
+  bare: HTMLCanvasElement,
+  id: string,
+  side: 'front' | 'back',
+  withPrint: boolean,
+): Promise<number> {
+  const res = await fetch(`/catalog/imbretex/img/${id}-${side}.jpg`)
+  if (!res.ok) throw new Error(`photo ${id}-${side}: HTTP ${res.status}`)
+  const bmp = await createImageBitmap(await removeBackground(await res.blob()))
+  const scale = Math.min(1, PHOTO_EDGE / Math.max(bmp.width, bmp.height))
+  for (const c of [into, bare]) {
+    c.width = Math.max(2, Math.round(bmp.width * scale))
+    c.height = Math.max(2, Math.round(bmp.height * scale))
+    const cx = c.getContext('2d')!
+    cx.clearRect(0, 0, c.width, c.height)
+    cx.drawImage(bmp, 0, 0, c.width, c.height)
+  }
+  bmp.close()
+  // The print goes on the composite ONLY: `bare` is CardSource.photo, the
+  // garment the shell measures its light and folds from. Drawing it into both
+  // is exactly the bug this harness is here to catch.
+  if (withPrint) drawHarnessPrint(into.getContext('2d')!, into.width, into.height)
+  return into.height / into.width
+}
 
 function Swatch({ hex, active, onClick }: { hex: string; active: boolean; onClick: () => void }) {
   return (
@@ -244,10 +316,16 @@ function Harness() {
       tee: { front: make(), back: make() },
       hoodie: { front: make(), back: make() },
       card: { front: make(), back: make() },
+      // The bare garment behind each card (CardSource.photo). Only a supplier
+      // photo fills these; the blob card has no artwork to separate out.
+      bare: { front: make(), back: make() },
     }
   }, [])
 
   const [decalVersion, setDecalVersion] = useState(0)
+  // Card geometry: the blob card is a fixed 20×22 in; a supplier photo carries
+  // its own aspect, so the height is measured rather than assumed.
+  const [card, setCard] = useState({ wIn: GARMENT_WIDTH_IN.custom, hIn: 22, hasBack: true, real: false })
   useEffect(() => {
     for (const g of ['tee', 'hoodie'] as const) {
       drawGridDecal(canvases[g].front, PRINT_SIZES[g].front.wIn, PRINT_SIZES[g].front.hIn, '#FF3D8F', 'FRONT')
@@ -257,6 +335,36 @@ function Harness() {
     drawBlobCard(canvases.card.back, GARMENT_WIDTH_IN.custom, 22, false)
     setDecalVersion((v) => v + 1)
   }, [canvases, fontsTick])
+
+  // …then, when asked for one, overwrite the card with a real supplier photo.
+  // Runs after the synthetic draw above so a fetch failure degrades to the blob
+  // card rather than to an empty canvas.
+  useEffect(() => {
+    if (!qpPhoto) return
+    let alive = true
+    void (async () => {
+      const withPrint = flag('cpk', true)
+      const aspect = await loadSupplierCard(canvases.card.front, canvases.bare.front, qpPhoto, 'front', withPrint)
+      let hasBack = true
+      try {
+        await loadSupplierCard(canvases.card.back, canvases.bare.back, qpPhoto, 'back', withPrint)
+      } catch {
+        hasBack = false // plenty of supplier styles ship a front shot only
+      }
+      if (!alive) return
+      setCard({ wIn: qpPhotoWidthIn, hIn: qpPhotoWidthIn * aspect, hasBack, real: true })
+      setDecalVersion((v) => v + 1)
+      // The cutout runs u2netp on the CPU: 20-60 s under swiftshader, far past
+      // any fixed wait a screenshot script could pick. Signal instead.
+      ;(window as unknown as { __cp?: string }).__cp = 'ready'
+    })().catch((e) => {
+      console.error('[cp]', e)
+      ;(window as unknown as { __cp?: string }).__cp = `error: ${String(e)}`
+    })
+    return () => {
+      alive = false
+    }
+  }, [canvases])
 
   const catalog = garment === 'custom' ? 'tee' : garment
   const front = useMemo<DecalSource | null>(
@@ -274,15 +382,27 @@ function Harness() {
     [showBack, canvases, catalog, decalVersion],
   )
   const customFront = useMemo<CardSource>(
-    () => ({ canvas: canvases.card.front, version: decalVersion, wIn: GARMENT_WIDTH_IN.custom, hIn: 22 }),
-    [canvases, decalVersion],
+    () => ({
+      canvas: canvases.card.front,
+      photo: card.real ? canvases.bare.front : undefined,
+      version: decalVersion,
+      wIn: card.wIn,
+      hIn: card.hIn,
+    }),
+    [canvases, decalVersion, card],
   )
   const customBack = useMemo<CardSource | null>(
     () =>
-      withBackCard
-        ? { canvas: canvases.card.back, version: decalVersion, wIn: GARMENT_WIDTH_IN.custom, hIn: 22 }
+      withBackCard && card.hasBack
+        ? {
+            canvas: canvases.card.back,
+            photo: card.real ? canvases.bare.back : undefined,
+            version: decalVersion,
+            wIn: card.wIn,
+            hIn: card.hIn,
+          }
         : null,
-    [withBackCard, canvases, decalVersion],
+    [withBackCard, canvases, decalVersion, card],
   )
 
   const snap = (view: ViewSnap) => setViewRequest((r) => ({ view, nonce: (r?.nonce ?? 0) + 1 }))

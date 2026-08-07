@@ -186,6 +186,21 @@ function smoothOnce(src: Float32Array, dst: Float32Array, adj: { start: Int32Arr
  * `geometry` (NOT per welded vertex — the caller feeds it straight into a
  * `color` attribute).
  *
+ * `weight` (0..1 per vertex, optional) marks how much of the mesh is CLOTH THIS
+ * MEASUREMENT IS ABOUT. It does two things, and both matter on a mesh that is
+ * partly scaffolding:
+ *
+ *  - it is the sample weight for the standardisation below, so a large flat
+ *    region contributes neither mean nor sigma. A GLB has no such region and
+ *    passes nothing here; the custom-garment shell is a full rectangular grid
+ *    whose outside-the-silhouette vertices all sit on one plane, i.e. thousands
+ *    of exactly-zero samples that would deflate sigma and push the real cloth's
+ *    signal past the clamp into full gain.
+ *  - it scales the measured depth per vertex, so a caller can fade the term out
+ *    across a feature it does not want measured (the shell's seam roll is a
+ *    concavity running the whole length of the outline, and unfaded it draws a
+ *    dark ring with a bright halo — piping around the garment).
+ *
  * Returns null when the geometry cannot support the measurement (no index, no
  * normals); the caller then simply ships un-occluded cloth, which is what the
  * preview did before this existed.
@@ -193,6 +208,7 @@ function smoothOnce(src: Float32Array, dst: Float32Array, adj: { start: Int32Arr
 export function computeCavity(
   geometry: THREE.BufferGeometry,
   opts: CavityOptions = CAVITY_DEFAULTS,
+  weight?: Float32Array | null,
 ): Float32Array | null {
   const pos = geometry.getAttribute('position')
   const nrm = geometry.getAttribute('normal')
@@ -213,6 +229,7 @@ export function computeCavity(
   const base = new Float32Array(n * 3)
   const wn = new Float32Array(n * 3)
   const hits = new Float32Array(n)
+  const wWeight = weight ? new Float32Array(n) : null
   for (let i = 0; i < pos.count; i++) {
     const w = weld.of[i] * 3
     base[w] += pos.getX(i)
@@ -221,6 +238,7 @@ export function computeCavity(
     wn[w] += nrm.getX(i)
     wn[w + 1] += nrm.getY(i)
     wn[w + 2] += nrm.getZ(i)
+    if (wWeight && weight) wWeight[weld.of[i]] += weight[i]
     hits[weld.of[i]]++
   }
   for (let i = 0; i < n; i++) {
@@ -229,6 +247,7 @@ export function computeCavity(
     base[o] /= c
     base[o + 1] /= c
     base[o + 2] /= c
+    if (wWeight) wWeight[i] /= c
     const len = Math.hypot(wn[o], wn[o + 1], wn[o + 2]) || 1
     wn[o] /= len
     wn[o + 1] /= len
@@ -263,14 +282,23 @@ export function computeCavity(
   // by the spread then turns it into a scale-free one — see CAVITY_DEFAULTS.
   const standardise = (d: Float32Array) => {
     let sum = 0
-    for (let i = 0; i < n; i++) sum += d[i]
-    const mean = sum / n
+    let wsum = 0
+    for (let i = 0; i < n; i++) {
+      const w = wWeight ? wWeight[i] : 1
+      sum += d[i] * w
+      wsum += w
+    }
+    if (!(wsum > 1e-6)) {
+      d.fill(0)
+      return
+    }
+    const mean = sum / wsum
     let sq = 0
     for (let i = 0; i < n; i++) {
       d[i] -= mean
-      sq += d[i] * d[i]
+      sq += d[i] * d[i] * (wWeight ? wWeight[i] : 1)
     }
-    const sigma = Math.sqrt(sq / n)
+    const sigma = Math.sqrt(sq / wsum)
     const inv = sigma > 1e-12 ? 1 / (sigma * CAVITY_SIGMAS) : 0
     for (let i = 0; i < n; i++) d[i] *= inv
   }
@@ -283,7 +311,8 @@ export function computeCavity(
     // The two scales are combined AFTER standardising, so a garment whose
     // folds are modelled geometry (the hoodie) and one that is a smooth shell
     // (the tee) both spend their whole range instead of one washing out.
-    const d = Math.max(-1, Math.min(1, dFine[w] * 0.5 + dBroad[w] * 0.5))
+    let d = Math.max(-1, Math.min(1, dFine[w] * 0.5 + dBroad[w] * 0.5))
+    if (weight) d *= weight[i]
     out[i] = d >= 0 ? Math.max(opts.floor, 1 - d * opts.gain) : 1 - d * opts.lift
   }
   return out
