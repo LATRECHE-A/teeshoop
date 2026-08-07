@@ -5,9 +5,10 @@
  * illusion. 1 world unit = 1 inch; the card is wIn inches wide (measured
  * along the bent surface).
  */
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import type { CardSource } from '@/lib/types'
+import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
 import { garmentTint, mixHex, useSilhouetteTexture, useSourceTexture } from './textures'
 
 /** Total cylindrical bend of the card, radians (~12°). */
@@ -55,7 +56,7 @@ export interface CustomCardProps {
   back: CardSource | null
   /** Scene lighting multiplier for the card's env-map response. */
   envIntensity?: number
-  onMeasured?: (heightIn: number) => void
+  onMeasured?: (heightIn: number, widthIn?: number) => void
 }
 
 export function CustomCard({ front, back, envIntensity = 1, onMeasured }: CustomCardProps) {
@@ -83,25 +84,41 @@ export function CustomCard({ front, back, envIntensity = 1, onMeasured }: Custom
   const frontCard = useCurvedCard(wIn, hIn)
   const backCard = useCurvedCard(backWIn, backHIn)
 
+  // Cloth grain + sheen so even the tier-3 card reads as fabric, not paper.
+  // Same one-shot ref + shared program key as ExtrudedGarment/GarmentModel.
+  const clothify = useCallback((m: THREE.MeshPhysicalMaterial | null) => {
+    if (!m || m.userData.clothified) return
+    m.userData.clothified = true
+    applyWeaveBump(m, { ...WEAVE_DEFAULTS, strength: 0.022, foldStrength: 0.03 })
+  }, [])
+  const sheenTint = useMemo(() => mixHex(tint, '#ffffff', 0.35), [tint])
+
   // Keep the two faces from intersecting: each face's edges curve backwards
   // by sagIn, so the slab must be a bit thicker than twice that.
   const thickness = Math.max(1.1, 2.3 * Math.max(frontCard.sagIn, backCard.sagIn))
 
+  // Width as well as height — see the note in ExtrudedGarment: the key light's
+  // shadow frustum is sized from the largest reported extent, and these cards
+  // now cast into it.
   useEffect(() => {
-    onMeasured?.(Math.max(hIn, backHIn))
-  }, [hIn, backHIn, onMeasured])
+    onMeasured?.(Math.max(hIn, backHIn), Math.max(wIn, backWIn))
+  }, [hIn, backHIn, wIn, backWIn, onMeasured])
 
   if (!primary) return null
 
   return (
     <group>
       {(front ? frontTex : rimTex) && (
-        <mesh geometry={frontCard.geometry} position={[0, 0, thickness / 2]}>
-          <meshStandardMaterial
+        <mesh geometry={frontCard.geometry} position={[0, 0, thickness / 2]} castShadow receiveShadow>
+          <meshPhysicalMaterial
+            ref={clothify}
             map={front ? frontTex : rimTex}
             alphaTest={0.35}
             roughness={0.85}
             metalness={0}
+            sheen={0.4}
+            sheenRoughness={0.85}
+            sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}
           />
@@ -124,12 +141,16 @@ export function CustomCard({ front, back, envIntensity = 1, onMeasured }: Custom
       )}
       {(back ? backTex : blankBackTex) && (
         <group rotation={[0, Math.PI, 0]} position={[0, 0, -thickness / 2]}>
-          <mesh geometry={back ? backCard.geometry : frontCard.geometry}>
-            <meshStandardMaterial
+          <mesh geometry={back ? backCard.geometry : frontCard.geometry} castShadow receiveShadow>
+            <meshPhysicalMaterial
+              ref={clothify}
               map={back ? backTex : blankBackTex}
               alphaTest={0.35}
               roughness={0.9}
               metalness={0}
+              sheen={0.35}
+              sheenRoughness={0.9}
+              sheenColor={sheenTint}
               // The blank reverse would otherwise crush to the backdrop under
               // the moody rear lighting; the floor is a fraction of the
               // garment's OWN colour, so a black tee's back stops being a

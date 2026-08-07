@@ -24,7 +24,7 @@
  * to the proven curved `CustomCard` — so uploads without a clean cutout keep the
  * old, safe look.
  */
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { useStore } from '@/state/store'
 import type { CardSource } from '@/lib/types'
@@ -35,6 +35,7 @@ import {
   canvasToSilhouette,
   type InflatedShell,
 } from '@/lib/silhouette'
+import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
 import { garmentTint, mixHex, useNormalMapTexture, useSilhouetteTexture, useSourceTexture } from './textures'
 import { fabricNormalTexture } from './fabric'
 import { CustomCard } from './CustomCard'
@@ -59,7 +60,24 @@ const BLANK_BACK_EMIT_MIX = 0.12
 const BLANK_LINING_MIX = 0.55
 const INTERIOR = '#14181F'
 const INTERIOR_EMIT = '#0E1218'
-const SHEEN = '#dfe6f2'
+/**
+ * Sheen is the fibre's own forward scatter, so its colour must be the
+ * GARMENT'S, a shade lighter — the same rule GarmentModel applies to the
+ * catalog meshes, and for the same measured reason: a fixed near-white sheen
+ * behaves as an additive film and renders a dark garment brown. The shell
+ * already measures the garment colour off the photo (`garmentTint`) for the
+ * blank back; the sheen rides the same measurement.
+ */
+const SHEEN_WHITEN = 0.35
+/** Drape octave for the weave bump: the shell carries SOME geometric folds
+ *  (hem drape + photo mid-frequency relief), so it asks for less than the
+ *  smooth-balloon tee (0.045) and more than the fold-simulated hoodie (0.012). */
+const SHELL_FOLD_STRENGTH = 0.022
+/** Thread-scale grain, reduced from the catalog default (0.035): the shell
+ *  already layers a photo wrinkle normal map, and at full strength the
+ *  procedural grain reads as a uniform tile over it AND tilts the mean normal
+ *  enough to dim the flat colour — both flagged by render review. */
+const SHELL_WEAVE_STRENGTH = 0.022
 /** Lining multiply — the inside of a garment sits in its own shadow. #adadad
  *  sRGB ≈ 0.42 LINEAR (material.color is sRGB→linear converted; #6b6b6b would
  *  be a 0.15 multiply and, stacked with the baked ×0.6 lining AO, pitch black). */
@@ -111,7 +129,8 @@ interface ExtrudedGarmentProps {
   backGenerated?: boolean
   envIntensity?: number
   heightIn: number
-  onMeasured?: (heightIn: number) => void
+  widthIn: number
+  onMeasured?: (heightIn: number, widthIn?: number) => void
 }
 
 function ExtrudedGarment({
@@ -121,6 +140,7 @@ function ExtrudedGarment({
   backGenerated = false,
   envIntensity = 1,
   heightIn,
+  widthIn,
   onMeasured,
 }: ExtrudedGarmentProps) {
   // ALBEDO, not the photo: the shell divided the photo's own baked studio
@@ -203,18 +223,56 @@ function ExtrudedGarment({
   const fabricN = useMemo(() => fabricNormalTexture(front.wIn / 0.9, front.hIn / 0.9), [front.wIn, front.hIn])
   useEffect(() => () => fabricN.dispose(), [fabricN])
 
+  // Report the WIDTH too, not just the height. The key light's shadow frustum
+  // is sized from the largest reported extent (Stage.KeyLight), and a laid-flat
+  // upload is routinely wider than it is tall — sleeves spread, ~40 x 27 in on
+  // a hoodie flat-lay. Reporting height alone let index.tsx fall back to
+  // `height * 0.9`, so the shoulders and sleeve tips fell outside the shadow
+  // camera and their shadow terminated on a straight line across the cloth.
+  // Inert before these meshes cast; a real artefact the moment they do.
   useEffect(() => {
-    onMeasured?.(heightIn)
-  }, [heightIn, onMeasured])
+    onMeasured?.(heightIn, widthIn)
+  }, [heightIn, widthIn, onMeasured])
+
+  // The knit micro-relief + wandering drape octave the catalog meshes get
+  // (clothShading.ts) — triplanar and UV-free, so it composes on top of the
+  // photo wrinkle map and needs no tangent frame on the rims. Attached via a
+  // one-shot ref: it must be installed before the material's first compile,
+  // and the commit that creates the material runs before the next R3F frame.
+  // (The `clothified` flag absorbs R3F calling a callback ref for both the
+  // fiber and its alternate, which would otherwise chain onBeforeCompile.)
+  //
+  // The shared cache key does NOT mean one program for the whole scene —
+  // three builds its key from every standard material parameter and only then
+  // appends this suffix, and these materials differ (alphaTest, normalMap,
+  // vertexColors) from the catalog cloth and from the rims. What the suffix
+  // guarantees is the thing that would actually be a bug: cloth can never be
+  // served a cached non-cloth program that happens to match on parameters.
+  const clothify = useCallback((m: THREE.MeshPhysicalMaterial | null) => {
+    if (!m || m.userData.clothified) return
+    m.userData.clothified = true
+    applyWeaveBump(m, {
+      ...WEAVE_DEFAULTS,
+      strength: SHELL_WEAVE_STRENGTH,
+      foldStrength: SHELL_FOLD_STRENGTH,
+    })
+  }, [])
+  const sheenTint = useMemo(() => mixHex(tint, '#ffffff', SHEEN_WHITEN), [tint])
 
   if (!frontTex) return null
 
   return (
     <group>
       {/* Front cap = photo, bulged. Alpha-tested opaque so the silhouette is
-          crisp and front/back/lining/interior depth-sort correctly. */}
-      <mesh geometry={shell.front}>
+          crisp and front/back/lining/interior depth-sort correctly.
+          castShadow/receiveShadow: the sleeve's shadow on the ribs is the cue
+          that says "solid object" — the same reason the catalog meshes cast
+          into the key light. Alpha-tested depth is honoured by three's shadow
+          depth-material variants, so the cutout casts its silhouette, not its
+          quad. */}
+      <mesh geometry={shell.front} castShadow receiveShadow>
         <meshPhysicalMaterial
+          ref={clothify}
           map={frontTex}
           vertexColors
           normalMap={frontN ?? fabricN}
@@ -226,16 +284,17 @@ function ExtrudedGarment({
           metalness={0}
           sheen={0.55}
           sheenRoughness={0.85}
-          sheenColor={SHEEN}
+          sheenColor={sheenTint}
           envMapIntensity={envIntensity}
           side={THREE.FrontSide}
         />
       </mesh>
 
       {/* Back cap = back photo, or a blank fabric silhouette. */}
-      <mesh geometry={shell.back}>
+      <mesh geometry={shell.back} castShadow receiveShadow>
         {back && backTex ? (
           <meshPhysicalMaterial
+            ref={clothify}
             map={backTex}
             vertexColors
             normalMap={backN ?? fabricN}
@@ -247,12 +306,13 @@ function ExtrudedGarment({
             metalness={0}
             sheen={0.4}
             sheenRoughness={0.9}
-            sheenColor={SHEEN}
+            sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}
           />
         ) : (
           <meshPhysicalMaterial
+            ref={clothify}
             map={blankBackTex ?? undefined}
             color={blankBackTex ? '#ffffff' : tint}
             vertexColors
@@ -266,7 +326,7 @@ function ExtrudedGarment({
             metalness={0}
             sheen={0.35}
             sheenRoughness={0.9}
-            sheenColor={SHEEN}
+            sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}
           />
@@ -276,8 +336,13 @@ function ExtrudedGarment({
       {/* Interior LININGS — the hollow read. Same photo, multiplied down to a
           self-shadowed inside (winding already faces into the cavity, AO ×0.6
           is baked into their vertex colors). Matte: no sheen, high rough. */}
+      {/* receiveShadow, but never castShadow: the linings are the surfaces the
+          neck opening actually reveals, so they are what the rim skirt's
+          shadow should land on — the collar cavity read every render review
+          called a flat dark blob. Casting FROM them would only add a second
+          silhouette into the map from geometry nobody can see. */}
       {shell.liningFront && (
-        <mesh geometry={shell.liningFront}>
+        <mesh geometry={shell.liningFront} receiveShadow>
           <meshStandardMaterial
             map={frontTex}
             color={LINING_TINT}
@@ -294,7 +359,7 @@ function ExtrudedGarment({
         </mesh>
       )}
       {shell.liningBack && (
-        <mesh geometry={shell.liningBack}>
+        <mesh geometry={shell.liningBack} receiveShadow>
           <meshStandardMaterial
             map={back && backTex ? backTex : (blankLiningTex ?? undefined)}
             color={LINING_TINT}
@@ -324,9 +389,13 @@ function ExtrudedGarment({
           instead on 48–84 % of the scanlines.
           No normalMap either: a 3-px band does not need a wrinkle map, and its
           derived tangent frame swims worst exactly there. */}
+      {/* The weave bump is safe here where a normal MAP is not: it is
+          triplanar in object space with an analytic gradient, so it needs no
+          tangent frame — exactly the thing a 3-px band cannot supply. */}
       {shell.rimFront && (
-        <mesh geometry={shell.rimFront}>
+        <mesh geometry={shell.rimFront} castShadow receiveShadow>
           <meshPhysicalMaterial
+            ref={clothify}
             map={frontTex}
             vertexColors
             transparent={false}
@@ -334,15 +403,16 @@ function ExtrudedGarment({
             metalness={0}
             sheen={0.55}
             sheenRoughness={0.85}
-            sheenColor={SHEEN}
+            sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}
           />
         </mesh>
       )}
       {shell.rimBack && (
-        <mesh geometry={shell.rimBack}>
+        <mesh geometry={shell.rimBack} castShadow receiveShadow>
           <meshPhysicalMaterial
+            ref={clothify}
             map={back && backTex ? backTex : (blankBackTex ?? undefined)}
             color={back && backTex ? '#ffffff' : blankBackTex ? '#ffffff' : tint}
             vertexColors
@@ -351,7 +421,7 @@ function ExtrudedGarment({
             metalness={0}
             sheen={0.4}
             sheenRoughness={0.9}
-            sheenColor={SHEEN}
+            sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}
           />
@@ -393,7 +463,7 @@ export interface CustomGarmentProps {
   front: CardSource | null
   back: CardSource | null
   envIntensity?: number
-  onMeasured?: (heightIn: number) => void
+  onMeasured?: (heightIn: number, widthIn?: number) => void
 }
 
 /**
@@ -438,6 +508,7 @@ export function CustomGarment({ front, back, envIntensity = 1, onMeasured }: Cus
         backGenerated={!!rev && backGenerated}
         envIntensity={envIntensity}
         heightIn={Math.max(hIn, rev?.hIn ?? hIn)}
+        widthIn={Math.max(wIn, rev?.wIn ?? wIn)}
         onMeasured={onMeasured}
       />
     )

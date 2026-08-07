@@ -20,7 +20,20 @@ import type { KeyLightSpec, Scene3DConfig } from '@/scenes'
  */
 export function SceneEnvironment({ config }: { config: Scene3DConfig }) {
   return (
-    <Environment resolution={256} frames={1}>
+    // 512, up from 256: the sheen lobe integrates the env map at grazing
+    // angles, and at 256 the softbox edges band visibly across a smooth
+    // garment chest. One-time bake per scene switch.
+    //
+    // This was briefly reverted on the theory that the 4x pixel cost pushed
+    // the first 3D mount past e2e-verify's readiness budget under software
+    // rendering. That was a false lead, and the measurements are recorded here
+    // so it is not "fixed" the same way again: a controlled A/B of the 3D
+    // mount (3 runs each, same box) came out 29.3/17.3/14.9 s at 256 against
+    // 28.4/13.5/13.9 s at 512 — i.e. no cost at all, the spread is machine
+    // load. The real cause was that the suite's own 60 s gate straddled a
+    // mount that takes 58-66 s under swiftshader, so it failed as a coin flip
+    // on BOTH the changed and the unchanged tree. Fixed in e2e-verify.mjs.
+    <Environment resolution={512} frames={1}>
       {config.lightformers.map((lf, i) => (
         <Lightformer
           key={i}
