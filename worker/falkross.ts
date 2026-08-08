@@ -26,7 +26,10 @@
  * CACHING: everything upstream changes at most daily, so every derived payload
  * goes through `caches.default` (see `cachedJson`). The catalogue scan is
  * budgeted — see `browseStyles` — because "search 2348 styles" cannot mean
- * "make 2348 subrequests".
+ * "make 2348 subrequests". READ THE SUBREQUEST BUDGET NOTE above the browse
+ * constants before touching that path: Cloudflare's free-plan cap of 50
+ * subrequests per invocation counts Cache API calls as well as `fetch`, and
+ * getting that wrong took the whole catalogue down once already.
  *
  * VERIFIED LIVE on 2026-07-31 against the real account; where the supplier PDF
  * and reality disagree, the code follows reality and says so at the site of the
@@ -625,65 +628,32 @@ const toCard = (s: FrStyle): FrCard => ({
 })
 
 /**
- * One style, parsed and cached. Writes BOTH the full detail and the grid card
- * from a single upstream fetch, so a later catalogue scan reads a ~400-byte
- * card instead of re-parsing 300 KB of XML.
+ * One style's raw XML.
+ *
+ * `fallback` retries the version-less path, which serves an identical document
+ * today. It is on for the detail route (one document, correctness first) and
+ * OFF for bulk block builds, where a 404 must cost a predictable ONE subrequest
+ * — see the subrequest budget below.
  */
+async function fetchStyleXml(version: string, nr: string, fallback: boolean): Promise<string> {
+  try {
+    return await fetchText(`${DOWNLOAD}/ws/${version}/xml/${nr}.xml`, { cacheTtl: TTL.style })
+  } catch (err) {
+    if (!fallback || !(err instanceof FrError) || err.code !== 'not_found') throw err
+    return fetchText(`${DOWNLOAD}/ws/xml/${nr}.xml`, { cacheTtl: TTL.style })
+  }
+}
+
+/** One style, parsed and cached, for the detail route. */
 async function loadStyle(
   origin: string,
   ctx: ExecutionContext,
   version: string,
   nr: string,
 ): Promise<FrStyle> {
-  return cachedJson(origin, `style:${nr}`, TTL.style, ctx, async () => {
-    let xml: string
-    try {
-      xml = await fetchText(`${DOWNLOAD}/ws/${version}/xml/${nr}.xml`, { cacheTtl: TTL.style })
-    } catch (err) {
-      if (!(err instanceof FrError) || err.code !== 'not_found') throw err
-      // Version-less path as a fallback (serves an identical document today).
-      xml = await fetchText(`${DOWNLOAD}/ws/xml/${nr}.xml`, { cacheTtl: TTL.style })
-    }
-    const style = parseStyle(xml, nr)
-    ctx.waitUntil(
-      caches.default.put(
-        new Request(new URL(`/__fr-cache/${encodeURIComponent(`card:${nr}`)}`, origin).toString()),
-        new Response(JSON.stringify(toCard(style)), {
-          headers: {
-            'content-type': 'application/json; charset=utf-8',
-            'cache-control': `public, max-age=${TTL.style}`,
-          },
-        }),
-      ),
-    )
-    return style
-  })
-}
-
-/** The grid card, preferring the small cache entry written by `loadStyle`. */
-async function loadCard(
-  origin: string,
-  ctx: ExecutionContext,
-  version: string,
-  nr: string,
-): Promise<FrCard | null> {
-  const key = new Request(
-    new URL(`/__fr-cache/${encodeURIComponent(`card:${nr}`)}`, origin).toString(),
+  return cachedJson(origin, `style:${nr}`, TTL.style, ctx, async () =>
+    parseStyle(await fetchStyleXml(version, nr, true), nr),
   )
-  const hit = await caches.default.match(key)
-  if (hit) {
-    try {
-      return (await hit.json()) as FrCard
-    } catch {
-      /* rebuild below */
-    }
-  }
-  try {
-    return toCard(await loadStyle(origin, ctx, version, nr))
-  } catch {
-    // A single unpublished / malformed style must not sink the whole page.
-    return null
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -691,19 +661,91 @@ async function loadCard(
 // ---------------------------------------------------------------------------
 
 /**
- * Scan budgets. Searching 2348 styles cannot mean 2348 subrequests, so a
- * request walks the list until it has filled the page OR spent its budget,
- * then hands back `nextOffset` for the client to continue from.
+ * ============================================================================
+ * THE SUBREQUEST BUDGET — the constraint this whole section is shaped around.
+ * ============================================================================
  *
- * The two limits do different jobs. `MAX_FETCHES` bounds COLD styles — real
- * upstream requests, the expensive thing — while `MAX_SCAN` bounds the walk
- * itself. Cache API reads are not subrequests, so once the catalogue is warm a
- * single request scans hundreds of styles in milliseconds (measured: 24 warm
- * styles in 30 ms against 2.4 s cold) and `MAX_SCAN` is what stops it.
+ * Cloudflare caps ONE Worker invocation at 50 subrequests on the Workers FREE
+ * plan (1000 on Paid). Crucially, "subrequest" is NOT just `fetch`: every
+ * `caches.default.match` and every `.put` counts too, including puts handed to
+ * `ctx.waitUntil`, which run inside the same invocation.
+ *
+ * An earlier version of this file assumed the opposite — its comment read
+ * "Cache API reads are not subrequests" — and budgeted 48 upstream fetches with
+ * a 600-style warm walk. A cold style actually cost FIVE subrequests
+ * (match card, match style, fetch, put card, put style), so a single browse
+ * could ask for ~240 against a ceiling of 50. It threw
+ * `Too many subrequests by single Worker invocation`, the catch-all in
+ * `handleFalkRoss` reported it as `{"error":"upstream"}`, and the catalogue
+ * looked like a credentials failure. VERIFIED live 2026-08-08 via
+ * `wrangler tail`: page 1 worked (warm, and its first 12 styles are printable
+ * so the scan stopped), while any cold region 502'd in ~0.4 s, deterministically
+ * and forever — a failed request caches nothing, so retrying could never warm it.
+ *
+ * The fix is BLOCK CACHING plus honest accounting. Cards are cached in
+ * aligned blocks of `BLOCK` styles under one key, so a warm block costs ONE
+ * subrequest for 12 styles instead of 12, and `Subrequests` reserves worst-case
+ * cost before spending it. Out of budget is not an error: the request returns a
+ * short page with a non-null `nextOffset`, which is already this endpoint's
+ * contract for "more to scan" and the UI resumes from there.
+ *
+ * Measured effect per invocation: a warm scan covers ~500 styles (was ~45
+ * before it threw), a cold scan ~36.
+ *
+ * ----------------------------------------------------------------------------
+ * TODO — DO THIS FIRST if the site ever moves to Workers PAID (or any host
+ * without a ~50-subrequest cap; Paid allows 1000).
+ *
+ * Block caching exists ONLY to survive the free-plan ceiling, and it buys that
+ * survival with real costs: a cold block is all-or-nothing (12 fetches must fit
+ * at once), pagination is forced to snap to block boundaries, and a browse can
+ * build at most ~3 cold blocks before it has to hand back `nextOffset` — so the
+ * FIRST pass over the 2316-style catalogue takes many round trips.
+ *
+ * With a 1000-subrequest budget the better design is:
+ *   1. Raise `SUBREQUEST_LIMIT` to the real ceiling — that alone lets one
+ *      request build ~70 cold blocks (~840 styles) instead of ~3.
+ *   2. Better still, drop blocks and PRECOMPUTE the whole card index once
+ *      (a scheduled Cron Worker walking all 2316 styles into a single KV or R2
+ *      document). Browse then becomes ONE read, search and filter get exact
+ *      totals instead of "scanned so far", `nextOffset` disappears, and the
+ *      supplier is hit ~2316 times a DAY rather than once per cold user scroll.
+ *      That is the design this endpoint wants; the free plan cannot afford it.
+ * ----------------------------------------------------------------------------
  */
+const SUBREQUEST_LIMIT = 50
+/** Headroom for the route's own work and for a retry inside `fetchUpstream`. */
+const SUBREQUEST_RESERVE = 5
+/**
+ * Worst-case cost of `styleIndex`: match + fetch + put. Charged up front rather
+ * than measured, because a reservation that can be wrong is not a budget.
+ */
+const INDEX_COST = 3
+/**
+ * Styles per cached card block. 12 keeps the cold fan-out identical to the
+ * batch size this endpoint has always used, and keeps a cold block (match + 12
+ * fetches + put = 14) small enough that three fit in one free-plan invocation.
+ */
+const BLOCK = 12
+/** Belt-and-braces cap on the walk; the subrequest budget binds first. */
 const MAX_SCAN = 600
-const MAX_FETCHES = 48
-const CHUNK = 12
+
+/**
+ * A spend-before-you-act budget. `take` reserves the WORST case and refuses
+ * rather than over-spending, so the caller can stop cleanly and report
+ * `nextOffset` instead of throwing halfway through a page.
+ */
+class Subrequests {
+  private left: number
+  constructor(limit: number) {
+    this.left = limit
+  }
+  take(n: number): boolean {
+    if (this.left < n) return false
+    this.left -= n
+    return true
+  }
+}
 /**
  * Wall-clock ceiling for one browse request, checked between batches. Worst
  * case a batch starts just under it and over-runs by UPSTREAM_TIMEOUT_MS, so
@@ -721,18 +763,85 @@ export interface BrowseResult {
   exportedAt: string
 }
 
+/**
+ * One aligned block of grid cards, the unit the catalogue is cached in.
+ *
+ * Returns null when the budget cannot cover the work — the caller stops and
+ * reports `nextOffset` rather than throwing. Blocks are keyed by FEED VERSION,
+ * so the morning's re-export invalidates every block without a purge.
+ */
+async function loadCardBlock(
+  origin: string,
+  ctx: ExecutionContext,
+  index: StyleListIndex,
+  start: number,
+  budget: Subrequests,
+): Promise<FrCard[] | null> {
+  const nrs = index.nrs.slice(start, start + BLOCK)
+  if (nrs.length === 0) return []
+  const key = new Request(
+    new URL(
+      `/__fr-cache/${encodeURIComponent(`cards:${index.version}:${start}`)}`,
+      origin,
+    ).toString(),
+  )
+
+  if (!budget.take(1)) return null
+  const hit = await caches.default.match(key)
+  if (hit) {
+    try {
+      return (await hit.json()) as FrCard[]
+    } catch {
+      // Corrupt entry — fall through and rebuild, budget permitting.
+    }
+  }
+
+  // Cold: one fetch per style plus the write-back. Reserved as a whole, because
+  // a half-built block is worth nothing and would still have cost the fetches.
+  if (!budget.take(nrs.length + 1)) return null
+  const cards = (
+    await Promise.all(
+      nrs.map(async (nr) => {
+        try {
+          return toCard(parseStyle(await fetchStyleXml(index.version, nr, false), nr))
+        } catch {
+          // A single unpublished / malformed style must not sink the block.
+          return null
+        }
+      }),
+    )
+  ).filter((c): c is FrCard => c !== null)
+
+  ctx.waitUntil(
+    caches.default.put(
+      key,
+      new Response(JSON.stringify(cards), {
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': `public, max-age=${TTL.style}`,
+        },
+      }),
+    ),
+  )
+  return cards
+}
+
 async function browseStyles(
   origin: string,
   ctx: ExecutionContext,
   opts: { q: string; kind: string; offset: number; limit: number },
 ): Promise<BrowseResult> {
+  const budget = new Subrequests(SUBREQUEST_LIMIT - SUBREQUEST_RESERVE)
+  budget.take(INDEX_COST)
   const index = await styleIndex(origin, ctx)
   const needle = opts.q.trim().toLowerCase()
   const items: FrCard[] = []
-  let i = Math.max(0, Math.min(opts.offset, index.nrs.length))
-  let scanned = 0
-  let fetches = 0
-  const start = i
+  // Snap to a block boundary so a given style always lands in the same cached
+  // block. `nextOffset` is itself always a boundary, so after the first request
+  // this is a no-op — and offset 0 is already aligned.
+  const start =
+    Math.floor(Math.max(0, Math.min(opts.offset, index.nrs.length)) / BLOCK) * BLOCK
+  let i = start
   const deadline = Date.now() + BROWSE_BUDGET_MS
 
   const matches = (c: FrCard) => {
@@ -747,34 +856,28 @@ async function browseStyles(
   while (
     i < index.nrs.length &&
     items.length < opts.limit &&
-    scanned < MAX_SCAN &&
-    fetches < MAX_FETCHES &&
-    // A WALL-CLOCK budget beside the fetch-count one. `MAX_FETCHES` bounds how
-    // much work we ask for, but not how long the supplier takes to do it: one
-    // hung document stalls its whole `Promise.all` batch for UPSTREAM_TIMEOUT_MS,
-    // and four such batches used to outlast the browser's own deadline — so the
-    // client aborted and blamed the backend. Stopping early costs nothing,
-    // because a short page with a non-null `nextOffset` is already this
-    // endpoint's contract for "more to scan" and the UI resumes from there.
+    i - start < MAX_SCAN &&
+    // A WALL-CLOCK budget beside the subrequest one. The budget bounds how much
+    // work we ask for, but not how long the supplier takes to do it: one hung
+    // document stalls its whole `Promise.all` block for UPSTREAM_TIMEOUT_MS, and
+    // several such blocks used to outlast the browser's own deadline — so the
+    // client aborted and blamed the backend.
     Date.now() < deadline
   ) {
-    const slice = index.nrs.slice(i, i + CHUNK)
-    // Count cold styles BEFORE the batch: `loadCard` swallows its own errors,
-    // so the budget has to be charged on intent, not on outcome.
-    const cards = await Promise.all(slice.map((nr) => loadCard(origin, ctx, index.version, nr)))
-    for (const c of cards) {
-      if (c && matches(c) && items.length < opts.limit) items.push(c)
+    const block = await loadCardBlock(origin, ctx, index, i, budget)
+    if (block === null) break // out of subrequests — resume from `i`
+    for (const c of block) {
+      if (matches(c) && items.length < opts.limit) items.push(c)
     }
-    i += slice.length
-    scanned += slice.length
-    fetches += CHUNK
+    i += BLOCK
   }
+  if (i > index.nrs.length) i = index.nrs.length
 
   return {
     total: index.nrs.length,
     offset: start,
     nextOffset: i < index.nrs.length ? i : null,
-    scanned,
+    scanned: i - start,
     items,
     exportedAt: index.exportedAt,
   }

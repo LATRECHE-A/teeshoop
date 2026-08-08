@@ -249,6 +249,33 @@ so `/api/fr/styles` walks the list under a subrequest budget and returns
 Everything derived is memoised in the Cache API (styles 24 h, prices 1 h, stock
 5 min, photos 30 days).
 
+> **The browse budget is shaped by the Workers FREE plan, and it is the tightest
+> constraint in the backend.** Cloudflare caps one Worker invocation at **50
+> subrequests** (1000 on Paid), and a subrequest is not only `fetch` — every
+> `caches.default.match` and `.put` counts, including puts inside
+> `ctx.waitUntil`. So grid cards are cached in **aligned blocks of 12 styles**
+> under one key: a warm block costs 1 subrequest for 12 styles instead of 12,
+> and a cold block costs 14 (match + 12 fetches + write-back). One request
+> therefore covers ~500 warm styles or ~36 cold ones, then hands back
+> `nextOffset`. Running out of budget is not an error — it returns a short page,
+> which is already this endpoint's contract.
+>
+> This bit us in production on 2026-08-08: the previous budget assumed cache
+> reads were free and allowed ~240 subrequests, so any cold region of the
+> catalogue threw `Too many subrequests by single Worker invocation`. The
+> catch-all reported it as `{"error":"upstream"}`, which looked exactly like bad
+> Falk&Ross credentials — the credentials were fine. If `/api/fr/styles` ever
+> 502s again, check `npx wrangler tail` before suspecting the secrets.
+>
+> **Better design, once the host allows more subrequests** (Workers Paid, or
+> anywhere without a ~50 cap) — see the `TODO` in `worker/falkross.ts`:
+> raise `SUBREQUEST_LIMIT` to the real ceiling, and preferably **drop blocks
+> entirely and precompute the whole card index** with a scheduled Cron Worker
+> into a single KV/R2 document. Browse then becomes one read, search gets exact
+> totals instead of "scanned so far", `nextOffset` disappears, and the supplier
+> is hit ~2316 times a day instead of once per cold user scroll. Block caching
+> exists only to survive the free tier.
+
 **Falk&Ross publishes no garment measurements** — only size labels. The studio
 needs real cm per size (print placement, 3D, DTF all derive from `halfChestCm`),
 so its tables are estimated from the reference blanks in
