@@ -99,8 +99,13 @@ function launchAndroidAr(glbUrl: string, fallback: string) {
 function initPreview(canvas: HTMLCanvasElement, glbUrl: string, onReady: () => void, onFail: () => void) {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true })
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.05
+  // Neutral (KHR_PBR_neutral) at reference exposure, the same as the studio
+  // canvas and the basket board. This viewer is the AR poster/fallback, i.e. the
+  // last thing a customer sees before they buy — it must not be the one surface
+  // that re-grades their colour (ACES at 1.05 lifted blacks and desaturated
+  // every strong hue).
+  renderer.toneMapping = THREE.NeutralToneMapping
+  renderer.toneMappingExposure = 1.0
 
   const scene = new THREE.Scene()
   scene.environment = gradientEnv()

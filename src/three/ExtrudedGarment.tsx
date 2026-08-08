@@ -44,6 +44,7 @@ import {
   canvasToSilhouette,
   type InflatedShell,
 } from '@/lib/silhouette'
+import { registerBackPanel } from '@/lib/backRegister'
 import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
 import {
   garmentTint,
@@ -86,9 +87,11 @@ const INTERIOR_EMIT = '#0E1218'
  */
 const SHEEN_WHITEN = 0.35
 /** Drape octave for the weave bump: the shell carries SOME geometric folds
- *  (hem drape + photo mid-frequency relief), so it asks for less than the
- *  smooth-balloon tee (0.045) and more than the fold-simulated hoodie (0.012). */
-const SHELL_FOLD_STRENGTH = 0.022
+ *  (its own drape term + the photo's mid-frequency relief) AND a wrinkle normal
+ *  map taken off the photograph itself, so it asks for less than the
+ *  smooth-balloon tee (0.026) and about as much as the fold-simulated hoodie.
+ *  Every octave past the first is a contradicting set of wrinkles. */
+const SHELL_FOLD_STRENGTH = 0.012
 /** Thread-scale grain, reduced from the catalog default (0.035): the shell
  *  already layers a photo wrinkle normal map, and at full strength the
  *  procedural grain reads as a uniform tile over it AND tilts the mean normal
@@ -109,6 +112,17 @@ const PHOTO_AO_INTENSITY = 1
  *  sRGB ≈ 0.42 LINEAR (material.color is sRGB→linear converted; #6b6b6b would
  *  be a 0.15 multiply and, stacked with the baked ×0.6 lining AO, pitch black). */
 const LINING_TINT = '#adadad'
+/**
+ * ONE FABRIC FOR THE WHOLE GARMENT. The front sheet, the reverse and the two rim
+ * ribbons used to carry three different roughness/sheen sets (0.86/0.55/0.85,
+ * 0.9/0.4/0.9, 0.92/0.35/0.9), so orbiting past 90° changed the CLOTH and not
+ * just the view — and, worse, rimFront and rimBack are welded to the SAME
+ * isoline, which put a specular discontinuity down the one edge the rim exists
+ * to make believable. Values are cotton jersey: nearly matte, with a wide fuzz
+ * lobe (the fibre is a near-Lambertian retroreflector, so a tight sheen beads on
+ * every ridge instead of grazing the whole panel).
+ */
+const CLOTH = { roughness: 0.9, sheen: 0.45, sheenRoughness: 0.93 } as const
 
 /** Build (and dispose) an inflated shell from the front cutout; null when ungated. */
 function useInflatedShell(front: CardSource | null, wIn: number, hIn: number): InflatedShell | null {
@@ -164,7 +178,7 @@ interface ExtrudedGarmentProps {
 function ExtrudedGarment({
   shell,
   front,
-  back,
+  back: suppliedBack,
   backGenerated = false,
   envIntensity = 1,
   heightIn,
@@ -181,6 +195,26 @@ function ExtrudedGarment({
       [shell.albedoCanvas, front.canvas, front.version],
     ),
   )
+  // REGISTER THE REVERSE onto the front's frame before anything reads it. The
+  // back sheet is the FRONT's silhouette sampled at `1 − u`, so a back
+  // photograph framed even slightly differently lands off its own outline —
+  // and because the pair is squared up by BOTTOM-PADDING the shorter canvas,
+  // the whole of that difference collects at the hem, where it shows as the
+  // reverse panel stopping short over a dark rim. `registerBackPanel` returns a
+  // canvas in the front's pixel frame whose alpha IS the front's, so the two
+  // panels cut identically and the rim and lining inherit the fix for free.
+  // Null means the two photographs cannot be the same garment; the blank tinted
+  // reverse below is then the honest answer.
+  const registered = useMemo(
+    () =>
+      suppliedBack ? registerBackPanel(front.canvas, suppliedBack.canvas, suppliedBack.photo ?? null) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [suppliedBack?.canvas, suppliedBack?.photo, suppliedBack?.version, front.canvas, front.version],
+  )
+  const back =
+    suppliedBack && registered
+      ? { ...suppliedBack, canvas: registered.canvas, photo: registered.photo ?? undefined }
+      : null
   const backCanvas = back?.canvas ?? null
   const backVersion = back?.version ?? 0
   // The back photo is a second lightbox shot and needs the same correction; it
@@ -288,15 +322,38 @@ function ExtrudedGarment({
   // vertexColors) from the catalog cloth and from the rims. What the suffix
   // guarantees is the thing that would actually be a bug: cloth can never be
   // served a cached non-cloth program that happens to match on parameters.
-  const clothify = useCallback((m: THREE.MeshPhysicalMaterial | null) => {
-    if (!m || m.userData.clothified) return
-    m.userData.clothified = true
-    applyWeaveBump(m, {
-      ...WEAVE_DEFAULTS,
-      strength: SHELL_WEAVE_STRENGTH,
-      foldStrength: SHELL_FOLD_STRENGTH,
-    })
-  }, [])
+  // No one-shot guard: `applyWeaveBump` is idempotent and updates its uniforms
+  // on a repeat call, which is what keeps `foldHalfHeightIn` and the weave
+  // strength live when the upload's height changes or a panel gains/loses its
+  // photo wrinkle map without the material being recreated.
+  const makeClothify = useCallback(
+    (weave: number) => (m: THREE.MeshPhysicalMaterial | null) => {
+      if (!m) return
+      applyWeaveBump(m, {
+        ...WEAVE_DEFAULTS,
+        strength: weave,
+        foldStrength: SHELL_FOLD_STRENGTH,
+        // The sheets are centred on the content bbox (Y = (0.5 − fy)·contentHIn),
+        // so half the content height is exactly the ramp the drape needs to know
+        // the shoulders from the hem.
+        foldHalfHeightIn: shell.contentHIn / 2,
+      })
+    },
+    [shell.contentHIn],
+  )
+  const clothify = useMemo(() => makeClothify(SHELL_WEAVE_STRENGTH), [makeClothify])
+  /**
+   * ONE GRAIN PER SURFACE. Where a panel has no photo-derived wrinkle map it
+   * falls back to `fabric.ts`'s tiled plain weave — 8 px over a 128 px canvas
+   * tiled at wIn/0.9, i.e. a 0.056 in period — while the shader octave runs at
+   * 0.045 in on the same material. Two axis-aligned sine grids that close
+   * together beat at 1/|1/0.045 − 1/0.056| = 0.225 in: a regular quilted lattice
+   * at exactly goose-pimple scale, and visible the moment a customer zooms in to
+   * look at the fabric. The texture is the better of the two here (it survives
+   * the shader octave's Nyquist fade at normal framing), so the shader keeps
+   * only its drape.
+   */
+  const clothifyDrapeOnly = useMemo(() => makeClothify(0), [makeClothify])
   const sheenTint = useMemo(() => mixHex(tint, '#ffffff', SHEEN_WHITEN), [tint])
 
   if (!frontTex) return null
@@ -312,7 +369,7 @@ function ExtrudedGarment({
           quad. */}
       <mesh geometry={shell.front} castShadow receiveShadow>
         <meshPhysicalMaterial
-          ref={clothify}
+          ref={frontN ? clothify : clothifyDrapeOnly}
           map={frontTex}
           vertexColors
           normalMap={frontN ?? fabricN}
@@ -322,10 +379,8 @@ function ExtrudedGarment({
           transparent={false}
           alphaTest={0.45}
           alphaToCoverage
-          roughness={0.86}
+          {...CLOTH}
           metalness={0}
-          sheen={0.55}
-          sheenRoughness={0.85}
           sheenColor={sheenTint}
           envMapIntensity={envIntensity}
           side={THREE.FrontSide}
@@ -336,7 +391,7 @@ function ExtrudedGarment({
       <mesh geometry={shell.back} castShadow receiveShadow>
         {back && backTex ? (
           <meshPhysicalMaterial
-            ref={clothify}
+            ref={backN ? clothify : clothifyDrapeOnly}
             map={backTex}
             vertexColors
             normalMap={backN ?? fabricN}
@@ -346,17 +401,15 @@ function ExtrudedGarment({
             transparent={false}
             alphaTest={0.45}
             alphaToCoverage
-            roughness={0.9}
+            {...CLOTH}
             metalness={0}
-            sheen={0.4}
-            sheenRoughness={0.9}
             sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}
           />
         ) : (
           <meshPhysicalMaterial
-            ref={clothify}
+            ref={clothifyDrapeOnly}
             map={blankBackTex ?? undefined}
             color={blankBackTex ? '#ffffff' : tint}
             vertexColors
@@ -366,10 +419,8 @@ function ExtrudedGarment({
             alphaTest={0.45}
             alphaToCoverage
             emissive={mixHex('#000000', tint, BLANK_BACK_EMIT_MIX)}
-            roughness={0.92}
+            {...CLOTH}
             metalness={0}
-            sheen={0.35}
-            sheenRoughness={0.9}
             sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}
@@ -453,10 +504,8 @@ function ExtrudedGarment({
             aoMap={frontAO ?? undefined}
             aoMapIntensity={PHOTO_AO_INTENSITY}
             transparent={false}
-            roughness={0.86}
+            {...CLOTH}
             metalness={0}
-            sheen={0.55}
-            sheenRoughness={0.85}
             sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}
@@ -473,10 +522,8 @@ function ExtrudedGarment({
             aoMap={back ? (backAO ?? undefined) : undefined}
             aoMapIntensity={PHOTO_AO_INTENSITY}
             transparent={false}
-            roughness={0.9}
+            {...CLOTH}
             metalness={0}
-            sheen={0.4}
-            sheenRoughness={0.9}
             sheenColor={sheenTint}
             envMapIntensity={envIntensity}
             side={THREE.FrontSide}

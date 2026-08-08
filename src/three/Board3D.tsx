@@ -294,7 +294,12 @@ function BoardScene({
           return {
             product: p,
             frame,
-            material: boardGarmentMaterial(garment, p.colorHex, scene),
+            material: boardGarmentMaterial(
+              garment,
+              p.colorHex,
+              scene,
+              frame.geometry.getAttribute('color') !== undefined,
+            ),
             size: { wIn: frame.widthIn, hIn: frame.heightIn },
           }
         }
@@ -427,7 +432,13 @@ export default function Board3D({ products, scene, onFocus, onReady }: Board3DPr
       gl={{
         alpha: true,
         antialias: !mobile,
-        toneMapping: THREE.ACESFilmicToneMapping,
+        // Neutral (KHR_PBR_neutral), matching the studio canvas — see the note
+        // in src/three/index.tsx. ACES is a FILM look: it pulls saturated colour
+        // toward the white point and lifts blacks, so the SAME red tee came out
+        // one red in the studio, another on this board and a third in the AR
+        // viewer, in one session. For an apparel shop the colour a customer
+        // picks is the product.
+        toneMapping: THREE.NeutralToneMapping,
         powerPreference: 'high-performance',
       }}
       onPointerDown={(e) => {

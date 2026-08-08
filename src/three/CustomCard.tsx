@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import type { CardSource } from '@/lib/types'
+import { registerBackPanel } from '@/lib/backRegister'
 import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
 import { garmentTint, mixHex, useSilhouetteTexture, useSourceTexture } from './textures'
 
@@ -59,7 +60,32 @@ export interface CustomCardProps {
   onMeasured?: (heightIn: number, widthIn?: number) => void
 }
 
-export function CustomCard({ front, back, envIntensity = 1, onMeasured }: CustomCardProps) {
+export function CustomCard({ front, back: suppliedBack, envIntensity = 1, onMeasured }: CustomCardProps) {
+  // The two faces used to be two independently sized planes, both centred on
+  // y = 0, so a reverse photograph framed differently from the front sat at a
+  // different height AND a different size — the back visibly peeking out above
+  // the front's shoulder on the basket board. Registering it into the front's
+  // frame makes the pair one garment: same plane size, shoulders aligned.
+  // Same registration as the shell and the AR bake, with no options — a
+  // π-rotated plane IS `uv.x = 1 − u` in world terms (PlaneGeometry puts u = 0
+  // at local −X, and the rotation maps that to world +X while the front's u = 0
+  // stays at world −X), so the reverse wants exactly the pre-mirrored layout the
+  // shell's back sheet wants. The AR bake feeds this same curved card from the
+  // registered canvas, so anything but the default here is preview ≠ phone.
+  const registered = useMemo(
+    () =>
+      front && suppliedBack
+        ? registerBackPanel(front.canvas, suppliedBack.canvas, suppliedBack.photo ?? null)
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [front?.canvas, front?.version, suppliedBack?.canvas, suppliedBack?.photo, suppliedBack?.version],
+  )
+  const back =
+    suppliedBack && registered
+      ? { ...suppliedBack, canvas: registered.canvas, photo: registered.photo ?? undefined, wIn: front!.wIn, hIn: front!.hIn }
+      : suppliedBack && front
+        ? null // framings too far apart to be one garment — blank tinted reverse
+        : suppliedBack
   const primary = front ?? back
   const frontTex = useSourceTexture(front)
   // Note: the back face is a π-rotated plane, and that rotation alone makes
@@ -85,12 +111,24 @@ export function CustomCard({ front, back, envIntensity = 1, onMeasured }: Custom
   const backCard = useCurvedCard(backWIn, backHIn)
 
   // Cloth grain + sheen so even the tier-3 card reads as fabric, not paper.
-  // Same one-shot ref + shared program key as ExtrudedGarment/GarmentModel.
-  const clothify = useCallback((m: THREE.MeshPhysicalMaterial | null) => {
-    if (!m || m.userData.clothified) return
-    m.userData.clothified = true
-    applyWeaveBump(m, { ...WEAVE_DEFAULTS, strength: 0.022, foldStrength: 0.03 })
-  }, [])
+  // Same shared program key as ExtrudedGarment/GarmentModel; applyWeaveBump is
+  // idempotent, so re-attaching with a new height just rewrites its uniforms.
+  const clothify = useCallback(
+    (m: THREE.MeshPhysicalMaterial | null) => {
+      if (!m) return
+      // The card has NO geometric relief at all — it is a bent plane — so the
+      // drape octave is the only thing standing between it and paper, and it
+      // gets the largest share any surface here is allowed (see the ≤6° macro
+      // budget in clothShading.WEAVE_DEFAULTS).
+      applyWeaveBump(m, {
+        ...WEAVE_DEFAULTS,
+        strength: 0.022,
+        foldStrength: 0.026,
+        foldHalfHeightIn: hIn / 2,
+      })
+    },
+    [hIn],
+  )
   const sheenTint = useMemo(() => mixHex(tint, '#ffffff', 0.35), [tint])
 
   // Keep the two faces from intersecting: each face's edges curve backwards

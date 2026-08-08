@@ -17,7 +17,7 @@
  */
 import * as THREE from 'three'
 import type { CatalogGarmentId, SizeId } from '@/lib/types'
-import { CALIBRATION } from './calibration'
+import { CALIBRATION, MAX_BAKED_NORMAL_SCALE } from './calibration'
 import { buildGarmentFrame, type GarmentFrame } from './garmentFrame'
 
 const frames = new Map<string, GarmentFrame>()
@@ -85,9 +85,18 @@ export function boardGarmentMaterial(
   garment: CatalogGarmentId,
   colorHex: string,
   scene: THREE.Object3D,
+  /**
+   * Does the frame this material will be drawn with carry the cavity `color`
+   * attribute? It normally does (buildGarmentFrame → applyCavity), but
+   * `computeCavity` can decline — no index, no normals, a degenerate bbox — and
+   * an unbound `color` attribute reads as (0, 0, 0) in GL, which would paint
+   * every garment on the board SOLID BLACK. The preview asks the same question
+   * of its own geometry (GarmentModel); the board must not merely assume.
+   */
+  hasCavity: boolean,
 ): THREE.MeshStandardMaterial {
   cancelDisposal()
-  const key = `${garment}|${colorHex}`
+  const key = `${garment}|${colorHex}|${hasCavity ? 'c' : ''}`
   const hit = materials.get(key)
   if (hit) return hit
   const calib = CALIBRATION[garment]
@@ -103,7 +112,25 @@ export function boardGarmentMaterial(
     roughness: calib.roughness,
     metalness: 0,
     envMapIntensity: calib.envMapIntensity,
+    // The board's frames come from `buildGarmentFrame`, which writes the
+    // measured cavity occlusion into a `color` attribute — and without this the
+    // GPU simply ignores it, so the SAME tee was seam-shaded in the studio and
+    // flat on the board, in one session. Sheen is still deliberately skipped
+    // (see the header); occlusion is not a grazing-angle nicety.
+    vertexColors: hasCavity,
+    // Open surfaces: both bundled GLBs declare doubleSided, and culling their
+    // backfaces shows the backdrop through the collar and the hem.
+    side: srcMat?.side ?? THREE.DoubleSide,
   })
+  // Same ceiling as the preview, from the same constant: the tee's baked normal
+  // map asks for 2.81 over a heavily minified lossy texture, which amplifies its
+  // compression rather than its threads. Per axis — see the note in GarmentModel.
+  if (material.normalMap && srcMat) {
+    material.normalScale.set(
+      THREE.MathUtils.clamp(srcMat.normalScale.x, -MAX_BAKED_NORMAL_SCALE, MAX_BAKED_NORMAL_SCALE),
+      THREE.MathUtils.clamp(srcMat.normalScale.y, -MAX_BAKED_NORMAL_SCALE, MAX_BAKED_NORMAL_SCALE),
+    )
+  }
   materials.set(key, material)
   return material
 }

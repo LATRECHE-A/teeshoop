@@ -20,10 +20,10 @@ import * as THREE from 'three'
 import { Decal, useGLTF } from '@react-three/drei'
 import type { CatalogGarmentId, DecalSource, Side, SizeId } from '@/lib/types'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
-import { CALIBRATION } from './calibration'
+import { CALIBRATION, MAX_BAKED_NORMAL_SCALE } from './calibration'
 import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
 import { buildFabricOverlay, fabricPrintMaterial } from './decalGeom'
-import { buildGarmentFrame, fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
+import { armProfile, buildGarmentFrame, fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
 import { useSourceTexture } from './textures'
 
 useGLTF.preload('/models/tee.glb', false, false)
@@ -60,17 +60,19 @@ function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): Normal
     // Copy source maps explicitly — Physical.copy(Standard) is unsafe because
     // the Standard source lacks the sheen fields Physical.copy reads.
     //
-    // `aoMap` and `normalScale` are copied because dropping them was quietly
-    // throwing away most of the tee's shading: that GLB ships a baked occlusion
-    // map and asks for its normal map at scale 2.81, and rebuilding the
-    // material without either left a flat, waxy surface with a third of the
-    // intended relief. `aoMap` needs the geometry's `uv` and rides the
-    // texture's own `channel`, both of which survive the clone.
+    // `normalScale` is copied (and capped) because dropping it was quietly
+    // throwing away most of the tee's relief: that GLB asks for its normal map
+    // at scale 2.81, and rebuilding the material without it left a flat, waxy
+    // surface. `aoMap` is copied only where the bake is USABLE — see
+    // `bakedAoIntensity` in calibration.ts; the tee's back island is a black
+    // smear and is better replaced by the measured cavity term. When it is
+    // taken it needs the geometry's `uv` and rides the texture's own `channel`,
+    // both of which survive the clone.
     const material = new THREE.MeshPhysicalMaterial({
       map: srcMat.map,
       normalMap: srcMat.normalMap,
       roughnessMap: srcMat.roughnessMap,
-      aoMap: srcMat.aoMap,
+      aoMap: calib.cloth.bakedAoIntensity > 0 ? srcMat.aoMap : null,
       color: srcMat.color.clone(),
       roughness: calib.roughness,
       metalness: 0,
@@ -78,10 +80,34 @@ function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): Normal
       sheen: calib.cloth.sheen,
       sheenRoughness: calib.cloth.sheenRoughness,
       vertexColors: frame.geometry.getAttribute('color') !== undefined,
+      // BOTH bundled GLBs declare `doubleSided: true`, and rebuilding the
+      // material dropped it back to three's FrontSide default. A garment is an
+      // OPEN surface — the tee mesh has 411 boundary edges — so with backfaces
+      // culled you look into the collar, the hem or a cuff and see the backdrop
+      // straight through the shirt, which on the default ¾ view puts a hole at
+      // the neckline. VSM leaves `side` alone in the shadow pass, so there is
+      // no separate shadowSide to set.
+      side: srcMat.side,
     })
-    if (srcMat.normalMap) material.normalScale.copy(srcMat.normalScale)
-    if (srcMat.aoMap) material.aoMapIntensity = 1
-    applyWeaveBump(material, { ...WEAVE_DEFAULTS, foldStrength: calib.cloth.foldStrength })
+    // The tee's normalTexture asks for scale 2.81 over an 8×-tiled 1024 px JPEG.
+    // At the framing the studio actually uses that map mips down about tenfold,
+    // so what survives is its low-frequency mottling — and 2.81 amplifies THAT,
+    // not the thread detail the number was authored for.
+    if (srcMat.normalMap) {
+      // PER AXIS, not by length: `clampLength` bounds the L2 norm, so a uniform
+      // (s, s) scale is really capped at MAX/√2 — 1.5 would have been 1.061 in
+      // effect, a different material from the one the number describes.
+      material.normalScale.set(
+        THREE.MathUtils.clamp(srcMat.normalScale.x, -MAX_BAKED_NORMAL_SCALE, MAX_BAKED_NORMAL_SCALE),
+        THREE.MathUtils.clamp(srcMat.normalScale.y, -MAX_BAKED_NORMAL_SCALE, MAX_BAKED_NORMAL_SCALE),
+      )
+    }
+    if (material.aoMap) material.aoMapIntensity = calib.cloth.bakedAoIntensity
+    applyWeaveBump(material, {
+      ...WEAVE_DEFAULTS,
+      foldStrength: calib.cloth.foldStrength,
+      foldHalfHeightIn: frame.heightIn / 2,
+    })
 
     return { ...frame, material }
   }, [gltf, garment, calib, sizeId])
@@ -109,35 +135,6 @@ function probeSurfaceZ(geometry: THREE.BufferGeometry, xIn: number, yIn: number,
   ray.set(new THREE.Vector3(xIn, yIn, sign * 1000), new THREE.Vector3(0, 0, -sign))
   const hits = ray.intersectObject(mesh, false)
   return hits.length > 0 ? hits[0].point.z : null
-}
-
-/** X of the outer sleeve/arm surface at (yIn, zIn), via local raycast along ∓X. */
-function probeSurfaceX(geometry: THREE.BufferGeometry, yIn: number, zIn: number, sign: 1 | -1): number | null {
-  const mesh = new THREE.Mesh(geometry, PROBE_MATERIAL)
-  const ray = new THREE.Raycaster()
-  ray.set(new THREE.Vector3(sign * 1000, yIn, zIn), new THREE.Vector3(-sign, 0, 0))
-  const hits = ray.intersectObject(mesh, false)
-  return hits.length > 0 ? hits[0].point.x : null
-}
-
-/**
- * Radius of the arm tube at a height, measured from the mesh: probe the arm's
- * outer X across a Z sweep and take half the Z run that still hits. A sleeve
- * print needs the projector box deep enough to reach the flanks it curves
- * around, and the arm is ~2 in thick where the mesh is ~26 in wide — a
- * width-derived depth is an order of magnitude wrong.
- */
-function armRadiusIn(geometry: THREE.BufferGeometry, yIn: number, sign: 1 | -1, reachIn: number): number {
-  let zLo = Infinity
-  let zHi = -Infinity
-  for (let i = 0; i <= 24; i++) {
-    const z = -reachIn + (2 * reachIn * i) / 24
-    if (probeSurfaceX(geometry, yIn, z, sign) !== null) {
-      if (z < zLo) zLo = z
-      if (z > zHi) zHi = z
-    }
-  }
-  return Number.isFinite(zLo) && zHi > zLo ? (zHi - zLo) / 2 : reachIn / 2
 }
 
 interface PrintOverlayProps {
@@ -169,14 +166,23 @@ function PrintOverlay({ frame, garment, side, source, k }: PrintOverlayProps) {
       texture
         ? fabricPrintMaterial(texture, cavity, {
             ...WEAVE_DEFAULTS,
-            // Ink bridges the threads: it takes the cloth's grain at roughly a
-            // third of its depth, and none of the drape octave, which belongs
-            // to the fabric's own body rather than to the film sitting on it.
+            // Ink bridges the THREADS: it takes the cloth's grain at roughly a
+            // third of its depth. It does NOT bridge a fold — a transfer bends
+            // with the cloth it is fused to — so the drape octave is passed
+            // through at full strength and with the same slack ramp. Zeroing it
+            // (the old value) left a flat, corrugation-free patch lying over
+            // relieved cloth: the one thing that makes a print read as a vinyl
+            // sticker stuck on afterwards.
             strength: WEAVE_DEFAULTS.strength * 0.35,
-            foldStrength: 0,
+            foldStrength: CALIBRATION[garment].cloth.foldStrength,
+            foldHalfHeightIn: frame.heightIn / 2,
+            // …and a third of the roughening the cloth gets when its grain goes
+            // sub-pixel: the ink film is smoother than the knit, so it keeps a
+            // tighter highlight as the camera pulls back.
+            roughGain: 0.04,
           })
         : null,
-    [texture, cavity],
+    [texture, cavity, garment, frame.heightIn],
   )
   useEffect(() => () => material?.dispose(), [material])
 
@@ -250,6 +256,14 @@ function PrintDecal({ geometry, side, source, centreYIn }: PrintDecalProps) {
   )
 }
 
+/** Slack beyond the tube's own sagitta, inches: the print also curves
+ *  vertically, and the box must not graze the surface it projects onto. */
+const SLEEVE_BOX_SLACK_IN = 0.6
+/** How far past the measured crown the box's outer face sits. Covers the sweep's
+ *  own z-quantisation (±0.28 in on a tee ⇒ under 0.02 in of tube sagitta); the
+ *  box simply extends into the air, which clips nothing. */
+const SLEEVE_BOX_MARGIN_IN = 0.15
+
 interface SleeveDecalProps {
   frame: GarmentFrame
   garment: CatalogGarmentId
@@ -272,21 +286,27 @@ function SleeveDecal({ frame, garment, source, sign }: SleeveDecalProps) {
 
   const placement = useMemo(() => {
     const y = calib.sleeve.yRaw * frame.yScale
-    const surfaceX = probeSurfaceX(frame.geometry, y, 0, sign)
-    const r = armRadiusIn(frame.geometry, y, sign, frame.depthIn / 2)
+    // The arm, MEASURED — its own radius, its own crown and its own centre. See
+    // garmentFrame.armProfile for why all three had to be found and what each
+    // was costing the print.
+    const arm = armProfile(frame.geometry, y, sign, frame.depthIn / 2)
     // Depth must cover how far the tube falls away under the print's own half
     // width, plus slack for the vertical curve. sagitta = r − √(r² − (w/2)²).
-    const halfW = Math.min(source.wIn / 2, r * 0.98)
-    const sagitta = r - Math.sqrt(Math.max(0, r * r - halfW * halfW))
-    const depth = Math.max(2 * sagitta + 0.6, 1.2)
-    const x = (surfaceX ?? sign * frame.depthIn) - sign * depth * 0.5
-    return { x, y, depth }
+    const halfW = Math.min(source.wIn / 2, arm.radiusIn * 0.98)
+    const sagitta = arm.radiusIn - Math.sqrt(Math.max(0, arm.radiusIn * arm.radiusIn - halfW * halfW))
+    const depth = Math.max(2 * sagitta + SLEEVE_BOX_SLACK_IN, 1.2)
+    // Outer face just PAST the crown. Outboard of the surface costs nothing —
+    // there is no geometry out there to clip — while a hair inboard cuts a strip
+    // out of the middle of the print, which is exactly what pinning it to the
+    // surface at z = 0 was doing.
+    const x = arm.crownX + sign * SLEEVE_BOX_MARGIN_IN - sign * depth * 0.5
+    return { x, y, z: arm.centreZ, depth }
   }, [frame, calib, sign, source.wIn])
 
   if (!texture) return null
   return (
     <Decal
-      position={[placement.x, placement.y, 0]}
+      position={[placement.x, placement.y, placement.z]}
       rotation={[0, (sign * Math.PI) / 2, sign * calib.sleeve.rotZ]}
       scale={[source.wIn, source.hIn, placement.depth]}
       renderOrder={2}

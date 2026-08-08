@@ -4,7 +4,7 @@
  *
  * URL params (for scripted screenshots):
  *   ?g=tee|hoodie|custom  &c=FFFFFF  &v=front|back|threequarter
- *   &rot=0|1  &fd=0|1  &bd=0|1  &bc=0|1
+ *   &rot=0|1  &fd=0|1  &bd=0|1  &bc=0|1  &sd=0|1  (sd = sleeve decal)
  *   &cp=<supplier id>  &cw=<garment width, in>  &cpk=0|1   (see below)
  *
  * `cp` swaps the fake blob card for a REAL supplier photo, cut out with the
@@ -291,6 +291,10 @@ function Harness() {
   const [showFront, setShowFront] = useState(flag('fd', true))
   const [showBack, setShowBack] = useState(flag('bd', true))
   const [withBackCard, setWithBackCard] = useState(flag('bc', true))
+  // The sleeve decal was never mountable here, which is why no screenshot ever
+  // showed its projector box clipping the print. Default OFF so every existing
+  // proof sheet is unchanged.
+  const [showSleeve, setShowSleeve] = useState(flag('sd', false))
   const [viewRequest, setViewRequest] = useState<{ view: ViewSnap; nonce: number } | null>(
     qpView ? { view: qpView, nonce: 1 } : null,
   )
@@ -313,8 +317,8 @@ function Harness() {
   const canvases = useMemo(() => {
     const make = () => document.createElement('canvas')
     return {
-      tee: { front: make(), back: make() },
-      hoodie: { front: make(), back: make() },
+      tee: { front: make(), back: make(), sleeve: make() },
+      hoodie: { front: make(), back: make(), sleeve: make() },
       card: { front: make(), back: make() },
       // The bare garment behind each card (CardSource.photo). Only a supplier
       // photo fills these; the blob card has no artwork to separate out.
@@ -330,6 +334,7 @@ function Harness() {
     for (const g of ['tee', 'hoodie'] as const) {
       drawGridDecal(canvases[g].front, PRINT_SIZES[g].front.wIn, PRINT_SIZES[g].front.hIn, '#FF3D8F', 'FRONT')
       drawGridDecal(canvases[g].back, PRINT_SIZES[g].back.wIn, PRINT_SIZES[g].back.hIn, '#35C7FF', 'BACK')
+      drawGridDecal(canvases[g].sleeve, PRINT_SIZES[g].sleeve.wIn, PRINT_SIZES[g].sleeve.hIn, '#3ADC97', 'SLV')
     }
     drawBlobCard(canvases.card.front, GARMENT_WIDTH_IN.custom, 22, true)
     drawBlobCard(canvases.card.back, GARMENT_WIDTH_IN.custom, 22, false)
@@ -381,6 +386,13 @@ function Harness() {
         : null,
     [showBack, canvases, catalog, decalVersion],
   )
+  const sleeve = useMemo<DecalSource | null>(
+    () =>
+      showSleeve
+        ? { canvas: canvases[catalog].sleeve, version: decalVersion, ...PRINT_SIZES[catalog].sleeve }
+        : null,
+    [showSleeve, canvases, catalog, decalVersion],
+  )
   const customFront = useMemo<CardSource>(
     () => ({
       canvas: canvases.card.front,
@@ -410,6 +422,18 @@ function Harness() {
     setReady(true)
     setReadyMs(Math.round(performance.now() - bootedAt.current))
   }, [])
+
+  // RE-ISSUE `?v=`. CameraRig deliberately seeds its "already handled" nonce
+  // with whatever it is mounted with, so a stale request cannot snap the camera
+  // uninvited when the user re-enters 3D — which also means the request this
+  // harness mounts WITH is swallowed, and every scripted screenshot came out at
+  // the default camera whatever `?v=` said. Bumping the nonce after mount is
+  // what makes the parameter mean anything; re-running once the garment exists
+  // (`ready`, and again when a supplier cutout lands) also covers the case where
+  // the fit pass re-frames the camera after the snap.
+  useEffect(() => {
+    if (qpView) setViewRequest((r) => ({ view: qpView, nonce: (r?.nonce ?? 0) + 1 }))
+  }, [ready, card])
 
   return (
     <div className="flex h-full">
@@ -476,6 +500,10 @@ function Harness() {
           </label>
           <label className="flex items-center gap-2 text-[13px] text-tx2">
             <input type="checkbox" checked={showBack} onChange={(e) => setShowBack(e.target.checked)} />
+            sleeve decal
+          </label>
+          <label className="flex items-center gap-2 text-[12px]">
+            <input type="checkbox" checked={showSleeve} onChange={(e) => setShowSleeve(e.target.checked)} />
             back decal
           </label>
           <label className="flex items-center gap-2 text-[13px] text-tx2">
@@ -510,7 +538,7 @@ function Harness() {
             colorHex={colorHex}
             front={garment === 'custom' ? null : front}
             back={garment === 'custom' ? null : back}
-            sleeve={null}
+            sleeve={garment === 'custom' || !showSleeve ? null : sleeve}
             garmentWidthIn={GARMENT_WIDTH_IN[garment]}
             custom={garment === 'custom' ? { front: customFront, back: customBack } : undefined}
             autoRotate={autoRotate}

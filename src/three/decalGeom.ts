@@ -187,7 +187,10 @@ export function fabricPrintMaterial(map: THREE.Texture, cavity: boolean, weave?:
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    roughness: 0.78,
+    // Cured ink IS smoother than cotton, but 0.78 against the garment's 0.92-0.94
+    // made the printed patch the glossiest thing on the shirt. 0.86 keeps the
+    // difference legible as "printed" without turning a logo into plastic.
+    roughness: 0.86,
     metalness: 0,
     side: THREE.FrontSide,
     vertexColors: cavity,

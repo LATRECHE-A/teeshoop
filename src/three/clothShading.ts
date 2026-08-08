@@ -32,6 +32,35 @@
  *    with an analytic gradient — seamless on any mesh, UV-free, correct on
  *    sleeves and hood, and physically scaled because 1 world unit is 1 inch.
  *
+ *    A 1 mm thread pitch is SMALLER THAN A SCREEN PIXEL at every framing the
+ *    app actually uses (the garment is ~30 px/in in the studio pane, a thread
+ *    is 0.045 in ⇒ 1.3 px per period), so the Nyquist fade below correctly
+ *    takes the bump to zero — and for a long time that meant the octave whose
+ *    whole job is "this is cotton, not vinyl" contributed literally nothing
+ *    except when zoomed to the dolly limit. Sub-pixel relief does not vanish in
+ *    the real world, it becomes ROUGHNESS: a surface too fine to resolve
+ *    scatters into a wider lobe instead of returning a sharp highlight. So the
+ *    energy the fade removes is handed to `roughnessFactor` (`uWeaveRough`, the
+ *    Toksvig/LEAN idea in its cheapest useful form). That is what keeps the
+ *    cloth reading the same from across the room and from an inch away.
+ *
+ * 3. DRAPE OCTAVE — the SECOND, hand-span-scale field, and the one that has to
+ *    be handled with the most suspicion, because it is the one term here with
+ *    no geometry behind it. It used to be `sin(2π·x/λ + 1.7·sin(2.1·y/λ))`: a
+ *    function of x alone plus a y-warp identical for every stripe, i.e. eight
+ *    parallel, identically-wobbling vertical ridges 2.6 in apart, tilting the
+ *    shading normal 18° at the crest. That is not drape, it is corrugated iron,
+ *    and it is exactly what a customer described as "bumps after freezing in
+ *    Alaska". It is now two octaves of gradient noise with an ANALYTIC
+ *    derivative (same reason the weave differentiates a sum of sines rather
+ *    than finite-differencing it), anisotropically stretched down the garment
+ *    because cloth hangs, and scaled by a SLACK ramp: a worn tee is taut across
+ *    the chest and pools at the hem, so a constant-amplitude fold field is
+ *    wrong everywhere. Measured over the same domain the old field had mean
+ *    |∇| 4.30 of a 7.23 peak — "on" over the entire garment; the noise field
+ *    has mean 1.17 of a 5.39 peak, so the cloth is mostly quiet and folds where
+ *    a fold is.
+ *
  * WHY OBJECT SPACE, NOT WORLD. The preview floats the garment on a drei
  * <Float>, so a world-space pattern would swim across the cloth as it sways.
  * Object space is glued to the fabric, which is what a weave is.
@@ -364,21 +393,48 @@ export interface WeaveOptions {
   strength: number
   /** Strength of the second, drape-scale octave (see below). */
   foldStrength: number
-  /** Wavelength of that octave, inches. */
+  /** Feature size of that octave, inches. */
   foldPitchIn: number
+  /**
+   * Half-height of the garment in object-space inches, for the drape's SLACK
+   * ramp (folds vanish over the taut chest and pool toward the hem). Both
+   * garment paths centre their geometry on the bounding box, so object-space Y
+   * runs −h/2 … +h/2 and one number describes the ramp. 0 disables it, which is
+   * what any surface that is not a whole garment (a print overlay) wants.
+   */
+  foldHalfHeightIn?: number
+  /**
+   * How much of the way to fully rough the sub-Nyquist weave takes this surface
+   * (see WEAVE_ROUGH_GAIN). Cloth wants the default whether its grain comes from
+   * this shader or from a tiled normal map, because both mip away; INK does not
+   * — a cured transfer is a smoother film than the knit under it, and that
+   * difference is most of what makes a print read as printed.
+   */
+  roughGain?: number
 }
 
 /**
- * `strength` is a SLOPE, not a height: the gradient fields below peak near 5,
- * so 0.035 tilts the shading normal by about 11° at the crest of a thread —
- * enough to catch a highlight, far short of the corrugated-iron look that
- * anything past ~0.08 gives.
+ * `strength` is a SLOPE, not a height: measured over 4·10⁵ samples the weave
+ * field peaks at |∇| 7.55 and the drape field at 5.39, so `strength` × that
+ * peak IS tan(tilt). Two rules follow, and every constant in this project is
+ * derived from them rather than eyeballed:
+ *
+ *   · MICRO relief (the weave) may reach ~10–15° at a crest. It is a real
+ *     surface feature a millimetre across; a steep one is what catches the
+ *     grazing highlight that says "fibre".
+ *   · A MACRO octave (the drape) must stay under ~6°, because there is no
+ *     geometry under it: it cannot occlude, it cannot break the silhouette, and
+ *     it does not move with the camera. Past that it stops reading as a fold
+ *     and starts reading as embossed metal. The 0.045 the tee shipped with was
+ *     18° — 3× over — and it is the whole of complaint "ugly bumps".
  */
 export const WEAVE_DEFAULTS: WeaveOptions = {
   pitchIn: 0.045,
   strength: 0.035,
-  foldStrength: 0.03,
-  foldPitchIn: 2.6,
+  /** 0.02 × 5.39 = tan 6.2° at the peak of a fold, ~1.3° over quiet cloth. */
+  foldStrength: 0.02,
+  /** Hand-span. Folds this size are what a garment photograph shows. */
+  foldPitchIn: 3.4,
 }
 
 /**
@@ -386,27 +442,31 @@ export const WEAVE_DEFAULTS: WeaveOptions = {
  *
  *  - WEAVE, at thread pitch. Two crossed sine ranks plus a diagonal term, which
  *    is the cheapest field that reads as interlocked loops rather than as a
- *    grid of dots.
- *  - DRAPE, at hand-span scale, domain-warped so it wanders instead of ruling
- *    straight lines. This is the octave that matters most on the TEE, whose
- *    mesh is a smooth balloon with no folds modelled at all; the hoodie is a
- *    Marvelous Designer garment whose folds are real geometry, so it asks for
- *    much less (see CLOTH per garment in calibration.ts).
+ *    grid of dots. Below Nyquist it turns into roughness rather than
+ *    disappearing (see `uWeaveRough` and the header).
+ *  - DRAPE, at hand-span scale: two octaves of gradient noise, stretched down
+ *    the garment and damped over the taut chest. This is the octave that
+ *    matters most on the TEE, whose mesh is a smooth balloon with no folds
+ *    modelled at all; the hoodie is a Marvelous Designer garment whose folds
+ *    are real geometry, so it asks for much less (see CLOTH per garment in
+ *    calibration.ts).
  *
  * Both are evaluated triplanar — three planar fields blended by the squared
  * face normal — so there is no UV set to need, no seam and no stretching where
  * a sleeve turns away from the body.
  *
- * The gradient is ANALYTIC. A finite-difference bump would need three
- * evaluations of a nine-sine field per fragment; differentiating a sum of sines
- * is exact, one evaluation, and free of the step-size artefacts that make
- * procedural bump shimmer under motion.
+ * The gradient is ANALYTIC in both. A finite-difference bump would need three
+ * evaluations of the field per fragment; a sum of sines and gradient noise both
+ * differentiate exactly, in one evaluation, and free of the step-size artefacts
+ * that make procedural bump shimmer under motion.
  */
 const WEAVE_GLSL = /* glsl */ `
 uniform float uWeavePitch;
 uniform float uWeaveStrength;
+uniform float uWeaveRough;
 uniform float uFoldPitch;
 uniform float uFoldStrength;
+uniform float uFoldHalfH;
 varying vec3 vClothPos;
 varying vec3 vClothNrm;
 varying vec3 vClothNX;
@@ -414,6 +474,11 @@ varying vec3 vClothNY;
 varying vec3 vClothNZ;
 
 const float TAU = 6.28318530718;
+/** Folds run down the garment, so the noise is stretched ~3:1 in y. */
+const float FOLD_ANISO = 0.34;
+/** Brings the two-octave field's peak |grad| to 5.39 — the number the
+ *  foldStrength constants are quoted against (see WEAVE_DEFAULTS). */
+const float FOLD_NORM = 1.9;
 
 // d(height)/d(q) of the weave field, for one planar projection.
 vec2 weaveGrad( vec2 q ) {
@@ -421,13 +486,60 @@ vec2 weaveGrad( vec2 q ) {
   return vec2( cos( q.x * TAU ) + d, cos( q.y * TAU ) + d ) * ( TAU * 0.5 );
 }
 
-// …and of the drape field, warped so the folds meander.
+// Hash22 (Dave Hoskins, "Hash without Sine"). A sin()-based hash bands badly
+// wherever the driver honours mediump and repeats at exactly the scales a
+// garment is viewed at, which on a field this large is a visible tile.
+vec2 clothHash( vec2 p ) {
+  vec3 p3 = fract( vec3( p.xyx ) * vec3( 0.1031, 0.1030, 0.0973 ) );
+  p3 += dot( p3, p3.yzx + 33.33 );
+  return -1.0 + 2.0 * fract( ( p3.xx + p3.yz ) * p3.zy );
+}
+
+// Gradient (Perlin) noise with its EXACT derivative: vec3( value, d/dx, d/dy ).
+// Quintic fade, so the derivative is itself C1 and the shading has no creases
+// on the lattice lines. (Validated against central differences to 1.5e-7.)
+vec3 clothNoiseD( vec2 p ) {
+  vec2 i = floor( p );
+  vec2 f = p - i;
+  vec2 u = f * f * f * ( f * ( f * 6.0 - 15.0 ) + 10.0 );
+  vec2 du = 30.0 * f * f * ( f * ( f - 2.0 ) + 1.0 );
+  vec2 ga = clothHash( i );
+  vec2 gb = clothHash( i + vec2( 1.0, 0.0 ) );
+  vec2 gc = clothHash( i + vec2( 0.0, 1.0 ) );
+  vec2 gd = clothHash( i + vec2( 1.0, 1.0 ) );
+  float va = dot( ga, f );
+  float vb = dot( gb, f - vec2( 1.0, 0.0 ) );
+  float vc = dot( gc, f - vec2( 0.0, 1.0 ) );
+  float vd = dot( gd, f - vec2( 1.0, 1.0 ) );
+  float k1 = vb - va;
+  float k2 = vc - va;
+  float k3 = va - vb - vc + vd;
+  vec2 d = ga + u.x * ( gb - ga ) + u.y * ( gc - ga ) + u.x * u.y * ( ga - gb - gc + gd )
+         + du * vec2( k1 + u.y * k3, k2 + u.x * k3 );
+  return vec3( va + u.x * k1 + u.y * k2 + u.x * u.y * k3, d );
+}
+
+// …and of the drape field. NON-PERIODIC by construction: the sine it replaced
+// ruled ~8 parallel ridges across every garment at a fixed 2.6 in pitch.
 vec2 foldGrad( vec2 q ) {
-  float warp = sin( q.y * 2.1 );
-  float phase = q.x * TAU + warp * 1.7;
-  float dx = cos( phase ) * TAU;
-  float dy = cos( phase ) * cos( q.y * 2.1 ) * 2.1 * 1.7;
-  return vec2( dx, dy );
+  vec2 a = vec2( q.x, q.y * FOLD_ANISO );
+  vec3 n1 = clothNoiseD( a );
+  vec3 n2 = clothNoiseD( a * 2.13 + 17.7 );
+  vec2 g = n1.yz + ( 0.42 * 2.13 ) * n2.yz;
+  g.y *= FOLD_ANISO;                        // chain rule for the stretch
+  return g * FOLD_NORM;
+}
+
+/**
+ * How slack the cloth is here, 0…1. A worn garment is pulled taut across the
+ * chest and shoulders and pools at the hem, so a constant-amplitude fold field
+ * is wrong at both ends. uFoldHalfH = 0 means "not a whole garment" (a print
+ * overlay), and the ramp switches off.
+ */
+float clothSlack( float y ) {
+  if ( uFoldHalfH <= 0.0 ) return 1.0;
+  float t = clamp( y / uFoldHalfH, -1.0, 1.0 );   // +1 shoulders, −1 hem
+  return mix( 1.0, 0.28, smoothstep( -0.55, 0.45, t ) );
 }
 
 vec3 clothBump( vec3 viewNormal ) {
@@ -440,8 +552,9 @@ vec3 clothBump( vec3 viewNormal ) {
 
   // A thread pitch approaches one pixel as the camera pulls back, and a bump
   // field sampled below Nyquist does not fade — it crawls. Fade the weave out
-  // once a period stops covering a couple of pixels; the drape octave is three
-  // orders of magnitude coarser and never gets there.
+  // once a period stops covering a couple of pixels; the drape octave is two
+  // orders of magnitude coarser and never gets there. What the fade removes is
+  // returned as roughness by the caller: sub-pixel relief IS a wider lobe.
   float footprint = max( fwidth( p.x ), max( fwidth( p.y ), fwidth( p.z ) ) ) / uWeavePitch;
   float weaveFade = 1.0 - smoothstep( 0.14, 0.5, footprint );
 
@@ -461,16 +574,43 @@ vec3 clothBump( vec3 viewNormal ) {
   vec2 fc = foldGrad( p.xy / uFoldPitch ) * w.z;
   gFold += vec3( 0.0, fa.y, fa.x ) + vec3( fb.x, 0.0, fb.y ) + vec3( fc.x, fc.y, 0.0 );
 
-  vec3 g = gWeave * uWeaveStrength + gFold * uFoldStrength;
+  vec3 g = gWeave * uWeaveStrength + gFold * ( uFoldStrength * clothSlack( p.y ) );
   g -= n * dot( g, n );                     // only the in-surface part tilts it
 
   // Object space → view space. The three basis images are constant per draw
   // call; carrying them as varyings is what lets the gradient be built in the
   // space the pattern lives in while the lighting stays in the space three
   // shades in. (normalMatrix is not declared in three's fragment prefix.)
+  // …and follow the SHADED SIDE. three's <normal_fragment_begin> has already
+  // flipped viewNormal for a backface on a double-sided material, but
+  // vClothNrm is the raw object normal, so the perturbation would arrive with
+  // the wrong sign and every crest would read as a trough. Inert until a
+  // garment is double-sided — which the catalogue meshes now are, because both
+  // GLBs declare it and dropping it was showing the backdrop through the collar.
   vec3 gView = vClothNX * g.x + vClothNY * g.y + vClothNZ * g.z;
-  return normalize( viewNormal - gView );
+  return normalize( viewNormal - gView * ( gl_FrontFacing ? 1.0 : -1.0 ) );
 }
+`
+
+/**
+ * The roughness half of the weave, injected separately because three resolves
+ * `roughnessFactor` BEFORE it resolves the normal. Recomputing the footprint
+ * here costs two `fwidth`s and keeps the two injections independent — the
+ * alternative, hoisting a varying out of the normal stage, would only work if
+ * the stages were ordered the other way round.
+ *
+ * `uWeaveRough` is a fraction of the way to fully rough, not an addition: a
+ * knit whose threads have gone sub-pixel scatters more widely, but it is still
+ * cotton and must not turn into chalk. 0.12 is the largest value at which a
+ * white tee's key highlight is still a highlight.
+ */
+const WEAVE_ROUGH_GAIN = 0.12
+const WEAVE_ROUGH_GLSL = /* glsl */ `
+  {
+    float fp = max( fwidth( vClothPos.x ), max( fwidth( vClothPos.y ), fwidth( vClothPos.z ) ) ) / uWeavePitch;
+    float lost = smoothstep( 0.14, 0.5, fp );
+    roughnessFactor = mix( roughnessFactor, 1.0, lost * uWeaveRough );
+  }
 `
 
 /**
@@ -483,11 +623,30 @@ export function applyWeaveBump(
   opts: WeaveOptions = WEAVE_DEFAULTS,
   cacheKey = 'tshop-cloth',
 ): { [k: string]: THREE.IUniform } {
+  // IDEMPOTENT. The injection may only happen once per material — chaining
+  // onBeforeCompile twice would install the chunk twice — but the VALUES have
+  // to stay live: a caller re-attaching with a different garment height or a
+  // different weave strength (the shell swaps between a photo-wrinkle surface
+  // and a fabric-texture one, and a card's height changes with the upload) must
+  // see the change. Uniform writes need no recompile, so a second call is just
+  // an assignment.
+  const existing = material.userData.clothUniforms as { [k: string]: THREE.IUniform } | undefined
+  if (existing) {
+    existing.uWeavePitch.value = opts.pitchIn
+    existing.uWeaveStrength.value = opts.strength
+    existing.uFoldPitch.value = opts.foldPitchIn
+    existing.uFoldStrength.value = opts.foldStrength
+    existing.uFoldHalfH.value = opts.foldHalfHeightIn ?? 0
+    existing.uWeaveRough.value = opts.roughGain ?? WEAVE_ROUGH_GAIN
+    return existing
+  }
   const uniforms: { [k: string]: THREE.IUniform } = {
     uWeavePitch: { value: opts.pitchIn },
     uWeaveStrength: { value: opts.strength },
+    uWeaveRough: { value: opts.roughGain ?? WEAVE_ROUGH_GAIN },
     uFoldPitch: { value: opts.foldPitchIn },
     uFoldStrength: { value: opts.foldStrength },
+    uFoldHalfH: { value: opts.foldHalfHeightIn ?? 0 },
   }
   const previous = material.onBeforeCompile
   material.onBeforeCompile = (shader, renderer) => {
@@ -501,12 +660,17 @@ export function applyWeaveBump(
           '#include <beginnormal_vertex>\n\tvClothNrm = objectNormal;\n\tvClothNX = normalMatrix[ 0 ];\n\tvClothNY = normalMatrix[ 1 ];\n\tvClothNZ = normalMatrix[ 2 ];',
         )
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvClothPos = transformed;')
-    shader.fragmentShader = WEAVE_GLSL + shader.fragmentShader.replace(
-      '#include <normal_fragment_maps>',
-      '#include <normal_fragment_maps>\n\tnormal = clothBump( normal );',
-    )
+    shader.fragmentShader =
+      WEAVE_GLSL +
+      shader.fragmentShader
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>' + WEAVE_ROUGH_GLSL)
+        .replace(
+          '#include <normal_fragment_maps>',
+          '#include <normal_fragment_maps>\n\tnormal = clothBump( normal );',
+        )
   }
   const key = material.customProgramCacheKey
   material.customProgramCacheKey = () => `${key ? key.call(material) : ''}|${cacheKey}`
+  material.userData.clothUniforms = uniforms
   return uniforms
 }

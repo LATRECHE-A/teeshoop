@@ -40,12 +40,13 @@ import type { CatalogGarmentId, Design, Gender, Side } from '@/lib/types'
 import { areaOffsetYIn, garmentColorHex, getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { DEFAULT_SIZE, type SizeId } from '@/content/sizeChart'
 import { printScaleK } from '@/lib/printScale'
+import { registerBackPanel } from '@/lib/backRegister'
 import { buildDelitMaps, buildInflatedShell, canvasToSilhouette } from '@/lib/silhouette'
 import { GARMENTS } from '@/garments'
 import { CALIBRATION } from '@/three/calibration'
 import { buildFabricDecal, makeCurvedDecal } from '@/three/decalGeom'
 import { arcAt, getArcTable } from '@/three/fabricUnwrap'
-import { buildGarmentFrame, fabricFrameFor, printCentreYIn } from '@/three/garmentFrame'
+import { armProfile, buildGarmentFrame, fabricFrameFor, printCentreYIn } from '@/three/garmentFrame'
 import { buildMannequin, type MannequinSide } from '@/three/mannequin'
 import { canvasTexture, MAX_TEX, nearestPow2, potCanvas } from '@/three/arTexture'
 import { garmentTint } from '@/three/textures'
@@ -241,12 +242,19 @@ async function buildCatalogFigure(
     const tex = canvasTexture(sleeveCanvas)
     disposables.push(tex)
     for (const sign of [-1, 1] as const) {
-      const surfaceX = probeSurfaceX(geometry, sleeveY, 0, sign)
+      // The arm, measured — the same profile the preview places its sleeve
+      // projector from (src/three/garmentFrame.ts). A curved plane cannot be
+      // clipped the way a projector box can, so AR never lost the outboard part
+      // of the print; what it DID share is the z = 0 assumption, and an A-pose
+      // arm's centre is 1.0-1.4 in forward of the garment's mid-plane. Pinning
+      // the plane to z = 0 therefore hung the print a third of its own width off
+      // the sleeve, on the phone and on the desktop alike.
+      const arm = armProfile(geometry, sleeveY, sign, frame.depthIn / 2)
       const geo = curvedDecal(sz.wIn, sz.hIn, Math.max(3, sz.wIn))
       const mat = decalMaterial(tex)
       disposables.push(geo, mat)
       const mesh = new THREE.Mesh(geo, mat)
-      mesh.position.set(surfaceX + sign * DECAL_LIFT, sleeveY, 0)
+      mesh.position.set(arm.crownX + sign * DECAL_LIFT, sleeveY, arm.centreZ)
       mesh.rotation.y = (sign * Math.PI) / 2
       mesh.rotation.z = sign * calib.sleeve.rotZ
       figure.add(mesh)
@@ -811,9 +819,13 @@ async function buildCustomFigure(
   // two stop being the same garment.
   let frontPhoto = await renderMockup(design, frontSide, 1100, sizeId, { artwork: false })
   let backPhoto = backCanvas ? await renderMockup(design, 'back', 1100, sizeId, { artwork: false }) : null
-  // Register front & back so the back design maps onto the (front-derived) shell:
-  // bottom-pad the shorter to a shared height (shoulders top-align), matching the
-  // studio 3D (Scene3D). Skip a runaway pad from a badly-cropped side.
+  // Register front & back so the back design maps onto the (front-derived)
+  // shell, matching the studio 3D (Scene3D + ExtrudedGarment) EXACTLY: the pad
+  // to a shared height first (which is what fixes hIn, and therefore GY and
+  // therefore the geometry), then the reverse panel redrawn into the front's own
+  // frame. The second step is what stops a differently-framed back photo landing
+  // off its outline — see src/lib/backRegister.ts. It must happen here as well
+  // as in the preview or the phone and the desktop show different garments.
   if (backCanvas) {
     const maxH = Math.max(frontCanvas.height, backCanvas.height)
     const minH = Math.min(frontCanvas.height, backCanvas.height)
@@ -823,6 +835,13 @@ async function buildCustomFigure(
       frontPhoto = padCanvasToHeight(frontPhoto, maxH)
       if (backPhoto) backPhoto = padCanvasToHeight(backPhoto, maxH)
     }
+    const registered = registerBackPanel(frontCanvas, backCanvas, backPhoto)
+    // Null = the two photographs cannot be the same garment. Dropping the back
+    // hands the reverse to `blankBackCanvas` below, which is the front's own
+    // silhouette flooded with the garment's colour — right shape, right colour,
+    // no smear.
+    backCanvas = registered?.canvas ?? null
+    backPhoto = registered?.photo ?? null
   }
   const wIn = widthIn
   const hIn = (widthIn * frontCanvas.height) / frontCanvas.width

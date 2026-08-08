@@ -75,8 +75,25 @@ export interface ModelCalibration {
   cloth: {
     /** Drape-octave bump strength — carries the tee, redundant on the hoodie. */
     foldStrength: number
-    /** Cavity-occlusion depth, 0-1; lower where the GLB ships a baked AO map. */
+    /** Cavity-occlusion depth, 0-1; lower where the GLB ships a USABLE baked AO
+     *  map (see bakedAoIntensity — the tee's is not). */
     cavityGain: number
+    /**
+     * How much of the GLB's own `occlusionTexture` to believe, 0 = ignore it.
+     *
+     * Not a taste knob: a baked AO map is only worth having if the bake is
+     * correct, and the tee's is not. Its 1024² occlusion atlas has a clean front
+     * island (mean 0.892) and a RUINED back one — mean 0.655 with 37 % of its
+     * texels below 0.5 and a near-black region across rows 120-420, which maps
+     * to 13-59 % down the back panel: the shoulder blades. The studio is
+     * environment-dominated and `aoMap` attenuates exactly that indirect
+     * diffuse, so at full intensity the flagship tee wears a large dark stain
+     * across its upper back and nothing across its front. The cavity term
+     * (clothShading.computeCavity) is measured off the mesh itself, has no bake
+     * artefacts, and carries the same seams — so where the bake is bad the right
+     * answer is to ignore it and let the measurement do the whole job.
+     */
+    bakedAoIntensity: number
     sheen: number
     sheenRoughness: number
   }
@@ -89,6 +106,18 @@ export interface ModelCalibration {
    */
   sleeve: { yRaw: number; rotZ: number }
 }
+
+/**
+ * Ceiling for a normal-map scale copied off a GLB's own material, PER AXIS.
+ *
+ * The tee's normalTexture asks for 2.81 over an 8×-tiled 1024 px JPEG. At the
+ * framing the studio actually uses, that map mips down about tenfold, so what
+ * survives is its low-frequency mottling — and 2.81 amplifies THAT, not the
+ * thread detail the number was authored for. The procedural weave
+ * (clothShading.ts) is the micro-relief authority now that its sub-pixel energy
+ * comes back as roughness instead of being discarded.
+ */
+export const MAX_BAKED_NORMAL_SCALE = 1.5
 
 export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
   tee: {
@@ -108,10 +137,22 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     roughness: 0.94,
     envMapIntensity: 1.0,
     // The mesh is a smooth shell, so the drape octave is doing the work of the
-    // folds nobody modelled. The cavity gain is held back because this GLB
-    // ships a baked occlusion map (occlusionTexture) that already darkens the
-    // seams — stacking a full-strength cavity on top double-counts them.
-    cloth: { foldStrength: 0.045, cavityGain: 0.26, sheen: 0.35, sheenRoughness: 0.72 },
+    // folds nobody modelled — which is exactly why it must stay inside the ≤6°
+    // budget in WEAVE_DEFAULTS: a macro octave with no geometry under it reads
+    // as embossing the moment it gets loud. 0.045 against the OLD ruled-sine
+    // field was 18° everywhere at a fixed 2.6 in pitch, i.e. the washboard.
+    // 0.026 against the noise field is 8° at the crest of a fold and ~1.7° over
+    // quiet cloth — a little above the general budget because this is the one
+    // mesh with no modelled drape at all to fall back on.
+    // The cavity gain used to be held back because this GLB ships a baked
+    // occlusion map that "already darkens the seams". It does — on the FRONT.
+    // See bakedAoIntensity: the back island of that bake is a black smear, so
+    // the map is off and the measured cavity carries the full load, at the same
+    // gain as the hoodie, which never had a bake to defer to.
+    // Cotton jersey's sheen is the fibre FUZZ: a near-Lambertian retroreflector,
+    // so the Charlie lobe wants to be almost fully rough. 0.72 gave it a tight
+    // grazing highlight that beaded on every ridge of the old corrugation.
+    cloth: { foldStrength: 0.026, cavityGain: 0.44, bakedAoIntensity: 0, sheen: 0.32, sheenRoughness: 0.93 },
     // 6.5 world in at the pre-fix yScale of 38.295 — the same physical band.
     sleeve: { yRaw: 0.1697, rotZ: 0 },
   },
@@ -141,7 +182,8 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // a second, contradicting set of wrinkles — it is kept to a whisper. There
     // is no baked AO map and no UV set at all here, so the cavity term is the
     // ONLY occlusion this garment gets and it carries the full gain.
-    cloth: { foldStrength: 0.012, cavityGain: 0.44, sheen: 0.5, sheenRoughness: 0.85 },
+    // No baked AO map and no UV set at all, so bakedAoIntensity is moot here.
+    cloth: { foldStrength: 0.01, cavityGain: 0.44, bakedAoIntensity: 1, sheen: 0.45, sheenRoughness: 0.95 },
     // 5 world in at the pre-fix yScale of 25.909.
     sleeve: { yRaw: 0.193, rotZ: 0.21 },
   },

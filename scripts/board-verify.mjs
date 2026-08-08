@@ -752,15 +752,21 @@ async function inPage() {
       const a1 = cacheMod.boardGarmentFrame('tee', 'L', scene)
       const a2 = cacheMod.boardGarmentFrame('tee', 'L', scene)
       const b = cacheMod.boardGarmentFrame('tee', '3XL', scene)
-      const m1 = cacheMod.boardGarmentMaterial('tee', '#ff0000', scene)
-      const m2 = cacheMod.boardGarmentMaterial('tee', '#ff0000', scene)
-      const m3 = cacheMod.boardGarmentMaterial('tee', '#00ff00', scene)
+      // The 4th argument is the frame's own answer to "do I carry the cavity
+      // `color` attribute" — an unbound one reads as (0,0,0) and would paint
+      // every board garment black, so the material must be told rather than
+      // assume. Pass it the way Board3D does.
+      const hasCavity = a1.geometry.getAttribute('color') !== undefined
+      const m1 = cacheMod.boardGarmentMaterial('tee', '#ff0000', scene, hasCavity)
+      const m2 = cacheMod.boardGarmentMaterial('tee', '#ff0000', scene, hasCavity)
+      const m3 = cacheMod.boardGarmentMaterial('tee', '#00ff00', scene, hasCavity)
       const stats = cacheMod.boardGarmentStats()
       out.sharing = {
         sameSizeShares: a1 === a2,
         differentSizeDoesNot: a1 !== b && a1.widthIn !== b.widthIn,
         sameColourShares: m1 === m2,
         differentColourDoesNot: m1 !== m3,
+        cavityBound: hasCavity && m1.vertexColors === true,
         frames: stats.frames,
         materials: stats.materials,
         triangles: stats.triangles,
@@ -1255,6 +1261,10 @@ try {
   check(SH.sameSizeShares, 'two products of the same (garment, size) share ONE geometry')
   check(SH.differentSizeDoesNot, 'a different size gets its own, correctly rescaled geometry')
   check(SH.sameColourShares && SH.differentColourDoesNot, 'materials are shared per (garment, colour)')
+  // The board used to ignore the measured cavity occlusion entirely — the
+  // attribute was written and the material never declared vertexColors — so
+  // one session showed the same tee seam-shaded in the studio and flat here.
+  check(SH.cavityBound, 'the board material binds the frame\'s cavity occlusion')
   check(SH.frames === 2 && SH.materials === 2, `nothing extra was uploaded (${SH.frames}/${SH.materials})`)
   check(SH.freed, 'disposing the board frees every shared geometry')
 

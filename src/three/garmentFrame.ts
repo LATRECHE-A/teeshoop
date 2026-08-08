@@ -102,6 +102,99 @@ export function buildGarmentFrame(
   }
 }
 
+// --- the arm, measured -----------------------------------------------------
+
+const ARM_PROBE_MATERIAL = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+/** Samples across the depth sweep. 24 steps ≈ 0.55 in on a tee. */
+const ARM_SWEEP = 24
+
+/** X of the outermost surface at (yIn, zIn), via local raycast along ∓X. */
+function probeSurfaceX(
+  geometry: THREE.BufferGeometry,
+  yIn: number,
+  zIn: number,
+  sign: 1 | -1,
+): number | null {
+  const mesh = new THREE.Mesh(geometry, ARM_PROBE_MATERIAL)
+  const ray = new THREE.Raycaster()
+  ray.set(new THREE.Vector3(sign * 1000, yIn, zIn), new THREE.Vector3(-sign, 0, 0))
+  const hits = ray.intersectObject(mesh, false)
+  return hits.length > 0 ? hits[0].point.x : null
+}
+
+export interface ArmProfile {
+  /** Half the arm tube's depth at this height, inches. */
+  radiusIn: number
+  /** Signed X of the arm's CROWN — its outermost point, which is not at z = 0. */
+  crownX: number
+  /** Z of the arm's own centre. Also not 0: an A-pose arm hangs forward of the
+   *  garment's mid-plane. */
+  centreZ: number
+}
+
+/**
+ * Where the sleeve actually is, measured off the mesh.
+ *
+ * A ray fired inward along ∓X at sleeve height hits the ARM where the arm is and
+ * the TORSO everywhere else, so "how far does the surface extend in z" — the
+ * question the old `armRadiusIn` asked — is answered by the torso and comes back
+ * as the garment's own half-depth. Measured on the shipped meshes it returned
+ * 5.45 in on the tee where the arm is 1.91, and 6.15 on the hoodie where it is
+ * 2.39. Since the caller turns that radius into a projector depth through a
+ * SAGITTA, a too-large radius reads as a flat surface and produces a box far too
+ * SHALLOW: 1.36 in against the 2.06 in a 7.6 cm sleeve print needs on the tee.
+ * The outboard part of the artwork fell outside the box and was clipped.
+ *
+ * So separate the two: the arm is a hump standing proud of the torso plateau, and
+ * the plateau is the MEDIAN of the sweep (it can never be the minority — the
+ * sweep spans the garment's whole depth and an arm is a few inches across). Take
+ * the contiguous run around the crown that stays above the half-way line between
+ * crown and plateau. That yields the tube's own z-run, its centre, and its crown.
+ *
+ * All three matter. The crown, because pinning the box's outer face to the
+ * surface at z = 0 left it 0.26-0.31 in inboard of the real crown, which then
+ * poked out of the box and lost a strip down the middle of the print. The
+ * centre, because the arm's z-centre is −1.36 in on the tee and −1.02 on the
+ * hoodie: a decal centred on z = 0 sits a third of a print-width off the sleeve.
+ */
+export function armProfile(
+  geometry: THREE.BufferGeometry,
+  yIn: number,
+  sign: 1 | -1,
+  reachIn: number,
+): ArmProfile {
+  const n = ARM_SWEEP + 1
+  const zAt = (i: number) => -reachIn + (2 * reachIn * i) / ARM_SWEEP
+  const out = new Float64Array(n).fill(-Infinity)
+  const hits: number[] = []
+  let peak = -1
+  for (let i = 0; i < n; i++) {
+    const x = probeSurfaceX(geometry, yIn, zAt(i), sign)
+    if (x === null) continue
+    out[i] = x * sign
+    hits.push(out[i])
+    if (peak < 0 || out[i] > out[peak]) peak = i
+  }
+  /** Nothing recognisable — degrade to the pre-measurement behaviour rather than
+   *  to something new and unexamined. */
+  const unknown: ArmProfile = { radiusIn: reachIn / 2, crownX: sign * reachIn, centreZ: 0 }
+  if (peak < 0) return unknown
+  hits.sort((a, b) => a - b)
+  const cut = (out[peak] + hits[hits.length >> 1]) / 2
+  let lo = peak
+  let hi = peak
+  while (lo - 1 >= 0 && out[lo - 1] >= cut) lo--
+  while (hi + 1 < n && out[hi + 1] >= cut) hi++
+  // A "limb" covering most of the sweep means the threshold found no plateau to
+  // separate, i.e. this is not a mesh whose arm stands proud of its body.
+  if (hi <= lo || hi - lo > ARM_SWEEP * 0.6) return unknown
+  return {
+    radiusIn: (zAt(hi) - zAt(lo)) / 2,
+    crownX: sign * out[peak],
+    centreZ: (zAt(hi) + zAt(lo)) / 2,
+  }
+}
+
 /**
  * Where a print panel's centre sits on the scaled mesh, in world inches.
  * Collar seam of THIS side (the front landmark plus the art's own front-to-back

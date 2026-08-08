@@ -83,7 +83,7 @@ import {
   type MaskProfile,
   type ShapeGuess,
 } from '@/lib/garmentShape'
-import { blurNorm, delight, readLumAlpha, type LumField } from '@/lib/photoLight'
+import { blurNorm, boxBlur, delight, readLumAlpha, type LumField } from '@/lib/photoLight'
 import { buildTemplateDepth, type DepthField } from '@/lib/templateDepth'
 import { computeCavity, type CavityOptions } from '@/three/clothShading'
 
@@ -125,13 +125,69 @@ const ALPHA_T = 128 // matte threshold (u2netp feather sits around 128)
 const MIN_COMPONENT = 0.1
 
 /**
- * Radius of the SHADING estimate, as a fraction of the photo's long edge. Wide
+ * Radius of the SHADING estimate, as a fraction of the GARMENT's long edge
+ * inside the photo (see contentLongEdge — never the canvas's, which carries a
+ * pad from the other side's framing). Wide
  * enough that only the lightbox gradient survives the blur (a fold is an order
  * of magnitude finer), narrow enough that the garment's own edges do not smear
  * the estimate inward. The same field feeds the mid-frequency wrinkle band, so
  * the two never disagree about what counts as "lighting".
  */
 const shadeRadius = (longEdge: number): number => Math.max(8, Math.round(longEdge * 0.085))
+
+/**
+ * The GARMENT's long edge inside a luminance field, in that field's own pixels.
+ *
+ * Every radius derived from a photo has to be a fraction of the garment, never
+ * of the canvas: the canvas gets bottom-padded when the OTHER side's photograph
+ * is taller (Scene3D / arExport), and 191052 pads by a third — so a
+ * canvas-relative radius made the front's de-lighting depend on how the back
+ * happened to be framed. It also has to be the SAME expression on both panels,
+ * which is why it lives here and not inline: the front's correction is computed
+ * inside `buildInflatedShell` and the back's inside `buildDelitMaps`, and a
+ * garment whose two halves are de-lit at different scales is a garment whose
+ * two halves are different colours at the seam.
+ */
+function contentLongEdge(f: LumField): number {
+  let minX = f.W
+  let maxX = -1
+  let minY = f.H
+  let maxY = -1
+  for (let y = 0; y < f.H; y++) {
+    const o = y * f.W
+    for (let x = 0; x < f.W; x++) {
+      if (f.a[o + x] <= 0.5) continue
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+  }
+  if (maxX < 0) return Math.max(f.W, f.H)
+  return Math.max(maxX - minX + 1, maxY - minY + 1)
+}
+
+/**
+ * Luminance levels of mid-band contrast, at the p99 over cloth, that count as a
+ * FULLY creased garment — and below which there is nothing to displace.
+ *
+ * The band is `blur(3 %) − blur(8.5 %)` of the photo's own luminance, in 0…255
+ * units. A jersey fold at that separation of scales carries 10–30 levels; a
+ * flat-lit white polo on a white sweep carries 2–4, most of which is JPEG
+ * grain. So a photo with folds spends the whole ±MID_AMP and a photo without
+ * them spends a fraction of it proportional to what it actually shows. The p99,
+ * not the max: the max is one armhole shadow on any garment.
+ */
+const MID_REF = 14
+const MID_FLOOR = 4
+/** p99 histogram: 0.5-level bins up to 128 levels of band contrast. Nothing
+ *  above that matters — the gain has saturated an order of magnitude earlier. */
+const MID_HIST_PER_LEVEL = 2
+const MID_HIST_BINS = 256
+/** Columns across the content bbox in each sheet. Module-scope because the
+ *  photo band has to be filtered to THIS grid's Nyquist before it is displaced,
+ *  which happens before the sheets are built. */
+const SHEET_COLS = 112
 
 // --- alpha → binary mask ---------------------------------------------------
 
@@ -216,6 +272,29 @@ function buildMask(canvas: HTMLCanvasElement): MaskData | null {
     }
   }
   return { mask, W, H, minX, maxX, minY, maxY, coverage: count / (W * H) }
+}
+
+/** Normalised alpha-content box of a garment photo, 0…1 of the canvas. */
+export interface ContentBox {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/**
+ * The garment's own extent inside its canvas, measured by exactly the code the
+ * sheets are cut with — same 200-px working grid, same ALPHA_T, same
+ * hanger-dropping component filter. Exported because REGISTERING one photo onto
+ * another (src/lib/backRegister.ts) has to agree with the shell about where the
+ * garment is, to the pixel: `custom.ts` has a second, looser alpha scanner
+ * (SCAN 256, threshold 16, no component filter) and two answers to "where is
+ * the garment" is how a stray hanger speck moves the whole reverse panel.
+ */
+export function contentBoxOf(canvas: HTMLCanvasElement): ContentBox | null {
+  const m = buildMask(canvas)
+  if (!m) return null
+  return { x0: m.minX / m.W, y0: m.minY / m.H, x1: (m.maxX + 1) / m.W, y1: (m.maxY + 1) / m.H }
 }
 
 /**
@@ -898,7 +977,7 @@ export function buildDelitMaps(
 ): { albedo: HTMLCanvasElement | null; occlusion: HTMLCanvasElement | null } {
   const f = readLumAlpha(photo ?? canvas, false)
   if (!f) return { albedo: null, occlusion: null }
-  const r = delight(canvas, f, blurNorm(f, shadeRadius(Math.max(f.W, f.H))))
+  const r = delight(canvas, f, blurNorm(f, shadeRadius(contentLongEdge(f))))
   return { albedo: r?.canvas ?? null, occlusion: r?.occlusion ?? null }
 }
 
@@ -993,6 +1072,48 @@ export interface InflatedShell {
 const smooth = (t: number): number => {
   const x = THREE.MathUtils.clamp(t, 0, 1)
   return x * x * (3 - 2 * x)
+}
+
+// --- deterministic drape field ---------------------------------------------
+
+/** Integer hash → [−1, 1]. No Math.random anywhere near the shell: the AR bake
+ *  rebuilds it from the same photo and the two must be byte-identical. */
+function hash2(ix: number, iy: number, seed: number): number {
+  let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(seed, 1442695041)) | 0
+  h = Math.imul(h ^ (h >>> 13), 1274126177)
+  h = (h ^ (h >>> 16)) >>> 0
+  return h / 2147483647.5 - 1
+}
+
+/** Quintic fade — C2, so the noise has no creases on its own lattice lines. */
+const fade5 = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10)
+
+/** Value noise in [−1, 1], bilinear over a quintic fade. */
+function valueNoise2(x: number, y: number, seed: number): number {
+  const ix = Math.floor(x)
+  const iy = Math.floor(y)
+  const ux = fade5(x - ix)
+  const uy = fade5(y - iy)
+  const a = hash2(ix, iy, seed)
+  const b = hash2(ix + 1, iy, seed)
+  const c = hash2(ix, iy + 1, seed)
+  const d = hash2(ix + 1, iy + 1, seed)
+  return (a + (b - a) * ux) * (1 - uy) + (c + (d - c) * ux) * uy
+}
+
+/**
+ * Two octaves of it, normalised to [−1, 1]. Two is the whole budget: the third
+ * would land at the sheet grid's own cell size and buy facets, not folds.
+ */
+function drapeNoise(x: number, y: number, seed: number): number {
+  // Offset the lattice off the garment's own symmetry axes. A quintic-faded
+  // value noise has ZERO gradient at its lattice points, and the field is only
+  // ~3 cells wide across a garment — so with the lattice on integers of
+  // X/foldLx a permanently flat line would run straight down the centre front
+  // and across the waist of every shell built.
+  const px = x + 0.37
+  const py = y + 0.19
+  return (valueNoise2(px, py, seed) + 0.5 * valueNoise2(px * 2.13 + 11.7, py * 2.13 + 5.3, seed ^ 0x5bf03635)) / 1.5
 }
 
 // --- cloth thickness: seam convergence + rim strip --------------------------
@@ -1403,20 +1524,75 @@ export function buildInflatedShell(
   let occlusionCanvas: HTMLCanvasElement | undefined
   let albedoSpread: number | undefined
   if (photoField) {
-    const long = Math.max(photoField.W, photoField.H)
+    // Both radii are fractions of the GARMENT, not of the canvas — and by the
+    // same measurement the BACK panel uses (see contentLongEdge).
+    const long = contentLongEdge(photoField)
     const bMid = blurNorm(photoField, Math.max(3, Math.round(long * 0.03)))
     const bBig = blurNorm(photoField, shadeRadius(long))
     mid = new Float32Array(photoField.W * photoField.H)
+    // NORMALISE BY THE MAX AS BEFORE, THEN GATE ON THE EVIDENCE.
+    //
+    // The defect: dividing by the single most extreme pixel makes the band
+    // amplitude-FREE, so a photograph with no folds in it at all (a white polo
+    // on a white sweep — the commonest supplier shot there is) has its JPEG
+    // grain divided by its own tiny maximum and arrives at exactly the same
+    // ±MID_AMP as a genuinely creased garment. Real relief invented out of
+    // noise.
+    //
+    // The obvious fix — divide by the p99 instead — is worse, and measurably:
+    // p99 ≤ max ALWAYS, so it scales every photo UP, and on a creased garment
+    // whose band peaks 3-5× its own p99 (one armhole shadow) every ordinary
+    // fold would jump to the full ±MID_AMP. That trades inventing relief on
+    // flat photos for exaggerating it on good ones.
+    //
+    // So: keep the max as the divisor, which leaves a well-lit creased photo
+    // EXACTLY as it was, and multiply the whole band by a confidence factor
+    // read off the p99 — the level below which there is nothing in this
+    // photograph to displace. A flat photo scales down with the evidence; a
+    // creased one is untouched.
+    const hist = new Int32Array(MID_HIST_BINS)
+    let cloth = 0
     let mMax = 0
     for (let i = 0; i < mid.length; i++) {
       const v = photoField.a[i] > 0.5 ? bMid[i] - bBig[i] : 0
       mid[i] = v
-      const av = Math.abs(v)
-      if (av > mMax) mMax = av
+      if (photoField.a[i] > 0.5) {
+        const av = Math.abs(v)
+        if (av > mMax) mMax = av
+        hist[Math.min(MID_HIST_BINS - 1, Math.round(av * MID_HIST_PER_LEVEL))]++
+        cloth++
+      }
     }
+    let p99 = 0
+    if (cloth > 0) {
+      let seen = 0
+      const target = cloth * 0.99
+      for (let b = 0; b < MID_HIST_BINS; b++) {
+        seen += hist[b]
+        if (seen >= target) {
+          p99 = b / MID_HIST_PER_LEVEL
+          break
+        }
+      }
+    }
+    const midGain = smooth((p99 - MID_FLOOR) / (MID_REF - MID_FLOOR))
     if (mMax > 1e-4) {
-      for (let i = 0; i < mid.length; i++) mid[i] = THREE.MathUtils.clamp(mid[i] / mMax, -1, 1)
+      const midScale = midGain / mMax
+      for (let i = 0; i < mid.length; i++) mid[i] = THREE.MathUtils.clamp(mid[i] * midScale, -1, 1)
+    } else {
+      mid.fill(0)
     }
+    // Filter to the SHEET's Nyquist, not the photo's. The band is built at photo
+    // resolution and then displaced onto a 112-column grid — about 4 photo
+    // pixels per cell — so anything in it that changes sign faster than two
+    // cells becomes a one-cell spike, i.e. a facet, wherever the photograph has
+    // fine luminance contrast (a woven label, a heather melange, JPEG ringing
+    // along a seam). The p99 normalisation above fixed the band's AMPLITUDE;
+    // this fixes its FREQUENCY, and only for the copy that moves geometry —
+    // `bMid`/`bBig` are untouched, so the de-lighting divisor does not move.
+    const cellPx = (cW * photoField.W) / m.W / SHEET_COLS
+    const midR = Math.round(cellPx)
+    if (midR >= 1) mid = boxBlur(mid, photoField.W, photoField.H, midR)
     midW = photoField.W
     midH = photoField.H
     // Gain measured on the GARMENT, applied to the COMPOSITE: the print rides
@@ -1508,15 +1684,38 @@ export function buildInflatedShell(
   // in the supplier set and smaller only on things that are not garments.
   const seamBandMax = Math.min(SEAM_BAND_MAX_IN, 0.12 * contentHin)
 
-  // Deterministic drape-fold phases, seeded from mask statistics.
-  const TAU = Math.PI * 2
-  const phase1 = (m.coverage * 97.13) % TAU
-  const phase2 = (((cW * 13 + cH * 7) % 257) / 257) * TAU
-  const FOLD_AMP = 0.3 // in, at the hem
+  /**
+   * DRAPE. Deterministic, seeded from mask statistics so one photo always
+   * builds one shell (the AR bake and the preview must agree bit for bit).
+   *
+   * This was `0.62·sin(τX/3.6 + φ₁) + 0.38·sin(τX/2.6 + φ₂)` at ±0.3 in — a
+   * function of X ALONE, i.e. six to nine dead-straight vertical ridges at a
+   * fixed inch pitch across every garment at every size, whose steepest facet
+   * measured 0.600 in/in = 31° of real surface tilt. That is a washboard, it
+   * is baked into the geometry so no light can flatten it, and it is the single
+   * largest source of the "bumps after freezing in Alaska" the customer
+   * described. It is now two octaves of value noise in BOTH axes at a feature
+   * size proportional to the garment, so it undulates instead of ruling lines,
+   * and it is tuned to a peak facet slope of ~0.14 in/in (8°).
+   */
+  const foldSeed = ((cW * 73856093) ^ (cH * 19349663) ^ Math.round(m.coverage * 1e6)) | 0
+  const FOLD_AMP = 0.16
+  /**
+   * Tier 1 already transplanted a real garment's own depth profile, so a
+   * synthetic drape on top banks the same correction twice — exactly the
+   * argument the header makes for switching off `tuck` and `droop` there.
+   * It is damped rather than removed: the donor is a smoothed 96-column
+   * raster, so it carries the garment's FORM but no cloth relief at all.
+   */
+  const foldGain = depth ? 0.5 : 1
   const MID_AMP = 0.11 // in, geometric wrinkle displacement
   const inPerPx = wIn / m.W
+  /** Fold feature size, in units of the garment rather than fixed inches: ~3.4
+   *  undulations across the body and ~2.4 down it, at any size. */
+  const foldLx = contentWin / 3.4
+  const foldLy = contentHin / 2.4
 
-  const GX = 112
+  const GX = SHEET_COLS
   const GY = THREE.MathUtils.clamp(Math.round((GX * contentHin) / contentWin), 24, 208)
   const cols = GX + 1
   const rows = GY + 1
@@ -1582,11 +1781,8 @@ export function buildInflatedShell(
         // smooth(|z|/0.6) keeps every perturbation strictly smaller than the
         // base depth (worst case ≈0.41·smooth(b/0.6) < b for all b > 0).
         const headroom = smooth(Math.abs(z) / 0.6)
-        // Deterministic hem drape: superposed sinusoids, chest→hem amplitude.
-        const fold =
-          FOLD_AMP *
-          foldRamp *
-          (0.62 * Math.sin((TAU * X) / 3.6 + phase1) + 0.38 * Math.sin((TAU * X) / 2.6 + phase2))
+        // Deterministic drape, chest→hem amplitude (see FOLD_AMP).
+        const fold = FOLD_AMP * foldGain * foldRamp * drapeNoise(X / foldLx, Y / foldLy, foldSeed)
         z += sign * fold * rimFade * headroom * (sign > 0 ? 1 : 0.55)
         // Photo mid-band → geometric wrinkles (front sheet: that's the photo).
         const mv = sign > 0 ? sampleMid(nx, ny) : 0
