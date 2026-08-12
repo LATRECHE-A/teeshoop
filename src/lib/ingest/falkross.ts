@@ -14,6 +14,13 @@
  * taint the ingest canvas. The Worker holds the secrets, parses the XML and
  * answers in compact JSON; photos come back through `/api/fr/img/*`, same
  * origin, so `normalizeGarmentPhoto` can read pixels back.
+ *
+ * Since 2026-08-12 those JSON routes are ADMIN-AUTHENTICATED: every call in
+ * this file carries `Authorization: Bearer <token>` from src/lib/admin/token.ts,
+ * because the responses are our purchase costs and our supplier stock. The
+ * photo proxy `/api/fr/img/*` is exempt — an `<img src>` cannot send a header,
+ * and those files are public supplier photos. A 401 arrives as
+ * `FalkRossError('admin_auth')` and clears the stored token so the UI re-asks.
  * ============================================================================
  *
  * ============================================================================
@@ -57,6 +64,7 @@ import {
   type SizeSource,
 } from './types'
 import { autoPrintArea, generateBackSide, normalizeGarmentPhoto } from './pipeline'
+import { adminAuthHeaders, clearAdminToken } from '@/lib/admin/token'
 import { getCustomSideInfo } from '@/lib/custom'
 import { cmToIn } from '@/lib/units'
 import {
@@ -185,7 +193,7 @@ export type FalkRossErrorCode =
   | 'not_found'
   | 'unsupported_sizes'
   | 'photo'
-  | 'order'
+  | 'admin_auth'
 
 /** Typed failure so the modal can explain exactly what went wrong. */
 export class FalkRossError extends Error {
@@ -200,6 +208,9 @@ export class FalkRossError extends Error {
 /** Worker error bodies are `{ error, message }` — map them onto our codes. */
 function errorCodeOf(status: number, body: unknown): FalkRossErrorCode {
   const code = (body as { error?: string } | null)?.error
+  // FIRST — so no later rule can swallow it. 401 from the admin gate is not the
+  // same failure as 'auth' (which means OUR credentials to Falk&Ross are bad).
+  if (code === 'admin_auth') return 'admin_auth'
   if (code === 'auth') return 'auth'
   if (code === 'config') return 'config'
   if (code === 'parse') return 'parse'
@@ -254,7 +265,12 @@ async function getJson<T>(path: string, opts: { timeoutMs?: number; signal?: Abo
   const signal = opts.signal ? AbortSignal.any([opts.signal, deadline]) : deadline
   let res: Response
   try {
-    res = await fetch(path, { headers: { accept: 'application/json' }, signal })
+    // The single choke point for all five JSON readers, hence the single place
+    // the admin bearer token is attached. `fetchPhoto` stays ungated on purpose.
+    res = await fetch(path, {
+      headers: { accept: 'application/json', ...adminAuthHeaders() },
+      signal,
+    })
   } catch (e) {
     throw transportError(deadline.aborted ? deadline.reason : e)
   }
@@ -268,10 +284,12 @@ async function getJson<T>(path: string, opts: { timeoutMs?: number; signal?: Abo
     throw res.ok ? new FalkRossError('parse') : transportError()
   }
   if (!res.ok) {
-    throw new FalkRossError(
-      errorCodeOf(res.status, body),
-      (body as { message?: string } | null)?.message,
-    )
+    const code = errorCodeOf(res.status, body)
+    // The admin gate is the only producer of 401 on this origin, so a 401
+    // always means the held token is wrong or has been rotated. Clearing it is
+    // what makes the modal re-prompt instead of retrying the same bad token.
+    if (code === 'admin_auth') clearAdminToken()
+    throw new FalkRossError(code, (body as { message?: string } | null)?.message)
   }
   return body as T
 }
@@ -681,100 +699,15 @@ export async function ingestFalkRossProduct(
 }
 
 // ---------------------------------------------------------------------------
-// Ordering (no UI — exported and documented, deliberately not wired up)
+// Ordering — REMOVED (2026-08-12)
+//
+// `placeFalkRossOrder` and its types lived here, exported and documented but
+// never wired to a button. They are gone because the route they called,
+// `POST /api/fr/order`, was an unauthenticated public endpoint that could
+// place a real purchase order on our Falk&Ross account.
+//
+// The supplier order contract itself is preserved server-side, unrouted, in
+// the order section of worker/falkross.ts — that is where the two verified
+// response envelopes are documented. Re-introducing ordering means an
+// authenticated admin route plus an explicit human confirmation step.
 // ---------------------------------------------------------------------------
-
-export interface FalkRossOrderLine {
-  /** 9-digit Falk&Ross SKU (colour × size) — see FalkRossColourway.skus. */
-  sku: string
-  qty: number
-  /** Your own per-line reference, max 32 characters. */
-  lineRef?: string
-}
-
-export interface FalkRossOrderAddress {
-  lastname?: string
-  firstname?: string
-  company?: string
-  street?: string
-  city?: string
-  postcode?: string
-  /** ISO-2, e.g. "FR". */
-  countryCode?: string
-}
-
-export interface FalkRossOrderInput {
-  /** "Your reference" on the supplier's side — truncated to 32 characters. */
-  reference: string
-  note?: string
-  partialShipment?: boolean
-  lines: FalkRossOrderLine[]
-  /** Omit to ship to the account's registered address. */
-  deliveryAddress?: FalkRossOrderAddress
-  /** Overrides FR_CUSTOMER_NR on the Worker. */
-  customerNumber?: string
-}
-
-export interface FalkRossOrderResult {
-  ok: boolean
-  /** Supplier order id. `'0'` means REJECTED — read `errorCode`/`message`. */
-  orderId: string
-  /** 0 none · 10 general · 2x invalid data · 30 not found · 4x access/blocked. */
-  errorCode: string
-  message: string
-  /** Per-line failures, e.g. an unknown SKU (code 30). */
-  lines: { sku: string; errorCode: string; message: string }[]
-  /** ALWAYS check this: `'live'` means real money. */
-  mode: FalkRossWsState
-  customerNumber: string
-  customerNumberSource: 'env' | 'request' | 'derived-from-user'
-}
-
-/**
- * Place a purchase order with Falk&Ross.
- *
- * NOT WIRED INTO THE UI ON PURPOSE. It is exported so the basket can grow an
- * ordering step deliberately, with a human confirmation in front of it — not
- * because a button happened to exist.
- *
- * Read `result.mode` before believing anything: the account ships in TEST mode,
- * where orders are simulated and `orders_id` is returned but nothing is
- * dispatched. In `'live'` mode a successful call is a real purchase order.
- * The mode is returned with every attempt precisely so nobody can place a live
- * order thinking it was a rehearsal.
- *
- * Note the result is a REJECTION REPORT, not an exception: a call that reaches
- * the supplier and is refused resolves with `ok: false` and the supplier's own
- * error codes. Only transport/config failures throw.
- *
- * @throws FalkRossError('order') malformed request · ('auth') bad credentials
- *   · ('config') no customer number configured · ('unavailable') transport
- */
-export async function placeFalkRossOrder(
-  input: FalkRossOrderInput,
-): Promise<FalkRossOrderResult> {
-  let res: Response
-  try {
-    res = await fetch('/api/fr/order', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    })
-  } catch {
-    throw new FalkRossError('unavailable')
-  }
-  let body: unknown
-  try {
-    body = await res.json()
-  } catch {
-    throw new FalkRossError('parse')
-  }
-  if (!res.ok) {
-    const code = errorCodeOf(res.status, body)
-    throw new FalkRossError(
-      code === 'unavailable' ? 'order' : code,
-      (body as { message?: string } | null)?.message,
-    )
-  }
-  return body as FalkRossOrderResult
-}

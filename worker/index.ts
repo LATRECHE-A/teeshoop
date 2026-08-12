@@ -16,12 +16,20 @@
  * supplier sends no CORS headers, and the ingest pipeline needs untainted
  * canvas pixels from the photos. See that module's header for the full story.
  *
+ * `/api/fr/*` is ADMIN-ONLY: it returns our purchase cost per SKU and our
+ * supplier stock, so it sits behind a bearer gate (worker/auth.ts, secret
+ * `ADMIN_TOKEN`, unset means deny all). The single exemption is the photo
+ * proxy `/api/fr/img/*`, which is fetched by <img src> — no header possible —
+ * and serves public supplier photos we fetch upstream without credentials.
+ * `POST /api/ar` stays open on purpose: customers export their own AR models.
+ *
  * Everything else falls through to the static assets (with SPA fallback), so
  * the studio is unaffected. Models are stored in R2 (binding AR_BUCKET); set a
  * bucket lifecycle rule to expire the `ar/` prefix (see README) since R2 has no
  * per-object TTL.
  */
 import { handleFalkRoss, type FalkRossEnv } from './falkross'
+import { requireAdmin } from './auth'
 
 interface Env extends FalkRossEnv {
   ASSETS: Fetcher
@@ -68,6 +76,22 @@ async function uploadAr(request: Request, env: Env): Promise<Response> {
   }
   if (glb.size > MAX_BYTES || usdz.size > MAX_BYTES || poster.size > MAX_BYTES) {
     return json({ error: 'file too large' }, 413)
+  }
+
+  // This route is deliberately OPEN — customers export their own AR models and
+  // cannot authenticate. The magic-byte check is what stops R2 being used as
+  // generic file hosting: only the three formats the viewer can actually show
+  // are accepted. glTF-binary 'glTF' · USDZ is an uncompressed zip 'PK\x03\x04'
+  // · the 8-byte PNG signature.
+  const head = async (f: File, n: number) => new Uint8Array(await f.slice(0, n).arrayBuffer())
+  const starts = (b: Uint8Array, sig: number[]) => sig.every((v, i) => b[i] === v)
+  const [gSig, uSig, pSig] = await Promise.all([head(glb, 4), head(usdz, 4), head(poster, 8)])
+  if (
+    !starts(gSig, [0x67, 0x6c, 0x54, 0x46]) ||
+    !starts(uSig, [0x50, 0x4b, 0x03, 0x04]) ||
+    !starts(pSig, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  ) {
+    return json({ error: 'not a glb/usdz/png' }, 415)
   }
 
   const id = shortId()
@@ -171,8 +195,30 @@ export default {
       return uploadAr(request, env)
     }
 
-    // Supplier catalogue. Returns null for anything outside /api/fr/*, so the
-    // AR routes and the static assets below are untouched.
+    // The ADMIN studio. The bundle split (src/app/adminSlots.tsx) keeps the
+    // workshop tools out of the customer's JavaScript; it does not make this
+    // page private, because dist/ is served wholesale. So the page itself is
+    // gated, with a Basic challenge so a browser actually shows a login box.
+    // `assets.run_worker_first` in wrangler.jsonc is what routes it here.
+    if (path === '/admin' || path === '/admin.html') {
+      const denied = await requireAdmin(request, env, 'page')
+      if (denied) return denied
+      const res = await env.ASSETS.fetch(new URL('/admin.html', url.origin))
+      return new Response(res.body, {
+        status: 200,
+        headers: { ...Object.fromEntries(res.headers), 'cache-control': 'no-store' },
+      })
+    }
+
+    // The Falk&Ross module memoises derived payloads (INCLUDING PURCHASE
+    // PRICES) in caches.default under keys minted as `/__fr-cache/…` URLs on
+    // this origin. They are cache keys, never routes: refuse them explicitly
+    // rather than letting them fall through to the SPA asset fallback.
+    if (path.startsWith('/__fr-cache/')) return new Response('not found', { status: 404 })
+
+    // Supplier catalogue — ADMIN-ONLY behind a bearer gate (worker/auth.ts).
+    // Returns null for anything outside /api/fr/*, so the AR routes and the
+    // static assets below are untouched.
     const supplier = await handleFalkRoss(request, env, ctx)
     if (supplier) return supplier
 

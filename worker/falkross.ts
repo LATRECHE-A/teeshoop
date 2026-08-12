@@ -36,28 +36,47 @@
  * difference.
  */
 import { allElements, decodeXml, elementInner, elementText, langText } from './xml'
+import { requireAdmin, type AdminEnv } from './auth'
 
 // ---------------------------------------------------------------------------
 // Environment
 // ---------------------------------------------------------------------------
 
-export interface FalkRossEnv {
+export interface FalkRossEnv extends AdminEnv {
   /** Webservice account (NOT the webshop login). `wrangler secret put FR_WS_USER`. */
   FR_WS_USER?: string
   /** Webservice password. `wrangler secret put FR_WS_PASS`. */
   FR_WS_PASS?: string
   /**
-   * Falk&Ross customer number, needed only to PLACE an order. Absent, the
-   * order route falls back to the leading account-number segment of
-   * FR_WS_USER, which is shaped `{customer}-{n}-{token}`, and REPORTS that it
-   * did (`customerNumberSource`) — guessing a customer number silently is how
-   * an order lands on the wrong account.
+   * Falk&Ross customer number. Read only by `placeOrder`, which is NOT routed
+   * (see the order section below — the public route was removed on
+   * 2026-08-12). Kept configured so a future authenticated order path does not
+   * have to re-derive it. Absent, `placeOrder` falls back to the leading
+   * account-number segment of FR_WS_USER, which is shaped
+   * `{customer}-{n}-{token}`, and REPORTS that it did (`customerNumberSource`)
+   * — guessing a customer number silently is how an order lands on the wrong
+   * account.
    */
   FR_CUSTOMER_NR?: string
 }
 
 const DOWNLOAD = 'https://download.falk-ross.eu'
 const WS = 'https://ws.falk-ross.eu'
+
+/**
+ * Origin used to MINT CACHE KEYS — deliberately a host we never serve.
+ *
+ * `caches.default` is keyed by URL, and these entries include `price:{style}`,
+ * i.e. our purchase cost. Minting them on our own origin made them look like
+ * real paths: an inbound `GET /__fr-cache/price%3A18001` could collide with a
+ * stored entry, and the asset layer answered such paths before the Worker ever
+ * saw them (verified 2026-08-12 — it returned 200). Keying on an origin that
+ * resolves to nothing removes the collision instead of routing around it.
+ *
+ * worker/index.ts still 404s the `/__fr-cache/` path prefix, and wrangler.jsonc
+ * routes it to the Worker so that 404 is reachable. Belt and braces, on purpose.
+ */
+const CACHE_ORIGIN = 'https://fr-cache.tshop.internal'
 
 /**
  * The style list publishes per-style URLs as `http://` and the host 301s to
@@ -206,7 +225,7 @@ async function cachedJson<T>(
   ctx: ExecutionContext,
   produce: () => Promise<T>,
 ): Promise<T> {
-  const req = new Request(new URL(`/__fr-cache/${encodeURIComponent(key)}`, origin).toString())
+  const req = new Request(new URL(`/__fr-cache/${encodeURIComponent(key)}`, CACHE_ORIGIN).toString())
   const cache = caches.default
   const hit = await cache.match(req)
   if (hit) {
@@ -782,7 +801,7 @@ async function loadCardBlock(
   const key = new Request(
     new URL(
       `/__fr-cache/${encodeURIComponent(`cards:${index.version}:${start}`)}`,
-      origin,
+      CACHE_ORIGIN,
     ).toString(),
   )
 
@@ -1040,7 +1059,16 @@ async function loadDeliveries(
 }
 
 // ---------------------------------------------------------------------------
-// Order placement
+// Order placement — DELIBERATELY NOT ROUTED
+//
+// `POST /api/fr/order` was removed on 2026-08-12: it was an UNAUTHENTICATED
+// public route that placed a real purchase order on our Falk&Ross account.
+// Nothing below is reachable over HTTP, and that is the intended state.
+//
+// It is kept, unreferenced, because it encodes two response envelopes verified
+// live against the real account, one of which contradicts the supplier's own
+// PDF (see `placeOrder`). Re-wiring it needs an authenticated admin route AND
+// an explicit human confirmation step in front of it — not just a caller.
 // ---------------------------------------------------------------------------
 
 export interface FrOrderLine {
@@ -1279,12 +1307,23 @@ async function serveImage(kind: string, file: string): Promise<Response> {
 // Routing
 // ---------------------------------------------------------------------------
 
+/**
+ * `private`, not `public`: every route that passes a maxAge now sits behind the
+ * admin gate, and an authenticated response carrying our purchase costs must
+ * never be storable by a shared cache. The browser's own cache is still
+ * allowed, which is all these TTLs were ever for. `vary: authorization` keeps a
+ * rotated token from reading the previous holder's cached copy.
+ *
+ * This does NOT govern `serveImage` (still `public, immutable` — public
+ * supplier photos) nor the server-side memoisation in `cachedJson`.
+ */
 function json(body: unknown, status = 200, maxAge = 0): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'cache-control': maxAge > 0 ? `public, max-age=${maxAge}` : 'no-store',
+      'cache-control': maxAge > 0 ? `private, max-age=${maxAge}` : 'no-store',
+      vary: 'authorization',
     },
   })
 }
@@ -1298,6 +1337,12 @@ const clampInt = (v: string | null, def: number, min: number, max: number) => {
  * `/api/fr/*` — the whole Falk&Ross surface. Returns null when the path is not
  * ours, so the caller can fall through to the rest of the Worker.
  *
+ * ADMIN-ONLY. Every route below requires `Authorization: Bearer <ADMIN_TOKEN>`
+ * (worker/auth.ts) — they return our purchase cost, our supplier stock and the
+ * supplier catalogue, none of which is a customer surface. Unauthenticated
+ * callers get 401 `{error:'admin_auth'}`, and with ADMIN_TOKEN unset the gate
+ * denies everything. The photo proxy is the single exemption; see the gate.
+ *
  * Routes:
  *   GET  /api/fr/state                      webservice mode (test vs live)
  *   GET  /api/fr/styles?q&kind&offset&limit  paged, server-side-filtered cards
@@ -1305,8 +1350,7 @@ const clampInt = (v: string | null, def: number, min: number, max: number) => {
  *   GET  /api/fr/price/{styleNr}            purchase prices per SKU
  *   GET  /api/fr/stock/{styleNr}            stock per SKU
  *   GET  /api/fr/deliveries/{styleNr?}      announced restocks
- *   GET  /api/fr/img/{picture|picto}/{file} photo proxy (CORS + long cache)
- *   POST /api/fr/order                      place an order (see placeOrder)
+ *   GET  /api/fr/img/{picture|picto}/{file} photo proxy (ungated — see below)
  */
 export async function handleFalkRoss(
   request: Request,
@@ -1319,6 +1363,20 @@ export async function handleFalkRoss(
   const rest = path.slice('/api/fr/'.length)
   const origin = url.origin
   const method = request.method
+
+  // AUTH — deny by default. Every /api/fr/* route is admin-only (purchase
+  // prices, stock, the catalogue itself), so the gate sits at the TOP: a route
+  // added below is protected by construction, not by remembering to protect it.
+  // It is also OUTSIDE the try, so the catch-all cannot remap a 401 to a 502.
+  //
+  // ONE exemption, and it is forced rather than chosen: the photo proxy is
+  // rendered by <img src> (CatalogModal), which cannot send an Authorization
+  // header — and `serveImage` fetches those files upstream with NO credentials,
+  // i.e. they are public supplier photos, not a secret.
+  if (!rest.startsWith('img/')) {
+    const denied = await requireAdmin(request, env)
+    if (denied) return denied
+  }
 
   try {
     const img = /^img\/([a-z]+)\/(.+)$/.exec(rest)
@@ -1361,15 +1419,7 @@ export async function handleFalkRoss(
       return json(await loadDeliveries(origin, env, ctx, deliveries[1] ?? ''), 200, 300)
     }
 
-    if (rest === 'order' && method === 'POST') {
-      let input: FrOrderInput
-      try {
-        input = (await request.json()) as FrOrderInput
-      } catch {
-        throw new FrError('bad_request', 400, 'Expected a JSON order body.')
-      }
-      return json(await placeOrder(origin, env, ctx, input, new Date()))
-    }
+    // NOTE: there is deliberately no `order` route — see the order section.
 
     return json({ error: 'not_found', message: `No Falk&Ross route ${rest}` }, 404)
   } catch (err) {
