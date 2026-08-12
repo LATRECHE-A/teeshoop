@@ -12,3 +12,6 @@ dist/
 
 # Render-QA proof sheets (scripts/3d-shots.mjs, scripts/stage-shots.mjs).
 .qa/
+
+# The Bible ships extracted under docs/bible/ — keep the source zip out of git.
+La_Bible_de_Teeshoop*.zip

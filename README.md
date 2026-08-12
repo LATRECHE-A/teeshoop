@@ -178,14 +178,17 @@ calls an authenticated API, so the credentials live as Worker secrets and are
 never committed or shipped to the browser:
 
 ```sh
+npx wrangler secret put ADMIN_TOKEN     # gate on /api/fr/* + /admin — UNSET MEANS DENY ALL
+                                        # generate one: openssl rand -base64 32
 npx wrangler secret put FR_WS_USER      # webservice account (NOT the webshop login)
 npx wrangler secret put FR_WS_PASS
-npx wrangler secret put FR_CUSTOMER_NR  # optional — only needed to PLACE orders
+npx wrangler secret put FR_CUSTOMER_NR  # read only by the UNROUTED placeOrder
 ```
 
 For local `wrangler dev`, put the same keys in **`.dev.vars`** (git-ignored).
-Without them the catalogue answers `503 config` and the UI says so; the AR
-routes are unaffected.
+Without `ADMIN_TOKEN` every `/api/fr/*` call answers `401 admin_auth` first;
+without the Falk&Ross pair an authenticated call then answers `503 config` and
+the UI says so. The AR routes are unaffected by either.
 
 `npm run dev` starts both processes (wrangler on :8787, vite proxying `/api` to
 it). The equivalent by hand, if you prefer separate terminals:
@@ -232,6 +235,12 @@ our own Worker (`worker/falkross.ts`), because the supplier needs HTTP Basic
 credentials, sends no CORS headers, and serves photos that would otherwise taint
 the ingest canvas. Worker routes, all returning compact JSON:
 
+**Every route below except the photo proxy requires admin authentication** — they
+return our purchase cost and our supplier stock, so they are not a customer
+surface. Unauthenticated callers get `401 {"error":"admin_auth"}`, and with
+`ADMIN_TOKEN` unset the gate denies **everything**: it fails closed on purpose.
+See [Admin access](#admin-access).
+
 | Route | What it does |
 | --- | --- |
 | `GET /api/fr/state` | webservice mode — `test` (simulated) vs `live` (real orders) |
@@ -241,7 +250,6 @@ the ingest canvas. Worker routes, all returning compact JSON:
 | `GET /api/fr/stock/{styleNr}` | stock per SKU |
 | `GET /api/fr/deliveries/{styleNr?}` | announced restock dates |
 | `GET /api/fr/img/{picture\|picto}/{file}` | photo proxy (CORS + 30-day cache) |
-| `POST /api/fr/order` | place an order — **not wired into the UI** |
 
 The style list is ~2350 entries and each style is a separate upstream document,
 so `/api/fr/styles` walks the list under a subrequest budget and returns
@@ -285,9 +293,14 @@ the estimate before import, links the manufacturer's own size-spec PDF, and lets
 an admin override the table — which re-stamps it `'manual'`. Absence of
 `sizeSource` means `'supplier'`, so every previously saved product stays valid.
 
-Ordering (`placeFalkRossOrder`) is exported and documented but deliberately has
-no button: it returns the webservice mode with every attempt so a live order can
-never be mistaken for a rehearsal.
+**Ordering was removed from the public surface on 2026-08-12.** `POST
+/api/fr/order` existed, unauthenticated, and could place a real purchase order on
+our Falk&Ross account. The route is gone and the client-side helper with it. The
+supplier order contract survives, unrouted, in the order section of
+`worker/falkross.ts` — it encodes two response envelopes verified live against
+the real account, one of which contradicts the supplier's PDF. Re-wiring it needs
+an authenticated admin route **and** an explicit human confirmation step, not
+just a caller.
 
 **Imbretex — offline snapshot (secondary).** The committed scrape under
 `public/catalog/imbretex/` (`src/lib/ingest/imbretex.ts`). No live prices or
@@ -299,6 +312,63 @@ Sanity-check the live endpoints without a browser:
 ```sh
 FR_WS_USER=… FR_WS_PASS=… node scripts/fr-verify.mjs
 ```
+
+## Admin access
+
+The studio builds as **two pages from one component tree**:
+
+| Page | Who | What it has |
+| --- | --- | --- |
+| `/` (`index.html`) | customers | the editor, 2D/3D/AR, the basket, the quote request |
+| `/admin` (`admin.html`) | us | the same studio **plus** the supplier catalogue, the DTF gang-sheet builder and product ingest |
+
+This is a **build-time** split (`src/app/adminSlots.tsx`), not a role flag, and the
+distinction matters: a runtime `if (isAdmin)` hides buttons but still ships the
+code — and the data baked into it — to every visitor, who can read it straight
+out of the bundle. Before the split, the customer's *first-paint* chunk contained
+`FR_WS_USER`, `FR_WS_PASS` and the string "les prix affichés sont NOS PRIX
+D'ACHAT"; the DTF chunk carried every film supplier's €/linear-metre ladder.
+
+Two independent checks keep it that way, and both must pass in CI:
+
+- `npm test` → `src/app/adminBoundary.test.ts` walks the real import graph from
+  `src/main.tsx` and fails if it can reach any admin module. **Dynamic imports
+  count as edges** — a `lazy()` chunk still ships and is still fetchable by URL.
+- `npm run verify:bundle` → `scripts/bundle-guard.mjs` scans the built output for
+  string literals that survive minification, and fails on any hit in a
+  customer-reachable *or* orphaned file. Prove it is not vacuous by pointing it
+  at a pre-split build: `node scripts/bundle-guard.mjs --dist <old>/dist
+  --allow-missing-admin` reports 29 markers across 6 chunks.
+
+Splitting the bundle hides the code, not the URL, so the Worker gates the page
+too. One secret, `ADMIN_TOKEN`, in two encodings:
+
+- **Basic** — what a browser sends. Navigating to `/admin` triggers the login
+  box; the browser then attaches the same credentials to the API calls on its
+  own, so nobody has to paste a token anywhere.
+- **Bearer** — what `fetch` sends, from `src/lib/admin/token.ts`
+  (`sessionStorage`, this tab only, never `localStorage`). A `401` clears it so
+  the UI re-prompts.
+
+Local dev: put `ADMIN_TOKEN` in `.dev.vars` (git-ignored) alongside the Falk&Ross
+credentials. Cloudflare Access can later be put in front of the same paths with
+no code change.
+
+## Tests
+
+```sh
+npm test           # vitest, headless, ~2 s — no browser, no network, no secrets
+npm run ci         # typecheck (app + worker) + tests, what CI runs
+npm run verify:bundle   # the admin/customer leak gate (needs a build first)
+```
+
+The suite covers the modules that are pure and where a silent error costs money:
+unit conversions, print grading, the size chart, pricing boundaries (quantity
+breaks and area tiers **at** the tier edge), the gang-sheet packer (no overlap,
+nothing off the film, deterministic, nothing silently dropped), true-shape
+nesting (never worse than the shelf packer) and preflight. The Playwright
+harnesses in `scripts/` are unchanged and stay out of CI: they boot a dev server
+and several need a human to look at a screenshot.
 
 ## Configuration
 
