@@ -1,0 +1,37 @@
+name: CI
+
+# Everything here runs headless in seconds and needs no secrets. The Playwright
+# harnesses in scripts/ deliberately stay OUT: they boot a dev server, several
+# need a human to look at a screenshot, and scripts/fr-verify.mjs talks to the
+# live Falk&Ross account.
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck (app + worker)
+        run: npm run typecheck && npm run typecheck:worker
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build:only
+
+      # The security gate: proves no purchase price, film cost model or
+      # WooCommerce credential path reaches a customer-served file. Must run
+      # AFTER the build, and must never be continue-on-error.
+      - name: Bundle guard
+        run: npm run verify:bundle

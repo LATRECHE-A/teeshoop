@@ -14,7 +14,11 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:worker": "tsc -p worker/tsconfig.json",
-    "deploy": "npm run build && wrangler deploy"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:bundle": "node scripts/bundle-guard.mjs",
+    "ci": "npm run typecheck && npm run typecheck:worker && npm test",
+    "deploy": "npm run build && npm run verify:bundle && wrangler deploy"
   },
   "keywords": [],
   "type": "module",
@@ -64,6 +68,7 @@
     "tailwindcss": "^4.3.2",
     "typescript": "^7.0.2",
     "vite": "^8.1.4",
+    "vitest": "^4.1.10",
     "wrangler": "^4.110.0"
   },
   "private": true
