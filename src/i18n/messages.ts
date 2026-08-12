@@ -493,9 +493,6 @@ export const messages: Record<Lang, Record<string, string>> = {
     'product.sleeve': 'Manche',
     'product.size_chart_note':
       'Mesures officielles du fabricant, vêtement à plat, en centimètres. Les aperçus 2D, 3D et RA utilisent exactement ces dimensions.',
-    'admin.menu': 'Outils admin',
-    'admin.dtf': 'Planches DTF (impression)',
-    'admin.products': 'Ingestion produit',
     'rail.help': 'Aide',
     // @@SWEEP_FR@@
   },
@@ -983,9 +980,6 @@ export const messages: Record<Lang, Record<string, string>> = {
     'product.sleeve': 'Sleeve',
     'product.size_chart_note':
       'Official manufacturer flat measurements in centimetres. The 2D, 3D and AR previews use exactly these dimensions.',
-    'admin.menu': 'Admin tools',
-    'admin.dtf': 'DTF gang sheets (print)',
-    'admin.products': 'Product ingest',
     'rail.help': 'Help',
     // @@SWEEP_EN@@
   },

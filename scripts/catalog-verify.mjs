@@ -118,7 +118,11 @@ const englishPrefs = () => {
 }
 
 const openCatalog = async (page) => {
-  await page.goto(BASE + '/', { waitUntil: 'load', timeout: 45000 })
+  // The ADMIN entry, not '/': since the customer/admin bundle split the
+  // supplier catalogue is rendered only by admin.html. Flipping the store flag
+  // on the customer page now sets a boolean nothing renders, and this script
+  // would time out on an empty modal.
+  await page.goto(BASE + '/admin.html', { waitUntil: 'load', timeout: 45000 })
   await page.waitForFunction(() => !!window.__tshop, { timeout: 30000 })
   await page.evaluate(() => window.__tshop.getState().openModal('catalog'))
 }
@@ -191,7 +195,11 @@ try {
   const squatter = await fetch(`http://127.0.0.1:${API_PORT}/api/fr/state`, {
     signal: AbortSignal.timeout(2000),
   })
-    .then((r) => r.ok)
+    // ANY response means something is listening. Not `r.ok`: /api/fr/* is now
+    // admin-gated, so a real wrangler answers 401 and would slip past an
+    // ok-only check — straight back into the EADDRINUSE this preflight exists
+    // to prevent.
+    .then(() => true)
     .catch(() => false)
   if (squatter) {
     console.error(`\nport ${API_PORT} is already serving /api/fr/* — stop wrangler (or unset TSHOP_WORKER) first.`)

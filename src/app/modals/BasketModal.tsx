@@ -2,11 +2,12 @@
  * Order basket — the several products / sizes / quantities that make up one
  * real order. Each line is a design snapshot taken at add time (see
  * src/state/basket.ts), so editing the live design never rewrites history.
- * "Générer la planche DTF" hands the whole basket to the gang-sheet builder,
- * which is where the nesting margin comes from.
+ * The basket is a CUSTOMER surface: it holds no prices and no supplier data.
+ * Nesting it onto a transfer roll is workshop tooling and lives in the admin
+ * build (src/admin/AdminSlots.tsx).
  */
 import { useMemo } from 'react'
-import { Layers, LayoutGrid, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react'
+import { LayoutGrid, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
 import { useMockupUrl } from '../hooks/useMockup'
@@ -106,7 +107,6 @@ export default function BasketModal() {
   const previewSize = useStore((s) => s.previewSize)
   const addToBasket = useStore((s) => s.addToBasket)
   const clearBasket = useStore((s) => s.clearBasket)
-  const openModal = useStore((s) => s.openModal)
   const closeModal = useStore((s) => s.closeModal)
   const toast = useStore((s) => s.toast)
 
@@ -195,17 +195,11 @@ export default function BasketModal() {
               {bt('board.open')}
             </button>
             <p className="text-[11px] leading-relaxed text-tx3">{bt('board.open_hint')}</p>
-            <button
-              className="btn btn-primary mt-2 h-10 justify-center"
-              onClick={() => {
-                closeModal('basket')
-                openModal('dtf')
-              }}
-            >
-              <Layers size={15} />
-              {t('basket.dtf')}
-            </button>
-            <p className="text-[11px] leading-relaxed text-tx3">{t('basket.dtf_hint')}</p>
+            {/* The "build the DTF sheet" button used to live here. It is
+                workshop tooling — it exposes our film cost per linear metre —
+                so it now belongs to the admin build only, reachable from the
+                tools menu (which already defaults to nesting the whole basket).
+                The basket itself stays customer: it is an order, not a job. */}
           </div>
         </>
       )}

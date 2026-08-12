@@ -37,16 +37,46 @@ export default defineConfig({
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
+    // Emitted so scripts/bundle-guard.mjs can report static vs dynamic import
+    // edges. It does NOT describe `new Worker(new URL(…))` chunks, which is why
+    // the guard also closes the set over asset-name mentions.
+    manifest: true,
     rollupOptions: {
-      // Multi-page: the studio (index.html) + the lean AR viewer page (v.html,
-      // Google <model-viewer>). The Worker serves v.html for the short /v/{id}
-      // QR URLs; model-viewer is bundled per-entry so it never bloats the studio.
+      // Multi-page, THREE entries:
+      //   index.html  the CUSTOMER studio
+      //   admin.html  the ADMIN studio — same tree, plus the workshop tools
+      //   v.html      the lean AR viewer the Worker serves for /v/{id} QR links
+      //
+      // The customer/admin split is the security boundary, and it is a boundary
+      // of MODULE REACHABILITY, not of chunk identity: admin-only modules must
+      // have no static importer outside src/admin/. Sharing vendor chunks
+      // between the two pages is wanted. See src/app/adminSlots.tsx.
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        admin: fileURLToPath(new URL('./admin.html', import.meta.url)),
         viewer: fileURLToPath(new URL('./v.html', import.meta.url)),
       },
       output: {
         manualChunks(id: string) {
+          // React FIRST, and in its own chunk. Without this it lands inside the
+          // `three` chunk (via @react-three/fiber's dependency on it), and
+          // because React is needed for first paint the whole 1.1 MB of
+          // three.js becomes eager — for a 3D view most visitors never open.
+          // Measured 2026-08-12: splitting it moved 311 KB gzip off first paint.
+          // Match exact package roots so react-reconciler (a fiber-only dep)
+          // stays with three rather than being dragged forward.
+          // Also zustand/zundo: @react-three/fiber depends on zustand, so
+          // without this they land in the `three` chunk too, and the app store
+          // — needed at first paint — drags three.js back in through them.
+          if (
+            /node_modules\/react\//.test(id) ||
+            /node_modules\/react-dom\//.test(id) ||
+            /node_modules\/scheduler\//.test(id) ||
+            /node_modules\/zustand\//.test(id) ||
+            /node_modules\/zundo\//.test(id) ||
+            /node_modules\/use-sync-external-store\//.test(id)
+          )
+            return 'react'
           if (
             id.includes('node_modules/three') ||
             id.includes('node_modules/@react-three')

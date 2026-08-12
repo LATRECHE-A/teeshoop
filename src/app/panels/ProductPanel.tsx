@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
-import { Camera, Pencil, Store } from 'lucide-react'
+import { Camera, Pencil } from 'lucide-react'
 import clsx from 'clsx'
 import { GARMENTS } from '@/garments'
 import { GARMENT_COLORS } from '@/content/palettes'
 import { PRICING } from '@/content/pricing'
 import { SIZE_CHARTS, SIZE_IDS } from '@/content/sizeChart'
 import { useStore } from '@/state/store'
+import { useAdminSlots } from '@/app/adminSlots'
 import { useT } from '@/i18n'
-import { useCatalogT } from '@/app/modals/catalogI18n'
 import { getAreaSizeIn } from '@/lib/renderDesign'
 import { gradableSizes, printScaleOf } from '@/lib/printScale'
 import { fmtCm, fmtIn, fmtSizeDual, inToCm } from '@/lib/units'
@@ -63,8 +63,7 @@ function garmentThumb(id: CatalogGarmentId, hex: string): string {
 
 export default function ProductPanel() {
   const t = useT()
-  // Supplier-catalogue strings live in the module's own side-file.
-  const ct = useCatalogT()
+  const admin = useAdminSlots()
   const design = useStore((s) => s.design)
   const side = useStore((s) => s.activeSide)
   const setGarment = useStore((s) => s.setGarment)
@@ -164,22 +163,9 @@ export default function ProductPanel() {
           )}
         </button>
 
-        <button
-          onClick={() => openModal('catalog')}
-          className="mt-2 flex w-full items-center gap-3 rounded-xl border border-line bg-bg1 p-3 text-left transition-colors hover:border-cy/60"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-bg3 text-cy">
-            <Store size={18} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[12.5px] font-semibold text-tx">
-              {ct('catalog.entry.title')}
-            </span>
-            <span className="block text-[11px] leading-snug text-tx2">
-              {ct('catalog.entry.cta')}
-            </span>
-          </span>
-        </button>
+        {/* Supplier catalogue — admin only. It shows OUR purchase cost, so the
+            card and the code behind it exist in the admin build alone. */}
+        {admin.productEntry}
       </section>
 
       {!isCustom && (

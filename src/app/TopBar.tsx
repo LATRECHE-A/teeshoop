@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { FolderOpen, Layers, LayoutGrid, PackagePlus, Redo2, Save, Share2, ShoppingBag, Undo2, Wrench, X } from 'lucide-react'
+import { FolderOpen, LayoutGrid, Redo2, Save, Share2, ShoppingBag, Undo2, X } from 'lucide-react'
 import { Brand } from './Brand'
 import ModeToggle from './ModeToggle'
 import ThemeToggle from './ThemeToggle'
 import LangToggle from './LangToggle'
 import { redo, undo, useHistoryDepth, useStore } from '@/state/store'
+import { useAdminSlots } from '@/app/adminSlots'
 import { renderAndSave } from '@/state/persist'
 import { useT } from '@/i18n'
 import { useBasketT } from './modals/basketI18n'
@@ -20,7 +20,7 @@ export default function TopBar() {
   const { canUndo, canRedo } = useHistoryDepth()
   const boardOn = useStore((s) => s.board.on)
   const exitBoard = useStore((s) => s.exitBoard)
-  const [adminOpen, setAdminOpen] = useState(false)
+  const admin = useAdminSlots()
   const t = useT()
   const bt = useBasketT()
   const bdt = useBoardT()
@@ -84,45 +84,10 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-1.5">
-        {/* Admin tools: DTF gang sheets + product ingest (desktop only) */}
-        <div className="relative hidden sm:block">
-          <button
-            className="iconbtn"
-            aria-label={t('admin.menu')}
-            aria-expanded={adminOpen}
-            title={t('admin.menu')}
-            onClick={() => setAdminOpen((v) => !v)}
-          >
-            <Wrench size={15} />
-          </button>
-          {adminOpen && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setAdminOpen(false)} />
-              <div className="absolute right-0 top-10 z-40 w-56 rounded-lg border border-line bg-bg1 p-1 shadow-xl">
-                <button
-                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12.5px] text-tx transition-colors hover:bg-bg3"
-                  onClick={() => {
-                    setAdminOpen(false)
-                    openModal('dtf')
-                  }}
-                >
-                  <Layers size={14} className="text-cy" />
-                  {t('admin.dtf')}
-                </button>
-                <button
-                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12.5px] text-tx transition-colors hover:bg-bg3"
-                  onClick={() => {
-                    setAdminOpen(false)
-                    openModal('adminIngest')
-                  }}
-                >
-                  <PackagePlus size={14} className="text-cy" />
-                  {t('admin.products')}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        {/* Workshop tools (DTF gang sheets, product ingest) — admin build only.
+            They expose supplier costs and film economics, so the menu and the
+            code behind it are absent from the customer bundle entirely. */}
+        {admin.tools}
         <button className="btn btn-ghost hidden sm:inline-flex" onClick={() => openModal('designs')}>
           <FolderOpen size={15} />
           <span className="hidden lg:inline">{t('topbar.my_designs')}</span>

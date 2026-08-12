@@ -14,7 +14,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
   fr: {
     'basket.title': 'Panier',
     'basket.subtitle':
-      'Une commande = plusieurs produits, tailles et quantités. La planche DTF est imbriquée pour l’ensemble du panier.',
+      'Une commande = plusieurs produits, tailles et quantités.',
     'basket.open': 'Ouvrir le panier',
     'basket.count': '{n} article(s) au panier',
     'basket.empty':
@@ -36,14 +36,11 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'basket.totals.lines': 'Lignes',
     'basket.totals.prints': 'Transferts',
     'basket.totals.by_side': '{front} devant · {back} dos · {sleeve} manche',
-    'basket.dtf': 'Générer la planche DTF',
-    'basket.dtf_hint':
-      'Imbrication de tous les visuels du panier sur le rouleau de transfert.',
   },
   en: {
     'basket.title': 'Basket',
     'basket.subtitle':
-      'One order = several products, sizes and quantities. The DTF sheet is nested for the whole basket.',
+      'One order = several products, sizes and quantities.',
     'basket.open': 'Open the basket',
     'basket.count': '{n} item(s) in the basket',
     'basket.empty':
@@ -65,8 +62,6 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'basket.totals.lines': 'Lines',
     'basket.totals.prints': 'Transfers',
     'basket.totals.by_side': '{front} front · {back} back · {sleeve} sleeve',
-    'basket.dtf': 'Build the DTF sheet',
-    'basket.dtf_hint': 'Nests every basket artwork onto the transfer roll.',
   },
 }
 

@@ -20,13 +20,14 @@ import { Sparkles } from 'lucide-react'
 import { useStore } from '@/state/store'
 import { useT } from '@/i18n'
 import type { Side } from '@/lib/types'
-import { useCatalogT } from './modals/catalogI18n'
+import { useBackOriginT } from '@/app/backOriginI18n'
 
 export default function SideSwitcher() {
   const t = useT()
-  // "Dos reconstitué" already exists (and is already translated) as the
-  // catalogue's own label for this fact — one wording for one concept.
-  const ct = useCatalogT()
+  // "Dos reconstitué" is the catalogue's own label for this fact — one wording
+  // for one concept — but it lives customer-side, because importing the
+  // catalogue's side-file would drag our purchase-price strings in here.
+  const ct = useBackOriginT()
   const side = useStore((s) => s.activeSide)
   const setSide = useStore((s) => s.setSide)
   const layers = useStore((s) => s.design.layers)

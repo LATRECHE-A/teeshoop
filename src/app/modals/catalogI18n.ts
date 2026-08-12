@@ -9,9 +9,13 @@
  */
 import { useStore } from '@/state/store'
 import { resolve, type TParams } from '@/i18n'
+// The two back-origin strings live customer-side (SideSwitcher needs them and
+// must not import this admin file). Spread back so the catalogue still has them.
+import { I18N as BACK_ORIGIN } from '@/app/backOriginI18n'
 
 export const I18N: Record<'fr' | 'en', Record<string, string>> = {
   fr: {
+    ...BACK_ORIGIN.fr,
     'catalog.title': 'Catalogue fournisseur',
     'catalog.subtitle':
       'Les vêtements vierges de nos fournisseurs — chargez-en un dans l’éditeur avec ses tailles.',
@@ -112,7 +116,6 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.card.colours': '{n} coloris',
     'catalog.card.gsm': '{g} g/m²',
     'catalog.card.rrp': 'PVC {price} €',
-    'catalog.card.back_generated': 'Dos reconstitué',
     'catalog.card.back_missing': 'Sans dos',
     'catalog.back_gap':
       '{n} références sans photo dos chez Imbretex : leur dos est reconstitué à partir de la face, et signalé comme aperçu partout (catalogue, studio, AR, mockups).',
@@ -142,8 +145,6 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.detail.back_generated':
       'À l’import, le dos sera reconstitué à partir de la face (silhouette miroir, couleur du vêtement, plis conservés). C’est un aperçu, jamais une photo du produit : il est signalé dans le studio et marqué dans les exports AR et les mockups.',
     // Short form, for a tooltip on the studio's Dos tab (see SideSwitcher).
-    'catalog.back_preview_tip':
-      'Dos reconstitué à partir de la face — un aperçu, pas une photo du produit.',
     'catalog.detail.back_reconstructed':
       'Le dos montré ici est une reconstitution : silhouette miroir de la face, couleur du vêtement, plis conservés, boutonnage supprimé. C’est un aperçu, jamais une photo du produit — la mention « aperçu » est incrustée dans l’image elle-même, et le dos reste signalé dans le studio, en AR et dans les mockups. Il n’entre jamais dans un fichier d’impression DTF.',
     'catalog.use': 'Utiliser dans l’éditeur',
@@ -157,6 +158,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       '« {name} » ({size}) chargé — sans dos : impression recto uniquement',
   },
   en: {
+    ...BACK_ORIGIN.en,
     'catalog.title': 'Supplier catalogue',
     'catalog.subtitle':
       'Blanks from our suppliers — load one into the editor with its size table.',
@@ -257,7 +259,6 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.card.colours': '{n} colours',
     'catalog.card.gsm': '{g} gsm',
     'catalog.card.rrp': 'RRP €{price}',
-    'catalog.card.back_generated': 'Reconstructed back',
     'catalog.card.back_missing': 'No back',
     'catalog.back_gap':
       '{n} references have no back photo at Imbretex: their back is reconstructed from the front, and flagged as a preview everywhere (catalogue, studio, AR, mockups).',
@@ -286,8 +287,6 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.detail.back_generated':
       'On import the back is reconstructed from the front (mirrored silhouette, garment colour, folds preserved). It is a preview, never a photo of the product: the studio flags it and the AR/mockup exports carry a mark.',
     // Short form, for a tooltip on the studio's Back tab (see SideSwitcher).
-    'catalog.back_preview_tip':
-      'Back reconstructed from the front — a preview, not a photo of the product.',
     'catalog.detail.back_reconstructed':
       'The back shown here is a reconstruction: the front’s mirrored silhouette, the garment colour, its folds kept and the button placket removed. It is a preview, never a photo of the product — the word “preview” is baked into the image itself, and the back stays flagged in the studio, in AR and in mockups. It never enters a DTF print file.',
     'catalog.use': 'Use in the editor',
