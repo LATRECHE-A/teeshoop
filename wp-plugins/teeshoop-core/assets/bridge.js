@@ -1,0 +1,193 @@
+/**
+ * The studio ↔ WooCommerce bridge.
+ *
+ * This file runs on the WordPress page, not in the studio. It is the only thing
+ * standing between a cross-origin frame and the visitor's basket, so its whole
+ * job is to be paranoid on the way in and precise on the way out.
+ *
+ * ON THE WAY IN, every message must satisfy all three:
+ *   1. event.origin === the configured studio origin — compared with ===, never
+ *      startsWith. A prefix test passes for "https://studio.teeshoop.com.evil.tld".
+ *   2. event.source === our frame's contentWindow — otherwise any other frame or
+ *      opener on the page can speak in the studio's name.
+ *   3. the payload is an object with a known `type`.
+ *
+ * ON THE WAY OUT, postMessage is always given the explicit studio origin as its
+ * target. '*' would broadcast the reply — which carries cart totals — to whatever
+ * document happens to occupy the frame at that moment.
+ *
+ * The nonce never crosses the boundary. The frame asks; this page acts.
+ */
+(function () {
+	'use strict';
+
+	var cfg = window.TEESHOOP_BRIDGE;
+	if (!cfg || !cfg.studioOrigin) {
+		return;
+	}
+
+	var container = document.querySelector('[data-teeshoop-studio]');
+	var frame = container && container.querySelector('iframe');
+	if (!frame) {
+		return;
+	}
+
+	/** Messages we are willing to act on. Anything else is ignored in silence. */
+	var HANDLERS = {
+		'teeshoop:ready': onReady,
+		'teeshoop:quote': onQuote,
+		'teeshoop:add-to-cart': onAddToCart,
+		'teeshoop:resize': onResize,
+	};
+
+	window.addEventListener('message', function (event) {
+		if (event.origin !== cfg.studioOrigin) {
+			return;
+		}
+		if (event.source !== frame.contentWindow) {
+			return;
+		}
+		var data = event.data;
+		if (!data || typeof data !== 'object' || typeof data.type !== 'string') {
+			return;
+		}
+		var handler = HANDLERS[data.type];
+		if (handler) {
+			handler(data);
+		}
+	});
+
+	/** Always targeted, never '*'. */
+	function send(message) {
+		if (frame.contentWindow) {
+			frame.contentWindow.postMessage(message, cfg.studioOrigin);
+		}
+	}
+
+	function onReady() {
+		// Tell the studio which product it is decorating and what the shop calls
+		// this garment. It has no other way to know: it is on another origin and
+		// cannot read the page.
+		send({
+			type: 'teeshoop:context',
+			productId: cfg.productId,
+			garment: cfg.garment,
+			locale: document.documentElement.lang || 'fr',
+		});
+	}
+
+	/**
+	 * A price request. The answer comes from the server every time — there is no
+	 * client-side price to fall back on, by design.
+	 */
+	function onQuote(data) {
+		var params = new URLSearchParams();
+		params.set('garment', String(data.garment || cfg.garment));
+		params.set('qty', String(parseInt(data.qty, 10) || 1));
+		(data.sides || []).forEach(function (side, i) {
+			params.set('sides[' + i + '][id]', String(side.id || ''));
+			params.set('sides[' + i + '][area_sq_cm]', String(side.area_sq_cm || 0));
+		});
+
+		fetch(cfg.restUrl + 'quote?' + params.toString(), {
+			credentials: 'same-origin',
+			headers: { accept: 'application/json' },
+		})
+			.then(function (response) {
+				return response.json().then(function (body) {
+					return { ok: response.ok, body: body };
+				});
+			})
+			.then(function (result) {
+				send({
+					type: 'teeshoop:quote-result',
+					requestId: data.requestId || null,
+					ok: result.ok,
+					quote: result.ok ? result.body : null,
+					error: result.ok ? null : result.body.code || 'quote_failed',
+				});
+			})
+			.catch(function () {
+				send({
+					type: 'teeshoop:quote-result',
+					requestId: data.requestId || null,
+					ok: false,
+					quote: null,
+					error: 'network',
+				});
+			});
+	}
+
+	/**
+	 * Add to basket.
+	 *
+	 * Note what is not forwarded: whatever price the studio believes. The body
+	 * carries the customer's choices, and the server prices them.
+	 */
+	function onAddToCart(data) {
+		fetch(cfg.restUrl + 'cart', {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: {
+				'content-type': 'application/json',
+				'X-WP-Nonce': cfg.nonce,
+			},
+			body: JSON.stringify({
+				product_id: cfg.productId,
+				garment: data.garment || cfg.garment,
+				qty: parseInt(data.qty, 10) || 1,
+				sides: Array.isArray(data.sides) ? data.sides : [],
+				design_id: String(data.designId || ''),
+				size_grid: data.sizeGrid && typeof data.sizeGrid === 'object' ? data.sizeGrid : {},
+			}),
+		})
+			.then(function (response) {
+				return response.json().then(function (body) {
+					return { status: response.status, ok: response.ok, body: body };
+				});
+			})
+			.then(function (result) {
+				if (result.ok) {
+					send({
+						type: 'teeshoop:cart-result',
+						ok: true,
+						cartCount: result.body.cart_count,
+						cartUrl: result.body.cart_url,
+						message: cfg.i18n.added,
+					});
+					document.body.dispatchEvent(
+						new CustomEvent('teeshoop:added', { detail: result.body })
+					);
+					return;
+				}
+				send({
+					type: 'teeshoop:cart-result',
+					ok: false,
+					error: result.body.code || 'cart_failed',
+					message: result.status === 403 ? cfg.i18n.expired : cfg.i18n.failed,
+				});
+			})
+			.catch(function () {
+				send({
+					type: 'teeshoop:cart-result',
+					ok: false,
+					error: 'network',
+					message: cfg.i18n.failed,
+				});
+			});
+	}
+
+	/**
+	 * Let the studio ask for a taller frame.
+	 *
+	 * Clamped: an unbounded height from the frame is a way to push the rest of the
+	 * page — including the theme's own controls — off the screen.
+	 */
+	function onResize(data) {
+		var height = parseInt(data.height, 10);
+		if (!height || height < 320 || height > 4000) {
+			return;
+		}
+		container.style.setProperty('--teeshoop-studio-height', height + 'px');
+	}
+})();

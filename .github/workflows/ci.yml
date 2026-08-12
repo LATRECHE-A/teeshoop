@@ -3,7 +3,8 @@ name: CI
 # Everything here runs headless in seconds and needs no secrets. The Playwright
 # harnesses in scripts/ deliberately stay OUT: they boot a dev server, several
 # need a human to look at a screenshot, and scripts/fr-verify.mjs talks to the
-# live Falk&Ross account.
+# live Falk&Ross account. Same rule for the plugin's WooCommerce integration
+# test: it needs a real WordPress and a database, so it runs against wp-local/.
 on:
   push:
   pull_request:
@@ -35,3 +36,22 @@ jobs:
       # AFTER the build, and must never be continue-on-error.
       - name: Bundle guard
         run: npm run verify:bundle
+
+  # The WordPress plugin. Its pure classes (Money, Pricing, Margin) call no
+  # WordPress function on purpose, so they need PHP and nothing else — the
+  # runner exits 2 if it finds no tests, so "scanned nothing" cannot pass.
+  plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Lint every PHP file
+        run: find wp-plugins -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Plugin unit tests
+        run: php wp-plugins/teeshoop-core/tests/run.php

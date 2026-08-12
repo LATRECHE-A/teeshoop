@@ -1,0 +1,70 @@
+# Local WordPress + WooCommerce, for developing the Teeshoop plugin.
+#
+# This is NOT staging and NOT production. It exists so the plugin can be written
+# and tested before anyone has SSH on o2switch, and so a destructive experiment
+# costs a `docker compose down -v` instead of a customer's order history.
+#
+#   docker compose up -d          then  http://localhost:8080
+#   docker compose run --rm wpcli wp plugin list
+#   docker compose down -v        wipes it back to nothing
+#
+# The plugin source is BIND-MOUNTED from the repo: editing wp-plugins/teeshoop-core/
+# is immediately live in the container. Nothing WordPress writes ends up in git.
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: teeshoop
+      MARIADB_USER: teeshoop
+      MARIADB_PASSWORD: teeshoop
+      MARIADB_ROOT_PASSWORD: root
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      retries: 20
+
+  wp:
+    image: wordpress:php8.3-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '8080:80'
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: teeshoop
+      WORDPRESS_DB_USER: teeshoop
+      WORDPRESS_DB_PASSWORD: teeshoop
+      # WP_DEBUG on, display off: notices land in the log where they can be read,
+      # not in the middle of a JSON response where they corrupt it.
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG', true);
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
+        define('SCRIPT_DEBUG', true);
+    volumes:
+      - wp:/var/www/html
+      - ../wp-plugins/teeshoop-core:/var/www/html/wp-content/plugins/teeshoop-core
+
+  # One-shot WP-CLI, same filesystem and network as the site.
+  wpcli:
+    image: wordpress:cli-php8.3
+    depends_on:
+      - wp
+    user: '33:33'
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: teeshoop
+      WORDPRESS_DB_USER: teeshoop
+      WORDPRESS_DB_PASSWORD: teeshoop
+    volumes:
+      - wp:/var/www/html
+      - ../wp-plugins/teeshoop-core:/var/www/html/wp-content/plugins/teeshoop-core
+    entrypoint: ['wp']
+    command: ['--info']
+
+volumes:
+  db:
+  wp:
