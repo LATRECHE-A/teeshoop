@@ -60,6 +60,14 @@ const MUST_REACH = [
   'src/app/modals/BasketModal.tsx',
   'src/app/modals/CustomSetupModal.tsx',
   'src/app/backOriginI18n.ts',
+  // The route from a design to a WooCommerce basket. Nothing here is
+  // shop-internal, and all of it must ship to the customer or the studio cannot
+  // sell anything.
+  'src/lib/teeshoop/bridge.ts',
+  'src/lib/teeshoop/upload.ts',
+  'src/lib/teeshoop/designDoc.ts',
+  'src/app/modals/CartModal.tsx',
+  'src/app/modals/cartI18n.ts',
 ]
 
 const EXTS = ['.ts', '.tsx', '.d.ts']

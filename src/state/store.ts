@@ -65,6 +65,8 @@ export interface ModalState {
   ar: boolean
   /** Order basket (several products / sizes / quantities). */
   basket: boolean
+  /** Add to the SHOP's basket. Only reachable when the studio is framed by it. */
+  cart: boolean
   /** Supplier product catalog picker. */
   catalog: boolean
   /** Admin: DTF gang-sheet builder. */
@@ -352,7 +354,7 @@ export const useStore = create<StoreState>()(
       mode: '2d',
       selectedId: null,
       activePanel: bootMobile ? null : 'product',
-      modals: { customSetup: false, order: false, designs: false, share: false, shortcuts: false, ar: false, basket: false, catalog: false, dtf: false, adminIngest: false },
+      modals: { customSetup: false, order: false, designs: false, share: false, shortcuts: false, ar: false, basket: false, cart: false, catalog: false, dtf: false, adminIngest: false },
       toasts: [],
       assets: [],
       savedDesigns: [],

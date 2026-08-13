@@ -8,7 +8,9 @@ import { useAdminSlots } from '@/app/adminSlots'
 import { renderAndSave } from '@/state/persist'
 import { useT } from '@/i18n'
 import { useBasketT } from './modals/basketI18n'
+import { useCartT } from './modals/cartI18n'
 import { useBoardT } from './board/boardI18n'
+import { useShopBridge } from './hooks/useShopBridge'
 
 export default function TopBar() {
   const design = useStore((s) => s.design)
@@ -24,6 +26,15 @@ export default function TopBar() {
   const t = useT()
   const bt = useBasketT()
   const bdt = useBoardT()
+  const cartT = useCartT()
+  /*
+   * Framed by the shop, the primary action leads to a real WooCommerce basket
+   * with a server-computed price. Standalone, it leads to the quote-by-email
+   * flow, which is all the studio can honestly offer with no shop behind it.
+   * The two are never both on screen: one price, one route to buying.
+   */
+  const { status: shop } = useShopBridge()
+  const canBuy = shop === 'connected'
 
   const saveNow = async () => {
     try {
@@ -114,8 +125,8 @@ export default function TopBar() {
           <Share2 size={15} />
           <span className="hidden sm:inline">{t('topbar.share_export')}</span>
         </button>
-        <button className="btn btn-primary" onClick={() => openModal('order')}>
-          {t('topbar.continue')}
+        <button className="btn btn-primary" onClick={() => openModal(canBuy ? 'cart' : 'order')}>
+          {canBuy ? cartT('cart.open') : t('topbar.continue')}
           <span aria-hidden>→</span>
         </button>
       </div>
