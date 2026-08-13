@@ -81,15 +81,27 @@
 	 * client-side price to fall back on, by design.
 	 */
 	function onQuote(data) {
-		var params = new URLSearchParams();
-		params.set('garment', String(data.garment || cfg.garment));
-		params.set('qty', String(parseInt(data.qty, 10) || 1));
+		/*
+		 * Built with URL, not by concatenating a '?'.
+		 *
+		 * With PRETTY permalinks `restUrl` is `…/wp-json/teeshoop/v1/` and
+		 * appending `quote?garment=tee` works. With the PLAIN structure, which is
+		 * what a fresh WordPress ships with, it is
+		 * `…/index.php?rest_route=/teeshoop/v1/` and the same concatenation
+		 * produces a second '?', so PHP reads the route as
+		 * `/teeshoop/v1/quote?garment=tee` and answers 404. Every quote silently
+		 * failed on such a shop while add-to-cart, which appends no query,
+		 * worked perfectly. Measured on the local mirror, 2026-08-14.
+		 */
+		var url = new URL(cfg.restUrl + 'quote', window.location.href);
+		url.searchParams.set('garment', String(data.garment || cfg.garment));
+		url.searchParams.set('qty', String(parseInt(data.qty, 10) || 1));
 		(data.sides || []).forEach(function (side, i) {
-			params.set('sides[' + i + '][id]', String(side.id || ''));
-			params.set('sides[' + i + '][area_sq_cm]', String(side.area_sq_cm || 0));
+			url.searchParams.set('sides[' + i + '][id]', String(side.id || ''));
+			url.searchParams.set('sides[' + i + '][area_sq_cm]', String(side.area_sq_cm || 0));
 		});
 
-		fetch(cfg.restUrl + 'quote?' + params.toString(), {
+		fetch(url.toString(), {
 			credentials: 'same-origin',
 			headers: { accept: 'application/json' },
 		})

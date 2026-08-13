@@ -333,7 +333,7 @@ ts_it( 'writes the workshop hand-off onto the order line', function () use ( $pr
 	ts_eq( is_array( $stored ) ? count( $stored ) : 0, 1, 'printed sides on the order' );
 
 	// The customer-visible label, and the price the order actually froze.
-	ts_assert( '' !== $line->get_meta( 'Design', true ), 'no visible design meta' );
+	ts_assert( '' !== $line->get_meta( 'Création', true ), 'no visible design meta' );
 	ts_eq( (float) $order->get_subtotal(), (float) WC()->cart->get_subtotal(), 'order subtotal vs cart' );
 
 	$order->delete( true );

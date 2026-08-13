@@ -579,6 +579,21 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 > 
 
 
+## Impression et tailles
+
+### 37. Un même visuel imprimé sur un S et sur un 3XL n'a pas la même surface. Facturez-vous les deux au même prix, ou la plus grande taille coûte-t-elle plus cher en marquage ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* Le studio agrandit le visuel avec le vêtement, pour qu'un 3XL ne porte pas un logo qui paraît minuscule. Cela consomme réellement plus de film : sur une commande de six tailles, c'est six transferts différents au lieu d'un seul. Aujourd'hui le prix est calculé sur la surface mesurée à la taille de référence (M), la même pour toutes les tailles de la ligne, ce qui est simple à comprendre pour le client mais fait perdre quelques centimes sur les grandes tailles et en gagner sur les petites. L'autre option est de facturer chaque taille à sa vraie surface, ce qui est exact mais affiche un prix différent par taille sur la même commande.
+
+*Si vous ne répondez pas, on partira sur :* Un seul prix de marquage par ligne, calculé sur la surface à la taille M, quelles que soient les tailles commandées.
+
+**Votre réponse :**
+
+> 
+
+
 ---
 
 ## Ce que vous n'avez PAS à décider

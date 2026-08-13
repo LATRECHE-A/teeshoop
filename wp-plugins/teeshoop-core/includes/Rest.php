@@ -104,7 +104,7 @@ final class Rest {
 		if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
 			return new \WP_Error(
 				'teeshoop_bad_nonce',
-				__( 'Session expired. Reload the page and try again.', 'teeshoop' ),
+				__( 'Votre session a expiré. Rechargez la page, puis réessayez.', 'teeshoop' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -125,7 +125,7 @@ final class Rest {
 		} catch ( \InvalidArgumentException $e ) {
 			return new \WP_Error(
 				'teeshoop_unknown_garment',
-				__( 'Unknown garment.', 'teeshoop' ),
+				__( 'Vêtement inconnu.', 'teeshoop' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -144,7 +144,7 @@ final class Rest {
 		} catch ( \InvalidArgumentException $e ) {
 			return new \WP_Error(
 				'teeshoop_unknown_garment',
-				__( 'Unknown garment.', 'teeshoop' ),
+				__( 'Vêtement inconnu.', 'teeshoop' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -176,12 +176,12 @@ final class Rest {
 	 */
 	public static function add_to_cart( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
 		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
-			return new \WP_Error( 'teeshoop_no_cart', __( 'The basket is not available.', 'teeshoop' ), array( 'status' => 503 ) );
+			return new \WP_Error( 'teeshoop_no_cart', __( 'Le panier n’est pas disponible.', 'teeshoop' ), array( 'status' => 503 ) );
 		}
 
 		$body = $request->get_json_params();
 		if ( ! is_array( $body ) ) {
-			return new \WP_Error( 'teeshoop_bad_body', __( 'Malformed request.', 'teeshoop' ), array( 'status' => 400 ) );
+			return new \WP_Error( 'teeshoop_bad_body', __( 'Requête incorrecte.', 'teeshoop' ), array( 'status' => 400 ) );
 		}
 
 		$key = Cart::add(

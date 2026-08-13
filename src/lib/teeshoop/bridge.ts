@@ -295,10 +295,22 @@ function onCartResult(data: Record<string, unknown>): void {
   settle(id, false, null, typeof data.error === 'string' ? data.error : 'cart_failed')
 }
 
+/**
+ * `wp_localize_script` casts every scalar it is given to a STRING, so the
+ * product id arrives as "33" and not 33. That is documented WordPress
+ * behaviour, not a bug on their side, and reading it as a number would leave
+ * `canOrderFromShop` false on a perfectly good product page: the basket button
+ * would silently never appear. Parsed rather than type-checked, for that reason.
+ */
+function asProductId(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+}
+
 function onContext(origin: string, data: Record<string, unknown>): void {
   parentOrigin = origin
   context = {
-    productId: typeof data.productId === 'number' ? data.productId : 0,
+    productId: asProductId(data.productId),
     garment: typeof data.garment === 'string' ? data.garment : '',
     locale: typeof data.locale === 'string' ? data.locale : 'fr',
   }

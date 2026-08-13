@@ -44,9 +44,27 @@ d'accepter la ligne de panier : une commande impossible à imprimer est refusée
 paiement, pas découverte après. Vérifié de bout en bout : identifiant réel → panier à
 271,75 € calculé par le serveur ; identifiant inventé → refusé.
 
+**La boucle est fermée : du studio au panier.** Un visiteur ouvre le studio sur une fiche
+produit, dessine, clique « Ajouter au panier », et une ligne WooCommerce apparaît avec un
+identifiant de création vérifié et un prix que WordPress a calculé lui-même. Vérifié de bout
+en bout par `npm run verify:wp-e2e` : 29 assertions, contre un vrai navigateur, un vrai
+Worker et un vrai panier. Le prix affiché dans le studio, celui enregistré sur la ligne et
+le sous-total du panier sont le même nombre, et c'est celui de `Pricing::quote()`.
+
+Deux entrées de prix ont cessé d'arriver du navigateur au passage. **Le vêtement** est
+désormais déclaré sur la fiche produit : il décide du prix du textile nu, et une requête
+pouvait auparavant annoncer « custom » (textile à 0 EUR, le client fournit le sien) sur un
+sweat et emporter 27 EUR de textile pour rien. **Les surfaces imprimées** viennent du
+fichier de création que le Worker a confirmé, donc la facture et le film mesurent la même
+chose. Trois autres défauts ont été trouvés en regardant la vraie page : les devis
+échouaient silencieusement sur une boutique aux permaliens simples, le panier annonçait une
+remise de 2 115,50 EUR qui n'a jamais existé (prix de référence fictif, interdit en France),
+et une boutique réglée en dollars affichait des euros avec un dollar devant.
+
 **L'outillage.** Un miroir local de la production (WordPress 7.0.3 + WooCommerce 11.0.1 en
-docker), 108 tests JavaScript, 46 tests PHP purs, 9 tests d'intégration WooCommerce, et des
-scripts de vérification qui font tourner le vrai code dans un vrai navigateur.
+docker), 136 tests JavaScript, 46 tests PHP purs, 11 tests d'intégration WooCommerce, une
+vérification de bout en bout du parcours d'achat, et des scripts de vérification qui font
+tourner le vrai code dans un vrai navigateur.
 
 ---
 
@@ -57,7 +75,7 @@ instructions de travail, elles changent plus vite que le code).
 
 | # | Séance | Bloquée par |
 |---|---|---|
-| 01 | Boucler la boucle : du studio au panier WooCommerce | - |
+| ~~01~~ | ~~Boucler la boucle : du studio au panier WooCommerce~~ **faite** | - |
 | 02 | Fiche produit, grille de prix, demande de devis | 01 |
 | 03 | Catalogue : Falk&Ross vers WooCommerce, à l'échelle | - |
 | 04 | Paiement : Stripe, TVA, livraison, facture | 02, 03 |
@@ -91,12 +109,14 @@ se vérifie sur le miroir local.
 | Compte Brevo | associé | Séance 06 |
 | `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur n'a jamais pu partir |
 
-`QUESTIONS-ASSOCIE.md` contient 36 questions auxquelles seul l'associé peut répondre. Q04
-(la grille tarifaire) conditionne une grande partie de la séance 05.
+`QUESTIONS-ASSOCIE.md` contient 37 questions auxquelles seul l'associé peut répondre. Q04
+(la grille tarifaire) conditionne une grande partie de la séance 05. La 37e vient d'être
+ajoutée : un même visuel n'a pas la même surface sur un S et sur un 3XL, et il faut savoir
+si les deux se facturent au même prix.
 
 ---
 
-## Trois choses à savoir avant de toucher au code
+## Quatre choses à savoir avant de toucher au code
 
 1. **Le serveur calcule le prix.** Le studio affiche ce qu'on lui dit. Deux implémentations
    des mêmes règles finissent toujours par diverger, et le jour où elles divergent le client
@@ -110,3 +130,8 @@ se vérifie sur le miroir local.
    recalculs sauf le premier, et un client qui passait de 9 à 50 pièces gardait l'ancien
    tarif. C'est pour cela qu'il existe une suite de tests contre un vrai panier WooCommerce
    en plus des tests purs.
+
+4. **Une entrée de prix ne vient jamais du navigateur.** Pas seulement le prix : le
+   vêtement vient de la fiche produit, les surfaces imprimées viennent du fichier de
+   création déposé sur le serveur. Tout ce qu'une requête d'ajout au panier peut encore
+   décider, c'est la quantité, que le client contrôle de toute façon depuis le panier.

@@ -77,7 +77,7 @@ function boot(): void {
 			'admin_notices',
 			static function (): void {
 				echo '<div class="notice notice-error"><p><strong>Teeshoop Core</strong> — ';
-				esc_html_e( 'WooCommerce is not active, so the studio cannot add anything to a cart. The plugin is idle.', 'teeshoop' );
+				esc_html_e( 'WooCommerce n’est pas actif, le studio ne peut donc rien ajouter à un panier. L’extension est en veille.', 'teeshoop' );
 				echo '</p></div>';
 			}
 		);
@@ -88,6 +88,42 @@ function boot(): void {
 	Cart::init();
 	Rest::init();
 	Shortcode::init();
+	add_action( 'admin_notices', __NAMESPACE__ . '\\currency_notice' );
+}
+
+/**
+ * Say so when WooCommerce and the price authority disagree about the currency.
+ *
+ * `Pricing` works in cents of `config['currency']`, which is EUR, and hands
+ * WooCommerce a bare number. WooCommerce renders that number with the STORE's
+ * currency symbol. Set the store to dollars and a 384,25 EUR line prints as
+ * $384.25: the same digits, the wrong money, on the page and then on the
+ * invoice. Nothing throws and nothing looks broken.
+ *
+ * Found on the local mirror, which ships as a USD store, on 2026-08-14.
+ * Admin-only and non-blocking: it is a configuration mistake, and the person
+ * who can fix it is the only one who needs to read it.
+ */
+function currency_notice(): void {
+	if ( ! current_user_can( 'manage_woocommerce' ) || ! function_exists( 'get_woocommerce_currency' ) ) {
+		return;
+	}
+	$shop  = get_woocommerce_currency();
+	$ours  = (string) Settings::pricing()['currency'];
+	if ( $shop === $ours ) {
+		return;
+	}
+	printf(
+		'<div class="notice notice-error"><p><strong>Teeshoop Core</strong> &mdash; %s</p></div>',
+		esc_html(
+			sprintf(
+				/* translators: 1: WooCommerce store currency, 2: the price config's currency */
+				__( 'WooCommerce est réglé en %1$s alors que les lignes personnalisées sont calculées en %2$s. Les mêmes chiffres seront affichés et facturés dans la mauvaise devise tant que les deux ne concordent pas.', 'teeshoop' ),
+				$shop,
+				$ours
+			)
+		)
+	);
 }
 add_action( 'plugins_loaded', __NAMESPACE__ . '\\boot' );
 

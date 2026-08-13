@@ -59,11 +59,21 @@ for `get_option()` inside `Pricing`, the runner stops working and says so.
 ```bash
 npm run test:php        # 46 cases, pure PHP, no bootstrap, <1s
 npm run wp:up           # local WordPress 7.0.3 + WooCommerce, port 8080
-npm run test:wp         # 9 cases against the real cart
+npm run test:wp         # 11 cases against the real cart
+npm run verify:wp-e2e   # 29 assertions, real browser, real Worker, real basket
 ```
 
 The pure tests run in CI. The integration test does not — it needs a database
 and a live WooCommerce, same reason the Playwright harnesses stay out.
+
+`verify:wp-e2e` (`scripts/wp-e2e-verify.mjs`) is the one that covers the seam
+this plugin exists to hold: it builds the studio, serves it from `wrangler dev`,
+drives a real Chromium through a real purchase, and then asks the database what
+happened. It expects the mirror on a CLASSIC theme, because WooCommerce's block
+product template runs the description through `wp_kses_post` and `iframe` is not
+an allowed tag there, so on Twenty Twenty-Five the studio renders as an empty
+`div`. teeshoop.com runs Woodmart, which is classic; the harness switches the
+mirror to Twenty Twenty-One and says so.
 
 Keep both. The pure tests cannot see the bug that actually shipped here:
 `recompute_prices()` carried the standard `did_action(...) > 1` guard, which

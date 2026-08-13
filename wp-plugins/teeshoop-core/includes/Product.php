@@ -79,7 +79,7 @@ final class Product {
 
 	/** The choices a shop manager sees, built from the price config itself. */
 	private static function choices(): array {
-		$out = array( '' => __( 'Not personalisable', 'teeshoop' ) );
+		$out = array( '' => __( 'Non personnalisable', 'teeshoop' ) );
 		foreach ( array_keys( Settings::pricing()['garments'] ) as $key ) {
 			$out[ $key ] = $key;
 		}
@@ -91,8 +91,8 @@ final class Product {
 		woocommerce_wp_select(
 			array(
 				'id'          => self::META,
-				'label'       => __( 'Teeshoop garment', 'teeshoop' ),
-				'description' => __( 'Which studio garment this product is. It decides the price of the blank, so it is read from here and never from the request that adds the line.', 'teeshoop' ),
+				'label'       => __( 'Vêtement Teeshoop', 'teeshoop' ),
+				'description' => __( 'Le vêtement du studio que cet article représente. Il décide du prix du textile nu, il est donc lu ici et jamais dans la requête qui ajoute la ligne.', 'teeshoop' ),
 				'desc_tip'    => true,
 				'options'     => self::choices(),
 			)

@@ -36,11 +36,36 @@ defined( 'ABSPATH' ) || exit;
 
 final class Shortcode {
 
+	/**
+	 * One studio per page.
+	 *
+	 * A WooCommerce product renders its description in more than one place
+	 * depending on the theme (the tab, the summary, a block pattern), so a
+	 * shortcode pasted into both the description and the short description came
+	 * out THREE times on Twenty Twenty-Five. Each copy is a full WebGL studio
+	 * booting, and only the first can talk to bridge.js, which binds to the
+	 * first container on the page. The rest are megabytes of dead weight.
+	 */
+	private static bool $rendered = false;
+
 	public static function init(): void {
 		add_shortcode( 'teeshoop_studio', array( self::class, 'render' ) );
 	}
 
 	public static function render( mixed $raw_atts ): string {
+		if ( self::$rendered ) {
+			return current_user_can( 'manage_options' )
+				? '<p class="teeshoop-error">' .
+					esc_html__( 'Teeshoop : le studio est déjà présent sur cette page. Seul le premier est affiché ; un second éditeur se chargerait entièrement sans pouvoir atteindre le panier.', 'teeshoop' ) .
+					'</p>'
+				: '';
+		}
+		self::$rendered = true;
+
+		return self::frame( $raw_atts );
+	}
+
+	private static function frame( mixed $raw_atts ): string {
 		$atts = shortcode_atts(
 			array(
 				'product_id' => 0,
@@ -60,7 +85,7 @@ final class Shortcode {
 			// incoming messages against. Say so to whoever can fix it.
 			if ( current_user_can( 'manage_options' ) ) {
 				return '<p class="teeshoop-error">' .
-					esc_html__( 'Teeshoop: the studio origin is not configured, so the editor cannot be embedded.', 'teeshoop' ) .
+					esc_html__( 'Teeshoop : l’origine du studio n’est pas configurée, l’éditeur ne peut donc pas être intégré.', 'teeshoop' ) .
 					'</p>';
 			}
 			return '';
@@ -96,7 +121,7 @@ final class Shortcode {
 		$notice = '';
 		if ( '' === $garment && current_user_can( 'manage_options' ) ) {
 			$notice = '<p class="teeshoop-error">' .
-				esc_html__( 'Teeshoop: this product does not declare a garment, so the studio cannot add it to a basket. Set "Teeshoop garment" on the product.', 'teeshoop' ) .
+				esc_html__( 'Teeshoop : cet article ne déclare aucun vêtement, le studio ne peut donc pas l’ajouter au panier. Renseignez « Vêtement Teeshoop » sur la fiche produit.', 'teeshoop' ) .
 				'</p>';
 		}
 
@@ -112,7 +137,7 @@ final class Shortcode {
 					referrerpolicy="strict-origin-when-cross-origin"></iframe>
 			</div>',
 			esc_attr( $height ),
-			esc_attr__( 'Teeshoop design studio', 'teeshoop' ),
+			esc_attr__( 'Studio de création Teeshoop', 'teeshoop' ),
 			esc_url( $studio_url )
 		);
 	}
@@ -153,9 +178,9 @@ final class Shortcode {
 				'garment'      => $garment,
 				'cartUrl'      => function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' ),
 				'i18n'         => array(
-					'added'   => __( 'Added to your basket.', 'teeshoop' ),
-					'failed'  => __( 'The item could not be added. Nothing has been charged.', 'teeshoop' ),
-					'expired' => __( 'Session expired. Reload the page and try again.', 'teeshoop' ),
+					'added'   => __( 'Ajouté au panier.', 'teeshoop' ),
+					'failed'  => __( 'L’article n’a pas pu être ajouté. Rien n’a été facturé.', 'teeshoop' ),
+					'expired' => __( 'Votre session a expiré. Rechargez la page, puis réessayez.', 'teeshoop' ),
 				),
 			)
 		);

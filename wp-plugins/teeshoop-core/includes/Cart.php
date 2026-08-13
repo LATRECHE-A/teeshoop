@@ -57,7 +57,7 @@ final class Cart {
 		$product    = $product_id > 0 ? wc_get_product( $product_id ) : null;
 
 		if ( ! $product || ! $product->is_purchasable() ) {
-			return new \WP_Error( 'teeshoop_bad_product', __( 'This product cannot be personalised.', 'teeshoop' ), array( 'status' => 400 ) );
+			return new \WP_Error( 'teeshoop_bad_product', __( 'Cet article ne peut pas être personnalisé.', 'teeshoop' ), array( 'status' => 400 ) );
 		}
 
 		/*
@@ -75,7 +75,7 @@ final class Cart {
 		if ( '' === $garment ) {
 			return new \WP_Error(
 				'teeshoop_not_personalisable',
-				__( 'This product is not set up for personalisation.', 'teeshoop' ),
+				__( 'Cet article n’est pas configuré pour la personnalisation.', 'teeshoop' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -83,7 +83,7 @@ final class Cart {
 		if ( '' !== $claimed && $claimed !== $garment ) {
 			return new \WP_Error(
 				'teeshoop_garment_mismatch',
-				__( 'This page sells a different garment from the one the design was made on.', 'teeshoop' ),
+				__( 'Cette page vend un autre vêtement que celui sur lequel la création a été faite.', 'teeshoop' ),
 				array( 'status' => 409 )
 			);
 		}
@@ -95,7 +95,7 @@ final class Cart {
 		if ( ! $check['ok'] ) {
 			return new \WP_Error(
 				'teeshoop_design_' . $check['reason'],
-				__( 'The artwork for this order could not be confirmed. Nothing has been added to the basket.', 'teeshoop' ),
+				__( 'La création n’a pas pu être confirmée. Rien n’a été ajouté au panier.', 'teeshoop' ),
 				array( 'status' => 422 )
 			);
 		}
@@ -155,7 +155,7 @@ final class Cart {
 		$key = WC()->cart->add_to_cart( $product_id, $qty, 0, array(), array( self::KEY => $data ) );
 
 		return false === $key
-			? new \WP_Error( 'teeshoop_cart_refused', __( 'WooCommerce refused the line.', 'teeshoop' ), array( 'status' => 409 ) )
+			? new \WP_Error( 'teeshoop_cart_refused', __( 'Le panier a refusé la ligne.', 'teeshoop' ), array( 'status' => 409 ) )
 			: $key;
 	}
 
@@ -232,7 +232,28 @@ final class Cart {
 			// Woo wants a unit price in the store's currency, excl. tax when the
 			// store is configured to enter prices excl. tax — which is the setting
 			// this shop uses, because its customers are businesses.
-			$item['data']->set_price( (string) Money::to_eur( $quote['unit_ht'] ) );
+			$unit = (string) Money::to_eur( $quote['unit_ht'] );
+
+			/*
+			 * THE REGULAR PRICE TOO, and this is not tidiness.
+			 *
+			 * `$item['data']` is this line's own clone of the product, so it kept
+			 * the catalogue's regular price while `set_price` lowered the active
+			 * one. WooCommerce reads that as a SALE and renders the catalogue
+			 * price struck through with the difference as a saving: the
+			 * verification cart showed "99,99 € 15,37 € — Save 2 115,50 €" for an
+			 * order that was never on sale and never cost 99,99 EUR.
+			 *
+			 * An invented reference price is not a cosmetic bug in France. The
+			 * price a personalised line is compared against has to be a price
+			 * that was actually charged (Code de la consommation, L.112-1-1 and
+			 * the prix de référence rules); announcing a saving that never
+			 * existed is a pratique commerciale trompeuse. A personalised line
+			 * has no catalogue price at all, so it has exactly one price.
+			 */
+			$item['data']->set_regular_price( $unit );
+			$item['data']->set_sale_price( '' );
+			$item['data']->set_price( $unit );
 		}
 	}
 
@@ -249,7 +270,7 @@ final class Cart {
 		}
 		if ( ! empty( $sides ) ) {
 			$rows[] = array(
-				'key'   => __( 'Printed sides', 'teeshoop' ),
+				'key'   => __( 'Faces imprimées', 'teeshoop' ),
 				'value' => implode( ', ', $sides ),
 			);
 		}
@@ -260,14 +281,14 @@ final class Cart {
 				$parts[] = $count . ' × ' . strtoupper( $size );
 			}
 			$rows[] = array(
-				'key'   => __( 'Sizes', 'teeshoop' ),
+				'key'   => __( 'Tailles', 'teeshoop' ),
 				'value' => implode( ' · ', $parts ),
 			);
 		}
 
 		if ( ! empty( $data['design_id'] ) ) {
 			$rows[] = array(
-				'key'   => __( 'Design', 'teeshoop' ),
+				'key'   => __( 'Création', 'teeshoop' ),
 				'value' => '<code>' . esc_html( $data['design_id'] ) . '</code>',
 			);
 		}
@@ -289,14 +310,14 @@ final class Cart {
 		}
 		$data = $values[ self::KEY ];
 
-		$line->add_meta_data( __( 'Design', 'teeshoop' ), (string) ( $data['design_id'] ?? '' ), true );
+		$line->add_meta_data( __( 'Création', 'teeshoop' ), (string) ( $data['design_id'] ?? '' ), true );
 
 		$sides = array();
 		foreach ( (array) ( $data['sides'] ?? array() ) as $side ) {
 			$sides[] = self::side_label( (string) $side['id'] );
 		}
 		if ( ! empty( $sides ) ) {
-			$line->add_meta_data( __( 'Printed sides', 'teeshoop' ), implode( ', ', $sides ), true );
+			$line->add_meta_data( __( 'Faces imprimées', 'teeshoop' ), implode( ', ', $sides ), true );
 		}
 
 		if ( ! empty( $data['size_grid'] ) ) {
@@ -304,7 +325,7 @@ final class Cart {
 			foreach ( $data['size_grid'] as $size => $count ) {
 				$parts[] = $count . ' × ' . strtoupper( $size );
 			}
-			$line->add_meta_data( __( 'Sizes', 'teeshoop' ), implode( ' · ', $parts ), true );
+			$line->add_meta_data( __( 'Tailles', 'teeshoop' ), implode( ' · ', $parts ), true );
 		}
 
 		// Hidden: the production hand-off.
@@ -349,11 +370,11 @@ final class Cart {
 	 */
 	private static function side_label( string $id ): string {
 		$labels = array(
-			'front'    => __( 'Front', 'teeshoop' ),
-			'back'     => __( 'Back', 'teeshoop' ),
-			'sleeve'   => __( 'Sleeve', 'teeshoop' ),
-			'sleeve_l' => __( 'Left sleeve', 'teeshoop' ),
-			'sleeve_r' => __( 'Right sleeve', 'teeshoop' ),
+			'front'    => __( 'Devant', 'teeshoop' ),
+			'back'     => __( 'Dos', 'teeshoop' ),
+			'sleeve'   => __( 'Manche', 'teeshoop' ),
+			'sleeve_l' => __( 'Manche gauche', 'teeshoop' ),
+			'sleeve_r' => __( 'Manche droite', 'teeshoop' ),
 		);
 		return $labels[ $id ] ?? ucfirst( str_replace( '_', ' ', $id ) );
 	}

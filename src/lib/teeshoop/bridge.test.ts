@@ -12,6 +12,7 @@ import {
   __parseOriginsForTests as parseOrigins,
   addToShopCart,
   bridgeStatus,
+  canOrderFromShop,
   isShopConnected,
   requestFrameHeight,
   requestShopQuote,
@@ -100,6 +101,23 @@ describe('handshake', () => {
     expect(bridgeStatus()).toBe('connected')
     expect(isShopConnected()).toBe(true)
     expect(shopContext()).toEqual({ productId: 42, garment: 'tee', locale: 'fr' })
+  })
+
+  it('reads the product id WordPress actually sends, which is a string', () => {
+    // wp_localize_script casts every scalar to a string. Measured against the
+    // real page on 2026-08-13: {"productId":"33"}. Read as a number this is 0,
+    // and the basket button never appears on a working product page.
+    startShopBridge()
+    deliver({ type: 'teeshoop:context', productId: '33', garment: 'tee', locale: 'fr' })
+    expect(shopContext()?.productId).toBe(33)
+    expect(canOrderFromShop()).toBe(true)
+  })
+
+  it('cannot order from a page that frames the studio without selling anything', () => {
+    startShopBridge()
+    deliver({ type: 'teeshoop:context', productId: '0', garment: '', locale: 'fr' })
+    expect(isShopConnected()).toBe(true)
+    expect(canOrderFromShop()).toBe(false)
   })
 
   it('gives up rather than spinning when nothing answers', () => {
