@@ -96,8 +96,15 @@ Studio → page:
 Page → studio: `teeshoop:context`, `teeshoop:quote-result`, `teeshoop:cart-result`.
 
 A side is `{ id: 'front' | 'back' | 'sleeve_l' | 'sleeve_r', area_sq_cm: number }`.
+
 The area that counts is the **ink**, not the layer rectangle — sending the
-rectangle is what makes a customer pay for transparent margins.
+rectangle is what makes a customer pay for transparent margins. `sideArtworkSqCm`
+in `src/lib/ink.ts` is the producer, and it already returns **square
+centimetres**: the studio used to work in square inches and no conversion between
+the two existed anywhere, so the obvious way to wire this up divided every print
+in the shop by 6,4516 and priced it flat forever. There is now nothing to
+convert. The studio's tier bounds are the same two numbers as `Pricing::area_tier`'s,
+in the same unit, for the same reason.
 
 Every inbound message is checked three ways before it is acted on: `event.origin`
 must equal the configured studio origin (compared with `===`, never
@@ -138,10 +145,36 @@ define( 'TEESHOOP_ALLOW_UNVERIFIED_DESIGNS', true );
 
 Production must not define it.
 
+## The design hand-off, end to end
+
+Built 2026-08-13 (`worker/design.ts`):
+
+| | |
+|---|---|
+| `POST /api/design` | The studio uploads the design document plus every raster it references. Open, like `POST /api/ar` — the customer is the author and cannot authenticate. Returns `{ id }`. |
+| `GET /api/design/{id}` | The manifest. This is what `Design::verify` calls; 404 is what makes an unverifiable id refuse the cart line. |
+| `GET /r2/design/{id}/preview.png` | Open on the id (~143 bits). A BAT email and a cart thumbnail carry no token. |
+| `GET /r2/design/{id}/design.json`, `…/assets/*` | **Admin only.** The customer's original artwork; the only thing that needs it is the workshop. |
+
+What is stored is the **source**, never the nested gang sheets: a layout depends
+on the supplier, the roll, the quantity and which other orders are ganged with
+it, none of which is known at add-to-cart. The rasters, by contrast, exist
+nowhere else — lose them and the order is unprintable whatever else survives.
+
+An upload whose design references artwork that did not arrive is refused (422),
+and so is artwork the design never mentions — the first is an order the workshop
+cannot fill, the second is R2 as a dead drop. The manifest is written **last**,
+so a half-written upload can never verify as complete.
+
+Proved against a live Worker + local WordPress on 2026-08-13: a real id verifies
+and prices (25 units, 271,75 €), a fabricated one is refused with
+`design_not_found` and the cart is untouched.
+
 ## Not built yet
 
-- The Worker's `/api/design/{id}` endpoint the verification calls.
-- The R2 upload path from the studio (`design_id` has no producer yet).
+- The studio's upload call and the postMessage bridge client — the Worker end and
+  `bridge.js` both hold up their side; nothing in `src/` posts a `teeshoop:*`
+  message yet.
 - An admin screen for the pricing config — it is set through the option.
 - The size-grid UI. The server accepts and prices one; nothing draws it.
 - Product page templates and the quote form.

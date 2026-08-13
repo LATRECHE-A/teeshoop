@@ -39,6 +39,12 @@
 			"/__fr-cache/*"
 		]
 	},
+	// Stamped onto every design manifest (worker/design.ts): the artwork is
+	// re-rendered later by whatever code is deployed then, so an order has to
+	// record which build it was authored under.
+	"vars": {
+		"APP_VERSION": "r1"
+	},
 	// AR model blob store. Create it once with:  wrangler r2 bucket create tshop-ar
 	// R2 has no per-object TTL — add a lifecycle rule to expire the `ar/` prefix
 	// (see README), e.g. 30 days, so shared models don't accumulate forever.

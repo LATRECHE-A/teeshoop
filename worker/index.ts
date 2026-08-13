@@ -11,6 +11,13 @@
  *   GET  /r2/ar/{id}.{ext}  stream a stored blob with the correct MIME type
  *   GET  /v/{id}            serve the viewer page (v.html) for the QR short URL
  *
+ * DESIGN — the hand-off to WordPress (worker/design.ts). An order line carries
+ * an id; this is what the id points at, and until it existed a customer's
+ * artwork lived only in their own browser:
+ *   POST /api/design        store the design document + its rasters → { id }
+ *   GET  /api/design/{id}   the manifest — what the plugin verifies against
+ *   GET  /r2/design/{id}/…  the bytes; preview open, document/rasters admin-only
+ *
  * SUPPLIER — `/api/fr/*`, the live Falk&Ross webservice (worker/falkross.ts).
  * It lives server-side because the credentials must not ship to a browser, the
  * supplier sends no CORS headers, and the ingest pipeline needs untainted
@@ -30,8 +37,9 @@
  */
 import { handleFalkRoss, type FalkRossEnv } from './falkross'
 import { requireAdmin } from './auth'
+import { createDesign, getDesign, serveDesignFile, type DesignEnv } from './design'
 
-interface Env extends FalkRossEnv {
+interface Env extends FalkRossEnv, DesignEnv {
   ASSETS: Fetcher
   AR_BUCKET: R2Bucket
 }
@@ -193,6 +201,22 @@ export default {
 
     if (path === '/api/ar' && request.method === 'POST') {
       return uploadAr(request, env)
+    }
+
+    // The design hand-off (worker/design.ts). The upload is open for the same
+    // reason `POST /api/ar` is — the customer is the author and cannot
+    // authenticate — and the read is what the WordPress plugin calls before it
+    // will put a personalised line in a cart.
+    if (path === '/api/design' && request.method === 'POST') {
+      return createDesign(request, env)
+    }
+    const design = /^\/api\/design\/([^/]+)$/.exec(path)
+    if (design && (request.method === 'GET' || request.method === 'HEAD')) {
+      return getDesign(env, decodeURIComponent(design[1]))
+    }
+    const designFile = /^\/r2\/design\/([^/]+)\/(.+)$/.exec(path)
+    if (designFile && (request.method === 'GET' || request.method === 'HEAD')) {
+      return serveDesignFile(request, env, designFile[1], decodeURIComponent(designFile[2]))
     }
 
     // The ADMIN studio. The bundle split (src/app/adminSlots.tsx) keeps the
