@@ -18,6 +18,28 @@
 
 declare( strict_types = 1 );
 
+/*
+ * COMMAND LINE ONLY.
+ *
+ * `wp-content/plugins/` is served by URL and this directory is inside it.
+ * Before this line, GET /wp-content/plugins/teeshoop-core/tests/run.php
+ * answered 200 and ran the whole suite to the public internet: it names the
+ * floor-price and commission rules, it prints the expected and actual figures
+ * of any assertion that fails, and on shared hosting it burns the CPU of
+ * whoever asks. The customer bundle is guarded against exactly this leak by
+ * scripts/bundle-guard.mjs; the same material was reachable in PHP, and an
+ * unguessable path is not an access control.
+ *
+ * PHP_SAPI rather than a WP_CLI check, because `php tests/run.php` runs with no
+ * WordPress at all while the two integration files run under wp-cli, which is
+ * also CLI. It must come after any `declare`, which has to be the first
+ * statement of a script.
+ */
+if ( 'cli' !== PHP_SAPI ) {
+	http_response_code( 404 );
+	exit( 1 );
+}
+
 define( 'TEESHOOP_TEST', true );
 
 const RED   = "\033[31m";

@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import { GARMENTS } from '@/garments'
 import { GARMENT_COLORS } from '@/content/palettes'
 import { PRICING } from '@/content/pricing'
+import { useShopBridge } from '@/app/hooks/useShopBridge'
 import { SIZE_CHARTS, SIZE_IDS } from '@/content/sizeChart'
 import { useStore } from '@/state/store'
 import { useAdminSlots } from '@/app/adminSlots'
@@ -63,6 +64,7 @@ function garmentThumb(id: CatalogGarmentId, hex: string): string {
 
 export default function ProductPanel() {
   const t = useT()
+  const { canOrder } = useShopBridge()
   const admin = useAdminSlots()
   const design = useStore((s) => s.design)
   const side = useStore((s) => s.activeSide)
@@ -111,9 +113,20 @@ export default function ProductPanel() {
             >
               <img src={thumbs[id]} alt="" className="h-[84px] w-[84px]" draggable={false} />
               <span className="text-[12px] font-medium text-tx">{t('garment.' + id)}</span>
-              <span className="mono-dim">
-                {t('product.from_price', { price: PRICING[id].baseUsd.toFixed(2) })}
-              </span>
+              {/* Silent when a real shop is on the other side of the frame.
+                  PRICING is the studio's own demo table, in dollars, and it
+                  disagrees with the server: it says "dès 14,50 $" for a tee the
+                  shop prices from 9,50 EUR HT. Two prices in two currencies, a
+                  panel apart, is exactly the divergence the server-side price
+                  authority exists to prevent, and framing the studio is what
+                  first put them on one screen. The shop's own "from" price
+                  belongs on the product page (GET /wp-json/teeshoop/v1/grid),
+                  which is session 02. */}
+              {!canOrder && (
+                <span className="mono-dim">
+                  {t('product.from_price', { price: PRICING[id].baseUsd.toFixed(2) })}
+                </span>
+              )}
             </button>
           ))}
         </div>

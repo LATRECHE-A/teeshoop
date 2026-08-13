@@ -117,9 +117,21 @@ describe('readDesignDoc — the gate on what may be stored', () => {
     expect(readDesignDoc(bad)).toBeNull()
   })
 
-  it('drops a side with no area rather than storing a zero-priced print', () => {
-    const r = readDesignDoc({ ...DOC, sides: [{ id: 'front', area_sq_cm: 0 }, { id: 'back' }] })!
-    expect(r.sides).toEqual([])
+  it('drops a side with no area, and refuses a document left with none', () => {
+    // Two rules in one case, because the second exists BECAUSE of the first.
+    // A zero-area side is not a printed side and must not be stored as one; a
+    // document with no printed side left is not an order, and until it was
+    // refused it priced as an unprinted blank all the way to the invoice.
+    // Measured on the shipped config: a tee run of 50 fell from 926,50 EUR to
+    // 308,50 EUR HT, and a `custom` garment came to 0,00 EUR while the stored
+    // document still carried the artwork the workshop would press.
+    expect(readDesignDoc({ ...DOC, sides: [{ id: 'front', area_sq_cm: 0 }, { id: 'back' }] })).toBeNull()
+    expect(readDesignDoc({ ...DOC, sides: [] })).toBeNull()
+    const { sides, ...noSidesKey } = DOC
+    expect(readDesignDoc(noSidesKey)).toBeNull()
+    // …and one good side still survives beside a bad one.
+    const r = readDesignDoc({ ...DOC, sides: [{ id: 'front', area_sq_cm: 0 }, { id: 'back', area_sq_cm: 12 }] })!
+    expect(r.sides).toEqual([{ id: 'back', area_sq_cm: 12 }])
   })
 
   it('caps a side area at a square metre — past that it is a data error', () => {
@@ -129,6 +141,36 @@ describe('readDesignDoc — the gate on what may be stored', () => {
 })
 
 describe('POST /api/design', () => {
+  it('refuses a document with nothing to print, before it can be priced as a blank', async () => {
+    // The route-level half of the gate above. This is the shape that made a
+    // `custom` order cost 0,00 EUR: a real document, real artwork, no `sides`.
+    const { sides, ...noSides } = DOC
+    const e = env()
+    const res = await createDesign(post({ design: doc(noSides), preview: png(), 'asset:up1': png() }), e)
+    expect(res.status).toBe(422)
+    expect(e._store.size).toBe(0)
+  })
+
+  it('refuses the same asset sent many times, instead of writing it many times', async () => {
+    /*
+     * `doc.assetIds.includes(id)` passes for the SAME id repeatedly, and the
+     * only other bound was on bytes, so 5000 three-byte parts named asset:up1
+     * stayed inside the 40 MB budget and produced 5003 R2 writes from one
+     * unauthenticated request. Each put is a subrequest on the real runtime.
+     */
+    const form = new FormData()
+    form.append('design', doc(), 'design.json')
+    form.append('preview', png(), 'preview.png')
+    for (let i = 0; i < 50; i++) form.append('asset:up1', png(), 'up1')
+    const e = env()
+    const res = await createDesign(
+      new Request('https://x/api/design', { method: 'POST', body: form }),
+      e,
+    )
+    expect(res.status).toBe(400)
+    expect(e._store.size).toBe(0)
+  })
+
   it('stores the document, the preview and every referenced raster', async () => {
     const e = env()
     const res = await createDesign(post({ design: doc(), preview: png(), 'asset:up1': png() }), e)

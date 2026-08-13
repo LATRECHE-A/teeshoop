@@ -119,6 +119,21 @@ export function readDesignDoc(raw: unknown): DesignDocSummary | null {
     if (sides.length >= MAX_SIDES) break
   }
 
+  /*
+   * A DESIGN WITH NOTHING TO PRINT IS NOT A DESIGN, and refusing it here is a
+   * money gate, not tidiness.
+   *
+   * `sides` is what the price is computed from. A document that simply omits
+   * the key parsed fine, stored fine, verified fine, and then priced as an
+   * unprinted blank: measured on the shipped config, a tee run of 50 fell from
+   * 926,50 EUR to 308,50 EUR HT, and a `custom` garment (whose blank is free,
+   * because the customer ships it) came to 0,00 EUR while the stored document
+   * still carried the full artwork the workshop would press. The studio cannot
+   * produce such a document (`measureOrder` throws `no_printable_side` first),
+   * so nothing legitimate is being refused.
+   */
+  if (sides.length === 0) return null
+
   return {
     garment,
     color: typeof doc.colorId === 'string' && doc.colorId.length <= MAX_GARMENT_ID_LEN ? doc.colorId : '',

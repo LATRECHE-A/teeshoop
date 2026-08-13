@@ -285,7 +285,7 @@ function onCartResult(data: Record<string, unknown>): void {
       true,
       {
         cartCount: typeof data.cartCount === 'number' ? data.cartCount : 0,
-        cartUrl: typeof data.cartUrl === 'string' ? data.cartUrl : '',
+        cartUrl: sameOriginUrl(data.cartUrl),
         message: typeof data.message === 'string' ? data.message : '',
       } satisfies CartOutcome,
       '',
@@ -305,6 +305,26 @@ function onCartResult(data: Record<string, unknown>): void {
 function asProductId(raw: unknown): number {
   const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+}
+
+/**
+ * A URL on the shop's own origin, or nothing.
+ *
+ * `cartUrl` is rendered as an `href` with `target="_top"`, and the frame now
+ * carries `allow-top-navigation-by-user-activation` so that navigation lands.
+ * The sender has to be the real parent at an allowed origin to get this far,
+ * and there `cart_url` comes from `wc_get_cart_url()`, so this is a sink rather
+ * than a hole; it is checked anyway because the cost is one comparison and the
+ * consequence would be the shop's own page sending a buyer somewhere else.
+ */
+function sameOriginUrl(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw || !parentOrigin) return ''
+  try {
+    const url = new URL(raw, parentOrigin)
+    return url.origin === parentOrigin ? url.toString() : ''
+  } catch {
+    return ''
+  }
 }
 
 function onContext(origin: string, data: Record<string, unknown>): void {

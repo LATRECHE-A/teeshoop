@@ -114,7 +114,7 @@ function currency_notice(): void {
 		return;
 	}
 	printf(
-		'<div class="notice notice-error"><p><strong>Teeshoop Core</strong> &mdash; %s</p></div>',
+		'<div class="notice notice-error"><p><strong>Teeshoop Core</strong> : %s</p></div>',
 		esc_html(
 			sprintf(
 				/* translators: 1: WooCommerce store currency, 2: the price config's currency */

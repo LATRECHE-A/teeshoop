@@ -47,8 +47,6 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'cart.no_qty': 'Indiquez au moins une taille pour continuer.',
     'cart.mismatch':
       'Cette page vend un article « {product} » et votre création est sur un « {design} ». Ouvrez la fiche du bon produit pour commander celui-ci.',
-    'cart.unavailable':
-      'La boutique ne répond pas. Rechargez la page ; si cela persiste, écrivez-nous et nous prenons la commande à la main.',
 
     'cart.err.no_printable_side':
       'Il n’y a rien à imprimer. Ajoutez un visuel ou du texte sur une face, puis réessayez.',
@@ -59,7 +57,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'cart.err.preview_failed':
       'L’aperçu de votre création n’a pas pu être généré. Rechargez la page, puis réessayez.',
     'cart.err.too_large':
-      'Votre création dépasse la taille acceptée. Réduisez la définition de vos images, puis réessayez.',
+      'Votre création dépasse la taille acceptée. Réexportez vos images en PNG ou en JPEG, plus petites, puis réessayez.',
     'cart.err.rejected':
       'Le serveur a refusé cette création. Rien n’a été ajouté au panier. Écrivez-nous si cela se reproduit.',
     'cart.err.server':
@@ -73,6 +71,10 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'La boutique n’a pas répondu. Rien n’a été ajouté au panier ; vérifiez votre panier avant de réessayer.',
     'cart.err.cart':
       'La boutique n’a pas ajouté l’article. Rien n’a été ajouté au panier et rien n’a été facturé.',
+    'cart.err.in_flight':
+      'Un ajout est déjà en cours. Ne recommencez pas : vérifiez votre panier dans un instant.',
+    'cart.err.quote':
+      'Le prix n’a pas pu être obtenu auprès de la boutique. Rechargez la page ; sans prix, rien ne peut être ajouté au panier.',
   },
   en: {
     'cart.open': 'Order',
@@ -105,8 +107,6 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'cart.no_qty': 'Pick at least one size to continue.',
     'cart.mismatch':
       'This page sells a “{product}” and your design is on a “{design}”. Open the right product page to order this one.',
-    'cart.unavailable':
-      'The shop is not answering. Reload the page; if it keeps happening, write to us and we will take the order by hand.',
 
     'cart.err.no_printable_side':
       'There is nothing to print. Add artwork or text to a side, then try again.',
@@ -117,7 +117,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'cart.err.preview_failed':
       'The preview of your design could not be generated. Reload the page, then try again.',
     'cart.err.too_large':
-      'Your design is larger than we accept. Reduce the resolution of your images, then try again.',
+      'Your design is larger than we accept. Re-export your images as PNG or JPEG, smaller, then try again.',
     'cart.err.rejected':
       'The server refused this design. Nothing was added to the basket. Write to us if it happens again.',
     'cart.err.server':
@@ -131,6 +131,10 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'The shop did not answer. Nothing was added to the basket; check your basket before trying again.',
     'cart.err.cart':
       'The shop did not add the item. Nothing was added to the basket and nothing was charged.',
+    'cart.err.in_flight':
+      'An add is already running. Do not start another one; check your basket in a moment.',
+    'cart.err.quote':
+      'The price could not be obtained from the shop. Reload the page; without a price nothing can be added to the basket.',
   },
 }
 

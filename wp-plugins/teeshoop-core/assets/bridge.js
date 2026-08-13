@@ -64,7 +64,7 @@
 		}
 	}
 
-	function onReady() {
+	function sendContext() {
 		// Tell the studio which product it is decorating and what the shop calls
 		// this garment. It has no other way to know: it is on another origin and
 		// cannot read the page.
@@ -74,6 +74,25 @@
 			garment: cfg.garment,
 			locale: document.documentElement.lang || 'fr',
 		});
+	}
+
+	function onReady() {
+		sendContext();
+	}
+
+	/*
+	 * Announce, do not only answer.
+	 *
+	 * The studio offers `teeshoop:ready` a few times over the first couple of
+	 * seconds and then gives up and falls back to its standalone flow. If this
+	 * script attached its listener after the last offer, on a slow phone or
+	 * behind a deferred bundle, the frame would sit there with no basket button
+	 * and nothing to retry. Sending unprompted on the frame's own load event
+	 * closes the race from this side, and a duplicate context is ignored: the
+	 * studio locks onto the first one.
+	 */
+	if (frame.contentWindow) {
+		frame.addEventListener('load', sendContext);
 	}
 
 	/**
@@ -205,12 +224,22 @@
 	 *
 	 * Clamped: an unbounded height from the frame is a way to push the rest of the
 	 * page — including the theme's own controls — off the screen.
+	 *
+	 * And clamped again to the BROWSER WINDOW, which only this side can see. The
+	 * studio's modals are `position: fixed`, which inside an iframe means fixed
+	 * to the iframe and not to the visual viewport: a frame taller than the
+	 * window puts the bottom of a dialog somewhere no amount of scrolling
+	 * reaches. Measured with the add-to-cart panel, which asked for about
+	 * 1 200 px in a 1 000 px window and moved its own confirm button out of the
+	 * world. A dialog that scrolls inside a frame you can see beats a dialog you
+	 * cannot finish.
 	 */
 	function onResize(data) {
 		var height = parseInt(data.height, 10);
 		if (!height || height < 320 || height > 4000) {
 			return;
 		}
+		height = Math.max(320, Math.min(height, window.innerHeight));
 		container.style.setProperty('--teeshoop-studio-height', height + 'px');
 	}
 })();

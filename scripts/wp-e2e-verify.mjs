@@ -376,8 +376,30 @@ try {
   await shot('wp-e2e-3-cart-modal')
 
   const addButton = studio.locator('[data-teeshoop="add-to-cart"]')
+  await addButton.waitFor({ state: 'visible', timeout: 20000 })
+  // Reported before clicking, because "the click timed out" is not a diagnosis:
+  // a disabled button, a button under the mobile scrim and a button pushed out
+  // of the frame all look the same from the outside.
+  const buyState = await addButton.evaluate((el) => ({
+    disabled: el.hasAttribute('disabled'),
+    label: (el.textContent ?? '').trim(),
+    top: Math.round(el.getBoundingClientRect().top),
+    frameH: window.innerHeight,
+  }))
+  if (!ok('the add button is offered', !buyState.disabled, JSON.stringify(buyState))) {
+    await shot('wp-e2e-x-disabled')
+    bail(`the buy button is disabled: ${JSON.stringify(buyState)}`)
+  }
+  // Put the FRAME at the top of the window first. The studio's modals are
+  // `position: fixed` inside the frame, so once the frame has grown toward the
+  // window height its lower part sits below the fold until the page itself
+  // scrolls. A visitor does that without thinking; Playwright's
+  // scrollIntoViewIfNeeded only scrolls the nearest container, so it reported
+  // "element is outside of the viewport" for a button a person can plainly see.
   const startedAt = Date.now()
-  await addButton.click()
+  await frameEl.evaluate((el) => el.scrollIntoView({ block: 'start' }))
+  await addButton.scrollIntoViewIfNeeded()
+  await addButton.click({ timeout: 20000 })
   const outcome = await Promise.race([
     studio.locator('[data-teeshoop="cart-done"]').waitFor({ timeout: 120000 }).then(() => 'done'),
     studio.locator('[data-teeshoop="cart-error"]').waitFor({ timeout: 120000 }).then(() => 'error'),
@@ -444,6 +466,21 @@ try {
     shownTtc === line.expected.display.total_ttc && shownHt.includes(line.expected.display.total_ht),
     `shown ${shownTtc} / server ${line.expected.display.total_ttc}`,
   )
+  /*
+   * VAT, from both engines, compared.
+   *
+   * The studio prints "TVA 20 % incluse" over `Pricing`'s own `total_ttc`, and
+   * WooCommerce charges what its tax tables say. Nothing reconciled the two:
+   * the mirror shipped with taxes enabled and no rates, so the panel said
+   * 326,10 EUR and the cart charged 271,75 EUR, 54,35 EUR apart, under a
+   * caption the invoice would have contradicted.
+   */
+  ok(
+    'WooCommerce charges the VAT the studio promised',
+    cart.cart_totals.total !== null &&
+      eur(cart.cart_totals.total) === eur(line.expected.total_ttc / 100),
+    `charged ${eur(cart.cart_totals.total)} vs quoted ${eur(line.expected.total_ttc / 100)}`,
+  )
   ok(
     'the catalogue price never reached the line',
     eur(line.stored.line_subtotal) !== eur(fixture.catalogue_price * line.qty),
@@ -472,6 +509,43 @@ try {
   )
   const docRes = await fetch(`${STUDIO_ORIGIN}/r2/design/${line.design_id}/design.json`)
   ok('the design document is NOT', docRes.status !== 200, `HTTP ${docRes.status}`)
+
+  // --- 6a. a design that prints nothing is refused before it can be priced --
+  // The open upload route with the `sides` key removed. That document verified,
+  // and `Cart::add` then priced the line as an unprinted blank: a tee run of 50
+  // fell from 926,50 EUR to 308,50 EUR HT and a `custom` garment came to zero,
+  // while the stored artwork was still there for the workshop to press.
+  {
+    const form = new FormData()
+    const noSides = {
+      v: 1,
+      id: 'crafted',
+      garmentId: 'tee',
+      colorId: 'black',
+      layers: [{ id: 'a', type: 'text', side: 'front', text: 'GRATUIT' }],
+    }
+    form.append('design', new Blob([JSON.stringify(noSides)]), 'design.json')
+    form.append('preview', new Blob([paddedLogoPng(8, 1)], { type: 'image/png' }), 'preview.png')
+    const res = await fetch(`${STUDIO_ORIGIN}/api/design`, { method: 'POST', body: form })
+    ok('a design with no printed side is refused', res.status === 422, `HTTP ${res.status}`)
+  }
+
+  // --- 6b. the plugin's own test suite is not a public URL -----------------
+  // `wp-content/plugins/` is served by URL. Before the CLI guards,
+  // GET …/teeshoop-core/tests/run.php answered 200 and ran the whole suite to
+  // the internet, naming the floor-price and commission rules and printing the
+  // figures of any assertion that failed. bundle-guard.mjs makes the same
+  // promise about the JavaScript; nothing was making it about the PHP.
+  for (const file of ['run.php', 'test-pricing.php', 'test-margin.php', 'integration.php', 'e2e-support.php']) {
+    const url = `${SHOP}/wp-content/plugins/teeshoop-core/tests/${file}`
+    const res = await fetch(url)
+    const body = await res.text()
+    ok(
+      `tests/${file} is not served over HTTP`,
+      res.status !== 200 && body.length === 0,
+      `HTTP ${res.status}, ${body.length} bytes`,
+    )
+  }
 
   // --- 7. an id the worker has never seen ---------------------------------
   const fabricated = 'ZZZZfabricatedZZZZ123456'

@@ -194,12 +194,19 @@ asked. `tests/integration.php` holds the case, and it fails when the request is
 trusted again.
 
 **The printed areas** come from the design manifest the Worker confirmed, not
-from the add-to-cart body. They are the same numbers the workshop's transfers
-will be rendered from, so the invoice and the film cannot disagree, and a
-replayed request cannot claim 1 cm² of ink on a full-front print. The body is
-kept only as a fallback for local development, where
-`TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` means there is no manifest to read. Which of
-the two was used is frozen onto the order line as `_teeshoop_sides_source`.
+from the add-to-cart body, so a replayed request cannot claim 1 cm² of ink on a
+full-front print and the number that was billed is the number stored beside the
+artwork. The body is kept only as a fallback for local development, where
+`TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` means there is no manifest to read, and a
+CONFIRMED design that declares no printed side is refused rather than priced as
+a blank. Which of the two sources was used is frozen onto the order line as
+`_teeshoop_sides_source`.
+
+They are the areas at size M (`PRICED_SIZE` in `src/lib/teeshoop/upload.ts`),
+one figure for a run that may span S to 3XL. That is a deliberate
+approximation, not an identity: artwork is graded with the garment, so a 500 cm²
+chest print at M is 757 cm² at 3XL and crosses a tier the line was not billed
+for. Question 37 of `QUESTIONS-ASSOCIE.md`, with the numbers.
 
 Local development opts out in `wp-config.php`:
 

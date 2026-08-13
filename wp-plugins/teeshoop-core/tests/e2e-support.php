@@ -32,6 +32,28 @@
  * @package Teeshoop\Core
  */
 
+/*
+ * COMMAND LINE ONLY.
+ *
+ * `wp-content/plugins/` is served by URL and this directory is inside it.
+ * Before this line, GET /wp-content/plugins/teeshoop-core/tests/run.php
+ * answered 200 and ran the whole suite to the public internet: it names the
+ * floor-price and commission rules, it prints the expected and actual figures
+ * of any assertion that fails, and on shared hosting it burns the CPU of
+ * whoever asks. The customer bundle is guarded against exactly this leak by
+ * scripts/bundle-guard.mjs; the same material was reachable in PHP, and an
+ * unguessable path is not an access control.
+ *
+ * PHP_SAPI rather than a WP_CLI check, because `php tests/run.php` runs with no
+ * WordPress at all while the two integration files run under wp-cli, which is
+ * also CLI. It must come after any `declare`, which has to be the first
+ * statement of a script.
+ */
+if ( 'cli' !== PHP_SAPI ) {
+	http_response_code( 404 );
+	exit( 1 );
+}
+
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Pricing;
@@ -85,6 +107,29 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 	 */
 	update_option( 'woocommerce_currency', 'EUR' );
 	update_option( 'woocommerce_default_country', 'FR:IDF' );
+	/*
+	 * And a real 20 % rate, because the studio prints "TVA 20 % incluse".
+	 *
+	 * That caption comes from `teeshoop_pricing.vat_rate`; what a customer is
+	 * charged comes from WooCommerce's own tax tables, and the mirror shipped
+	 * with taxes enabled and ZERO rows. So the panel said 326,10 EUR TTC and the
+	 * cart said 271,75 EUR with no tax, 54,35 EUR apart, on a caption the invoice
+	 * would contradict. Two VAT implementations that nothing reconciled. The
+	 * harness now asserts the cart total against the quote's TTC, which is only
+	 * meaningful once the shop actually has the rate it claims.
+	 */
+	global $wpdb;
+	$wpdb->query( "DELETE FROM {$wpdb->prefix}woocommerce_tax_rates WHERE tax_rate_name = 'TVA'" );
+	\WC_Tax::_insert_tax_rate(
+		array(
+			'tax_rate_country'  => 'FR',
+			'tax_rate'          => '20.0000',
+			'tax_rate_name'     => 'TVA',
+			'tax_rate_priority' => 1,
+			'tax_rate_shipping' => 1,
+			'tax_rate_class'    => '',
+		)
+	);
 	update_option( 'woocommerce_currency_pos', 'right_space' );
 	update_option( 'woocommerce_price_decimal_sep', ',' );
 	update_option( 'woocommerce_price_thousand_sep', ' ' );

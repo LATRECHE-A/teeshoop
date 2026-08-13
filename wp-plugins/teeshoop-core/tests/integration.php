@@ -22,6 +22,28 @@
  * @package Teeshoop\Core
  */
 
+/*
+ * COMMAND LINE ONLY.
+ *
+ * `wp-content/plugins/` is served by URL and this directory is inside it.
+ * Before this line, GET /wp-content/plugins/teeshoop-core/tests/run.php
+ * answered 200 and ran the whole suite to the public internet: it names the
+ * floor-price and commission rules, it prints the expected and actual figures
+ * of any assertion that fails, and on shared hosting it burns the CPU of
+ * whoever asks. The customer bundle is guarded against exactly this leak by
+ * scripts/bundle-guard.mjs; the same material was reachable in PHP, and an
+ * unguessable path is not an access control.
+ *
+ * PHP_SAPI rather than a WP_CLI check, because `php tests/run.php` runs with no
+ * WordPress at all while the two integration files run under wp-cli, which is
+ * also CLI. It must come after any `declare`, which has to be the first
+ * statement of a script.
+ */
+if ( 'cli' !== PHP_SAPI ) {
+	http_response_code( 404 );
+	exit( 1 );
+}
+
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Pricing;
 use Teeshoop\Core\Product;
@@ -305,6 +327,51 @@ ts_it( 'prices each line on its own inputs when several are in the cart', functi
 	}
 } );
 
+ts_it( 'refuses a size grid that sums past the shop’s cap, rather than clamping it', function () use ( $product_id, $sides, $design, $config ) {
+	WC()->cart->empty_cart();
+	$cap = (int) $config['max_qty'];
+	$r = Cart::add(
+		array(
+			'product_id' => $product_id,
+			'qty'        => 1,
+			'garment'    => 'tee',
+			'sides'      => $sides,
+			'design_id'  => $design,
+			'size_grid'  => array( 'M' => $cap, 'L' => 2000 ),
+		)
+	);
+	// Clamping billed the cap and stored the whole grid: 2 000 garments made and
+	// never invoiced, because the grid is the only record of which sizes to press.
+	ts_assert( is_wp_error( $r ), 'an over-cap grid was accepted' );
+	ts_eq( $r->get_error_code(), 'teeshoop_qty_too_high', 'refusal reason' );
+	ts_eq( count( WC()->cart->get_cart() ), 0, 'cart line count' );
+} );
+
+ts_it( 'drops the size breakdown when the quantity stops matching it', function () use ( $product_id, $sides, $design ) {
+	WC()->cart->empty_cart();
+	$key = Cart::add(
+		array(
+			'product_id' => $product_id,
+			'qty'        => 1,
+			'garment'    => 'tee',
+			'sides'      => $sides,
+			'design_id'  => $design,
+			'size_grid'  => array( 'M' => 10, 'L' => 15, 'XL' => 5 ),
+		)
+	);
+	WC()->cart->calculate_totals();
+	ts_eq( (int) WC()->cart->get_cart_item( $key )['quantity'], 30, 'quantity from the grid' );
+
+	// The customer types 1 in the cart page's quantity box. Before this rule the
+	// line was billed for 1 and the order still said "10 × M · 15 × L · 5 × XL",
+	// so 29 garments would have been pressed and never invoiced.
+	WC()->cart->set_quantity( $key, 1, true );
+	WC()->cart->calculate_totals();
+	$item = WC()->cart->get_cart_item( $key );
+	ts_eq( (int) $item['quantity'], 1, 'quantity after the change' );
+	ts_eq( $item['teeshoop']['size_grid'], array(), 'stale grid dropped' );
+} );
+
 ts_it( 'writes the workshop hand-off onto the order line', function () use ( $product_id, $sides, $design ) {
 	WC()->cart->empty_cart();
 	Cart::add(
@@ -314,6 +381,7 @@ ts_it( 'writes the workshop hand-off onto the order line', function () use ( $pr
 			'garment'    => 'tee',
 			'sides'      => $sides,
 			'design_id'  => $design,
+			'size_grid'  => array( 'M' => 7, 'L' => 5 ),
 		)
 	);
 	WC()->cart->calculate_totals();
@@ -331,6 +399,15 @@ ts_it( 'writes the workshop hand-off onto the order line', function () use ( $pr
 
 	$stored = json_decode( (string) $line->get_meta( '_teeshoop_sides', true ), true );
 	ts_eq( is_array( $stored ) ? count( $stored ) : 0, 1, 'printed sides on the order' );
+
+	// As DATA, not only as the human-readable "7 × M · 5 × L" above. renderPieces
+	// grades the transfer by size, and without a machine-readable grid it presses
+	// every garment at the base size: a 3XL carrying an M-sized chest print.
+	ts_eq(
+		json_decode( (string) $line->get_meta( '_teeshoop_size_grid', true ), true ),
+		array( 'M' => 7, 'L' => 5 ),
+		'size grid on the order'
+	);
 
 	// The customer-visible label, and the price the order actually froze.
 	ts_assert( '' !== $line->get_meta( 'Création', true ), 'no visible design meta' );

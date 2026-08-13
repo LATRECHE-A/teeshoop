@@ -40,6 +40,8 @@
  */
 import type { Design, Layer, Side } from '@/lib/types'
 import { ensureInkProbes, sideArtworkSqCm } from '@/lib/ink'
+import { ensureFont } from '@/lib/fonts'
+import { DEFAULT_SIZE } from '@/content/sizeChart'
 import { renderMockup, sideLayers } from '@/lib/renderDesign'
 import { assetRevision, getAssetBlob, type AssetVariant } from '@/state/assets'
 import { canvasToBlob } from '@/lib/download'
@@ -48,6 +50,23 @@ import type { BridgeSide } from './bridge'
 
 /** Sides the studio can print. The wire ids are these, verbatim. */
 const PRINTABLE_SIDES: Side[] = ['front', 'back', 'sleeve']
+
+/**
+ * The size every priced area is measured at.
+ *
+ * NOT the design's own base size, which is what this measured before. Base size
+ * is a six-button control in the Produit panel: the same physical print
+ * authored at base S and at base M measures differently, because the area is
+ * read in base space, so a customer could move a 660 cm² chest print across the
+ * 625 cm² tier boundary by pressing a size button. Measured on the shipped
+ * config, that is 601,00 EUR against 471,00 EUR HT for fifty identical shirts.
+ * Pinning the measurement to one chart size makes the number a property of the
+ * garment rather than of a label.
+ *
+ * It is still ONE number for a run that may span S to 3XL, which is a real
+ * approximation and question 37 of QUESTIONS-ASSOCIE.md.
+ */
+const PRICED_SIZE = DEFAULT_SIZE
 
 /** Width of the flattened preview, px. Enough for a proof, small enough to send. */
 const PREVIEW_PX = 900
@@ -146,19 +165,34 @@ export async function measureOrder(design: Design): Promise<MeasuredOrder> {
   const layers = drawn.flatMap((side) => sideLayers(design, side))
   if (layers.length === 0) throw new DesignUploadError('no_printable_side')
 
-  const { unmeasured } = await ensureInkProbes(layers)
+  /*
+   * THE FONTS TOO, and this is a price, not a rendering nicety.
+   *
+   * `ensureInkProbes` warms images and graphics. A text layer's ink comes from
+   * canvas glyph metrics, and an unloaded webfont is silently substituted by the
+   * UA default, so the measured box is the wrong face's. `renderPieces` knows
+   * this and loads fonts first with a comment saying why; this was the one
+   * measurement path that did not. It bites when a printed side was never
+   * rendered in the editor, which is every back and sleeve of a design that was
+   * just reopened: the quote is measured before the mockup loads the font and
+   * the upload is measured after, so the customer is charged for a different
+   * box than the one they were shown, in steps of 4,00 EUR HT per garment.
+   */
+  const [{ unmeasured }] = await Promise.all([
+    ensureInkProbes(layers),
+    Promise.all(
+      [...new Set(layers.filter((l) => l.type === 'text').map((l) => l.fontFamily))].map((f) =>
+        ensureFont(f),
+      ),
+    ),
+  ] as const)
   if (unmeasured.length > 0)
     throw new DesignUploadError('unmeasurable', unmeasured.map(layerLabel).join(', '))
 
   const sides: BridgeSide[] = []
   for (const side of drawn) {
-    // At the design's own base size: layer geometry is stored once, at
-    // `printScale.baseSize`, and printScaleK is 1 there. A graded order prints
-    // a physically larger transfer at 3XL than at S; the price engine takes ONE
-    // set of areas per line and has no per-size dimension yet, so the base size
-    // is the honest single number rather than an average nobody could re-derive.
-    // Question 37 of QUESTIONS-ASSOCIE.md is whether it should stay that way.
-    const area = sideArtworkSqCm(design, side)
+    // At PRICED_SIZE, never at the design's own base size. See the constant.
+    const area = sideArtworkSqCm(design, side, PRICED_SIZE)
     if (area > 0) sides.push({ id: side, area_sq_cm: Math.round(area * 100) / 100 })
   }
   if (sides.length === 0) throw new DesignUploadError('no_printable_side')

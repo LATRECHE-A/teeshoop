@@ -21,6 +21,7 @@ export default function TopBar() {
   const basketCount = useStore((s) => s.basket.reduce((n, l) => n + l.qty, 0))
   const { canUndo, canRedo } = useHistoryDepth()
   const boardOn = useStore((s) => s.board.on)
+  const boardFocused = useStore((s) => s.board.focusedId !== null)
   const exitBoard = useStore((s) => s.exitBoard)
   const admin = useAdminSlots()
   const t = useT()
@@ -33,7 +34,16 @@ export default function TopBar() {
    * flow, which is all the studio can honestly offer with no shop behind it.
    * The two are never both on screen: one price, one route to buying.
    */
-  const { canOrder: canBuy } = useShopBridge()
+  const { canOrder } = useShopBridge()
+  /*
+   * Not while browsing the board. `design` is then the user's own parked draft
+   * while the screen shows somebody else's products (see browsingBoard in
+   * src/state/store.ts, which disables undo for exactly this reason), so the
+   * modal would offer to sell a document nobody can see: at best a forgotten
+   * draft, at worst "il n'y a rien à imprimer" in front of five finished
+   * products. Focused is not browsing; that document IS on screen.
+   */
+  const canBuy = canOrder && !(boardOn && !boardFocused)
 
   const saveNow = async () => {
     try {

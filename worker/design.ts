@@ -41,7 +41,7 @@
  * the shape we expect before anything is written.
  */
 import { requireAdmin, type AdminEnv } from './auth'
-import { ASSET_ID_RE, readDesignDoc, type DesignDocSide } from '../src/lib/teeshoop/designDoc'
+import { ASSET_ID_RE, MAX_ASSETS, readDesignDoc, type DesignDocSide } from '../src/lib/teeshoop/designDoc'
 
 /*
  * WHAT A DESIGN DOCUMENT IS lives in src/lib/teeshoop/designDoc.ts, imported
@@ -163,6 +163,17 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
     if (!ASSET_ID_RE.test(id)) return json({ error: `bad asset name ${name}` }, 400)
     if (!doc.assetIds.includes(id))
       return json({ error: `asset ${id} is not referenced by the design` }, 422)
+    /*
+     * The document's id list is capped at MAX_ASSETS, and until this check the
+     * PARTS were not: `includes` passes for the same id over and over, so a
+     * form carrying the same three-byte part 5000 times stayed inside the 40 MB
+     * byte budget and produced 5003 R2 writes from one unauthenticated request.
+     * Measured against this function with a stub bucket. On the real runtime
+     * each put is a subrequest, so it also walks into the cap this project has
+     * already been bitten by once, after the writes have been billed.
+     */
+    if (assets.some((a) => a.id === id)) return json({ error: `asset ${id} sent twice` }, 400)
+    if (assets.length >= MAX_ASSETS) return json({ error: 'too many assets' }, 413)
     if (!(value instanceof File)) return json({ error: `asset ${id} is not a file` }, 400)
     if (value.size > MAX_FILE_BYTES) return json({ error: `asset ${id} too large` }, 413)
     const type = await imageType(value)

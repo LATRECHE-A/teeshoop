@@ -102,13 +102,13 @@ final class Shortcode {
 		 * It is a price input (see Product.php), and `Cart::add` reads it from
 		 * the product whatever the frame says, so a shortcode attribute that
 		 * disagreed would only produce a studio that draws one garment and a
-		 * basket that refuses it. The attribute is kept for a studio embedded
-		 * somewhere that is not a product page at all.
+		 * basket that refuses it at the last click of a purchase, after the
+		 * customer has already paid the upload. The declaration therefore WINS;
+		 * the attribute is the fallback for a studio embedded somewhere that is
+		 * not a product page at all.
 		 */
-		$garment = sanitize_key( (string) $atts['garment'] );
-		if ( '' === $garment ) {
-			$garment = Product::garment_of( $product_id );
-		}
+		$declared = Product::garment_of( $product_id );
+		$garment  = '' !== $declared ? $declared : sanitize_key( (string) $atts['garment'] );
 
 		self::enqueue( $studio_url, $origin, $product_id, $garment );
 

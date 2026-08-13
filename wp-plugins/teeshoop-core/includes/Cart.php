@@ -27,6 +27,14 @@ final class Cart {
 	/** Key under which our payload rides in the cart item. */
 	private const KEY = 'teeshoop';
 
+	/**
+	 * Shown once when a changed quantity invalidates a size breakdown.
+	 *
+	 * A constant because `wc_has_notice` matches on the message itself, and the
+	 * alternative is the same sentence repeated for every line and every pass.
+	 */
+	private const GRID_DROPPED = 'La quantité a changé, donc la répartition par taille a été retirée de cette ligne. Indiquez-la de nouveau dans le studio avant de commander.';
+
 	public static function init(): void {
 		add_filter( 'woocommerce_add_cart_item_data', array( self::class, 'keep_items_distinct' ), 10, 3 );
 		add_action( 'woocommerce_before_calculate_totals', array( self::class, 'recompute_prices' ), 20 );
@@ -112,7 +120,30 @@ final class Cart {
 		 * manifest to read.
 		 */
 		$sides = Design::normalise_sides( $check['meta']['sides'] ?? array() );
+		if ( empty( $sides ) && ! empty( $check['meta']['verified'] ) ) {
+			/*
+			 * A CONFIRMED design that prints nothing is refused, never priced.
+			 *
+			 * `empty( $sides )` used to fall through to the request's sides for
+			 * this case too, which made the whole rule above decorative: upload a
+			 * real document with the `sides` key removed, POST `sides: []`, and
+			 * the line prices as an unprinted blank while the stored artwork is
+			 * still there for the workshop to press. Measured on the shipped
+			 * config: a tee run of 50 fell from 926,50 EUR to 308,50 EUR HT, and a
+			 * `custom` garment, whose blank is free because the customer ships it,
+			 * came to 0,00 EUR. The Worker now refuses such a document
+			 * (src/lib/teeshoop/designDoc.ts); this is the second lock, because
+			 * designs uploaded before it exists would still verify.
+			 */
+			return new \WP_Error(
+				'teeshoop_design_prints_nothing',
+				__( 'Cette création n’a aucune face imprimée. Rien n’a été ajouté au panier.', 'teeshoop' ),
+				array( 'status' => 422 )
+			);
+		}
 		if ( empty( $sides ) ) {
+			// Unverified, i.e. TEESHOOP_ALLOW_UNVERIFIED_DESIGNS in local
+			// development: there is no manifest to read, so the body is all there is.
 			$sides = Design::normalise_sides( $payload['sides'] ?? array() );
 			$sides_source = 'request';
 		} else {
@@ -130,10 +161,29 @@ final class Cart {
 
 		$size_grid = self::normalise_size_grid( $payload['size_grid'] ?? array() );
 		if ( ! empty( $size_grid ) ) {
-			// The grid IS the quantity when it is present — a customer who typed
+			// The grid IS the quantity when it is present: a customer who typed
 			// "10 M, 15 L" ordered 25 garments, whatever the qty field said.
-			$qty = array_sum( $size_grid );
-			$qty = max( 1, min( $qty, (int) $config['max_qty'] ) );
+			$qty = (int) array_sum( $size_grid );
+			/*
+			 * REFUSED, not clamped. `min( $qty, max_qty )` charged the cap while
+			 * storing the whole grid, so an order of 12 000 pieces was billed as
+			 * 10 000 and printed as 12 000: the grid is the only record of which
+			 * sizes to press, so 2 000 garments would have been made and never
+			 * invoiced. Silently reducing what someone ordered is also the wrong
+			 * answer to give a buyer.
+			 */
+			if ( $qty > (int) $config['max_qty'] ) {
+				return new \WP_Error(
+					'teeshoop_qty_too_high',
+					sprintf(
+						/* translators: %d: the largest quantity the shop accepts on one line. */
+						__( 'Cette commande dépasse %d pièces sur une seule ligne. Contactez-nous, nous la traitons à la main.', 'teeshoop' ),
+						(int) $config['max_qty']
+					),
+					array( 'status' => 400 )
+				);
+			}
+			$qty = max( 1, $qty );
 		}
 
 		$data = array(
@@ -212,6 +262,32 @@ final class Cart {
 				continue;
 			}
 			$data = $item[ self::KEY ];
+
+			/*
+			 * THE QUANTITY AND THE SIZE GRID MAY NEVER DISAGREE.
+			 *
+			 * Nothing stops WooCommerce rendering its own quantity box for a
+			 * personalised line, and a customer who typed 1 over a grid of 30 got
+			 * a line billed 14,50 EUR carrying the visible meta
+			 * "Tailles : 10 × M · 15 × L · 5 × XL". Whichever number the workshop
+			 * believed, one of them was wrong, and the expensive direction is 29
+			 * garments printed and never invoiced.
+			 *
+			 * The quantity wins, because it is what the customer last chose, and
+			 * the stale breakdown is DROPPED rather than kept as a wrong one. It
+			 * is enforced here rather than in a cart-page filter because this hook
+			 * is the one path every quantity change goes through: the classic
+			 * cart, the Store API the block cart uses, and the checkout.
+			 */
+			$grid_sum = (int) array_sum( array_map( 'intval', (array) ( $data['size_grid'] ?? array() ) ) );
+			if ( $grid_sum > 0 && $grid_sum !== (int) $item['quantity'] ) {
+				$cart->cart_contents[ $item['key'] ][ self::KEY ]['size_grid'] = array();
+				$data['size_grid'] = array();
+				self::log( 'size grid dropped: quantity ' . (int) $item['quantity'] . ' vs grid ' . $grid_sum );
+				if ( function_exists( 'wc_add_notice' ) && ! wc_has_notice( self::GRID_DROPPED, 'notice' ) ) {
+					wc_add_notice( self::GRID_DROPPED, 'notice' );
+				}
+			}
 
 			try {
 				$quote = Pricing::quote(
@@ -332,6 +408,12 @@ final class Cart {
 		$line->add_meta_data( '_teeshoop_design_id', (string) ( $data['design_id'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_garment', (string) ( $data['garment'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_sides', wp_json_encode( $data['sides'] ?? array() ), true );
+		// AS DATA, not only as the display string above. `renderPieces` needs the
+		// size to grade the transfer, and `printScaleK` returns 1 without one: a
+		// workshop re-rendering from a human-readable "10 × M · 15 × L" that it
+		// cannot parse would press every garment at the base size, so a 3XL would
+		// carry an M-sized chest print, 23 % narrow.
+		$line->add_meta_data( '_teeshoop_size_grid', wp_json_encode( $data['size_grid'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_sides_source', (string) ( $data['sides_source'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_files', wp_json_encode( $data['files'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_verified', ! empty( $data['verified'] ) ? 'yes' : 'no', true );

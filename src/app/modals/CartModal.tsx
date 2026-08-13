@@ -50,6 +50,11 @@ type Phase = 'measuring' | 'ready' | 'uploading' | 'adding' | 'done' | 'failed'
 function cartErrorKey(reason: string): string {
   if (reason === 'teeshoop_bad_nonce') return 'cart.err.expired'
   if (reason === 'timeout' || reason === 'network') return 'cart.err.timeout'
+  // An add is still running, most likely because the modal was closed over one
+  // and reopened. It has its own sentence because every other one here ends
+  // "rien n'a été ajouté au panier", and that would be a lie: the first request
+  // is in flight and will probably succeed.
+  if (reason === 'already_in_flight') return 'cart.err.in_flight'
   if (reason.startsWith('teeshoop_design_')) return 'cart.err.design_not_found'
   return 'cart.err.cart'
 }
@@ -65,6 +70,7 @@ export default function CartModal() {
   const [phase, setPhase] = useState<Phase>('measuring')
   const [sides, setSides] = useState<BridgeSide[] | null>(null)
   const [quote, setQuote] = useState<ShopQuote | null>(null)
+  const [quoteFailed, setQuoteFailed] = useState(false)
   const [outcome, setOutcome] = useState<CartOutcome | null>(null)
   const [errorKey, setErrorKey] = useState<string>('')
   const [errorDetail, setErrorDetail] = useState<string>('')
@@ -117,12 +123,20 @@ export default function CartModal() {
   useEffect(() => {
     if (!sides || qty < 1 || mismatch) return
     const mine = ++quoteSeq.current
+    setQuoteFailed(false)
     requestShopQuote({ garment: design.garmentId, qty, sides })
       .then((q) => {
         if (mine === quoteSeq.current) setQuote(q)
       })
       .catch(() => {
-        if (mine === quoteSeq.current) setQuote(null)
+        if (mine !== quoteSeq.current) return
+        setQuote(null)
+        // A failed quote is a FAILURE, not a longer wait. Falling back to the
+        // spinner left "Calcul du prix par la boutique" on screen for ever with
+        // an enabled buy button under it, so a customer could buy a line whose
+        // price they were never shown. Not hypothetical: on a shop with plain
+        // permalinks every quote 404'd while add-to-cart worked.
+        setQuoteFailed(true)
       })
   }, [sides, qty, mismatch, design.garmentId])
 
@@ -142,7 +156,14 @@ export default function CartModal() {
     if (!body || !card) return
     const chrome = card.clientHeight - body.clientHeight
     requestFrameHeight(Math.ceil((chrome + body.scrollHeight) / 0.92) + 48)
-  }, [])
+    // Re-measured as the content arrives, not once on mount. On mount there are
+    // no mockups (they render async), no areas box and a one-line price
+    // spinner, so the measurement was systematically small and `requestFrameHeight`
+    // dropped it for being under the current height: on a phone it asked for
+    // nothing at all and never asked again, which is the outcome the comment
+    // above says it exists to prevent. Re-asking is safe because the request
+    // only ever grows and the parent clamps it.
+  }, [sides, front, back, quote])
 
   const setSize = (size: SizeId, n: number): void =>
     setGrid((g) => ({ ...g, [size]: Math.max(0, Math.min(9999, n)) }))
@@ -308,6 +329,11 @@ export default function CartModal() {
                 )}
                 <div className="mt-2 text-[11px] text-tx3">{ct('cart.price_from_shop')}</div>
               </>
+            ) : quoteFailed ? (
+              <div className="flex gap-2 text-[12.5px] leading-relaxed text-tx" role="alert">
+                <TriangleAlert size={15} className="mt-0.5 shrink-0 text-dg" />
+                {ct('cart.err.quote')}
+              </div>
             ) : (
               <div className="flex items-center gap-2 text-[12.5px] text-tx2">
                 {qty < 1 ? (
@@ -360,7 +386,7 @@ export default function CartModal() {
             <button
               className="btn btn-primary h-11 w-full justify-center"
               data-teeshoop="add-to-cart"
-              disabled={busy || qty < 1 || mismatch || !sides}
+              disabled={busy || qty < 1 || mismatch || !sides || !quote}
               onClick={addToCart}
             >
               {busy ? (
