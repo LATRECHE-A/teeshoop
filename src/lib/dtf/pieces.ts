@@ -3,9 +3,9 @@
  *
  * Turns a printed side into the transfers that will actually be nested: one
  * transparent canvas per independent artwork item, cropped to that item's
- * tight, rotation-aware bounding box in INCHES (same math family as
- * sideArtworkSqIn in renderDesign.ts). The SAME rect is used for the nesting
- * geometry and for the pixels, so placements and artwork can never disagree.
+ * tight, rotation-aware INK box in inches (`src/lib/ink.ts`, which the customer
+ * price reads too). The SAME rect is used for the nesting geometry and for the
+ * pixels, so placements and artwork can never disagree.
  *
  * ONE PIECE PER ITEM, NOT ONE PER SIDE
  * ------------------------------------
@@ -28,11 +28,26 @@
  * modal lets the operator turn the split off for a job where handling costs
  * more than film.
  *
- * Two layers stay in the same piece ONLY when their boxes, each grown by half
- * of `clearanceIn`, intersect — union-find over the side's layers. Artwork that
- * overlaps or touches can therefore never be cut apart; everything else becomes
- * its own transfer. `MERGE_WHOLE_SIDE_IN` restores the old one-per-side
- * behaviour for callers that want to measure against it.
+ * AND THE BOX IS THE INK, NOT THE PLACEMENT RECTANGLE
+ * ---------------------------------------------------
+ * Splitting fixed the space BETWEEN visuals. It left the space INSIDE one: an
+ * upload's transparent margins, a cutout's, the leading of a multi-line stack.
+ * A layer's declared `wIn × hIn` is the box the artwork was dropped into, and
+ * every one of those empty millimetres was bought as film and charged to the
+ * customer as printed area. The extent of a visual is now measured from its own
+ * alpha (`layerInkBox`), which is also what the Bible's imposition tool asks for
+ * — «largeur et hauteur de chaque VISUEL». The measurement is taken once from
+ * the source, in fractions of the layer's own box, so it is the same number at
+ * 28 DPI in the preview and at 300 DPI in the export: the nested layout and the
+ * pixels poured into it cannot drift apart.
+ *
+ * Two layers stay in the same piece ONLY when their INK boxes, each grown by
+ * half of `clearanceIn`, intersect — union-find over the side's layers. Artwork
+ * that overlaps or touches can therefore never be cut apart; everything else
+ * becomes its own transfer. Measuring the ink rather than the rectangle also
+ * stops two padded uploads from merging because their empty margins happened to
+ * touch. `MERGE_WHOLE_SIDE_IN` restores the old one-per-side behaviour for
+ * callers that want to measure against it.
  *
  * Each piece draws ONLY ITS OWN LAYERS. Cropping a shared full-area render
  * would be cheaper by one canvas, but two clusters' union boxes can legitimately
@@ -65,53 +80,73 @@ import type { Design, Layer, RectIn, Side, SizeIn, SizeId } from '@/lib/types'
 import {
   drawLayerContent,
   getAreaSizeIn,
-  measureLayer,
   prepareSide,
   sideLayers,
 } from '@/lib/renderDesign'
 import { printScaleK, scaleLayers } from '@/lib/printScale'
 import { getCachedAssetImage } from '@/state/assets'
+import {
+  ensureInkProbes,
+  MERGE_WHOLE_SIDE_IN,
+  PIECE_CLEARANCE_IN,
+  sideInkClusters,
+  type InkBox,
+  type InkMeasure,
+} from '@/lib/ink'
 import { CM_PER_IN, degToRad } from '@/lib/units'
 
-/** Ignore slivers thinner than this (inches) — nothing printable there. */
-const MIN_EXTENT_IN = 0.05
+/**
+ * Below this (inches) a transfer is too thin to be represented. It is a FLOOR,
+ * not a filter: the box is grown to it. A 0,4 mm hairline rule is real artwork,
+ * and dropping it — which is what the old rule did — would delete a customer's
+ * design element with no error anywhere.
+ *
+ * 0,08 in = 2,0 mm, which is 2 px at `PREVIEW_DPI` (28), the lowest density
+ * anything renders at. That is not a coincidence: `canvas.width` is
+ * `max(2, round(wIn × dpi))`, so a rect under 2 px would be drawn into a canvas
+ * bigger than itself, and `renderSheet` stretches a piece's canvas to fill its
+ * placement — the cutting plan would show a hairline 40 % too fat. At this floor
+ * `round(wIn × dpi) ≥ 2` holds by construction at every DPI in use.
+ */
+const MIN_EXTENT_IN = 0.08
 
 /**
- * How close two layers must be to stay ONE transfer, inches.
+ * Slack added around every trimmed visual, inches. 0,02 in = 0,5 mm.
  *
- * 0.2 in = 5,1 mm, and it is the film gap in disguise. Two pieces nested apart
- * end up `gapCm` from each other — 5 mm on every researched supplier — plus a
- * scissor cut, so splitting artwork that already sits closer than that frees no
- * film worth having while handing the operator two transfers to align to under
- * a millimetre on the garment. Above it, the gap on the shirt is wide enough
- * that a press guide is the right tool anyway.
- *
- * It also swallows edge bleed roughly sixty times over. The widest thing that
- * leaks past a layer's MEASURED box is an anti-aliased edge, ≈ 1 px = 0,08 mm
- * at 300 dpi; a graphic's soft shadow is baked inside its own SVG viewBox and
- * is therefore already inside the box. So a cluster's crop can neither clip a
- * feathered edge that mattered nor sit close enough to a neighbour for the two
- * to be confused — the same reasoning `MASK_ALPHA_FLOOR` applies to the mask.
+ * Under declared boxes the crop always had margin to spare, so the roundings
+ * downstream were free. They are not any more: the crop is tangent to the ink,
+ * and `canvas.width = round(wIn × dpi)` can round DOWN half a pixel — 0,45 mm at
+ * 28 DPI — straight off the outermost glyph edge. This is DPI-independent (it
+ * has to be; the geometry is shared between the 28-DPI preview and the 300-DPI
+ * export), it covers that half pixel five times over, and against a 5 mm nesting
+ * gap it costs nothing worth measuring.
  */
-export const PIECE_CLEARANCE_IN = 0.2
+const TRIM_BLEED_IN = 0.02
 
 /**
- * Clearance sentinel meaning "never split this side": larger than any garment,
- * so every layer lands in one cluster and the side emits the single transfer it
- * did before splitting existed. Finite on purpose — Infinity survives the
- * arithmetic here but not a JSON round trip.
+ * The merge distance and the "never split" sentinel now live with the ink
+ * measurement (`src/lib/ink.ts`), because the customer-facing price needs the
+ * same split as the film does and must not reach into an admin-only module to
+ * get it. Re-exported so the DTF modal keeps importing them from here.
  */
-export const MERGE_WHOLE_SIDE_IN = 1e6
+export { MERGE_WHOLE_SIDE_IN, PIECE_CLEARANCE_IN }
 
 export interface PieceSplitOptions {
   /**
    * Merge distance, inches. Defaults to `PIECE_CLEARANCE_IN`; pass
-   * `MERGE_WHOLE_SIDE_IN` for one transfer per side. This is the ONLY knob:
-   * there is deliberately no minimum piece size, because merging a small item
-   * into a distant neighbour means buying the empty film between them, which is
-   * the exact waste splitting exists to remove.
+   * `MERGE_WHOLE_SIDE_IN` for one transfer per side. There is deliberately no
+   * minimum piece size, because merging a small item into a distant neighbour
+   * means buying the empty film between them, which is the exact waste
+   * splitting exists to remove.
    */
   clearanceIn?: number
+  /**
+   * `'box'` measures every visual from its declared rectangle instead of its
+   * ink — the pre-2026-08-13 geometry. Not an operator setting: it exists so
+   * `scripts/dtf-bench.mjs` can put both against each other on the same order
+   * and report what the trim is actually worth.
+   */
+  measureFrom?: InkMeasure
 }
 
 /**
@@ -138,80 +173,47 @@ export const piecePartKey = (baseKey: string, part: number, parts: number): stri
 // Splitting a side into independent items
 // ---------------------------------------------------------------------------
 
-/** Rotation-aware extent of one layer, inches from the print-area centre. */
-interface Box {
-  x0: number
-  x1: number
-  y0: number
-  y1: number
-}
-
-function layerBox(l: Layer): Box {
-  const m = measureLayer(l, 100)
-  const wI = m.w / 100
-  const hI = m.h / 100
-  const r = Math.abs(degToRad(l.rotation))
-  const hx = (wI / 2) * Math.abs(Math.cos(r)) + (hI / 2) * Math.abs(Math.sin(r))
-  const hy = (wI / 2) * Math.abs(Math.sin(r)) + (hI / 2) * Math.abs(Math.cos(r))
-  return { x0: l.xIn - hx, x1: l.xIn + hx, y0: l.yIn - hy, y1: l.yIn + hy }
+/**
+ * Grow a span to at least `MIN_EXTENT_IN` without leaving `[0, limit]`, then
+ * report it. Symmetric where there is room, pushed inward at an edge.
+ */
+function atLeastMin(lo: number, hi: number, limit: number): [number, number] {
+  const need = Math.min(MIN_EXTENT_IN, limit)
+  if (hi - lo >= need) return [lo, hi]
+  const grow = (need - (hi - lo)) / 2
+  let a = lo - grow
+  let b = hi + grow
+  if (a < 0) {
+    b -= a
+    a = 0
+  }
+  if (b > limit) {
+    a -= b - limit
+    b = limit
+  }
+  return [Math.max(0, a), Math.min(limit, b)]
 }
 
 /**
- * Group layers into independent items, union-find over every pair.
+ * Clamp an item's ink extent to the print area, in top-left-origin inches.
+ * Null only when nothing of it lands inside the area at all.
  *
- * Each box is grown by HALF the clearance, so two layers merge exactly when
- * the empty space between them is under `clearanceIn` — the number the UI
- * shows. Overlapping layers merge whatever the clearance is, which is the
- * guarantee that matters: you cannot cut a graphic that overlaps another one.
- *
- * O(n²) on the layers of ONE side (single digits in practice), and the union
- * always keeps the smaller root, so the grouping does not depend on which pair
- * happens to be visited first.
+ * A span thinner than `MIN_EXTENT_IN` is GROWN to it rather than discarded. The
+ * old rule dropped the whole cluster, which was survivable while the box was a
+ * layer's declared rectangle (always at least as big as the artwork) and is not
+ * survivable now that it is the ink: a 0,4 mm rule under a wordmark measures
+ * 0,4 mm tall, and dropping it would remove it from the print in silence.
  */
-function clusterLayers(layers: Layer[], clearanceIn: number): Layer[][] {
-  const n = layers.length
-  const parent = new Int32Array(n)
-  for (let i = 0; i < n; i++) parent[i] = i
-  const find = (i: number): number => {
-    let r = i
-    while (parent[r] !== r) r = parent[r]
-    while (parent[i] !== r) {
-      const next = parent[i]
-      parent[i] = r
-      i = next
-    }
-    return r
-  }
-  const boxes = layers.map(layerBox)
-  const c = Math.max(0, clearanceIn) / 2
-  for (let i = 0; i < n; i++)
-    for (let j = i + 1; j < n; j++) {
-      const a = boxes[i]
-      const b = boxes[j]
-      if (a.x0 - c > b.x1 + c || b.x0 - c > a.x1 + c) continue
-      if (a.y0 - c > b.y1 + c || b.y0 - c > a.y1 + c) continue
-      const ra = find(i)
-      const rb = find(j)
-      if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb)
-    }
-  const groups = new Map<number, Layer[]>()
-  for (let i = 0; i < n; i++) {
-    const r = find(i)
-    const g = groups.get(r)
-    if (g) g.push(layers[i])
-    else groups.set(r, [layers[i]])
-  }
-  return [...groups.values()]
-}
-
-/** Clamp an item's extent to the print area; null when nothing printable is left. */
-function clampToArea(b: Box, area: SizeIn): RectIn | null {
-  const x0 = Math.max(-area.wIn / 2, b.x0)
-  const x1 = Math.min(area.wIn / 2, b.x1)
-  const y0 = Math.max(-area.hIn / 2, b.y0)
-  const y1 = Math.min(area.hIn / 2, b.y1)
-  if (x1 - x0 < MIN_EXTENT_IN || y1 - y0 < MIN_EXTENT_IN) return null
-  return { xIn: x0 + area.wIn / 2, yIn: y0 + area.hIn / 2, wIn: x1 - x0, hIn: y1 - y0 }
+function clampToArea(b: InkBox, area: SizeIn): RectIn | null {
+  const x0 = Math.max(-area.wIn / 2, b.x0 - TRIM_BLEED_IN)
+  const x1 = Math.min(area.wIn / 2, b.x1 + TRIM_BLEED_IN)
+  const y0 = Math.max(-area.hIn / 2, b.y0 - TRIM_BLEED_IN)
+  const y1 = Math.min(area.hIn / 2, b.y1 + TRIM_BLEED_IN)
+  if (x1 <= x0 || y1 <= y0) return null
+  const [ax0, ax1] = atLeastMin(x0 + area.wIn / 2, x1 + area.wIn / 2, area.wIn)
+  const [ay0, ay1] = atLeastMin(y0 + area.hIn / 2, y1 + area.hIn / 2, area.hIn)
+  if (ax1 - ax0 <= 0 || ay1 - ay0 <= 0) return null
+  return { xIn: ax0, yIn: ay0, wIn: ax1 - ax0, hIn: ay1 - ay0 }
 }
 
 export interface PiecePart {
@@ -241,26 +243,20 @@ export function artworkParts(
   size?: SizeId,
   opts?: PieceSplitOptions,
 ): PiecePart[] {
-  const layers = scaleLayers(sideLayers(design, side), printScaleK(design, size))
-  if (layers.length === 0) return []
   const area = getAreaSizeIn(design, side, size)
   if (!(area.wIn > 0) || !(area.hIn > 0)) return []
   const clearance = opts?.clearanceIn ?? PIECE_CLEARANCE_IN
   const seen: { rect: RectIn; layers: Layer[]; seq: number }[] = []
-  const groups = clusterLayers(layers, clearance)
-  for (let i = 0; i < groups.length; i++) {
-    const g = groups[i]
-    const boxes = g.map(layerBox)
-    const rect = clampToArea(
-      {
-        x0: Math.min(...boxes.map((b) => b.x0)),
-        x1: Math.max(...boxes.map((b) => b.x1)),
-        y0: Math.min(...boxes.map((b) => b.y0)),
-        y1: Math.max(...boxes.map((b) => b.y1)),
-      },
-      area,
-    )
-    if (rect) seen.push({ rect, layers: g, seq: i })
+  const clusters = sideInkClusters(
+    design,
+    side,
+    size,
+    clearance,
+    opts?.measureFrom ?? 'ink',
+  )
+  for (let i = 0; i < clusters.length; i++) {
+    const rect = clampToArea(clusters[i].box, area)
+    if (rect) seen.push({ rect, layers: clusters[i].layers, seq: i })
   }
   // Total order: reading order, with the cluster's first-layer position as the
   // final tiebreak, so the part suffix of a given item never moves between two
@@ -390,9 +386,25 @@ export async function renderPieces(
   opts?: PieceSplitOptions & { baseKey?: string },
 ): Promise<RenderedPiece[]> {
   const k = printScaleK(design, size)
-  // Load fonts/assets/rasters FIRST so measurement is export-exact. The
-  // effective density is dpi × k, so a graded-up piece still rasters crisply.
-  await prepareSide(design, side, dpi * k)
+  // Load fonts/assets/rasters FIRST so measurement is export-exact — for the
+  // GRADED layers at the density they are drawn at, which is both the effective
+  // resolution and the cache key `drawLayerContent` will look up.
+  await prepareSide(design, side, dpi, scaleLayers(sideLayers(design, side), k))
+  // …then measure where the ink is, and REFUSE if anything could not be
+  // measured. Falling back to the declared box here is the one failure that
+  // reaches the film: the layout is nested from the 28-DPI preview and filled
+  // with a separate 300-DPI render, `renderSheet` stretches each source to fill
+  // its placement, so a layer that failed to decode on one pass and succeeded on
+  // the other would print at the ratio between a padded box and a tight one.
+  // Loud and empty beats quiet and wrong — the modal shows the row as failed and
+  // `buildOrderZip` refuses an archive with a missing source for the same reason.
+  const { unmeasured } = await ensureInkProbes(sideLayers(design, side))
+  if (unmeasured.length > 0)
+    throw new Error(
+      `Cannot measure the artwork on ${side}: ${unmeasured
+        .map((l) => l.name || l.id)
+        .join(', ')}`,
+    )
   const parts = artworkParts(design, side, size, opts)
   if (parts.length === 0) return []
 

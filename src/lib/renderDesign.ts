@@ -173,14 +173,24 @@ export const graphicRasterKey = (layer: GraphicLayer, ppi: number) =>
 /**
  * Load everything a side needs (fonts, asset images, graphic rasters) so the
  * subsequent draw is synchronous. `maxPpi` sizes graphic rasters.
+ *
+ * PASS THE LAYERS YOU WILL DRAW, and the ppi you will draw them at. A graphic's
+ * raster is cached under `sizeBucket(layer.wIn × max(ppi, 96))`, so preparing
+ * the UNGRADED layers at `ppi × k` and drawing the GRADED ones at `ppi` computes
+ * two different keys whenever `ppi < 96` and `k ≠ 1` — `max(ppi × k, 96)` is not
+ * `k × max(ppi, 96)`. `getRaster` then misses and `drawGraphicLayerContent`
+ * returns early, i.e. the graphic is silently NOT DRAWN. That is exactly the
+ * 28-DPI DTF preview of any graded design: a badge that vanishes from the
+ * transfer with nothing logged and nothing on screen to notice.
  */
 export async function prepareSide(
   design: Design,
   side: Side,
   maxPpi: number,
+  layers?: Layer[],
 ): Promise<void> {
   const jobs: Promise<unknown>[] = []
-  for (const layer of sideLayers(design, side)) {
+  for (const layer of layers ?? sideLayers(design, side)) {
     if (layer.type === 'text') jobs.push(ensureFont(layer.fontFamily))
     if (layer.type === 'image')
       jobs.push(
@@ -255,34 +265,11 @@ export function measureLayer(layer: Layer, ppi: number): { w: number; h: number 
 }
 
 /**
- * Bounding-box footprint of a side's placed artwork in square inches, clamped
- * to the print area (rotation-aware). Feeds area-aware pricing — a bigger print
- * lands in a higher tier. Returns 0 when the side is empty.
+ * The priced footprint of a side used to live here, as one rotation-expanded
+ * box around every layer. It is now `sideArtworkSqCm` in `src/lib/ink.ts`,
+ * because the number a customer pays for and the number the film costs have to
+ * be the same measurement, and that one is measured from the ink.
  */
-export function sideArtworkSqIn(design: Design, side: Side): number {
-  const layers = sideLayers(design, side)
-  if (layers.length === 0) return 0
-  let minX = Infinity
-  let maxX = -Infinity
-  let minY = Infinity
-  let maxY = -Infinity
-  for (const l of layers) {
-    const m = measureLayer(l, 100)
-    const wI = m.w / 100
-    const hI = m.h / 100
-    const r = Math.abs(degToRad(l.rotation))
-    const hx = (wI / 2) * Math.abs(Math.cos(r)) + (hI / 2) * Math.abs(Math.sin(r))
-    const hy = (wI / 2) * Math.abs(Math.sin(r)) + (hI / 2) * Math.abs(Math.cos(r))
-    minX = Math.min(minX, l.xIn - hx)
-    maxX = Math.max(maxX, l.xIn + hx)
-    minY = Math.min(minY, l.yIn - hy)
-    maxY = Math.max(maxY, l.yIn + hy)
-  }
-  const area = getAreaSizeIn(design, side)
-  const wIn = Math.min(area.wIn, maxX - minX)
-  const hIn = Math.min(area.hIn, maxY - minY)
-  return Math.max(0, wIn) * Math.max(0, hIn)
-}
 
 /**
  * Render the full print area (transparent) at `ppi` — this canvas IS the
@@ -300,9 +287,10 @@ export async function renderPrintArea(
   const k = printScaleK(design, size)
   const layers = scaleLayers(sideLayers(design, side), k)
   if (layers.length === 0) return null
-  // Font/image rasters are cached per (layer, ppi); grading changes the drawn
-  // size, so prepare at the EFFECTIVE resolution or graded text renders blurry.
-  await prepareSide(design, side, ppi * k)
+  // Prepare THESE layers at THIS ppi: they are already graded, so their rasters
+  // come out at the effective resolution and under the very key the draw below
+  // will look up.
+  await prepareSide(design, side, ppi, layers)
 
   const area = getAreaSizeIn(design, side, size)
   // A zero area is `getAreaSizeIn` refusing: this garment has no such side and

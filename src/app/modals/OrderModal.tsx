@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Copy, Mail, Minus, Plus } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
 import { useMockupUrl } from '../hooks/useMockup'
 import { QTY_BREAKS, SIZES, areaTier, quote } from '@/content/pricing'
-import { sideArtworkSqIn, sideLayers } from '@/lib/renderDesign'
+import { ensureInkProbes, sideArtworkSqCm } from '@/lib/ink'
+import { sideLayers } from '@/lib/renderDesign'
 import type { Side } from '@/lib/types'
 import { BUSINESS } from '@/config'
 import { useT } from '@/i18n'
@@ -19,11 +20,32 @@ export default function OrderModal() {
   const front = useMockupUrl(design, 'front', 380)
   const back = useMockupUrl(design, 'back', 380)
 
-  const printedSideList = (['front', 'back', 'sleeve'] as Side[]).filter(
-    (sd) => sideLayers(design, sd).length > 0,
-  )
-  const printedSides = printedSideList.length
-  const sideAreas = printedSideList.map((sd) => sideArtworkSqIn(design, sd))
+  /**
+   * The printed area is measured from the artwork's own pixels, and a layer that
+   * has not been decoded yet measures as its full declared box. Reading that
+   * straight out of the render body would quote the padded price and then swap
+   * it for the tight one a frame later — a +4 $ per side flip in front of the
+   * buyer, caused by nothing they did. So the probes are warmed first and the
+   * quote is held until they are: `inkReady` is the gate, not a spinner.
+   */
+  const [inkReady, setInkReady] = useState(false)
+  useEffect(() => {
+    let alive = true
+    setInkReady(false)
+    ensureInkProbes(design.layers).then(() => alive && setInkReady(true))
+    return () => {
+      alive = false
+    }
+  }, [design])
+
+  // A side carrying layers but no printable ink — everything on it transparent,
+  // or dragged off the print area — is not a printed side. `sideArtworkSqCm`
+  // returns 0 there, and both price engines read 0 as "nothing to press".
+  const sideAreas = (['front', 'back', 'sleeve'] as Side[])
+    .filter((sd) => sideLayers(design, sd).length > 0)
+    .map((sd) => sideArtworkSqCm(design, sd))
+    .filter((sq) => sq > 0)
+  const printedSides = sideAreas.length
   const maxArea = sideAreas.length ? Math.max(...sideAreas) : 0
   const tier = maxArea > 0 ? areaTier(design.garmentId, maxArea) : null
   const qty = Object.values(sizes).reduce((a, b) => a + b, 0)
@@ -160,9 +182,9 @@ export default function OrderModal() {
                 </span>
               ) : null}
             </div>
-            {maxArea > 0 && tier && (
+            {inkReady && maxArea > 0 && tier && (
               <div className="mt-2 border-t border-line pt-2 text-[11px] text-tx3">
-                {t('order.print_area', { sqin: Math.round(maxArea), tier: t(tier.labelKey) })}
+                {t('order.print_area', { sqcm: Math.round(maxArea), tier: t(tier.labelKey) })}
               </div>
             )}
           </section>

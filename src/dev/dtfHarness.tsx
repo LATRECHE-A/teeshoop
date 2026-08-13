@@ -34,8 +34,9 @@ import { buildOrderZip, planLegend } from '@/lib/dtf/zipExport'
 import { estimateCost, loadSuppliers, type CostEstimate } from '@/lib/dtf/suppliers'
 import { APP_VERSION } from '@/config'
 import { makeSampleDesign } from '@/content/sampleDesign'
+import { addAsset, ensureAssetImage } from '@/state/assets'
 import { useStore } from '@/state/store'
-import type { Side, SizeId } from '@/lib/types'
+import type { Design, Layer, Side, SizeId } from '@/lib/types'
 
 declare global {
   interface Window {
@@ -147,6 +148,30 @@ declare global {
           }[]
         }[]
       >
+      /**
+       * Render each side of the PADDED-UPLOAD fixture with the geometry taken
+       * from the ink and from the declared rectangle, and compare. The sample
+       * design has nothing to trim; a customer's PNG does.
+       */
+      trimProbe: (dpi?: number) => Promise<
+        {
+          side: Side
+          partsTrimmed: number
+          partsDeclared: number
+          inkTrimmed: number
+          inkDeclared: number
+          boxTrimmedCm2: number
+          boxDeclaredCm2: number
+          sizesTrimmed: [number, number][]
+          sizesDeclared: [number, number][]
+          placements: { part: number; topCm: number; centerDxCm: number; insideArea: boolean }[]
+        }[]
+      >
+      /** The padded order as nest pieces, either geometry — same shape as `samplePieces`. */
+      paddedPieces: (
+        dpi: number,
+        opts?: { measureFrom?: 'ink' | 'box' },
+      ) => ReturnType<typeof window.__dtf.samplePieces>
       /** True once the modal preview has at least one sheet canvas drawn. */
       previewReady: () => boolean
     }
@@ -404,6 +429,200 @@ async function splitProbe(dpi = 48) {
   return out
 }
 
+// ---------------------------------------------------------------------------
+// The padded-upload fixture
+// ---------------------------------------------------------------------------
+
+/**
+ * The sample design has nothing to trim, and that is not an accident: its text
+ * is measured from glyph ink and its graphics are hand-authored on tight
+ * viewBoxes. Measured on it, an ink trim recovers 2,6 % of one piece and moves
+ * no roll length at all.
+ *
+ * What the shop actually prints is customer uploads, and a customer's PNG is
+ * padded — exported from Illustrator on a square artboard, cut out of a photo
+ * by the background remover, dropped in with room around the mark. So the trim
+ * has to be measured against THAT, and the fixture is built here rather than
+ * shipped as a file so the padding is an exact, stated number instead of
+ * whatever a checked-in asset happens to contain.
+ *
+ * Two of the three uploads are placed so their DECLARED boxes overlap while
+ * their ink sits inches apart — the false merge, which costs a whole extra
+ * transfer's worth of empty film and is invisible in the preview.
+ */
+const UPLOADS = [
+  {
+    // Chest lockup on a square artboard: the mark fills half of it each way.
+    name: 'chest-lockup',
+    pxW: 1200,
+    pxH: 1200,
+    ink: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 },
+    place: { wIn: 9, hIn: 9, xIn: 0, yIn: -1.5, rotation: 0 },
+    side: 'front' as Side,
+  },
+  {
+    // Hem strip: a wide bar sitting low in a much taller export.
+    name: 'hem-strip',
+    pxW: 1800,
+    pxH: 600,
+    ink: { x: 0.05, y: 0.62, w: 0.9, h: 0.3 },
+    place: { wIn: 6, hIn: 2, xIn: 0, yIn: 3.1, rotation: 0 },
+    side: 'front' as Side,
+  },
+  {
+    // Background-removed subject: off-centre, and turned.
+    name: 'cutout-subject',
+    pxW: 1000,
+    pxH: 700,
+    ink: { x: 0.08, y: 0.3, w: 0.34, h: 0.5 },
+    place: { wIn: 8, hIn: 5.6, xIn: -0.6, yIn: -2, rotation: 12 },
+    side: 'back' as Side,
+  },
+]
+
+/** A transparent PNG with one opaque rectangle in it, at a stated fraction. */
+async function paddedPng(
+  pxW: number,
+  pxH: number,
+  ink: { x: number; y: number; w: number; h: number },
+): Promise<Blob> {
+  const canvas = document.createElement('canvas')
+  canvas.width = pxW
+  canvas.height = pxH
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#20242c'
+  ctx.fillRect(
+    Math.round(ink.x * pxW),
+    Math.round(ink.y * pxH),
+    Math.round(ink.w * pxW),
+    Math.round(ink.h * pxH),
+  )
+  return new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no blob'))), 'image/png'),
+  )
+}
+
+let paddedDesignCache: Design | null = null
+
+/** Built once per tab: `addAsset` writes to IndexedDB and decoding is not free. */
+async function makePaddedDesign(): Promise<Design> {
+  if (paddedDesignCache) return paddedDesignCache
+  const base = makeSampleDesign()
+  const layers: Layer[] = []
+  for (const u of UPLOADS) {
+    const meta = await addAsset(await paddedPng(u.pxW, u.pxH, u.ink), u.name)
+    await ensureAssetImage(meta.id, 'original')
+    layers.push({
+      id: `padded-${u.name}`,
+      type: 'image',
+      side: u.side,
+      name: u.name,
+      assetId: meta.id,
+      opacity: 1,
+      flipX: false,
+      useCutout: false,
+      ...u.place,
+    })
+  }
+  paddedDesignCache = { ...base, id: 'padded-upload-fixture', name: 'Padded uploads', layers }
+  return paddedDesignCache
+}
+
+/** Inked pixels (alpha ≥ the mask floor) on a rendered transfer. */
+function inkPx(p: RenderedPiece): number {
+  const ctx = p.canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return 0
+  const d = ctx.getImageData(0, 0, p.canvas.width, p.canvas.height).data
+  let n = 0
+  for (let i = 3; i < d.length; i += 4) if (d[i] >= 8) n++
+  return n
+}
+
+/**
+ * Ink-measured vs declared-rectangle geometry, on the padded fixture, through
+ * the shipped pipeline.
+ *
+ * The claim the trim makes is exactly as narrow as the split's: the SAME ink,
+ * in less bounding box. So this counts inked pixels on both arms. Anything the
+ * trim clips shows up here immediately as missing ink, and a trim that clips is
+ * a reprint — the one failure worth building a harness for.
+ */
+async function trimProbe(dpi = 48) {
+  const design = await makePaddedDesign()
+  const out = []
+  for (const side of ['front', 'back'] as Side[]) {
+    const trimmed = await renderPieces(design, side, dpi)
+    const declared = await renderPieces(design, side, dpi, undefined, { measureFrom: 'box' })
+    out.push({
+      side,
+      partsTrimmed: trimmed.length,
+      partsDeclared: declared.length,
+      inkTrimmed: trimmed.reduce((a, p) => a + inkPx(p), 0),
+      inkDeclared: declared.reduce((a, p) => a + inkPx(p), 0),
+      boxTrimmedCm2: Math.round(trimmed.reduce((a, p) => a + p.wCm * p.hCm, 0) * 10) / 10,
+      boxDeclaredCm2: Math.round(declared.reduce((a, p) => a + p.wCm * p.hCm, 0) * 10) / 10,
+      sizesTrimmed: trimmed.map((p) => [r1(p.wCm), r1(p.hCm)] as [number, number]),
+      sizesDeclared: declared.map((p) => [r1(p.wCm), r1(p.hCm)] as [number, number]),
+      // Where each transfer goes must still land inside the print area, and it
+      // must have MOVED — a trim that shrinks the box without moving the press
+      // instruction is a transfer pressed off-centre by the discarded margin.
+      placements: trimmed.map((p) => {
+        const pl = piecePlacementCm(p)
+        return {
+          part: p.part,
+          topCm: r2(pl.topCm),
+          centerDxCm: r2(pl.centerDxCm),
+          insideArea:
+            p.areaRectIn.xIn >= -1e-6 &&
+            p.areaRectIn.yIn >= -1e-6 &&
+            p.areaRectIn.xIn + p.areaRectIn.wIn <= p.areaWIn + 1e-6 &&
+            p.areaRectIn.yIn + p.areaRectIn.hIn <= p.areaHIn + 1e-6,
+        }
+      }),
+    })
+  }
+  return out
+}
+
+const r1 = (v: number) => Math.round(v * 10) / 10
+const r2 = (v: number) => Math.round(v * 100) / 100
+
+/**
+ * The padded order, as nest pieces — the same shape `samplePieces` returns so
+ * the bench can run both arms through the identical packing code.
+ */
+async function paddedPieces(dpi: number, opts: { measureFrom?: 'ink' | 'box' } = {}) {
+  const design = await makePaddedDesign()
+  const out: Awaited<ReturnType<typeof window.__dtf.samplePieces>> = []
+  const store: Map<string, RenderedPiece> = window.__dtfSources ?? new Map()
+  const sizes: SizeId[] = ['S', 'M', 'L', 'XL']
+  for (const side of ['front', 'back'] as Side[])
+    for (const size of sizes) {
+      const row = `${opts.measureFrom ?? 'ink'}:${side}#${size}`
+      const parts = await renderPieces(design, side, dpi, size, {
+        ...(opts.measureFrom ? { measureFrom: opts.measureFrom } : {}),
+        baseKey: row,
+      })
+      for (const p of parts) {
+        store.set(p.sourceKey, p)
+        const pl = piecePlacementCm(p)
+        out.push({
+          key: p.sourceKey,
+          row,
+          part: p.part,
+          parts: p.parts,
+          wCm: p.wCm,
+          hCm: p.hCm,
+          topCm: pl.topCm,
+          centerDxCm: pl.centerDxCm,
+          mask: pieceMask(p),
+        })
+      }
+    }
+  window.__dtfSources = store
+  return out
+}
+
 /**
  * Does the cutting-plan legend describe the lines the plan actually draws?
  *
@@ -524,6 +743,8 @@ window.__dtf = {
   sampleOrderZip,
   legendProbe,
   splitProbe,
+  trimProbe,
+  paddedPieces,
   previewReady: () => {
     const els = document.querySelectorAll<HTMLCanvasElement>('canvas[data-dtf="sheet-canvas"]')
     if (els.length === 0) return false

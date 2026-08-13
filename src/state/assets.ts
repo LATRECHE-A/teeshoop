@@ -137,11 +137,28 @@ interface CacheEntry {
 const imageCache = new Map<string, CacheEntry>()
 const cacheKey = (id: string, variant: AssetVariant) => `${id}:${variant}`
 
+/**
+ * How many times an asset's bytes have been replaced under the same id.
+ *
+ * Anything that DERIVES something from an asset's pixels and caches it has to
+ * be able to tell "the same asset" from "the same id, different pixels" —
+ * re-running background removal overwrites the cutout blob in place, so an id
+ * alone is not an identity. Callers put this number in their own cache key
+ * (see `src/lib/ink.ts`), which means every future invalidation path invalidates
+ * them too, without this module having to know they exist.
+ */
+const revisions = new Map<string, number>()
+
+export function assetRevision(id: string, variant: AssetVariant = 'original'): number {
+  return revisions.get(cacheKey(id, variant)) ?? 0
+}
+
 export function invalidateAssetImage(id: string, variant: AssetVariant) {
   const key = cacheKey(id, variant)
   const entry = imageCache.get(key)
   if (entry?.url) URL.revokeObjectURL(entry.url)
   imageCache.delete(key)
+  revisions.set(key, (revisions.get(key) ?? 0) + 1)
 }
 
 /** Load (and cache) the drawable image for an asset. */

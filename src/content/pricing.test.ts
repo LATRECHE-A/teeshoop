@@ -46,18 +46,30 @@ describe('quantity breaks', () => {
 })
 
 describe('area tiers', () => {
-  it('A4 and under is the standard price — at the boundary exactly', () => {
-    expect(areaTier('tee', 96.99)?.addUsd).toBe(0)
-    expect(areaTier('tee', 97)?.addUsd).toBe(0)
-    expect(areaTier('tee', 97.01)?.addUsd).toBe(4)
-    expect(areaTier('tee', 193)?.addUsd).toBe(4)
-    expect(areaTier('tee', 193.01)?.addUsd).toBe(9)
+  it('A4 and under is the standard price — at the boundary exactly, in cm²', () => {
+    expect(areaTier('tee', 624.99)?.addUsd).toBe(0)
+    expect(areaTier('tee', 625)?.addUsd).toBe(0)
+    expect(areaTier('tee', 625.01)?.addUsd).toBe(4)
+    expect(areaTier('tee', 1250)?.addUsd).toBe(4)
+    expect(areaTier('tee', 1250.01)?.addUsd).toBe(9)
+  })
+
+  /**
+   * The studio is a preview; `Pricing::area_tier` in wp-plugins/teeshoop-core is
+   * what the customer is charged by. These held 97 in² and 193 in² — 625,81 and
+   * 1245,16 cm² — so a print of 625,4 cm² was quoted "standard, +$0" here and
+   * invoiced +4,00 € there, and one of 1247 cm² was quoted +$9 and invoiced +4 €.
+   * Two silent disagreement bands, live the day the bridge is wired.
+   */
+  it('the boundaries are the PHP authority’s, to the unit', () => {
+    const bounds = PRICING.tee.areaTiers!.map((t) => t.maxSqCm)
+    expect(bounds).toEqual([625, 1250, Infinity])
   })
 
   it('the tier ladder is sorted ascending (find() takes the first match)', () => {
     const tiers = PRICING.tee.areaTiers!
     for (let i = 1; i < tiers.length; i++)
-      expect(tiers[i].maxSqIn).toBeGreaterThan(tiers[i - 1].maxSqIn)
+      expect(tiers[i].maxSqCm).toBeGreaterThan(tiers[i - 1].maxSqCm)
   })
 })
 

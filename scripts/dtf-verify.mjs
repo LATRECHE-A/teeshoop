@@ -1,17 +1,22 @@
 /**
  * Headless verification for the DTF gang-sheet module.
  *
- * Boots Vite dev, loads dev/dtf.html and runs three suites in-page against the
+ * Boots Vite dev, loads dev/dtf.html and runs five suites in-page against the
  * real bundle, then screenshots the admin modal:
  *
  *  1. SHELF PACKER — determinism, gap-aware non-overlap, width bounds, straight
  *     full-width corridors, qty expansion, rotation rules, max-length split.
- *  2. TRUE-SHAPE PACKER — determinism across three consecutive runs AND across
+ *  2. PER-VISUAL SPLIT — the same ink in smaller boxes, unique part keys in
+ *     reading order, and a placement for every transfer.
+ *  3. INK TRIM — the same, one level down: a visual's box is its ink and not the
+ *     rectangle it was dropped into. Measured on a PADDED-UPLOAD fixture the
+ *     harness builds, because the sample design has nothing to trim.
+ *  4. TRUE-SHAPE PACKER — determinism across three consecutive runs AND across
  *     Worker vs inline, "never worse than the shelf packer", sheet-edge and
  *     billing-step bounds, bbox non-overlap at interlock 0, and an INK-LEVEL
  *     collision audit on real rendered artwork (bounding boxes legitimately
  *     overlap once pieces interlock, so only rasterised ink can prove clearance).
- *  3. ZIP EXPORT — the archive is cracked open HERE, in Node, with a
+ *  5. ZIP EXPORT — the archive is cracked open HERE, in Node, with a
  *     hand-rolled reader: every member's CRC-32 is recomputed from its stored
  *     bytes, and every PNG's IHDR width/height is checked against the pixel
  *     size its sheet's cm geometry and DPI imply.
@@ -503,6 +508,104 @@ try {
   if (splitSuite.fails.length) {
     console.error(`❌ ${splitSuite.fails.length} split assertion(s) failed:`)
     for (const f of splitSuite.fails.slice(0, 20)) console.error('  -', f)
+    done(1)
+  }
+
+  // ------------------------------------------------------------------
+  // Ink trim — same ink, tighter boxes, on artwork that HAS padding
+  // ------------------------------------------------------------------
+  // Measured against the padded-upload fixture, not the sample design: the
+  // sample's text is measured from glyph ink and its graphics have tight
+  // viewBoxes, so a trim recovers ~2 % of one piece there and every assertion
+  // below would be vacuous. What the shop actually prints is customer uploads.
+  const trimSuite = await page.evaluate(async () => {
+    const { trimProbe, nest, paddedPieces } = window.__dtf
+    const fails = []
+    const probe = await trimProbe(48)
+
+    if (!probe.some((s) => s.boxDeclaredCm2 > s.boxTrimmedCm2 * 1.5))
+      fails.push('the padded fixture has nothing to trim — the trim suite is vacuous')
+
+    for (const s of probe) {
+      // THE SAFETY PROPERTY. Cropping to the ink may not remove ink. A tolerance
+      // is needed because the two arms rasterise into differently sized canvases
+      // and an anti-aliased edge lands on different pixels — but it is one-sided
+      // in spirit: what must never happen is the trimmed arm losing artwork.
+      const drift = s.inkDeclared > 0 ? (s.inkTrimmed - s.inkDeclared) / s.inkDeclared : 0
+      if (drift < -0.01)
+        fails.push(
+          `${s.side}: trimming LOST ink — ${s.inkTrimmed} px vs ${s.inkDeclared} (${(drift * 100).toFixed(2)} %)`,
+        )
+      if (drift > 0.05)
+        fails.push(
+          `${s.side}: trimming gained ${(drift * 100).toFixed(1)} % ink — a crop is swallowing a neighbour`,
+        )
+      // …and it must actually save something, or it is complexity for nothing.
+      if (s.boxTrimmedCm2 > s.boxDeclaredCm2 + 1e-6)
+        fails.push(`${s.side}: trimmed boxes ${s.boxTrimmedCm2} cm² > declared ${s.boxDeclaredCm2} cm²`)
+      // Every transfer still has to know where it goes, and "where" moves with
+      // the crop — a box trimmed without moving its placement is pressed off by
+      // exactly the margin that was discarded.
+      for (const pl of s.placements) {
+        if (!pl.insideArea)
+          fails.push(`${s.side} part ${pl.part}: trimmed placement falls outside the print area`)
+        if (!Number.isFinite(pl.topCm) || !Number.isFinite(pl.centerDxCm))
+          fails.push(`${s.side} part ${pl.part}: trimmed placement is not a number`)
+      }
+      // No piece may be sub-millimetre: the packer's grid cannot represent one.
+      for (const [w, h] of s.sizesTrimmed)
+        if (!(w > 0.1) || !(h > 0.1))
+          fails.push(`${s.side}: trimmed piece ${w} × ${h} cm is too small to nest`)
+    }
+
+    // And the whole point, through the real packer: less roll for the same order.
+    const geom = {
+      printableWidthCm: 58,
+      maxLengthCm: 2500,
+      gapCm: 0.5,
+      edgeMarginCm: 0,
+      edgeMarginSideCm: 0,
+      edgeMarginEndCm: 0,
+      billingStepCm: 10,
+    }
+    const QTY = { S: 2, M: 4, L: 3, XL: 1 }
+    const roll = {}
+    for (const arm of ['box', 'ink']) {
+      const rows = await paddedPieces(48, { measureFrom: arm })
+      const pieces = rows.map((r) => ({
+        id: r.key,
+        sourceKey: r.key,
+        wCm: r.wCm,
+        hCm: r.hCm,
+        qty: QTY[r.row.slice(r.row.indexOf('#') + 1)] ?? 1,
+        allowRotate: true,
+      }))
+      roll[arm] = nest(pieces, geom).totalLengthCm
+    }
+    if (!(roll.ink < roll.box))
+      fails.push(`the trimmed order nests into ${roll.ink} cm, the untrimmed one into ${roll.box}`)
+
+    return {
+      fails,
+      stats: {
+        sides: probe.map((s) => ({
+          side: s.side,
+          parts: `${s.partsDeclared} → ${s.partsTrimmed}`,
+          boxCm2: `${s.boxDeclaredCm2} → ${s.boxTrimmedCm2}`,
+          inkDrift:
+            s.inkDeclared > 0
+              ? Math.round(((s.inkTrimmed - s.inkDeclared) / s.inkDeclared) * 1000) / 10
+              : 0,
+        })),
+        rollCm: `${roll.box} → ${roll.ink}`,
+      },
+    }
+  })
+
+  console.log('trim stats:', JSON.stringify(trimSuite.stats))
+  if (trimSuite.fails.length) {
+    console.error(`❌ ${trimSuite.fails.length} trim assertion(s) failed:`)
+    for (const f of trimSuite.fails.slice(0, 20)) console.error('  -', f)
     done(1)
   }
 

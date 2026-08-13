@@ -14,8 +14,8 @@
 import type { GarmentId } from '@/lib/types'
 
 export interface AreaTier {
-  /** Upper bound of printed-artwork area, square inches (inclusive). */
-  maxSqIn: number
+  /** Upper bound of printed-artwork area, square CENTIMETRES (inclusive). */
+  maxSqCm: number
   /** Added to the per-side price for a print in this tier. */
   addUsd: number
   /** i18n key for the tier's display name. */
@@ -29,11 +29,21 @@ export interface PricingRule {
   areaTiers?: AreaTier[]
 }
 
-// ISO paper areas: A5 ≈ 48, A4 ≈ 97, A3 ≈ 193 in². A4 (the standard) is free.
+/**
+ * A4 (the standard) is free; A3 and oversize cost more.
+ *
+ * THE BOUNDS ARE THE SERVER'S, TO THE UNIT. `Pricing::area_tier` in
+ * wp-plugins/teeshoop-core is the authority and works in cm²; this table used
+ * to hold 97 in² and 193 in², which are 625,81 cm² and 1245,16 cm² — close
+ * enough to look identical and wrong enough to matter, because a design landing
+ * in either gap was quoted one price here and charged another at checkout. They
+ * are now the same two numbers written in the same unit, so the two engines can
+ * only ever disagree by someone editing one of them.
+ */
 const AREA_TIERS: AreaTier[] = [
-  { maxSqIn: 97, addUsd: 0, labelKey: 'price.tier_std' },
-  { maxSqIn: 193, addUsd: 4, labelKey: 'price.tier_large' },
-  { maxSqIn: Infinity, addUsd: 9, labelKey: 'price.tier_xl' },
+  { maxSqCm: 625, addUsd: 0, labelKey: 'price.tier_std' },
+  { maxSqCm: 1250, addUsd: 4, labelKey: 'price.tier_large' },
+  { maxSqCm: Infinity, addUsd: 9, labelKey: 'price.tier_xl' },
 ]
 
 export const PRICING: Record<'tee' | 'hoodie' | 'custom', PricingRule> = {
@@ -54,34 +64,36 @@ export const SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL'] as const
 const toCents = (usd: number): number => Math.round(usd * 100) / 100
 
 /** The tier a printed area falls in, or null when the garment prices flat. */
-export function areaTier(garment: GarmentId, sqIn: number): AreaTier | null {
+export function areaTier(garment: GarmentId, sqCm: number): AreaTier | null {
   const tiers = PRICING[garment].areaTiers
   if (!tiers) return null
-  return tiers.find((t) => sqIn <= t.maxSqIn) ?? tiers[tiers.length - 1]
+  return tiers.find((t) => sqCm <= t.maxSqCm) ?? tiers[tiers.length - 1]
 }
 
 /**
  * Quote a run. `sides` is the number of printed sides (values < 1 price as a
  * single side); `qty` is clamped to at least 1 whole unit.
  *
- * Pass `sideAreasSqIn` (printed-artwork area per printed side) to price by size:
- * when it is present AND the garment defines `areaTiers`, each side adds its
- * tier surcharge and the side count comes from the array. Omit it (or leave a
- * rule without `areaTiers`) for the flat price — byte-identical to before.
+ * Pass `sideAreasSqCm` (printed-artwork area per printed side, square
+ * centimetres) to price by size: when it is present AND the garment defines
+ * `areaTiers`, each side adds its tier surcharge and the side count comes from
+ * the array. A side measuring 0 is not a printed side — there is nothing on it
+ * to press. Omit the array (or leave a rule without `areaTiers`) for the flat
+ * price — byte-identical to before.
  */
 export function quote(
   garment: GarmentId,
   sides: number,
   qty: number,
-  sideAreasSqIn?: number[],
+  sideAreasSqCm?: number[],
 ): { unitUsd: number; totalUsd: number; discount: number } {
   const rule = PRICING[garment]
   const q = Math.max(1, Math.floor(qty) || 1)
   const discount = [...QTY_BREAKS].reverse().find((b) => q >= b.minQty)?.discount ?? 0
 
   let subtotal: number
-  if (rule.areaTiers && sideAreasSqIn && sideAreasSqIn.length) {
-    const areas = sideAreasSqIn.filter((a) => a > 0)
+  if (rule.areaTiers && sideAreasSqCm && sideAreasSqCm.length) {
+    const areas = sideAreasSqCm.filter((a) => a > 0)
     const extraSides = Math.max(0, areas.length - 1)
     const tierAdd = areas.reduce((sum, a) => sum + (areaTier(garment, a)?.addUsd ?? 0), 0)
     subtotal = rule.baseUsd + extraSides * rule.perExtraSideUsd + tierAdd
