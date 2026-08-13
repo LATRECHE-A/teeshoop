@@ -114,7 +114,11 @@ Applies to code comments, commit messages, documentation, UI copy and anything y
 the user.
 
 - **No em-dashes.** Use a comma, a colon, a full stop, or parentheses. This applies to
-  every character you write, including code comments and commit messages.
+  every character you write, including code comments and commit messages. The existing
+  corpus does **not** comply: roughly 2 300 of them were written into about 190 files before
+  this rule existed. They are swept in one deliberate pass (session 13, item 8) rather than
+  opportunistically, because a punctuation edit spread across every feature diff is how a
+  real change becomes unreviewable. Do not sweep files you happen to be passing through.
 - **No emoji** in code, UI, commits or documentation. Existing verify scripts print a
   status tick; leave those alone and add no more.
 - **No exclamation marks in UI copy.** Nothing we sell is exciting enough.
@@ -188,7 +192,25 @@ What is required instead.
 
 ---
 
-## 9. Working
+## 9. Skills
+
+Ten project skills in `.claude/skills/` carry the detail this file only states. Load the one
+that matches before you start, not after you are stuck.
+
+| Skill | Reach for it when |
+|---|---|
+| `verify` | Before claiming anything is done. Knows which of the harnesses cover what you touched. |
+| `redteam` | Before committing anything touching money, print geometry, the cart, payment, customer data or an open route. |
+| `security` | Adding a route, handling untrusted input, touching auth, storing customer data, adding a dependency. |
+| `money` | Any price, quote, total, VAT, discount, invoice, refund, supplier cost or commission. |
+| `woocommerce` | Any Woo hook, order or product meta, template override, custom status, or Woo behaving surprisingly. |
+| `wp-local` | Anything in the plugin, or anyone claiming WordPress work is blocked on hosting access. |
+| `perf` | Before optimising, when adding a dependency or a plugin, when a speed claim needs a number. |
+| `ui-bar` | Any page, template, modal, email or user-facing string. |
+| `france` | Customer-facing terms, personal data, consent, invoicing, delivery promises. |
+| `observability` | Anything whose silent failure costs money or stalls an order. Monitoring, backups, runbooks. |
+
+## 10. Working
 
 - Commit in reviewable increments, with a message that explains the decision. Push. Confirm
   CI. A session that ends with uncommitted work has not ended.
