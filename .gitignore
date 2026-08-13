@@ -15,3 +15,9 @@ dist/
 
 # The Bible ships extracted under docs/bible/ — keep the source zip out of git.
 La_Bible_de_Teeshoop*.zip
+
+# Session prompts for the WordPress build-out (prompts/README.md explains the
+# order). Deliberately untracked: they are working instructions, they name
+# hosting details and internal decisions, and they change faster than the code
+# they describe. The tracked counterpart is docs/ROADMAP.md.
+prompts/
