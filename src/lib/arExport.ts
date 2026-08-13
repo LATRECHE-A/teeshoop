@@ -40,6 +40,7 @@ import type { CatalogGarmentId, Design, Gender, Side } from '@/lib/types'
 import { areaOffsetYIn, garmentColorHex, getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { DEFAULT_SIZE, type SizeId } from '@/content/sizeChart'
 import { printScaleK } from '@/lib/printScale'
+import { canvasToBlob } from '@/lib/download'
 import { registerBackPanel } from '@/lib/backRegister'
 import { buildDelitMaps, buildInflatedShell, canvasToSilhouette } from '@/lib/silhouette'
 import { GARMENTS } from '@/garments'
@@ -107,12 +108,6 @@ async function renderSide(
   const target = side === 'sleeve' ? SLEEVE_TARGET_PX : TARGET_PX
   const ppi = target / Math.max(area.wIn, area.hIn)
   return renderPrintArea(design, side, ppi, size).catch(() => null)
-}
-
-function canvasToBlob(canvas: HTMLCanvasElement, type = 'image/png'): Promise<Blob> {
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('poster encode failed'))), type),
-  )
 }
 
 /** Arc-length-preserving curved plane (src/three/decalGeom.ts), bend-capped. */

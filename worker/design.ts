@@ -41,6 +41,17 @@
  * the shape we expect before anything is written.
  */
 import { requireAdmin, type AdminEnv } from './auth'
+import { ASSET_ID_RE, readDesignDoc, type DesignDocSide } from '../src/lib/teeshoop/designDoc'
+
+/*
+ * WHAT A DESIGN DOCUMENT IS lives in src/lib/teeshoop/designDoc.ts, imported
+ * here rather than restated. The studio decides which rasters to send and this
+ * route decides which it will accept; the two sets must match exactly in both
+ * directions, so there is one definition of "referenced" and both ends read it.
+ * The module is pure by construction, which is what lets it be type-checked
+ * under this tsconfig and the app's alike.
+ */
+export { readDesignDoc } from '../src/lib/teeshoop/designDoc'
 
 export interface DesignEnv extends AdminEnv {
   AR_BUCKET: R2Bucket
@@ -56,12 +67,9 @@ export interface DesignEnv extends AdminEnv {
 const ID_LEN = 24
 const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 const ID_RE = /^[A-Za-z0-9_-]{16,64}$/
-/** Asset ids come from nanoid(10) in the studio; keep the key path boring. */
-const ASSET_RE = /^[A-Za-z0-9_-]{1,64}$/
 
 const MAX_FILE_BYTES = 12 * 1024 * 1024
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024
-const MAX_ASSETS = 32
 const MAX_DOC_BYTES = 2 * 1024 * 1024
 
 const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
@@ -93,10 +101,7 @@ async function imageType(file: File): Promise<'png' | 'jpeg' | null> {
 }
 
 /** One printed side, as the price engine and the workshop both need it. */
-export interface DesignSide {
-  id: string
-  area_sq_cm: number
-}
+export type DesignSide = DesignDocSide
 
 export interface DesignManifest {
   id: string
@@ -109,65 +114,6 @@ export interface DesignManifest {
   preview: string
   /** Where the workshop finds the document. Admin-gated; see the header. */
   print_file: string
-}
-
-/**
- * Read the parts of the design document the manifest needs, and refuse anything
- * that is not a design.
- *
- * This is a GATE, not a parse: the document is stored verbatim, and everything
- * read here is read again by the studio when the design is reopened. What it
- * exists to stop is an arbitrary blob being written to R2 under a name that
- * makes it look like an order.
- */
-export function readDesignDoc(raw: unknown): {
-  garment: string
-  color: string
-  sides: DesignSide[]
-  assetIds: string[]
-} | null {
-  if (!raw || typeof raw !== 'object') return null
-  const doc = raw as Record<string, unknown>
-  const garment = typeof doc.garmentId === 'string' ? doc.garmentId : ''
-  if (!garment || garment.length > 40) return null
-  const layers = Array.isArray(doc.layers) ? doc.layers : null
-  if (!layers || layers.length > 200) return null
-
-  const assetIds: string[] = []
-  for (const l of layers) {
-    if (!l || typeof l !== 'object') return null
-    const layer = l as Record<string, unknown>
-    if (typeof layer.type !== 'string' || typeof layer.side !== 'string') return null
-    if (layer.type === 'image') {
-      const id = layer.assetId
-      if (typeof id !== 'string' || !ASSET_RE.test(id)) return null
-      if (!assetIds.includes(id)) assetIds.push(id)
-    }
-  }
-  if (assetIds.length > MAX_ASSETS) return null
-
-  // Sides come from the studio's own area measurement (src/lib/ink.ts), in cm²
-  // — the same unit and the same number the PHP price authority is handed. They
-  // are recorded here so an order can be re-priced from the design alone.
-  const sides: DesignSide[] = []
-  const rawSides = Array.isArray(doc.sides) ? doc.sides : []
-  for (const s of rawSides) {
-    if (!s || typeof s !== 'object') continue
-    const side = s as Record<string, unknown>
-    const id = typeof side.id === 'string' ? side.id : ''
-    const area = typeof side.area_sq_cm === 'number' ? side.area_sq_cm : NaN
-    if (!id || !/^[a-z_]{1,16}$/.test(id)) continue
-    if (!Number.isFinite(area) || area <= 0) continue
-    sides.push({ id, area_sq_cm: Math.min(area, 10000) })
-    if (sides.length >= 8) break
-  }
-
-  return {
-    garment,
-    color: typeof doc.colorId === 'string' && doc.colorId.length <= 40 ? doc.colorId : '',
-    sides,
-    assetIds,
-  }
 }
 
 const key = (id: string, name: string) => `design/${id}/${name}`
@@ -214,7 +160,7 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
   for (const [name, value] of form.entries()) {
     if (!name.startsWith('asset:')) continue
     const id = name.slice(6)
-    if (!ASSET_RE.test(id)) return json({ error: `bad asset name ${name}` }, 400)
+    if (!ASSET_ID_RE.test(id)) return json({ error: `bad asset name ${name}` }, 400)
     if (!doc.assetIds.includes(id))
       return json({ error: `asset ${id} is not referenced by the design` }, 422)
     if (!(value instanceof File)) return json({ error: `asset ${id} is not a file` }, 400)
