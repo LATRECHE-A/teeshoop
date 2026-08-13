@@ -123,8 +123,16 @@
 	 *
 	 * Note what is not forwarded: whatever price the studio believes. The body
 	 * carries the customer's choices, and the server prices them.
+	 *
+	 * The reply echoes `requestId` for the same reason a quote's does. It is not
+	 * that two adds are expected in flight (the studio refuses to start a second
+	 * one), it is that a reply which cannot be matched to a request has to be
+	 * guessed at, and the thing being guessed at here is whether a basket now
+	 * contains a paid line.
 	 */
 	function onAddToCart(data) {
+		var requestId = typeof data.requestId === 'string' ? data.requestId : null;
+
 		fetch(cfg.restUrl + 'cart', {
 			method: 'POST',
 			credentials: 'same-origin',
@@ -150,6 +158,7 @@
 				if (result.ok) {
 					send({
 						type: 'teeshoop:cart-result',
+						requestId: requestId,
 						ok: true,
 						cartCount: result.body.cart_count,
 						cartUrl: result.body.cart_url,
@@ -162,6 +171,7 @@
 				}
 				send({
 					type: 'teeshoop:cart-result',
+					requestId: requestId,
 					ok: false,
 					error: result.body.code || 'cart_failed',
 					message: result.status === 403 ? cfg.i18n.expired : cfg.i18n.failed,
@@ -170,6 +180,7 @@
 			.catch(function () {
 				send({
 					type: 'teeshoop:cart-result',
+					requestId: requestId,
 					ok: false,
 					error: 'network',
 					message: cfg.i18n.failed,

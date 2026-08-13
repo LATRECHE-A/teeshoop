@@ -9,6 +9,7 @@
 import { useSyncExternalStore } from 'react'
 import {
   bridgeStatus,
+  canOrderFromShop,
   shopContext,
   subscribeBridge,
   type BridgeStatus,
@@ -17,10 +18,17 @@ import {
 
 const standalone = (): BridgeStatus => 'standalone'
 const noContext = (): ShopContext | null => null
+const cannotOrder = (): boolean => false
 
-export function useShopBridge(): { status: BridgeStatus; context: ShopContext | null } {
+export function useShopBridge(): {
+  status: BridgeStatus
+  context: ShopContext | null
+  /** The shop answered AND the page it answered from can take an order. */
+  canOrder: boolean
+} {
   return {
     status: useSyncExternalStore(subscribeBridge, bridgeStatus, standalone),
     context: useSyncExternalStore(subscribeBridge, shopContext, noContext),
+    canOrder: useSyncExternalStore(subscribeBridge, canOrderFromShop, cannotOrder),
   }
 }

@@ -24,6 +24,7 @@
 
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Pricing;
+use Teeshoop\Core\Product;
 use Teeshoop\Core\Settings;
 
 if ( ! defined( 'TEESHOOP_ALLOW_UNVERIFIED_DESIGNS' ) ) {
@@ -72,13 +73,28 @@ include_once WC_ABSPATH . 'includes/wc-cart-functions.php';
 include_once WC_ABSPATH . 'includes/class-wc-cart.php';
 wc_load_cart();
 
-/** A disposable simple product to decorate. */
-$product = new WC_Product_Simple();
-$product->set_name( 'Integration fixture' );
-$product->set_regular_price( '14.50' );
-$product->set_catalog_visibility( 'hidden' );
-$product->save();
-$product_id = $product->get_id();
+/**
+ * Disposable products to decorate.
+ *
+ * The garment is declared ON the product (Product.php) because it is a price
+ * input: it decides the cost of the blank. A product that declares none is not
+ * personalisable at all, which is why `$bare_id` exists.
+ */
+function ts_product( string $name, string $price, ?string $garment ): int {
+	$product = new WC_Product_Simple();
+	$product->set_name( $name );
+	$product->set_regular_price( $price );
+	$product->set_catalog_visibility( 'hidden' );
+	if ( null !== $garment ) {
+		$product->update_meta_data( Product::META, $garment );
+	}
+	$product->save();
+	return $product->get_id();
+}
+
+$product_id = ts_product( 'Integration fixture', '14.50', 'tee' );
+$hoodie_id  = ts_product( 'Integration hoodie', '39.00', 'hoodie' );
+$bare_id    = ts_product( 'Integration undeclared', '14.50', null );
 
 $sides  = array( array( 'id' => 'front', 'area_sq_cm' => 400 ) );
 $design = 'abcdefghijklmnop1234';
@@ -114,17 +130,67 @@ ts_it( 'refuses a product that does not exist', function () use ( $sides, $desig
 	ts_assert( is_wp_error( $r ), 'a missing product was accepted' );
 } );
 
-ts_it( 'refuses an unknown garment rather than pricing it free', function () use ( $product_id, $sides, $design ) {
+ts_it( 'refuses a product that declares no garment', function () use ( $bare_id, $sides, $design ) {
 	$r = Cart::add(
 		array(
-			'product_id' => $product_id,
+			'product_id' => $bare_id,
 			'qty'        => 1,
-			'garment'    => 'ceci-nest-pas-un-tshirt',
+			'garment'    => 'tee',
 			'sides'      => $sides,
 			'design_id'  => $design,
 		)
 	);
-	ts_assert( is_wp_error( $r ), 'an unknown garment was accepted' );
+	ts_assert( is_wp_error( $r ), 'a product with no declared garment was personalised' );
+	ts_eq( $r->get_error_code(), 'teeshoop_not_personalisable', 'refusal reason' );
+} );
+
+/*
+ * THE MONEY HOLE THIS FILE EXISTS FOR, SECOND EDITION.
+ *
+ * `custom` means the customer ships their own garment, so its blank costs
+ * 0,00 EUR. Until the garment was read from the product, a request could name
+ * `custom` on a hoodie product and take a 27,00 EUR blank for nothing: the only
+ * check was that the config knew the key. Pure tests cannot see it, because
+ * Pricing::quote() answers exactly what it is asked.
+ */
+ts_it( 'refuses a request naming a garment the product does not sell', function () use ( $hoodie_id, $sides, $design ) {
+	foreach ( array( 'custom', 'tee' ) as $claim ) {
+		$r = Cart::add(
+			array(
+				'product_id' => $hoodie_id,
+				'qty'        => 1,
+				'garment'    => $claim,
+				'sides'      => $sides,
+				'design_id'  => $design,
+			)
+		);
+		ts_assert( is_wp_error( $r ), "a hoodie product accepted a '{$claim}' line" );
+		ts_eq( $r->get_error_code(), 'teeshoop_garment_mismatch', 'refusal reason' );
+	}
+} );
+
+ts_it( 'prices from the product’s garment even when the request names none', function () use ( $hoodie_id, $sides, $design, $config ) {
+	WC()->cart->empty_cart();
+	$key = Cart::add(
+		array(
+			'product_id' => $hoodie_id,
+			'qty'        => 3,
+			'sides'      => $sides,
+			'design_id'  => $design,
+		)
+	);
+	ts_assert( ! is_wp_error( $key ), 'the hoodie line was refused' );
+
+	WC()->cart->calculate_totals();
+	$item = WC()->cart->get_cart_item( $key );
+	ts_eq( $item['teeshoop']['garment'], 'hoodie', 'garment stored on the line' );
+
+	$hoodie = Pricing::quote( array( 'garment' => 'hoodie', 'qty' => 3, 'sides' => $sides ), $config );
+	$custom = Pricing::quote( array( 'garment' => 'custom', 'qty' => 3, 'sides' => $sides ), $config );
+	// Both sides cast: PHP's `/` returns an int when the division is exact, and
+	// ts_eq is strict, so 3200/100 is int(32) and the price is float(32.0).
+	ts_eq( (float) $item['data']->get_price(), (float) $hoodie['unit_ht'] / 100, 'unit price' );
+	ts_assert( $hoodie['unit_ht'] !== $custom['unit_ht'], 'the fixture cannot tell the two apart' );
 } );
 
 ts_it( 'charges the server price, not the catalogue price', function () use ( $product_id, $sides, $design, $config ) {
@@ -276,7 +342,9 @@ ts_it( 'writes the workshop hand-off onto the order line', function () use ( $pr
 // ---------------------------------------------------------------------------
 
 WC()->cart->empty_cart();
-wp_delete_post( $product_id, true );
+foreach ( array( $product_id, $hoodie_id, $bare_id ) as $id ) {
+	wp_delete_post( $id, true );
+}
 
 echo "\n";
 

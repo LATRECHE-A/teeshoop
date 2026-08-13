@@ -17,6 +17,14 @@
  * The customer never visually leaves teeshoop.com, and the page we actually want
  * indexed is the product page, not the editor.
  *
+ * ON THE SANDBOX. `allow-top-navigation-by-user-activation` is there so the
+ * "Voir le panier" link the studio shows after a successful add can actually
+ * take the customer to their basket: without it the sandbox silently swallows
+ * the navigation and the buyer is stranded in a frame. The `-by-user-activation`
+ * form is the point, and the reason the bare `allow-top-navigation` is not
+ * used: the frame can follow a click, and can never redirect the page on its
+ * own. Everything else stays as narrow as it was.
+ *
  * @package Teeshoop\Core
  */
 
@@ -36,7 +44,7 @@ final class Shortcode {
 		$atts = shortcode_atts(
 			array(
 				'product_id' => 0,
-				'garment'    => 'tee',
+				'garment'    => '',
 				'height'     => 'min(85dvh, 900px)',
 			),
 			is_array( $raw_atts ) ? $raw_atts : array(),
@@ -63,11 +71,36 @@ final class Shortcode {
 			$product_id = (int) get_the_ID();
 		}
 
-		self::enqueue( $studio_url, $origin, $product_id, (string) $atts['garment'] );
+		/*
+		 * The garment comes from the PRODUCT, not from the shortcode.
+		 *
+		 * It is a price input (see Product.php), and `Cart::add` reads it from
+		 * the product whatever the frame says, so a shortcode attribute that
+		 * disagreed would only produce a studio that draws one garment and a
+		 * basket that refuses it. The attribute is kept for a studio embedded
+		 * somewhere that is not a product page at all.
+		 */
+		$garment = sanitize_key( (string) $atts['garment'] );
+		if ( '' === $garment ) {
+			$garment = Product::garment_of( $product_id );
+		}
+
+		self::enqueue( $studio_url, $origin, $product_id, $garment );
 
 		$height = preg_replace( '/[^a-zA-Z0-9\s\(\),.%\-]/', '', (string) $atts['height'] ) ?? '600px';
 
-		return sprintf(
+		// The frame is told nothing when the product is not set up, which is what
+		// makes the studio show its standalone quote flow rather than a basket
+		// button that would be refused at the last click. Whoever can fix it is
+		// told; a visitor sees a working editor and no broken promise.
+		$notice = '';
+		if ( '' === $garment && current_user_can( 'manage_options' ) ) {
+			$notice = '<p class="teeshoop-error">' .
+				esc_html__( 'Teeshoop: this product does not declare a garment, so the studio cannot add it to a basket. Set "Teeshoop garment" on the product.', 'teeshoop' ) .
+				'</p>';
+		}
+
+		return $notice . sprintf(
 			'<div class="teeshoop-studio" data-teeshoop-studio style="--teeshoop-studio-height:%s">
 				<iframe
 					title="%s"
@@ -75,7 +108,7 @@ final class Shortcode {
 					src="%s"
 					loading="lazy"
 					allow="camera; xr-spatial-tracking; fullscreen; clipboard-write"
-					sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+					sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-top-navigation-by-user-activation"
 					referrerpolicy="strict-origin-when-cross-origin"></iframe>
 			</div>',
 			esc_attr( $height ),

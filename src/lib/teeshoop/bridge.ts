@@ -199,9 +199,22 @@ export function shopContext(): ShopContext | null {
   return context
 }
 
-/** True when an add-to-cart can actually reach a basket. */
+/** True when the protocol is up: the shop answered and we know its origin. */
 export function isShopConnected(): boolean {
   return status === 'connected' && parentOrigin !== null
+}
+
+/**
+ * True when an add-to-cart can actually produce a cart line.
+ *
+ * Connected is not enough. A page can frame the studio without being a set-up
+ * product page: `Cart::add` needs a purchasable product and a garment declared
+ * ON that product (Product.php), and the context says whether both exist. The
+ * studio uses this to keep offering its standalone quote flow rather than a
+ * basket button that would be refused at the last click of a purchase.
+ */
+export function canOrderFromShop(): boolean {
+  return isShopConnected() && !!context && context.productId > 0 && context.garment !== ''
 }
 
 export function subscribeBridge(fn: () => void): () => void {

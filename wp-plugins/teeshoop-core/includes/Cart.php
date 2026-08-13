@@ -40,12 +40,15 @@ final class Cart {
 	 * $payload:
 	 *   product_id int
 	 *   qty        int
-	 *   garment    string
-	 *   sides      array   already normalised by Design::normalise_sides()
+	 *   garment    string  what the studio BELIEVES it drew on; see below
+	 *   sides      array   fallback only; the verified design's own sides win
 	 *   design_id  string
 	 *   size_grid  array   ['M' => 10, 'L' => 15, …] optional
 	 *
-	 * Returns the cart item key, or a WP_Error. Nothing here trusts a price.
+	 * Returns the cart item key, or a WP_Error. Nothing here trusts a price, and
+	 * as of this version nothing here trusts a price INPUT either: the garment
+	 * comes from the product (Product.php) and the printed areas come from the
+	 * design manifest the Worker confirmed.
 	 *
 	 * @return string|\WP_Error
 	 */
@@ -57,6 +60,36 @@ final class Cart {
 			return new \WP_Error( 'teeshoop_bad_product', __( 'This product cannot be personalised.', 'teeshoop' ), array( 'status' => 400 ) );
 		}
 
+		/*
+		 * The garment is the PRODUCT's, not the request's.
+		 *
+		 * It decides the price of the blank, so taking it from the body let a
+		 * request name `custom` (base 0,00 EUR, because the customer ships their
+		 * own garment) on a hoodie product and buy a 27,00 EUR blank for
+		 * nothing. Product::garment_of is the authority. A request that names a
+		 * different one is REFUSED rather than corrected: it means the page and
+		 * the studio are selling two different things, and silently charging for
+		 * the page's one would deliver a garment nobody chose.
+		 */
+		$garment = Product::garment_of( $product_id );
+		if ( '' === $garment ) {
+			return new \WP_Error(
+				'teeshoop_not_personalisable',
+				__( 'This product is not set up for personalisation.', 'teeshoop' ),
+				array( 'status' => 400 )
+			);
+		}
+		$claimed = sanitize_key( (string) ( $payload['garment'] ?? '' ) );
+		if ( '' !== $claimed && $claimed !== $garment ) {
+			return new \WP_Error(
+				'teeshoop_garment_mismatch',
+				__( 'This page sells a different garment from the one the design was made on.', 'teeshoop' ),
+				array( 'status' => 409 )
+			);
+		}
+
+		$config = Settings::pricing();
+
 		$design_id = (string) ( $payload['design_id'] ?? '' );
 		$check     = Design::verify( $design_id );
 		if ( ! $check['ok'] ) {
@@ -67,12 +100,30 @@ final class Cart {
 			);
 		}
 
-		$sides   = Design::normalise_sides( $payload['sides'] ?? array() );
-		$garment = sanitize_key( (string) ( $payload['garment'] ?? '' ) );
-		$config  = Settings::pricing();
-
-		if ( ! isset( $config['garments'][ $garment ] ) ) {
-			return new \WP_Error( 'teeshoop_bad_garment', __( 'Unknown garment.', 'teeshoop' ), array( 'status' => 400 ) );
+		/*
+		 * The printed areas come from the DESIGN, not from the request.
+		 *
+		 * The Worker recorded them when the studio uploaded the artwork, so they
+		 * are the same numbers the workshop's transfers will be rendered from.
+		 * Pricing off the add-to-cart body instead would let the invoice and the
+		 * film disagree, and would let a replayed request claim 1 cm² of ink on
+		 * a full-front print. The body is kept only as a fallback for local
+		 * development, where TEESHOOP_ALLOW_UNVERIFIED_DESIGNS means there is no
+		 * manifest to read.
+		 */
+		$sides = Design::normalise_sides( $check['meta']['sides'] ?? array() );
+		if ( empty( $sides ) ) {
+			$sides = Design::normalise_sides( $payload['sides'] ?? array() );
+			$sides_source = 'request';
+		} else {
+			$sides_source = 'design';
+			$sent = Design::normalise_sides( $payload['sides'] ?? array() );
+			if ( ! empty( $sent ) && wp_json_encode( $sent ) !== wp_json_encode( $sides ) ) {
+				// Not fatal, the design wins. But it means the studio and the
+				// stored artwork disagree about what is printed, which is a bug
+				// somewhere and must not be invisible.
+				self::log( 'sides differ from the stored design for ' . $design_id );
+			}
 		}
 
 		$qty = max( 1, min( (int) ( $payload['qty'] ?? 1 ), (int) $config['max_qty'] ) );
@@ -86,13 +137,17 @@ final class Cart {
 		}
 
 		$data = array(
-			'garment'   => $garment,
-			'sides'     => $sides,
-			'design_id' => $design_id,
-			'size_grid' => $size_grid,
-			'verified'  => (bool) ( $check['meta']['verified'] ?? false ),
-			'files'     => array(
-				'print' => (string) ( $check['meta']['print_file'] ?? '' ),
+			'garment'      => $garment,
+			'sides'        => $sides,
+			// Which of the two the price was computed from, frozen onto the
+			// order. Eighteen months from now it is the difference between "the
+			// workshop's file says 400 cm²" and "we do not know what we billed".
+			'sides_source' => $sides_source,
+			'design_id'    => $design_id,
+			'size_grid'    => $size_grid,
+			'verified'     => (bool) ( $check['meta']['verified'] ?? false ),
+			'files'        => array(
+				'print'   => (string) ( $check['meta']['print_file'] ?? '' ),
 				'preview' => (string) ( $check['meta']['preview'] ?? '' ),
 			),
 		);
@@ -254,7 +309,9 @@ final class Cart {
 
 		// Hidden: the production hand-off.
 		$line->add_meta_data( '_teeshoop_design_id', (string) ( $data['design_id'] ?? '' ), true );
+		$line->add_meta_data( '_teeshoop_garment', (string) ( $data['garment'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_sides', wp_json_encode( $data['sides'] ?? array() ), true );
+		$line->add_meta_data( '_teeshoop_sides_source', (string) ( $data['sides_source'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_files', wp_json_encode( $data['files'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_verified', ! empty( $data['verified'] ) ? 'yes' : 'no', true );
 	}
@@ -284,10 +341,17 @@ final class Cart {
 		return $out;
 	}
 
+	/**
+	 * The side ids are the studio's own `Side` union (src/lib/types.ts), which
+	 * today is front, back and a single sleeve. `sleeve_l` and `sleeve_r` are
+	 * kept because the DTF module and the price engine both accept them and a
+	 * second sleeve position is a small studio change, not a protocol one.
+	 */
 	private static function side_label( string $id ): string {
 		$labels = array(
 			'front'    => __( 'Front', 'teeshoop' ),
 			'back'     => __( 'Back', 'teeshoop' ),
+			'sleeve'   => __( 'Sleeve', 'teeshoop' ),
 			'sleeve_l' => __( 'Left sleeve', 'teeshoop' ),
 			'sleeve_r' => __( 'Right sleeve', 'teeshoop' ),
 		);

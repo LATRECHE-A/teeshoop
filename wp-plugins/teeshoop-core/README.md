@@ -36,6 +36,7 @@ includes/
   Margin.php          cost, floor price, commission (the Bible, corrected)
   Settings.php        stored config + the fail-closed defaults around it
   Design.php          design-id validation and Worker verification
+  Product.php         which studio garment a WooCommerce product is
   Cart.php            WooCommerce cart and order integration
   Rest.php            /wp-json/teeshoop/v1/*
   Shortcode.php       [teeshoop_studio]
@@ -90,12 +91,27 @@ Studio → page:
 |---|---|---|
 | `teeshoop:ready` | — | Page replies with `teeshoop:context`. |
 | `teeshoop:quote` | `garment`, `qty`, `sides[]`, `requestId` | Page replies `teeshoop:quote-result`. |
-| `teeshoop:add-to-cart` | `garment`, `qty`, `sides[]`, `designId`, `sizeGrid` | Page replies `teeshoop:cart-result`. |
+| `teeshoop:add-to-cart` | `garment`, `qty`, `sides[]`, `designId`, `sizeGrid`, `requestId` | Page replies `teeshoop:cart-result`, echoing the id. |
 | `teeshoop:resize` | `height` (px) | Frame is resized, clamped to 320–4000. |
 
 Page → studio: `teeshoop:context`, `teeshoop:quote-result`, `teeshoop:cart-result`.
 
-A side is `{ id: 'front' | 'back' | 'sleeve_l' | 'sleeve_r', area_sq_cm: number }`.
+A side is `{ id, area_sq_cm }`, where `id` is one of the studio's own printable
+sides: `front`, `back`, `sleeve`. (`sleeve_l` and `sleeve_r` are accepted and
+labelled too, for the day the studio grows a second sleeve position; it has one
+today and inventing a left/right distinction it does not model would put a
+side on a picking list that nobody chose.)
+
+Both request types carry a `requestId` and both replies echo it. For quotes it
+stops two answers in flight from swapping. For the cart it is stronger than
+that: the studio refuses to start a second add while one is running, so a reply
+that cannot be matched would have to be guessed at, and what is being guessed
+at is whether a basket now holds a paid line.
+
+The studio's half is `src/lib/teeshoop/bridge.ts`. It does not know which page
+framed it and does not ask: it offers `teeshoop:ready` to every origin on its
+build-time allow-list (`VITE_TEESHOOP_SHOP_ORIGINS`), the browser delivers only
+to the one that matches, and whichever answers is locked in for the session.
 
 The area that counts is the **ink**, not the layer rectangle — sending the
 rectangle is what makes a customer pay for transparent margins. `sideArtworkSqCm`
@@ -112,6 +128,26 @@ must equal the configured studio origin (compared with `===`, never
 `event.source` must be our own frame's `contentWindow`, and the payload must be
 an object with a known `type`. Replies always name the studio origin explicitly;
 `*` would broadcast cart totals to whatever document happens to occupy the frame.
+
+## Which product is which garment
+
+`_teeshoop_garment` on the product, set from a field under General on the
+product edit screen (`Product.php`). A product that declares none is not
+personalisable, and the shortcode says so to anyone who can fix it.
+
+It lives on the product rather than in an option holding a map because it is a
+property of the product: duplicate a t-shirt and the mapping is duplicated,
+export the catalogue and it is exported, restore a backup and it is restored. A
+map in an option survives none of that and drifts the first time a product is
+added by someone who never heard of it. It is also queryable, which "which
+products are personalisable" eventually needs.
+
+Above all **it is a price input**, so it must not arrive from a browser. It
+decides the cost of the blank: `tee` is 9,50 EUR and `custom` is zero, because
+with `custom` the customer ships their own garment. `Cart::add` reads it from
+the product; a request naming a different garment is refused rather than
+corrected, because a disagreement means the page and the studio are selling two
+different things.
 
 ## Settings
 
@@ -136,6 +172,24 @@ A design id that the Worker has not confirmed is **refused**. An unverified id
 produces an order the workshop cannot print — discovered after the customer has
 paid. A network failure to the Worker is not a pass either: "we could not ask"
 is not "it exists".
+
+Two more inputs stopped arriving from the browser once the studio could actually
+call this:
+
+**The garment** is the product's (above), never the request's. Before that, a
+request naming `custom` on a hoodie product bought a 27,00 EUR blank for
+nothing, because the only check was that the config knew the key.
+`Pricing::quote()` was correct throughout; it answered exactly what it was
+asked. `tests/integration.php` holds the case, and it fails when the request is
+trusted again.
+
+**The printed areas** come from the design manifest the Worker confirmed, not
+from the add-to-cart body. They are the same numbers the workshop's transfers
+will be rendered from, so the invoice and the film cannot disagree, and a
+replayed request cannot claim 1 cm² of ink on a full-front print. The body is
+kept only as a fallback for local development, where
+`TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` means there is no manifest to read. Which of
+the two was used is frozen onto the order line as `_teeshoop_sides_source`.
 
 Local development opts out in `wp-config.php`:
 
@@ -172,9 +226,13 @@ and prices (25 units, 271,75 €), a fabricated one is refused with
 
 ## Not built yet
 
-- The studio's upload call and the postMessage bridge client — the Worker end and
-  `bridge.js` both hold up their side; nothing in `src/` posts a `teeshoop:*`
-  message yet.
-- An admin screen for the pricing config — it is set through the option.
-- The size-grid UI. The server accepts and prices one; nothing draws it.
-- Product page templates and the quote form.
+- An admin screen for the pricing config. It is set through the option.
+- An admin screen for the integration settings (studio origin, Worker URL). Same.
+- Product page templates: the price grid, the quote form, and anything on the
+  page around the studio frame. Session 02.
+- Payment. `Pricing` computes what a line costs; nothing takes money yet.
+
+Built and proved end to end on 2026-08-13 by `scripts/wp-e2e-verify.mjs`: the
+studio's bridge client and design upload (`src/lib/teeshoop/`), the buy flow,
+the garment mapping, and the size grid, which the modal now draws and the cart
+reads as the quantity.

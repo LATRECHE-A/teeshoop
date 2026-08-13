@@ -33,8 +33,7 @@ export default function TopBar() {
    * flow, which is all the studio can honestly offer with no shop behind it.
    * The two are never both on screen: one price, one route to buying.
    */
-  const { status: shop } = useShopBridge()
-  const canBuy = shop === 'connected'
+  const { canOrder: canBuy } = useShopBridge()
 
   const saveNow = async () => {
     try {

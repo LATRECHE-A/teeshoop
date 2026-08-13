@@ -59,6 +59,7 @@ require_once __DIR__ . '/includes/Pricing.php';
 require_once __DIR__ . '/includes/Margin.php';
 require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Design.php';
+require_once __DIR__ . '/includes/Product.php';
 require_once __DIR__ . '/includes/Cart.php';
 require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Shortcode.php';
@@ -83,6 +84,7 @@ function boot(): void {
 		return;
 	}
 
+	Product::init();
 	Cart::init();
 	Rest::init();
 	Shortcode::init();
