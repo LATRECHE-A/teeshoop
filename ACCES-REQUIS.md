@@ -18,14 +18,17 @@
 | `ADMIN_TOKEN` sur le Worker | ✅ posé le 12/08 | La console atelier |
 | SSH o2switch | ✅ **posé et vérifié le 14/08** | Tout le travail WordPress |
 | **cPanel o2switch** | ❌ **manquant** | La préproduction, le cron, Redis |
-| Compte admin WordPress | ⚠️ existe (`LTHAbdou`, ID 30) | Réglages Woo, pages, extensions |
-| **Clés API WooCommerce** | ❌ manquant | Produits, commandes par script |
+| Compte admin WordPress | ✅ confirmé le 14/08 (`LTHAbdou`, ID 30) | Réglages Woo, pages, extensions |
+| Clés API WooCommerce | ✅ **posées et vérifiées le 14/08** | Produits, commandes par script |
 
-Il reste **cPanel**, qui seul permet de créer la préproduction. Tant qu'elle n'existe
-pas, rien ne doit être déployé : la boutique a déjà **15 commandes** et encaisse.
+**Il ne manque plus que cPanel.** Sept lignes sur huit sont en place. Celle qui reste
+est aussi celle qui commande la suite : la préproduction ne se crée que là, et tant
+qu'elle n'existe pas, **rien ne doit être déployé sur teeshoop.com**. La boutique a
+déjà 15 commandes et encaisse.
 
-Le compte `LTHAbdou` est bien administrateur depuis le 22/07 : la ligne 3 est donc
-probablement déjà réglée, à confirmer par le développeur (a-t-il le mot de passe ?).
+Le compte admin WordPress n'a jamais manqué en réalité : `LTHAbdou` est administrateur
+depuis le 22/07, ce qui est démontré par le fait que la clé API du 14/08 a été créée
+sous cet identifiant (`user_id = 30` dans `wp68_woocommerce_api_keys`).
 
 ---
 
@@ -69,11 +72,19 @@ Ce qui a été constaté à la première connexion (lecture seule, plus un fichi
 | | Attendu | Réel en production |
 |---|---|---|
 | WordPress | 7.0.3 | **7.0.4** |
-| WooCommerce | 11.0.1 | **10.9.4** |
+| WooCommerce | 11.0.1 | 11.0.1 depuis le 14/08 à 10 h 46 (10.9.4 avant) |
 
-Le second écart compte : le miroir local fait tourner un WooCommerce **plus récent**
-que la boutique. Tester le panier et le prix contre 11.0.1 pendant que le client
-achète sur 10.9.4 ne prouve rien. À aligner avant le prochain travail sur le panier.
+Le miroir local doit passer en **WordPress 7.0.4**. Pour WooCommerce, il n'y a plus
+d'écart : la mise à jour 10.9.4 vers 11.0.1 a été faite depuis l'interface WordPress
+le 14/08 à 10 h 46, entre deux de nos relevés. Vérifié après coup : `WC_VERSION`,
+l'en-tête du fichier et `woocommerce_db_version` disent tous 11.0.1, `wp wc update`
+ne réclame aucune migration, `error_log` ne contient aucune erreur fatale depuis, et
+l'accueil, la boutique et le panier répondent tous en 200.
+
+C'est arrivé sans casse, mais c'est exactement ce qu'il ne faut pas refaire : une
+montée de version majeure de WooCommerce, sur une boutique qui a 15 commandes
+réelles, sans préproduction et sans sauvegarde préalable. **Après cPanel, les mises à
+jour se testent en préproduction et se font après un `wp db export`.**
 
 ---
 
@@ -108,9 +119,10 @@ Une clé séparée par destination, volontairement : celle-ci se révoque sans t
 
 ---
 
-## 2. cPanel
+## 2. cPanel : le seul accès qui manque encore
 
-Quatre choses ne se font que là :
+Quatre choses ne se font que là (le point 4 est à moitié réglé : Redis et memcached
+tournent déjà sur le compte, relancés par cron ; il reste à y brancher WordPress) :
 
 1. **Créer la préproduction** — *WP Tiger → Préproduction*. On ne développe jamais
    sur la boutique en production, surtout une fois qu'elle encaisse.
@@ -126,26 +138,63 @@ Un compte cPanel partagé convient ici, ces opérations sont ponctuelles.
 
 ---
 
-## 3. Compte administrateur WordPress dédié
+## 3. Compte administrateur WordPress dédié : déjà en place
 
-À mon nom, pas le compte partagé de l'associé. Deux raisons concrètes : l'historique
-des modifications reste lisible (qui a changé quoi), et l'accès se révoque seul le
-jour où il n'a plus lieu d'être.
+`LTHAbdou` (ID 30), rôle Administrateur, inscrit le 22/07/2026. Rien à créer.
 
-Rôle **Administrateur**. Utilisateurs → Ajouter.
+Le second administrateur est `adminder` (ID 1), le compte de l'associé. Deux comptes
+nominatifs, c'est exactement la bonne configuration : l'historique reste lisible et
+chaque accès se révoque seul.
 
 ---
 
-## 4. Clés API WooCommerce (lecture/écriture)
+## 4. Clés API WooCommerce : posées et vérifiées le 14/08/2026
 
-WooCommerce → Réglages → Avancé → **API REST** → Créer une clé.
-Permissions : *Lecture/écriture*.
+Clé `teeshoop-claude` (`key_id` 3), créée sous `LTHAbdou`, permissions
+**lecture/écriture**. Stockée hors du dépôt, en `~/.config/teeshoop/woo.env`
+(permissions 600) : aucun secret ne peut donc partir dans un commit.
 
-Pour créer les 30–50 produits de R1, poser les prix, relire les commandes de test.
-Faisable en SSH aussi, mais c'est bien plus lent.
+**Ce qui a été testé le 14/08**, contre la vraie boutique :
 
-Les clés sont à transmettre par lien autodestructeur (§8), jamais dans une
-conversation.
+| Test | Résultat |
+|---|---|
+| Authentification (`GET wc/v3/system_status`) | 200 |
+| Lecture produits / commandes / clients / codes promo | 200 (47 / 15 / 1 / 3) |
+| Lecture réglages, catégories, zones de livraison, TVA, paiements | 200 |
+| Écriture : création d'un produit en brouillon | 201 |
+| Relecture du produit créé | 200, brouillon, masqué du catalogue |
+| Suppression définitive puis contrôle | 200 puis 404 |
+| Décompte des produits après le test | 47, comme avant |
+
+Le produit de test était en **brouillon et masqué du catalogue** : aucun client n'a
+pu le voir. Il a été supprimé définitivement, et son absence vérifiée côté serveur
+(`wp post get 3621` renvoie une erreur, 0 reliquat, 47 produits).
+
+### Deux clés dormantes à révoquer
+
+La même table en contient deux autres, toutes deux en **lecture/écriture**, donc
+capables de lire les commandes et les données personnelles des clients :
+
+| Description | Dernier usage |
+|---|---|
+| `SendCloud API` | 14/05/2025 |
+| `DSers - API` | 25/01/2025 |
+
+Plus d'un an sans usage. Si ces deux services ne servent plus, les clés sont à
+supprimer : WooCommerce → Réglages → Avancé → API REST. Une clé inutilisée n'est pas
+inoffensive, c'est une porte que personne ne surveille.
+
+### La clé du 14/08 est à refaire
+
+Elle a transité par une conversation. Ce n'est pas une question de confiance : tout
+ce qui est écrit dans une conversation est transmis à un serveur et conservé dans des
+journaux, et l'effacer ensuite ne l'en retire pas. Une clé lecture/écriture donne
+accès aux 15 commandes, donc aux noms, adresses et adresses e-mail des clients : la
+révoquer relève du RGPD autant que de la prudence.
+
+La manœuvre est indolore et prend une minute : créer une nouvelle clé, me donner la
+nouvelle par lien autodestructeur (§8), supprimer l'ancienne. À faire quand le
+développeur en aura le temps, avant la mise en ligne dans tous les cas.
 
 ---
 
@@ -229,11 +278,14 @@ canal. Une clé qui a transité par un message est une clé publique.
   Laissez-les désactivés. Ils n'apportent rien que SSH ne fasse déjà, et ils
   ajoutent un identifiant équivalent à un mot de passe sur une boutique qui va
   encaisser des paiements.
-- **Le plugin MCP Adapter**, actif en production alors qu'il n'était pas dans la
-  liste des extensions attendues. Il expose `wp-json/mcp` et `wp-abilities/v1`.
-  À identifier — *qui l'a installé, et pourquoi* — puis très probablement à
-  désactiver.
+- ~~**Le plugin MCP Adapter**~~ : **réglé**. Constaté le 14/08, il n'est plus installé
+  (ni dans `plugins`, ni en `mu-plugins`). Ses dernières traces dans `error_log`
+  datent du 12/08. Le sujet est clos, il n'y a pas à le réactiver.
 - **Un second compte administrateur partagé.** Un admin nominatif par personne.
+- **L'API REST WooCommerce dite « legacy »** (`woocommerce-legacy-rest-api`, active).
+  Elle n'est plus maintenue et double une surface d'attaque que `wc/v3` couvre déjà.
+  À désactiver, mais **en préproduction d'abord** : SendCloud ou DSers peuvent
+  encore s'en servir, et une désactivation à l'aveugle casserait la livraison.
 
 ---
 
@@ -251,8 +303,8 @@ Pour situer ce qui est réellement bloqué et ce qui ne l'est pas :
 | Pont `postMessage` studio ↔ WooCommerce | non |
 | Déployer sur teeshoop.com | techniquement non (SSH est là), **mais pas avant la préproduction** |
 | Créer la préproduction | **oui : cPanel** |
-| Supprimer les produits de démo | non (SSH) |
-| Créer les produits de R1 | non (SSH suffit ; les clés Woo iraient plus vite) |
+| Supprimer les produits de démo | non (SSH ou clés Woo) |
+| Créer les produits de R1 | non (clés Woo, vérifiées en écriture le 14/08) |
 
 Autrement dit : depuis le 14/08, plus rien n'est bloqué côté outil. Le seul verrou
 qui reste est délibéré : **on ne touche pas une boutique qui a 15 commandes sans
