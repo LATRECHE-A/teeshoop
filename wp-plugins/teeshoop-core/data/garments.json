@@ -1,0 +1,362 @@
+{
+	"schema": 1,
+	"generatedFrom": "src/content/garmentData.ts",
+	"garments": {
+		"tee": {
+			"id": "tee",
+			"brandRef": "Stanley/Stella Creator STTU755",
+			"pricedSize": "M",
+			"areas": [
+				{
+					"side": "front",
+					"bySize": {
+						"S": {
+							"wCm": 28.7,
+							"hCm": 38.3
+						},
+						"M": {
+							"wCm": 30.5,
+							"hCm": 40.6
+						},
+						"L": {
+							"wCm": 32.2,
+							"hCm": 43
+						},
+						"XL": {
+							"wCm": 34,
+							"hCm": 45.3
+						},
+						"2XL": {
+							"wCm": 35.8,
+							"hCm": 47.7
+						},
+						"3XL": {
+							"wCm": 37.5,
+							"hCm": 50
+						}
+					}
+				},
+				{
+					"side": "back",
+					"bySize": {
+						"S": {
+							"wCm": 28.7,
+							"hCm": 38.3
+						},
+						"M": {
+							"wCm": 30.5,
+							"hCm": 40.6
+						},
+						"L": {
+							"wCm": 32.2,
+							"hCm": 43
+						},
+						"XL": {
+							"wCm": 34,
+							"hCm": 45.3
+						},
+						"2XL": {
+							"wCm": 35.8,
+							"hCm": 47.7
+						},
+						"3XL": {
+							"wCm": 37.5,
+							"hCm": 50
+						}
+					}
+				},
+				{
+					"side": "sleeve",
+					"bySize": {
+						"S": {
+							"wCm": 9.6,
+							"hCm": 9.6
+						},
+						"M": {
+							"wCm": 10.2,
+							"hCm": 10.2
+						},
+						"L": {
+							"wCm": 10.7,
+							"hCm": 10.7
+						},
+						"XL": {
+							"wCm": 11.3,
+							"hCm": 11.3
+						},
+						"2XL": {
+							"wCm": 11.9,
+							"hCm": 11.9
+						},
+						"3XL": {
+							"wCm": 12.5,
+							"hCm": 12.5
+						}
+					}
+				}
+			],
+			"sizes": [
+				{
+					"size": "S",
+					"halfChestCm": 49,
+					"bodyLengthCm": 69,
+					"sleeveLengthCm": 20.5
+				},
+				{
+					"size": "M",
+					"halfChestCm": 52,
+					"bodyLengthCm": 72,
+					"sleeveLengthCm": 21.5
+				},
+				{
+					"size": "L",
+					"halfChestCm": 55,
+					"bodyLengthCm": 74,
+					"sleeveLengthCm": 22.5
+				},
+				{
+					"size": "XL",
+					"halfChestCm": 58,
+					"bodyLengthCm": 76,
+					"sleeveLengthCm": 22.5
+				},
+				{
+					"size": "2XL",
+					"halfChestCm": 61,
+					"bodyLengthCm": 78,
+					"sleeveLengthCm": 23.5
+				},
+				{
+					"size": "3XL",
+					"halfChestCm": 64,
+					"bodyLengthCm": 80,
+					"sleeveLengthCm": 24.5
+				}
+			]
+		},
+		"hoodie": {
+			"id": "hoodie",
+			"brandRef": "Stanley/Stella Cruiser STSU822",
+			"pricedSize": "M",
+			"areas": [
+				{
+					"side": "front",
+					"bySize": {
+						"S": {
+							"wCm": 29.1,
+							"hCm": 29.1
+						},
+						"M": {
+							"wCm": 30.5,
+							"hCm": 30.5
+						},
+						"L": {
+							"wCm": 32.2,
+							"hCm": 32.2
+						},
+						"XL": {
+							"wCm": 33.9,
+							"hCm": 33.9
+						},
+						"2XL": {
+							"wCm": 35.6,
+							"hCm": 35.6
+						},
+						"3XL": {
+							"wCm": 37.3,
+							"hCm": 37.3
+						}
+					}
+				},
+				{
+					"side": "back",
+					"bySize": {
+						"S": {
+							"wCm": 29.1,
+							"hCm": 33.9
+						},
+						"M": {
+							"wCm": 30.5,
+							"hCm": 35.6
+						},
+						"L": {
+							"wCm": 32.2,
+							"hCm": 37.5
+						},
+						"XL": {
+							"wCm": 33.9,
+							"hCm": 39.5
+						},
+						"2XL": {
+							"wCm": 35.6,
+							"hCm": 41.5
+						},
+						"3XL": {
+							"wCm": 37.3,
+							"hCm": 43.5
+						}
+					}
+				},
+				{
+					"side": "sleeve",
+					"bySize": {
+						"S": {
+							"wCm": 9.7,
+							"hCm": 9.7
+						},
+						"M": {
+							"wCm": 10.2,
+							"hCm": 10.2
+						},
+						"L": {
+							"wCm": 10.7,
+							"hCm": 10.7
+						},
+						"XL": {
+							"wCm": 11.3,
+							"hCm": 11.3
+						},
+						"2XL": {
+							"wCm": 11.9,
+							"hCm": 11.9
+						},
+						"3XL": {
+							"wCm": 12.4,
+							"hCm": 12.4
+						}
+					}
+				}
+			],
+			"sizes": [
+				{
+					"size": "S",
+					"halfChestCm": 51.5,
+					"bodyLengthCm": 68,
+					"sleeveLengthCm": 64
+				},
+				{
+					"size": "M",
+					"halfChestCm": 54,
+					"bodyLengthCm": 72,
+					"sleeveLengthCm": 65.5
+				},
+				{
+					"size": "L",
+					"halfChestCm": 57,
+					"bodyLengthCm": 74,
+					"sleeveLengthCm": 67
+				},
+				{
+					"size": "XL",
+					"halfChestCm": 60,
+					"bodyLengthCm": 76,
+					"sleeveLengthCm": 68.5
+				},
+				{
+					"size": "2XL",
+					"halfChestCm": 63,
+					"bodyLengthCm": 78,
+					"sleeveLengthCm": 70
+				},
+				{
+					"size": "3XL",
+					"halfChestCm": 66,
+					"bodyLengthCm": 80,
+					"sleeveLengthCm": 70
+				}
+			]
+		}
+	},
+	"colors": [
+		{
+			"id": "white",
+			"name": "Blanc",
+			"hex": "#FFFFFF"
+		},
+		{
+			"id": "black",
+			"name": "Noir",
+			"hex": "#191C20"
+		},
+		{
+			"id": "heather",
+			"name": "Gris chiné",
+			"hex": "#B7BCC2"
+		},
+		{
+			"id": "charcoal",
+			"name": "Anthracite",
+			"hex": "#3E434A"
+		},
+		{
+			"id": "navy",
+			"name": "Marine",
+			"hex": "#1F2A44"
+		},
+		{
+			"id": "royal",
+			"name": "Bleu roi",
+			"hex": "#2454B5"
+		},
+		{
+			"id": "red",
+			"name": "Rouge",
+			"hex": "#C0272D"
+		},
+		{
+			"id": "maroon",
+			"name": "Bordeaux",
+			"hex": "#6E2231"
+		},
+		{
+			"id": "forest",
+			"name": "Vert forêt",
+			"hex": "#1E4634"
+		},
+		{
+			"id": "kelly",
+			"name": "Vert gazon",
+			"hex": "#2E8B47"
+		},
+		{
+			"id": "sand",
+			"name": "Sable",
+			"hex": "#D9CBB2"
+		},
+		{
+			"id": "brown",
+			"name": "Marron",
+			"hex": "#5B4636"
+		},
+		{
+			"id": "purple",
+			"name": "Violet",
+			"hex": "#5B3B8C"
+		},
+		{
+			"id": "pink",
+			"name": "Rose",
+			"hex": "#F3A6C0"
+		},
+		{
+			"id": "sky",
+			"name": "Ciel",
+			"hex": "#A8CFE8"
+		},
+		{
+			"id": "orange",
+			"name": "Orange",
+			"hex": "#E8722A"
+		},
+		{
+			"id": "gold",
+			"name": "Or",
+			"hex": "#F2B32C"
+		},
+		{
+			"id": "mint",
+			"name": "Menthe",
+			"hex": "#BFE3D0"
+		}
+	]
+}
