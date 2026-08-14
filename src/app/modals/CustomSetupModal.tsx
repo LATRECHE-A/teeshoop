@@ -24,7 +24,7 @@ import {
 import { detectGarmentShape, type ShapeDetection } from '@/lib/silhouette'
 import { generateBackSide, IngestPhotoError } from '@/lib/ingest/pipeline'
 import type { CustomSideSetup, Side } from '@/lib/types'
-import { fmtCm, fmtIn, inToCm } from '@/lib/units'
+import { fmtInAsCm, inToCm } from '@/lib/units'
 import { shapeKey, useShapeT } from './customShapeI18n'
 
 interface SideDraft extends CustomSideSetup {
@@ -459,8 +459,7 @@ export default function CustomSetupModal() {
               }}
             />
             <span className="mono-dim w-24 shrink-0 text-right text-cy">
-              {fmtCm(inToCm(widthIn))}
-              <span className="text-tx3"> · {fmtIn(widthIn)}</span>
+              {fmtInAsCm(widthIn)}
             </span>
           </div>
           <p className="mt-1 text-[11px] text-tx3">

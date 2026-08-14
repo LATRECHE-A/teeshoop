@@ -24,7 +24,7 @@ import { computeSnap } from '@/lib/smartGuides'
 import { uploadZonesFor, zonesFor } from '@/content/zones'
 import { DEFAULT_SIZE, type SizeId } from '@/content/sizeChart'
 import { printScaleK } from '@/lib/printScale'
-import { fmtIn, fmtCm, inToCm } from '@/lib/units'
+import { fmtInAsCm, fmtNum, inToCm } from '@/lib/units'
 import { t } from '@/i18n'
 
 export interface SelectionInfo {
@@ -510,10 +510,12 @@ export class EditorEngine {
       new Konva.Text({
         x: area.x,
         y: area.y - 20,
-        // cm is the customer-facing unit; inches stay as the pro reference.
+        // cm, and only cm. Two units on one label is a second chance to read
+        // the wrong number, and the reader here is a customer with a tape
+        // measure, not a print shop.
         text: t('editor.print_area_label', {
-          w: `${fmtCm(inToCm(wIn))} (${fmtIn(wIn)})`,
-          h: `${fmtCm(inToCm(hIn))} (${fmtIn(hIn)})`,
+          w: fmtNum(inToCm(wIn)),
+          h: fmtInAsCm(hIn),
         }),
         fontFamily: 'JetBrains Mono, monospace',
         fontSize: 11,

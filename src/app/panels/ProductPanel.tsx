@@ -11,7 +11,7 @@ import { useAdminSlots } from '@/app/adminSlots'
 import { useT } from '@/i18n'
 import { getAreaSizeIn } from '@/lib/renderDesign'
 import { gradableSizes, printScaleOf } from '@/lib/printScale'
-import { fmtCm, fmtIn, fmtSizeDual, inToCm } from '@/lib/units'
+import { fmtCm, fmtInAsCm, fmtNum, fmtSizeCm, inToCm } from '@/lib/units'
 import { withSvgSize } from '@/lib/rasterCache'
 import type { CatalogGarmentId, PrintScaleMode } from '@/lib/types'
 
@@ -235,7 +235,7 @@ export default function ProductPanel() {
               this changes as the chips are clicked, which is the feedback that
               makes the feature believable. */}
           <div className="mono-dim mt-2 text-[11px] text-tx2">
-            {t('product.print_area')} · {t('side.' + side)} : {fmtSizeDual(area.wIn, area.hIn)}
+            {t('product.print_area')} · {t('side.' + side)} : {fmtSizeCm(area.wIn, area.hIn)}
           </div>
           {(() => {
             const chart = SIZE_CHARTS[design.garmentId as CatalogGarmentId]
@@ -338,8 +338,8 @@ export default function ProductPanel() {
         </div>
         <div className="mono-dim text-cy">
           {t('product.print_area_size', {
-            w: `${fmtCm(inToCm(area.wIn))} (${fmtIn(area.wIn)})`,
-            h: `${fmtCm(inToCm(area.hIn))} (${fmtIn(area.hIn)})`,
+            w: fmtNum(inToCm(area.wIn)),
+            h: fmtInAsCm(area.hIn),
           })}
         </div>
         <p className="mt-1.5 text-[11px] leading-relaxed text-tx3">

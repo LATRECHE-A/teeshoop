@@ -46,7 +46,7 @@ import {
   type GarmentAnatomy,
 } from '@/lib/garmentAnatomy'
 import type { CustomSideSetup, RectIn, Side } from '@/lib/types'
-import { clamp, cmToIn, fmtCm, fmtIn, inToCm } from '@/lib/units'
+import { clamp, cmToIn, fmtInAsCm, fmtSizeCm, inToCm } from '@/lib/units'
 
 /** Photo stage budget (CSS px) — shrunk to the container on narrow screens. */
 const MAX_STAGE_W = 430
@@ -807,7 +807,7 @@ export default function PrintAreaPlacer({
     <span className="flex items-baseline gap-1">
       <span className="text-[10px] text-tx3">{label}</span>
       <span className={clsx('font-mono text-[11px]', ok ? 'text-ok' : 'text-tx2')}>
-        {fmtCm(inToCm(valueIn))}
+        {fmtInAsCm(valueIn)}
       </span>
     </span>
   )
@@ -897,11 +897,7 @@ export default function PrintAreaPlacer({
               onPointerDown={start('move')}
             >
               <span className="absolute -top-6 left-0 whitespace-nowrap rounded bg-bg1/95 px-1.5 py-0.5 font-mono text-[10px] text-cy">
-                {fmtCm(inToCm(area.wIn))} × {fmtCm(inToCm(area.hIn))}
-                <span className="text-tx3">
-                  {' '}
-                  {fmtIn(area.wIn)} × {fmtIn(area.hIn)}
-                </span>
+                {fmtSizeCm(area.wIn, area.hIn)}
               </span>
               {(['nw', 'ne', 'sw', 'se'] as const).map((k) => (
                 <button

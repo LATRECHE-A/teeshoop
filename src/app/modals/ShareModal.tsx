@@ -13,7 +13,7 @@ import { getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/
 import { printScaleK } from '@/lib/printScale'
 import { listAssets } from '@/state/assets'
 import { downloadBlob, downloadCanvasPng, slugify } from '@/lib/download'
-import { fmtIn } from '@/lib/units'
+import { fmtSizeCm } from '@/lib/units'
 import type { Side } from '@/lib/types'
 import { useT } from '@/i18n'
 
@@ -124,7 +124,7 @@ export default function ShareModal() {
                       <div className="min-w-0 flex-1">
                         <div className="text-[12.5px] font-medium capitalize text-tx">{sd === 'front' ? t('common.front') : sd === 'back' ? t('common.back') : t('common.sleeve')}</div>
                         <div className="mono-dim">
-                          {fmtIn(area.wIn)} × {fmtIn(area.hIn)} · {t('share.transparent_png')}
+                          {fmtSizeCm(area.wIn, area.hIn)} · {t('share.transparent_png')}
                         </div>
                         {warn.length > 0 && (
                           <div className="mt-1 flex items-start gap-1 text-[11px] text-yl">

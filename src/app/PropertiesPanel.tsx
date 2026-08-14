@@ -19,7 +19,7 @@ import { FONTS, ensureFont } from '@/lib/fonts'
 import { INK_COLORS } from '@/content/palettes'
 import { zonesFor } from '@/content/zones'
 import type { GraphicLayer, ImageLayer, Layer, TextLayer } from '@/lib/types'
-import { fmtCm, fmtIn, inToCm } from '@/lib/units'
+import { fmtInAsCm, fmtNum, inToCm } from '@/lib/units'
 import { measureLayer } from '@/lib/renderDesign'
 import { printScaleK, scaleLayer } from '@/lib/printScale'
 import { useIsMobile } from './hooks/useIsMobile'
@@ -326,7 +326,7 @@ function TextProps({
           min={0.25}
           max={5}
           step={0.05}
-          format={fmtIn}
+          format={fmtInAsCm}
           onChange={(v, commit) => patch({ fontSizeIn: v }, commit)}
         />
       </Row>
@@ -357,7 +357,7 @@ function TextProps({
             min={0.01}
             max={0.12}
             step={0.005}
-            format={fmtIn}
+            format={fmtInAsCm}
             onChange={(v, commit) => patch({ strokeWidthIn: v }, commit)}
           />
         )}
@@ -592,8 +592,8 @@ function CommonProps({
       <div className="mt-1 rounded-md border border-line bg-bg1 px-2.5 py-2">
         <span className="mono-dim">
           {t('props.prints_at', {
-            w: `${fmtCm(inToCm(size.w / 100))} (${fmtIn(size.w / 100)})`,
-            h: `${fmtCm(inToCm(size.h / 100))} (${fmtIn(size.h / 100)})`,
+            w: fmtNum(inToCm(size.w / 100)),
+            h: fmtInAsCm(size.h / 100),
           })}{' '}
           <span className="text-cy">
             {(ON_SIZE[lang] ?? ON_SIZE.fr)} {previewSize}

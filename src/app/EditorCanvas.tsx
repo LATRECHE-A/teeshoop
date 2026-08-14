@@ -6,7 +6,7 @@ import { useStore } from '@/state/store'
 import { addAsset, listAssets } from '@/state/assets'
 import { ASSET_DRAG_TYPE } from './panels/UploadsPanel'
 import type { AssetMeta } from '@/lib/types'
-import { fmtCm, fmtIn, inToCm } from '@/lib/units'
+import { fmtSizeCm } from '@/lib/units'
 import { stageBackground } from '@/scenes'
 import { useT } from '@/i18n'
 
@@ -240,10 +240,7 @@ export default function EditorCanvas() {
           }}
         >
           <span className="mono-dim text-cy">
-            {fmtCm(inToCm(sel.wIn))} × {fmtCm(inToCm(sel.hIn))}
-            <span className="text-tx3">
-              {'  '}({fmtIn(sel.wIn)} × {fmtIn(sel.hIn)})
-            </span>
+            {fmtSizeCm(sel.wIn, sel.hIn)}
             {Math.abs(sel.rotation % 360) > 0.4 &&
               `  ·  ${Math.round(sel.rotation)}°`}
           </span>
