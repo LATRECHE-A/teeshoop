@@ -10,6 +10,23 @@
 #
 # The plugin source is BIND-MOUNTED from the repo: editing wp-plugins/teeshoop-core/
 # is immediately live in the container. Nothing WordPress writes ends up in git.
+#
+# VERSIONS ARE PINNED, and to production's, not to latest. This used to say
+# `wordpress:php8.3-apache`, a tag that follows whatever WordPress ships today, so
+# the mirror drifted from the shop silently and in a direction nobody chose. On
+# 14/08/2026 the shop was measured at WordPress 7.0.4 and WooCommerce 11.0.1;
+# the mirror was on 7.0.3. When production moves, this file moves with it, in a
+# commit that says so.
+#
+# ONE GAP REMAINS, AND IT IS THE PHP VERSION. o2switch runs PHP 8.1.34. The
+# official WordPress images stop offering php8.1 at WordPress 6.8, so there is no
+# 7.0.4-php8.1 to pin to, and this mirror runs 8.3. `npm run test:php` runs on
+# whatever PHP the developer has, which today is 8.5. So the plugin's PHP is
+# currently exercised on 8.3 and 8.5 and never on the 8.1 that actually serves
+# customers: anything using syntax or a function introduced after 8.1 would pass
+# every gate here and fatal on the live shop. Until either production is raised
+# or a lint against 8.1 is added, that is a known hole, written here rather than
+# discovered from a white page on teeshoop.com.
 services:
   db:
     image: mariadb:11
@@ -26,7 +43,8 @@ services:
       retries: 20
 
   wp:
-    image: wordpress:php8.3-apache
+    # Pinned to production's WordPress. See the header before changing it.
+    image: wordpress:7.0.4-php8.3-apache
     depends_on:
       db:
         condition: service_healthy

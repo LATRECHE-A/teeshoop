@@ -92,8 +92,8 @@ panier et tout fonctionnait. Avec les permaliens propres, ceux d'o2switch, **cha
 panier répondait 503**. Toute la séance 01 avait été vérifiée verte sur la seule
 configuration où le défaut est invisible.
 
-**L'outillage.** Un miroir local de la production (WordPress 7.0.3 + WooCommerce 11.0.1 en
-docker) que l'on peut désormais **reconstruire depuis le dépôt** (`wp teeshoop
+**L'outillage.** Un miroir local de la production (WordPress 7.0.4 + WooCommerce 11.0.1 en
+docker, **versions épinglées** sur celles réellement mesurées sur le serveur) que l'on peut désormais **reconstruire depuis le dépôt** (`wp teeshoop
 provisionner`), 143 tests JavaScript, 64 tests PHP purs, 17 tests d'intégration WooCommerce,
 une vérification de bout en bout du parcours d'achat à 40 assertions, un garde-fou qui
 interdit à un prix d'achat, un nom de fournisseur ou un tarif film d'atteindre un gabarit
@@ -121,22 +121,26 @@ instructions de travail, elles changent plus vite que le code).
 | 11 | Référencement, contenu, données structurées | 09 |
 | 12 | Juridique, RGPD, accessibilité | 09 |
 | 13 | Performance, sécurité, supervision | 09, 10 |
-| 14 | Déploiement : préproduction, pipeline, purge de la démo | **SSH + cPanel** |
+| 14 | Déploiement : préproduction, pipeline, purge de la démo | rien (accès obtenus le 14/08) |
 | 15 | Répétition générale et mise en ligne | 14 |
 
-**Seules les séances 14 et 15 exigent les accès o2switch.** Tout le reste se construit et
-se vérifie sur le miroir local.
+**Seules les séances 14 et 15 touchent au serveur o2switch, et leurs accès sont
+désormais en place.** Tout le reste se construit et se vérifie sur le miroir local.
 
 ---
 
 ## Ce qui bloque, et qui peut le débloquer
 
+**Les accès ne bloquent plus rien depuis le 14/08/2026.** SSH, clés WooCommerce,
+compte administrateur et préproduction sont en place et ont été essayés un par un
+(détail et méthode dans `ACCES-REQUIS.md`). La demande d'accès à cPanel a été
+**retirée** plutôt qu'accordée : les quatre opérations qui la motivaient passent toutes
+par SSH. Ce qui reste bloque pour une autre raison, et personne d'autre que l'associé
+ne peut le lever.
+
 | Blocage | Qui | Détail |
 |---|---|---|
-| SSH o2switch | associé | Clé publique déjà générée, dans `ACCES-REQUIS.md`, à importer **et autoriser** dans cPanel |
-| cPanel | associé | Préproduction, version de PHP, cron réel, Redis |
-| Compte admin WordPress nominatif | associé | Pas de compte partagé |
-| Clés API WooCommerce | associé | Lecture/écriture |
+| **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Franchise en base ou régularisation : la séance 04 construit 20 % partout et se trompe entièrement si la réponse est « franchise » |
 | La vraie grille tarifaire | associé | Question 04 de `QUESTIONS-ASSOCIE.md` ; les prix actuels sont des **valeurs de démonstration** |
 | Clés Stripe (test puis production) | associé | Séance 04 |
 | Compte Brevo | associé | Séance 06 |
