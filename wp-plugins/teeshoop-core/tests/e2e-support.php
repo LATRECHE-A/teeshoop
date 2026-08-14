@@ -169,6 +169,11 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 			'need_classic'    => (bool) ( $theme['need_classic'] ?? false ),
 			'product_id'      => $product->get_id(),
 			'url'             => get_permalink( $product->get_id() ),
+			// Reported, never asserted here: the harness decides. It matters
+			// because WooCommerce builds a cart for a REST request only when
+			// the REST prefix is absent from REQUEST_URI, which is true of the
+			// plain structure and false of production's.
+			'permalinks'      => (string) get_option( 'permalink_structure' ),
 			'cart_url'        => wc_get_cart_url(),
 			'garment'         => Product::garment_of( $product->get_id() ),
 			'catalogue_price' => (float) $product->get_regular_price(),

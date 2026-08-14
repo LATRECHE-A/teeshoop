@@ -213,7 +213,38 @@ final class Rest {
 	 * the customer chose; the server decides what it costs.
 	 */
 	public static function add_to_cart( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
-		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+		if ( ! function_exists( 'WC' ) ) {
+			return new \WP_Error( 'teeshoop_no_cart', __( 'Le panier n’est pas disponible.', 'teeshoop' ), array( 'status' => 503 ) );
+		}
+
+		/*
+		 * THERE IS NO CART IN A REST REQUEST UNTIL SOMEBODY LOADS ONE.
+		 *
+		 * WooCommerce only builds a session and a cart for what it calls a
+		 * frontend request, and `WooCommerce::is_rest_api_request()` decides
+		 * that by looking for the REST prefix in `REQUEST_URI`. On a shop with
+		 * PRETTY permalinks this route is `/wp-json/teeshoop/v1/cart`, which
+		 * contains `wp-json`, so `WC()->cart` is null and every add-to-cart
+		 * answered 503.
+		 *
+		 * It went unnoticed because the local mirror shipped with PLAIN
+		 * permalinks, where the same route is `/index.php?rest_route=/teeshoop/v1/cart`
+		 * and the prefix never appears in the URI: WooCommerce classified it as
+		 * a frontend request, loaded a cart, and the whole buy flow verified
+		 * green against a configuration production does not have. teeshoop.com
+		 * runs pretty permalinks. Found on 2026-08-14, the first time the mirror
+		 * was provisioned to match.
+		 *
+		 * `wc_load_cart()` is WooCommerce's own documented answer for exactly
+		 * this (it is what the Store API and WP-CLI use), and it reads the
+		 * visitor's session cookie, so what gets loaded is the caller's own
+		 * basket and not a fresh one.
+		 */
+		if ( ! WC()->cart && function_exists( 'wc_load_cart' ) ) {
+			wc_load_cart();
+		}
+
+		if ( ! WC()->cart ) {
 			return new \WP_Error( 'teeshoop_no_cart', __( 'Le panier n’est pas disponible.', 'teeshoop' ), array( 'status' => 503 ) );
 		}
 

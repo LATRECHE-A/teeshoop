@@ -294,6 +294,24 @@ try {
     fixture.unverified_ok === false,
     'TEESHOOP_ALLOW_UNVERIFIED_DESIGNS is not defined',
   )
+  /*
+   * PRETTY PERMALINKS, LIKE PRODUCTION, and this is an assertion rather than a
+   * setting because the difference is load-bearing.
+   *
+   * WooCommerce decides whether to build a cart by looking for the REST prefix
+   * in REQUEST_URI. With the PLAIN structure a fresh WordPress ships with,
+   * `/index.php?rest_route=/teeshoop/v1/cart` does not contain `wp-json`, so
+   * Woo treats the add-to-cart call as a frontend request and loads a cart. On
+   * pretty permalinks it does not, and every add answered 503. This suite
+   * verified the whole buy flow green against the one configuration where the
+   * bug is invisible. teeshoop.com runs pretty permalinks.
+   */
+  ok(
+    'the shop uses pretty permalinks, like production',
+    typeof fixture.permalinks === 'string' && fixture.permalinks !== '',
+    fixture.permalinks === '' ? 'plain: run `npm run wp:cli teeshoop provisionner`' : fixture.permalinks,
+  )
+
   console.log(`product page: ${fixture.url}`)
 
   // --- 4. the customer ----------------------------------------------------
@@ -311,6 +329,16 @@ try {
   // requestBodySize 0 for a multipart upload, which would have made a slow
   // design look free.
   let upload = null
+  // The REST answer behind the studio's message. The customer-facing copy says
+  // only that nothing was charged, which is right for a customer and useless
+  // for a harness: a failed run cost a debugging cycle to learn the code.
+  const cartReplies = []
+  page.on('response', async (res) => {
+    if (!res.url().includes('teeshoop/v1/cart')) return
+    const body = await res.text().catch(() => '')
+    cartReplies.push(`HTTP ${res.status()} ${body.slice(0, 300)}`)
+  })
+
   page.on('requestfinished', (req) => {
     if (req.method() !== 'POST' || !req.url().endsWith('/api/design')) return
     const timing = req.timing()
@@ -411,7 +439,10 @@ try {
   if (outcome !== 'done') {
     const why = await studio.locator('[data-teeshoop="cart-error"]').textContent().catch(() => '')
     await shot('wp-e2e-x-failed')
-    bail(`add to cart ${outcome}: ${why || 'no message'}`)
+    bail(
+      `add to cart ${outcome}: ${why || 'no message'}` +
+        (cartReplies.length ? `\n  shop answered: ${cartReplies.join(' | ')}` : '\n  the shop was never asked'),
+    )
   }
   ok('the studio reports the line was added', true, `${Math.round((Date.now() - startedAt) / 100) / 10} s`)
   await shot('wp-e2e-4-added')
