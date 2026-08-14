@@ -73,6 +73,11 @@
 			productId: cfg.productId,
 			garment: cfg.garment,
 			locale: document.documentElement.lang || 'fr',
+			// What the buy box collected before the customer clicked
+			// Personnaliser. Validated on the server (Shortcode::preset) and
+			// re-validated in the frame, because the frame trusts nothing it is
+			// told, including us.
+			preset: cfg.preset && typeof cfg.preset === 'object' ? cfg.preset : null,
 		});
 	}
 

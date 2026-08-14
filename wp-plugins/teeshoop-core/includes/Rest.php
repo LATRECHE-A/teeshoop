@@ -58,6 +58,21 @@ final class Rest {
 						'type'    => 'array',
 						'default' => array(),
 					),
+					/*
+					 * A shorthand for "N printed sides at the standard area
+					 * tier", which is exactly what the product page's estimator
+					 * asks about and what every cell of the grid means.
+					 *
+					 * It exists so a browser never has to know the convention.
+					 * Left to build `sides` itself, product.js would have to
+					 * send the magic small area that lands in the first tier,
+					 * and the day a tier boundary moved, a cached script would
+					 * go on quoting the old one.
+					 */
+					'faces'   => array(
+						'type'    => 'integer',
+						'default' => 0,
+					),
 				),
 			)
 		);
@@ -113,12 +128,22 @@ final class Rest {
 
 	/** GET /quote — the price, and the breakdown behind it. */
 	public static function quote( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$garment = (string) $request->get_param( 'garment' );
+		$sides   = Design::normalise_sides( $request->get_param( 'sides' ) );
+
+		// `faces` is the shorthand; explicit sides win, because a caller that
+		// sent measured areas means them.
+		$faces = (int) $request->get_param( 'faces' );
+		if ( empty( $sides ) && $faces > 0 ) {
+			$sides = Pricing::standard_sides( min( $faces, Garments::printable_sides_count( $garment ) ) );
+		}
+
 		try {
 			$quote = Pricing::quote(
 				array(
-					'garment' => (string) $request->get_param( 'garment' ),
+					'garment' => $garment,
 					'qty'     => (int) $request->get_param( 'qty' ),
-					'sides'   => Design::normalise_sides( $request->get_param( 'sides' ) ),
+					'sides'   => $sides,
 				),
 				Settings::pricing()
 			);
@@ -135,12 +160,23 @@ final class Rest {
 
 	/** GET /grid — faces × quantity, the table shown before the editor opens. */
 	public static function grid( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
-		$config = Settings::pricing();
-		$qtys   = array( 1, 5, 10, 25, 50, 100 );
-		$sides  = array( 1, 2 );
+		$config  = Settings::pricing();
+		$garment = (string) $request->get_param( 'garment' );
+
+		/*
+		 * The columns are DERIVED, and they are derived in one place.
+		 *
+		 * This route used to hold its own list of round quantities while the
+		 * product page held another. Two lists of columns over one price engine
+		 * is how a customer ends up comparing a page against an API answer and
+		 * finding a break the other does not show. `Pricing::grid_qtys` is now
+		 * the only thing that decides, here and in ProductPage.
+		 */
+		$qtys  = Pricing::grid_qtys( $config );
+		$sides = range( 1, Garments::printable_sides_count( $garment ) );
 
 		try {
-			$grid = Pricing::grid( (string) $request->get_param( 'garment' ), $qtys, $sides, $config );
+			$grid = Pricing::grid( $garment, $qtys, $sides, $config );
 		} catch ( \InvalidArgumentException $e ) {
 			return new \WP_Error(
 				'teeshoop_unknown_garment',
@@ -160,10 +196,12 @@ final class Rest {
 
 		return new \WP_REST_Response(
 			array(
-				'garment'  => (string) $request->get_param( 'garment' ),
-				'currency' => $config['currency'],
-				'vat_rate' => $config['vat_rate'],
-				'rows'     => $grid,
+				'garment'         => $garment,
+				'currency'        => $config['currency'],
+				'vat_rate'        => $config['vat_rate'],
+				'qtys'            => $qtys,
+				'std_area_sq_cm'  => Pricing::std_area_sq_cm( $config ),
+				'rows'            => $grid,
 			)
 		);
 	}

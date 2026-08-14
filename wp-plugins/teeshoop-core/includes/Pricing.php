@@ -120,6 +120,27 @@ final class Pricing {
 
 			/** Hard cap; a "quantity" past this is a data-entry accident or an attack. */
 			'max_qty'    => 10000,
+
+			/*
+			 * Where self-serve stops and a devis begins.
+			 *
+			 * ⚠ THIS IS OUR ASSUMPTION, NOT THE ASSOCIATE'S RULE. Question 02 of
+			 * QUESTIONS-ASSOCIE.md is 🔴 blocking and unanswered; its published
+			 * default — the one we committed to acting on in the absence of an
+			 * answer — is "prix public et paiement en autonomie jusqu'à 250
+			 * pièces ou 2 000 EUR hors taxes ; au-delà, passage obligatoire par
+			 * un devis". These two numbers are that sentence, and nothing else.
+			 *
+			 * The Bible specifies no threshold at all: chapter 2 names four
+			 * parcours (achat autonome, devis commercial, grand compte,
+			 * réassort) and never says which one an order falls into. So there
+			 * was nothing to derive and the honest thing is to say whose number
+			 * this is, in the file where it is read.
+			 *
+			 * Either at 0 disables that side of the rule.
+			 */
+			'quote_from_qty' => 250,
+			'quote_from_ht'  => 200000,
 		);
 	}
 
@@ -163,6 +184,51 @@ final class Pricing {
 			}
 		}
 		return $tiers[ count( $tiers ) - 1 ];
+	}
+
+	/**
+	 * Whether this run is past the point where the site should price it alone.
+	 *
+	 * Two independent triggers, quantity and amount, because they catch
+	 * different jobs: 400 plain tees is a production question, and 30 hoodies
+	 * with four faces is a money question. Either one is enough.
+	 *
+	 * A threshold of 0 means "no threshold", not "everything needs a quote".
+	 * Reading it the other way would take the shop offline the first time
+	 * someone cleared the field.
+	 */
+	public static function needs_quote( int $qty, int $total_ht, array $config ): bool {
+		$from_qty = (int) ( $config['quote_from_qty'] ?? 0 );
+		$from_ht  = (int) ( $config['quote_from_ht'] ?? 0 );
+
+		if ( $from_qty > 0 && $qty > $from_qty ) {
+			return true;
+		}
+		if ( $from_ht > 0 && $total_ht > $from_ht ) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * `$count` printed sides, each at the cheapest area tier.
+	 *
+	 * The convention — a positive area small enough to land in the first tier —
+	 * used to be written inline inside `grid()`. It is a shared assumption
+	 * between the grid, the product page's estimator and the REST route, so it
+	 * is written once: a second copy that used 0 instead of 1 would drop every
+	 * side (`quote()` ignores sides with no area) and quote a blank garment as
+	 * though it were printed.
+	 */
+	public static function standard_sides( int $count ): array {
+		$sides = array();
+		for ( $i = 0; $i < max( 0, $count ); $i++ ) {
+			$sides[] = array(
+				'id'         => 'side_' . $i,
+				'area_sq_cm' => 1.0,
+			);
+		}
+		return $sides;
 	}
 
 	/** The discount rate for a quantity — the highest break reached, or 0. */
@@ -272,6 +338,10 @@ final class Pricing {
 			'total_ht'      => $total_ht,
 			'total_vat'     => $total_vat,
 			'total_ttc'     => $total_ht + $total_vat,
+			// Derived here so the product page, the studio's basket panel and
+			// the cart all read the same verdict rather than each comparing
+			// against its own copy of the threshold.
+			'needs_quote'   => self::needs_quote( $qty, $total_ht, $config ),
 			'lines'         => $lines,
 		);
 	}
@@ -293,13 +363,7 @@ final class Pricing {
 		foreach ( $side_counts as $count ) {
 			$cells = array();
 			foreach ( $qtys as $qty ) {
-				$sides = array();
-				for ( $i = 0; $i < $count; $i++ ) {
-					$sides[] = array(
-						'id'         => 'side_' . $i,
-						'area_sq_cm' => 1.0, // smallest positive: the standard tier
-					);
-				}
+				$sides   = self::standard_sides( $count );
 				$quote   = self::quote(
 					array(
 						'garment' => $garment,
@@ -309,10 +373,12 @@ final class Pricing {
 					$config
 				);
 				$cells[] = array(
-					'qty'      => $qty,
-					'unit_ht'  => $quote['unit_ht'],
-					'unit_ttc' => $quote['unit_ttc'],
-					'total_ht' => $quote['total_ht'],
+					'qty'           => $qty,
+					'unit_ht'       => $quote['unit_ht'],
+					'unit_ttc'      => $quote['unit_ttc'],
+					'total_ht'      => $quote['total_ht'],
+					'total_ttc'     => $quote['total_ttc'],
+					'discount_rate' => $quote['discount_rate'],
 				);
 			}
 			$rows[] = array(
@@ -321,5 +387,103 @@ final class Pricing {
 			);
 		}
 		return $rows;
+	}
+
+	/**
+	 * The quantity columns the grid shows, derived from the discount breaks.
+	 *
+	 * NOT a hand-picked list of round numbers. Every column is either 1 — the
+	 * price of buying one, which a customer compares first — or a quantity at
+	 * which the price actually changes, plus one doubling past the last break so
+	 * the table does not stop at the moment it becomes interesting.
+	 *
+	 * A decorative column is worse than no column: it invites the reader to
+	 * infer a break that is not there. With the shipped breaks (10, 25, 50) this
+	 * returns 1, 10, 25, 50, 100.
+	 */
+	public static function grid_qtys( array $config ): array {
+		$qtys = array( 1 );
+		$last = 0;
+
+		foreach ( (array) ( $config['qty_breaks'] ?? array() ) as $break ) {
+			$min = (int) ( $break['min_qty'] ?? 0 );
+			if ( $min > 1 ) {
+				$qtys[] = $min;
+				$last   = max( $last, $min );
+			}
+		}
+
+		if ( $last > 0 ) {
+			$qtys[] = $last * 2;
+		}
+
+		$qtys = array_values( array_unique( $qtys ) );
+		sort( $qtys );
+
+		$max = (int) ( $config['max_qty'] ?? PHP_INT_MAX );
+		return array_values(
+			array_filter(
+				$qtys,
+				static fn( int $q ): bool => $q >= 1 && $q <= $max
+			)
+		);
+	}
+
+	/**
+	 * The two prices a headline may quote, taken FROM the grid it sits above.
+	 *
+	 * "À partir de X" is the first thing a competitor screenshots and the first
+	 * thing a customer checks against their basket. Mistertee's headline is
+	 * their 500-unit price, so a buyer of twenty discovers a 36 % gap by
+	 * scrolling; that is a lie that scales, and the only defence is to derive
+	 * the number rather than choose it.
+	 *
+	 * So both anchors are read out of `grid()`'s own single-side row: `unit` is
+	 * the cell at quantity 1, `best` is the cheapest cell there is, and `best`
+	 * carries the quantity that reaches it so the claim is checkable on the page
+	 * it is printed on.
+	 *
+	 * Returns array() when the grid is empty rather than a zero, because a
+	 * headline of 0,00 EUR is a price and 'no headline' is not.
+	 */
+	public static function headline( string $garment, array $config ): array {
+		$rows = self::grid( $garment, self::grid_qtys( $config ), array( 1 ), $config );
+		if ( empty( $rows ) || empty( $rows[0]['cells'] ) ) {
+			return array();
+		}
+
+		$cells = $rows[0]['cells'];
+		$unit  = null;
+		$best  = null;
+
+		foreach ( $cells as $cell ) {
+			if ( 1 === (int) $cell['qty'] ) {
+				$unit = $cell;
+			}
+			if ( null === $best || $cell['unit_ht'] < $best['unit_ht'] ) {
+				$best = $cell;
+			}
+		}
+
+		return array(
+			'unit' => $unit ?? $cells[0],
+			'best' => $best,
+		);
+	}
+
+	/**
+	 * The printed area the grid's prices assume, cm², or null when unbounded.
+	 *
+	 * The grid prices every side at the cheapest area tier, so the table needs a
+	 * footnote saying up to what size that holds. Reading the bound out of the
+	 * config is what stops the footnote and the tier from drifting apart.
+	 */
+	public static function std_area_sq_cm( array $config ): ?float {
+		$tiers = $config['area_tiers'] ?? array();
+		if ( empty( $tiers ) ) {
+			return null;
+		}
+		$first = $tiers[0];
+		return null === $first['max_sq_cm'] ? null : (float) $first['max_sq_cm'];
 	}
 }

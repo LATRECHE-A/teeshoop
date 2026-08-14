@@ -37,6 +37,7 @@
  * sends what the customer chose (garment, quantity, printed sides and their
  * ink area in cm²) and WordPress decides what that costs.
  */
+import { SIZE_IDS } from '@/content/sizeChart'
 
 /** One printed side, in the unit the PHP price authority reads. cm², never in². */
 export interface BridgeSide {
@@ -49,6 +50,21 @@ export interface ShopContext {
   productId: number
   garment: string
   locale: string
+  /**
+   * What the buyer already typed on the product page, if anything.
+   *
+   * The shop's buy box asks how many pieces, and in which sizes, before the
+   * editor is ever opened. Asking again in the basket panel would be the studio
+   * throwing away work the customer had already done, which is the one thing
+   * tostadora.fr genuinely does better than everyone: its editor opens on the
+   * garment and the design that were clicked.
+   *
+   * IT IS A PRE-FILL AND NOTHING MORE. `Cart::add` re-derives the garment from
+   * the product and the printed areas from the stored design, and re-prices the
+   * line on every totals pass, so a hand-edited link changes what a form shows
+   * and never what an invoice says.
+   */
+  preset?: { qty?: number; sizeGrid?: Record<string, number> }
 }
 
 /**
@@ -327,12 +343,41 @@ function sameOriginUrl(raw: unknown): string {
   }
 }
 
+/**
+ * A size breakdown offered by the page, bounded the way everything from outside
+ * this module is bounded. Sizes the studio does not model are dropped rather
+ * than carried, because a size that reaches the basket panel is a size the
+ * workshop would be asked to press.
+ */
+function asPreset(raw: unknown): ShopContext['preset'] {
+  if (!raw || typeof raw !== 'object') return undefined
+  const source = raw as Record<string, unknown>
+  const preset: { qty?: number; sizeGrid?: Record<string, number> } = {}
+
+  const qty = Number(source.qty)
+  if (Number.isFinite(qty) && qty >= 1) preset.qty = Math.min(Math.floor(qty), 1_000_000)
+
+  if (source.sizeGrid && typeof source.sizeGrid === 'object') {
+    const grid: Record<string, number> = {}
+    for (const [size, count] of Object.entries(source.sizeGrid as Record<string, unknown>)) {
+      const n = Number(count)
+      if ((SIZE_IDS as readonly string[]).includes(size) && Number.isFinite(n) && n > 0) {
+        grid[size] = Math.min(Math.floor(n), 1_000_000)
+      }
+    }
+    if (Object.keys(grid).length > 0) preset.sizeGrid = grid
+  }
+
+  return preset.qty === undefined && preset.sizeGrid === undefined ? undefined : preset
+}
+
 function onContext(origin: string, data: Record<string, unknown>): void {
   parentOrigin = origin
   context = {
     productId: asProductId(data.productId),
     garment: typeof data.garment === 'string' ? data.garment : '',
     locale: typeof data.locale === 'string' ? data.locale : 'fr',
+    preset: asPreset(data.preset),
   }
   for (const t of handshakeTimers) clearTimeout(t)
   handshakeTimers.length = 0

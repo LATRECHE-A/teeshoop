@@ -74,9 +74,24 @@ export default function CartModal() {
   const [outcome, setOutcome] = useState<CartOutcome | null>(null)
   const [errorKey, setErrorKey] = useState<string>('')
   const [errorDetail, setErrorDetail] = useState<string>('')
-  // One garment in the size on screen. Not a made-up basket: the customer says
-  // what they want, and a shop that guesses "5 M and 5 L" is inventing an order.
-  const [grid, setGrid] = useState<Partial<Record<SizeId, number>>>({ [previewSize]: 1 })
+  /*
+   * One garment in the size on screen, unless the shop page already asked.
+   *
+   * Not a made-up basket: the customer says what they want, and a shop that
+   * guesses "5 M and 5 L" is inventing an order. But the product page's buy box
+   * asks exactly this question before the editor opens, and re-asking it here
+   * would be the studio discarding an answer the buyer already gave. The seed
+   * is read once, on mount, so nothing the page says can later overwrite what
+   * the customer typed in this panel.
+   */
+  const [grid, setGrid] = useState<Partial<Record<SizeId, number>>>(() => {
+    const preset = context?.preset
+    if (preset?.sizeGrid && Object.keys(preset.sizeGrid).length > 0) {
+      return preset.sizeGrid as Partial<Record<SizeId, number>>
+    }
+    if (preset?.qty && preset.qty > 1) return { [previewSize]: preset.qty }
+    return { [previewSize]: 1 }
+  })
 
   const front = useMockupUrl(design, 'front', 300)
   const back = useMockupUrl(design, 'back', 300)

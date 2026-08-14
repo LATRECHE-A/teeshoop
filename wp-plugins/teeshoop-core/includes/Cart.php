@@ -186,6 +186,45 @@ final class Cart {
 			$qty = max( 1, $qty );
 		}
 
+		/*
+		 * PAST THE THRESHOLD, THE SITE STOPS PRICING AND A HUMAN STARTS.
+		 *
+		 * Enforced here and not only on the product page, because a rule the
+		 * cart does not apply is a rule the page is merely decorating with. The
+		 * verdict itself comes from `Pricing::needs_quote`, the same function
+		 * the page and the studio's basket panel read, so the three cannot
+		 * disagree about whether a run is self-serve.
+		 *
+		 * The message names the way forward rather than saying no: at this size
+		 * the customer usually gets a better price from the quote than from the
+		 * public grid, which is the whole reason the threshold exists.
+		 */
+		try {
+			$check_quote = Pricing::quote(
+				array(
+					'garment' => $garment,
+					'qty'     => $qty,
+					'sides'   => $sides,
+				),
+				$config
+			);
+		} catch ( \InvalidArgumentException $e ) {
+			return new \WP_Error( 'teeshoop_unknown_garment', __( 'Ce vêtement n’est plus au catalogue.', 'teeshoop' ), array( 'status' => 400 ) );
+		}
+
+		if ( ! empty( $check_quote['needs_quote'] ) ) {
+			return new \WP_Error(
+				'teeshoop_needs_quote',
+				sprintf(
+					/* translators: 1: a quantity, 2: an amount excl. VAT. */
+					__( 'Au-delà de %1$d pièces ou de %2$s hors taxes, nous chiffrons la commande à la main. Demandez un devis depuis la fiche produit : le prix y est en général meilleur que le tarif public.', 'teeshoop' ),
+					(int) $config['quote_from_qty'],
+					Money::format( (int) $config['quote_from_ht'] )
+				),
+				array( 'status' => 409 )
+			);
+		}
+
 		$data = array(
 			'garment'      => $garment,
 			'sides'        => $sides,
@@ -449,8 +488,12 @@ final class Cart {
 	 * today is front, back and a single sleeve. `sleeve_l` and `sleeve_r` are
 	 * kept because the DTF module and the price engine both accept them and a
 	 * second sleeve position is a small studio change, not a protocol one.
+	 *
+	 * Public because the product page names the same sides in its print-area
+	 * table, and a second list of French labels would be a second place for
+	 * "Manche" to become "Manches" for one of them.
 	 */
-	private static function side_label( string $id ): string {
+	public static function side_label( string $id ): string {
 		$labels = array(
 			'front'    => __( 'Devant', 'teeshoop' ),
 			'back'     => __( 'Dos', 'teeshoop' ),

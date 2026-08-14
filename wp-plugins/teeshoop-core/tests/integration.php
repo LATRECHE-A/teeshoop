@@ -45,6 +45,7 @@ if ( 'cli' !== PHP_SAPI ) {
 }
 
 use Teeshoop\Core\Cart;
+use Teeshoop\Core\Compat;
 use Teeshoop\Core\Pricing;
 use Teeshoop\Core\Product;
 use Teeshoop\Core\Settings;
@@ -414,6 +415,184 @@ ts_it( 'writes the workshop hand-off onto the order line', function () use ( $pr
 	ts_eq( (float) $order->get_subtotal(), (float) WC()->cart->get_subtotal(), 'order subtotal vs cart' );
 
 	$order->delete( true );
+} );
+
+/*
+ * THE ONE THAT MATTERS TO A CUSTOMER: the number on the product page, the number
+ * in the basket and the number on the invoice are the same number.
+ *
+ * The grid is the first thing a competitor screenshots and the first thing a
+ * buyer compares against their checkout total; any disagreement is a support
+ * ticket per visitor. It cannot be checked with pure tests, because the two
+ * places it can break are both WooCommerce's: the cart's own rounding of a unit
+ * price into a line total, and the order's copy of it.
+ *
+ * The quantities are the ones either side of every discount break, so a
+ * boundary that moved by one would fail here rather than in an invoice.
+ */
+ts_it( 'the grid, the cart and the order agree at every quantity around a break', function () use ( $product_id, $sides, $design, $config ) {
+	$qtys = array( 1, 9, 10, 24, 25, 49, 50, 100 );
+	$grid = Pricing::grid( 'tee', $qtys, array( 1 ), $config );
+
+	foreach ( $qtys as $index => $qty ) {
+		WC()->cart->empty_cart();
+		$key = Cart::add(
+			array(
+				'product_id' => $product_id,
+				'qty'        => $qty,
+				'garment'    => 'tee',
+				'sides'      => $sides,
+				'design_id'  => $design,
+			)
+		);
+		ts_assert( ! is_wp_error( $key ), "qty {$qty} was refused" );
+
+		WC()->cart->calculate_totals();
+		$item  = WC()->cart->get_cart_item( $key );
+		$quote = Pricing::quote( array( 'garment' => 'tee', 'qty' => $qty, 'sides' => $sides ), $config );
+
+		// The grid is priced at the standard area tier, so its cell equals this
+		// quote only when the design is in that tier too. It is: 400 cm².
+		$cell = $grid[0]['cells'][ $index ];
+		ts_eq( $cell['qty'], $qty, 'grid column' );
+		ts_eq( $cell['unit_ht'], $quote['unit_ht'], "grid cell vs quote at {$qty}" );
+
+		/*
+		 * Both sides cast, every time. PHP's `/` returns an INT when the
+		 * division happens to be exact, so 47100/100 is int(471) while
+		 * `get_subtotal()` is float(471.0), and `ts_eq` is strict: the first
+		 * version of this case failed at exactly one of the eight quantities,
+		 * for a reason that has nothing to do with money.
+		 */
+		ts_eq( (float) $item['data']->get_price(), (float) ( $quote['unit_ht'] / 100 ), "cart unit price at {$qty}" );
+		ts_eq( (float) WC()->cart->get_subtotal(), (float) ( $quote['total_ht'] / 100 ), "cart subtotal at {$qty}" );
+
+		// And the order WooCommerce would create from it.
+		$order = WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) );
+		ts_assert( ! is_wp_error( $order ), "order creation failed at {$qty}" );
+		$order = wc_get_order( $order );
+		ts_eq( (float) $order->get_subtotal(), (float) ( $quote['total_ht'] / 100 ), "order subtotal at {$qty}" );
+		ts_eq(
+			(float) $order->get_total(),
+			(float) ( $quote['total_ttc'] / 100 ),
+			"order total incl. VAT at {$qty}"
+		);
+		$order->delete( true );
+	}
+} );
+
+/*
+ * Past the threshold the site stops pricing and a human starts.
+ *
+ * Enforced in the cart and not only on the product page: a rule the cart does
+ * not apply is a rule the page merely decorates with, and the studio's basket
+ * panel would happily post a run of four hundred.
+ */
+ts_it( 'accepts the largest self-serve run and refuses the next one', function () use ( $product_id, $sides, $design, $config ) {
+	/*
+	 * THE BOUNDARY IS ASKED FOR, NOT ASSUMED, and that distinction found a real
+	 * defect in the page's copy.
+	 *
+	 * There are two triggers, a piece count and an amount, and with the shipped
+	 * placeholder prices the AMOUNT binds first: a 400 cm² tee crosses
+	 * 2 000 EUR HT at about 213 pieces, well before the 250-piece rule. The
+	 * first version of this case wrote 250 in by hand, failed, and in failing
+	 * showed that the buy box was announcing a 250-piece limit the cart would
+	 * enforce at 213. The notice now names both limits.
+	 *
+	 * What must hold here is that Pricing and the cart agree on where the line
+	 * is, whichever of the two draws it.
+	 */
+	$last = 0;
+	for ( $qty = 1; $qty <= (int) $config['quote_from_qty'] + 1; $qty++ ) {
+		$quote = Pricing::quote( array( 'garment' => 'tee', 'qty' => $qty, 'sides' => $sides ), $config );
+		if ( ! empty( $quote['needs_quote'] ) ) {
+			break;
+		}
+		$last = $qty;
+	}
+	ts_assert( $last > 1, 'no self-serve quantity at all is priced' );
+
+	WC()->cart->empty_cart();
+	$ok = Cart::add(
+		array(
+			'product_id' => $product_id,
+			'qty'        => $last,
+			'garment'    => 'tee',
+			'sides'      => $sides,
+			'design_id'  => $design,
+		)
+	);
+	ts_assert( ! is_wp_error( $ok ), "the largest self-serve quantity {$last} was refused" );
+
+	WC()->cart->empty_cart();
+	$refused = Cart::add(
+		array(
+			'product_id' => $product_id,
+			'qty'        => $last + 1,
+			'garment'    => 'tee',
+			'sides'      => $sides,
+			'design_id'  => $design,
+		)
+	);
+	ts_assert( is_wp_error( $refused ), 'one piece past the boundary was accepted' );
+	ts_eq( $refused->get_error_code(), 'teeshoop_needs_quote', 'refusal reason' );
+	ts_eq( WC()->cart->get_cart_contents_count(), 0, 'the cart was touched by a refused line' );
+
+	// And the piece-count trigger fires on its own, on a run priced low enough
+	// that the amount trigger cannot be what refused it.
+	$only_qty                  = $config;
+	$only_qty['quote_from_ht'] = 0;
+	ts_assert(
+		Pricing::needs_quote( (int) $config['quote_from_qty'] + 1, 1, $only_qty ),
+		'the piece-count trigger never fires on its own'
+	);
+	ts_assert(
+		! Pricing::needs_quote( (int) $config['quote_from_qty'], 1, $only_qty ),
+		'the piece-count trigger fires one piece early'
+	);
+} );
+
+/*
+ * EVERY OTHER WAY INTO THE CART IS SHUT.
+ *
+ * `Cart::add` is not the only path WooCommerce offers: the classic form, the
+ * `?add-to-cart=` URL, the AJAX loop button, the Store API the block cart uses
+ * and "commander à nouveau" all reach `WC_Cart::add_to_cart` without a design.
+ * None of them can produce something the workshop could print, and all of them
+ * would charge the catalogue price of a blank.
+ */
+ts_it( 'refuses a plain add-to-cart on a personalisable product', function () use ( $product_id, $bare_id ) {
+	WC()->cart->empty_cart();
+
+	$passed = apply_filters( 'woocommerce_add_to_cart_validation', true, $product_id, 1 );
+	ts_assert( false === $passed, 'a personalisable product accepted a plain add-to-cart' );
+
+	// And the reorder path, which passes an empty item payload by default.
+	$reorder = apply_filters( 'woocommerce_add_to_cart_validation', true, $product_id, 1, 0, array(), array() );
+	ts_assert( false === $reorder, 'commander à nouveau accepted a personalisable line with no design' );
+
+	// A product that is NOT personalisable is untouched.
+	$plain = apply_filters( 'woocommerce_add_to_cart_validation', true, $bare_id, 1 );
+	ts_assert( true === $plain, 'an ordinary product was blocked' );
+
+	// And our own path, which carries the payload, is untouched.
+	$ours = apply_filters(
+		'woocommerce_add_to_cart_validation',
+		true,
+		$product_id,
+		1,
+		0,
+		array(),
+		array( 'teeshoop' => array( 'design_id' => 'abcdefghijklmnop1234' ) )
+	);
+	ts_assert( true === $ours, 'the studio’s own line was blocked by the guard meant for the others' );
+} );
+
+ts_it( 'still recognises the WooCommerce it was written against', function () {
+	$result = Compat::check();
+	ts_assert( $result['checked'] > 0, 'the compatibility check verified nothing at all' );
+	ts_assert( $result['ok'], 'WooCommerce moved: ' . implode( ' / ', $result['problems'] ) );
 } );
 
 // ---------------------------------------------------------------------------

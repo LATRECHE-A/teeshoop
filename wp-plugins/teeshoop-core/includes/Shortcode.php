@@ -142,6 +142,32 @@ final class Shortcode {
 		);
 	}
 
+	/**
+	 * The quantity and size breakdown the product page collected, or nothing.
+	 *
+	 * Read through `ProductPage::request`, which is the one place that parses
+	 * these query arguments: a second parser would be a second set of bounds,
+	 * and the two would disagree about what counts as a size the first time one
+	 * of them was edited.
+	 */
+	private static function preset( string $garment ): array {
+		if ( '' === $garment || ! class_exists( __NAMESPACE__ . '\\ProductPage' ) ) {
+			return array();
+		}
+
+		$request = ProductPage::request( $garment, Settings::pricing() );
+		$preset  = array();
+
+		if ( 'grid' === $request['mode'] && ! empty( $request['grid'] ) ) {
+			$preset['sizeGrid'] = $request['grid'];
+			$preset['qty']      = (int) array_sum( $request['grid'] );
+		} elseif ( $request['qty'] > 1 ) {
+			$preset['qty'] = (int) $request['qty'];
+		}
+
+		return $preset;
+	}
+
 	private static function enqueue( string $studio_url, string $origin, int $product_id, string $garment ): void {
 		$handle = 'teeshoop-bridge';
 
@@ -176,6 +202,19 @@ final class Shortcode {
 				'nonce'        => wp_create_nonce( 'wp_rest' ),
 				'productId'    => $product_id,
 				'garment'      => $garment,
+				/*
+				 * What the buyer typed on the product page before clicking
+				 * Personnaliser, so the studio's basket panel opens on it
+				 * instead of asking again.
+				 *
+				 * It is validated here, on the server, against the sizes the
+				 * garment actually has, and it is a PRE-FILL: `Cart::add`
+				 * re-derives the garment from the product and the printed areas
+				 * from the stored design, and reprices on every totals pass. A
+				 * hand-edited link changes what a form shows and never what an
+				 * invoice says.
+				 */
+				'preset'       => self::preset( $garment ),
 				'cartUrl'      => function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' ),
 				'i18n'         => array(
 					'added'   => __( 'Ajouté au panier.', 'teeshoop' ),

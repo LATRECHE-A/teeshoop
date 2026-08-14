@@ -1,0 +1,695 @@
+/*
+ * The product page.
+ *
+ * Written to look like a printer's price list rather than a landing page: a
+ * type scale that is actually used, one accent, semantic colour kept separate
+ * from it, and tabular figures everywhere a digit sits in a column. There are
+ * no gradients, no glass, no decorative shadow and no animation that serves
+ * nothing, because the product must not look generated.
+ *
+ * Every rule is scoped under a `ts-` class. This stylesheet loads inside
+ * whatever theme the shop runs (Woodmart in production, Twenty Twenty-One on
+ * the mirror) and it has no business restyling anything of theirs.
+ *
+ * Mobile first: everything below is written for 375 px and widened at 720 px.
+ */
+
+.ts-buy,
+.ts-specs,
+.ts-pricing,
+.ts-devis {
+	--ts-ink: #14171a;
+	--ts-muted: #5b6470;
+	--ts-line: #dce0e5;
+	--ts-surface: #f6f7f9;
+	--ts-accent: #1f4fd8;
+	--ts-accent-ink: #ffffff;
+	--ts-good: #0f7b4f;
+	--ts-warn: #a85b00;
+	--ts-bad: #b3261e;
+
+	color: var(--ts-ink);
+	font-size: 0.9375rem;
+	line-height: 1.5;
+}
+
+/*
+ * Our own controls, reset deliberately.
+ *
+ * This stylesheet is enqueued from the `wp` action, which runs before the theme
+ * enqueues its own, so on a tie of specificity the THEME wins. Twenty
+ * Twenty-One styles bare `input[type="number"]` and `input[type="radio"]`
+ * heavily, and it showed: the segmented control's hidden radios rendered as
+ * large circles above their labels, and the size grid's number inputs came out
+ * as empty boxes with the figure pushed out of view. Attribute selectors here
+ * are not decoration, they are what wins the tie.
+ */
+.ts-buy input[type='number'],
+.ts-buy input[type='text'] {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+	height: auto;
+	min-height: 0;
+	margin: 0;
+	padding: 0.375rem 0.5rem;
+	border: 1px solid var(--ts-line);
+	border-radius: 3px;
+	background: #fff;
+	color: var(--ts-ink);
+	font: inherit;
+	font-size: 0.9375rem;
+	line-height: 1.3;
+	box-shadow: none;
+}
+
+/* Digits that line up in a column: prices, quantities, dimensions. */
+.ts-num,
+.ts-buy input,
+.ts-estimate,
+.ts-table td,
+.ts-table th.ts-num,
+.ts-defs dd.ts-num {
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: 'tnum' 1;
+}
+
+.ts-note {
+	margin: 0.5rem 0 0;
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+	line-height: 1.45;
+}
+
+.ts-note--strong {
+	color: var(--ts-ink);
+}
+
+.ts-admin-note {
+	margin: 0.75rem 0 0;
+	padding: 0.5rem 0.625rem;
+	border-left: 3px solid var(--ts-warn);
+	background: #fdf6ec;
+	color: #6b4a12;
+	font-size: 0.8125rem;
+	line-height: 1.45;
+}
+
+/* ------------------------------------------------------------------ price */
+
+.teeshoop-price {
+	display: block;
+}
+
+.teeshoop-price__ttc {
+	color: #5b6470;
+}
+
+.teeshoop-price__from {
+	display: block;
+	color: #5b6470;
+	font-size: 0.8125rem;
+	font-weight: 400;
+}
+
+/* -------------------------------------------------------------- buy box */
+
+.ts-buy {
+	margin: 1.25rem 0;
+	padding: 1rem;
+	border: 1px solid var(--ts-line);
+	border-radius: 4px;
+	background: #fff;
+}
+
+.ts-buy__anchors {
+	margin: 0 0 1rem;
+	font-size: 1rem;
+	line-height: 1.45;
+}
+
+.ts-buy__anchors b {
+	font-size: 1.125rem;
+}
+
+.ts-buy__basis {
+	display: block;
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+}
+
+.ts-field {
+	margin: 0 0 1rem;
+	padding: 0;
+	border: 0;
+}
+
+.ts-field__legend {
+	margin: 0 0 0.375rem;
+	padding: 0;
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+/* Segmented control: radios that look like a row of choices. */
+.ts-seg {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0;
+	border: 1px solid var(--ts-line);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.ts-seg__item {
+	flex: 1 1 auto;
+	margin: 0;
+	cursor: pointer;
+}
+
+/* The radio is the control; the span is what it looks like. */
+.ts-buy .ts-seg__item input[type='radio'] {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	min-width: 0;
+	min-height: 0;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+	opacity: 0;
+	appearance: none;
+	-webkit-appearance: none;
+}
+
+.ts-seg__item span {
+	display: block;
+	padding: 0.5rem 0.625rem;
+	border-left: 1px solid var(--ts-line);
+	background: #fff;
+	text-align: center;
+	font-size: 0.875rem;
+	white-space: nowrap;
+}
+
+.ts-seg__item:first-child span {
+	border-left: 0;
+}
+
+.ts-seg__item input[type='radio']:checked + span {
+	background: var(--ts-ink);
+	color: #fff;
+	font-weight: 600;
+}
+
+/* Focus is visible from the start, not retrofitted in session 12. */
+.ts-seg__item input[type='radio']:focus-visible + span {
+	outline: 2px solid var(--ts-accent);
+	outline-offset: -2px;
+}
+
+.ts-seg--modes {
+	margin-bottom: 0.75rem;
+}
+
+.ts-qty__label,
+.ts-sizes__intro {
+	display: block;
+	margin: 0 0 0.375rem;
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+}
+
+.ts-buy input[type='number'].ts-qty__input {
+	width: 7rem;
+	padding: 0.5rem 0.625rem;
+	font-size: 1rem;
+}
+
+.ts-sizes__grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.375rem;
+}
+
+.ts-sizes__cell {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0.25rem 0.375rem;
+	border: 1px solid var(--ts-line);
+	border-radius: 3px;
+}
+
+.ts-sizes__name {
+	min-width: 2.25rem;
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+}
+
+.ts-buy .ts-sizes__cell input[type='number'] {
+	padding: 0.25rem 0.375rem;
+	border: 0;
+	background: transparent;
+	text-align: right;
+	/*
+	 * No native spinner. In a cell about 100 px wide it sits on top of the
+	 * figure: at 375 px "10" rendered as "1C". Arrow keys still step the value,
+	 * so nothing is lost but the overlap.
+	 */
+	appearance: textfield;
+	-moz-appearance: textfield;
+}
+
+.ts-buy .ts-sizes__cell input[type='number']::-webkit-outer-spin-button,
+.ts-buy .ts-sizes__cell input[type='number']::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+.ts-sizes__total {
+	margin: 0.5rem 0 0;
+	font-size: 0.875rem;
+}
+
+.ts-recalc {
+	margin-top: 0.75rem;
+	padding: 0.5rem 0.875rem;
+	border: 1px solid var(--ts-line);
+	border-radius: 3px;
+	background: var(--ts-surface);
+	color: var(--ts-ink);
+	font-size: 0.875rem;
+	cursor: pointer;
+}
+
+/* ------------------------------------------------------------- estimate */
+
+.ts-estimate {
+	display: block;
+	margin: 0 0 1rem;
+	padding: 0.75rem 0.875rem;
+	border-left: 3px solid var(--ts-ink);
+	background: var(--ts-surface);
+}
+
+.ts-estimate__for {
+	margin: 0;
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+}
+
+.ts-estimate__total {
+	margin: 0.125rem 0 0;
+	font-size: 1rem;
+	line-height: 1.3;
+}
+
+.ts-estimate__total b {
+	font-size: 1.625rem;
+	letter-spacing: -0.01em;
+}
+
+.ts-estimate__total abbr {
+	text-decoration: none;
+	font-size: 0.8125rem;
+	color: var(--ts-muted);
+}
+
+.ts-estimate__ttc {
+	display: block;
+	color: var(--ts-muted);
+	font-size: 0.9375rem;
+}
+
+.ts-estimate__unit {
+	margin: 0.25rem 0 0;
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+}
+
+.ts-estimate__unit [data-teeshoop-discount]:not(:empty)::before {
+	content: ' · ';
+}
+
+.ts-estimate[data-busy='1'] {
+	opacity: 0.55;
+}
+
+/* -------------------------------------------------------------- actions */
+
+.ts-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.ts-actions__quote {
+	margin: 0 0 0.25rem;
+	padding: 0.5rem 0.625rem;
+	border-left: 3px solid var(--ts-warn);
+	background: #fdf6ec;
+	color: #6b4a12;
+	font-size: 0.8125rem;
+	line-height: 1.45;
+}
+
+.ts-cta {
+	display: block;
+	padding: 0.75rem 1rem;
+	border: 1px solid var(--ts-accent);
+	border-radius: 3px;
+	background: var(--ts-accent);
+	color: var(--ts-accent-ink);
+	font-size: 1rem;
+	font-weight: 600;
+	text-align: center;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ts-cta:hover,
+.ts-cta:focus {
+	background: #1841ba;
+	border-color: #1841ba;
+	color: var(--ts-accent-ink);
+}
+
+.ts-cta:focus-visible {
+	outline: 2px solid var(--ts-ink);
+	outline-offset: 2px;
+}
+
+.ts-cta--ghost {
+	background: #fff;
+	border-color: var(--ts-line);
+	color: var(--ts-ink);
+	font-weight: 500;
+}
+
+.ts-cta--ghost:hover,
+.ts-cta--ghost:focus {
+	background: var(--ts-surface);
+	border-color: var(--ts-ink);
+	color: var(--ts-ink);
+}
+
+.teeshoop-loop-cta {
+	font-variant-numeric: normal;
+}
+
+/* ---------------------------------------------------------------- specs */
+
+.ts-specs {
+	margin: 1.5rem 0;
+}
+
+.ts-specs__title,
+.ts-pricing__title,
+.ts-devis__title {
+	margin: 1.5rem 0 0.5rem;
+	font-size: 1.125rem;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+}
+
+.ts-specs__title:first-child {
+	margin-top: 0;
+}
+
+.ts-defs {
+	display: grid;
+	grid-template-columns: minmax(6.5rem, auto) 1fr;
+	gap: 0.25rem 1rem;
+	margin: 0 0 0.75rem;
+}
+
+.ts-defs dt {
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+}
+
+.ts-defs dd {
+	margin: 0;
+}
+
+.ts-swatches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 0.75rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ts-swatches__item {
+	display: flex;
+	align-items: center;
+	gap: 0.3125rem;
+	font-size: 0.8125rem;
+}
+
+.ts-swatches__chip {
+	display: inline-block;
+	width: 0.875rem;
+	height: 0.875rem;
+	border: 1px solid rgba(0, 0, 0, 0.25);
+	border-radius: 2px;
+	background: var(--ts-chip, #fff);
+}
+
+/* ---------------------------------------------------------------- table */
+
+.ts-table__scroll {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.ts-table {
+	width: 100%;
+	margin: 0;
+	border-collapse: collapse;
+	font-size: 0.875rem;
+}
+
+.ts-table caption,
+.ts-table__caption {
+	margin: 0 0 0.375rem;
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+	text-align: left;
+	caption-side: top;
+}
+
+.ts-table th,
+.ts-table td {
+	padding: 0.4375rem 0.625rem;
+	border-bottom: 1px solid var(--ts-line);
+	text-align: left;
+	vertical-align: top;
+}
+
+.ts-table thead th {
+	border-bottom: 2px solid var(--ts-ink);
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.ts-table td.ts-num,
+.ts-table th.ts-num {
+	text-align: right;
+	white-space: nowrap;
+}
+
+.ts-table--pricing tbody th {
+	white-space: nowrap;
+	font-weight: 600;
+}
+
+.ts-table--pricing td b {
+	display: block;
+	font-size: 0.9375rem;
+}
+
+.ts-table__ttc {
+	display: block;
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+}
+
+.ts-table__off {
+	display: block;
+	color: var(--ts-good);
+	font-size: 0.6875rem;
+	font-weight: 600;
+}
+
+.ts-table--areas {
+	max-width: 24rem;
+}
+
+/* ---------------------------------------------------------------- devis */
+
+.ts-devis {
+	margin: 2rem 0;
+	padding: 1.25rem;
+	border: 1px solid var(--ts-line);
+	border-radius: 4px;
+	background: var(--ts-surface);
+}
+
+.ts-devis__lead {
+	margin: 0 0 1rem;
+	max-width: 60ch;
+}
+
+.ts-form__row {
+	display: grid;
+	gap: 0.75rem;
+	margin-bottom: 0.75rem;
+}
+
+.ts-form__field {
+	display: block;
+	margin-bottom: 0.75rem;
+}
+
+.ts-form__row .ts-form__field {
+	margin-bottom: 0;
+}
+
+.ts-form__label {
+	display: block;
+	margin-bottom: 0.1875rem;
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.ts-form__hint {
+	display: block;
+	margin-top: 0.1875rem;
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+}
+
+.ts-devis input[type='text'],
+.ts-devis input[type='email'],
+.ts-devis input[type='tel'],
+.ts-devis input[type='date'],
+.ts-devis input[type='number'],
+.ts-devis textarea {
+	width: 100%;
+	padding: 0.5rem 0.625rem;
+	border: 1px solid var(--ts-line);
+	border-radius: 3px;
+	background: #fff;
+	font-size: 1rem;
+	font-family: inherit;
+}
+
+.ts-devis input:focus-visible,
+.ts-devis textarea:focus-visible,
+.ts-buy input:focus-visible {
+	outline: 2px solid var(--ts-accent);
+	outline-offset: 1px;
+}
+
+.ts-devis .ts-cta {
+	margin-top: 0.5rem;
+	max-width: 18rem;
+}
+
+.ts-form__legal {
+	margin: 0.875rem 0 0;
+	max-width: 68ch;
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+	line-height: 1.5;
+}
+
+/* The honeypot: off-screen rather than display:none, because some bots skip
+   what is not rendered and a real person never reaches it (tabindex -1). */
+.ts-hp {
+	position: absolute;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}
+
+.ts-msg {
+	margin: 0 0 1rem;
+	padding: 0.625rem 0.75rem;
+	border-left: 3px solid;
+	font-size: 0.9375rem;
+}
+
+.ts-msg--good {
+	border-color: var(--ts-good);
+	background: #eef7f2;
+	color: #0b5c3b;
+}
+
+.ts-msg--bad {
+	border-color: var(--ts-bad);
+	background: #fdeeed;
+	color: #8c1d18;
+}
+
+/* --------------------------------------------------------------- studio */
+
+.teeshoop-studio-view {
+	margin: 0 0 1.5rem;
+}
+
+.teeshoop-studio-view__back {
+	margin: 0 0 0.5rem;
+	font-size: 0.875rem;
+}
+
+/* -------------------------------------------------------------- widened */
+
+@media (min-width: 720px) {
+	.ts-sizes__grid {
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+	}
+
+	.ts-form__row {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.ts-actions {
+		flex-direction: row;
+	}
+
+	.ts-actions__quote {
+		flex-basis: 100%;
+	}
+
+	.ts-cta {
+		flex: 1 1 0;
+	}
+
+	.ts-devis .ts-cta {
+		flex: 0 0 auto;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ts-estimate {
+		transition: none;
+	}
+}
