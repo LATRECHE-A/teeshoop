@@ -73,15 +73,24 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 6. **La TVA n'est pas activée sur la boutique, et 15 commandes sont déjà passées.**
    Constaté le 14 août 2026 en accédant au serveur : WooCommerce est réglé en euros,
    pays France, avec le calcul des taxes **désactivé**. Les 15 commandes existantes
-   ont donc été encaissées sans ligne de TVA. Deux cas possibles, et la réponse n'est
-   pas la même :
+   ont donc été encaissées sans ligne de TVA.
+
+   Le détail, pour que la question soit facile à trancher : les 15 commandes sont
+   toutes au statut « terminé », étalées du **21 novembre 2024 au 18 avril 2025**,
+   pour un total de **465,79 EUR**. Elles ont été payées par carte (12), Apple Pay (2)
+   et Google Pay (1), donc via Stripe. Aucune commande depuis avril 2025, et
+   **aucun moyen de paiement n'est activé aujourd'hui** : les réglages Stripe ne
+   contiennent plus aucune clé. En l'état, la boutique ne peut donc rien encaisser.
+
+   Deux cas possibles, et la réponse n'est pas la même :
    - la société est en franchise en base de TVA, et il manque alors la mention légale
      obligatoire « TVA non applicable, article 293 B du CGI » sur les factures ;
    - la société est assujettie, et il y a une régularisation à faire avec votre
      comptable sur ces 15 commandes.
 
    Dans les deux cas il faut le régler **avant** la prochaine vente, pas après. C'est
-   l'objet de la question 17.
+   l'objet de la question 17. Vu les montants (465,79 EUR sur cinq mois), le régime de
+   franchise en base est plausible, mais c'est à votre comptable de le dire, pas à nous.
 
 ---
 

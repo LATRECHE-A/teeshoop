@@ -191,13 +191,19 @@ en modification de la vraie boutique. Les deux bases portent le même préfixe d
 les deux `DB_NAME` (différents), une option a été écrite en préproduction puis
 recherchée en production : **absente**. L'option a ensuite été supprimée.
 
-### Deux réserves sur cette préproduction
+### Resynchronisée depuis la production le 14/08/2026
 
-1. **Elle est en retard sur la production.** Son WooCommerce est resté en **10.9.4**
-   alors que la boutique est passée en 11.0.1 le 14/08 à 10 h 46. Tester une migration
-   sur une copie plus ancienne que l'original ne prouve pas grand-chose : **resynchroniser
-   depuis WP Tiger avant de s'en servir**.
-2. **Elle contient les données personnelles de vrais clients.** C'est une copie
+Elle était restée en WooCommerce 10.9.4 pendant que la boutique passait en 11.0.1.
+Tester sur une copie plus ancienne que l'original ne prouve rien, donc elle a été
+resynchronisée à la main en SSH (WP Tiger n'expose pas de commande, et le faire à la
+main laisse une trace vérifiable). La procédure est en §2 ter.
+
+Résultat vérifié : `woo=11.0.1  wp=7.0.4  produits=47  commandes=15` des deux côtés,
+aucune migration de base en attente, et la production n'a jamais été qu'**lue**.
+
+### Une réserve, et elle ne se règle pas par un accès
+
+1. **Elle contient les données personnelles de vrais clients.** C'est une copie
    intégrale : 15 commandes, donc des noms, adresses, téléphones et e-mails réels,
    dans un second emplacement, derrière un simple mot de passe HTTP. Au sens du RGPD
    c'est un traitement de plus, et le principe de minimisation s'applique. À terme il
@@ -205,6 +211,67 @@ recherchée en production : **absente**. L'option a ensuite été supprimée.
    `wp db query` qui remplace noms, e-mails, adresses et téléphones par des valeurs
    fictives). Tant que ce n'est pas fait, la préproduction se traite comme la
    production : pas de partage d'accès, pas de capture d'écran de commande.
+
+---
+
+## 2 ter. Resynchroniser la préproduction : la procédure
+
+À refaire avant chaque campagne de tests sérieuse. Elle ne touche la production qu'en
+lecture. Compter deux à trois minutes.
+
+**Le garde-fou d'abord.** Le `.htaccess` de la préproduction contient le bloc
+`o2s WpTiger` qui porte le mot de passe HTTP. L'écraser avec celui de la production
+**ouvrirait au public une copie complète de la boutique, commandes comprises**. Il est
+donc exclu de la synchronisation, avec `.htpasswd` et `wp-config.php` (base différente).
+
+```bash
+PROD=~/public_html
+PRE=~/myTiger-Preprod/4bde-26076daa9357.wptiger.fr
+BK=~/teeshoop-resync-backup
+
+# 0. Refuser de continuer si les deux installations partagent une base.
+[ "$(cd $PROD && wp eval 'echo DB_NAME;')" = "$(cd $PRE && wp eval 'echo DB_NAME;')" ] \
+  && { echo "STOP: base commune"; exit 1; }
+
+# 1. Point de retour.
+cd $PRE && wp db export $BK/preprod-before-resync.sql
+cp -p .htaccess .htpasswd wp-config.php $BK/
+
+# 2. Fichiers. Le --delete est voulu : sinon les fichiers de l'ancienne version
+#    de WooCommerce restent et la copie n'est plus une copie.
+rsync -a --delete --exclude '/wp-config.php' --exclude '/.htaccess' \
+      --exclude '/.htpasswd' --exclude '/wp-content/cache/' --exclude '/error_log' \
+      $PROD/ $PRE/
+
+# 3. Base.
+cd $PROD && wp db export $BK/prod-snapshot.sql
+cd $PRE  && wp db reset --yes && wp db import $BK/prod-snapshot.sql
+wp search-replace "www.teeshoop.com" "4bde-26076daa9357.wptiger.fr" --all-tables-with-prefix
+
+# 4. Remettre ce qui distingue une préproduction d'une boutique. La base vient
+#    d'être écrasée par celle de la production : ces réglages sont donc à reposer
+#    à chaque fois, sinon la copie se comporte comme la vraie boutique.
+wp option update blog_public 0
+wp config set WP_ENVIRONMENT_TYPE staging
+# le coupe-circuit e-mail est un mu-plugin, voir plus bas
+```
+
+**Toujours vérifier après, et notamment que la porte est encore fermée** (sans
+identifiants : 401 ; avec : 200 ; avec un mauvais mot de passe : 401).
+
+### Le coupe-circuit e-mail
+
+`wp-content/mu-plugins/000-teeshoop-staging-guard.php` intercepte `pre_wp_mail` et
+marque l'admin d'un bandeau « PREPRODUCTION ». Sans lui, changer le statut d'une
+commande sur la copie enverrait un vrai message à un vrai client, depuis une machine
+que personne ne surveille. C'est un mu-plugin et pas un réglage parce qu'un réglage se
+remet à « oui » tout seul le jour où on réimporte la base.
+
+Vérifié autrement qu'en regardant `wp_mail()` renvoyer `true`, ce que fait aussi un
+envoi réussi : le filtre est bien enregistré et **PHPMailer n'est jamais atteint**, là
+où il l'est en production. C'est un mu-plugin, donc `rsync --delete` ne l'efface pas
+(la production n'a pas de dossier `mu-plugins`), mais **`wp db reset` n'y touche pas
+non plus** : il survit à la resynchronisation. À revérifier quand même.
 
 ### Corrigé le 14/08
 
@@ -214,8 +281,19 @@ retire, une copie complète de la boutique devient indexable, avec le contenu du
 et les commandes derrière. Passé à **0**, vérifié dans le HTML réellement servi :
 
 ```html
-<meta name='robots' content='noindex, nofollow' />
+<meta name="robots" content="nofollow, noindex"/>
 ```
+
+### Ce qui reste imparfait, et qu'on assume
+
+Sept références à `www.teeshoop.com` subsistent dans la copie : un lien codé en dur
+dans le pied de page du thème, des entrées de journal Elementor, et des lignes d'un
+panier abandonné. `wp search-replace` refuse de les réécrire parce qu'elles sont
+sérialisées avec une classe (`THWEPOF_Section`) appartenant à une extension
+désinstallée, donc impossible à charger. Les réécrire de force en expression
+régulière abîmerait la sérialisation pour un lien de pied de page : le jeu n'en vaut
+pas la chandelle. À savoir simplement quand on teste : **un lien du pied de page
+renvoie vers la vraie boutique**.
 
 ---
 
