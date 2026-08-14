@@ -58,11 +58,16 @@ require_once __DIR__ . '/includes/Money.php';
 require_once __DIR__ . '/includes/Pricing.php';
 require_once __DIR__ . '/includes/Margin.php';
 require_once __DIR__ . '/includes/Settings.php';
+require_once __DIR__ . '/includes/Garments.php';
 require_once __DIR__ . '/includes/Design.php';
 require_once __DIR__ . '/includes/Product.php';
 require_once __DIR__ . '/includes/Cart.php';
 require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Shortcode.php';
+require_once __DIR__ . '/includes/Compat.php';
+require_once __DIR__ . '/includes/ProductPage.php';
+require_once __DIR__ . '/includes/Quote.php';
+require_once __DIR__ . '/includes/Cli.php';
 
 /**
  * Boot, but only if WooCommerce is actually there.
@@ -88,6 +93,10 @@ function boot(): void {
 	Cart::init();
 	Rest::init();
 	Shortcode::init();
+	ProductPage::init();
+	Quote::init();
+	Compat::init();
+	Cli::init();
 	add_action( 'admin_notices', __NAMESPACE__ . '\\currency_notice' );
 }
 

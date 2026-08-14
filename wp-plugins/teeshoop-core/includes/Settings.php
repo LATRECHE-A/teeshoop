@@ -27,6 +27,11 @@ final class Settings {
 			'studio_path'        => '/',
 			'worker_url'         => '',
 			'design_verify_path' => '/api/design/',
+			// Where a quote request is announced. Empty falls back to the site
+			// administrator rather than to nowhere: a request that reaches a
+			// record but nobody's inbox is a customer waiting for an answer no
+			// one knows to write.
+			'quote_email'        => '',
 		);
 
 		$stored = get_option( OPTION_SETTINGS, array() );

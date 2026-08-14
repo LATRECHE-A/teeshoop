@@ -1,0 +1,576 @@
+<?php
+/**
+ * The devis: a request that becomes a record with a state.
+ *
+ * WHY A RECORD AND NOT AN EMAIL. An email is lost in an inbox, has no state, and
+ * cannot be counted. The Bible is emphatic about this for the whole order flow
+ * (chapitre 2, « Chaque cas doit avoir une procédure, un responsable et un
+ * statut, pas un simple échange WhatsApp ») and it is just as true of the first
+ * contact. So the submission writes a post, the email is a notification about
+ * it, and losing the email loses nothing.
+ *
+ * WHAT THIS IS NOT. Not a CRM. Bible chapitre 2 lists twenty-five statuses, a
+ * relance cadence at J+1/J+3/J+5/J+10, an open-tracking status
+ * (« devis consulté »), a per-file message thread, eleven KPIs and a commercial
+ * pipeline screen. All of that is the CRM the brief puts in its own chapter and
+ * the roadmap does not schedule. Five states cover the life of a request that
+ * has not yet become an order; the quote DOCUMENT, its versions, its acceptance
+ * token and the BAT are session 06, when there is a payment to attach them to.
+ *
+ * TWO PLACES THE BIBLE IS NOT FOLLOWED, deliberately:
+ *
+ *   It lists « commercial et commission estimée » among the mandatory contents
+ *   of a devis. Read literally that puts our commission on a document a customer
+ *   receives, which is our cost structure. It is stored on the record and never
+ *   rendered to a customer; scripts/php-guard.mjs enforces that no template can
+ *   reach anything of the sort.
+ *
+ *   It gives no validity period for a quote, anywhere in eight documents, while
+ *   listing « validité » as a mandatory field. In France a devis is a firm offer
+ *   for the period it states, so the period is not a detail. It is question 38
+ *   of QUESTIONS-ASSOCIE.md and no number is printed on anything until it comes
+ *   back.
+ *
+ * THE FORM IS OPEN, because a prospect cannot authenticate. It is kept usable
+ * and non-abusable the same way the Worker's upload routes are: bounded input,
+ * a signed and short-lived form stamp, a honeypot, and a rate limit. Never
+ * through obscurity.
+ *
+ * @package Teeshoop\Core
+ */
+
+declare( strict_types = 1 );
+
+namespace Teeshoop\Core;
+
+defined( 'ABSPATH' ) || exit;
+
+final class Quote {
+
+	public const POST_TYPE = 'teeshoop_devis';
+
+	/** Where a request is in its short life. Not the order lifecycle. */
+	public const STATUSES = array(
+		'ts-recu'    => 'Reçue',
+		'ts-encours' => 'En cours de chiffrage',
+		'ts-envoye'  => 'Devis envoyé',
+		'ts-accepte' => 'Accepté',
+		'ts-refuse'  => 'Sans suite',
+	);
+
+	/** The form action, and the only way in. */
+	public const ACTION = 'teeshoop_devis';
+
+	/** How long a rendered form stays acceptable, seconds. */
+	private const STAMP_TTL = 7200;
+
+	/** A form returned faster than this was not filled in by a person. */
+	private const MIN_FILL_SECONDS = 3;
+
+	/** Submissions accepted from one address per hour. */
+	private const RATE_LIMIT = 5;
+
+	public static function init(): void {
+		add_action( 'init', array( self::class, 'register' ) );
+		add_action( 'admin_post_nopriv_' . self::ACTION, array( self::class, 'submit' ) );
+		add_action( 'admin_post_' . self::ACTION, array( self::class, 'submit' ) );
+		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( self::class, 'columns' ) );
+		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( self::class, 'column' ), 10, 2 );
+		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
+		add_action( 'post_submitbox_misc_actions', array( self::class, 'status_control' ) );
+		add_action( 'save_post_' . self::POST_TYPE, array( self::class, 'save_status' ), 10, 2 );
+	}
+
+	public static function register(): void {
+		register_post_type(
+			self::POST_TYPE,
+			array(
+				'labels'          => array(
+					'name'          => __( 'Demandes de devis', 'teeshoop' ),
+					'singular_name' => __( 'Demande de devis', 'teeshoop' ),
+					'menu_name'     => __( 'Devis', 'teeshoop' ),
+					'search_items'  => __( 'Rechercher une demande', 'teeshoop' ),
+					'not_found'     => __( 'Aucune demande pour le moment.', 'teeshoop' ),
+				),
+				/*
+				 * NOT public, and every flag that follows from that is spelled
+				 * out rather than inherited. A quote request holds a company
+				 * name, a contact, an email and a phone number; `public => true`
+				 * would put it on a URL, in the site's search results and in the
+				 * sitemap. Anything reachable by URL is public.
+				 */
+				'public'          => false,
+				'publicly_queryable' => false,
+				'exclude_from_search' => true,
+				'has_archive'     => false,
+				'rewrite'         => false,
+				'show_ui'         => true,
+				'show_in_menu'    => true,
+				'show_in_rest'    => false,
+				'menu_icon'       => 'dashicons-media-spreadsheet',
+				'menu_position'   => 56,
+				'supports'        => array( 'title' ),
+				'capability_type' => 'shop_order',
+				'map_meta_cap'    => true,
+				'capabilities'    => array( 'create_posts' => 'do_not_allow' ),
+			)
+		);
+
+		foreach ( self::STATUSES as $slug => $label ) {
+			register_post_status(
+				$slug,
+				array(
+					'label'                     => $label,
+					'public'                    => false,
+					'internal'                  => false,
+					'exclude_from_search'       => true,
+					'show_in_admin_all_list'    => true,
+					'show_in_admin_status_list' => true,
+					/* translators: %s: number of quote requests in this state. */
+					'label_count'               => _n_noop( $label . ' (%s)', $label . ' (%s)', 'teeshoop' ),
+				)
+			);
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// Submission
+	// -----------------------------------------------------------------------
+
+	/**
+	 * A signature over the moment the form was rendered.
+	 *
+	 * Not a nonce. A WordPress nonce on an anonymous, cacheable product page is
+	 * a gate that fails for the wrong reason: the page is served from a cache,
+	 * the nonce inside it is stale, and a genuine customer is told their session
+	 * expired. This stamp is stateless, so a cached page carries a stamp that is
+	 * still valid until it ages out, and a bot that POSTs without ever fetching
+	 * the form has nothing to send.
+	 */
+	public static function stamp(): string {
+		$now = (string) time();
+		return $now . '.' . hash_hmac( 'sha256', $now, wp_salt( 'teeshoop_devis' ) );
+	}
+
+	/** @return array{ok:bool,reason:string} */
+	private static function check_stamp( string $stamp ): array {
+		$parts = explode( '.', $stamp, 2 );
+		if ( 2 !== count( $parts ) || ! ctype_digit( $parts[0] ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'stamp',
+			);
+		}
+
+		$issued   = (int) $parts[0];
+		$expected = hash_hmac( 'sha256', $parts[0], wp_salt( 'teeshoop_devis' ) );
+		if ( ! hash_equals( $expected, $parts[1] ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'stamp',
+			);
+		}
+
+		$age = time() - $issued;
+		if ( $age < 0 || $age > self::STAMP_TTL ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'expire',
+			);
+		}
+		if ( $age < self::MIN_FILL_SECONDS ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'trop_rapide',
+			);
+		}
+
+		return array(
+			'ok'     => true,
+			'reason' => '',
+		);
+	}
+
+	/**
+	 * A per-address counter that does not store an address.
+	 *
+	 * The IP is hashed with a site salt and kept only as a transient key for an
+	 * hour, so what survives is a count and not a visitor. Storing the address
+	 * itself on the request would be personal data we have no need for once the
+	 * hour is over, and data we do not hold is data we cannot leak.
+	 */
+	private static function rate_limited(): bool {
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['REMOTE_ADDR'] ) ) : '';
+		if ( '' === $ip ) {
+			return false;
+		}
+		$key   = 'ts_devis_' . substr( hash_hmac( 'sha256', $ip, wp_salt( 'teeshoop_devis' ) ), 0, 22 );
+		$count = (int) get_transient( $key );
+		if ( $count >= self::RATE_LIMIT ) {
+			return true;
+		}
+		set_transient( $key, $count + 1, HOUR_IN_SECONDS );
+		return false;
+	}
+
+	/** Handle the POST, write the record, notify, and redirect. */
+	public static function submit(): void {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- an open public form; see the stamp, honeypot and rate limit above.
+		$post = wp_unslash( $_POST );
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		$product_id = (int) ( $post['product_id'] ?? 0 );
+		$back       = get_permalink( $product_id ) ?: home_url( '/' );
+
+		// The honeypot is a real, labelled field hidden from sight, so a bot
+		// that fills every input gives itself away and a screen reader is told
+		// to leave it alone.
+		if ( '' !== trim( (string) ( $post['site_web'] ?? '' ) ) ) {
+			self::back( $back, 'erreur', 'robot' );
+		}
+
+		$stamp = self::check_stamp( (string) ( $post['stamp'] ?? '' ) );
+		if ( ! $stamp['ok'] ) {
+			self::back( $back, 'erreur', $stamp['reason'] );
+		}
+
+		if ( self::rate_limited() ) {
+			self::back( $back, 'erreur', 'trop_de_demandes' );
+		}
+
+		$email = sanitize_email( (string) ( $post['email'] ?? '' ) );
+		if ( ! is_email( $email ) ) {
+			self::back( $back, 'erreur', 'email' );
+		}
+
+		$contact = self::text( $post['contact'] ?? '', 120 );
+		$company = self::text( $post['societe'] ?? '', 160 );
+		if ( '' === $contact ) {
+			self::back( $back, 'erreur', 'contact' );
+		}
+
+		$garment = Product::garment_of( $product_id );
+		$config  = Settings::pricing();
+		$sizes   = ProductPage::size_ids( $garment );
+
+		$grid = array();
+		foreach ( (array) ( $post['tailles'] ?? array() ) as $size => $count ) {
+			$size  = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $size ) ?? '' );
+			$count = (int) $count;
+			if ( $count > 0 && in_array( $size, $sizes, true ) ) {
+				$grid[ $size ] = min( $count, 1000000 );
+			}
+		}
+
+		$qty = ! empty( $grid ) ? (int) array_sum( $grid ) : max( 1, (int) ( $post['qte'] ?? 1 ) );
+		// A quote request is where a quantity larger than the shop's own cap
+		// belongs, so it is bounded only against nonsense.
+		$qty   = min( $qty, 1000000 );
+		$faces = max( 1, min( (int) ( $post['faces'] ?? 1 ), Garments::printable_sides_count( $garment ) ) );
+
+		/*
+		 * The self-serve figure, frozen onto the record.
+		 *
+		 * Not a price offered to anyone: it is what this page would have quoted
+		 * at that quantity, so whoever picks the request up starts from the same
+		 * number the customer just read instead of from a blank sheet. It is
+		 * computed HERE, on the server, from the same Pricing as everything
+		 * else, and never from anything the form posted.
+		 */
+		$estimate_ht = 0;
+		if ( '' !== $garment ) {
+			try {
+				$quote       = Pricing::quote(
+					array(
+						'garment' => $garment,
+						'qty'     => min( $qty, (int) $config['max_qty'] ),
+						'sides'   => Pricing::standard_sides( $faces ),
+					),
+					$config
+				);
+				$estimate_ht = (int) $quote['total_ht'];
+			} catch ( \InvalidArgumentException $e ) {
+				$estimate_ht = 0;
+			}
+		}
+
+		$post_id = wp_insert_post(
+			array(
+				'post_type'   => self::POST_TYPE,
+				'post_status' => 'ts-recu',
+				'post_title'  => self::title( $company, $contact, $qty ),
+			),
+			true
+		);
+
+		if ( is_wp_error( $post_id ) ) {
+			self::back( $back, 'erreur', 'enregistrement' );
+		}
+
+		$meta = array(
+			'_ts_societe'     => $company,
+			'_ts_contact'     => $contact,
+			'_ts_email'       => $email,
+			'_ts_telephone'   => self::text( $post['telephone'] ?? '', 40 ),
+			'_ts_siret'       => preg_replace( '/[^0-9]/', '', (string) ( $post['siret'] ?? '' ) ) ?? '',
+			'_ts_product_id'  => $product_id,
+			'_ts_garment'     => $garment,
+			'_ts_qty'         => $qty,
+			'_ts_faces'       => $faces,
+			'_ts_tailles'     => wp_json_encode( $grid ),
+			'_ts_echeance'    => self::date( (string) ( $post['echeance'] ?? '' ) ),
+			'_ts_message'     => self::text( $post['message'] ?? '', 4000 ),
+			'_ts_estimate_ht' => $estimate_ht,
+			'_ts_design_id'   => Design::valid_id( (string) ( $post['design_id'] ?? '' ) ) ? (string) $post['design_id'] : '',
+		);
+		foreach ( $meta as $key => $value ) {
+			update_post_meta( $post_id, $key, $value );
+		}
+
+		self::notify( (int) $post_id, $meta );
+
+		self::back( $back, 'ok', '' );
+	}
+
+	private static function text( mixed $raw, int $max ): string {
+		$value = sanitize_textarea_field( (string) $raw );
+		return mb_substr( trim( $value ), 0, $max );
+	}
+
+	/** A date the customer chose, or '', never today as a fallback. */
+	private static function date( string $raw ): string {
+		$parsed = \DateTimeImmutable::createFromFormat( '!Y-m-d', $raw );
+		return ( $parsed && $parsed->format( 'Y-m-d' ) === $raw ) ? $raw : '';
+	}
+
+	private static function title( string $company, string $contact, int $qty ): string {
+		$who = '' !== $company ? $company : $contact;
+		return sprintf(
+			/* translators: 1: company or contact name, 2: quantity. */
+			__( '%1$s, %2$d pièces', 'teeshoop' ),
+			$who,
+			$qty
+		);
+	}
+
+	/**
+	 * Post/redirect/get, always, including on failure.
+	 *
+	 * A form that leaves the browser on a POST result gives a customer a
+	 * resubmit dialog on refresh, and a duplicate request is a second person
+	 * chasing the same job.
+	 */
+	private static function back( string $url, string $result, string $reason ): void {
+		$args = array( 'devis' => $result );
+		if ( '' !== $reason ) {
+			$args['raison'] = $reason;
+		}
+		wp_safe_redirect( add_query_arg( $args, $url ) . '#teeshoop-devis' );
+		exit;
+	}
+
+	/** Where the shop is told. Falls back to the site admin, never to nowhere. */
+	public static function notify_address(): string {
+		$configured = Settings::get( 'quote_email' );
+		return is_email( $configured ) ? $configured : (string) get_option( 'admin_email' );
+	}
+
+	/**
+	 * Tell the shop, then acknowledge to the customer.
+	 *
+	 * Both are best-effort by design. The record is already written when this
+	 * runs, so a mail server that is down delays a notification and loses no
+	 * request. The reverse arrangement (mail first, record if it worked) is
+	 * how quote requests disappear.
+	 */
+	private static function notify( int $post_id, array $meta ): void {
+		$edit = admin_url( 'post.php?post=' . $post_id . '&action=edit' );
+
+		$lines = array(
+			sprintf( __( 'Société : %s', 'teeshoop' ), '' !== $meta['_ts_societe'] ? $meta['_ts_societe'] : __( 'non renseignée', 'teeshoop' ) ),
+			sprintf( __( 'Contact : %s', 'teeshoop' ), $meta['_ts_contact'] ),
+			sprintf( __( 'E-mail : %s', 'teeshoop' ), $meta['_ts_email'] ),
+			sprintf( __( 'Téléphone : %s', 'teeshoop' ), '' !== $meta['_ts_telephone'] ? $meta['_ts_telephone'] : __( 'non renseigné', 'teeshoop' ) ),
+			sprintf( __( 'Quantité : %d', 'teeshoop' ), $meta['_ts_qty'] ),
+			sprintf( __( 'Faces imprimées : %d', 'teeshoop' ), $meta['_ts_faces'] ),
+			sprintf( __( 'Estimation libre-service : %s HT', 'teeshoop' ), Money::format( (int) $meta['_ts_estimate_ht'] ) ),
+			'',
+			$edit,
+		);
+
+		wp_mail(
+			self::notify_address(),
+			sprintf(
+				/* translators: %s: company or contact name. */
+				__( '[Teeshoop] Demande de devis : %s', 'teeshoop' ),
+				'' !== $meta['_ts_societe'] ? $meta['_ts_societe'] : $meta['_ts_contact']
+			),
+			implode( "\n", $lines )
+		);
+
+		wp_mail(
+			(string) $meta['_ts_email'],
+			__( 'Votre demande de devis Teeshoop', 'teeshoop' ),
+			implode(
+				"\n",
+				array(
+					sprintf( __( 'Bonjour %s,', 'teeshoop' ), $meta['_ts_contact'] ),
+					'',
+					__( 'Nous avons bien reçu votre demande. Un chiffrage vous parvient par retour, avec le délai de fabrication et les conditions de paiement.', 'teeshoop' ),
+					'',
+					sprintf( __( 'Quantité indiquée : %d pièces.', 'teeshoop' ), $meta['_ts_qty'] ),
+					'',
+					__( 'Si vous devez ajouter quelque chose, répondez simplement à ce message.', 'teeshoop' ),
+					'',
+					get_bloginfo( 'name' ),
+				)
+			)
+		);
+	}
+
+	// -----------------------------------------------------------------------
+	// Admin
+	// -----------------------------------------------------------------------
+
+	public static function columns( array $columns ): array {
+		return array(
+			'cb'          => $columns['cb'] ?? '',
+			'title'       => __( 'Demande', 'teeshoop' ),
+			'ts_status'   => __( 'État', 'teeshoop' ),
+			'ts_contact'  => __( 'Contact', 'teeshoop' ),
+			'ts_qty'      => __( 'Quantité', 'teeshoop' ),
+			'ts_estimate' => __( 'Estimation HT', 'teeshoop' ),
+			'date'        => __( 'Reçue le', 'teeshoop' ),
+		);
+	}
+
+	public static function column( string $column, int $post_id ): void {
+		switch ( $column ) {
+			case 'ts_status':
+				$status = (string) get_post_status( $post_id );
+				echo esc_html( self::STATUSES[ $status ] ?? $status );
+				break;
+			case 'ts_contact':
+				printf(
+					'%s<br><a href="mailto:%s">%s</a>',
+					esc_html( (string) get_post_meta( $post_id, '_ts_contact', true ) ),
+					esc_attr( (string) get_post_meta( $post_id, '_ts_email', true ) ),
+					esc_html( (string) get_post_meta( $post_id, '_ts_email', true ) )
+				);
+				break;
+			case 'ts_qty':
+				echo esc_html( number_format_i18n( (int) get_post_meta( $post_id, '_ts_qty', true ) ) );
+				break;
+			case 'ts_estimate':
+				echo esc_html( Money::format( (int) get_post_meta( $post_id, '_ts_estimate_ht', true ) ) );
+				break;
+		}
+	}
+
+	public static function meta_box(): void {
+		add_meta_box(
+			'teeshoop-devis',
+			__( 'La demande', 'teeshoop' ),
+			array( self::class, 'render_meta_box' ),
+			self::POST_TYPE,
+			'normal',
+			'high'
+		);
+	}
+
+	public static function render_meta_box( \WP_Post $post ): void {
+		$grid = json_decode( (string) get_post_meta( $post->ID, '_ts_tailles', true ), true );
+		$rows = array(
+			__( 'Société', 'teeshoop' )     => (string) get_post_meta( $post->ID, '_ts_societe', true ),
+			__( 'Contact', 'teeshoop' )     => (string) get_post_meta( $post->ID, '_ts_contact', true ),
+			__( 'E-mail', 'teeshoop' )      => (string) get_post_meta( $post->ID, '_ts_email', true ),
+			__( 'Téléphone', 'teeshoop' )   => (string) get_post_meta( $post->ID, '_ts_telephone', true ),
+			__( 'SIRET', 'teeshoop' )       => (string) get_post_meta( $post->ID, '_ts_siret', true ),
+			__( 'Quantité', 'teeshoop' )    => number_format_i18n( (int) get_post_meta( $post->ID, '_ts_qty', true ) ),
+			__( 'Faces', 'teeshoop' )       => (string) (int) get_post_meta( $post->ID, '_ts_faces', true ),
+			__( 'Tailles', 'teeshoop' )     => is_array( $grid ) && ! empty( $grid )
+				? implode( ' · ', array_map( static fn( $n, $s ): string => $n . ' × ' . $s, $grid, array_keys( $grid ) ) )
+				: '',
+			__( 'Échéance', 'teeshoop' )    => (string) get_post_meta( $post->ID, '_ts_echeance', true ),
+			__( 'Création', 'teeshoop' )    => (string) get_post_meta( $post->ID, '_ts_design_id', true ),
+		);
+
+		$product_id = (int) get_post_meta( $post->ID, '_ts_product_id', true );
+		$estimate   = (int) get_post_meta( $post->ID, '_ts_estimate_ht', true );
+
+		echo '<table class="widefat striped"><tbody>';
+		foreach ( $rows as $label => $value ) {
+			if ( '' === $value ) {
+				continue;
+			}
+			printf( '<tr><th style="width:12em">%s</th><td>%s</td></tr>', esc_html( (string) $label ), esc_html( (string) $value ) );
+		}
+		if ( $product_id > 0 ) {
+			printf(
+				'<tr><th>%s</th><td><a href="%s">%s</a></td></tr>',
+				esc_html__( 'Article', 'teeshoop' ),
+				esc_url( (string) get_edit_post_link( $product_id ) ),
+				esc_html( (string) get_the_title( $product_id ) )
+			);
+		}
+		printf(
+			'<tr><th>%s</th><td>%s</td></tr>',
+			esc_html__( 'Estimation libre-service', 'teeshoop' ),
+			esc_html( Money::format( $estimate ) . ' HT' )
+		);
+		echo '</tbody></table>';
+
+		$message = (string) get_post_meta( $post->ID, '_ts_message', true );
+		if ( '' !== $message ) {
+			echo '<h4>' . esc_html__( 'Message', 'teeshoop' ) . '</h4>';
+			echo '<p style="white-space:pre-wrap">' . esc_html( $message ) . '</p>';
+		}
+
+		echo '<p class="description">' . esc_html__( 'L’estimation est ce que la fiche produit aurait annoncé à cette quantité, au tarif public. Ce n’est pas un prix proposé au client.', 'teeshoop' ) . '</p>';
+	}
+
+	/** A state selector in the publish box, because WordPress's own hides custom statuses. */
+	public static function status_control( \WP_Post $post ): void {
+		if ( self::POST_TYPE !== $post->post_type ) {
+			return;
+		}
+		wp_nonce_field( 'teeshoop_devis_status', 'teeshoop_devis_status_nonce' );
+		echo '<div class="misc-pub-section"><label for="teeshoop-devis-status"><strong>' . esc_html__( 'État de la demande', 'teeshoop' ) . '</strong></label><br>';
+		echo '<select name="teeshoop_devis_status" id="teeshoop-devis-status">';
+		foreach ( self::STATUSES as $slug => $label ) {
+			printf(
+				'<option value="%s" %s>%s</option>',
+				esc_attr( $slug ),
+				selected( $slug, $post->post_status, false ),
+				esc_html( $label )
+			);
+		}
+		echo '</select></div>';
+	}
+
+	public static function save_status( int $post_id, \WP_Post $post ): void {
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+		$nonce = isset( $_POST['teeshoop_devis_status_nonce'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['teeshoop_devis_status_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'teeshoop_devis_status' ) ) {
+			return;
+		}
+		$wanted = isset( $_POST['teeshoop_devis_status'] ) ? sanitize_key( wp_unslash( (string) $_POST['teeshoop_devis_status'] ) ) : '';
+		if ( ! isset( self::STATUSES[ $wanted ] ) || $wanted === $post->post_status ) {
+			return;
+		}
+
+		remove_action( 'save_post_' . self::POST_TYPE, array( self::class, 'save_status' ), 10 );
+		wp_update_post(
+			array(
+				'ID'          => $post_id,
+				'post_status' => $wanted,
+			)
+		);
+		add_action( 'save_post_' . self::POST_TYPE, array( self::class, 'save_status' ), 10, 2 );
+	}
+}
