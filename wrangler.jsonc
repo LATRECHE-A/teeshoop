@@ -36,7 +36,13 @@
 			// Cache keys are minted on an unservable host (worker/falkross.ts
 			// CACHE_ORIGIN), so nothing should ever arrive here — this routes any
 			// stray request to the Worker's explicit 404 instead of the SPA fallback.
-			"/__fr-cache/*"
+			"/__fr-cache/*",
+			// The supplier-neutral photo prefix (worker/falkross.ts PHOTO_ALIAS).
+			// These URLs are stored in the shop's database and rendered in a
+			// customer's page; without this line the asset layer answers them with
+			// the SPA fallback — HTML, status 200 — and every colour photo in the
+			// catalogue is a broken image that still looks like a working request.
+			"/media/blank/*"
 		]
 	},
 	// Stamped onto every design manifest (worker/design.ts): the artwork is

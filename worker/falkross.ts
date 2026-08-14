@@ -921,7 +921,26 @@ function throwIfErrorDoc(body: string): void {
 
 export interface FrPrices {
   currency: string
-  /** SKU → { cost, list }. `cost` is OUR PURCHASE PRICE (`your_price`). */
+  /**
+   * SKU → { cost, list }. `cost` is OUR PURCHASE PRICE (`your_price`).
+   *
+   * `list` IS NOT A LIST PRICE, whatever the name suggests. It is the CSV's
+   * `default_price` column, and MEASURED 2026-08-14 on four styles it is
+   * consistently BELOW `your_price`, by a third to a half:
+   *
+   *     18001  default 2,13   your 3,37
+   *     15009  default 2,95   your 4,46
+   *     01542  default 1,94   your 3,00
+   *     22109  default 10,35  your 15,38
+   *
+   * A price we are charged MORE than cannot be a recommended retail price, so
+   * whatever `default_price` is (a base tariff before our account's terms, most
+   * likely), it is not a reference price and must never be shown to a customer
+   * as one. Crossing it out beside ours would advertise a discount that does
+   * not exist, which in France is a prix de référence fictif and unlawful — the
+   * cart shipped exactly that mistake once already. Nothing may read this field
+   * but a human comparing tariffs.
+   */
   prices: Record<string, { cost: number; list: number }>
 }
 
@@ -1056,6 +1075,99 @@ async function loadDeliveries(
   })
   if (!styleNr) return all
   return { at: all.at, items: all.items.filter((d) => d.sku.startsWith(styleNr)) }
+}
+
+// ---------------------------------------------------------------------------
+// One style, everything the importer needs, in one invocation
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything WordPress needs to write ONE style into the shop.
+ *
+ * WHY IT IS ONE PAYLOAD AND NOT THREE CALLS. The catalogue importer runs on
+ * shared hosting and walks ~460 styles; asking for detail, prices and stock
+ * separately is 1380 HTTPS round trips from o2switch to here, for work that
+ * costs the same upstream either way (all three sit behind `cachedJson`).
+ * Folded together it is 460. Worst case per invocation is twelve subrequests —
+ * index 3, style 3, prices 3, stock 3 — against a free-plan ceiling of 50, so
+ * this cannot repeat the budget failure the browse path had.
+ *
+ * PRICES AND STOCK ARE NULLABLE, AND THE REASON TRAVELS WITH THEM. A style the
+ * supplier publishes no price for and a style we could not ask about are
+ * different facts, and the importer must treat them differently: the first is
+ * "not sellable", the second is "come back later, change nothing". Collapsing
+ * them into a bare null is how a network blip empties a shop. So the section is
+ * null and `pricesError` / `stockError` say which it was.
+ *
+ * The style itself is NOT nullable: without it there is nothing to import, so
+ * its failure is the route's failure and the caller gets the real status.
+ */
+export interface FrCatalogueEntry {
+  style: FrStyle
+  prices: FrPrices | null
+  pricesError: FrErrorCode | null
+  stock: FrStock | null
+  stockError: FrErrorCode | null
+}
+
+/**
+ * The photo prefix this route emits, and why it is not `/api/fr/img/`.
+ *
+ * These URLs are the only part of the payload that ends up in a customer's
+ * page: WordPress stores the per-colour photo on the variation and the shop
+ * renders it. `/api/fr/` is on `scripts/php-guard.mjs`'s forbidden list because
+ * it names who we buy from, and a rule that the plugin's source obeys while its
+ * database quietly publishes the same string is a rule we are pretending to
+ * follow. `PHOTO_ALIAS` is the same bytes from the same handler under a name
+ * that says nothing about the supplier.
+ *
+ * `/api/fr/img/` stays exactly where it was — the studio's catalogue modal has
+ * used it since July and this is not the session to move it.
+ */
+const PHOTO_ALIAS = '/media/blank/'
+
+/** Rewrite every proxied photo URL in a payload onto the neutral prefix. */
+const alias = (url: string): string =>
+  url.startsWith('/api/fr/img/') ? PHOTO_ALIAS + url.slice('/api/fr/img/'.length) : url
+
+function aliasPhotos(style: FrStyle): FrStyle {
+  return {
+    ...style,
+    front: alias(style.front),
+    back: alias(style.back),
+    colourways: style.colourways.map((c) => ({
+      ...c,
+      swatch: alias(c.swatch),
+      photo: alias(c.photo),
+    })),
+  }
+}
+
+async function loadCatalogueEntry(
+  origin: string,
+  env: FalkRossEnv,
+  ctx: ExecutionContext,
+  version: string,
+  nr: string,
+): Promise<FrCatalogueEntry> {
+  const style = await loadStyle(origin, ctx, version, nr)
+
+  // Settled, not `all`: a stock outage must not cost us the prices we did get.
+  const [priceRes, stockRes] = await Promise.allSettled([
+    loadPrices(origin, env, ctx, nr),
+    loadStock(origin, env, ctx, nr),
+  ])
+
+  const why = (r: PromiseRejectedResult): FrErrorCode =>
+    r.reason instanceof FrError ? r.reason.code : 'upstream'
+
+  return {
+    style: aliasPhotos(style),
+    prices: priceRes.status === 'fulfilled' ? priceRes.value : null,
+    pricesError: priceRes.status === 'rejected' ? why(priceRes) : null,
+    stock: stockRes.status === 'fulfilled' ? stockRes.value : null,
+    stockError: stockRes.status === 'rejected' ? why(stockRes) : null,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1347,10 +1459,13 @@ const clampInt = (v: string | null, def: number, min: number, max: number) => {
  *   GET  /api/fr/state                      webservice mode (test vs live)
  *   GET  /api/fr/styles?q&kind&offset&limit  paged, server-side-filtered cards
  *   GET  /api/fr/style/{styleNr}            one style, full detail
+ *   GET  /api/fr/catalogue/{styleNr}        detail + prices + stock, one call
  *   GET  /api/fr/price/{styleNr}            purchase prices per SKU
  *   GET  /api/fr/stock/{styleNr}            stock per SKU
  *   GET  /api/fr/deliveries/{styleNr?}      announced restocks
  *   GET  /api/fr/img/{picture|picto}/{file} photo proxy (ungated — see below)
+ *   GET  /media/blank/{picture|picto}/{file} the same photos, supplier-neutral
+ *                                           prefix, for URLs the shop stores
  */
 export async function handleFalkRoss(
   request: Request,
@@ -1359,6 +1474,24 @@ export async function handleFalkRoss(
 ): Promise<Response | null> {
   const url = new URL(request.url)
   const path = url.pathname
+
+  /*
+   * The neutral photo alias, handled before anything else.
+   *
+   * Same handler, same bytes, same lack of credentials as `/api/fr/img/*`; the
+   * only difference is a prefix that does not name the supplier, because these
+   * URLs are the ones that end up in the shop's database and on a customer's
+   * page. It is ungated for the same forced reason the original is: an
+   * `<img src>` cannot send an Authorization header.
+   */
+  if (path.startsWith(PHOTO_ALIAS)) {
+    const m = /^([a-z]+)\/(.+)$/.exec(path.slice(PHOTO_ALIAS.length))
+    if (!m || (request.method !== 'GET' && request.method !== 'HEAD')) {
+      return new Response('not found', { status: 404 })
+    }
+    return serveImage(m[1], m[2])
+  }
+
   if (!path.startsWith('/api/fr/')) return null
   const rest = path.slice('/api/fr/'.length)
   const origin = url.origin
@@ -1402,6 +1535,16 @@ export async function handleFalkRoss(
     if (style && method === 'GET') {
       const index = await styleIndex(origin, ctx)
       return json(await loadStyle(origin, ctx, index.version, style[1]), 200, 3600)
+    }
+
+    // The catalogue importer's single read. `no-store`, unlike the routes
+    // above: it carries stock, whose whole value is being current, and there is
+    // exactly one caller — a cron on the shop — with nothing to gain from a
+    // browser cache.
+    const entry = /^catalogue\/(\d{4,6})$/.exec(rest)
+    if (entry && method === 'GET') {
+      const index = await styleIndex(origin, ctx)
+      return json(await loadCatalogueEntry(origin, env, ctx, index.version, entry[1]))
     }
 
     const price = /^price\/(\d{4,6})$/.exec(rest)
