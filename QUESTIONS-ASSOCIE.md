@@ -31,7 +31,7 @@ Répondez directement sous chaque question, dans le bloc « Votre réponse ».
 
 ---
 
-## Avant tout : 5 constats sur l'existant
+## Avant tout : 6 constats sur l'existant
 
 Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan :
 
@@ -69,6 +69,19 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
    optimisation du film DTF, connexion Falk & Ross) représente ~49 000 lignes de code
    déjà écrites. C'est l'actif le plus avancé du projet et il n'apparaît dans aucun des
    8 documents.
+
+6. **La TVA n'est pas activée sur la boutique, et 15 commandes sont déjà passées.**
+   Constaté le 14 août 2026 en accédant au serveur : WooCommerce est réglé en euros,
+   pays France, avec le calcul des taxes **désactivé**. Les 15 commandes existantes
+   ont donc été encaissées sans ligne de TVA. Deux cas possibles, et la réponse n'est
+   pas la même :
+   - la société est en franchise en base de TVA, et il manque alors la mention légale
+     obligatoire « TVA non applicable, article 293 B du CGI » sur les factures ;
+   - la société est assujettie, et il y a une régularisation à faire avec votre
+     comptable sur ces 15 commandes.
+
+   Dans les deux cas il faut le régler **avant** la prochaine vente, pas après. C'est
+   l'objet de la question 17.
 
 ---
 

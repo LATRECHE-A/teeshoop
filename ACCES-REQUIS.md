@@ -4,7 +4,7 @@
 > Il est ordonné par ce qui bloque le plus tôt. Chaque ligne dit *pourquoi* l'accès
 > est nécessaire — si la raison ne tient pas, l'accès ne doit pas être donné.
 >
-> Dernière mise à jour : 12 août 2026 · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
+> Dernière mise à jour : 14 août 2026 · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
 
 ---
 
@@ -16,17 +16,68 @@
 | Cloudflare (Worker + R2) | ✅ en place | Le studio, le proxy fournisseur |
 | Falk & Ross (API web service) | ✅ en place | Catalogue, stock, prix d'achat |
 | `ADMIN_TOKEN` sur le Worker | ✅ posé le 12/08 | La console atelier |
-| **SSH o2switch** | ❌ **manquant** | **Tout le travail WordPress** |
+| SSH o2switch | ✅ **posé et vérifié le 14/08** | Tout le travail WordPress |
 | **cPanel o2switch** | ❌ **manquant** | La préproduction, le cron, Redis |
-| **Compte admin WordPress** | ❌ manquant | Réglages Woo, pages, extensions |
+| Compte admin WordPress | ⚠️ existe (`LTHAbdou`, ID 30) | Réglages Woo, pages, extensions |
 | **Clés API WooCommerce** | ❌ manquant | Produits, commandes par script |
 
-Les quatre lignes rouges bloquent la fin de R0 et **tout** R1. Le reste du plan
-avance sans elles ; l'intégration WordPress, non.
+Il reste **cPanel**, qui seul permet de créer la préproduction. Tant qu'elle n'existe
+pas, rien ne doit être déployé : la boutique a déjà **15 commandes** et encaisse.
+
+Le compte `LTHAbdou` est bien administrateur depuis le 22/07 : la ligne 3 est donc
+probablement déjà réglée, à confirmer par le développeur (a-t-il le mot de passe ?).
 
 ---
 
-## 1. SSH o2switch — le plus important, et de loin
+## 1. SSH o2switch : en place depuis le 14/08/2026
+
+**Connexion établie et vérifiée.** Rien n'est à faire ici, la section qui suit reste
+pour mémoire (et pour le jour où la clé sera à refaire).
+
+| | |
+|---|---|
+| Hôte | `ascaphus.o2switch.net` (109.234.166.12) |
+| Utilisateur | `dawe4500` |
+| Port | 22 |
+| Clé | `~/.ssh/teeshoop_o2switch` (ed25519, dédiée) |
+| Alias local | `ssh teeshoop` (défini dans `~/.ssh/config`) |
+| Racine du site | `~/public_html` |
+
+Aucun mot de passe n'a circulé, comme prévu : seule la clé publique a été installée.
+
+Ce qui a été constaté à la première connexion (lecture seule, plus un fichier témoin
+écrit puis supprimé pour prouver le droit d'écriture) :
+
+- **WP-CLI est bien préinstallé** (`/usr/local/bin/wp`), avec `git`, `rsync`, `mysql`,
+  `mysqldump`, `composer`, `zip`. **Pas de `node` ni de `npm`** : le studio se
+  construit ici et se téléverse construit, jamais compilé sur le serveur.
+- **PHP 8.1.34**, côté CLI comme côté web (`~/.cl.selector/defaults.cfg`). PHP 8.1
+  n'est plus maintenu en sécurité depuis décembre 2025 : à faire monter, mais
+  **après** avoir monté la préproduction, pas avant.
+- **Redis et memcached tournent déjà**, relancés par cron. Le point 4 du §2 est donc
+  à moitié fait : les serveurs sont là, il reste à brancher WordPress dessus.
+- **HPOS est activé** (`woocommerce_custom_orders_table_enabled = yes`). Le plugin
+  `teeshoop-core` doit donc déclarer sa compatibilité HPOS et ne jamais lire une
+  commande via `get_post_meta`.
+- Boutique en **EUR / FR**, `woocommerce_calc_taxes = no` : **la TVA n'est pas
+  activée**. À trancher avant la première vraie vente (voir `QUESTIONS-ASSOCIE.md`).
+- Aucun `mu-plugins`, aucun `teeshoop-core` déployé, et **le plugin MCP Adapter du §9
+  n'est plus là**. Le sujet est clos.
+
+### Écarts avec ce que le brief supposait
+
+| | Attendu | Réel en production |
+|---|---|---|
+| WordPress | 7.0.3 | **7.0.4** |
+| WooCommerce | 11.0.1 | **10.9.4** |
+
+Le second écart compte : le miroir local fait tourner un WooCommerce **plus récent**
+que la boutique. Tester le panier et le prix contre 11.0.1 pendant que le client
+achète sur 10.9.4 ne prouve rien. À aligner avant le prochain travail sur le panier.
+
+---
+
+## 1 bis. Pour mémoire : comment la clé a été posée
 
 C'est la voie d'accès principale. o2switch est de l'hébergement mutualisé cPanel
 avec WP-CLI préinstallé : SSH permet d'installer une extension, écrire du PHP,
@@ -198,11 +249,11 @@ Pour situer ce qui est réellement bloqué et ce qui ne l'est pas :
 | **Plugin `teeshoop-core` en PHP** | non — développé et testé sur WordPress local |
 | Moteur de prix PHP + ses tests | non |
 | Pont `postMessage` studio ↔ WooCommerce | non |
-| Déployer quoi que ce soit sur teeshoop.com | **oui — SSH** |
-| Créer la préproduction | **oui — cPanel** |
-| Supprimer les 46 produits de démo | **oui — SSH ou admin WP** |
-| Créer les produits de R1 | **oui — clés Woo ou SSH** |
+| Déployer sur teeshoop.com | techniquement non (SSH est là), **mais pas avant la préproduction** |
+| Créer la préproduction | **oui : cPanel** |
+| Supprimer les produits de démo | non (SSH) |
+| Créer les produits de R1 | non (SSH suffit ; les clés Woo iraient plus vite) |
 
-Autrement dit : l'absence d'accès repousse la mise en ligne, pas le développement.
-Le plugin peut être écrit, testé et prêt à déployer avant que le premier accès
-n'arrive — c'est ce qui est en cours.
+Autrement dit : depuis le 14/08, plus rien n'est bloqué côté outil. Le seul verrou
+qui reste est délibéré : **on ne touche pas une boutique qui a 15 commandes sans
+préproduction ni sauvegarde**. C'est cPanel qui débloque ça.
