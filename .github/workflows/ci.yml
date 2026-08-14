@@ -37,6 +37,19 @@ jobs:
       - name: Bundle guard
         run: npm run verify:bundle
 
+      # The other half of the same boundary. The bundle guard covers the
+      # JavaScript a visitor downloads; this one covers the PHP and the
+      # templates WordPress renders, which have no build step to hide behind.
+      - name: PHP guard
+        run: npm run verify:php
+
+      # The shop's copy of the studio's print areas, size chart and colours is
+      # generated. This proves it is not stale: change a print area, forget to
+      # regenerate, and a customer measures a logo against a number we no
+      # longer publish.
+      - name: Garment data is current
+        run: npm run verify:garments
+
   # The WordPress plugin. Its pure classes (Money, Pricing, Margin) call no
   # WordPress function on purpose, so they need PHP and nothing else — the
   # runner exits 2 if it finds no tests, so "scanned nothing" cannot pass.

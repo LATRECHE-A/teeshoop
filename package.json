@@ -1,7 +1,7 @@
 {
   "name": "tshop",
   "version": "0.1.0",
-  "description": "Tshop Studio — one-page custom apparel design tool (2D + 3D)",
+  "description": "Tshop Studio \u2014 one-page custom apparel design tool (2D + 3D)",
   "directories": {
     "doc": "docs"
   },
@@ -23,8 +23,12 @@
     "wp:cli": "docker compose -f wp-local/docker-compose.yml run --rm wpcli",
     "verify:bundle": "node scripts/bundle-guard.mjs",
     "verify:wp-e2e": "node scripts/wp-e2e-verify.mjs",
-    "ci": "npm run typecheck && npm run typecheck:worker && npm test && npm run test:php",
-    "deploy": "npm run build && npm run verify:bundle && wrangler deploy"
+    "ci": "npm run typecheck && npm run typecheck:worker && npm test && npm run test:php && npm run verify:php && npm run verify:garments",
+    "deploy": "npm run build && npm run verify:bundle && wrangler deploy",
+    "gen:garments": "node scripts/gen-garment-data.mjs",
+    "verify:php": "node scripts/php-guard.mjs",
+    "verify:garments": "node scripts/gen-garment-data.mjs --check",
+    "shots:product": "node scripts/product-shots.mjs"
   },
   "keywords": [],
   "type": "module",

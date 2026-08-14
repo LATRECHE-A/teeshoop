@@ -54,9 +54,13 @@
  *   WP_E2E_SKIP_BUILD=1        reuse dist/ (only if it was built by this script)
  */
 import { execFileSync, spawn } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { deflateSync } from 'node:zlib'
 import { chromium } from 'playwright'
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 const WORKER_PORT = 8788
 /** What the BROWSER loads, and therefore what bridge.js compares origins against. */
@@ -536,7 +540,17 @@ try {
   // the internet, naming the floor-price and commission rules and printing the
   // figures of any assertion that failed. bundle-guard.mjs makes the same
   // promise about the JavaScript; nothing was making it about the PHP.
-  for (const file of ['run.php', 'test-pricing.php', 'test-margin.php', 'integration.php', 'e2e-support.php']) {
+  //
+  // The list is READ FROM DISK, not typed here. It used to be five names, so a
+  // sixth test file was covered by nothing and nobody would have noticed: the
+  // suite would have gone on reporting five green ticks about five files while
+  // the new one answered 200. A check that scans a hard-coded list scans
+  // whatever it was told about last year.
+  const testFiles = readdirSync(join(ROOT, 'wp-plugins/teeshoop-core/tests')).filter((f) =>
+    f.endsWith('.php'),
+  )
+  ok('there are plugin test files to check at all', testFiles.length > 0, `${testFiles.length} found`)
+  for (const file of testFiles) {
     const url = `${SHOP}/wp-content/plugins/teeshoop-core/tests/${file}`
     const res = await fetch(url)
     const body = await res.text()
