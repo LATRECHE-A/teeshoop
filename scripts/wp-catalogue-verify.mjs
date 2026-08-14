@@ -240,6 +240,24 @@ async function main() {
   // --- 3. a clean slate ----------------------------------------------------
   wp(['teeshoop', 'catalogue', 'purger'], { stdio: 'ignore' })
 
+  /*
+   * ESTABLISH the shipped state; do not assume it.
+   *
+   * Step 10 asserts that a catalogue with no margin rate is browsable and not
+   * purchasable — the state this repository ships. Step 11 then sets a rate to
+   * exercise the priced path and clears it again at the end. A run interrupted
+   * between those two leaves the rate behind, and the next run's step 10 fails
+   * on state its own predecessor created. A gate whose result depends on how
+   * the last one ended is a gate that will be believed when it is wrong.
+   */
+  php(
+    `$c = get_option( 'teeshoop_pricing', array() );
+     if ( is_array( $c ) && array_key_exists( 'blank_margin_rate', $c ) ) {
+       unset( $c['blank_margin_rate'] );
+       update_option( 'teeshoop_pricing', $c );
+     }`,
+  )
+
   // --- 4. the import -------------------------------------------------------
   console.log(`importing ${MAX_REFS} reference(s) ...`)
   const first = wp(['teeshoop', 'catalogue', 'importer', `--max=${MAX_REFS}`, '--recommencer'])
