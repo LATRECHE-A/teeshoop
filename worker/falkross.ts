@@ -79,6 +79,15 @@ const WS = 'https://ws.falk-ross.eu'
 const CACHE_ORIGIN = 'https://fr-cache.tshop.internal'
 
 /**
+ * Upstream directories the media proxy will serve, and nothing else.
+ *
+ * `download.falk-ross.eu` also hosts the XML feed itself; a proxy that took any
+ * path would hand the whole catalogue, unauthenticated, to anyone who guessed
+ * the URL.
+ */
+const ALLOWED_MEDIA = new Set(['picture', 'picto', 'sizespecs'])
+
+/**
  * The style list publishes per-style URLs as `http://` and the host 301s to
  * `https://`; following that redirect on every one of thousands of style
  * fetches is a pointless round trip, so URLs are upgraded on the way in.
@@ -872,9 +881,31 @@ async function browseStyles(
     return `${c.name} ${c.brand} ${c.supplierRef} ${c.styleNr}`.toLowerCase().includes(needle)
   }
 
+  /*
+   * THE PAGE SIZE IS RAISED TO A WHOLE BLOCK, AND THAT IS A CORRECTNESS FIX.
+   *
+   * The loop below consumed a block card by card and then advanced `i` past the
+   * whole block regardless. So when `items` filled up in the middle of a block,
+   * every remaining MATCH in that block was dropped AND skipped: `nextOffset`
+   * pointed after them, and no later page could ever return them. A caller
+   * walking to `nextOffset === null` therefore believed it had seen the whole
+   * catalogue while silently missing styles.
+   *
+   * Harmless while the only caller was a grid a human scrolls. Not harmless now
+   * that the shop's importer walks this to decide what the supplier still
+   * sells: a style dropped here is a published product the importer unpublishes.
+   *
+   * A block is 12 and the route clamps `limit` to 1..48, so making the
+   * effective limit at least BLOCK guarantees a block is always consumable in
+   * one page, which is what makes "advance past the whole block" true again. A
+   * caller asking for 1 can get up to 12; over-delivery is not a defect,
+   * silently losing a garment is.
+   */
+  const limit = Math.max(opts.limit, BLOCK)
+
   while (
     i < index.nrs.length &&
-    items.length < opts.limit &&
+    items.length < limit &&
     i - start < MAX_SCAN &&
     // A WALL-CLOCK budget beside the subrequest one. The budget bounds how much
     // work we ask for, but not how long the supplier takes to do it: one hung
@@ -885,8 +916,10 @@ async function browseStyles(
   ) {
     const block = await loadCardBlock(origin, ctx, index, i, budget)
     if (block === null) break // out of subrequests — resume from `i`
+    // Every match in the block is taken, so advancing past the block cannot
+    // skip one. `limit` is at least BLOCK, so this overshoots by at most 11.
     for (const c of block) {
-      if (matches(c) && items.length < opts.limit) items.push(c)
+      if (matches(c)) items.push(c)
     }
     i += BLOCK
   }
@@ -1130,11 +1163,28 @@ const PHOTO_ALIAS = '/media/blank/'
 const alias = (url: string): string =>
   url.startsWith('/api/fr/img/') ? PHOTO_ALIAS + url.slice('/api/fr/img/'.length) : url
 
+/**
+ * The maker's size-spec PDF, put behind the same neutral prefix.
+ *
+ * It arrives as an absolute URL on the supplier's own host, and WordPress
+ * stores it on the product. Left as it came, the supplier's domain would sit in
+ * the shop's database waiting for the first template that decides to link "le
+ * guide des tailles du fabricant", and that link names who we buy from on a
+ * customer's page. An unrecognised URL becomes '' rather than being passed
+ * through: a half-anonymised field is worse than an absent one, because it
+ * looks safe.
+ */
+function aliasSizespec(url: string): string {
+  const m = /\/ws\/(sizespecs)\/([A-Za-z0-9._-]{1,128})$/.exec(url)
+  return m ? `${PHOTO_ALIAS}${m[1]}/${m[2]}` : ''
+}
+
 function aliasPhotos(style: FrStyle): FrStyle {
   return {
     ...style,
     front: alias(style.front),
     back: alias(style.back),
+    sizespecPdf: aliasSizespec(style.sizespecPdf),
     colourways: style.colourways.map((c) => ({
       ...c,
       swatch: alias(c.swatch),
@@ -1398,12 +1448,22 @@ async function placeOrder(
  * internet — the path is validated, never merely concatenated.
  */
 async function serveImage(kind: string, file: string): Promise<Response> {
-  if ((kind !== 'picture' && kind !== 'picto') || !/^[A-Za-z0-9._-]{1,128}$/.test(file)) {
+  // `sizespecs` is the maker's own size table, a PDF. It joins the two photo
+  // directories here rather than getting its own handler because the rule is
+  // identical: an allow-list of upstream directories, a validated file name,
+  // and no credentials. Widening the list is a visible decision; concatenating
+  // a path is how a proxy becomes an open one.
+  if (!ALLOWED_MEDIA.has(kind) || !/^[A-Za-z0-9._-]{1,128}$/.test(file)) {
     return new Response('not found', { status: 404 })
   }
   const upstream = await fetchUpstream(`${DOWNLOAD}/ws/${kind}/${file}`, { cacheTtl: TTL.image })
   const headers = new Headers()
-  headers.set('content-type', upstream.headers.get('content-type') ?? 'image/jpeg')
+  // The fallback follows the DIRECTORY, not the majority case. Serving a size
+  // chart as image/jpeg because that is what photos are makes the browser
+  // download a file it will not open, and the operator sees a broken link
+  // rather than a wrong header.
+  const fallback = kind === 'sizespecs' ? 'application/pdf' : 'image/jpeg'
+  headers.set('content-type', upstream.headers.get('content-type') ?? fallback)
   // Filenames are versioned by the supplier (…-2019_01.jpg), so a given URL's
   // bytes never change: cache hard, both at the edge and in the browser.
   headers.set('cache-control', `public, max-age=${TTL.image}, immutable`)
@@ -1489,7 +1549,20 @@ export async function handleFalkRoss(
     if (!m || (request.method !== 'GET' && request.method !== 'HEAD')) {
       return new Response('not found', { status: 404 })
     }
-    return serveImage(m[1], m[2])
+    /*
+     * Caught HERE, because this branch sits before the try that wraps the rest
+     * of the module (it has to: it is the one route outside the admin gate).
+     * `serveImage` reaches `fetchUpstream`, which THROWS on a 404, on a non-2xx
+     * and on the 10 s timeout — so a photo the supplier has withdrawn would
+     * escape `fetch()` and Cloudflare would answer its own 500 "Worker threw
+     * exception" page. In an `<img src>` on a shop that is a broken picture
+     * plus a 500 in the logs, where 404 is both true and cheap.
+     */
+    try {
+      return await serveImage(m[1], m[2])
+    } catch {
+      return new Response('not found', { status: 404 })
+    }
   }
 
   if (!path.startsWith('/api/fr/')) return null

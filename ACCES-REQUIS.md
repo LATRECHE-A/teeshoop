@@ -355,6 +355,43 @@ La manœuvre est indolore et prend une minute : créer une nouvelle clé, me don
 nouvelle par lien autodestructeur (§8), supprimer l'ancienne. À faire quand le
 développeur en aura le temps, avant la mise en ligne dans tous les cas.
 
+### 🔴 `ADMIN_TOKEN` est à faire tourner (14/08/2026, séance 03)
+
+Pendant la mise en place de l'import du catalogue, `wp config set` a **affiché la
+valeur qu'il venait d'écrire** dans son message de succès, et cette valeur est donc
+passée dans la conversation. Il s'agit du `ADMIN_TOKEN` du `.dev.vars` local, pas
+d'un secret de production, **mais** :
+
+- si la même valeur a été posée en production (`wrangler secret put ADMIN_TOKEN`),
+  elle ouvre `/api/fr/*`, c'est-à-dire nos prix d'achat sur tout le catalogue et
+  notre stock fournisseur ;
+- la faire tourner coûte deux commandes.
+
+```bash
+openssl rand -base64 32                        # la nouvelle valeur
+wrangler secret put ADMIN_TOKEN                # production
+#   puis la même valeur dans .dev.vars, et
+#   wp config set TEESHOOP_CATALOGUE_TOKEN … --quiet   sur la boutique
+```
+
+`scripts/wp-catalogue-verify.mjs` écrit désormais la constante en jetant la sortie de
+la commande, précisément pour que cela ne se reproduise pas.
+
+### `TEESHOOP_CATALOGUE_TOKEN` : à poser sur la boutique
+
+L'import du catalogue appelle notre propre Worker et s'authentifie avec le même
+secret. Il se déclare dans `wp-config.php`, **jamais dans une option** : les options
+partent dans toutes les sauvegardes, dans toutes les migrations, et s'éditent depuis
+l'administration.
+
+```php
+define( 'TEESHOOP_CATALOGUE_TOKEN', '…la valeur de ADMIN_TOKEN…' );
+```
+
+Absent, l'import refuse de tourner et dit lequel des deux réglages manque. Il ne se
+rabat jamais sur « importer sans les tarifs » : un catalogue écrit avec tous les prix
+d'achat vides ressemble exactement à un import réussi jusqu'au jour du réassort.
+
 ---
 
 ## 5. Une information, pas un accès : Falk & Ross

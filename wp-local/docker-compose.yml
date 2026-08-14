@@ -66,11 +66,24 @@ services:
       WORDPRESS_DB_PASSWORD: teeshoop
       # WP_DEBUG on, display off: notices land in the log where they can be read,
       # not in the middle of a JSON response where they corrupt it.
+      # The catalogue importer's key to our own Worker. It is INTERPOLATED FROM
+      # THE DEVELOPER'S ENVIRONMENT and never written here: this file is
+      # committed, and the token opens a route that returns our purchase price
+      # for every article in the catalogue.
+      #
+      #   set -x TEESHOOP_CATALOGUE_TOKEN (the ADMIN_TOKEN from .dev.vars)
+      #   npm run wp:up
+      #
+      # Unset, it lands as an empty string and `Supply::unconfigured()` refuses
+      # to import, which is the correct behaviour and says which half is
+      # missing. It is a constant rather than an option on purpose; see
+      # includes/Supply.php.
       WORDPRESS_CONFIG_EXTRA: |
         define('WP_DEBUG', true);
         define('WP_DEBUG_LOG', true);
         define('WP_DEBUG_DISPLAY', false);
         define('SCRIPT_DEBUG', true);
+        define('TEESHOOP_CATALOGUE_TOKEN', '${TEESHOOP_CATALOGUE_TOKEN:-}');
     volumes:
       - wp:/var/www/html
       - ../wp-plugins/teeshoop-core:/var/www/html/wp-content/plugins/teeshoop-core

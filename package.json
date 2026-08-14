@@ -23,6 +23,7 @@
     "wp:cli": "docker compose -f wp-local/docker-compose.yml run --rm wpcli",
     "verify:bundle": "node scripts/bundle-guard.mjs",
     "verify:wp-e2e": "node scripts/wp-e2e-verify.mjs",
+    "verify:wp-catalogue": "node scripts/wp-catalogue-verify.mjs",
     "ci": "npm run typecheck && npm run typecheck:worker && npm test && npm run test:php && npm run verify:php && npm run verify:garments",
     "deploy": "npm run build && npm run verify:bundle && wrangler deploy",
     "gen:garments": "node scripts/gen-garment-data.mjs",

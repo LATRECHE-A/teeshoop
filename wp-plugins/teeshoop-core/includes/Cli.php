@@ -35,6 +35,241 @@ final class Cli {
 		}
 		\WP_CLI::add_command( 'teeshoop provisionner', array( self::class, 'provision' ) );
 		\WP_CLI::add_command( 'teeshoop verifier', array( self::class, 'check' ) );
+		\WP_CLI::add_command( 'teeshoop catalogue importer', array( self::class, 'catalogue_import' ) );
+		\WP_CLI::add_command( 'teeshoop catalogue etat', array( self::class, 'catalogue_state' ) );
+		\WP_CLI::add_command( 'teeshoop catalogue purger', array( self::class, 'catalogue_purge' ) );
+	}
+
+	/**
+	 * Import the supplier catalogue into WooCommerce.
+	 *
+	 * Idempotent and resumable. Re-running it when nothing has moved upstream
+	 * writes nothing and says so. Interrupting it loses at most the reference in
+	 * flight; the next run continues from the same place, which is what makes
+	 * `--duree` a usable cron slot rather than a job somebody has to watch:
+	 *
+	 *     7 3 * * *  cd /home/xxx/public_html && wp teeshoop catalogue importer --duree=1800 --discret
+	 *
+	 * Needs `define( 'TEESHOOP_CATALOGUE_TOKEN', '…' );` in wp-config.php and a
+	 * Worker URL in the plugin's settings. Without either it refuses, because
+	 * an import that ran without prices looks exactly like one that worked.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--famille=<famille>]
+	 * : printable (default), tee, polo, sweat, all.
+	 *
+	 * [--duree=<secondes>]
+	 * : Stop cleanly after this many seconds and keep the place. 0 = no limit.
+	 *
+	 * [--max=<n>]
+	 * : Only plan the first n references. For a smoke test, never for production.
+	 *
+	 * [--recommencer]
+	 * : Throw away an unfinished run and re-list the catalogue.
+	 *
+	 * [--discret]
+	 * : Only the summary, not one line per reference. What a cron wants.
+	 *
+	 * NOT --quiet, which is WP-CLI's OWN global flag and suppresses every
+	 * WP_CLI::log in the process, summary included. The documented cron line
+	 * carried it for one revision, so the nightly log would have recorded
+	 * nothing at all: no counts, no failures, no reason to look.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp teeshoop catalogue importer --max=5
+	 *     wp teeshoop catalogue importer --duree=1800 --discret
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Flags.
+	 */
+	public static function catalogue_import( array $args, array $assoc_args ): void {
+		$why = Supply::unconfigured();
+		if ( '' !== $why ) {
+			\WP_CLI::error( $why );
+		}
+
+		$quiet   = ! empty( $assoc_args['discret'] );
+		$famille = (string) ( $assoc_args['famille'] ?? 'printable' );
+		$max     = (int) ( $assoc_args['max'] ?? 0 );
+
+		$plan = Importer::plan( $famille, ! empty( $assoc_args['recommencer'] ), $max );
+		if ( empty( $plan['ok'] ) ) {
+			\WP_CLI::error( (string) ( $plan['error'] ?? 'La planification a échoué.' ) );
+		}
+
+		$run   = $plan['run'];
+		$total = count( $run['refs'] );
+		if ( 0 === $total ) {
+			\WP_CLI::error( 'Le catalogue n’a renvoyé aucune référence. Rien n’a été importé.' );
+		}
+
+		if ( empty( $plan['resumed'] ) ) {
+			$walk = $plan['walk'] ?? array();
+			\WP_CLI::log(
+				sprintf(
+					'%d référence(s) à traiter (%s), listées en %s appel(s), %s s.',
+					$total,
+					$famille,
+					(string) ( $walk['calls'] ?? '?' ),
+					(string) ( $walk['seconds'] ?? '?' )
+				)
+			);
+			if ( empty( $run['complete'] ) ) {
+				\WP_CLI::warning( 'La liste est incomplète : aucune référence ne sera retirée de la boutique sur la foi de cette passe.' );
+			}
+		} else {
+			\WP_CLI::log( sprintf( 'Reprise à %d/%d.', (int) $run['at'], $total ) );
+		}
+
+		$started = microtime( true );
+		$result  = Importer::run(
+			(int) ( $assoc_args['duree'] ?? 0 ),
+			$quiet
+				? null
+				: static function ( int $at, int $of, string $ref, array $outcome ): void {
+					$note = empty( $outcome['problems'] ) ? '' : '  ! ' . implode( ' / ', $outcome['problems'] );
+					$why  = empty( $outcome['why'] ) ? '' : '  (' . implode( ', ', $outcome['why'] ) . ')';
+					\WP_CLI::log(
+						sprintf(
+							'  %4d/%-4d  %-6s  %-9s  %3d article(s)%s%s',
+							$at,
+							$of,
+							$ref,
+							(string) $outcome['outcome'],
+							(int) ( $outcome['variations'] ?? 0 ),
+							$why,
+							$note
+						)
+					);
+				}
+		);
+
+		if ( empty( $result['ok'] ) ) {
+			\WP_CLI::error( (string) ( $result['error'] ?? 'L’import a échoué.' ) );
+		}
+
+		$run     = $result['run'];
+		$stats   = $run['stats'];
+		$seconds = round( microtime( true ) - $started, 1 );
+
+		\WP_CLI::log( '' );
+		\WP_CLI::log(
+			sprintf(
+				'%d créé(s), %d modifié(s), %d inchangé(s), %d en échec, %d dépublié(s). %d article(s) écrit(s), %d photo(s) copiée(s). %s s.',
+				$stats['created'],
+				$stats['updated'],
+				$stats['unchanged'],
+				$stats['failed'],
+				$stats['delisted'] ?? 0,
+				$stats['variations'],
+				$stats['images'],
+				$seconds
+			)
+		);
+
+		foreach ( $run['problems'] as $ref => $list ) {
+			\WP_CLI::log( '  ' . $ref . ' : ' . implode( ' / ', (array) $list ) );
+		}
+
+		if ( 'budget' === $result['stopped'] ) {
+			\WP_CLI::success(
+				sprintf( 'Temps imparti atteint à %d/%d. Relancez la commande pour continuer.', (int) $run['at'], (int) $result['total'] )
+			);
+			return;
+		}
+
+		if ( $stats['failed'] > 0 ) {
+			\WP_CLI::error( sprintf( 'Import terminé avec %d référence(s) en échec.', $stats['failed'] ) );
+		}
+
+		if ( 0 === $stats['created'] + $stats['updated'] ) {
+			\WP_CLI::success( 'Rien n’a changé : la boutique était déjà à jour.' );
+			return;
+		}
+		\WP_CLI::success( 'Catalogue à jour.' );
+	}
+
+	/**
+	 * Where the last import got to.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp teeshoop catalogue etat
+	 */
+	public static function catalogue_state(): void {
+		$state = Importer::status();
+		$total = (int) $state['total'];
+
+		if ( 0 === $total ) {
+			\WP_CLI::log( 'Aucun import n’a encore été planifié.' );
+			return;
+		}
+
+		\WP_CLI::log( sprintf( 'Famille          : %s', (string) $state['kind'] ) );
+		\WP_CLI::log( sprintf( 'Avancement       : %d/%d', (int) $state['at'], $total ) );
+		\WP_CLI::log( sprintf( 'Liste complète   : %s', empty( $state['complete'] ) ? 'non' : 'oui' ) );
+		\WP_CLI::log( sprintf( 'Démarré          : %s', (string) $state['started'] ) );
+		\WP_CLI::log( sprintf( 'Terminé          : %s', '' === (string) $state['finished'] ? 'en cours' : (string) $state['finished'] ) );
+		foreach ( $state['stats'] as $key => $value ) {
+			\WP_CLI::log( sprintf( '  %-14s %d', $key, (int) $value ) );
+		}
+		foreach ( $state['problems'] as $ref => $list ) {
+			\WP_CLI::log( '  ' . $ref . ' : ' . implode( ' / ', (array) $list ) );
+		}
+	}
+
+	/**
+	 * Remove every imported reference. Development only.
+	 *
+	 * Refuses on anything that does not look like the local mirror, for the same
+	 * reason `provisionner` does: this deletes products, and a product that has
+	 * been ordered is referenced by an order.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--forcer]
+	 * : Run even when the site does not look like the local mirror.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp teeshoop catalogue purger
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Flags.
+	 */
+	public static function catalogue_purge( array $args, array $assoc_args ): void {
+		$home  = (string) get_option( 'home' );
+		$local = (bool) preg_match( '#^https?://(localhost|127\.0\.0\.1|.*\.test|.*\.local)(:\d+)?#i', $home );
+		if ( ! $local && empty( $assoc_args['forcer'] ) ) {
+			\WP_CLI::error( "Ce site ne ressemble pas au miroir local ({$home}). Relancez avec --forcer si c’est bien voulu." );
+		}
+
+		$ids = get_posts(
+			array(
+				'post_type'   => 'product',
+				'post_status' => 'any',
+				'numberposts' => -1,
+				'fields'      => 'ids',
+				'meta_key'    => Catalogue::META_REF, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			)
+		);
+
+		$removed = 0;
+		foreach ( $ids as $id ) {
+			$product = wc_get_product( (int) $id );
+			if ( $product instanceof \WC_Product_Variable ) {
+				foreach ( $product->get_children() as $child ) {
+					wp_delete_post( (int) $child, true );
+				}
+			}
+			wp_delete_post( (int) $id, true );
+			++$removed;
+		}
+
+		Importer::forget_run();
+		\WP_CLI::success( sprintf( '%d référence(s) importée(s) supprimée(s).', $removed ) );
 	}
 
 	/**

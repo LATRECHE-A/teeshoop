@@ -669,6 +669,80 @@ Ce n'est pas la même question que la 33, qui porte sur les fichiers de producti
 
 ---
 
+## Catalogue
+
+### 41. Vendons-nous des textiles nus, sans marquage, ou le catalogue n'existe-t-il que pour choisir le vêtement à personnaliser ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* Le catalogue fournisseur est maintenant dans la boutique : 463 références, 26 399 articles avec leurs coloris, leurs tailles, leur grammage, leur composition et leur stock. La question est de savoir ce qu'un visiteur peut en faire. Deux réponses possibles, et elles ne demandent pas le même travail.
+
+Si nous vendons des textiles nus, chaque article a besoin d'un prix de vente, donc de la question 42, et le catalogue devient une boutique à part entière avec ses expéditions et ses retours.
+
+Si le catalogue ne sert qu'à choisir le vêtement à personnaliser, alors le bouton d'une fiche n'est pas « Ajouter au panier » mais « Personnaliser », et le prix affiché est celui du vêtement imprimé, pas celui du textile.
+
+*Si vous ne répondez pas, on partira sur :* le catalogue est consultable, chaque référence affiche ses coloris, ses tailles et ses caractéristiques réelles, et rien n'est commandable tant que la question 42 n'a pas de réponse.
+
+**Votre réponse :**
+
+> 
+
+
+### 42. Quel taux de marge appliquons-nous à un textile nu revendu ?
+
+🔴 **Bloquant** (si la réponse à la 41 est « oui, on vend des textiles nus »)
+
+*Pourquoi on a besoin de la réponse :* Le chapitre 1 de la Bible donne la formule — prix conseillé HT = coût / (1 − taux de marge cible) — et range « fixer les premiers taux de marge » parmi les choses qui restent à décider. Nous avons le coût réel de chaque article, fourni par le fournisseur et rafraîchi toutes les nuits. Il ne manque que le taux.
+
+Ce n'est pas un détail d'arrondi. Sur le t-shirt le plus vendu du catalogue, acheté 3,37 EUR HT :
+
+| Taux de marge | Prix de vente HT | Prix TTC | Ce qu'il nous reste |
+|---|---|---|---|
+| 40 % | 5,62 EUR | 6,74 EUR | 2,25 EUR |
+| 50 % | 6,74 EUR | 8,09 EUR | 3,37 EUR |
+| 60 % | 8,43 EUR | 10,12 EUR | 5,06 EUR |
+
+Un seul taux pour tout le catalogue, ou un taux par famille (t-shirts, polos, sweats), ou un taux qui baisse quand le prix d'achat monte : dites-nous lequel, nous le réglons une fois et les 26 399 articles sont valorisés à la passe suivante.
+
+*Si vous ne répondez pas, on partira sur :* rien. Aucun prix n'est écrit, le catalogue reste consultable et non commandable. Inventer un taux reviendrait à mettre en vente 26 399 vêtements à un prix que personne n'a validé.
+
+**Votre réponse :**
+
+> 
+
+
+### 43. Le fournisseur donne trois nombres de stock par article et n'en nomme aucun. Savez-vous ce qu'ils sont ?
+
+🟡 **À confirmer**
+
+*Pourquoi on a besoin de la réponse :* Chaque article revient avec trois quantités. Mesuré sur les 26 300 lignes du catalogue : la première totalise 4,7 millions de pièces, la deuxième 7 935, la troisième 32,4 millions. Un stock trente fois supérieur à la disponibilité annoncée ressemble à un réapprovisionnement prévu, pas à une étagère.
+
+Nous ne traitons donc que **la première** comme du stock vendable. Si c'est le mauvais choix, nous refusons aujourd'hui des commandes que le fournisseur pourrait honorer ; si nous nous étions trompés dans l'autre sens, nous encaisserions des commandes impossibles à livrer. Un mot à votre contact chez le fournisseur suffirait à trancher.
+
+*Si vous ne répondez pas, on partira sur :* seul le premier nombre est du stock. C'est le sens prudent.
+
+**Votre réponse :**
+
+> 
+
+
+### 44. Faut-il traduire les noms de coloris en français ?
+
+🟢 **Confort**
+
+*Pourquoi on a besoin de la réponse :* Le catalogue compte 442 noms de coloris distincts, et ce sont les noms du fabricant : « Heather Grey », « Bottle Green », « Fan Deep Royal ». Ce sont aussi ceux qui figurent sur l'étiquette du vêtement et dans les catalogues papier que vos clients professionnels connaissent, donc les traduire n'est pas gratuit : un acheteur qui cherche « Sport Grey » ne trouverait plus rien.
+
+Traduire les vingt les plus courants (Black, White, Navy, Red, Royal…) couvrirait la majorité des références sans casser les autres, mais c'est un travail de rédaction, pas de code, et il faut que quelqu'un valide chaque terme.
+
+*Si vous ne répondez pas, on partira sur :* les noms du fabricant, tels quels.
+
+**Votre réponse :**
+
+> 
+
+
+---
+
 ## Ce que vous n'avez PAS à décider
 
 Pour vous éviter de perdre du temps : les points suivants sont tranchés par l'équipe de

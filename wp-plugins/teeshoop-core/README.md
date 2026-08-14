@@ -26,6 +26,12 @@ The nonce never crosses the origin boundary.
 R2. `wp-content/uploads` is served by URL with no access control, and
 `robots.txt` is not a permission.
 
+**The catalogue.** 463 references and 26 399 articles arrive here from the
+supplier, through our own Worker, on a nightly cron. What our supplier charges
+us is stored on the variation and leaves by no door: not the REST API, not the
+CSV export, not the variation JSON the browser gets. `docs/CATALOGUE.md` is the
+operating manual; `includes/Catalogue.php` argues the modelling.
+
 ## Layout
 
 ```
@@ -263,6 +269,44 @@ different things.
 
 **⚠ The shipped prices are placeholders**, the studio's demo figures converted
 1:1 from dollars. The real grid is question 04 of `QUESTIONS-ASSOCIE.md`.
+
+`blank_margin_rate` is the exception: it is `null`, and null is a refusal rather
+than a placeholder. Until somebody sets it, the importer writes no price and the
+catalogue is browsable but not purchasable. Question 42.
+
+Constants, in `wp-config.php` and never in an option:
+
+| Constant | Meaning |
+|---|---|
+| `TEESHOOP_CATALOGUE_TOKEN` | Bearer token for our Worker's catalogue routes. Absent ⇒ the importer refuses. It is a constant because options are dumped by every backup and editable from the admin, and this one opens a route that returns our purchase price for the whole catalogue. |
+| `TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` | Development only. Never on production. |
+
+## The catalogue
+
+| Command | |
+|---|---|
+| `wp teeshoop catalogue importer` | Import or refresh. Idempotent, resumable. |
+| `wp teeshoop catalogue importer --duree=1800` | Do half an hour and stop cleanly. A cron slot. |
+| `wp teeshoop catalogue etat` | Where the current pass got to. |
+| `wp teeshoop catalogue purger` | Remove every imported reference. Local mirror only. |
+
+One style is one **variable** product; every article the supplier sells is one
+variation, built from the SKU list and never from the cross product of colours
+and sizes (that would invent 3 481 garments nobody can buy). Colour and size are
+global attributes, so they can be filtered on; brand, material, sleeve, neck,
+audience and certification are global attributes too, for the same reason.
+
+Idempotent **by comparison, not by hash**: every field is read back and compared,
+and `save()` only runs when something differs. Two bugs found by insisting on
+that, both invisible to a hash: `_global_unique_id` became an internal meta key
+in WooCommerce 9.2, so reading it back always returned `''`; and a taxonomy
+attribute's options come back sorted by term name, not in the order they were
+written, so a sequence comparison found a difference every single night and
+re-saved every variation's attribute summary.
+
+Measured, 2026-08-14, local mirror: 0,24 s per variation on creation (148 queries
+each, which is WooCommerce's own cost), 5 ms per variation to re-verify an
+unchanged one.
 
 ## Fail-closed
 

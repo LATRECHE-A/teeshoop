@@ -92,6 +92,36 @@ panier et tout fonctionnait. Avec les permaliens propres, ceux d'o2switch, **cha
 panier répondait 503**. Toute la séance 01 avait été vérifiée verte sur la seule
 configuration où le défaut est invisible.
 
+**Le catalogue fournisseur est dans la boutique.** 463 références et 26 399 articles, avec
+leurs coloris, leurs tailles, leur grammage, leur composition, leur stock et notre prix
+d'achat. Une référence est **un produit variable**, un article vendu par le fournisseur est
+**une variation** : construites depuis la liste d'articles et jamais depuis le produit
+cartésien coloris × taille, parce que 3 481 de ces combinaisons (13 %) n'existent pas et
+seraient autant de commandes impossibles à honorer.
+
+L'import est **idempotent par comparaison, pas par empreinte** : chaque champ est relu et
+comparé, et rien n'est écrit tant que rien n'a bougé. Cette exigence a trouvé deux défauts
+qu'une empreinte aurait cachés pour toujours : `_global_unique_id` est devenu une meta
+interne de WooCommerce 9.2, donc sa relecture rendait toujours une chaîne vide ; et les
+options d'un attribut de taxonomie reviennent triées par nom de terme et non dans l'ordre
+où elles ont été écrites, si bien qu'une comparaison de séquences trouvait une différence
+toutes les nuits et réécrivait le résumé d'attributs des 366 variations d'un produit.
+
+Il est **reprenable** : `--duree=1800` fait une demi-heure de travail et s'arrête
+proprement, et le curseur est écrit dans la même transaction que la référence, donc un
+processus tué rejoue la référence entière au lieu d'en laisser une moitié. Mesuré :
+0,24 s par variation à la création (contre 0,38 s hors transaction), 5 ms pour revérifier
+une variation inchangée.
+
+**Notre prix d'achat ne sort par aucune porte** : ni l'API REST authentifiée (produits et
+variations), ni l'API Store publique, ni l'export CSV avec les meta personnalisées, ni le
+JSON des variations envoyé au navigateur. `npm run verify:wp-catalogue` le prouve en
+retirant le verrou et en exigeant que le même contrôle trouve la fuite.
+
+**Le prix de vente, lui, n'est pas inventé.** La Bible donne la formule et laisse le taux
+de marge à décider : tant que personne ne l'a fixé (question 42), aucun prix n'est écrit et
+le catalogue est consultable sans être commandable.
+
 **L'outillage.** Un miroir local de la production (WordPress 7.0.4 + WooCommerce 11.0.1 en
 docker, **versions épinglées** sur celles réellement mesurées sur le serveur) que l'on peut désormais **reconstruire depuis le dépôt** (`wp teeshoop
 provisionner`), 143 tests JavaScript, 64 tests PHP purs, 17 tests d'intégration WooCommerce,
@@ -110,7 +140,7 @@ instructions de travail, elles changent plus vite que le code).
 |---|---|---|
 | ~~01~~ | ~~Boucler la boucle : du studio au panier WooCommerce~~ **faite** | - |
 | ~~02~~ | ~~Fiche produit, grille de prix, demande de devis~~ **faite** | - |
-| 03 | Catalogue : Falk&Ross vers WooCommerce, à l'échelle | - |
+| ~~03~~ | ~~Catalogue : Falk&Ross vers WooCommerce, à l'échelle~~ **faite** | - |
 | 04 | Paiement : Stripe, TVA, livraison, facture | 02, 03 |
 | 05 | Moteur de coût, prix plancher, commissions | - |
 | 06 | BAT, cycle de vie de la commande, e-mails | 04 |
@@ -142,6 +172,7 @@ ne peut le lever.
 |---|---|---|
 | **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Franchise en base ou régularisation : la séance 04 construit 20 % partout et se trompe entièrement si la réponse est « franchise » |
 | La vraie grille tarifaire | associé | Question 04 de `QUESTIONS-ASSOCIE.md` ; les prix actuels sont des **valeurs de démonstration** |
+| **Le taux de marge sur un textile nu** | associé | Question 42. Les 26 399 articles du catalogue sont importés avec leur coût réel et **sans prix de vente** : consultables, non commandables, tant que le taux n'est pas fixé |
 | Clés Stripe (test puis production) | associé | Séance 04 |
 | Compte Brevo | associé | Séance 06 |
 | `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur n'a jamais pu partir |

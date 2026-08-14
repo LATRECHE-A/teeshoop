@@ -110,11 +110,28 @@ const FORBIDDEN = [
  * never rendered to anyone, and naming its inputs is its job. It is listed here
  * rather than excluded by a pattern so that adding a second exemption is a
  * visible decision.
+ *
+ * EXEMPTIONS NAME THE NEEDLE, not the category, and `null` means the whole file.
+ * The scoping was added with the catalogue importer (session 03), because a
+ * blanket exemption is a hole shaped like a file rather than like a reason.
+ * NEEDLE-level and not category-level for the same argument taken one step
+ * further: `supplier` is eight needles, `Supply.php` needs exactly one of them,
+ * and the seven others are precisely what would make it able to name who we buy
+ * from. The two original entries stay unscoped because they legitimately touch
+ * several categories at once.
  */
 const ALLOWED = new Map([
-  ['wp-plugins/teeshoop-core/includes/Margin.php', 'the cost and floor-price engine; server-only, never rendered'],
-  ['wp-plugins/teeshoop-core/tests/test-margin.php', 'the tests for it'],
-  ['scripts/php-guard.mjs', 'this file lists the needles'],
+  ['wp-plugins/teeshoop-core/includes/Margin.php', { why: 'the cost and floor-price engine; server-only, never rendered', needles: null }],
+  ['wp-plugins/teeshoop-core/tests/test-margin.php', { why: 'the tests for it', needles: null }],
+  ['scripts/php-guard.mjs', { why: 'this file lists the needles', needles: null }],
+  [
+    'wp-plugins/teeshoop-core/includes/Supply.php',
+    { why: 'holds the one catalogue route path; server-only HTTP client, renders nothing', needles: ['/api/fr/'] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/includes/Importer.php',
+    { why: 'asks the cost engine for a selling price; server-only, renders nothing', needles: ['Margin::'] },
+  ],
 ])
 
 /**
@@ -138,7 +155,10 @@ function scan(files, extra = []) {
   const hits = []
   for (const file of files) {
     const rel = relative(ROOT, file).split('\\').join('/')
-    if (ALLOWED.has(rel)) continue
+    const exempt = ALLOWED.get(rel)
+    // `needles: null` is a whole-file pass; a list exempts only those exact
+    // strings, so every other needle still fires in that file.
+    if (exempt && exempt.needles === null) continue
 
     // readFileSync + includes, never grep: a file with a NUL byte makes GNU
     // grep suppress output entirely, which reads as a pass. Measured in
@@ -146,6 +166,7 @@ function scan(files, extra = []) {
     const rendered = RENDERED.some((d) => rel.startsWith(d))
     const text = readFileSync(file, 'utf8')
     for (const needle of [...FORBIDDEN, ...extra]) {
+      if (exempt && exempt.needles.includes(needle.s)) continue
       if (needle.scope === 'rendered' && !rendered) continue
       let at = text.indexOf(needle.s)
       while (at !== -1) {

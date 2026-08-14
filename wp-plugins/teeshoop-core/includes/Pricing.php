@@ -122,6 +122,41 @@ final class Pricing {
 			'max_qty'    => 10000,
 
 			/*
+			 * Target margin rate for a BLANK resold undecorated, i.e. the 26 399
+			 * catalogue articles the importer writes. NULL, and null means the
+			 * importer writes no price at all.
+			 *
+			 * This is not a placeholder waiting to be filled in badly, it is a
+			 * refusal. The Bible gives the formula (prix conseillé = coût /
+			 * (1 − taux de marge cible), chapter 1) and then lists "fixer les
+			 * premiers taux de marge" among the things still to decide. So the
+			 * formula is derived and the rate is not ours to pick: at 40 % a
+			 * 3,37 EUR t-shirt sells at 5,62 EUR and at 60 % it sells at
+			 * 8,43 EUR, and nothing in this repository can tell you which is
+			 * right. Question 42 of QUESTIONS-ASSOCIE.md asks.
+			 *
+			 * Until it is answered the catalogue is browsable and not
+			 * purchasable, which is a true statement about a garment whose price
+			 * nobody has set. Set this to a float in [0, 1) and the next import
+			 * prices every variation from its own supplier cost.
+			 *
+			 * It is NOT the same number as `garments[*].base_ht`, which is what
+			 * a blank contributes to a PERSONALISED line. Session 05 is where
+			 * those two stop being separate; see the note in Catalogue.php.
+			 *
+			 * ONE THING TO SETTLE BEFORE IT IS SET, and it is not a rounding
+			 * detail: the price this produces is HT, and the shop is configured
+			 * to display prices excluding tax (`woocommerce_tax_display_shop`,
+			 * which is right for the business buyers the personalised pages are
+			 * written for). An imported blank has no Teeshoop template around
+			 * it, so it would render bare HT and a consumer would meet 20 % more
+			 * at checkout. In France a consumer price must be shown TTC. So
+			 * question 41 comes first: if these blanks are sold to consumers,
+			 * the catalogue needs a TTC display before this rate is set.
+			 */
+			'blank_margin_rate' => null,
+
+			/*
 			 * Where self-serve stops and a devis begins.
 			 *
 			 * ATTENTION: THIS IS OUR ASSUMPTION, NOT THE ASSOCIATE'S RULE.
