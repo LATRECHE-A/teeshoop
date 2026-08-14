@@ -347,36 +347,35 @@ async function main() {
   ok('a purchase price really is stored', Number(sampleCents) > 0, `${sample.ref}: ${sampleCents} cents`)
 
   /*
-   * WHAT COUNTS AS A LEAK, and why the obvious needle is the wrong one.
+   * WHAT COUNTS AS A LEAK, and both obvious needles are wrong.
    *
-   * The bare cents figure ("337") is three digits and will occur by chance in
-   * any 80 KB document — inside a post id, a timestamp, a nonce. A check built
-   * on it fails on a clean shop, gets marked flaky, and then gets deleted, which
-   * is worse than not having it.
+   * The bare cents figure ("430") is three digits and occurs by chance in any
+   * large document. So does the price written with a French decimal comma:
+   * MEASURED on this shop's own REST output, "4,30" matched inside
+   * `"variations":[3024,3025]`, because a JSON list of post ids is nothing but
+   * digit-comma-digit. A check that fails on a clean shop gets marked flaky and
+   * then gets deleted, which is worse than not having it.
    *
-   * So the needles are the ones that cannot occur by accident: the two meta KEYS
-   * (a leak always carries the key that names the value), the supplier's
-   * nine-digit article number, and the price written the two ways a template
-   * would print it, both anchored by a decimal separator. Step 8 below removes
-   * the seal and requires this same set to fire, which is what proves the choice
-   * is not merely convenient.
+   * So two sets. The EXACT one, used everywhere: the two meta KEYS and the
+   * supplier's nine-digit article number, none of which can occur by accident.
+   * And for surfaces a human reads, the price formatted the way this shop's own
+   * `Money::format()` formats money — a narrow no-break space and a euro sign —
+   * which is what a template that printed our cost would actually emit, and
+   * which no id list can produce.
    */
-  const cents = Number(sampleCents)
-  const needles = [
-    '_teeshoop_supply_cents',
-    '_teeshoop_supply_sku',
-    sampleSupplySku,
-    (cents / 100).toFixed(2),
-    (cents / 100).toFixed(2).replace('.', ','),
-  ]
-  const sniff = (haystack) => needles.filter((n) => haystack.includes(n))
+  const money = php(`echo \\Teeshoop\\Core\\Money::format( ${Number(sampleCents)} );`).trim()
+  const needles = ['_teeshoop_supply_cents', '_teeshoop_supply_sku', sampleSupplySku]
+  const rendered = [...needles, money]
+  const sniff = (haystack, set = needles) => set.filter((n) => haystack.includes(n))
 
   const permalink = php(`echo get_permalink( ${JSON.stringify(sample.ref)} ? wc_get_product_id_by_sku( '${sample.ref}' ) : 0 );`)
   const pageHtml = await (await fetch(permalink)).text()
-  ok('the rendered product page carries no purchase price', sniff(pageHtml).length === 0, `${pageHtml.length} bytes`)
+  ok('the rendered product page carries no purchase price', sniff(pageHtml, rendered).length === 0,
+    sniff(pageHtml, rendered).join(' ') || `${pageHtml.length} bytes`)
 
   const storeApi = await (await fetch(`${SHOP}/wp-json/wc/store/v1/products?per_page=20`)).text()
-  ok('the public store api carries no purchase price', sniff(storeApi).length === 0, `${storeApi.length} bytes`)
+  ok('the public store api carries no purchase price', sniff(storeApi, rendered).length === 0,
+    sniff(storeApi, rendered).join(' ') || `${storeApi.length} bytes`)
 
   const restCheck = () =>
     php(
@@ -424,7 +423,7 @@ async function main() {
 
   const sealed = restCheck()
   ok('the authenticated rest api, the csv export and the variation json carry no purchase price',
-    sniff(sealed).length === 0, `${sealed.length} bytes`)
+    sniff(sealed).length === 0, sniff(sealed).join(' ') || `${sealed.length} bytes`)
 
   // --- 8. prove the leak check can fail ------------------------------------
   const MU = 'ts-verify-unseal.php'
@@ -499,39 +498,99 @@ async function main() {
   ok('and not one row was actually touched', moved.length === 0,
     moved.length ? `${moved.length} post(s) re-saved, e.g. ${moved[0]}` : `${Object.keys(after).length} posts checked`)
 
-  // --- 10. the shop works --------------------------------------------------
-  const shopCheck = phpJson(
+  // --- 10. the shipped state: browsable, and honest about not being buyable --
+  const unpriced = phpJson(
     `$id = wc_get_product_id_by_sku( '${sample.ref}' );
      $p  = wc_get_product( $id );
-     $kids = $p->get_children();
-     $v = wc_get_product( (int) $kids[0] );
-     $t0 = microtime( true );
-     wc_delete_product_transients( $id );
-     $cold = wc_get_product( $id )->get_variation_prices( false );
-     $cold_ms = ( microtime( true ) - $t0 ) * 1000;
-     $t0 = microtime( true );
-     wc_get_product( $id )->get_variation_prices( false );
-     $warm_ms = ( microtime( true ) - $t0 ) * 1000;
+     $v  = wc_get_product( (int) $p->get_children()[0] );
      echo wp_json_encode( array(
-       'children' => count( $kids ),
+       'rate'        => Teeshoop\\Core\\Settings::pricing()['blank_margin_rate'],
+       'price'       => (string) $v->get_price(),
        'purchasable' => (bool) $v->is_purchasable(),
-       'price' => (string) $v->get_price(),
-       'in_stock' => (bool) $v->is_in_stock(),
-       'ajax_threshold' => (int) apply_filters( 'woocommerce_ajax_variation_threshold', 30, $p ),
-       'cold_ms' => round( $cold_ms, 1 ),
-       'warm_ms' => round( $warm_ms, 1 ),
+     ) );`,
+  )
+  ok('with no margin rate the catalogue is browsable and not purchasable',
+    unpriced.rate === null && unpriced.price === '' && unpriced.purchasable === false,
+    `rate ${JSON.stringify(unpriced.rate)}, price ${JSON.stringify(unpriced.price)}`)
+  ok('and the page says why instead of "choose another combination"',
+    pageHtml.includes('tarif n’est pas encore publié'))
+
+  /*
+   * --- 11. and now with a price, because the unpriced state hides things -----
+   *
+   * `get_available_variations()` returns an EMPTY ARRAY for a product with no
+   * purchasable variation — measured, 2 bytes of JSON — so every assertion made
+   * about that surface above was true of nothing. The rate is a local test
+   * value and nothing else: the real one is question 42, and the shop ships
+   * with none. Left cleared at the end, so the mirror matches what is shipped.
+   */
+  const RATE = 0.45
+  php(
+    `$c = get_option( 'teeshoop_pricing', array() );
+     $c = is_array( $c ) ? $c : array();
+     $c['blank_margin_rate'] = ${RATE};
+     update_option( 'teeshoop_pricing', $c );`,
+  )
+  wp(['teeshoop', 'catalogue', 'importer', '--recommencer', `--max=${MAX_REFS}`, '--discret'])
+
+  const priced = phpJson(
+    `$id = wc_get_product_id_by_sku( '${sample.ref}' );
+     $p  = wc_get_product( $id );
+     $v  = wc_get_product( (int) $p->get_children()[0] );
+     $json = $p->get_available_variations();
+     if ( function_exists( 'wc_load_cart' ) ) { wc_load_cart(); }
+     $key = WC()->cart ? WC()->cart->add_to_cart( $id, 2, $v->get_id(), $v->get_attributes() ) : '';
+     $qty = 0;
+     foreach ( WC()->cart ? WC()->cart->get_cart() : array() as $line ) { $qty += (int) $line['quantity']; }
+     echo wp_json_encode( array(
+       'cents'       => (int) $v->get_meta( '_teeshoop_supply_cents', true ),
+       'price'       => (string) $v->get_price(),
+       'purchasable' => (bool) $v->is_purchasable(),
+       'json_count'  => count( $json ),
+       'json'        => wp_json_encode( $json ),
+       'in_cart'     => $qty,
+     ) );`,
+  )
+
+  // The price is the cost through the Bible's own formula, to the cent.
+  const expectedPrice = (Math.round(priced.cents / (1 - RATE)) / 100).toFixed(2)
+  ok('a priced variation costs cost / (1 - taux), to the cent',
+    priced.price === expectedPrice, `${priced.price} for ${priced.cents} cents at ${RATE}`)
+  ok('a priced variation is purchasable', priced.purchasable === true)
+  ok('the variation json is no longer empty, so grepping it means something',
+    priced.json_count > 0, `${priced.json_count} variations, ${priced.json.length} bytes`)
+  ok('and it still carries no purchase price', sniff(priced.json).length === 0,
+    sniff(priced.json).join(' ') || 'clean')
+  ok('a variation really adds to the cart', priced.in_cart === 2, `${priced.in_cart} in cart`)
+
+  // --- 12. what the heaviest product costs to render ------------------------
+  const heaviest = phpJson(
+    `global $wpdb;
+     $row = $wpdb->get_row( "SELECT post_parent AS id, COUNT(*) AS n FROM {$wpdb->posts}
+        WHERE post_type='product_variation' AND post_status='publish' GROUP BY post_parent ORDER BY n DESC LIMIT 1" );
+     $id = (int) $row->id;
+     wc_delete_product_transients( $id );
+     $t0 = microtime( true ); wc_get_product( $id )->get_variation_prices( true ); $cold = ( microtime( true ) - $t0 ) * 1000;
+     $t0 = microtime( true ); wc_get_product( $id )->get_variation_prices( true ); $warm = ( microtime( true ) - $t0 ) * 1000;
+     echo wp_json_encode( array(
+       'name' => wc_get_product( $id )->get_name(),
+       'children' => (int) $row->n,
+       'ajax_threshold' => (int) apply_filters( 'woocommerce_ajax_variation_threshold', 30, wc_get_product( $id ) ),
+       'cold_ms' => round( $cold, 1 ), 'warm_ms' => round( $warm, 1 ),
      ) );`,
   )
   console.log(
-    `\n  price range on ${shopCheck.children} variations: ${shopCheck.cold_ms} ms cold, ${shopCheck.warm_ms} ms warm ` +
-      `(woo goes ajax above ${shopCheck.ajax_threshold})\n`,
+    `\n  heaviest product: ${heaviest.name}, ${heaviest.children} variations · ` +
+      `price range ${heaviest.cold_ms} ms cold, ${heaviest.warm_ms} ms warm ` +
+      `(woo switches to ajax above ${heaviest.ajax_threshold})\n`,
   )
-  if (shopCheck.price === '') {
-    ok('variations are browsable but not purchasable (no margin rate configured)',
-      shopCheck.purchasable === false, 'blank_margin_rate is null')
-  } else {
-    ok('a variation is purchasable', shopCheck.purchasable === true, `${shopCheck.price} EUR`)
-  }
+
+  // Back to the shipped default, so the mirror is not left in a state the
+  // repository does not describe.
+  php(
+    `$c = get_option( 'teeshoop_pricing', array() );
+     if ( is_array( $c ) ) { unset( $c['blank_margin_rate'] ); update_option( 'teeshoop_pricing', $c ); }`,
+  )
 
   // --- report ---------------------------------------------------------------
   const failed = results.filter((r) => !r.pass)

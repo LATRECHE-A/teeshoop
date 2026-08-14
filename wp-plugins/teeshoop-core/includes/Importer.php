@@ -111,7 +111,7 @@ final class Importer {
 			);
 		}
 
-		$list = Supply::references( $kind );
+		$list = Supply::references( $kind, $max );
 		if ( empty( $list['ok'] ) ) {
 			return array(
 				'ok'    => false,

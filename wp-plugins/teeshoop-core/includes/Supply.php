@@ -110,10 +110,15 @@ final class Supply {
 	 * `complete` false means DO NOT delist anything: we did not see the whole
 	 * catalogue, so a reference we did not meet is not a reference that is gone.
 	 *
-	 * @param string $kind     'printable' (default), 'tee', 'polo', 'sweat', 'all'.
-	 * @param int    $max_calls Safety stop; the walk is ~65 calls on a cold edge.
+	 * @param string $kind      'printable' (default), 'tee', 'polo', 'sweat', 'all'.
+	 * @param int    $want      Stop once this many references are in hand. 0 = the
+	 *                          whole catalogue. A smoke test asking for five
+	 *                          references has no business scanning 2 316 styles,
+	 *                          and a walk that does costs about a minute of
+	 *                          supplier round trips before any work begins.
+	 * @param int    $max_calls Safety stop; the full walk is ~65 calls.
 	 */
-	public static function references( string $kind = 'printable', int $max_calls = 200 ): array {
+	public static function references( string $kind = 'printable', int $want = 0, int $max_calls = 200 ): array {
 		$why = self::unconfigured();
 		if ( '' !== $why ) {
 			return array(
@@ -157,6 +162,17 @@ final class Supply {
 				if ( preg_match( '/^\d{4,6}$/', $ref ) ) {
 					$refs[] = $ref;
 				}
+			}
+
+			/*
+			 * Stopped short ON PURPOSE, and `complete` stays false.
+			 *
+			 * That flag is the single condition the delisting sweep checks, so a
+			 * partial walk can never unpublish anything: a reference we did not
+			 * meet is not a reference the supplier dropped.
+			 */
+			if ( $want > 0 && count( $refs ) >= $want ) {
+				break;
 			}
 
 			$next = $page['body']['nextOffset'] ?? null;

@@ -104,6 +104,27 @@ depuis le produit cartésien coloris × taille. Le style 15009 affiche 49 colori
 9 tailles mais ne vend que 334 articles : les 107 autres n'existent pas, et les publier
 reviendrait à encaisser des commandes que personne ne peut honorer.
 
+### Le piège mesuré : la file d'Action Scheduler
+
+Chaque enregistrement de variation fait programmer à WooCommerce une action
+`woocommerce_run_product_attribute_lookup_update_callback`. Sur le miroir local, qui ne
+reçoit aucune visite, **6 998 actions se sont accumulées** au fil des passes d'import, et
+comme l'insertion vérifie d'abord qu'il n'y a pas de doublon en attente, chaque
+enregistrement devenait plus lent que le précédent : mesuré, 0,24 s par variation sur une
+base propre contre 4 à 7 s une fois la file remplie.
+
+Action Scheduler ne se vide qu'à la faveur d'une requête HTTP (25 actions par lot). En
+production, le trafic s'en charge. Sur une boutique calme, ou sur une préproduction, non :
+après un premier import complet il y a 26 399 actions en attente, et il faut environ mille
+requêtes pour les écouler.
+
+**À surveiller après la première mise en ligne** (séance 13, supervision) :
+
+```bash
+wp db query "SELECT status, COUNT(*) FROM wp_actionscheduler_actions GROUP BY status;"
+wp action-scheduler run --batch=100   # si la file ne descend pas toute seule
+```
+
 ### Les images
 
 Copiées dans WordPress : **la face et le dos**. Il faut de vraies pièces jointes parce que
