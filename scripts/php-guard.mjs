@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PHP GUARD — proves the WordPress plugin carries no shop-internal material.
+ * PHP GUARD: proves the WordPress plugin carries no shop-internal material.
  *
  * WHY. `scripts/bundle-guard.mjs` keeps our purchase costs, our film economics
  * and our supplier identities out of the JavaScript a customer downloads. The
@@ -77,6 +77,26 @@ const FORBIDDEN = [
   { s: 'eur_per_lm', cat: 'film-cost' },
   { s: 'tshop:dtf:suppliers', cat: 'film-cost' },
 
+  /*
+   * Our own cost model: the margin, the floor price and the commission.
+   *
+   * The Bible lists "commercial et commission estimée" among a devis's
+   * mandatory contents, which read literally puts our margin on a document a
+   * customer receives.
+   *
+   * The last four are `rendered`-only, and that scope is the whole point. These
+   * are ordinary French words, and the files that explain WHY a commission must
+   * never reach a customer necessarily contain the word: scanning every file
+   * for them flagged six docblocks that exist to state the rule. In a template
+   * or a stylesheet there is no such excuse, because that is output.
+   * `Margin::` is a call, not a word, so it is global.
+   */
+  { s: 'Margin::', cat: 'margin' },
+  { s: 'commission', cat: 'margin', scope: 'rendered' },
+  { s: 'prix plancher', cat: 'margin', scope: 'rendered' },
+  { s: 'floor_price', cat: 'margin', scope: 'rendered' },
+  { s: 'marge contributive', cat: 'margin', scope: 'rendered' },
+
   // WooCommerce API credentials.
   { s: 'consumerSecret', cat: 'woo-credentials' },
   { s: 'consumer_secret', cat: 'woo-credentials' },
@@ -123,17 +143,14 @@ function scan(files, extra = []) {
     // readFileSync + includes, never grep: a file with a NUL byte makes GNU
     // grep suppress output entirely, which reads as a pass. Measured in
     // scripts/bundle-guard.mjs.
+    const rendered = RENDERED.some((d) => rel.startsWith(d))
     const text = readFileSync(file, 'utf8')
     for (const needle of [...FORBIDDEN, ...extra]) {
+      if (needle.scope === 'rendered' && !rendered) continue
       let at = text.indexOf(needle.s)
       while (at !== -1) {
         const line = text.slice(0, at).split('\n').length
-        hits.push({
-          rel,
-          line,
-          cat: needle.cat,
-          rendered: RENDERED.some((d) => rel.startsWith(d)),
-        })
+        hits.push({ rel, line, cat: needle.cat, rendered })
         at = text.indexOf(needle.s, at + needle.s.length)
       }
     }

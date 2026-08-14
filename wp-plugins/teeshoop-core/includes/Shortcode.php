@@ -156,16 +156,25 @@ final class Shortcode {
 		}
 
 		$request = ProductPage::request( $garment, Settings::pricing() );
-		$preset  = array();
 
-		if ( 'grid' === $request['mode'] && ! empty( $request['grid'] ) ) {
-			$preset['sizeGrid'] = $request['grid'];
-			$preset['qty']      = (int) array_sum( $request['grid'] );
-		} elseif ( $request['qty'] > 1 ) {
-			$preset['qty'] = (int) $request['qty'];
+		/*
+		 * A SIZE BREAKDOWN OR NOTHING. Never a bare quantity.
+		 *
+		 * The first version also forwarded a lone `qty`, and the studio's basket
+		 * panel turned it into `{ previewSize: qty }`: forty garments assigned to
+		 * whichever size the 3D preview happened to be showing, which is a size
+		 * the buyer never chose and the workshop would have pressed. The buy box
+		 * asks for the size now, so what crosses the boundary is always a real
+		 * breakdown, and a run past the cap carries nothing at all.
+		 */
+		if ( ! empty( $request['over_cap'] ) || empty( $request['grid'] ) ) {
+			return array();
 		}
 
-		return $preset;
+		return array(
+			'sizeGrid' => $request['grid'],
+			'qty'      => (int) array_sum( $request['grid'] ),
+		);
 	}
 
 	private static function enqueue( string $studio_url, string $origin, int $product_id, string $garment ): void {

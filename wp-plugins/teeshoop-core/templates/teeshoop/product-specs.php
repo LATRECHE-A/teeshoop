@@ -36,6 +36,7 @@
 
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Garments;
+use Teeshoop\Core\Money;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -81,7 +82,16 @@ $ts_last_size = ! empty( $sizes ) ? (string) ( end( $sizes )['size'] ?? '' ) : '
 				<?php
 				printf(
 					/* translators: 1: side label, 2: the largest size, 3: that side's dimensions at that size. */
-					esc_html__( 'Le visuel suit la taille du vêtement : la zone %1$s mesure %3$s sur un %2$s.', 'teeshoop' ),
+					/*
+					 * QUALIFIED, because the studio has a control that turns it off.
+					 *
+					 * Every published per-size figure is the SCALED grading, which
+					 * is the studio's default. A design switched to a single fixed
+					 * transfer (the cheaper option the DTF panel recommends) keeps
+					 * the base size on every garment, so the unqualified sentence
+					 * was a promise the customer could break themselves.
+					 */
+					esc_html__( 'Quand le visuel est gradué avec le vêtement, ce qui est le réglage par défaut, la zone %1$s mesure %3$s sur un %2$s. En impression unique, il garde la même taille sur toutes les tailles.', 'teeshoop' ),
 					esc_html( mb_strtolower( Cart::side_label( (string) $ts_first['side'] ) ) ),
 					esc_html( $ts_last_size ),
 					esc_html( Garments::cm( (float) $ts_grown['wCm'] ) . "\u{00A0}×\u{00A0}" . Garments::cm( (float) $ts_grown['hCm'] ) )
@@ -114,7 +124,7 @@ $ts_last_size = ! empty( $sizes ) ? (string) ( end( $sizes )['size'] ?? '' ) : '
 
 		<?php if ( $weight_gsm > 0 ) : ?>
 			<dt><?php esc_html_e( 'Grammage', 'teeshoop' ); ?></dt>
-			<dd class="ts-num"><?php echo esc_html( number_format_i18n( $weight_gsm ) . "\u{00A0}g/m²" ); ?></dd>
+			<dd class="ts-num"><?php echo esc_html( Money::number( (float) $weight_gsm ) . "\u{00A0}g/m²" ); ?></dd>
 		<?php endif; ?>
 
 		<?php if ( ! empty( $sizes ) ) : ?>
@@ -131,7 +141,18 @@ $ts_last_size = ! empty( $sizes ) ? (string) ( end( $sizes )['size'] ?? '' ) : '
 			</dd>
 		<?php endif; ?>
 
-		<?php if ( ! empty( $colors ) ) : ?>
+		<?php
+		/*
+		 * The colours are OURS, so they are shown only for a garment we supply.
+		 *
+		 * `Garments::colors()` is the shop-wide list, not a per-garment one, and
+		 * it was rendered unconditionally. On a `custom` product, whose whole
+		 * premise is that the customer ships their own shirt, the page held no
+		 * zones, no sizes and no brand, and then told the buyer we stock it in
+		 * eighteen colours. That is invented content on a product page.
+		 */
+		?>
+		<?php if ( ! empty( $colors ) && Garments::has( $garment ) ) : ?>
 			<dt><?php esc_html_e( 'Coloris', 'teeshoop' ); ?></dt>
 			<dd>
 				<ul class="ts-swatches">

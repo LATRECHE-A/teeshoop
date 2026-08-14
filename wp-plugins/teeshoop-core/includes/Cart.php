@@ -40,6 +40,23 @@ final class Cart {
 		add_action( 'woocommerce_before_calculate_totals', array( self::class, 'recompute_prices' ), 20 );
 		add_filter( 'woocommerce_get_item_data', array( self::class, 'show_in_cart' ), 10, 2 );
 		add_action( 'woocommerce_checkout_create_order_line_item', array( self::class, 'persist_to_order' ), 10, 4 );
+
+		/*
+		 * THE GATES MUST HOLD AFTER THE LINE IS IN THE BASKET, NOT ONLY AT THE
+		 * DOOR.
+		 *
+		 * `Cart::add` refuses a run past the shop's cap or past the self-serve
+		 * threshold, and then WooCommerce renders an ordinary quantity box on the
+		 * cart page (the line is not sold individually and has no maximum), so a
+		 * customer who was refused 213 could add 212 and type 15 000 over it. The
+		 * only thing that ran on that change was `recompute_prices`, which
+		 * re-derives the PRICE and never re-asked whether we sell this at all.
+		 *
+		 * This is the same shape as the `did_action() > 1` guard that shipped
+		 * here once: correct code on one side of a WooCommerce seam, and nothing
+		 * watching the other.
+		 */
+		add_action( 'woocommerce_check_cart_items', array( self::class, 'check_cart_items' ) );
 	}
 
 	/**
@@ -217,7 +234,7 @@ final class Cart {
 				'teeshoop_needs_quote',
 				sprintf(
 					/* translators: 1: a quantity, 2: an amount excl. VAT. */
-					__( 'Au-delà de %1$d pièces ou de %2$s hors taxes, nous chiffrons la commande à la main. Demandez un devis depuis la fiche produit : le prix y est en général meilleur que le tarif public.', 'teeshoop' ),
+					__( 'Au-delà de %1$d pièces ou de %2$s hors taxes, nous chiffrons la commande à la main. Demandez un devis depuis la fiche produit, votre création est conservée.', 'teeshoop' ),
 					(int) $config['quote_from_qty'],
 					Money::format( (int) $config['quote_from_ht'] )
 				),
@@ -369,6 +386,77 @@ final class Cart {
 			$item['data']->set_regular_price( $unit );
 			$item['data']->set_sale_price( '' );
 			$item['data']->set_price( $unit );
+		}
+	}
+
+	/**
+	 * Re-run the gates on the cart and at checkout, on whatever quantity is
+	 * there now.
+	 *
+	 * `woocommerce_check_cart_items` is the hook WooCommerce itself uses for
+	 * "this basket cannot proceed": an error notice raised here blocks the
+	 * checkout button and the checkout POST, so there is no window in which a
+	 * refused run can be paid for.
+	 *
+	 * It says which line and what to do, because a basket that simply refuses to
+	 * proceed with no explanation is worse than one that never accepted the line.
+	 */
+	public static function check_cart_items(): void {
+		if ( ! function_exists( 'WC' ) || ! WC()->cart || ! function_exists( 'wc_add_notice' ) ) {
+			return;
+		}
+
+		$config = Settings::pricing();
+		$max    = (int) $config['max_qty'];
+
+		foreach ( WC()->cart->get_cart() as $item ) {
+			if ( empty( $item[ self::KEY ] ) ) {
+				continue;
+			}
+			$data = $item[ self::KEY ];
+			$qty  = (int) $item['quantity'];
+			$name = isset( $item['data'] ) && $item['data'] instanceof \WC_Product
+				? $item['data']->get_name()
+				: __( 'cet article', 'teeshoop' );
+
+			if ( $qty > $max ) {
+				wc_add_notice(
+					sprintf(
+						/* translators: 1: product name, 2: the largest quantity accepted on one line. */
+						__( '%1$s : %2$d pièces au maximum sur une seule ligne. Demandez un devis, nous traitons cette quantité à la main.', 'teeshoop' ),
+						esc_html( $name ),
+						$max
+					),
+					'error'
+				);
+				continue;
+			}
+
+			try {
+				$quote = Pricing::quote(
+					array(
+						'garment' => (string) ( $data['garment'] ?? '' ),
+						'qty'     => $qty,
+						'sides'   => (array) ( $data['sides'] ?? array() ),
+					),
+					$config
+				);
+			} catch ( \InvalidArgumentException $e ) {
+				continue;
+			}
+
+			if ( ! empty( $quote['needs_quote'] ) ) {
+				wc_add_notice(
+					sprintf(
+						/* translators: 1: product name, 2: a quantity, 3: an amount excl. VAT. */
+						__( '%1$s : au-delà de %2$d pièces ou de %3$s hors taxes, nous chiffrons la commande à la main. Demandez un devis depuis la fiche produit, ou réduisez la quantité.', 'teeshoop' ),
+						esc_html( $name ),
+						(int) $config['quote_from_qty'],
+						Money::format( (int) $config['quote_from_ht'] )
+					),
+					'error'
+				);
+			}
 		}
 	}
 

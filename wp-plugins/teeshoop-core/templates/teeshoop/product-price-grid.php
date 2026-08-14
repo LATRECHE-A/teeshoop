@@ -51,7 +51,7 @@ if ( empty( $rows ) ) {
 								sprintf(
 									/* translators: %s: a quantity. */
 									_n( '%s pièce', '%s pièces', (int) $ts_qty, 'teeshoop' ),
-									number_format_i18n( (int) $ts_qty )
+									Money::number( (float) $ts_qty )
 								)
 							);
 							?>
@@ -75,20 +75,37 @@ if ( empty( $rows ) ) {
 						</th>
 						<?php foreach ( $ts_row['cells'] as $ts_cell ) : ?>
 							<td class="ts-num">
-								<b><?php echo esc_html( Money::format( (int) $ts_cell['unit_ht'] ) ); ?></b>
-								<span class="ts-table__ttc"><?php echo esc_html( Money::format( (int) $ts_cell['unit_ttc'] ) ); ?></span>
-								<?php if ( (float) $ts_cell['discount_rate'] > 0 ) : ?>
-									<span class="ts-table__off">
-										<?php
-										echo esc_html(
-											sprintf(
-												/* translators: %s: a discount percentage. */
-												__( '-%s', 'teeshoop' ),
-												number_format_i18n( (float) $ts_cell['discount_rate'] * 100 ) . "\u{00A0}%"
-											)
-										);
-										?>
-									</span>
+								<?php if ( ! empty( $ts_cell['needs_quote'] ) ) : ?>
+									<?php
+									/*
+									 * A CELL THE CART WOULD REFUSE IS NOT A PRICE.
+									 *
+									 * A hoodie at a hundred pieces is 2 080,00 EUR
+									 * HT, past the self-serve threshold, so the
+									 * whole hundred-piece column of its public
+									 * price list quoted a unit price that
+									 * `Cart::add` answers with a 409. The quote
+									 * behind every cell already knew; it was
+									 * simply being thrown away.
+									 */
+									?>
+									<a class="ts-table__quote" href="#teeshoop-devis"><?php esc_html_e( 'sur devis', 'teeshoop' ); ?></a>
+								<?php else : ?>
+									<b><?php echo esc_html( Money::format( (int) $ts_cell['unit_ht'] ) ); ?></b>
+									<span class="ts-table__ttc"><?php echo esc_html( Money::format( (int) $ts_cell['unit_ttc'] ) ); ?></span>
+									<?php if ( (float) $ts_cell['discount_rate'] > 0 ) : ?>
+										<span class="ts-table__off">
+											<?php
+											echo esc_html(
+												sprintf(
+													/* translators: %s: a discount percentage. */
+													__( '-%s', 'teeshoop' ),
+													Money::number( (float) $ts_cell['discount_rate'] * 100 ) . "\u{00A0}%"
+												)
+											);
+											?>
+										</span>
+									<?php endif; ?>
 								<?php endif; ?>
 							</td>
 						<?php endforeach; ?>
@@ -104,7 +121,7 @@ if ( empty( $rows ) ) {
 			printf(
 				/* translators: %s: an area in square centimetres. */
 				esc_html__( 'Ces prix valent pour une impression jusqu’à %s cm² par face.', 'teeshoop' ),
-				esc_html( number_format_i18n( $std_area ) )
+				esc_html( Money::number( $std_area ) )
 			);
 		}
 
@@ -122,7 +139,7 @@ if ( empty( $rows ) ) {
 				: sprintf(
 					/* translators: 1: an area in square centimetres, 2: a surcharge amount. */
 					__( 'jusqu’à %1$s cm², %2$s par face', 'teeshoop' ),
-					number_format_i18n( (float) $ts_tier['max_sq_cm'] ),
+					Money::number( (float) $ts_tier['max_sq_cm'] ),
 					Money::format( (int) $ts_tier['add_ht'] )
 				);
 		}
@@ -139,6 +156,16 @@ if ( empty( $rows ) ) {
 	</p>
 	<p class="ts-note">
 		<?php esc_html_e( 'La surface retenue est celle de l’encre, pas celle du fichier : les marges transparentes autour d’un logo ne sont jamais facturées.', 'teeshoop' ); ?>
+	</p>
+	<p class="ts-note">
+		<?php
+		printf(
+			/* translators: 1: a quantity, 2: an amount excl. VAT. */
+			esc_html__( 'Au-delà de %1$s pièces ou de %2$s hors taxes, la commande est chiffrée à la main : les cellules concernées portent la mention « sur devis ».', 'teeshoop' ),
+			esc_html( Money::number( (float) $config['quote_from_qty'] ) ),
+			esc_html( Money::format( (int) $config['quote_from_ht'] ) )
+		);
+		?>
 	</p>
 
 	<?php if ( current_user_can( 'manage_woocommerce' ) ) : ?>

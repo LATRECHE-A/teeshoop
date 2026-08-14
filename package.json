@@ -28,7 +28,7 @@
     "gen:garments": "node scripts/gen-garment-data.mjs",
     "verify:php": "node scripts/php-guard.mjs",
     "verify:garments": "node scripts/gen-garment-data.mjs --check",
-    "shots:product": "node scripts/product-shots.mjs"
+    "verify:product": "node scripts/product-shots.mjs"
   },
   "keywords": [],
   "type": "module",

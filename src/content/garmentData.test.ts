@@ -45,19 +45,42 @@ describe('garments.json (the shop’s copy of the studio’s measurements)', () 
     }
   })
 
-  it('is not empty, in any dimension', () => {
+  it('is not empty, in any dimension we claim to measure', () => {
     // A generator that silently produced {} would make every product page
     // render an empty specification block and look merely unfinished.
+    //
+    // `custom` is the deliberate exception and is asserted separately below: the
+    // customer ships their own shirt, so we hold no dimensions for it and the
+    // page renders the empty state rather than a guess.
     expect(Object.keys(onDisk.garments).length).toBeGreaterThan(0)
     expect(onDisk.colors.length).toBeGreaterThan(0)
-    for (const g of Object.values(onDisk.garments) as {
-      areas: { bySize: Record<string, unknown> }[]
-      sizes: unknown[]
-    }[]) {
-      expect(g.areas.length).toBeGreaterThan(0)
-      expect(g.sizes.length).toBeGreaterThan(0)
+    for (const [id, g] of Object.entries(onDisk.garments) as [
+      string,
+      { areas: { bySize: Record<string, unknown> }[]; sizes: unknown[] },
+    ][]) {
+      if (id === 'custom') continue
+      expect(g.areas.length, id).toBeGreaterThan(0)
+      expect(g.sizes.length, id).toBeGreaterThan(0)
       for (const a of g.areas) expect(Object.keys(a.bySize).length).toBe(g.sizes.length)
     }
+  })
+
+  it('declares the printable faces of every garment, measured or not', () => {
+    // Counting `areas` instead conflated "no measurements" with "one face", and
+    // a `custom` garment (the customer ships their own shirt, so we hold no
+    // dimensions at all) was offered one face while the cart charged for two.
+    const garments = onDisk.garments as Record<
+      string,
+      { printableSides: string[]; areas: unknown[] }
+    >
+    expect(Object.keys(garments)).toContain('custom')
+    for (const [id, g] of Object.entries(garments)) {
+      expect(g.printableSides.length, id).toBeGreaterThan(0)
+    }
+    // A custom garment has no sleeve to derive an area from, and getAreaSizeIn
+    // deliberately returns a zero area for one rather than guessing.
+    expect(garments.custom.printableSides).toEqual(['front', 'back'])
+    expect(garments.custom.areas).toEqual([])
   })
 
   it('names every colour in French', () => {

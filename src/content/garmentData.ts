@@ -57,10 +57,23 @@ export interface GarmentSizeRowCm {
 
 export interface GarmentPresentation {
   id: string
-  /** Manufacturer and style the measurements are taken from. */
+  /** Manufacturer and style the measurements are taken from. '' when unknown. */
   brandRef: string
   /** The size every published area and every priced area is measured at. */
   pricedSize: SizeId
+  /**
+   * The faces this garment can be printed on, whether or not we hold a
+   * measurement for them.
+   *
+   * SEPARATE FROM `areas` on purpose. The shop used to count `areas` to decide
+   * how many faces to offer, which conflated "we have no measurements" with
+   * "one face": a `custom` garment, whose measurements are the customer's own
+   * shirt and are therefore absent by design, was offered a one-face price
+   * while `Pricing` was perfectly willing to charge for two. The product page
+   * hid the control, the grid published one row, and the cart billed 12,00 EUR
+   * of second-side marking the page never mentioned.
+   */
+  printableSides: Side[]
   areas: GarmentAreaCm[]
   sizes: GarmentSizeRowCm[]
 }
@@ -116,6 +129,7 @@ export function buildGarmentData(): GarmentDataFile {
       id,
       brandRef: SIZE_CHARTS[id].brandRef,
       pricedSize: DEFAULT_SIZE,
+      printableSides: SIDES,
       areas: areasOf(id),
       sizes: SIZE_IDS.map((size) => {
         const spec = sizeSpecCm(id, size)
@@ -130,13 +144,31 @@ export function buildGarmentData(): GarmentDataFile {
   }
 
   /*
-   * `custom` is absent on purpose, and its absence is the honest answer.
+   * `custom` gets a record with no measurements at all, and that is the honest
+   * shape rather than no record.
    *
    * With `custom` the customer ships their own garment, so its print area is
-   * their photo's (src/lib/renderDesign.ts getAreaSizeIn) and its measurements
-   * are whatever they bought. Publishing a table for it would be publishing a
-   * guess about somebody else's shirt.
+   * their own photo's (src/lib/renderDesign.ts getAreaSizeIn) and its
+   * measurements are whatever they bought: publishing a table for it would be
+   * publishing a guess about somebody else's shirt, so `areas` and `sizes` are
+   * empty and the page renders nothing where they would go.
+   *
+   * But how many faces it prints on is NOT a measurement, it is a fact, and the
+   * shop needs it to price. Front and back only: `getAreaSizeIn` returns
+   * {0, 0} for a custom sleeve, deliberately, because there is nothing to
+   * derive a sleeve area from and a fabricated print size is worse than no
+   * print. Leaving `custom` out of this file entirely made the shop count zero
+   * areas and offer exactly one face.
    */
+  garments.custom = {
+    id: 'custom',
+    brandRef: '',
+    pricedSize: DEFAULT_SIZE,
+    printableSides: ['front', 'back'],
+    areas: [],
+    sizes: [],
+  }
+
 
   return {
     schema: 1,

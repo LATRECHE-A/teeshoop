@@ -147,7 +147,31 @@ final class Compat {
 			}
 		}
 
+		/*
+		 * "WE COULD NOT LOOK" IS NOT "IT IS BROKEN", and getting that wrong made
+		 * this notice red on every healthy admin screen.
+		 *
+		 * WooCommerce loads `wc-template-hooks.php` from `frontend_includes()`,
+		 * which it calls only for a frontend request, a REST request, or the post
+		 * editor. On the Dashboard, the Plugins screen or the Products list none
+		 * of these callbacks is registered at all, so the first version reported
+		 * four failures about a WooCommerce that was perfectly intact. A gate that
+		 * cries wolf is a gate everybody learns to close without reading.
+		 *
+		 * So: if NONE of the pinned callbacks is present, the table simply is not
+		 * built here and the hook section is skipped. If SOME are present and
+		 * others are not, that is real drift and it is reported.
+		 */
+		$registered = 0;
 		foreach ( self::PINNED as $tag => $callbacks ) {
+			foreach ( array_keys( $callbacks ) as $callback ) {
+				if ( false !== has_action( $tag, $callback ) ) {
+					++$registered;
+				}
+			}
+		}
+
+		foreach ( $registered > 0 ? self::PINNED : array() as $tag => $callbacks ) {
 			foreach ( $callbacks as $callback => $priority ) {
 				++$checked;
 				$found = has_action( $tag, $callback );
@@ -184,6 +208,22 @@ final class Compat {
 			}
 		}
 
+		/*
+		 * THE ONE NUMBER TWO ENGINES BOTH OWN.
+		 *
+		 * Every TTC figure on the product page comes from
+		 * `teeshoop_pricing.vat_rate`; what a customer is actually charged comes
+		 * from WooCommerce's own tax tables. Nothing reconciles them, and the
+		 * mirror once shipped with taxes enabled and zero rows, so the studio
+		 * said 326,10 EUR TTC and the cart said 271,75 EUR with no tax: 54,35 EUR
+		 * apart, on a caption the invoice would contradict.
+		 */
+		++$checked;
+		$vat = self::vat_problem();
+		if ( '' !== $vat ) {
+			$problems[] = $vat;
+		}
+
 		++$checked;
 		if ( ! Garments::has( 'tee' ) ) {
 			$problems[] = sprintf(
@@ -208,6 +248,53 @@ final class Compat {
 			'ok'       => empty( $problems ),
 			'checked'  => $checked,
 			'problems' => $problems,
+		);
+	}
+
+	/**
+	 * Whether WooCommerce charges the VAT the product page prints, or ''.
+	 *
+	 * Compared against the store's own base country, which is the rate the page
+	 * quotes to a visitor who has not told us where they are.
+	 */
+	private static function vat_problem(): string {
+		if ( ! class_exists( '\WC_Tax' ) || ! function_exists( 'wc_get_base_location' ) ) {
+			return '';
+		}
+
+		$ours = (float) Settings::pricing()['vat_rate'];
+
+		if ( 'yes' !== get_option( 'woocommerce_calc_taxes' ) ) {
+			return $ours > 0
+				? __( 'Les taxes sont désactivées dans WooCommerce alors que la fiche produit annonce un montant TTC. Le client paierait le montant hors taxes.', 'teeshoop' )
+				: '';
+		}
+
+		$base  = wc_get_base_location();
+		$rates = \WC_Tax::find_rates(
+			array(
+				'country' => $base['country'] ?? '',
+				'state'   => $base['state'] ?? '',
+			)
+		);
+
+		$charged = 0.0;
+		foreach ( $rates as $rate ) {
+			$charged += (float) $rate['rate'];
+		}
+		$charged /= 100;
+
+		// A hundredth of a point of tolerance, because the tax table stores a
+		// string percentage and the config stores a float.
+		if ( abs( $charged - $ours ) < 0.0001 ) {
+			return '';
+		}
+
+		return sprintf(
+			/* translators: 1: the VAT rate the page prints, 2: the rate WooCommerce charges. */
+			__( 'La fiche produit annonce une TVA de %1$s et WooCommerce en facture %2$s. Les deux chiffres doivent être le même, sinon la page et la facture ne diront pas la même chose.', 'teeshoop' ),
+			Money::number( $ours * 100, 2 ) . "\u{00A0}%",
+			Money::number( $charged * 100, 2 ) . "\u{00A0}%"
 		);
 	}
 

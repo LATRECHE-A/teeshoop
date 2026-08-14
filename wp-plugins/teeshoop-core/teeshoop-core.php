@@ -137,6 +137,23 @@ function currency_notice(): void {
 add_action( 'plugins_loaded', __NAMESPACE__ . '\\boot' );
 
 /**
+ * Leave nothing running behind us.
+ *
+ * The daily purge of quote requests is scheduled on `init` and must stop when
+ * the plugin does: a cron event whose callback no longer exists fires every day
+ * for ever and is invisible in the admin.
+ */
+register_deactivation_hook(
+	__FILE__,
+	static function (): void {
+		$next = wp_next_scheduled( 'teeshoop_purge_devis' );
+		if ( $next ) {
+			wp_unschedule_event( $next, 'teeshoop_purge_devis' );
+		}
+	}
+);
+
+/**
  * Declare compatibility with WooCommerce High-Performance Order Storage.
  *
  * Without this, Woo shows the shop owner a scary incompatibility warning and

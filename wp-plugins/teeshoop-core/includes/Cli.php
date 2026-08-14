@@ -1,6 +1,6 @@
 <?php
 /**
- * `wp teeshoop …` — provisioning and checks for the local mirror.
+ * `wp teeshoop …`: provisioning and checks for the local mirror.
  *
  * WHY THIS EXISTS. The mirror's state lived only inside two docker volumes.
  * WooCommerce, the French store settings, the 20 % VAT row, the classic theme
@@ -95,6 +95,20 @@ final class Cli {
 			'woocommerce_prices_include_tax'  => 'no',
 			'woocommerce_tax_display_shop'    => 'excl',
 			'woocommerce_tax_display_cart'    => 'excl',
+
+			/*
+			 * THE SHOP IS OPEN.
+			 *
+			 * WooCommerce ships new installs in "coming soon" mode, and with
+			 * `store_pages_only` it replaces every product page with "Great
+			 * things are on the horizon" for anyone not logged in. Nothing warns
+			 * you: the page answers 200, the plugin's own CSS and JavaScript are
+			 * still enqueued in the head, and only the body is gone. It cost a
+			 * confused half hour here, and the browser assertions refused to
+			 * report a pass because they had found nothing to assert about,
+			 * which is the only reason it was noticed at all.
+			 */
+			'woocommerce_coming_soon'         => 'no',
 		);
 		foreach ( $options as $key => $value ) {
 			if ( get_option( $key ) !== $value ) {
@@ -145,7 +159,7 @@ final class Cli {
 		$result = Compat::check();
 
 		foreach ( $result['problems'] as $problem ) {
-			\WP_CLI::log( '  ✗ ' . $problem );
+			\WP_CLI::log( '  - ' . $problem );
 		}
 
 		if ( 0 === $result['checked'] ) {

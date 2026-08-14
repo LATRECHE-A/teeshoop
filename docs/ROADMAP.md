@@ -1,6 +1,6 @@
 # Feuille de route de teeshoop.com
 
-État au 13 août 2026. Ce document dit **où en est le projet** et **ce qu'il reste à
+État au 14 août 2026. Ce document dit **où en est le projet** et **ce qu'il reste à
 faire**, dans l'ordre. Il est volontairement court : le détail vit dans le code et dans les
 messages de commit.
 
@@ -61,10 +61,43 @@ chose. Trois autres défauts ont été trouvés en regardant la vraie page : les
 remise de 2 115,50 EUR qui n'a jamais existé (prix de référence fictif, interdit en France),
 et une boutique réglée en dollars affichait des euros avec un dollar devant.
 
+**La fiche produit répond avant l'éditeur.** Un acheteur qui arrive sur une fiche sait
+maintenant, sans ouvrir le studio : ce qu'est le vêtement, ce qu'il paie **à sa quantité**,
+**jusqu'où il peut imprimer en centimètres**, et comment obtenir un prix pour deux cents
+pièces. La grille prix par quantité est celle de `Pricing::grid()`, donc celle du panier,
+et ses colonnes sont **déduites des paliers de remise** au lieu d'être choisies : une
+colonne ne peut pas laisser croire à un palier qui n'existe pas. Le « à partir de » est lu
+dans la grille imprimée juste en dessous, avec la quantité qui l'atteint : chez notre
+principal concurrent, ce chiffre est le prix à 500 pièces, si bien qu'un acheteur de vingt
+découvre 36 % d'écart en descendant la page.
+
+Les zones d'impression sont publiées en centimètres. **Ni mistertee.fr ni tostadora.fr ne
+publient une seule dimension d'impression sur une fiche produit** (vérifié le 14 août
+2026) : c'est notre différence, parce que nous facturons l'encre et pas le fichier. Les
+chiffres viennent des définitions du studio, pas d'une saisie : un générateur les extrait
+et un test échoue si les deux divergent.
+
+**Le devis est un dossier avec un état**, pas un e-mail. Cinq états, pas les vingt-cinq de
+la Bible, dont au moins six sont des tâches et non des états de commande (le document le
+dit lui-même trois lignes plus loin). Le formulaire est ouvert, parce qu'un prospect ne
+peut pas s'authentifier, et il est tenu par un jeton signé à durée limitée, un piège à
+robots, une durée minimale de remplissage et une limite par adresse : l'adresse elle-même
+n'est jamais enregistrée.
+
+**Un vrai bug de production trouvé en rendant le miroir conforme.** WooCommerce ne construit
+un panier que pour ce qu'il considère comme une requête de site, et il le décide en
+cherchant le préfixe REST dans l'adresse. Avec les permaliens simples d'une installation
+neuve, notre route d'ajout au panier ne contient pas « wp-json » : WooCommerce chargeait un
+panier et tout fonctionnait. Avec les permaliens propres, ceux d'o2switch, **chaque ajout au
+panier répondait 503**. Toute la séance 01 avait été vérifiée verte sur la seule
+configuration où le défaut est invisible.
+
 **L'outillage.** Un miroir local de la production (WordPress 7.0.3 + WooCommerce 11.0.1 en
-docker), 136 tests JavaScript, 46 tests PHP purs, 11 tests d'intégration WooCommerce, une
-vérification de bout en bout du parcours d'achat, et des scripts de vérification qui font
-tourner le vrai code dans un vrai navigateur.
+docker) que l'on peut désormais **reconstruire depuis le dépôt** (`wp teeshoop
+provisionner`), 143 tests JavaScript, 64 tests PHP purs, 17 tests d'intégration WooCommerce,
+une vérification de bout en bout du parcours d'achat à 40 assertions, un garde-fou qui
+interdit à un prix d'achat, un nom de fournisseur ou un tarif film d'atteindre un gabarit
+PHP, et des scripts de vérification qui font tourner le vrai code dans un vrai navigateur.
 
 ---
 
@@ -76,7 +109,7 @@ instructions de travail, elles changent plus vite que le code).
 | # | Séance | Bloquée par |
 |---|---|---|
 | ~~01~~ | ~~Boucler la boucle : du studio au panier WooCommerce~~ **faite** | - |
-| 02 | Fiche produit, grille de prix, demande de devis | 01 |
+| ~~02~~ | ~~Fiche produit, grille de prix, demande de devis~~ **faite** | - |
 | 03 | Catalogue : Falk&Ross vers WooCommerce, à l'échelle | - |
 | 04 | Paiement : Stripe, TVA, livraison, facture | 02, 03 |
 | 05 | Moteur de coût, prix plancher, commissions | - |
@@ -109,10 +142,12 @@ se vérifie sur le miroir local.
 | Compte Brevo | associé | Séance 06 |
 | `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur n'a jamais pu partir |
 
-`QUESTIONS-ASSOCIE.md` contient 37 questions auxquelles seul l'associé peut répondre. Q04
-(la grille tarifaire) conditionne une grande partie de la séance 05. La 37e vient d'être
-ajoutée : un même visuel n'a pas la même surface sur un S et sur un 3XL, et il faut savoir
-si les deux se facturent au même prix.
+`QUESTIONS-ASSOCIE.md` contient 40 questions auxquelles seul l'associé peut répondre. Q04
+(la grille tarifaire) conditionne une grande partie de la séance 05. Trois viennent d'être
+ajoutées par la séance 02 : la durée de validité d'un devis (la Bible impose la mention et
+ne donne aucune durée, et c'est un engagement ferme en droit français), le fait que la
+commission d'un commercial figure ou non sur le document que le client reçoit, et la durée
+de conservation d'une demande de devis sans suite.
 
 ---
 

@@ -89,6 +89,18 @@ export interface ShopQuote {
   total_ht_eur: number
   total_vat_eur: number
   total_ttc_eur: number
+  /**
+   * The shop's own verdict on whether it will sell this run without a human.
+   *
+   * `Rest::quote` has always sent it and this interface did not declare it, so
+   * the basket panel could not see it: a buyer above the threshold got a full
+   * price, an enabled button, an upload of their artwork, and only then a
+   * refusal that said "la boutique n'a pas ajouté l'article" and never
+   * mentioned the devis. It is the SERVER's verdict, from Pricing::needs_quote,
+   * the same function the cart consults, so the panel and the basket cannot
+   * disagree about it.
+   */
+  needs_quote?: boolean
   display: { unit_ht: string; total_ht: string; total_ttc: string }
 }
 
@@ -354,8 +366,15 @@ function asPreset(raw: unknown): ShopContext['preset'] {
   const source = raw as Record<string, unknown>
   const preset: { qty?: number; sizeGrid?: Record<string, number> } = {}
 
+  /*
+   * A quantity is only kept ALONGSIDE a breakdown, never on its own.
+   *
+   * A lone count is not an order: turning "40" into forty of one size means
+   * choosing that size on the customer's behalf, and the panel chose whichever
+   * one the 3D preview was showing. The shop no longer sends a bare qty, and
+   * this refuses one anyway, because the frame trusts nothing it is told.
+   */
   const qty = Number(source.qty)
-  if (Number.isFinite(qty) && qty >= 1) preset.qty = Math.min(Math.floor(qty), 1_000_000)
 
   if (source.sizeGrid && typeof source.sizeGrid === 'object') {
     const grid: Record<string, number> = {}
@@ -365,10 +384,13 @@ function asPreset(raw: unknown): ShopContext['preset'] {
         grid[size] = Math.min(Math.floor(n), 1_000_000)
       }
     }
-    if (Object.keys(grid).length > 0) preset.sizeGrid = grid
+    if (Object.keys(grid).length > 0) {
+      preset.sizeGrid = grid
+      if (Number.isFinite(qty) && qty >= 1) preset.qty = Math.min(Math.floor(qty), 1_000_000)
+    }
   }
 
-  return preset.qty === undefined && preset.sizeGrid === undefined ? undefined : preset
+  return preset.sizeGrid === undefined ? undefined : preset
 }
 
 function onContext(origin: string, data: Record<string, unknown>): void {

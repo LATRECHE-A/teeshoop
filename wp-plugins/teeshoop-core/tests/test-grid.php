@@ -34,7 +34,7 @@ function ts_grid_config(): array {
 	return Pricing::default_config();
 }
 
-describe( 'Pricing — the grid’s quantity columns', function () {
+describe( 'Pricing: the grid’s quantity columns', function () {
 	it( 'shows one column per real discount break, and never a decorative one', function () {
 		$config = ts_grid_config();
 		$qtys   = Pricing::grid_qtys( $config );
@@ -87,7 +87,7 @@ describe( 'Pricing — the grid’s quantity columns', function () {
 	} );
 } );
 
-describe( 'Pricing — the headline above the grid', function () {
+describe( 'Pricing: the headline above the grid', function () {
 	it( 'quotes two prices that both exist as cells in the grid it sits above', function () {
 		$config   = ts_grid_config();
 		$headline = Pricing::headline( 'tee', $config );
@@ -160,7 +160,7 @@ describe( 'Pricing — the headline above the grid', function () {
 	} );
 } );
 
-describe( 'Pricing — standard sides', function () {
+describe( 'Pricing: standard sides', function () {
 	it( 'produces sides the quote actually counts', function () {
 		$config = ts_grid_config();
 		foreach ( array( 1, 2, 3 ) as $faces ) {
@@ -199,7 +199,7 @@ describe( 'Pricing — standard sides', function () {
 	} );
 } );
 
-describe( 'Pricing — where self-serve stops', function () {
+describe( 'Pricing: where self-serve stops', function () {
 	it( 'lets the shipped threshold through and refuses one piece past it', function () {
 		$config = ts_grid_config();
 		$from   = (int) $config['quote_from_qty'];
@@ -245,7 +245,64 @@ describe( 'Pricing — where self-serve stops', function () {
 	} );
 } );
 
-describe( 'Pricing — the grid’s footnote', function () {
+describe( 'Pricing: a cell the cart would refuse is not a price', function () {
+	it( 'marks the cells the self-serve threshold puts out of reach', function () {
+		// A hoodie at a hundred pieces is 2 080,00 EUR HT, past the 2 000 EUR
+		// threshold, so the whole hundred-piece column of its public price list
+		// used to quote a unit price Cart::add answers with a 409.
+		$config = ts_grid_config();
+		$rows   = Pricing::grid( 'hoodie', array( 1, 100 ), array( 1 ), $config );
+
+		$cheap = $rows[0]['cells'][0];
+		$dear  = $rows[0]['cells'][1];
+
+		truthy( ! $cheap['needs_quote'], 'one hoodie was put out of self-serve reach' );
+		truthy( $dear['needs_quote'], 'a hundred hoodies were published as a self-serve price' );
+	} );
+
+	it( 'agrees with needs_quote for every cell it prints', function () {
+		$config = ts_grid_config();
+		foreach ( array( 'tee', 'hoodie', 'custom' ) as $garment ) {
+			$qtys = Pricing::grid_qtys( $config );
+			$rows = Pricing::grid( $garment, $qtys, array( 1, 2 ), $config );
+			foreach ( $rows as $row ) {
+				foreach ( $row['cells'] as $cell ) {
+					eq(
+						$cell['needs_quote'],
+						Pricing::needs_quote( (int) $cell['qty'], (int) $cell['total_ht'], $config ),
+						"{$garment} {$row['sides']}×{$cell['qty']}"
+					);
+				}
+			}
+		}
+	} );
+
+	it( 'never anchors the headline on a quantity the cart refuses', function () {
+		$config   = ts_grid_config();
+		$headline = Pricing::headline( 'hoodie', $config );
+
+		truthy( ! empty( $headline['best'] ), 'a hoodie has no self-serve headline at all' );
+		truthy( ! $headline['best']['needs_quote'], 'the headline promises a price the cart refuses' );
+
+		$quote = Pricing::quote(
+			array(
+				'garment' => 'hoodie',
+				'qty'     => (int) $headline['best']['qty'],
+				'sides'   => Pricing::standard_sides( 1 ),
+			),
+			$config
+		);
+		truthy( ! $quote['needs_quote'], 'the announced quantity needs a quote' );
+	} );
+
+	it( 'announces nothing rather than an unreachable price when every column needs a quote', function () {
+		$config                  = ts_grid_config();
+		$config['quote_from_ht'] = 1;
+		eq( Pricing::headline( 'tee', $config ), array() );
+	} );
+} );
+
+describe( 'Pricing: the grid’s footnote', function () {
 	it( 'reads its area bound from the tier table rather than restating it', function () {
 		$config = ts_grid_config();
 		eq( Pricing::std_area_sq_cm( $config ), (float) $config['area_tiers'][0]['max_sq_cm'] );

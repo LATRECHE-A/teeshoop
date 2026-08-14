@@ -75,6 +75,10 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'Un ajout est déjà en cours. Ne recommencez pas : vérifiez votre panier dans un instant.',
     'cart.err.quote':
       'Le prix n’a pas pu être obtenu auprès de la boutique. Rechargez la page ; sans prix, rien ne peut être ajouté au panier.',
+    'cart.needs_quote':
+      'À cette quantité, nous chiffrons la commande à la main : le tissu, la production et le transport ne se calculent plus seuls. Revenez sur la fiche produit et demandez un devis, votre création est conservée.',
+    'cart.err.needs_quote':
+      'À cette quantité, la commande se chiffre à la main. Rien n’a été ajouté au panier. Demandez un devis depuis la fiche produit.',
   },
   en: {
     'cart.open': 'Order',
@@ -135,6 +139,10 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'An add is already running. Do not start another one; check your basket in a moment.',
     'cart.err.quote':
       'The price could not be obtained from the shop. Reload the page; without a price nothing can be added to the basket.',
+    'cart.needs_quote':
+      'At this quantity we price the order by hand: the fabric, the production and the carriage no longer work themselves out. Go back to the product page and ask for a quote; your design is kept.',
+    'cart.err.needs_quote':
+      'At this quantity the order is priced by hand. Nothing was added to the basket. Ask for a quote from the product page.',
   },
 }
 

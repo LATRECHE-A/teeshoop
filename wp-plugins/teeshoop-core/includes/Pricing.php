@@ -124,10 +124,11 @@ final class Pricing {
 			/*
 			 * Where self-serve stops and a devis begins.
 			 *
-			 * ⚠ THIS IS OUR ASSUMPTION, NOT THE ASSOCIATE'S RULE. Question 02 of
-			 * QUESTIONS-ASSOCIE.md is 🔴 blocking and unanswered; its published
-			 * default — the one we committed to acting on in the absence of an
-			 * answer — is "prix public et paiement en autonomie jusqu'à 250
+			 * ATTENTION: THIS IS OUR ASSUMPTION, NOT THE ASSOCIATE'S RULE.
+			 * Question 02 of QUESTIONS-ASSOCIE.md is blocking and unanswered, and
+			 * its published default (the one we committed to acting on in the
+			 * absence of an answer) is "prix public et paiement en autonomie
+			 * jusqu'à 250
 			 * pièces ou 2 000 EUR hors taxes ; au-delà, passage obligatoire par
 			 * un devis". These two numbers are that sentence, and nothing else.
 			 *
@@ -213,7 +214,7 @@ final class Pricing {
 	/**
 	 * `$count` printed sides, each at the cheapest area tier.
 	 *
-	 * The convention — a positive area small enough to land in the first tier —
+	 * The convention (a positive area small enough to land in the first tier)
 	 * used to be written inline inside `grid()`. It is a shared assumption
 	 * between the grid, the product page's estimator and the REST route, so it
 	 * is written once: a second copy that used 0 instead of 1 would drop every
@@ -379,6 +380,16 @@ final class Pricing {
 					'total_ht'      => $quote['total_ht'],
 					'total_ttc'     => $quote['total_ttc'],
 					'discount_rate' => $quote['discount_rate'],
+					/*
+					 * CARRIED, because the grid was publishing prices the cart
+					 * refuses. A hoodie at 100 pieces is 2 080,00 EUR HT, past
+					 * the 2 000 EUR self-serve threshold, so the whole
+					 * 100-piece column of its public price list quoted a unit
+					 * price that `Cart::add` answers with a 409. The quote 20
+					 * lines above already knows; it was simply being thrown
+					 * away.
+					 */
+					'needs_quote'   => $quote['needs_quote'],
 				);
 			}
 			$rows[] = array(
@@ -392,8 +403,8 @@ final class Pricing {
 	/**
 	 * The quantity columns the grid shows, derived from the discount breaks.
 	 *
-	 * NOT a hand-picked list of round numbers. Every column is either 1 — the
-	 * price of buying one, which a customer compares first — or a quantity at
+	 * NOT a hand-picked list of round numbers. Every column is either 1, the
+	 * price of buying one, which a customer compares first, or a quantity at
 	 * which the price actually changes, plus one doubling past the last break so
 	 * the table does not stop at the moment it becomes interesting.
 	 *
@@ -460,9 +471,27 @@ final class Pricing {
 			if ( 1 === (int) $cell['qty'] ) {
 				$unit = $cell;
 			}
+			/*
+			 * A cell the cart would refuse cannot be a headline.
+			 *
+			 * "9,42 EUR à partir de 100 pièces" is a promise, and on a hoodie a
+			 * hundred pieces is past the self-serve threshold: the customer
+			 * would reach the basket and be told to ask for a quote instead.
+			 * Anchoring on a quantity we will actually sell is the whole point
+			 * of deriving the anchor rather than choosing it.
+			 */
+			if ( ! empty( $cell['needs_quote'] ) ) {
+				continue;
+			}
 			if ( null === $best || $cell['unit_ht'] < $best['unit_ht'] ) {
 				$best = $cell;
 			}
+		}
+
+		if ( null === $best ) {
+			// Every quantity on the grid needs a quote. There is no self-serve
+			// price to announce, so none is announced.
+			return array();
 		}
 
 		return array(

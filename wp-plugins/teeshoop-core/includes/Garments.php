@@ -151,15 +151,22 @@ final class Garments {
 	/**
 	 * How many faces this garment can be printed on.
 	 *
-	 * The price grid's rows are 1 face, 2 faces, … up to this. Deriving the row
-	 * count from the garment rather than fixing it means the table never offers
-	 * a third face on something that has two, and never hides one.
+	 * READ FROM `printableSides`, NOT COUNTED FROM `areas`, and the difference
+	 * cost money. Counting the measurements conflated "we hold no dimensions for
+	 * this garment" with "this garment has one face": `custom`, whose dimensions
+	 * are the customer's own shirt and are therefore absent by design, was
+	 * offered a one-face price while `Pricing` charged 12,00 EUR for the second
+	 * side the page never showed a control for. The face count is a fact about
+	 * the garment; the areas are a measurement of it.
 	 *
-	 * Falls back to 1 rather than to 0: a garment we hold no measurements for is
-	 * still printable on its front, and a grid with no rows would read as "we do
-	 * not sell this".
+	 * Falls back to 1 rather than 0 for a garment the file does not know at all:
+	 * a grid with no rows would read as "we do not sell this".
 	 */
 	public static function printable_sides_count( string $garment ): int {
+		$declared = self::get( $garment )['printableSides'] ?? null;
+		if ( is_array( $declared ) && ! empty( $declared ) ) {
+			return count( $declared );
+		}
 		$n = count( self::areas( $garment ) );
 		return $n > 0 ? $n : 1;
 	}
@@ -190,15 +197,8 @@ final class Garments {
 		return self::all()['colors'];
 	}
 
-	/**
-	 * A French centimetre: 30,5 cm. Never 30.5 cm.
-	 *
-	 * `number_format_i18n` follows the site locale, which on a French shop is
-	 * what we want and on an English one would print a point, so the separator
-	 * is fixed here rather than inherited. A specification sheet with mixed
-	 * separators reads as machine output.
-	 */
+	/** A French centimetre: 30,5 cm. Never 30.5 cm. */
 	public static function cm( float $value ): string {
-		return number_format( $value, 1, ',', "\u{202F}" ) . "\u{00A0}cm";
+		return Money::number( $value, 1 ) . "\u{00A0}cm";
 	}
 }

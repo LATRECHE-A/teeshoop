@@ -32,23 +32,85 @@ R2. `wp-content/uploads` is served by URL with no access control, and
 teeshoop-core.php     bootstrap; declines politely if WooCommerce is absent
 includes/
   Money.php           integer cents; no float ever holds a price
-  Pricing.php         the price authority — pure, no WordPress calls
+  Pricing.php         the price authority. Pure, no WordPress calls
   Margin.php          cost, floor price, commission (the Bible, corrected)
   Settings.php        stored config + the fail-closed defaults around it
+  Garments.php        print areas, size chart and colours, in cm. Generated
   Design.php          design-id validation and Worker verification
   Product.php         which studio garment a WooCommerce product is
   Cart.php            WooCommerce cart and order integration
+  ProductPage.php     the fiche produit: hooks, blocks and the add-to-cart lock
+  Compat.php          the pinned WooCommerce surface, and the loud failure
+  Quote.php           the devis: a record with a state
   Rest.php            /wp-json/teeshoop/v1/*
   Shortcode.php       [teeshoop_studio]
+  Cli.php             wp teeshoop provisionner | verifier
+data/
+  garments.json       GENERATED from the studio. Do not edit; see below
+templates/teeshoop/
+  product-cta.php     quantity, faces, the live estimate, the two ways on
+  product-specs.php   print zones in cm, the garment, the size guide
+  product-price-grid.php   faces by quantity, HT and TTC
+  product-quote.php   the devis form
 assets/
   bridge.js           the postMessage bridge (runs on the WP page, not in the frame)
   bridge.css          the frame's box, and nothing else
+  product.css         the fiche produit. Scoped under `ts-`, restyles nothing else
+  product.js          the live estimate. Contains no price and no French
 tests/
   run.php             zero-dependency runner for the pure classes
   test-pricing.php    the price authority
+  test-grid.php       the grid's columns, the headline, the devis threshold
   test-margin.php     the corrected floor-price formula
-  integration.php     the WooCommerce seam — needs a real WP (see below)
+  integration.php     the WooCommerce seam. Needs a real WP (see below)
 ```
+
+## The product page
+
+Shipped by the plugin, hooked, and **overriding no WooCommerce template**.
+`Compat.php` records why, measured on 11.0.1: the templates a product page most
+wants to change are the ones that move (add-to-cart is at @version 10.2.0,
+10.9.0 and 10.5.2 against 3.6.0 for the wrapper); `content-single-product.php`
+is not reachable through `woocommerce_locate_template` at all, because it loads
+through `wc_get_template_part`, which never calls `wc_locate_template`; and
+production runs Woodmart, which ships its own copies, so a plugin filter would
+be a priority war with a paid theme over a wrapper `<div>`.
+
+The coupling is therefore to hook names and priorities, and that is what
+`Compat::check()` pins. It reports through an admin notice, through
+`wp teeshoop verifier`, and in `tests/integration.php`. It cannot live in
+`tests/run.php`, which runs with no WordPress at all.
+
+**Every price on the page is `Pricing`'s.** The grid is `Pricing::grid()`, whose
+cells the PHP suite asserts against `Pricing::quote()`; the estimator's live
+total is a call to `GET /quote`, and without JavaScript the same form submits as
+a GET and WordPress renders the same figure. `product.js` contains no
+arithmetic and authors no French: both come from PHP.
+
+The quantity columns are **derived from the discount breaks**, so a column can
+never imply a break that does not exist, and `Pricing::headline()` reads both
+its anchors out of the grid printed below it.
+
+`ProductPage::refuse_plain_add` is the lock, and it does not depend on any of
+the rendering: every path that reaches `WC_Cart` without going through
+`Cart::add` (the classic form, `?add-to-cart=`, the AJAX loop button, the Store
+API, "commander à nouveau") is refused for a personalisable product, because
+none of them can carry a design and all of them would charge the catalogue price
+of a blank.
+
+## data/garments.json is generated
+
+Print areas in cm, the official flat measurements and the colour list, produced
+from the studio's own definitions by `node scripts/gen-garment-data.mjs`.
+`src/content/garmentData.test.ts` fails when the committed file and the modules
+disagree, and `npm run verify:garments` says so in CI. Do not hand-edit it: a
+print size typed twice is a print size that diverges, and the customer discovers
+the divergence when the workshop crops their logo.
+
+Fabric composition and grammage are **not** in it. They exist nowhere in this
+project for `tee` and `hoodie`, so the page renders the empty state and reads
+them from product meta (`_teeshoop_material`, `_teeshoop_weight_gsm`) when a
+catalogue import has set them.
 
 `Money`, `Pricing` and `Margin` call **no WordPress function**. That is a design
 rule, and `tests/run.php` enforces it by construction: the day someone reaches
@@ -57,11 +119,37 @@ for `get_option()` inside `Pricing`, the runner stops working and says so.
 ## Running the tests
 
 ```bash
-npm run test:php        # 46 cases, pure PHP, no bootstrap, <1s
+npm run test:php        # 64 cases, pure PHP, no bootstrap, <1s
 npm run wp:up           # local WordPress 7.0.3 + WooCommerce, port 8080
-npm run test:wp         # 11 cases against the real cart
-npm run verify:wp-e2e   # 29 assertions, real browser, real Worker, real basket
+npm run wp:cli teeshoop provisionner   # rebuild the shop from the repository
+npm run test:wp         # 17 cases against the real cart
+npm run verify:wp-e2e   # 40 assertions, real browser, real Worker, real basket
+npm run verify:php      # no purchase cost, supplier name or film rate in a template
+npm run verify:product  # 18 assertions, real browser, the buy box's own controls
 ```
+
+**`verify:product` exists because of one defect.** `Array.prototype.slice.call(
+params.keys() )` returns an empty array (a `URLSearchParams` iterator has no
+`length`), so the loop that cleared stale sizes off the Personnaliser link never
+ran once: a buyer who put 3 into M and then back to 0 carried `tailles[M]=3`
+into the studio, and three garments nobody ordered arrived at the basket panel
+as sizes to press. No PHP test, no WooCommerce test and no end-to-end assertion
+could see it, because none of them touches that control. A browser can.
+
+**WooCommerce ships new installs in "coming soon" mode**, and with
+`store_pages_only` it replaces every product page with a launch banner for
+anyone not logged in. The page still answers 200 and still enqueues our CSS and
+JavaScript in the head; only the body is gone. `wp teeshoop provisionner` turns
+it off.
+
+**Pretty permalinks are load-bearing, not cosmetic.** WooCommerce builds a cart
+only for what it calls a frontend request, and decides that by looking for the
+REST prefix in `REQUEST_URI`. On the plain structure a fresh WordPress ships
+with, `/index.php?rest_route=/teeshoop/v1/cart` contains no `wp-json`, so Woo
+loaded a cart and everything worked; on production's pretty permalinks it does
+not, and every add-to-cart answered 503. `Rest::add_to_cart` now calls
+`wc_load_cart()` itself, and the e2e asserts the mirror is on pretty permalinks
+so nobody can turn a red run green by reverting the structure.
 
 The pure tests run in CI. The integration test does not — it needs a database
 and a live WooCommerce, same reason the Playwright harnesses stay out.
@@ -86,8 +174,8 @@ code and WooCommerce is where the money is lost.**
 
 | Route | Auth | Notes |
 |---|---|---|
-| `GET /wp-json/teeshoop/v1/quote` | public | Pure computation. Returns selling prices only — never a purchase cost, supplier name or film rate. |
-| `GET /wp-json/teeshoop/v1/grid` | public | The faces × quantity table shown before the editor opens. |
+| `GET /wp-json/teeshoop/v1/quote` | public | Pure computation. Returns selling prices only, never a purchase cost, supplier name or film rate. `faces=N` is shorthand for N sides at the standard area tier, so a browser never has to know that convention. |
+| `GET /wp-json/teeshoop/v1/grid` | public | The faces × quantity table shown before the editor opens. Columns derived from the discount breaks. |
 | `POST /wp-json/teeshoop/v1/cart` | `X-WP-Nonce` | Adds a personalised line. The nonce is checked explicitly: WordPress only rejects a *bad* cookie nonce, not a missing one, so without this any site could POST into a visitor's basket through their browser. |
 
 ## The postMessage contract
@@ -245,9 +333,13 @@ and prices (25 units, 271,75 €), a fabricated one is refused with
 
 - An admin screen for the pricing config. It is set through the option.
 - An admin screen for the integration settings (studio origin, Worker URL). Same.
-- Product page templates: the price grid, the quote form, and anything on the
-  page around the studio frame. Session 02.
 - Payment. `Pricing` computes what a line costs; nothing takes money yet.
+- The quote DOCUMENT: its versions, its acceptance token, its PDF and the BAT.
+  `Quote.php` holds the request and its state; the document belongs to session
+  06, when there is a payment to attach it to.
+- Réassort. "Commander à nouveau" is deliberately REFUSED on a personalisable
+  product rather than silently producing a plain garment at the catalogue price
+  (`woocommerce_order_again_cart_item_data` defaults to an empty payload).
 
 Built and proved end to end on 2026-08-13 by `scripts/wp-e2e-verify.mjs`: the
 studio's bridge client and design upload (`src/lib/teeshoop/`), the buy flow,

@@ -71,7 +71,61 @@ final class ProductPage {
 		 */
 		add_filter( 'woocommerce_add_to_cart_validation', array( self::class, 'refuse_plain_add' ), 10, 6 );
 
+		/*
+		 * The machine-readable price has to be the same price as the human one.
+		 *
+		 * `WC_Structured_Data::generate_product_data` builds its offer from
+		 * `$product->get_price()`, never from `get_price_html`, so the filter
+		 * above cannot reach it: the page showed "9,42 EUR HT dès 50 pièces" to a
+		 * reader and published 9,50 EUR to Google as the price of the product. A
+		 * shopping result quoting a price nobody can pay is a complaint, and in
+		 * France an announced price is an offer.
+		 */
+		add_filter( 'woocommerce_structured_data_product', array( self::class, 'structured_data' ), 10, 2 );
+
 		add_filter( 'wp_robots', array( self::class, 'robots' ) );
+	}
+
+	/**
+	 * Replace the offer with the range a customer can actually reach.
+	 *
+	 * An AggregateOffer, because there is no single price: the unit price falls
+	 * with the quantity, and both ends of that range are real cells of the grid
+	 * printed on the page (`Pricing::headline`). TTC, because schema.org's
+	 * `price` is what the buyer pays and a consumer pays tax.
+	 */
+	public static function structured_data( array $markup, $product ): array {
+		if ( ! $product instanceof \WC_Product ) {
+			return $markup;
+		}
+		$garment = Product::garment_of( $product->get_id() );
+		if ( '' === $garment ) {
+			return $markup;
+		}
+
+		$headline = self::headline( $garment );
+		if ( empty( $headline['best'] ) || empty( $headline['unit'] ) ) {
+			// No self-serve price to publish. Saying nothing beats publishing the
+			// blank's cost basis as though it were an offer.
+			unset( $markup['offers'] );
+			return $markup;
+		}
+
+		$config = Settings::pricing();
+
+		$markup['offers'] = array(
+			array(
+				'@type'         => 'AggregateOffer',
+				'lowPrice'      => Money::to_eur( (int) $headline['best']['unit_ttc'] ),
+				'highPrice'     => Money::to_eur( (int) $headline['unit']['unit_ttc'] ),
+				'priceCurrency' => (string) $config['currency'],
+				'availability'  => 'https://schema.org/InStock',
+				'offerCount'    => count( Pricing::grid_qtys( $config ) ),
+				'url'           => $product->get_permalink(),
+			),
+		);
+
+		return $markup;
 	}
 
 	/**
@@ -176,25 +230,77 @@ final class ProductPage {
 			}
 		}
 
-		$mode = ! empty( $grid ) ? 'grid' : 'single';
-		if ( isset( $_GET['mode'] ) && 'grid' === $_GET['mode'] ) {
-			$mode = 'grid';
+		/*
+		 * THE SUBMITTED MODE WINS, and the heuristic is only the fallback.
+		 *
+		 * The size pane is hidden with the HTML `hidden` attribute, which hides
+		 * inputs but does not stop the browser submitting them (only `disabled`
+		 * does). So a no-JavaScript customer who filled the grid, then chose
+		 * "Une seule taille" and typed 12, submitted both, and the old rule
+		 * (grid wins whenever the grid is non-empty) priced the grid and threw
+		 * away the choice they had just made.
+		 */
+		$sent = isset( $_GET['mode'] ) ? sanitize_key( wp_unslash( (string) $_GET['mode'] ) ) : '';
+		$mode = in_array( $sent, array( 'single', 'grid' ), true )
+			? $sent
+			: ( ! empty( $grid ) ? 'grid' : 'single' );
+
+		if ( 'single' === $mode ) {
+			$grid = array();
 		}
 
-		$qty = 'grid' === $mode && ! empty( $grid )
+		$typed = 'grid' === $mode && ! empty( $grid )
 			? (int) array_sum( $grid )
 			: max( 1, (int) ( $_GET['qte'] ?? 1 ) );
 
 		$faces     = max( 1, (int) ( $_GET['faces'] ?? 1 ) );
 		$max_faces = Garments::printable_sides_count( $garment );
+
+		/*
+		 * PAST THE CAP THE PAGE STOPS PRICING, it does not quietly reduce.
+		 *
+		 * Clamping the sum to max_qty printed two different numbers on the same
+		 * screen: the size pane said "Total 30 000 pièces" and the estimate
+		 * beside it said "10 000 pièces, 94 200,00 EUR HT", for a run
+		 * `Cart::add` refuses outright. Which is exactly the mistake the cart
+		 * already refuses to make (Cart.php: "REFUSED, not clamped").
+		 */
+		$over_cap = $typed > $max;
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		return array(
-			'qty'   => max( 1, min( $qty, $max ) ),
-			'faces' => min( $faces, $max_faces ),
-			'grid'  => $grid,
-			'mode'  => $mode,
+			'qty'      => max( 1, min( $typed, $max ) ),
+			'typed'    => max( 1, $typed ),
+			'over_cap' => $over_cap,
+			'faces'    => min( $faces, $max_faces ),
+			'grid'     => $grid,
+			'mode'     => $mode,
 		);
+	}
+
+	/**
+	 * The size a single-size run is in.
+	 *
+	 * The pane used to ask only "how many", and the answer travelled into the
+	 * studio as a bare quantity, where the basket panel turned it into "40 of
+	 * whatever size the 3D preview happened to be showing". That is a size the
+	 * buyer never chose, on forty garments. The pane asks now, so what crosses
+	 * the boundary is always a real breakdown.
+	 */
+	public static function requested_size( string $garment ): string {
+		$sizes = self::size_ids( $garment );
+		if ( empty( $sizes ) ) {
+			return '';
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a public GET form.
+		$raw = isset( $_GET['taille'] ) ? strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) wp_unslash( $_GET['taille'] ) ) ?? '' ) : '';
+		if ( in_array( $raw, $sizes, true ) ) {
+			return $raw;
+		}
+		// M by default, because it is the most ordered adult size and the size
+		// every published area and every priced area is already measured at.
+		$priced = Garments::priced_size( $garment );
+		return in_array( $priced, $sizes, true ) ? $priced : $sizes[0];
 	}
 
 	/** The sizes this garment is offered in, from the studio's own chart. */
@@ -224,7 +330,9 @@ final class ProductPage {
 			return $robots;
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading the URL shape, not acting on it.
-		$noisy = self::studio_requested() || isset( $_GET['qte'], $_GET['tailles'], $_GET['faces'] ) || isset( $_GET['tailles'] ) || isset( $_GET['qte'] ) || isset( $_GET['faces'] );
+		$noisy = self::studio_requested()
+			|| isset( $_GET['qte'] ) || isset( $_GET['tailles'] ) || isset( $_GET['faces'] )
+			|| isset( $_GET['taille'] ) || isset( $_GET['mode'] ) || isset( $_GET['devis'] );
 		if ( $noisy ) {
 			$robots['noindex'] = true;
 			$robots['follow']  = true;
@@ -398,7 +506,8 @@ final class ProductPage {
 				'headline'    => self::headline( $garment ),
 				'sizes'       => self::size_ids( $garment ),
 				'max_faces'   => Garments::printable_sides_count( $garment ),
-				'studio_url'  => self::studio_url( $product_id, $request ),
+				'studio_url'  => self::studio_url( $product_id, $request, $garment ),
+				'size'        => self::requested_size( $garment ),
 				'needs_quote' => Pricing::needs_quote( $request['qty'], (int) $quote['total_ht'], $config ),
 			),
 			'',
@@ -485,13 +594,25 @@ final class ProductPage {
 	 * the product and the printed areas from the stored design, so a tampered
 	 * link changes what a form shows and never what an invoice says.
 	 */
-	public static function studio_url( int $product_id, array $request ): string {
+	public static function studio_url( int $product_id, array $request, string $garment = '' ): string {
 		$args = array( self::STUDIO_ARG => 1 );
 
 		if ( 'grid' === $request['mode'] && ! empty( $request['grid'] ) ) {
 			$args['tailles'] = $request['grid'];
-		} elseif ( $request['qty'] > 1 ) {
-			$args['qte'] = $request['qty'];
+		} elseif ( $request['qty'] > 1 && '' !== $garment ) {
+			// A SIZE AND A COUNT, never a bare count. The studio would otherwise
+			// have to invent the size, and it invented the one its 3D preview
+			// happened to be showing.
+			$size = self::requested_size( $garment );
+			if ( '' !== $size ) {
+				$args['tailles'] = array( $size => $request['qty'] );
+			}
+		}
+
+		if ( ! empty( $request['over_cap'] ) ) {
+			// Nothing is carried for a run the cart will not take: the customer
+			// is being sent to the devis, not to the editor.
+			$args = array( self::STUDIO_ARG => 1 );
 		}
 
 		return add_query_arg( $args, get_permalink( $product_id ) ?: home_url( '/' ) );

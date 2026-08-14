@@ -58,9 +58,27 @@ final class Money {
 		return $cents / 100;
 	}
 
-	/** "1 234,56 €" — French formatting, narrow no-break space before the sign. */
+	/** "1 234,56 €", French formatting, narrow no-break space before the sign. */
 	public static function format( int $cents ): string {
-		return number_format( self::to_eur( $cents ), 2, ',', "\u{202F}" ) . "\u{202F}€";
+		return self::number( self::to_eur( $cents ), 2 ) . "\u{202F}€";
+	}
+
+	/**
+	 * Any other number a French customer reads: a quantity, an area, a count.
+	 *
+	 * NOT `number_format_i18n`, which takes its separators from the WordPress
+	 * locale. A stock WordPress is en_US, and it renders 1250 as "1,250": to a
+	 * French reader that is one and a quarter. The page published
+	 * "jusqu'à 1,250 cm²" as the surcharge threshold, which reads as a 1,25 cm²
+	 * ceiling, so every real print appeared to be over it. Measured on the
+	 * mirror, whose locale is en_US, on 2026-08-14.
+	 *
+	 * The separators are therefore fixed here rather than inherited, exactly as
+	 * `format()` above already fixes them for money. One shop, one way of
+	 * writing a number.
+	 */
+	public static function number( float $value, int $decimals = 0 ): string {
+		return number_format( $value, $decimals, ',', "\u{202F}" );
 	}
 
 	/**

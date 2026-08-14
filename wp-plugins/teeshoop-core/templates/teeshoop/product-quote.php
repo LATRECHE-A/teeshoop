@@ -31,6 +31,10 @@ $ts_result = isset( $_GET['devis'] ) ? sanitize_key( wp_unslash( (string) $_GET[
 $ts_reason = isset( $_GET['raison'] ) ? sanitize_key( wp_unslash( (string) $_GET['raison'] ) ) : '';
 // phpcs:enable WordPress.Security.NonceVerification.Recommended
 
+// What the prospect typed before the submission was refused, if anything.
+$ts_back = \Teeshoop\Core\Quote::resume();
+$ts_val  = static fn( string $key, string $fallback = '' ): string => (string) ( $ts_back[ $key ] ?? $fallback );
+
 $ts_errors = array(
 	'email'            => __( 'L’adresse e-mail n’est pas valide. Nous ne pourrions pas vous répondre.', 'teeshoop' ),
 	'contact'          => __( 'Indiquez le nom de la personne à qui répondre.', 'teeshoop' ),
@@ -57,7 +61,7 @@ $ts_errors = array(
 		<?php endif; ?>
 
 		<p class="ts-devis__lead">
-			<?php esc_html_e( 'Pour une grande série, plusieurs vêtements dans la même commande, une matière particulière ou une date à tenir, un chiffrage à la main coûte souvent moins cher que le tarif public. Dites-nous ce qu’il vous faut.', 'teeshoop' ); ?>
+			<?php esc_html_e( 'Pour une grande série, plusieurs vêtements dans la même commande, une matière particulière ou une date à tenir, nous chiffrons à la main : le tarif public ne sait pas décrire ces commandes. Dites-nous ce qu’il vous faut.', 'teeshoop' ); ?>
 		</p>
 
 		<form class="ts-devis__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -72,46 +76,46 @@ $ts_errors = array(
 			<div class="ts-form__row">
 				<label class="ts-form__field">
 					<span class="ts-form__label"><?php esc_html_e( 'Votre nom', 'teeshoop' ); ?></span>
-					<input type="text" name="contact" required autocomplete="name" maxlength="120">
+					<input type="text" name="contact" required autocomplete="name" maxlength="120" value="<?php echo esc_attr( $ts_val( 'contact' ) ); ?>">
 				</label>
 				<label class="ts-form__field">
 					<span class="ts-form__label"><?php esc_html_e( 'Société', 'teeshoop' ); ?></span>
-					<input type="text" name="societe" autocomplete="organization" maxlength="160">
+					<input type="text" name="societe" autocomplete="organization" maxlength="160" value="<?php echo esc_attr( $ts_val( 'societe' ) ); ?>">
 				</label>
 			</div>
 
 			<div class="ts-form__row">
 				<label class="ts-form__field">
 					<span class="ts-form__label"><?php esc_html_e( 'E-mail', 'teeshoop' ); ?></span>
-					<input type="email" name="email" required autocomplete="email" inputmode="email" maxlength="180">
+					<input type="email" name="email" required autocomplete="email" inputmode="email" maxlength="180" value="<?php echo esc_attr( $ts_val( 'email' ) ); ?>">
 				</label>
 				<label class="ts-form__field">
 					<span class="ts-form__label"><?php esc_html_e( 'Téléphone', 'teeshoop' ); ?></span>
-					<input type="tel" name="telephone" autocomplete="tel" maxlength="40">
+					<input type="tel" name="telephone" autocomplete="tel" maxlength="40" value="<?php echo esc_attr( $ts_val( 'telephone' ) ); ?>">
 				</label>
 			</div>
 
 			<div class="ts-form__row">
 				<label class="ts-form__field">
 					<span class="ts-form__label"><?php esc_html_e( 'Nombre de pièces', 'teeshoop' ); ?></span>
-					<input type="number" name="qte" min="1" step="1" inputmode="numeric" value="<?php echo esc_attr( (string) (int) $request['qty'] ); ?>">
+					<input type="number" name="qte" min="1" step="1" inputmode="numeric" value="<?php echo esc_attr( (string) (int) ( $ts_back['qte'] ?? $request['typed'] ) ); ?>">
 				</label>
 				<label class="ts-form__field">
 					<span class="ts-form__label"><?php esc_html_e( 'Date de livraison souhaitée', 'teeshoop' ); ?></span>
-					<input type="date" name="echeance">
+					<input type="date" name="echeance" value="<?php echo esc_attr( $ts_val( 'echeance' ) ); ?>">
 					<span class="ts-form__hint"><?php esc_html_e( 'Facultatif. Une date nous dit tout de suite si le délai est tenable.', 'teeshoop' ); ?></span>
 				</label>
 			</div>
 
 			<label class="ts-form__field">
 				<span class="ts-form__label"><?php esc_html_e( 'SIRET', 'teeshoop' ); ?></span>
-				<input type="text" name="siret" inputmode="numeric" maxlength="20" autocomplete="off">
+				<input type="text" name="siret" inputmode="numeric" maxlength="20" autocomplete="off" value="<?php echo esc_attr( $ts_val( 'siret' ) ); ?>">
 				<span class="ts-form__hint"><?php esc_html_e( 'Facultatif. Il nous permet d’établir une facture hors taxes à votre nom.', 'teeshoop' ); ?></span>
 			</label>
 
 			<label class="ts-form__field">
 				<span class="ts-form__label"><?php esc_html_e( 'Votre projet', 'teeshoop' ); ?></span>
-				<textarea name="message" rows="5" maxlength="4000" placeholder="<?php esc_attr_e( 'Les vêtements, les emplacements du marquage, les couleurs, ce que vous avez déjà comme fichier.', 'teeshoop' ); ?>"></textarea>
+				<textarea name="message" rows="5" maxlength="4000" placeholder="<?php esc_attr_e( 'Les vêtements, les emplacements du marquage, les couleurs, ce que vous avez déjà comme fichier.', 'teeshoop' ); ?>"><?php echo esc_textarea( $ts_val( 'message' ) ); ?></textarea>
 			</label>
 
 			<?php /* A real field, labelled for assistive technology, hidden from sight. A bot that fills every input identifies itself. */ ?>
@@ -123,7 +127,7 @@ $ts_errors = array(
 			<button type="submit" class="ts-cta"><?php esc_html_e( 'Envoyer la demande', 'teeshoop' ); ?></button>
 
 			<p class="ts-form__legal">
-				<?php esc_html_e( 'Ces informations servent uniquement à établir votre devis et à vous répondre. Elles ne sont ni vendues ni utilisées pour de la prospection. Elles sont conservées trois ans après notre dernier échange, puis effacées. Vous pouvez à tout moment demander à les consulter, les corriger ou les supprimer en nous écrivant.', 'teeshoop' ); ?>
+				<?php esc_html_e( 'Ces informations servent uniquement à établir votre devis et à vous répondre : c’est la base contractuelle, nous ne vous demandons pas de consentement pour cela. Elles ne sont ni vendues ni utilisées pour de la prospection. Elles sont conservées trois ans après notre dernier échange, puis supprimées automatiquement. Vous pouvez à tout moment demander à les consulter, les corriger, les recevoir ou les supprimer en nous écrivant, et saisir la CNIL si notre réponse ne vous convient pas.', 'teeshoop' ); ?>
 			</p>
 		</form>
 	<?php endif; ?>

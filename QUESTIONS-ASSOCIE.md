@@ -598,6 +598,55 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 
 ---
 
+## Devis
+
+### 38. Combien de temps un devis Teeshoop reste-t-il valable, et que se passe-t-il quand ce délai est dépassé ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* En France, un devis est une offre ferme pendant toute la durée qu'il annonce : si le prix du textile monte entre-temps, c'est vous qui absorbez la différence. Le chapitre 2 de la Bible impose la « validité » parmi les mentions obligatoires du devis, mais ne donne aucune durée, et aucun des huit documents n'en donne une. Nous ne pouvons pas l'inventer : c'est un engagement commercial, pas un réglage technique.
+
+Le sujet est réel : vos prix d'achat textile bougent, et le tarif DTF que nous finissons par retenir (question 04) bougera aussi. Un devis de 45 jours sur une commande de 300 pièces, c'est un risque que vous portez seul.
+
+*Si vous ne répondez pas, on partira sur :* Devis valable 30 jours à compter de son envoi, puis recalcul automatique aux conditions du jour. Aucune durée n'est affichée nulle part tant que vous n'avez pas tranché.
+
+**Votre réponse :**
+
+> 
+
+
+### 39. Le devis envoyé au client doit-il mentionner le commercial qui l'a préparé, et sa commission ?
+
+🔴 **Bloquant**
+
+*Pourquoi on a besoin de la réponse :* Le chapitre 2 de la Bible liste « commercial et commission estimée » parmi les informations **obligatoires** du devis. Pris au pied de la lettre, cela imprime votre marge sur un document que le client reçoit : il lit ce que vous gagnez, et il négocie à partir de là. Nous supposons qu'il s'agit d'une information interne, affichée à vous et au commercial, jamais au client, et le code est écrit ainsi (un garde-fou automatique empêche qu'un prix d'achat ou un taux de commission puisse atteindre une page client).
+
+Le nom du commercial, en revanche, a du sens sur le document : le client sait à qui s'adresser.
+
+*Si vous ne répondez pas, on partira sur :* Le nom et les coordonnées du commercial figurent sur le devis. La commission n'y figure pas et n'est visible que dans l'administration.
+
+**Votre réponse :**
+
+> 
+
+
+### 40. Combien de temps conservons-nous une demande de devis qui n'aboutit à aucune commande ?
+
+🟡 **À confirmer**
+
+*Pourquoi on a besoin de la réponse :* Le formulaire de demande de devis recueille un nom, une société, un e-mail et un téléphone. Ce sont des données personnelles, et le RGPD impose d'annoncer une durée de conservation au moment où on les collecte. La recommandation de la CNIL pour des données de prospection est de trois ans après le dernier contact, c'est ce qui est écrit aujourd'hui sous le formulaire.
+
+Ce n'est pas la même question que la 33, qui porte sur les fichiers de production d'une commande réelle.
+
+*Si vous ne répondez pas, on partira sur :* Trois ans après le dernier échange, puis suppression automatique.
+
+**Votre réponse :**
+
+> 
+
+
+---
+
 ## Ce que vous n'avez PAS à décider
 
 Pour vous éviter de perdre du temps : les points suivants sont tranchés par l'équipe de

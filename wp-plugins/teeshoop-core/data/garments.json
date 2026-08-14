@@ -6,6 +6,11 @@
 			"id": "tee",
 			"brandRef": "Stanley/Stella Creator STTU755",
 			"pricedSize": "M",
+			"printableSides": [
+				"front",
+				"back",
+				"sleeve"
+			],
 			"areas": [
 				{
 					"side": "front",
@@ -138,6 +143,11 @@
 			"id": "hoodie",
 			"brandRef": "Stanley/Stella Cruiser STSU822",
 			"pricedSize": "M",
+			"printableSides": [
+				"front",
+				"back",
+				"sleeve"
+			],
 			"areas": [
 				{
 					"side": "front",
@@ -265,6 +275,17 @@
 					"sleeveLengthCm": 70
 				}
 			]
+		},
+		"custom": {
+			"id": "custom",
+			"brandRef": "",
+			"pricedSize": "M",
+			"printableSides": [
+				"front",
+				"back"
+			],
+			"areas": [],
+			"sizes": []
 		}
 	},
 	"colors": [

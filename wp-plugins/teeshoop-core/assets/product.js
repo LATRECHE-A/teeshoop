@@ -74,21 +74,34 @@
 			total += n;
 		});
 
-		var qty;
+		var typed;
 		if (mode === 'grid') {
-			qty = total;
+			typed = total;
 		} else {
 			var qtyInput = form.querySelector('input[name="qte"]');
-			qty = qtyInput ? parseInt(qtyInput.value, 10) : 1;
+			typed = qtyInput ? parseInt(qtyInput.value, 10) : 1;
 		}
-		if (!qty || qty < 1) {
-			qty = 1;
-		}
-		if (cfg.maxQty && qty > cfg.maxQty) {
-			qty = cfg.maxQty;
+		if (!typed || typed < 1) {
+			typed = 1;
 		}
 
-		return { mode: mode, faces: faces, qty: qty, sizes: sizes, gridTotal: total };
+		// `typed` is what the buyer asked for and `qty` is what can be priced.
+		// They are kept apart so the page can say "you asked for 30 000" instead
+		// of quietly pricing 10 000, which is what the cart already refuses to do.
+		var qty = cfg.maxQty && typed > cfg.maxQty ? cfg.maxQty : typed;
+
+		var sizeInput = form.querySelector('select[name="taille"]');
+		var size = sizeInput ? sizeInput.value : '';
+
+		return {
+			mode: mode,
+			faces: faces,
+			qty: qty,
+			typed: typed,
+			size: size,
+			sizes: sizes,
+			gridTotal: total,
+		};
 	}
 
 	function showPanes(mode) {
@@ -116,22 +129,101 @@
 		}
 		var url = new URL(personnaliser.href, window.location.href);
 		var params = url.searchParams;
-		Array.prototype.slice.call(params.keys()).forEach(function (key) {
-			if (key === 'qte' || key.indexOf('tailles[') === 0) {
+
+		/*
+		 * `Array.from`, NOT `Array.prototype.slice.call`.
+		 *
+		 * `URLSearchParams.keys()` is an iterator with no `length`, so `slice`
+		 * read length 0 and returned an empty array: this delete loop never ran
+		 * once. The link therefore ACCUMULATED. A buyer who put 3 into M, then
+		 * put M back to 0 because they only wanted the two L, carried
+		 * `tailles[M]=3` into the studio anyway, and three garments nobody
+		 * ordered reached the basket panel as sizes to press.
+		 */
+		Array.from(params.keys()).forEach(function (key) {
+			if (key === 'qte' || key === 'taille' || key.indexOf('tailles[') === 0) {
 				params.delete(key);
 			}
 		});
+
+		// A SIZE AND A COUNT, never a bare count: the studio would otherwise
+		// have to invent the size, and it invented whichever one its 3D preview
+		// was showing.
 		if (state.mode === 'grid' && state.gridTotal > 0) {
 			Object.keys(state.sizes).forEach(function (size) {
 				params.set('tailles[' + size + ']', String(state.sizes[size]));
 			});
-		} else if (state.qty > 1) {
-			params.set('qte', String(state.qty));
+		} else if (state.qty > 1 && state.size) {
+			params.set('tailles[' + state.size + ']', String(state.qty));
 		}
+
+		if (cfg.maxQty && state.typed > cfg.maxQty) {
+			// Past the cap nothing is carried: the customer is being sent to the
+			// devis, not to the editor.
+			Array.from(params.keys()).forEach(function (key) {
+				if (key === 'qte' || key.indexOf('tailles[') === 0) params.delete(key);
+			});
+		}
+
 		personnaliser.href = url.toString();
 	}
 
+	/**
+	 * Keep the devis form on the same quantity the buyer just chose.
+	 *
+	 * "Demander un devis" is an in-page anchor, so nothing reloads and the
+	 * form's own fields were still holding whatever the server rendered on
+	 * load. A buyer who set 400 in the buy box, followed the CTA the threshold
+	 * had just made primary, and submitted, sent a request for ONE piece: the
+	 * exact buyers the threshold exists to route here were the ones it misled.
+	 */
+	function mirrorIntoQuoteForm(state) {
+		var form = document.querySelector('.ts-devis__form');
+		if (!form) return;
+
+		var qte = form.querySelector('input[name="qte"]');
+		if (qte) qte.value = String(state.mode === 'grid' ? state.gridTotal || 1 : state.typed);
+
+		var faces = form.querySelector('input[name="faces"]');
+		if (faces) faces.value = String(state.faces);
+
+		Array.prototype.forEach.call(form.querySelectorAll('input[name^="tailles"]'), function (el) {
+			el.parentNode.removeChild(el);
+		});
+		var sizes = state.mode === 'grid' ? state.sizes : state.size && state.qty > 1 ? mapOne(state) : {};
+		Object.keys(sizes).forEach(function (size) {
+			var input = document.createElement('input');
+			input.type = 'hidden';
+			input.name = 'tailles[' + size + ']';
+			input.value = String(sizes[size]);
+			form.appendChild(input);
+		});
+	}
+
+	function mapOne(state) {
+		var one = {};
+		one[state.size] = state.qty;
+		return one;
+	}
+
 	var inFlight = 0;
+	var overCapShown = false;
+
+	/** The estimator's state as a query string, for the one reload it can need. */
+	function buildQuery(state) {
+		var p = new URLSearchParams();
+		p.set('mode', state.mode);
+		p.set('faces', String(state.faces));
+		if (state.mode === 'grid') {
+			Object.keys(state.sizes).forEach(function (size) {
+				p.set('tailles[' + size + ']', String(state.sizes[size]));
+			});
+		} else {
+			p.set('qte', String(state.typed));
+			if (state.size) p.set('taille', state.size);
+		}
+		return '?' + p.toString();
+	}
 
 	function refresh() {
 		var state = readForm();
@@ -141,6 +233,25 @@
 			gridTotal.textContent = String(state.gridTotal);
 		}
 		updateStudioLink(state);
+		mirrorIntoQuoteForm(state);
+
+		if (cfg.maxQty && state.typed > cfg.maxQty) {
+			/*
+			 * Past the cap the page stops pricing rather than quietly reducing.
+			 *
+			 * Asking the server for a clamped quantity printed two numbers on
+			 * one screen: "Total 30 000 pièces" beside "10 000 pièces,
+			 * 94 200,00 EUR HT", for a run the cart refuses outright. Reload so
+			 * the server renders the honest state, once, rather than every
+			 * keystroke.
+			 */
+			if (!overCapShown) {
+				overCapShown = true;
+				window.location.assign(form.action + buildQuery(state));
+			}
+			return;
+		}
+		overCapShown = false;
 
 		// Built with URL, never by appending '?': with plain permalinks
 		// `restUrl` already carries one, and a second makes every quote 404.
@@ -170,11 +281,21 @@
 					return;
 				}
 				estimate.removeAttribute('data-busy');
-				// Say what happened and offer the way out, rather than leaving a
-				// stale total on screen pretending to be this quantity's.
-				if (out.unit) {
-					out.unit.textContent = cfg.i18n.failed;
-				}
+				/*
+				 * EVERY FIGURE GOES, not just the unit line.
+				 *
+				 * Writing the error into one paragraph and leaving the rest left
+				 * "1 pièce, 1 face imprimée / 14,50 EUR HT" on screen beside a
+				 * quantity field reading 300, and hid the quote-threshold notice
+				 * at whatever the server had decided on load. A stale total that
+				 * looks current is worse than no total.
+				 */
+				if (out.summary) out.summary.textContent = '';
+				if (out.totalHt) out.totalHt.textContent = '';
+				if (out.totalTtc) out.totalTtc.textContent = '';
+				if (out.discount) out.discount.textContent = '';
+				if (out.unit) out.unit.textContent = cfg.i18n.failed;
+				estimate.setAttribute('data-failed', '1');
 				if (recalc) {
 					recalc.hidden = false;
 				}
@@ -189,6 +310,8 @@
 	}
 
 	function paint(quote, state) {
+		estimate.removeAttribute('data-failed');
+		if (recalc) recalc.hidden = true;
 		if (out.summary) {
 			var faces = fill(quote.sides > 1 ? cfg.i18n.faces : cfg.i18n.face, [String(quote.sides)]);
 			out.summary.textContent = fill(quote.qty > 1 ? cfg.i18n.many : cfg.i18n.one, [
@@ -245,7 +368,10 @@
 		refresh();
 	});
 
-	// Paint once so the panes match the selected mode even before anyone types.
-	showPanes(readForm().mode);
-	updateStudioLink(readForm());
+	// Paint once so the panes match the selected mode even before anyone types,
+	// and so the devis form starts on the same quantity as the buy box.
+	var initial = readForm();
+	showPanes(initial.mode);
+	updateStudioLink(initial);
+	mirrorIntoQuoteForm(initial);
 })();

@@ -389,6 +389,22 @@ describe( 'Pricing — refuses rather than mangles', function () {
 	} );
 } );
 
+describe( 'Money: a number a French customer reads', function () {
+	it( 'groups thousands the French way, never the locale’s way', function () {
+		// number_format_i18n takes its separators from the WordPress locale, and
+		// a stock WordPress is en_US: it rendered 1250 as "1,250", which a French
+		// reader takes for one and a quarter. The page published that as the
+		// surcharge threshold in square centimetres.
+		eq( Money::number( 1250 ), "1\u{202F}250" );
+		eq( Money::number( 30.5, 1 ), '30,5' );
+		eq( Money::number( 0 ), '0' );
+	} );
+
+	it( 'writes money the same way, because it is the same rule', function () {
+		eq( Money::format( 123456 ), "1\u{202F}234,56\u{202F}€" );
+	} );
+} );
+
 describe( 'Pricing — the product-page grid', function () {
 	it( 'agrees cell for cell with the quote the cart will use', function () {
 		$config = ts_config();

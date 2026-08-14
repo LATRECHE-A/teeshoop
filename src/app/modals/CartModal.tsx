@@ -49,6 +49,10 @@ type Phase = 'measuring' | 'ready' | 'uploading' | 'adding' | 'done' | 'failed'
 /** The shop's own error codes, mapped to the sentence that explains them. */
 function cartErrorKey(reason: string): string {
   if (reason === 'teeshoop_bad_nonce') return 'cart.err.expired'
+  // The shop refuses a run past the self-serve threshold. Without this branch it
+  // fell through to "la boutique n'a pas ajouté l'article", a dead end that
+  // never mentioned the devis the message was written to point at.
+  if (reason === 'teeshoop_needs_quote') return 'cart.err.needs_quote'
   if (reason === 'timeout' || reason === 'network') return 'cart.err.timeout'
   // An add is still running, most likely because the modal was closed over one
   // and reopened. It has its own sentence because every other one here ends
@@ -89,7 +93,9 @@ export default function CartModal() {
     if (preset?.sizeGrid && Object.keys(preset.sizeGrid).length > 0) {
       return preset.sizeGrid as Partial<Record<SizeId, number>>
     }
-    if (preset?.qty && preset.qty > 1) return { [previewSize]: preset.qty }
+    // A bare quantity is deliberately NOT honoured. Seeding `{ previewSize: 40 }`
+    // from a count the buyer gave without a size assigns forty garments to
+    // whatever the 3D preview was last showing, and the workshop presses it.
     return { [previewSize]: 1 }
   })
 
@@ -100,6 +106,14 @@ export default function CartModal() {
   const qty = SIZE_IDS.reduce((n, s) => n + (grid[s] ?? 0), 0)
   const productGarment = context?.garment ?? ''
   const mismatch = productGarment !== '' && productGarment !== design.garmentId
+  /*
+   * The shop's verdict, read before anything is uploaded.
+   *
+   * Refusing here rather than at the add is the whole point: by the time
+   * `Cart::add` answers, the customer has already waited through a measure and
+   * an upload of their artwork, for an answer the quote in hand already knew.
+   */
+  const needsQuote = quote?.needs_quote === true
 
   const fail = (key: string, detail = ''): void => {
     setErrorKey(key)
@@ -278,6 +292,16 @@ export default function CartModal() {
             </p>
           )}
 
+          {needsQuote && (
+            <p
+              data-teeshoop="needs-quote"
+              className="flex gap-2 rounded-lg border border-yl/40 bg-yl/10 p-3 text-[12.5px] leading-relaxed text-tx"
+            >
+              <TriangleAlert size={15} className="mt-0.5 shrink-0 text-yl" />
+              {ct('cart.needs_quote')}
+            </p>
+          )}
+
           <section>
             <div className="panel-title mb-2">{ct('cart.sizes')}</div>
             <div className="grid grid-cols-3 gap-2">
@@ -401,7 +425,7 @@ export default function CartModal() {
             <button
               className="btn btn-primary h-11 w-full justify-center"
               data-teeshoop="add-to-cart"
-              disabled={busy || qty < 1 || mismatch || !sides || !quote}
+              disabled={busy || qty < 1 || mismatch || needsQuote || !sides || !quote}
               onClick={addToCart}
             >
               {busy ? (

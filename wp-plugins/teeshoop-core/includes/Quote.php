@@ -21,9 +21,9 @@
  *
  *   It lists « commercial et commission estimée » among the mandatory contents
  *   of a devis. Read literally that puts our commission on a document a customer
- *   receives, which is our cost structure. It is stored on the record and never
- *   rendered to a customer; scripts/php-guard.mjs enforces that no template can
- *   reach anything of the sort.
+ *   receives, which is our cost structure. Nothing here stores or renders one,
+ *   and scripts/php-guard.mjs now carries the words themselves as needles, so a
+ *   template that started to would fail the build rather than ship.
  *
  *   It gives no validity period for a quote, anywhere in eight documents, while
  *   listing « validité » as a mandatory field. In France a devis is a firm offer
@@ -70,6 +70,22 @@ final class Quote {
 	/** Submissions accepted from one address per hour. */
 	private const RATE_LIMIT = 5;
 
+	/**
+	 * How long a request is kept after the last exchange, in days.
+	 *
+	 * Three years is the CNIL's standard recommendation for prospect data, and
+	 * it is what the form tells the prospect. It is a NUMBER WITH A MECHANISM
+	 * behind it: `purge()` runs daily and deletes what is past it. A retention
+	 * period announced under a form and enforced by nothing is a statement to a
+	 * data subject that is not true, which is the part that matters.
+	 *
+	 * Question 40 of QUESTIONS-ASSOCIE.md asks the associate to confirm it.
+	 */
+	private const KEEP_DAYS = 1095;
+
+	/** The daily purge. */
+	private const CRON = 'teeshoop_purge_devis';
+
 	public static function init(): void {
 		add_action( 'init', array( self::class, 'register' ) );
 		add_action( 'admin_post_nopriv_' . self::ACTION, array( self::class, 'submit' ) );
@@ -79,6 +95,150 @@ final class Quote {
 		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
 		add_action( 'post_submitbox_misc_actions', array( self::class, 'status_control' ) );
 		add_action( 'save_post_' . self::POST_TYPE, array( self::class, 'save_status' ), 10, 2 );
+
+		/*
+		 * THE RETENTION IS A MECHANISM, NOT A SENTENCE.
+		 *
+		 * The form tells the prospect their details are erased three years after
+		 * the last exchange. Until this ran, nothing deleted anything: the
+		 * promise under the submit button was simply false, and an erasure
+		 * request through WordPress's own privacy tools would have reported that
+		 * we held nothing while thirteen meta rows sat on a post.
+		 */
+		add_action( self::CRON, array( self::class, 'purge' ) );
+		add_action( 'init', array( self::class, 'schedule' ) );
+		add_filter( 'wp_privacy_personal_data_exporters', array( self::class, 'register_exporter' ) );
+		add_filter( 'wp_privacy_personal_data_erasers', array( self::class, 'register_eraser' ) );
+	}
+
+	public static function schedule(): void {
+		if ( ! wp_next_scheduled( self::CRON ) ) {
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', self::CRON );
+		}
+	}
+
+	/**
+	 * Delete requests nobody has touched for the retention period.
+	 *
+	 * Keyed on `post_modified`, which is the last time anyone changed the state
+	 * or the notes, so "our last exchange" is what it measures. Bounded per run
+	 * because this is shared hosting and a cron that times out half way through
+	 * deletes half a batch and never records that it did.
+	 */
+	public static function purge(): void {
+		$cutoff = gmdate( 'Y-m-d H:i:s', time() - self::KEEP_DAYS * DAY_IN_SECONDS );
+
+		$stale = get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => array_keys( self::STATUSES ),
+				'posts_per_page' => 200,
+				'fields'         => 'ids',
+				'date_query'     => array(
+					array(
+						'column' => 'post_modified_gmt',
+						'before' => $cutoff,
+					),
+				),
+			)
+		);
+
+		foreach ( $stale as $id ) {
+			wp_delete_post( (int) $id, true );
+		}
+	}
+
+	/** WordPress's own export tool must find these rows. */
+	public static function register_exporter( array $exporters ): array {
+		$exporters['teeshoop-devis'] = array(
+			'exporter_friendly_name' => __( 'Demandes de devis Teeshoop', 'teeshoop' ),
+			'callback'               => array( self::class, 'export_personal_data' ),
+		);
+		return $exporters;
+	}
+
+	/** And its erase tool must actually erase them. */
+	public static function register_eraser( array $erasers ): array {
+		$erasers['teeshoop-devis'] = array(
+			'eraser_friendly_name' => __( 'Demandes de devis Teeshoop', 'teeshoop' ),
+			'callback'             => array( self::class, 'erase_personal_data' ),
+		);
+		return $erasers;
+	}
+
+	/** @return array<string,mixed> */
+	private static function by_email( string $email, int $page ): array {
+		return get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => array_keys( self::STATUSES ),
+				'posts_per_page' => 20,
+				'paged'          => max( 1, $page ),
+				'fields'         => 'ids',
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- a privacy request, run by hand, not on a page load.
+				'meta_query'     => array(
+					array(
+						'key'   => '_ts_email',
+						'value' => $email,
+					),
+				),
+			)
+		);
+	}
+
+	public static function export_personal_data( string $email, int $page = 1 ): array {
+		$fields = array(
+			'_ts_societe'   => __( 'Société', 'teeshoop' ),
+			'_ts_contact'   => __( 'Contact', 'teeshoop' ),
+			'_ts_email'     => __( 'E-mail', 'teeshoop' ),
+			'_ts_telephone' => __( 'Téléphone', 'teeshoop' ),
+			'_ts_siret'     => __( 'SIRET', 'teeshoop' ),
+			'_ts_message'   => __( 'Message', 'teeshoop' ),
+			'_ts_echeance'  => __( 'Échéance souhaitée', 'teeshoop' ),
+		);
+
+		$ids  = self::by_email( $email, $page );
+		$data = array();
+
+		foreach ( $ids as $id ) {
+			$rows = array();
+			foreach ( $fields as $key => $label ) {
+				$value = (string) get_post_meta( (int) $id, $key, true );
+				if ( '' !== $value ) {
+					$rows[] = array(
+						'name'  => $label,
+						'value' => $value,
+					);
+				}
+			}
+			$data[] = array(
+				'group_id'    => 'teeshoop-devis',
+				'group_label' => __( 'Demandes de devis', 'teeshoop' ),
+				'item_id'     => 'devis-' . (int) $id,
+				'data'        => $rows,
+			);
+		}
+
+		return array(
+			'data' => $data,
+			'done' => count( $ids ) < 20,
+		);
+	}
+
+	public static function erase_personal_data( string $email, int $page = 1 ): array {
+		$ids = self::by_email( $email, $page );
+		foreach ( $ids as $id ) {
+			// Deleted outright, not anonymised. A quote request that never became
+			// an order carries no fiscal obligation to keep it, so there is
+			// nothing to weigh against the erasure.
+			wp_delete_post( (int) $id, true );
+		}
+		return array(
+			'items_removed'  => count( $ids ) > 0,
+			'items_retained' => false,
+			'messages'       => array(),
+			'done'           => count( $ids ) < 20,
+		);
 	}
 
 	public static function register(): void {
@@ -226,27 +386,37 @@ final class Quote {
 		// that fills every input gives itself away and a screen reader is told
 		// to leave it alone.
 		if ( '' !== trim( (string) ( $post['site_web'] ?? '' ) ) ) {
-			self::back( $back, 'erreur', 'robot' );
+			self::back( $back, 'erreur', 'robot', $post );
 		}
 
 		$stamp = self::check_stamp( (string) ( $post['stamp'] ?? '' ) );
 		if ( ! $stamp['ok'] ) {
-			self::back( $back, 'erreur', $stamp['reason'] );
-		}
-
-		if ( self::rate_limited() ) {
-			self::back( $back, 'erreur', 'trop_de_demandes' );
+			self::back( $back, 'erreur', $stamp['reason'], $post );
 		}
 
 		$email = sanitize_email( (string) ( $post['email'] ?? '' ) );
-		if ( ! is_email( $email ) ) {
-			self::back( $back, 'erreur', 'email' );
-		}
-
 		$contact = self::text( $post['contact'] ?? '', 120 );
 		$company = self::text( $post['societe'] ?? '', 160 );
+
+		/*
+		 * VALIDATION FIRST, THE COUNTER SECOND.
+		 *
+		 * The rate limiter used to run before the e-mail was checked, so five
+		 * typos spent the hour's whole allowance and locked the buyer out. And
+		 * `<input type="email">` accepts `contact@mairie` while `is_email` does
+		 * not, so a real French address without a dot in the domain is a typo
+		 * the browser waves through. A limiter is there to stop a flood, not to
+		 * punish somebody who cannot get past our own form.
+		 */
+		if ( ! is_email( $email ) ) {
+			self::back( $back, 'erreur', 'email', $post );
+		}
 		if ( '' === $contact ) {
-			self::back( $back, 'erreur', 'contact' );
+			self::back( $back, 'erreur', 'contact', $post );
+		}
+
+		if ( self::rate_limited() ) {
+			self::back( $back, 'erreur', 'trop_de_demandes', $post );
 		}
 
 		$garment = Product::garment_of( $product_id );
@@ -278,12 +448,22 @@ final class Quote {
 		 * else, and never from anything the form posted.
 		 */
 		$estimate_ht = 0;
-		if ( '' !== $garment ) {
+		/*
+		 * NOTHING IS STORED FOR A RUN THE PUBLIC GRID DOES NOT COVER.
+		 *
+		 * The figure used to be computed at `min( $qty, max_qty )` and stored
+		 * beside the real quantity, so a request for 30 000 pieces carried
+		 * "94 200,00 EUR HT", which is the total for ten thousand: an operator
+		 * reading the list saw a per-piece rate three times too low, on the
+		 * screen built to save them from starting at zero. A blank with a reason
+		 * is worth more than a number that means something else.
+		 */
+		if ( '' !== $garment && $qty <= (int) $config['max_qty'] ) {
 			try {
 				$quote       = Pricing::quote(
 					array(
 						'garment' => $garment,
-						'qty'     => min( $qty, (int) $config['max_qty'] ),
+						'qty'     => $qty,
 						'sides'   => Pricing::standard_sides( $faces ),
 					),
 					$config
@@ -304,7 +484,7 @@ final class Quote {
 		);
 
 		if ( is_wp_error( $post_id ) ) {
-			self::back( $back, 'erreur', 'enregistrement' );
+			self::back( $back, 'erreur', 'enregistrement', $post );
 		}
 
 		$meta = array(
@@ -360,13 +540,60 @@ final class Quote {
 	 * resubmit dialog on refresh, and a duplicate request is a second person
 	 * chasing the same job.
 	 */
-	private static function back( string $url, string $result, string $reason ): void {
+	private static function back( string $url, string $result, string $reason, array $sent = array() ): void {
 		$args = array( 'devis' => $result );
 		if ( '' !== $reason ) {
 			$args['raison'] = $reason;
 		}
+
+		/*
+		 * WHAT THEY TYPED COMES BACK WITH THEM.
+		 *
+		 * Every failure path used to redirect to an empty form, so a stale
+		 * stamp, a mistyped address or one request too many destroyed a
+		 * four-thousand-character project brief. People do not retype that; they
+		 * leave. The payload is stashed in a short transient rather than put on
+		 * the URL, because a URL carrying a name and a phone number ends up in
+		 * a browser history, a proxy log and an analytics referrer.
+		 */
+		if ( ! empty( $sent ) ) {
+			$token = wp_generate_password( 20, false, false );
+			set_transient(
+				'ts_devis_back_' . $token,
+				array(
+					'contact'   => self::text( $sent['contact'] ?? '', 120 ),
+					'societe'   => self::text( $sent['societe'] ?? '', 160 ),
+					'email'     => sanitize_text_field( (string) ( $sent['email'] ?? '' ) ),
+					'telephone' => self::text( $sent['telephone'] ?? '', 40 ),
+					'siret'     => self::text( $sent['siret'] ?? '', 20 ),
+					'qte'       => (int) ( $sent['qte'] ?? 1 ),
+					'echeance'  => self::date( (string) ( $sent['echeance'] ?? '' ) ),
+					'message'   => self::text( $sent['message'] ?? '', 4000 ),
+				),
+				30 * MINUTE_IN_SECONDS
+			);
+			$args['reprise'] = $token;
+		}
+
 		wp_safe_redirect( add_query_arg( $args, $url ) . '#teeshoop-devis' );
 		exit;
+	}
+
+	/**
+	 * The values to put back in the form after a refused submission.
+	 *
+	 * Read once and deleted, so a token in a shared browser history cannot be
+	 * replayed to read somebody else's contact details back out.
+	 */
+	public static function resume(): array {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading our own one-shot token.
+		$token = isset( $_GET['reprise'] ) ? sanitize_key( wp_unslash( (string) $_GET['reprise'] ) ) : '';
+		if ( '' === $token ) {
+			return array();
+		}
+		$stored = get_transient( 'ts_devis_back_' . $token );
+		delete_transient( 'ts_devis_back_' . $token );
+		return is_array( $stored ) ? $stored : array();
 	}
 
 	/** Where the shop is told. Falls back to the site admin, never to nowhere. */
@@ -393,7 +620,9 @@ final class Quote {
 			sprintf( __( 'Téléphone : %s', 'teeshoop' ), '' !== $meta['_ts_telephone'] ? $meta['_ts_telephone'] : __( 'non renseigné', 'teeshoop' ) ),
 			sprintf( __( 'Quantité : %d', 'teeshoop' ), $meta['_ts_qty'] ),
 			sprintf( __( 'Faces imprimées : %d', 'teeshoop' ), $meta['_ts_faces'] ),
-			sprintf( __( 'Estimation libre-service : %s HT', 'teeshoop' ), Money::format( (int) $meta['_ts_estimate_ht'] ) ),
+			(int) $meta['_ts_estimate_ht'] > 0
+				? sprintf( __( 'Estimation libre-service : %s HT', 'teeshoop' ), Money::format( (int) $meta['_ts_estimate_ht'] ) )
+				: __( 'Estimation libre-service : aucune, la quantité dépasse la grille publique', 'teeshoop' ),
 			'',
 			$edit,
 		);
@@ -459,10 +688,15 @@ final class Quote {
 				);
 				break;
 			case 'ts_qty':
-				echo esc_html( number_format_i18n( (int) get_post_meta( $post_id, '_ts_qty', true ) ) );
+				echo esc_html( Money::number( (float) get_post_meta( $post_id, '_ts_qty', true ) ) );
 				break;
 			case 'ts_estimate':
-				echo esc_html( Money::format( (int) get_post_meta( $post_id, '_ts_estimate_ht', true ) ) );
+				$estimate = (int) get_post_meta( $post_id, '_ts_estimate_ht', true );
+				echo esc_html(
+					$estimate > 0
+						? Money::format( $estimate )
+						: __( 'hors grille publique', 'teeshoop' )
+				);
 				break;
 		}
 	}
@@ -486,7 +720,7 @@ final class Quote {
 			__( 'E-mail', 'teeshoop' )      => (string) get_post_meta( $post->ID, '_ts_email', true ),
 			__( 'Téléphone', 'teeshoop' )   => (string) get_post_meta( $post->ID, '_ts_telephone', true ),
 			__( 'SIRET', 'teeshoop' )       => (string) get_post_meta( $post->ID, '_ts_siret', true ),
-			__( 'Quantité', 'teeshoop' )    => number_format_i18n( (int) get_post_meta( $post->ID, '_ts_qty', true ) ),
+			__( 'Quantité', 'teeshoop' )    => Money::number( (float) get_post_meta( $post->ID, '_ts_qty', true ) ),
 			__( 'Faces', 'teeshoop' )       => (string) (int) get_post_meta( $post->ID, '_ts_faces', true ),
 			__( 'Tailles', 'teeshoop' )     => is_array( $grid ) && ! empty( $grid )
 				? implode( ' · ', array_map( static fn( $n, $s ): string => $n . ' × ' . $s, $grid, array_keys( $grid ) ) )
@@ -516,7 +750,11 @@ final class Quote {
 		printf(
 			'<tr><th>%s</th><td>%s</td></tr>',
 			esc_html__( 'Estimation libre-service', 'teeshoop' ),
-			esc_html( Money::format( $estimate ) . ' HT' )
+			esc_html(
+				$estimate > 0
+					? Money::format( $estimate ) . ' HT'
+					: __( 'aucune : cette quantité dépasse la grille publique', 'teeshoop' )
+			)
 		);
 		echo '</tbody></table>';
 

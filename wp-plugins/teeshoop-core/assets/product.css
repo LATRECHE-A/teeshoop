@@ -227,10 +227,51 @@
 	font-size: 0.8125rem;
 }
 
+.ts-qty__row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: end;
+}
+
+.ts-qty__field {
+	flex: 1 1 7rem;
+	min-width: 0;
+}
+
 .ts-buy input[type='number'].ts-qty__input {
-	width: 7rem;
+	width: 100%;
 	padding: 0.5rem 0.625rem;
 	font-size: 1rem;
+}
+
+.ts-qty__select {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 0.5rem 0.625rem;
+	border: 1px solid var(--ts-line);
+	border-radius: 3px;
+	background: #fff;
+	color: var(--ts-ink);
+	font: inherit;
+	/* 16 px for the same reason as the size boxes: below it, iOS zooms. */
+	font-size: 1rem;
+}
+
+.ts-qty__select:focus-visible {
+	outline: 2px solid var(--ts-accent);
+	outline-offset: 1px;
+}
+
+.ts-table__quote {
+	color: var(--ts-accent);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.ts-estimate[data-failed='1'] .ts-estimate__unit {
+	color: var(--ts-bad);
 }
 
 .ts-sizes__grid {
@@ -261,6 +302,13 @@
 	border: 0;
 	background: transparent;
 	text-align: right;
+	/*
+	 * 16 px, not 15. Mobile Safari zooms the whole viewport when a focused input
+	 * computes below 16 px, so tapping each of the six size boxes in turn
+	 * re-zoomed the page six times. The cell's width comes from the grid, so
+	 * nothing is lost by keeping the type at the base size.
+	 */
+	font-size: 1rem;
 	/*
 	 * No native spinner. In a cell about 100 px wide it sits on top of the
 	 * figure: at 375 px "10" rendered as "1C". Arrow keys still step the value,
@@ -673,6 +721,12 @@
 
 	.ts-actions {
 		flex-direction: row;
+		/*
+		 * The notice asks for a full row, and without `wrap` it never gets one:
+		 * the three items shared the line, and inside the theme's summary column
+		 * at a 900 px viewport that left the notice 87 px wide.
+		 */
+		flex-wrap: wrap;
 	}
 
 	.ts-actions__quote {
