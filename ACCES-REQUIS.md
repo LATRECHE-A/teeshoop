@@ -17,14 +17,23 @@
 | Falk & Ross (API web service) | ✅ en place | Catalogue, stock, prix d'achat |
 | `ADMIN_TOKEN` sur le Worker | ✅ posé le 12/08 | La console atelier |
 | SSH o2switch | ✅ **posé et vérifié le 14/08** | Tout le travail WordPress |
-| **cPanel o2switch** | ❌ **manquant** | La préproduction, le cron, Redis |
+| Préproduction (WP Tiger) | ✅ **créée et vérifiée le 14/08** | Tester sans toucher la boutique |
+| cPanel o2switch (interface web) | ✅ sans objet, voir §2 | Rien qui ne passe déjà par SSH |
 | Compte admin WordPress | ✅ confirmé le 14/08 (`LTHAbdou`, ID 30) | Réglages Woo, pages, extensions |
 | Clés API WooCommerce | ✅ **posées et vérifiées le 14/08** | Produits, commandes par script |
 
-**Il ne manque plus que cPanel.** Sept lignes sur huit sont en place. Celle qui reste
-est aussi celle qui commande la suite : la préproduction ne se crée que là, et tant
-qu'elle n'existe pas, **rien ne doit être déployé sur teeshoop.com**. La boutique a
-déjà 15 commandes et encaisse.
+**Plus rien ne manque.** Au 14 août 2026, tous les accès nécessaires au développement
+et au déploiement sont en place et ont été **essayés, pas supposés** : chaque ligne
+verte ci-dessus correspond à une commande réellement passée contre le vrai serveur,
+consignée dans les sections qui suivent.
+
+Ce qui reste à obtenir n'est plus un accès mais **des réponses** : celles de l'associé
+dans [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md), dont la TVA (constat 6), qui est
+légale et bloquante. Et les clés Stripe de test, quand R1 touchera au paiement (§7).
+
+Le gel du déploiement, lui, tient toujours, mais il change de nature : ce n'est plus
+un manque d'accès, c'est une méthode. **On travaille en préproduction, on sauvegarde,
+puis on déploie.** La boutique a 15 commandes et encaisse.
 
 Le compte admin WordPress n'a jamais manqué en réalité : `LTHAbdou` est administrateur
 depuis le 22/07, ce qui est démontré par le fait que la clé API du 14/08 a été créée
@@ -119,22 +128,94 @@ Une clé séparée par destination, volontairement : celle-ci se révoque sans t
 
 ---
 
-## 2. cPanel : le seul accès qui manque encore
+## 2. cPanel : demande annulée, SSH suffit
 
-Quatre choses ne se font que là (le point 4 est à moitié réglé : Redis et memcached
-tournent déjà sur le compte, relancés par cron ; il reste à y brancher WordPress) :
+Cette section réclamait un accès à l'interface cPanel pour quatre opérations.
+Vérification faite le 14/08 sur le serveur, **les quatre passent par SSH**. La demande
+est donc retirée : un identifiant de moins à faire circuler et à révoquer un jour.
 
-1. **Créer la préproduction** — *WP Tiger → Préproduction*. On ne développe jamais
-   sur la boutique en production, surtout une fois qu'elle encaisse.
-2. **Figer la version de PHP** — o2switch prévient que la version par défaut peut
-   changer d'elle-même. Une mise à jour de PHP non choisie casse WooCommerce un
-   matin sans que personne n'ait rien fait.
-3. **Vrai cron serveur** à la place de WP-Cron. WP-Cron ne se déclenche que si
-   quelqu'un visite le site : sur une boutique calme, les tâches planifiées
-   (synchronisation catalogue, relances) ne partent tout simplement pas.
-4. **Redis** pour le cache objet.
+| Ce qu'il fallait faire | Par où ça passe réellement |
+|---|---|
+| 1. Créer la préproduction | faite le 13/08 par le développeur, voir §2 bis |
+| 2. Figer la version de PHP | `selectorctl` et `cloudlinux-selector`, tous deux présents |
+| 3. Vrai cron serveur | `crontab` accessible en écriture (4 lignes aujourd'hui) |
+| 4. Redis pour le cache objet | socket déjà là : `~/.cpanel/redis/redis.sock` |
 
-Un compte cPanel partagé convient ici, ces opérations sont ponctuelles.
+Redis et memcached **tournent déjà**, relancés par le cron du compte. Il manque
+seulement le fichier `object-cache.php` dans `wp-content` pour que WordPress s'en
+serve : c'est du travail, pas un accès.
+
+Plus large : la commande **`uapi` est disponible en SSH**, donc toute l'API cPanel du
+compte l'est aussi. Vérifié en lecture (`DomainInfo list_domains`, `DNS parse_zone`).
+C'est ce qui permettra de créer `studio.teeshoop.com` le moment venu, sans interface :
+
+```
+uapi SubDomain addsubdomain domain=studio rootdomain=teeshoop.com dir=...
+```
+
+Pour mémoire, l'état DNS constaté : `teeshoop.com` est un **domaine additionnel**, les
+serveurs de noms sont `ns1/ns2.o2switch.net`, aucun sous-domaine n'existe, et
+`studio.teeshoop.com` ne résout pas encore (NXDOMAIN).
+
+---
+
+## 2 bis. Préproduction WP Tiger : en place et vérifiée le 14/08/2026
+
+| | |
+|---|---|
+| Adresse | `https://4bde-26076daa9357.wptiger.fr` |
+| Chemin | `~/myTiger-Preprod/4bde-26076daa9357.wptiger.fr` |
+| Protection | HTTP Basic, identifiant `wptiger` |
+| Mot de passe | dans `~/.config/teeshoop/woo.env`, hors dépôt, en 600 |
+
+**La protection a été éprouvée, y compris en la faisant échouer** (c'est la seule façon
+de savoir qu'une porte est fermée) :
+
+| Test | Résultat |
+|---|---|
+| Sans identifiants : `/`, `/wp-admin/`, `/wp-login.php` | 401 |
+| Sans identifiants : `/wp-json/wp/v2/posts`, `/wp-json/wc/v3/orders` | 401 |
+| Sans identifiants : `/wp-content/uploads/`, `/xmlrpc.php`, `/panier/` | 401 |
+| Avec identifiants : `/`, `/boutique/`, `/wp-json/wp/v2/types` | 200 |
+| Avec un **mauvais** mot de passe | 401 |
+
+Capacités vérifiées en ligne de commande sur la préproduction : écriture puis
+suppression d'une option, `wp db export` (35 Mo produits, relus, supprimés), contrôle
+des extensions. Autrement dit : de quoi tester une migration et revenir en arrière.
+
+### L'isolation a été prouvée par l'expérience, pas lue dans un fichier
+
+Une préproduction qui partagerait la base de la production transformerait chaque test
+en modification de la vraie boutique. Les deux bases portent le même préfixe de tables
+(`wp68_`), ce qui est normal pour un clone et ne prouve rien. Donc, en plus de comparer
+les deux `DB_NAME` (différents), une option a été écrite en préproduction puis
+recherchée en production : **absente**. L'option a ensuite été supprimée.
+
+### Deux réserves sur cette préproduction
+
+1. **Elle est en retard sur la production.** Son WooCommerce est resté en **10.9.4**
+   alors que la boutique est passée en 11.0.1 le 14/08 à 10 h 46. Tester une migration
+   sur une copie plus ancienne que l'original ne prouve pas grand-chose : **resynchroniser
+   depuis WP Tiger avant de s'en servir**.
+2. **Elle contient les données personnelles de vrais clients.** C'est une copie
+   intégrale : 15 commandes, donc des noms, adresses, téléphones et e-mails réels,
+   dans un second emplacement, derrière un simple mot de passe HTTP. Au sens du RGPD
+   c'est un traitement de plus, et le principe de minimisation s'applique. À terme il
+   faut **anonymiser la préproduction** après chaque synchronisation (un script
+   `wp db query` qui remplace noms, e-mails, adresses et téléphones par des valeurs
+   fictives). Tant que ce n'est pas fait, la préproduction se traite comme la
+   production : pas de partage d'accès, pas de capture d'écran de commande.
+
+### Corrigé le 14/08
+
+`blog_public` valait **1** : la préproduction s'annonçait indexable. Le mot de passe
+HTTP la protège aujourd'hui (les robots reçoivent 401), mais le jour où quelqu'un le
+retire, une copie complète de la boutique devient indexable, avec le contenu dupliqué
+et les commandes derrière. Passé à **0**, vérifié dans le HTML réellement servi :
+
+```html
+<meta name='robots' content='noindex, nofollow' />
+```
 
 ---
 
@@ -301,11 +382,16 @@ Pour situer ce qui est réellement bloqué et ce qui ne l'est pas :
 | **Plugin `teeshoop-core` en PHP** | non — développé et testé sur WordPress local |
 | Moteur de prix PHP + ses tests | non |
 | Pont `postMessage` studio ↔ WooCommerce | non |
-| Déployer sur teeshoop.com | techniquement non (SSH est là), **mais pas avant la préproduction** |
-| Créer la préproduction | **oui : cPanel** |
+| Déployer sur teeshoop.com | non (SSH) |
+| Tester en préproduction | non (§2 bis) |
 | Supprimer les produits de démo | non (SSH ou clés Woo) |
 | Créer les produits de R1 | non (clés Woo, vérifiées en écriture le 14/08) |
+| Créer `studio.teeshoop.com` | non (`uapi SubDomain`, voir §2) |
+| Figer PHP, poser le cron serveur, brancher Redis | non (SSH, voir §2) |
+| Encaisser un paiement de test | **oui : clés Stripe de test** (R1, §7) |
+| Trancher la TVA, les CGV, les prix | **oui : réponses de l'associé** |
 
-Autrement dit : depuis le 14/08, plus rien n'est bloqué côté outil. Le seul verrou
-qui reste est délibéré : **on ne touche pas une boutique qui a 15 commandes sans
-préproduction ni sauvegarde**. C'est cPanel qui débloque ça.
+Autrement dit : au 14/08, **aucun travail technique n'est bloqué par un accès**. Ce
+qui bloque encore est d'une autre nature : des décisions qui appartiennent à
+l'associé, et une méthode que l'on s'impose (préproduction, sauvegarde, puis
+déploiement) parce que la boutique encaisse déjà.
