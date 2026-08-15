@@ -55,7 +55,9 @@
  *      remains is `get_variation_prices()`, which walks every child to build the
  *      "from" range and caches the result in a transient keyed by the product.
  *      MEASURED on the imported catalogue, that walk is 464 ms cold on the
- *      366-variation product and 754 ms on the slowest of the five heaviest,
+ *      366-variation product (456 ms when re-measured after a full re-import:
+ *      a cold cache is a noisy thing, and both runs are recorded rather than
+ *      the flattering one) and 754 ms on the slowest of the five heaviest,
  *      against 0,3 ms warm. Not the four seconds the brief feared, and it is a
  *      COLD cost, once per product per price change: `Importer` warms both
  *      cache variants at the end of every style it writes, so it lands on the

@@ -125,7 +125,7 @@ le catalogue est consultable sans être commandable.
 
 **L'outillage.** Un miroir local de la production (WordPress 7.0.4 + WooCommerce 11.0.1 en
 docker, **versions épinglées** sur celles réellement mesurées sur le serveur) que l'on peut désormais **reconstruire depuis le dépôt** (`wp teeshoop
-provisionner`), 143 tests JavaScript, 102 tests PHP purs, 17 tests d'intégration WooCommerce,
+provisionner`), 147 tests JavaScript, 104 tests PHP purs, 17 tests d'intégration WooCommerce,
 une vérification de bout en bout du parcours d'achat à 40 assertions, un garde-fou qui
 interdit à un prix d'achat, un nom de fournisseur ou un tarif film d'atteindre un gabarit
 PHP, et des scripts de vérification qui font tourner le vrai code dans un vrai navigateur.

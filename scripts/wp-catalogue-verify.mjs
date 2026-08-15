@@ -118,14 +118,16 @@ let phpSeq = 0
  * publish the sealed article number; the moment the reference changed, every
  * lookup returned 0 and the gate asserted against product 0 instead of failing.
  * `_teeshoop_ref` is the identity and does not move.
+ *
+ * It CALLS the shipped lookup rather than repeating its query. The replacement
+ * for that broken SKU call was a hand-written get_posts() here, which is a
+ * second implementation of "which product is this reference", and the whole
+ * failure above was the first and second implementations disagreeing. If
+ * Importer::find ever stops working, this gate has to go down with it.
  */
 const TS_HELPER = `
 function ts_product( $ref ) {
-  $found = get_posts( array(
-    'post_type' => 'product', 'post_status' => 'any', 'numberposts' => 1, 'fields' => 'ids',
-    'meta_key' => '_teeshoop_ref', 'meta_value' => $ref, 'no_found_rows' => true,
-  ) );
-  return empty( $found ) ? 0 : (int) $found[0];
+  return \\Teeshoop\\Core\\Importer::find( (string) $ref );
 }
 `
 function php(code) {
@@ -469,6 +471,32 @@ async function main() {
   const rendered = [...needles, money]
   const sniff = (haystack, set = needles) => set.filter((n) => haystack.includes(n))
 
+  /*
+   * AND THE STYLE NUMBER AS THE SUPPLIER ITSELF PUNCTUATES IT, which is the
+   * same miss again, one layer down.
+   *
+   * The paragraph above was written after learning that `001420000` is not a
+   * substring of `00142-000-XS`. It then searched for the bare `18009` on a
+   * shop whose every product page carried
+   * `wp-content/uploads/2026/08/180_09_344_m-2023_01.jpg`: the supplier's own
+   * file name, style 18009 and colour 344, with an underscore in the middle.
+   * 736 of 737 attachments were named that way and the check stayed green
+   * because a needle that is one punctuation mark away from the value is not
+   * a needle. Any format the number is written in has to be in this set.
+   */
+  const punctuated = supplierKeys.filter((r) => /^\d{5}$/.test(r)).map((r) => `${r.slice(0, 3)}_${r.slice(3)}`)
+  const sniffFiles = (haystack) => punctuated.filter((n) => haystack.includes(n))
+  /*
+   * The shape is assumed, so it is asserted. This needle set is built by
+   * slicing a five-digit reference in two, and if the supplier ever publishes
+   * a reference of another length every needle below becomes a string that
+   * occurs nowhere, and three checks go green having searched for nothing.
+   */
+  ok('the file-name needles were actually built',
+    punctuated.length > 0 && punctuated.length === supplierKeys.length &&
+      punctuated.every((n) => /^\d{3}_\d{2}$/.test(n)),
+    `${punctuated.length} of ${supplierKeys.length} references, e.g. ${punctuated[0]}`)
+
   const permalink = php(`echo get_permalink( ts_product( '${sample.ref}' ) );`)
   const pageHtml = await (await fetch(permalink)).text()
   ok('the rendered product page carries no purchase price', sniff(pageHtml, rendered).length === 0,
@@ -477,6 +505,108 @@ async function main() {
   const storeApi = await (await fetch(`${SHOP}/wp-json/wc/store/v1/products?per_page=20`)).text()
   ok('the public store api carries no purchase price', sniff(storeApi, rendered).length === 0,
     sniff(storeApi, rendered).join(' ') || `${storeApi.length} bytes`)
+
+  /*
+   * THE MEDIA LIBRARY IS A CUSTOMER SURFACE, and it is the one the seal on
+   * `_teeshoop_supply_sku` cannot reach.
+   *
+   * A mirrored photograph is a file under wp-content/uploads with a public
+   * URL, printed in the <img src> of every product page. Sideloaded under the
+   * supplier's own name it publishes the style and the colour code, which is
+   * the article number bar one digit, to anybody who views source. The
+   * importer renames what it downloads (Importer::images explains why), so
+   * this asserts the result rather than the intention: the intention was
+   * already correct while 736 rows downloaded before it said otherwise sat
+   * there being served.
+   */
+  const named = phpJson(
+    `global $wpdb;
+     $sql  = "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='attachment'
+              AND guid REGEXP '[0-9]{3}_[0-9]{2}_[0-9]{3}'";
+     $live = (int) $wpdb->get_var( $sql );
+     // Plant one, for the same reason as above: this query returned 0 for
+     // three sessions because it did not exist, which reads identically to a
+     // clean shop in a transcript.
+     $id = wp_insert_post( array(
+       'post_type'   => 'attachment',
+       'post_status' => 'inherit',
+       'post_title'  => 'ts-verify plant',
+       'guid'        => 'http://localhost:8080/wp-content/uploads/2026/08/180_09_344_m-2023_01.jpg',
+     ) );
+     $caught = (int) $wpdb->get_var( $sql ) - $live;
+     wp_delete_post( (int) $id, true );
+     $after = (int) $wpdb->get_var( $sql );
+     echo wp_json_encode( array( 'live' => $live, 'caught' => $caught, 'after' => $after ) );`,
+  )
+  ok('no mirrored photograph is named the way the supplier names it', named.live === 0,
+    `${named.live} attachment(s)`)
+  ok('and that check can actually find one', named.caught === 1 && named.after === 0,
+    `planted 1, found ${named.caught}, cleaned back to ${named.after}`)
+
+  /*
+   * THE ONE DOOR LEFT OPEN, PINNED TO ITS EXACT SIZE.
+   *
+   * The 4 241 per-colour photographs are proxied and not mirrored (the
+   * arithmetic is in Catalogue.php), so their URL still carries the
+   * supplier's file name: /media/blank/picture/001_42_000_f-2020_01.jpg on a
+   * variation payload. Closing that costs either 650 Mo of disk, or a keyed
+   * alias and a new Worker secret, or the colour swap itself; the options and
+   * their measured costs are in docs/CATALOGUE.md and the choice is the
+   * associate's.
+   *
+   * What is NOT acceptable is that door widening without anybody noticing. So
+   * the check is not "ignore this pattern": it is that every occurrence on a
+   * customer surface sits inside a /media/blank/ URL. A style number printed
+   * anywhere else, by any future template, fails here.
+   */
+  /*
+   * NORMALISED FIRST, or this reports a leak on every legitimate URL.
+   *
+   * The variation payload reaches the browser twice over: as JSON, where
+   * wp_json_encode escapes every forward slash (`\/media\/blank\/`), and
+   * inside an HTML attribute, where the quotes around it are `&quot;`. Both
+   * spellings are the same URL to a reader and to a browser, and neither
+   * contains the literal '/media/blank/' this looks for. Searching the raw
+   * bytes would have failed the whole gate on a correct shop, which is the
+   * fastest way to get a security check deleted for being flaky.
+   */
+  const flatten = (s) => s.replace(/\\\//g, '/').replace(/&quot;/g, '"')
+  const stray = (raw) => {
+    const html = flatten(raw)
+    return punctuated.filter((n) => {
+      let at = html.indexOf(n)
+      while (at !== -1) {
+        // The URL that is allowed to carry it. 60 characters back is longer
+        // than '/media/blank/picture/' by a wide margin and stops at the
+        // preceding quote, so this cannot be satisfied by a mention elsewhere
+        // in the same document.
+        const before = html.slice(Math.max(0, at - 60), at)
+        const quoted = before.lastIndexOf('"') > before.lastIndexOf('/media/blank/')
+        if (quoted || !before.includes('/media/blank/')) return true
+        at = html.indexOf(n, at + 1)
+      }
+      return false
+    })
+  }
+  ok('the supplier file naming appears only inside the proxied photo urls',
+    stray(pageHtml).length === 0 && stray(storeApi).length === 0,
+    stray(pageHtml).concat(stray(storeApi)).join(' ') ||
+      `${sniffFiles(pageHtml).length} in-url on the page, ${sniffFiles(storeApi).length} in the store api`)
+
+  /*
+   * That check is a string search with an exception in it, which is the shape
+   * that is easiest to write inside out. Both directions are proved here on
+   * synthetic documents rather than by mangling the shop: the exception must
+   * hold for the URL it was written for, and must not hold one character
+   * outside it.
+   */
+  const one = punctuated[0]
+  // Both spellings of the allowed URL, because both are what the shop emits.
+  const allowed = `<img src="${SHOP}/media/blank/picture/${one}_344_m-2023_01.jpg">` +
+    `{"src":"${SHOP.replace(/\//g, '\\/')}\\/media\\/blank\\/picture\\/${one}_344_m.jpg"}`
+  const escaped = `<p>Notre référence fournisseur ${one} est en rupture.</p>`
+  ok('and that exception is exactly the width of the url', stray(allowed).length === 0 && stray(escaped).length === 1,
+    `in-url ${stray(allowed).length} (want 0), in prose ${stray(escaped).length} (want 1)`)
 
   const restCheck = () =>
     php(

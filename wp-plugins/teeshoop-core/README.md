@@ -48,9 +48,18 @@ includes/
   ProductPage.php     the fiche produit: hooks, blocks and the add-to-cart lock
   Compat.php          the pinned WooCommerce surface, and the loud failure
   Quote.php           the devis: a record with a state
+  Catalogue.php       supplier style -> WooCommerce product. Pure. Argues the
+                      mapping, the 366-variation trade-off and the image cost
+  Supply.php          the HTTP client to our own Worker. The only file allowed
+                      to name a supplier route, and it fails closed
+  Importer.php        the idempotent, resumable, lockable import pass
+  Taxonomy.php        pa_couleur and pa_taille, and the size ordering Woo needs
+  Shelf.php           what an imported reference does once published: the seal
+                      on the purchase price, and the colour photo swap
   Rest.php            /wp-json/teeshoop/v1/*
   Shortcode.php       [teeshoop_studio]
   Cli.php             wp teeshoop provisionner | verifier
+                         | catalogue importer | catalogue etat | catalogue purger
 data/
   garments.json       GENERATED from the studio. Do not edit; see below
 templates/teeshoop/
@@ -68,7 +77,10 @@ tests/
   test-pricing.php    the price authority
   test-grid.php       the grid's columns, the headline, the devis threshold
   test-margin.php     the corrected floor-price formula
+  test-catalogue.php  the supplier mapping: sizes, families, grammage, the
+                      guards that refuse a payload about another style
   integration.php     the WooCommerce seam. Needs a real WP (see below)
+  e2e-support.php     fixtures the browser-side gates load into a real shop
 ```
 
 ## The product page

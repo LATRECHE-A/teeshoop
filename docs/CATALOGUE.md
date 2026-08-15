@@ -113,10 +113,10 @@ Mesuré le 14 août 2026 sur le catalogue réel.
 | Combinaisons coloris × taille qui n'existent pas | **3 481**, soit 11,6 % du produit cartésien |
 | Articles par référence | médiane 36, p90 134, p99 292, maximum 366 |
 | Références de plus de 30 articles | 256 |
-| Photos de face et de dos copiées | **736** (mesuré, pas estimé), environ 46 Mo avant les vignettes |
+| Photos de face et de dos copiées | **734** (mesuré, pas estimé), environ 46 Mo avant les vignettes |
 | Photos par coloris **non** copiées | 4 241, soit 267 Mo, ~650 Mo et 34 000 fichiers après redimensionnement |
 
-**Les trois passes, mesurées** (miroir local) :
+**Les passes, mesurées** (miroir local) :
 
 | Passe | Résultat | Durée |
 |---|---|---|
@@ -124,23 +124,27 @@ Mesuré le 14 août 2026 sur le catalogue réel.
 | 2e, après correction des codes-barres | 3 créées, 169 modifiées, 289 inchangées, 0 en échec | 10 min |
 | 3e, rien n'ayant bougé en amont | **0 créée, 2 modifiées, 459 inchangées**, 3 articles écrits, 0 photo | **3 min** |
 | 4e, après le changement de référence publique | 8 créées, 446 modifiées, 26 028 articles réécrits, 0 en échec, 2 dépubliées | 19 min |
+| 5e, après suppression des 736 photos mal nommées | 0 créée, 459 modifiées, **734 photos recopiées**, 0 en échec | 11 min |
 
 La troisième est la preuve de l'idempotence : 26 399 articles relus, trois écritures, et
 « Rien n'a changé » imprimé pour de bon. La quatrième montre le coût d'un changement de
-référence, qui touche tout : vingt minutes.
+référence, qui touche tout : vingt minutes. La cinquième est le prix d'une migration de
+données : recopier toutes les photos coûte onze minutes, et c'est le vrai coût d'un
+correctif qui ne s'applique qu'aux téléchargements suivants.
 
 **Ce que la boutique pèse ensuite**, mesuré une fois le catalogue en place :
 
 | | |
 |---|---|
-| Produits publiés | **462**, tous importés |
-| Articles | **26 400** |
+| Produits publiés | **462** : 459 références importées + les 3 produits personnalisables du studio |
+| Références importables non publiées | 2 dépubliées (57442, 58842, retirées du listing fournisseur) + 2 sans aucun article (50001, 50101) |
+| Articles | **26 402** |
 | Prix d'achat stockés | **26 396** (4 articles sans tarif publié) |
-| Pièces jointes | 737 |
-| Lignes `postmeta` | 674 773 |
+| Pièces jointes | 735 (734 photos + le visuel par défaut de WooCommerce) |
+| Lignes `postmeta` | 698 472 |
 | Relations de termes | 13 699 |
 | Termes | 615 (442 coloris, 95 tailles, 21 marques, 17 certifications) |
-| Base de données | **165 Mo** |
+| Base de données | **167 Mo** |
 | Fourchette de prix, produit le plus lourd (366 articles) | 456 ms à froid, **0,4 ms à chaud** |
 | Le plus lent mesuré (292 articles) | 754 ms à froid, 0,2 ms à chaud |
 
@@ -191,6 +195,14 @@ soit les deux champs dont son numéro d'article est fait. Deux surfaces les expo
   (`PU415.jpg`, `PU415-dos.jpg`). Le nom d'origine reste la clé d'idempotence en meta, donc
   une nouvelle prise de vue se retéléchargera toujours et une photo inchangée jamais.
 
+  **Corriger le code n'a pas corrigé la boutique**, et c'est la partie qu'il faut retenir.
+  Les 736 photos déjà copiées gardaient leur ancien nom : `attachment()` les retrouve par
+  leur clé d'idempotence et ressort avant de télécharger, donc aucune passe, si idempotente
+  soit-elle, ne pouvait les renommer. Elles ont été supprimées et réimportées à la main.
+  Une migration de données n'est pas incluse dans un correctif de code, et le contrôle
+  vérifie désormais le **résultat** (aucune pièce jointe ne porte ce motif) plutôt que
+  l'intention.
+
 - **Les photos par coloris**, elles, ne sont pas copiées : leur URL est relayée telle quelle
   par le Worker (`/media/blank/picture/001_42_000_f-2020_01.jpg`) et rendue dans la fiche.
   **Ce point n'est pas corrigé**, et le choix appartient à l'associé parce qu'il a un prix :
@@ -204,6 +216,11 @@ soit les deux champs dont son numéro d'article est fait. Deux surfaces les expo
   La fuite est plus faible que celle de la référence (il faut déjà savoir à quel grossiste
   cette convention appartient), mais elle est de la même famille et elle est écrite ici
   plutôt que découverte plus tard.
+
+  En attendant la décision, la porte est **épinglée à sa largeur exacte** : le contrôle
+  exige que ce motif n'apparaisse sur une surface client qu'à l'intérieur d'une URL
+  `/media/blank/`. Un gabarit qui l'écrirait ailleurs, demain, échoue. C'est la différence
+  entre une exception décidée et une exception qui s'élargit toute seule.
 
 ### Le piège mesuré : le fournisseur se nomme dans nos fiches produit
 
