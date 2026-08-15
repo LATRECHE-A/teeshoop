@@ -266,6 +266,48 @@ describe(
 		);
 
 		it(
+			'refuses a price list that prices none of this style, rather than clearing every cost',
+			static function (): void {
+				// The upstream parser keys on the CSV's first column and only
+				// asks for six digits, so a reshuffled column yields a map that
+				// is large, well formed and about something else. Every article
+				// would read as unpriced, and unpriced CLEARS the cost basis.
+				$entry                     = ts_entry();
+				$entry['prices']['prices'] = array(
+					'999990001' => array(
+						'cost' => 5.0,
+						'list' => 4.0,
+					),
+				);
+				$m = Catalogue::map( $entry );
+				truthy( ! $m['has_prices'], 'not usable' );
+				truthy( str_contains( implode( ' ', $m['problems'] ), 'ne concerne aucun article' ), 'says so' );
+			}
+		);
+
+		it(
+			'says so when the stock payload is about some other style, instead of going quiet',
+			static function (): void {
+				// The quiet case: every article maps to "no figure", every
+				// existing variation keeps what it had, and without this the run
+				// reports the style unchanged with nothing to read.
+				$entry                   = ts_entry();
+				$entry['stock']['stock'] = array( '999990001' => array( 5, 0, 0 ) );
+				$m                       = Catalogue::map( $entry );
+				truthy( ! $m['has_stock'], 'not usable' );
+				truthy( str_contains( implode( ' ', $m['problems'] ), 'quantités connues ont été conservées' ), 'says so' );
+			}
+		);
+
+		it(
+			'treats an empty stock list the same way it treats an empty price list',
+			static function (): void {
+				$m = Catalogue::map( ts_entry( array( 'stock' => array( 'at' => '', 'stock' => array() ) ) ) );
+				truthy( ! $m['has_stock'], 'not usable' );
+			}
+		);
+
+		it(
 			'refuses prices that are not in euros rather than storing them as euro cents',
 			static function (): void {
 				$entry                        = ts_entry();

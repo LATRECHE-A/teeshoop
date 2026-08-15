@@ -163,6 +163,27 @@ final class Importer {
 			);
 		}
 
+		/*
+		 * A RATE THAT IS SET AND UNREADABLE IS NOT THE SAME AS NO RATE, AND THE
+		 * DIFFERENCE IS THE WHOLE CATALOGUE'S PRICES.
+		 *
+		 * `margin_rate()` returns null for both, which is right for the pricing
+		 * decision and wrong for the operator: with no rate, writing no price is
+		 * the shipped and intended refusal; with "0,45" mistyped as "45", it
+		 * silently un-prices 26 399 articles overnight and the run still ends
+		 * "Catalogue à jour." and exit 0, so nothing mails anybody. Refusing the
+		 * run is the loud version of the same safety.
+		 */
+		$configured = Settings::pricing()['blank_margin_rate'] ?? null;
+		if ( null !== $configured && '' !== $configured && null === self::margin_rate() ) {
+			return array(
+				'ok'    => false,
+				'error' => 'Le taux de marge (blank_margin_rate) est réglé sur une valeur inutilisable : '
+					. wp_json_encode( $configured )
+					. '. Attendu : un nombre entre 0 et 1, virgule ou point. Rien n’a été importé, pour ne pas retirer les prix du catalogue.',
+			);
+		}
+
 		Taxonomy::ensure_attributes();
 		Taxonomy::register_now();
 
@@ -390,8 +411,10 @@ final class Importer {
 
 		$mapped = Catalogue::map( $fetched['entry'] );
 		if ( empty( $mapped['ok'] ) ) {
+			// "The supplier lists this reference and sells nothing under it" is
+			// a fact to report, not a run to fail. See Catalogue::map.
 			return array(
-				'outcome'  => 'failed',
+				'outcome'  => 'empty' === ( $mapped['reason'] ?? '' ) ? 'skipped' : 'failed',
 				'problems' => (array) ( $mapped['problems'] ?? array() ),
 			);
 		}
@@ -475,7 +498,6 @@ final class Importer {
 			array(
 				Catalogue::META_REF           => $ref,
 				Catalogue::META_FAMILY        => (string) $mapped['kind'],
-				Catalogue::META_EXPORTED      => (string) $mapped['exported_at'],
 				Catalogue::META_SIZESPEC      => (string) $mapped['sizespec'],
 				Catalogue::META_WEIGHT_VARIES => $mapped['weight_varies'] ? '1' : '',
 				Garments::META_BRAND          => (string) $mapped['brand'],
@@ -484,7 +506,6 @@ final class Importer {
 				// Absent rather than zero: the specification block renders an
 				// honest empty state, and 0 g/m² is not a garment.
 				Garments::META_WEIGHT         => $mapped['weight_gsm'] > 0 ? (string) $mapped['weight_gsm'] : '',
-				Garments::META_SPECS_DATE     => (string) $mapped['exported_at'],
 			)
 		) ) {
 			$why[]   = 'caractéristiques';
@@ -538,6 +559,30 @@ final class Importer {
 		}
 
 		if ( $changed ) {
+			/*
+			 * THE SUPPLIER'S EXPORT STAMP IS WRITTEN ONLY WHEN SOMETHING ELSE
+			 * MOVED, and that is the difference between a date that means
+			 * something and a date that ruins the report.
+			 *
+			 * The supplier re-exports every morning, so `exported_at` changes on
+			 * a style whose content is identical. Comparing it like any other
+			 * field made every reference "modified" every night: 463 rows with a
+			 * fresh `post_modified`, a sitemap telling Google the whole
+			 * catalogue changed daily, and a run report in which "nothing
+			 * changed" could never be printed and therefore never be believed.
+			 *
+			 * Written here, it answers "the supplier's version we last WROTE",
+			 * which is what a person reading the specification block wants.
+			 * "When did we last look" is a different question and the run state
+			 * already answers it (`teeshoop catalogue etat`).
+			 */
+			$stamp = (string) $mapped['exported_at'];
+			if ( '' !== $stamp ) {
+				$product->update_meta_data( Catalogue::META_EXPORTED, $stamp );
+				$product->update_meta_data( Garments::META_SPECS_DATE, $stamp );
+				$product->save();
+			}
+
 			/*
 			 * Rebuild the parent's price range, stock status and attribute
 			 * summary from its children, then warm the price transient.
@@ -613,7 +658,8 @@ final class Importer {
 		 * price list is the other case, and there clearing IS right: the
 		 * supplier has stopped pricing that article.
 		 */
-		$prices_usable = ! empty( $mapped['has_prices'] );
+		$prices_usable    = ! empty( $mapped['has_prices'] );
+		$barcodes_refused = 0;
 
 		$colour_tax = Taxonomy::taxonomy( 'couleur' );
 		$size_tax   = Taxonomy::taxonomy( 'taille' );
@@ -645,22 +691,8 @@ final class Importer {
 			}
 
 			$props = array(
-				'sku'              => (string) $row['sku'],
-				'weight'           => $row['weight_kg'] > 0 ? (string) $row['weight_kg'] : '',
-				/*
-				 * The barcode on the garment's own label, through the CRUD
-				 * property and NOT through its `_global_unique_id` meta key.
-				 *
-				 * WooCommerce 9.2 promoted that key to a first-class property,
-				 * and a promoted key becomes an INTERNAL meta key: `get_meta()`
-				 * stops returning it while `update_meta_data()` happily writes
-				 * it. Setting it as meta therefore compared '' against the EAN
-				 * every single time, found a difference, saved, and reported the
-				 * reference as modified. Measured: an import that could never
-				 * say "nothing changed". `set_if` skips a property the installed
-				 * WooCommerce does not have.
-				 */
-				'global_unique_id' => (string) $row['ean'],
+				'sku'    => (string) $row['sku'],
+				'weight' => $row['weight_kg'] > 0 ? (string) $row['weight_kg'] : '',
 			);
 			$meta  = array(
 				Catalogue::META_SUPPLY_SKU   => $supply,
@@ -674,6 +706,13 @@ final class Importer {
 			}
 
 			$touched = self::set_if( $variation, $props );
+
+			$barcode = self::set_barcode( $variation, (string) $row['ean'] );
+			if ( 1 === $barcode ) {
+				$touched = true;
+			} elseif ( -1 === $barcode ) {
+				++$barcodes_refused;
+			}
 
 			$attributes = array(
 				$colour_tax => $colour_slug,
@@ -693,6 +732,14 @@ final class Importer {
 				++$written;
 				$changed = true;
 			}
+		}
+
+		if ( $barcodes_refused > 0 ) {
+			// One line, not one per article: style 12639 alone would print four.
+			$problems[] = sprintf(
+				'%d code(s)-barres refusé(s) par WooCommerce (déjà utilisés ailleurs). Les articles sont en ligne sans code-barres.',
+				$barcodes_refused
+			);
 		}
 
 		// --- gone from the supplier -----------------------------------------
@@ -718,6 +765,47 @@ final class Importer {
 			'changed' => $changed,
 			'written' => $written,
 		);
+	}
+
+	/**
+	 * The barcode on the garment's own label. It may never stop a garment being
+	 * sold.
+	 *
+	 * MEASURED, AND IT COST THREE REFERENCES. WooCommerce 9.2 promoted
+	 * `_global_unique_id` to a first-class property and made
+	 * `set_global_unique_id()` THROW when the value is already carried by
+	 * another product. The supplier's data contains such collisions: 4 of the
+	 * 21 479 barcodes in this catalogue are used by more than one article, and
+	 * one of them (4053840000000) is an obvious placeholder shared by four
+	 * articles of style 12639. Setting the barcode inside `set_if` let that
+	 * exception escape the whole reference, so the first full import lost
+	 * 10154, 12154 and 12639 entirely: hundreds of sellable garments missing
+	 * from the shop because two of them share a number nobody reads.
+	 *
+	 * So the barcode is written on its own, and a refusal costs the barcode
+	 * rather than the garment. A SKU collision still fails the reference, and
+	 * must: two products claiming one reference is a real conflict.
+	 *
+	 * It is also the reason this is a property and not meta. A promoted key
+	 * becomes an INTERNAL meta key, so `get_meta()` returns '' while
+	 * `update_meta_data()` writes happily, and the comparison never matched:
+	 * the import could not report "nothing changed" even when nothing had.
+	 *
+	 * @return int 1 written, 0 unchanged or unsupported, -1 refused by WooCommerce.
+	 */
+	private static function set_barcode( \WC_Product_Variation $variation, string $ean ): int {
+		if ( ! method_exists( $variation, 'set_global_unique_id' ) ) {
+			return 0;
+		}
+		if ( (string) $variation->get_global_unique_id( 'edit' ) === $ean ) {
+			return 0;
+		}
+		try {
+			$variation->set_global_unique_id( $ean );
+			return 1;
+		} catch ( \Throwable $e ) {
+			return -1;
+		}
 	}
 
 	/**
@@ -888,17 +976,21 @@ final class Importer {
 	 * run, for ever.
 	 */
 	private static function images( int $product_id, array $mapped, array &$problems ): array {
-		$written = 0;
 		$changed = false;
 
-		$front = self::attachment( (string) $mapped['front'], $mapped['name'], $problems );
-		if ( $front > 0 ) {
-			++$written;
-		}
-		$back = self::attachment( (string) $mapped['back'], $mapped['name'] . ' (dos)', $problems );
-		if ( $back > 0 ) {
-			++$written;
-		}
+		/*
+		 * COPIED, not merely attached.
+		 *
+		 * This counter is printed as "photo(s) copiée(s)", and it used to count
+		 * every attachment the run resolved — including the ones already in the
+		 * media library, which cost nothing. A no-op pass therefore reported 97
+		 * photographs copied while copying none, which is the kind of number
+		 * somebody later uses to argue about bandwidth. `attachment()` reports
+		 * whether it actually downloaded.
+		 */
+		$downloads = 0;
+		$front     = self::attachment( (string) $mapped['front'], $mapped['name'], $problems, $downloads );
+		$back      = self::attachment( (string) $mapped['back'], $mapped['name'] . ' (dos)', $problems, $downloads );
 
 		$product = wc_get_product( $product_id );
 		if ( ! $product instanceof \WC_Product ) {
@@ -938,7 +1030,7 @@ final class Importer {
 
 		return array(
 			'changed' => $changed,
-			'written' => $written,
+			'written' => $downloads,
 		);
 	}
 
@@ -949,7 +1041,7 @@ final class Importer {
 	 * returned: a download that fails is a problem on the report and a product
 	 * with no picture, not a product that stops importing.
 	 */
-	private static function attachment( string $path, string $title, array &$problems ): int {
+	private static function attachment( string $path, string $title, array &$problems, int &$downloads ): int {
 		if ( '' === $path ) {
 			return 0;
 		}
@@ -1047,6 +1139,7 @@ final class Importer {
 			return 0;
 		}
 
+		++$downloads;
 		update_post_meta( (int) $id, self::META_SOURCE, $file );
 		// Real alt text, from the product's own name. An empty alt on a
 		// catalogue of 463 photographs is 463 accessibility failures.
@@ -1235,6 +1328,7 @@ final class Importer {
 			'created'    => 0,
 			'updated'    => 0,
 			'unchanged'  => 0,
+			'skipped'    => 0,
 			'failed'     => 0,
 			'delisted'   => 0,
 			'variations' => 0,

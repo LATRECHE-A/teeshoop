@@ -494,7 +494,7 @@ async function main() {
      echo wp_json_encode( $out );`,
   )
   const second = wp(['teeshoop', 'catalogue', 'importer', '--recommencer', `--max=${MAX_REFS}`, '--discret'])
-  const counts = /(\d+) créé\(s\), (\d+) modifié\(s\), (\d+) inchangé\(s\), (\d+) en échec, (\d+) dépublié/.exec(second)
+  const counts = /(\d+) créé\(s\), (\d+) modifié\(s\), (\d+) inchangé\(s\), (\d+) sans article, (\d+) en échec, (\d+) dépublié/.exec(second)
   if (!counts) {
     // The summary is the assertion. When it is missing the interesting thing is
     // what came out INSTEAD, so print it: the first time this fired, the answer
@@ -580,6 +580,47 @@ async function main() {
   ok('and it still carries no purchase price', sniff(priced.json).length === 0,
     sniff(priced.json).join(' ') || 'clean')
   ok('a variation really adds to the cart', priced.in_cart === 2, `${priced.in_cart} in cart`)
+
+  /*
+   * --- 11 bis. a duplicated barcode costs the barcode, not the garment -------
+   *
+   * WooCommerce 9.2 made set_global_unique_id() throw when another product
+   * already carries the value, and the supplier's data contains collisions:
+   * 4 of the 21 479 barcodes in this catalogue are shared, one of them a
+   * placeholder used by four articles at once. Letting that exception escape
+   * lost three whole references on the first full import. This forces the
+   * collision rather than hoping the sample contains one.
+   */
+  const barcode = phpJson(
+    `global $wpdb;
+     $id  = wc_get_product_id_by_sku( '${sample.ref}' );
+     $p   = wc_get_product( $id );
+     $ids = $p->get_children();
+     $victim = (int) $ids[0];
+     $other  = (int) $ids[1];
+     // Written straight to the table: the CRUD setter is the thing under test
+     // and would refuse to create the collision we need.
+     $wpdb->update( $wpdb->posts, array( 'post_excerpt' => '' ), array( 'ID' => $victim ) );
+     $gtin = (string) wc_get_product( $other )->get_global_unique_id();
+     $wpdb->query( $wpdb->prepare(
+       "UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE post_id = %d AND meta_key = '_global_unique_id'",
+       $gtin, $victim ) );
+     wp_cache_flush();
+     $before = count( $p->get_children() );
+     $out = Teeshoop\\Core\\Importer::one( '${sample.ref}' );
+     $after = wc_get_product( wc_get_product_id_by_sku( '${sample.ref}' ) );
+     echo wp_json_encode( array(
+       'gtin'     => $gtin,
+       'outcome'  => (string) $out['outcome'],
+       'problems' => implode( ' / ', (array) $out['problems'] ),
+       'before'   => $before,
+       'after'    => $after ? count( $after->get_children() ) : 0,
+     ) );`,
+  )
+  ok('a duplicated barcode does not fail the whole reference',
+    barcode.outcome !== 'failed', `outcome ${barcode.outcome}`)
+  ok('and the garments stay in the shop',
+    barcode.after === barcode.before && barcode.before > 0, `${barcode.after} of ${barcode.before} variations`)
 
   // --- 12. what the heaviest product costs to render ------------------------
   const heaviest = phpJson(

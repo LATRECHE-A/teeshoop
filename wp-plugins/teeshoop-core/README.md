@@ -306,7 +306,14 @@ re-saved every variation's attribute summary.
 
 Measured, 2026-08-14, local mirror: 0,24 s per variation on creation (148 queries
 each, which is WooCommerce's own cost), 5 ms per variation to re-verify an
-unchanged one.
+unchanged one. The first full run: 463 references listed in 11 calls and 0,5 s,
+then 26 127 variations and 731 photographs written in 5 794 s.
+
+A third defect the full run found, which the six-reference gate could not:
+WooCommerce 9.2 makes `set_global_unique_id()` throw when another product
+already carries that barcode, and the supplier's data has 4 collisions in
+21 479 barcodes. Letting it escape lost three references entirely. The barcode
+is written on its own now, so a refusal costs the barcode and not the garment.
 
 ## Fail-closed
 

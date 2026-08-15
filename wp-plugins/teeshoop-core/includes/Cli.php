@@ -157,10 +157,11 @@ final class Cli {
 		\WP_CLI::log( '' );
 		\WP_CLI::log(
 			sprintf(
-				'%d créé(s), %d modifié(s), %d inchangé(s), %d en échec, %d dépublié(s). %d article(s) écrit(s), %d photo(s) copiée(s). %s s.',
+				'%d créé(s), %d modifié(s), %d inchangé(s), %d sans article, %d en échec, %d dépublié(s). %d article(s) écrit(s), %d photo(s) copiée(s). %s s.',
 				$stats['created'],
 				$stats['updated'],
 				$stats['unchanged'],
+				$stats['skipped'] ?? 0,
 				$stats['failed'],
 				$stats['delisted'] ?? 0,
 				$stats['variations'],
@@ -182,6 +183,25 @@ final class Cli {
 
 		if ( $stats['failed'] > 0 ) {
 			\WP_CLI::error( sprintf( 'Import terminé avec %d référence(s) en échec.', $stats['failed'] ) );
+		}
+
+		/*
+		 * "Sans article" does NOT exit non-zero.
+		 *
+		 * Two references of the catalogue (50001 and 50101, verified) are listed
+		 * by the supplier with zero coloris, zero articles and zero tailles.
+		 * That will be just as true tomorrow, and a cron that mails a failure
+		 * every night for a permanent condition is a cron whose mail nobody
+		 * reads by the time it matters. It is reported and counted; it is not an
+		 * error.
+		 */
+		if ( ( $stats['skipped'] ?? 0 ) > 0 ) {
+			\WP_CLI::log(
+				sprintf(
+					'%d référence(s) listée(s) par le fournisseur sans aucun article vendable : rien à publier.',
+					(int) $stats['skipped']
+				)
+			);
 		}
 
 		if ( 0 === $stats['created'] + $stats['updated'] ) {

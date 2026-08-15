@@ -341,6 +341,7 @@ final class Catalogue {
 		if ( '' === $ref || ! preg_match( '/^\d{4,6}$/', $ref ) ) {
 			return array(
 				'ok'       => false,
+				'reason'   => 'malformed',
 				'ref'      => $ref,
 				'problems' => array( 'La référence du fournisseur est absente ou mal formée.' ),
 			);
@@ -392,12 +393,45 @@ final class Catalogue {
 			$problems[] = 'Les tarifs sont libellés en ' . $currency . ' et non en euros : ils ont été ignorés.';
 		}
 
+		/*
+		 * A PAYLOAD THAT PRICES NONE OF THIS STYLE'S ARTICLES IS NOT THIS
+		 * STYLE'S PRICE LIST.
+		 *
+		 * The upstream parser keys the map on the CSV's first column and only
+		 * requires six digits, so a reshuffled or renamed column would produce a
+		 * map that is large, well formed, and about something else. Every SKU
+		 * then looks unpriced, and "unpriced" is a state that CLEARS the cost
+		 * basis and the selling price. Covering at least one article of this
+		 * style is the weakest test that distinguishes the two, and it needs no
+		 * threshold anybody has to justify. A map that covers SOME of them is
+		 * the deliberate case: the supplier has stopped pricing those articles.
+		 */
+		if ( is_array( $prices ) && ! empty( $prices ) && ! self::prices_this_style( $style, $prices ) ) {
+			$prices     = null;
+			$problems[] = 'Le tarif reçu ne concerne aucun article de cette référence : il a été ignoré.';
+		}
+
+		/*
+		 * THE SAME RULE FOR STOCK, and it was missing.
+		 *
+		 * An empty price list was treated as a failure while an empty stock list
+		 * was treated as a fact, and the asymmetry was invisible because the
+		 * consequence is quiet: every article maps to "no figure", every
+		 * existing variation keeps the quantity it had, and the run reports the
+		 * style unchanged with no problem recorded. A stock feed answering 200
+		 * with a maintenance page therefore looked exactly like a healthy no-op,
+		 * for a whole style at a time, for as long as it lasted. Freezing the
+		 * quantity is still the right response; saying nothing about it is not.
+		 */
 		$stock       = is_array( $entry['stock'] ?? null ) ? ( $entry['stock']['stock'] ?? array() ) : null;
 		$stock_error = self::text( $entry['stockError'] ?? '' );
 		if ( null === $stock ) {
 			$problems[] = 'not_found' === $stock_error
 				? 'Le fournisseur ne publie aucun stock pour cette référence.'
 				: 'Le stock n’a pas pu être lu (' . ( $stock_error ?: 'raison inconnue' ) . ').';
+		} elseif ( ! self::covers_this_style( $style, $stock ) ) {
+			$stock      = null;
+			$problems[] = 'Le stock reçu ne concerne aucun article de cette référence : les quantités connues ont été conservées.';
 		}
 
 		$brand       = self::text( $style['brand'] ?? '' );
@@ -408,8 +442,21 @@ final class Catalogue {
 
 		$variations = self::variations( $style, is_array( $prices ) ? $prices : array(), is_array( $stock ) ? $stock : array() );
 		if ( empty( $variations ) ) {
+			/*
+			 * `empty`, NOT `malformed`, and the difference is whether a cron
+			 * mails somebody every night for ever.
+			 *
+			 * Some styles are listed in the supplier's index and carry nothing:
+			 * VERIFIED on 50001 and 50101 (Fruit of the Loom polos), which come
+			 * back with zero colourways, zero articles, zero sizes and no price
+			 * document at all. That is a stable fact about their catalogue, not
+			 * a failure of ours, and it will be true again tomorrow. Counting it
+			 * as a failure makes every nightly run exit non-zero, which trains
+			 * everyone to ignore the one mail that will eventually matter.
+			 */
 			return array(
 				'ok'       => false,
+				'reason'   => 'empty',
 				'ref'      => $ref,
 				'problems' => array_merge( $problems, array( 'Aucun article vendable sur cette référence.' ) ),
 			);
@@ -451,6 +498,27 @@ final class Catalogue {
 			'has_prices'    => null !== $prices,
 			'has_stock'     => null !== $stock,
 		);
+	}
+
+	/** Does this map hold a usable price for at least one article of this style? */
+	private static function prices_this_style( array $style, array $prices ): bool {
+		foreach ( (array) ( $style['skus'] ?? array() ) as $sku ) {
+			$cost = $prices[ self::text( $sku['sku'] ?? '' ) ]['cost'] ?? null;
+			if ( is_numeric( $cost ) && (float) $cost > 0 ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Does this map mention at least one article of this style at all? */
+	private static function covers_this_style( array $style, array $map ): bool {
+		foreach ( (array) ( $style['skus'] ?? array() ) as $sku ) {
+			if ( isset( $map[ self::text( $sku['sku'] ?? '' ) ] ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

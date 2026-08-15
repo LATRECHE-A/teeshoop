@@ -99,10 +99,59 @@ Mesuré le 14 août 2026 sur le catalogue réel.
 | Photos de face et de dos copiées | 716, environ 45 Mo avant les vignettes |
 | Photos par coloris **non** copiées | 4 241, soit 267 Mo, ~650 Mo et 34 000 fichiers après redimensionnement |
 
+**Le premier import complet, mesuré** (miroir local) : 463 références listées en 11 appels et
+0,5 s, puis **26 127 articles écrits et 731 photos copiées en 5 794 s**, soit **1 h 37** et
+0,22 s par article. La passe suivante, qui ne réécrit que ce qui a bougé : **10 min**, 289
+références inchangées sur 463.
+
+**Ce que la boutique pèse ensuite**, mesuré une fois le catalogue en place :
+
+| | |
+|---|---|
+| Produits publiés | 464, dont **462 importés** |
+| Articles | **26 399**, exactement le compte du fournisseur |
+| Prix d'achat stockés | 26 393 (6 articles sans tarif publié) |
+| Pièces jointes | 737 |
+| Lignes `postmeta` | 674 773 |
+| Relations de termes | 13 699 |
+| Termes | 615 (442 coloris, 95 tailles, 21 marques, 17 certifications) |
+| Base de données | **140 Mo** |
+| Fourchette de prix, produit le plus lourd (366 articles) | 464 ms à froid, **0,3 ms à chaud** |
+| Le plus lent mesuré (292 articles) | 754 ms à froid, 0,2 ms à chaud |
+
+Les relations de termes sont bien 13 699 et non ~55 000 : une **variation** ne porte aucun
+terme, WooCommerce range son coloris et sa taille en meta (`attribute_pa_couleur`) et ne
+rattache à la taxonomie que le produit parent. Le coût suit donc le nombre de produits, pas
+celui des articles.
+
+Le rayonnage obtenu, sans intervention :
+
+```
+T-shirts  186  > Manches courtes 141 · Manches longues 25 · Sans manches 8
+Polos     107  > Manches courtes  91 · Manches longues 14
+Sweats    168
+```
+
 Les variations sont construites depuis **la liste d'articles du fournisseur**, jamais
 depuis le produit cartésien coloris × taille. Le style 15009 affiche 49 coloris et
 9 tailles mais ne vend que 334 articles : les 107 autres n'existent pas, et les publier
 reviendrait à encaisser des commandes que personne ne peut honorer.
+
+### Le piège mesuré : un code-barres en double coûtait toute une référence
+
+WooCommerce 9.2 a promu le code-barres (`_global_unique_id`) au rang de propriété et fait
+**lever une exception** quand la valeur est déjà portée par un autre produit. Les données du
+fournisseur en contiennent : **4 codes-barres sur les 21 479 du catalogue** sont utilisés par
+plus d'un article, dont `4053840000000`, un code de remplissage manifeste partagé par quatre
+articles du style 12639.
+
+Le premier import complet a donc **perdu trois références entières** (10154, 12154, 12639),
+soit plusieurs centaines de vêtements vendables absents de la boutique parce que deux
+d'entre eux partagent un numéro que personne ne lit. Le code-barres est écrit à part
+désormais : un refus coûte le code-barres, pas le vêtement, et le compte des refus est
+remonté dans le rapport de passe. Une collision de **référence** (SKU) continue, elle, de
+faire échouer l'import : deux produits qui revendiquent la même référence, c'est un vrai
+conflit.
 
 ### Le piège mesuré : la file d'Action Scheduler
 

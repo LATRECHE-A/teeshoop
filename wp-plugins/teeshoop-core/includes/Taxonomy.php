@@ -10,10 +10,16 @@
  * A global attribute is a taxonomy: 442 colour terms shared by 463 products,
  * queryable, countable, and addressable by URL.
  *
- * WHAT THIS COSTS, since it is not free: `wp_terms` and `wp_term_taxonomy` grow
- * by roughly 560 rows, and `wp_term_relationships` by about 55 000 — two per
- * variation, colour and size. That is the price of a catalogue that can be
- * filtered, and it is paid once.
+ * WHAT THIS COSTS, MEASURED on the full catalogue rather than estimated: 615
+ * terms and 13 699 term relationships for 462 products and 26 399 articles.
+ *
+ * The estimate written here first was 55 000 relationships, "two per variation,
+ * colour and size". That was wrong, and wrong in an instructive direction: a
+ * VARIATION does not carry terms at all. WooCommerce stores its chosen colour
+ * and size as post meta (`attribute_pa_couleur`), and only the PARENT product is
+ * joined to the taxonomy. So the cost scales with products and their attribute
+ * values, not with the article count, which is why 26 399 articles cost 13 699
+ * rows and not four times that.
  *
  * THE SIZE ORDER IS OURS. WooCommerce sorts attribute terms alphabetically
  * unless told otherwise, which puts 2XL before S and XS after XL. The supplier's
