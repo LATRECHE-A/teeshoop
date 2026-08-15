@@ -40,7 +40,7 @@
 			// The supplier-neutral photo prefix (worker/falkross.ts PHOTO_ALIAS).
 			// These URLs are stored in the shop's database and rendered in a
 			// customer's page; without this line the asset layer answers them with
-			// the SPA fallback — HTML, status 200 — and every colour photo in the
+			// the SPA fallback (HTML, status 200) and every colour photo in the
 			// catalogue is a broken image that still looks like a working request.
 			"/media/blank/*"
 		]

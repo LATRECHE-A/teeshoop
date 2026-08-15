@@ -96,7 +96,7 @@ configuration où le défaut est invisible.
 leurs coloris, leurs tailles, leur grammage, leur composition, leur stock et notre prix
 d'achat. Une référence est **un produit variable**, un article vendu par le fournisseur est
 **une variation** : construites depuis la liste d'articles et jamais depuis le produit
-cartésien coloris × taille, parce que 3 481 de ces combinaisons (13 %) n'existent pas et
+cartésien coloris × taille, parce que 3 481 de ces combinaisons (11,6 %) n'existent pas et
 seraient autant de commandes impossibles à honorer.
 
 L'import est **idempotent par comparaison, pas par empreinte** : chaque champ est relu et
@@ -110,8 +110,9 @@ toutes les nuits et réécrivait le résumé d'attributs des 366 variations d'un
 Il est **reprenable** : `--duree=1800` fait une demi-heure de travail et s'arrête
 proprement, et le curseur est écrit dans la même transaction que la référence, donc un
 processus tué rejoue la référence entière au lieu d'en laisser une moitié. Mesuré :
-0,24 s par variation à la création (contre 0,38 s hors transaction), 5 ms pour revérifier
-une variation inchangée.
+0,24 s par article à la création (style 01542, 299 articles, une transaction) contre
+0,38 s sans transaction (style 18009, 366 articles), et 5 ms pour revérifier un article
+inchangé. Deux styles différents, donc un ordre de grandeur et non un A/B contrôlé.
 
 **Notre prix d'achat ne sort par aucune porte** : ni l'API REST authentifiée (produits et
 variations), ni l'API Store publique, ni l'export CSV avec les meta personnalisées, ni le
@@ -124,7 +125,7 @@ le catalogue est consultable sans être commandable.
 
 **L'outillage.** Un miroir local de la production (WordPress 7.0.4 + WooCommerce 11.0.1 en
 docker, **versions épinglées** sur celles réellement mesurées sur le serveur) que l'on peut désormais **reconstruire depuis le dépôt** (`wp teeshoop
-provisionner`), 143 tests JavaScript, 64 tests PHP purs, 17 tests d'intégration WooCommerce,
+provisionner`), 143 tests JavaScript, 102 tests PHP purs, 17 tests d'intégration WooCommerce,
 une vérification de bout en bout du parcours d'achat à 40 assertions, un garde-fou qui
 interdit à un prix d'achat, un nom de fournisseur ou un tarif film d'atteindre un gabarit
 PHP, et des scripts de vérification qui font tourner le vrai code dans un vrai navigateur.

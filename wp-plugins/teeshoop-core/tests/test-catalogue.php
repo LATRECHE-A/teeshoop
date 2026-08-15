@@ -143,7 +143,7 @@ function ts_var( array $mapped, string $supply ): ?array {
 // ---------------------------------------------------------------------------
 
 describe(
-	'Catalogue — variations come from the SKU list',
+	'Catalogue: variations come from the SKU list',
 	static function (): void {
 		it(
 			'creates one variation per article the supplier actually sells',
@@ -178,7 +178,7 @@ describe(
 		);
 
 		it(
-			'keeps both articles when two size names reduce to the same reference',
+			'keeps both articles when two size names reduce to the same fragment',
 			static function (): void {
 				// "5/6 (110/116)" and "56 (110/116)" both strip to 56110116.
 				// Dropping the second would lose a garment the supplier sells,
@@ -191,25 +191,54 @@ describe(
 				);
 				$m = Catalogue::map( $entry );
 				eq( count( $m['variations'] ), 2, 'both kept' );
-				$skus = array_column( $m['variations'], 'sku' );
+				$skus = array_column( $m['variations'], 'sku_suffix' );
 				eq( count( array_unique( $skus ) ), 2, 'and their references differ' );
 			}
 		);
 
 		it(
-			'builds our own reference and keeps the supplier article separate',
+			'never builds the public reference out of the supplier keys it seals',
 			static function (): void {
+				// The supplier's article number is styleNr . colourCode . one
+				// digit, so a public "18001-000-2XL" beside a sealed 180010007
+				// is the procurement key minus one digit. The maker's own code
+				// is what a buyer searches for anyway.
 				$m = Catalogue::map( ts_entry() );
+				eq( $m['public_ref'], '61-212-0', 'the maker code, normalised' );
+
 				$v = ts_var( $m, '180010007' );
-				eq( $v['sku'], '18001-000-2XL', 'our sku' );
-				eq( $v['supply_sku'], '180010007', 'supplier article' );
+				eq( $v['sku_suffix'], 'WHITE-2XL', 'colour and size, not codes' );
+				eq( $v['supply_sku'], '180010007', 'supplier article stays separate' );
+
+				foreach ( $m['variations'] as $row ) {
+					truthy(
+						! str_contains( $m['public_ref'] . '-' . $row['sku_suffix'], $m['ref'] ),
+						'the public reference must not carry the supplier style number'
+					);
+				}
+			}
+		);
+
+		it(
+			'drops the wholesaler notes the supplier writes into a description',
+			static function (): void {
+				// Measured across the catalogue: the only two shouted markers are
+				// the supplier's own stock announcements, and both named the
+				// company we buy from on a live customer page.
+				$entry = ts_entry();
+				$entry['style']['description'] =
+					"·195 g/m²\n·CLOSE-OUT: Ce style est retiré de la collection Untel\n·100% coton";
+				$m = Catalogue::map( $entry );
+				truthy( ! str_contains( $m['description'], 'CLOSE-OUT' ), 'note dropped' );
+				truthy( str_contains( $m['description'], '195 g/m²' ), 'facts kept' );
+				truthy( str_contains( $m['description'], '100% coton' ), 'facts kept' );
 			}
 		);
 	}
 );
 
 describe(
-	'Catalogue — money and stock',
+	'Catalogue: money and stock',
 	static function (): void {
 		it(
 			'reads the supplier price into integer cents',
@@ -333,7 +362,7 @@ describe(
 );
 
 describe(
-	'Catalogue — the supplier prose',
+	'Catalogue: the supplier prose',
 	static function (): void {
 		it(
 			'publishes the headline grammage and flags a colour exception',
@@ -381,7 +410,7 @@ describe(
 );
 
 describe(
-	'Catalogue — sizes sort the way a human wears them',
+	'Catalogue: sizes sort the way a human wears them',
 	static function (): void {
 		it(
 			'orders the adult run',
@@ -418,7 +447,7 @@ describe(
 );
 
 describe(
-	'Catalogue — the shop vocabulary',
+	'Catalogue: the shop vocabulary',
 	static function (): void {
 		it(
 			'files a short-sleeved tee under a French category path',
@@ -475,7 +504,7 @@ describe(
 );
 
 describe(
-	'Catalogue — refusals',
+	'Catalogue: refusals',
 	static function (): void {
 		it(
 			'refuses a payload with no usable reference',

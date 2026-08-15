@@ -72,7 +72,10 @@ const ok = (name, pass, extra = '') => {
 }
 
 let worker
+/** Set before the harness tears down, so the exit handler knows it was us. */
+let finished = false
 function done(code) {
+  finished = true
   try { worker?.kill('SIGTERM') } catch {}
   process.exit(code)
 }
@@ -210,9 +213,30 @@ async function main() {
     ['wrangler', 'dev', '--ip', '0.0.0.0', '--port', String(WORKER_PORT), '--log-level', 'warn'],
     { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] },
   )
+  /*
+   * IF OUR WORKER DIES, THE RUN DIES WITH IT.
+   *
+   * Without this the harness tested whatever else happened to answer on the
+   * port. Observed: a wrangler left running from an earlier session held 8789,
+   * this one exited with "Address already in use", `waitFor` was satisfied by
+   * the stranger, and every check ran green against a Worker built from code
+   * nobody had looked at. A gate that can silently verify the wrong binary is
+   * not a gate.
+   */
+  let workerDied = ''
+  worker.on('exit', (code) => {
+    if (!finished) workerDied = `wrangler dev exited with code ${code}`
+  })
   await waitFor(`${WORKER_LOCAL}/api/fr/state`, 90000, (r) => r.status === 401 || r.status === 200).catch(
     () => bail(`wrangler dev never answered on ${WORKER_PORT}. Is the port taken?`),
   )
+  if (workerDied) {
+    bail(
+      `${workerDied}, yet something is still answering on ${WORKER_PORT}.\n` +
+        'That is another Worker, probably from an earlier session, and it may be running\n' +
+        'different code. Stop it and run this again.',
+    )
+  }
   ok('the worker refuses /api/fr without a token', (await fetch(`${WORKER_LOCAL}/api/fr/state`)).status === 401)
 
   // --- 2. point WordPress at it -------------------------------------------
@@ -244,7 +268,7 @@ async function main() {
    * ESTABLISH the shipped state; do not assume it.
    *
    * Step 10 asserts that a catalogue with no margin rate is browsable and not
-   * purchasable — the state this repository ships. Step 11 then sets a rate to
+   * purchasable, the state this repository ships. Step 11 then sets a rate to
    * exercise the priced path and clears it again at the end. A run interrupted
    * between those two leaves the rate behind, and the next run's step 10 fails
    * on state its own predecessor created. A gate whose result depends on how
@@ -365,6 +389,23 @@ async function main() {
   ok('a purchase price really is stored', Number(sampleCents) > 0, `${sample.ref}: ${sampleCents} cents`)
 
   /*
+   * The supplier writes its own stock announcements into the style description
+   * ("CLOSE-OUT: ce style est retiré de la collection <notre fournisseur>"), and
+   * two of them were live on customer product pages. php-guard could not see
+   * them: it reads repository files, and that string only ever existed in
+   * wp_posts. This is the half of that boundary that only a running shop can
+   * check.
+   */
+  const wholesaler = phpJson(
+    `global $wpdb;
+     $rows = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_type='product' AND post_status='publish'
+        AND ( post_content REGEXP '(CLOSE-OUT|COULEURS NON SUIVIES)' OR post_content LIKE '%collection Falk%' )" );
+     echo wp_json_encode( array( 'leaks' => count( $rows ) ) );`,
+  )
+  ok('no product page carries the wholesaler’s own stock notes', wholesaler.leaks === 0,
+    `${wholesaler.leaks} product(s)`)
+
+  /*
    * WHAT COUNTS AS A LEAK, and both obvious needles are wrong.
    *
    * The bare cents figure ("430") is three digits and occurs by chance in any
@@ -377,12 +418,22 @@ async function main() {
    * So two sets. The EXACT one, used everywhere: the two meta KEYS and the
    * supplier's nine-digit article number, none of which can occur by accident.
    * And for surfaces a human reads, the price formatted the way this shop's own
-   * `Money::format()` formats money — a narrow no-break space and a euro sign —
+   * `Money::format()` formats money (a narrow no-break space and a euro sign),
    * which is what a template that printed our cost would actually emit, and
    * which no id list can produce.
    */
   const money = php(`echo \\Teeshoop\\Core\\Money::format( ${Number(sampleCents)} );`).trim()
-  const needles = ['_teeshoop_supply_cents', '_teeshoop_supply_sku', sampleSupplySku]
+  /*
+   * The supplier's STYLE NUMBER is a needle too, and it is the one that got
+   * away. The article number is `styleNr . colourCode . one digit`, so a shop
+   * publishing `00142-000-XS` beside a sealed `001420000` had handed back the
+   * whole procurement key bar one digit, on every product page and in the
+   * public Store API. Searching only for the nine-digit literal stayed green
+   * throughout, because `001420000` is not a substring of `00142-000-XS`. A
+   * value one string concatenation away from the sealed one is not sealed.
+   */
+  const supplierKeys = refs.map((r) => r.ref)
+  const needles = ['_teeshoop_supply_cents', '_teeshoop_supply_sku', sampleSupplySku, ...supplierKeys]
   const rendered = [...needles, money]
   const sniff = (haystack, set = needles) => set.filter((n) => haystack.includes(n))
 
@@ -537,7 +588,7 @@ async function main() {
    * --- 11. and now with a price, because the unpriced state hides things -----
    *
    * `get_available_variations()` returns an EMPTY ARRAY for a product with no
-   * purchasable variation — measured, 2 bytes of JSON — so every assertion made
+   * purchasable variation (measured: 2 bytes of JSON), so every assertion made
    * about that surface above was true of nothing. The rate is a local test
    * value and nothing else: the real one is question 42, and the shop ships
    * with none. Left cleared at the end, so the mirror matches what is shipped.
@@ -582,6 +633,23 @@ async function main() {
   ok('a variation really adds to the cart', priced.in_cart === 2, `${priced.in_cart} in cart`)
 
   /*
+   * AND THE PAGE AGAIN, NOW THAT IT HAS PRICES ON IT.
+   *
+   * The brief asks for the rendered page to be grepped for the number. Doing it
+   * only in the unpriced state greps a page with no money on it at all, which
+   * is the easiest possible page to pass on: nothing renders a price, so
+   * nothing can render the wrong one. The page that can actually leak is the
+   * one WooCommerce has filled with figures.
+   */
+  const pricedHtml = await (await fetch(permalink)).text()
+  ok('the priced product page still carries no purchase price',
+    sniff(pricedHtml, rendered).length === 0,
+    sniff(pricedHtml, rendered).join(' ') || `${pricedHtml.length} bytes`)
+  ok('and that page really does show money, so the grep meant something',
+    pricedHtml.includes(expectedPrice.replace('.', ',')) || pricedHtml.includes('&euro;') || pricedHtml.includes('€'),
+    'prices rendered')
+
+  /*
    * --- 11 bis. a duplicated barcode costs the barcode, not the garment -------
    *
    * WooCommerce 9.2 made set_global_unique_id() throw when another product
@@ -598,25 +666,34 @@ async function main() {
      $ids = $p->get_children();
      $victim = (int) $ids[0];
      $other  = (int) $ids[1];
-     // Written straight to the table: the CRUD setter is the thing under test
-     // and would refuse to create the collision we need.
-     $wpdb->update( $wpdb->posts, array( 'post_excerpt' => '' ), array( 'ID' => $victim ) );
+     // Written straight to the meta, because the CRUD setter is the thing under
+     // test and would refuse to create the collision. update_post_meta rather
+     // than a bare UPDATE, so the row is CREATED when the variation has no
+     // barcode yet: an UPDATE matching nothing leaves no collision, and the
+     // assertions below would then be true of a situation that never arose.
+     // (No backticks in here. This PHP lives in a JS template literal.)
      $gtin = (string) wc_get_product( $other )->get_global_unique_id();
-     $wpdb->query( $wpdb->prepare(
-       "UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE post_id = %d AND meta_key = '_global_unique_id'",
-       $gtin, $victim ) );
+     if ( '' === $gtin ) { echo '{"error":"the sample has no barcode to duplicate"}'; return; }
+     update_post_meta( $victim, '_global_unique_id', $gtin );
      wp_cache_flush();
-     $before = count( $p->get_children() );
+     $planted = (string) get_post_meta( $victim, '_global_unique_id', true );
+     $before  = count( $p->get_children() );
      $out = Teeshoop\\Core\\Importer::one( '${sample.ref}' );
      $after = wc_get_product( wc_get_product_id_by_sku( '${sample.ref}' ) );
      echo wp_json_encode( array(
        'gtin'     => $gtin,
+       'planted'  => $planted,
        'outcome'  => (string) $out['outcome'],
        'problems' => implode( ' / ', (array) $out['problems'] ),
        'before'   => $before,
        'after'    => $after ? count( $after->get_children() ) : 0,
      ) );`,
   )
+  // Assert the collision EXISTS before asserting what it does not do, or the
+  // next two checks are green about nothing.
+  ok('the duplicate barcode was really planted',
+    !barcode.error && barcode.planted === barcode.gtin && barcode.gtin !== '',
+    barcode.error ?? `${barcode.planted} on two variations`)
   ok('a duplicated barcode does not fail the whole reference',
     barcode.outcome !== 'failed', `outcome ${barcode.outcome}`)
   ok('and the garments stay in the shop',

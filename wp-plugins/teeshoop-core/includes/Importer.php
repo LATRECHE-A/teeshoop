@@ -47,12 +47,12 @@
  * out of stock, not unlimited.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * WHY THIS FILE IS EXEMPTED IN scripts/php-guard.mjs (category `margin` only)
+ * WHY THIS FILE IS EXEMPTED IN scripts/php-guard.mjs (the needle `Margin::`)
  *
  * It calls the cost engine to turn a supplier price into a selling price. It is
- * server-only and never rendered, and the exemption is scoped to that one
- * category, so this file is still checked for supplier names and for printing a
- * purchase price.
+ * server-only and never rendered, and the exemption names that one string, so
+ * this file is still checked for supplier names and for printing a purchase
+ * price like any other.
  *
  * @package Teeshoop\Core
  */
@@ -141,6 +141,10 @@ final class Importer {
 			'resumed' => false,
 			'run'     => $run,
 			'walk'    => $list,
+			// A walk can succeed partially: it returns what it saw AND why it
+			// stopped. Dropping that string left the operator with a short list
+			// and no reason for it.
+			'warning' => (string) ( $list['error'] ?? '' ),
 		);
 	}
 
@@ -187,17 +191,6 @@ final class Importer {
 		Taxonomy::ensure_attributes();
 		Taxonomy::register_now();
 
-		/*
-		 * Count terms once at the end, not on every assignment.
-		 *
-		 * `wp_set_object_terms` recounts a term's posts each time it is used,
-		 * and this run touches `pa_couleur` and `pa_taille` 26 399 times between
-		 * them. WordPress ships the deferral for exactly this; the matching
-		 * `false` call at the end is what actually performs the counts, so it
-		 * has to run on every exit path from here.
-		 */
-		wp_defer_term_counting( true );
-
 		global $wpdb;
 
 		/*
@@ -227,14 +220,29 @@ final class Importer {
 		}
 
 		/*
+		 * Count terms once at the end, not on every assignment.
+		 *
+		 * `wp_set_object_terms` recounts a term's posts each time it is used,
+		 * and this run touches `pa_couleur` and `pa_taille` 26 399 times between
+		 * them. WordPress ships the deferral for exactly this; the matching
+		 * `false` call at the end is what performs the counts, so it has to run
+		 * on every exit path. AFTER the lock, deliberately: turned on before it,
+		 * a refused second importer returned with counting still deferred for
+		 * the rest of that process.
+		 */
+		wp_defer_term_counting( true );
+
+		/*
 		 * ONE TRANSACTION PER REFERENCE.
 		 *
-		 * MEASURED on style 01542, 299 variations, against the local mirror:
-		 * 140 s with WooCommerce's default autocommit, 72,5 s inside one
-		 * transaction. The query count is identical (148 per variation, which is
-		 * WooCommerce's own cost and not something this file can change), so the
-		 * whole difference is the database committing 44 000 times instead of
-		 * once. Over the full catalogue that is about an hour.
+		 * MEASURED against the local mirror, and honestly: style 18009 (366
+		 * variations) took 140 s on WooCommerce's default autocommit, 0,38 s an
+		 * article; style 01542 (299 variations) took 72,5 s inside one
+		 * transaction, 0,24 s an article. Two different styles, so it is an
+		 * order of magnitude and not a controlled A/B. The query count is
+		 * identical either way (148 per variation, WooCommerce's own cost and
+		 * not something this file can change), so what the transaction removes
+		 * is the database committing 44 000 times instead of once.
 		 *
 		 * It also makes the cursor honest. `$run['at']` is written by
 		 * `update_option`, INSIDE the same transaction, so a process killed
@@ -456,12 +464,24 @@ final class Importer {
 		 */
 		$why = array();
 
+		/*
+		 * THE PUBLIC REFERENCE IS RESOLVED HERE, not in the mapper, because
+		 * uniqueness is a question about the whole shop and the mapper is pure.
+		 *
+		 * It used to be the supplier's style number, printed verbatim as
+		 * `<span class="sku">00142</span>` on 463 product pages and returned by
+		 * the public Store API. That number is the first five digits of the
+		 * article number `Shelf` seals, so the shop was publishing most of the
+		 * key it was hiding. The maker's own code carries none of that.
+		 */
+		$public = self::unique_sku( (string) $mapped['public_ref'], $product_id );
+
 		// --- the product itself --------------------------------------------
 		if ( self::set_if(
 			$product,
 			array(
 				'name'              => $mapped['name'],
-				'sku'               => $ref,
+				'sku'               => $public,
 				'description'       => self::describe( $mapped ),
 				'short_description' => self::excerpt( $mapped ),
 			)
@@ -576,9 +596,16 @@ final class Importer {
 			 * "When did we last look" is a different question and the run state
 			 * already answers it (`teeshoop catalogue etat`).
 			 */
+			/*
+			 * ONE KEY, NOT TWO. This wrote the same value under
+			 * `_teeshoop_exported` as well, which was a second column holding
+			 * the identical fact on 462 products and read by nothing. The
+			 * product page already reads `Garments::META_SPECS_DATE`, so that is
+			 * the key, and its meaning is stated above: the supplier's version
+			 * we last wrote.
+			 */
 			$stamp = (string) $mapped['exported_at'];
 			if ( '' !== $stamp ) {
-				$product->update_meta_data( Catalogue::META_EXPORTED, $stamp );
 				$product->update_meta_data( Garments::META_SPECS_DATE, $stamp );
 				$product->save();
 			}
@@ -648,7 +675,7 @@ final class Importer {
 		 * supplier's price CGI times out for one style, the Worker's
 		 * `Promise.allSettled` correctly returns the detail with `prices: null`,
 		 * every SKU maps to `supply_cents => null`, and the loop below writes ''
-		 * — which `set_meta` turns into `delete_meta_data`. One slow minute
+		 * (which `set_meta` turns into `delete_meta_data`). One slow minute
 		 * upstream and the cost basis is gone from every variation of that
 		 * style, `regular_price` is cleared with it so the product silently
 		 * stops being purchasable, and the run exits 0.
@@ -686,12 +713,14 @@ final class Importer {
 				// Without both terms the variation cannot be chosen, and a
 				// variation nobody can select is a variation that quietly makes
 				// the whole product unpurchasable.
-				$problems[] = 'Attribut manquant pour ' . $row['sku'] . '.';
+				$problems[] = 'Attribut manquant pour ' . $ref . '/' . $row['supply_sku'] . '.';
 				continue;
 			}
 
 			$props = array(
-				'sku'    => (string) $row['sku'],
+				// Unique by construction: the parent reference is unique across
+				// the shop and the suffix is deduplicated within the style.
+				'sku'    => '' === $public ? '' : $public . '-' . (string) $row['sku_suffix'],
 				'weight' => $row['weight_kg'] > 0 ? (string) $row['weight_kg'] : '',
 			);
 			$meta  = array(
@@ -765,6 +794,34 @@ final class Importer {
 			'changed' => $changed,
 			'written' => $written,
 		);
+	}
+
+	/**
+	 * A public reference nobody else is using.
+	 *
+	 * MEASURED across the catalogue: all 463 styles publish a maker's code, and
+	 * exactly one brand-and-code pair is shared by two styles (Russell Athletic
+	 * 0R599M0, on 59800 and 59900). One collision does not justify inventing a
+	 * scheme, it justifies a suffix. A candidate is kept when the SKU is free or
+	 * already ours, so a product never loses its reference to itself on a later
+	 * run.
+	 *
+	 * Empty when the maker publishes no code, and empty is a valid answer:
+	 * WooCommerce does not require a SKU, and a made-up one is worse than none.
+	 */
+	private static function unique_sku( string $wanted, int $own_id ): string {
+		if ( '' === $wanted ) {
+			return '';
+		}
+		$candidate = $wanted;
+		for ( $n = 2; $n <= 20; $n++ ) {
+			$taken = (int) wc_get_product_id_by_sku( $candidate );
+			if ( 0 === $taken || $taken === $own_id ) {
+				return $candidate;
+			}
+			$candidate = $wanted . '-' . $n;
+		}
+		return '';
 	}
 
 	/**
@@ -857,8 +914,8 @@ final class Importer {
 		 *
 		 * But the rest is still asserted. Returning early here also skipped
 		 * `manage_stock` and `backorders`, so a variation whose stock management
-		 * had been switched off by hand — or by an import that ran before this
-		 * code existed — would sell without limit for ever, and every future run
+		 * had been switched off by hand, or by an import that ran before this
+		 * code existed, would sell without limit for ever, and every future run
 		 * would walk past it because the feed happened to be missing that row.
 		 */
 		if ( null === $quantity ) {
@@ -921,7 +978,7 @@ final class Importer {
 		 * This is the same lesson `Money::from_eur` already carries: the person
 		 * who sets this is French and will type a comma. `is_numeric( '0,45' )`
 		 * is false, so the rate silently read as unset, so the next run wrote no
-		 * price at all — and a catalogue that quietly stops being purchasable
+		 * price at all, and a catalogue that quietly stops being purchasable
 		 * overnight looks exactly like a catalogue nobody has priced yet.
 		 */
 		if ( is_string( $raw ) ) {
@@ -982,7 +1039,7 @@ final class Importer {
 		 * COPIED, not merely attached.
 		 *
 		 * This counter is printed as "photo(s) copiée(s)", and it used to count
-		 * every attachment the run resolved — including the ones already in the
+		 * every attachment the run resolved, including the ones already in the
 		 * media library, which cost nothing. A no-op pass therefore reported 97
 		 * photographs copied while copying none, which is the kind of number
 		 * somebody later uses to argue about bandwidth. `attachment()` reports
@@ -1079,7 +1136,7 @@ final class Importer {
 		 * `wp_remote_get`, not `download_url`.
 		 *
 		 * `download_url` fetches through `wp_safe_remote_get`, whose whole job
-		 * is to refuse a URL that resolves to a private address — the standard
+		 * is to refuse a URL that resolves to a private address: the standard
 		 * defence against being tricked into fetching something on the server's
 		 * own network. That defence is for URLs an ATTACKER supplies. Here the
 		 * host is the shop's own configured Worker and the path is one this

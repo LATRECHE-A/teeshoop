@@ -261,7 +261,7 @@ different things.
 |---|---|
 | `studio_origin` | `https://studio.teeshoop.com`. **A security parameter.** Empty ⇒ the shortcode refuses to render rather than accepting messages from anywhere. |
 | `studio_path` | Path within that origin, default `/`. |
-| `worker_url` | Cloudflare Worker base URL, used to confirm a design exists. |
+| `worker_url` | Cloudflare Worker base URL. **It is now a browser-facing origin as well as a server-facing one**: the catalogue stores each colour photo as a path and the shop renders `worker_url + path` in an `<img src>`, so an address only the server can resolve (`host.docker.internal`, a private hostname) leaves every colour photo broken for customers while the importer works perfectly. It must be an address a visitor's browser can reach. |
 | `design_verify_path` | Default `/api/design/`. |
 
 `teeshoop_pricing` (option) is a partial overlay on
@@ -308,6 +308,28 @@ Measured, 2026-08-14, local mirror: 0,24 s per variation on creation (148 querie
 each, which is WooCommerce's own cost), 5 ms per variation to re-verify an
 unchanged one. The first full run: 463 references listed in 11 calls and 0,5 s,
 then 26 127 variations and 731 photographs written in 5 794 s.
+
+Two leaks the adversarial pass found by measuring the running shop rather than
+reading the code, both of which the guards were structurally unable to see:
+
+**The public reference gave back the sealed one.** It was
+`{styleNr}-{colourCode}-{size}`, and the supplier's article number is
+`styleNr . colourCode . one digit`, so `00142-000-XS` published beside a sealed
+`001420000` was the whole procurement key bar one digit, on every product page
+and in the public Store API. The size-to-digit map is identical across a style's
+colours, so one confirmed article number opened all 366 of them. The leak check
+stayed green because it searched for the nine-digit literal, which is not a
+substring of the hyphenated form. The reference is now the maker's own article
+code (E150, 64000, 61-212-0), which is also what a buyer of blanks searches for,
+and the gate greps for the supplier's style number too.
+
+**The supplier named itself in our product descriptions.** On close-out styles it
+writes its own stock announcements into the description, and two product pages
+published "CLOSE-OUT: ce style est retiré de la collection *(our wholesaler)*".
+`php-guard` reads repository files; that string only ever existed in `wp_posts`.
+Those bullets are dropped by their marker rather than by the name, because
+writing the name into the plugin to filter it would put it exactly where the
+boundary forbids, and would miss the next note.
 
 A third defect the full run found, which the six-reference gate could not:
 WooCommerce 9.2 makes `set_global_unique_id()` throw when another product

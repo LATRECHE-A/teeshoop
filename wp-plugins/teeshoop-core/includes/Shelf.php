@@ -7,7 +7,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * 1. THE PURCHASE PRICE LEAVES BY NO DOOR
  *
- * It is stored on the variation as post meta, which is the right place for it —
+ * It is stored on the variation as post meta, which is the right place for it:
  * it is a property of that article, it survives an export of the catalogue, and
  * a query can find it. It is also, by default, a field WooCommerce is perfectly
  * happy to hand out.
@@ -15,8 +15,8 @@
  * An underscore prefix is NOT the seal. It makes WordPress call the meta
  * "protected", which hides it from the product editor's custom-field box and
  * from nothing else. `WC_Data::get_meta_data()` returns it, so the REST API
- * returns it, so a read-only WooCommerce key — the kind you hand to an
- * analytics tool or a stock plugin — reads our margin on every article we sell.
+ * returns it, so a read-only WooCommerce key (the kind you hand to an
+ * analytics tool or a stock plugin) reads our margin on every article we sell.
  * Two such keys already exist on the production shop.
  *
  * So the doors are closed one by one, and every one of them is a real door
@@ -100,7 +100,7 @@ final class Shelf {
 	 * no price, and a variable product whose variations have no price is not
 	 * purchasable. WooCommerce's variation script then answers every colour and
 	 * size with "Désolé, ce produit n'est pas disponible. Veuillez choisir une
-	 * autre combinaison." — which is false twice over: the garment exists, and
+	 * autre combinaison." That is false twice over: the garment exists, and
 	 * choosing a different combination will not help.
 	 *
 	 * So the add-to-cart form is replaced by the true statement. This is the
@@ -238,23 +238,39 @@ final class Shelf {
 			return $data;
 		}
 
+		/*
+		 * `false`, NOT 0, AND THE DIFFERENCE IS WHETHER THE PHOTO IS VISIBLE.
+		 *
+		 * WooCommerce's variation script writes each of these onto the <img>
+		 * through `wc_set_variation_attr`, which removes the attribute when the
+		 * value is EXACTLY `false` and sets it otherwise (verified in
+		 * add-to-cart-variation.js:825-837 on 11.0.1). A zero therefore renders
+		 * as `width="0" height="0"`: the colour is selected, the right photo is
+		 * fetched, and the customer sees nothing at all. We do not know these
+		 * dimensions (the file is on the Worker and was never measured here),
+		 * and `false` is how you say that to this script.
+		 *
+		 * `srcset` and `sizes` are '' rather than false on purpose: they must be
+		 * CLEARED, not left alone, or the browser keeps the previous colour's
+		 * candidate list and fetches the wrong picture at the wrong width.
+		 */
 		$alt = $variation->get_name();
 		$data['image'] = array_merge(
 			is_array( $data['image'] ?? null ) ? $data['image'] : array(),
 			array(
-				'src'         => $src,
-				'full_src'    => $src,
-				'thumb_src'   => $src,
+				'src'                   => $src,
+				'full_src'              => $src,
+				'thumb_src'             => $src,
 				'gallery_thumbnail_src' => $src,
-				'srcset'      => '',
-				'sizes'       => '',
-				'alt'         => $alt,
-				'title'       => $alt,
-				'caption'     => '',
-				'src_w'       => 0,
-				'src_h'       => 0,
-				'full_src_w'  => 0,
-				'full_src_h'  => 0,
+				'srcset'                => '',
+				'sizes'                 => '',
+				'alt'                   => $alt,
+				'title'                 => $alt,
+				'caption'               => '',
+				'src_w'                 => false,
+				'src_h'                 => false,
+				'full_src_w'            => false,
+				'full_src_h'            => false,
 			)
 		);
 

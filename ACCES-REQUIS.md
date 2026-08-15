@@ -355,7 +355,7 @@ La manœuvre est indolore et prend une minute : créer une nouvelle clé, me don
 nouvelle par lien autodestructeur (§8), supprimer l'ancienne. À faire quand le
 développeur en aura le temps, avant la mise en ligne dans tous les cas.
 
-### 🔴 `ADMIN_TOKEN` est à faire tourner (14/08/2026, séance 03)
+### `ADMIN_TOKEN` est à faire tourner (14/08/2026, séance 03)
 
 Pendant la mise en place de l'import du catalogue, `wp config set` a **affiché la
 valeur qu'il venait d'écrire** dans son message de succès, et cette valeur est donc

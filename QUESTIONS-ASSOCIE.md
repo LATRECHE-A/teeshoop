@@ -692,9 +692,9 @@ Si le catalogue ne sert qu'à choisir le vêtement à personnaliser, alors le bo
 
 🔴 **Bloquant** (si la réponse à la 41 est « oui, on vend des textiles nus »)
 
-*Pourquoi on a besoin de la réponse :* Le chapitre 1 de la Bible donne la formule — prix conseillé HT = coût / (1 − taux de marge cible) — et range « fixer les premiers taux de marge » parmi les choses qui restent à décider. Nous avons le coût réel de chaque article, fourni par le fournisseur et rafraîchi toutes les nuits. Il ne manque que le taux.
+*Pourquoi on a besoin de la réponse :* Le chapitre 1 de la Bible donne la formule (prix conseillé HT = coût / (1 − taux de marge cible)) et range « fixer les premiers taux de marge » parmi les choses qui restent à décider. Nous avons le coût réel de chaque article, fourni par le fournisseur et rafraîchi toutes les nuits. Il ne manque que le taux.
 
-Ce n'est pas un détail d'arrondi. Sur le t-shirt le plus vendu du catalogue, acheté 3,37 EUR HT :
+Ce n'est pas un détail d'arrondi. Sur un t-shirt acheté 3,37 EUR HT (Fruit of the Loom Heavy Cotton, la référence la plus fournie du catalogue avec 366 articles) :
 
 | Taux de marge | Prix de vente HT | Prix TTC | Ce qu'il nous reste |
 |---|---|---|---|
@@ -728,7 +728,7 @@ Nous ne traitons donc que **la première** comme du stock vendable. Si c'est le 
 
 ### 44. Faut-il traduire les noms de coloris en français ?
 
-🟢 **Confort**
+🟡 **À confirmer**
 
 *Pourquoi on a besoin de la réponse :* Le catalogue compte 442 noms de coloris distincts, et ce sont les noms du fabricant : « Heather Grey », « Bottle Green », « Fan Deep Royal ». Ce sont aussi ceux qui figurent sur l'étiquette du vêtement et dans les catalogues papier que vos clients professionnels connaissent, donc les traduire n'est pas gratuit : un acheteur qui cherche « Sport Grey » ne trouverait plus rien.
 

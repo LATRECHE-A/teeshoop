@@ -19,10 +19,11 @@
  * VARIATIONS ARE BUILT FROM THE SUPPLIER'S SKU LIST, NEVER FROM COLOUR × SIZE.
  * Measured over the 463 printable styles on 2026-08-14: the SKU list holds
  * 26 399 entries while the cross product is 29 880. Those 3 481 extra
- * combinations do not exist. Building them would publish 13 % of the catalogue
- * as garments nobody can buy, and the shop would only find out when a customer
- * ordered one, paid for it, and the supplier had no such article. Style 15009
- * alone is 49 colours and 9 sizes but 334 real SKUs, not 441.
+ * combinations do not exist: 11,6 % of the cross product. Publishing them would
+ * put that many garments in the shop that nobody can buy, and we would find out
+ * only when a customer ordered one, paid for it, and the supplier had no such
+ * article. Style 15009 alone shows 49 colours and 9 sizes and sells 334 real
+ * SKUs, not 441.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * THE 320-VARIATION PRODUCT: THE TRADE-OFF, ARGUED
@@ -51,9 +52,12 @@
  *      cross, so the heavy product pages are already on the lighter path. What
  *      remains is `get_variation_prices()`, which walks every child to build the
  *      "from" range and caches the result in a transient keyed by the product.
- *      That is the four-second page, and it is a COLD page, once per product per
- *      price change. `Importer` warms it at the end of every style it writes, so
- *      the cold hit lands on the cron and not on a customer.
+ *      MEASURED on the imported catalogue, that walk is 464 ms cold on the
+ *      366-variation product and 754 ms on the slowest of the five heaviest,
+ *      against 0,3 ms warm. Not the four seconds the brief feared, and it is a
+ *      COLD cost, once per product per price change: `Importer` warms both
+ *      cache variants at the end of every style it writes, so it lands on the
+ *      cron and not on a customer.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * IMAGES: WHAT IS COPIED AND WHAT IS NOT
@@ -62,11 +66,11 @@
  * photos, 4 241 per-colour photos, averaging 63 KB each (colour chips average
  * 3,9 KB).
  *
- *   COPIED INTO WORDPRESS: the front and the back. 716 attachments, ~45 MB of
- *   originals before WordPress generates its seven derived sizes. They have to
- *   be real attachments because the archive, the cart, the order e-mail and the
- *   structured data all address an image by attachment id, and there is no
- *   honest way to fake one.
+ *   COPIED INTO WORDPRESS: the front and the back. MEASURED after a full run,
+ *   736 attachments and about 46 MB of originals before WordPress generates its
+ *   derived sizes. They have to be real attachments because the archive, the
+ *   cart, the order e-mail and the structured data all address an image by
+ *   attachment id, and there is no honest way to fake one.
  *
  *   NOT COPIED: the 4 241 per-colour photos. That is 267 MB of originals,
  *   roughly 650 MB and 34 000 files once WordPress has resized them, and one to
@@ -136,9 +140,6 @@ final class Catalogue {
 	 * the families the run actually walked.
 	 */
 	public const META_FAMILY = '_teeshoop_family';
-
-	/** Product: the supplier's own export timestamp for this style. */
-	public const META_EXPORTED = '_teeshoop_exported';
 
 	/** Variation: the supplier's article number. The procurement key. */
 	public const META_SUPPLY_SKU = '_teeshoop_supply_sku';
@@ -481,8 +482,11 @@ final class Catalogue {
 			'name'          => trim( $brand . ' ' . $name ) ?: ( 'Référence ' . $ref ),
 			'brand'         => $brand,
 			'brand_ref'     => self::text( $style['supplierRef'] ?? '' ),
+			// The maker's own article code, normalised, and the base of every
+			// public reference in the shop. See the note in `variations()`.
+			'public_ref'    => self::public_ref( $style ),
 			'kind'          => $kind,
-			'description'   => $description,
+			'description'   => self::clean_description( $description ),
 			'material'      => self::composition( $description ),
 			'weight_gsm'    => $grammage['gsm'],
 			'weight_varies' => $grammage['varies'],
@@ -498,6 +502,59 @@ final class Catalogue {
 			'has_prices'    => null !== $prices,
 			'has_stock'     => null !== $stock,
 		);
+	}
+
+	/**
+	 * The maker's own article code, uppercased and reduced to what a URL and a
+	 * label can carry.
+	 *
+	 * NOT the supplier's style number. That number is the first five digits of
+	 * the procurement key this plugin seals, so publishing it as a reference
+	 * hands back most of what the seal exists to hide.
+	 */
+	public static function public_ref( array $style ): string {
+		$code = strtoupper( self::text( $style['supplierRef'] ?? '' ) );
+		$code = preg_replace( '/[^A-Z0-9]+/', '-', $code ) ?? '';
+		return trim( $code, '-' );
+	}
+
+	/**
+	 * The supplier's bullet list, minus the bullets that are addressed to us.
+	 *
+	 * MEASURED across the 463 styles: exactly two lines in the whole catalogue
+	 * open with a capitalised marker and a colon, and both are the wholesaler's
+	 * own stock announcements:
+	 *
+	 *   CLOSE-OUT: Ce style est retiré de la collection <notre fournisseur>
+	 *   COULEURS NON SUIVIES: 6 couleurs sont retirées de la collection …
+	 *
+	 * Both were live on a customer's product page. They name the company we buy
+	 * from, which `scripts/php-guard.mjs` exists to keep off a customer surface
+	 * and could not catch because it reads repository files and this string only
+	 * ever existed in `wp_posts`. And even anonymous they do not belong there: a
+	 * buyer does not need to be told our wholesaler is dropping the line.
+	 *
+	 * The rule is the MARKER, not the name. Matching the supplier's name would
+	 * mean writing it into this file, which is the thing the boundary forbids,
+	 * and it would miss the next note they write. A bullet that opens with a
+	 * shouted label is a merchandising note; the rest of the list is the
+	 * garment. The closeout fact itself is not lost: it arrives per article as
+	 * `sku_closeout` and is stored on the variation.
+	 */
+	public static function clean_description( string $description ): string {
+		$kept = array();
+		foreach ( preg_split( '/\R/u', $description ) ?: array() as $line ) {
+			$body = trim( ltrim( trim( $line ), "·-•\u{00B7}" ) );
+			if ( '' === $body ) {
+				continue;
+			}
+			if ( preg_match( '/^[A-ZÀ-ÿ0-9][A-ZÀ-Ý0-9 \-\x27]{3,40}\s*:/u', $body )
+				&& preg_match( '/^[^a-z]{4,}/u', $body ) ) {
+				continue;
+			}
+			$kept[] = $line;
+		}
+		return implode( "\n", $kept );
 	}
 
 	/** Does this map hold a usable price for at least one article of this style? */
@@ -557,30 +614,50 @@ final class Catalogue {
 			}
 
 			/*
-			 * OUR reference, not the supplier's.
+			 * THE PUBLIC REFERENCE IS BUILT FROM THE MAKER'S CODE, NEVER FROM
+			 * THE SUPPLIER'S.
 			 *
-			 * The supplier's nine-digit article number is the procurement key
-			 * and it stays in private meta: it is searchable, and a customer who
-			 * pastes it into Google is one result away from knowing who supplies
-			 * us. The style number, a colour code and a size are opaque and
-			 * unique by construction, so no collision check is needed.
+			 * It used to be `{styleNr}-{colourCode}-{size}`, and the comment here
+			 * called that "opaque and unique by construction". MEASURED on the
+			 * imported shop, it was neither opaque nor safe: the supplier's own
+			 * article number is `styleNr . colourCode . one digit`, so
+			 * `00142-000-XS` published beside a sealed `001420000` is the whole
+			 * procurement key minus one digit. Worse, the size-to-digit map is
+			 * identical across every colour of a style, so ONE confirmed article
+			 * number unlocks all of them. Shelf.php seals
+			 * `_teeshoop_supply_sku` from REST, from the CSV export and from the
+			 * variation JSON precisely because it fingerprints who we buy from,
+			 * and the public SKU handed it back by string concatenation on
+			 * 26 399 articles.
+			 *
+			 * The maker's own article code (`supplier_article_code`: E150,
+			 * 64000, 61-212-0) has none of that problem and is strictly better
+			 * for the buyer, who searches for exactly that. MEASURED across the
+			 * catalogue: all 463 styles publish one, none of them contains the
+			 * supplier's style number, and only one brand-plus-code pair is
+			 * shared by two styles, which `Importer` resolves against the
+			 * database because purity cannot see other products.
+			 *
+			 * What is built here is the SUFFIX; the importer puts the resolved
+			 * parent reference in front of it.
 			 */
-			$our_sku = $ref . '-' . $code . '-' . self::slug_fragment( $size );
+			$suffix = self::slug_fragment( $colour ) . '-' . self::slug_fragment( $size );
 			/*
-			 * Two size names can reduce to the same fragment: "5/6 (110/116)"
-			 * and "56 (110/116)" both give 56110116. Skipping the second would
-			 * silently drop a garment the supplier sells, so it gets a suffix
-			 * instead. WooCommerce refuses a duplicate SKU outright, which is
-			 * why this cannot simply be left to collide.
+			 * Two names can reduce to the same fragment: "5/6 (110/116)" and
+			 * "56 (110/116)" both give 56110116, and so do "Off White" and
+			 * "off/white". Skipping the second would silently drop a garment the
+			 * supplier sells, so it gets a suffix instead. WooCommerce refuses a
+			 * duplicate SKU outright, which is why this cannot be left to
+			 * collide.
 			 */
-			if ( isset( $seen[ $our_sku ] ) ) {
+			if ( isset( $seen[ $suffix ] ) ) {
 				$n = 2;
-				while ( isset( $seen[ $our_sku . '-' . $n ] ) ) {
+				while ( isset( $seen[ $suffix . '-' . $n ] ) ) {
 					++$n;
 				}
-				$our_sku .= '-' . $n;
+				$suffix .= '-' . $n;
 			}
-			$seen[ $our_sku ] = true;
+			$seen[ $suffix ] = true;
 
 			$cost = $prices[ $supply ]['cost'] ?? null;
 			// A cost of exactly zero is not a free garment, it is a missing
@@ -603,7 +680,7 @@ final class Catalogue {
 			$quantity = is_array( $row ) && isset( $row[0] ) ? max( 0, (int) $row[0] ) : null;
 
 			$out[] = array(
-				'sku'          => $our_sku,
+				'sku_suffix'   => $suffix,
 				'supply_sku'   => $supply,
 				'couleur'      => $colour,
 				'taille'       => $size,
@@ -747,6 +824,15 @@ final class Catalogue {
 	 *
 	 * A size that is neither sorts last, in the order the supplier gave it,
 	 * rather than being dropped: "One Size" is a real size.
+	 *
+	 * KNOWN LIMIT, stated rather than papered over: below the adult block the
+	 * numbers carry no unit, so a height in centimetres, an age in years and an
+	 * age in months share one scale. "6-12" (months) sorts before "116 (5-6)"
+	 * (centimetres) because 6 is less than 116. Guessing the unit from the
+	 * magnitude would be a rule invented here, and it would be wrong the first
+	 * time a maker labels something differently. It affects the children's tail
+	 * of the catalogue only, where the customer reads the label anyway, and it
+	 * is the sort of thing to fix with a lookup the associate has validated.
 	 */
 	public static function size_rank( string $size ): int {
 		$key = mb_strtoupper( trim( $size ) );

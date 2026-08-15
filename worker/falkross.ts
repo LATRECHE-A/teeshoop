@@ -787,6 +787,14 @@ export interface BrowseResult {
   /** Where to resume; null when the catalogue is exhausted. */
   nextOffset: number | null
   scanned: number
+  /**
+   * Styles in the scanned range whose document could not be read.
+   *
+   * A caller deciding what the supplier has WITHDRAWN must treat a non-zero
+   * value as "this walk was lossy": a style that is merely unreadable today is
+   * indistinguishable, in `items`, from one that is gone.
+   */
+  dropped: number
   items: FrCard[]
   exportedAt: string
 }
@@ -798,15 +806,21 @@ export interface BrowseResult {
  * reports `nextOffset` rather than throwing. Blocks are keyed by FEED VERSION,
  * so the morning's re-export invalidates every block without a purge.
  */
+interface Block {
+  cards: FrCard[]
+  /** Styles in this block whose document could not be read. See below. */
+  dropped: number
+}
+
 async function loadCardBlock(
   origin: string,
   ctx: ExecutionContext,
   index: StyleListIndex,
   start: number,
   budget: Subrequests,
-): Promise<FrCard[] | null> {
+): Promise<Block | null> {
   const nrs = index.nrs.slice(start, start + BLOCK)
-  if (nrs.length === 0) return []
+  if (nrs.length === 0) return { cards: [], dropped: 0 }
   const key = new Request(
     new URL(
       `/__fr-cache/${encodeURIComponent(`cards:${index.version}:${start}`)}`,
@@ -818,7 +832,9 @@ async function loadCardBlock(
   const hit = await caches.default.match(key)
   if (hit) {
     try {
-      return (await hit.json()) as FrCard[]
+      const cached = (await hit.json()) as Block | FrCard[]
+      // Entries written before blocks carried `dropped` are plain arrays.
+      return Array.isArray(cached) ? { cards: cached, dropped: 0 } : cached
     } catch {
       // Corrupt entry — fall through and rebuild, budget permitting.
     }
@@ -827,23 +843,36 @@ async function loadCardBlock(
   // Cold: one fetch per style plus the write-back. Reserved as a whole, because
   // a half-built block is worth nothing and would still have cost the fetches.
   if (!budget.take(nrs.length + 1)) return null
-  const cards = (
-    await Promise.all(
-      nrs.map(async (nr) => {
-        try {
-          return toCard(parseStyle(await fetchStyleXml(index.version, nr, false), nr))
-        } catch {
-          // A single unpublished / malformed style must not sink the block.
-          return null
-        }
-      }),
-    )
-  ).filter((c): c is FrCard => c !== null)
+  const built = await Promise.all(
+    nrs.map(async (nr) => {
+      try {
+        return toCard(parseStyle(await fetchStyleXml(index.version, nr, false), nr))
+      } catch {
+        // A single unpublished / malformed style must not sink the block.
+        return null
+      }
+    }),
+  )
+  /*
+   * COUNTED, because silently dropping a style is not free any more.
+   *
+   * A document that 404s or fails to parse used to vanish here and nowhere
+   * else: the caller saw a complete walk that simply did not contain it. That
+   * was fine while the only reader was a grid a human scrolls. It is not fine
+   * now that the shop's importer walks this to decide which references the
+   * supplier has STOPPED selling, because a style dropped here looks exactly
+   * like a style withdrawn, and the answer to "withdrawn" is to unpublish a
+   * product that is on sale.
+   */
+  const block: Block = {
+    cards: built.filter((c): c is FrCard => c !== null),
+    dropped: built.filter((c) => c === null).length,
+  }
 
   ctx.waitUntil(
     caches.default.put(
       key,
-      new Response(JSON.stringify(cards), {
+      new Response(JSON.stringify(block), {
         headers: {
           'content-type': 'application/json; charset=utf-8',
           'cache-control': `public, max-age=${TTL.style}`,
@@ -851,7 +880,7 @@ async function loadCardBlock(
       }),
     ),
   )
-  return cards
+  return block
 }
 
 async function browseStyles(
@@ -870,6 +899,7 @@ async function browseStyles(
   const start =
     Math.floor(Math.max(0, Math.min(opts.offset, index.nrs.length)) / BLOCK) * BLOCK
   let i = start
+  let dropped = 0
   const deadline = Date.now() + BROWSE_BUDGET_MS
 
   const matches = (c: FrCard) => {
@@ -916,9 +946,10 @@ async function browseStyles(
   ) {
     const block = await loadCardBlock(origin, ctx, index, i, budget)
     if (block === null) break // out of subrequests — resume from `i`
+    dropped += block.dropped
     // Every match in the block is taken, so advancing past the block cannot
     // skip one. `limit` is at least BLOCK, so this overshoots by at most 11.
-    for (const c of block) {
+    for (const c of block.cards) {
       if (matches(c)) items.push(c)
     }
     i += BLOCK
@@ -930,6 +961,7 @@ async function browseStyles(
     offset: start,
     nextOffset: i < index.nrs.length ? i : null,
     scanned: i - start,
+    dropped,
     items,
     exportedAt: index.exportedAt,
   }
@@ -970,7 +1002,7 @@ export interface FrPrices {
    * whatever `default_price` is (a base tariff before our account's terms, most
    * likely), it is not a reference price and must never be shown to a customer
    * as one. Crossing it out beside ours would advertise a discount that does
-   * not exist, which in France is a prix de référence fictif and unlawful — the
+   * not exist, which in France is a prix de référence fictif and unlawful. The
    * cart shipped exactly that mistake once already. Nothing may read this field
    * but a human comparing tariffs.
    */
@@ -1121,8 +1153,8 @@ async function loadDeliveries(
  * shared hosting and walks ~460 styles; asking for detail, prices and stock
  * separately is 1380 HTTPS round trips from o2switch to here, for work that
  * costs the same upstream either way (all three sit behind `cachedJson`).
- * Folded together it is 460. Worst case per invocation is twelve subrequests —
- * index 3, style 3, prices 3, stock 3 — against a free-plan ceiling of 50, so
+ * Folded together it is 460. Worst case per invocation is twelve subrequests,
+ * index 3, style 3, prices 3, stock 3, against a free-plan ceiling of 50, so
  * this cannot repeat the budget failure the browse path had.
  *
  * PRICES AND STOCK ARE NULLABLE, AND THE REASON TRAVELS WITH THEM. A style the
@@ -1154,7 +1186,7 @@ export interface FrCatalogueEntry {
  * follow. `PHOTO_ALIAS` is the same bytes from the same handler under a name
  * that says nothing about the supplier.
  *
- * `/api/fr/img/` stays exactly where it was — the studio's catalogue modal has
+ * `/api/fr/img/` stays exactly where it was: the studio's catalogue modal has
  * used it since July and this is not the session to move it.
  */
 const PHOTO_ALIAS = '/media/blank/'
@@ -1553,7 +1585,7 @@ export async function handleFalkRoss(
      * Caught HERE, because this branch sits before the try that wraps the rest
      * of the module (it has to: it is the one route outside the admin gate).
      * `serveImage` reaches `fetchUpstream`, which THROWS on a 404, on a non-2xx
-     * and on the 10 s timeout — so a photo the supplier has withdrawn would
+     * and on the 10 s timeout, so a photo the supplier has withdrawn would
      * escape `fetch()` and Cloudflare would answer its own 500 "Worker threw
      * exception" page. In an `<img src>` on a shop that is a broken picture
      * plus a 500 in the logs, where 404 is both true and cheap.
@@ -1612,7 +1644,7 @@ export async function handleFalkRoss(
 
     // The catalogue importer's single read. `no-store`, unlike the routes
     // above: it carries stock, whose whole value is being current, and there is
-    // exactly one caller — a cron on the shop — with nothing to gain from a
+    // exactly one caller (a cron on the shop) with nothing to gain from a
     // browser cache.
     const entry = /^catalogue\/(\d{4,6})$/.exec(rest)
     if (entry && method === 'GET') {

@@ -93,16 +93,22 @@ Mesuré le 14 août 2026 sur le catalogue réel.
 |---|---|
 | Références importables (t-shirts, polos, sweats) | **463** |
 | Articles réellement vendus par le fournisseur | **26 399** |
-| Combinaisons coloris × taille qui n'existent pas | **3 481** (13 %) |
+| Combinaisons coloris × taille qui n'existent pas | **3 481**, soit 11,6 % du produit cartésien |
 | Articles par référence | médiane 36, p90 134, p99 292, maximum 366 |
 | Références de plus de 30 articles | 256 |
-| Photos de face et de dos copiées | 716, environ 45 Mo avant les vignettes |
+| Photos de face et de dos copiées | **736** (mesuré, pas estimé), environ 46 Mo avant les vignettes |
 | Photos par coloris **non** copiées | 4 241, soit 267 Mo, ~650 Mo et 34 000 fichiers après redimensionnement |
 
-**Le premier import complet, mesuré** (miroir local) : 463 références listées en 11 appels et
-0,5 s, puis **26 127 articles écrits et 731 photos copiées en 5 794 s**, soit **1 h 37** et
-0,22 s par article. La passe suivante, qui ne réécrit que ce qui a bougé : **10 min**, 289
-références inchangées sur 463.
+**Les trois passes, mesurées** (miroir local) :
+
+| Passe | Résultat | Durée |
+|---|---|---|
+| 1re, catalogue vide | 452 créées, 26 127 articles, 731 photos, 5 en échec | **1 h 37** (0,22 s par article) |
+| 2e, après correction des codes-barres | 3 créées, 169 modifiées, 289 inchangées, 0 en échec | 10 min |
+| 3e, rien n'ayant bougé en amont | **0 créée, 2 modifiées, 459 inchangées**, 3 articles écrits, 0 photo | **3 min** |
+
+La troisième est la preuve : 26 399 articles relus, trois écritures, et
+« Rien n'a changé » imprimé pour de bon.
 
 **Ce que la boutique pèse ensuite**, mesuré une fois le catalogue en place :
 
@@ -136,6 +142,39 @@ Les variations sont construites depuis **la liste d'articles du fournisseur**, j
 depuis le produit cartésien coloris × taille. Le style 15009 affiche 49 coloris et
 9 tailles mais ne vend que 334 articles : les 107 autres n'existent pas, et les publier
 reviendrait à encaisser des commandes que personne ne peut honorer.
+
+### Le piège mesuré : la référence publique redonnait la clé qu'on scellait
+
+La référence affichée était `{numéro de style}-{code coloris}-{taille}`, par exemple
+`00142-000-XS`, et le numéro d'article du fournisseur que `Shelf.php` masque partout est
+`{numéro de style}{code coloris}{un chiffre}`, soit `001420000`. Autrement dit la boutique
+publiait, sur chaque fiche et dans l'API Store publique, **toute la clé d'approvisionnement
+à un chiffre près**. Pire : la correspondance taille vers chiffre est identique pour tous les
+coloris d'un style, donc un seul article confirmé ouvrait les 366 autres. Le numéro de style
+seul était même affiché tel quel comme référence du produit parent.
+
+Le contrôle de fuite ne voyait rien : il cherchait le littéral à neuf chiffres, et
+`001420000` n'est pas une sous-chaîne de `00142-000-XS`.
+
+La référence publique est désormais **le code article du fabricant** (E150, 64000,
+61-212-0), qui est aussi ce qu'un acheteur de textile nu cherche vraiment. Mesuré : les 463
+styles en publient un, aucun ne contient le numéro du fournisseur, et une seule paire
+marque + code est partagée par deux styles, que l'import départage contre la base. Le
+contrôle cherche maintenant aussi le numéro de style, donc la fuite ne peut pas revenir.
+
+### Le piège mesuré : le fournisseur se nomme dans nos fiches produit
+
+Sur les styles en fin de série, le fournisseur écrit ses propres annonces de stock dans la
+description : « CLOSE-OUT: ce style est retiré de la collection *notre fournisseur* ».
+Deux fiches produit le publiaient en clair. Le garde-fou `php-guard` ne pouvait pas le voir :
+il lit les fichiers du dépôt, et cette chaîne n'a jamais existé que dans `wp_posts`.
+
+Ces puces sont retirées à l'import, **par leur marqueur et non par le nom** : sur les 463
+styles, les deux seules lignes qui commencent par une étiquette en capitales suivie de deux
+points sont exactement ces deux annonces. Écrire le nom du fournisseur dans le code pour le
+filtrer aurait été le mettre là où justement il ne doit pas être, et aurait raté la
+prochaine note. Le fait lui-même n'est pas perdu : la fin de série arrive article par article
+et est stockée sur la variation.
 
 ### Le piège mesuré : un code-barres en double coûtait toute une référence
 

@@ -25,9 +25,12 @@
  *
  * `/api/fr/*` is ADMIN-ONLY: it returns our purchase cost per SKU and our
  * supplier stock, so it sits behind a bearer gate (worker/auth.ts, secret
- * `ADMIN_TOKEN`, unset means deny all). The single exemption is the photo
- * proxy `/api/fr/img/*`, which is fetched by <img src> — no header possible —
- * and serves public supplier photos we fetch upstream without credentials.
+ * `ADMIN_TOKEN`, unset means deny all). TWO exemptions, both forced rather than
+ * chosen, because an `<img src>` cannot send a header: the photo proxy
+ * `/api/fr/img/*`, and `/media/blank/*`, which is the same handler under a
+ * prefix that does not name the supplier and is what the shop stores in its
+ * database. Both serve public supplier photos fetched upstream with no
+ * credentials.
  * `POST /api/ar` stays open on purpose: customers export their own AR models.
  *
  * Everything else falls through to the static assets (with SPA fallback), so

@@ -116,6 +116,9 @@ final class Cli {
 					(string) ( $walk['seconds'] ?? '?' )
 				)
 			);
+			if ( ! empty( $plan['warning'] ) ) {
+				\WP_CLI::warning( (string) $plan['warning'] );
+			}
 			if ( empty( $run['complete'] ) ) {
 				\WP_CLI::warning( 'La liste est incomplète : aucune référence ne sera retirée de la boutique sur la foi de cette passe.' );
 			}
@@ -266,6 +269,8 @@ final class Cli {
 			\WP_CLI::error( "Ce site ne ressemble pas au miroir local ({$home}). Relancez avec --forcer si c’est bien voulu." );
 		}
 
+		global $wpdb;
+
 		$ids = get_posts(
 			array(
 				'post_type'   => 'product',
@@ -275,21 +280,66 @@ final class Cli {
 				'meta_key'    => Catalogue::META_REF, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 			)
 		);
-
-		$removed = 0;
-		foreach ( $ids as $id ) {
-			$product = wc_get_product( (int) $id );
-			if ( $product instanceof \WC_Product_Variable ) {
-				foreach ( $product->get_children() as $child ) {
-					wp_delete_post( (int) $child, true );
-				}
-			}
-			wp_delete_post( (int) $id, true );
-			++$removed;
+		if ( empty( $ids ) ) {
+			Importer::forget_run();
+			\WP_CLI::success( '0 référence(s) importée(s) supprimée(s).' );
+			return;
 		}
 
+		/*
+		 * BULK SQL, NOT `wp_delete_post` IN A LOOP, AND THAT IS THE POINT OF
+		 * THIS COMMAND EXISTING AT ALL.
+		 *
+		 * A full catalogue is 26 399 variations, and deleting them one at a time
+		 * through the CRUD costs well over half an hour: every single delete
+		 * fires WooCommerce's hooks, clears the parent's transients and touches
+		 * the lookup table. Measured by watching `npm run verify:wp-catalogue`
+		 * spend thirty minutes in `purger` before it could assert anything, which
+		 * is how a verification gate becomes a gate nobody runs.
+		 *
+		 * Bypassing the CRUD is safe HERE and nowhere else: this command already
+		 * refuses to run on anything that does not look like the local mirror,
+		 * it deletes only rows this importer created, and its whole purpose is to
+		 * return a development database to a known state. Every table WooCommerce
+		 * derives from these posts is cleaned below, and the product transients
+		 * are flushed at the end, so nothing is left pointing at a row that is
+		 * gone.
+		 */
+		$parents  = array_map( 'intval', $ids );
+		$in       = implode( ',', $parents );
+		$children = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_type='product_variation' AND post_parent IN ({$in})" ); // phpcs:ignore WordPress.DB
+		$all      = array_merge( $parents, array_map( 'intval', $children ) );
+
+		foreach ( array_chunk( $all, 2000 ) as $chunk ) {
+			$list = implode( ',', $chunk );
+			$wpdb->query( "DELETE FROM {$wpdb->postmeta} WHERE post_id IN ({$list})" ); // phpcs:ignore WordPress.DB
+			$wpdb->query( "DELETE FROM {$wpdb->term_relationships} WHERE object_id IN ({$list})" ); // phpcs:ignore WordPress.DB
+			$wpdb->query( "DELETE FROM {$wpdb->prefix}wc_product_meta_lookup WHERE product_id IN ({$list})" ); // phpcs:ignore WordPress.DB
+			$wpdb->query( "DELETE FROM {$wpdb->posts} WHERE ID IN ({$list})" ); // phpcs:ignore WordPress.DB
+		}
+
+		// The term counts are now wrong for every attribute and category the
+		// deleted products were in, and a stale count shows an empty archive as
+		// though it had products.
+		foreach ( get_taxonomies( array(), 'names' ) as $taxonomy ) {
+			$terms = get_terms(
+				array(
+					'taxonomy'   => $taxonomy,
+					'hide_empty' => false,
+					'fields'     => 'ids',
+				)
+			);
+			if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+				wp_update_term_count_now( $terms, $taxonomy );
+			}
+		}
+		wc_delete_product_transients();
+		wp_cache_flush();
+
 		Importer::forget_run();
-		\WP_CLI::success( sprintf( '%d référence(s) importée(s) supprimée(s).', $removed ) );
+		\WP_CLI::success(
+			sprintf( '%d référence(s) et %d article(s) supprimé(s).', count( $parents ), count( $children ) )
+		);
 	}
 
 	/**

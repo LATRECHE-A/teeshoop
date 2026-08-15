@@ -46,7 +46,7 @@ final class Taxonomy {
 	 * Cache of "taxonomy\nterm name" → [id, slug], for one process.
 	 *
 	 * MEASURED, not defensive. `get_term_by( 'name', … )` is not cached by
-	 * WordPress — every call is a `WP_Term_Query` — and the catalogue asks for
+	 * WordPress (every call is a `WP_Term_Query`), and the catalogue asks for
 	 * the same names over and over: "Black" is a colourway on 358 of the 463
 	 * styles and "M" is a size on nearly all of them. Profiling one style's
 	 * import put 69 of its 541 queries in `get_term_by` alone, and a full run is
@@ -59,8 +59,9 @@ final class Taxonomy {
 	/**
 	 * Create the attributes the catalogue needs, once.
 	 *
-	 * Idempotent: an attribute that exists is left alone. Returns the list of
-	 * slugs it had to create, so the importer can say what it changed.
+	 * Idempotent: an attribute that exists is left alone. Returns the slugs it
+	 * had to create, for a caller that wants to report them; the importer does
+	 * not, because attributes are created once and never again.
 	 */
 	public static function ensure_attributes(): array {
 		$existing = array();
@@ -185,8 +186,8 @@ final class Taxonomy {
 				$made = wp_insert_term( $name, $taxonomy );
 				if ( is_wp_error( $made ) ) {
 					/*
-					 * Two different names can sanitise to the same slug —
-					 * "Off White" and "off/white" both give "off-white" — and
+					 * Two different names can sanitise to the same slug:
+					 * "Off White" and "off/white" both give "off-white", and
 					 * WordPress refuses the second. `term_exists` in the error
 					 * data is the term that won; re-reading by id keeps the
 					 * import going with a real term instead of dropping a
@@ -221,17 +222,28 @@ final class Taxonomy {
 	}
 
 	/**
-	 * Give a size term its position, in the term meta WooCommerce reads.
+	 * Give a size term its position, in the term meta WooCommerce ACTUALLY
+	 * reads.
+	 *
+	 * That key is `order`, plain, and not `order_{taxonomy}`. The suffixed form
+	 * is what every guide on the internet says and it is what this code wrote
+	 * first; on WooCommerce 11.0.1 nothing reads it. `wc_terms_clauses()` joins
+	 * `wp_termmeta` on `meta_key = 'order'` (wc-term-functions.php:113-114), so
+	 * the suffixed key sorted nothing and every product listed its sizes
+	 * alphabetically: MEASURED on style 00142, which offered
+	 * "2XL 3XL 4XL 5XL L M S XL XS".
+	 *
+	 * `order` is shared across taxonomies, which is fine and deliberate: it is
+	 * only written on size terms, and colours are set to sort by name.
 	 *
 	 * Written only when it differs, because this runs for every size of every
-	 * style: 26 399 variations would otherwise mean 26 399 pointless writes.
+	 * style: 26 399 articles would otherwise mean 26 399 pointless writes.
 	 */
 	private static function rank_size( int $term_id, string $taxonomy, string $name ): void {
-		$key     = 'order_' . $taxonomy;
 		$want    = (string) Catalogue::size_rank( $name );
-		$current = get_term_meta( $term_id, $key, true );
+		$current = get_term_meta( $term_id, 'order', true );
 		if ( (string) $current !== $want ) {
-			update_term_meta( $term_id, $key, $want );
+			update_term_meta( $term_id, 'order', $want );
 		}
 	}
 

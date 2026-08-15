@@ -116,7 +116,9 @@ final class Supply {
 	 *                          references has no business scanning 2 316 styles,
 	 *                          and a walk that does costs about a minute of
 	 *                          supplier round trips before any work begins.
-	 * @param int    $max_calls Safety stop; the full walk is ~65 calls.
+	 * @param int    $max_calls Safety stop. MEASURED: 11 calls for the whole
+	 *                          catalogue once the Worker's block cache is warm,
+	 *                          and about 65 when every block has to be built.
 	 */
 	public static function references( string $kind = 'printable', int $want = 0, int $max_calls = 200 ): array {
 		$why = self::unconfigured();
@@ -131,6 +133,7 @@ final class Supply {
 		$offset   = 0;
 		$calls    = 0;
 		$complete = false;
+		$dropped  = 0;
 		$started  = microtime( true );
 
 		while ( $calls < $max_calls ) {
@@ -156,6 +159,8 @@ final class Supply {
 					'error'    => $page['error'],
 				);
 			}
+
+			$dropped += (int) ( $page['body']['dropped'] ?? 0 );
 
 			foreach ( (array) ( $page['body']['items'] ?? array() ) as $card ) {
 				$ref = isset( $card['styleNr'] ) ? (string) $card['styleNr'] : '';
@@ -188,10 +193,25 @@ final class Supply {
 			$offset = $next;
 		}
 
+		/*
+		 * A LOSSY WALK IS NOT A COMPLETE ONE.
+		 *
+		 * The catalogue endpoint drops a style whose document it could not read
+		 * and reports how many. In `items` that style is indistinguishable from
+		 * one the supplier has withdrawn, and the only thing that reads
+		 * `complete` is the sweep that UNPUBLISHES withdrawn references. One
+		 * unreadable document must not cost a product that is on sale, so any
+		 * drop demotes the walk to incomplete and nothing is delisted from it.
+		 */
+		if ( $dropped > 0 ) {
+			$complete = false;
+		}
+
 		return array(
 			'ok'       => true,
 			'refs'     => array_values( array_unique( $refs ) ),
 			'complete' => $complete,
+			'dropped'  => $dropped,
 			'calls'    => $calls,
 			'seconds'  => round( microtime( true ) - $started, 1 ),
 		);

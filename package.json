@@ -21,6 +21,8 @@
     "wp:up": "docker compose -f wp-local/docker-compose.yml up -d",
     "wp:down": "docker compose -f wp-local/docker-compose.yml down",
     "wp:cli": "docker compose -f wp-local/docker-compose.yml run --rm wpcli",
+    "catalogue": "docker compose -f wp-local/docker-compose.yml run --rm wpcli teeshoop catalogue importer",
+    "catalogue:etat": "docker compose -f wp-local/docker-compose.yml run --rm wpcli teeshoop catalogue etat",
     "verify:bundle": "node scripts/bundle-guard.mjs",
     "verify:wp-e2e": "node scripts/wp-e2e-verify.mjs",
     "verify:wp-catalogue": "node scripts/wp-catalogue-verify.mjs",
