@@ -256,6 +256,10 @@ soit les deux champs dont son numéro d'article est fait. Deux surfaces les expo
   `/media/blank/`. Un gabarit qui l'écrirait ailleurs, demain, échoue. C'est la différence
   entre une exception décidée et une exception qui s'élargit toute seule.
 
+  Cet écart est repris, avec les quatre autres que la séance 03 a assumés, dans
+  « Les exceptions assumées » de `docs/ROADMAP.md`, qui dit aussi quelle séance devrait
+  s'en occuper.
+
 ### Le piège mesuré : le fournisseur se nomme dans nos fiches produit
 
 Sur les styles en fin de série, le fournisseur écrit ses propres annonces de stock dans la

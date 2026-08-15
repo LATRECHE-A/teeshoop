@@ -187,6 +187,29 @@ de conservation d'une demande de devis sans suite.
 
 ---
 
+## Les exceptions assumées
+
+Ce qui précède attend une réponse de l'associé. Ce qui suit n'attend personne : ce sont des
+écarts **décidés**, avec leur raison, ce qui les referme et la séance qui devrait s'en
+occuper. Ils sont ici parce qu'un écart non écrit devient au choix un bug que l'on
+redécouvre, ou une habitude que l'on croit voulue.
+
+La règle pour la séance qui les traite : **ne pas refermer un de ces écarts sans relire la
+raison**. Plusieurs sont des refus délibérés, pas des oublis.
+
+| Écart | Pourquoi il a été choisi | Ce qui le referme | Séance |
+|---|---|---|---|
+| **Le catalogue est consultable, pas commandable.** Aucun prix de vente n'est écrit sur les 26 392 articles importés | La séance 03 avait interdiction d'importer les prix du fournisseur (c'est un coût, pas un prix), et le taux de marge est la question 42. Écrire un prix inventé aurait été pire que de n'en écrire aucun | Le réglage `blank_margin_rate`. Un seul réglage, et tout le catalogue devient commandable : le contrôle le prouve dans les deux états (430 centimes à 45 % donnent 7,82 EUR, la fiche devient achetable, deux articles arrivent au panier) | 05 |
+| **Vestes et Accessoires n'existent pas** comme rayons, alors que le brief les nommait | Rien ne s'y range : le studio imprime des vêtements du haut, donc l'import demande t-shirts, polos et sweats. Un rayon vide est une promesse que la boutique ne peut pas tenir | Vendre autre chose, puis `--famille=shirt` ou `other`, qui existent déjà dans `Catalogue::CATEGORIES` | 09 |
+| **Les photos par coloris publient le nom de fichier du fournisseur** (`/media/blank/picture/001_42_000_f-2020_01.jpg`, soit le style et le coloris) | Les copier coûte 267 Mo, ~650 Mo après vignettes, et 1 h 30 d'import. Les trois options sont chiffrées dans `docs/CATALOGUE.md` et le choix a un prix, donc il appartient à l'associé | Une des trois options. En attendant, le contrôle **épingle la porte à la largeur exacte** de cette URL : ce motif ailleurs sur une surface client fait échouer la vérification | 09 ou perf |
+| **378 ms par page de liste pour n'afficher aucun prix.** `get_price_html()` parcourt les articles de chaque produit variable, 23,6 ms par produit, seize par page | Tant qu'aucun prix n'est écrit, ce calcul produit une chaîne vide. Le corriger avant de connaître le prix de vente, c'est optimiser une forme qui va changer | Soit ne pas afficher de prix en liste tant qu'il n'y en a pas, soit stocker la fourchette sur le produit parent à l'import. À décider **avec** le prix de vente, pas avant | 05 puis perf |
+| **Six articles sont en ligne sans code-barres** | 4 codes-barres sur les 21 479 du catalogue sont réutilisés par le fournisseur sur plusieurs articles, dont un `4053840000000` manifestement bouche-trou. WooCommerce refuse le doublon, et l'import préfère publier l'article sans code-barres plutôt que de perdre la référence entière | Rien de notre côté : c'est une donnée fournisseur. À savoir le jour où un flux marchand (Google Shopping) exigera un GTIN par article | 10 |
+
+La rotation éventuelle de `ADMIN_TOKEN` est dans `ACCES-REQUIS.md` et n'est pas un écart :
+c'est une action à faire.
+
+---
+
 ## Quatre choses à savoir avant de toucher au code
 
 1. **Le serveur calcule le prix.** Le studio affiche ce qu'on lui dit. Deux implémentations
