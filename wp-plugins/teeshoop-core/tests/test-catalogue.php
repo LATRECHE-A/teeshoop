@@ -493,6 +493,18 @@ describe(
 		);
 
 		it(
+			'never falls back to the supplier style number, which would become a slug',
+			static function (): void {
+				// The Worker synthesises "Style 18001" when the feed names a
+				// style in no language. A title becomes a URL, so that would
+				// publish the first five digits of the sealed article number.
+				$m = Catalogue::map( ts_entry( array( 'style' => array( 'name' => 'Style 18001', 'brand' => '' ) ) ) );
+				truthy( ! str_contains( $m['name'], '18001' ), 'no supplier number in the title: ' . $m['name'] );
+				truthy( str_contains( $m['name'], '61-212-0' ), 'the maker code instead' );
+			}
+		);
+
+		it(
 			'lists colours and sizes as attributes, sizes in wearing order',
 			static function (): void {
 				$m = Catalogue::map( ts_entry() );

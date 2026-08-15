@@ -694,7 +694,7 @@ Si le catalogue ne sert qu'à choisir le vêtement à personnaliser, alors le bo
 
 *Pourquoi on a besoin de la réponse :* Le chapitre 1 de la Bible donne la formule (prix conseillé HT = coût / (1 − taux de marge cible)) et range « fixer les premiers taux de marge » parmi les choses qui restent à décider. Nous avons le coût réel de chaque article, fourni par le fournisseur et rafraîchi toutes les nuits. Il ne manque que le taux.
 
-Ce n'est pas un détail d'arrondi. Sur un t-shirt acheté 3,37 EUR HT (Fruit of the Loom Heavy Cotton, la référence la plus fournie du catalogue avec 366 articles) :
+Ce n'est pas un détail d'arrondi. Sur un t-shirt acheté 3,37 EUR HT (Gildan Heavy Cotton, la référence la plus fournie du catalogue avec 366 articles) :
 
 | Taux de marge | Prix de vente HT | Prix TTC | Ce qu'il nous reste |
 |---|---|---|---|

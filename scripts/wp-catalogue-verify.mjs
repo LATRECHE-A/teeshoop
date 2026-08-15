@@ -111,10 +111,27 @@ const wp = (args, opts = {}) => {
  * two layers of container is how a test starts asserting on a truncated string.
  */
 let phpSeq = 0
+/*
+ * Every snippet gets this helper, because the gate must find a product the way
+ * the importer identifies one. It used to call wc_get_product_id_by_sku() with
+ * the supplier's style number, which WAS the SKU until that turned out to
+ * publish the sealed article number; the moment the reference changed, every
+ * lookup returned 0 and the gate asserted against product 0 instead of failing.
+ * `_teeshoop_ref` is the identity and does not move.
+ */
+const TS_HELPER = `
+function ts_product( $ref ) {
+  $found = get_posts( array(
+    'post_type' => 'product', 'post_status' => 'any', 'numberposts' => 1, 'fields' => 'ids',
+    'meta_key' => '_teeshoop_ref', 'meta_value' => $ref, 'no_found_rows' => true,
+  ) );
+  return empty( $found ) ? 0 : (int) $found[0];
+}
+`
 function php(code) {
   const name = `ts-verify-${process.pid}-${++phpSeq}.php`
   const tmp = join(ROOT, 'wp-local', name)
-  writeFileSync(tmp, `<?php\n${code}\n`)
+  writeFileSync(tmp, `<?php\n${TS_HELPER}\n${code}\n`)
   try {
     docker(['cp', tmp, `wp:/var/www/html/${name}`])
     return wp(['eval-file', `/var/www/html/${name}`]).trim()
@@ -398,12 +415,27 @@ async function main() {
    */
   const wholesaler = phpJson(
     `global $wpdb;
-     $rows = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_type='product' AND post_status='publish'
-        AND ( post_content REGEXP '(CLOSE-OUT|COULEURS NON SUIVIES)' OR post_content LIKE '%collection Falk%' )" );
-     echo wp_json_encode( array( 'leaks' => count( $rows ) ) );`,
+     $sql  = "SELECT ID FROM {$wpdb->posts} WHERE post_type='product' AND post_status='publish'
+              AND ( post_content REGEXP '(CLOSE-OUT|COULEURS NON SUIVIES)' OR post_content LIKE '%collection Falk%' )";
+     $live = count( (array) $wpdb->get_col( $sql ) );
+     /*
+      * Plant one, so "none found" is not the same sentence as "the query is
+      * wrong". The importer never writes this string any more, so without a
+      * plant this assertion would be green on a shop where the SQL had a typo,
+      * the column had been renamed, or nothing had been imported at all.
+      */
+     $id = ts_product( '${sample.ref}' );
+     $was = get_post_field( 'post_content', $id );
+     wp_update_post( array( 'ID' => $id, 'post_content' => $was . '<ul><li>CLOSE-OUT: retiré de la collection Untel</li></ul>' ) );
+     $caught = count( (array) $wpdb->get_col( $sql ) );
+     wp_update_post( array( 'ID' => $id, 'post_content' => $was ) );
+     $after = count( (array) $wpdb->get_col( $sql ) );
+     echo wp_json_encode( array( 'live' => $live, 'caught' => $caught, 'after' => $after ) );`,
   )
-  ok('no product page carries the wholesaler’s own stock notes', wholesaler.leaks === 0,
-    `${wholesaler.leaks} product(s)`)
+  ok('no product page carries the wholesaler’s own stock notes', wholesaler.live === 0,
+    `${wholesaler.live} product(s)`)
+  ok('and that check can actually find one', wholesaler.caught === 1 && wholesaler.after === 0,
+    `planted 1, found ${wholesaler.caught}, cleaned back to ${wholesaler.after}`)
 
   /*
    * WHAT COUNTS AS A LEAK, and both obvious needles are wrong.
@@ -437,7 +469,7 @@ async function main() {
   const rendered = [...needles, money]
   const sniff = (haystack, set = needles) => set.filter((n) => haystack.includes(n))
 
-  const permalink = php(`echo get_permalink( ${JSON.stringify(sample.ref)} ? wc_get_product_id_by_sku( '${sample.ref}' ) : 0 );`)
+  const permalink = php(`echo get_permalink( ts_product( '${sample.ref}' ) );`)
   const pageHtml = await (await fetch(permalink)).text()
   ok('the rendered product page carries no purchase price', sniff(pageHtml, rendered).length === 0,
     sniff(pageHtml, rendered).join(' ') || `${pageHtml.length} bytes`)
@@ -450,7 +482,7 @@ async function main() {
     php(
       `wp_set_current_user( 1 );
        $out = '';
-       foreach ( array( '/wc/v3/products', '/wc/v3/products/' . wc_get_product_id_by_sku( '${sample.ref}' ) . '/variations' ) as $route ) {
+       foreach ( array( '/wc/v3/products', '/wc/v3/products/' . ts_product( '${sample.ref}' ) . '/variations' ) as $route ) {
          $req = new WP_REST_Request( 'GET', $route );
          $req->set_param( 'per_page', 100 );
          $res = rest_do_request( $req );
@@ -485,7 +517,7 @@ async function main() {
        $csv = (string) $exporter->get_file();
        if ( strlen( $csv ) < 200 ) { throw new RuntimeException( 'the CSV export produced ' . strlen( $csv ) . ' bytes, so grepping it proves nothing' ); }
        $out .= $csv;
-       $p = wc_get_product( wc_get_product_id_by_sku( '${sample.ref}' ) );
+       $p = wc_get_product( ts_product( '${sample.ref}' ) );
        $out .= wp_json_encode( $p->get_available_variations() );
        echo $out;`,
     )
@@ -569,7 +601,7 @@ async function main() {
 
   // --- 10. the shipped state: browsable, and honest about not being buyable --
   const unpriced = phpJson(
-    `$id = wc_get_product_id_by_sku( '${sample.ref}' );
+    `$id = ts_product( '${sample.ref}' );
      $p  = wc_get_product( $id );
      $v  = wc_get_product( (int) $p->get_children()[0] );
      echo wp_json_encode( array(
@@ -603,7 +635,7 @@ async function main() {
   wp(['teeshoop', 'catalogue', 'importer', '--recommencer', `--max=${MAX_REFS}`, '--discret'])
 
   const priced = phpJson(
-    `$id = wc_get_product_id_by_sku( '${sample.ref}' );
+    `$id = ts_product( '${sample.ref}' );
      $p  = wc_get_product( $id );
      $v  = wc_get_product( (int) $p->get_children()[0] );
      $json = $p->get_available_variations();
@@ -661,7 +693,7 @@ async function main() {
    */
   const barcode = phpJson(
     `global $wpdb;
-     $id  = wc_get_product_id_by_sku( '${sample.ref}' );
+     $id  = ts_product( '${sample.ref}' );
      $p   = wc_get_product( $id );
      $ids = $p->get_children();
      $victim = (int) $ids[0];
@@ -679,7 +711,7 @@ async function main() {
      $planted = (string) get_post_meta( $victim, '_global_unique_id', true );
      $before  = count( $p->get_children() );
      $out = Teeshoop\\Core\\Importer::one( '${sample.ref}' );
-     $after = wc_get_product( wc_get_product_id_by_sku( '${sample.ref}' ) );
+     $after = wc_get_product( ts_product( '${sample.ref}' ) );
      echo wp_json_encode( array(
        'gtin'     => $gtin,
        'planted'  => $planted,

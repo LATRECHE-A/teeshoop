@@ -26,7 +26,9 @@
  * SKUs, not 441.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * THE 320-VARIATION PRODUCT: THE TRADE-OFF, ARGUED
+ * THE 366-VARIATION PRODUCT: THE TRADE-OFF, ARGUED
+ *
+ * The brief feared a 320-variation product. The real maximum is 366.
  *
  * It is not hypothetical. Measured distribution of real SKUs per style:
  *
@@ -479,7 +481,14 @@ final class Catalogue {
 			'problems'      => $problems,
 			// The brand belongs in the title: "Heavy Cotton T" is not a thing a
 			// buyer searches for, "Fruit of the Loom Heavy Cotton T" is.
-			'name'          => trim( $brand . ' ' . $name ) ?: ( 'Référence ' . $ref ),
+			//
+			// And the fallback is the MAKER's code, never the supplier's style
+			// number. A title becomes a slug, so "Référence 18001" would publish
+			// the first five digits of the sealed article number in the URL of
+			// every unnamed style. The Worker synthesises "Style 18001" when the
+			// feed carries no name in any language, which is useful in the admin
+			// grid and must not reach a shop, so it is caught here too.
+			'name'          => self::title( $brand, $name, self::public_ref( $style ), $ref ),
 			'brand'         => $brand,
 			'brand_ref'     => self::text( $style['supplierRef'] ?? '' ),
 			// The maker's own article code, normalised, and the base of every
@@ -555,6 +564,24 @@ final class Catalogue {
 			$kept[] = $line;
 		}
 		return implode( "\n", $kept );
+	}
+
+	/**
+	 * A product title that never carries the supplier's own numbering.
+	 *
+	 * The title becomes the slug, so anything in it is in a public URL.
+	 */
+	private static function title( string $brand, string $name, string $maker, string $ref ): string {
+		// The Worker's own placeholder for a style the feed names in no language.
+		if ( '' !== $name && preg_match( '/^Style\s+' . preg_quote( $ref, '/' ) . '$/', $name ) ) {
+			$name = '';
+		}
+		$title = trim( $brand . ' ' . $name );
+		if ( '' !== $title ) {
+			return $title;
+		}
+		$title = trim( $brand . ' ' . $maker );
+		return '' !== $title ? $title : 'Textile ' . $maker;
 	}
 
 	/** Does this map hold a usable price for at least one article of this style? */

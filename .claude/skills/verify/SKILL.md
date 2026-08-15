@@ -33,6 +33,7 @@ it scanned nothing, because "no markers found" and "no files found" are differen
 | Anything imported by `src/main.tsx`, or `src/app/adminSlots.tsx` | `npx vitest run src/app/adminBoundary.test.ts` plus the bundle guard. Dynamic imports count as edges. |
 | `worker/**` | `npx vitest run worker/` and, for route changes, a live `wrangler dev` run with curl. |
 | `src/three/**`, garment rendering | `scripts/3d-shots.mjs`, `scripts/fabric-verify.mjs`, `scripts/worn-qa.mjs`, `scripts/backreg-verify.mjs` as applicable. Look at the images. |
+| Catalogue import, the importer, the supplier client, the shop taxonomy | `npm run verify:wp-catalogue` (needs `npm run wp:up`) |
 | Catalogue or supplier code | `scripts/catalog-verify.mjs`, `scripts/fr-verify.mjs`. |
 | Checkout, cart, order | `npm run test:wp`, then a real order through the local WordPress. |
 

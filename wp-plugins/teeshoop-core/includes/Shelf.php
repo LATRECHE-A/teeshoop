@@ -71,6 +71,15 @@ final class Shelf {
 	private const SEALED = array(
 		Catalogue::META_SUPPLY_CENTS,
 		Catalogue::META_SUPPLY_SKU,
+		/*
+		 * The style number belongs here for the same reason as the article
+		 * number, and it was missed. The article number is
+		 * `styleNr . colourCode . one digit`, so anything that publishes the
+		 * style number publishes most of the sealed value. It was going out
+		 * through `meta_data` on every REST product and every CSV export while
+		 * the seal beside it held.
+		 */
+		Catalogue::META_REF,
 	);
 
 	public static function init(): void {

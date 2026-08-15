@@ -406,7 +406,10 @@ final class Importer {
 	/**
 	 * Fetch, map and write one style.
 	 *
-	 * Returns ['outcome' => created|updated|unchanged|failed, 'problems' => [...]].
+	 * Returns ['outcome' => created|updated|unchanged|skipped|failed, 'problems' => [...]].
+	 * `skipped` is a reference the supplier lists with nothing sellable under it:
+	 * reported and counted, but not an error, because it will be just as true
+	 * tomorrow.
 	 */
 	public static function one( string $ref ): array {
 		$fetched = Supply::entry( $ref );
@@ -565,7 +568,7 @@ final class Importer {
 		}
 
 		// --- images ---------------------------------------------------------
-		$images = self::images( $product_id, $mapped, $problems );
+		$images = self::images( $product_id, $public, $mapped, $problems );
 		if ( $images['changed'] ) {
 			$why[]   = 'photos';
 			$changed = true;
@@ -720,7 +723,7 @@ final class Importer {
 				// Without both terms the variation cannot be chosen, and a
 				// variation nobody can select is a variation that quietly makes
 				// the whole product unpurchasable.
-				$problems[] = 'Attribut manquant pour ' . $ref . '/' . $row['supply_sku'] . '.';
+				$problems[] = 'Attribut manquant pour l’article ' . $row['supply_sku'] . '.';
 				continue;
 			}
 
@@ -1039,7 +1042,7 @@ final class Importer {
 	 * downloads a new file and an unchanged photo downloads nothing, on every
 	 * run, for ever.
 	 */
-	private static function images( int $product_id, array $mapped, array &$problems ): array {
+	private static function images( int $product_id, string $public, array $mapped, array &$problems ): array {
 		$changed = false;
 
 		/*
@@ -1053,8 +1056,20 @@ final class Importer {
 		 * whether it actually downloaded.
 		 */
 		$downloads = 0;
-		$front     = self::attachment( (string) $mapped['front'], $mapped['name'], $problems, $downloads );
-		$back      = self::attachment( (string) $mapped['back'], $mapped['name'] . ' (dos)', $problems, $downloads );
+		/*
+		 * THE FILE IS RENAMED ON THE WAY IN, and that is a leak fix, not tidiness.
+		 *
+		 * The supplier names its photographs `180_09_344_m-2023_01.jpg`: style
+		 * 18009, colour 344. Sideloaded as-is they land in wp-content/uploads
+		 * under a public URL, so every mirrored photograph published the same
+		 * two fields the article number is built from, and the seal on
+		 * `_teeshoop_supply_sku` was worth nothing against anyone who read an
+		 * <img src>. The name we choose carries the maker's code instead, which
+		 * is public information and is what a buyer recognises.
+		 */
+		$base      = '' !== $public ? $public : 'ref-' . $mapped['ref'];
+		$front     = self::attachment( (string) $mapped['front'], $mapped['name'], $problems, $downloads, $base );
+		$back      = self::attachment( (string) $mapped['back'], $mapped['name'] . ' (dos)', $problems, $downloads, $base . '-dos' );
 
 		$product = wc_get_product( $product_id );
 		if ( ! $product instanceof \WC_Product ) {
@@ -1105,7 +1120,7 @@ final class Importer {
 	 * returned: a download that fails is a problem on the report and a product
 	 * with no picture, not a product that stops importing.
 	 */
-	private static function attachment( string $path, string $title, array &$problems, int &$downloads ): int {
+	private static function attachment( string $path, string $title, array &$problems, int &$downloads, string $as ): int {
 		if ( '' === $path ) {
 			return 0;
 		}
@@ -1189,9 +1204,15 @@ final class Importer {
 			return 0;
 		}
 
+		// Our name, the supplier's extension. `$file` stays the identity key in
+		// META_SOURCE below, so a re-shoot still downloads and an unchanged
+		// photograph still does not.
+		$ext      = strtolower( (string) pathinfo( $file, PATHINFO_EXTENSION ) );
+		$our_name = sanitize_file_name( $as . ( '' !== $ext ? '.' . $ext : '.jpg' ) );
+
 		$id = media_handle_sideload(
 			array(
-				'name'     => $file,
+				'name'     => $our_name,
 				'tmp_name' => $tmp,
 			),
 			0,

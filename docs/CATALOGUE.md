@@ -118,16 +118,18 @@ Mesuré le 14 août 2026 sur le catalogue réel.
 | 1re, catalogue vide | 452 créées, 26 127 articles, 731 photos, 5 en échec | **1 h 37** (0,22 s par article) |
 | 2e, après correction des codes-barres | 3 créées, 169 modifiées, 289 inchangées, 0 en échec | 10 min |
 | 3e, rien n'ayant bougé en amont | **0 créée, 2 modifiées, 459 inchangées**, 3 articles écrits, 0 photo | **3 min** |
+| 4e, après le changement de référence publique | 8 créées, 446 modifiées, 26 028 articles réécrits, 0 en échec, 2 dépubliées | 19 min |
 
-La troisième est la preuve : 26 399 articles relus, trois écritures, et
-« Rien n'a changé » imprimé pour de bon.
+La troisième est la preuve de l'idempotence : 26 399 articles relus, trois écritures, et
+« Rien n'a changé » imprimé pour de bon. La quatrième montre le coût d'un changement de
+référence, qui touche tout : vingt minutes.
 
 **Ce que la boutique pèse ensuite**, mesuré une fois le catalogue en place :
 
 | | |
 |---|---|
-| Produits publiés | 464, dont **462 importés** |
-| Articles | **26 399**, exactement le compte du fournisseur |
+| Produits publiés | **462**, tous importés (plus 3 fiches de démonstration) |
+| Articles | **26 400** |
 | Prix d'achat stockés | 26 393 (6 articles sans tarif publié) |
 | Pièces jointes | 737 |
 | Lignes `postmeta` | 674 773 |
@@ -173,6 +175,30 @@ La référence publique est désormais **le code article du fabricant** (E150, 6
 styles en publient un, aucun ne contient le numéro du fournisseur, et une seule paire
 marque + code est partagée par deux styles, que l'import départage contre la base. Le
 contrôle cherche maintenant aussi le numéro de style, donc la fuite ne peut pas revenir.
+
+### Ce qui reste ouvert : le nom de fichier des photos
+
+Le fournisseur nomme ses photos `180_09_344_m-2023_01.jpg` : **style 18009, coloris 344**,
+soit les deux champs dont son numéro d'article est fait. Deux surfaces les exposaient :
+
+- **Les photos copiées** dans WordPress atterrissaient dans `wp-content/uploads` sous ce
+  nom. **Corrigé** : le fichier est renommé à l'entrée avec le code du fabricant
+  (`PU415.jpg`, `PU415-dos.jpg`). Le nom d'origine reste la clé d'idempotence en meta, donc
+  une nouvelle prise de vue se retéléchargera toujours et une photo inchangée jamais.
+
+- **Les photos par coloris**, elles, ne sont pas copiées : leur URL est relayée telle quelle
+  par le Worker (`/media/blank/picture/001_42_000_f-2020_01.jpg`) et rendue dans la fiche.
+  **Ce point n'est pas corrigé**, et le choix appartient à l'associé parce qu'il a un prix :
+
+  | Option | Coût mesuré | Effet |
+  |---|---|---|
+  | Copier aussi les 4 241 photos par coloris | 267 Mo, ~1 h 30 d'import, et le nom devient le nôtre | Ferme la porte, supprime aussi la dépendance à une adresse de Worker publique |
+  | Retirer le changement de photo au coloris | gratuit | Ferme la porte, mais 49 coloris affichent la même photo |
+  | Ne rien faire | gratuit | Un visiteur qui inspecte une image voit un nom de fichier fournisseur |
+
+  La fuite est plus faible que celle de la référence (il faut déjà savoir à quel grossiste
+  cette convention appartient), mais elle est de la même famille et elle est écrite ici
+  plutôt que découverte plus tard.
 
 ### Le piège mesuré : le fournisseur se nomme dans nos fiches produit
 
