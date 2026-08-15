@@ -50,6 +50,18 @@ wp teeshoop catalogue etat                      # où en est la passe
 wp teeshoop catalogue purger                    # tout retirer (miroir local uniquement)
 ```
 
+Un seul import à la fois : le second refuse et le dit. Le verrou est tenu par la
+**connexion** MySQL, donc un processus tué le relâche tout seul. Une exception sur le
+miroir local : `docker compose run` peut laisser le conteneur vivant alors que la commande
+côté hôte est morte, et la connexion avec lui. Si l'import refuse de démarrer alors que
+rien ne tourne :
+
+```bash
+docker ps | grep wpcli          # le conteneur orphelin
+docker rm -f <son nom>          # le verrou part avec sa connexion
+wp db query "SELECT IS_USED_LOCK('teeshoop_catalogue_import');"   # NULL = libre
+```
+
 L'import est **idempotent** et **reprenable**. Relancé sans rien de changé en amont, il
 n'écrit rien et l'annonce. Interrompu, il perd au plus la référence en cours : la passe
 suivante repart au même index. C'est ce qui fait de `--duree` un créneau de cron utilisable

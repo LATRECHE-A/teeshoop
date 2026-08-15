@@ -572,7 +572,7 @@ final class Importer {
 		}
 
 		// --- variations -----------------------------------------------------
-		$vars = self::variations( $product_id, $mapped, $terms, $problems );
+		$vars = self::variations( $product_id, $public, $mapped, $terms, $problems );
 		if ( $vars['changed'] ) {
 			$why[]   = 'articles';
 			$changed = true;
@@ -656,10 +656,17 @@ final class Importer {
 	 * Create, update and remove the children of one product.
 	 *
 	 * Existing children are indexed by the supplier's article number, which is
-	 * the only stable identity: our own SKU is derived from the colour code and
-	 * the size, and the supplier does re-letter those.
+	 * the only stable identity: our own reference is built from the maker's code
+	 * and the colour and size names, and any of those can be re-lettered.
+	 *
+	 * `$public` is the parent's resolved reference and is PASSED IN rather than
+	 * recomputed, because uniqueness was settled against the database in
+	 * `write()`. It was briefly read as a variable from the caller's scope,
+	 * which PHP resolves to null in a different method: every variation was then
+	 * offered the SKU "-WHITE-XS", identical across styles, and WooCommerce
+	 * rejected 41 of the first 47 references with "Invalid or duplicated SKU".
 	 */
-	private static function variations( int $product_id, array $mapped, array $terms, array &$problems ): array {
+	private static function variations( int $product_id, string $public, array $mapped, array $terms, array &$problems ): array {
 		$children = self::children( $product_id );
 		$rate     = self::margin_rate();
 		$written  = 0;
