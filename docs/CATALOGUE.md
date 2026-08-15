@@ -125,12 +125,18 @@ Mesuré le 14 août 2026 sur le catalogue réel.
 | 3e, rien n'ayant bougé en amont | **0 créée, 2 modifiées, 459 inchangées**, 3 articles écrits, 0 photo | **3 min** |
 | 4e, après le changement de référence publique | 8 créées, 446 modifiées, 26 028 articles réécrits, 0 en échec, 2 dépubliées | 19 min |
 | 5e, après suppression des 736 photos mal nommées | 0 créée, 459 modifiées, **734 photos recopiées**, 0 en échec | 11 min |
+| 6e, catalogue reconstruit de zéro (photos déjà sur le disque) | 453 créées, 6 modifiées, 26 392 articles, **0 photo recopiée**, 0 en échec | 43 min |
+| 7e, juste après | **0 créée, 4 modifiées, 455 inchangées**, 7 articles écrits | **2 min 35** |
 
 La troisième est la preuve de l'idempotence : 26 399 articles relus, trois écritures, et
 « Rien n'a changé » imprimé pour de bon. La quatrième montre le coût d'un changement de
 référence, qui touche tout : vingt minutes. La cinquième est le prix d'une migration de
 données : recopier toutes les photos coûte onze minutes, et c'est le vrai coût d'un
-correctif qui ne s'applique qu'aux téléchargements suivants.
+correctif qui ne s'applique qu'aux téléchargements suivants. La sixième vérifie que le renommage n'a
+pas cassé la clé d'idempotence des photos : catalogue reconstruit entièrement, **zéro
+photo retéléchargée**. La septième est la preuve d'idempotence refaite sur la boutique
+livrée : 26 392 articles relus, sept écritures, et les quatre fiches modifiées sont des
+mouvements de stock réels survenus entre les deux passes.
 
 **Ce que la boutique pèse ensuite**, mesuré une fois le catalogue en place :
 
@@ -138,15 +144,43 @@ correctif qui ne s'applique qu'aux téléchargements suivants.
 |---|---|
 | Produits publiés | **462** : 459 références importées + les 3 produits personnalisables du studio |
 | Références importables non publiées | 2 dépubliées (57442, 58842, retirées du listing fournisseur) + 2 sans aucun article (50001, 50101) |
-| Articles | **26 402** |
-| Prix d'achat stockés | **26 396** (4 articles sans tarif publié) |
+| Articles | **26 392** |
+| Prix d'achat stockés | **26 392**, soit tous |
 | Pièces jointes | 735 (734 photos + le visuel par défaut de WooCommerce) |
 | Lignes `postmeta` | 698 472 |
 | Relations de termes | 13 699 |
 | Termes | 615 (442 coloris, 95 tailles, 21 marques, 17 certifications) |
-| Base de données | **167 Mo** |
-| Fourchette de prix, produit le plus lourd (366 articles) | 456 ms à froid, **0,4 ms à chaud** |
-| Le plus lent mesuré (292 articles) | 754 ms à froid, 0,2 ms à chaud |
+| Base de données | **172 Mo** |
+| Fourchette de prix, produit le plus lourd (366 articles) | 309 ms à froid, **0,10 ms à chaud** |
+| Idem sur les cinq plus lourds (292 à 366 articles) | 261 à 316 ms à froid, 0,07 à 0,17 ms à chaud |
+
+### La page la plus lente n'est pas celle qu'on croit
+
+Mesuré en HTTP sur la boutique livrée, trois passages chacun :
+
+| Page | Temps |
+|---|---|
+| Fiche produit la plus lourde (366 articles) | 0,9 à 1,1 s |
+| Archive boutique et page de catégorie | **1,6 s** |
+
+Ce n'est donc pas la fiche à 366 articles que le brief redoutait : c'est la **liste**. En
+isolant, sur seize produits :
+
+| | |
+|---|---|
+| La requête de l'archive | 8,6 ms |
+| Le prix affiché des 16 produits | **378 ms**, soit 23,6 ms par produit |
+
+`get_price_html()` sur un produit variable relit la fourchette de prix de chacun de ses
+articles. Seize produits variables sur une page, c'est seize parcours. Et aujourd'hui ces
+378 ms produisent **une chaîne vide** : tant que le taux de marge n'est pas décidé
+(question 42), aucun prix de vente n'est écrit. La boutique paie donc le calcul complet
+pour n'afficher rien.
+
+Deux façons d'en sortir, à décider avec le prix de vente et pas avant : ne pas afficher de
+prix en liste tant qu'il n'y en a pas, ou stocker la fourchette sur le produit parent au
+moment de l'import (elle y est déjà calculée et mise en cache : c'est la même donnée, lue
+au lieu d'être recalculée).
 
 Les relations de termes sont bien 13 699 et non ~55 000 : une **variation** ne porte aucun
 terme, WooCommerce range son coloris et sa taille en meta (`attribute_pa_couleur`) et ne
