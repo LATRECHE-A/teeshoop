@@ -62,6 +62,11 @@ docker rm -f <son nom>          # le verrou part avec sa connexion
 wp db query "SELECT IS_USED_LOCK('teeshoop_catalogue_import');"   # NULL = libre
 ```
 
+**Une sauvegarde ne se pose jamais dans `wp-content/uploads`.** Ce répertoire est servi par
+URL : un `wp db export` posé là est un dump complet de la base téléchargeable par n'importe
+qui. Constaté pendant cette séance, en HTTP 200 sur 58 Mo. `wp db export ~/dump.sql`, en
+dehors de la racine web, et supprimé après.
+
 L'import est **idempotent** et **reprenable**. Relancé sans rien de changé en amont, il
 n'écrit rien et l'annonce. Interrompu, il perd au plus la référence en cours : la passe
 suivante repart au même index. C'est ce qui fait de `--duree` un créneau de cron utilisable
@@ -128,15 +133,15 @@ référence, qui touche tout : vingt minutes.
 
 | | |
 |---|---|
-| Produits publiés | **462**, tous importés (plus 3 fiches de démonstration) |
+| Produits publiés | **462**, tous importés |
 | Articles | **26 400** |
-| Prix d'achat stockés | 26 393 (6 articles sans tarif publié) |
+| Prix d'achat stockés | **26 396** (4 articles sans tarif publié) |
 | Pièces jointes | 737 |
 | Lignes `postmeta` | 674 773 |
 | Relations de termes | 13 699 |
 | Termes | 615 (442 coloris, 95 tailles, 21 marques, 17 certifications) |
-| Base de données | **140 Mo** |
-| Fourchette de prix, produit le plus lourd (366 articles) | 464 ms à froid, **0,3 ms à chaud** |
+| Base de données | **165 Mo** |
+| Fourchette de prix, produit le plus lourd (366 articles) | 456 ms à froid, **0,4 ms à chaud** |
 | Le plus lent mesuré (292 articles) | 754 ms à froid, 0,2 ms à chaud |
 
 Les relations de termes sont bien 13 699 et non ~55 000 : une **variation** ne porte aucun
