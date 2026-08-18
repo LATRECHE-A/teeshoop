@@ -121,9 +121,24 @@ const CORPUS = [
     name: 'une seule pièce, sous le mètre minimum',
     pieces: [{ id: 'one', w_cm: 12.0, h_cm: 9.0, qty: 1 }],
   },
+  {
+    /*
+     * SEVERAL SHEETS, which nothing else in this corpus produced. The shop
+     * ships a 100 cm print-file limit (the smallest any surveyed roll supplier
+     * publishes), so an ordinary order already spans a dozen files, each
+     * rounded up to its own billing step. Until this row existed, the
+     * multi-sheet term of the PHP bound was never once exercised by the check
+     * that exists to prove that bound.
+     */
+    name: 'une série qui déborde de la longueur de fichier',
+    pieces: [
+      { id: 'front', w_cm: 28.4, h_cm: 34.1, qty: 40 },
+      { id: 'back', w_cm: 24.0, h_cm: 8.5, qty: 40 },
+    ],
+  },
 ]
 
-const OPTIONS = { width_cm: 56, gap_cm: 0.5, max_length_cm: 3000, billing_step_cm: 10 }
+const OPTIONS = { width_cm: 56, gap_cm: 0.5, max_length_cm: 100, billing_step_cm: 10 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Boot wrangler dev.
@@ -251,19 +266,29 @@ for (const order of CORPUS) {
     )
     continue
   }
-  ok(`${order.name}: ${body.billed_m} m, ${body.total_pieces} transferts, ${(body.utilization * 100).toFixed(0)} % de remplissage`)
-  routed.push({ order, billed_m: body.billed_m })
+  ok(
+    `${order.name}: ${body.billed_m} m, ${body.total_pieces} transferts, ${body.sheets} feuille(s), ${(body.utilization * 100).toFixed(0)} % de remplissage`,
+  )
+  routed.push({ order, billed_m: body.billed_m, sheets: body.sheets })
 }
 
 if (routed.length !== CORPUS.length) {
   bad('every corpus order was packed', `${routed.length} of ${CORPUS.length}`)
 }
 
+/*
+ * A corpus that never splits a sheet cannot prove the part of the bound that
+ * deals with splitting, and "nothing found" is not "nothing looked".
+ */
+if (routed.some((r) => r.sheets > 1)) ok('at least one order really spans several sheets')
+else bad('at least one order really spans several sheets', 'the multi-sheet term of the bound was never exercised')
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. The PHP bound is really above the real packing.
 
 console.log(`${DIM}the prudent bound${OFF}`)
 {
+  const slack = []
   const dir = mkdtempSync(join(tmpdir(), 'nest-verify-php-'))
   const driver = join(dir, 'bound.php')
   const input = join(dir, 'orders.json')
@@ -314,8 +339,28 @@ echo json_encode($out);
       continue
     }
     const over = real > 0 ? ((bound / real - 1) * 100).toFixed(0) : '0'
-    ok(`${order.name}: borne ${bound.toFixed(2)} m contre ${real.toFixed(2)} m imbriqués (+${over} %)`)
+    const steps = Math.round(((bound - real) * 100) / OPTIONS.billing_step_cm)
+    slack.push(steps)
+    ok(
+      `${order.name}: borne ${bound.toFixed(2)} m contre ${real.toFixed(2)} m imbriqués (+${over} %, ${steps} pas de facturation de marge)`,
+    )
   }
+
+  /*
+   * WHAT THIS CORPUS DOES NOT PROVE, said out loud rather than left to be
+   * assumed. The bound adds one billing step per sheet past the first, because
+   * Σ⌈xₛ⌉ ≤ ⌈Σxₛ⌉ + (N−1) and each sheet is rounded up on its own. That term is
+   * a necessity of the inequality, and on every order here the rest of the
+   * bound is loose enough that removing it would still pass. So this run does
+   * not exercise it, and a reader should not read a green tick as if it did.
+   */
+  const sheets = routed.map((r) => r.sheets)
+  const tight = slack.some((steps, i) => steps < sheets[i] - 1)
+  console.log(
+    tight
+      ? `  ${DIM}the per-sheet rounding term is load-bearing on at least one order here${OFF}`
+      : `  ${DIM}note: no order here comes within its own multi-sheet allowance, so the (N−1) rounding term of the bound is NOT exercised by this corpus. It is kept because Σ⌈xₛ⌉ ≤ ⌈Σxₛ⌉ + (N−1) needs it, not because this run proves it.${OFF}`,
+  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -214,12 +214,23 @@ final class Cost {
 				'billing_step_cm' => 10.0,
 				/*
 				 * The longest single file the supplier's printer accepts, cm.
-				 * Nobody has told us; 30 m is a working figure and question 04 now
-				 * asks for the real one. It only ever moves the cost by the edge
-				 * margins and the billing rounding of one extra sheet, and it
-				 * moves it UP when it is too small, which is the safe direction.
+				 *
+				 * Nobody has told us, so this is the PRUDENT end of what is known
+				 * rather than a round number. It shipped at 3 000 cm and that was
+				 * wrong in the dangerous direction: every roll supplier surveyed
+				 * for the studio's own DTF module caps a print file between 100
+				 * and 250 cm, so a 30 m virtual sheet lets an order be billed as
+				 * one long file when the supplier will cut it into a dozen, each
+				 * rounded up to its own billing step. Fewer roundings is a lower
+				 * cost, a lower floor, and a sale nobody would have authorised.
+				 *
+				 * 100 cm is the smallest of those, which is the safe one: too
+				 * small only ever adds roundings. It is far above any transfer a
+				 * garment can carry (a print area is around 40 cm), so nothing
+				 * legitimate becomes unplaceable. Question 04 asks for the real
+				 * figure.
 				 */
-				'max_length_cm'  => 3000.0,
+				'max_length_cm'  => 100.0,
 			),
 
 			/*
@@ -329,18 +340,46 @@ final class Cost {
 	}
 
 	/**
-	 * Merge a stored partial over the defaults, shallow per top-level key.
+	 * The keys that are a FIXED SET OF NAMED PARAMETERS, and therefore merge
+	 * key by key rather than replacing wholesale.
 	 *
-	 * Same rule as `Pricing::merge_config` and for the same reason: a partly
-	 * filled `times_s` must not silently inherit a default time the operator
-	 * thought they had cleared, while `hourly_ht` alone must be settable.
+	 * ── WHY THIS DISTINCTION EXISTS, AND WHAT IT COST TO LEARN ───────────────
+	 *
+	 * `Pricing::merge_config` replaces per top-level key, and it is right to:
+	 * `garments` is a COLLECTION, and an admin who removes a garment must not
+	 * silently get it back. Copying that rule here was wrong, because `film` is
+	 * not a collection. The settings screen owns eight of its nine fields, so
+	 * the first press of Enregistrer stored an eight-key `film` array that
+	 * REPLACED the nine-key default, and `billing_step_cm` stopped existing.
+	 *
+	 * `prudent_length_cm()` then read a billing step of 0 and refused, so
+	 * the film became UNKNOWN on every order costed on a shop where the nesting
+	 * service is not configured, which is the state this ships in. Measured on
+	 * thirty tees with one 28,4 × 34,1 cm chest transfer: the direct cost fell
+	 * from 333,62 EUR to 163,32 EUR and the floor price from 571,92 EUR to
+	 * 279,98 EUR. 291,94 EUR of floor, on one order, destroyed by pressing a
+	 * save button once. Found by the adversarial pass, reproduced, then fixed.
+	 *
+	 * `garment_supply` is deliberately NOT here: clearing a purchase price must
+	 * remove the row, and a deep merge would resurrect it.
+	 */
+	private const PARAMETER_MAPS = array( 'film', 'times_s', 'payment' );
+
+	/**
+	 * Merge a stored partial over the defaults.
+	 *
+	 * Per top-level key, except for the parameter maps above, which merge key by
+	 * key so a form that owns some of their fields cannot delete the others.
 	 */
 	public static function merge_config( array $stored ): array {
 		$config = self::default_config();
 		foreach ( $stored as $key => $value ) {
-			if ( array_key_exists( $key, $config ) ) {
-				$config[ $key ] = $value;
+			if ( ! array_key_exists( $key, $config ) ) {
+				continue;
 			}
+			$config[ $key ] = in_array( $key, self::PARAMETER_MAPS, true ) && is_array( $value ) && is_array( $config[ $key ] )
+				? array_merge( $config[ $key ], $value )
+				: $value;
 		}
 		return $config;
 	}
@@ -617,9 +656,10 @@ final class Cost {
 	 * of being printed.
 	 *
 	 * A caller that uses this MUST mark the resulting component ESTIMATED. It
-	 * overstates a real order badly (measured on the sample corpus: +14 % to
-	 * +827 %), so it is a stopgap for a broken link and never a substitute for
-	 * asking.
+	 * overstates a real order badly (measured on scripts/nest-verify.mjs's own
+	 * corpus: 0 % on a single piece both roundings land on, and up to +850 % on a
+	 * sheet of small transfers that interlock), so it is a stopgap for a broken
+	 * link and never a substitute for asking.
 	 *
 	 * @return array{ok:bool,length_cm:float,impossible:array<int,string>}
 	 */
@@ -644,6 +684,7 @@ final class Cost {
 
 		$raw        = 0.0;
 		$tallest    = 0.0;
+		$count      = 0;
 		$impossible = array();
 
 		foreach ( $pieces as $piece ) {
@@ -673,6 +714,7 @@ final class Cost {
 
 			$raw    += $qty * ( $row + $gap );
 			$tallest = max( $tallest, $row );
+			$count  += $qty;
 		}
 
 		if ( array() !== $impossible ) {
@@ -686,9 +728,16 @@ final class Cost {
 		 * The packer only opens a new sheet when the next shelf would overflow,
 		 * so every sheet but the last carries more than `room` of artwork. Hence
 		 * (N − 1) × room < raw, hence N ≤ ⌈raw / room⌉ for any positive raw.
+		 *
+		 * `room` IS NOT CLAMPED TO THE BILLING STEP, and it was: clamping it UP
+		 * made the divisor larger than the real per-sheet minimum, so the sheet
+		 * count came out too low and the bound with it. It only bites when the
+		 * file limit is close to the tallest transfer, which is a setting an
+		 * operator can type. When there is no room at all, every piece needs its
+		 * own sheet, which is what the fallback counts.
 		 */
-		$room   = max( $step, $max - $tallest - $gap );
-		$sheets = max( 1, (int) ceil( $raw / $room ) );
+		$room   = $max - $tallest - $gap;
+		$sheets = $room > 0 ? max( 1, (int) ceil( $raw / $room ) ) : max( 1, $count );
 
 		return array(
 			'ok'         => true,

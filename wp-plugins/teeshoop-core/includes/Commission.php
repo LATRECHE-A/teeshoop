@@ -135,12 +135,22 @@ final class Commission {
 		);
 	}
 
+	/**
+	 * Merge a stored partial over the defaults, with `rates` merging key by key.
+	 *
+	 * `rates` is a fixed set of five named rates and not a collection, so a form
+	 * that posts four of them must not delete the fifth. See the same note, and
+	 * the 291,94 EUR it cost, above `Cost::PARAMETER_MAPS`.
+	 */
 	public static function merge_config( array $stored ): array {
 		$config = self::default_config();
 		foreach ( $stored as $key => $value ) {
-			if ( array_key_exists( $key, $config ) ) {
-				$config[ $key ] = $value;
+			if ( ! array_key_exists( $key, $config ) ) {
+				continue;
 			}
+			$config[ $key ] = ( 'rates' === $key && is_array( $value ) )
+				? array_merge( $config[ $key ], $value )
+				: $value;
 		}
 		return $config;
 	}

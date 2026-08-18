@@ -39,7 +39,7 @@ Une démarche non technique s'ajoute au même endroit : la plateforme de factura
 La seconde ne bloque rien mais dégrade un chiffre : la constante
 `TEESHOOP_WORKER_TOKEN` dans le `wp-config.php` de la boutique (§4 bis). Sans elle, le
 moteur de coût ne peut pas demander au Worker le métrage de film réellement occupé par
-une commande, et chiffre sur une borne haute qui dépasse la réalité de 14 % à 827 %.
+une commande, et chiffre sur une borne haute qui dépasse la réalité de 0 % à 850 %.
 
 Le gel du déploiement, lui, tient toujours, mais il change de nature : ce n'est plus
 un manque d'accès, c'est une méthode. **On travaille en préproduction, on sauvegarde,
@@ -422,9 +422,8 @@ Absente, rien ne casse et rien ne ment : chaque commande est chiffrée sur une *
 haute** (une bande de film par transfert, sans imbrication), le rapport de marge le dit
 en toutes lettres, et le coût annoncé est plus élevé que la réalité. C'est le sens sûr,
 parce qu'un coût majoré remonte le prix plancher au lieu de l'abaisser. Sur les
-commandes d'essai, la borne dépasse l'imbrication réelle de 14 % à 827 % selon la
-forme des visuels : utilisable pour ne pas vendre à perte, inutilisable pour chiffrer
-un devis.
+commandes d'essai, la borne dépasse l'imbrication réelle de 0 % à 850 % selon la forme
+des visuels : utilisable pour ne pas vendre à perte, inutilisable pour chiffrer un devis.
 
 ---
 

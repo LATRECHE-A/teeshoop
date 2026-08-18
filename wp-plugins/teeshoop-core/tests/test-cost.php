@@ -215,7 +215,10 @@ describe( 'Cost — the prudent length is a bound, not a nesting', function () u
 			$ts_cost_config
 		);
 		near( $flat['length_cm'], 10.0, 1e-9, '50 cm fits across, so the row is 5 cm' );
-		near( $tall['length_cm'], 70.0, 1e-9, '60 cm does not, so the row is 60 cm' );
+		// 60,5 cm of row, rounded up to the billing step, plus one step for the
+		// second sheet the 100 cm file limit could force. A bound is allowed to
+		// be loose; it is not allowed to be low.
+		near( $tall['length_cm'], 80.0, 1e-9, '60 cm does not, so the row is 60 cm' );
 	} );
 
 	it( 'rounds up to the billing step, like the supplier does', function () use ( $ts_cost_config ) {
@@ -349,5 +352,109 @@ describe( 'Cost — against the Bible’s own thirty-t-shirt example', function 
 		$with_bible = Margin::plan( 25000, $rules );
 
 		eq( $with_bible['floor_ht'] - $with_ours['floor_ht'], 6372 );
+	} );
+} );
+
+describe( 'Cost — a form that owns some fields must not delete the others', function () {
+	it( 'keeps the billing step when the settings screen saves the film block', function () {
+		/*
+		 * THE DEFECT THIS PINS, found by the adversarial pass and reproduced
+		 * before it was fixed: the screen owns eight of the film block's nine
+		 * fields, and a merge that replaced the whole block dropped the ninth.
+		 * `prudent_length_cm` then read a billing step of 0, refused, and the
+		 * film became UNKNOWN on every order costed without the nesting service.
+		 * Measured on thirty tees with one 28,4 x 34,1 cm transfer: 291,94 EUR
+		 * of floor price, destroyed by pressing Enregistrer once.
+		 */
+		$saved = Cost::merge_config(
+			array(
+				'film' => array(
+					'rate_fr_ht'  => 1700,
+					'rate_es_ht'  => 900,
+					'width_cm'    => 56.0,
+					'delivery_ht' => 1500,
+					'min_m'       => 1.0,
+					'waste_rate'  => 0.05,
+					'gap_cm'      => 0.5,
+					'max_length_cm' => 3000.0,
+				),
+			)
+		);
+
+		truthy( array_key_exists( 'billing_step_cm', $saved['film'] ), 'the ninth field was deleted by a save' );
+
+		$bound = Cost::prudent_length_cm( array( array( 'id' => 'a', 'w_cm' => 28.4, 'h_cm' => 34.1, 'qty' => 30 ) ), $saved );
+		truthy( $bound['ok'], 'the bound stopped existing after a save' );
+		near( $bound['length_cm'], 870.0, 1e-9 );
+	} );
+
+	it( 'merges the standard times and the payment block the same way', function () {
+		$one = Cost::merge_config( array( 'times_s' => array( 'pressage' => 90 ) ) );
+		eq( $one['times_s']['pressage'], 90, 'the field that was posted' );
+		eq( $one['times_s']['preparation'], 60, 'and the six that were not' );
+
+		$two = Cost::merge_config( array( 'payment' => array( 'rate' => 0.02 ) ) );
+		truthy( array_key_exists( 'free_methods', $two['payment'] ), 'a transfer must still cost nothing' );
+	} );
+
+	it( 'still REPLACES the purchase prices, because clearing one must remove it', function () {
+		$with  = Cost::merge_config( array( 'garment_supply' => array( 'tee' => array( 'ht' => 337 ) ) ) );
+		$empty = Cost::merge_config( array( 'garment_supply' => array() ) );
+		eq( $with['garment_supply']['tee']['ht'], 337 );
+		eq( $empty['garment_supply'], array(), 'a deep merge here would resurrect a price somebody deleted' );
+	} );
+} );
+
+describe( 'Cost — the bound when the file limit is close to the artwork', function () {
+	it( 'counts the sheets from the room left after the tallest row, not from the billing step', function () {
+		/*
+		 * A 40 cm file limit and rows of 20 cm: the packer closes a sheet as
+		 * soon as the next shelf would overflow, so every sheet but the last
+		 * carries more than (limit − tallest − gap) = 19,5 cm, and there can be
+		 * at most five. Clamping that divisor UP to the billing step, which is
+		 * what this did, made it 10 and the count too LOW, and a bound that
+		 * counts too few sheets counts too few roundings.
+		 */
+		$tight = Cost::merge_config(
+			array( 'film' => array( 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 40.0 ) )
+		);
+		$b = Cost::prudent_length_cm( array( array( 'id' => 'a', 'w_cm' => 20.0, 'h_cm' => 38.0, 'qty' => 4 ) ), $tight );
+
+		truthy( $b['ok'] );
+		// 4 rows of 20,5 cm = 82 cm, rounded up to 90, plus one step for each of
+		// the four sheets past the first.
+		near( $b['length_cm'], 130.0, 1e-9 );
+	} );
+
+	it( 'gives every transfer its own sheet when there is no room for a second row', function () {
+		// A transfer as long as the whole file: one per sheet, necessarily. With
+		// no room left, a division would be by zero or by a negative, and the
+		// count falls back to the number of transfers.
+		$tight = Cost::merge_config(
+			array( 'film' => array( 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 40.0 ) )
+		);
+		$b = Cost::prudent_length_cm( array( array( 'id' => 'a', 'w_cm' => 50.0, 'h_cm' => 39.5, 'qty' => 3 ) ), $tight );
+
+		truthy( $b['ok'] );
+		// Its row is 39,5 cm and the file is 40: no second row fits behind it,
+		// so the room is exactly zero. Three rows of 40 cm, plus a step for each
+		// of the two extra sheets.
+		near( $b['length_cm'], 140.0, 1e-9 );
+	} );
+
+	it( 'refuses a transfer longer than a whole print file', function () {
+		$tight = Cost::merge_config( array( 'film' => array( 'width_cm' => 56.0, 'max_length_cm' => 40.0 ) ) );
+		$b     = Cost::prudent_length_cm( array( array( 'id' => 'long', 'w_cm' => 50.0, 'h_cm' => 45.0, 'qty' => 1 ) ), $tight );
+		truthy( ! $b['ok'] );
+		eq( $b['impossible'], array( 'long' ) );
+	} );
+
+	it( 'ships a print-file limit no larger than any supplier publishes', function () {
+		// It shipped at 3 000 cm, which is twelve times the largest figure any
+		// roll supplier in the studio's own survey publishes. Too large lets an
+		// order be billed as one long file when the supplier will cut it into a
+		// dozen, each rounded up: a lower cost, a lower floor, a sale nobody
+		// would have authorised.
+		truthy( Cost::default_config()['film']['max_length_cm'] <= 250.0 );
 	} );
 } );

@@ -87,41 +87,76 @@ final class CostAdmin {
 	}
 
 	/**
-	 * A percentage a human typed, back to a rate.
+	 * Whether a field holds something `Money::from_eur` can actually read.
+	 *
+	 * ONE IMPLEMENTATION, TWO READERS, because the day the two disagreed is the
+	 * day this was found: `money_in` had the guard and `pct_in` did not.
+	 * `Money::from_eur` answers 0 for text it cannot parse, and the whole point
+	 * of a fallback is to tell that apart from a typed zero.
+	 */
+	private static function numeric( mixed $raw ): bool {
+		$text = str_replace(
+			array( ' ', ',', "\u{00A0}", "\u{202F}", '%' ),
+			array( '', '.', '', '', '' ),
+			trim( (string) $raw )
+		);
+		return '' !== $text && is_numeric( $text );
+	}
+
+	/**
+	 * A rate of 100 % or more has no meaning in any field on this page, and two
+	 * of them together can make the floor price insoluble.
+	 */
+	private const MAX_RATE = 0.99;
+
+	/**
+	 * A percentage a human typed, back to a rate in [0, MAX_RATE].
 	 *
 	 * `Money::from_eur` and not a cast, because it is the one parser in this
 	 * plugin that accepts the comma a French admin types. "12,5" read by a cast
 	 * is 12, which is a hundredfold error in a commission rate.
+	 *
+	 * TWO GUARDS, AND EACH ONE IS A MEASURED DEFECT.
+	 *
+	 * Unreadable text falls back instead of storing zero. The screen prints the
+	 * "%" sign as a label right beside the field, which is exactly what invites
+	 * an operator to retype it into the field, and "25 %" parsed as 0,00: on the
+	 * Bible's own 250,00 EUR cost the floor fell from 428,57 EUR to 250,00 EUR,
+	 * 178,57 EUR of it, and an order at 260,00 EUR went from needing a
+	 * derogation to reading "vendable sans validation". The same silent zero
+	 * emptied the film loss provision and every commission rate.
+	 *
+	 * And the result is CLAMPED. `Margin::floor_price_rate` refuses an insoluble
+	 * combination by throwing, which is right for a formula and fatal for a
+	 * screen: typing 100 into the target margin turned every order page into a
+	 * blank 500. `save()` refuses the insoluble pair as well, with a sentence.
 	 */
 	private static function pct_in( mixed $raw, float $fallback ): float {
 		$text = trim( (string) $raw );
-		if ( '' === $text ) {
+		if ( '' === $text || ! self::numeric( $text ) ) {
 			return $fallback;
 		}
 		// Two divisions by a hundred and not one by ten thousand, because they
 		// are two different conversions: `from_eur` returns hundredths of what
 		// was typed, and a percentage is a hundredth of a rate.
-		return Money::from_eur( $text ) / 100 / 100;
+		return max( 0.0, min( self::MAX_RATE, Money::from_eur( $text ) / 100 / 100 ) );
 	}
 
 	/**
 	 * Money a human typed, in cents, with a fallback for an empty or unreadable
 	 * field.
 	 *
-	 * The fallback is what makes an accidental blank harmless. `Money::from_eur`
-	 * answers 0 for both "" and "abc", and a silent 0 in the hourly rate would
-	 * make the shop's own labour free on every order costed afterwards, with
-	 * nothing on the screen looking wrong. An operator who really means zero
-	 * types a zero, which parses.
+	 * The fallback is what makes an accidental blank harmless: a silent 0 in the
+	 * hourly rate would make the shop's own labour free on every order costed
+	 * afterwards, with nothing on the screen looking wrong. An operator who
+	 * really means zero types a zero, which parses.
 	 */
 	private static function money_in( mixed $raw, int $fallback ): int {
 		$text = trim( (string) $raw );
-		if ( '' === $text ) {
+		if ( '' === $text || ! self::numeric( $text ) ) {
 			return $fallback;
 		}
-		return is_numeric( str_replace( array( ' ', ',', "\u{00A0}", "\u{202F}" ), array( '', '.', '', '' ), $text ) )
-			? Money::from_eur( $text )
-			: $fallback;
+		return Money::from_eur( $text );
 	}
 
 	/** A whole number a human typed, clamped, with a fallback. */
@@ -233,7 +268,28 @@ final class CostAdmin {
 		);
 		// phpcs:enable
 
-		wp_safe_redirect( add_query_arg( 'teeshoop', 'enregistre', self::url() ) );
+		/*
+		 * THE PAIR CAN BE IMPOSSIBLE EVEN WHEN EACH HALF IS FINE.
+		 *
+		 * Keeping k of the price after paying away c of the margin has no
+		 * solution once k ≥ 1 − c: 25 % kept while 80 % is commissioned cannot
+		 * be reached at any price. `Margin::floor_price_rate` refuses it by
+		 * throwing, which is right, and left an admin with a blank 500 on every
+		 * order screen. Both values are already stored at this point, so the
+		 * operator sees exactly what they typed and can correct one of them; the
+		 * notice names the two numbers that fight.
+		 */
+		$flag  = 'enregistre';
+		$saved = Cost::merge_config( is_array( get_option( OPTION_COSTING, array() ) ) ? get_option( OPTION_COSTING, array() ) : array() );
+		$worst = 0.0;
+		foreach ( $rates as $rate ) {
+			$worst = max( $worst, (float) $rate );
+		}
+		if ( (float) $saved['min_contribution_rate'] >= 1 - $worst ) {
+			$flag = 'insoluble';
+		}
+
+		wp_safe_redirect( add_query_arg( 'teeshoop', $flag, self::url() ) );
 		exit;
 	}
 
@@ -257,9 +313,23 @@ final class CostAdmin {
 		echo '<h1>' . esc_html__( 'Coûts et marges', 'teeshoop' ) . '</h1>';
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a display-only flag.
-		if ( isset( $_GET['teeshoop'] ) && 'enregistre' === $_GET['teeshoop'] ) {
+		$flag = isset( $_GET['teeshoop'] ) ? sanitize_key( wp_unslash( (string) $_GET['teeshoop'] ) ) : '';
+		if ( 'enregistre' === $flag ) {
 			echo '<div class="notice notice-success is-dismissible"><p>'
 				. esc_html__( 'Réglages enregistrés.', 'teeshoop' ) . '</p></div>';
+		}
+		if ( 'insoluble' === $flag ) {
+			echo '<div class="notice notice-error"><p><strong>'
+				. esc_html__( 'Enregistré, mais ces deux réglages se contredisent', 'teeshoop' ) . '</strong><br>'
+				. esc_html(
+					sprintf(
+						/* translators: 1: the minimum contribution rate, 2: the highest commission rate. */
+						__( 'Vous demandez de garder %1$s du prix de vente après avoir versé jusqu’à %2$s de la marge. Aucun prix, si élevé soit-il, ne peut satisfaire les deux : aucune commande ne pourra être chiffrée tant que l’un des deux ne baisse pas.', 'teeshoop' ),
+						self::pct_out( (float) $config['min_contribution_rate'] ) . "\u{00A0}%",
+						self::pct_out( max( array_map( 'floatval', (array) $commission['rates'] ) ) ) . "\u{00A0}%"
+					)
+				)
+				. '</p></div>';
 		}
 
 		self::render_intro( $config );
@@ -652,6 +722,20 @@ final class CostAdmin {
 			return;
 		}
 
+		if ( ! Costing::current( $order, $report ) ) {
+			/*
+			 * A STALE REPORT IS WORSE THAN NO REPORT, because it is believed.
+			 * Everything below describes the order as it was when somebody last
+			 * asked, and the derogation section is gated on that verdict: an
+			 * order edited into being under its floor would show a green panel
+			 * and no exception form at all.
+			 */
+			echo '<div class="notice notice-warning inline"><p><strong>'
+				. esc_html__( 'Cette commande a changé depuis le dernier chiffrage', 'teeshoop' ) . '</strong><br>'
+				. esc_html__( 'Les montants ci-dessous décrivent la commande telle qu’elle était. Recalculez avant de vous en servir, et avant d’accorder une dérogation.', 'teeshoop' )
+				. '</p></div>';
+		}
+
 		self::render_report( $order, $report );
 		self::render_refresh_button( $order, __( 'Recalculer', 'teeshoop' ) );
 	}
@@ -785,7 +869,7 @@ final class CostAdmin {
 			)
 		) . '</p>';
 
-		if ( ! empty( $verdict['below_floor'] ) ) {
+		if ( ! empty( $verdict['below_floor'] ) && Costing::current( $order, $report ) ) {
 			self::render_derogation( $order, $report );
 		}
 	}
@@ -914,6 +998,22 @@ final class CostAdmin {
 		$order->update_meta_data( Costing::META_DELIVERED, self::iso_date( sanitize_text_field( wp_unslash( (string) ( $_POST['livree_le'] ?? '' ) ) ) ) );
 		// phpcs:enable
 		$order->save();
+
+		/*
+		 * RECOMPUTED, because all three of these are inputs to the report.
+		 *
+		 * The kind of sale decides the commission rate, the commission rate is
+		 * in the floor price (see `Costing::rules`), and the delivery date opens
+		 * the contestation delay. Saving them without recomputing left the panel
+		 * showing the floor, the verdict and the commission of the PREVIOUS
+		 * rate, on the same screen as the new one, which is the worst of the
+		 * three possible states: an operator switching an order from "commande
+		 * autonome" to "première commande" saw a floor computed at 0 % of
+		 * commission and a commission of 40 %, and nothing said they disagreed.
+		 */
+		if ( null !== Costing::stored( $order ) ) {
+			Costing::refresh( wc_get_order( $order->get_id() ) );
+		}
 
 		self::back( $order, 'enregistre' );
 	}

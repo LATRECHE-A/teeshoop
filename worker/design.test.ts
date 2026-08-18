@@ -103,6 +103,45 @@ describe('readDesignDoc — the gate on what may be stored', () => {
     expect(r.sides).toEqual([{ id: 'front', area_sq_cm: 420.5 }])
   })
 
+  it('carries the transfer rectangles, which is what the film is costed from', () => {
+    const r = readDesignDoc({
+      ...DOC,
+      sides: [{ id: 'front', area_sq_cm: 288, pieces: [{ w_cm: 18, h_cm: 14.5 }, { w_cm: 12, h_cm: 3.2 }] }],
+    })!
+    expect(r.sides[0].pieces).toEqual([{ w_cm: 18, h_cm: 14.5 }, { w_cm: 12, h_cm: 3.2 }])
+  })
+
+  it('drops rectangles too small to hold the ink they claim to carry', () => {
+    /*
+     * THE OPEN-ROUTE DEFENCE. This document arrives unauthenticated, and these
+     * rectangles are what the shop's film cost and therefore its floor price
+     * are computed from. Measured with the shipped packer: fifty garments with
+     * a real 28,4 x 34,1 cm chest print nest to 14,5 m of roll and 273,83 EUR
+     * of film; declared as 0,5 x 0,5 cm they nest to 0,1 m, bill the supplier
+     * minimum, and cost 32,85 EUR. Every euro of that comes off the floor.
+     *
+     * The invariant is derived, not chosen: the priced area is a union of the
+     * cluster boxes and the rectangles are those same boxes grown by the trim
+     * bleed, so their areas always sum to at least it.
+     */
+    const r = readDesignDoc({
+      ...DOC,
+      sides: [{ id: 'front', area_sq_cm: 2000, pieces: [{ w_cm: 0.5, h_cm: 0.5 }] }],
+    })!
+    expect(r.sides[0].area_sq_cm).toBe(2000)
+    expect(r.sides[0].pieces).toBeUndefined()
+  })
+
+  it('drops the whole list rather than the rectangles it could not read', () => {
+    // Partly read means the film of the pieces that parsed and silence about
+    // the rest: a cost that is too LOW, which is a floor that is too low.
+    const r = readDesignDoc({
+      ...DOC,
+      sides: [{ id: 'front', area_sq_cm: 100, pieces: [{ w_cm: 18, h_cm: 14.5 }, { w_cm: 12, h_cm: 'big' }] }],
+    })!
+    expect(r.sides[0].pieces).toBeUndefined()
+  })
+
   it('refuses anything that is not a design document', () => {
     expect(readDesignDoc(null)).toBeNull()
     expect(readDesignDoc('a string')).toBeNull()

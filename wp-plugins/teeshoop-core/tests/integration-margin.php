@@ -44,7 +44,15 @@ function ts_mg_sides(): array {
 	return array(
 		array(
 			'id'         => 'front',
-			'area_sq_cm' => 400.0,
+			/*
+			 * THE INK, AND IT HAS TO FIT IN THE RECTANGLES. 18 x 14,5 and
+			 * 12 x 3,2 box 299,4 cm², so an ink union of 288 cm² is a design
+			 * that could exist. An earlier version of this fixture said 400 cm²
+			 * of ink inside 299 cm² of transfers, which is not a garment, and
+			 * the consistency check in Design::normalise_pieces refused it, as
+			 * it is meant to.
+			 */
+			'area_sq_cm' => 288.0,
 			'pieces'     => array(
 				array( 'w_cm' => 18.0, 'h_cm' => 14.5 ),
 				array( 'w_cm' => 12.0, 'h_cm' => 3.2 ),
@@ -244,7 +252,7 @@ function ts_margin_suite( int $product_id ): void {
 	ts_it( 'costs an order whose design carries no geometry as unknown film', function () use ( $product_id ) {
 		// A side with an area and no pieces: exactly what an order taken before
 		// the studio started recording the rectangles looks like.
-		$order  = ts_mg_order( $product_id, 12, array( array( 'id' => 'front', 'area_sq_cm' => 400.0 ) ) );
+		$order  = ts_mg_order( $product_id, 12, array( array( 'id' => 'front', 'area_sq_cm' => 288.0 ) ) );
 		$report = Costing::compute( $order );
 
 		ts_assert( ! (bool) $report['work']['complete'], 'the geometry is not complete and the report says otherwise' );
@@ -423,6 +431,61 @@ function ts_margin_suite( int $product_id ): void {
 		$report = Costing::compute( wc_get_order( $order->get_id() ) );
 		ts_eq( (string) $report['state']['state'], Commission::PROVISIONAL, 'paid, delivered long ago, and still not definitive' );
 		ts_assert( ! empty( $report['state']['open'] ), 'and it must say why' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'takes a refund off the margin and off the commission', function () use ( $product_id ) {
+		$order = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$order->update_meta_data( Costing::META_SALE_TYPE, 'premiere' );
+		$order->save();
+		$order->payment_complete( 'ts-marge-refund' );
+
+		$before = Costing::compute( wc_get_order( $order->get_id() ) );
+		ts_assert( (int) $before['commission']['earned_ht'] > 0, 'a paid first order earns something' );
+
+		// Give a quarter of it back.
+		$refund = wc_create_refund(
+			array(
+				'order_id' => $order->get_id(),
+				'amount'   => Money::to_eur( (int) round( Ledger::due( wc_get_order( $order->get_id() ) ) / 4 ) ),
+				'reason'   => 'Vérification',
+			)
+		);
+		ts_assert( ! is_wp_error( $refund ), 'the refund could not be created' );
+
+		$after = Costing::compute( wc_get_order( $order->get_id() ) );
+		ts_assert( (int) $after['refunded_ttc'] > 0, 'the report did not see the refund' );
+		ts_assert(
+			(int) $after['commission']['earned_ht'] < (int) $before['commission']['earned_ht'],
+			'money given back was still earning a commission'
+		);
+		ts_eq(
+			(int) $after['revenue']['total_ht'],
+			(int) $before['revenue']['total_ht'],
+			'the invoice is a document that was issued; a refund is a separate event'
+		);
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'says a stored report no longer describes the order it was computed from', function () use ( $product_id ) {
+		$order  = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$report = Costing::refresh( $order );
+
+		ts_assert( Costing::current( wc_get_order( $order->get_id() ), $report ), 'a fresh report must describe its own order' );
+
+		// The kind of sale is an input to the floor price, through the
+		// commission rate. Changing it without recomputing left the panel
+		// showing one rate's floor beside another rate's commission.
+		$order = wc_get_order( $order->get_id() );
+		$order->update_meta_data( Costing::META_SALE_TYPE, 'premiere' );
+		$order->save();
+
+		ts_assert(
+			! Costing::current( wc_get_order( $order->get_id() ), $report ),
+			'the report claims to describe an order that has changed under it'
+		);
 
 		$order->delete( true );
 	} );

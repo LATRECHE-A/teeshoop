@@ -146,11 +146,8 @@ export function readDesignDoc(raw: unknown): DesignDocSummary | null {
     const area = typeof side.area_sq_cm === 'number' ? side.area_sq_cm : NaN
     if (!id || !SIDE_ID_RE.test(id)) continue
     if (!Number.isFinite(area) || area <= 0) continue
-    sides.push({
-      id,
-      area_sq_cm: Math.min(area, MAX_SIDE_SQ_CM),
-      ...readPieces(side.pieces),
-    })
+    const capped = Math.min(area, MAX_SIDE_SQ_CM)
+    sides.push({ id, area_sq_cm: capped, ...readPieces(side.pieces, capped) })
     if (sides.length >= MAX_SIDES) break
   }
 
@@ -186,10 +183,11 @@ export function readDesignDoc(raw: unknown): DesignDocSummary | null {
  * authorises a sale that destroys value. A side whose pieces cannot all be read
  * has no pieces, and the shop reports its film cost as unknown.
  */
-function readPieces(raw: unknown): { pieces?: DesignDocPiece[] } {
+function readPieces(raw: unknown, areaSqCm: number): { pieces?: DesignDocPiece[] } {
   if (!Array.isArray(raw)) return {}
   if (raw.length === 0 || raw.length > MAX_SIDE_PIECES) return {}
   const pieces: DesignDocPiece[] = []
+  let boxed = 0
   for (const p of raw) {
     if (!p || typeof p !== 'object') return {}
     const piece = p as Record<string, unknown>
@@ -197,7 +195,34 @@ function readPieces(raw: unknown): { pieces?: DesignDocPiece[] } {
     const h = typeof piece.h_cm === 'number' ? piece.h_cm : NaN
     if (!Number.isFinite(w) || !Number.isFinite(h)) return {}
     if (w <= 0 || h <= 0 || w > MAX_PIECE_CM || h > MAX_PIECE_CM) return {}
+    boxed += w * h
     pieces.push({ w_cm: w, h_cm: h })
   }
+
+  /*
+   * THE RECTANGLES MUST BE BIG ENOUGH TO HOLD THE INK THEY CLAIM TO CARRY, and
+   * this route is OPEN, so that check is the only thing standing between a
+   * buyer and our floor price.
+   *
+   * It is a derived invariant, not a tolerance we chose. `sideArtworkSqCm`
+   * unions the CLUSTER boxes; `sidePiecesCm` returns those same boxes grown by
+   * the trim bleed on all four sides. Σ(w × h) is therefore always at least the
+   * declared area, and strictly more in practice. A document that declares
+   * 2 000 cm² of ink and eight 0,5 × 0,5 cm transfers is describing two
+   * different garments.
+   *
+   * What it costs when it is missing, measured with the shipped packer: fifty
+   * garments with a real 28,4 × 34,1 cm chest print nest to 14,5 m of roll and
+   * 273,83 EUR of film; declared as 0,5 × 0,5 cm they nest to 0,1 m, bill the
+   * 1 m supplier minimum and cost 32,85 EUR. 240,98 EUR off the direct cost,
+   * and every euro of it comes back off the floor price the shop refuses to
+   * sell under.
+   *
+   * The 1 % slack absorbs the 0,01 cm rounding both numbers carry and nothing
+   * else. Failing it drops the geometry rather than the order: the buyer still
+   * buys, and the shop reports the film as unknown instead of as cheap.
+   */
+  if (boxed < areaSqCm * 0.99) return {}
+
   return { pieces }
 }

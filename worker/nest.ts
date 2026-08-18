@@ -51,7 +51,14 @@ const MAX_BODY_BYTES = 256 * 1024
 /** The roll this shop is quoted on. Overridable per request; never absent. */
 const DEFAULT_WIDTH_CM = 56
 const DEFAULT_GAP_CM = 0.5
-const DEFAULT_MAX_LENGTH_CM = 3000
+/*
+ * The shop always sends its own (Nest.php), so this is only what an omitted
+ * field falls back to. 100 cm is the smallest print-file length any surveyed
+ * roll supplier publishes, which is the prudent one: too small only ever adds
+ * per-sheet billing roundings, and too large lets an order be billed as one
+ * long file the supplier will actually cut into a dozen.
+ */
+const DEFAULT_MAX_LENGTH_CM = 100
 
 interface NestRequestPiece {
   id: string
@@ -68,6 +75,19 @@ const json = (body: unknown, status = 200): Response =>
 
 const num = (v: unknown, fallback: number): number =>
   typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : fallback
+
+/**
+ * The same, for a value ZERO is a legitimate answer to.
+ *
+ * The gap between two transfers is one: a supplier that quotes a printable
+ * width has already taken its own margin, and the shop's screen lets an
+ * operator type 0. Read through `num`, that 0 was silently replaced by the
+ * house 0,5 cm here while `Cost::prudent_length_cm` on the other side used the
+ * 0 it was given, so the two ends costed the same order differently on a
+ * setting the shop offers.
+ */
+const nonNeg = (v: unknown, fallback: number): number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback
 
 /**
  * Read the pieces, or say which rule the body broke.
@@ -157,7 +177,7 @@ export async function nestOrder(request: Request, env: AdminEnv): Promise<Respon
   const widthCm = Math.min(MAX_WIDTH_CM, num(req.width_cm, DEFAULT_WIDTH_CM))
   const options = {
     printableWidthCm: widthCm,
-    gapCm: num(req.gap_cm, DEFAULT_GAP_CM),
+    gapCm: nonNeg(req.gap_cm, DEFAULT_GAP_CM),
     maxLengthCm: num(req.max_length_cm, DEFAULT_MAX_LENGTH_CM),
     // The roll's two short edges are a scissor cut rather than a printer edge,
     // and the long edges are the laize the tariff is quoted on, so the quoted

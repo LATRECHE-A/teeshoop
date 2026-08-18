@@ -508,7 +508,14 @@ final class Cli {
 		$money = static fn( int $cents ): string => str_pad( Money::format( $cents ), 14, ' ', STR_PAD_LEFT );
 
 		\WP_CLI::log( '' );
-		\WP_CLI::log( sprintf( 'Commande %s, chiffrée le %s', $order->get_order_number(), (string) $report['computed_on'] ) );
+		\WP_CLI::log(
+			sprintf(
+				'Commande %s, chiffrée le %s%s',
+				$order->get_order_number(),
+				(string) $report['computed_on'],
+				Costing::current( $order, $report ) ? '' : '  [PÉRIMÉ : la commande a changé depuis]'
+			)
+		);
 		\WP_CLI::log( str_repeat( '-', 78 ) );
 
 		\WP_CLI::log( 'COÛT DIRECT' );

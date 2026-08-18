@@ -163,7 +163,7 @@ final class Design {
 				// Cap at a square metre: past that it is a data error, and it
 				// must not be able to drive the price to an absurd number.
 				'area_sq_cm' => min( $area, 10000.0 ),
-				'pieces'     => self::normalise_pieces( $side['pieces'] ?? null ),
+				'pieces'     => self::normalise_pieces( $side['pieces'] ?? null, min( $area, 10000.0 ) ),
 			);
 
 			if ( count( $out ) >= 8 ) {
@@ -183,16 +183,26 @@ final class Design {
 	 * have authorised. A side whose pieces cannot all be read has no pieces, and
 	 * `Costing` then reports its film as unknown rather than as cheap.
 	 *
-	 * The bounds match that gate exactly (32 pieces, 200 cm) because the two ends
-	 * are reading the same document, and a shop that accepted what the Worker
-	 * refused would be costing an order the workshop cannot receive.
+	 * The bounds match that gate exactly (32 pieces, 200 cm, and the ink area the
+	 * rectangles must be able to hold) because the two ends are reading the same
+	 * document, and a shop that accepted what the Worker refused would be
+	 * costing an order the workshop cannot receive.
+	 *
+	 * `$area_sq_cm` IS THE POINT OF THIS FUNCTION, not a detail of it. The
+	 * design document arrives through an OPEN route, because a customer cannot
+	 * authenticate, and these rectangles are what our film cost and therefore
+	 * our floor price are computed from. Bounds on their size stop absurd
+	 * values; only the comparison with the ink area stops PLAUSIBLE ones. See
+	 * the long note in src/lib/teeshoop/designDoc.ts for the derivation and for
+	 * the 240,98 EUR it is worth on one order.
 	 */
-	public static function normalise_pieces( mixed $raw ): array {
+	public static function normalise_pieces( mixed $raw, float $area_sq_cm = 0.0 ): array {
 		if ( ! is_array( $raw ) || array() === $raw || count( $raw ) > 32 ) {
 			return array();
 		}
 
-		$out = array();
+		$out   = array();
+		$boxed = 0.0;
 		foreach ( $raw as $piece ) {
 			if ( ! is_array( $piece ) ) {
 				return array();
@@ -202,11 +212,19 @@ final class Design {
 			if ( ! is_finite( $w ) || ! is_finite( $h ) || $w <= 0 || $h <= 0 || $w > 200 || $h > 200 ) {
 				return array();
 			}
-			$out[] = array(
+			$boxed += $w * $h;
+			$out[]  = array(
 				'w_cm' => $w,
 				'h_cm' => $h,
 			);
 		}
+
+		// 1 % of slack for the 0,01 cm rounding both numbers carry, and nothing
+		// else. Failing it drops the geometry, never the order.
+		if ( $boxed < $area_sq_cm * 0.99 ) {
+			return array();
+		}
+
 		return $out;
 	}
 }

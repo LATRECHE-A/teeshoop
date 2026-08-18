@@ -194,7 +194,19 @@ final class Costing {
 				if ( ! is_array( $side ) ) {
 					continue;
 				}
-				$geometry = Design::normalise_pieces( $side['pieces'] ?? null );
+				/*
+				 * THE AREA IS PASSED AGAIN HERE, and it is not belt and braces
+				 * for its own sake: these rectangles reached the order through
+				 * an open route, and this is the last point before they become
+				 * a film cost and a floor price. Re-checking a stored value
+				 * against its own sibling costs nothing and closes the case
+				 * where a line was written by an older build, by an importer,
+				 * or by hand.
+				 */
+				$geometry = Design::normalise_pieces(
+					$side['pieces'] ?? null,
+					isset( $side['area_sq_cm'] ) ? (float) $side['area_sq_cm'] : 0.0
+				);
 				if ( array() === $geometry ) {
 					$complete   = false;
 					// Still counted as one press, so the labour is not silently
@@ -564,14 +576,41 @@ final class Costing {
 		$plan = Margin::plan( (int) $cost['total_ht'], self::rules( $rate ?? 0.0, $config ) );
 		$verdict = Margin::verdict( (int) $totals['total_ht'], $plan );
 
-		$received = Ledger::received( $order );
-		$accrued  = Commission::accrue(
-			(int) $verdict['margin_ht'],
+		/*
+		 * MONEY GIVEN BACK IS NOT MONEY EARNED, and this is the second half of
+		 * "la commission est calculée sur la marge contributive ENCAISSÉE".
+		 *
+		 * `Ledger::received` counts receipts and knows nothing about refunds, so
+		 * a fully refunded order reported a full commission on a margin the shop
+		 * no longer has. WooCommerce's own two figures are used rather than a
+		 * VAT division of our own: `get_total_refunded()` is TTC and
+		 * `get_total_tax_refunded()` is the tax inside it, so the difference is
+		 * the HT that went back, exactly, with no rounding invented here.
+		 *
+		 * The REVENUE block is left alone on purpose: it is what the invoice
+		 * says, the invoice is a document that was issued, and a refund is a
+		 * separate event. What moves is the margin the commission is computed
+		 * on, and the share of the money we have actually kept.
+		 */
+		$refunded_ttc = Money::from_eur( (string) $order->get_total_refunded() );
+		$refunded_ht  = $refunded_ttc - Money::from_eur( (string) $order->get_total_tax_refunded() );
+		$kept_ttc     = max( 0, Ledger::received( $order ) - $refunded_ttc );
+
+		$accrued = Commission::accrue(
+			(int) $verdict['margin_ht'] - $refunded_ht,
 			$rate ?? 0.0,
-			$received,
+			$kept_ttc,
 			(int) $totals['total_ttc'],
 			$cost['complete'] && ! $cost['estimated'] ? Cost::REAL : Cost::ESTIMATED
 		);
+
+		if ( $refunded_ttc > 0 ) {
+			$warnings[] = sprintf(
+				/* translators: %s: an amount refunded to the customer. */
+				__( '%s ont été remboursés : la marge et la commission sont calculées sur ce qui reste.', 'teeshoop' ),
+				Money::format( $refunded_ttc )
+			);
+		}
 		$state = Commission::state(
 			array(
 				'collected'      => $accrued['collected'],
@@ -619,8 +658,22 @@ final class Costing {
 		return array(
 			'version'     => self::VERSION,
 			'computed_on' => Settings::today(),
+			/*
+			 * THE ORDER AS IT WAS WHEN THIS WAS COMPUTED.
+			 *
+			 * The report is frozen on purpose, so an order that is edited
+			 * afterwards keeps a report describing the order it used to be:
+			 * measured on the mirror, adding a line to a costed order left the
+			 * panel stating the old margin, the old verdict and no demand for a
+			 * derogation on a sale that had just fallen under the floor. It
+			 * cannot recompute itself (that would unfreeze it), so it records
+			 * what it read and the panel compares.
+			 */
+			'order_stamp' => self::stamp( $order ),
 			'revenue'     => $totals,
-			'received_ttc' => $received,
+			'received_ttc' => Ledger::received( $order ),
+			'refunded_ttc' => $refunded_ttc,
+			'refunded_ht'  => $refunded_ht,
 			'work'        => $work,
 			'blanks'      => $blanks,
 			'film'        => $film,
@@ -646,6 +699,38 @@ final class Costing {
 		$order->update_meta_data( self::META_REPORT, wp_json_encode( $report ) );
 		$order->save();
 		return $report;
+	}
+
+	/**
+	 * A fingerprint of everything about the order the report depends on.
+	 *
+	 * The modification date alone is not enough: WooCommerce does not always
+	 * touch it, and `Costing::refresh` saves the order itself, which moves it.
+	 * So it is the facts: what is on the order, what it costs, what has been
+	 * paid, and who is said to have sold it.
+	 */
+	public static function stamp( \WC_Order $order ): string {
+		$parts = array(
+			$order->get_total(),
+			$order->get_total_tax(),
+			$order->get_total_refunded(),
+			count( $order->get_items() ),
+			self::sale_type( $order ),
+			self::delivered_on( $order ),
+			(string) Ledger::received( $order ),
+		);
+		foreach ( $order->get_items() as $item ) {
+			$parts[] = $item->get_id() . ':' . $item->get_quantity() . ':' . $item->get_subtotal();
+			if ( $item instanceof \WC_Order_Item_Product ) {
+				$parts[] = (string) $item->get_meta( '_teeshoop_sides', true );
+			}
+		}
+		return md5( implode( '|', $parts ) );
+	}
+
+	/** Whether a stored report still describes the order in front of us. */
+	public static function current( \WC_Order $order, ?array $report ): bool {
+		return null !== $report && isset( $report['order_stamp'] ) && $report['order_stamp'] === self::stamp( $order );
 	}
 
 	/** The stored report, or null when nobody has ever asked for one. */

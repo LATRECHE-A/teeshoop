@@ -71,7 +71,7 @@ WC()->customer->save();
 $sides = array(
 	array(
 		'id'         => 'front',
-		'area_sq_cm' => 402.4,
+		'area_sq_cm' => 288.0,
 		'pieces'     => array(
 			array( 'w_cm' => 18.0, 'h_cm' => 14.5 ),
 			array( 'w_cm' => 12.0, 'h_cm' => 3.2 ),
