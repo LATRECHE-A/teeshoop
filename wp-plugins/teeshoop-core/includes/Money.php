@@ -36,21 +36,47 @@ final class Money {
 	}
 
 	/**
-	 * Euros (as written by a human in an admin field) to cents.
+	 * Euros as written by a human, or NULL when the field holds no number.
 	 *
 	 * Accepts "14,50" as well as "14.50": the shop is French, the admin will
 	 * type a comma, and silently reading "14,50" as 14 would under-price every
-	 * garment by a third without anything looking wrong.
+	 * garment by a third without anything looking wrong. It also accepts the
+	 * unit typed back into the field, "14,50 €" and "55 %", because the admin
+	 * screens print that sign as a label right beside the input and that is
+	 * exactly what invites retyping it.
+	 *
+	 * NULL AND NOT ZERO, and that is the whole reason this exists beside
+	 * `from_eur`. A field that cannot be read and a field holding zero are
+	 * different answers: measured on the cost screen, "25 %" read as 0,00 took
+	 * the floor price of the Bible's own 250,00 EUR example from 428,57 EUR to
+	 * 250,00 EUR, and an order at 260,00 EUR went from needing a derogation to
+	 * reading "vendable sans validation". A caller that has a sensible fallback
+	 * uses this; a caller reading a machine-written number uses `from_eur`.
 	 */
-	public static function from_eur( string|float|int $eur ): int {
+	public static function parse_eur( string|float|int $eur ): ?int {
 		if ( is_string( $eur ) ) {
-			$eur = str_replace( array( ' ', "\u{00A0}", "\u{202F}" ), '', $eur );
-			$eur = str_replace( ',', '.', $eur );
-			if ( ! is_numeric( $eur ) ) {
-				return 0;
+			$text = str_replace( array( ' ', "\u{00A0}", "\u{202F}", '%', '€' ), '', trim( $eur ) );
+			$text = str_replace( ',', '.', $text );
+			if ( '' === $text || ! is_numeric( $text ) ) {
+				return null;
 			}
+			$eur = (float) $text;
+		}
+		if ( ! is_finite( (float) $eur ) ) {
+			return null;
 		}
 		return self::round( (float) $eur * 100 );
+	}
+
+	/**
+	 * The same, reading anything unparseable as zero.
+	 *
+	 * Kept because most callers hand it a number WooCommerce wrote, where zero
+	 * is the right answer to "this order has no tax" and there is nothing for a
+	 * human to have mistyped.
+	 */
+	public static function from_eur( string|float|int $eur ): int {
+		return self::parse_eur( $eur ) ?? 0;
 	}
 
 	/** Cents to a float of euros — for JSON output and WooCommerce, never for arithmetic. */

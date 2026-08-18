@@ -574,3 +574,40 @@ describe( 'Pricing — the minimum order', function () {
 		truthy( ! Pricing::below_minimum( (int) $config['min_qty'], $quote['total_ht'], $config )['below'] );
 	} );
 } );
+
+describe( 'Money — a field nobody could read is not a field holding zero', function () {
+	it( 'reads what a French admin actually types', function () {
+		eq( Money::parse_eur( '14,50' ), 1450 );
+		eq( Money::parse_eur( '14.50' ), 1450 );
+		eq( Money::parse_eur( '1 234,56' ), 123456 );
+		eq( Money::parse_eur( "1\u{202F}234,56" ), 123456 );
+	} );
+
+	it( 'accepts the unit the screen prints beside the field', function () {
+		/*
+		 * THE DEFECT THIS PINS. The cost screen prints "%" as a label next to
+		 * the input, which is what invites retyping it into the input. Read
+		 * leniently, "25 %" was 0,00: on the Bible's own 250,00 EUR cost the
+		 * floor fell from 428,57 EUR to 250,00 EUR, and an order at 260,00 EUR
+		 * went from needing a derogation to reading "vendable sans validation".
+		 */
+		eq( Money::parse_eur( '25 %' ), 2500 );
+		eq( Money::parse_eur( '25%' ), 2500 );
+		eq( Money::parse_eur( '14,50 €' ), 1450 );
+	} );
+
+	it( 'answers null on a field it cannot read, and 0 only on a typed zero', function () {
+		eq( Money::parse_eur( '' ), null );
+		eq( Money::parse_eur( '   ' ), null );
+		eq( Money::parse_eur( 'gratuit' ), null );
+		eq( Money::parse_eur( '12,50,50' ), null );
+		eq( Money::parse_eur( '0' ), 0, 'somebody who means zero types a zero' );
+		eq( Money::parse_eur( '0,00' ), 0 );
+	} );
+
+	it( 'keeps from_eur reading an unparseable value as zero, for the machine-written ones', function () {
+		eq( Money::from_eur( 'gratuit' ), 0 );
+		eq( Money::from_eur( '' ), 0 );
+		eq( Money::from_eur( '14,50' ), 1450 );
+	} );
+} );

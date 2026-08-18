@@ -87,23 +87,6 @@ final class CostAdmin {
 	}
 
 	/**
-	 * Whether a field holds something `Money::from_eur` can actually read.
-	 *
-	 * ONE IMPLEMENTATION, TWO READERS, because the day the two disagreed is the
-	 * day this was found: `money_in` had the guard and `pct_in` did not.
-	 * `Money::from_eur` answers 0 for text it cannot parse, and the whole point
-	 * of a fallback is to tell that apart from a typed zero.
-	 */
-	private static function numeric( mixed $raw ): bool {
-		$text = str_replace(
-			array( ' ', ',', "\u{00A0}", "\u{202F}", '%' ),
-			array( '', '.', '', '', '' ),
-			trim( (string) $raw )
-		);
-		return '' !== $text && is_numeric( $text );
-	}
-
-	/**
 	 * A rate of 100 % or more has no meaning in any field on this page, and two
 	 * of them together can make the floor price insoluble.
 	 */
@@ -112,19 +95,13 @@ final class CostAdmin {
 	/**
 	 * A percentage a human typed, back to a rate in [0, MAX_RATE].
 	 *
-	 * `Money::from_eur` and not a cast, because it is the one parser in this
-	 * plugin that accepts the comma a French admin types. "12,5" read by a cast
-	 * is 12, which is a hundredfold error in a commission rate.
-	 *
-	 * TWO GUARDS, AND EACH ONE IS A MEASURED DEFECT.
-	 *
-	 * Unreadable text falls back instead of storing zero. The screen prints the
-	 * "%" sign as a label right beside the field, which is exactly what invites
-	 * an operator to retype it into the field, and "25 %" parsed as 0,00: on the
-	 * Bible's own 250,00 EUR cost the floor fell from 428,57 EUR to 250,00 EUR,
-	 * 178,57 EUR of it, and an order at 260,00 EUR went from needing a
-	 * derogation to reading "vendable sans validation". The same silent zero
-	 * emptied the film loss provision and every commission rate.
+	 * `Money::parse_eur` and not a cast, because it is the one parser in this
+	 * plugin that accepts the comma a French admin types AND says when it could
+	 * not read the field at all. "12,5" read by a cast is 12, a hundredfold
+	 * error in a commission rate; "25 %" read leniently is 0,00, which took the
+	 * floor price of the Bible's own 250,00 EUR example from 428,57 EUR to
+	 * 250,00 EUR and turned an order that needed a derogation into one that read
+	 * "vendable sans validation".
 	 *
 	 * And the result is CLAMPED. `Margin::floor_price_rate` refuses an insoluble
 	 * combination by throwing, which is right for a formula and fatal for a
@@ -132,14 +109,14 @@ final class CostAdmin {
 	 * blank 500. `save()` refuses the insoluble pair as well, with a sentence.
 	 */
 	private static function pct_in( mixed $raw, float $fallback ): float {
-		$text = trim( (string) $raw );
-		if ( '' === $text || ! self::numeric( $text ) ) {
+		$cents = Money::parse_eur( (string) $raw );
+		if ( null === $cents ) {
 			return $fallback;
 		}
 		// Two divisions by a hundred and not one by ten thousand, because they
-		// are two different conversions: `from_eur` returns hundredths of what
+		// are two different conversions: the parser returns hundredths of what
 		// was typed, and a percentage is a hundredth of a rate.
-		return max( 0.0, min( self::MAX_RATE, Money::from_eur( $text ) / 100 / 100 ) );
+		return max( 0.0, min( self::MAX_RATE, $cents / 100 / 100 ) );
 	}
 
 	/**
@@ -152,11 +129,7 @@ final class CostAdmin {
 	 * really means zero types a zero, which parses.
 	 */
 	private static function money_in( mixed $raw, int $fallback ): int {
-		$text = trim( (string) $raw );
-		if ( '' === $text || ! self::numeric( $text ) ) {
-			return $fallback;
-		}
-		return Money::from_eur( $text );
+		return Money::parse_eur( (string) $raw ) ?? $fallback;
 	}
 
 	/** A whole number a human typed, clamped, with a fallback. */
@@ -186,8 +159,19 @@ final class CostAdmin {
 		check_admin_referer( self::ACTION_SAVE );
 
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- checked above.
-		$posted   = isset( $_POST['couts'] ) && is_array( $_POST['couts'] ) ? wp_unslash( $_POST['couts'] ) : array();
-		$defaults = Cost::default_config();
+		$posted = isset( $_POST['couts'] ) && is_array( $_POST['couts'] ) ? wp_unslash( $_POST['couts'] ) : array();
+
+		/*
+		 * THE FALLBACK IS WHAT IS IN FORCE, NOT WHAT SHIPPED.
+		 *
+		 * Every reader below falls back when a field cannot be read, and reading
+		 * back the shipped default meant a single mistyped character silently
+		 * undid a setting somebody had deliberately changed: typing nonsense into
+		 * the minimum contribution took it from the 35 % in force to the 25 % of
+		 * the release, and the floor price on every order costed afterwards from
+		 * 600,00 EUR to 428,57 EUR. An unreadable field must change nothing.
+		 */
+		$defaults = Costing::config();
 
 		$times = array();
 		foreach ( array_keys( Cost::OPERATIONS ) as $op ) {
@@ -249,7 +233,7 @@ final class CostAdmin {
 			)
 		);
 
-		$com_defaults = Commission::default_config();
+		$com_defaults = Costing::commission_config();
 		$rates        = array();
 		foreach ( array_keys( Commission::SALE_TYPES ) as $type ) {
 			$rates[ $type ] = self::pct_in(

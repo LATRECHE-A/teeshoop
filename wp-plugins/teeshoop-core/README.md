@@ -669,7 +669,13 @@ their count.
   invoice series and the carriage settings.
 - The quote DOCUMENT: its versions, its acceptance token, its PDF and the BAT.
   `Quote.php` holds the request and its state; the document belongs to session
-  06, when there is a payment to attach it to.
+  06, when there is a payment to attach it to. **The costing is not attached to
+  a devis request either, and that is why**: a request carries a garment and a
+  quantity and no design, so it has no transfer geometry, so its largest cost
+  component would be unknown. A floor price built on that is a number with its
+  biggest term missing. The estimated/known flag reaches the margin report and
+  both admin screens today; it reaches a quote when there is a quote with a
+  design on it.
 - Réassort. "Commander à nouveau" is deliberately REFUSED on a personalisable
   product rather than silently producing a plain garment at the catalogue price
   (`woocommerce_order_again_cart_item_data` defaults to an empty payload).
