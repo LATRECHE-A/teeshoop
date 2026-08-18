@@ -124,10 +124,24 @@ final class Settings {
 	 */
 	public static function price_bases(): array {
 		$vat = self::vat();
+
+		/*
+		 * AN UNKNOWN REGIME IS NOT THE FRANCHISE, and reading it as one put the
+		 * franchise's own sentence in front of every visitor: `rate` is 0,0 when
+		 * no period covers today, so the grid announced "aucune taxe ne s'y
+		 * ajoute" on a shop that had simply not been told what it was. That is a
+		 * statement about the seller's tax position, made to a customer, on no
+		 * evidence at all.
+		 *
+		 * With `known` false the page prints one number and says nothing about
+		 * tax, which is the truth. The basket refuses the sale anyway, so nobody
+		 * can act on it.
+		 */
 		return array(
-			'two'     => (float) $vat['rate'] > 0,
+			'known'   => (bool) $vat['known'],
+			'two'     => $vat['known'] && (float) $vat['rate'] > 0,
 			'lead'    => 'ttc_first' === self::get( 'price_display' ) ? 'ttc' : 'ht',
-			'mention' => (string) $vat['mention'],
+			'mention' => $vat['known'] ? (string) $vat['mention'] : '',
 		);
 	}
 

@@ -72,7 +72,7 @@ $ts_product->update_meta_data( Product::META, 'tee' );
 $ts_product->save();
 
 /** Put a run in the basket, make an order, and return its frozen document. */
-function ts_probe_order( int $product_id, string $regime, string $environment, array $identity ): array {
+function ts_probe_order( int $product_id, string $regime, string $environment, array $identity, int $lines = 1 ): array {
 	global $wpdb;
 
 	update_option(
@@ -126,6 +126,23 @@ function ts_probe_order( int $product_id, string $regime, string $environment, a
 	WC()->customer->save();
 
 	WC()->cart->empty_cart();
+	/*
+	 * `$lines` distinct designs, so the tall-document case is rendered. With one
+	 * line the table is short, the totals sit high and the mandatory mentions
+	 * always fit; on a dozen lines they used to be drawn off the bottom of the
+	 * sheet, which is a non-conforming invoice and was invisible to a probe that
+	 * only ever ordered one thing.
+	 */
+	for ( $ts_i = 1; $ts_i < $lines; $ts_i++ ) {
+		Cart::add(
+			array(
+				'product_id' => $product_id,
+				'qty'        => 5,
+				'sides'      => array( array( 'id' => 'front', 'area_sq_cm' => 120 + $ts_i ) ),
+				'design_id'  => sprintf( 'probe%04dabcdefghij', $ts_i ),
+			)
+		);
+	}
 	Cart::add(
 		array(
 			'product_id' => $product_id,
@@ -175,6 +192,9 @@ $ts_out = array(
 	'standard'  => ts_probe_order( $ts_product->get_id(), Vat::STANDARD, 'production', $ts_identity ),
 	'franchise' => ts_probe_order( $ts_product->get_id(), Vat::FRANCHISE, 'production', $ts_identity ),
 	'stamped'   => ts_probe_order( $ts_product->get_id(), Vat::STANDARD, 'staging', array() ),
+	// A dozen lines, which is the corporate order this shop wants and the shape
+	// that used to push the mandatory mentions off the bottom of the page.
+	'long'      => ts_probe_order( $ts_product->get_id(), Vat::STANDARD, 'production', $ts_identity, 12 ),
 	'refused'   => ts_probe_order( $ts_product->get_id(), Vat::STANDARD, 'production', array() ),
 	'mentions'  => array(
 		'franchise' => Vat::MENTION_FRANCHISE,

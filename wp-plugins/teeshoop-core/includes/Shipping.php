@@ -86,12 +86,16 @@ final class Shipping {
 			 * Packaging, question 07's written default: "0,60 EUR d'emballage par
 			 * pièce plus 1,50 EUR de carton".
 			 *
-			 * THE BIBLE'S ONE MEASUREMENT DISAGREES, and by a factor of two. Its
-			 * worked example bills "emballage : 9 EUR" on a thirty-piece order,
-			 * which is 0,30 EUR a piece, materials only, with no carton line at
-			 * all. Neither figure is the associate's, and the difference on a run
-			 * of fifty is 16,50 EUR against 15,00 EUR, so it is small in euros and
-			 * worth saying out loud anyway: question 07 now names both.
+			 * THE BIBLE'S ONE MEASUREMENT DISAGREES, AND BY MORE THAN DOUBLE.
+			 * Its worked example bills "emballage : 9 EUR" on a thirty-piece
+			 * order, which is 0,30 EUR a piece, materials only, with no carton
+			 * line at all. Neither figure is the associate's. Measured by running
+			 * `quote()`: on a run of fifty we bill 31,50 EUR of packing where the
+			 * Bible's own rate gives 15,00 EUR, a gap of 16,50 EUR inside a
+			 * carriage line the customer sees. The first version of this comment
+			 * said the gap was 1,50 EUR, which mixed our carton into the Bible's
+			 * per-piece rate and understated it elevenfold. Question 07 now names
+			 * both figures at their real size.
 			 */
 			'packaging_piece_ht' => 60,
 			'packaging_order_ht' => 150,
@@ -145,6 +149,55 @@ final class Shipping {
 			}
 		}
 		return $config;
+	}
+
+	/**
+	 * The keys an operator may set, and the only ones ever written.
+	 *
+	 * A form that owns five values must store five values. The admin screen used
+	 * to write back `Shipping::config()`, which is the stored partial ALREADY
+	 * merged over the shipped defaults, so the first press of Enregistrer
+	 * snapshotted the whole Colissimo grid, the country list and the postcode
+	 * exclusions into the database. `merge_config` replaces per top-level key,
+	 * so from then on a corrected tariff shipped in a release would have been
+	 * silently ignored and every parcel quoted at the old price.
+	 */
+	public const OPERATOR_KEYS = array(
+		'packaging_piece_ht',
+		'packaging_order_ht',
+		'free_from_ht',
+		'packaging_piece_g',
+		'packaging_order_g',
+	);
+
+	/**
+	 * What to store, given what was posted and what was already stored.
+	 *
+	 * Pure, and separate from the admin screen, so the rule that the shipped
+	 * grid must survive a save can be asserted without a browser.
+	 *
+	 * @param array $posted Raw strings from the form, keyed as OPERATOR_KEYS.
+	 * @param array $stored The option as it is, NOT the merged config.
+	 */
+	public static function config_delta( array $posted, array $stored ): array {
+		$out = array();
+		foreach ( $stored as $key => $value ) {
+			// Anything already stored survives, including a key an older version
+			// of this form owned: forgetting it would be a silent reset.
+			$out[ $key ] = $value;
+		}
+
+		foreach ( array( 'packaging_piece_ht', 'packaging_order_ht', 'free_from_ht' ) as $key ) {
+			if ( isset( $posted[ $key ] ) ) {
+				$out[ $key ] = Money::from_eur( (string) $posted[ $key ] );
+			}
+		}
+		foreach ( array( 'packaging_piece_g', 'packaging_order_g' ) as $key ) {
+			if ( isset( $posted[ $key ] ) ) {
+				$out[ $key ] = max( 0, (int) $posted[ $key ] );
+			}
+		}
+		return $out;
 	}
 
 	/**

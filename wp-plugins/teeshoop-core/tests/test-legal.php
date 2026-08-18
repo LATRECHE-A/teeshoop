@@ -57,6 +57,26 @@ describe( 'Legal: nothing is filled in by default', function () {
 		eq( Legal::missing( $partial, Vat::STANDARD ), array( 'capital', 'siret' ) );
 	} );
 
+	/*
+	 * A SIRET THAT IS NOT A SIRET USED TO PASS. Non-empty was the whole test, so
+	 * twelve digits instead of fourteen counted as filled in: production issued
+	 * the invoice, `siret()` returned '' and `siren()` returned '', and the
+	 * document printed an unformatted identifier that identifies nobody next to
+	 * an "RCS Bobigny" with no number after it.
+	 */
+	it( 'treats a SIRET it cannot parse as missing, not as filled in', function () {
+		foreach ( array( '123456789000', '1234567890001X', 'à compléter', '01 42 00 00 00' ) as $bad ) {
+			$identity = array_merge( ts_legal_complete(), array( 'siret' => $bad ) );
+			eq( Legal::missing( $identity, Vat::STANDARD ), array( 'siret' ), $bad );
+			eq( Legal::verdict( $identity, Vat::STANDARD, 'production' )['action'], Legal::REFUSE, $bad );
+		}
+	} );
+
+	it( 'still accepts a real one however it was typed', function () {
+		$identity = array_merge( ts_legal_complete(), array( 'siret' => '123 456 789 00017' ) );
+		eq( Legal::missing( $identity, Vat::STANDARD ), array() );
+	} );
+
 	it( 'treats whitespace as empty', function () {
 		$partial = array_merge( ts_legal_complete(), array( 'ville' => "   \n" ) );
 		eq( Legal::missing( $partial, Vat::STANDARD ), array( 'ville' ) );

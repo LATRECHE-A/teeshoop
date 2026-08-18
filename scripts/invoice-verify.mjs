@@ -48,6 +48,34 @@ const CP1252 = {
  * understand PDF in general and does not need to; it understands the part a
  * reader would draw.
  */
+/**
+ * Every string a PDF draws, with the baseline it draws it at, in POINTS from
+ * the bottom of the page. Written from the specification, like `textOf`.
+ */
+function placedTextOf(bytes) {
+  const out = []
+  let at = 0
+  for (;;) {
+    const start = bytes.indexOf('stream\n', at)
+    if (start === -1) break
+    const end = bytes.indexOf('\nendstream', start)
+    if (end === -1) break
+    at = end + 10
+    let body
+    try {
+      body = inflateSync(bytes.subarray(start + 7, end))
+    } catch {
+      continue
+    }
+    const src = body.toString('latin1')
+    const re = /(-?[\d.]+)\s+(-?[\d.]+)\s+Td\s*\(((?:\\.|[^\\()])*)\)\s*Tj/g
+    for (const m of src.matchAll(re)) {
+      out.push({ x: Number(m[1]), y: Number(m[2]), text: m[3] })
+    }
+  }
+  return out
+}
+
 function textOf(bytes) {
   const out = []
   let at = 0
@@ -115,7 +143,7 @@ try {
   die(2, `invoice-verify: the probe's output is not JSON: ${e.message}`)
 }
 
-for (const key of ['standard', 'franchise', 'stamped', 'refused', 'mentions']) {
+for (const key of ['standard', 'franchise', 'stamped', 'long', 'refused', 'mentions']) {
   if (!(key in data)) die(2, `invoice-verify: the probe produced no "${key}" scenario.`)
 }
 
@@ -123,6 +151,7 @@ for (const key of ['standard', 'franchise', 'stamped', 'refused', 'mentions']) {
 
 const fails = []
 let checks = 0
+let charged = 0
 
 const scenario = (name) => {
   const s = data[name]
@@ -141,9 +170,26 @@ const must = (name, condition, why) => {
 
 const mustNot = (name, condition, why) => must(name, !condition, why)
 
-for (const name of ['standard', 'franchise', 'stamped']) {
+for (const name of ['standard', 'franchise', 'stamped', 'long']) {
   const s = scenario(name)
   if (!s) continue
+
+  /*
+   * NOTHING IS DRAWN OFF THE SHEET, and the `long` scenario is here because of
+   * it: the mandatory late-payment and recovery-indemnity mentions used to be
+   * drawn at 299 mm on a 297 mm page once an order carried a dozen lines, so
+   * the tail of a clause article L. 441-9 makes mandatory was simply gone. A
+   * page-height check costs nothing and would have caught it on the first run.
+   */
+  const A4 = 841.89
+  const placed = placedTextOf(s.bytes)
+  must(name, placed.length > 5, 'the reader found almost no positioned text')
+  const off = placed.filter((p) => p.y < 6 || p.y > A4 - 6)
+  must(
+    name,
+    off.length === 0,
+    `${off.length} line(s) drawn off the sheet, lowest at ${Math.min(...placed.map((p) => p.y)).toFixed(1)} pt`,
+  )
 
   must(name, s.bytes.subarray(0, 5).toString() === '%PDF-', 'is not a PDF at all')
   must(name, s.text.length > 200, 'the reader found almost no text, so nothing below means anything')
@@ -162,15 +208,34 @@ for (const name of ['standard', 'franchise', 'stamped']) {
   must(name, s.text.includes(s.doc.buyer.company), 'the buyer is not on the page')
   must(name, s.text.includes('FACTURE'), 'the page does not say what it is')
 
-  // Amounts, exactly as a French document writes them.
+  /*
+   * Amounts, as a French document writes them, compared with every kind of
+   * space treated alike. `Money::format` groups thousands with a NARROW
+   * no-break space and this helper wrote a plain one, so every assertion about
+   * a four-figure amount looked for a string that is not on the page. Below
+   * 1 000 EUR the two are identical and nothing showed it, which is why the
+   * twelve-line scenario found it and three one-line scenarios did not.
+   */
+  const flat = (t) => String(t).replace(/[\u00a0\u202f\u2009\s]+/g, ' ')
   const eur = (cents) =>
     (cents / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-  must(name, s.text.includes(eur(s.doc.total_ttc)), `the total ${eur(s.doc.total_ttc)} is not on the page`)
+  must(
+    name,
+    flat(s.text).includes(flat(eur(s.doc.total_ttc))),
+    `the total ${eur(s.doc.total_ttc)} is not on the page`,
+  )
   must(name, s.doc.total_ht + s.doc.total_vat === s.doc.total_ttc, 'the document does not add up')
 
-  // The carriage, which is a line of the table and not a footnote.
-  must(name, s.doc.shipping_ht > 0, 'the scenario carries no delivery, so that half of the layout is unchecked')
-  must(name, /Livraison/.test(s.text), 'the delivery is not on the page')
+  /*
+   * The carriage is a line of the table, not a footnote, and it is only there
+   * when the customer pays for it: the twelve-line scenario passes the franco
+   * on purpose, so the free branch is rendered too. What must never happen is
+   * that NO scenario charges one, which is checked once at the end.
+   */
+  if (s.doc.shipping_ht > 0) {
+    must(name, /Livraison/.test(s.text), 'the delivery is not on the page')
+    charged++
+  }
   const goods = s.doc.lines.reduce((n, l) => n + l.total_ht, 0)
   must(
     name,
@@ -207,6 +272,13 @@ for (const name of ['standard', 'franchise', 'stamped']) {
   }
 }
 
+// A run in which every scenario happened to pass the franco would never render
+// a charged delivery, and that half of the table would go unchecked for ever.
+checks++
+if (charged === 0) {
+  fails.push('no scenario charged for a delivery, so the priced carriage line was never rendered')
+}
+
 // The one that must produce nothing at all.
 checks++
 if (!data.refused.error) {
@@ -218,15 +290,29 @@ if (!data.refused.error) {
 // ─── a second opinion, when the machine has one ──────────────────────────────
 
 let poppler = 'not installed'
+let hasPoppler = false
 try {
   execFileSync('pdftotext', ['-v'], { stdio: 'ignore' })
+  hasPoppler = true
+} catch {
+  // Genuinely absent. Reported below, never counted as agreement.
+}
+
+/*
+ * A POPPLER THAT CRASHED ON OUR FILE IS NOT A POPPLER THAT IS NOT INSTALLED.
+ * One `try` around both used to swallow the difference, so a PDF this reader
+ * choked on came out of the run looking exactly like a machine without the
+ * tool, and the script still exited 0. Same rule as everywhere else here:
+ * "nothing found" and "nothing looked" are different results.
+ */
+if (hasPoppler) {
   const { writeFileSync, mkdtempSync, rmSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
   const dir = mkdtempSync(join(tmpdir(), 'teeshoop-invoice-'))
   try {
     let agreed = 0
-    for (const name of ['standard', 'franchise', 'stamped']) {
+    for (const name of ['standard', 'franchise', 'stamped', 'long']) {
       if (data[name].error) continue
       const file = join(dir, `${name}.pdf`)
       writeFileSync(file, Buffer.from(data[name].pdf, 'base64'))
@@ -242,12 +328,13 @@ try {
       }
     }
     poppler = `${agreed} document(s) agreed`
+  } catch (e) {
+    checks++
+    fails.push(`poppler: it is installed and it failed on our PDF (${String(e.message).split('\n')[0]})`)
+    poppler = 'installed, and it failed'
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
-} catch {
-  // Reported, never silent: a second opinion that did not happen must not read
-  // like a second opinion that agreed.
 }
 
 // ─── report ──────────────────────────────────────────────────────────────────
@@ -263,6 +350,6 @@ if (fails.length > 0) {
 }
 
 console.log(
-  `invoice-verify: ${checks} checks on 3 rendered invoices plus one refusal, read back independently. Clean.`,
+  `invoice-verify: ${checks} checks on 4 rendered invoices plus one refusal, read back independently. Clean.`,
 )
 console.log(`  poppler second opinion: ${poppler}`)

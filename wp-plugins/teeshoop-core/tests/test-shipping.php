@@ -155,6 +155,55 @@ describe( 'Shipping: the three refusals', function () {
 	} );
 } );
 
+describe( 'Shipping: what a settings screen may write', function () {
+	it( 'stores the five values the form owns and nothing else', function () {
+		$delta = Shipping::config_delta(
+			array(
+				'packaging_piece_ht' => '0,80',
+				'packaging_order_ht' => '2,00',
+				'free_from_ht'       => '250',
+				'packaging_piece_g'  => '12',
+				'packaging_order_g'  => '400',
+			),
+			array()
+		);
+
+		eq( array_keys( $delta ), Shipping::OPERATOR_KEYS );
+		eq( $delta['packaging_piece_ht'], 80, 'a French comma was read as a decimal' );
+		eq( $delta['free_from_ht'], 25000 );
+		eq( $delta['packaging_order_g'], 400 );
+	} );
+
+	/*
+	 * THE ONE THAT COST A TARIFF. The screen used to write back the MERGED
+	 * config, so the first press of Enregistrer, which an operator does on day
+	 * one to type the SIRET, snapshotted La Poste's 2026 grid into the database.
+	 * `merge_config` replaces per top-level key, so a corrected tariff shipped in
+	 * a later release would have been ignored for ever and every parcel quoted
+	 * at last year's price, with the shop absorbing the difference and nothing
+	 * on any screen saying so.
+	 */
+	it( 'never freezes the shipped grid into the database', function () {
+		$delta = Shipping::config_delta( array( 'free_from_ht' => '250' ), array() );
+
+		truthy( ! array_key_exists( 'grid', $delta ), 'the Colissimo grid was written to the option' );
+		truthy( ! array_key_exists( 'countries', $delta ), 'the country list was written to the option' );
+		truthy( ! array_key_exists( 'excluded_postcodes', $delta ), 'the postcode exclusions were written to the option' );
+
+		// And a later release's grid still wins, which is the whole point.
+		$config = Shipping::merge_config( $delta );
+		eq( $config['grid'], Shipping::default_config()['grid'] );
+		eq( $config['free_from_ht'], 25000 );
+	} );
+
+	it( 'keeps a stored key the form no longer asks about', function () {
+		// An older version of the screen owned a key this one does not. Dropping
+		// it on save would be a silent reset of a value somebody chose.
+		$delta = Shipping::config_delta( array( 'free_from_ht' => '250' ), array( 'countries' => array( 'FR', 'BE' ) ) );
+		eq( $delta['countries'], array( 'FR', 'BE' ) );
+	} );
+} );
+
 describe( 'Shipping: reading what was stored', function () {
 	it( 'lets one key be overridden without restating the grid', function () {
 		$config = Shipping::merge_config( array( 'free_from_ht' => 12345 ) );

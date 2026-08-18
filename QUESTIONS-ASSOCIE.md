@@ -294,8 +294,12 @@ chiffres, ou le minimum est-il en réalité **uniquement** un nombre de pièces 
 1. **Nos 0,60 EUR par pièce contredisent votre propre Bible**, qui donne la seule mesure
    existante : « emballage : 9 EUR » sur une commande de trente pièces, soit **0,30 EUR la
    pièce**, matière seule et sans carton. Nous avons pris le double, et le carton de
-   1,50 EUR n'est mentionné nulle part. Sur une série de cinquante l'écart est de 1,50 EUR,
-   donc ce n'est pas grave, mais c'est faux quelque part.
+   1,50 EUR n'est mentionné nulle part. Sur une série de cinquante, cela fait
+   **31,50 EUR d'emballage facturés contre 15,00 EUR** au tarif de votre Bible : un écart
+   de 16,50 EUR, plus du double, à l'intérieur d'une ligne de livraison que le client voit.
+   (La première version de ce paragraphe annonçait 1,50 EUR d'écart. C'était faux d'un
+   facteur onze : nous avions mélangé notre carton et le tarif de la Bible dans le même
+   calcul. Le chiffre ci-dessus a été mesuré en faisant tourner le code.)
 2. **Il nous manque un poids, pas seulement un coût.** La Poste facture à la tranche de
    poids, emballage compris. Nous comptons le carton pour **0 gramme** faute de l'avoir
    pesé, donc nous sous-estimons la tranche et nous payons l'écart : le client n'est jamais

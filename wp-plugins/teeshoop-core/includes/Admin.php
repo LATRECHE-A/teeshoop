@@ -100,18 +100,39 @@ final class Admin {
 			)
 		);
 
-		$shipping = Shipping::config();
-		foreach ( array( 'packaging_piece_ht', 'packaging_order_ht', 'free_from_ht' ) as $key ) {
+		/*
+		 * THE DELTA, OVER WHAT IS STORED, never over the merged config.
+		 *
+		 * `Shipping::config()` is the stored partial ALREADY merged over the
+		 * shipped defaults, so writing it back put the whole Colissimo grid,
+		 * the country list and the postcode exclusions into the option the
+		 * first time anybody pressed Enregistrer, which they do on day one to
+		 * type the SIRET. `merge_config` replaces per top-level key, so the 2026
+		 * grid would then have won for ever: La Poste raises its tariff, the
+		 * next release ships the new grid, and this shop silently keeps quoting
+		 * last year's price and absorbing the difference on every parcel.
+		 *
+		 * Only the five keys this form owns are ever written. Everything else
+		 * keeps resolving to what the extension ships, which is the same rule
+		 * the invoice prefix follows twenty lines above.
+		 */
+		$posted = array();
+		foreach ( Shipping::OPERATOR_KEYS as $key ) {
 			if ( isset( $_POST['livraison'][ $key ] ) ) {
-				$shipping[ $key ] = Money::from_eur( sanitize_text_field( wp_unslash( (string) $_POST['livraison'][ $key ] ) ) );
+				$posted[ $key ] = sanitize_text_field( wp_unslash( (string) $_POST['livraison'][ $key ] ) );
 			}
 		}
-		foreach ( array( 'packaging_piece_g', 'packaging_order_g' ) as $key ) {
-			if ( isset( $_POST['livraison'][ $key ] ) ) {
-				$shipping[ $key ] = max( 0, (int) $_POST['livraison'][ $key ] );
-			}
-		}
-		update_option( OPTION_SHIPPING, $shipping );
+		$stored = get_option( OPTION_SHIPPING, array() );
+		update_option( OPTION_SHIPPING, Shipping::config_delta( $posted, is_array( $stored ) ? $stored : array() ) );
+
+		/*
+		 * AND WOOCOMMERCE HAS TO BE TOLD. It caches the rates a package resolved
+		 * to, in the customer's session, keyed on the package: our option is not
+		 * part of that key, so every basket already open kept the old franco and
+		 * the old packing until something else happened to change. Bumping the
+		 * shipping transient version is how WooCommerce itself invalidates them.
+		 */
+		\WC_Cache_Helper::get_transient_version( 'shipping', true );
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		wp_safe_redirect( add_query_arg( 'teeshoop', 'enregistre', self::url() ) );

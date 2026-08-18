@@ -64,6 +64,9 @@ final class Invoice {
 	public const META_DATE   = '_teeshoop_invoice_date';
 	public const META_DOC    = '_teeshoop_invoice_document';
 
+	/** How many characters of the document could not be written to a PDF. */
+	public const META_LOST = '_teeshoop_invoice_lost';
+
 	/** Bumped when the sequence table's shape changes. */
 	private const DB_VERSION = '1';
 
@@ -263,27 +266,107 @@ final class Invoice {
 			return $existing;
 		}
 
+		/*
+		 * NOTHING IS INVOICED THAT HAS NOT BEEN PAID.
+		 *
+		 * A sale that did not happen has no invoice, and the number it would
+		 * consume cannot be given back. `is_paid()` is WooCommerce's own answer
+		 * (processing or completed, plus whatever a plugin adds to
+		 * `wc_get_is_paid_statuses`), which is the same definition the shop's
+		 * reports use, so this cannot drift away from what an operator sees.
+		 */
+		if ( ! $order->is_paid() ) {
+			return new \WP_Error(
+				'teeshoop_not_paid',
+				__( 'Cette commande n’est pas réglée : rien n’est facturé tant qu’elle ne l’est pas.', 'teeshoop' )
+			);
+		}
+
 		$doc = self::compose( $order );
 		if ( is_wp_error( $doc ) ) {
 			self::log( sprintf( 'no invoice for order %d: %s', $order->get_id(), $doc->get_error_message() ) );
 			return $doc;
 		}
 
-		$series = self::series( $doc['date'] );
-		$n      = self::next_number( $series );
-		if ( $n <= 0 ) {
-			return new \WP_Error( 'teeshoop_sequence', __( 'Le numéro de facture n’a pas pu être attribué.', 'teeshoop' ) );
+		/*
+		 * ONE ORDER, ONE NUMBER, AND THE CHECK ABOVE IS NOT ENOUGH ON ITS OWN.
+		 *
+		 * `stored()` is a read, and two requests can both pass it before either
+		 * writes: a webhook and a status change, two tabs of the admin, a retry.
+		 * Both would then allocate, one number would be written and the other
+		 * would be gone for ever, which is a hole in a sequence the law requires
+		 * to be continuous and which cannot be repaired afterwards.
+		 *
+		 * A MySQL named lock, because it is exactly this primitive and it leaves
+		 * nothing behind when the request ends, unlike a row or an option used
+		 * as a mutex. Failing to take it means somebody else is issuing this
+		 * order's invoice right now, and the right answer is to do nothing.
+		 */
+		$lock = 'teeshoop_invoice_' . $order->get_id();
+		if ( ! self::lock( $lock ) ) {
+			return new \WP_Error(
+				'teeshoop_busy',
+				__( 'La facture de cette commande est en cours d’émission ailleurs.', 'teeshoop' )
+			);
 		}
 
-		$doc['series'] = $series;
-		$doc['number'] = self::format_number( $series, $n );
+		try {
+			// Re-read INSIDE the lock: the request that held it before us may
+			// have been the one that issued.
+			$again = self::stored( wc_get_order( $order->get_id() ) ?: $order );
+			if ( null !== $again ) {
+				return $again;
+			}
 
-		$order->update_meta_data( self::META_NUMBER, $doc['number'] );
-		$order->update_meta_data( self::META_DATE, $doc['date'] );
-		$order->update_meta_data( self::META_DOC, wp_json_encode( $doc ) );
-		$order->save();
+			$series = self::series( $doc['date'] );
+			$n      = self::next_number( $series );
+			if ( $n <= 0 ) {
+				return new \WP_Error( 'teeshoop_sequence', __( 'Le numéro de facture n’a pas pu être attribué.', 'teeshoop' ) );
+			}
 
-		return $doc;
+			$doc['series'] = $series;
+			$doc['number'] = self::format_number( $series, $n );
+
+			$lost = 0;
+			self::pdf( $doc, $lost );
+			if ( $lost > 0 ) {
+				/*
+				 * The number is already spent, and that is the lesser evil: a
+				 * gap in the sequence cannot be repaired, and an issued number
+				 * whose document is corrected later is ordinary. What must not
+				 * happen is the document going out with a mangled name, so the
+				 * order keeps the number and the operator is told.
+				 */
+				self::log( sprintf( 'order %d: %d character(s) cannot be written to a PDF', $order->get_id(), $lost ) );
+			}
+
+			$order->update_meta_data( self::META_NUMBER, $doc['number'] );
+			$order->update_meta_data( self::META_DATE, $doc['date'] );
+			$order->update_meta_data( self::META_DOC, wp_json_encode( $doc ) );
+			$order->update_meta_data( self::META_LOST, (string) $lost );
+			$order->save();
+
+			return $doc;
+		} finally {
+			self::unlock( $lock );
+		}
+	}
+
+	/**
+	 * A MySQL named lock, or false.
+	 *
+	 * Two seconds, because the work inside it is one INSERT and one order save:
+	 * anything slower than that is a database in trouble, and waiting longer
+	 * would only turn a race into a queue of stalled checkouts.
+	 */
+	private static function lock( string $name ): bool {
+		global $wpdb;
+		return '1' === (string) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $name, 2 ) );
+	}
+
+	private static function unlock( string $name ): void {
+		global $wpdb;
+		$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $name ) );
 	}
 
 	/** The frozen document, or null when this order has no invoice yet. */
@@ -309,7 +392,17 @@ final class Invoice {
 	 * @return array|\WP_Error
 	 */
 	public static function compose( \WC_Order $order, ?string $environment = null ) {
-		$date        = self::order_date( $order );
+		/*
+		 * THE DATE OF ISSUE, not the date of the order, and that is both the law
+		 * and the sequence. Article 242 nonies A, I, 6° wants "la date de
+		 * délivrance ou d'émission"; the order's own date is printed separately
+		 * two lines below it. And the series is keyed on this date: dating a
+		 * document by its ORDER meant an order taken on 28 December and paid on
+		 * 3 January was numbered into the previous year's series AFTER that
+		 * year had closed, which is precisely the "séquence chronologique et
+		 * continue" the whole file is built around.
+		 */
+		$date        = Settings::today();
 		$environment = null === $environment ? Legal::environment() : $environment;
 
 		/*
@@ -349,8 +442,17 @@ final class Invoice {
 			if ( ! $item instanceof \WC_Order_Item_Product ) {
 				continue;
 			}
-			$qty      = max( 1, (int) $item->get_quantity() );
-			$total_ht = Money::from_eur( (string) $item->get_total() );
+			$qty = max( 1, (int) $item->get_quantity() );
+			/*
+			 * THE SUBTOTAL, WHICH IS BEFORE ANY DISCOUNT, because the discount
+			 * gets a line of its own further down (article 242 nonies A, I, 9°
+			 * makes it mandatory). `get_total()` is already net, so summing that
+			 * AND subtracting `get_discount_total()` counted the reduction
+			 * twice: the totals assertion then failed and the order could not be
+			 * invoiced at all. With no coupons the two are equal and nothing
+			 * changes; the day one exists, the document is right.
+			 */
+			$total_ht  = Money::from_eur( (string) $item->get_subtotal() );
 			$goods_ht += $total_ht;
 
 			$lines[] = array(
@@ -387,6 +489,31 @@ final class Invoice {
 				sprintf(
 					/* translators: %d: an order number. */
 					__( 'Les montants de la commande %d ne s’additionnent pas au centime près. Aucune facture n’est émise tant que ce n’est pas expliqué.', 'teeshoop' ),
+					$order->get_id()
+				)
+			);
+		}
+
+		/*
+		 * AND THE RATE MUST DESCRIBE THE AMOUNT. The sum above proves the order
+		 * adds up; it says nothing about whether the VAT line is the rate the
+		 * document prints. WooCommerce's tax table emptied by a bad edit gives a
+		 * total_tax of zero on an order the regime says is taxable, and the
+		 * invoice would print "TVA 20 %" next to 0,00 EUR: an announcement of a
+		 * tax that was never charged, which the customer would try to reclaim.
+		 *
+		 * The tolerance is there because WooCommerce rounds tax PER LINE and
+		 * this rounds once over the whole base, so a few cents of spread on a
+		 * many-line order is normal arithmetic and not a fault.
+		 */
+		$expected_vat = Money::pct( $total_ht, $rate );
+		$tolerance    = max( 2, count( $lines ) + 1 );
+		if ( abs( $total_tax - $expected_vat ) > $tolerance ) {
+			return new \WP_Error(
+				'teeshoop_vat_mismatch',
+				sprintf(
+					/* translators: %d: an order number. */
+					__( 'La TVA enregistrée sur la commande %d ne correspond pas au taux sous lequel elle a été prise. Aucune facture n’est émise tant que ce n’est pas expliqué.', 'teeshoop' ),
 					$order->get_id()
 				)
 			);
@@ -532,7 +659,7 @@ final class Invoice {
 	 * generated invoice, and Helvetica's digits are all one width, so it costs
 	 * nothing to get right.
 	 */
-	public static function pdf( array $doc ): string {
+	public static function pdf( array $doc, ?int &$lost = null ): string {
 		$pdf = new Pdf();
 
 		$left      = 18.0;
@@ -570,7 +697,7 @@ final class Invoice {
 			$pdf->text_right( $col_qty, $y, Money::number( (float) $line['qty'], 0 ) );
 			$pdf->text_right( $col_unit, $y, Money::format( (int) $line['unit_ht'] ) );
 			if ( ! $franchise ) {
-				$pdf->text_right( $col_rate, $y, Money::number( (float) $line['rate'] * 100, 0 ) . ' %' );
+				$pdf->text_right( $col_rate, $y, self::rate_label( (float) $line['rate'] ) );
 			}
 			$pdf->text_right( $col_total, $y, Money::format( (int) $line['total_ht'] ) );
 
@@ -584,7 +711,7 @@ final class Invoice {
 		if ( 0 !== (int) $doc['shipping_ht'] ) {
 			$pdf->text( $left, $y, __( 'Livraison', 'teeshoop' ) );
 			if ( ! $franchise ) {
-				$pdf->text_right( $col_rate, $y, Money::number( (float) $doc['rate'] * 100, 0 ) . ' %' );
+				$pdf->text_right( $col_rate, $y, self::rate_label( (float) $doc['rate'] ) );
 			}
 			$pdf->text_right( $col_total, $y, Money::format( (int) $doc['shipping_ht'] ) );
 			$y += 6.5;
@@ -622,7 +749,7 @@ final class Invoice {
 				sprintf(
 					/* translators: %s: a VAT rate, already formatted. */
 					__( 'TVA %s', 'teeshoop' ),
-					Money::number( (float) $doc['rate'] * 100, 0 ) . ' %'
+					self::rate_label( (float) $doc['rate'] )
 				)
 			);
 			$pdf->text_right( $col_total, $y, Money::format( (int) $doc['total_vat'] ) );
@@ -647,8 +774,23 @@ final class Invoice {
 			}
 		}
 
-		$foot = 288.0 - count( $wrapped ) * 3.6;
-		$y    = max( $y + 6, min( 246.0, $foot ) );
+		/*
+		 * AND A PAGE BREAK BEFORE THEM, because the clamp below cannot save a
+		 * tall document. `max( $y + 6, ... )` lets the block start wherever the
+		 * totals ended, so on an order with a dozen lines it started at 256 mm
+		 * and drew its last mention at 299 mm on a 297 mm page: the tail of the
+		 * recovery-indemnity clause was simply gone. Measured by reading the Td
+		 * coordinates back out of the content stream. The line loop has had this
+		 * discipline since the first version; the block below it had none, and
+		 * the comment above claimed otherwise.
+		 */
+		$foot   = 288.0 - count( $wrapped ) * 3.6;
+		$y      = max( $y + 6, min( 246.0, $foot ) );
+		$bottom = $y + ( count( $wrapped ) - 1 ) * 3.6;
+		if ( $bottom > 288.0 ) {
+			$pdf->page_break();
+			$y = 24.0;
+		}
 		$pdf->rule( $left, $y - 4, $right, 0.15, 0.82 );
 
 		foreach ( $wrapped as $line ) {
@@ -660,7 +802,7 @@ final class Invoice {
 			$pdf->stamp( (string) $doc['stamp'] );
 		}
 
-		return $pdf->render(
+		$out = $pdf->render(
 			sprintf(
 				/* translators: %s: an invoice number. */
 				__( 'Facture %s', 'teeshoop' ),
@@ -668,6 +810,16 @@ final class Invoice {
 			),
 			self::pdf_date( (string) $doc['date'] )
 		);
+
+		/*
+		 * REPORTED, so a caller can refuse. `Pdf` has counted the characters it
+		 * could not write since it was written, its docblock says "Must be 0 to
+		 * issue", and nothing asked: a buyer whose company name leaves
+		 * Windows-1252 was invoiced under a name full of question marks, which
+		 * is not their name and is not a document that identifies its customer.
+		 */
+		$lost = $pdf->lost();
+		return $out;
 	}
 
 	/** The two identity blocks and the title. Returns the y to carry on from. */
@@ -763,10 +915,18 @@ final class Invoice {
 
 		$ship = (array) $doc['shipping_to'];
 		if ( ! empty( $ship ) ) {
+			// Fitted, because it is the one customer-typed string on the page
+			// that had neither `fit()` nor `wrap()`: a long address ran off the
+			// right margin and out of the sheet.
 			$pdf->text(
 				$left,
 				$y,
-				__( 'Livraison', 'teeshoop' ) . ' : ' . trim( $ship['address'] . ', ' . $ship['postcode'] . ' ' . $ship['city'] ),
+				Pdf::fit(
+					__( 'Livraison', 'teeshoop' ) . ' : ' . trim( $ship['address'] . ', ' . $ship['postcode'] . ' ' . $ship['city'] ),
+					$right - $left,
+					Pdf::REGULAR,
+					8.5
+				),
 				Pdf::REGULAR,
 				8.5,
 				0.3
@@ -850,6 +1010,23 @@ final class Invoice {
 		return $out;
 	}
 
+	/**
+	 * A VAT rate as a French document writes it: "20 %", "8,5 %", "5,5 %".
+	 *
+	 * NOT rounded to a whole percent, which is what the first version did.
+	 * `Money::number( $rate * 100, 0 )` printed an 8,5 % sale as "TVA 9 %" next
+	 * to a VAT amount computed at 8,5, so the invoice contradicted its own
+	 * arithmetic and the number a customer would reclaim was the wrong one. This
+	 * shop is at 20 % today, where the bug is invisible, and the DOM are at
+	 * 8,5 %, which is exactly where a fiscal question is already open.
+	 */
+	private static function rate_label( float $rate ): string {
+		$written = Money::number( $rate * 100, 2 );
+		// Trailing zeros only: "20,00" becomes "20" and "8,50" becomes "8,5".
+		$written = rtrim( rtrim( $written, '0' ), ',' );
+		return $written . "\u{00A0}%";
+	}
+
 	/** "D:20260818120000+00'00'", which is how a PDF writes a date. */
 	private static function pdf_date( string $iso ): string {
 		$iso = Vat::iso_date( $iso );
@@ -900,12 +1077,25 @@ final class Invoice {
 			wp_die( esc_html__( 'Cette facture n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
 		}
 
+		/*
+		 * READ ONLY. This used to issue on demand when there was no document
+		 * yet, which meant a GET consumed a number out of a legally continuous
+		 * fiscal sequence: anyone holding the order key, which the customer has
+		 * in their order-received URL and in every e-mail, could number an
+		 * invoice for an order that was abandoned at the payment step and will
+		 * never be paid. A number cannot be reclaimed, only cancelled by an
+		 * avoir, so the damage is permanent and it is one request wide.
+		 *
+		 * Invoices are issued when the money arrives, by `on_payment` and
+		 * `on_status`, and by nothing else.
+		 */
 		$doc = self::stored( $order );
 		if ( null === $doc ) {
-			$doc = self::issue( $order );
-		}
-		if ( is_wp_error( $doc ) ) {
-			wp_die( esc_html( $doc->get_error_message() ), '', array( 'response' => 409 ) );
+			wp_die(
+				esc_html__( 'La facture de cette commande n’est pas encore émise : elle l’est au règlement.', 'teeshoop' ),
+				'',
+				array( 'response' => 409 )
+			);
 		}
 
 		$pdf = self::pdf( $doc );
@@ -934,6 +1124,25 @@ final class Invoice {
 	public static function admin_link( \WC_Order $order ): void {
 		$doc = self::stored( $order );
 		if ( null !== $doc ) {
+			$lost = (int) $order->get_meta( self::META_LOST, true );
+			if ( $lost > 0 ) {
+				printf(
+					'<p class="form-field form-field-wide"><strong>%s</strong> %s</p>',
+					esc_html__( 'Facture', 'teeshoop' ),
+					esc_html(
+						sprintf(
+							/* translators: %d: a number of characters. */
+							_n(
+								'%d caractère du document ne peut pas être écrit dans un PDF et sort en point d’interrogation. Corrigez le nom ou l’adresse dans la commande, puis rééditez.',
+								'%d caractères du document ne peuvent pas être écrits dans un PDF et sortent en points d’interrogation. Corrigez le nom ou l’adresse dans la commande, puis rééditez.',
+								$lost,
+								'teeshoop'
+							),
+							$lost
+						)
+					)
+				);
+			}
 			printf(
 				'<p class="form-field form-field-wide"><strong>%s</strong> %s (<a href="%s">%s</a>)</p>',
 				esc_html__( 'Facture', 'teeshoop' ),

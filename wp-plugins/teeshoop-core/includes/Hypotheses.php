@@ -50,6 +50,10 @@ final class Hypotheses {
 	/** The register's home prefix for everything the price authority holds. */
 	public const HOME_PRICING = 'php:Teeshoop\\Core\\Pricing::default_config()';
 
+	/** The other two shipped configs a stored option can overtake the same way. */
+	public const HOME_SHIPPING = 'php:Teeshoop\\Core\\Shipping::default_config()';
+	public const HOME_INVOICE  = 'php:Teeshoop\\Core\\Invoice::default_config()';
+
 	public static function path(): string {
 		return ( defined( 'TEESHOOP_CORE_DIR' ) ? TEESHOOP_CORE_DIR : __DIR__ . '/../' ) . 'data/hypotheses.php';
 	}
@@ -120,11 +124,67 @@ final class Hypotheses {
 	 * @return string[]
 	 */
 	public static function overridden_keys(): array {
-		$stored = get_option( OPTION_PRICING, array() );
-		if ( ! is_array( $stored ) || empty( $stored ) ) {
-			return array();
+		$out = array();
+		foreach ( self::homes() as $home ) {
+			$stored = get_option( $home['option'], array() );
+			if ( ! is_array( $stored ) || empty( $stored ) ) {
+				continue;
+			}
+			foreach ( array_intersect( array_keys( $stored ), array_keys( ( $home['defaults'] )() ) ) as $key ) {
+				$out[] = $key;
+			}
 		}
-		return array_values( array_intersect( array_keys( $stored ), array_keys( Pricing::default_config() ) ) );
+		return array_values( array_unique( $out ) );
+	}
+
+	/**
+	 * Every home whose shipped value a stored option can overtake.
+	 *
+	 * ONE TABLE, BECAUSE THIS KEPT BEING TRUE OF ONE HOME ONLY. The mechanism
+	 * was written for the price config, and session 04 added three more homes
+	 * that work exactly the same way: the carriage grid, the VAT timeline and
+	 * the invoice series each ship a default that a stored option replaces per
+	 * top-level key. Left as it was, an operator who set the packing to
+	 * 0,30 EUR would read "0,60 EUR hors taxes par pièce" on the register screen
+	 * with no marker beside it, which is the register lying about the shop it
+	 * describes: the exact defect that was fixed for prices and would have been
+	 * reintroduced four times over.
+	 *
+	 * `defaults` is a callable rather than an array so nothing is computed for
+	 * an option nobody has stored, and the option names are read HERE rather
+	 * than in the list of home strings below: `config_key()` is used by the pure
+	 * test suite, which runs with no WordPress and therefore without the
+	 * plugin's own constants.
+	 *
+	 * @return array<int,array{home:string,option:string,defaults:callable}>
+	 */
+	private static function homes(): array {
+		return array(
+			array(
+				'home'     => self::HOME_PRICING,
+				'option'   => OPTION_PRICING,
+				'defaults' => array( Pricing::class, 'default_config' ),
+			),
+			array(
+				'home'     => self::HOME_SHIPPING,
+				'option'   => OPTION_SHIPPING,
+				'defaults' => array( Shipping::class, 'default_config' ),
+			),
+			array(
+				'home'     => self::HOME_INVOICE,
+				'option'   => OPTION_INVOICE,
+				'defaults' => array( Invoice::class, 'default_config' ),
+			),
+		);
+	}
+
+	/**
+	 * The same homes, as strings, with nothing WordPress about them.
+	 *
+	 * @return string[]
+	 */
+	private static function home_prefixes(): array {
+		return array( self::HOME_PRICING, self::HOME_SHIPPING, self::HOME_INVOICE );
 	}
 
 	/**
@@ -135,12 +195,15 @@ final class Hypotheses {
 	 * granularity `Pricing::merge_config` overwrites at.
 	 */
 	public static function config_key( string $home ): string {
-		if ( 0 !== strpos( $home, self::HOME_PRICING . '#' ) ) {
-			return '';
+		foreach ( self::home_prefixes() as $prefix ) {
+			if ( 0 !== strpos( $home, $prefix . '#' ) ) {
+				continue;
+			}
+			$path = substr( $home, strlen( $prefix ) + 1 );
+			$path = explode( '+', $path )[0];
+			return explode( '.', $path )[0];
 		}
-		$path = substr( $home, strlen( self::HOME_PRICING ) + 1 );
-		$path = explode( '+', $path )[0];
-		return explode( '.', $path )[0];
+		return '';
 	}
 
 	/**

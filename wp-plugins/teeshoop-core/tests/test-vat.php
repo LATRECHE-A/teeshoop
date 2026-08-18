@@ -38,9 +38,8 @@ function ts_vat_switching(): array {
 				'regime' => Vat::FRANCHISE,
 			),
 			array(
-				'from'       => '2026-04-01',
-				'regime'     => Vat::STANDARD,
-				'vat_number' => 'FR40123456824',
+				'from'   => '2026-04-01',
+				'regime' => Vat::STANDARD,
 			),
 		)
 	);
@@ -93,7 +92,13 @@ describe( 'Vat: franchise en base', function () {
 		eq( $got['regime'], Vat::FRANCHISE );
 		eq( $got['rate'], 0.0 );
 		eq( $got['mention'], 'TVA non applicable, article 293 B du CGI' );
-		eq( $got['vat_number'], '', 'a franchise period announced a VAT number' );
+		/*
+		 * A PERIOD CARRIES NO VAT NUMBER AT ALL. The number belongs to the
+		 * company and lives once, in the legal identity; it had a second home
+		 * here, and the invoice printed one copy while the checks policed the
+		 * other.
+		 */
+		truthy( ! array_key_exists( 'vat_number', $got ), 'the regime still carries a VAT number' );
 	} );
 
 	it( 'makes TTC equal HT through the price authority, with no special case', function () {
@@ -119,7 +124,6 @@ describe( 'Vat: franchise en base', function () {
 		$got = Vat::regime( '2026-04-01', ts_vat_switching(), Pricing::default_config() );
 		eq( $got['regime'], Vat::STANDARD );
 		eq( $got['mention'], '' );
-		eq( $got['vat_number'], 'FR40123456824' );
 	} );
 } );
 
@@ -236,19 +240,32 @@ describe( 'Vat: what the operator is told', function () {
 	} );
 
 	it( 'says so when the timeline starts after today', function () {
-		$periods  = Vat::merge_periods( array( array( 'from' => '2027-01-01', 'regime' => Vat::STANDARD, 'vat_number' => 'FR40123456824' ) ) );
+		$periods  = Vat::merge_periods( array( array( 'from' => '2027-01-01', 'regime' => Vat::STANDARD ) ) );
 		$problems = Vat::problems( $periods, '2026-08-18' );
-		eq( count( $problems ), 1 );
+		truthy( count( $problems ) >= 1 );
 		truthy( str_contains( $problems[0], '01/01/2027' ), 'the message does not name the date' );
 	} );
 
-	it( 'says so when an assujettie period carries no VAT number', function () {
-		$problems = Vat::problems( Vat::default_periods(), Vat::ASSUMED_FROM );
+	it( 'warns about a switch that has not happened yet, because of the délivrance rule', function () {
+		/*
+		 * For a supply of goods the tax is due at the DELIVERY, not at the
+		 * invoice. An order paid before a switch and delivered after it needs a
+		 * rectificative invoice, and the site does not produce one, so the only
+		 * honest thing is to say so while there is time to ask an accountant.
+		 */
+		$periods  = Vat::merge_periods(
+			array(
+				array( 'from' => '2020-01-01', 'regime' => Vat::FRANCHISE ),
+				array( 'from' => '2027-01-01', 'regime' => Vat::STANDARD ),
+			)
+		);
+		$problems = Vat::problems( $periods, '2026-08-18' );
 		eq( count( $problems ), 1 );
-		truthy( str_contains( $problems[0], 'TVA intracommunautaire' ), 'the message does not name what is missing' );
+		truthy( str_contains( $problems[0], 'facture rectificative' ), 'the warning does not say what is owed' );
 	} );
 
-	it( 'is silent on a timeline that is complete', function () {
+	it( 'is silent on a timeline that is complete and settled', function () {
 		eq( Vat::problems( ts_vat_switching(), '2026-08-18' ), array() );
+		eq( Vat::problems( Vat::default_periods(), Vat::ASSUMED_FROM ), array() );
 	} );
 } );

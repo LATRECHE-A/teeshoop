@@ -89,9 +89,8 @@ final class Vat {
 	public static function default_periods(): array {
 		return array(
 			array(
-				'from'       => self::ASSUMED_FROM,
-				'regime'     => self::STANDARD,
-				'vat_number' => '',
+				'from'   => self::ASSUMED_FROM,
+				'regime' => self::STANDARD,
 			),
 		);
 	}
@@ -130,9 +129,8 @@ final class Vat {
 				continue;
 			}
 			$period = array(
-				'from'       => $from,
-				'regime'     => $regime,
-				'vat_number' => self::vat_number( (string) ( $raw['vat_number'] ?? '' ) ),
+				'from'   => $from,
+				'regime' => $regime,
 			);
 			/*
 			 * An explicit rate is accepted only on a standard period, and only
@@ -201,26 +199,33 @@ final class Vat {
 
 		if ( null === $period ) {
 			return array(
-				'known'      => false,
-				'regime'     => '',
-				'rate'       => 0.0,
-				'from'       => '',
-				'vat_number' => '',
-				'mention'    => '',
+				'known'    => false,
+				'regime'   => '',
+				'rate'     => 0.0,
+				'from'     => '',
+				'mention'  => '',
 			);
 		}
 
 		$franchise = self::FRANCHISE === $period['regime'];
 
+		/*
+		 * NO VAT NUMBER HERE, and that is a correction rather than an omission.
+		 * A period used to carry one, and `Legal::fields()` carries one too, so
+		 * the same fact had two homes on one settings screen: the invoice
+		 * printed the identity's copy while `problems()` policed the period's,
+		 * and an operator filling one saw the other still empty. The company's
+		 * number belongs to the company, not to a fiscal period, so the identity
+		 * owns it and this only says which regime is in force.
+		 */
 		return array(
-			'known'      => true,
-			'regime'     => $period['regime'],
+			'known'    => true,
+			'regime'   => $period['regime'],
 			// A franchise period charges nothing, and that zero is the regime
 			// itself rather than a rate somebody typed.
-			'rate'       => $franchise ? 0.0 : (float) ( $period['rate'] ?? $pricing['vat_rate'] ),
-			'from'       => $period['from'],
-			'vat_number' => $franchise ? '' : (string) $period['vat_number'],
-			'mention'    => $franchise ? self::MENTION_FRANCHISE : '',
+			'rate'     => $franchise ? 0.0 : (float) ( $period['rate'] ?? $pricing['vat_rate'] ),
+			'from'     => $period['from'],
+			'mention'  => $franchise ? self::MENTION_FRANCHISE : '',
 		);
 	}
 
@@ -248,10 +253,18 @@ final class Vat {
 			);
 		}
 
+		/*
+		 * A SWITCH THAT HAS NOT HAPPENED YET IS WORTH SAYING OUT LOUD. For a
+		 * supply of goods the tax becomes due at the DELIVERY, not at the
+		 * invoice, so an order paid before a regime change and delivered after
+		 * it needs a rectificative invoice (BOI-TVA-DECLA-40-10-20). Nothing
+		 * here can decide that; what it can do is warn while there is still time
+		 * to ask an accountant.
+		 */
 		foreach ( $periods as $period ) {
-			if ( self::STANDARD === $period['regime'] && '' === $period['vat_number'] ) {
+			if ( $period['from'] > $today ) {
 				$problems[] = sprintf(
-					'La période assujettie ouverte le %s ne porte aucun numéro de TVA intracommunautaire. Il est obligatoire sur les factures.',
+					'Un changement de régime est programmé au %s. Une commande payée avant et livrée après relève du régime de la livraison : ces commandes-là demandent une facture rectificative, et le site ne la produit pas.',
 					self::fr_date( (string) $period['from'] )
 				);
 			}

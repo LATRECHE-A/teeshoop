@@ -338,6 +338,109 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		ts_ck_regime( Vat::STANDARD );
 	} );
 
+	ts_it( 'refuses to invoice an order nobody has paid', function () use ( $product_id, $sides, $design ) {
+		/*
+		 * A GET on the invoice URL used to ISSUE one when there was none, and
+		 * `compose` never looked at the status: anyone holding the order key,
+		 * which the customer has in their order-received URL and in every
+		 * e-mail, could number an invoice for an order abandoned at the payment
+		 * step. A number cannot be reclaimed, only cancelled by an avoir.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		ts_eq( $order->get_status(), 'pending', 'the fixture is already paid, so this proves nothing' );
+
+		$refused = Invoice::issue( $order );
+		ts_assert( is_wp_error( $refused ), 'an unpaid order was invoiced' );
+		ts_eq( $refused->get_error_code(), 'teeshoop_not_paid', 'refusal reason' );
+		ts_eq( Invoice::stored( wc_get_order( $order->get_id() ) ), null, 'and it kept a document anyway' );
+
+		// And once it is paid, it issues.
+		$order->payment_complete( 'ts-paid-later' );
+		ts_assert( null !== Invoice::stored( wc_get_order( $order->get_id() ) ), 'a paid order got no invoice' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'dates the invoice the day it is emitted, not the day of the order', function () use ( $product_id, $sides, $design ) {
+		/*
+		 * The series is keyed on this date. Dating a document by its ORDER meant
+		 * an order taken on 28 December and paid on 3 January was numbered into
+		 * the previous year's series after that year had closed, which is not a
+		 * "séquence chronologique et continue". Article 242 nonies A, I, 6° wants
+		 * the date of issue anyway; the order's own date is printed beside it.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		$order->set_date_created( '2025-12-28 10:00:00' );
+		$order->save();
+		$order->payment_complete( 'ts-newyear' );
+
+		$doc = Invoice::stored( wc_get_order( $order->get_id() ) );
+		ts_assert( null !== $doc, 'no invoice' );
+		ts_eq( $doc['date'], Settings::today(), 'the invoice is dated the order' );
+		ts_eq( $doc['order']['date'], '2025-12-28', 'the order date is not printed' );
+		ts_assert(
+			str_starts_with( $doc['number'], Invoice::series( Settings::today() ) . '-' ),
+			'the number came out of the wrong year: ' . $doc['number']
+		);
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'refuses a document whose rate does not describe its own VAT', function () use ( $product_id, $sides, $design ) {
+		/*
+		 * The totals assertion proves the order adds up; it says nothing about
+		 * whether the VAT line is the rate the document prints. An emptied tax
+		 * table gives a total_tax of zero on an order the regime says is taxable,
+		 * and the invoice would announce "TVA 20 %" beside 0,00 EUR: a tax the
+		 * customer would try to reclaim and that was never charged.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+
+		// The order really was charged 20 %. The regime frozen on it says 5,5 %,
+		// which is the shape of the fault: the rate the document would print and
+		// the tax the customer paid do not describe each other. Driven through
+		// the meta rather than through WooCommerce's tax table so the case is
+		// deterministic and does not depend on a cache being invalidated.
+		ts_assert( Money::from_eur( (string) $order->get_total_tax() ) > 0, 'the fixture carries no VAT at all' );
+		$order->update_meta_data( Checkout::META_VAT_RATE, '0.0550' );
+		$order->save();
+
+		$refused = Invoice::compose( wc_get_order( $order->get_id() ), 'staging' );
+		ts_assert( is_wp_error( $refused ), 'a document whose rate contradicts its own VAT was composed' );
+		ts_eq( $refused->get_error_code(), 'teeshoop_vat_mismatch', 'refusal reason' );
+
+		$order->delete( true );
+		ts_ck_regime( Vat::STANDARD );
+	} );
+
+	ts_it( 'says nothing about tax when nobody has recorded the regime', function () {
+		/*
+		 * `rate` is 0,0 when no period covers today, so a page reading only the
+		 * rate announced the FRANCHISE's own sentence, "aucune taxe ne s'y
+		 * ajoute", to every visitor of a shop that had simply not been told what
+		 * it was: a statement about the seller's tax position, made to a
+		 * customer, on no evidence.
+		 */
+		update_option( 'teeshoop_vat', array() );
+		$bases = Settings::price_bases();
+		ts_eq( $bases['known'], false, 'an empty timeline was read as known' );
+		ts_eq( $bases['two'], false, 'two bases under an unknown regime' );
+		ts_eq( $bases['mention'], '', 'the franchise mention was printed under an unknown regime' );
+
+		ts_ck_regime( Vat::FRANCHISE );
+		$franchise = Settings::price_bases();
+		ts_eq( $franchise['known'], true, 'a real franchise is known' );
+		ts_eq( $franchise['mention'], Vat::MENTION_FRANCHISE, 'a real franchise says so' );
+
+		ts_ck_regime( Vat::STANDARD );
+	} );
+
 	// ── the numbering ────────────────────────────────────────────────────────
 
 	ts_it( 'numbers invoices in one unbroken sequence', function () use ( $product_id, $sides, $design ) {

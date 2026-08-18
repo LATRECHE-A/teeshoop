@@ -115,7 +115,23 @@ final class Legal {
 	public static function missing( array $identity, string $regime ): array {
 		$out = array();
 		foreach ( self::required( $regime ) as $key ) {
-			if ( '' === trim( (string) ( $identity[ $key ] ?? '' ) ) ) {
+			$value = trim( (string) ( $identity[ $key ] ?? '' ) );
+			if ( '' === $value ) {
+				$out[] = $key;
+				continue;
+			}
+			/*
+			 * A SIRET THAT IS NOT A SIRET IS NOT A FILLED-IN FIELD.
+			 *
+			 * Non-empty used to be enough, so twelve digits instead of fourteen
+			 * passed the production gate as a complete identity: `siret()`
+			 * returned '', `siren()` returned '', and the invoice printed
+			 * "SIRET 123456789000" unformatted next to an "RCS Bobigny" with no
+			 * number after it. An identifier that identifies nobody, on a
+			 * document an accountant keeps for ten years. The length-and-digits
+			 * check already existed; nothing was asking it.
+			 */
+			if ( 'siret' === $key && '' === self::siret( $value ) ) {
 				$out[] = $key;
 			}
 		}

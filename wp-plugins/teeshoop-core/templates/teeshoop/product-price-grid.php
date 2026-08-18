@@ -42,7 +42,11 @@ $ts_bases = Settings::price_bases();
 	<h2 class="ts-pricing__title"><?php esc_html_e( 'Le prix par quantité', 'teeshoop' ); ?></h2>
 	<p class="ts-pricing__lead">
 		<?php
-		if ( ! $ts_bases['two'] ) {
+		if ( ! $ts_bases['known'] ) {
+			// Nobody has recorded the regime, so the page says nothing about
+			// tax rather than announcing the franchise's answer by accident.
+			esc_html_e( 'Prix à la pièce, impression comprise, hors taxes.', 'teeshoop' );
+		} elseif ( ! $ts_bases['two'] ) {
 			esc_html_e( 'Prix à la pièce, impression comprise. Ce sont les montants à payer : aucune taxe ne s’y ajoute.', 'teeshoop' );
 		} elseif ( 'ttc' === $ts_bases['lead'] ) {
 			esc_html_e( 'Prix à la pièce, impression comprise. Toutes taxes comprises en gras, hors taxes en dessous.', 'teeshoop' );
