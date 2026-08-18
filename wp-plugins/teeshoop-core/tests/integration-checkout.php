@@ -291,6 +291,77 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		$order->delete( true );
 	} );
 
+	ts_it( 'takes an order ON the day a regime changes under the new one, and the eve under the old', function () use ( $product_id, $sides, $design ) {
+		/*
+		 * THE CASE THE WHOLE SHAPE EXISTS FOR. A company in franchise that
+		 * crosses the threshold switches on a date, and the orders either side
+		 * of that date are different documents. The pure suite checks the
+		 * boundary in `Vat::at`; this checks that a REAL order, created through
+		 * WooCommerce, freezes the side of the line it actually falls on.
+		 */
+		$today    = Settings::today();
+		$tomorrow = gmdate( 'Y-m-d', strtotime( $today . ' +1 day' ) );
+
+		// The switch is today: an order taken now is under the new regime.
+		update_option(
+			'teeshoop_vat',
+			array(
+				array( 'from' => '2020-01-01', 'regime' => Vat::FRANCHISE ),
+				array( 'from' => $today, 'regime' => Vat::STANDARD ),
+			)
+		);
+		update_option( 'woocommerce_calc_taxes', 'no' );
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$after = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		ts_eq( $after->get_meta( Checkout::META_VAT_REGIME, true ), Vat::STANDARD, 'the day of the switch' );
+		ts_eq( $after->get_meta( Checkout::META_VAT_NOTE, true ), '', 'the 293 B mention survived the switch' );
+
+		// The switch is tomorrow: the same order today is still under the old one.
+		update_option(
+			'teeshoop_vat',
+			array(
+				array( 'from' => '2020-01-01', 'regime' => Vat::FRANCHISE ),
+				array( 'from' => $tomorrow, 'regime' => Vat::STANDARD ),
+			)
+		);
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$eve = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		ts_eq( $eve->get_meta( Checkout::META_VAT_REGIME, true ), Vat::FRANCHISE, 'the eve of the switch' );
+		ts_eq( $eve->get_meta( Checkout::META_VAT_NOTE, true ), Vat::MENTION_FRANCHISE, 'the mention on the eve' );
+
+		// And the operator is warned, because an order paid before the switch and
+		// delivered after it is owed a rectificative invoice we do not produce.
+		ts_assert(
+			ts_ck_any( Vat::problems( Settings::vat_periods(), $today ), 'facture rectificative' ),
+			'a pending switch is not announced'
+		);
+
+		$after->delete( true );
+		$eve->delete( true );
+		ts_ck_regime( Vat::STANDARD );
+	} );
+
+	ts_it( 'freezes what the price resolved to on the line, not only its inputs', function () use ( $product_id, $sides, $design ) {
+		ts_ck_regime( Vat::STANDARD );
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		$item  = array_values( $order->get_items() )[0];
+
+		$quote = Pricing::quote( array( 'garment' => 'tee', 'qty' => 10, 'sides' => $sides ), Settings::pricing() );
+
+		// An accountant asking "why 20,82 EUR" is answered by the line itself,
+		// without anybody running a pricing engine.
+		ts_eq( (int) $item->get_meta( '_teeshoop_unit_ht', true ), (int) $quote['unit_ht'], 'unit price on the line' );
+		ts_eq( (float) $item->get_meta( '_teeshoop_discount_rate', true ), (float) $quote['discount_rate'], 'discount rate' );
+		ts_eq(
+			json_decode( (string) $item->get_meta( '_teeshoop_tiers', true ), true ),
+			array( 'front' => 'std' ),
+			'the area tier each face fell into'
+		);
+
+		$order->delete( true );
+	} );
+
 	// ── the invoice cannot be rewritten ──────────────────────────────────────
 
 	ts_it( 'keeps an issued invoice byte for byte when WooCommerce reprices the order', function () use ( $product_id, $sides, $design ) {

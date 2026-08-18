@@ -544,6 +544,48 @@ final class Cart {
 		$line->add_meta_data( '_teeshoop_sides_source', (string) ( $data['sides_source'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_files', wp_json_encode( $data['files'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_verified', ! empty( $data['verified'] ) ? 'yes' : 'no', true );
+
+		/*
+		 * AND WHAT THE PRICE RESOLVED TO, not only what it was computed from.
+		 *
+		 * The inputs above are enough to RE-derive the line, and re-deriving is
+		 * exactly what an order eighteen months old cannot afford: it would need
+		 * the price config of the day, which by then has moved. The order keeps
+		 * that config (`Checkout::freeze`), so the two together are complete,
+		 * but an accountant or a customer asking "why 20,82 EUR" should not have
+		 * to run a pricing engine to be answered. The resolved unit price, the
+		 * discount rate that produced it and the area tier each face fell into
+		 * are three scalars that answer it directly.
+		 *
+		 * Recomputed here rather than read off WooCommerce's line, because
+		 * WooCommerce holds a rounded euro figure and this holds integer cents;
+		 * it is the same quote, in the same request, from the same config.
+		 */
+		try {
+			$quote = Pricing::quote(
+				array(
+					'garment' => (string) ( $data['garment'] ?? '' ),
+					'qty'     => (int) $line->get_quantity(),
+					'sides'   => (array) ( $data['sides'] ?? array() ),
+				),
+				Settings::pricing()
+			);
+		} catch ( \InvalidArgumentException $e ) {
+			// A garment the config no longer knows. The line still carries its
+			// inputs; it simply cannot say what they resolved to.
+			return;
+		}
+
+		$tiers = array();
+		foreach ( $quote['lines'] as $part ) {
+			if ( 'side' === $part['kind'] ) {
+				$tiers[ (string) $part['label'] ] = (string) $part['tier'];
+			}
+		}
+
+		$line->add_meta_data( '_teeshoop_unit_ht', (string) $quote['unit_ht'], true );
+		$line->add_meta_data( '_teeshoop_discount_rate', (string) $quote['discount_rate'], true );
+		$line->add_meta_data( '_teeshoop_tiers', wp_json_encode( $tiers ), true );
 	}
 
 	/**
