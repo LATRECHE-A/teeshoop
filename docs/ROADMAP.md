@@ -156,6 +156,35 @@ suffit à produire et jamais à expédier. Chaque acompte encaissé émet **une 
 d'acompte** numérotée dans la même série continue, ce que l'article 289, I-1-c du CGI rend
 obligatoire, et la facture définitive reprend l'opération entière et les déduit.
 
+**Ce qu'une commande coûte, et le plancher (séance 05).** Le chapitre 1 est désormais
+exécutable de bout en bout : dix postes de coût direct, chacun avec son montant, sa source,
+sa date et sa **fiabilité**, et une fiabilité à quatre valeurs et non deux, parce que
+« zéro » et « nous n'avons pas pu mesurer » s'additionnent pareil et ne veulent pas dire la
+même chose. Le rapport refuse de se déclarer complet tant qu'un poste est inconnu, et le
+plancher qu'il affiche est alors un plancher **minimum**.
+
+Le **coût du film n'est pas saisi, il est mesuré** : la commande est imbriquée sur une laize
+de 56 cm par `src/lib/dtf/nesting.ts`, le même moteur qui produit les planches de l'atelier,
+appelé par le plugin sur une route d'administration du Worker. Il n'y a donc pas deux
+imbricateurs. Quand la route n'est pas joignable, le coût retombe sur une **borne haute
+démontrée** (une bande par transfert), jamais sur une estimation : `scripts/nest-verify.mjs`
+refait la démonstration à chaque exécution, dans les deux langages, contre le vrai
+imbricateur. Elle a trouvé un défaut à sa première exécution, une borne qui passait
+**sous** l'imbrication réelle sur une commande d'une pièce.
+
+**Trois corrections de la Bible plutôt qu'une.** Au plancher déjà corrigé s'ajoutent :
+« taux de marge » désigne en français la marge sur le *coût* alors que la formule publiée
+est celle de la marge sur le *prix de vente*, ce qui vaut **168,06 EUR d'écart** sur une
+commande de 250 EUR de coût ; et la contribution minimale, absolue dans la Bible et
+exprimée en pourcentage dans l'hypothèse par défaut, donne une formule différente qui
+**n'a aucune solution** dans un cas que le code refuse au lieu de renvoyer un plancher
+négatif.
+
+**Et une mesure qui appelle une décision.** Aux réglages actuels, **aucune colonne de la
+grille publique n'est vendable sans validation** : à 5 pièces le tarif de démonstration
+passe 14,21 EUR sous son propre plancher, et toutes les autres dépassent les 15 % de remise
+qu'un commercial peut accorder seul. Le tableau mesuré est dans la question 06.
+
 ---
 
 ## Ce qu'il reste : seize séances
@@ -170,7 +199,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~03~~ | ~~Catalogue : Falk&Ross vers WooCommerce, à l'échelle~~ **faite** | - |
 | ~~03b~~ | ~~Le registre des hypothèses~~ **faite** | - |
 | ~~04~~ | ~~Paiement : Stripe, TVA, livraison, facture~~ **faite** | - |
-| 05 | Moteur de coût, prix plancher, commissions | 03b |
+| ~~05~~ | ~~Moteur de coût, prix plancher, commissions~~ **faite** | - |
 | 06 | BAT, cycle de vie de la commande, e-mails | 04 |
 | 07 | Production : imbrication du film entre commandes | 06 |
 | 08 | Commande fournisseur et stock | 03, 07 |
@@ -200,7 +229,9 @@ ne peut le lever.
 | Blocage | Qui | Détail |
 |---|---|---|
 | **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Depuis la séance 04 les deux régimes sont construits et la bascule est une date à saisir : ce qui manque n'est plus du code, c'est la réponse. Les 15 commandes, elles, ne sont facturables par le site sous aucun régime, parce qu'aucune période ne couvre leur date |
-| La vraie grille tarifaire | associé | Questions **06** (taux de marge) et **03** (grilles d'achat réelles), sa forme publique étant la **08**. Les prix actuels sont des **valeurs de démonstration**, enregistrées une par une dans `docs/hypotheses.json`. Ce tableau renvoyait à la question 04, qui porte sur les tarifs DTF fournisseur et ne tranche aucun prix de vente |
+| La vraie grille tarifaire | associé | Questions **06** (taux de marge) et **03** (grilles d'achat réelles), sa forme publique étant la **08**. Les prix actuels sont des **valeurs de démonstration**, enregistrées une par une dans `docs/hypotheses.json`. Ce tableau renvoyait à la question 04, qui porte sur les tarifs DTF fournisseur et ne tranche aucun prix de vente. **Depuis la séance 05 ce n'est plus seulement une imprécision** : mesuré, le tarif affiché passe sous son propre prix plancher à 5 pièces et n'est vendable sans validation à aucune quantité |
+| **Le sens de « taux de marge »** | associé | Question 06. Le mot et la formule de la Bible désignent deux ratios différents, et l'écart est de 168,06 EUR sur une commande de 250 EUR de coût. Les deux lectures sont affichées côte à côte sur l'écran « Coûts et marges » pour que la réponse ne puisse pas être ambiguë |
+| **Les cinq temps d'atelier jamais chronométrés** | associé | Question 05. Nos deux temps chiffrent la main-d'œuvre de sa propre commande d'exemple à 7,83 EUR là où elle en inscrit 45,00 : 37,17 EUR de trou, et 63,72 EUR de prix plancher. Une série chronométrée une fois referme l'écart |
 | **Le taux de marge sur un textile nu** | associé | Question 42. Les 26 399 articles du catalogue sont importés avec leur coût réel et **sans prix de vente** : consultables, non commandables, tant que le taux n'est pas fixé |
 | Clés Stripe (test puis production) | associé | Séance 04. L'extension officielle est branchée et l'alarme distingue un compte de test d'un compte réel par le préfixe de la clé, pas par la case à cocher, qui se contredit elle-même sur une configuration jamais enregistrée |
 | L'identité légale complète et le RCS | associé | Questions 17 et **45**. Rien n'est facturable sans, et rien n'est inventé à la place |
@@ -248,8 +279,9 @@ références et trois familles** au lieu des 300 et cinq familles annoncées ; l
 publique** a cinq colonnes au lieu de six et accorde 35 % de remise en autonomie là où la
 question 06 en plafonne la remise à 15 % ; la **découpe en visuels** se déclenche sur une
 géométrie et non sur le seuil de 100 cm² d'économie annoncé ; et les **17 EUR le mètre
-linéaire** ne sont écrits dans aucun code exécutable, le module DTF chiffrant sur des
-tarifs publics relevés, très inférieurs.
+linéaire** n'étaient écrits dans aucun code exécutable. Ce dernier point est refermé par la
+séance 05 : le tarif est désormais l'autorité du coût de marquage, et le module DTF garde
+ses tarifs publics relevés pour ce qu'ils sont, une comparaison de marché.
 
 **13b la solde**, entre la 13 et la 14, ce qui est la bonne couture : tout ce qui précède
 est local et réversible, la 14 touche le vrai domaine et la 15 encaisse de l'argent réel.

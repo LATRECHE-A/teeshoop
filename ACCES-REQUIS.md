@@ -31,10 +31,15 @@ Ce qui reste à obtenir n'est plus un accès mais **des réponses** : celles de 
 dans [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md), dont la TVA (constat 6), qui est
 légale et bloquante.
 
-**Depuis le 18 août, une chose manque à nouveau, et elle bloque une vente :** les clés
-Stripe de test. Le paiement est construit et il refuse d'encaisser sans elles. Voir §6 bis.
+**Depuis le 18 août, deux choses manquent à nouveau.** La première bloque une vente :
+les clés Stripe de test. Le paiement est construit et il refuse d'encaisser sans elles. Voir §6 bis.
 Une démarche non technique s'ajoute au même endroit : la plateforme de facturation
 électronique, obligatoire en réception au 1er septembre 2026 (§6 ter).
+
+La seconde ne bloque rien mais dégrade un chiffre : la constante
+`TEESHOOP_WORKER_TOKEN` dans le `wp-config.php` de la boutique (§4 bis). Sans elle, le
+moteur de coût ne peut pas demander au Worker le métrage de film réellement occupé par
+une commande, et chiffre sur une borne haute qui dépasse la réalité de 14 % à 827 %.
 
 Le gel du déploiement, lui, tient toujours, mais il change de nature : ce n'est plus
 un manque d'accès, c'est une méthode. **On travaille en préproduction, on sauvegarde,
@@ -396,6 +401,30 @@ define( 'TEESHOOP_CATALOGUE_TOKEN', '…la valeur de ADMIN_TOKEN…' );
 Absent, l'import refuse de tourner et dit lequel des deux réglages manque. Il ne se
 rabat jamais sur « importer sans les tarifs » : un catalogue écrit avec tous les prix
 d'achat vides ressemble exactement à un import réussi jusqu'au jour du réassort.
+
+## 4 bis. `TEESHOOP_WORKER_TOKEN` : à poser aussi, depuis la séance 05
+
+Le moteur de coût demande au Worker combien de mètres linéaires de film une commande
+occupe réellement, en imbriquant ses visuels (`POST /api/nest`). C'est une route
+d'administration, protégée par le même `ADMIN_TOKEN`, et la boutique s'y authentifie
+avec cette constante. Comme la précédente, elle se déclare dans `wp-config.php` et
+**jamais dans une option**.
+
+```bash
+wp config set TEESHOOP_WORKER_TOKEN '…la valeur de ADMIN_TOKEN…' --type=constant --quiet
+```
+
+`--quiet` n'est pas décoratif : sans lui, `wp config set` réaffiche la valeur qu'il
+vient d'écrire, ce qui est exactement l'incident du 14 août décrit deux sections plus
+haut.
+
+Absente, rien ne casse et rien ne ment : chaque commande est chiffrée sur une **borne
+haute** (une bande de film par transfert, sans imbrication), le rapport de marge le dit
+en toutes lettres, et le coût annoncé est plus élevé que la réalité. C'est le sens sûr,
+parce qu'un coût majoré remonte le prix plancher au lieu de l'abaisser. Sur les
+commandes d'essai, la borne dépasse l'imbrication réelle de 14 % à 827 % selon la
+forme des visuels : utilisable pour ne pas vendre à perte, inutilisable pour chiffrer
+un devis.
 
 ---
 

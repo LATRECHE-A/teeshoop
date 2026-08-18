@@ -360,6 +360,7 @@ no code change.
 npm test           # vitest, headless, ~2 s — no browser, no network, no secrets
 npm run ci         # typecheck (app + worker) + tests, what CI runs
 npm run verify:bundle   # the admin/customer leak gate (needs a build first)
+npm run verify:nest     # the film metrage the shop costs on (boots wrangler dev + php)
 ```
 
 The suite covers the modules that are pure and where a silent error costs money:
@@ -369,6 +370,16 @@ nothing off the film, deterministic, nothing silently dropped), true-shape
 nesting (never worse than the shelf packer) and preflight. The Playwright
 harnesses in `scripts/` are unchanged and stay out of CI: they boot a dev server
 and several need a human to look at a screenshot.
+
+`npm run verify:nest` is the newest of those and the one to run after touching
+the packer, the cost engine or `POST /api/nest`. It boots a real `wrangler dev`
+and a real `php`, and proves four things: the route is shut to anyone without
+the admin token, its answer is exactly what `nestRoll` returns called in-process,
+PHP's fallback bound is genuinely ABOVE the real packing on every corpus order,
+and geometry the packer cannot place is named rather than dropped. It found a
+defect on its first run: the bound ignored the supplier's billing step and came
+out UNDER the packed length on a one-piece order, which is a film cost too low,
+a floor price too low, and a sale nobody would have authorised.
 
 ## Configuration
 

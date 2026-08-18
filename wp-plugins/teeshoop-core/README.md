@@ -50,7 +50,18 @@ includes/
   Payment.php         which account a gateway would charge, and the alarms
   Admin.php           the one screen where the facts nobody can invent go
   Pricing.php         the price authority. Pure, no WordPress calls
-  Margin.php          cost, floor price, commission (the Bible, corrected)
+  Margin.php          recommended price, floor price, the negotiation zone and
+                      the verdict on a proposed price (the Bible, three
+                      corrections). Pure
+  Cost.php            the ten direct-cost components, labour, film and the
+                      prudent length bound. Pure
+  Commission.php      rates by kind of sale, accrual on money received, and the
+                      Bible's four conditions for a definitive one. Pure
+  Costing.php         one ORDER: its cost, its floor, its commission, its
+                      derogation. The file where the three above meet WooCommerce
+  Nest.php            asks the Worker how many linear metres of film an order
+                      needs. Fails closed; never packs anything itself
+  CostAdmin.php       the two screens the associate maintains it all from
   Settings.php        stored config + the fail-closed defaults around it
   Garments.php        print areas, size chart and colours, in cm. Generated
   Design.php          design-id validation and Worker verification
@@ -69,7 +80,7 @@ includes/
                       on the purchase price, and the colour photo swap
   Rest.php            /wp-json/teeshoop/v1/*
   Shortcode.php       [teeshoop_studio]
-  Cli.php             wp teeshoop provisionner | verifier
+  Cli.php             wp teeshoop provisionner | verifier | marge
                          | catalogue importer | catalogue etat | catalogue purger
 data/
   garments.json       GENERATED from the studio. Do not edit; see below
@@ -87,10 +98,17 @@ tests/
   run.php             zero-dependency runner for the pure classes
   test-pricing.php    the price authority
   test-grid.php       the grid's columns, the headline, the devis threshold
-  test-margin.php     the corrected floor-price formula
+  test-margin.php     the three corrected formulas, and the boundary where an
+                      exception becomes required
+  test-cost.php       the cost model, and the two places our numbers do not
+                      match the Bible's own worked example
+  test-commission.php the base the Bible requires and the three it forbids
   test-catalogue.php  the supplier mapping: sizes, families, grammage, the
                       guards that refuse a payload about another style
   integration.php     the WooCommerce seam. Needs a real WP (see below)
+  integration-margin.php  the costing against a real order, reconciled against
+                      the ISSUED invoice rather than a recomputation
+  demo-order.php      builds one worked order the session report quotes
   e2e-support.php     fixtures the browser-side gates load into a real shop
 ```
 
@@ -581,6 +599,67 @@ oversight, and none is blocked on code.
 - **Discount codes.** Coupons are switched off entirely
   (`woocommerce_coupons_enabled`). The unit price already carries the quantity
   discount, and no promotional policy exists to implement.
+
+## What an order costs, and what it must not be sold below
+
+`Pricing.php` says what a customer pays. This says what it cost us, and the two
+never touch: they meet in `Costing.php`, which reads the order's own facts and
+asks the cost engine what they add up to. Two files that both computed a price
+would eventually disagree, and the customer would see one number and the invoice
+another.
+
+**Ten components, each with a source, a date and a confidence.** The confidence
+has FOUR values and not two, and that is the whole safety property:
+
+| | |
+|---|---|
+| `reel` | a real tariff, a real invoice, a real measurement |
+| `estime` | derived from a catalogue price or an unconfirmed rate; the PRUDENT figure is the one used |
+| `neant` | genuinely zero on this order: no subcontracting, no card fee on a transfer |
+| `inconnu` | we could not compute it. NOT zero |
+
+A zero and a failure add up to the same total and mean opposite things. So
+`Cost::total()` refuses to call itself complete while any component is unknown,
+and the floor price the order screen shows is then labelled a **minimum**: the
+real one is at least that and probably higher. A price under the minimum floor is
+CERTAINLY below the floor. A price above it is not proven to be above the real
+one, and the screen says so rather than showing a tick over an unanswered
+question.
+
+**The film is measured, not typed.** The Bible: the DTF cost "dépend de la
+surface occupée sur une laize de 56 cm, de l'imbrication". That is a packing, and
+this repository already has one, in TypeScript, and it is the one the workshop's
+gang sheets come out of. So `Nest.php` asks it over HTTP (`POST /api/nest`,
+admin-gated) instead of a second packer growing here. The per-transfer rectangles
+are measured in the browser, because an ink extent comes off a decoded image's
+alpha channel and neither PHP nor a Worker has a canvas; they travel with the
+design and land on the order line beside the printed area.
+
+When the packer cannot be reached, the cost falls back to a **proved upper
+bound** (one shelf per transfer, in the flatter orientation the packer would
+pick, rounded up the way the supplier bills) and says it did. Never an estimate,
+and never a length inferred by dividing an area by the roll width: a length is a
+packing, not a quotient. `scripts/nest-verify.mjs` re-proves the bound on every
+run against the real packer, in both languages.
+
+**The commission is on the contributive margin collected.** Never the revenue,
+never the TTC: on the Bible's own worked example those two pay 250 EUR and
+300 EUR against a result before fixed costs of 225 EUR. A partial payment earns
+its share pro rata, which is the one thing the Bible does not say and question 29
+now asks.
+
+**Selling under the floor takes an exception**, with all four of the parts the
+chapter names: a motive, an approver, a validity window and a displayed impact.
+Three of them is a note, not an exception, so `Costing::derogation()` returns null
+unless all four are there. And a derogation stops covering an order the moment
+the price or the floor moves under it, because what was authorised was a stated
+shortfall and not a category of them.
+
+**Nothing here ever reaches a customer.** `scripts/php-guard.mjs` carries the
+vocabulary as needles in every directory that renders, question 39's written
+default is that a devis names the salesperson and never the commission, and the
+register's own projection into `data/` withholds these rows and carries only
+their count.
 
 ## Not built yet
 
