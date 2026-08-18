@@ -257,6 +257,7 @@ final class Costing {
 		$garment_costs = (array) ( $config['garment_supply'] ?? array() );
 		$lines         = array();
 		$total         = 0;
+		$best_total    = 0;
 		$unknown       = 0;
 
 		foreach ( $order->get_items() as $item ) {
@@ -286,13 +287,42 @@ final class Costing {
 				}
 			}
 
+			$best = null;
+
 			if ( null === $unit && isset( $garment_costs[ $garment ] ) ) {
 				$typed = $garment_costs[ $garment ];
 				if ( is_array( $typed ) && isset( $typed['ht'] ) && (int) $typed['ht'] > 0 ) {
-					$unit   = (int) $typed['ht'];
 					$source = (string) ( $typed['source'] ?? __( 'Saisi à la main', 'teeshoop' ) );
 					$on     = (string) ( $typed['on'] ?? '' );
 					$conf   = Cost::ESTIMATED;
+
+					if ( ! empty( $typed['catalogue'] ) ) {
+						/*
+						 * THE CHAPTER'S OWN RULE, and the only place in this shop
+						 * where it applies: "Lorsque le seul prix disponible est
+						 * un prix catalogue à diviser par 2 à 2,5, le système doit
+						 * marquer le coût comme estimé et utiliser le scénario
+						 * PRUDENT jusqu'à réception du tarif réel."
+						 *
+						 * Prudent means the SMALLER divisor, which gives the
+						 * LARGER cost. Getting that the wrong way round would
+						 * flag the cost as estimated and then quietly use the
+						 * flattering figure, which is worse than not flagging it.
+						 * The optimistic figure travels beside it so the screen
+						 * can show the operator the width of what he does not
+						 * know, instead of one number that looks decided.
+						 */
+						$scenario = Cost::from_catalogue( (int) $typed['ht'], $config );
+						$unit     = $scenario['prudent'];
+						$best     = $scenario['optimistic'];
+						$source   = sprintf(
+							/* translators: %s: where the catalogue price came from. */
+							__( 'Prix catalogue divisé par 2 (scénario prudent) : %s', 'teeshoop' ),
+							$source
+						);
+					} else {
+						$unit = (int) $typed['ht'];
+					}
 				}
 			}
 
@@ -312,11 +342,13 @@ final class Costing {
 
 			$amount  = $unit * $qty;
 			$total  += $amount;
-			$lines[] = array(
+			$best_total += null === $best ? $amount : $best * $qty;
+			$lines[]     = array(
 				'label'      => $item->get_name(),
 				'qty'        => $qty,
 				'unit_ht'    => $unit,
 				'amount_ht'  => $amount,
+				'best_ht'    => null === $best ? null : $best * $qty,
 				'confidence' => $conf,
 				'source'     => $source,
 				'on'         => $on,
@@ -326,6 +358,7 @@ final class Costing {
 		return array(
 			'lines'    => $lines,
 			'total_ht' => $total,
+			'best_ht'  => $best_total,
 			'unknown'  => $unknown,
 		);
 	}
@@ -397,7 +430,8 @@ final class Costing {
 				(int) $line['amount_ht'],
 				(string) $line['confidence'],
 				(string) $line['source'],
-				(string) $line['on']
+				(string) $line['on'],
+				isset( $line['best_ht'] ) && null !== $line['best_ht'] ? (int) $line['best_ht'] : null
 			);
 		}
 

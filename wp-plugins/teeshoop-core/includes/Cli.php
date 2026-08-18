@@ -530,7 +530,17 @@ final class Cli {
 				)
 			);
 		}
-		\WP_CLI::log( sprintf( '  %-22s %s   %s', 'TOTAL CONNU', $money( (int) $report['cost']['total_ht'] ), $report['cost']['complete'] ? 'complet' : 'incomplet' ) );
+		\WP_CLI::log(
+			sprintf(
+				'  %-22s %s   %s%s',
+				'TOTAL CONNU',
+				$money( (int) $report['cost']['total_ht'] ),
+				$report['cost']['complete'] ? 'complet' : 'incomplet',
+				(int) $report['cost']['best_ht'] < (int) $report['cost']['total_ht']
+					? ', au mieux ' . Money::format( (int) $report['cost']['best_ht'] )
+					: ''
+			)
+		);
 
 		\WP_CLI::log( '' );
 		\WP_CLI::log( 'PRIX' );

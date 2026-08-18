@@ -216,6 +216,44 @@ function ts_margin_suite( int $product_id ): void {
 		$order->delete( true );
 	} );
 
+	ts_it( 'costs a catalogue price at the prudent end, and reports the other one', function () use ( $product_id ) {
+		/*
+		 * The chapter: "Lorsque le seul prix disponible est un prix catalogue à
+		 * diviser par 2 à 2,5, le système doit marquer le coût comme estimé et
+		 * utiliser le scénario prudent." Prudent is the SMALLER divisor and so
+		 * the LARGER cost: a 12,00 EUR catalogue price is costed at 6,00 EUR and
+		 * not at 4,80 EUR, and the 4,80 EUR travels beside it so the screen can
+		 * show the width of what nobody has confirmed.
+		 */
+		update_option(
+			'teeshoop_costing',
+			array(
+				'garment_supply' => array(
+					'tee' => array( 'ht' => 1200, 'source' => 'Tarif public', 'on' => '2026-08-01', 'catalogue' => true ),
+				),
+			)
+		);
+
+		$order  = ts_mg_order( $product_id, 10, ts_mg_sides() );
+		$report = Costing::compute( $order );
+
+		ts_eq( (int) $report['blanks']['total_ht'], 6000, 'ten garments at the prudent half of 12,00 EUR' );
+		ts_eq( (int) $report['blanks']['best_ht'], 4800, 'and at the optimistic 2,5 divisor' );
+		ts_assert(
+			(int) $report['cost']['best_ht'] < (int) $report['cost']['total_ht'],
+			'the report must carry both ends, or the estimate looks like a measurement'
+		);
+		ts_assert( (bool) $report['cost']['estimated'], 'a catalogue price is not a tariff' );
+
+		$order->delete( true );
+
+		// Back to a real purchase price for the rest of the suite.
+		update_option(
+			'teeshoop_costing',
+			array( 'garment_supply' => array( 'tee' => array( 'ht' => 337, 'source' => 'Tarif fournisseur de vérification', 'on' => '2026-08-01' ) ) )
+		);
+	} );
+
 	// ── what is missing is said ──────────────────────────────────────────────
 
 	ts_it( 'never calls a cost complete while three components are unmeasured', function () use ( $product_id ) {

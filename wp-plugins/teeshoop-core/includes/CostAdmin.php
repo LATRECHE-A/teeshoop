@@ -205,9 +205,13 @@ final class CostAdmin {
 				continue;
 			}
 			$supply[ $key ] = array(
-				'ht'     => $cents,
-				'source' => sanitize_text_field( (string) ( $row['source'] ?? '' ) ),
-				'on'     => self::iso_date( (string) ( $row['on'] ?? '' ) ),
+				'ht'        => $cents,
+				'source'    => sanitize_text_field( (string) ( $row['source'] ?? '' ) ),
+				'on'        => self::iso_date( (string) ( $row['on'] ?? '' ) ),
+				// Whether the figure typed is a CATALOGUE price, which the
+				// chapter says to divide by 2 to 2,5 and cost at the prudent
+				// end until the real tariff arrives.
+				'catalogue' => ! empty( $row['catalogue'] ),
 			);
 		}
 
@@ -607,6 +611,7 @@ final class CostAdmin {
 		echo '<div style="overflow-x:auto;max-width:100%"><table class="widefat striped" style="max-width:52em"><thead><tr>';
 		echo '<th scope="col">' . esc_html__( 'Vêtement', 'teeshoop' ) . '</th>';
 		echo '<th scope="col">' . esc_html__( 'Prix d’achat HT', 'teeshoop' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'Nature', 'teeshoop' ) . '</th>';
 		echo '<th scope="col">' . esc_html__( 'D’où vient ce prix', 'teeshoop' ) . '</th>';
 		echo '<th scope="col">' . esc_html__( 'Valable au', 'teeshoop' ) . '</th>';
 		echo '</tr></thead><tbody>';
@@ -616,6 +621,12 @@ final class CostAdmin {
 			echo '<tr>';
 			echo '<th scope="row"><code>' . esc_html( (string) $key ) . '</code></th>';
 			echo '<td>' . self::field( 'couts[garment][' . $key . '][ht]', isset( $row['ht'] ) ? Money::number( Money::to_eur( (int) $row['ht'] ), 2 ) : '', 'EUR' ) . '</td>';
+			printf(
+				'<td><label><input type="checkbox" name="couts[garment][%1$s][catalogue]" value="1"%2$s> %3$s</label></td>',
+				esc_attr( (string) $key ),
+				checked( ! empty( $row['catalogue'] ), true, false ),
+				esc_html__( 'prix catalogue', 'teeshoop' )
+			);
 			printf(
 				'<td><input type="text" name="couts[garment][%s][source]" value="%s" size="28" placeholder="%s"></td>',
 				esc_attr( (string) $key ),
@@ -630,7 +641,10 @@ final class CostAdmin {
 			echo '</tr>';
 		}
 		echo '</tbody></table></div>';
-		echo '<p class="description" style="max-width:46em">' . esc_html__( 'Videz le prix pour retirer la ligne. Un prix d’achat vide vaut « inconnu », jamais « gratuit ».', 'teeshoop' ) . '</p>';
+		echo '<p class="description" style="max-width:46em">' . esc_html__(
+			'Videz le prix pour retirer la ligne. Un prix d’achat vide vaut « inconnu », jamais « gratuit ». Cochez « prix catalogue » quand le seul chiffre dont vous disposez est un tarif public : le chapitre 1 demande alors de le diviser par 2 à 2,5 et de retenir le scénario PRUDENT, donc la division par 2, jusqu’à réception du vrai tarif. La commande est alors chiffrée au coût le plus élevé des deux, et le rapport affiche aussi le plus favorable.',
+			'teeshoop'
+		) . '</p>';
 	}
 
 	private static function render_commissions( array $commission ): void {
@@ -795,7 +809,21 @@ final class CostAdmin {
 
 		echo '<tr><th scope="row"><strong>' . esc_html__( 'Coût direct connu', 'teeshoop' ) . '</strong></th>';
 		echo '<td style="text-align:right;font-variant-numeric:tabular-nums"><strong>' . esc_html( Money::format( (int) $cost['total_ht'] ) ) . '</strong></td>';
-		echo '<td colspan="2" class="description">' . esc_html(
+		/*
+		 * The optimistic total, when there is one to show. An estimate is a
+		 * range and the shop is costed at its prudent end; printing only that
+		 * end makes an assumption look like a measurement.
+		 */
+		echo '<td>' . esc_html(
+			(int) $cost['best_ht'] < (int) $cost['total_ht']
+				? sprintf(
+					/* translators: %s: the same cost under the optimistic reading of its estimates. */
+					__( 'au mieux %s', 'teeshoop' ),
+					Money::format( (int) $cost['best_ht'] )
+				)
+				: ''
+		) . '</td>';
+		echo '<td class="description">' . esc_html(
 			$cost['complete']
 				? __( 'Les dix postes sont renseignés.', 'teeshoop' )
 				: sprintf(
