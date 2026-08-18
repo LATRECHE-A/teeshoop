@@ -52,6 +52,27 @@ Trois règles encadrent cette décision, pour qu'elle reste réversible :
 
 Une séance de travail entière est réservée à vos réponses, juste avant la mise en ligne.
 
+### Là où ce que nous avons construit n'est pas l'hypothèse par défaut
+
+Le 18 août, en inscrivant une par une les valeurs supposées dans un registre
+(`docs/hypotheses.json`, 28 lignes, avec un contrôle automatique derrière), nous avons
+relu ce que les séances 01 à 03 avaient réellement livré. Six points ne suivent pas
+l'hypothèse par défaut écrite plus bas dans ce document. Une hypothèse par défaut que
+personne n'a suivie est pire que pas d'hypothèse du tout, donc les voici.
+
+| Question | Ce que ce document annonce | Ce qui est réellement construit |
+|---|---|---|
+| **01** | minimum 5 pièces et 50 EUR HT, bloquant à la validation du panier | **aucun minimum**. Une pièce à 14,50 EUR HT va jusqu'au paiement |
+| **17** | la TVA construite comme une période datée, avec un mode franchise | une **constante** de 20 %. Ni période, ni mode franchise, ni mention « article 293 B » |
+| **09** | 300 références (t-shirts, polos, sweats, softshells, haute visibilité) | **459 références**, sans plafond, et **trois familles**. Le softshell est activement écarté, la haute visibilité n'existe pas |
+| **08** | une grille publique sur 6 paliers de quantité | **5 colonnes**, déduites des 3 paliers de remise enregistrés. Et la remise atteint 35 % en autonomie, là où la question 06 annonce un plafond de 15 % |
+| **32** | découpe automatique quand elle économise plus d'environ 100 cm² par vêtement | une découpe **géométrique** : deux encres séparées de plus de 5 mm deviennent deux transferts, même si l'économie est nulle |
+| **04** | 17 EUR HT le mètre linéaire en France | ce tarif n'est écrit dans **aucun code**. Le calcul de coût film utilise des tarifs publics relevés en juillet 2026, nettement inférieurs, et aucun fournisseur espagnol n'existe |
+
+Aucun de ces écarts n'est en ligne et aucun client n'en voit la conséquence aujourd'hui.
+Chacun est une ligne du registre, avec son unique emplacement dans le code et ce que
+coûterait de le changer. Votre réponse reste ce qui tranche.
+
 ### Les quatre questions qui tiennent en un message
 
 Si vous ne devez répondre qu'à quatre choses cette semaine, ce sont celles-là : ce sont des
