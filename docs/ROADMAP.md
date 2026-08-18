@@ -92,7 +92,8 @@ panier et tout fonctionnait. Avec les permaliens propres, ceux d'o2switch, **cha
 panier répondait 503**. Toute la séance 01 avait été vérifiée verte sur la seule
 configuration où le défaut est invisible.
 
-**Le catalogue fournisseur est dans la boutique.** 463 références et 26 399 articles, avec
+**Le catalogue fournisseur est dans la boutique.** 459 références et 26 392 articles publiés
+sur les 463 et 26 399 que le fournisseur liste comme imprimables, avec
 leurs coloris, leurs tailles, leur grammage, leur composition, leur stock et notre prix
 d'achat. Une référence est **un produit variable**, un article vendu par le fournisseur est
 **une variation** : construites depuis la liste d'articles et jamais depuis le produit
@@ -142,7 +143,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~01~~ | ~~Boucler la boucle : du studio au panier WooCommerce~~ **faite** | - |
 | ~~02~~ | ~~Fiche produit, grille de prix, demande de devis~~ **faite** | - |
 | ~~03~~ | ~~Catalogue : Falk&Ross vers WooCommerce, à l'échelle~~ **faite** | - |
-| 03b | Le registre des hypothèses | 03 |
+| ~~03b~~ | ~~Le registre des hypothèses~~ **faite** | - |
 | 04 | Paiement : Stripe, TVA, livraison, facture | 02, 03, 03b |
 | 05 | Moteur de coût, prix plancher, commissions | 03b |
 | 06 | BAT, cycle de vie de la commande, e-mails | 04 |
@@ -174,7 +175,7 @@ ne peut le lever.
 | Blocage | Qui | Détail |
 |---|---|---|
 | **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Franchise en base ou régularisation : la séance 04 construit 20 % partout et se trompe entièrement si la réponse est « franchise » |
-| La vraie grille tarifaire | associé | Question 04 de `QUESTIONS-ASSOCIE.md` ; les prix actuels sont des **valeurs de démonstration** |
+| La vraie grille tarifaire | associé | Questions **06** (taux de marge) et **03** (grilles d'achat réelles), sa forme publique étant la **08**. Les prix actuels sont des **valeurs de démonstration**, enregistrées une par une dans `docs/hypotheses.json`. Ce tableau renvoyait à la question 04, qui porte sur les tarifs DTF fournisseur et ne tranche aucun prix de vente |
 | **Le taux de marge sur un textile nu** | associé | Question 42. Les 26 399 articles du catalogue sont importés avec leur coût réel et **sans prix de vente** : consultables, non commandables, tant que le taux n'est pas fixé |
 | Clés Stripe (test puis production) | associé | Séance 04 |
 | Compte Brevo | associé | Séance 06 |
@@ -186,14 +187,40 @@ L'associé n'est pas disponible pour répondre, et attendre coûte plus cher que
 Les séances 04 à 13 sont donc construites **sur les hypothèses par défaut** écrites dans
 `QUESTIONS-ASSOCIE.md`, sous une condition en deux séances nouvelles.
 
-**03b installe la condition.** Un registre, `docs/hypotheses.json` : une ligne par valeur
-supposée, avec son **unique** emplacement dans le code, ce qu'elle atteint (un client, un
-fournisseur, une presse) et les mesures qui deviendraient fausses si elle bougeait. Un
-contrôle en intégration continue échoue quand le registre et le code divergent, et échoue
-quand une question marquée bloquante n'a aucune ligne. Il reprend aussi ce que les séances
-01 à 03 ont déjà livré sur hypothèse, ce qui n'est pas rien : la grille de prix de
-démonstration, les 17 EUR le mètre linéaire, le premier des trois nombres de stock, les
-noms de coloris non traduits, le catalogue sans prix de vente.
+**03b a installé la condition.** Le registre est `docs/hypotheses.json` : **28 lignes**, une
+par valeur supposée, avec son **unique** emplacement dans le code, ce qu'elle atteint (un
+client, un fournisseur, une presse) et les mesures qui deviendraient fausses si elle
+bougeait. `scripts/hypotheses-guard.mjs` est dans `npm run ci` et échoue quand le registre
+et le code divergent, quand une valeur acquiert une seconde copie, quand une question
+marquée bloquante n'a aucune ligne, et quand une hypothèse qu'un client rencontre n'a
+aucune formulation française à l'écran. Les cinq contrôles ont été cassés un par un, sur
+les vrais fichiers, pour vérifier qu'ils échouent, et `--self-test` les recasse à chaque
+exécution de la chaîne. **Les 18 questions bloquantes sont toutes traitées** : onze par une
+ligne, sept par un motif écrit de non-applicabilité.
+
+Il ne compare pas des fichiers texte : il **fait tourner les deux implémentations**. La
+configuration de prix est obtenue en appelant `Pricing::default_config()` en php, la table
+du studio en la compilant avec esbuild et en l'important. C'est ce qui permet de tenir la
+seule vraie duplication du prix, `src/content/pricing.ts`, qui répétait cinq nombres sans
+que rien ne les compare.
+
+Trois copies réelles ont été supprimées au passage : le taux de TVA et le prix du t-shirt
+de démonstration étaient réécrits à la main dans la commande de provisionnement
+(`Cli.php`), qui les lit désormais depuis l'autorité, et deux notes d'administration
+renvoyaient l'associé à la mauvaise question. Deux valeurs ont reçu un nom pour pouvoir
+être désignées : `Catalogue::PRINTABLE_FAMILIES` et `Catalogue::STOCK_INDEX`.
+
+**Ce qui a été livré n'est pas toujours l'hypothèse par défaut écrite**, et le registre le
+dit ligne par ligne. Les écarts qui coûtent le plus cher à refermer, dans l'ordre : aucun
+**minimum de commande** n'est appliqué alors que la question 01 en annonce un « bloquant à
+la validation du panier » ; la **TVA** est une constante alors que la question 17 exige
+expressément une période datée avec un mode franchise ; le catalogue publie **459
+références et trois familles** au lieu des 300 et cinq familles annoncées ; la **grille
+publique** a cinq colonnes au lieu de six et accorde 35 % de remise en autonomie là où la
+question 06 en plafonne la remise à 15 % ; la **découpe en visuels** se déclenche sur une
+géométrie et non sur le seuil de 100 cm² d'économie annoncé ; et les **17 EUR le mètre
+linéaire** ne sont écrits dans aucun code exécutable, le module DTF chiffrant sur des
+tarifs publics relevés, très inférieurs.
 
 **13b la solde**, entre la 13 et la 14, ce qui est la bonne couture : tout ce qui précède
 est local et réversible, la 14 touche le vrai domaine et la 15 encaisse de l'argent réel.
@@ -202,8 +229,9 @@ Elle confronte chaque réponse au registre, applique les changements par ordre d
 que le site promet en public avec ce que l'atelier peut tenir, et installe le contrôle qui
 refuse la mise en ligne tant qu'une hypothèse bloquante atteint encore un client.
 
-`QUESTIONS-ASSOCIE.md` contient 44 questions auxquelles seul l'associé peut répondre. Q04
-(la grille tarifaire) conditionne une grande partie de la séance 05. Trois viennent d'être
+`QUESTIONS-ASSOCIE.md` contient 44 questions auxquelles seul l'associé peut répondre, dont
+18 marquées bloquantes. Q06 (les taux de marge) et Q03 (les grilles d'achat réelles)
+conditionnent une grande partie de la séance 05. Trois viennent d'être
 ajoutées par la séance 02 : la durée de validité d'un devis (la Bible impose la mention et
 ne donne aucune durée, et c'est un engagement ferme en droit français), le fait que la
 commission d'un commercial figure ou non sur le document que le client reçoit, et la durée
@@ -221,14 +249,15 @@ redécouvre, ou une habitude que l'on croit voulue.
 La règle pour la séance qui les traite : **ne pas refermer un de ces écarts sans relire la
 raison**. Plusieurs sont des refus délibérés, pas des oublis.
 
-Ce tableau est l'ancêtre en prose du registre que la séance 03b rend exécutable. Une fois
-`docs/hypotheses.json` en place, ces lignes y deviennent des entrées avec un contrôle
-derrière, et ce tableau renvoie au registre au lieu de le recopier.
+**Ce tableau ne contient plus ce que le registre tient.** Tout écart qui remonte à une
+question de `QUESTIONS-ASSOCIE.md` est désormais une ligne de `docs/hypotheses.json`, avec
+un contrôle derrière : le catalogue consultable et non commandable est `H-Q41-CATALOGUE-CONSULTABLE`
+et `H-Q42-MARGE-TEXTILE-NU`, les trois familles publiées sont `H-Q09-FAMILLES`. Le recopier
+ici en ferait deux vérités qui divergeraient. Ce qui reste ci-dessous est ce que le registre
+ne peut pas porter : des arbitrages d'ingénierie qui n'attendent la réponse de personne.
 
 | Écart | Pourquoi il a été choisi | Ce qui le referme | Séance |
 |---|---|---|---|
-| **Le catalogue est consultable, pas commandable.** Aucun prix de vente n'est écrit sur les 26 392 articles importés | La séance 03 avait interdiction d'importer les prix du fournisseur (c'est un coût, pas un prix), et le taux de marge est la question 42. Écrire un prix inventé aurait été pire que de n'en écrire aucun | Le réglage `blank_margin_rate`. Un seul réglage, et tout le catalogue devient commandable : le contrôle le prouve dans les deux états (430 centimes à 45 % donnent 7,82 EUR, la fiche devient achetable, deux articles arrivent au panier) | 05 |
-| **Vestes et Accessoires n'existent pas** comme rayons, alors que le brief les nommait | Rien ne s'y range : le studio imprime des vêtements du haut, donc l'import demande t-shirts, polos et sweats. Un rayon vide est une promesse que la boutique ne peut pas tenir | Vendre autre chose, puis `--famille=shirt` ou `other`, qui existent déjà dans `Catalogue::CATEGORIES` | 09 |
 | **Les photos par coloris publient le nom de fichier du fournisseur** (`/media/blank/picture/001_42_000_f-2020_01.jpg`, soit le style et le coloris) | Les copier coûte 267 Mo, ~650 Mo après vignettes, et 1 h 30 d'import. Les trois options sont chiffrées dans `docs/CATALOGUE.md` et le choix a un prix, donc il appartient à l'associé | Une des trois options. En attendant, le contrôle **épingle la porte à la largeur exacte** de cette URL : ce motif ailleurs sur une surface client fait échouer la vérification | 09 ou perf |
 | **378 ms par page de liste pour n'afficher aucun prix.** `get_price_html()` parcourt les articles de chaque produit variable, 23,6 ms par produit, seize par page | Tant qu'aucun prix n'est écrit, ce calcul produit une chaîne vide. Le corriger avant de connaître le prix de vente, c'est optimiser une forme qui va changer | Soit ne pas afficher de prix en liste tant qu'il n'y en a pas, soit stocker la fourchette sur le produit parent à l'import. À décider **avec** le prix de vente, pas avant | 05 puis perf |
 | **Six articles sont en ligne sans code-barres** | 4 codes-barres sur les 21 479 du catalogue sont réutilisés par le fournisseur sur plusieurs articles, dont un `4053840000000` manifestement bouche-trou. WooCommerce refuse le doublon, et l'import préfère publier l'article sans code-barres plutôt que de perdre la référence entière | Rien de notre côté : c'est une donnée fournisseur. À savoir le jour où un flux marchand (Google Shopping) exigera un GTIN par article | 10 |
