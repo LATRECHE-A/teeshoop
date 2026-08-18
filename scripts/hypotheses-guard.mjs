@@ -10,7 +10,7 @@
  * is that register. Nothing enforced it, and a register nobody enforces is
  * documentation, which drifts.
  *
- * WHAT IT CHECKS, five things:
+ * WHAT IT CHECKS, six things:
  *
  *   1. RESOLVES.   Every `home` and every `mirror` still points at something
  *                  that exists. A value whose home was renamed has no home.
@@ -31,6 +31,11 @@
  *                  `not_applicable` entry with a reason. This is the one that
  *                  makes forgetting impossible, and it is the most valuable of
  *                  the five: the other four protect values we remembered.
+ *  4b. THE SENTENCE AGREES TOO. The French statement a row displays states the
+ *                  value it describes, derived from the value rather than typed
+ *                  beside it. It is the only thing the shop's admin screen
+ *                  renders, so a register that drifts from the code lies to the
+ *                  one person who could correct it.
  *   5. SAID OUT LOUD.  Every `assumption` that reaches a customer carries the
  *                  French label it is displayed with, and that label is really
  *                  present in a shipped string table. A number a customer reads
@@ -473,6 +478,95 @@ function checkResolvesAndAgrees(entries, roots, skipped = []) {
   return fails
 }
 
+/**
+ * 2b: the sentence agrees with the value it describes.
+ *
+ * `statement_fr` is the ONLY thing the shop's admin screen renders, and it
+ * carries the money in French prose: "14,50 EUR HT ... 9,50 EUR de textile nu".
+ * Nothing compared it with the value, so the register could go on telling an
+ * operator a price the shop stopped charging, which is the exact failure the
+ * whole session exists to prevent, committed by the record of it.
+ *
+ * A row declares which fragments of its sentence ARE the value and how they are
+ * written; the guard derives each one from the extracted value and requires the
+ * derivation to match the fragment AND the fragment to be in the sentence. Rows
+ * whose statement carries no amount declare nothing and are counted in the
+ * summary, like every other narrowing.
+ */
+function checkStatement(entries, roots) {
+  const fails = []
+  for (const entry of entries) {
+    for (const amount of entry.statement_amounts ?? []) {
+      const parsed = parseRef(entry.home)
+      const key =
+        parsed.kind === 'php' || parsed.kind === 'phpconst' ? `${parsed.cls}::${parsed.member}` : parsed.file
+      const root = roots[key]
+      if (!root || root.error) {
+        fails.push({ check: 'statement', id: entry.id, where: entry.home, why: 'cannot read the value the sentence claims' })
+        continue
+      }
+      const got = readPath(root.value, amount.from)
+      if (!got.ok) {
+        fails.push({ check: 'statement', id: entry.id, where: amount.from, why: got.why })
+        continue
+      }
+      const written = frenchAmount(got.value, amount.as)
+      if (written === null) {
+        fails.push({ check: 'statement', id: entry.id, where: amount.from, why: `cannot write that value as "${amount.as}"` })
+        continue
+      }
+      if (loose(written) !== loose(amount.text)) {
+        // The derived form and the declared fragment are both about the same
+        // value, so printing neither keeps the rule of never echoing it.
+        fails.push({ check: 'statement', id: entry.id, where: amount.from, why: 'the value does not write itself the way the row says it does' })
+        continue
+      }
+      /*
+       * `text` is the number alone, because that is what the formatter can
+       * produce. `in` is the fragment the sentence must carry around it, which
+       * is what stops a two-digit amount from being satisfied by the same two
+       * digits sitting inside a larger number elsewhere in the sentence.
+       */
+      const fragment = amount.in ?? amount.text
+      if (!loose(fragment).includes(loose(amount.text))) {
+        fails.push({ check: 'statement', id: entry.id, where: amount.from, why: 'the declared fragment does not contain the amount it is supposed to carry' })
+        continue
+      }
+      if (!loose(entry.statement_fr).includes(loose(fragment))) {
+        fails.push({ check: 'statement', id: entry.id, where: 'statement_fr', why: 'the sentence no longer contains the amount it is supposed to state' })
+      }
+    }
+  }
+  return fails
+}
+
+/** Spaces are typographic here and ordinary there; compare on the meaning. */
+const loose = (t) => String(t).replace(/[\u00a0\u202f\u2009]/g, ' ').replace(/\s+/g, ' ').trim()
+
+/** French thousands, French decimal comma, and no trailing zeros on a rate. */
+function frenchNumber(value, decimals) {
+  const fixed = Math.abs(value).toFixed(decimals)
+  const [whole, frac] = fixed.split('.')
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f')
+  return (value < 0 ? '-' : '') + (frac ? `${grouped},${frac}` : grouped)
+}
+
+function frenchAmount(value, as) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  switch (as) {
+    // Integer cents, which is how every payable amount is stored.
+    case 'eur':
+      return `${frenchNumber(value / 100, 2)} EUR`
+    // A rate in [0, 1], written the way a French reader meets it.
+    case 'pct':
+      return `${frenchNumber(value * 100, 2).replace(/,?0+$/, '')} %`
+    case 'int':
+      return frenchNumber(value, 0)
+    default:
+      return null
+  }
+}
+
 /** 3: no second copy of the value anywhere the guard can see. */
 function checkNoSecondCopy(entries, files) {
   const fails = []
@@ -781,6 +875,7 @@ async function run(ledgerData, { questionsText, files, tables }) {
   const fails = [
     ...shape.map((why) => ({ check: 'shape', id: '', where: rel(LEDGER), why })),
     ...checkResolvesAndAgrees(entries, roots, skippedComparisons),
+    ...checkStatement(entries, roots),
     ...checkNoSecondCopy(entries, files),
     ...forgotten.fails,
     ...checkSaidOutLoud(entries, tables),
@@ -874,6 +969,15 @@ if (SELF_TEST) {
       },
     },
     {
+      name: 'statement',
+      why: 'a sentence that no longer states the value it describes',
+      mutate: (d) => {
+        const e = d.entries.find((x) => (x.statement_amounts ?? []).length > 0)
+        if (!e) die(2, 'hypotheses-guard --self-test: no row states an amount; this check cannot be proven.')
+        e.statement_amounts[0].text = '0,01 EUR'
+      },
+    },
+    {
       name: 'said-out-loud',
       why: 'a customer-facing assumption whose label is on no screen',
       mutate: (d) => {
@@ -899,7 +1003,7 @@ if (SELF_TEST) {
   if (!allFired) {
     die(2, '\nhypotheses-guard --self-test: at least one check did not fire when broken. It proves nothing.')
   }
-  console.log('\nhypotheses-guard --self-test: all five checks fail when broken.')
+  console.log(`\nhypotheses-guard --self-test: all ${cases.length} checks fail when broken.`)
   process.exit(0)
 }
 
@@ -945,6 +1049,10 @@ if ((result.skippedComparisons ?? []).length > 0) {
     `  ${result.skippedComparisons.length} mirror comparison(s) could not run because one end is an anchor: ` +
       result.skippedComparisons.join(', '),
   )
+}
+const unstated = entries.filter((e) => (e.statement_amounts ?? []).length === 0)
+if (unstated.length > 0) {
+  console.log(`  ${unstated.length} row(s) state no amount the sentence check can pin: ${unstated.map((e) => e.id).join(', ')}`)
 }
 if (scoped.length > 0) {
   console.log(`  ${scoped.length} row(s) hunted in a declared scope only: ${scoped.map((e) => e.id).join(', ')}`)

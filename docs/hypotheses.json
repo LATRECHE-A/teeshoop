@@ -16,7 +16,8 @@
 		"sessions": "les séances qui la consomment",
 		"cost_if_late": "reglage | reglage et remesure | on refait",
 		"label_fr": "obligatoire quand une hypothèse atteint un client : la chaîne française sous laquelle il la rencontre à l'écran",
-		"shipped_matches_default": "ce qui a été livré est-il l'hypothèse par défaut écrite dans QUESTIONS-ASSOCIE.md"
+		"shipped_matches_default": "ce qui a été livré est-il l'hypothèse par défaut écrite dans QUESTIONS-ASSOCIE.md",
+		"statement_amounts": "les fragments de statement_fr qui SONT la valeur : le contrôle les redérive depuis le code et refuse une phrase qui ne dit plus ce que le code fait"
 	},
 	"entries": [
 		{
@@ -52,7 +53,24 @@
 			],
 			"cost_if_late": "reglage et remesure",
 			"label_fr": "Prix à la pièce, impression comprise.",
-			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. C'est la figure de démonstration du studio convertie du dollar à l'euro pour que la plomberie se teste de bout en bout. Le vrai prix se déduit du coût d'achat (question 03) et du taux de marge (question 06)."
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. C'est la figure de démonstration du studio convertie du dollar à l'euro pour que la plomberie se teste de bout en bout. Le vrai prix se déduit du coût d'achat (question 03) et du taux de marge (question 06).",
+			"statement_amounts": [
+				{
+					"from": "garments.tee.base_ht+garments.tee.first_side_ht",
+					"as": "eur",
+					"text": "14,50 EUR"
+				},
+				{
+					"from": "garments.tee.base_ht",
+					"as": "eur",
+					"text": "9,50 EUR"
+				},
+				{
+					"from": "garments.tee.first_side_ht",
+					"as": "eur",
+					"text": "5,00 EUR"
+				}
+			]
 		},
 		{
 			"id": "H-Q06-TARIF-SWEAT",
@@ -83,7 +101,24 @@
 			],
 			"cost_if_late": "reglage et remesure",
 			"label_fr": "Prix à la pièce, impression comprise.",
-			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre, même origine que H-Q06-TARIF-TEE."
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre, même origine que H-Q06-TARIF-TEE.",
+			"statement_amounts": [
+				{
+					"from": "garments.hoodie.base_ht+garments.hoodie.first_side_ht",
+					"as": "eur",
+					"text": "32,00 EUR"
+				},
+				{
+					"from": "garments.hoodie.base_ht",
+					"as": "eur",
+					"text": "27,00 EUR"
+				},
+				{
+					"from": "garments.hoodie.first_side_ht",
+					"as": "eur",
+					"text": "5,00 EUR"
+				}
+			]
 		},
 		{
 			"id": "H-Q06-TARIF-VETEMENT-CLIENT",
@@ -124,7 +159,14 @@
 				"wp-plugins/teeshoop-core/tests/test-pricing.php"
 			],
 			"literal_allow_why": "Le test écrit sa propre configuration de prix.",
-			"literal_scope_why": "1200 apparaît dans huit harnesses de capture comme dimension de rendu, dans treize fichiers en tout. Il est donc cherché là où un second PRIX pourrait s'écrire : l'extension, la table du studio et le pont qui les relie."
+			"literal_scope_why": "1200 apparaît dans huit harnesses de capture comme dimension de rendu, dans treize fichiers en tout. Il est donc cherché là où un second PRIX pourrait s'écrire : l'extension, la table du studio et le pont qui les relie.",
+			"statement_amounts": [
+				{
+					"from": "garments.custom.first_side_ht",
+					"as": "eur",
+					"text": "12,00 EUR"
+				}
+			]
 		},
 		{
 			"id": "H-Q06-MARQUAGE-FACE-SUP",
@@ -187,7 +229,14 @@
 				"src/lib/teeshoop/bridge.test.ts"
 			],
 			"literal_allow_why": "Dans l'importeur, 600 est un nombre de secondes dans un exemple de ligne de commande ; les deux autres sont des tests.",
-			"literal_scope_why": "600 apparaît dans dix-sept fichiers du dépôt comme dimension, comme délai et comme taille de police, et trente-quatre fois en tout. Il est cherché là où un second prix par face pourrait s'écrire. La valeur est écrite SIX fois au total, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées ci-dessus comme miroirs et comparées, faute de pouvoir les supprimer sans redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire."
+			"literal_scope_why": "600 apparaît dans dix-sept fichiers du dépôt comme dimension, comme délai et comme taille de police, et trente-quatre fois en tout. Il est cherché là où un second prix par face pourrait s'écrire. La valeur est écrite SIX fois au total, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées ci-dessus comme miroirs et comparées, faute de pouvoir les supprimer sans redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire.",
+			"statement_amounts": [
+				{
+					"from": "garments.tee.extra_side_ht",
+					"as": "eur",
+					"text": "6,00 EUR"
+				}
+			]
 		},
 		{
 			"id": "H-Q08-PALIERS-SURFACE",
@@ -195,7 +244,7 @@
 			"level": "important",
 			"status": "assumption",
 			"since": "2026-08-12",
-			"statement_fr": "Le supplément de surface par face est de 0,00 EUR jusqu'à 625 cm², de 4,00 EUR HT jusqu'à 1250 cm², puis de 9,00 EUR HT sans borne.",
+			"statement_fr": "Le supplément de surface par face est de 0,00 EUR jusqu'à 625 cm², de 4,00 EUR HT jusqu'à 1 250 cm², puis de 9,00 EUR HT sans borne.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#area_tiers",
 			"mirrors": [
 				{
@@ -227,7 +276,39 @@
 			],
 			"cost_if_late": "reglage et remesure",
 			"label_fr": "Pour une face plus grande, un supplément s’ajoute",
-			"shipped_matches_default": "Partiellement. La question 08 dit « marquage facturé à la surface imprimée avec un minimum de facturation par emplacement » : le forfait par face joue le rôle du minimum, mais la facturation au cm² n'est pas livrée. Trois marches, pas un prix continu."
+			"shipped_matches_default": "Partiellement. La question 08 dit « marquage facturé à la surface imprimée avec un minimum de facturation par emplacement » : le forfait par face joue le rôle du minimum, mais la facturation au cm² n'est pas livrée. Trois marches, pas un prix continu.",
+			"statement_amounts": [
+				{
+					"from": "area_tiers.0.add_ht",
+					"as": "eur",
+					"text": "0,00 EUR",
+					"in": "0,00 EUR jusqu'à"
+				},
+				{
+					"from": "area_tiers.0.max_sq_cm",
+					"as": "int",
+					"text": "625",
+					"in": "625 cm²"
+				},
+				{
+					"from": "area_tiers.1.add_ht",
+					"as": "eur",
+					"text": "4,00 EUR",
+					"in": "4,00 EUR HT"
+				},
+				{
+					"from": "area_tiers.1.max_sq_cm",
+					"as": "int",
+					"text": "1 250",
+					"in": "1 250 cm²"
+				},
+				{
+					"from": "area_tiers.2.add_ht",
+					"as": "eur",
+					"text": "9,00 EUR",
+					"in": "9,00 EUR HT"
+				}
+			]
 		},
 		{
 			"id": "H-Q08-PALIERS-QUANTITE",
@@ -276,7 +357,33 @@
 				"wp-plugins/teeshoop-core/includes/Money.php"
 			],
 			"literal_allow_why": "Trois tests qui écrivent leurs propres taux, un poids de 0,15 kg dans une fiche d'essai, et deux commentaires qui prennent 0,15 comme exemple de remise et d'arrondi.",
-			"literal_scope_why": "Trois fractions ordinaires, présentes dans une vingtaine de fichiers chacune, dans les géométries et les seuils d'image. Elles sont cherchées là où une seconde grille de remise pourrait s'écrire."
+			"literal_scope_why": "Trois fractions ordinaires, présentes dans une vingtaine de fichiers chacune, dans les géométries et les seuils d'image. Elles sont cherchées là où une seconde grille de remise pourrait s'écrire.",
+			"statement_amounts": [
+				{
+					"from": "qty_breaks.0.rate",
+					"as": "pct",
+					"text": "15 %",
+					"in": "de 15 % à partir de"
+				},
+				{
+					"from": "qty_breaks.0.min_qty",
+					"as": "int",
+					"text": "10",
+					"in": "à partir de 10 pièces"
+				},
+				{
+					"from": "qty_breaks.1.rate",
+					"as": "pct",
+					"text": "25 %",
+					"in": "25 % à partir de 25"
+				},
+				{
+					"from": "qty_breaks.2.rate",
+					"as": "pct",
+					"text": "35 %",
+					"in": "35 % à partir de 50"
+				}
+			]
 		},
 		{
 			"id": "H-Q17-TVA",
@@ -313,7 +420,15 @@
 			"literal_scope": [
 				"wp-plugins/"
 			],
-			"literal_scope_why": "Deux écritures pour un même taux, la fraction et le pourcentage à quatre décimales de WooCommerce. Le pourcentage n'a de sens que dans l'extension, donc c'est là qu'il est cherché."
+			"literal_scope_why": "Deux écritures pour un même taux, la fraction et le pourcentage à quatre décimales de WooCommerce. Le pourcentage n'a de sens que dans l'extension, donc c'est là qu'il est cherché.",
+			"statement_amounts": [
+				{
+					"from": "vat_rate",
+					"as": "pct",
+					"text": "20 %",
+					"in": "de 20 % sur tout"
+				}
+			]
 		},
 		{
 			"id": "H-Q02-SEUIL-DEVIS-QTE",
@@ -352,7 +467,15 @@
 				"wp-plugins/teeshoop-core/tests/test-pricing.php"
 			],
 			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251).",
-			"literal_scope_why": "250 apparaît dans vingt-huit fichiers comme dimension, comme seuil d'image et comme longueur de rouleau, soixante et une fois en tout. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas."
+			"literal_scope_why": "250 apparaît dans vingt-huit fichiers comme dimension, comme seuil d'image et comme longueur de rouleau, soixante et une fois en tout. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas.",
+			"statement_amounts": [
+				{
+					"from": "quote_from_qty",
+					"as": "int",
+					"text": "250",
+					"in": "Au-delà de 250 pièces"
+				}
+			]
 		},
 		{
 			"id": "H-Q02-SEUIL-DEVIS-MONTANT",
@@ -377,7 +500,15 @@
 			],
 			"cost_if_late": "on refait",
 			"label_fr": "la commande est chiffrée à la main",
-			"shipped_matches_default": "Oui, seconde moitié de la même phrase que H-Q02-SEUIL-DEVIS-QTE."
+			"shipped_matches_default": "Oui, seconde moitié de la même phrase que H-Q02-SEUIL-DEVIS-QTE.",
+			"statement_amounts": [
+				{
+					"from": "quote_from_ht",
+					"as": "eur",
+					"text": "2 000,00 EUR",
+					"in": "Au-delà de 2 000,00 EUR hors taxes"
+				}
+			]
 		},
 		{
 			"id": "H-Q23-PLAFOND-QUANTITE",
@@ -413,7 +544,15 @@
 				"08"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Non. L'hypothèse par défaut de la question 23 parle d'une « alerte automatique et validation manuelle au-delà de 500 pièces sur une même commande » : ni l'alerte ni la validation n'existent. En pratique le seuil de devis de 250 pièces intervient bien avant, donc l'écart réel est que la capacité de l'atelier n'est modélisée nulle part."
+			"shipped_matches_default": "Non. L'hypothèse par défaut de la question 23 parle d'une « alerte automatique et validation manuelle au-delà de 500 pièces sur une même commande » : ni l'alerte ni la validation n'existent. En pratique le seuil de devis de 250 pièces intervient bien avant, donc l'écart réel est que la capacité de l'atelier n'est modélisée nulle part.",
+			"statement_amounts": [
+				{
+					"from": "max_qty",
+					"as": "int",
+					"text": "10 000",
+					"in": "plafonnée à 10 000 pièces"
+				}
+			]
 		},
 		{
 			"id": "H-Q42-MARGE-TEXTILE-NU",
@@ -854,7 +993,7 @@
 			"level": "utile",
 			"status": "assumption",
 			"since": "2026-08-14",
-			"statement_fr": "Une demande de devis sans suite est conservée 1095 jours, soit trois ans après le dernier échange, puis supprimée automatiquement.",
+			"statement_fr": "Une demande de devis sans suite est conservée 1 095 jours, soit trois ans après le dernier échange, puis supprimée automatiquement.",
 			"home": "phpconst:Teeshoop\\Core\\Quote::KEEP_DAYS",
 			"mirrors": [
 				{
@@ -877,7 +1016,15 @@
 			],
 			"cost_if_late": "reglage",
 			"label_fr": "conservées trois ans après notre dernier échange",
-			"shipped_matches_default": "Oui : « trois ans après le dernier échange, puis suppression automatique », qui est aussi la recommandation de la CNIL pour des données de prospection. C'est un nombre AVEC un mécanisme derrière : une tâche quotidienne supprime ce qui l'a dépassé."
+			"shipped_matches_default": "Oui : « trois ans après le dernier échange, puis suppression automatique », qui est aussi la recommandation de la CNIL pour des données de prospection. C'est un nombre AVEC un mécanisme derrière : une tâche quotidienne supprime ce qui l'a dépassé.",
+			"statement_amounts": [
+				{
+					"from": "",
+					"as": "int",
+					"text": "1 095",
+					"in": "conservée 1 095 jours"
+				}
+			]
 		}
 	],
 	"not_applicable": [

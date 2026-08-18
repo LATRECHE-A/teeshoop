@@ -192,10 +192,12 @@ par valeur supposée, avec son **unique** emplacement dans le code, ce qu'elle a
 client, un fournisseur, une presse) et les mesures qui deviendraient fausses si elle
 bougeait. `scripts/hypotheses-guard.mjs` est dans `npm run ci` et échoue quand le registre
 et le code divergent, quand une valeur acquiert une seconde copie, quand une question
-marquée bloquante n'a aucune ligne, et quand une hypothèse qu'un client rencontre n'a
-aucune formulation française à l'écran. Les cinq contrôles ont été cassés un par un, sur
-les vrais fichiers, pour vérifier qu'ils échouent, et `--self-test` les recasse à chaque
-exécution de la chaîne. **Les 18 questions bloquantes sont toutes traitées** : onze par une
+marquée bloquante n'a aucune ligne, quand la phrase française d'une ligne ne dit plus le
+nombre que le code applique, et quand une hypothèse qu'un client rencontre n'a aucune
+formulation française à l'écran. Les six contrôles ont été cassés un par un, sur les vrais
+fichiers, pour vérifier qu'ils échouent, et `--self-test` les recasse à chaque exécution de
+la chaîne. Un exemple mesuré : passer le t-shirt nu de 9,50 à 9,90 EUR fait échouer trois
+contrôles à la fois. **Les 18 questions bloquantes sont toutes traitées** : onze par une
 ligne, sept par un motif écrit de non-applicabilité.
 
 Il ne compare pas des fichiers texte : il **fait tourner les deux implémentations**. La

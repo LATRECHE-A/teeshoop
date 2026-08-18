@@ -94,7 +94,7 @@ return array(
 		'level' => 'important',
 		'status' => 'assumption',
 		'since' => '2026-08-12',
-		'statement_fr' => 'Le supplément de surface par face est de 0,00 EUR jusqu\'à 625 cm², de 4,00 EUR HT jusqu\'à 1250 cm², puis de 9,00 EUR HT sans borne.',
+		'statement_fr' => 'Le supplément de surface par face est de 0,00 EUR jusqu\'à 625 cm², de 4,00 EUR HT jusqu\'à 1 250 cm², puis de 9,00 EUR HT sans borne.',
 		'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#area_tiers',
 		'reaches' => array(
 			'customer',
@@ -375,7 +375,7 @@ return array(
 		'level' => 'utile',
 		'status' => 'assumption',
 		'since' => '2026-08-14',
-		'statement_fr' => 'Une demande de devis sans suite est conservée 1095 jours, soit trois ans après le dernier échange, puis supprimée automatiquement.',
+		'statement_fr' => 'Une demande de devis sans suite est conservée 1 095 jours, soit trois ans après le dernier échange, puis supprimée automatiquement.',
 		'home' => 'phpconst:Teeshoop\\Core\\Quote::KEEP_DAYS',
 		'reaches' => array(
 			'customer',
