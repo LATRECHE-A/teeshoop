@@ -1,0 +1,895 @@
+{
+	"version": 1,
+	"about": "Le registre des hypothèses. Une ligne par valeur supposée à la place de l'associé : son unique emplacement dans le code, ce qu'elle atteint, et ce qu'une réponse tardive coûterait. Tenu exécutable par scripts/hypotheses-guard.mjs, qui échoue quand le registre et le code divergent et quand une question bloquante n'a pas de ligne. La prose qui explique la décision est dans QUESTIONS-ASSOCIE.md et dans docs/ROADMAP.md ; ici, ce sont les faits.",
+	"fields": {
+		"id": "identifiant stable et grepable, qui porte sa question",
+		"question": "la question de QUESTIONS-ASSOCIE.md qui la tranche",
+		"level": "le niveau recopié de cette question",
+		"status": "assumption (on s'appuie dessus) | answered (l'associé a répondu) | refused (on a délibérément ne rien construit)",
+		"since": "la date à laquelle on a commencé à s'appuyer dessus",
+		"statement_fr": "ce qui est supposé, en une phrase, avec son unité",
+		"home": "l'UNIQUE autorité, sous une forme que le contrôle sait résoudre",
+		"mirrors": "les autres endroits qui doivent tenir la même valeur, avec la relation qui les lie",
+		"literals": "ce que le contrôle cherche ailleurs dans le dépôt ; vide impose literals_why",
+		"reaches": "qui rencontre la valeur : customer, supplier, printer, operator, internal",
+		"derives": "les mesures publiées qui deviennent fausses si elle bouge",
+		"sessions": "les séances qui la consomment",
+		"cost_if_late": "reglage | reglage et remesure | on refait",
+		"label_fr": "obligatoire quand une hypothèse atteint un client : la chaîne française sous laquelle il la rencontre à l'écran",
+		"shipped_matches_default": "ce qui a été livré est-il l'hypothèse par défaut écrite dans QUESTIONS-ASSOCIE.md"
+	},
+	"entries": [
+		{
+			"id": "H-Q06-TARIF-TEE",
+			"question": "Q06",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "Un t-shirt imprimé sur une face vaut 14,50 EUR HT à l'unité : 9,50 EUR de textile nu et 5,00 EUR de marquage.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.base_ht+garments.tee.first_side_ht",
+			"mirrors": [
+				{
+					"ref": "ts:src/content/pricing.ts#PRICING.tee.baseUsd",
+					"relation": "eur-to-cents",
+					"why": "le studio hors boutique affiche sa propre table de démonstration ; elle ne peut pas être lue depuis PHP, elle est donc comparée en faisant tourner les deux."
+				}
+			],
+			"literals": [
+				"950"
+			],
+			"literal_allow": [
+				"scripts/stage-shots.mjs"
+			],
+			"literal_allow_why": "950 y est une hauteur de fenêtre de navigateur, pas de l'argent.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"04",
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "Prix à la pièce, impression comprise.",
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. C'est la figure de démonstration du studio convertie du dollar à l'euro pour que la plomberie se teste de bout en bout. Le vrai prix se déduit du coût d'achat (question 03) et du taux de marge (question 06)."
+		},
+		{
+			"id": "H-Q06-TARIF-SWEAT",
+			"question": "Q06",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "Un sweat imprimé sur une face vaut 32,00 EUR HT à l'unité : 27,00 EUR de textile nu et 5,00 EUR de marquage.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.hoodie.base_ht+garments.hoodie.first_side_ht",
+			"mirrors": [
+				{
+					"ref": "ts:src/content/pricing.ts#PRICING.hoodie.baseUsd",
+					"relation": "eur-to-cents",
+					"why": "même table de démonstration que le t-shirt."
+				}
+			],
+			"literals": [
+				"2700"
+			],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"04",
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "Prix à la pièce, impression comprise.",
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre, même origine que H-Q06-TARIF-TEE."
+		},
+		{
+			"id": "H-Q06-TARIF-VETEMENT-CLIENT",
+			"question": "Q06",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "Quand le client fournit son propre vêtement, la décoration d'une face vaut 12,00 EUR HT et le textile ne nous coûte rien.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.custom.base_ht+garments.custom.first_side_ht",
+			"mirrors": [
+				{
+					"ref": "ts:src/content/pricing.ts#PRICING.custom.baseUsd",
+					"relation": "eur-to-cents",
+					"why": "même table de démonstration que le t-shirt."
+				}
+			],
+			"literals": [
+				"1200"
+			],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"04",
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "Prix à la pièce, impression comprise.",
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre, même origine que H-Q06-TARIF-TEE.",
+			"literal_scope": [
+				"wp-plugins/",
+				"src/content/",
+				"src/lib/teeshoop/"
+			],
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/tests/test-pricing.php"
+			],
+			"literal_allow_why": "Le test écrit sa propre configuration de prix.",
+			"literal_scope_why": "1200 est aussi une dimension de rendu dans huit harnesses de capture. Il est donc cherché là où un second PRIX pourrait s'écrire : l'extension, la table du studio et le pont qui les relie."
+		},
+		{
+			"id": "H-Q06-MARQUAGE-FACE-SUP",
+			"question": "Q06",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "Chaque face imprimée après la première coûte 6,00 EUR HT, quel que soit le vêtement.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.extra_side_ht",
+			"mirrors": [
+				{
+					"ref": "ts:src/content/pricing.ts#PRICING.tee.perExtraSideUsd",
+					"relation": "eur-to-cents",
+					"why": "même table de démonstration que le t-shirt."
+				}
+			],
+			"literals": [
+				"600"
+			],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"04",
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "Prix à la pièce, impression comprise.",
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. À noter, sans réponse à ce jour : une face supplémentaire coûte plus cher que la première (6,00 contre 5,00), ce qui n'est écrit nulle part comme une intention commerciale.",
+			"literal_scope": [
+				"wp-plugins/",
+				"src/content/",
+				"src/lib/teeshoop/"
+			],
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Importer.php",
+				"wp-plugins/teeshoop-core/tests/test-pricing.php",
+				"src/lib/teeshoop/bridge.test.ts"
+			],
+			"literal_allow_why": "Dans l'importeur, 600 est un nombre de secondes dans un exemple de ligne de commande ; les deux autres sont des tests.",
+			"literal_scope_why": "600 apparaît dix-sept fois dans le dépôt comme dimension, comme délai et comme taille de police. Il est cherché là où un second prix par face pourrait s'écrire. À signaler : la valeur est écrite trois fois dans son propre foyer, une par vêtement, ce qui est une duplication interne à traiter par la séance 05 quand la grille sera vraie ; la démonter aujourd'hui reviendrait à redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire."
+		},
+		{
+			"id": "H-Q08-PALIERS-SURFACE",
+			"question": "Q08",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "Le supplément de surface par face est de 0,00 EUR jusqu'à 625 cm², de 4,00 EUR HT jusqu'à 1250 cm², puis de 9,00 EUR HT sans borne.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#area_tiers",
+			"mirrors": [
+				{
+					"ref": "ts:src/content/pricing.ts#PRICING.tee.areaTiers",
+					"relation": "area-tiers",
+					"why": "la table du studio a déjà divergé une fois : elle tenait 97 et 193 pouces carrés, soit 625,81 et 1245,16 cm², assez proches pour paraître identiques et assez différents pour qu'un visuel tombant dans l'écart soit chiffré ici et facturé là."
+				}
+			],
+			"literals": [
+				"625",
+				"1250"
+			],
+			"literal_allow": [
+				"src/content/pricing.test.ts",
+				"wp-plugins/teeshoop-core/tests/test-pricing.php",
+				"wp-plugins/teeshoop-core/tests/test-margin.php",
+				"wp-plugins/teeshoop-core/includes/Margin.php",
+				"wp-plugins/teeshoop-core/includes/Money.php",
+				"src/lib/teeshoop/upload.ts"
+			],
+			"literal_allow_why": "Les deux premiers sont les tests qui figent les bornes des deux côtés. Les trois suivants sont des commentaires : 625 et 250 sont l'exemple chiffré de la Bible dans le moteur de coût, et 1250 est l'exemple de formatage français dans Money. Le dernier est le commentaire qui explique pourquoi la surface est mesurée à une taille fixe, et qui cite la borne pour dire ce qu'un client pouvait franchir en appuyant sur un bouton de taille.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "Pour une face plus grande, un supplément s’ajoute",
+			"shipped_matches_default": "Partiellement. La question 08 dit « marquage facturé à la surface imprimée avec un minimum de facturation par emplacement » : le forfait par face joue le rôle du minimum, mais la facturation au cm² n'est pas livrée. Trois marches, pas un prix continu."
+		},
+		{
+			"id": "H-Q08-PALIERS-QUANTITE",
+			"question": "Q08",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "Les remises de quantité sont de 15 % à partir de 10 pièces, 25 % à partir de 25 et 35 % à partir de 50, appliquées au prix unitaire complet.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#qty_breaks",
+			"mirrors": [
+				{
+					"ref": "ts:src/content/pricing.ts#QTY_BREAKS",
+					"relation": "qty-breaks",
+					"why": "la table du studio répète les trois paliers, seuils et taux compris."
+				}
+			],
+			"literals": [
+				"0.15",
+				"0.25",
+				"0.35"
+			],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [
+				"Les colonnes de la grille publique (1, 10, 25, 50, 100) sont déduites de ces paliers : changer les paliers change la grille, et l'hypothèse par défaut de la question 08 en annonce six et non cinq."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "Le prix par quantité",
+			"shipped_matches_default": "Non. La question 08 annonce « 6 paliers de quantité » et trois sont livrés, qui produisent cinq colonnes. La question 06 annonce par ailleurs « remise maximale de 15 % sans validation de votre part » : le site accorde 35 % en autonomie dès 50 pièces.",
+			"literal_scope": [
+				"wp-plugins/",
+				"src/content/",
+				"src/lib/teeshoop/"
+			],
+			"literal_allow": [
+				"src/content/pricing.test.ts",
+				"wp-plugins/teeshoop-core/tests/test-pricing.php",
+				"wp-plugins/teeshoop-core/tests/test-margin.php",
+				"wp-plugins/teeshoop-core/tests/test-catalogue.php",
+				"wp-plugins/teeshoop-core/includes/Importer.php",
+				"wp-plugins/teeshoop-core/includes/Money.php"
+			],
+			"literal_allow_why": "Trois tests qui écrivent leurs propres taux, un poids de 0,15 kg dans une fiche d'essai, et deux commentaires qui prennent 0,15 comme exemple de remise et d'arrondi.",
+			"literal_scope_why": "Trois fractions ordinaires, présentes une vingtaine de fois chacune dans les géométries et les seuils d'image. Elles sont cherchées là où une seconde grille de remise pourrait s'écrire."
+		},
+		{
+			"id": "H-Q17-TVA",
+			"question": "Q17",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "La TVA est de 20 % sur tout ce que le site chiffre, sous la forme d'une constante unique et non d'une période datée.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#vat_rate",
+			"mirrors": [],
+			"literals": [
+				"0.20",
+				"20.0000"
+			],
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/tests/test-pricing.php",
+				"wp-plugins/teeshoop-core/tests/test-grid.php",
+				"wp-plugins/teeshoop-core/tests/e2e-support.php"
+			],
+			"literal_allow_why": "Les trois sont des tests : deux écrivent leur propre configuration de prix, le troisième pose la ligne de TVA du parcours d'achat de bout en bout.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [
+				"Tout montant TTC affiché, dans la grille de prix, dans le panier et dans le devis."
+			],
+			"sessions": [
+				"04"
+			],
+			"cost_if_late": "on refait",
+			"label_fr": "Hors taxes en gras, toutes taxes comprises en dessous.",
+			"shipped_matches_default": "Le taux, oui. La forme, non, et c'est l'écart le plus structurant du registre. L'hypothèse par défaut de la question 17 dit expressément que le régime doit être « construit comme une période datée et non comme une constante », avec un mode franchise qui rend TTC égal à HT et fait apparaître « TVA non applicable, article 293 B du CGI ». Rien de tout cela n'existe : la chaîne « 293 B » n'est nulle part dans le dépôt. La boutique en ligne a par ailleurs encaissé 15 commandes taxes désactivées (constat 6).",
+			"literal_scope": [
+				"wp-plugins/"
+			],
+			"literal_scope_why": "Deux écritures pour un même taux, la fraction et le pourcentage à quatre décimales de WooCommerce. Le pourcentage n'a de sens que dans l'extension, donc c'est là qu'il est cherché."
+		},
+		{
+			"id": "H-Q02-SEUIL-DEVIS-QTE",
+			"question": "Q02",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Au-delà de 250 pièces sur une ligne, la commande passe obligatoirement par un devis au lieu d'être payée en autonomie.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#quote_from_qty",
+			"mirrors": [],
+			"literals": [
+				"250"
+			],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"04",
+				"05"
+			],
+			"cost_if_late": "on refait",
+			"label_fr": "la commande est chiffrée à la main",
+			"shipped_matches_default": "Oui, exactement : « prix public et paiement en autonomie jusqu'à 250 pièces ou 2 000 EUR hors taxes ». La Bible ne donne aucun seuil, donc il n'y avait rien à déduire et le commentaire du code dit de qui est ce chiffre.",
+			"literal_scope": [
+				"wp-plugins/"
+			],
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/assets/product.js",
+				"wp-plugins/teeshoop-core/includes/Margin.php",
+				"wp-plugins/teeshoop-core/includes/Money.php",
+				"wp-plugins/teeshoop-core/tests/test-grid.php",
+				"wp-plugins/teeshoop-core/tests/test-margin.php",
+				"wp-plugins/teeshoop-core/tests/integration.php",
+				"wp-plugins/teeshoop-core/tests/test-pricing.php"
+			],
+			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251).",
+			"literal_scope_why": "250 apparaît vingt-huit fois comme dimension, comme seuil d'image et comme longueur de rouleau. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas."
+		},
+		{
+			"id": "H-Q02-SEUIL-DEVIS-MONTANT",
+			"question": "Q02",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Au-delà de 2 000,00 EUR hors taxes sur une ligne, la commande passe obligatoirement par un devis.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#quote_from_ht",
+			"mirrors": [],
+			"literals": [
+				"200000"
+			],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"04",
+				"05"
+			],
+			"cost_if_late": "on refait",
+			"label_fr": "la commande est chiffrée à la main",
+			"shipped_matches_default": "Oui, seconde moitié de la même phrase que H-Q02-SEUIL-DEVIS-QTE."
+		},
+		{
+			"id": "H-Q23-PLAFOND-QUANTITE",
+			"question": "Q23",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "Une ligne de commande est plafonnée à 10 000 pièces, au-delà desquelles la quantité est ramenée au plafond.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#max_qty",
+			"mirrors": [],
+			"literals": [
+				"10000"
+			],
+			"literal_allow": [
+				"src/lib/teeshoop/designDoc.ts",
+				"wp-plugins/teeshoop-core/includes/Design.php",
+				"worker/design.test.ts",
+				"src/lib/dtf/nesting.ts",
+				"src/lib/dtf/trueshape.ts",
+				"wp-plugins/teeshoop-core/tests/test-pricing.php",
+				"wp-plugins/teeshoop-core/tests/test-margin.php",
+				"scripts/ar-shots.mjs",
+				"scripts/dtf-bench.mjs"
+			],
+			"literal_allow_why": "Collision de nombre, pas de règle : 10000 est aussi le plafond de surface en cm² du document de création (une règle différente, écrite elle aussi à deux endroits, designDoc.ts et Design.php, ce qui reste à traiter), une borne d'imbrication, un montant de test, une dimension de capture et le diviseur des centimètres carrés vers les mètres carrés dans le banc d'essai du film.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [],
+			"sessions": [
+				"05",
+				"08"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Non. L'hypothèse par défaut de la question 23 parle d'une « alerte automatique et validation manuelle au-delà de 500 pièces sur une même commande » : ni l'alerte ni la validation n'existent. En pratique le seuil de devis de 250 pièces intervient bien avant, donc l'écart réel est que la capacité de l'atelier n'est modélisée nulle part."
+		},
+		{
+			"id": "H-Q42-MARGE-TEXTILE-NU",
+			"question": "Q42",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-14",
+			"statement_fr": "Aucun taux de marge n'est appliqué à un textile nu revendu, donc aucun prix de vente n'est écrit sur les 26 392 articles importés.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#blank_margin_rate",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "Le refus est l'absence de valeur : le foyer tient null, et null ne se cherche pas comme littéral. Le contrôle vérifie que la clé existe encore et que rien ne s'y est glissé.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [
+				"« Le catalogue est consultable et non commandable » : la phrase devient fausse le jour où le taux est posé."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui, mot pour mot : « rien. Aucun prix n'est écrit, le catalogue reste consultable et non commandable ». À signaler tout de même : l'hypothèse par défaut de la question 06 donne un taux (« marge cible 55 % ») que celle de la question 42 interdit d'écrire. Le code suit la 42."
+		},
+		{
+			"id": "H-Q41-CATALOGUE-CONSULTABLE",
+			"question": "Q41",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Une référence importée est publiée et visible dès sa création, avec ses coloris, ses tailles et ses caractéristiques, et n'est pas commandable faute de prix.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Shelf.php#unpriced_notice",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une politique, pas un nombre : elle se vérifie par la présence de la fonction qui la met en oeuvre.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05",
+				"09"
+			],
+			"cost_if_late": "on refait",
+			"label_fr": "Coloris",
+			"shipped_matches_default": "Oui. À noter que rien n'est commandable pour deux raisons indépendantes : l'article n'a pas de prix, et un produit personnalisable refuse séparément toute mise au panier sans création vérifiée."
+		},
+		{
+			"id": "H-Q09-FAMILLES",
+			"question": "Q09",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Trois familles sont publiées, t-shirts, polos et sweats, sans plafond de nombre de références.",
+			"home": "phpconst:Teeshoop\\Core\\Catalogue::PRINTABLE_FAMILIES",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "Trois chaînes de trois à cinq lettres ('tee', 'polo', 'sweat') sont des identifiants de vêtement dans tout le studio ; les chercher ailleurs ne dirait rien.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [
+				"459 références publiées et 26 392 articles, mesurés sur le miroir local le 15/08/2026 (docs/CATALOGUE.md). Changer les familles change ces deux nombres, et la durée d'import de 43 minutes avec.",
+				"« 462 produits publiés » = 459 références plus les 3 produits personnalisables du studio."
+			],
+			"sessions": [
+				"09"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Non, sur les deux moitiés de la question. L'hypothèse par défaut annonce « 300 références (t-shirts, polos, sweats, softshells, haute visibilité) publiées, le reste du catalogue accessible uniquement sur devis ». Livré : 459 références, aucun plafond dans le code, aucun mécanisme « le reste sur devis », et deux familles sur cinq absentes, dont le softshell qui est activement rejeté par le classificateur du Worker. Le nombre 300 n'existe nulle part dans le dépôt. La Bible, elle, demande l'inverse de son propre résumé : « plusieurs centaines de références, il n'est pas prévu de réduire le site à une petite sélection ». Le code suit la Bible."
+		},
+		{
+			"id": "H-Q43-STOCK",
+			"question": "Q43",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Des trois nombres de stock que le fournisseur donne par article, seul le premier est traité comme du stock vendable.",
+			"home": "phpconst:Teeshoop\\Core\\Catalogue::STOCK_INDEX",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "L'indice vaut 0 : un littéral qu'il serait absurde de chercher dans le dépôt. Le foyer est une constante nommée précisément pour que le registre puisse la désigner.",
+			"reaches": [
+				"customer",
+				"operator",
+				"supplier"
+			],
+			"derives": [
+				"Mesuré sur 26 300 lignes : le premier nombre totalise 4,7 millions de pièces, le deuxième 7 935, le troisième 32,4 millions."
+			],
+			"sessions": [
+				"08"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Coloris",
+			"shipped_matches_default": "Oui : « seul le premier nombre est du stock. C'est le sens prudent. » Se tromper dans ce sens refuse des commandes que le fournisseur pourrait honorer ; se tromper dans l'autre en encaisserait d'impossibles à livrer."
+		},
+		{
+			"id": "H-Q44-COLORIS-NON-TRADUITS",
+			"question": "Q44",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Les 442 noms de coloris sont publiés tels que le fabricant les écrit, sans traduction.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Catalogue.php#$colour_names[ $code ]  = self::text( $cw['name'] ?? '' );",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une politique : l'absence de table de traduction. Le foyer est la ligne qui prend le nom du fournisseur, et le contrôle échoue si elle est réécrite, ce qui est exactement le moment où il faut relire cette ligne du registre.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"09"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Coloris",
+			"shipped_matches_default": "Oui : « les noms du fabricant, tels quels ». Deux choses à savoir avant de répondre. Le terme de taxonomie est identifié PAR ce nom, donc traduire plus tard renomme 442 termes existants et ne change pas seulement l'affichage. Et le catalogue est déjà bilingue par attribut : le col, les manches et le public SONT traduits, le coloris non, ce qu'aucune réponse à la question 44 ne décrit."
+		},
+		{
+			"id": "H-Q11-STOCK-CHIFFRE",
+			"question": "Q11",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "La quantité exacte annoncée par le fournisseur est écrite sur chaque article, et rien ne décide encore comment la boutique l'affiche.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Importer.php#manage_stock",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une politique : écrire le chiffre plutôt qu'un état. La valeur elle-même vient du fournisseur à chaque import.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [],
+			"sessions": [
+				"08",
+				"09"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Moitié. L'hypothèse par défaut de la question 11 demande une « mention disponible ou délai allongé SANS CHIFFRE ». Le chiffre est écrit, et le réglage WooCommerce qui déciderait de son affichage (woocommerce_stock_format) n'est posé nulle part : à ce jour il n'atteint pas un client parce qu'aucun article importé n'est achetable, ce qui cesse d'être vrai le jour où la question 42 est répondue."
+		},
+		{
+			"id": "H-Q08-SURFACE-ENCRE",
+			"question": "Q08",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-13",
+			"statement_fr": "Le marquage est mesuré sur l'encre du visuel et non sur le fichier qui le contient, et la même mesure sert au prix client et au film acheté.",
+			"home": "anchor:src/lib/ink.ts#export function sideArtworkSqCm",
+			"mirrors": [
+				{
+					"ref": "anchor:wp-plugins/teeshoop-core/includes/Design.php#area_sq_cm",
+					"relation": "equal",
+					"why": "la boutique ne remesure rien : elle lit la surface du document de création que le Worker a confirmé."
+				}
+			],
+			"literals": [],
+			"literals_why": "C'est une politique de mesure, pas un nombre.",
+			"reaches": [
+				"customer",
+				"printer",
+				"operator"
+			],
+			"derives": [
+				"220 cm de rouleau ramenés à 60 cm et 1,28 m² de film ramenés à 0,35 m² sur une commande de 20 vêtements avec des fichiers clients réalistes.",
+				"59 % de la facture d'un design d'exemple, qui était l'espace vide entre deux visuels d'une même face."
+			],
+			"sessions": [
+				"05",
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "La surface retenue est celle de l’encre",
+			"shipped_matches_default": "Oui pour le principe : « marquage facturé à la surface imprimée ». Non pour la forme : la question 08 décrit un prix à la surface avec un minimum par emplacement, et ce qui est livré est un forfait par face plus trois marches de surface."
+		},
+		{
+			"id": "H-Q37-TAILLE-DE-TARIFICATION",
+			"question": "Q37",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-13",
+			"statement_fr": "La surface facturée est celle mesurée à la taille M, quelles que soient les tailles réellement commandées sur la ligne.",
+			"home": "ts:src/content/sizeChart.ts#DEFAULT_SIZE",
+			"mirrors": [
+				{
+					"ref": "json:wp-plugins/teeshoop-core/data/garments.json#garments.tee.pricedSize",
+					"relation": "equal",
+					"why": "la boutique ne sait pas lire le TypeScript du studio ; le fichier est engendré et sa fraîcheur est déjà tenue par npm run verify:garments."
+				},
+				{
+					"ref": "anchor:wp-plugins/teeshoop-core/includes/Garments.php#?? 'M'",
+					"relation": "equal",
+					"why": "un repli défensif écrit en dur dans le PHP : deuxième littéral pour une seule valeur, tenu par ce contrôle et par un test."
+				}
+			],
+			"literals": [],
+			"literals_why": "La valeur est la lettre M : introuvable par recherche de littéral. Les deux endroits qui la répètent sont déclarés comme miroirs et vérifiés comme tels.",
+			"reaches": [
+				"customer",
+				"printer"
+			],
+			"derives": [
+				"Le chiffre de la question elle-même : un visuel de 500 cm² en M en fait 757 en 3XL, soit 120,00 EUR HT non facturés sur 30 pièces en 3XL, pour environ 50 % de film en plus."
+			],
+			"sessions": [
+				"05",
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "Surface imprimable maximale, mesurée sur une taille",
+			"shipped_matches_default": "Oui : « un seul prix de marquage par ligne, calculé sur la surface à la taille M ». La fiche produit le dit à voix haute plutôt que de le taire."
+		},
+		{
+			"id": "H-Q32-UN-TRANSFERT-PAR-VISUEL",
+			"question": "Q32",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-13",
+			"statement_fr": "Deux encres séparées de plus de 0,2 pouce, soit 5,1 mm, deviennent deux transferts distincts ; l'atelier peut forcer une pose unique commande par commande.",
+			"home": "anchor:src/lib/ink.ts#export const PIECE_CLEARANCE_IN = 0.2",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "0,2 est une fraction ordinaire, présente vingt-trois fois dans les géométries et les harnesses. Le foyer est une constante exportée et unique.",
+			"reaches": [
+				"printer",
+				"operator",
+				"internal"
+			],
+			"derives": [
+				"52 % de film économisé, mesuré, en posant un transfert par visuel au lieu d'un par vêtement."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Non, sur la moitié qui compte. L'hypothèse par défaut est « découpe automatique activée lorsqu'elle économise plus d'environ 100 cm² de film par vêtement ». Ce qui est livré ne teste aucun seuil d'économie : la découpe est purement géométrique et se déclenche dès que le vide dépasse la distance ci-dessus, même si elle n'économise qu'un centimètre carré. La seconde moitié du défaut est respectée : la pose unique peut être forcée."
+		},
+		{
+			"id": "H-Q04-TARIF-FILM-FRANCE",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-13",
+			"statement_fr": "Le film est chiffré à 17,00 EUR HT le mètre linéaire en 56 cm en France, ordre de grandeur donné par la Bible et confirmé par personne.",
+			"home": "doc:docs/ROADMAP.md#17 € HT/mètre linéaire en France",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "17 est un nombre à deux chiffres présent dix fois dans le dépôt comme dimension et comme index. Ce tarif ne vit dans AUCUN code exécutable : il ne sert qu'à convertir une économie de film mesurée en euros, dans le texte qui la publie, et c'est ce texte qui est le foyer.",
+			"reaches": [
+				"internal"
+			],
+			"derives": [
+				"37,40 EUR ramenés à 10,20 EUR sur une commande de 20 vêtements : les deux montants sont ce tarif multiplié par un métrage mesuré, donc les deux bougent avec lui. Le métrage, lui, reste vrai."
+			],
+			"sessions": [
+				"05",
+				"07",
+				"08"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "C'est l'hypothèse par défaut elle-même, reprise telle quelle. Ce que la question 04 porte d'autre n'a pas été construit : ni le tarif espagnol de 9 EUR, ni les 15 EUR de livraison par commande, ni le minimum d'un mètre, ni les 5 % de perte prévue. La provision de perte est le seul des quatre qui manque à une formule déjà écrite : le coût film additionne le métrage et le port, et rien d'autre."
+		},
+		{
+			"id": "H-Q04-COUT-FILM-RELEVE",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-07-26",
+			"statement_fr": "Le coût du film est estimé à partir de tarifs publics relevés en juillet 2026, jamais négociés ni confirmés par un devis, et la laize du profil retenu par défaut n'est pas celle que la Bible annonce.",
+			"home": "ts:src/lib/dtf/suppliers.ts#DEFAULT_SUPPLIERS",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "Le foyer est une table de profils, pas une valeur : une trentaine de nombres qui bougeront tous ensemble le jour où un devis nommé arrive. Les sources et chaque incertitude sont dans docs/credits/DTF.md, qui n'est pas engendré et n'est donc pas un miroir.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [
+				"Toute comparaison de fournisseurs affichée dans le panneau d'administration, et tout coût de revient qui s'appuiera dessus en séance 05."
+			],
+			"sessions": [
+				"05",
+				"07",
+				"08"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Non, et l'écart est large dans le sens qui flatte : le tarif retenu par défaut est très inférieur à l'ordre de grandeur de la Bible, aucun profil n'imprime en Espagne, deux profils sur cinq portent une base de taxe différente des autres, et plusieurs valeurs sont déduites plutôt que publiées. Le module dit lui-même lesquelles."
+		},
+		{
+			"id": "H-Q12-TECHNIQUE-ET-ZONES",
+			"question": "Q12",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Le DTF est la seule technique personnalisable en ligne, et les zones publiées sont celles du studio, en centimètres, mesurées à la taille de tarification.",
+			"home": "json:wp-plugins/teeshoop-core/data/garments.json#garments.tee.areas.0.bySize.M",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "Les dimensions ne sont pas saisies : elles sont extraites des définitions du studio par scripts/gen-garment-data.mjs, dont npm run verify:garments interdit déjà la péremption. Le registre pointe le fichier engendré parce que c'est ce que la fiche produit lit.",
+			"reaches": [
+				"customer",
+				"printer"
+			],
+			"derives": [],
+			"sessions": [
+				"09",
+				"10"
+			],
+			"cost_if_late": "on refait",
+			"label_fr": "Zones d’impression",
+			"shipped_matches_default": "Sur la technique, oui : DTF seul. Sur la taille, non. L'hypothèse par défaut dit « 30 x 40 cm maximum » ; la zone publiée sur un t-shirt vaut 30,5 x 40,6 cm dès la taille M et 37,5 x 50 cm en 3XL, et elle est affichée au client. C'est un dépassement de 25 % en 3XL sur une limite que l'atelier n'a pas confirmée."
+		},
+		{
+			"id": "H-Q01-AUCUN-MINIMUM",
+			"question": "Q01",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-12",
+			"statement_fr": "Aucun minimum de commande n'est appliqué : une pièce suffit, et rien ne réserve le site aux professionnels.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Cart.php#check_cart_items",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une règle absente. Le contrôle vérifie que le seul point de contrôle du panier existe toujours, pour que la ligne soit relue le jour où quelqu'un y ajoute une condition.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [],
+			"sessions": [
+				"04",
+				"05"
+			],
+			"cost_if_late": "on refait",
+			"shipped_matches_default": "Non, et c'est le seul défaut écrit qui dit « bloquant à la validation du panier » et qui n'est pas construit. L'hypothèse par défaut est « minimum 5 pièces et 50 EUR hors taxes bloquant à la validation du panier ». Le seul plancher du code est max(1, quantité). Un t-shirt seul à 14,50 EUR HT atteint le paiement aujourd'hui. La moitié affichage du même défaut, elle, est respectée : hors taxes en gras, toutes taxes comprises en dessous. Le SIRET est demandé et non bloquant, mais seulement sur le formulaire de devis."
+		},
+		{
+			"id": "H-Q03-PRIX-ACHAT-BRUT",
+			"question": "Q03",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Le coût d'achat retenu est celui que l'interface du fournisseur renvoie, sans remise négociée, sans port et sans franco.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Catalogue.php#$cost = $prices[ $supply ]['cost'] ?? null;",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur vient du fournisseur à chaque import ; ce qui est supposé, c'est de la prendre brute.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [],
+			"sessions": [
+				"05",
+				"08"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Moitié. L'hypothèse par défaut ajoute « plus 8 EUR hors taxes de port en dessous de 200 EUR de commande, et le coût est signalé comme estimé à l'écran ». Ni le port ni la mention n'existent. Un coût zéro est traité comme une donnée manquante et non comme un vêtement gratuit, ce que la question ne demandait pas et que le fournisseur impose."
+		},
+		{
+			"id": "H-Q22-COMMANDE-FOURNISSEUR",
+			"question": "Q22",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-08",
+			"statement_fr": "Aucune commande fournisseur ne peut partir : le numéro de client n'est configuré nulle part et la route refuse plutôt que de deviner.",
+			"home": "anchor:worker/falkross.ts#customerNumber = env.FR_CUSTOMER_NR",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est un refus, donc l'absence d'un secret. Le contrôle vérifie que le point où il serait lu existe toujours.",
+			"reaches": [
+				"supplier",
+				"internal"
+			],
+			"derives": [],
+			"sessions": [
+				"08"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Plus prudent que le défaut écrit, qui prévoit une commande « préparée automatiquement mais toujours validée manuellement ». Rien n'est préparé du tout, donc rien ne peut partir par erreur, ce que la question elle-même donne comme motif d'inquiétude."
+		},
+		{
+			"id": "H-Q39-COMMISSION-JAMAIS-AFFICHEE",
+			"question": "Q39",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Aucune commission n'est enregistrée ni affichée nulle part, et un contrôle de construction empêche qu'elle atteigne un gabarit rendu à un client.",
+			"home": "anchor:scripts/php-guard.mjs#{ s: 'commission', cat: 'margin', scope: 'rendered' }",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est un interdit, dont le foyer est la liste d'aiguilles qui le fait respecter.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [],
+			"sessions": [
+				"06"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Moitié, et c'est facile à lire comme un tout. Le défaut écrit a deux clauses : « le nom et les coordonnées du commercial figurent sur le devis. La commission n'y figure pas ». La seconde est livrée et même armée par un garde-fou. La première ne l'est pas : aucun champ ne porte de commercial, ni sur le dossier ni sur le document."
+		},
+		{
+			"id": "H-Q38-VALIDITE-DEVIS",
+			"question": "Q38",
+			"level": "important",
+			"status": "refused",
+			"since": "2026-08-14",
+			"statement_fr": "Aucune durée de validité n'est écrite sur un devis, ni affichée, ni appliquée.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Quote.php#It gives no validity period for a quote",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est l'absence d'une durée. Le foyer est la ligne du dossier de conception qui dit pourquoi.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [],
+			"sessions": [
+				"06"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui pour la clause opérante : « aucune durée n'est affichée nulle part tant que vous n'avez pas tranché ». En France un devis est une offre ferme pendant la durée qu'il annonce, donc inventer 30 jours engagerait l'entreprise sur un risque de prix qu'elle porterait seule."
+		},
+		{
+			"id": "H-Q40-CONSERVATION-DEVIS",
+			"question": "Q40",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-14",
+			"statement_fr": "Une demande de devis sans suite est conservée 1095 jours, soit trois ans après le dernier échange, puis supprimée automatiquement.",
+			"home": "phpconst:Teeshoop\\Core\\Quote::KEEP_DAYS",
+			"mirrors": [
+				{
+					"ref": "anchor:wp-plugins/teeshoop-core/templates/teeshoop/product-quote.php#conservées trois ans après notre dernier échange",
+					"relation": "equal",
+					"why": "la durée est annoncée au prospect en toutes lettres sous le formulaire ; une durée annoncée et une durée appliquée qui divergent est une déclaration fausse faite à une personne concernée."
+				}
+			],
+			"literals": [
+				"1095"
+			],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"06",
+				"12"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "conservées trois ans après notre dernier échange",
+			"shipped_matches_default": "Oui : « trois ans après le dernier échange, puis suppression automatique », qui est aussi la recommandation de la CNIL pour des données de prospection. C'est un nombre AVEC un mécanisme derrière : une tâche quotidienne supprime ce qui l'a dépassé."
+		}
+	],
+	"not_applicable": [
+		{
+			"question": "Q05",
+			"level": "bloquant",
+			"why": "Aucun taux horaire ni aucun temps de pose n'est écrit dans le dépôt. Le moteur de coût reçoit ces valeurs en argument et rien ne l'appelle en production : il n'y a donc aucune hypothèse en service à enregistrer. C'est la séance 05."
+		},
+		{
+			"question": "Q14",
+			"level": "bloquant",
+			"why": "La boutique ne fait aucune promesse de livraison : aucun délai, aucun transporteur, aucun retrait. Ni « jours ouvrés », ni le nom d'un transporteur, ni l'adresse de l'atelier n'existent dans le code. Il n'y a rien à enregistrer tant que la séance 04 n'en construit pas."
+		},
+		{
+			"question": "Q15",
+			"level": "bloquant",
+			"why": "Aucun moyen de paiement n'est branché. Le studio dit au visiteur que le paiement en ligne arrivera avec le site complet, ce qui est vrai et n'engage aucun choix de prestataire. C'est la séance 04."
+		},
+		{
+			"question": "Q18",
+			"level": "bloquant",
+			"why": "Aucune condition générale, aucune mention légale et aucune politique de confidentialité n'est rédigée. La décision écrite est de préparer le mécanisme et de laisser le fait vide plutôt que de le remplir d'exemples crédibles. C'est la séance 12."
+		},
+		{
+			"question": "Q19",
+			"level": "bloquant",
+			"why": "Le fichier de prospection n'est ni importé, ni lu, ni référencé nulle part, et il ne le sera pas tant que son origine n'est pas documentée. C'est un refus assumé et non une hypothèse."
+		},
+		{
+			"question": "Q20",
+			"level": "bloquant",
+			"why": "Rien n'a été supprimé ni désactivé sur teeshoop.com : tout le travail des séances 01 à 03 vit sur le miroir local. La production n'est touchée qu'en séance 14."
+		},
+		{
+			"question": "Q21",
+			"level": "bloquant",
+			"why": "Réglée le 14/08/2026. Tous les accès techniques sont en place et ont été essayés un par un, et la demande d'accès cPanel a été retirée plutôt qu'accordée. Le détail est dans ACCES-REQUIS.md."
+		}
+	]
+}

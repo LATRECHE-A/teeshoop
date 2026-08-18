@@ -20,6 +20,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The hypotheses guard reads the price authority by RUNNING it, so this
+      # job needs php as well as node. A guard that compared two files as text
+      # would not need it, and would not be worth having.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
       - run: npm ci
 
       - name: Typecheck (app + worker)
@@ -49,6 +57,17 @@ jobs:
       # longer publish.
       - name: Garment data is current
         run: npm run verify:garments
+
+      # The register of assumed values. Fails when a value the associate has not
+      # confirmed has a second copy, when its home has moved, when a Bloquant
+      # question has no row, or when an assumption a customer meets carries no
+      # French wording. `--self-test` proves each of those can still fail, so a
+      # green line here is not a check that stopped looking.
+      - name: Hypotheses register agrees with the code
+        run: npm run verify:hypotheses
+
+      - name: The hypotheses guard can still fail
+        run: node scripts/hypotheses-guard.mjs --self-test
 
   # The WordPress plugin. Its pure classes (Money, Pricing, Margin) call no
   # WordPress function on purpose, so they need PHP and nothing else — the

@@ -202,6 +202,34 @@ final class Catalogue {
 	);
 
 	/**
+	 * The families the shop actually publishes, and the only assumption in this
+	 * file that decides how big the catalogue is.
+	 *
+	 * Named rather than written inline in `families()` because it is registered
+	 * as H-Q09-FAMILLES in `docs/hypotheses.json` and a register can only point
+	 * at something that has a name. Question 09's written default says
+	 * "t-shirts, polos, sweats, softshells, haute visibilité"; two of those five
+	 * are not here, and one of them is actively refused upstream (the Worker's
+	 * classifier vetoes "softshell"), so the divergence is deliberate and
+	 * recorded rather than silent.
+	 */
+	public const PRINTABLE_FAMILIES = array( 'tee', 'polo', 'sweat' );
+
+	/**
+	 * Which of the supplier's three stock numbers we sell against.
+	 *
+	 * The feed gives three per SKU and names none of them. Measured across
+	 * 26 300 rows: the first totals 4,7 M, the second 7 935, the third 32,4 M.
+	 * Only the first is treated as a shelf, and question 43 asks what the other
+	 * two are; the argument is at the call site, in `variations()`.
+	 *
+	 * Named for the same reason as PRINTABLE_FAMILIES: it is H-Q43-STOCK in
+	 * `docs/hypotheses.json`, and `$row[0]` is not something a register can
+	 * point at.
+	 */
+	public const STOCK_INDEX = 0;
+
+	/**
 	 * Which product families a `--famille` argument covers.
 	 *
 	 * `printable` is the studio's three: the shop imports what it can decorate.
@@ -213,7 +241,7 @@ final class Catalogue {
 			return array_keys( self::CATEGORIES );
 		}
 		if ( 'printable' === $kind ) {
-			return array( 'tee', 'polo', 'sweat' );
+			return self::PRINTABLE_FAMILIES;
 		}
 		return isset( self::CATEGORIES[ $kind ] ) ? array( $kind ) : array();
 	}
@@ -706,7 +734,9 @@ final class Catalogue {
 			 * two are.
 			 */
 			$row      = $stock[ $supply ] ?? null;
-			$quantity = is_array( $row ) && isset( $row[0] ) ? max( 0, (int) $row[0] ) : null;
+			$quantity = is_array( $row ) && isset( $row[ self::STOCK_INDEX ] )
+				? max( 0, (int) $row[ self::STOCK_INDEX ] )
+				: null;
 
 			$out[] = array(
 				'sku_suffix'   => $suffix,

@@ -26,10 +26,11 @@
     "verify:bundle": "node scripts/bundle-guard.mjs",
     "verify:wp-e2e": "node scripts/wp-e2e-verify.mjs",
     "verify:wp-catalogue": "node scripts/wp-catalogue-verify.mjs",
-    "ci": "npm run typecheck && npm run typecheck:worker && npm test && npm run test:php && npm run verify:php && npm run verify:garments",
+    "ci": "npm run typecheck && npm run typecheck:worker && npm test && npm run test:php && npm run verify:php && npm run verify:garments && npm run verify:hypotheses",
     "deploy": "npm run build && npm run verify:bundle && wrangler deploy",
     "gen:garments": "node scripts/gen-garment-data.mjs",
     "verify:php": "node scripts/php-guard.mjs",
+    "verify:hypotheses": "node scripts/hypotheses-guard.mjs",
     "verify:garments": "node scripts/gen-garment-data.mjs --check",
     "verify:product": "node scripts/product-shots.mjs"
   },

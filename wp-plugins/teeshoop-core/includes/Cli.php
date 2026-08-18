@@ -488,11 +488,19 @@ final class Cli {
 	}
 
 	/**
-	 * A real 20 % rate, because every template prints a TTC figure.
+	 * A real VAT row, because every template prints a TTC figure.
 	 *
 	 * The mirror shipped with taxes enabled and zero rows, so the studio said
 	 * 326,10 EUR TTC while the cart said 271,75 EUR with no tax: 54,35 EUR
 	 * apart, on a caption the invoice would contradict.
+	 *
+	 * THE RATE IS READ, NOT WRITTEN. It used to be a percentage typed here as a
+	 * string, which is the same number as `vat_rate` in the price config and
+	 * would have stopped being the same number the day the rate is answered
+	 * (question 17 of QUESTIONS-ASSOCIE.md, registered as H-Q17-TVA in
+	 * docs/hypotheses.json). A WooCommerce tax row and
+	 * a price authority that disagree is the exact shape of the 54,35 EUR bug
+	 * this function exists to prevent.
 	 */
 	private static function ensure_vat_row( array &$changed ): void {
 		global $wpdb;
@@ -504,17 +512,23 @@ final class Cli {
 			return;
 		}
 
+		$rate = (float) Settings::pricing()['vat_rate'];
+
 		\WC_Tax::_insert_tax_rate(
 			array(
 				'tax_rate_country'  => 'FR',
-				'tax_rate'          => '20.0000',
+				'tax_rate'          => number_format( $rate * 100, 4, '.', '' ),
 				'tax_rate_name'     => 'TVA',
 				'tax_rate_priority' => 1,
 				'tax_rate_shipping' => 1,
 				'tax_rate_class'    => '',
 			)
 		);
-		$changed[] = 'TVA 20 %';
+		// Two decimals and not none: `Money::number` defaults to zero decimals,
+		// which reported a 5,5 % rate as "TVA 6 %" while writing 5.5000 to the
+		// table. A number shown to an operator that is not the number written is
+		// exactly what this whole session exists to stop.
+		$changed[] = 'TVA ' . Money::number( $rate * 100, 2 ) . "\u{00A0}%";
 	}
 
 	/**
@@ -621,9 +635,13 @@ final class Cli {
 	/**
 	 * The demo product, so the next session starts from a working page.
 	 *
-	 * Everything on it is real. The catalogue price is a blank's cost basis and
-	 * is never charged, so it is set to something a leak would make obvious; the
-	 * brand reference is the one the studio's size chart is measured from. It
+	 * Everything on it is real. The catalogue price is the blank's own
+	 * contribution to a personalised line and is never charged, so it is READ
+	 * from the price authority rather than typed here: it used to be the string
+	 * '9.50', which is `garments.tee.base_ht` written a second time, in another
+	 * unit, where nothing compared them (question 06, registered as
+	 * H-Q06-TARIF-TEE). The brand reference is the one the studio's size chart
+	 * is measured from. It
 	 * carries NO matière and NO grammage, on purpose: this project holds neither
 	 * for this reference, the page renders the honest empty state, and the admin
 	 * note under it says where they will come from.
@@ -637,7 +655,7 @@ final class Cli {
 		$product->set_slug( self::DEMO_SLUG );
 		$product->set_status( 'publish' );
 		$product->set_catalog_visibility( 'visible' );
-		$product->set_regular_price( '9.50' );
+		$product->set_regular_price( number_format( Money::to_eur( (int) Settings::pricing()['garments']['tee']['base_ht'] ), 2, '.', '' ) );
 		$product->set_short_description(
 			'Un t-shirt à personnaliser avec votre logo, votre texte ou votre visuel. '
 			. 'Imprimé à la demande, à partir d’une pièce.'
