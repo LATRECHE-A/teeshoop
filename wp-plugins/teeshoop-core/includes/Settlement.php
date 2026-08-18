@@ -108,6 +108,24 @@ final class Settlement {
 	 */
 	public const COMMITMENT_FR = 'Le versement de cet acompte vaut engagement ferme d’achat : la fabrication étant lancée sur commande, la commande ne peut plus être annulée. Le solde est exigible avant expédition.';
 
+	/*
+	 * AND THE SAME QUALIFICATION WHEN NOTHING HAS BEEN LAUNCHED.
+	 *
+	 * The sentence above was going on every facture d'acompte, including the one
+	 * issued when a customer transfers part of the price of their own accord on
+	 * an order nobody authorised a deposit for. There, `required_for` still
+	 * demands the whole total before production, so the operator's own screen
+	 * says "Rien ne démarre" while the numbered document in the customer's hands
+	 * says la fabrication est lancée et la commande ne peut plus être annulée.
+	 * One of those two is a lie, and it is the one written on the invoice.
+	 *
+	 * What stays is the qualification, because that is what the document is for:
+	 * acompte, not arrhes, imputed on the price. What goes is the premise, which
+	 * was untrue, and the consequence drawn from it, which a customer cannot be
+	 * held to by a sentence invented after their money arrived.
+	 */
+	public const ON_ACCOUNT_FR = 'Ce versement constitue un acompte à valoir sur le prix, et non des arrhes. La fabrication n’est pas encore lancée : elle démarre au règlement intégral de la commande. Le solde est exigible avant expédition.';
+
 	/** The workshop starts pressing. */
 	public const STAGE_PRODUCTION = 'production';
 

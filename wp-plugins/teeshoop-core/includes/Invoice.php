@@ -494,6 +494,13 @@ final class Invoice {
 			$context['common'],
 			array(
 				'kind'        => self::KIND_DEPOSIT,
+				/*
+				 * FROZEN, like everything else on this page. Whether an operator
+				 * had authorised a deposit decides which commitment the document
+				 * carries, so reading it live would let a later authorisation
+				 * rewrite what a document already sent to a customer says.
+				 */
+				'authorised'  => Ledger::authorised( $order ),
 				'receipt'     => (string) ( $receipt['reference'] ?? '' ),
 				// 10° of article 242 nonies A: the date the acompte was paid,
 				// when it differs from the date the document is issued.
@@ -1253,23 +1260,16 @@ final class Invoice {
 		);
 		$y += 5;
 
-		// 10° of article 242 nonies A: the date the acompte was paid, when it
-		// is not the date the document is issued.
-		if ( $deposit && '' !== (string) ( $doc['paid_on'] ?? '' ) && $doc['paid_on'] !== $doc['date'] ) {
-			$pdf->text(
-				$left,
-				$y,
-				sprintf(
-					/* translators: 1: a date, 2: a payment method. */
-					__( 'Acompte versé le %1$s par %2$s', 'teeshoop' ),
-					Vat::fr_date( (string) $doc['paid_on'] ),
-					'' !== (string) ( $doc['method'] ?? '' ) ? (string) $doc['method'] : __( 'virement', 'teeshoop' )
-				),
-				Pdf::REGULAR,
-				9
-			);
-			$y += 5;
-		}
+		/*
+		 * 10° of article 242 nonies A, the date the acompte was paid, is printed
+		 * once, in mentions(). It used to be printed here as well, guarded on
+		 * the paid date differing from the issue date: `Ledger::record` stamps
+		 * the receipt with `Settings::today()` and `context()` dates the
+		 * document with the same call in the same request, and the operator's
+		 * box has no date field, so that guard is false except across midnight,
+		 * and on the one night it is true both lines print the same sentence.
+		 * Dead on every other day and duplicated on that one.
+		 */
 
 		$ship = (array) $doc['shipping_to'];
 		if ( ! empty( $ship ) ) {
@@ -1329,7 +1329,11 @@ final class Invoice {
 		 * away. The difference is the whole order.
 		 */
 		if ( self::KIND_DEPOSIT === ( $doc['kind'] ?? self::KIND_INVOICE ) ) {
-			$out[] = Settlement::COMMITMENT_FR;
+			// A document frozen before this field existed predates any deposit
+			// anyone approved, so it takes the branch that claims less.
+			$out[] = null === ( $doc['authorised'] ?? null )
+				? Settlement::ON_ACCOUNT_FR
+				: Settlement::COMMITMENT_FR;
 		}
 
 		$order    = (array) $doc['order'];

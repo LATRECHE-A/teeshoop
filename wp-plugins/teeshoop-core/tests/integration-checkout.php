@@ -1008,6 +1008,51 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		$order->delete( true );
 	} );
 
+	ts_it( 'promises a firm order only where somebody authorised the deposit', function () use ( $product_id, $big_order ) {
+		/*
+		 * A CUSTOMER CAN TRANSFER WHAT THEY LIKE. When part of the price arrives
+		 * on an order nobody approved a deposit for, the law still requires the
+		 * facture d'acompte, but the sentence that binds the customer to an
+		 * uncancellable order is untrue on that document: `required_for` demands
+		 * the whole total before production, so nothing has been launched. The
+		 * operator's own screen says so. The invoice used to say the opposite.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+
+		$unapproved = $big_order( $product_id, 480000 );
+		Ledger::record( $unapproved, 100000, 'Virement bancaire', 'VIR-SPONTANE' );
+		$unapproved = wc_get_order( $unapproved->get_id() );
+		ts_assert( ! Ledger::stage_allows( $unapproved, Settlement::STAGE_PRODUCTION ), 'production opened without an authorisation' );
+
+		$docs = Invoice::deposits( $unapproved );
+		ts_eq( count( $docs ), 1, 'the receipt got no facture d’acompte' );
+		$spontaneous = Invoice::mentions( $docs[0] );
+		ts_assert( in_array( Settlement::ON_ACCOUNT_FR, $spontaneous, true ), 'the acompte is not qualified at all' );
+		ts_assert( ! in_array( Settlement::COMMITMENT_FR, $spontaneous, true ), 'a document promised a launched order that is not launched' );
+
+		$approved = $big_order( $product_id, 480000 );
+		Ledger::authorise( $approved );
+		$approved = wc_get_order( $approved->get_id() );
+		Ledger::record( $approved, 100000, 'Virement bancaire', 'VIR-APPROUVE' );
+		$approved = wc_get_order( $approved->get_id() );
+
+		$approved_docs = Invoice::deposits( $approved );
+		ts_eq( count( $approved_docs ), 1, 'the approved receipt got no facture d’acompte' );
+		$bound = Invoice::mentions( $approved_docs[0] );
+		ts_assert( in_array( Settlement::COMMITMENT_FR, $bound, true ), 'an authorised acompte binds nobody' );
+		ts_assert( ! in_array( Settlement::ON_ACCOUNT_FR, $bound, true ), 'both qualifications on one document' );
+
+		// And it is frozen: authorising afterwards must not rewrite a document
+		// the customer already has.
+		ts_eq( $docs[0]['authorised'], null, 'the unapproved document recorded an authorisation' );
+		Ledger::authorise( $unapproved );
+		$reread = Invoice::deposits( wc_get_order( $unapproved->get_id() ) );
+		ts_assert( ! in_array( Settlement::COMMITMENT_FR, Invoice::mentions( $reread[0] ), true ), 'a later authorisation rewrote a sent document' );
+
+		$unapproved->delete( true );
+		$approved->delete( true );
+	} );
+
 	ts_it( 'never lets a status change invent the money that is missing', function () use ( $product_id, $big_order ) {
 		/*
 		 * A STATUS IS A LABEL A SHOP MANAGER PICKS FROM A DROPDOWN. This hook
