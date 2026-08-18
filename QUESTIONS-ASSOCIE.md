@@ -55,15 +55,16 @@ Une séance de travail entière est réservée à vos réponses, juste avant la 
 ### Là où ce que nous avons construit n'est pas l'hypothèse par défaut
 
 Le 18 août, en inscrivant une par une les valeurs supposées dans un registre
-(`docs/hypotheses.json`, 28 lignes, avec un contrôle automatique derrière), nous avons
-relu ce que les séances 01 à 03 avaient réellement livré. Six points ne suivent pas
+(`docs/hypotheses.json`, 41 lignes, avec un contrôle automatique derrière), nous avons
+relu ce que les séances 01 à 04 avaient réellement livré. Six points ne suivaient pas
 l'hypothèse par défaut écrite plus bas dans ce document. Une hypothèse par défaut que
-personne n'a suivie est pire que pas d'hypothèse du tout, donc les voici.
+personne n'a suivie est pire que pas d'hypothèse du tout, donc les voici, **dont deux
+que la séance 04 a refermés le jour même**.
 
 | Question | Ce que ce document annonce | Ce qui est réellement construit |
 |---|---|---|
-| **01** | minimum 5 pièces et 50 EUR HT, bloquant à la validation du panier | **aucun minimum**. Une pièce à 14,50 EUR HT va jusqu'au paiement |
-| **17** | la TVA construite comme une période datée, avec un mode franchise | une **constante** de 20 %. Ni période, ni mode franchise, ni mention « article 293 B » |
+| **01** | minimum 5 pièces et 50 EUR HT, bloquant à la validation du panier | **construit le 18/08**. Le panier refuse en dessous, et la grille publique commence désormais à 5 pièces et non à 1. Réserve : au tarif livré, 5 t-shirts font 72,50 EUR HT, donc le minimum de 50 EUR ne mord jamais |
+| **17** | la TVA construite comme une période datée, avec un mode franchise | **construit le 18/08**. Périodes datées, mode franchise, mention « TVA non applicable, article 293 B du CGI », aucun seuil dans le code. Ce qui reste supposé, c'est le régime lui-même : nous partons sur assujettie, la boutique est réglée en franchise de fait |
 | **09** | 300 références (t-shirts, polos, sweats, softshells, haute visibilité) | **459 références**, sans plafond, et **trois familles**. Le softshell est activement écarté, la haute visibilité n'existe pas |
 | **08** | une grille publique sur 6 paliers de quantité | **5 colonnes**, déduites des 3 paliers de remise enregistrés. Et la remise atteint 35 % en autonomie, là où la question 06 annonce un plafond de 15 % |
 | **32** | découpe automatique quand elle économise plus d'environ 100 cm² par vêtement | une découpe **géométrique** : deux encres séparées de plus de 5 mm deviennent deux transferts, même si l'économie est nulle |
@@ -110,7 +111,7 @@ techniques sont en place et ont été essayés un par un.
 
 ---
 
-## Avant tout : 6 constats sur l'existant
+## Avant tout : 7 constats sur l'existant
 
 Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan :
 
@@ -171,6 +172,28 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
    l'objet de la question 17. Vu les montants (465,79 EUR sur cinq mois), le régime de
    franchise en base est plausible, mais c'est à votre comptable de le dire, pas à nous.
 
+7. **La facturation électronique arrive, et la première échéance est passée de peu.**
+   Constaté le 18 août 2026 en relisant les textes pour construire les factures. La
+   réforme n'a pas été repoussée : **au 1er septembre 2026, toute entreprise, quelle que
+   soit sa taille, doit être capable de RECEVOIR une facture électronique** par une
+   plateforme agréée. L'obligation d'en ÉMETTRE ne s'applique aux TPE et PME qu'au
+   **1er septembre 2027**. Concrètement, dans deux semaines :
+
+   - il faut avoir **choisi une plateforme agréée** et s'y être raccordé, ne serait-ce que
+     pour recevoir les factures de vos fournisseurs. L'administration écrit noir sur blanc
+     que l'entreprise qui n'en a pas désigné doit engager la démarche « sans attendre » ;
+   - le PDF que le site enverra à vos clients reste **valable** : les factures à des
+     particuliers sont hors du champ, et pour les professionnels l'obligation d'émettre
+     ne vous concerne qu'en septembre 2027. Nous avons donc du temps sur ce point-là, et
+     aucun sur la réception ;
+   - un PDF ordinaire ne suffira pas en 2027. Le format cible s'appelle Factur-X et c'est
+     un PDF qui embarque un fichier structuré. Nous le construirons quand la plateforme
+     sera choisie, parce que le format dépend d'elle.
+
+   **Ce n'est pas une question de développement, c'est une démarche à faire chez votre
+   comptable ou votre banque.** Nous l'écrivons ici parce que personne d'autre ne vous le
+   dira à temps.
+
 ---
 
 ## Modèle commercial
@@ -182,6 +205,14 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 *Pourquoi on a besoin de la réponse :* Cela décide si on bloque le panier sous le minimum, si on demande le SIRET à l'inscription, si les prix s'affichent hors taxes ou toutes taxes comprises par défaut, et s'il faut construire un parcours d'achat grand public. Ces choix touchent le panier, la fiche produit et le moteur de prix : les changer après coup coûte plusieurs jours.
 
 *Si vous ne répondez pas, on partira sur :* Site réservé aux professionnels, SIRET demandé mais non bloquant, minimum 5 pièces et 50 EUR hors taxes bloquant à la validation du panier, prix affichés hors taxes avec le montant toutes taxes comprises en second.
+
+*Ce que la séance 04 a trouvé, le 18 août :* le minimum est construit et il bloque bien à
+la validation du panier, sur les deux parcours (l'ancien et le nouveau tunnel WooCommerce).
+Mais **la moitié « 50 EUR » ne sert à rien au tarif actuel** : cinq t-shirts imprimés font
+72,50 EUR hors taxes, et il faudrait descendre sous 10,00 EUR la pièce pour que le montant
+refuse quoi que ce soit. La Bible écrit « 50 EUR » trois fois sans jamais préciser hors
+taxes ou toutes taxes comprises, ni par ligne ou par panier. Confirmez-vous les deux
+chiffres, ou le minimum est-il en réalité **uniquement** un nombre de pièces ?
 
 **Votre réponse :**
 
@@ -257,6 +288,29 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 *Pourquoi on a besoin de la réponse :* La livraison et l'emballage sont des coûts directs qui entrent dans le prix plancher, et le panier doit afficher un vrai prix d'expédition au client. Sans grille, on affiche un montant inventé qui sera soit dissuasif, soit à perte.
 
 *Si vous ne répondez pas, on partira sur :* 0,60 EUR d'emballage par pièce plus 1,50 EUR de carton, grille publique Colissimo, livraison offerte au-dessus de 300 EUR hors taxes.
+
+*Ce que la séance 04 a trouvé, le 18 août :* trois choses.
+
+1. **Nos 0,60 EUR par pièce contredisent votre propre Bible**, qui donne la seule mesure
+   existante : « emballage : 9 EUR » sur une commande de trente pièces, soit **0,30 EUR la
+   pièce**, matière seule et sans carton. Nous avons pris le double, et le carton de
+   1,50 EUR n'est mentionné nulle part. Sur une série de cinquante l'écart est de 1,50 EUR,
+   donc ce n'est pas grave, mais c'est faux quelque part.
+2. **Il nous manque un poids, pas seulement un coût.** La Poste facture à la tranche de
+   poids, emballage compris. Nous comptons le carton pour **0 gramme** faute de l'avoir
+   pesé, donc nous sous-estimons la tranche et nous payons l'écart : le client n'est jamais
+   surfacturé, c'est nous qui absorbons. **Pesez un carton vide et un sachet**, cela prend
+   une minute et cela vaut plusieurs euros par commande.
+3. **La Bible se contredit sur qui paie le transport.** Le chapitre 0 range « livraison »
+   dans les *revenus possibles* ; le chapitre 1 range « livraison offerte » dans les *coûts
+   directs*, et son exemple chiffré ne facture aucun port au client. Nous avons construit
+   la première version, celle où le client voit une ligne de livraison, avec un franco à
+   300 EUR hors taxes. Dites-nous si c'est bien ce que vous voulez.
+
+Nous utilisons pour l'instant la **grille publique Colissimo au 1er janvier 2026**, relevée
+sur l'affiche tarifaire de La Poste. Elle est vérifiable et ne porte pas de TVA. Si vous
+avez un contrat Colissimo Entreprise, ses tarifs négociés remplacent la grille publique en
+un réglage : envoyez-nous la grille.
 
 **Votre réponse :**
 
@@ -366,6 +420,20 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 
 *Si vous ne répondez pas, on partira sur :* Stripe pour la carte et le paiement mobile, virement accepté sur devis, mandat administratif traité hors ligne au lancement ; Revolut Pay ajouté plus tard si vous le souhaitez.
 
+*Ce que la séance 04 a trouvé, le 18 août :* Stripe est branché via l'extension officielle
+maintenue par Stripe, gratuite. Trois points qui demandent votre avis :
+
+1. **Les Cartes Bancaires (CB) s'activent chez Stripe, pas dans WordPress.** La plupart des
+   cartes françaises sont co-badgées CB/Visa ou CB/Mastercard, et le routage CB coûte
+   nettement moins cher. Rien dans le site ne vous dira si c'est activé : c'est une case
+   dans votre tableau de bord Stripe. À vérifier avant la mise en ligne.
+2. **Le virement n'est pas ouvert au paiement en ligne**, conformément à votre « accepté
+   sur devis ». Le jour où on l'ouvre, il nous faut l'IBAN, le BIC et le nom exact du
+   titulaire, et la commande reste « en attente » jusqu'à réception des fonds : le délai de
+   livraison ne peut pas partir de la commande.
+3. **Le prélèvement SEPA est possible et change la promesse de délai** : un paiement SEPA
+   met plusieurs jours à se confirmer et peut échouer après la commande. Le voulez-vous ?
+
 **Votre réponse :**
 
 > 
@@ -377,6 +445,20 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 *Pourquoi on a besoin de la réponse :* Cela décide des règles de déblocage de la production : une commande payée à 50 % peut-elle partir en fabrication ? Sans règle, le système bloquera toute commande non payée intégralement, ce qui peut faire perdre des gros dossiers.
 
 *Si vous ne répondez pas, on partira sur :* 100 % avant production ; acompte de 50 % possible au-dessus de 3 000 EUR hors taxes après votre validation ; aucun paiement à échéance au lancement.
+
+*Ce que la séance 04 a trouvé, le 18 août :* **rien n'est construit, et c'est volontaire.**
+Les 50 % et les 3 000 EUR de l'hypothèse par défaut sont de nous : la Bible autorise un
+acompte « pour les commandes complexes ou importantes » sans jamais donner de pourcentage,
+de seuil, ni de définition de « importante ».
+
+Pire, elle se contredit : sa règle de paiement autorise « acompte possible, solde avant
+expédition », et son critère d'acceptation dit « une commande non payée ne peut pas passer
+en production ». Une commande payée à 50 % n'est pas payée. Le premier autorise ce que le
+second interdit, et il n'y a pas de moyen de deviner lequel des deux vous vouliez.
+
+Il nous faut donc trois choses : le **seuil**, le **pourcentage**, et **à quel moment le
+solde est dû** (avant production, ou avant expédition). Tant qu'elles manquent, toute
+commande passée sur le site est payée à 100 %.
 
 **Votre réponse :**
 
@@ -392,6 +474,23 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 *Pourquoi on a besoin de la réponse :* Les mentions légales et les factures ne peuvent pas être publiées sans ces informations, et elles sont obligatoires. La TVA conditionne aussi tout l'affichage des prix et les objectifs de chiffre d'affaires (vos objectifs sont exprimés toutes taxes comprises, vos coûts hors taxes).
 
 *Si vous ne répondez pas, on partira sur :* le régime de TVA est construit comme une **période datée** et non comme une constante, parce qu'une entreprise en franchise qui dépasse le seuil bascule à une date, et que les factures d'avant et d'après ne sont pas les mêmes documents. Le régime en vigueur par défaut est la TVA à 20 %, affiché comme une hypothèse à côté du fait que la boutique en ligne est aujourd'hui configurée taxes désactivées (constat 6). En franchise : aucune ligne de TVA, TTC égal HT, et la mention « TVA non applicable, article 293 B du CGI » sur chaque devis et chaque facture. Aucun seuil n'est écrit dans le code, les périodes et leurs dates viennent de vous et de votre comptable. Les mentions légales restent **vides** plutôt que remplies d'exemples crédibles, et la mise en ligne est refusée tant qu'elles le sont.
+
+*Ce que la séance 04 a construit, le 18 août :* la mécanique complète, et rien du contenu.
+
+- Le régime est une **suite de périodes datées**, avec un mode franchise qui supprime toute
+  ligne de TVA et fait apparaître « TVA non applicable, article 293 B du CGI ». **Aucun
+  seuil n'est écrit dans le code** : les seuils et les dates viennent de votre comptable.
+- Les mentions légales sont **vides** et le resteront. Une facture à laquelle il manque une
+  de ces informations est **refusée** en production et sort marquée « document non
+  conforme » en préproduction. Vous pouvez le voir : WooCommerce, puis Facturation.
+- La période livrée s'ouvre au **18 août 2026** et n'affirme rien avant. Conséquence
+  directe : **les 15 commandes du constat 6 ne peuvent pas être facturées par le site**,
+  parce que personne ne sait sous quel régime elles ont été prises. C'est le constat, rendu
+  visible plutôt que contourné.
+
+Il ne manque donc plus que la réponse : **la société facture-t-elle la TVA, oui ou non, et
+depuis quelle date ?** Et les six informations d'identité, qui prennent deux minutes à
+recopier depuis un Kbis.
 
 **Votre réponse :**
 
@@ -814,6 +913,36 @@ Nous ne traitons donc que **la première** comme du stock vendable. Si c'est le 
 Traduire les vingt les plus courants (Black, White, Navy, Red, Royal…) couvrirait la majorité des références sans casser les autres, mais c'est un travail de rédaction, pas de code, et il faut que quelqu'un valide chaque terme.
 
 *Si vous ne répondez pas, on partira sur :* les noms du fabricant, tels quels.
+
+**Votre réponse :**
+
+> 
+
+
+## Facturation
+
+### 45. Quel taux de pénalité de retard voulez-vous faire figurer sur vos factures, et quel est votre numéro RCS avec la ville du greffe ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* ce sont des mentions obligatoires sur une facture
+entre professionnels (articles L. 441-9 et R. 123-237 du code de commerce), et deux d'entre
+elles manquaient à la question 17, qui ne demandait ni le RCS ni les pénalités. C'est notre
+oubli, pas le vôtre. Sans le RCS, aucune facture n'est conforme ; sans taux de pénalité,
+c'est le taux légal qui s'applique, ce qui est correct mais peut-être pas ce que vous
+voulez.
+
+*Si vous ne répondez pas, on partira sur :* aucun taux fixé, donc la facture cite le taux
+légal, celui de la Banque centrale européenne majoré de 10 points, qui est exactement ce
+qui s'applique quand les conditions de vente n'en prévoient pas. L'indemnité forfaitaire de
+recouvrement de 40 EUR est fixée par décret et figure de toute façon. Aucun escompte pour
+paiement anticipé. Le RCS, lui, ne peut pas avoir de valeur par défaut : la facture est
+refusée tant qu'il manque, comme les autres mentions de la question 17.
+
+*Deux précisions utiles :* un taux contractuel ne peut pas descendre sous **trois fois le
+taux d'intérêt légal**, soit 8,25 % l'an au second semestre 2026. Et si la société est une
+entreprise individuelle et non une société commerciale, elle n'a **ni capital social ni
+RCS** : dites-le nous, la liste des mentions obligatoires n'est pas la même.
 
 **Votre réponse :**
 

@@ -91,7 +91,11 @@ final class Admin {
 		update_option(
 			OPTION_INVOICE,
 			array(
-				'prefix'       => strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) ( $_POST['facture']['prefix'] ?? '' ) ) ?? '' ) ?: 'FA',
+				// The shipped prefix, not a second copy of it: an operator who
+				// clears the field gets what the extension ships, from where it
+				// ships it.
+				'prefix'       => strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) ( $_POST['facture']['prefix'] ?? '' ) ) ?? '' )
+					?: Invoice::default_config()['prefix'],
 				'penalty_rate' => sanitize_text_field( wp_unslash( (string) ( $_POST['facture']['penalty_rate'] ?? '' ) ) ),
 			)
 		);

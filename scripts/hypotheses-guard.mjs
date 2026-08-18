@@ -663,7 +663,7 @@ function literalRegex(literal) {
 /** 4: every Bloquant question is accounted for. */
 function checkNothingForgotten(entries, data, questionsText) {
   const fails = []
-  const { blocking, unreadable } = parseBlockingQuestions(questionsText)
+  const { blocking, all, unreadable } = parseBlockingQuestions(questionsText)
   if (blocking.length === 0) {
     return { fails, blocking, untrustworthy: 'no Bloquant question was parsed out of QUESTIONS-ASSOCIE.md' }
   }
@@ -672,6 +672,26 @@ function checkNothingForgotten(entries, data, questionsText) {
       fails,
       blocking,
       untrustworthy: `${unreadable.join(', ')}: no level this guard can read, so it cannot tell "not blocking" from "not understood"`,
+    }
+  }
+
+  /*
+   * AND THE OTHER DIRECTION, which is the one that has already gone wrong here:
+   * a row pointing at a question number that does not exist. The register once
+   * carried the wrong question number in five files, and every check in this
+   * script would have passed, because they all read the row and none of them
+   * read the document back. A dangling question is a row nobody will ever
+   * answer.
+   */
+  const known = new Set(all)
+  for (const entry of entries) {
+    if (!known.has(entry.question)) {
+      fails.push({
+        check: 'nothing-forgotten',
+        id: entry.id,
+        where: 'QUESTIONS-ASSOCIE.md',
+        why: `names ${entry.question}, and no such question is in the document`,
+      })
     }
   }
 
@@ -699,6 +719,7 @@ function checkNothingForgotten(entries, data, questionsText) {
  */
 function parseBlockingQuestions(text) {
   const out = []
+  const all = []
   const unreadable = []
   const sections = text.split(/^### /m).slice(1)
   for (const section of sections) {
@@ -706,6 +727,7 @@ function parseBlockingQuestions(text) {
     if (!num) continue
     const body = section.split(/^## /m)[0]
     const id = `Q${String(num[1]).padStart(2, '0')}`
+    all.push(id)
     const level = body.match(/\*\*(Bloquant|Important|Utile|Secondaire|À confirmer)\*\*/)
     /*
      * A level the parser does not recognise is NOT "not blocking".
@@ -722,7 +744,7 @@ function parseBlockingQuestions(text) {
     }
     if (level[1] === 'Bloquant') out.push(id)
   }
-  return { blocking: out, unreadable }
+  return { blocking: out, all, unreadable }
 }
 
 /** 5: an assumed value a customer meets is labelled, in French, in a real table. */
@@ -956,6 +978,13 @@ if (SELF_TEST) {
         const entry = d.entries.find((e) => e.id === id)
         entry.mirrors = []
         entry.literal_allow = []
+      },
+    },
+    {
+      name: 'nothing-forgotten',
+      why: 'a row naming a question that is not in the document',
+      mutate: (d) => {
+        d.entries[0].question = 'Q99'
       },
     },
     {

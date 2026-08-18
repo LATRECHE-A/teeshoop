@@ -159,9 +159,16 @@ final class Invoice {
 		return (int) $wpdb->insert_id;
 	}
 
-	/** Settings: the series prefix and the payment mentions. */
-	public static function config(): array {
-		$defaults = array(
+	/**
+	 * The shipped invoice settings.
+	 *
+	 * Separate from `config()` and calling no WordPress function, so the
+	 * register's guard can read the values it has a row for: it loads every
+	 * class in `includes/` in a bare PHP process, and a default that lives
+	 * inside a `get_option()` call has no home the guard can resolve.
+	 */
+	public static function default_config(): array {
+		return array(
 			// The ordinary French form. Question 24's default gives us the
 			// numbering; the letters are convention, not law.
 			'prefix'       => 'FA',
@@ -179,7 +186,12 @@ final class Invoice {
 			 */
 			'penalty_rate' => '',
 		);
-		$stored = get_option( OPTION_INVOICE, array() );
+	}
+
+	/** The stored settings merged over the shipped ones. */
+	public static function config(): array {
+		$defaults = self::default_config();
+		$stored   = get_option( OPTION_INVOICE, array() );
 		if ( ! is_array( $stored ) ) {
 			$stored = array();
 		}

@@ -4,7 +4,7 @@
 > Il est ordonné par ce qui bloque le plus tôt. Chaque ligne dit *pourquoi* l'accès
 > est nécessaire — si la raison ne tient pas, l'accès ne doit pas être donné.
 >
-> Dernière mise à jour : 14 août 2026 · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
+> Dernière mise à jour : 18 août 2026 · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
 
 ---
 
@@ -29,7 +29,12 @@ consignée dans les sections qui suivent.
 
 Ce qui reste à obtenir n'est plus un accès mais **des réponses** : celles de l'associé
 dans [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md), dont la TVA (constat 6), qui est
-légale et bloquante. Et les clés Stripe de test, quand R1 touchera au paiement (§7).
+légale et bloquante.
+
+**Depuis le 18 août, une chose manque à nouveau, et elle bloque une vente :** les clés
+Stripe de test. Le paiement est construit et il refuse d'encaisser sans elles. Voir §6 bis.
+Une démarche non technique s'ajoute au même endroit : la plateforme de facturation
+électronique, obligatoire en réception au 1er septembre 2026 (§6 ter).
 
 Le gel du déploiement, lui, tient toujours, mais il change de nature : ce n'est plus
 un manque d'accès, c'est une méthode. **On travaille en préproduction, on sauvegarde,
@@ -431,6 +436,59 @@ Reste à faire quand on montera le déploiement automatique :
 
 ---
 
+## 6 bis. Stripe : les clés de test, maintenant
+
+*(Ajouté le 18 août 2026, séance 04. Le paiement est construit.)*
+
+L'extension officielle Stripe est branchée. Le code n'a besoin de rien d'autre que des
+clés, et il refuse d'encaisser tant qu'il n'en a pas.
+
+**Ce qu'il me faut, dans l'ordre.**
+
+| Quoi | Où le prendre | Quand |
+|---|---|---|
+| `pk_test_…` et `sk_test_…` | Stripe, tableau de bord, mode test, Développeurs puis Clés API | **maintenant**, pour le miroir local |
+| Secret de signature du webhook de test | Stripe, Développeurs puis Webhooks | avec les clés de test |
+| `pk_live_…` et `sk_live_…` | les mêmes écrans, mode réel | à la mise en ligne, séance 14 |
+| Secret de signature du webhook réel | idem | à la mise en ligne |
+
+**Jamais dans une conversation, jamais dans un fichier du dépôt.** Les clés se collent
+dans l'écran de réglages de l'extension, sur le site, ou se posent en variable
+d'environnement. Si vous me les envoyez par message, il faut les révoquer et en refaire.
+
+**Une vérification qui ne se voit pas dans WordPress.** Les Cartes Bancaires (CB) sont un
+réseau à l'intérieur du moyen de paiement « carte », et elles s'activent **dans le tableau
+de bord Stripe**, pas dans WordPress. La plupart des cartes françaises sont co-badgées
+CB/Visa ou CB/Mastercard et le routage CB coûte moins cher. Rien sur le site ne dira si
+c'est désactivé. À contrôler une fois, avant la mise en ligne.
+
+**Le pays du compte Stripe** décide quels moyens de paiement sont disponibles. Confirmez
+qu'il est bien ouvert en France.
+
+**Un piège mesuré, pour mémoire.** Le 18 août 2026, sur une extension Stripe fraîchement
+activée et jamais enregistrée, l'écran de réglages affichait « mode test » coché pendant
+que l'API interne de l'extension répondait « mode réel ». Deux lectures du même réglage
+qui se contredisent. Notre alarme ne lit donc pas la case : elle lit le **préfixe de la
+clé**, qui ne peut pas se contredire lui-même. Un `sk_test_` est un compte de test, quoi
+que dise la case.
+
+---
+
+## 6 ter. Une démarche qui n'est pas un accès : la plateforme de facturation électronique
+
+*(Ajouté le 18 août 2026. Ce n'est pas à moi de la faire.)*
+
+**Au 1er septembre 2026, toute entreprise doit pouvoir RECEVOIR une facture électronique**
+par une plateforme agréée. L'obligation d'en émettre ne concerne les TPE et PME qu'au
+1er septembre 2027. La réforme n'a pas été repoussée, et l'offre publique gratuite a été
+abandonnée : il faut choisir un prestataire.
+
+Le détail et ce que cela change pour le site sont au constat 7 de
+[QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md). Ce qu'il faut retenir ici : **c'est une
+démarche à engager chez le comptable ou la banque, et l'échéance est dans deux semaines.**
+
+---
+
 ## 7. Plus tard — inutile de les créer maintenant
 
 Ces accès ne servent qu'à partir de R1/R2. Les créer trop tôt, c'est multiplier les
@@ -438,7 +496,6 @@ identifiants sur une boutique qui ne vend pas encore.
 
 | Service | Quand | Pour quoi |
 |---|---|---|
-| Stripe (ou Revolut Business) | R1 | Encaisser la première commande |
 | Brevo | R4 | E-mails transactionnels puis marketing |
 | Qonto | R4 | Rapprochement bancaire |
 | Ringover | R4 | Téléphonie liée au CRM |
