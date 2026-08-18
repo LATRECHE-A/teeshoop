@@ -98,20 +98,22 @@ describe( 'Settlement: where an order stands', function () {
 		$config = ts_settle_config();
 		$total  = 600000;
 
-		eq( Settlement::state( $total, 0, true, $config ), Settlement::NOTHING );
-		eq( Settlement::state( $total, 299999, true, $config ), Settlement::SHORT, 'a cent under the deposit' );
-		eq( Settlement::state( $total, 300000, true, $config ), Settlement::DEPOSIT );
-		eq( Settlement::state( $total, 599999, true, $config ), Settlement::DEPOSIT );
-		eq( Settlement::state( $total, 600000, true, $config ), Settlement::PAID );
-		eq( Settlement::state( $total, 700000, true, $config ), Settlement::PAID, 'an overpayment is still paid' );
+		$deposit = Settlement::deposit_due( $total, $config );
+
+		eq( Settlement::state( $total, 0, $deposit, $config ), Settlement::NOTHING );
+		eq( Settlement::state( $total, 299999, $deposit, $config ), Settlement::SHORT, 'a cent under the deposit' );
+		eq( Settlement::state( $total, 300000, $deposit, $config ), Settlement::DEPOSIT );
+		eq( Settlement::state( $total, 599999, $deposit, $config ), Settlement::DEPOSIT );
+		eq( Settlement::state( $total, 600000, $deposit, $config ), Settlement::PAID );
+		eq( Settlement::state( $total, 700000, $deposit, $config ), Settlement::PAID, 'an overpayment is still paid' );
 	} );
 
 	it( 'never calls a part payment a deposit when nobody authorised one', function () {
 		// Half the money on an order nobody approved a deposit for is not a
 		// deposit, it is a short payment, and somebody has to chase it.
 		$config = ts_settle_config();
-		eq( Settlement::state( 600000, 300000, false, $config ), Settlement::SHORT );
-		eq( Settlement::state( 600000, 600000, false, $config ), Settlement::PAID );
+		eq( Settlement::state( 600000, 300000, null, $config ), Settlement::SHORT );
+		eq( Settlement::state( 600000, 600000, null, $config ), Settlement::PAID );
 	} );
 
 	it( 'reports money that arrived and should not have', function () {
@@ -129,9 +131,9 @@ describe( 'Settlement: the gate the Bible contradicts itself about', function ()
 		$config = ts_settle_config();
 		$total  = 600000;
 
-		eq( Settlement::required_for( Settlement::STAGE_PRODUCTION, $total, false, $config ), $total );
-		truthy( ! Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, 599999, false, $config ), 'a cent short went to production' );
-		truthy( Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, $total, false, $config ) );
+		eq( Settlement::required_for( Settlement::STAGE_PRODUCTION, $total, null, $config ), $total );
+		truthy( ! Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, 599999, null, $config ), 'a cent short went to production' );
+		truthy( Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, $total, null, $config ) );
 	} );
 
 	/*
@@ -142,16 +144,28 @@ describe( 'Settlement: the gate the Bible contradicts itself about', function ()
 		$config = ts_settle_config();
 		$total  = 600000;
 
-		eq( Settlement::required_for( Settlement::STAGE_PRODUCTION, $total, true, $config ), 300000 );
-		truthy( Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, 300000, true, $config ) );
-		truthy( ! Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, 299999, true, $config ), 'a cent under the deposit started production' );
+		eq( Settlement::required_for( Settlement::STAGE_PRODUCTION, $total, 300000, $config ), 300000 );
+		truthy( Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, 300000, 300000, $config ) );
+		truthy( ! Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, 299999, 300000, $config ), 'a cent under the deposit started production' );
+
+		/*
+		 * AND IT IS THE AMOUNT THAT WAS AUTHORISED, not today's setting. An
+		 * order approved at 50 % and half paid must not stop being allowed to
+		 * produce because somebody moved the rate to 60 % afterwards.
+		 */
+		$later                    = $config;
+		$later['deposit_rate']    = 0.6;
+		truthy(
+			Settlement::stage_allows( Settlement::STAGE_PRODUCTION, $total, 300000, 300000, $later ),
+			'raising the rate re-decided an order that was already approved'
+		);
 	} );
 
 	it( 'lets nothing leave the workshop against a promise, either way', function () {
 		$config = ts_settle_config();
 		$total  = 600000;
 
-		foreach ( array( true, false ) as $authorised ) {
+		foreach ( array( 300000, null ) as $authorised ) {
 			eq( Settlement::required_for( Settlement::STAGE_DISPATCH, $total, $authorised, $config ), $total );
 			truthy( ! Settlement::stage_allows( Settlement::STAGE_DISPATCH, $total, $total - 1, $authorised, $config ) );
 			truthy( Settlement::stage_allows( Settlement::STAGE_DISPATCH, $total, $total, $authorised, $config ) );
@@ -162,8 +176,8 @@ describe( 'Settlement: the gate the Bible contradicts itself about', function ()
 		// "We do not know what this one needs" and "this one needs nothing" are
 		// different answers, and only one of them is safe to give a workshop.
 		$config = ts_settle_config();
-		eq( Settlement::required_for( 'broderie', 600000, true, $config ), 600000 );
-		truthy( ! Settlement::stage_allows( 'broderie', 600000, 300000, true, $config ) );
+		eq( Settlement::required_for( 'broderie', 600000, 300000, $config ), 600000 );
+		truthy( ! Settlement::stage_allows( 'broderie', 600000, 300000, 300000, $config ) );
 	} );
 } );
 
@@ -189,6 +203,18 @@ describe( 'Settlement: the ledger', function () {
 		$ledger = Settlement::record( array(), 300000, 'virement', 'VIR-1', '2026-09-01' );
 		$ledger = Settlement::record( $ledger, 300000, 'virement', 'VIR-2', '2026-09-01' );
 		eq( count( $ledger ), 2, 'two different transfers were read as one' );
+	} );
+
+	/*
+	 * THE REFERENCE IS THE IDEMPOTENCE, so a receipt without one is refused
+	 * rather than accepted unprotected. Measured before the fix: two calls of
+	 * 1 000,00 EUR with no reference gave 2 000,00 EUR received, the order read
+	 * as fully paid and the parcel was free to leave.
+	 */
+	it( 'refuses a receipt it could not tell apart from a repeat', function () {
+		$ledger = Settlement::record( array(), 100000, 'Virement bancaire', '', '2026-09-01' );
+		eq( $ledger, array(), 'a receipt with no reference was recorded' );
+		eq( Settlement::record( array(), 100000, 'Virement bancaire', '   ', '2026-09-01' ), array() );
 	} );
 
 	it( 'refuses an amount that is not money coming in', function () {

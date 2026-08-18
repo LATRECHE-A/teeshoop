@@ -891,7 +891,7 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		$order  = $big_order( $product_id, (int) $config['deposit_from_ht'] - 100 );
 
 		ts_assert( ! Ledger::authorise( $order ), 'a small order was authorised for a deposit' );
-		ts_assert( ! Ledger::authorised( wc_get_order( $order->get_id() ) ), 'and it was recorded anyway' );
+		ts_eq( Ledger::authorised( wc_get_order( $order->get_id() ) ), null, 'and it was recorded anyway' );
 
 		$order->delete( true );
 	} );
@@ -903,12 +903,18 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 
 		// Nothing authorises itself: until somebody says so, the order needs the
 		// whole total before production, which is chapter 2 line 330.
-		ts_assert( ! Ledger::authorised( $order ), 'a deposit authorised itself' );
+		ts_eq( Ledger::authorised( $order ), null, 'a deposit authorised itself' );
 		ts_assert( ! Ledger::stage_allows( $order, Settlement::STAGE_PRODUCTION ), 'production opened on nothing' );
 
 		ts_assert( Ledger::authorise( $order ), 'a large order was refused a deposit' );
 		$order = wc_get_order( $order->get_id() );
-		ts_assert( Ledger::authorised( $order ), 'the authorisation was not recorded' );
+		// The AMOUNT, frozen, not a flag: the gate reads what was approved and
+		// not what the setting says next month.
+		ts_eq(
+			Ledger::authorised( $order ),
+			Settlement::deposit_due( Ledger::due( $order ), Ledger::config() ),
+			'the authorised amount was not frozen on the order'
+		);
 
 		$order->delete( true );
 	} );
@@ -998,6 +1004,68 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		for ( $i = 1; $i < count( $numbers ); $i++ ) {
 			ts_eq( $numbers[ $i ], $numbers[ $i - 1 ] + 1, 'the documents are not consecutive' );
 		}
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'never lets a status change invent the money that is missing', function () use ( $product_id, $big_order ) {
+		/*
+		 * A STATUS IS A LABEL A SHOP MANAGER PICKS FROM A DROPDOWN. This hook
+		 * used to turn that pick into money: marking a half-paid order
+		 * "Terminée" wrote the missing balance into the ledger as though it had
+		 * arrived, which opens the one gate that has to hold the parcel.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		$config = Ledger::config();
+		$order  = $big_order( $product_id, (int) $config['deposit_from_ht'] + 100000 );
+		Ledger::authorise( $order );
+		$order = wc_get_order( $order->get_id() );
+
+		$deposit = Settlement::deposit_due( Ledger::due( $order ), $config );
+		Ledger::record( $order, $deposit, 'Virement bancaire', 'VIR-ACOMPTE' );
+		$order = wc_get_order( $order->get_id() );
+
+		$order->update_status( 'completed', 'Marquée terminée à la main.' );
+		$order = wc_get_order( $order->get_id() );
+
+		ts_eq( Ledger::received( $order ), $deposit, 'a status change wrote money into the ledger' );
+		ts_eq( Ledger::state( $order ), Settlement::DEPOSIT, 'the order reads as settled' );
+		ts_assert( ! Ledger::stage_allows( $order, Settlement::STAGE_DISPATCH ), 'the parcel left on a status change' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'issues the final invoice on an order settled in one go through the box', function () use ( $product_id, $big_order ) {
+		/*
+		 * Every bank transfer on an order nobody authorised a deposit for. The
+		 * settlement branch used to fire only for an order already sitting at
+		 * `ts-acompte`, so this one stayed `pending` for ever: never marked
+		 * paid, and therefore never given the invoice the law requires.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		$order = $big_order( $product_id, 400000 );
+		ts_eq( $order->get_status(), 'pending', 'the fixture is not pending' );
+
+		Ledger::record( $order, Ledger::due( $order ), 'Virement bancaire', 'VIR-INTEGRAL' );
+		$order = wc_get_order( $order->get_id() );
+
+		ts_assert( $order->is_paid(), 'a fully settled order was never marked paid' );
+		ts_assert( null !== Invoice::stored( $order ), 'and it never got its invoice' );
+		ts_eq( count( Invoice::deposits( $order ) ), 0, 'a single settlement produced an acompte invoice' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'refuses to number an acompte once the final invoice exists', function () use ( $product_id, $big_order ) {
+		ts_ck_regime( Vat::STANDARD );
+		$order = $big_order( $product_id, 400000 );
+		Ledger::record( $order, Ledger::due( $order ), 'Virement bancaire', 'VIR-TOUT' );
+		$order = wc_get_order( $order->get_id() );
+		ts_assert( null !== Invoice::stored( $order ), 'no final invoice to test against' );
+
+		$refused = Invoice::issue_deposit( $order, array( 'cents' => 1000, 'reference' => 'VIR-APRES', 'date' => Settings::today(), 'method' => 'Virement bancaire' ) );
+		ts_assert( is_wp_error( $refused ), 'an acompte was numbered after the final invoice' );
+		ts_eq( $refused->get_error_code(), 'teeshoop_already_invoiced', 'refusal reason' );
 
 		$order->delete( true );
 	} );

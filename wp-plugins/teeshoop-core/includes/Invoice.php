@@ -327,8 +327,11 @@ final class Invoice {
 
 		try {
 			// Re-read INSIDE the lock: the request that held it before us may
-			// have been the one that issued.
-			$again = self::stored( wc_get_order( $order->get_id() ) ?: $order );
+			// have been the one that issued, and `freeze_document` appends to
+			// the list it finds on the object it is handed, so a stale one would
+			// write back without whatever that request added.
+			$order = wc_get_order( $order->get_id() ) ?: $order;
+			$again = self::stored( $order );
 			if ( null !== $again ) {
 				return $again;
 			}
@@ -398,6 +401,20 @@ final class Invoice {
 	 * @return array|\WP_Error
 	 */
 	public static function issue_deposit( \WC_Order $order, array $receipt, ?string $environment = null ) {
+		/*
+		 * NOT AFTER THE FINAL INVOICE. An acompte is money received BEFORE the
+		 * operation; once the definitive invoice exists there is nothing left to
+		 * pay in advance of, and a document numbered after it would sit in the
+		 * sequence claiming an advance on a sale already invoiced. `issue()` has
+		 * always guarded on this and this did not.
+		 */
+		if ( null !== self::stored( $order ) ) {
+			return new \WP_Error(
+				'teeshoop_already_invoiced',
+				__( 'Cette commande porte déjà sa facture définitive : aucun acompte ne peut plus être facturé dessus.', 'teeshoop' )
+			);
+		}
+
 		$reference = (string) ( $receipt['reference'] ?? '' );
 		foreach ( self::deposits( $order ) as $existing ) {
 			if ( '' !== $reference && ( $existing['receipt'] ?? '' ) === $reference ) {
@@ -420,6 +437,18 @@ final class Invoice {
 		}
 
 		try {
+			/*
+			 * RE-READ INSIDE THE LOCK, because `freeze_document` appends to the
+			 * list it finds on the object it is handed. An order read before the
+			 * lock is an order another request may have added a document to
+			 * since, and appending to the stale copy would write it back without
+			 * that document: a number already spent, and nothing carrying it.
+			 */
+			$order = wc_get_order( $order->get_id() ) ?: $order;
+			if ( null !== self::stored( $order ) ) {
+				return new \WP_Error( 'teeshoop_already_invoiced', __( 'Cette commande porte déjà sa facture définitive.', 'teeshoop' ) );
+			}
+
 			$series = self::series( $doc['date'] );
 			$n      = self::next_number( $series );
 			if ( $n <= 0 ) {
@@ -795,6 +824,41 @@ final class Invoice {
 				'ttc'    => (int) $deposit['total_ttc'],
 			);
 			$paid_off += (int) $deposit['total_ttc'];
+		}
+
+		/*
+		 * AND EVERY EARLIER RECEIPT MUST BE ACCOUNTED FOR.
+		 *
+		 * `deducted` is built from the acompte DOCUMENTS, so a document that was
+		 * refused when its money arrived (a busy lock, a sequence that would not
+		 * allocate) simply vanishes from this list, and the invoice then asks the
+		 * customer for the whole total having already banked part of it. Nothing
+		 * would have said so: the money is in the ledger and the deduction is
+		 * not.
+		 *
+		 * The invariant is exact. Every receipt except the one that settled the
+		 * order should carry a document, so what those documents cover must be
+		 * everything received except the last payment. Anything else is a
+		 * document that is missing, and the answer to a missing document is not
+		 * to bill around it.
+		 */
+		$receipts = (array) $context['common']['receipts'];
+		if ( ! empty( $receipts ) ) {
+			$last     = (int) $receipts[ count( $receipts ) - 1 ]['cents'];
+			$received = 0;
+			foreach ( $receipts as $receipt ) {
+				$received += (int) $receipt['cents'];
+			}
+			if ( $received - $last !== $paid_off ) {
+				return new \WP_Error(
+					'teeshoop_deposits_missing',
+					sprintf(
+						/* translators: %d: an order number. */
+						__( 'La commande %d a encaissé des acomptes qui ne portent pas tous leur facture, donc la facture définitive ne peut pas les déduire. Émettez les factures d’acompte manquantes avant de facturer.', 'teeshoop' ),
+						$order->get_id()
+					)
+				);
+			}
 		}
 
 		return array_merge(
@@ -1271,7 +1335,22 @@ final class Invoice {
 		$order    = (array) $doc['order'];
 		$receipts = (array) ( $doc['receipts'] ?? array() );
 
-		if ( count( $receipts ) > 1 ) {
+		if ( self::KIND_DEPOSIT === ( $doc['kind'] ?? self::KIND_INVOICE ) ) {
+			/*
+			 * A RECEIPT, NOT A DEMAND. This document is issued because money has
+			 * ALREADY arrived, and the generic branch below printed "règlement à
+			 * la commande, à réception de la présente facture" on it: a customer
+			 * reading that would think they owed the acompte a second time, with
+			 * the late-payment clause underneath it saying what happens if they
+			 * do not pay.
+			 */
+			$out[] = sprintf(
+				/* translators: 1: a date, 2: a payment method. */
+				__( 'Acompte encaissé le %1$s par %2$s. Cette facture ne réclame aucun règlement.', 'teeshoop' ),
+				Vat::fr_date( (string) ( $doc['paid_on'] ?? $doc['date'] ) ),
+				'' !== (string) ( $doc['method'] ?? '' ) ? (string) $doc['method'] : __( 'virement', 'teeshoop' )
+			);
+		} elseif ( count( $receipts ) > 1 ) {
 			// Two or more transfers: name each, because that is what a bank
 			// statement will show and what an accountant will reconcile against.
 			$parts = array();

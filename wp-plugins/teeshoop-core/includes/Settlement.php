@@ -223,17 +223,17 @@ final class Settlement {
 	 * not read as nothing either: the money is there and somebody has to chase
 	 * the difference.
 	 */
-	public static function state( int $total_ttc, int $received, bool $authorised, array $config ): string {
+	public static function state( int $total_ttc, int $received, ?int $authorised, array $config ): string {
 		if ( $received <= 0 ) {
 			return self::NOTHING;
 		}
 		if ( $received >= $total_ttc ) {
 			return self::PAID;
 		}
-		if ( ! $authorised ) {
+		if ( null === $authorised ) {
 			return self::SHORT;
 		}
-		return $received >= self::deposit_due( $total_ttc, $config ) ? self::DEPOSIT : self::SHORT;
+		return $received >= $authorised ? self::DEPOSIT : self::SHORT;
 	}
 
 	/**
@@ -242,14 +242,23 @@ final class Settlement {
 	 * This is the reconciliation described at the top of the file, expressed as
 	 * one number per stage rather than as a boolean anywhere.
 	 */
-	public static function required_for( string $stage, int $total_ttc, bool $authorised, array $config ): int {
+	public static function required_for( string $stage, int $total_ttc, ?int $authorised, array $config ): int {
 		if ( self::STAGE_DISPATCH === $stage ) {
 			// "solde avant expédition". Both readings of the chapter agree here,
 			// and nothing leaves the workshop against a promise.
 			return $total_ttc;
 		}
 		if ( self::STAGE_PRODUCTION === $stage ) {
-			return $authorised ? self::deposit_due( $total_ttc, $config ) : $total_ttc;
+			/*
+			 * THE AMOUNT SOMEBODY AUTHORISED, in cents, not a yes and a live
+			 * setting. This used to take a boolean and recompute the deposit
+			 * from the config of the moment, so an operator editing the rate in
+			 * Réglages re-decided every open order retroactively: an order
+			 * approved at 50 % and half paid stopped being allowed to produce
+			 * the second the rate moved to 60 %. An order keeps the rules it was
+			 * taken under, the same as its VAT regime does.
+			 */
+			return null === $authorised ? $total_ttc : min( $total_ttc, max( 0, $authorised ) );
 		}
 		// A stage nobody has defined costs everything. "We do not know what this
 		// one needs" and "this one needs nothing" are different answers, and only
@@ -258,7 +267,7 @@ final class Settlement {
 	}
 
 	/** Whether an order may enter a stage. */
-	public static function stage_allows( string $stage, int $total_ttc, int $received, bool $authorised, array $config ): bool {
+	public static function stage_allows( string $stage, int $total_ttc, int $received, ?int $authorised, array $config ): bool {
 		return $received >= self::required_for( $stage, $total_ttc, $authorised, $config );
 	}
 
@@ -283,12 +292,27 @@ final class Settlement {
 		if ( $cents <= 0 ) {
 			return $ledger;
 		}
+
+		/*
+		 * NO REFERENCE, NO ENTRY, and this is the whole idempotence.
+		 *
+		 * The dedupe used to be skipped when the reference was empty, which
+		 * meant the one field that makes a repeated encashment harmless was
+		 * optional: an operator recording the same transfer twice with the box
+		 * left blank doubled the money, the order read as fully paid, and the
+		 * parcel left against a balance that was never there. Measured: two
+		 * calls, 1 000,00 EUR each, no reference, gave 2 000,00 EUR received.
+		 *
+		 * So a receipt that cannot be identified is refused, not accepted
+		 * without protection. The caller tells the operator what to type.
+		 */
 		$reference = trim( $reference );
-		if ( '' !== $reference ) {
-			foreach ( $ledger as $entry ) {
-				if ( trim( (string) ( $entry['reference'] ?? '' ) ) === $reference ) {
-					return $ledger;
-				}
+		if ( '' === $reference ) {
+			return $ledger;
+		}
+		foreach ( $ledger as $entry ) {
+			if ( trim( (string) ( $entry['reference'] ?? '' ) ) === $reference ) {
+				return $ledger;
 			}
 		}
 

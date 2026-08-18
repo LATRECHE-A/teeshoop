@@ -231,8 +231,10 @@ final class Ledger {
 		return self::due( $order ) - Money::from_eur( (string) $order->get_total_tax() );
 	}
 
-	public static function authorised( \WC_Order $order ): bool {
-		return '' !== (string) $order->get_meta( self::META_DEPOSIT, true );
+	/** The deposit somebody authorised on this order, in cents, or null. */
+	public static function authorised( \WC_Order $order ): ?int {
+		$frozen = (string) $order->get_meta( self::META_DEPOSIT, true );
+		return '' === $frozen ? null : max( 0, (int) $frozen );
 	}
 
 	public static function state( \WC_Order $order ): string {
@@ -291,7 +293,23 @@ final class Ledger {
 		 * `payment_complete()` below.
 		 */
 		if ( Settlement::remaining( self::due( $order ), self::received( $order ) ) > 0 ) {
-			Invoice::issue_deposit( $order, $after[ count( $after ) - 1 ] );
+			$document = Invoice::issue_deposit( $order, $after[ count( $after ) - 1 ] );
+			if ( is_wp_error( $document ) ) {
+				/*
+				 * The money is banked and the document the law requires was
+				 * refused. Silence here would leave an encashment with nothing
+				 * to show for it and nobody knowing, which is worse than the
+				 * refusal: an operator can fix a missing SIRET, they cannot fix
+				 * what they were never told about.
+				 */
+				$order->add_order_note(
+					sprintf(
+						/* translators: %s: why the document was refused. */
+						__( 'Encaissement enregistré mais la facture d’acompte n’a pas pu être émise : %s', 'teeshoop' ),
+						$document->get_error_message()
+					)
+				);
+			}
 			$order = wc_get_order( $order->get_id() ) ?: $order;
 		}
 
@@ -323,10 +341,16 @@ final class Ledger {
 			return;
 		}
 
-		if ( Settlement::PAID === $state && 'ts-acompte' === $order->get_status() ) {
-			// The balance landed on an order that was sitting on its deposit.
-			// `payment_complete` is WooCommerce's own way of saying so, and it
-			// is what makes the invoice issue.
+		if ( Settlement::PAID === $state && ! $order->is_paid() ) {
+			/*
+			 * WHATEVER IT WAS SITTING ON. This used to fire only for an order
+			 * already at `ts-acompte`, so an order settled in one go through the
+			 * box, which is every bank transfer on an order nobody authorised a
+			 * deposit for, stayed `pending` for ever: never marked paid, and
+			 * therefore never given the final invoice the law requires.
+			 * `payment_complete` is WooCommerce's own way of saying the money is
+			 * in, and it is what makes the invoice issue.
+			 */
 			$order->payment_complete();
 		}
 	}
@@ -380,7 +404,24 @@ final class Ledger {
 		 * non-zero order, they call `update_status()`, so a listener on the
 		 * first alone never sees a bank transfer. Same reason `Invoice` watches
 		 * both.
+		 *
+		 * BUT ONLY ON AN ORDER WITH AN EMPTY LEDGER. A status is a label a shop
+		 * manager can pick from a dropdown, and this hook used to turn that pick
+		 * into money: marking a half-paid order "Terminée" wrote the missing
+		 * balance in as though it had arrived, which is the exact gate that has
+		 * to hold the parcel. The whole design says the ledger is the authority
+		 * and the status is a label; a status that can WRITE the ledger inverts
+		 * that. An order that has already received something needs its balance
+		 * recorded as the second event it is, with its own date and reference,
+		 * through the box.
 		 */
+		if ( ! empty( self::receipts( $order ) ) ) {
+			$order->add_order_note(
+				__( 'Statut passé à un état payé alors que le solde n’est pas encaissé. Rien n’a été ajouté aux encaissements : enregistrez le versement pour que l’expédition s’ouvre.', 'teeshoop' )
+			);
+			return;
+		}
+
 		$missing = Settlement::remaining( self::due( $order ), self::received( $order ) );
 		if ( $missing <= 0 ) {
 			return;
@@ -515,8 +556,8 @@ final class Ledger {
 			echo '<p><label>' . esc_html__( 'Moyen', 'teeshoop' ) . '<br>';
 			echo '<input type="text" name="moyen" class="widefat" value="' . esc_attr__( 'Virement bancaire', 'teeshoop' ) . '"></label></p>';
 			echo '<p><label>' . esc_html__( 'Référence', 'teeshoop' ) . '<br>';
-			echo '<input type="text" name="reference" class="widefat"></label>';
-			echo '<span class="description">' . esc_html__( 'Le libellé du virement. Deux encaissements ne peuvent pas porter la même référence.', 'teeshoop' ) . '</span></p>';
+			echo '<input type="text" name="reference" class="widefat" required></label>';
+			echo '<span class="description">' . esc_html__( 'Obligatoire : le libellé du virement. C’est elle qui empêche un même versement d’être compté deux fois, donc un encaissement sans référence est refusé.', 'teeshoop' ) . '</span></p>';
 			printf( '<button type="submit" class="button button-primary">%s</button>', esc_html__( 'Enregistrer l’encaissement', 'teeshoop' ) );
 			echo '</form>';
 		}
@@ -573,6 +614,14 @@ final class Ledger {
 		$reference = sanitize_text_field( wp_unslash( (string) ( $_POST['reference'] ?? '' ) ) );
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
+		if ( '' === trim( $reference ) ) {
+			wp_die(
+				esc_html__( 'Un encaissement sans référence ne peut pas être enregistré : c’est la référence qui empêche de compter deux fois le même versement. Reprenez le libellé du virement.', 'teeshoop' ),
+				'',
+				array( 'response' => 400, 'back_link' => true )
+			);
+		}
+
 		self::record( $order, $cents, $method, $reference );
 		wp_safe_redirect( $order->get_edit_order_url() );
 		exit;
@@ -584,6 +633,8 @@ final class Ledger {
 		if ( ! Settlement::deposit_possible( self::due_ht( $order ), $config ) ) {
 			return false;
 		}
+		// Frozen in cents, and this is what the gate reads from now on: the
+		// amount somebody approved, not whatever the setting says next month.
 		$order->update_meta_data( self::META_DEPOSIT, (string) Settlement::deposit_due( self::due( $order ), $config ) );
 		$order->save();
 		self::follow( $order );
