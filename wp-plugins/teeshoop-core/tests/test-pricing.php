@@ -509,3 +509,68 @@ describe( 'Pricing — config merge', function () {
 		truthy( ! array_key_exists( 'wp_admin_password', $merged ) );
 	} );
 } );
+
+describe( 'Pricing — the minimum order', function () {
+	it( 'refuses a basket short on pieces and says which rule bit', function () {
+		$config  = Pricing::default_config();
+		$verdict = Pricing::below_minimum( 4, 100000, $config );
+
+		truthy( $verdict['below'] );
+		truthy( $verdict['qty'], 'the piece count did not report itself' );
+		truthy( ! $verdict['ht'], 'a rich basket was reported as short on money' );
+	} );
+
+	it( 'refuses a basket short on money even when the pieces are there', function () {
+		$config  = Pricing::default_config();
+		$verdict = Pricing::below_minimum( 50, 1, $config );
+
+		truthy( $verdict['below'] );
+		truthy( $verdict['ht'] );
+		truthy( ! $verdict['qty'] );
+	} );
+
+	it( 'reports both when both are short, because both have to be fixed', function () {
+		$verdict = Pricing::below_minimum( 1, 1, Pricing::default_config() );
+		truthy( $verdict['qty'] && $verdict['ht'] );
+	} );
+
+	it( 'accepts exactly the minimum', function () {
+		$config  = Pricing::default_config();
+		$verdict = Pricing::below_minimum( (int) $config['min_qty'], (int) $config['min_ht'], $config );
+		truthy( ! $verdict['below'], 'the shop refused its own stated minimum' );
+	} );
+
+	it( 'treats a minimum of 0 as no minimum, the same as every other threshold', function () {
+		$config            = Pricing::default_config();
+		$config['min_qty'] = 0;
+		$config['min_ht']  = 0;
+		truthy( ! Pricing::below_minimum( 1, 1, $config )['below'], 'clearing the fields closed the shop' );
+	} );
+
+	/*
+	 * THE FINDING THIS TEST EXISTS TO RECORD, and it is a business fact rather
+	 * than a defect: at the shipped tariff the amount half of the rule is very
+	 * nearly dead weight. Five printed tees are 72,50 EUR HT, well past the
+	 * 50,00 EUR floor, so the piece count is what actually refuses a basket. The
+	 * amount only bites below 10,00 EUR a piece, and nothing here is that cheap.
+	 * Question 01 now says so, because the associate is about to confirm a rule
+	 * half of which does nothing.
+	 */
+	it( 'shows that the amount minimum almost never binds at the shipped tariff', function () {
+		$config = Pricing::default_config();
+		$quote  = Pricing::quote(
+			array(
+				'garment' => 'tee',
+				'qty'     => (int) $config['min_qty'],
+				'sides'   => array( ts_side( 400 ) ),
+			),
+			$config
+		);
+
+		truthy(
+			$quote['total_ht'] > (int) $config['min_ht'],
+			'the smallest run the shop sells no longer clears the amount minimum'
+		);
+		truthy( ! Pricing::below_minimum( (int) $config['min_qty'], $quote['total_ht'], $config )['below'] );
+	} );
+} );

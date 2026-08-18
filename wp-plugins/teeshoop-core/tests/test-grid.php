@@ -39,8 +39,10 @@ describe( 'Pricing: the grid’s quantity columns', function () {
 		$config = ts_grid_config();
 		$qtys   = Pricing::grid_qtys( $config );
 
-		// 1 (what one costs), then every break, then one doubling past the last.
-		eq( $qtys, array( 1, 10, 25, 50, 100 ) );
+		// The smallest run the shop sells, then every break, then one doubling
+		// past the last. It used to start at 1; the shipped minimum order is
+		// five pieces, and a column nobody may buy is a price nobody may pay.
+		eq( $qtys, array( 5, 10, 25, 50, 100 ) );
 
 		$breaks = array_map(
 			static fn( array $b ): int => (int) $b['min_qty'],
@@ -48,10 +50,29 @@ describe( 'Pricing: the grid’s quantity columns', function () {
 		);
 		foreach ( $qtys as $qty ) {
 			truthy(
-				1 === $qty || in_array( $qty, $breaks, true ) || $qty === max( $breaks ) * 2,
-				"column {$qty} is neither 1, nor a break, nor the doubling"
+				(int) $config['min_qty'] === $qty || in_array( $qty, $breaks, true ) || $qty === max( $breaks ) * 2,
+				"column {$qty} is neither the minimum order, nor a break, nor the doubling"
 			);
 		}
+	} );
+
+	it( 'publishes no column the basket would refuse for being too small', function () {
+		foreach ( array( 0, 1, 5, 12 ) as $min ) {
+			$config            = ts_grid_config();
+			$config['min_qty'] = $min;
+			foreach ( Pricing::grid_qtys( $config ) as $qty ) {
+				truthy( $qty >= max( 1, $min ), "column {$qty} is below a minimum of {$min}" );
+			}
+		}
+	} );
+
+	it( 'goes back to a single-piece column when the minimum is removed', function () {
+		// A minimum of 0 means "no minimum", the same convention as the two
+		// quote thresholds. Reading it as "everything is refused" would empty
+		// the price grid the first time somebody cleared the field.
+		$config            = ts_grid_config();
+		$config['min_qty'] = 0;
+		eq( Pricing::grid_qtys( $config ), array( 1, 10, 25, 50, 100 ) );
 	} );
 
 	it( 'follows the breaks when they change, rather than a hard-coded list', function () {
@@ -66,14 +87,14 @@ describe( 'Pricing: the grid’s quantity columns', function () {
 				'rate'    => 0.20,
 			),
 		);
-		eq( Pricing::grid_qtys( $config ), array( 1, 5, 20, 40 ) );
+		eq( Pricing::grid_qtys( $config ), array( 5, 20, 40 ) );
 	} );
 
 	it( 'still produces a usable column when there are no breaks at all', function () {
 		$config               = ts_grid_config();
 		$config['qty_breaks'] = array();
 		// Not an empty table: a shop with no volume discount still has a price.
-		eq( Pricing::grid_qtys( $config ), array( 1 ) );
+		eq( Pricing::grid_qtys( $config ), array( (int) $config['min_qty'] ) );
 	} );
 
 	it( 'never publishes a column above the shop’s own cap', function () {
@@ -109,9 +130,13 @@ describe( 'Pricing: the headline above the grid', function () {
 	} );
 
 	it( 'names the quantity that reaches the cheaper price', function () {
-		$headline = Pricing::headline( 'tee', ts_grid_config() );
-		eq( (int) $headline['unit']['qty'], 1 );
-		truthy( (int) $headline['best']['qty'] > 1, 'the cheap anchor is the single-piece price' );
+		$config   = ts_grid_config();
+		$headline = Pricing::headline( 'tee', $config );
+		eq( (int) $headline['unit']['qty'], (int) $config['min_qty'] );
+		truthy(
+			(int) $headline['best']['qty'] > (int) $config['min_qty'],
+			'the cheap anchor is the smallest run the shop sells'
+		);
 	} );
 
 	it( 'names the LOWEST quantity that reaches it, not the largest column', function () {

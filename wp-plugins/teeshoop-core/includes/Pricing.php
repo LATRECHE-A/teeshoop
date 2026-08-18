@@ -182,6 +182,39 @@ final class Pricing {
 			 */
 			'quote_from_qty' => 250,
 			'quote_from_ht'  => 200000,
+
+			/*
+			 * Where the shop starts selling at all.
+			 *
+			 * ATTENTION: OURS TOO, AND WORSE THAN THE THRESHOLD ABOVE, BECAUSE
+			 * THE BIBLE DOES NAME A FIGURE AND IT DOES NOT SURVIVE CONTACT WITH
+			 * ITS OWN PRICES.
+			 *
+			 * Chapter 1 says it twice: "La commande minimale envisagée est de
+			 * 5 pièces, avec un minimum de commande de 50 EUR", then "Le minimum
+			 * de 50 EUR et 5 pièces doit être contrôlé". It never says whether
+			 * the 50 EUR is HT or TTC, never says whether the two are joined by
+			 * and or by or, and never says whether it is counted per line or per
+			 * basket. Question 01's written default settles all three the only
+			 * way that is safe for a professional shop: hors taxes, both
+			 * conditions, at cart validation. These two numbers are that
+			 * sentence.
+			 *
+			 * AND THE AMOUNT ALMOST NEVER BINDS. At the shipped tee tariff five
+			 * printed pieces are 72,50 EUR HT, and at the Bible's own worked
+			 * example (20,83 EUR HT a piece) they are 104,17 EUR HT. Both are
+			 * well past 50 EUR, so the piece count is the rule that actually
+			 * refuses baskets and the amount only bites on something cheaper
+			 * than 10,00 EUR a piece, which nothing in this catalogue is. That
+			 * is worth the associate knowing before he confirms it: as written
+			 * the amount is close to dead weight. Question 01 says so now.
+			 *
+			 * Either at 0 means "no minimum of that kind", the same convention
+			 * as the two thresholds above, so clearing a field opens the shop
+			 * rather than closing it.
+			 */
+			'min_qty'        => 5,
+			'min_ht'         => 5000,
 		);
 	}
 
@@ -249,6 +282,37 @@ final class Pricing {
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Whether a basket is under the shop's minimum order, and by which of the
+	 * two rules.
+	 *
+	 * Both are reported rather than the first that fails, because a customer
+	 * with three pieces at 30,00 EUR has two things to fix and being told about
+	 * them one at a time is how a basket gets abandoned.
+	 *
+	 * Deliberately NOT part of `quote()`. A quote prices ONE line and the
+	 * minimum is a property of the whole basket: three tees and three hoodies is
+	 * six pieces and passes, while either line alone does not. Folding it into
+	 * the line would refuse a basket the shop is happy to sell.
+	 *
+	 * @return array{below:bool,qty:bool,ht:bool,min_qty:int,min_ht:int}
+	 */
+	public static function below_minimum( int $qty, int $total_ht, array $config ): array {
+		$min_qty = (int) ( $config['min_qty'] ?? 0 );
+		$min_ht  = (int) ( $config['min_ht'] ?? 0 );
+
+		$short_qty = $min_qty > 0 && $qty < $min_qty;
+		$short_ht  = $min_ht > 0 && $total_ht < $min_ht;
+
+		return array(
+			'below'   => $short_qty || $short_ht,
+			'qty'     => $short_qty,
+			'ht'      => $short_ht,
+			'min_qty' => $min_qty,
+			'min_ht'  => $min_ht,
+		);
 	}
 
 	/**
@@ -421,6 +485,15 @@ final class Pricing {
 					'total_ttc'     => $quote['total_ttc'],
 					'discount_rate' => $quote['discount_rate'],
 					/*
+					 * The same carry as `needs_quote` below, at the other end of
+					 * the scale: a column the basket would refuse for being too
+					 * SMALL is the same lie as one it would refuse for being too
+					 * large. It is computed on this cell's own total because the
+					 * minimum is a basket rule and a one-line basket is the case
+					 * the grid describes.
+					 */
+					'below_minimum' => (bool) self::below_minimum( $qty, $quote['total_ht'], $config )['below'],
+					/*
 					 * CARRIED, because the grid was publishing prices the cart
 					 * refuses. A hoodie at 100 pieces is 2 080,00 EUR HT, past
 					 * the 2 000 EUR self-serve threshold, so the whole
@@ -453,7 +526,14 @@ final class Pricing {
 	 * returns 1, 10, 25, 50, 100.
 	 */
 	public static function grid_qtys( array $config ): array {
-		$qtys = array( 1 );
+		/*
+		 * The first column is the smallest run the shop will actually sell, not
+		 * 1. Printing "1 pièce : 14,50 EUR" above a basket that refuses fewer
+		 * than five is the same defect as the 100-piece column that was quoting
+		 * a price `Cart::add` answers with a 409, and it is worse, because the
+		 * cheap end of a grid is the number a visitor anchors on.
+		 */
+		$qtys = array( max( 1, (int) ( $config['min_qty'] ?? 0 ) ) );
 		$last = 0;
 
 		foreach ( (array) ( $config['qty_breaks'] ?? array() ) as $break ) {
@@ -472,10 +552,11 @@ final class Pricing {
 		sort( $qtys );
 
 		$max = (int) ( $config['max_qty'] ?? PHP_INT_MAX );
+		$min = max( 1, (int) ( $config['min_qty'] ?? 0 ) );
 		return array_values(
 			array_filter(
 				$qtys,
-				static fn( int $q ): bool => $q >= 1 && $q <= $max
+				static fn( int $q ): bool => $q >= $min && $q <= $max
 			)
 		);
 	}
@@ -508,7 +589,15 @@ final class Pricing {
 		$best  = null;
 
 		foreach ( $cells as $cell ) {
-			if ( 1 === (int) $cell['qty'] ) {
+			/*
+			 * The SMALLEST column, not the column at 1. With a minimum order in
+			 * force there is no column at 1, and the old test simply never
+			 * matched: `$unit` stayed null and the headline silently fell back
+			 * to `$cells[0]`, which is the same cell by luck rather than by
+			 * rule. A headline is the most-read number on the page; it does not
+			 * get to be right by accident.
+			 */
+			if ( null === $unit || (int) $cell['qty'] < (int) $unit['qty'] ) {
 				$unit = $cell;
 			}
 			/*

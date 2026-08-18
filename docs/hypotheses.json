@@ -156,9 +156,10 @@
 				"src/lib/teeshoop/"
 			],
 			"literal_allow": [
-				"wp-plugins/teeshoop-core/tests/test-pricing.php"
+				"wp-plugins/teeshoop-core/tests/test-pricing.php",
+				"wp-plugins/teeshoop-core/tests/test-shipping.php"
 			],
-			"literal_allow_why": "Le test écrit sa propre configuration de prix.",
+			"literal_allow_why": "Le test écrit sa propre configuration de prix. Dans le test de livraison, 1200 est le code postal de Genève sur un contrôle de zone, pas un tarif de marquage.",
 			"literal_scope_why": "1200 apparaît dans huit harnesses de capture comme dimension de rendu, dans treize fichiers en tout. Il est donc cherché là où un second PRIX pourrait s'écrire : l'extension, la table du studio et le pont qui les relie.",
 			"statement_amounts": [
 				{
@@ -354,9 +355,11 @@
 				"wp-plugins/teeshoop-core/tests/test-margin.php",
 				"wp-plugins/teeshoop-core/tests/test-catalogue.php",
 				"wp-plugins/teeshoop-core/includes/Importer.php",
-				"wp-plugins/teeshoop-core/includes/Money.php"
+				"wp-plugins/teeshoop-core/includes/Money.php",
+				"wp-plugins/teeshoop-core/includes/Pdf.php",
+				"wp-plugins/teeshoop-core/includes/Invoice.php"
 			],
-			"literal_allow_why": "Trois tests qui écrivent leurs propres taux, un poids de 0,15 kg dans une fiche d'essai, et deux commentaires qui prennent 0,15 comme exemple de remise et d'arrondi.",
+			"literal_allow_why": "Trois tests qui écrivent leurs propres taux, un poids de 0,15 kg dans une fiche d'essai, deux commentaires qui prennent 0,15 comme exemple de remise et d'arrondi, et deux fichiers de mise en page où 0,15, 0,25 et 0,35 sont des niveaux de gris et des décalages en millimètres sur la facture PDF.",
 			"literal_scope_why": "Trois fractions ordinaires, présentes dans une vingtaine de fichiers chacune, dans les géométries et les seuils d'image. Elles sont cherchées là où une seconde grille de remise pourrait s'écrire.",
 			"statement_amounts": [
 				{
@@ -401,9 +404,10 @@
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
 				"wp-plugins/teeshoop-core/tests/test-grid.php",
-				"wp-plugins/teeshoop-core/tests/e2e-support.php"
+				"wp-plugins/teeshoop-core/tests/e2e-support.php",
+				"wp-plugins/teeshoop-core/tests/test-vat.php"
 			],
-			"literal_allow_why": "Les trois sont des tests : deux écrivent leur propre configuration de prix, le troisième pose la ligne de TVA du parcours d'achat de bout en bout.",
+			"literal_allow_why": "Quatre tests : deux écrivent leur propre configuration de prix, un pose la ligne de TVA du parcours d'achat de bout en bout, et le quatrième écrit 0.20 sur une période en franchise pour vérifier que le taux y est refusé.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -464,9 +468,11 @@
 				"wp-plugins/teeshoop-core/tests/test-grid.php",
 				"wp-plugins/teeshoop-core/tests/test-margin.php",
 				"wp-plugins/teeshoop-core/tests/integration.php",
-				"wp-plugins/teeshoop-core/tests/test-pricing.php"
+				"wp-plugins/teeshoop-core/tests/test-pricing.php",
+				"wp-plugins/teeshoop-core/includes/Shipping.php",
+				"wp-plugins/teeshoop-core/tests/test-shipping.php"
 			],
-			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251).",
+			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; dans Shipping et son test, la première tranche de la grille Colissimo, qui est 250 grammes ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251).",
 			"literal_scope_why": "250 apparaît dans vingt-huit fichiers comme dimension, comme seuil d'image et comme longueur de rouleau, soixante et une fois en tout. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas.",
 			"statement_amounts": [
 				{
@@ -531,9 +537,11 @@
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
 				"wp-plugins/teeshoop-core/tests/test-margin.php",
 				"scripts/ar-shots.mjs",
-				"scripts/dtf-bench.mjs"
+				"scripts/dtf-bench.mjs",
+				"wp-plugins/teeshoop-core/includes/Shipping.php",
+				"wp-plugins/teeshoop-core/tests/test-shipping.php"
 			],
-			"literal_allow_why": "Collision de nombre, pas de règle : 10000 est aussi le plafond de surface en cm² du document de création (une règle différente, écrite elle aussi à deux endroits, designDoc.ts et Design.php, ce qui reste à traiter), une borne d'imbrication, un montant de test, une dimension de capture et le diviseur des centimètres carrés vers les mètres carrés dans le banc d'essai du film.",
+			"literal_allow_why": "Dans Shipping et son test, 10000 est la tranche des 10 kg de la grille Colissimo, en grammes. Aucun rapport avec le plafond de pièces sur une ligne.",
 			"reaches": [
 				"operator",
 				"internal"

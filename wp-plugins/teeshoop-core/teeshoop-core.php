@@ -54,8 +54,30 @@ const OPTION_PRICING = 'teeshoop_pricing';
 /** Option holding the integration settings (studio origin, worker URL, …). */
 const OPTION_SETTINGS = 'teeshoop_settings';
 
+/**
+ * Option holding the VAT regime timeline: one entry per period, each with the
+ * date it opens and the regime it carries. See includes/Vat.php for why it is a
+ * timeline and not a rate.
+ */
+const OPTION_VAT = 'teeshoop_vat';
+
+/**
+ * Option holding the seller's legal identity. EMPTY by default and never
+ * pre-filled: a plausible placeholder SIRET is a thing that ships.
+ */
+const OPTION_LEGAL = 'teeshoop_legal';
+
+/** Option holding the shipping grid, the packaging cost and the franco. */
+const OPTION_SHIPPING = 'teeshoop_shipping';
+
+/** Option holding the invoice series, its counter and the payment terms. */
+const OPTION_INVOICE = 'teeshoop_invoice';
+
 require_once __DIR__ . '/includes/Money.php';
 require_once __DIR__ . '/includes/Pricing.php';
+require_once __DIR__ . '/includes/Vat.php';
+require_once __DIR__ . '/includes/Legal.php';
+require_once __DIR__ . '/includes/Pdf.php';
 require_once __DIR__ . '/includes/Margin.php';
 require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Garments.php';
@@ -68,6 +90,10 @@ require_once __DIR__ . '/includes/Taxonomy.php';
 require_once __DIR__ . '/includes/Shelf.php';
 require_once __DIR__ . '/includes/Importer.php';
 require_once __DIR__ . '/includes/Cart.php';
+require_once __DIR__ . '/includes/Shipping.php';
+require_once __DIR__ . '/includes/Invoice.php';
+require_once __DIR__ . '/includes/Payment.php';
+require_once __DIR__ . '/includes/Checkout.php';
 require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Shortcode.php';
 require_once __DIR__ . '/includes/Compat.php';
@@ -98,6 +124,10 @@ function boot(): void {
 	Product::init();
 	Importer::init();
 	Cart::init();
+	Shipping::init();
+	Payment::init();
+	Checkout::init();
+	Invoice::init();
 	Rest::init();
 	Shortcode::init();
 	ProductPage::init();

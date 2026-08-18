@@ -211,17 +211,44 @@ final class Compat {
 		/*
 		 * THE ONE NUMBER TWO ENGINES BOTH OWN.
 		 *
-		 * Every TTC figure on the product page comes from
-		 * `teeshoop_pricing.vat_rate`; what a customer is actually charged comes
-		 * from WooCommerce's own tax tables. Nothing reconciles them, and the
-		 * mirror once shipped with taxes enabled and zero rows, so the studio
-		 * said 326,10 EUR TTC and the cart said 271,75 EUR with no tax: 54,35 EUR
-		 * apart, on a caption the invoice would contradict.
+		 * Every TTC figure on the product page comes from the regime in force;
+		 * what a customer is actually charged comes from WooCommerce's own tax
+		 * tables. Nothing reconciles them, and the mirror once shipped with
+		 * taxes enabled and zero rows, so the studio said 326,10 EUR TTC and the
+		 * cart said 271,75 EUR with no tax: 54,35 EUR apart, on a caption the
+		 * invoice would contradict.
+		 *
+		 * The comparison itself lives in `Checkout::woo_tax_mismatch`, which is
+		 * also what refuses the basket. This file used to hold a second copy of
+		 * it, and a second copy of a money rule is how the notice and the gate
+		 * end up disagreeing about whether the shop may sell.
 		 */
 		++$checked;
-		$vat = self::vat_problem();
-		if ( '' !== $vat ) {
-			$problems[] = $vat;
+		$regime = Settings::vat();
+		if ( ! $regime['known'] ) {
+			$problems[] = __( 'Aucune période de TVA ne couvre la date du jour : la boutique ne peut pas dire si une vente porte de la TVA, et le panier refuse le paiement.', 'teeshoop' );
+		} else {
+			$vat = Checkout::woo_tax_mismatch( $regime );
+			if ( '' !== $vat ) {
+				$problems[] = $vat;
+			}
+		}
+
+		/*
+		 * The unit the shop weighs in, because the carriage grid is in grams and
+		 * a shop manager types a number, not a unit. WooCommerce ships as `lbs`,
+		 * which is what this mirror was still set to: a 180 g t-shirt entered as
+		 * 0,18 became 82 g, four bracket steps down, and every parcel would have
+		 * been under-quoted with the difference coming out of the margin.
+		 */
+		++$checked;
+		$unit = get_option( 'woocommerce_weight_unit' );
+		if ( 'kg' !== $unit && 'g' !== $unit ) {
+			$problems[] = sprintf(
+				/* translators: %s: the weight unit WooCommerce is configured with. */
+				__( 'WooCommerce pèse en %s. La grille de livraison est en grammes et les poids fournisseurs sont en kilogrammes : réglez l’unité sur kg avant de vendre, sinon chaque colis part dans la mauvaise tranche.', 'teeshoop' ),
+				(string) $unit
+			);
 		}
 
 		++$checked;
@@ -248,53 +275,6 @@ final class Compat {
 			'ok'       => empty( $problems ),
 			'checked'  => $checked,
 			'problems' => $problems,
-		);
-	}
-
-	/**
-	 * Whether WooCommerce charges the VAT the product page prints, or ''.
-	 *
-	 * Compared against the store's own base country, which is the rate the page
-	 * quotes to a visitor who has not told us where they are.
-	 */
-	private static function vat_problem(): string {
-		if ( ! class_exists( '\WC_Tax' ) || ! function_exists( 'wc_get_base_location' ) ) {
-			return '';
-		}
-
-		$ours = (float) Settings::pricing()['vat_rate'];
-
-		if ( 'yes' !== get_option( 'woocommerce_calc_taxes' ) ) {
-			return $ours > 0
-				? __( 'Les taxes sont désactivées dans WooCommerce alors que la fiche produit annonce un montant TTC. Le client paierait le montant hors taxes.', 'teeshoop' )
-				: '';
-		}
-
-		$base  = wc_get_base_location();
-		$rates = \WC_Tax::find_rates(
-			array(
-				'country' => $base['country'] ?? '',
-				'state'   => $base['state'] ?? '',
-			)
-		);
-
-		$charged = 0.0;
-		foreach ( $rates as $rate ) {
-			$charged += (float) $rate['rate'];
-		}
-		$charged /= 100;
-
-		// A hundredth of a point of tolerance, because the tax table stores a
-		// string percentage and the config stores a float.
-		if ( abs( $charged - $ours ) < 0.0001 ) {
-			return '';
-		}
-
-		return sprintf(
-			/* translators: 1: the VAT rate the page prints, 2: the rate WooCommerce charges. */
-			__( 'La fiche produit annonce une TVA de %1$s et WooCommerce en facture %2$s. Les deux chiffres doivent être le même, sinon la page et la facture ne diront pas la même chose.', 'teeshoop' ),
-			Money::number( $ours * 100, 2 ) . "\u{00A0}%",
-			Money::number( $charged * 100, 2 ) . "\u{00A0}%"
 		);
 	}
 

@@ -46,6 +46,7 @@ if ( 'cli' !== PHP_SAPI ) {
 
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Compat;
+use Teeshoop\Core\Money;
 use Teeshoop\Core\Pricing;
 use Teeshoop\Core\Product;
 use Teeshoop\Core\Settings;
@@ -103,11 +104,14 @@ wc_load_cart();
  * input: it decides the cost of the blank. A product that declares none is not
  * personalisable at all, which is why `$bare_id` exists.
  */
-function ts_product( string $name, string $price, ?string $garment ): int {
+function ts_product( string $name, string $price, ?string $garment, string $weight_kg = '' ): int {
 	$product = new WC_Product_Simple();
 	$product->set_name( $name );
 	$product->set_regular_price( $price );
 	$product->set_catalog_visibility( 'hidden' );
+	if ( '' !== $weight_kg ) {
+		$product->set_weight( $weight_kg );
+	}
 	if ( null !== $garment ) {
 		$product->update_meta_data( Product::META, $garment );
 	}
@@ -115,8 +119,16 @@ function ts_product( string $name, string $price, ?string $garment ): int {
 	return $product->get_id();
 }
 
-$product_id = ts_product( 'Integration fixture', '14.50', 'tee' );
-$hoodie_id  = ts_product( 'Integration hoodie', '39.00', 'hoodie' );
+/*
+ * THE WEIGHTS ARE FIXTURE NUMBERS AND NOTHING ELSE READS THEM.
+ *
+ * A garment's real weight comes from the supplier feed, per SKU, and the
+ * shipping module refuses to quote a line that has none rather than assuming
+ * one. These two exist so the carriage cases have something to weigh; they are
+ * not a claim about what a t-shirt weighs and they never reach a customer.
+ */
+$product_id = ts_product( 'Integration fixture', '14.50', 'tee', '0.18' );
+$hoodie_id  = ts_product( 'Integration hoodie', '39.00', 'hoodie', '0.5' );
 $bare_id    = ts_product( 'Integration undeclared', '14.50', null );
 
 $sides  = array( array( 'id' => 'front', 'area_sq_cm' => 400 ) );
@@ -472,9 +484,20 @@ ts_it( 'the grid, the cart and the order agree at every quantity around a break'
 		ts_assert( ! is_wp_error( $order ), "order creation failed at {$qty}" );
 		$order = wc_get_order( $order );
 		ts_eq( (float) $order->get_subtotal(), (float) ( $quote['total_ht'] / 100 ), "order subtotal at {$qty}" );
+		/*
+		 * The carriage is deducted, and that is not a fudge: since session 04
+		 * the order legitimately carries a delivery line and its tax, and this
+		 * case is about the GOODS agreeing across the grid, the basket and the
+		 * order. `integration-checkout.php` asserts the other half, that the
+		 * goods plus the carriage plus the tax equal what the customer pays.
+		 */
+		$carriage = Money::from_eur( (string) $order->get_shipping_total() )
+			+ Money::from_eur( (string) $order->get_shipping_tax() );
+		// In CENTS, and that is the doctrine rather than a detail: subtracting
+		// two euro floats produced 17.400000000000002 here on the first run.
 		ts_eq(
-			(float) $order->get_total(),
-			(float) ( $quote['total_ttc'] / 100 ),
+			Money::from_eur( (string) $order->get_total() ) - $carriage,
+			(int) $quote['total_ttc'],
 			"order total incl. VAT at {$qty}"
 		);
 		$order->delete( true );
@@ -594,6 +617,20 @@ ts_it( 'still recognises the WooCommerce it was written against', function () {
 	ts_assert( $result['checked'] > 0, 'the compatibility check verified nothing at all' );
 	ts_assert( $result['ok'], 'WooCommerce moved: ' . implode( ' / ', $result['problems'] ) );
 } );
+
+/*
+ * The second half: VAT, carriage, the minimum and the invoice.
+ *
+ * Required rather than inlined, and called rather than run on include, so this
+ * file stays the single entry point with one pass count and one exit code, and
+ * neither half becomes a thousand lines nobody reads.
+ */
+require_once __DIR__ . '/integration-checkout.php';
+ts_checkout_suite( $product_id, $hoodie_id, $bare_id );
+
+// And the one thing a single process cannot check about itself.
+require_once __DIR__ . '/concurrency.php';
+ts_concurrency_suite();
 
 // ---------------------------------------------------------------------------
 

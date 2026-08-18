@@ -78,12 +78,26 @@ services:
       # to import, which is the correct behaviour and says which half is
       # missing. It is a constant rather than an option on purpose; see
       # includes/Supply.php.
+      #
+      # WP_ENVIRONMENT_TYPE, because WordPress answers `production` when nothing
+      # says otherwise, and the invoice gate reads it: an incomplete legal
+      # identity REFUSES a document in production and merely stamps it anywhere
+      # else. Undeclared, this mirror claimed to be the shop and refused to
+      # render the very documents it exists to develop. The preproduction is
+      # already set to `staging`.
+      #
+      # WORDPRESS_CONFIG_EXTRA IS ONLY APPLIED WHEN wp-config.php IS CREATED. On
+      # a volume that already exists, adding a line here does nothing, silently.
+      # For an existing mirror, once:
+      #
+      #   npm run wp:cli config set WP_ENVIRONMENT_TYPE local --type=constant
       WORDPRESS_CONFIG_EXTRA: |
         define('WP_DEBUG', true);
         define('WP_DEBUG_LOG', true);
         define('WP_DEBUG_DISPLAY', false);
         define('SCRIPT_DEBUG', true);
         define('TEESHOOP_CATALOGUE_TOKEN', '${TEESHOOP_CATALOGUE_TOKEN:-}');
+        define('WP_ENVIRONMENT_TYPE', 'local');
     volumes:
       - wp:/var/www/html
       - ../wp-plugins/teeshoop-core:/var/www/html/wp-content/plugins/teeshoop-core
