@@ -126,14 +126,29 @@ le catalogue est consultable sans être commandable.
 
 **L'outillage.** Un miroir local de la production (WordPress 7.0.4 + WooCommerce 11.0.1 en
 docker, **versions épinglées** sur celles réellement mesurées sur le serveur) que l'on peut désormais **reconstruire depuis le dépôt** (`wp teeshoop
-provisionner`), 147 tests JavaScript, 104 tests PHP purs, 17 tests d'intégration WooCommerce,
-une vérification de bout en bout du parcours d'achat à 40 assertions, un garde-fou qui
-interdit à un prix d'achat, un nom de fournisseur ou un tarif film d'atteindre un gabarit
-PHP, et des scripts de vérification qui font tourner le vrai code dans un vrai navigateur.
+provisionner`), 147 tests JavaScript, 177 tests PHP purs, 45 tests d'intégration WooCommerce,
+une vérification de bout en bout du parcours d'achat à 66 assertions qui va désormais
+jusqu'à la facture, un garde-fou qui interdit à un prix d'achat, un nom de fournisseur ou
+un tarif film d'atteindre un gabarit PHP, et des scripts de vérification qui font tourner
+le vrai code dans un vrai navigateur.
+
+**Encaisser (séance 04).** Le régime de TVA n'est pas une constante : c'est une suite de
+**périodes datées**, avec un mode franchise qui supprime toute ligne de taxe et fait
+apparaître « TVA non applicable, article 293 B du CGI ». Aucun seuil n'est écrit dans le
+code, parce que les seuils sont la réponse du comptable. La livraison est facturée à la
+grille publique Colissimo au poids, l'emballage compris, avec un franco, et le coût d'une
+livraison offerte reste enregistré sur la commande : « offerte » est une remise, pas un
+coût nul. La facture porte un numéro continu attribué en une seule instruction SQL
+(six processus concurrents, 150 numéros, aucun doublon et aucun trou ; la même fonction
+écrite en lire-puis-écrire en perd 48), elle est **gelée à l'émission** parce que
+`calculate_taxes()` de WooCommerce reprend une commande déjà passée au taux du jour, et
+elle est relue par poppler, qui ne partage pas une ligne avec le code qui l'écrit.
+L'identité légale du vendeur est **vide** et le restera : en production une facture
+incomplète est refusée, ailleurs elle sort marquée « document non conforme ».
 
 ---
 
-## Ce qu'il reste : dix-sept séances
+## Ce qu'il reste : seize séances
 
 Le détail exécutable de chacune vit dans `prompts/` (non versionné : ce sont des
 instructions de travail, elles changent plus vite que le code).
@@ -144,7 +159,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~02~~ | ~~Fiche produit, grille de prix, demande de devis~~ **faite** | - |
 | ~~03~~ | ~~Catalogue : Falk&Ross vers WooCommerce, à l'échelle~~ **faite** | - |
 | ~~03b~~ | ~~Le registre des hypothèses~~ **faite** | - |
-| 04 | Paiement : Stripe, TVA, livraison, facture | 02, 03, 03b |
+| ~~04~~ | ~~Paiement : Stripe, TVA, livraison, facture~~ **faite** | - |
 | 05 | Moteur de coût, prix plancher, commissions | 03b |
 | 06 | BAT, cycle de vie de la commande, e-mails | 04 |
 | 07 | Production : imbrication du film entre commandes | 06 |
@@ -174,10 +189,12 @@ ne peut le lever.
 
 | Blocage | Qui | Détail |
 |---|---|---|
-| **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Franchise en base ou régularisation : la séance 04 construit 20 % partout et se trompe entièrement si la réponse est « franchise » |
+| **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Depuis la séance 04 les deux régimes sont construits et la bascule est une date à saisir : ce qui manque n'est plus du code, c'est la réponse. Les 15 commandes, elles, ne sont facturables par le site sous aucun régime, parce qu'aucune période ne couvre leur date |
 | La vraie grille tarifaire | associé | Questions **06** (taux de marge) et **03** (grilles d'achat réelles), sa forme publique étant la **08**. Les prix actuels sont des **valeurs de démonstration**, enregistrées une par une dans `docs/hypotheses.json`. Ce tableau renvoyait à la question 04, qui porte sur les tarifs DTF fournisseur et ne tranche aucun prix de vente |
 | **Le taux de marge sur un textile nu** | associé | Question 42. Les 26 399 articles du catalogue sont importés avec leur coût réel et **sans prix de vente** : consultables, non commandables, tant que le taux n'est pas fixé |
-| Clés Stripe (test puis production) | associé | Séance 04 |
+| Clés Stripe (test puis production) | associé | Séance 04. L'extension officielle est branchée et l'alarme distingue un compte de test d'un compte réel par le préfixe de la clé, pas par la case à cocher, qui se contredit elle-même sur une configuration jamais enregistrée |
+| L'identité légale complète et le RCS | associé | Questions 17 et **45**. Rien n'est facturable sans, et rien n'est inventé à la place |
+| Une plateforme de facturation électronique | associé | Constat 7. Obligatoire **en réception au 1er septembre 2026**, quelle que soit la taille de l'entreprise. Ce n'est pas du développement, c'est une démarche |
 | Compte Brevo | associé | Séance 06 |
 | `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur n'a jamais pu partir |
 

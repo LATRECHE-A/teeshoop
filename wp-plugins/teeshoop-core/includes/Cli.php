@@ -394,7 +394,20 @@ final class Cli {
 			'woocommerce_currency_pos'        => 'right_space',
 			'woocommerce_price_decimal_sep'   => ',',
 			'woocommerce_price_thousand_sep'  => ' ',
-			'woocommerce_calc_taxes'          => 'yes',
+			/*
+			 * The carriage grid is in GRAMS and the supplier's weights are in
+			 * kilogrammes. WooCommerce ships as `lbs`, which is what this mirror
+			 * was still set to on 18/08/2026: a 180 g t-shirt entered as 0,18
+			 * weighed 82 g, four bracket steps down, and every parcel would have
+			 * been quoted below cost with the difference coming out of the
+			 * margin. `Compat::check` now says so too.
+			 */
+			'woocommerce_weight_unit'         => 'kg',
+			// Follows the regime in force rather than being asserted: under the
+			// franchise the correct WooCommerce state is taxes OFF, and a
+			// provisioning script that forced them on would put the shop in the
+			// exact state `Checkout::woo_tax_mismatch` refuses to sell in.
+			'woocommerce_calc_taxes'          => Vat::FRANCHISE === ( Settings::vat()['regime'] ?? '' ) ? 'no' : 'yes',
 			// Businesses read HT, so that is the basis prices are entered and
 			// shown in; the templates print TTC beside every HT figure.
 			'woocommerce_prices_include_tax'  => 'no',
@@ -423,6 +436,7 @@ final class Cli {
 		}
 
 		self::ensure_vat_row( $changed );
+		self::ensure_shipping_zone( $changed );
 		self::ensure_permalinks( $changed );
 		self::ensure_classic_theme( $changed );
 		self::ensure_settings( $assoc_args, $changed );
@@ -505,9 +519,27 @@ final class Cli {
 	private static function ensure_vat_row( array &$changed ): void {
 		global $wpdb;
 
+		$regime = Settings::vat();
+
 		$existing = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- no API exists to read the tax table.
 			"SELECT tax_rate_id FROM {$wpdb->prefix}woocommerce_tax_rates WHERE tax_rate_name = 'TVA' AND tax_rate_country = 'FR' LIMIT 1"
 		);
+
+		/*
+		 * UNDER THE FRANCHISE THE ROW IS REMOVED, not merely left unused.
+		 * Taxes are switched off above, so a rate sitting in the table charges
+		 * nothing today, and it charges 20 % the moment anybody turns taxes back
+		 * on for an unrelated reason. A shop in franchise that invoices VAT
+		 * becomes liable for it by the sole fact of having invoiced it.
+		 */
+		if ( Vat::FRANCHISE === ( $regime['regime'] ?? '' ) ) {
+			if ( $existing ) {
+				\WC_Tax::_delete_tax_rate( (int) $existing );
+				$changed[] = 'TVA retirée (franchise en base)';
+			}
+			return;
+		}
+
 		if ( $existing ) {
 			return;
 		}
@@ -529,6 +561,35 @@ final class Cli {
 		// table. A number shown to an operator that is not the number written is
 		// exactly what this whole session exists to stop.
 		$changed[] = 'TVA ' . Money::number( $rate * 100, 2 ) . "\u{00A0}%";
+	}
+
+	/**
+	 * One delivery zone, France, with our own method in it.
+	 *
+	 * A `WC_Shipping_Method` that is in no zone is a method WooCommerce never
+	 * asks for a rate, so the checkout offers nothing and says nothing. That is
+	 * a configuration step and not a code one, which is exactly why it belongs
+	 * in the provisioning command rather than in a hook: the alternative is a
+	 * plugin that silently rewrites a shop's delivery zones on activation.
+	 */
+	private static function ensure_shipping_zone( array &$changed ): void {
+		foreach ( \WC_Shipping_Zones::get_zones() as $zone ) {
+			foreach ( (array) ( $zone['shipping_methods'] ?? array() ) as $method ) {
+				if ( Shipping::METHOD_ID === $method->id ) {
+					return;
+				}
+			}
+		}
+
+		$zone = new \WC_Shipping_Zone();
+		$zone->set_zone_name( 'France métropolitaine' );
+		$zone->add_location( 'FR', 'country' );
+		$zone->save();
+		$zone->add_shipping_method( Shipping::METHOD_ID );
+		$zone->save();
+
+		\WC_Cache_Helper::get_transient_version( 'shipping', true );
+		$changed[] = 'zone de livraison France métropolitaine';
 	}
 
 	/**

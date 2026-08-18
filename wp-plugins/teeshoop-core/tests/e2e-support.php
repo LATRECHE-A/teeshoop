@@ -136,6 +136,43 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 		)
 	);
 	update_option( 'woocommerce_currency_pos', 'right_space' );
+	// Grams, because the carriage grid is. WooCommerce ships as `lbs`, which
+	// turns a 180 g t-shirt entered as 0,18 into 82 g and four bracket steps.
+	update_option( 'woocommerce_weight_unit', 'kg' );
+
+	/*
+	 * A DELIVERY ZONE AND A WAY TO PAY, because a checkout that offers neither
+	 * cannot be walked through. Virement (BACS) is the one core gateway that
+	 * takes no keys and behaves like a real French payment: the order lands
+	 * `on-hold` and only becomes `processing` when the shop confirms the funds
+	 * arrived. That is also the case a listener on `woocommerce_payment_complete`
+	 * alone would never see, which is exactly why the harness uses it.
+	 */
+	$has_zone = false;
+	foreach ( \WC_Shipping_Zones::get_zones() as $zone ) {
+		foreach ( (array) ( $zone['shipping_methods'] ?? array() ) as $method ) {
+			if ( \Teeshoop\Core\Shipping::METHOD_ID === $method->id ) {
+				$has_zone = true;
+			}
+		}
+	}
+	if ( ! $has_zone ) {
+		$zone = new \WC_Shipping_Zone();
+		$zone->set_zone_name( 'France métropolitaine' );
+		$zone->add_location( 'FR', 'country' );
+		$zone->save();
+		$zone->add_shipping_method( \Teeshoop\Core\Shipping::METHOD_ID );
+		$zone->save();
+		\WC_Cache_Helper::get_transient_version( 'shipping', true );
+	}
+
+	$bacs = get_option( 'woocommerce_bacs_settings', array() );
+	if ( ! is_array( $bacs ) ) {
+		$bacs = array();
+	}
+	$bacs['enabled'] = 'yes';
+	$bacs['title']   = 'Virement bancaire';
+	update_option( 'woocommerce_bacs_settings', $bacs );
 	update_option( 'woocommerce_price_decimal_sep', ',' );
 	update_option( 'woocommerce_price_thousand_sep', ' ' );
 
@@ -163,6 +200,13 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 	// through `do_shortcode`, and it puts the editor high on the page where a
 	// personalisation tool belongs rather than inside the description tab.
 	$product->set_short_description( '[teeshoop_studio]' );
+	/*
+	 * A FIXTURE WEIGHT, and nothing else reads it. Carriage is priced from the
+	 * supplier's own per-SKU weight and `Shipping::quote` refuses a line that
+	 * has none rather than assuming one; this exists so the checkout has
+	 * something to weigh.
+	 */
+	$product->set_weight( '0.18' );
 	$product->set_description( 'Un t-shirt personnalisable, pour la vérification de bout en bout.' );
 	$product->update_meta_data( Product::META, 'tee' );
 	$product->save();
@@ -180,6 +224,7 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 			// plain structure and false of production's.
 			'permalinks'      => (string) get_option( 'permalink_structure' ),
 			'cart_url'        => wc_get_cart_url(),
+			'checkout_url'    => wc_get_checkout_url(),
 			'garment'         => Product::garment_of( $product->get_id() ),
 			'catalogue_price' => (float) $product->get_regular_price(),
 			'studio_origin'   => Settings::studio_origin(),
@@ -306,6 +351,85 @@ function ts_e2e_refuse( int $product_id, string $design_id ) {
 	WC()->cart->empty_cart();
 }
 
+/**
+ * What an order carries, once a real checkout has produced it.
+ *
+ * Reported and never judged, like everything else here: the harness decides.
+ * `$confirm` moves it to `processing`, which is the shop saying the transfer
+ * arrived, and is the transition a listener on `woocommerce_payment_complete`
+ * alone would never see because BACS does not call it.
+ */
+function ts_e2e_order( int $order_id, bool $confirm ) {
+	$order = $order_id > 0 ? wc_get_order( $order_id ) : null;
+	if ( ! $order instanceof \WC_Order ) {
+		ts_e2e_out( array( 'found' => false ) );
+		return;
+	}
+
+	if ( $confirm ) {
+		$order->update_status( 'processing', 'Virement reçu (vérification).' );
+		$order = wc_get_order( $order_id );
+	}
+
+	$lines = array();
+	foreach ( $order->get_items() as $item ) {
+		$lines[] = array(
+			'name'      => $item->get_name(),
+			'qty'       => (int) $item->get_quantity(),
+			'total'     => (float) $item->get_total(),
+			'design_id' => (string) $item->get_meta( '_teeshoop_design_id', true ),
+			'garment'   => (string) $item->get_meta( '_teeshoop_garment', true ),
+			'size_grid' => (string) $item->get_meta( '_teeshoop_size_grid', true ),
+		);
+	}
+
+	$shipping = array();
+	foreach ( $order->get_items( 'shipping' ) as $item ) {
+		$shipping[] = array(
+			'method'    => (string) $item->get_method_id(),
+			'total'     => (float) $item->get_total(),
+			'borne_ht'  => (int) $item->get_meta( '_teeshoop_borne_ht', true ),
+			'parcel_g'  => (int) $item->get_meta( '_teeshoop_parcel_g', true ),
+			'free'      => (string) $item->get_meta( '_teeshoop_free', true ),
+		);
+	}
+
+	$doc = \Teeshoop\Core\Invoice::stored( $order );
+	$pdf = null === $doc ? '' : \Teeshoop\Core\Invoice::pdf( $doc );
+
+	ts_e2e_out(
+		array(
+			'found'          => true,
+			'id'             => $order->get_id(),
+			'status'         => $order->get_status(),
+			'payment_method' => $order->get_payment_method(),
+			'lines'          => $lines,
+			'shipping'       => $shipping,
+			'totals'         => array(
+				'subtotal' => (float) $order->get_subtotal(),
+				'shipping' => (float) $order->get_shipping_total(),
+				'tax'      => (float) $order->get_total_tax(),
+				'total'    => (float) $order->get_total(),
+			),
+			'frozen'         => array(
+				'regime'  => (string) $order->get_meta( \Teeshoop\Core\Checkout::META_VAT_REGIME, true ),
+				'rate'    => (string) $order->get_meta( \Teeshoop\Core\Checkout::META_VAT_RATE, true ),
+				'basis'   => (string) $order->get_meta( \Teeshoop\Core\Checkout::META_BASIS, true ),
+				'version' => (string) $order->get_meta( \Teeshoop\Core\Checkout::META_VERSION, true ),
+				'config'  => '' !== (string) $order->get_meta( \Teeshoop\Core\Checkout::META_CONFIG, true ),
+			),
+			'invoice'        => array(
+				'number'   => null === $doc ? '' : (string) $doc['number'],
+				'total'    => null === $doc ? 0 : (int) $doc['total_ttc'],
+				'mention'  => null === $doc ? '' : (string) $doc['mention'],
+				'stamp'    => null === $doc ? '' : (string) $doc['stamp'],
+				'pdf_size' => strlen( $pdf ),
+				'url'      => null === $doc ? '' : \Teeshoop\Core\Invoice::url( $order ),
+			),
+		)
+	);
+}
+
 $mode = isset( $args[0] ) ? (string) $args[0] : '';
 
 if ( 'setup' === $mode ) {
@@ -314,6 +438,8 @@ if ( 'setup' === $mode ) {
 	ts_e2e_cart( (string) ( $args[1] ?? '' ) );
 } elseif ( 'refuse' === $mode ) {
 	ts_e2e_refuse( (int) ( $args[1] ?? 0 ), (string) ( $args[2] ?? '' ) );
+} elseif ( 'order' === $mode ) {
+	ts_e2e_order( (int) ( $args[1] ?? 0 ), 'confirmer' === (string) ( $args[2] ?? '' ) );
 } else {
 	ts_e2e_out( array( 'error' => 'unknown mode ' . $mode ) );
 	exit( 2 );

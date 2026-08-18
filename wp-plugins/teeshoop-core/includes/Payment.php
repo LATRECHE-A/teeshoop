@@ -63,20 +63,41 @@ final class Payment {
 	}
 
 	/**
-	 * Every enabled gateway, and which account it would charge.
+	 * Every gateway the shop has TURNED ON, which account it would charge, and
+	 * whether a customer can actually reach it.
 	 *
-	 * @return array<string,array{title:string,environment:string}>
+	 * NOT `get_available_payment_gateways()`, and that distinction is the whole
+	 * alarm. That list holds only the gateways whose `is_available()` says yes,
+	 * which is the customer's view, so a payment method switched ON and unable
+	 * to take a cent is exactly the case it cannot show. Measured on the mirror
+	 * on 18/08/2026 against a real gateway turned on and removed from the
+	 * available list: the first version of this function reported a clean shop
+	 * with zero problems.
+	 *
+	 * So the enumeration starts from every registered gateway, keeps the ones
+	 * whose `enabled` setting says yes, and records separately whether the
+	 * customer would be offered it. "Turned on" and "usable" are different
+	 * facts, and conflating them is the same mistake as conflating "no" with
+	 * "could not look".
+	 *
+	 * @return array<string,array{title:string,environment:string,offered:bool}>
 	 */
 	public static function enabled(): array {
 		if ( ! function_exists( 'WC' ) || ! WC()->payment_gateways() ) {
 			return array();
 		}
 
+		$available = array_keys( WC()->payment_gateways()->get_available_payment_gateways() );
+
 		$out = array();
-		foreach ( WC()->payment_gateways()->get_available_payment_gateways() as $id => $gateway ) {
-			$out[ (string) $id ] = array(
-				'title'       => (string) $gateway->get_title(),
+		foreach ( WC()->payment_gateways()->payment_gateways() as $gateway ) {
+			if ( ! $gateway instanceof \WC_Payment_Gateway || 'yes' !== $gateway->enabled ) {
+				continue;
+			}
+			$out[ (string) $gateway->id ] = array(
+				'title'       => (string) $gateway->get_method_title(),
 				'environment' => self::environment_of( $gateway ),
+				'offered'     => in_array( (string) $gateway->id, $available, true ),
 			);
 		}
 		return $out;
@@ -183,7 +204,20 @@ final class Payment {
 			return $problems;
 		}
 
+		$offered = array_filter( $gateways, static fn( array $g ): bool => $g['offered'] );
+		if ( empty( $offered ) ) {
+			$problems[] = __( 'Des moyens de paiement sont activés mais aucun n’est proposé au client : la boutique ne peut rien encaisser. Il manque en général des clés.', 'teeshoop' );
+		}
+
 		foreach ( $gateways as $id => $gateway ) {
+			if ( ! $gateway['offered'] ) {
+				$problems[] = sprintf(
+					/* translators: %s: the name of a payment method. */
+					__( '« %s » est activé et n’apparaît pas au paiement. Il lui manque sa configuration, et personne ne le verra.', 'teeshoop' ),
+					$gateway['title']
+				);
+				continue;
+			}
 			if ( self::TEST === $gateway['environment'] ) {
 				$problems[] = sprintf(
 					/* translators: %s: the name of a payment method. */
@@ -222,12 +256,18 @@ final class Payment {
 		if ( empty( $gateways ) ) {
 			return false;
 		}
+		$offered = 0;
 		foreach ( $gateways as $gateway ) {
+			if ( ! $gateway['offered'] ) {
+				// Enabled and invisible is a misconfiguration, not a rail.
+				return false;
+			}
 			if ( self::LIVE !== $gateway['environment'] ) {
 				return false;
 			}
+			++$offered;
 		}
-		return true;
+		return $offered > 0;
 	}
 
 	/**

@@ -77,6 +77,81 @@ final class Checkout {
 		 * silently discounts below the floor price.
 		 */
 		add_filter( 'woocommerce_coupons_enabled', '__return_false' );
+
+		self::register_siret_field();
+	}
+
+	/**
+	 * Ask for the buyer's SIRET, and never block on it.
+	 *
+	 * QUESTION 01'S OTHER HALF. Its written default is "SIRET demandé mais non
+	 * bloquant", and until now it was asked only on the quote form, so a buyer
+	 * who paid in one go was never asked at all. Article 242 nonies A, I, 1° of
+	 * annexe II au CGI wants the customer's identifier on the invoice; a
+	 * customer who declines to give it still gets a document, and the invoice
+	 * prints it only when it is there.
+	 *
+	 * REGISTERED TWICE, because WooCommerce has two checkouts. The Store API's
+	 * own registry is the only thing the block reads, and a field added through
+	 * `woocommerce_billing_fields` alone is invisible there: a shop that had
+	 * switched to the block checkout would silently stop asking.
+	 */
+	private static function register_siret_field(): void {
+		add_filter(
+			'woocommerce_billing_fields',
+			static function ( array $fields ): array {
+				$fields['billing_siret'] = array(
+					'label'       => __( 'SIRET', 'teeshoop' ),
+					'required'    => false,
+					'class'       => array( 'form-row-wide' ),
+					'priority'    => 35,
+					'description' => __( 'Facultatif. Il figure sur votre facture si vous le renseignez.', 'teeshoop' ),
+				);
+				return $fields;
+			}
+		);
+
+		if ( ! function_exists( 'woocommerce_register_additional_checkout_field' ) ) {
+			return;
+		}
+		add_action(
+			'woocommerce_init',
+			static function (): void {
+				woocommerce_register_additional_checkout_field(
+					array(
+						'id'          => 'teeshoop/siret',
+						'label'       => __( 'SIRET', 'teeshoop' ),
+						'location'    => 'address',
+						'type'        => 'text',
+						'required'    => false,
+						/*
+						 * NO `attributes`. The block checkout is React, and it
+						 * passes what is given here straight to the DOM: an
+						 * `autocomplete` key produced "Invalid DOM property
+						 * autocomplete, did you mean autoComplete" in the console
+						 * of every checkout, which the end-to-end harness
+						 * refused to pass. A console error on the page where
+						 * money changes hands is not worth an input hint.
+						 */
+					)
+				);
+			}
+		);
+		// The block writes its own key; the invoice reads one. Copied across at
+		// order creation rather than read from two places, because two readers
+		// of one fact is how the classic checkout and the block end up printing
+		// different invoices.
+		add_action(
+			'woocommerce_store_api_checkout_update_order_from_request',
+			static function ( \WC_Order $order ): void {
+				$siret = (string) $order->get_meta( '_wc_billing/teeshoop/siret', true );
+				if ( '' !== $siret ) {
+					$order->update_meta_data( '_billing_siret', $siret );
+				}
+			},
+			10,
+			1
+		);
 	}
 
 	/**
@@ -431,6 +506,28 @@ final class Checkout {
 		 * the stored basis must still say what these figures are.
 		 */
 		$order->update_meta_data( self::META_BASIS, 'ht' );
+
+		/*
+		 * The buyer's SIRET, from wherever their checkout put it. WooCommerce
+		 * stores a custom billing field on the order under its own key on the
+		 * classic path and under a namespaced one on the block path; the invoice
+		 * reads exactly one.
+		 */
+		$siret = '';
+		foreach ( array( '_billing_siret', '_wc_billing/teeshoop/siret' ) as $key ) {
+			$found = (string) $order->get_meta( $key, true );
+			if ( '' !== $found ) {
+				$siret = $found;
+				break;
+			}
+		}
+		if ( '' === $siret && function_exists( 'WC' ) && WC()->checkout() ) {
+			$siret = (string) WC()->checkout()->get_value( 'billing_siret' );
+		}
+		if ( '' !== $siret ) {
+			$order->update_meta_data( '_billing_siret', sanitize_text_field( $siret ) );
+		}
+
 		$order->update_meta_data( self::META_CONFIG, wp_json_encode( $config ) );
 		$order->update_meta_data( self::META_VERSION, VERSION );
 

@@ -378,12 +378,25 @@ final class ProductPage {
 			return $html;
 		}
 
-		$best = $headline['best'];
+		$best  = $headline['best'];
+		$bases = Settings::price_bases();
+
+		/*
+		 * ONE NUMBER WHEN THERE IS ONE NUMBER. Under the franchise this line
+		 * printed "9,42 EUR HT (9,42 EUR TTC)": the same amount twice, with a
+		 * parenthesis that invites the reader to look for a tax that must not
+		 * exist. The decision lives in `Settings::price_bases` because three
+		 * templates and this line all need it and four copies of it would
+		 * eventually disagree.
+		 */
+		$lead_ttc = $bases['two'] && 'ttc' === $bases['lead'];
+		$lead     = Money::format( (int) $best[ $lead_ttc ? 'unit_ttc' : 'unit_ht' ] );
+		$second   = Money::format( (int) $best[ $lead_ttc ? 'unit_ht' : 'unit_ttc' ] );
 
 		return sprintf(
 			'<span class="teeshoop-price">%s <span class="teeshoop-price__ttc">%s</span> <span class="teeshoop-price__from">%s</span></span>',
-			esc_html( Money::format( (int) $best['unit_ht'] ) . ' HT' ),
-			esc_html( sprintf( '(%s TTC)', Money::format( (int) $best['unit_ttc'] ) ) ),
+			esc_html( $bases['two'] ? $lead . ( $lead_ttc ? ' TTC' : ' HT' ) : $lead ),
+			esc_html( $bases['two'] ? sprintf( '(%s %s)', $second, $lead_ttc ? 'HT' : 'TTC' ) : $bases['mention'] ),
 			esc_html(
 				sprintf(
 					/* translators: %d: the quantity at which that unit price is reached. */

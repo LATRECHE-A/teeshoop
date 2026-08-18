@@ -157,6 +157,7 @@ function ts_probe_order( int $product_id, string $regime, string $environment, a
 	if ( is_wp_error( $doc ) ) {
 		$out = array( 'error' => $doc->get_error_code() . ': ' . $doc->get_error_message() );
 		$order->delete( true );
+		WC_Shipping_Zones::delete_zone( (int) $zone->get_id() );
 		return $out;
 	}
 
@@ -166,6 +167,7 @@ function ts_probe_order( int $product_id, string $regime, string $environment, a
 		'pdf' => base64_encode( Invoice::pdf( $doc ) ),
 	);
 	$order->delete( true );
+	WC_Shipping_Zones::delete_zone( (int) $zone->get_id() );
 	return $out;
 }
 

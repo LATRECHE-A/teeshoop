@@ -38,6 +38,15 @@ operating manual; `includes/Catalogue.php` argues the modelling.
 teeshoop-core.php     bootstrap; declines politely if WooCommerce is absent
 includes/
   Money.php           integer cents; no float ever holds a price
+  Vat.php             the regime as a timeline of dated periods, pure
+  Legal.php           the seller's identity, empty by default, gated on the env
+  Shipping.php        the Colissimo grid, packaging, the franco; pure
+  shipping/           the WooCommerce method, one directory down on purpose
+  Invoice.php         the number, the frozen document, the PDF
+  Pdf.php             a single-purpose PDF writer; pure
+  Checkout.php        the gates between a basket and an order
+  Payment.php         which account a gateway would charge, and the alarms
+  Admin.php           the one screen where the facts nobody can invent go
   Pricing.php         the price authority. Pure, no WordPress calls
   Margin.php          cost, floor price, commission (the Bible, corrected)
   Settings.php        stored config + the fail-closed defaults around it
@@ -424,11 +433,85 @@ Proved against a live Worker + local WordPress on 2026-08-13: a real id verifies
 and prices (25 units, 271,75 €), a fabricated one is refused with
 `design_not_found` and the cart is untouched.
 
+## Taking money
+
+**The VAT regime is a timeline, not a rate.** `Vat.php` holds a list of periods,
+each with the date it opens and the regime it carries. A company in franchise en
+base charges nothing and must print "TVA non applicable, article 293 B du CGI";
+the day it crosses the threshold it starts charging, and invoices issued before
+that day do not change. A single constant cannot express any of that, and the
+shop's own history is the reason it matters: 15 real orders were taken with
+WooCommerce's tax calculation switched off and nobody has said whether that was
+a franchise or an omission.
+
+No threshold is written anywhere in this plugin. The thresholds and the dates are
+the accountant's answer. `Settings::pricing()` points `vat_rate` at the regime in
+force, which is the entire franchise implementation: every TTC figure the shop
+prints comes from `Pricing::quote()` on that config.
+
+**Carriage is three numbers.** What La Poste charges, what the customer pays, and
+what we bear. They are different the moment a delivery is free, and the Bible
+counts "livraison offerte" as a direct cost, so `Shipping::quote()` returns all
+three and the order keeps them on its shipping line.
+
+**The invoice freezes at issue.** Measured on WooCommerce 11.0.1:
+`$order->calculate_taxes()` reprices a placed order at today's rate and
+overwrites the rate it had recorded, and the admin's "Recalculer" button reaches
+it. So the whole document, seller identity included, is written to order meta the
+moment it is issued, and the PDF renders from that snapshot. There is no HTML
+version: a screen copy and a PDF copy of one legal document are two
+implementations of one rule.
+
+The number is allocated in a single SQL statement against
+`{prefix}teeshoop_sequence`. `tests/concurrency.php` races six processes for 150
+numbers; a read-then-write version of the same code collided 48 times.
+
+**The seller's identity ships empty.** Nine fields, all `''`, and no placeholder
+will ever be added: a plausible SIRET is a thing that ships. In production an
+incomplete identity refuses both the document and the sale; anywhere else it
+renders stamped, in French, across the page.
+
+## Not handled, and that is a decision
+
+Each of these was considered in session 04 and left out on purpose. None is an
+oversight, and none is blocked on code.
+
+- **Refunds and credit notes (avoirs).** WooCommerce can refund; this plugin
+  issues no avoir, and a French invoice may never be cancelled by deletion or
+  renumbering. An avoir is its own numbered document referencing the original.
+  It needs question 27's answer (what the policy actually is) before it can be
+  built, and it belongs with the SAV work of session 06.
+- **Partial shipments.** One order, one parcel, one invoice. A run split across
+  two deliveries would need either two invoices or one invoice and a delivery
+  note, and the choice is the accountant's. Nothing today can produce a partial
+  shipment, because production does not exist until session 07.
+- **Deposits and instalments.** Question 16, and refused rather than assumed: the
+  Bible authorises an acompte without naming a percentage, a threshold or a
+  definition of "importante", and its own acceptance criterion ("une commande non
+  payée ne peut pas passer en production") forbids the path its payment rule
+  allows. Every order on the site is paid in full.
+- **Intra-EU B2B exemption and VIES.** The shop delivers to metropolitan France
+  only (question 35), so no intra-EU supply can be made through it and no
+  exemption may be granted. Building an unreachable VIES check would be building
+  something that can never be exercised and will be wrong the day it is needed.
+- **Mandat administratif.** Public buyers cannot pre-pay, which is incompatible
+  with paying at the order. Question 15's default handles it offline.
+- **Electronic invoicing (Factur-X).** Receiving became mandatory for every
+  company on 1 September 2026 and that is a démarche, not code; issuing does not
+  bite on a PME until 1 September 2027, and the target format depends on the
+  platform the associate chooses. Constat 7 of `QUESTIONS-ASSOCIE.md`.
+- **A monthly accounting export.** Question 24's default promises one. The
+  documents exist and are queryable; the export itself is session 13.
+- **Discount codes.** Coupons are switched off entirely
+  (`woocommerce_coupons_enabled`). The unit price already carries the quantity
+  discount, and no promotional policy exists to implement.
+
 ## Not built yet
 
 - An admin screen for the pricing config. It is set through the option.
 - An admin screen for the integration settings (studio origin, Worker URL). Same.
-- Payment. `Pricing` computes what a line costs; nothing takes money yet.
+  The facturation screen (`Admin.php`) covers VAT, the legal identity, the
+  invoice series and the carriage settings.
 - The quote DOCUMENT: its versions, its acceptance token, its PDF and the BAT.
   `Quote.php` holds the request and its state; the document belongs to session
   06, when there is a payment to attach it to.

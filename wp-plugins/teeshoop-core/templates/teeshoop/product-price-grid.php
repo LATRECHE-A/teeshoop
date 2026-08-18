@@ -26,17 +26,30 @@
  */
 
 use Teeshoop\Core\Money;
+use Teeshoop\Core\Settings;
 
 defined( 'ABSPATH' ) || exit;
 
 if ( empty( $rows ) ) {
 	return;
 }
+
+// Whether this shop has two bases to print at all, and which leads. Under the
+// franchise there is one number and it is the only one the customer pays.
+$ts_bases = Settings::price_bases();
 ?>
 <section class="ts-pricing" id="teeshoop-tarifs">
 	<h2 class="ts-pricing__title"><?php esc_html_e( 'Le prix par quantité', 'teeshoop' ); ?></h2>
 	<p class="ts-pricing__lead">
-		<?php esc_html_e( 'Prix à la pièce, impression comprise. Hors taxes en gras, toutes taxes comprises en dessous.', 'teeshoop' ); ?>
+		<?php
+		if ( ! $ts_bases['two'] ) {
+			esc_html_e( 'Prix à la pièce, impression comprise. Ce sont les montants à payer : aucune taxe ne s’y ajoute.', 'teeshoop' );
+		} elseif ( 'ttc' === $ts_bases['lead'] ) {
+			esc_html_e( 'Prix à la pièce, impression comprise. Toutes taxes comprises en gras, hors taxes en dessous.', 'teeshoop' );
+		} else {
+			esc_html_e( 'Prix à la pièce, impression comprise. Hors taxes en gras, toutes taxes comprises en dessous.', 'teeshoop' );
+		}
+		?>
 	</p>
 
 	<div class="ts-table__scroll">
@@ -91,8 +104,14 @@ if ( empty( $rows ) ) {
 									?>
 									<a class="ts-table__quote" href="#teeshoop-devis"><?php esc_html_e( 'sur devis', 'teeshoop' ); ?></a>
 								<?php else : ?>
-									<b><?php echo esc_html( Money::format( (int) $ts_cell['unit_ht'] ) ); ?></b>
-									<span class="ts-table__ttc"><?php echo esc_html( Money::format( (int) $ts_cell['unit_ttc'] ) ); ?></span>
+									<?php
+									$ts_lead   = 'ttc' === $ts_bases['lead'] ? (int) $ts_cell['unit_ttc'] : (int) $ts_cell['unit_ht'];
+									$ts_second = 'ttc' === $ts_bases['lead'] ? (int) $ts_cell['unit_ht'] : (int) $ts_cell['unit_ttc'];
+									?>
+									<b><?php echo esc_html( Money::format( $ts_lead ) ); ?></b>
+									<?php if ( $ts_bases['two'] ) : ?>
+										<span class="ts-table__ttc"><?php echo esc_html( Money::format( $ts_second ) ); ?></span>
+									<?php endif; ?>
 									<?php if ( (float) $ts_cell['discount_rate'] > 0 ) : ?>
 										<span class="ts-table__off">
 											<?php
@@ -157,6 +176,16 @@ if ( empty( $rows ) ) {
 	<p class="ts-note">
 		<?php esc_html_e( 'La surface retenue est celle de l’encre, pas celle du fichier : les marges transparentes autour d’un logo ne sont jamais facturées.', 'teeshoop' ); ?>
 	</p>
+	<?php if ( '' !== $ts_bases['mention'] ) : ?>
+		<p class="ts-note">
+			<?php
+			// CGI art. 293 E, II. Mandatory on the invoice, and printed here too
+			// because a professional reading a price list needs to know before
+			// he budgets that there is no VAT to reclaim on it.
+			echo esc_html( $ts_bases['mention'] );
+			?>
+		</p>
+	<?php endif; ?>
 	<p class="ts-note">
 		<?php
 		printf(

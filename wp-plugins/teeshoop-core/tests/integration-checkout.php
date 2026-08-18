@@ -704,6 +704,34 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		}
 	} );
 
+	ts_it( 'sees a payment method that is switched on and cannot take a cent', function () {
+		/*
+		 * THE CASE THE FIRST VERSION COULD NOT SEE, and the one that matters:
+		 * `get_available_payment_gateways()` is the CUSTOMER's list, so a
+		 * gateway enabled without its keys is absent from it, and an alarm built
+		 * on that list reported a clean shop with zero problems.
+		 */
+		$saved = get_option( 'woocommerce_cheque_settings', array() );
+		update_option( 'woocommerce_cheque_settings', array( 'enabled' => 'yes', 'title' => 'Chèque' ) );
+
+		$hide = static function ( $gateways ) {
+			unset( $gateways['cheque'] );
+			return $gateways;
+		};
+		add_filter( 'woocommerce_available_payment_gateways', $hide, 99 );
+		WC()->payment_gateways()->init();
+
+		$listed = Payment::enabled();
+		ts_assert( isset( $listed['cheque'] ), 'a gateway that is on was not listed at all' );
+		ts_eq( $listed['cheque']['offered'], false, 'it was reported as offered to the customer' );
+		ts_assert( ts_ck_any( Payment::problems(), 'n’apparaît pas au paiement' ), 'and nothing was said about it' );
+		ts_assert( ! Payment::ready(), 'a shop with an unusable method reported itself ready' );
+
+		remove_filter( 'woocommerce_available_payment_gateways', $hide, 99 );
+		update_option( 'woocommerce_cheque_settings', $saved );
+		WC()->payment_gateways()->init();
+	} );
+
 	ts_it( 'refuses a basket that would cost nothing', function () use ( $product_id, $sides, $design, $saved_pricing ) {
 		/*
 		 * "Test mode that silently falls back to no payment required" is how a
@@ -737,6 +765,13 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 	// ── put it back ──────────────────────────────────────────────────────────
 
 	WC()->cart->empty_cart();
+	// The delivery zone goes too: left behind, it makes `wp teeshoop
+	// provisionner` believe the shop already has one and skip its own.
+	foreach ( WC_Shipping_Zones::get_zones() as $zone ) {
+		if ( 'Vérification' === $zone['zone_name'] ) {
+			WC_Shipping_Zones::delete_zone( (int) $zone['id'] );
+		}
+	}
 	if ( null === $saved_vat ) {
 		delete_option( 'teeshoop_vat' );
 	} else {

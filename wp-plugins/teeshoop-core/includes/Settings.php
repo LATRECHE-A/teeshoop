@@ -32,6 +32,19 @@ final class Settings {
 			// record but nobody's inbox is a customer waiting for an answer no
 			// one knows to write.
 			'quote_email'        => '',
+			/*
+			 * Which of the two bases leads on a page, and the answer to question
+			 * 01's display half.
+			 *
+			 * `ht_first` because that question's written default is a shop
+			 * reserved for professionals, "prix affichés hors taxes avec le
+			 * montant toutes taxes comprises en second". If the answer comes
+			 * back "particuliers aussi", French consumer law requires the TTC to
+			 * lead, and flipping this setting is the whole change: nothing is
+			 * STORED in the other basis, every amount in this plugin is HT in
+			 * integer cents, so there is nothing to migrate.
+			 */
+			'price_display'      => 'ht_first',
 		);
 
 		$stored = get_option( OPTION_SETTINGS, array() );
@@ -95,6 +108,27 @@ final class Settings {
 		$stored = get_option( OPTION_PRICING, array() );
 		$config = Pricing::merge_config( is_array( $stored ) ? $stored : array() );
 		return Vat::regime( self::today(), self::vat_periods(), $config );
+	}
+
+	/**
+	 * How a page should print a price: whether there are two bases at all, and
+	 * which one leads.
+	 *
+	 * ONE DECISION, THREE TEMPLATES. Under the franchise there is no VAT, so a
+	 * page that prints "14,50 EUR HT (14,50 EUR TTC)" states the same number
+	 * twice and invites the reader to look for a tax line that must not exist.
+	 * Under the standard regime both bases are printed, and which leads is a
+	 * setting. Deciding that in each template would be three copies of one rule.
+	 *
+	 * @return array{two:bool,lead:string,mention:string}
+	 */
+	public static function price_bases(): array {
+		$vat = self::vat();
+		return array(
+			'two'     => (float) $vat['rate'] > 0,
+			'lead'    => 'ttc_first' === self::get( 'price_display' ) ? 'ttc' : 'ht',
+			'mention' => (string) $vat['mention'],
+		);
 	}
 
 	/**

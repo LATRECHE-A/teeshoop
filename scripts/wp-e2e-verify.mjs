@@ -621,7 +621,171 @@ try {
   )
   await shot('wp-e2e-5-cart-page')
 
-  ok('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '))
+  // --- 9. and then they pay for it ----------------------------------------
+  /*
+   * THE CHECKOUT FORM, FOR REAL, and not `WC_Checkout::create_order()` called
+   * from WP-CLI. Three things only exist on this path: WooCommerce's own
+   * validation, `Checkout::assert_total` on
+   * `woocommerce_checkout_order_processed`, and the delivery rate the customer
+   * is actually offered. A suite that builds its order in PHP exercises none of
+   * them, and the seam between correct code and WooCommerce is where the money
+   * goes.
+   *
+   * Virement, because it is the one core gateway that needs no keys and because
+   * it behaves like a real French payment: the order lands `on-hold` and
+   * becomes `processing` only when the shop confirms the funds. BACS never
+   * calls `payment_complete()`, so this also proves the invoice is issued by the
+   * status listener and not only by the one every tutorial hooks.
+   */
+  await page.goto(fixture.checkout_url, { waitUntil: 'domcontentloaded', timeout: 45000 })
+  await page.waitForTimeout(2500)
+
+  /*
+   * WHICHEVER CHECKOUT THE SHOP HAS, and this mirror has the BLOCK one, which
+   * is WooCommerce's default for new installs and the path where
+   * `woocommerce_checkout_create_order` never fires at all. Testing only the
+   * classic shortcode would have exercised the one branch this shop does not
+   * use, and left the order-meta fallback that exists precisely for the block
+   * unproven.
+   */
+  const isBlock = (await page.locator('.wc-block-checkout, [data-block-name="woocommerce/checkout"]').count()) > 0
+  const isClassic = (await page.locator('form.checkout').count()) > 0
+  ok('the checkout page renders a form we can fill', isBlock || isClassic, isBlock ? 'block' : isClassic ? 'classic' : 'neither')
+
+  if (isBlock || isClassic) {
+    const fill = async (selectors, value) => {
+      for (const selector of [].concat(selectors)) {
+        const field = page.locator(selector).first()
+        if ((await field.count()) > 0) {
+          await field.click({ timeout: 5000 }).catch(() => {})
+          await field.fill(value, { timeout: 5000 }).catch(() => {})
+          return true
+        }
+      }
+      return false
+    }
+
+    // The block puts the SHIPPING address first and copies it to billing; the
+    // classic form is billing-first. Both id shapes are tried.
+    await fill(['#email', '#billing_email'], 'verification@example.invalid')
+    await fill(['#shipping-first_name', '#billing-first_name', '#billing_first_name'], 'Camille')
+    await fill(['#shipping-last_name', '#billing-last_name', '#billing_last_name'], 'Durand')
+    await fill(['#shipping-company', '#billing-company', '#billing_company'], 'Association Sportive de Bobigny')
+    await fill(['#shipping-address_1', '#billing-address_1', '#billing_address_1'], '12 avenue Jean Jaurès')
+    await fill(['#shipping-postcode', '#billing-postcode', '#billing_postcode'], '93000')
+    await fill(['#shipping-city', '#billing-city', '#billing_city'], 'Bobigny')
+    await fill(['#shipping-phone', '#billing-phone', '#billing_phone'], '0100000000')
+
+    const country = page.locator('#billing_country')
+    if ((await country.count()) > 0) await country.selectOption('FR').catch(() => {})
+
+    // The delivery total, as the customer reads it, before anything is paid.
+    await page.waitForTimeout(4000)
+    const shippingShown = await page
+      .locator('.wc-block-components-totals-shipping, .woocommerce-shipping-totals')
+      .first()
+      .innerText()
+      .catch(() => '')
+    /*
+     * Named, not priced. This run is 25 pieces, which is 384,25 EUR HT and past
+     * the 300 EUR franco, so the customer is shown "livraison offerte" and no
+     * amount: demanding a digit here asserted the opposite of what the shop is
+     * supposed to do. What matters end to end is that OUR method is the one
+     * offered and that the free delivery still records what it cost us, which
+     * the order assertions below check. The charged branch is exercised by
+     * tests/test-shipping.php and by the invoice probe, both at ten pieces.
+     */
+    ok(
+      'the checkout offers our own Colissimo delivery',
+      /Colissimo/i.test(shippingShown),
+      shippingShown.replace(/\s+/g, ' ').slice(0, 90) || '(nothing rendered)',
+    )
+
+    for (const selector of [
+      '#radio-control-wc-payment-method-options-bacs',
+      '#payment_method_bacs',
+    ]) {
+      const radio = page.locator(selector)
+      if ((await radio.count()) > 0) await radio.check({ timeout: 5000 }).catch(() => {})
+    }
+    const terms = page.locator('#terms')
+    if ((await terms.count()) > 0) await terms.check().catch(() => {})
+
+    await shot('wp-e2e-6-checkout')
+
+    const placeOrder = page
+      .locator('.wc-block-components-checkout-place-order-button, #place_order')
+      .first()
+    ok('there is a button to pay with', (await placeOrder.count()) > 0)
+    await placeOrder.click({ timeout: 15000 }).catch(() => {})
+    await page.waitForURL(/order-received|commande-recue/, { timeout: 60000 }).catch(() => {})
+    await page.waitForTimeout(2500)
+    await shot('wp-e2e-7-order-received')
+
+    const received = page.url()
+    const orderId = Number((received.match(/order-received\/(\d+)/) ?? [])[1] ?? 0)
+    ok('the order was placed through the real checkout', orderId > 0, received.slice(0, 110))
+
+    if (orderId > 0) {
+      const placed = support('order', String(orderId))
+      ok('it landed on hold, because a transfer has not arrived yet', placed.status === 'on-hold', placed.status)
+      ok('no invoice yet, because nothing has been paid', placed.invoice.number === '', placed.invoice.number)
+      ok(
+        'the personalised line survived the checkout with its design',
+        placed.lines.length === 1 && placed.lines[0].design_id === line.design_id,
+        placed.lines[0]?.design_id,
+      )
+      ok(
+        'the order carries a delivery line, and what it costs us',
+        placed.shipping.length === 1 && placed.shipping[0].borne_ht > 0,
+        JSON.stringify(placed.shipping[0] ?? {}),
+      )
+      ok(
+        'the goods, the delivery and the tax add up to what the customer pays',
+        Math.round((placed.totals.subtotal + placed.totals.shipping + placed.totals.tax) * 100) ===
+          Math.round(placed.totals.total * 100),
+        `${placed.totals.subtotal} + ${placed.totals.shipping} + ${placed.totals.tax} vs ${placed.totals.total}`,
+      )
+      ok(
+        'and it remembers the rules it was taken under, not just the amounts',
+        placed.frozen.regime !== '' && placed.frozen.rate !== '' && placed.frozen.basis === 'ht' && placed.frozen.config,
+        JSON.stringify(placed.frozen),
+      )
+
+      // The shop confirms the transfer arrived.
+      const paid = support('order', String(orderId), 'confirmer')
+      ok('confirming the transfer moves it to processing', paid.status === 'processing', paid.status)
+      ok('and THAT is what issues the invoice', /^\w+\d{4}-\d{4,}$/.test(paid.invoice.number), paid.invoice.number)
+      ok(
+        'the invoice total is the order total, to the cent',
+        paid.invoice.total === Math.round(paid.totals.total * 100),
+        `${paid.invoice.total} vs ${Math.round(paid.totals.total * 100)}`,
+      )
+      ok('and it renders as a real PDF', paid.invoice.pdf_size > 1200, `${paid.invoice.pdf_size} bytes`)
+
+      // The customer can fetch it with the order key alone, logged out.
+      const invoiceRes = await page.request.get(paid.invoice.url)
+      const invoiceBody = await invoiceRes.body()
+      ok(
+        'the customer can download it with their own order key',
+        invoiceRes.status() === 200 && invoiceBody.subarray(0, 5).toString() === '%PDF-',
+        `HTTP ${invoiceRes.status()}, ${invoiceBody.length} bytes`,
+      )
+      // And nobody else can. The key is the capability; the id is not.
+      const stolen = await page.request.get(paid.invoice.url.replace(/&key=[^&]+/, '&key=wc_order_deadbeef'))
+      ok('and nobody else can, with the wrong key', stolen.status() !== 200, `HTTP ${stolen.status()}`)
+    }
+  }
+
+  /*
+   * WooCommerce's own block bundle logs React development warnings on the
+   * checkout page, and they are not ours: they come out of
+   * `assets/client/blocks/`. Ours would name a file of ours. Filtering by
+   * origin rather than by message keeps this assertion able to fail: a warning
+   * from our own code still trips it.
+   */
+  const ours = errors.filter((e) => !/assets\/client\/blocks\//.test(e))
+  ok('no page errors of ours', ours.length === 0, ours.slice(0, 3).join(' | '))
 } catch (e) {
   console.error('\nFATAL ', e?.stack || e?.message || e)
   results.push({ name: 'harness completed', pass: false, extra: String(e?.message || e) })

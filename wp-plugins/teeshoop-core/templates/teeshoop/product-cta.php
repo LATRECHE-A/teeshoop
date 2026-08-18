@@ -34,6 +34,7 @@
 
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Pricing;
+use Teeshoop\Core\Settings;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -41,6 +42,7 @@ $ts_permalink = get_permalink( $product_id ) ?: home_url( '/' );
 $ts_max_qty   = (int) $config['max_qty'];
 $ts_discount  = (float) $quote['discount_rate'];
 $ts_over_cap  = ! empty( $request['over_cap'] );
+$ts_bases     = Settings::price_bases();
 ?>
 <div class="ts-buy" data-teeshoop-buy>
 
@@ -55,15 +57,40 @@ $ts_over_cap  = ! empty( $request['over_cap'] );
 			 * (they print TTC only, on a site selling to companies), and it
 			 * leaves a consumer multiplying by 1,2 to find their own number.
 			 */
-			printf(
-				/* translators: 1: unit price excl. VAT at quantity one, 2: the same incl. VAT, 3: unit price excl. VAT at the best break, 4: the same incl. VAT, 5: the quantity that reaches it. */
-				esc_html__( '%1$s HT (%2$s TTC) l’unité à la pièce, %3$s HT (%4$s TTC) à partir de %5$d pièces.', 'teeshoop' ),
-				'<b>' . esc_html( Money::format( (int) $headline['unit']['unit_ht'] ) ) . '</b>',
-				esc_html( Money::format( (int) $headline['unit']['unit_ttc'] ) ),
-				'<b>' . esc_html( Money::format( (int) $headline['best']['unit_ht'] ) ) . '</b>',
-				esc_html( Money::format( (int) $headline['best']['unit_ttc'] ) ),
-				(int) $headline['best']['qty']
-			);
+			if ( ! $ts_bases['two'] ) {
+				/*
+				 * ONE NUMBER UNDER THE FRANCHISE. Printing "14,50 EUR HT
+				 * (14,50 EUR TTC)" states the same amount twice and invites the
+				 * reader to look for a tax line that must not exist.
+				 */
+				printf(
+					/* translators: 1: unit price at the smallest run, 2: unit price at the best break, 3: the quantity that reaches it. */
+					esc_html__( '%1$s l’unité, %2$s à partir de %3$d pièces.', 'teeshoop' ),
+					'<b>' . esc_html( Money::format( (int) $headline['unit']['unit_ht'] ) ) . '</b>',
+					'<b>' . esc_html( Money::format( (int) $headline['best']['unit_ht'] ) ) . '</b>',
+					(int) $headline['best']['qty']
+				);
+			} elseif ( 'ttc' === $ts_bases['lead'] ) {
+				printf(
+					/* translators: 1: unit price incl. VAT at the smallest run, 2: the same excl. VAT, 3: unit price incl. VAT at the best break, 4: the same excl. VAT, 5: the quantity that reaches it. */
+					esc_html__( '%1$s TTC (%2$s HT) l’unité, %3$s TTC (%4$s HT) à partir de %5$d pièces.', 'teeshoop' ),
+					'<b>' . esc_html( Money::format( (int) $headline['unit']['unit_ttc'] ) ) . '</b>',
+					esc_html( Money::format( (int) $headline['unit']['unit_ht'] ) ),
+					'<b>' . esc_html( Money::format( (int) $headline['best']['unit_ttc'] ) ) . '</b>',
+					esc_html( Money::format( (int) $headline['best']['unit_ht'] ) ),
+					(int) $headline['best']['qty']
+				);
+			} else {
+				printf(
+					/* translators: 1: unit price excl. VAT at the smallest run, 2: the same incl. VAT, 3: unit price excl. VAT at the best break, 4: the same incl. VAT, 5: the quantity that reaches it. */
+					esc_html__( '%1$s HT (%2$s TTC) l’unité, %3$s HT (%4$s TTC) à partir de %5$d pièces.', 'teeshoop' ),
+					'<b>' . esc_html( Money::format( (int) $headline['unit']['unit_ht'] ) ) . '</b>',
+					esc_html( Money::format( (int) $headline['unit']['unit_ttc'] ) ),
+					'<b>' . esc_html( Money::format( (int) $headline['best']['unit_ht'] ) ) . '</b>',
+					esc_html( Money::format( (int) $headline['best']['unit_ttc'] ) ),
+					(int) $headline['best']['qty']
+				);
+			}
 			?>
 			<span class="ts-buy__basis"><?php esc_html_e( 'Impression comprise.', 'teeshoop' ); ?></span>
 		</p>
@@ -210,13 +237,35 @@ $ts_over_cap  = ! empty( $request['over_cap'] );
 				?>
 			</p>
 			<p class="ts-estimate__total">
-				<b data-teeshoop-total-ht><?php echo esc_html( Money::format( (int) $quote['total_ht'] ) ); ?></b>
-				<abbr title="<?php esc_attr_e( 'hors taxes', 'teeshoop' ); ?>"><?php esc_html_e( 'HT', 'teeshoop' ); ?></abbr>
-				<span class="ts-estimate__ttc">
-					<span data-teeshoop-total-ttc><?php echo esc_html( Money::format( (int) $quote['total_ttc'] ) ); ?></span>
-					<abbr title="<?php esc_attr_e( 'toutes taxes comprises', 'teeshoop' ); ?>"><?php esc_html_e( 'TTC', 'teeshoop' ); ?></abbr>
-				</span>
+				<?php
+				/*
+				 * The two data attributes stay on the same two numbers whatever
+				 * the order, because product.js updates them by name: swapping
+				 * the markup without swapping the hooks would leave the live
+				 * estimate writing the TTC into the HT slot.
+				 */
+				$ts_lead_ttc = $ts_bases['two'] && 'ttc' === $ts_bases['lead'];
+				?>
+				<b data-teeshoop-total-<?php echo $ts_lead_ttc ? 'ttc' : 'ht'; ?>><?php
+					echo esc_html( Money::format( (int) $quote[ $ts_lead_ttc ? 'total_ttc' : 'total_ht' ] ) );
+				?></b>
+				<?php if ( $ts_bases['two'] ) : ?>
+					<abbr title="<?php echo esc_attr( $ts_lead_ttc ? __( 'toutes taxes comprises', 'teeshoop' ) : __( 'hors taxes', 'teeshoop' ) ); ?>"><?php
+						echo esc_html( $ts_lead_ttc ? __( 'TTC', 'teeshoop' ) : __( 'HT', 'teeshoop' ) );
+					?></abbr>
+					<span class="ts-estimate__ttc">
+						<span data-teeshoop-total-<?php echo $ts_lead_ttc ? 'ht' : 'ttc'; ?>><?php
+							echo esc_html( Money::format( (int) $quote[ $ts_lead_ttc ? 'total_ht' : 'total_ttc' ] ) );
+						?></span>
+						<abbr title="<?php echo esc_attr( $ts_lead_ttc ? __( 'hors taxes', 'teeshoop' ) : __( 'toutes taxes comprises', 'teeshoop' ) ); ?>"><?php
+							echo esc_html( $ts_lead_ttc ? __( 'HT', 'teeshoop' ) : __( 'TTC', 'teeshoop' ) );
+						?></abbr>
+					</span>
+				<?php endif; ?>
 			</p>
+			<?php if ( '' !== $ts_bases['mention'] ) : ?>
+				<p class="ts-estimate__basis"><?php echo esc_html( $ts_bases['mention'] ); ?></p>
+			<?php endif; ?>
 			<p class="ts-estimate__unit">
 				<span data-teeshoop-unit><?php
 					printf(
