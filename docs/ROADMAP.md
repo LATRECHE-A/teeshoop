@@ -132,7 +132,7 @@ PHP, et des scripts de vérification qui font tourner le vrai code dans un vrai 
 
 ---
 
-## Ce qu'il reste : quinze séances
+## Ce qu'il reste : dix-sept séances
 
 Le détail exécutable de chacune vit dans `prompts/` (non versionné : ce sont des
 instructions de travail, elles changent plus vite que le code).
@@ -142,8 +142,9 @@ instructions de travail, elles changent plus vite que le code).
 | ~~01~~ | ~~Boucler la boucle : du studio au panier WooCommerce~~ **faite** | - |
 | ~~02~~ | ~~Fiche produit, grille de prix, demande de devis~~ **faite** | - |
 | ~~03~~ | ~~Catalogue : Falk&Ross vers WooCommerce, à l'échelle~~ **faite** | - |
-| 04 | Paiement : Stripe, TVA, livraison, facture | 02, 03 |
-| 05 | Moteur de coût, prix plancher, commissions | - |
+| 03b | Le registre des hypothèses | 03 |
+| 04 | Paiement : Stripe, TVA, livraison, facture | 02, 03, 03b |
+| 05 | Moteur de coût, prix plancher, commissions | 03b |
 | 06 | BAT, cycle de vie de la commande, e-mails | 04 |
 | 07 | Production : imbrication du film entre commandes | 06 |
 | 08 | Commande fournisseur et stock | 03, 07 |
@@ -152,7 +153,8 @@ instructions de travail, elles changent plus vite que le code).
 | 11 | Référencement, contenu, données structurées | 09 |
 | 12 | Juridique, RGPD, accessibilité | 09 |
 | 13 | Performance, sécurité, supervision | 09, 10 |
-| 14 | Déploiement : préproduction, pipeline, purge de la démo | rien (accès obtenus le 14/08) |
+| 13b | Les réponses de l'associé, et redire la vérité | 13 |
+| 14 | Déploiement : préproduction, pipeline, purge de la démo | 13b |
 | 15 | Répétition générale et mise en ligne | 14 |
 
 **Seules les séances 14 et 15 touchent au serveur o2switch, et leurs accès sont
@@ -178,7 +180,29 @@ ne peut le lever.
 | Compte Brevo | associé | Séance 06 |
 | `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur n'a jamais pu partir |
 
-`QUESTIONS-ASSOCIE.md` contient 40 questions auxquelles seul l'associé peut répondre. Q04
+### Ce qui a été décidé le 18/08/2026 : avancer quand même
+
+L'associé n'est pas disponible pour répondre, et attendre coûte plus cher que corriger.
+Les séances 04 à 13 sont donc construites **sur les hypothèses par défaut** écrites dans
+`QUESTIONS-ASSOCIE.md`, sous une condition en deux séances nouvelles.
+
+**03b installe la condition.** Un registre, `docs/hypotheses.json` : une ligne par valeur
+supposée, avec son **unique** emplacement dans le code, ce qu'elle atteint (un client, un
+fournisseur, une presse) et les mesures qui deviendraient fausses si elle bougeait. Un
+contrôle en intégration continue échoue quand le registre et le code divergent, et échoue
+quand une question marquée bloquante n'a aucune ligne. Il reprend aussi ce que les séances
+01 à 03 ont déjà livré sur hypothèse, ce qui n'est pas rien : la grille de prix de
+démonstration, les 17 EUR le mètre linéaire, le premier des trois nombres de stock, les
+noms de coloris non traduits, le catalogue sans prix de vente.
+
+**13b la solde**, entre la 13 et la 14, ce qui est la bonne couture : tout ce qui précède
+est local et réversible, la 14 touche le vrai domaine et la 15 encaisse de l'argent réel.
+Elle confronte chaque réponse au registre, applique les changements par ordre de portée,
+**remesure** ce qui dépendait d'une valeur modifiée au lieu de le réaffirmer, réaccorde ce
+que le site promet en public avec ce que l'atelier peut tenir, et installe le contrôle qui
+refuse la mise en ligne tant qu'une hypothèse bloquante atteint encore un client.
+
+`QUESTIONS-ASSOCIE.md` contient 44 questions auxquelles seul l'associé peut répondre. Q04
 (la grille tarifaire) conditionne une grande partie de la séance 05. Trois viennent d'être
 ajoutées par la séance 02 : la durée de validité d'un devis (la Bible impose la mention et
 ne donne aucune durée, et c'est un engagement ferme en droit français), le fait que la
@@ -196,6 +220,10 @@ redécouvre, ou une habitude que l'on croit voulue.
 
 La règle pour la séance qui les traite : **ne pas refermer un de ces écarts sans relire la
 raison**. Plusieurs sont des refus délibérés, pas des oublis.
+
+Ce tableau est l'ancêtre en prose du registre que la séance 03b rend exécutable. Une fois
+`docs/hypotheses.json` en place, ces lignes y deviennent des entrées avec un contrôle
+derrière, et ce tableau renvoie au registre au lieu de le recopier.
 
 | Écart | Pourquoi il a été choisi | Ce qui le referme | Séance |
 |---|---|---|---|

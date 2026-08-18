@@ -31,6 +31,64 @@ Répondez directement sous chaque question, dans le bloc « Votre réponse ».
 
 ---
 
+## Ce que nous faisons en attendant vos réponses
+
+**Décision du 18 août 2026.** Vous n'avez pas eu le temps de répondre, et arrêter le
+développement coûterait plus cher que d'avancer. Nous construisons donc la suite du site
+**sur les hypothèses par défaut écrites dans ce document**, celles qui figurent sous
+« Si vous ne répondez pas, on partira sur ». Rien n'est mis en ligne, rien n'est vendu, et
+aucun client ne voit quoi que ce soit avant que nous ayons repris vos réponses une par une.
+
+Trois règles encadrent cette décision, pour qu'elle reste réversible :
+
+1. **Chaque valeur supposée est inscrite dans un registre**, avec un seul endroit dans le
+   code où elle existe. Corriger une réponse tardive revient alors à changer un réglage, et
+   non à fouiller trois mois de développement pour retrouver où le chiffre a été recopié.
+2. **Un montant supposé est signalé comme tel** à l'écran, pour vous et pour l'atelier. Un
+   nombre inventé qui ressemble à un nombre validé est le pire des deux mondes.
+3. **La mise en ligne est bloquée automatiquement** tant qu'une réponse bloquante manque
+   sur un nombre qu'un client, un fournisseur ou une imprimante finit par voir. Ce n'est pas
+   une note dans un document, c'est un contrôle qui refuse de laisser passer.
+
+Une séance de travail entière est réservée à vos réponses, juste avant la mise en ligne.
+
+### Les quatre questions qui tiennent en un message
+
+Si vous ne devez répondre qu'à quatre choses cette semaine, ce sont celles-là : ce sont des
+oui ou non, et ce sont les seules où une mauvaise hypothèse nous oblige à refaire plutôt
+qu'à régler.
+
+- **Question 2** : un client peut-il payer seul en ligne, ou tout doit-il passer par un
+  devis que vous validez ?
+- **Question 1** : acceptez-vous les particuliers, ou professionnels uniquement ?
+- **Question 17, la moitié seulement** : la société facture-t-elle la TVA, oui ou non ? Le
+  détail des mentions légales peut attendre. Le régime, non : la boutique a déjà encaissé
+  15 commandes avec le calcul des taxes désactivé (constat 6).
+- **Question 20** : pouvons-nous supprimer les 47 produits de démonstration du site en
+  ligne, et désactiver Fancy Product Designer ?
+
+Quatre autres demandent d'aller chercher un document, donc autant les lancer maintenant même
+si la réponse met deux semaines : **3** (vos grilles d'achat réelles), **4** (vos tarifs DTF
+négociés), **17** (l'identité légale complète) et **31** (le logo en fichier vectoriel, vos
+couleurs, vos polices).
+
+### Ce que coûte une réponse tardive
+
+Pour vous aider à choisir par quoi commencer. Le coût est celui du moment où la réponse
+arrive juste avant la mise en ligne plutôt que maintenant.
+
+| Coût | Questions | Ce qu'il faut refaire |
+|---|---|---|
+| **On refait une partie** | 1, 2, 8, 12, 17, 20, 31, 35, 41 | Ces réponses ne changent pas un nombre, elles changent la forme de ce qui est construit : qui peut acheter, comment le prix est calculé, quelles techniques existent en ligne, à quoi ressemble la marque, dans quels pays on livre |
+| **Un réglage et une remesure** | 3, 4, 5, 6, 9, 14, 15, 22, 29, 32, 37 | Le réglage est immédiat, mais tous les montants que nous aurons annoncés en euros en découlent (coût de revient, prix plancher, économie de film, panier d'achat fournisseur). Il faut les remesurer, pas les recalculer de tête |
+| **Un réglage** | 7, 10, 11, 13, 16, 23, 24, 25, 26, 27, 30, 33, 34, 36, 38, 39, 40, 42, 43, 44 | Une valeur change dans l'administration, et c'est tout. La question 42 en est l'exemple : un seul taux, et les 26 392 articles du catalogue deviennent commandables |
+| **Nous ne construisons rien avant** | 18, 19, 28 | Ce sont des questions juridiques. Nous préparons le mécanisme et laissons le fait vide. En particulier, **le fichier de 150 000 entreprises ne sera ni importé ni utilisé** tant que son origine n'est pas documentée (question 19) |
+
+La question **21** (accès et propriété) est réglée depuis le 14 août : tous les accès
+techniques sont en place et ont été essayés un par un.
+
+---
+
 ## Avant tout : 6 constats sur l'existant
 
 Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan :
@@ -312,7 +370,7 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 
 *Pourquoi on a besoin de la réponse :* Les mentions légales et les factures ne peuvent pas être publiées sans ces informations, et elles sont obligatoires. La TVA conditionne aussi tout l'affichage des prix et les objectifs de chiffre d'affaires (vos objectifs sont exprimés toutes taxes comprises, vos coûts hors taxes).
 
-*Si vous ne répondez pas, on partira sur :* TVA à 20 % sur tout, mentions légales reprises des documents officiels de la société ; le site n'est pas mis en ligne tant que la page mentions légales est incomplète.
+*Si vous ne répondez pas, on partira sur :* le régime de TVA est construit comme une **période datée** et non comme une constante, parce qu'une entreprise en franchise qui dépasse le seuil bascule à une date, et que les factures d'avant et d'après ne sont pas les mêmes documents. Le régime en vigueur par défaut est la TVA à 20 %, affiché comme une hypothèse à côté du fait que la boutique en ligne est aujourd'hui configurée taxes désactivées (constat 6). En franchise : aucune ligne de TVA, TTC égal HT, et la mention « TVA non applicable, article 293 B du CGI » sur chaque devis et chaque facture. Aucun seuil n'est écrit dans le code, les périodes et leurs dates viennent de vous et de votre comptable. Les mentions légales restent **vides** plutôt que remplies d'exemples crédibles, et la mise en ligne est refusée tant qu'elles le sont.
 
 **Votre réponse :**
 
