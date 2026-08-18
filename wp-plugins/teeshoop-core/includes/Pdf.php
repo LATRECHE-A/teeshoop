@@ -234,6 +234,43 @@ final class Pdf {
 		return ( $units * $size / 1000 ) / self::MM;
 	}
 
+	/**
+	 * $text broken into lines that each fit $max_mm, on word boundaries.
+	 *
+	 * NOT `fit()`. The difference is legal rather than typographic: the
+	 * professional mentions at the foot of an invoice are mandatory content
+	 * (article L. 441-9 du code de commerce), and the first version of this
+	 * document truncated two of them with an ellipsis, so the page announced a
+	 * penalty rate as "au taux appliqué par la Banque centrale européenne à son
+	 * opération de r…". A truncated mandatory mention is a non-conforming
+	 * invoice. Labels in a table column may be cut; these may not.
+	 *
+	 * A single word longer than the line is left overflowing rather than broken:
+	 * hyphenating an IBAN or a company name would be worse than a long line.
+	 *
+	 * @return string[]
+	 */
+	public static function wrap( string $text, float $max_mm, string $font, float $size ): array {
+		$lines = array();
+		$line  = '';
+		foreach ( preg_split( '/\s+/u', trim( $text ) ) ?: array() as $word ) {
+			if ( '' === $word ) {
+				continue;
+			}
+			$candidate = '' === $line ? $word : $line . ' ' . $word;
+			if ( '' !== $line && self::width_mm( $candidate, $font, $size ) > $max_mm ) {
+				$lines[] = $line;
+				$line    = $word;
+				continue;
+			}
+			$line = $candidate;
+		}
+		if ( '' !== $line ) {
+			$lines[] = $line;
+		}
+		return empty( $lines ) ? array( '' ) : $lines;
+	}
+
 	/** As much of $text as fits in $max_mm, with a trailing ellipsis when cut. */
 	public static function fit( string $text, float $max_mm, string $font, float $size ): string {
 		if ( self::width_mm( $text, $font, $size ) <= $max_mm ) {

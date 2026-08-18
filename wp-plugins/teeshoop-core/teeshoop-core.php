@@ -99,6 +99,7 @@ require_once __DIR__ . '/includes/Shortcode.php';
 require_once __DIR__ . '/includes/Compat.php';
 require_once __DIR__ . '/includes/ProductPage.php';
 require_once __DIR__ . '/includes/Quote.php';
+require_once __DIR__ . '/includes/Admin.php';
 require_once __DIR__ . '/includes/Cli.php';
 
 /**
@@ -134,6 +135,7 @@ function boot(): void {
 	Quote::init();
 	Hypotheses::init();
 	Compat::init();
+	Admin::init();
 	Cli::init();
 	add_action( 'admin_notices', __NAMESPACE__ . '\\currency_notice' );
 }

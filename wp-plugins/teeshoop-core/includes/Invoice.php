@@ -621,14 +621,26 @@ final class Invoice {
 		}
 
 		// ── the mentions ─────────────────────────────────────────────────────
-		$y = max( $y + 4, 246.0 );
+		/*
+		 * WRAPPED, NOT TRUNCATED, and the block is placed from its own height.
+		 * The first version pinned the block at 246 mm and cut every line at the
+		 * margin, which put an ellipsis in the middle of two mentions article
+		 * L. 441-9 makes mandatory. A mandatory mention that does not fit moves
+		 * the block up; it never loses its second half.
+		 */
+		$wrapped = array();
+		foreach ( self::mentions( $doc ) as $mention ) {
+			foreach ( Pdf::wrap( $mention, $right - $left, Pdf::REGULAR, 7.2 ) as $line ) {
+				$wrapped[] = $line;
+			}
+		}
+
+		$foot = 288.0 - count( $wrapped ) * 3.6;
+		$y    = max( $y + 6, min( 246.0, $foot ) );
 		$pdf->rule( $left, $y - 4, $right, 0.15, 0.82 );
 
-		foreach ( self::mentions( $doc ) as $mention ) {
-			if ( $y > 288 ) {
-				break;
-			}
-			$pdf->text( $left, $y, Pdf::fit( $mention, $right - $left, Pdf::REGULAR, 7.2 ), Pdf::REGULAR, 7.2, 0.25 );
+		foreach ( $wrapped as $line ) {
+			$pdf->text( $left, $y, $line, Pdf::REGULAR, 7.2, 0.25 );
 			$y += 3.6;
 		}
 
@@ -681,7 +693,13 @@ final class Invoice {
 		// R. 123-237 du code de commerce: the RCS mention is the letters, then
 		// the town of the registry, and the number is the SIREN.
 		if ( '' !== (string) ( $seller['rcs_ville'] ?? '' ) ) {
-			$pdf->text( $left, $y, 'RCS ' . $seller['rcs_ville'] . ' ' . Legal::siren( $siret ), Pdf::REGULAR, 8.5 );
+			$pdf->text(
+				$left,
+				$y,
+				'RCS ' . $seller['rcs_ville'] . ' ' . trim( implode( "\u{00A0}", str_split( Legal::siren( $siret ), 3 ) ) ),
+				Pdf::REGULAR,
+				8.5
+			);
 			$y += 4;
 		}
 		if ( '' !== (string) ( $seller['tva_intra'] ?? '' ) ) {
