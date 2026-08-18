@@ -513,7 +513,7 @@ final class Cli {
 				'Commande %s, chiffrée le %s%s',
 				$order->get_order_number(),
 				(string) $report['computed_on'],
-				Costing::current( $order, $report ) ? '' : '  [PÉRIMÉ : la commande a changé depuis]'
+				self::stale_note( Costing::staleness( $order, $report ) )
 			)
 		);
 		\WP_CLI::log( str_repeat( '-', 78 ) );
@@ -602,6 +602,27 @@ final class Cli {
 			\WP_CLI::warning( (string) $warning );
 		}
 		\WP_CLI::log( '' );
+	}
+
+	/**
+	 * Why a stored report no longer describes what it claims to, on one line.
+	 *
+	 * THREE REASONS AND NOT ONE. This printed "la commande a changé depuis" for
+	 * all of them the day the check grew two more, so a report superseded by a
+	 * rule table blamed an order nobody had touched, in writing, in the output
+	 * this command exists to be evidence in.
+	 */
+	private static function stale_note( string $stale ): string {
+		switch ( $stale ) {
+			case 'commande':
+				return '  [PÉRIMÉ : la commande a changé depuis]';
+			case 'reglages':
+				return '  [PÉRIMÉ : les règles de plancher ou les taux ont changé depuis]';
+			case 'version':
+				return '  [PÉRIMÉ : chiffrage antérieur aux règles de plancher]';
+			default:
+				return '';
+		}
 	}
 
 	public static function check(): void {

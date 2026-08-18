@@ -24,12 +24,31 @@ require_once __DIR__ . '/../includes/Margin.php';
 use Teeshoop\Core\Margin;
 use Teeshoop\Core\PriceRule;
 
-/** A rule with everything blank, so a test only says what it means to say. */
+/**
+ * A rule with everything blank, so a test only says what it means to say.
+ *
+ * It DOES set a contribution by default, because a rule that sets no rate now
+ * decides nothing and is skipped: a fixture without one would test the skip
+ * instead of the thing under test. `ts_rule_without_rates()` is the one that
+ * asks for the other case.
+ */
 function ts_rule( array $over = array() ): array {
 	return PriceRule::normalise(
 		$over + array(
-			'id'     => 'r-' . substr( md5( wp_json_encode_stub( $over ) ), 0, 6 ),
-			'label'  => 'règle',
+			'id'                    => 'r-' . substr( md5( wp_json_encode_stub( $over ) ), 0, 6 ),
+			'label'                 => 'règle',
+			'active'                => true,
+			'min_contribution_rate' => '25',
+		)
+	);
+}
+
+/** A rule that names a scope and decides nothing. */
+function ts_rule_without_rates( array $over = array() ): array {
+	return PriceRule::normalise(
+		$over + array(
+			'id'     => 'r-none',
+			'label'  => 'sans taux',
 			'active' => true,
 		)
 	);
@@ -67,24 +86,32 @@ describe( 'PriceRule — reading a rule off a form', function () {
 	it( 'drops a row that names nothing and sets nothing', function () {
 		eq( PriceRule::normalise( array() ), null );
 		eq( PriceRule::normalise( array( 'label' => '   ' ) ), null );
+		eq( PriceRule::normalise( array( 'label' => 'un nom et rien d’autre', 'active' => true ) ), null, 'a name is not a criterion and not a rate' );
 		eq( PriceRule::normalise( 'not a rule' ), null );
 	} );
 
 	it( 'keeps a blank rate as NULL and never as zero', function () {
-		$rule = ts_rule( array( 'target_margin_rate' => '60' ) );
+		$rule = ts_rule_without_rates( array( 'target_margin_rate' => '60' ) );
 		near( (float) $rule['target_margin_rate'], 0.60, 1e-12 );
 		eq( $rule['min_contribution_rate'], null, 'a blank contribution is not a floor at the bare cost' );
 	} );
 
 	it( 'reads a percentage the way a French admin types it, unit and all', function () {
-		eq( ts_rule( array( 'min_contribution_rate' => '12,5' ) )['min_contribution_rate'], 0.125 );
-		eq( ts_rule( array( 'min_contribution_rate' => '12,5 %' ) )['min_contribution_rate'], 0.125 );
-		eq( ts_rule( array( 'min_contribution_rate' => 'un peu' ) )['min_contribution_rate'], null );
+		$read = static fn( string $typed ): ?float => PriceRule::normalise(
+			array( 'label' => 'r', 'active' => true, 'famille' => 'tee', 'min_contribution_rate' => $typed )
+		)['min_contribution_rate'];
+
+		eq( $read( '12,5' ), 0.125 );
+		eq( $read( '12,5 %' ), 0.125 );
+		eq( $read( 'un peu' ), null, 'a field nobody can read is not a rate' );
 	} );
 
 	it( 'refuses a rate of 100 % or more rather than storing an insoluble floor', function () {
-		eq( ts_rule( array( 'min_contribution_rate' => '100' ) )['min_contribution_rate'], null );
-		eq( ts_rule( array( 'target_margin_rate' => '150' ) )['target_margin_rate'], null );
+		$read = static fn( array $rates ): array => PriceRule::normalise(
+			array( 'label' => 'r', 'active' => true, 'famille' => 'tee' ) + $rates
+		);
+		eq( $read( array( 'min_contribution_rate' => '100' ) )['min_contribution_rate'], null );
+		eq( $read( array( 'target_margin_rate' => '150' ) )['target_margin_rate'], null );
 	} );
 
 	it( 'drops a date that is not a calendar day', function () {
@@ -96,7 +123,7 @@ describe( 'PriceRule — reading a rule off a form', function () {
 	it( 'caps the list, because a hundred overlapping floors is not a policy', function () {
 		$rows = array();
 		for ( $i = 0; $i < PriceRule::MAX_RULES + 20; $i++ ) {
-			$rows[] = array( 'label' => 'r' . $i, 'active' => true );
+			$rows[] = array( 'label' => 'r' . $i, 'active' => true, 'min_contribution_rate' => '25' );
 		}
 		eq( count( PriceRule::normalise_all( $rows ) ), PriceRule::MAX_RULES );
 	} );
@@ -189,7 +216,7 @@ describe( 'PriceRule — which of several rules wins', function () {
 	} );
 
 	it( 'reads a rule that sets no contribution as asking for the shop’s own', function () {
-		$silent = ts_rule( array( 'label' => 'muette', 'famille' => 'tee', 'target_margin_rate' => '60' ) );
+		$silent = ts_rule_without_rates( array( 'label' => 'muette', 'famille' => 'tee', 'target_margin_rate' => '60' ) );
 		$thin   = ts_rule( array( 'label' => 'mince', 'famille' => 'tee', 'min_contribution_rate' => '10' ) );
 		eq( PriceRule::best( array( $silent, $thin ), ts_facts(), TS_TODAY, 0.25 )['label'], 'muette', '25 % beats 10 %' );
 		eq( PriceRule::best( array( $silent, $thin ), ts_facts(), TS_TODAY, 0.05 )['label'], 'mince', 'and 10 % beats 5 %' );
@@ -264,7 +291,7 @@ describe( 'PriceRule — the combination that has no solution', function () {
 	it( 'catches a rule that inherits an impossible contribution from the shop', function () {
 		// The rule sets only a target margin, so it asks for the global
 		// contribution, and that is the one that cannot be kept.
-		$rule = ts_rule( array( 'label' => 'héritée', 'target_margin_rate' => '60' ) );
+		$rule = ts_rule_without_rates( array( 'label' => 'héritée', 'target_margin_rate' => '60' ) );
 		$base = ts_base();
 		$base['min_contribution_rate'] = 0.70;
 		eq( PriceRule::impossible( array( $rule ), $base, 0.40 ), array( 'héritée' ) );
@@ -274,5 +301,56 @@ describe( 'PriceRule — the combination that has no solution', function () {
 		truthy( ! PriceRule::insoluble( 0.59, 0.40 ) );
 		truthy( PriceRule::insoluble( 0.60, 0.40 ), 'k = 1 − c is already impossible' );
 		throws( fn() => Margin::floor_price_rate( 25000, 0.60, 0.40 ) );
+	} );
+} );
+
+describe( 'PriceRule — the two vocabularies, made one', function () {
+	it( 'maps every studio garment onto a family a rule can name', function () {
+		/*
+		 * THE FINDING THAT KILLED THE FIRST DESIGN, and until now it was
+		 * exercised on the one key where the map is the identity. A broken
+		 * hoodie mapping makes every sweat rule silently not apply, and nothing
+		 * would have failed.
+		 */
+		eq( PriceRule::family_of_garment( 'tee' ), 'tee' );
+		eq( PriceRule::family_of_garment( 'hoodie' ), 'sweat', 'a hoodie is a sweat: the catalogue has one word for both' );
+		eq( PriceRule::family_of_garment( 'custom' ), 'custom', 'a shirt the customer sent us was bought from nobody' );
+		eq( PriceRule::family_of_garment( 'polo' ), '', 'the studio sells no polo, so there is nothing to map' );
+		eq( PriceRule::family_of_garment( '' ), '' );
+	} );
+
+	it( 'maps onto words a rule can actually be written against', function () {
+		foreach ( array( 'tee', 'hoodie', 'custom' ) as $garment ) {
+			$family = PriceRule::family_of_garment( $garment );
+			truthy( isset( PriceRule::FAMILIES[ $family ] ), "{$garment} maps to {$family}, which no rule can select" );
+		}
+	} );
+} );
+
+describe( 'PriceRule — a rule that decides nothing must not silence one that does', function () {
+	it( 'skips a rule with both rates blank, however specific it is', function () {
+		/*
+		 * MEASURED BEFORE THE FIX: with facts famille=tee, urgence=express,
+		 * client=professionnel, a rule naming all three and setting no rate
+		 * outranked one naming the family and asking 40 %, and the floor on the
+		 * worked example fell from 750,00 EUR to 428,57 EUR, decided by a rule
+		 * that changes no number.
+		 */
+		$strict = ts_rule( array( 'label' => 'stricte', 'famille' => 'tee', 'min_contribution_rate' => '40' ) );
+		$empty  = ts_rule_without_rates( array( 'label' => 'vide', 'famille' => 'tee', 'urgence' => 'standard', 'client' => 'pro' ) );
+
+		truthy( PriceRule::matches( $empty, ts_facts(), TS_TODAY ), 'it does match, it just must not win' );
+		truthy( ! PriceRule::decides( $empty ) );
+		eq( PriceRule::best( array( $empty, $strict ), ts_facts(), TS_TODAY, 0.25 )['label'], 'stricte' );
+
+		$floor = Margin::plan( 25000, PriceRule::apply( ts_base(), array( $empty, $strict ), ts_facts(), TS_TODAY )['rules'] )['floor_ht'];
+		eq( $floor, 75000, '250,00 / (1 − 0,40/0,60), the strict rule’s floor, not the shop’s 428,57' );
+	} );
+
+	it( 'applies nothing at all when the only matching rule decides nothing', function () {
+		$empty = ts_rule_without_rates( array( 'famille' => 'tee', 'urgence' => 'standard' ) );
+		$out   = PriceRule::apply( ts_base(), array( $empty ), ts_facts(), TS_TODAY );
+		eq( $out['rule'], null, 'and the report must not name a rule that changed nothing' );
+		eq( $out['rules'], ts_base() );
 	} );
 } );

@@ -146,6 +146,29 @@ final class PriceRule {
 	);
 
 	/**
+	 * The studio's word for a garment, in the catalogue's vocabulary.
+	 *
+	 * A hoodie is a sweat: the catalogue has one family for both and the studio
+	 * has one garment for the hooded one. `custom` has no catalogue family
+	 * because the customer's own shirt was never bought from anybody, so it
+	 * keeps its own word. Anything else is unknown, which matches no rule that
+	 * selects on a family.
+	 *
+	 * HERE AND NOT IN `Costing`, so it can be tested without a WordPress: a
+	 * broken hoodie mapping makes every sweat rule silently not apply, and the
+	 * only test that touched it went through the one key where the map is the
+	 * identity.
+	 */
+	public static function family_of_garment( string $garment ): string {
+		$map = array(
+			'tee'    => 'tee',
+			'hoodie' => 'sweat',
+			'custom' => 'custom',
+		);
+		return $map[ $garment ] ?? '';
+	}
+
+	/**
 	 * How many rules a shop may hold.
 	 *
 	 * Not a performance limit: fifty rules is already more than anybody can hold
@@ -191,8 +214,14 @@ final class PriceRule {
 		$rule['target_margin_rate']    = self::rate( $raw['target_margin_rate'] ?? null );
 		$rule['min_contribution_rate'] = self::rate( $raw['min_contribution_rate'] ?? null );
 
+		/*
+		 * A NAME IS NOT A CRITERION AND NOT A RATE. Counting the label as one
+		 * meant that typing a name into the always-present empty block and
+		 * saving stored a live rule with no selectors and no rates, which then
+		 * outranked, and silenced, every rule that actually cut a floor.
+		 */
 		$sets     = null !== $rule['target_margin_rate'] || null !== $rule['min_contribution_rate'];
-		$selects  = '' !== $rule['label'];
+		$selects  = false;
 		foreach ( array_keys( self::SELECTORS ) as $key ) {
 			$selects = $selects || '' !== $rule[ $key ];
 		}
@@ -284,6 +313,18 @@ final class PriceRule {
 			if ( ! self::matches( $rule, $facts, $today ) ) {
 				continue;
 			}
+			/*
+			 * A RULE THAT SETS NO RATE CANNOT WIN, because winning is all it
+			 * would do. Specificity is compared before the rates are, so a rule
+			 * naming three selectors and deciding nothing outranked one naming a
+			 * single family and cutting the floor: measured on the worked
+			 * example, 750,00 EUR became 428,57 EUR, decided by a rule that
+			 * changes no number. A rule with both fields blank is a scope
+			 * somebody was still thinking about, and it now suppresses nothing.
+			 */
+			if ( ! self::decides( $rule ) ) {
+				continue;
+			}
 			$here = array(
 				'priority'     => (int) ( $rule['priority'] ?? 0 ),
 				'specificity'  => self::specificity( $rule ),
@@ -321,6 +362,11 @@ final class PriceRule {
 			}
 		}
 		return false;
+	}
+
+	/** Whether a rule changes any rate at all. One that does not decides nothing. */
+	public static function decides( array $rule ): bool {
+		return null !== ( $rule['target_margin_rate'] ?? null ) || null !== ( $rule['min_contribution_rate'] ?? null );
 	}
 
 	/** How many things a rule names. Ties are settled towards the considered one. */
@@ -384,9 +430,15 @@ final class PriceRule {
 	 * Whether a set of rates has no solution: keeping `k` of the price after
 	 * paying `c` of the margin away is impossible once k ≥ 1 − c.
 	 *
-	 * Checked before a rule is stored, against the HIGHEST commission rate the
-	 * shop pays, because a rule that is fine against 12 % and impossible against
-	 * 40 % is a rule that breaks the day a first order is attributed.
+	 * Checked against the HIGHEST commission rate the shop pays, because a rule
+	 * that is fine against a 12 % reassort and impossible against a 40 % first
+	 * order breaks the day one is attributed.
+	 *
+	 * REPORTED, NOT REFUSED. The screen names such a rule twice, in its own block
+	 * and at the top of the section, and `Costing` reports no floor at all rather
+	 * than a wrong one. Refusing to store it would throw away what the operator
+	 * typed while they work out which of the two numbers to move, and the two
+	 * places it is named are what stop it being silent.
 	 */
 	public static function insoluble( float $min_contribution_rate, float $commission_rate ): bool {
 		return $min_contribution_rate >= 1 - $commission_rate;
@@ -449,8 +501,19 @@ final class PriceRule {
 		return ( $rate >= 0 && $rate < 1 ) ? $rate : null;
 	}
 
-	/** Selectors compare on meaning, not on how somebody typed it. */
+	/**
+	 * Selectors compare on meaning, not on how somebody typed it.
+	 *
+	 * `mb_strtolower` and not `strcasecmp`, which folds ASCII only: a rule
+	 * written for "Éric" against an order reading "éric" compared as two
+	 * different salespeople and matched nothing, for ever, with nothing on
+	 * either screen to say so. French names are exactly where that bites.
+	 */
 	private static function same( string $a, string $b ): bool {
-		return '' !== $b && 0 === strcasecmp( trim( $a ), trim( $b ) );
+		// No empty-string guard: `$a` is non-empty by the time this is called
+		// (matches() skips empty selectors), so an empty fact simply differs.
+		// A clause that can never change an answer is not a safety net, it is a
+		// sentence claiming a check that is not happening.
+		return mb_strtolower( trim( $a ), 'UTF-8' ) === mb_strtolower( trim( $b ), 'UTF-8' );
 	}
 }

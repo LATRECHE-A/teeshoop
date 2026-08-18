@@ -158,8 +158,25 @@ final class CostAdmin {
 		}
 		check_admin_referer( self::ACTION_SAVE );
 
-		// phpcs:disable WordPress.Security.NonceVerification.Missing -- checked above.
-		$posted = isset( $_POST['couts'] ) && is_array( $_POST['couts'] ) ? wp_unslash( $_POST['couts'] ) : array();
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- checked above.
+		wp_safe_redirect( add_query_arg( 'teeshoop', self::persist( wp_unslash( $_POST ) ), self::url() ) );
+		exit;
+	}
+
+	/**
+	 * Write what the form posted, and answer with the flag the screen shows.
+	 *
+	 * SPLIT FROM `save()` so it can be driven by a test. The mechanism that
+	 * deleted `billing_step_cm` and 291,94 EUR of floor price was this function
+	 * rewriting an option from a literal, and the test that was supposed to
+	 * cover it called `update_option` directly and could never have caught it.
+	 * A test that re-implements the thing it checks proves only that it agrees
+	 * with itself.
+	 *
+	 * `$post` arrives ALREADY UNSLASHED, once, at the boundary.
+	 */
+	public static function persist( array $post ): string {
+		$posted = isset( $post['couts'] ) && is_array( $post['couts'] ) ? $post['couts'] : array();
 
 		/*
 		 * THE FALLBACK IS WHAT IS IN FORCE, NOT WHAT SHIPPED.
@@ -245,31 +262,21 @@ final class CostAdmin {
 		 * every save after that, and a commercial or client selector containing
 		 * an apostrophe stops matching anything at all.
 		 */
-		$posted_rules = isset( $_POST['regles'] ) && is_array( $_POST['regles'] ) ? wp_unslash( $_POST['regles'] ) : array();
-		$rules        = array();
-		foreach ( $posted_rules as $row ) {
-			if ( ! is_array( $row ) || ! empty( $row['delete'] ) ) {
-				continue;
-			}
-			$rule = PriceRule::normalise( $row );
-			if ( null === $rule ) {
-				continue;
-			}
-			/*
-			 * A STABLE ID, minted once and never reused. A frozen report names
-			 * the rule that priced it, and a rule identified by its row index
-			 * would make every historical report point at a different policy the
-			 * first time somebody deletes a row above it.
-			 */
-			if ( '' === $rule['id'] ) {
-				$rule['id'] = 'r' . substr( str_replace( '-', '', wp_generate_uuid4() ), 0, 12 );
-			}
-			$rules[] = $rule;
+		/*
+		 * ONLY WHEN THE FORM CARRIED THEM. A post with no `regles` key is a form
+		 * that does not own the rules, and writing an empty list for it would
+		 * delete every floor rule in the shop, silently. That is the same defect
+		 * as the eight-key film array that deleted `billing_step_cm` and 291,94
+		 * EUR of floor, one level up: a writer must not touch what it was not
+		 * given. The screen always posts the key, because it always renders at
+		 * least the empty trailing block, so deleting the last rule still works.
+		 */
+		if ( isset( $post['regles'] ) && is_array( $post['regles'] ) ) {
+			self::persist_rules( $post['regles'] );
 		}
-		update_option( OPTION_PRICE_RULES, array_slice( $rules, 0, PriceRule::MAX_RULES ) );
 
 		$com_defaults = Costing::commission_config();
-		$posted_commissions = isset( $_POST['commissions'] ) && is_array( $_POST['commissions'] ) ? wp_unslash( $_POST['commissions'] ) : array();
+		$posted_commissions = isset( $post['commissions'] ) && is_array( $post['commissions'] ) ? $post['commissions'] : array();
 		$rates              = array();
 		foreach ( array_keys( Commission::SALE_TYPES ) as $type ) {
 			$rates[ $type ] = self::pct_in(
@@ -286,8 +293,6 @@ final class CostAdmin {
 				'definitive_after_days' => self::int_in( $posted_commissions['definitive_after_days'] ?? '', (int) $com_defaults['definitive_after_days'], 0, 365 ),
 			)
 		);
-		// phpcs:enable
-
 		/*
 		 * THE PAIR CAN BE IMPOSSIBLE EVEN WHEN EACH HALF IS FINE.
 		 *
@@ -309,8 +314,32 @@ final class CostAdmin {
 			$flag = 'insoluble';
 		}
 
-		wp_safe_redirect( add_query_arg( 'teeshoop', $flag, self::url() ) );
-		exit;
+		return $flag;
+	}
+
+	/** Read the posted rules, mint ids for the new ones, and store them. */
+	private static function persist_rules( array $posted ): void {
+		$rules = array();
+		foreach ( $posted as $row ) {
+			if ( ! is_array( $row ) || ! empty( $row['delete'] ) ) {
+				continue;
+			}
+			$rule = PriceRule::normalise( $row );
+			if ( null === $rule ) {
+				continue;
+			}
+			/*
+			 * A STABLE ID, minted once and never reused. A frozen report names
+			 * the rule that priced it, and a rule identified by its row index
+			 * would make every historical report point at a different policy the
+			 * first time somebody deletes a row above it.
+			 */
+			if ( '' === $rule['id'] ) {
+				$rule['id'] = 'r' . substr( str_replace( '-', '', wp_generate_uuid4() ), 0, 12 );
+			}
+			$rules[] = $rule;
+		}
+		update_option( OPTION_PRICE_RULES, array_slice( $rules, 0, PriceRule::MAX_RULES ) );
 	}
 
 	/** A date input, or '' when it is not a real calendar day. */
@@ -471,7 +500,7 @@ final class CostAdmin {
 
 		echo '<h2>' . esc_html__( 'Simulateur', 'teeshoop' ) . '</h2>';
 		echo '<p class="description" style="max-width:46em">' . esc_html__(
-			'Le coût proposé par défaut est celui de l’exemple chiffré du chapitre 1 de votre document : une commande de 30 t-shirts à 250,00 EUR de coût direct. Changez un taux plus bas, enregistrez, et revenez : le plancher aura bougé.',
+			'Le coût proposé par défaut est celui de l’exemple chiffré du chapitre 1 de votre document : une commande de 30 t-shirts à 250,00 EUR de coût direct. Changez un taux plus bas, enregistrez, et revenez : le plancher aura bougé. Ce simulateur applique les réglages GÉNÉRAUX : il ne sait pas de quelle famille ni de quel client il s’agit, donc il ne peut pas savoir quelle règle de périmètre s’appliquerait. Le plancher que chaque règle produit est affiché sous elle, plus bas.',
 			'teeshoop'
 		) . '</p>';
 
@@ -562,11 +591,13 @@ final class CostAdmin {
 
 	private static function verdict_sentence( ?array $verdict ): string {
 		/*
-		 * THE FIFTH STATE, and it is the one that mattered. `(array) null` is an
-		 * empty array, every `! empty()` below is then false, and the sentence
-		 * fell through to "Vendable sans validation" on an order whose floor
-		 * could not be computed at all: a green line under a red warning, and
-		 * the associate reads the last sentence.
+		 * A GUARD ON THE HELPER, not the fix. What actually stopped a green
+		 * "Vendable sans validation" appearing under a red warning is that
+		 * `render_report` returns before it draws a verdict when there is no
+		 * plan; both callers therefore hand this a real verdict today. It stays
+		 * because the helper is reachable from anywhere and `(array) null` is an
+		 * empty array in which every `! empty()` below is false, which is the
+		 * shape the defect had.
 		 */
 		if ( null === $verdict || array() === $verdict ) {
 			return __( 'Aucun plancher n’est calculable pour cette commande : voir l’avertissement ci-dessus.', 'teeshoop' );
@@ -887,7 +918,7 @@ final class CostAdmin {
 		);
 		printf(
 			'<label>%s<br><input type="number" min="0" max="999" name="%s" value="%s" size="4"></label>',
-			esc_html__( 'Priorité', 'teeshoop' ),
+			esc_html__( 'Priorité (le plus grand gagne)', 'teeshoop' ),
 			esc_attr( $name( 'priority' ) ),
 			esc_attr( (string) (int) $value( 'priority', 0 ) )
 		);
@@ -935,8 +966,29 @@ final class CostAdmin {
 			$notes[] = __( 'active aujourd’hui', 'teeshoop' );
 		}
 
+		if ( ! PriceRule::decides( $rule ) ) {
+			/*
+			 * A rule with both rate fields blank changes no number, so it is
+			 * skipped entirely rather than allowed to outrank a rule that does.
+			 * The block has to say so, because a grey placeholder showing the
+			 * shop's own rate is exactly what invites leaving them empty.
+			 */
+			$notes[] = __( 'AUCUN TAUX : cette règle ne change rien et n’est jamais appliquée', 'teeshoop' );
+			$tone    = 'notice notice-warning inline';
+		}
+
 		if ( 0 === PriceRule::specificity( $rule ) ) {
 			$notes[] = __( 'AUCUN CRITÈRE : s’applique à toutes les commandes', 'teeshoop' );
+			$tone    = 'notice notice-warning inline';
+		} elseif ( 1 === PriceRule::specificity( $rule ) && '' !== (string) $rule['technique'] ) {
+			/*
+			 * The shop produces one technique, so naming it narrows nothing:
+			 * the rule reaches every printed order while the screen showed it
+			 * as a criterion and warned about nothing. Measured on the worked
+			 * example, a "DTF" rule at 40 % contribution floors a blank resale
+			 * at 750,00 EUR instead of 428,57 EUR.
+			 */
+			$notes[] = __( 'La technique est le seul critère, et l’atelier n’en produit qu’une : cette règle s’applique à toutes les commandes imprimées', 'teeshoop' );
 			$tone    = 'notice notice-warning inline';
 		}
 
@@ -948,12 +1000,22 @@ final class CostAdmin {
 			$notes[] = __( 'AUCUNE SOLUTION à ce taux de commission : les commandes touchées n’auront pas de plancher', 'teeshoop' );
 			$tone    = 'notice notice-error inline';
 		} else {
-			$floor = Margin::floor_price_rate( self::EXAMPLE_COST_HT, $k, $worst );
+			/*
+			 * BOTH CALLS GUARDED, and the second one is the reason this comment
+			 * exists. The rule's own rate was checked and the SHOP's was not, so
+			 * a shop whose general contribution had become insoluble killed this
+			 * page with an uncaught exception the moment any rule existed: the
+			 * one screen that could have shown the operator what was wrong,
+			 * fatal on exactly that state.
+			 */
+			$shop = (float) $config['min_contribution_rate'];
 			$notes[] = sprintf(
 				/* translators: 1: a floor price, 2: the shop's floor without any rule. */
 				__( 'plancher sur l’exemple : %1$s (sans règle : %2$s)', 'teeshoop' ),
-				Money::format( $floor ),
-				Money::format( Margin::floor_price_rate( self::EXAMPLE_COST_HT, (float) $config['min_contribution_rate'], $worst ) )
+				Money::format( Margin::floor_price_rate( self::EXAMPLE_COST_HT, $k, $worst ) ),
+				PriceRule::insoluble( $shop, $worst )
+					? __( 'aucun, les réglages généraux n’ont pas de solution', 'teeshoop' )
+					: Money::format( Margin::floor_price_rate( self::EXAMPLE_COST_HT, $shop, $worst ) )
 			);
 		}
 
@@ -1037,6 +1099,21 @@ final class CostAdmin {
 		}
 
 		$report = Costing::stored( $order );
+
+		/*
+		 * The handlers redirect back to THIS screen, so their refusals have to be
+		 * rendered here. A `wp_safe_redirect` carrying a flag nobody prints is a
+		 * form that silently did nothing.
+		 */
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a display-only flag.
+		$flag = isset( $_GET['teeshoop'] ) ? sanitize_key( wp_unslash( (string) $_GET['teeshoop'] ) ) : '';
+		$said = array(
+			'derogation-sans-plancher' => __( 'Aucune dérogation n’a été enregistrée : cette commande n’a pas de prix plancher calculable, donc il n’y a aucun écart à autoriser. Corrigez les taux, recalculez, puis réessayez.', 'teeshoop' ),
+			'derogation-incomplete'    => __( 'Aucune dérogation n’a été enregistrée : il faut un motif, un valideur ET une date de validité. Trois sur quatre n’est pas une exception, c’est une note.', 'teeshoop' ),
+		);
+		if ( isset( $said[ $flag ] ) ) {
+			echo '<div class="notice notice-error inline"><p>' . esc_html( $said[ $flag ] ) . '</p></div>';
+		}
 
 		self::render_order_facts( $order );
 
@@ -1251,9 +1328,10 @@ final class CostAdmin {
 
 		echo '<p class="description">' . esc_html(
 			sprintf(
-				/* translators: %s: a date. */
-				__( 'Chiffrée le %s. Les montants sont figés à cette date : recalculez après avoir changé un tarif.', 'teeshoop' ),
-				(string) $report['computed_on']
+				/* translators: 1: a date, 2: what the floor was decided on. */
+				__( 'Chiffrée le %1$s. Les montants sont figés à cette date : recalculez après avoir changé un tarif. Périmètre retenu : %2$s.', 'teeshoop' ),
+				(string) $report['computed_on'],
+				self::facts_sentence( $report )
 			)
 		) . '</p>';
 
@@ -1305,6 +1383,39 @@ final class CostAdmin {
 			);
 		}
 		return array() === $parts ? __( 'elle ne change aucun taux', 'teeshoop' ) : implode( ', ', $parts );
+	}
+
+	/**
+	 * What this order looked like to the rule table, in French.
+	 *
+	 * The facts are frozen into the report and were shown to nobody, so a rule
+	 * that did not apply looked like a matching bug rather than a family read as
+	 * something else. This is the line that answers "why not": if it says the
+	 * family is unknown, the operator knows the basket spans two of them.
+	 */
+	private static function facts_sentence( array $report ): string {
+		$facts = is_array( $report['facts'] ?? null ) ? $report['facts'] : array();
+		if ( array() === $facts ) {
+			return __( 'inconnu (chiffrage antérieur aux règles)', 'teeshoop' );
+		}
+
+		$named = static function ( string $value, array $vocabulary ): string {
+			if ( '' === $value ) {
+				return __( 'non renseigné', 'teeshoop' );
+			}
+			return (string) ( $vocabulary[ $value ] ?? $value );
+		};
+
+		return sprintf(
+			/* translators: 1: family, 2: technique, 3: salesperson, 4: client type, 5: urgency, 6: a quantity. */
+			__( 'famille %1$s, technique %2$s, commercial %3$s, client %4$s, urgence %5$s, %6$s pièces', 'teeshoop' ),
+			'' === (string) ( $facts['famille'] ?? '' ) ? __( 'indéterminée (plusieurs familles)', 'teeshoop' ) : $named( (string) $facts['famille'], PriceRule::FAMILIES ),
+			$named( (string) ( $facts['technique'] ?? '' ), PriceRule::TECHNIQUES ),
+			'' === (string) ( $facts['commercial'] ?? '' ) ? __( 'non renseigné', 'teeshoop' ) : (string) $facts['commercial'],
+			$named( (string) ( $facts['client'] ?? '' ), PriceRule::CLIENTS ),
+			$named( (string) ( $facts['urgence'] ?? '' ), PriceRule::URGENCES ),
+			Money::number( (float) ( $facts['quantite'] ?? 0 ), 0 )
+		);
 	}
 
 	/** The applied rule on its own, for the states that print no price table. */
@@ -1495,6 +1606,17 @@ final class CostAdmin {
 		 * be able to say which it was.
 		 */
 		$report = Costing::compute( $order );
+
+		/*
+		 * AND THERE MUST BE A FLOOR TO DEROGATE FROM. With no plan, reading the
+		 * report's floor and price yields zeroes, and the exception would have
+		 * been filed stating a 0,00 EUR floor and a 0,00 EUR impact: a signed
+		 * authorisation for a shortfall nobody measured, which is worse than
+		 * none, because it looks like one.
+		 */
+		if ( ! is_array( $report['plan'] ?? null ) || ! is_array( $report['verdict'] ?? null ) ) {
+			self::back( $order, 'derogation-sans-plancher' );
+		}
 
 		$order->update_meta_data(
 			Costing::META_DEROGATION,

@@ -809,6 +809,7 @@ const WITHHELD_FROM_SHOP = [
   'includes/Commission.php',
   'includes/Costing.php',
   'includes/CostAdmin.php',
+  'includes/PriceRule.php',
 ]
 
 /**

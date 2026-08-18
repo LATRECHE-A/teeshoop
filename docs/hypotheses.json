@@ -46,10 +46,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "950 y est une hauteur de fenêtre de navigateur, pas de l'argent. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "950 y est une hauteur de fenêtre de navigateur, pas de l'argent. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -134,10 +133,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q06-TARIF-VETEMENT-CLIENT",
@@ -183,10 +181,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le test écrit sa propre configuration de prix. Dans le test de livraison, 1200 est le code postal de Genève sur un contrôle de zone, pas un tarif de marquage. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Le test écrit sa propre configuration de prix. Dans le test de livraison, 1200 est le code postal de Genève sur un contrôle de zone, pas un tarif de marquage. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"literal_scope_why": "1200 apparaît dans huit harnesses de capture comme dimension de rendu, dans treize fichiers en tout. Il est donc cherché là où un second PRIX pourrait s'écrire : l'extension, la table du studio et le pont qui les relie.",
 			"statement_amounts": [
 				{
@@ -261,10 +258,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Dans l'importeur, 600 est un nombre de secondes dans un exemple de ligne de commande ; les deux autres sont des tests. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Dans l'importeur, 600 est un nombre de secondes dans un exemple de ligne de commande ; les deux autres sont des tests. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"literal_scope_why": "600 apparaît dans dix-sept fichiers du dépôt comme dimension, comme délai et comme taille de police, et trente-quatre fois en tout. Il est cherché là où un second prix par face pourrait s'écrire. La valeur est écrite SIX fois au total, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées ci-dessus comme miroirs et comparées, faute de pouvoir les supprimer sans redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire.",
 			"statement_amounts": [
 				{
@@ -306,10 +302,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Les deux premiers sont les tests qui figent les bornes des deux côtés. Les trois suivants sont des commentaires : 625 et 250 sont l'exemple chiffré de la Bible dans le moteur de coût, et 1250 est l'exemple de formatage français dans Money. Le dernier est le commentaire qui explique pourquoi la surface est mesurée à une taille fixe, et qui cite la borne pour dire ce qu'un client pouvait franchir en appuyant sur un bouton de taille. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Les deux premiers sont les tests qui figent les bornes des deux côtés. Les trois suivants sont des commentaires : 625 et 250 sont l'exemple chiffré de la Bible dans le moteur de coût, et 1250 est l'exemple de formatage français dans Money. Le dernier est le commentaire qui explique pourquoi la surface est mesurée à une taille fixe, et qui cite la borne pour dire ce qu'un client pouvait franchir en appuyant sur un bouton de taille. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -463,10 +458,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Quatre tests : deux écrivent leur propre configuration de prix, un pose la ligne de TVA du parcours d'achat de bout en bout, et le quatrième écrit 0.20 sur une période en franchise pour vérifier que le taux y est refusé. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Quatre tests : deux écrivent leur propre configuration de prix, un pose la ligne de TVA du parcours d'achat de bout en bout, et le quatrième écrit 0.20 sur une période en franchise pour vérifier que le taux y est refusé. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -613,10 +607,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Dans Shipping et son test, 10000 est la tranche des 10 kg de la grille Colissimo, en grammes. Aucun rapport avec le plafond de pièces sur une ligne. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Dans Shipping et son test, 10000 est la tranche des 10 kg de la grille Colissimo, en grammes. Aucun rapport avec le plafond de pièces sur une ligne. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"reaches": [
 				"operator",
 				"internal"
@@ -1093,10 +1086,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q01-MINIMUM-PIECES",
@@ -1138,10 +1130,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q01-MINIMUM-MONTANT",
@@ -1189,10 +1180,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Dans Shipping, 5000 est la tranche des 5 kg de la grille Colissimo, en grammes ; dans les deux tests, un coût et une quantité d'articles importés. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Dans Shipping, 5000 est la tranche des 5 kg de la grille Colissimo, en grammes ; dans les deux tests, un coût et une quantité d'articles importés. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q17-REGIME-DEPUIS",
@@ -1266,10 +1256,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q07-CARTON",
@@ -1301,10 +1290,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q07-FRANCO",
@@ -1346,10 +1334,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le même nombre est, dans Shipping, la dernière tranche de la grille Colissimo en grammes ; dans test-margin, un coût de 300,00 EUR dans l'exemple chiffré de la Bible ; dans test-shipping, le franco lui-même, encadré au centime près. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Le même nombre est, dans Shipping, la dernière tranche de la grille Colissimo en grammes ; dans test-margin, un coût de 300,00 EUR dans l'exemple chiffré de la Bible ; dans test-shipping, le franco lui-même, encadré au centime près. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"statement_amounts": [
 				{
 					"from": "free_from_ht",
@@ -1398,10 +1385,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le test encadre les bornes de la première et de la dernière tranche. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Le test encadre les bornes de la première et de la dernière tranche. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"statement_amounts": [
 				{
 					"from": "grid.0.ht",
@@ -1557,10 +1543,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q45-PENALITES",
@@ -1591,10 +1576,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q16-SEUIL-ACOMPTE",
@@ -1634,10 +1618,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le test encadre le seuil au centime près, en dessous et exactement dessus. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Le test encadre le seuil au centime près, en dessous et exactement dessus. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"statement_amounts": [
 				{
 					"from": "deposit_from_ht",
@@ -1680,10 +1663,9 @@
 				"wp-plugins/teeshoop-core/includes/Costing.php",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
 		},
 		{
 			"id": "H-Q16-AUCUNE-ECHEANCE",
@@ -1732,10 +1714,9 @@
 			"shipped_matches_default": "Oui. Question 05 : « 20 EUR de l'heure chargé ». Le chapitre 1 exige que ce temps soit imputé (« La main-d'oeuvre ne doit pas être considérée comme gratuite »), et à zéro toutes les petites commandes paraissent rentables.",
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le test vérifie le calcul sur ce taux et sur un taux nul. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Le test vérifie le calcul sur ce taux et sur un taux nul. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"statement_amounts": [
 				{
 					"from": "hourly_ht",

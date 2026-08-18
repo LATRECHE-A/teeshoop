@@ -24,6 +24,8 @@ if ( 'cli' !== PHP_SAPI ) {
 }
 
 use Teeshoop\Core\Cart;
+use Teeshoop\Core\CostAdmin;
+use Teeshoop\Core\Product;
 use const Teeshoop\Core\OPTION_PRICE_RULES;
 use Teeshoop\Core\Commission;
 use Teeshoop\Core\Cost;
@@ -579,25 +581,104 @@ function ts_margin_suite( int $product_id ): void {
 
 	ts_it( 'never lets a rule survive a save of the cost settings', function () {
 		/*
-		 * The rules live in their own option because the cost option is rewritten
-		 * from a literal on every save, which is exactly how `billing_step_cm`
-		 * and 291,94 EUR of floor price were deleted one commit earlier.
+		 * THROUGH THE REAL HANDLER, not through update_option. The mechanism that
+		 * deleted `billing_step_cm` and 291,94 EUR of floor price was `save()`
+		 * rewriting an option from a literal, and a test that writes the option
+		 * itself could never have caught it: it would agree with itself while the
+		 * shipped code did something else. `persist()` is `save()` minus the
+		 * redirect, so this drives the code the screen drives.
 		 */
 		update_option(
 			OPTION_PRICE_RULES,
 			array( array( 'id' => 'r-keep', 'label' => 'À garder', 'active' => true, 'min_contribution_rate' => '30' ) )
 		);
-		update_option( 'teeshoop_costing', array( 'hourly_ht' => 2500 ) );
+
+		// Exactly what the form posts when somebody changes the hourly rate.
+		CostAdmin::persist(
+			array(
+				'couts' => array(
+					'hourly_ht' => '25,00',
+					'film'      => array( 'rate_fr_ht' => '17,00' ),
+				),
+			)
+		);
 
 		$rules = Costing::rules_table();
-		ts_eq( count( $rules ), 1, 'writing the cost settings must not touch the rules' );
+		ts_eq( count( $rules ), 1, 'saving the cost settings deleted the rules' );
 		ts_eq( $rules[0]['label'], 'À garder', 'and the rule is intact' );
+		ts_eq( Costing::config()['hourly_ht'], 2500, 'while the field that was posted really moved' );
+		ts_assert(
+			array_key_exists( 'billing_step_cm', Costing::config()['film'] ),
+			'and the film key the form does not render is still there'
+		);
 
 		update_option( OPTION_PRICE_RULES, array() );
 		update_option(
 			'teeshoop_costing',
 			array( 'garment_supply' => array( 'tee' => array( 'ht' => 337, 'source' => 'Tarif fournisseur de vérification', 'on' => '2026-08-01' ) ) )
 		);
+	} );
+
+	ts_it( 'keeps an apostrophe in a rule name through two saves', function () {
+		// WordPress addslashes every superglobal. Stored raw, "Réassort d'un
+		// client" grows a backslash on every save until a selector containing one
+		// matches nothing at all.
+		$post = array(
+			'regles' => array(
+				array( 'label' => "Réassort d'un client", 'active' => '1', 'famille' => 'tee', 'min_contribution_rate' => '15' ),
+			),
+		);
+		CostAdmin::persist( $post );
+		$once = Costing::rules_table();
+		ts_eq( $once[0]['label'], "Réassort d'un client", 'the name came back changed after one save' );
+
+		// The second save posts back what the screen rendered, id and all.
+		CostAdmin::persist(
+			array(
+				'regles' => array(
+					array(
+						'id'                    => $once[0]['id'],
+						'label'                 => $once[0]['label'],
+						'active'                => '1',
+						'famille'               => 'tee',
+						'min_contribution_rate' => '15',
+					),
+				),
+			)
+		);
+		$twice = Costing::rules_table();
+		ts_eq( $twice[0]['label'], "Réassort d'un client", 'nor after two' );
+		ts_eq( $twice[0]['id'], $once[0]['id'], 'and the identity a frozen report names must not move' );
+
+		update_option( OPTION_PRICE_RULES, array() );
+	} );
+
+	ts_it( 'reads a hand-added line the cart never touched, and refuses to guess when it cannot', function () use ( $product_id ) {
+		/*
+		 * A product an operator adds in wp-admin carries its garment on the
+		 * PRODUCT and not on the order item, because no cart ran. Missed, the
+		 * line resolves to nothing; dropped, the other lines' family stands and a
+		 * rule written for t-shirts prices an order containing something else.
+		 */
+		$hoodie = new WC_Product_Simple();
+		$hoodie->set_name( 'Sweat ajouté à la main' );
+		$hoodie->set_regular_price( '32.00' );
+		$hoodie->save();
+		update_post_meta( $hoodie->get_id(), Product::META, 'hoodie' );
+
+		$order = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$item  = new WC_Order_Item_Product();
+		$item->set_product( $hoodie );
+		$item->set_quantity( 2 );
+		$order->add_item( $item );
+		$order->save();
+
+		$facts = Costing::facts( wc_get_order( $order->get_id() ) );
+		ts_eq( $facts['famille'], '', 'a basket of two families has no family, so no family rule may price it' );
+		ts_eq( $facts['quantite'], 14, 'and every garment still counts' );
+
+		$order->delete( true );
+		wp_delete_post( $hoodie->get_id(), true );
 	} );
 
 	// ── the commission is on money that arrived ──────────────────────────────

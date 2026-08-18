@@ -158,6 +158,21 @@ final class Costing {
 	}
 
 	/**
+	 * The day the order was placed, which is the day its rules were in force.
+	 *
+	 * NOT TODAY, and the difference is a whole class of defect. A rule's validity
+	 * window says when the shop's policy applied; an order from June was governed
+	 * by June's policy, and recomputing it in September must not price it under a
+	 * rule written in August. Matching on today also meant a dated rule silently
+	 * changed a floor at midnight with nothing to notice it, because no
+	 * fingerprint covers the clock.
+	 */
+	public static function placed_on( \WC_Order $order ): string {
+		$date = $order->get_date_created();
+		return $date ? $date->date( 'Y-m-d' ) : Settings::today();
+	}
+
+	/**
 	 * The six things a price rule may select an order on.
 	 *
 	 * ── THE FAMILY IS THE HARD ONE, AND IT WAS WRONG TWICE ───────────────────
@@ -185,6 +200,7 @@ final class Costing {
 	public static function facts( \WC_Order $order ): array {
 		$families = array();
 		$garments = 0;
+		$printed  = false;
 
 		foreach ( $order->get_items() as $item ) {
 			if ( ! $item instanceof \WC_Order_Item_Product ) {
@@ -192,45 +208,55 @@ final class Costing {
 			}
 			$garments += max( 1, (int) $item->get_quantity() );
 
-			// The PARENT, because that is where the importer writes it.
+			$sides = json_decode( (string) $item->get_meta( '_teeshoop_sides', true ), true );
+			if ( is_array( $sides ) && array() !== $sides ) {
+				$printed = true;
+			}
+
+			/*
+			 * THREE SOURCES, in order of how specific they are to this line.
+			 *
+			 * The catalogue family sits on the PARENT product, not on the
+			 * variation the item points at. The studio garment is written onto
+			 * the ITEM by the cart, which is the most specific answer there is:
+			 * it says what this line was priced as. And `Product::garment_of` is
+			 * the product's own declaration, which the plugin already calls the
+			 * authority (Cart.php) and which is the ONLY source for a line an
+			 * operator added by hand in wp-admin, where no cart ever ran.
+			 */
 			$family = (string) get_post_meta( (int) $item->get_product_id(), Catalogue::META_FAMILY, true );
 			if ( '' === $family ) {
-				$family = self::family_of_garment( (string) $item->get_meta( '_teeshoop_garment', true ) );
+				$family = PriceRule::family_of_garment( (string) $item->get_meta( '_teeshoop_garment', true ) );
 			}
-			if ( '' !== $family ) {
-				$families[ $family ] = true;
+			if ( '' === $family ) {
+				$family = PriceRule::family_of_garment( Product::garment_of( (int) $item->get_product_id() ) );
 			}
+			/*
+			 * A LINE WHOSE FAMILY CANNOT BE READ COUNTS, and counts as its own
+			 * unknown. Dropping it and keeping the others' family would let a
+			 * rule written for t-shirts price an order containing something
+			 * nobody could identify, which is the unsafe direction. It happens:
+			 * a product deleted after the order, a line added by hand, an import
+			 * that never ran.
+			 */
+			$families[ '' !== $family ? $family : '?' ] = true;
 		}
 
 		return array(
-			'famille'    => 1 === count( $families ) ? (string) array_key_first( $families ) : '',
+			'famille'    => 1 === count( $families ) && ! isset( $families['?'] ) ? (string) array_key_first( $families ) : '',
 			/*
-			 * The only thing this shop produces. See PriceRule::TECHNIQUES: a
-			 * studio order IS a DTF order, and it is derived rather than stored
-			 * because nothing records a technique on an order.
+			 * The only thing this shop produces, and only when it produces
+			 * something. See PriceRule::TECHNIQUES: a studio order IS a DTF
+			 * order, derived rather than stored because nothing records a
+			 * technique. An order with nothing to press is not one: saying "dtf"
+			 * of a blank resale would let a marking rule set its floor.
 			 */
-			'technique'  => 'dtf',
+			'technique'  => $printed ? 'dtf' : '',
 			'commercial' => self::seller( $order ),
 			'client'     => self::client_type( $order ),
 			'urgence'    => self::urgence( $order ),
 			'quantite'   => $garments,
 		);
-	}
-
-	/**
-	 * The studio's word for a garment, in the catalogue's vocabulary.
-	 *
-	 * A hoodie is a sweat: the catalogue has one family for both and the studio
-	 * has one garment for the hooded one. `custom` has no catalogue family
-	 * because the customer's own shirt was never bought from anybody.
-	 */
-	public static function family_of_garment( string $garment ): string {
-		$map = array(
-			'tee'    => 'tee',
-			'hoodie' => 'sweat',
-			'custom' => 'custom',
-		);
-		return $map[ $garment ] ?? '';
 	}
 
 	/**
@@ -720,8 +746,8 @@ final class Costing {
 			$warnings[] = __( 'Le type de vente de cette commande n’est pas renseigné : aucune commission n’est calculée.', 'teeshoop' );
 		}
 
-		$facts   = self::facts( $order );
-		$scoped  = PriceRule::apply( self::rules( $rate ?? 0.0, $config ), self::rules_table(), $facts, Settings::today() );
+		$facts  = self::facts( $order );
+		$scoped = PriceRule::apply( self::rules( $rate ?? 0.0, $config ), self::rules_table(), $facts, self::placed_on( $order ) );
 
 		/*
 		 * A RULE CAN MAKE THE FLOOR INSOLUBLE, and then there is no floor to
@@ -813,7 +839,13 @@ final class Costing {
 		if ( null !== $plan && $plan['raised_to_floor'] ) {
 			$warnings[] = __( 'Le prix conseillé a été relevé au plancher : la marge cible et la contribution minimale se contredisent aux réglages actuels.', 'teeshoop' );
 		}
-		if ( null !== $verdict && $verdict['below_cost'] ) {
+		/*
+		 * BELOW COST NEEDS NO FLOOR. It is the revenue against the cost, both
+		 * known even when no floor can be stated, and gating it on the verdict
+		 * meant the loudest fact about an order disappeared exactly when the
+		 * rates were broken enough to hide it.
+		 */
+		if ( $margin_ht < 0 ) {
 			$warnings[] = __( 'Cette commande a été vendue en dessous de son coût direct connu.', 'teeshoop' );
 		}
 
@@ -914,6 +946,9 @@ final class Costing {
 			self::seller( $order ),
 			self::client_type( $order ),
 			self::urgence( $order ),
+			// The day the order was placed decides which rules were in force for
+			// it, and an operator can edit an order's date.
+			self::placed_on( $order ),
 		);
 		foreach ( $order->get_items() as $item ) {
 			$parts[] = $item->get_id() . ':' . $item->get_quantity() . ':' . $item->get_subtotal();
