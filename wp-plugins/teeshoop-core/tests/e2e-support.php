@@ -402,6 +402,8 @@ function ts_e2e_order( int $order_id, bool $confirm ) {
 			'found'          => true,
 			'id'             => $order->get_id(),
 			'status'         => $order->get_status(),
+			// So the harness can try the invoice route the way a customer would.
+			'key'            => $order->get_order_key(),
 			'payment_method' => $order->get_payment_method(),
 			'lines'          => $lines,
 			'shipping'       => $shipping,

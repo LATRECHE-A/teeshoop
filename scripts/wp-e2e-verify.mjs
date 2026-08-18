@@ -752,6 +752,20 @@ try {
         JSON.stringify(placed.frozen),
       )
 
+      /*
+       * AND A GET MAY NOT NUMBER AN INVOICE. This route used to issue one when
+       * there was none, so anyone holding the order key, which the customer has
+       * in their order-received URL and in every e-mail, could spend a number
+       * out of a legally continuous fiscal sequence on an order abandoned at
+       * the payment step.
+       */
+      const early = await page.request.get(
+        `${SHOP}/wp-admin/admin-post.php?action=teeshoop_facture&order_id=${orderId}&key=${placed.key ?? ''}`,
+      )
+      ok('an unpaid order refuses to hand out an invoice', early.status() !== 200, `HTTP ${early.status()}`)
+      const stillNone = support('order', String(orderId))
+      ok('and the request numbered nothing', stillNone.invoice.number === '', stillNone.invoice.number)
+
       // The shop confirms the transfer arrived.
       const paid = support('order', String(orderId), 'confirmer')
       ok('confirming the transfer moves it to processing', paid.status === 'processing', paid.status)

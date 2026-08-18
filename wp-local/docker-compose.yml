@@ -91,6 +91,14 @@ services:
       # For an existing mirror, once:
       #
       #   npm run wp:cli config set WP_ENVIRONMENT_TYPE local --type=constant
+      #
+      # AND THE MIRROR SPEAKS FRENCH, because the shop does. WordPress and
+      # WooCommerce install in en_US, so the checkout said "Checkout", "Subtotal"
+      # and "FREE" over amounts written 461,10 €: half of what a French customer
+      # reads was never actually rendered anywhere we look. Once:
+      #
+      #   npm run wp:cli language core install fr_FR --activate
+      #   npm run wp:cli language plugin install woocommerce fr_FR
       WORDPRESS_CONFIG_EXTRA: |
         define('WP_DEBUG', true);
         define('WP_DEBUG_LOG', true);

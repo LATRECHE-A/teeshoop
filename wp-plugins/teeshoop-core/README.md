@@ -156,7 +156,7 @@ npm run verify:php      # no purchase cost, supplier name or film rate in a temp
 npm run verify:product  # 18 assertions, real browser, the buy box's own controls
 ```
 
-**The mirror needs two things doing once, and neither is in the repository**
+**The mirror needs four things doing once, and none is in the repository**
 because both live in the docker volume rather than in git:
 
 ```bash
@@ -169,7 +169,10 @@ CREATED, so adding a line to `docker-compose.yml` does nothing to a volume that
 already exists, silently. Without it WordPress answers `production` and the
 invoice gate refuses to render the very documents the mirror exists to develop.
 The second is the payment rail; it takes no licence key and no account to
-install. HPOS should be on, as it is in production: `wp wc hpos sync` then
+install. The last two because WordPress and WooCommerce install in en_US, so the
+checkout said "Checkout", "Subtotal" and "FREE" over amounts written 461,10 €:
+half of what a French customer reads was never rendered anywhere anybody looked.
+HPOS should be on, as it is in production: `wp wc hpos sync` then
 `wp wc hpos enable`.
 
 **`verify:invoice` opens the PDF with something that is not `Pdf.php`.** A

@@ -46,11 +46,28 @@ $ts_identity = array(
 );
 
 $ts_saved = array(
-	'vat'     => get_option( 'teeshoop_vat', null ),
-	'legal'   => get_option( 'teeshoop_legal', array() ),
-	'taxes'   => get_option( 'woocommerce_calc_taxes' ),
-	'unit'    => get_option( 'woocommerce_weight_unit' ),
+	'vat'      => get_option( 'teeshoop_vat', null ),
+	'legal'    => get_option( 'teeshoop_legal', array() ),
+	'taxes'    => get_option( 'woocommerce_calc_taxes' ),
+	'unit'     => get_option( 'woocommerce_weight_unit' ),
+	'settings' => get_option( 'teeshoop_settings', array() ),
 );
+
+/*
+ * THE WORKER IS NOT PART OF THIS. `Cart::add` asks it to confirm a design, and
+ * with `TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` set that only matters when a worker
+ * URL is configured: `Design::verify` then really asks, really gets a 404 for
+ * this probe's invented id, and the basket ends up empty, so every scenario
+ * comes back "aucune ligne à facturer". That happened the moment the end-to-end
+ * harness, which configures a live worker, had run before this. This file is
+ * about invoices; the design hand-off is proved elsewhere, end to end, against
+ * a real Worker.
+ */
+$ts_settings = get_option( 'teeshoop_settings', array() );
+if ( is_array( $ts_settings ) ) {
+	$ts_settings['worker_url'] = '';
+	update_option( 'teeshoop_settings', $ts_settings );
+}
 
 add_filter( 'pre_wp_mail', '__return_true' );
 if ( ! defined( 'TEESHOOP_ALLOW_UNVERIFIED_DESIGNS' ) ) {
@@ -170,6 +187,14 @@ function ts_probe_order( int $product_id, string $regime, string $environment, a
 	WC()->cart->calculate_shipping();
 	WC()->cart->calculate_totals();
 
+	if ( 0 === count( WC()->cart->get_cart() ) ) {
+		// A basket that refused every line makes every assertion below vacuous.
+		$out = array( 'error' => 'empty_cart: Cart::add refused every line' );
+		$order->delete( true );
+		WC_Shipping_Zones::delete_zone( (int) $zone->get_id() );
+		return $out;
+	}
+
 	$doc = Invoice::compose( wc_get_order( $order->get_id() ), $environment );
 	if ( is_wp_error( $doc ) ) {
 		$out = array( 'error' => $doc->get_error_code() . ': ' . $doc->get_error_message() );
@@ -206,6 +231,7 @@ wp_delete_post( $ts_product->get_id(), true );
 WC()->cart->empty_cart();
 
 update_option( 'teeshoop_legal', $ts_saved['legal'] );
+update_option( 'teeshoop_settings', $ts_saved['settings'] );
 update_option( 'woocommerce_calc_taxes', $ts_saved['taxes'] );
 update_option( 'woocommerce_weight_unit', $ts_saved['unit'] );
 if ( null === $ts_saved['vat'] ) {

@@ -915,23 +915,26 @@ final class Invoice {
 
 		$ship = (array) $doc['shipping_to'];
 		if ( ! empty( $ship ) ) {
-			// Fitted, because it is the one customer-typed string on the page
-			// that had neither `fit()` nor `wrap()`: a long address ran off the
-			// right margin and out of the sheet.
-			$pdf->text(
-				$left,
-				$y,
-				Pdf::fit(
-					__( 'Livraison', 'teeshoop' ) . ' : ' . trim( $ship['address'] . ', ' . $ship['postcode'] . ' ' . $ship['city'] ),
-					$right - $left,
-					Pdf::REGULAR,
-					8.5
-				),
+			/*
+			 * WRAPPED, not truncated, and it is the one customer-typed string on
+			 * the page that had neither. Two free-text checkout fields plus a
+			 * town run past the right margin at about 123 characters and off the
+			 * sheet at about 135, and article 242 nonies A, I, 7° bis makes this
+			 * block mandatory exactly when it differs from the billing address,
+			 * so cutting the town off is losing required content rather than
+			 * losing a label.
+			 */
+			$lines_ship = Pdf::wrap(
+				__( 'Livraison', 'teeshoop' ) . ' : ' . trim( $ship['address'] . ', ' . $ship['postcode'] . ' ' . $ship['city'] ),
+				$right - $left,
 				Pdf::REGULAR,
-				8.5,
-				0.3
+				8.5
 			);
-			$y += 5;
+			foreach ( $lines_ship as $line_ship ) {
+				$pdf->text( $left, $y, $line_ship, Pdf::REGULAR, 8.5, 0.3 );
+				$y += 4;
+			}
+			$y += 1;
 		}
 
 		return $y + 6;
