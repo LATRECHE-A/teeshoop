@@ -703,6 +703,50 @@ final class Invoice {
 		);
 	}
 
+	/**
+	 * What an order comes to, in cents, in one place.
+	 *
+	 * PUBLIC AND SHARED because two things now need it and they must never
+	 * disagree: this document, and the margin report (Costing.php), whose whole
+	 * job is to say what the order earned. A second derivation of "the order's
+	 * HT" would eventually differ by a coupon or a fee, and the shop would then
+	 * have an invoice that says one number and a profitability screen that says
+	 * another, with nothing to say which is right.
+	 *
+	 * `get_subtotal()` on a line, which is BEFORE any discount, because the
+	 * discount gets a line of its own on the document (article 242 nonies A, I,
+	 * 9° makes it mandatory) and summing the net total AND subtracting the
+	 * discount counted the reduction twice.
+	 *
+	 * @return array{goods_ht:int,shipping_ht:int,fees_ht:int,discount_ht:int,total_ht:int,total_tax:int,total_ttc:int}
+	 */
+	public static function order_totals( \WC_Order $order ): array {
+		$goods_ht = 0;
+		foreach ( $order->get_items() as $item ) {
+			if ( $item instanceof \WC_Order_Item_Product ) {
+				$goods_ht += Money::from_eur( (string) $item->get_subtotal() );
+			}
+		}
+
+		$shipping_ht = Money::from_eur( (string) $order->get_shipping_total() );
+		$discount_ht = Money::from_eur( (string) $order->get_discount_total() );
+
+		$fees_ht = 0;
+		foreach ( $order->get_fees() as $fee ) {
+			$fees_ht += Money::from_eur( (string) $fee->get_total() );
+		}
+
+		return array(
+			'goods_ht'    => $goods_ht,
+			'shipping_ht' => $shipping_ht,
+			'fees_ht'     => $fees_ht,
+			'discount_ht' => $discount_ht,
+			'total_ht'    => $goods_ht + $shipping_ht + $fees_ht - $discount_ht,
+			'total_tax'   => Money::from_eur( (string) $order->get_total_tax() ),
+			'total_ttc'   => Money::from_eur( (string) $order->get_total() ),
+		);
+	}
+
 	public static function compose( \WC_Order $order, ?string $environment = null ) {
 		$context = self::context( $order, $environment );
 		if ( is_wp_error( $context ) ) {
@@ -711,8 +755,7 @@ final class Invoice {
 		$rate   = (float) $context['rate'];
 		$regime = (string) $context['common']['regime'];
 
-		$lines    = array();
-		$goods_ht = 0;
+		$lines = array();
 
 		foreach ( $order->get_items() as $item ) {
 			if ( ! $item instanceof \WC_Order_Item_Product ) {
@@ -728,8 +771,7 @@ final class Invoice {
 			 * invoiced at all. With no coupons the two are equal and nothing
 			 * changes; the day one exists, the document is right.
 			 */
-			$total_ht  = Money::from_eur( (string) $item->get_subtotal() );
-			$goods_ht += $total_ht;
+			$total_ht = Money::from_eur( (string) $item->get_subtotal() );
 
 			$lines[] = array(
 				'label'    => self::line_label( $item ),
@@ -748,16 +790,13 @@ final class Invoice {
 			return new \WP_Error( 'teeshoop_no_lines', __( 'Cette commande ne contient aucune ligne à facturer.', 'teeshoop' ) );
 		}
 
-		$shipping_ht = Money::from_eur( (string) $order->get_shipping_total() );
-		$discount_ht = Money::from_eur( (string) $order->get_discount_total() );
-		$fees_ht     = 0;
-		foreach ( $order->get_fees() as $fee ) {
-			$fees_ht += Money::from_eur( (string) $fee->get_total() );
-		}
-
-		$total_tax = Money::from_eur( (string) $order->get_total_tax() );
-		$total_ttc = Money::from_eur( (string) $order->get_total() );
-		$total_ht  = $goods_ht + $shipping_ht + $fees_ht - $discount_ht;
+		$totals      = self::order_totals( $order );
+		$shipping_ht = $totals['shipping_ht'];
+		$discount_ht = $totals['discount_ht'];
+		$fees_ht     = $totals['fees_ht'];
+		$total_tax   = $totals['total_tax'];
+		$total_ttc   = $totals['total_ttc'];
+		$total_ht    = $totals['total_ht'];
 
 		if ( $total_ht + $total_tax !== $total_ttc ) {
 			return new \WP_Error(

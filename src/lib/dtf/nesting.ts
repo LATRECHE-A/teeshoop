@@ -32,9 +32,10 @@
  *   FORMAT height (the whole sheet is paid for) while `rawLengthCm` still
  *   reports the used extent.
  */
-// Type-only import: erased at build time, so there is no runtime module cycle
-// with suppliers.ts (which type-imports DtfSheet back).
-import type { BillingModel, DtfProcess, SheetFormat } from './suppliers'
+// Type-only, and from the TYPES module rather than from suppliers.ts: erased at
+// build time either way, but suppliers.ts touches localStorage and this packer
+// is compiled into the Cloudflare Worker (worker/nest.ts), which has no DOM.
+import type { BillingModel, DtfProcess, SheetFormat } from './supplierTypes'
 
 export interface DtfPiece {
   id: string

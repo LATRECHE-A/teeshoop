@@ -39,9 +39,15 @@
 				"950"
 			],
 			"literal_allow": [
-				"scripts/stage-shots.mjs"
+				"scripts/stage-shots.mjs",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "950 y est une hauteur de fenêtre de navigateur, pas de l'argent.",
+			"literal_allow_why": "950 y est une hauteur de fenêtre de navigateur, pas de l'argent. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -118,7 +124,16 @@
 					"as": "eur",
 					"text": "5,00 EUR"
 				}
-			]
+			],
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
+			],
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q06-TARIF-VETEMENT-CLIENT",
@@ -157,9 +172,15 @@
 			],
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
-				"wp-plugins/teeshoop-core/tests/test-shipping.php"
+				"wp-plugins/teeshoop-core/tests/test-shipping.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Le test écrit sa propre configuration de prix. Dans le test de livraison, 1200 est le code postal de Genève sur un contrôle de zone, pas un tarif de marquage.",
+			"literal_allow_why": "Le test écrit sa propre configuration de prix. Dans le test de livraison, 1200 est le code postal de Genève sur un contrôle de zone, pas un tarif de marquage. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"literal_scope_why": "1200 apparaît dans huit harnesses de capture comme dimension de rendu, dans treize fichiers en tout. Il est donc cherché là où un second PRIX pourrait s'écrire : l'extension, la table du studio et le pont qui les relie.",
 			"statement_amounts": [
 				{
@@ -227,9 +248,15 @@
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/includes/Importer.php",
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
-				"src/lib/teeshoop/bridge.test.ts"
+				"src/lib/teeshoop/bridge.test.ts",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Dans l'importeur, 600 est un nombre de secondes dans un exemple de ligne de commande ; les deux autres sont des tests.",
+			"literal_allow_why": "Dans l'importeur, 600 est un nombre de secondes dans un exemple de ligne de commande ; les deux autres sont des tests. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"literal_scope_why": "600 apparaît dans dix-sept fichiers du dépôt comme dimension, comme délai et comme taille de police, et trente-quatre fois en tout. Il est cherché là où un second prix par face pourrait s'écrire. La valeur est écrite SIX fois au total, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées ci-dessus comme miroirs et comparées, faute de pouvoir les supprimer sans redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire.",
 			"statement_amounts": [
 				{
@@ -264,9 +291,15 @@
 				"wp-plugins/teeshoop-core/tests/test-margin.php",
 				"wp-plugins/teeshoop-core/includes/Margin.php",
 				"wp-plugins/teeshoop-core/includes/Money.php",
-				"src/lib/teeshoop/upload.ts"
+				"src/lib/teeshoop/upload.ts",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Les deux premiers sont les tests qui figent les bornes des deux côtés. Les trois suivants sont des commentaires : 625 et 250 sont l'exemple chiffré de la Bible dans le moteur de coût, et 1250 est l'exemple de formatage français dans Money. Le dernier est le commentaire qui explique pourquoi la surface est mesurée à une taille fixe, et qui cite la borne pour dire ce qu'un client pouvait franchir en appuyant sur un bouton de taille.",
+			"literal_allow_why": "Les deux premiers sont les tests qui figent les bornes des deux côtés. Les trois suivants sont des commentaires : 625 et 250 sont l'exemple chiffré de la Bible dans le moteur de coût, et 1250 est l'exemple de formatage français dans Money. Le dernier est le commentaire qui explique pourquoi la surface est mesurée à une taille fixe, et qui cite la borne pour dire ce qu'un client pouvait franchir en appuyant sur un bouton de taille. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -357,9 +390,15 @@
 				"wp-plugins/teeshoop-core/includes/Importer.php",
 				"wp-plugins/teeshoop-core/includes/Money.php",
 				"wp-plugins/teeshoop-core/includes/Pdf.php",
-				"wp-plugins/teeshoop-core/includes/Invoice.php"
+				"wp-plugins/teeshoop-core/includes/Invoice.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Trois tests qui écrivent leurs propres taux, un poids de 0,15 kg dans une fiche d'essai, deux commentaires qui prennent 0,15 comme exemple de remise et d'arrondi, et deux fichiers de mise en page où 0,15, 0,25 et 0,35 sont des niveaux de gris et des décalages en millimètres sur la facture PDF.",
+			"literal_allow_why": "Trois tests qui écrivent leurs propres taux, un poids de 0,15 kg dans une fiche d'essai, deux commentaires qui prennent 0,15 comme exemple de remise et d'arrondi, et deux fichiers de mise en page où 0,15, 0,25 et 0,35 sont des niveaux de gris et des décalages en millimètres sur la facture PDF. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"literal_scope_why": "Trois fractions ordinaires, présentes dans une vingtaine de fichiers chacune, dans les géométries et les seuils d'image. Elles sont cherchées là où une seconde grille de remise pourrait s'écrire.",
 			"statement_amounts": [
 				{
@@ -405,9 +444,15 @@
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
 				"wp-plugins/teeshoop-core/tests/test-grid.php",
 				"wp-plugins/teeshoop-core/tests/e2e-support.php",
-				"wp-plugins/teeshoop-core/tests/test-vat.php"
+				"wp-plugins/teeshoop-core/tests/test-vat.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Quatre tests : deux écrivent leur propre configuration de prix, un pose la ligne de TVA du parcours d'achat de bout en bout, et le quatrième écrit 0.20 sur une période en franchise pour vérifier que le taux y est refusé.",
+			"literal_allow_why": "Quatre tests : deux écrivent leur propre configuration de prix, un pose la ligne de TVA du parcours d'achat de bout en bout, et le quatrième écrit 0.20 sur une période en franchise pour vérifier que le taux y est refusé. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -470,9 +515,15 @@
 				"wp-plugins/teeshoop-core/tests/integration.php",
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
 				"wp-plugins/teeshoop-core/includes/Shipping.php",
-				"wp-plugins/teeshoop-core/tests/test-shipping.php"
+				"wp-plugins/teeshoop-core/tests/test-shipping.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; dans Shipping et son test, la première tranche de la grille Colissimo, qui est 250 grammes ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251).",
+			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; dans Shipping et son test, la première tranche de la grille Colissimo, qui est 250 grammes ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251). Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"literal_scope_why": "250 apparaît dans vingt-huit fichiers comme dimension, comme seuil d'image et comme longueur de rouleau, soixante et une fois en tout. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas.",
 			"statement_amounts": [
 				{
@@ -539,9 +590,15 @@
 				"scripts/ar-shots.mjs",
 				"scripts/dtf-bench.mjs",
 				"wp-plugins/teeshoop-core/includes/Shipping.php",
-				"wp-plugins/teeshoop-core/tests/test-shipping.php"
+				"wp-plugins/teeshoop-core/tests/test-shipping.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Dans Shipping et son test, 10000 est la tranche des 10 kg de la grille Colissimo, en grammes. Aucun rapport avec le plafond de pièces sur une ligne.",
+			"literal_allow_why": "Dans Shipping et son test, 10000 est la tranche des 10 kg de la grille Colissimo, en grammes. Aucun rapport avec le plafond de pièces sur une ligne. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"reaches": [
 				"operator",
 				"internal"
@@ -1009,7 +1066,16 @@
 					"text": "1 095",
 					"in": "conservée 1 095 jours"
 				}
-			]
+			],
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
+			],
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q01-MINIMUM-PIECES",
@@ -1043,7 +1109,16 @@
 					"text": "5",
 					"in": "moins de 5 pièces"
 				}
-			]
+			],
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
+			],
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q01-MINIMUM-MONTANT",
@@ -1084,9 +1159,15 @@
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/includes/Shipping.php",
 				"wp-plugins/teeshoop-core/tests/test-catalogue.php",
-				"wp-plugins/teeshoop-core/tests/test-margin.php"
+				"wp-plugins/teeshoop-core/tests/test-margin.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Dans Shipping, 5000 est la tranche des 5 kg de la grille Colissimo, en grammes ; dans les deux tests, un coût et une quantité d'articles importés."
+			"literal_allow_why": "Dans Shipping, 5000 est la tranche des 5 kg de la grille Colissimo, en grammes ; dans les deux tests, un coût et une quantité d'articles importés. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q17-REGIME-DEPUIS",
@@ -1152,7 +1233,16 @@
 			],
 			"cost_if_late": "reglage",
 			"label_fr": "Colissimo, France métropolitaine",
-			"shipped_matches_default": "Oui pour la question 07 (« 0,60 EUR d'emballage par pièce »), non pour la Bible, qui donne la seule mesure existante : « emballage : 9 EUR » sur une commande de trente pièces, soit 0,30 EUR la pièce, matière seule et sans carton. Le double, donc, d'un chiffre qui n'est pas non plus le sien."
+			"shipped_matches_default": "Oui pour la question 07 (« 0,60 EUR d'emballage par pièce »), non pour la Bible, qui donne la seule mesure existante : « emballage : 9 EUR » sur une commande de trente pièces, soit 0,30 EUR la pièce, matière seule et sans carton. Le double, donc, d'un chiffre qui n'est pas non plus le sien.",
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
+			],
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q07-CARTON",
@@ -1176,7 +1266,16 @@
 			],
 			"cost_if_late": "reglage",
 			"label_fr": "Colissimo, France métropolitaine",
-			"shipped_matches_default": "Oui pour la question 07 (« plus 1,50 EUR de carton »). La Bible ne mentionne aucun carton, ni comme coût ni comme ligne."
+			"shipped_matches_default": "Oui pour la question 07 (« plus 1,50 EUR de carton »). La Bible ne mentionne aucun carton, ni comme coût ni comme ligne.",
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
+			],
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q07-FRANCO",
@@ -1211,9 +1310,15 @@
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/includes/Shipping.php",
 				"wp-plugins/teeshoop-core/tests/test-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-shipping.php"
+				"wp-plugins/teeshoop-core/tests/test-shipping.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Le même nombre est, dans Shipping, la dernière tranche de la grille Colissimo en grammes ; dans test-margin, un coût de 300,00 EUR dans l'exemple chiffré de la Bible ; dans test-shipping, le franco lui-même, encadré au centime près.",
+			"literal_allow_why": "Le même nombre est, dans Shipping, la dernière tranche de la grille Colissimo en grammes ; dans test-margin, un coût de 300,00 EUR dans l'exemple chiffré de la Bible ; dans test-shipping, le franco lui-même, encadré au centime près. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"statement_amounts": [
 				{
 					"from": "free_from_ht",
@@ -1255,9 +1360,15 @@
 			],
 			"literal_scope_why": "549 et 3959 sont des nombres ordinaires ailleurs. Une seconde grille de transport ne peut s'écrire que dans l'extension.",
 			"literal_allow": [
-				"wp-plugins/teeshoop-core/tests/test-shipping.php"
+				"wp-plugins/teeshoop-core/tests/test-shipping.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Le test encadre les bornes de la première et de la dernière tranche.",
+			"literal_allow_why": "Le test encadre les bornes de la première et de la dernière tranche. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"statement_amounts": [
 				{
 					"from": "grid.0.ht",
@@ -1405,7 +1516,16 @@
 			"literal_scope": [
 				"wp-plugins/"
 			],
-			"literal_scope_why": "Deux lettres. Hors de l'extension, elles sont un fragment de mot dans n'importe quel texte."
+			"literal_scope_why": "Deux lettres. Hors de l'extension, elles sont un fragment de mot dans n'importe quel texte.",
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
+			],
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q45-PENALITES",
@@ -1428,7 +1548,16 @@
 			],
 			"cost_if_late": "reglage",
 			"label_fr": "Pénalités de retard exigibles le jour suivant la date de règlement",
-			"shipped_matches_default": "Il n'y a pas d'hypothèse par défaut : la question 45 est née de cette séance. Vide n'est pas une mention manquante, c'est exactement le régime qui s'applique quand les conditions de vente n'en fixent aucun (article L. 441-10, II du code de commerce), donc la facture est conforme sans qu'aucun pourcentage ait été inventé. Un taux contractuel ne pourrait pas descendre sous trois fois le taux d'intérêt légal, soit 8,25 % au second semestre 2026."
+			"shipped_matches_default": "Il n'y a pas d'hypothèse par défaut : la question 45 est née de cette séance. Vide n'est pas une mention manquante, c'est exactement le régime qui s'applique quand les conditions de vente n'en fixent aucun (article L. 441-10, II du code de commerce), donc la facture est conforme sans qu'aucun pourcentage ait été inventé. Un taux contractuel ne pourrait pas descendre sous trois fois le taux d'intérêt légal, soit 8,25 % au second semestre 2026.",
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
+			],
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q16-SEUIL-ACOMPTE",
@@ -1461,9 +1590,15 @@
 			],
 			"literal_scope_why": "300000 est une dimension et un délai ailleurs dans le dépôt. Un second seuil d'acompte ne peut s'écrire que dans l'extension.",
 			"literal_allow": [
-				"wp-plugins/teeshoop-core/tests/test-settlement.php"
+				"wp-plugins/teeshoop-core/tests/test-settlement.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
 			],
-			"literal_allow_why": "Le test encadre le seuil au centime près, en dessous et exactement dessus.",
+			"literal_allow_why": "Le test encadre le seuil au centime près, en dessous et exactement dessus. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre.",
 			"statement_amounts": [
 				{
 					"from": "deposit_from_ht",
@@ -1498,7 +1633,16 @@
 			],
 			"cost_if_late": "reglage",
 			"label_fr": "Acompte reçu",
-			"shipped_matches_default": "Oui pour le taux. Le SEUIL sur lequel il s'applique est hors taxes et le MONTANT est toutes taxes comprises, parce qu'un acompte est de l'argent que le client vire et qu'il vire ce qu'il doit : les deux bases sont différentes et c'est écrit dans le code là où elles sont lues. La Bible ne donne aucun pourcentage."
+			"shipped_matches_default": "Oui pour le taux. Le SEUIL sur lequel il s'applique est hors taxes et le MONTANT est toutes taxes comprises, parce qu'un acompte est de l'argent que le client vire et qu'il vire ce qu'il doit : les deux bases sont différentes et c'est écrit dans le code là où elles sont lues. La Bible ne donne aucun pourcentage.",
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Commission.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-commission.php"
+			],
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre."
 		},
 		{
 			"id": "H-Q16-AUCUNE-ECHEANCE",
@@ -1522,14 +1666,698 @@
 			],
 			"cost_if_late": "reglage",
 			"shipped_matches_default": "Oui : « aucun paiement à échéance au lancement ». La Bible nomme un échéancier une seule fois, sur le parcours grand compte, et la seule porte vers un paiement différé qu'elle ouvre est « client récurrent fiable : conditions dérogatoires validées », qui ne nomme ni les conditions, ni celui qui valide, ni le critère d'éligibilité. Il n'y a rien à construire là-dessus."
+		},
+		{
+			"id": "H-Q05-TAUX-HORAIRE",
+			"question": "Q05",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Une heure d'atelier, chargée, vaut 20,00 EUR, y compris quand c'est le dirigeant ou ses proches qui produisent.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#hourly_ht",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 7,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 37,17 EUR d'écart et 63,72 EUR de prix plancher (tests/test-cost.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. Question 05 : « 20 EUR de l'heure chargé ». Le chapitre 1 exige que ce temps soit imputé (« La main-d'oeuvre ne doit pas être considérée comme gratuite »), et à zéro toutes les petites commandes paraissent rentables.",
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/tests/test-cost.php"
+			],
+			"literal_allow_why": "Le test vérifie le calcul sur ce taux et sur un taux nul.",
+			"statement_amounts": [
+				{
+					"from": "hourly_ht",
+					"as": "eur",
+					"text": "20,00 EUR"
+				}
+			],
+			"literals_why": "2000 est une année, une largeur en pixels et une taille de fichier : le chercher dans le dépôt ramène tout sauf un taux horaire. La valeur est tenue par la phrase, qui est dérivée du code."
+		},
+		{
+			"id": "H-Q05-TEMPS-STANDARDS",
+			"question": "Q05",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Une commande demande 60 secondes de préparation, et chaque transfert 45 secondes de pose. Les cinq autres opérations que le chapitre 1 énumère (réception et tri, pelage, second pressage, contrôle, pliage) valent 0 seconde parce que personne ne les a chronométrées.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#times_s",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 7,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 37,17 EUR d'écart et 63,72 EUR de prix plancher (tests/test-cost.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Partiellement. Question 05 donne ces deux temps et rien d'autre ; les cinq opérations restantes sont livrées à zéro, ce qui minore la main-d'œuvre et donc le plancher. `Cost::labour` les signale comme « jamais chronométrées » plutôt que comme gratuites.",
+			"literals_why": "60 et 45 sont des durées de deux chiffres : les chercher dans le dépôt ramène des délais, des tailles de police et des codes HTTP, et pas une seconde copie du barème."
+		},
+		{
+			"id": "H-Q05-CONSOMMABLES",
+			"question": "Q05",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-18",
+			"statement_fr": "Aucun coût de consommables par vêtement n'est compté : la ligne vaut 0,00 EUR et la commande est signalée comme incomplète plutôt que chiffrée sans elle.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#consumables_piece_ht",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Ce n'est pas une hypothèse par défaut, c'est un refus. Le chapitre 1 range les consommables dans les coûts directs et ne donne aucun montant ; feuilles, adhésif et nettoyage n'ont jamais été mesurés. Un chiffre plausible ici fabriquerait un prix plancher.",
+			"literals_why": "La valeur est zéro : un zéro ne se cherche pas dans un dépôt."
+		},
+		{
+			"id": "H-Q04-TARIF-FILM-ESPAGNE",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Le film DTF commandé en Espagne coûte 9,00 EUR HT le mètre linéaire.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.rate_es_ht",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"L'écart de 33,60 EUR entre la France et l'Espagne sur 4 mètres imbriqués (tests/test-cost.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. Question 04 : « 9 EUR hors taxes en Espagne (5 jours) ». Aucun fournisseur nommé ne l'a confirmé.",
+			"statement_amounts": [
+				{
+					"from": "film.rate_es_ht",
+					"as": "eur",
+					"text": "9,00 EUR"
+				}
+			],
+			"literals_why": "900 est une largeur d'aperçu, un délai et une hauteur de fenêtre."
+		},
+		{
+			"id": "H-Q04-LAIZE",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Le rouleau sur lequel les transferts sont imbriqués fait 56 cm de large utile.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.width_cm",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Toutes les longueurs imbriquées mesurées par scripts/nest-verify.mjs, et le coût film de chaque commande."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. Question 04 et le chapitre 1 : « 17 EUR HT par mètre linéaire de 56 cm ». Le tarif et la laize sont un seul tarif ; changer l'un sans l'autre chiffre le film sur un rouleau qui n'est pas le nôtre.",
+			"literals_why": "56 est un nombre à deux chiffres qui apparaît partout ; le contrôle du métrage (scripts/nest-verify.mjs) compare la valeur en faisant tourner les deux implémentations, ce qu'aucune recherche de littéral ne ferait."
+		},
+		{
+			"id": "H-Q04-LIVRAISON-FILM",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Chaque commande de film supporte 15,00 EUR HT de livraison, quel que soit son métrage.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.delivery_ht",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le coût de 86,40 EUR pour 4 mètres imbriqués en France, livraison et provision de perte comprises (tests/test-cost.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. Question 04 : « 15 EUR de livraison par commande ».",
+			"statement_amounts": [
+				{
+					"from": "film.delivery_ht",
+					"as": "eur",
+					"text": "15,00 EUR"
+				}
+			],
+			"literals_why": "1500 est un délai en millisecondes et une largeur d'image."
+		},
+		{
+			"id": "H-Q04-MINIMUM-FILM",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Le fournisseur facture au moins 1 mètre linéaire, même si la commande en occupe moins.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.min_m",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le fait qu'une commande d'une seule pièce paie 1 mètre de film et que le rapport le signale (tests/test-cost.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui. Question 04 : « 1 mètre minimum ».",
+			"literals_why": "La valeur est 1."
+		},
+		{
+			"id": "H-Q04-PERTE-FILM",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Une provision de perte de 5 % du métrage est ajoutée au film commandé.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.waste_rate",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le coût de 86,40 EUR pour 4 mètres imbriqués en France, livraison et provision de perte comprises (tests/test-cost.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. Question 04 : « 5 % de perte prévue ». Elle porte sur le MÉTRAGE et pas sur la facture : une provision de 5 % sur des frais de livraison n'est pas une perte de film.",
+			"literals_why": "0.05 apparaît dans d'autres taux sans rapport ; la valeur est vérifiée par la phrase et par le test qui reconstitue les trois termes de la formule du chapitre 1.",
+			"statement_amounts": [
+				{
+					"from": "film.waste_rate",
+					"as": "pct",
+					"text": "5 %"
+				}
+			]
+		},
+		{
+			"id": "H-Q04-LONGUEUR-FICHIER",
+			"question": "Q04",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Un seul fichier d'impression ne dépasse pas 30 mètres ; au-delà, la commande est imbriquée sur plusieurs feuilles.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.max_length_cm",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Non : aucune hypothèse par défaut ne le donne, et la Bible non plus. C'est une valeur de travail. Elle ne déplace le coût que par les arrondis de facturation d'une feuille supplémentaire, et elle le déplace vers le HAUT quand elle est trop petite, ce qui est le sens sûr. La question 04 la demande.",
+			"literals_why": "3000 est ailleurs un délai en millisecondes."
+		},
+		{
+			"id": "H-Q06-MARGE-CIBLE",
+			"question": "Q06",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "La marge cible est de 55 % du prix de vente hors taxes.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#target_margin_rate",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"L'écart de 168,06 EUR entre les deux lectures de « taux de marge » sur un coût de 250,00 EUR (tests/test-margin.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Partiellement. Question 06 : « Marge cible 55 % ». La Bible appelle ce taux « taux de marge » alors que sa formule est celle du taux de MARQUE (marge sur prix de vente), et son propre exemple chiffré implique 60 %. Les deux lectures sont affichées côte à côte sur l'écran d'administration pour que la réponse ne puisse pas être ambiguë.",
+			"literals_why": "0.55 est un taux sans unité que rien d'autre ne porte dans ce dépôt ; la phrase le vérifie.",
+			"statement_amounts": [
+				{
+					"from": "target_margin_rate",
+					"as": "pct",
+					"text": "55 %"
+				}
+			]
+		},
+		{
+			"id": "H-Q06-CONTRIBUTION-MINIMALE",
+			"question": "Q06",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Après commission, il doit rester à Teeshoop au moins 25 % du prix de vente hors taxes ; c'est ce que le prix plancher garantit.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#min_contribution_rate",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Les trois planchers comparés sur l'exemple du chapitre 1 : 416,67 EUR (forme absolue corrigée), 428,57 EUR (forme en taux, celle qui est livrée) et 583,33 EUR (formule publiée).",
+				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 7,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 37,17 EUR d'écart et 63,72 EUR de prix plancher (tests/test-cost.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Partiellement. Question 06 : « contribution minimale 25 % du prix hors taxes ». La Bible, elle, prend une contribution ABSOLUE ; la forme en taux est une autre formule, avec un cas sans solution quand la contribution demandée dépasse ce qui reste après commission. Les deux sont dans Margin.php et testées.",
+			"literals_why": "0.25 est aussi le taux de commission d'une nouvelle commande et une remise de palier : le littéral ne distingue pas trois valeurs différentes qui s'écrivent pareil.",
+			"statement_amounts": [
+				{
+					"from": "min_contribution_rate",
+					"as": "pct",
+					"text": "25 %"
+				}
+			]
+		},
+		{
+			"id": "H-Q06-REMISE-MAXIMALE",
+			"question": "Q06",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Un commercial peut accorder jusqu'à 15 % de remise sur le prix conseillé sans validation ; en dessous, il faut l'accord du dirigeant.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#max_discount_rate",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"La frontière testée entre une vente libre, une vente à valider et une vente sous plancher (tests/test-margin.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Non, et l'écart est déjà connu : la grille publique accorde jusqu'à 35 % de remise en autonomie à 50 pièces, là où ce plafond en autorise 15 % à un commercial. Ce ne sont pas les mêmes mécanismes (un prix public par quantité contre une remise négociée), mais l'associé doit savoir que les deux coexistent.",
+			"literals_why": "0.15 est aussi la remise du premier palier de quantité.",
+			"statement_amounts": [
+				{
+					"from": "max_discount_rate",
+					"as": "pct",
+					"text": "15 %"
+				}
+			]
+		},
+		{
+			"id": "H-Q03-PORT-FOURNISSEUR",
+			"question": "Q03",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Une commande textile passée au fournisseur supporte 8,00 EUR HT de port.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#freight_ht",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. Question 03 : « plus 8 EUR hors taxes de port en dessous de 200 EUR de commande ».",
+			"literals_why": "800 est ailleurs une largeur en pixels et un délai.",
+			"statement_amounts": [
+				{
+					"from": "freight_ht",
+					"as": "eur",
+					"text": "8,00 EUR"
+				}
+			]
+		},
+		{
+			"id": "H-Q03-FRANCO-FOURNISSEUR",
+			"question": "Q03",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Au-dessus de 200,00 EUR HT d'achat, le fournisseur ne facture pas le port.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#freight_free_from_ht",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui, même phrase de la question 03.",
+			"literals_why": "20000 est ailleurs une taille en octets et un délai.",
+			"statement_amounts": [
+				{
+					"from": "freight_free_from_ht",
+					"as": "eur",
+					"text": "200,00 EUR"
+				}
+			]
+		},
+		{
+			"id": "H-Q03-PRIX-ACHAT-VETEMENT-STUDIO",
+			"question": "Q03",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-18",
+			"statement_fr": "Aucun prix d'achat n'est écrit pour les vêtements du studio : leur coût textile est INCONNU, et une commande qui en contient n'a pas de plancher chiffrable.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#garment_supply",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Ce n'est pas une hypothèse, c'est un refus. Les articles du catalogue fournisseur portent déjà leur prix d'achat réel ; les vêtements de démonstration du studio ne sont rattachés à aucune référence. Un chiffre inventé ici produirait un plancher, une marge et une commission qui ont l'air calculés, sur un prix d'achat que personne n'a payé. L'écran « Coûts et marges » permet de le saisir avec sa source et sa date.",
+			"literals_why": "La table est vide."
+		},
+		{
+			"id": "H-Q15-FRAIS-CARTE-TAUX",
+			"question": "Q15",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Encaisser par carte coûte 1,5 % du montant TTC.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#payment.rate",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Non : aucune hypothèse par défaut ne donne de taux. C'est le tarif public de Stripe pour les cartes européennes, et la question 15 retient Stripe. Il porte sur le TTC parce que la plateforme facture sur ce qu'elle encaisse et ignore quelle part est notre TVA.",
+			"literals_why": "0.015 est un taux sans unité que rien d'autre ne porte ici.",
+			"statement_amounts": [
+				{
+					"from": "payment.rate",
+					"as": "pct",
+					"text": "1,5 %"
+				}
+			]
+		},
+		{
+			"id": "H-Q15-FRAIS-CARTE-FIXE",
+			"question": "Q15",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Chaque encaissement par carte coûte 0,25 EUR de plus.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#payment.fixed_ht",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Non, même origine que le taux : tarif public Stripe pour les cartes européennes.",
+			"literals_why": "25 est un nombre à deux chiffres présent partout.",
+			"statement_amounts": [
+				{
+					"from": "payment.fixed_ht",
+					"as": "eur",
+					"text": "0,25 EUR"
+				}
+			]
+		},
+		{
+			"id": "H-Q27-PROVISION-DEFAUT",
+			"question": "Q27",
+			"level": "important",
+			"status": "refused",
+			"since": "2026-08-18",
+			"statement_fr": "Aucune provision de défaut n'est comptée : la ligne vaut 0,00 EUR et la commande est signalée comme incomplète.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#defect_rate",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Ce n'est pas une hypothèse par défaut, c'est un refus. Le chapitre 1 range la provision de défaut dans les coûts directs et ne donne aucun taux ; son exemple chiffré la fond dans une seule ligne « paiement et provision SAV : 16 EUR », donc elle ne s'en déduit pas non plus. Un zéro ici MINORE le plancher, ce qui est le sens dangereux : c'est pourquoi le rapport le compte comme un poste non renseigné et refuse de dire que le coût est complet.",
+			"literals_why": "La valeur est zéro."
+		},
+		{
+			"id": "H-Q29-COMMISSION-PREMIERE",
+			"question": "Q29",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Un commercial touche 40 % de la marge contributive sur la première commande qu'il apporte et suit.",
+			"home": "php:Teeshoop\\Core\\Commission::default_config()#rates.premiere",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Les 150,00 EUR de commission de l'exemple du chapitre 1, contre 300,00 EUR sur le TTC et 250,00 EUR sur le chiffre d'affaires (tests/test-commission.php)."
+			],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. Question 29 et le chapitre 1 : « 40 % de la marge contributive ».",
+			"literals_why": "0.40 est un taux sans unité ; la phrase le vérifie.",
+			"statement_amounts": [
+				{
+					"from": "rates.premiere",
+					"as": "pct",
+					"text": "40 %"
+				}
+			]
+		},
+		{
+			"id": "H-Q29-COMMISSION-NOUVELLE",
+			"question": "Q29",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Une nouvelle commande demandant une vraie action de vente rapporte 25 % de la marge contributive.",
+			"home": "php:Teeshoop\\Core\\Commission::default_config()#rates.nouvelle",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. La Bible donne une FOURCHETTE de 20 à 30 % ; la question 29 en retient le milieu, parce qu'une commission affichée en direct au commercial ne peut pas être une fourchette.",
+			"literals_why": "0.25 s'écrit comme la contribution minimale et comme une remise de palier.",
+			"statement_amounts": [
+				{
+					"from": "rates.nouvelle",
+					"as": "pct",
+					"text": "25 %"
+				}
+			]
+		},
+		{
+			"id": "H-Q29-COMMISSION-REASSORT",
+			"question": "Q29",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Un réassort simple rapporte 12 % de la marge contributive.",
+			"home": "php:Teeshoop\\Core\\Commission::default_config()#rates.reassort",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. La Bible donne 10 à 15 % ; la question 29 en retient le milieu, même raison que la ligne précédente.",
+			"literals_why": "0.12 est un taux sans unité.",
+			"statement_amounts": [
+				{
+					"from": "rates.reassort",
+					"as": "pct",
+					"text": "12 %"
+				}
+			]
+		},
+		{
+			"id": "H-Q29-COMMISSION-SITE",
+			"question": "Q29",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Une commande passée seule sur le site ne rapporte aucune commission, et c'est le type de vente par défaut d'une commande que personne n'a revendiquée.",
+			"home": "php:Teeshoop\\Core\\Commission::default_config()#rates.site",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui. Question 29 et le chapitre 1 : « commande autonome du site : 0 % sauf règle d'attribution temporaire ».",
+			"literals_why": "La valeur est zéro."
+		},
+		{
+			"id": "H-Q29-ATTRIBUTION",
+			"question": "Q29",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Un client reste attribué au commercial qui l'a apporté pendant 365 jours.",
+			"home": "php:Teeshoop\\Core\\Commission::default_config()#attribution_days",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui. Question 29 : « attribution du client pendant 12 mois ». La Bible pose la question et n'y répond pas.",
+			"literals_why": "365 est un nombre de jours qu'un dépôt écrit pour bien d'autres raisons.",
+			"statement_amounts": [
+				{
+					"from": "attribution_days",
+					"as": "int",
+					"text": "365"
+				}
+			]
+		},
+		{
+			"id": "H-Q29-DELAI-DEFINITIF",
+			"question": "Q29",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Une commission devient définitive 30 jours après la livraison, si rien n'est contesté, si aucun remboursement n'est en cours et si les coûts réels sont renseignés.",
+			"home": "php:Teeshoop\\Core\\Commission::default_config()#definitive_after_days",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui. Question 29 : « commission définitive 30 jours après livraison sans litige ». Les trois autres conditions viennent de la Bible elle-même.",
+			"literals_why": "30 est un nombre à deux chiffres présent partout.",
+			"statement_amounts": [
+				{
+					"from": "definitive_after_days",
+					"as": "int",
+					"text": "30"
+				}
+			]
+		},
+		{
+			"id": "H-Q29-PRORATA",
+			"question": "Q29",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Sur une commande partiellement encaissée, le commercial acquiert la part de sa commission proportionnelle au TTC reçu.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Commission.php#Rounded once, at the end, from the full amount",
+			"mirrors": [],
+			"literals": [],
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Non : la Bible ne le dit nulle part. Elle exige la commission « sur l'encaissement réel » et dit qu'elle devient provisoire à l'encaissement, sans dire ce qu'un acompte acquiert. L'autre lecture possible est zéro jusqu'au dernier centime, ce qui ferait de la commission une marche d'escalier sur des commandes qui restent des semaines sur un acompte. La question 29 lui demande de trancher.",
+			"literals_why": "C'est une règle et non un montant."
 		}
 	],
 	"not_applicable": [
-		{
-			"question": "Q05",
-			"level": "bloquant",
-			"why": "Aucun taux horaire ni aucun temps de pose n'est écrit dans le dépôt. Le moteur de coût reçoit ces valeurs en argument et rien ne l'appelle en production : il n'y a donc aucune hypothèse en service à enregistrer. C'est la séance 05."
-		},
 		{
 			"question": "Q18",
 			"level": "bloquant",

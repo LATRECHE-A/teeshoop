@@ -38,14 +38,45 @@ export const MAX_SIDES = 8
 /** Past a square metre it is a data error, and it must not drive the price. */
 export const MAX_SIDE_SQ_CM = 10000
 
+/**
+ * How many transfers one side may declare, and how large each may be, cm.
+ *
+ * A side splits into at most one visual per layer and a garment's print area is
+ * around 40 cm across, so both bounds are far above anything real. They are here
+ * because these numbers leave the browser and are then packed onto a roll by the
+ * Worker (`POST /api/nest`) and costed by the shop: a document claiming three
+ * hundred two-metre transfers would buy a large nesting computation and an
+ * absurd film cost, and neither is a thing an unauthenticated upload gets to do.
+ *
+ * 200 cm and not 56: a piece WIDER than the roll is legitimate (it gets cut into
+ * strips), and refusing it here would silently drop the biggest transfer in the
+ * order from the cost.
+ */
+export const MAX_SIDE_PIECES = 32
+export const MAX_PIECE_CM = 200
+
 export const MAX_LAYERS = 200
 export const MAX_ASSETS = 32
 export const MAX_GARMENT_ID_LEN = 40
+
+/** One transfer's footprint on the film, cm. */
+export interface DesignDocPiece {
+  w_cm: number
+  h_cm: number
+}
 
 /** One printed side, as the price engine and the workshop both need it. */
 export interface DesignDocSide {
   id: string
   area_sq_cm: number
+  /**
+   * The transfers this side prints as. OPTIONAL, and the optionality is the
+   * decision: a document without them is still a perfectly printable order, so
+   * refusing it would turn a costing gap into a lost sale. What it is not is
+   * costable, and the shop says exactly that rather than dividing the area by
+   * the roll width and calling the answer a length.
+   */
+  pieces?: DesignDocPiece[]
 }
 
 export interface DesignDocSummary {
@@ -115,7 +146,11 @@ export function readDesignDoc(raw: unknown): DesignDocSummary | null {
     const area = typeof side.area_sq_cm === 'number' ? side.area_sq_cm : NaN
     if (!id || !SIDE_ID_RE.test(id)) continue
     if (!Number.isFinite(area) || area <= 0) continue
-    sides.push({ id, area_sq_cm: Math.min(area, MAX_SIDE_SQ_CM) })
+    sides.push({
+      id,
+      area_sq_cm: Math.min(area, MAX_SIDE_SQ_CM),
+      ...readPieces(side.pieces),
+    })
     if (sides.length >= MAX_SIDES) break
   }
 
@@ -140,4 +175,29 @@ export function readDesignDoc(raw: unknown): DesignDocSummary | null {
     sides,
     assetIds,
   }
+}
+
+/**
+ * The transfers of one side, bounded, or nothing.
+ *
+ * ALL OR NOTHING per side, deliberately. A partly-read list would cost the film
+ * of the pieces that happened to parse and silently omit the rest, which is a
+ * film cost that is too LOW, which is a floor price that is too low, which
+ * authorises a sale that destroys value. A side whose pieces cannot all be read
+ * has no pieces, and the shop reports its film cost as unknown.
+ */
+function readPieces(raw: unknown): { pieces?: DesignDocPiece[] } {
+  if (!Array.isArray(raw)) return {}
+  if (raw.length === 0 || raw.length > MAX_SIDE_PIECES) return {}
+  const pieces: DesignDocPiece[] = []
+  for (const p of raw) {
+    if (!p || typeof p !== 'object') return {}
+    const piece = p as Record<string, unknown>
+    const w = typeof piece.w_cm === 'number' ? piece.w_cm : NaN
+    const h = typeof piece.h_cm === 'number' ? piece.h_cm : NaN
+    if (!Number.isFinite(w) || !Number.isFinite(h)) return {}
+    if (w <= 0 || h <= 0 || w > MAX_PIECE_CM || h > MAX_PIECE_CM) return {}
+    pieces.push({ w_cm: w, h_cm: h })
+  }
+  return { pieces }
 }

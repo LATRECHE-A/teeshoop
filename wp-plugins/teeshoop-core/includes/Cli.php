@@ -38,6 +38,7 @@ final class Cli {
 		\WP_CLI::add_command( 'teeshoop catalogue importer', array( self::class, 'catalogue_import' ) );
 		\WP_CLI::add_command( 'teeshoop catalogue etat', array( self::class, 'catalogue_state' ) );
 		\WP_CLI::add_command( 'teeshoop catalogue purger', array( self::class, 'catalogue_purge' ) );
+		\WP_CLI::add_command( 'teeshoop marge', array( self::class, 'margin_report' ) );
 	}
 
 	/**
@@ -474,6 +475,83 @@ final class Cli {
 	 *
 	 *     wp teeshoop verifier
 	 */
+	/**
+	 * Print what one order really cost, and what it earned.
+	 *
+	 *   wp teeshoop marge 123
+	 *   wp teeshoop marge 123 --recalculer
+	 *
+	 * The same report the order screen renders, from the same call, in a form
+	 * that can be pasted into a review. It exists because a screenshot is not
+	 * evidence and a screen cannot be diffed: this is how a claim about an
+	 * order's economics gets checked by somebody who was not there.
+	 *
+	 * `--recalculer` asks the nesting service again and stores the answer;
+	 * without it the stored report is printed, or computed once if there is none.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <commande>
+	 * : The WooCommerce order id.
+	 *
+	 * [--recalculer]
+	 * : Recompute and store instead of reading what was stored.
+	 */
+	public static function margin_report( array $args, array $assoc_args ): void {
+		$order = wc_get_order( (int) ( $args[0] ?? 0 ) );
+		if ( ! $order instanceof \WC_Order ) {
+			\WP_CLI::error( 'Commande introuvable.' );
+		}
+
+		$report = ! empty( $assoc_args['recalculer'] ) ? Costing::refresh( $order ) : ( Costing::stored( $order ) ?? Costing::refresh( $order ) );
+
+		$money = static fn( int $cents ): string => str_pad( Money::format( $cents ), 14, ' ', STR_PAD_LEFT );
+
+		\WP_CLI::log( '' );
+		\WP_CLI::log( sprintf( 'Commande %s, chiffrée le %s', $order->get_order_number(), (string) $report['computed_on'] ) );
+		\WP_CLI::log( str_repeat( '-', 78 ) );
+
+		\WP_CLI::log( 'COÛT DIRECT' );
+		foreach ( (array) $report['cost']['lines'] as $line ) {
+			\WP_CLI::log(
+				sprintf(
+					'  %-22s %s   %-8s %s',
+					(string) $line['label'],
+					Cost::UNKNOWN === $line['confidence'] ? str_pad( 'inconnu', 14, ' ', STR_PAD_LEFT ) : $money( (int) $line['amount_ht'] ),
+					(string) $line['confidence'],
+					(string) $line['source']
+				)
+			);
+		}
+		\WP_CLI::log( sprintf( '  %-22s %s   %s', 'TOTAL CONNU', $money( (int) $report['cost']['total_ht'] ), $report['cost']['complete'] ? 'complet' : 'incomplet' ) );
+
+		\WP_CLI::log( '' );
+		\WP_CLI::log( 'PRIX' );
+		\WP_CLI::log( sprintf( '  %-22s %s', 'Vendue HT', $money( (int) $report['revenue']['total_ht'] ) ) );
+		\WP_CLI::log( sprintf( '  %-22s %s', 'Prix conseillé', $money( (int) $report['plan']['recommended_ht'] ) ) );
+		\WP_CLI::log( sprintf( '  %-22s %s   %s', 'Prix plancher', $money( (int) $report['plan']['floor_ht'] ), $report['cost']['complete'] ? '' : '(minimum : coût incomplet)' ) );
+		\WP_CLI::log( sprintf( '  %-22s %s', 'Marge contributive', $money( (int) $report['verdict']['margin_ht'] ) ) );
+		\WP_CLI::log( sprintf( '  %-22s %s   %s (%s)', 'Commission', $money( (int) $report['commission']['earned_ht'] ), (string) $report['state']['state'], (string) $report['sale_type'] ) );
+		\WP_CLI::log( sprintf( '  %-22s %s', 'Reste à Teeshoop', $money( (int) $report['verdict']['margin_ht'] - (int) $report['commission']['full_ht'] ) ) );
+
+		if ( is_array( $report['film'] ) ) {
+			\WP_CLI::log( '' );
+			\WP_CLI::log(
+				sprintf(
+					'FILM  %s m imbriqués, %d transferts%s',
+					Money::number( (float) $report['film']['billed_m'], 2 ),
+					(int) $report['work']['transfers'],
+					empty( $report['film']['bound'] ) ? '' : ' (borne haute, service indisponible)'
+				)
+			);
+		}
+
+		foreach ( (array) $report['warnings'] as $warning ) {
+			\WP_CLI::warning( (string) $warning );
+		}
+		\WP_CLI::log( '' );
+	}
+
 	public static function check(): void {
 		$result = Compat::check();
 

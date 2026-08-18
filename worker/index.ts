@@ -41,6 +41,7 @@
 import { handleFalkRoss, type FalkRossEnv } from './falkross'
 import { requireAdmin } from './auth'
 import { createDesign, getDesign, serveDesignFile, type DesignEnv } from './design'
+import { nestOrder } from './nest'
 
 interface Env extends FalkRossEnv, DesignEnv {
   ASSETS: Fetcher
@@ -220,6 +221,15 @@ export default {
     const designFile = /^\/r2\/design\/([^/]+)\/(.+)$/.exec(path)
     if (designFile && (request.method === 'GET' || request.method === 'HEAD')) {
       return serveDesignFile(request, env, designFile[1], decodeURIComponent(designFile[2]))
+    }
+
+    /*
+     * How much film an order needs (worker/nest.ts). ADMIN-ONLY: the answer is
+     * film economics, and a packer left open is a free compute service. The
+     * WordPress cost engine is the only caller.
+     */
+    if (path === '/api/nest' && request.method === 'POST') {
+      return nestOrder(request, env)
     }
 
     // The ADMIN studio. The bundle split (src/app/adminSlots.tsx) keeps the

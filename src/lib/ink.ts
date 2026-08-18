@@ -43,7 +43,7 @@
  * canvas unreadable, cross-origin taint — the answer is the full declared box,
  * i.e. exactly what this module replaced.
  */
-import type { Design, Layer, Side, SizeId } from '@/lib/types'
+import type { Design, Layer, RectIn, Side, SizeIn, SizeId } from '@/lib/types'
 import {
   getAreaSizeIn,
   graphicDef,
@@ -655,4 +655,179 @@ export function sideArtworkSqCm(design: Design, side: Side, size?: SizeId): numb
   // the overlap twice both overstates the bill and lets a design that fits the
   // chest measure larger than the whole print area.
   return unionArea(clipped) * CM_PER_IN * CM_PER_IN
+}
+
+// ---------------------------------------------------------------------------
+// Boxes → the transfers a side is actually printed as
+//
+// This lived in `src/lib/dtf/pieces.ts` until session 05. It moved here for the
+// same reason `PIECE_CLEARANCE_IN` did before it: the cost engine has to know
+// how much film an order needs, `src/lib/dtf/**` is admin-only and unreachable
+// from the customer bundle (src/app/adminBoundary.test.ts enforces it), and a
+// second copy of "what rectangle does this visual print as" in the customer
+// path would be a second answer. `pieces.ts` now calls this and adds the pixels.
+// ---------------------------------------------------------------------------
+
+/**
+ * Below this (inches) a transfer is too thin to be represented. It is a FLOOR,
+ * not a filter: the box is grown to it. A 0,4 mm hairline rule is real artwork,
+ * and dropping it — which is what the old rule did — would delete a customer's
+ * design element with no error anywhere.
+ *
+ * 0,08 in = 2,0 mm, which is 2 px at `PREVIEW_DPI` (28), the lowest density
+ * anything renders at. That is not a coincidence: `canvas.width` is
+ * `max(2, round(wIn × dpi))`, so a rect under 2 px would be drawn into a canvas
+ * bigger than itself, and `renderSheet` stretches a piece's canvas to fill its
+ * placement — the cutting plan would show a hairline 40 % too fat. At this floor
+ * `round(wIn × dpi) ≥ 2` holds by construction at every DPI in use.
+ */
+export const MIN_EXTENT_IN = 0.08
+
+/**
+ * Slack added around every trimmed visual, inches. 0,02 in = 0,5 mm.
+ *
+ * Under declared boxes the crop always had margin to spare, so the roundings
+ * downstream were free. They are not any more: the crop is tangent to the ink,
+ * and `canvas.width = round(wIn × dpi)` can round DOWN half a pixel — 0,45 mm at
+ * 28 DPI — straight off the outermost glyph edge. This is DPI-independent (it
+ * has to be; the geometry is shared between the 28-DPI preview and the 300-DPI
+ * export), it covers that half pixel five times over, and against a 5 mm nesting
+ * gap it costs nothing worth measuring.
+ */
+export const TRIM_BLEED_IN = 0.02
+
+export interface PieceSplitOptions {
+  /**
+   * Merge distance, inches. Defaults to `PIECE_CLEARANCE_IN`; pass
+   * `MERGE_WHOLE_SIDE_IN` for one transfer per side. There is deliberately no
+   * minimum piece size, because merging a small item into a distant neighbour
+   * means buying the empty film between them, which is the exact waste
+   * splitting exists to remove.
+   */
+  clearanceIn?: number
+  /**
+   * `'box'` measures every visual from its declared rectangle instead of its
+   * ink — the pre-2026-08-13 geometry. Not an operator setting: it exists so
+   * `scripts/dtf-bench.mjs` can put both against each other on the same order
+   * and report what the trim is actually worth.
+   */
+  measureFrom?: InkMeasure
+}
+
+/**
+ * Grow a span to at least `MIN_EXTENT_IN` without leaving `[0, limit]`, then
+ * report it. Symmetric where there is room, pushed inward at an edge.
+ */
+function atLeastMin(lo: number, hi: number, limit: number): [number, number] {
+  const need = Math.min(MIN_EXTENT_IN, limit)
+  if (hi - lo >= need) return [lo, hi]
+  const grow = (need - (hi - lo)) / 2
+  let a = lo - grow
+  let b = hi + grow
+  if (a < 0) {
+    b -= a
+    a = 0
+  }
+  if (b > limit) {
+    a -= b - limit
+    b = limit
+  }
+  return [Math.max(0, a), Math.min(limit, b)]
+}
+
+/**
+ * Clamp an item's ink extent to the print area, in top-left-origin inches.
+ * Null only when nothing of it lands inside the area at all.
+ *
+ * A span thinner than `MIN_EXTENT_IN` is GROWN to it rather than discarded. The
+ * old rule dropped the whole cluster, which was survivable while the box was a
+ * layer's declared rectangle (always at least as big as the artwork) and is not
+ * survivable now that it is the ink: a 0,4 mm rule under a wordmark measures
+ * 0,4 mm tall, and dropping it would remove it from the print in silence.
+ */
+export function clampInkToArea(b: InkBox, area: SizeIn): RectIn | null {
+  const x0 = Math.max(-area.wIn / 2, b.x0 - TRIM_BLEED_IN)
+  const x1 = Math.min(area.wIn / 2, b.x1 + TRIM_BLEED_IN)
+  const y0 = Math.max(-area.hIn / 2, b.y0 - TRIM_BLEED_IN)
+  const y1 = Math.min(area.hIn / 2, b.y1 + TRIM_BLEED_IN)
+  if (x1 <= x0 || y1 <= y0) return null
+  const [ax0, ax1] = atLeastMin(x0 + area.wIn / 2, x1 + area.wIn / 2, area.wIn)
+  const [ay0, ay1] = atLeastMin(y0 + area.hIn / 2, y1 + area.hIn / 2, area.hIn)
+  if (ax1 - ax0 <= 0 || ay1 - ay0 <= 0) return null
+  return { xIn: ax0, yIn: ay0, wIn: ax1 - ax0, hIn: ay1 - ay0 }
+}
+
+/** One transfer of a side: where it sits in the print area, and what it carries. */
+export interface InkPart {
+  /** Crop rect within the (graded) print area, top-left origin, inches. */
+  rect: RectIn
+  /** The GRADED layers this transfer carries — nothing else is drawn into it. */
+  layers: Layer[]
+}
+
+/**
+ * Split one side into the transfers it should be printed as, in part order
+ * (top to bottom, then left to right — the order the DTF suffix counts in, and
+ * the order an operator reads the garment in).
+ *
+ * Empty when the side carries no layers, or when the garment publishes no print
+ * area for it. That second case is a REFUSAL, not a default: `getAreaSizeIn`
+ * returns a zero area when it has nothing to derive one from (a custom
+ * garment's sleeve), and inventing a transfer size there is how a dimension
+ * nobody measured reaches a printer.
+ *
+ * Text measurement depends on loaded fonts — call after the fonts and the ink
+ * probes have settled (`renderPieces` and `measureOrder` both do) for numbers
+ * that match the export.
+ */
+export function sideInkParts(
+  design: Design,
+  side: Side,
+  size?: SizeId,
+  opts?: PieceSplitOptions,
+): InkPart[] {
+  const area = getAreaSizeIn(design, side, size)
+  if (!(area.wIn > 0) || !(area.hIn > 0)) return []
+  const clearance = opts?.clearanceIn ?? PIECE_CLEARANCE_IN
+  const seen: { rect: RectIn; layers: Layer[]; seq: number }[] = []
+  const clusters = sideInkClusters(design, side, size, clearance, opts?.measureFrom ?? 'ink')
+  for (let i = 0; i < clusters.length; i++) {
+    const rect = clampInkToArea(clusters[i].box, area)
+    if (rect) seen.push({ rect, layers: clusters[i].layers, seq: i })
+  }
+  // Total order: reading order, with the cluster's first-layer position as the
+  // final tiebreak, so the part suffix of a given item never moves between two
+  // renders of the same design.
+  seen.sort((a, b) => a.rect.yIn - b.rect.yIn || a.rect.xIn - b.rect.xIn || a.seq - b.seq)
+  return seen.map(({ rect, layers: ls }) => ({ rect, layers: ls }))
+}
+
+/** One transfer's footprint on the film, centimetres. */
+export interface PieceCm {
+  w_cm: number
+  h_cm: number
+}
+
+/**
+ * The transfers a side needs, as the two numbers a gang sheet is packed from.
+ *
+ * THIS IS THE ORDER'S FILM GEOMETRY and it is why it exists: the WordPress cost
+ * engine has to ask the nesting engine how many linear metres an order takes,
+ * and a length is a packing of rectangles, never an area divided by a width.
+ * The rectangles are these. They are measured in the browser, at the priced
+ * size, once, and stored with the design (src/lib/teeshoop/designDoc.ts), so
+ * the film cost and the customer's printed-area price are computed from one
+ * measurement rather than two.
+ *
+ * Centimetres, and rounded to 0,01 cm: the same unit the nester and the DTF
+ * suppliers work in, with no conversion left anywhere for anyone to forget.
+ * Rounding at the source rather than at each reader is what keeps the number in
+ * the design document byte-identical to the number that gets packed.
+ */
+export function sidePiecesCm(design: Design, side: Side, size?: SizeId): PieceCm[] {
+  const round2 = (v: number) => Math.round(v * 100) / 100
+  return sideInkParts(design, side, size).map((p) => ({
+    w_cm: round2(p.rect.wIn * CM_PER_IN),
+    h_cm: round2(p.rect.hIn * CM_PER_IN),
+  }))
 }

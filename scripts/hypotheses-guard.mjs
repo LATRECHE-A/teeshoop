@@ -779,15 +779,49 @@ function checkSaidOutLoud(entries, tables) {
 // The shop's copy
 
 /**
+ * Homes whose rows must not cross into the shop's copy, whatever directory they
+ * live in.
+ *
+ * The filter used to be "inside the plugin", and that was enough while the cost
+ * model lived in the studio: film tariffs and purchase prices were homed in
+ * `src/` and simply never matched. Session 05 moved the cost engine INTO the
+ * plugin, so twenty-two rows about what we pay for film, what an hour of
+ * workshop costs and what a salesperson earns became eligible to cross, and
+ * `scripts/php-guard.mjs` failed on the generated file with thirty-two hits.
+ *
+ * That failure was right. `data/` is a rendering directory, the register screen
+ * echoes these sentences, and the shop's cost structure does not belong in a
+ * projection whose whole purpose is to tell an operator which PRICES are
+ * assumed. The rows still exist, they are still checked, and they are shown on
+ * the "Coûts et marges" screen, which is the page about them.
+ *
+ * The count of what was withheld crosses instead, so the register screen can say
+ * it is not showing everything. A filter nobody can see is indistinguishable
+ * from a register that is short a few rows.
+ */
+const WITHHELD_FROM_SHOP = [
+  'Teeshoop\\Core\\Cost::',
+  'Teeshoop\\Core\\Commission::',
+  // An `anchor:` home names a file rather than a class, so the class prefixes
+  // above do not catch it. The test is the same one: does this row live in the
+  // cost engine.
+  'includes/Cost.php',
+  'includes/Commission.php',
+  'includes/Costing.php',
+  'includes/CostAdmin.php',
+]
+
+/**
  * What WordPress is allowed to know.
  *
- * Only rows homed inside the plugin, and only the fields an admin screen shows.
- * Rows about film, purchase costs or supplier terms never cross, which is what
- * keeps `scripts/php-guard.mjs` green without a second needle list here.
+ * Only rows homed inside the plugin, minus the cost engine (see above), and only
+ * the fields an admin screen shows.
  */
 function projectForShop(data) {
-  const rows = data.entries
-    .filter((e) => refFiles(e.home).some((f) => f.startsWith('wp-plugins/')))
+  const inPlugin = data.entries.filter((e) => refFiles(e.home).some((f) => f.startsWith('wp-plugins/')))
+  const crossing = inPlugin.filter((e) => !WITHHELD_FROM_SHOP.some((h) => e.home.includes(h)))
+  const withheld = inPlugin.length - crossing.length
+  const rows = crossing
     .map((e) => ({
       id: e.id,
       question: e.question,
@@ -805,8 +839,13 @@ function projectForShop(data) {
 /**
  * GENERATED. Do not edit: run \`node scripts/hypotheses-guard.mjs --write\`.
  *
- * The rows of \`docs/hypotheses.json\` whose home is inside this plugin, and only
- * the fields an admin screen shows. Read by includes/Hypotheses.php.
+ * The rows of \`docs/hypotheses.json\` whose home is inside this plugin, minus the
+ * cost engine, and only the fields an admin screen shows. Read by
+ * includes/Hypotheses.php.
+ *
+ * \`withheld\` counts the rows deliberately kept out: what we pay for film, for an
+ * hour of workshop and to a salesperson. They are on the "Coûts et marges"
+ * screen instead. The count crosses so this page can say it is not everything.
  *
  * PHP AND NOT JSON, ON PURPOSE. This directory is served by URL, and these
  * sentences are business-internal: what the shop does not enforce, what nobody
@@ -818,7 +857,7 @@ function projectForShop(data) {
 
 defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
-return ${phpValue(rows, 0)};
+return ${phpValue({ rows, withheld }, 0)};
 `
 }
 

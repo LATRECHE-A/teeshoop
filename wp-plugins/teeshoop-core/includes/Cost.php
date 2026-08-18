@@ -30,7 +30,7 @@
  * ── WHAT IS DELIBERATELY NOT HERE ────────────────────────────────────────────
  *
  * No selling price. `Pricing.php` is the price authority and this file never
- * touches it: they meet in `OrderCost.php`, which reads what an order was sold
+ * touches it: they meet in `Costing.php`, which reads what an order was sold
  * for and asks this what it cost. Two files that both computed a price would
  * eventually disagree, and the customer would see one number and the invoice
  * another.
@@ -204,6 +204,15 @@ final class Cost {
 				 */
 				'gap_cm'         => 0.5,
 				/*
+				 * Billing granularity, cm. 10 = 0,1 mètre linéaire, which is what
+				 * roll suppliers invoice. It is here rather than only in the
+				 * nesting request because the prudent bound has to round the same
+				 * way: a bound that ignored the rounding came out BELOW the packed
+				 * length on a small order, which is the one direction a bound may
+				 * never take. Found by scripts/nest-verify.mjs.
+				 */
+				'billing_step_cm' => 10.0,
+				/*
 				 * The longest single file the supplier's printer accepts, cm.
 				 * Nobody has told us; 30 m is a working figure and question 04 now
 				 * asks for the real one. It only ever moves the cost by the edge
@@ -231,8 +240,15 @@ final class Cost {
 			 * understate the fee by the VAT rate, which is a fifth of it.
 			 */
 			'payment'       => array(
-				'rate'     => 0.015,
-				'fixed_ht' => 25,
+				'rate'         => 0.015,
+				'fixed_ht'     => 25,
+				/*
+				 * Methods that cost nothing to receive. A transfer and a cheque
+				 * carry no platform fee, and charging one against them would
+				 * overstate the cost of exactly the orders a business customer
+				 * places. WooCommerce's own gateway ids.
+				 */
+				'free_methods' => array( 'bacs', 'cheque', 'cod' ),
 			),
 
 			/*
@@ -270,6 +286,45 @@ final class Cost {
 			 */
 			'catalogue_divisor_prudent'    => 2.0,
 			'catalogue_divisor_optimistic' => 2.5,
+
+			/*
+			 * The margin rules. Question 06's written default: "Marge cible 55 %
+			 * sur textile et marquage, contribution minimale 25 % du prix hors
+			 * taxes, remise maximale de 15 % sans validation de votre part."
+			 *
+			 * `target_margin_rate` IS THE TAUX DE MARQUE, margin over selling
+			 * price, which is the ratio the Bible's formula and its worked
+			 * example use whatever the chapter calls it. See the second finding
+			 * at the top of Margin.php: read as the words normally mean, the same
+			 * 55 % prices a 250 EUR cost 168,06 EUR lower.
+			 *
+			 * `min_contribution_rate` is a share of the price, which is question
+			 * 06's own wording and NOT the Bible's absolute contribution. The two
+			 * are different formulas with different failure modes; both are in
+			 * Margin.php and this is the one in force.
+			 */
+			'target_margin_rate'    => 0.55,
+			'min_contribution_rate' => 0.25,
+			'max_discount_rate'     => 0.15,
+
+			/*
+			 * What a blank costs us, per studio garment, when the order line is
+			 * not a catalogue article that carries its own supplier price.
+			 *
+			 * EMPTY, and empty is a refusal rather than an oversight. `tee`,
+			 * `hoodie` and `custom` are the studio's demonstration garments; they
+			 * are joined to no supplier reference, so nothing in this repository
+			 * knows what one costs. An invented figure here would produce a floor
+			 * price, a margin and a commission that all look computed, on a
+			 * purchase price nobody ever paid.
+			 *
+			 * Fill a row from the admin screen and every order costed after it
+			 * uses it. The shape is `garment => ['ht' => int, 'source' => string,
+			 * 'on' => 'YYYY-MM-DD']`, because a purchase price with no source and
+			 * no date cannot be defended six months later, which is the whole
+			 * point of the chapter's cost model.
+			 */
+			'garment_supply' => array(),
 		);
 	}
 
@@ -525,47 +580,121 @@ final class Cost {
 	}
 
 	/**
-	 * The longest a shelf packer can possibly make this set of pieces, cm.
+	 * The longest the packer can possibly make this set of pieces, cm billed.
 	 *
-	 * THIS IS NOT A NESTING. It is the bound a nesting is guaranteed to beat, and
-	 * it exists for one case: the nesting engine could not be reached, so the
-	 * choice is between no cost at all and a cost that is certainly not too low.
+	 * THIS IS NOT A NESTING. It is the length a nesting is guaranteed not to
+	 * exceed, and it exists for one case: `src/lib/dtf/nesting.ts` could not be
+	 * reached, so the choice is between no cost at all and a cost that is
+	 * certainly not too low.
 	 *
-	 * Why it is a true upper bound of `nestRoll`: that packer forms shelves, and
-	 * a shelf is as tall as its tallest member. The worst layout it can produce
-	 * is one shelf per piece, which is exactly this sum. A piece wider than the
-	 * roll is counted as the ceil(w / width) strips it has to be cut into, each
-	 * still that piece's height. Rotation can only help it, never hurt it.
+	 * ── WHY IT IS A BOUND, term by term ──────────────────────────────────────
+	 *
+	 * The packer lays pieces in shelves and a shelf is as tall as its tallest
+	 * member. For a run of identical pieces it picks the orientation with the
+	 * smaller total, so its cost per run never exceeds the cost of giving every
+	 * copy its own shelf in the FLATTER orientation. That flatter orientation is
+	 * available only when the piece's long side fits across the roll; a 5 × 60 cm
+	 * banner on a 56 cm roll has to stand up, and then the row it costs is 60 cm,
+	 * not 5. Getting that backwards is what an earlier version of this function
+	 * did, and it under-bounded that banner elevenfold.
+	 *
+	 * Then two roundings the packer applies and a bound must apply too: each
+	 * sheet's length is rounded UP to the billing step, and a long order is split
+	 * across sheets. Σ⌈xₛ⌉ ≤ ⌈Σxₛ⌉ + (N−1), so one rounding of the whole plus one
+	 * step per extra sheet covers it. The sheet count is bounded by the packer's
+	 * own rule for closing a sheet: it only opens a new one when the next shelf
+	 * would overflow, so every sheet but the last is full to within one shelf.
+	 *
+	 * `scripts/nest-verify.mjs` re-proves the whole thing on every run, in both
+	 * languages, against the real packer over a corpus of real orders. It is what
+	 * found the missing rounding.
+	 *
+	 * ── IT CAN REFUSE ────────────────────────────────────────────────────────
+	 *
+	 * A transfer whose SHORTER side is wider than the roll fits on no sheet in
+	 * any orientation. The packer reports it as unplaceable and so does this: an
+	 * order containing one has no bound and no cost, because it also has no way
+	 * of being printed.
 	 *
 	 * A caller that uses this MUST mark the resulting component ESTIMATED. It
-	 * overstates a real order badly (the sample basket nests to less than half
-	 * its bound), so it is a stopgap for a broken link and never a substitute for
+	 * overstates a real order badly (measured on the sample corpus: +14 % to
+	 * +827 %), so it is a stopgap for a broken link and never a substitute for
 	 * asking.
+	 *
+	 * @return array{ok:bool,length_cm:float,impossible:array<int,string>}
 	 */
-	public static function prudent_length_cm( array $pieces, array $config ): float {
+	public static function prudent_length_cm( array $pieces, array $config ): array {
 		$film  = (array) ( $config['film'] ?? array() );
 		$gap   = (float) ( $film['gap_cm'] ?? 0 );
 		$width = (float) ( $film['width_cm'] ?? 0 );
-		if ( $width <= 0 ) {
-			return 0.0;
+		$step  = (float) ( $film['billing_step_cm'] ?? 0 );
+		$max   = (float) ( $film['max_length_cm'] ?? 0 );
+
+		$refuse = static function ( array $impossible ): array {
+			return array(
+				'ok'         => false,
+				'length_cm'  => 0.0,
+				'impossible' => $impossible,
+			);
+		};
+
+		if ( $width <= 0 || $step <= 0 || $max <= 0 ) {
+			return $refuse( array() );
 		}
 
-		$length = 0.0;
+		$raw        = 0.0;
+		$tallest    = 0.0;
+		$impossible = array();
+
 		foreach ( $pieces as $piece ) {
 			$w   = (float) ( $piece['w_cm'] ?? 0 );
 			$h   = (float) ( $piece['h_cm'] ?? 0 );
 			$qty = (int) ( $piece['qty'] ?? 0 );
-			if ( $w <= 0 || $h <= 0 || $qty <= 0 ) {
+			$id  = (string) ( $piece['id'] ?? '?' );
+			if ( ! is_finite( $w ) || ! is_finite( $h ) || $w <= 0 || $h <= 0 || $qty <= 0 ) {
 				continue;
 			}
-			// Rotating a piece flat is what the packer does first, so the bound
-			// takes the same view: the shorter side is the one that costs length.
-			$short  = min( $w, $h );
-			$long   = max( $w, $h );
-			$strips = (int) ceil( ( $long - 1e-9 ) / $width );
-			$length += $qty * $strips * ( $short + $gap );
+
+			$short = min( $w, $h );
+			$long  = max( $w, $h );
+
+			// Neither orientation gets it across the roll, or down a sheet.
+			if ( $short > $width || $short > $max ) {
+				$impossible[] = $id;
+				continue;
+			}
+
+			// Lying flat is only allowed when the long side fits the laize.
+			$row = $long <= $width ? $short : $long;
+			if ( $row > $max ) {
+				$impossible[] = $id;
+				continue;
+			}
+
+			$raw    += $qty * ( $row + $gap );
+			$tallest = max( $tallest, $row );
 		}
-		return $length;
+
+		if ( array() !== $impossible ) {
+			return $refuse( $impossible );
+		}
+		if ( $raw <= 0 ) {
+			return $refuse( array() );
+		}
+
+		/*
+		 * The packer only opens a new sheet when the next shelf would overflow,
+		 * so every sheet but the last carries more than `room` of artwork. Hence
+		 * (N − 1) × room < raw, hence N ≤ ⌈raw / room⌉ for any positive raw.
+		 */
+		$room   = max( $step, $max - $tallest - $gap );
+		$sheets = max( 1, (int) ceil( $raw / $room ) );
+
+		return array(
+			'ok'         => true,
+			'length_cm'  => ceil( $raw / $step ) * $step + ( $sheets - 1 ) * $step,
+			'impossible' => array(),
+		);
 	}
 
 	/**

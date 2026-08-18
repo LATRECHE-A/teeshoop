@@ -34,8 +34,9 @@
  * with no allowed origin configured the bridge does not run at all.
  *
  * WHAT IS NEVER SENT: a price. The studio displays what the server tells it. It
- * sends what the customer chose (garment, quantity, printed sides and their
- * ink area in cm²) and WordPress decides what that costs.
+ * sends what the customer chose (garment, quantity, printed sides, their ink
+ * area in cm² and the transfers they print as) and WordPress decides what that
+ * costs.
  */
 import { SIZE_IDS } from '@/content/sizeChart'
 
@@ -43,6 +44,17 @@ import { SIZE_IDS } from '@/content/sizeChart'
 export interface BridgeSide {
   id: string
   area_sq_cm: number
+  /**
+   * The transfers this side prints as, cm, in part order.
+   *
+   * The AREA prices the customer; these RECTANGLES cost the film, and the two
+   * are different questions with different answers: 400 cm² of ink is one
+   * transfer or six, and six of them pack onto a 56 cm roll very differently
+   * from one. They travel together because they are one measurement
+   * (`src/lib/ink.ts`) taken once, at the priced size, in the only place that
+   * can take it: a browser that has decoded the artwork.
+   */
+  pieces?: { w_cm: number; h_cm: number }[]
 }
 
 /** What the shop page tells us about the product we are decorating. */

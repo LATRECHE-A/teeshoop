@@ -131,6 +131,13 @@ final class Design {
 	 *
 	 * At most 8 sides. A garment has four printable faces plus room to grow; a
 	 * request with 400 sides is not a t-shirt.
+	 *
+	 * `pieces` rides along from session 05. The AREA is what the customer pays
+	 * for; the RECTANGLES are what the film costs, and the two are different
+	 * questions: 400 cm² of ink is one transfer or six, and six of them pack onto
+	 * a 56 cm roll very differently from one. They are measured together, once,
+	 * in the browser, because an ink extent comes from a decoded image's alpha
+	 * and neither this server nor the Worker has a canvas.
 	 */
 	public static function normalise_sides( mixed $raw ): array {
 		if ( ! is_array( $raw ) ) {
@@ -156,11 +163,49 @@ final class Design {
 				// Cap at a square metre: past that it is a data error, and it
 				// must not be able to drive the price to an absurd number.
 				'area_sq_cm' => min( $area, 10000.0 ),
+				'pieces'     => self::normalise_pieces( $side['pieces'] ?? null ),
 			);
 
 			if ( count( $out ) >= 8 ) {
 				break;
 			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The transfers of one side, bounded, or an empty list.
+	 *
+	 * ALL OR NOTHING, the same rule as the studio's own gate
+	 * (src/lib/teeshoop/designDoc.ts). A partly-read list would cost the film of
+	 * the pieces that happened to parse and silently drop the rest: a film cost
+	 * that is too low, so a floor price that is too low, so a sale nobody would
+	 * have authorised. A side whose pieces cannot all be read has no pieces, and
+	 * `Costing` then reports its film as unknown rather than as cheap.
+	 *
+	 * The bounds match that gate exactly (32 pieces, 200 cm) because the two ends
+	 * are reading the same document, and a shop that accepted what the Worker
+	 * refused would be costing an order the workshop cannot receive.
+	 */
+	public static function normalise_pieces( mixed $raw ): array {
+		if ( ! is_array( $raw ) || array() === $raw || count( $raw ) > 32 ) {
+			return array();
+		}
+
+		$out = array();
+		foreach ( $raw as $piece ) {
+			if ( ! is_array( $piece ) ) {
+				return array();
+			}
+			$w = isset( $piece['w_cm'] ) && is_numeric( $piece['w_cm'] ) ? (float) $piece['w_cm'] : -1.0;
+			$h = isset( $piece['h_cm'] ) && is_numeric( $piece['h_cm'] ) ? (float) $piece['h_cm'] : -1.0;
+			if ( ! is_finite( $w ) || ! is_finite( $h ) || $w <= 0 || $h <= 0 || $w > 200 || $h > 200 ) {
+				return array();
+			}
+			$out[] = array(
+				'w_cm' => $w,
+				'h_cm' => $h,
+			);
 		}
 		return $out;
 	}

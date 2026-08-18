@@ -48,11 +48,11 @@ describe( 'Cost — components carry their provenance', function () {
 	} );
 
 	it( 'keeps the optimistic figure only for an estimate', function () {
-		$est = Cost::component( 'textile', 500, Cost::ESTIMATED, 'prix catalogue', '2026-08-18', 400 );
+		$est = Cost::component( 'textile', 500, Cost::ESTIMATED, 'prix catalogue', '2026-09-30', 400 );
 		eq( $est['amount_ht'], 500, 'the prudent figure is the one that counts' );
 		eq( $est['best_ht'], 400 );
 
-		$real = Cost::component( 'textile', 500, Cost::REAL, 'tarif fournisseur', '2026-08-18', 400 );
+		$real = Cost::component( 'textile', 500, Cost::REAL, 'tarif fournisseur', '2026-09-30', 400 );
 		eq( $real['best_ht'], null, 'a real cost has no optimistic variant' );
 	} );
 } );
@@ -99,7 +99,7 @@ describe( 'Cost — a total that says what it is worth', function () {
 	it( 'reports the optimistic total beside the prudent one', function () {
 		$t = Cost::total(
 			array(
-				Cost::component( 'textile', 1000, Cost::ESTIMATED, 'prix catalogue ÷ 2', '2026-08-18', 800 ),
+				Cost::component( 'textile', 1000, Cost::ESTIMATED, 'prix catalogue ÷ 2', '2026-09-30', 800 ),
 				Cost::component( 'emballage', 300, Cost::REAL, 'facture' ),
 			)
 		);
@@ -191,45 +191,90 @@ describe( 'Cost — the film, from a measured length', function () use ( $ts_cos
 } );
 
 describe( 'Cost — the prudent length is a bound, not a nesting', function () use ( $ts_cost_config ) {
-	it( 'is one shelf per piece, which is the worst a shelf packer can do', function () use ( $ts_cost_config ) {
-		// Two 20 x 30 pieces: laid flat each costs 20 cm of roll plus the gap.
-		$len = Cost::prudent_length_cm(
-			array( array( 'w_cm' => 20.0, 'h_cm' => 30.0, 'qty' => 2 ) ),
+	it( 'gives every copy its own row, in the flatter orientation', function () use ( $ts_cost_config ) {
+		// Two 20 x 30 pieces on a 56 cm roll: both fit flat, so each costs 20 cm
+		// of roll plus the gap. 41 cm rounds up to the 10 cm billing step, and
+		// the last sheet adds nothing.
+		$b = Cost::prudent_length_cm(
+			array( array( 'id' => 'a', 'w_cm' => 20.0, 'h_cm' => 30.0, 'qty' => 2 ) ),
 			$ts_cost_config
 		);
-		near( $len, 2 * ( 20.0 + 0.5 ), 1e-9 );
+		truthy( $b['ok'] );
+		near( $b['length_cm'], 50.0, 1e-9 );
 	} );
 
-	it( 'cuts a piece wider than the roll into the strips it needs', function () use ( $ts_cost_config ) {
-		// 120 cm wide on a 56 cm roll is three strips, each still 10 cm tall.
-		$len = Cost::prudent_length_cm(
-			array( array( 'w_cm' => 120.0, 'h_cm' => 10.0, 'qty' => 1 ) ),
+	it( 'stands a banner up when its long side will not cross the laize', function () use ( $ts_cost_config ) {
+		// 5 x 60 on a 56 cm roll cannot lie flat, so the row it costs is 60 cm and
+		// not 5. Reading it the other way under-bounded this piece elevenfold.
+		$flat = Cost::prudent_length_cm(
+			array( array( 'id' => 'a', 'w_cm' => 5.0, 'h_cm' => 50.0, 'qty' => 1 ) ),
 			$ts_cost_config
 		);
-		near( $len, 3 * ( 10.0 + 0.5 ), 1e-9 );
+		$tall = Cost::prudent_length_cm(
+			array( array( 'id' => 'a', 'w_cm' => 5.0, 'h_cm' => 60.0, 'qty' => 1 ) ),
+			$ts_cost_config
+		);
+		near( $flat['length_cm'], 10.0, 1e-9, '50 cm fits across, so the row is 5 cm' );
+		near( $tall['length_cm'], 70.0, 1e-9, '60 cm does not, so the row is 60 cm' );
+	} );
+
+	it( 'rounds up to the billing step, like the supplier does', function () use ( $ts_cost_config ) {
+		// 12 x 9, one copy: 9,5 cm of roll, billed as 10.
+		$b = Cost::prudent_length_cm(
+			array( array( 'id' => 'a', 'w_cm' => 12.0, 'h_cm' => 9.0, 'qty' => 1 ) ),
+			$ts_cost_config
+		);
+		near( $b['length_cm'], 10.0, 1e-9, 'a bound that ignored the rounding came out UNDER the packing' );
+	} );
+
+	it( 'refuses a transfer that fits on no roll instead of costing it', function () use ( $ts_cost_config ) {
+		$b = Cost::prudent_length_cm(
+			array(
+				array( 'id' => 'ok', 'w_cm' => 10.0, 'h_cm' => 10.0, 'qty' => 1 ),
+				array( 'id' => 'trop-large', 'w_cm' => 60.0, 'h_cm' => 70.0, 'qty' => 1 ),
+			),
+			$ts_cost_config
+		);
+		truthy( ! $b['ok'] );
+		eq( $b['impossible'], array( 'trop-large' ) );
+		near( $b['length_cm'], 0.0, 1e-9, 'no bound at all, rather than a bound on what is left' );
 	} );
 
 	it( 'grows with quantity and never shrinks', function () use ( $ts_cost_config ) {
 		$prev = 0.0;
 		foreach ( array( 1, 2, 5, 30 ) as $qty ) {
-			$len = Cost::prudent_length_cm(
-				array( array( 'w_cm' => 18.0, 'h_cm' => 24.0, 'qty' => $qty ) ),
+			$b = Cost::prudent_length_cm(
+				array( array( 'id' => 'a', 'w_cm' => 18.0, 'h_cm' => 24.0, 'qty' => $qty ) ),
 				$ts_cost_config
 			);
-			truthy( $len > $prev, "the bound did not grow at qty={$qty}" );
-			$prev = $len;
+			truthy( $b['length_cm'] > $prev, "the bound did not grow at qty={$qty}" );
+			$prev = $b['length_cm'];
 		}
 	} );
 
-	it( 'ignores geometry it cannot use rather than inventing a size', function () use ( $ts_cost_config ) {
-		$len = Cost::prudent_length_cm(
+	it( 'adds a billing step per extra sheet on a run past the file limit', function () {
+		// A 3 m maximum file length and 100 pieces of 20 cm: several sheets, each
+		// rounded up on its own, so one rounding of the whole is not enough.
+		$short = Cost::merge_config( array( 'film' => array( 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 300.0 ) ) );
+		$b     = Cost::prudent_length_cm(
+			array( array( 'id' => 'a', 'w_cm' => 30.0, 'h_cm' => 20.0, 'qty' => 100 ) ),
+			$short
+		);
+		// 100 x 20,5 = 2 050 cm of artwork, rounded to 2 050, plus one step for
+		// each of the sheets past the first.
+		truthy( $b['length_cm'] >= 2050.0 );
+		truthy( $b['length_cm'] <= 2050.0 + 10.0 * 10, 'and it must not run away either' );
+	} );
+
+	it( 'refuses geometry it cannot use rather than inventing a size', function () use ( $ts_cost_config ) {
+		$b = Cost::prudent_length_cm(
 			array(
-				array( 'w_cm' => 0.0, 'h_cm' => 24.0, 'qty' => 3 ),
-				array( 'w_cm' => 18.0, 'h_cm' => 24.0, 'qty' => 0 ),
+				array( 'id' => 'a', 'w_cm' => 0.0, 'h_cm' => 24.0, 'qty' => 3 ),
+				array( 'id' => 'b', 'w_cm' => 18.0, 'h_cm' => 24.0, 'qty' => 0 ),
 			),
 			$ts_cost_config
 		);
-		near( $len, 0.0, 1e-9 );
+		truthy( ! $b['ok'], 'nothing usable is not a length of zero' );
 	} );
 } );
 

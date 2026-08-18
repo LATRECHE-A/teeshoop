@@ -156,6 +156,38 @@ const ALLOWED = new Map([
     { why: 'what a salesperson earns; server-only, never rendered, and it reads the cost confidences', needles: ['Cost::'] },
   ],
   [
+    'wp-plugins/teeshoop-core/includes/Costing.php',
+    {
+      why: 'the order-facing cost, floor and commission report; admin-only screens and order meta, never a customer surface',
+      needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::'],
+    },
+  ],
+  [
+    'wp-plugins/teeshoop-core/includes/CostAdmin.php',
+    {
+      why: 'the admin screens for the cost model; manage_woocommerce only, and question 39 keeps the commission off every customer document',
+      /*
+       * `Prix d’achat` is in the list because it is the LABEL of the field an
+       * operator types a purchase price into. It has to say that, in French, on
+       * this page and nowhere else. The needle is named rather than the
+       * category, so this file is still checked for supplier names, for film
+       * tariffs per linear metre and for the seven other purchase-cost strings.
+       */
+      needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::', 'CostAdmin::', 'Prix d’achat'],
+    },
+  ],
+  [
+    'wp-plugins/teeshoop-core/includes/Cli.php',
+    {
+      why: '`wp teeshoop marge` prints an order’s costing to a terminal an operator already had to log in to; WP-CLI renders to no browser',
+      needles: ['Cost::', 'Costing::'],
+    },
+  ],
+  [
+    'wp-plugins/teeshoop-core/teeshoop-core.php',
+    { why: 'the bootstrap names the classes it loads and starts', needles: ['Costing::', 'CostAdmin::'] },
+  ],
+  [
     'wp-plugins/teeshoop-core/tests/test-cost.php',
     { why: 'the tests for the direct-cost model', needles: ['Cost::', 'Margin::'] },
   ],

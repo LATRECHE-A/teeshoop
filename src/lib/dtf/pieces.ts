@@ -88,66 +88,24 @@ import { getCachedAssetImage } from '@/state/assets'
 import {
   ensureInkProbes,
   MERGE_WHOLE_SIDE_IN,
+  MIN_EXTENT_IN,
   PIECE_CLEARANCE_IN,
-  sideInkClusters,
-  type InkBox,
-  type InkMeasure,
+  sideInkParts,
+  TRIM_BLEED_IN,
+  type InkPart,
+  type PieceSplitOptions,
 } from '@/lib/ink'
 import { CM_PER_IN, degToRad } from '@/lib/units'
 
 /**
- * Below this (inches) a transfer is too thin to be represented. It is a FLOOR,
- * not a filter: the box is grown to it. A 0,4 mm hairline rule is real artwork,
- * and dropping it — which is what the old rule did — would delete a customer's
- * design element with no error anywhere.
- *
- * 0,08 in = 2,0 mm, which is 2 px at `PREVIEW_DPI` (28), the lowest density
- * anything renders at. That is not a coincidence: `canvas.width` is
- * `max(2, round(wIn × dpi))`, so a rect under 2 px would be drawn into a canvas
- * bigger than itself, and `renderSheet` stretches a piece's canvas to fill its
- * placement — the cutting plan would show a hairline 40 % too fat. At this floor
- * `round(wIn × dpi) ≥ 2` holds by construction at every DPI in use.
+ * The merge distance, the "never split" sentinel, the minimum extent and the
+ * trim bleed now live with the ink measurement (`src/lib/ink.ts`), because the
+ * customer-facing price and the film cost need the same split as the film does
+ * and must not reach into an admin-only module to get it. Re-exported so the
+ * DTF modal and the bench keep importing them from here.
  */
-const MIN_EXTENT_IN = 0.08
-
-/**
- * Slack added around every trimmed visual, inches. 0,02 in = 0,5 mm.
- *
- * Under declared boxes the crop always had margin to spare, so the roundings
- * downstream were free. They are not any more: the crop is tangent to the ink,
- * and `canvas.width = round(wIn × dpi)` can round DOWN half a pixel — 0,45 mm at
- * 28 DPI — straight off the outermost glyph edge. This is DPI-independent (it
- * has to be; the geometry is shared between the 28-DPI preview and the 300-DPI
- * export), it covers that half pixel five times over, and against a 5 mm nesting
- * gap it costs nothing worth measuring.
- */
-const TRIM_BLEED_IN = 0.02
-
-/**
- * The merge distance and the "never split" sentinel now live with the ink
- * measurement (`src/lib/ink.ts`), because the customer-facing price needs the
- * same split as the film does and must not reach into an admin-only module to
- * get it. Re-exported so the DTF modal keeps importing them from here.
- */
-export { MERGE_WHOLE_SIDE_IN, PIECE_CLEARANCE_IN }
-
-export interface PieceSplitOptions {
-  /**
-   * Merge distance, inches. Defaults to `PIECE_CLEARANCE_IN`; pass
-   * `MERGE_WHOLE_SIDE_IN` for one transfer per side. There is deliberately no
-   * minimum piece size, because merging a small item into a distant neighbour
-   * means buying the empty film between them, which is the exact waste
-   * splitting exists to remove.
-   */
-  clearanceIn?: number
-  /**
-   * `'box'` measures every visual from its declared rectangle instead of its
-   * ink — the pre-2026-08-13 geometry. Not an operator setting: it exists so
-   * `scripts/dtf-bench.mjs` can put both against each other on the same order
-   * and report what the trim is actually worth.
-   */
-  measureFrom?: InkMeasure
-}
+export { MERGE_WHOLE_SIDE_IN, MIN_EXTENT_IN, PIECE_CLEARANCE_IN, TRIM_BLEED_IN }
+export type { PieceSplitOptions }
 
 /**
  * Stable artwork identity: one rendered canvas per (design side, garment size).
@@ -173,55 +131,8 @@ export const piecePartKey = (baseKey: string, part: number, parts: number): stri
 // Splitting a side into independent items
 // ---------------------------------------------------------------------------
 
-/**
- * Grow a span to at least `MIN_EXTENT_IN` without leaving `[0, limit]`, then
- * report it. Symmetric where there is room, pushed inward at an edge.
- */
-function atLeastMin(lo: number, hi: number, limit: number): [number, number] {
-  const need = Math.min(MIN_EXTENT_IN, limit)
-  if (hi - lo >= need) return [lo, hi]
-  const grow = (need - (hi - lo)) / 2
-  let a = lo - grow
-  let b = hi + grow
-  if (a < 0) {
-    b -= a
-    a = 0
-  }
-  if (b > limit) {
-    a -= b - limit
-    b = limit
-  }
-  return [Math.max(0, a), Math.min(limit, b)]
-}
-
-/**
- * Clamp an item's ink extent to the print area, in top-left-origin inches.
- * Null only when nothing of it lands inside the area at all.
- *
- * A span thinner than `MIN_EXTENT_IN` is GROWN to it rather than discarded. The
- * old rule dropped the whole cluster, which was survivable while the box was a
- * layer's declared rectangle (always at least as big as the artwork) and is not
- * survivable now that it is the ink: a 0,4 mm rule under a wordmark measures
- * 0,4 mm tall, and dropping it would remove it from the print in silence.
- */
-function clampToArea(b: InkBox, area: SizeIn): RectIn | null {
-  const x0 = Math.max(-area.wIn / 2, b.x0 - TRIM_BLEED_IN)
-  const x1 = Math.min(area.wIn / 2, b.x1 + TRIM_BLEED_IN)
-  const y0 = Math.max(-area.hIn / 2, b.y0 - TRIM_BLEED_IN)
-  const y1 = Math.min(area.hIn / 2, b.y1 + TRIM_BLEED_IN)
-  if (x1 <= x0 || y1 <= y0) return null
-  const [ax0, ax1] = atLeastMin(x0 + area.wIn / 2, x1 + area.wIn / 2, area.wIn)
-  const [ay0, ay1] = atLeastMin(y0 + area.hIn / 2, y1 + area.hIn / 2, area.hIn)
-  if (ax1 - ax0 <= 0 || ay1 - ay0 <= 0) return null
-  return { xIn: ax0, yIn: ay0, wIn: ax1 - ax0, hIn: ay1 - ay0 }
-}
-
-export interface PiecePart {
-  /** Crop rect within the (graded) print area, top-left origin, inches. */
-  rect: RectIn
-  /** The GRADED layers this transfer carries — nothing else is drawn into it. */
-  layers: Layer[]
-}
+/** One transfer of a side. Defined with the geometry, in `src/lib/ink.ts`. */
+export type PiecePart = InkPart
 
 /**
  * Split one side into the transfers it should be printed as, in part order
@@ -243,28 +154,7 @@ export function artworkParts(
   size?: SizeId,
   opts?: PieceSplitOptions,
 ): PiecePart[] {
-  const area = getAreaSizeIn(design, side, size)
-  if (!(area.wIn > 0) || !(area.hIn > 0)) return []
-  const clearance = opts?.clearanceIn ?? PIECE_CLEARANCE_IN
-  const seen: { rect: RectIn; layers: Layer[]; seq: number }[] = []
-  const clusters = sideInkClusters(
-    design,
-    side,
-    size,
-    clearance,
-    opts?.measureFrom ?? 'ink',
-  )
-  for (let i = 0; i < clusters.length; i++) {
-    const rect = clampToArea(clusters[i].box, area)
-    if (rect) seen.push({ rect, layers: clusters[i].layers, seq: i })
-  }
-  // Total order: reading order, with the cluster's first-layer position as the
-  // final tiebreak, so the part suffix of a given item never moves between two
-  // renders of the same design.
-  seen.sort(
-    (a, b) => a.rect.yIn - b.rect.yIn || a.rect.xIn - b.rect.xIn || a.seq - b.seq,
-  )
-  return seen.map(({ rect, layers: ls }) => ({ rect, layers: ls }))
+  return sideInkParts(design, side, size, opts)
 }
 
 /**

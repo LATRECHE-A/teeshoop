@@ -39,7 +39,7 @@
  * upload rather than being priced at its padded size.
  */
 import type { Design, Layer, Side } from '@/lib/types'
-import { ensureInkProbes, sideArtworkSqCm } from '@/lib/ink'
+import { ensureInkProbes, sideArtworkSqCm, sidePiecesCm } from '@/lib/ink'
 import { ensureFont } from '@/lib/fonts'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
 import { renderMockup, sideLayers } from '@/lib/renderDesign'
@@ -193,7 +193,21 @@ export async function measureOrder(design: Design): Promise<MeasuredOrder> {
   for (const side of drawn) {
     // At PRICED_SIZE, never at the design's own base size. See the constant.
     const area = sideArtworkSqCm(design, side, PRICED_SIZE)
-    if (area > 0) sides.push({ id: side, area_sq_cm: Math.round(area * 100) / 100 })
+    /*
+     * THE RECTANGLES TRAVEL WITH THE AREA, measured from the same clusters at
+     * the same size, because the shop cannot recompute them: the ink extent of
+     * an upload is read from its alpha channel, which needs a decoded image and
+     * a canvas, and neither the Cloudflare Worker nor PHP has one. Measured
+     * here or not at all, and "not at all" means an order whose film cost is
+     * unknown (wp-plugins/teeshoop-core/includes/Costing.php says so rather
+     * than guessing a length).
+     */
+    if (area > 0)
+      sides.push({
+        id: side,
+        area_sq_cm: Math.round(area * 100) / 100,
+        pieces: sidePiecesCm(design, side, PRICED_SIZE),
+      })
   }
   if (sides.length === 0) throw new DesignUploadError('no_printable_side')
   return { sides }

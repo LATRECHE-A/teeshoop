@@ -122,7 +122,7 @@ describe( 'Commission — the four conditions of the acquisition rule', function
 	$settled = array(
 		'collected'      => 1.0,
 		'delivered_on'   => '2026-07-01',
-		'today'          => '2026-08-18',
+		'today'          => '2026-09-30',
 		'refund_pending' => false,
 		'costs_real'     => true,
 	);
@@ -152,8 +152,8 @@ describe( 'Commission — the four conditions of the acquisition rule', function
 	} );
 
 	it( 'holds the contestation delay open until the thirtieth day', function () use ( $settled, $ts_com_config ) {
-		$day29 = Commission::state( array( 'delivered_on' => '2026-07-20', 'today' => '2026-08-18' ) + $settled, $ts_com_config );
-		$day30 = Commission::state( array( 'delivered_on' => '2026-07-19', 'today' => '2026-08-18' ) + $settled, $ts_com_config );
+		$day29 = Commission::state( array( 'delivered_on' => '2026-09-01', 'today' => '2026-09-30' ) + $settled, $ts_com_config );
+		$day30 = Commission::state( array( 'delivered_on' => '2026-08-31', 'today' => '2026-09-30' ) + $settled, $ts_com_config );
 
 		eq( $day29['state'], Commission::PROVISIONAL, '29 days is not 30' );
 		eq( $day30['state'], Commission::DEFINITIVE );
@@ -165,23 +165,23 @@ describe( 'Commission — the four conditions of the acquisition rule', function
 	} );
 
 	it( 'never lets a delivery date in the future settle one either', function () use ( $settled, $ts_com_config ) {
-		$s = Commission::state( array( 'delivered_on' => '2026-12-01', 'today' => '2026-08-18' ) + $settled, $ts_com_config );
+		$s = Commission::state( array( 'delivered_on' => '2026-12-01', 'today' => '2026-09-30' ) + $settled, $ts_com_config );
 		eq( $s['state'], Commission::PROVISIONAL );
 	} );
 } );
 
 describe( 'Commission — dates and attribution', function () use ( $ts_com_config ) {
 	it( 'tells an unreadable date from a zero-day difference', function () {
-		eq( Commission::days_between( '2026-08-18', '2026-08-18' ), 0 );
-		eq( Commission::days_between( '2026-13-01', '2026-08-18' ), null, 'there is no thirteenth month' );
-		eq( Commission::days_between( '2026-02-30', '2026-08-18' ), null, 'nor a thirtieth of February' );
-		eq( Commission::days_between( '', '2026-08-18' ), null );
+		eq( Commission::days_between( '2026-09-30', '2026-09-30' ), 0 );
+		eq( Commission::days_between( '2026-13-01', '2026-09-30' ), null, 'there is no thirteenth month' );
+		eq( Commission::days_between( '2026-02-30', '2026-09-30' ), null, 'nor a thirtieth of February' );
+		eq( Commission::days_between( '', '2026-09-30' ), null );
 	} );
 
 	it( 'keeps a customer attributed for twelve months and not thirteen', function () use ( $ts_com_config ) {
-		truthy( Commission::attributed( '2026-08-18', '2027-08-18', $ts_com_config ), 'the last day counts' );
-		truthy( ! Commission::attributed( '2026-08-18', '2027-08-19', $ts_com_config ) );
-		truthy( ! Commission::attributed( '2027-01-01', '2026-08-18', $ts_com_config ), 'a first order in the future attributes nobody' );
+		truthy( Commission::attributed( '2026-09-30', '2027-09-30', $ts_com_config ), 'the last day counts' );
+		truthy( ! Commission::attributed( '2026-09-30', '2027-10-01', $ts_com_config ) );
+		truthy( ! Commission::attributed( '2027-01-01', '2026-09-30', $ts_com_config ), 'a first order in the future attributes nobody' );
 	} );
 } );
 

@@ -41,6 +41,9 @@ final class Hypotheses {
 	/** @var array<int,array<string,mixed>>|null Parsed once per request. */
 	private static ?array $cache = null;
 
+	/** How many rows the projection withheld. See withheld(). */
+	private static int $withheld = 0;
+
 	/** Whether the last read actually reached a well-formed projection. */
 	private static bool $readable = false;
 
@@ -95,13 +98,30 @@ final class Hypotheses {
 			return self::$cache;
 		}
 
-		if ( ! is_array( $rows ) ) {
+		if ( ! is_array( $rows ) || ! isset( $rows['rows'] ) || ! is_array( $rows['rows'] ) ) {
 			return self::$cache;
 		}
 
 		self::$readable = true;
-		self::$cache    = array_values( array_filter( $rows, 'is_array' ) );
+		self::$withheld = (int) ( $rows['withheld'] ?? 0 );
+		self::$cache    = array_values( array_filter( $rows['rows'], 'is_array' ) );
 		return self::$cache;
+	}
+
+	/**
+	 * How many rows the projection deliberately leaves out.
+	 *
+	 * They are the cost engine's: what we pay for film, for an hour of workshop
+	 * and to a salesperson. They are on the "Coûts et marges" screen, and they
+	 * are kept out of this file because `data/` is a directory the shop renders
+	 * from and `scripts/php-guard.mjs` guards it against exactly that vocabulary.
+	 *
+	 * The COUNT crosses, because a register that quietly shows fewer rows than
+	 * it holds is a register nobody can check.
+	 */
+	public static function withheld(): int {
+		self::rows();
+		return self::$withheld;
 	}
 
 	/** Whether the projection was actually read. False is a fault, not an empty register. */
@@ -453,6 +473,22 @@ final class Hypotheses {
 				'teeshoop'
 			) . '</p></div>';
 			return;
+		}
+
+		if ( self::withheld() > 0 ) {
+			echo '<p>' . esc_html(
+				sprintf(
+					/* translators: %d: how many rows are shown on another screen. */
+					_n(
+						'%d hypothèse ne figure pas dans ce tableau : elle porte sur ce que la production nous coûte, et elle est sur l’écran « Coûts et marges ».',
+						'%d hypothèses ne figurent pas dans ce tableau : elles portent sur ce que la production nous coûte, et elles sont sur l’écran « Coûts et marges ».',
+						self::withheld(),
+						'teeshoop'
+					),
+					self::withheld()
+				)
+			) . ' <a href="' . esc_url( admin_url( 'admin.php?page=teeshoop-couts' ) ) . '">'
+				. esc_html__( 'Coûts et marges', 'teeshoop' ) . '</a></p>';
 		}
 
 		echo '<p>' . esc_html__(

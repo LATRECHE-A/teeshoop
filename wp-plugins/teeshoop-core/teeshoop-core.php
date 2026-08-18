@@ -79,6 +79,15 @@ const OPTION_INVOICE = 'teeshoop_invoice';
  */
 const OPTION_PAYMENT = 'teeshoop_payment';
 
+/**
+ * Option holding the cost model: the hourly rate, the standard times, the film
+ * tariff, the provisions and the margin rules. See includes/Cost.php.
+ */
+const OPTION_COSTING = 'teeshoop_costing';
+
+/** Option holding the commission rates and the acquisition delays. */
+const OPTION_COMMISSION = 'teeshoop_commission';
+
 require_once __DIR__ . '/includes/Money.php';
 require_once __DIR__ . '/includes/Pricing.php';
 require_once __DIR__ . '/includes/Vat.php';
@@ -108,8 +117,11 @@ require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Shortcode.php';
 require_once __DIR__ . '/includes/Compat.php';
 require_once __DIR__ . '/includes/ProductPage.php';
+require_once __DIR__ . '/includes/Nest.php';
+require_once __DIR__ . '/includes/Costing.php';
 require_once __DIR__ . '/includes/Quote.php';
 require_once __DIR__ . '/includes/Admin.php';
+require_once __DIR__ . '/includes/CostAdmin.php';
 require_once __DIR__ . '/includes/Cli.php';
 
 /**
@@ -147,6 +159,7 @@ function boot(): void {
 	Hypotheses::init();
 	Compat::init();
 	Admin::init();
+	CostAdmin::init();
 	Cli::init();
 	add_action( 'admin_notices', __NAMESPACE__ . '\\currency_notice' );
 }
