@@ -146,14 +146,40 @@ for `get_option()` inside `Pricing`, the runner stops working and says so.
 ## Running the tests
 
 ```bash
-npm run test:php        # 64 cases, pure PHP, no bootstrap, <1s
-npm run wp:up           # local WordPress 7.0.3 + WooCommerce, port 8080
+npm run test:php        # 177 cases, pure PHP, no bootstrap, <1s
+npm run wp:up           # local WordPress 7.0.4 + WooCommerce, port 8080
 npm run wp:cli teeshoop provisionner   # rebuild the shop from the repository
-npm run test:wp         # 17 cases against the real cart
-npm run verify:wp-e2e   # 40 assertions, real browser, real Worker, real basket
+npm run test:wp         # 45 cases against the real cart, including a concurrency race
+npm run verify:wp-e2e   # 66 assertions, real browser, real Worker, from artwork to invoice
+npm run verify:invoice  # renders real invoices, reads them back with poppler
 npm run verify:php      # no purchase cost, supplier name or film rate in a template
 npm run verify:product  # 18 assertions, real browser, the buy box's own controls
 ```
+
+**The mirror needs two things doing once, and neither is in the repository**
+because both live in the docker volume rather than in git:
+
+```bash
+npm run wp:cli config set WP_ENVIRONMENT_TYPE local --type=constant
+npm run wp:cli plugin install woocommerce-gateway-stripe --version=10.8.5 --activate
+```
+
+The first because `WORDPRESS_CONFIG_EXTRA` only applies when `wp-config.php` is
+CREATED, so adding a line to `docker-compose.yml` does nothing to a volume that
+already exists, silently. Without it WordPress answers `production` and the
+invoice gate refuses to render the very documents the mirror exists to develop.
+The second is the payment rail; it takes no licence key and no account to
+install. HPOS should be on, as it is in production: `wp wc hpos sync` then
+`wp wc hpos enable`.
+
+**`verify:invoice` opens the PDF with something that is not `Pdf.php`.** A
+hand-rolled file format checked by its own writer proves only that it is
+self-consistent: the same wrong offset table produces the same wrong answer
+twice and both agree. So the documents are produced by `wp eval-file` against a
+real WooCommerce and read back by a Node reader written from the PDF
+specification, plus poppler's `pdftotext` when the machine has it. On its first
+run it found the mandatory professional mentions being truncated with an
+ellipsis, which is a non-conforming invoice.
 
 **`verify:product` exists because of one defect.** `Array.prototype.slice.call(
 params.keys() )` returns an empty array (a `URLSearchParams` iterator has no
@@ -183,8 +209,14 @@ and a live WooCommerce, same reason the Playwright harnesses stay out.
 
 `verify:wp-e2e` (`scripts/wp-e2e-verify.mjs`) is the one that covers the seam
 this plugin exists to hold: it builds the studio, serves it from `wrangler dev`,
-drives a real Chromium through a real purchase, and then asks the database what
-happened. It expects the mirror on a CLASSIC theme, because WooCommerce's block
+drives a real Chromium from an upload all the way through the checkout to a
+downloaded invoice, and then asks the database what happened. It fills whichever
+checkout the shop has; on this mirror that is the BLOCK, which matters, because
+`woocommerce_checkout_create_order` never fires there and a suite that only
+drove the classic shortcode would leave the order-meta fallback unproven. It
+pays by virement, because BACS never calls `payment_complete()` for a non-zero
+order: the invoice has to be issued by the status listener as well, and this is
+where that is proved. It expects the mirror on a CLASSIC theme, because WooCommerce's block
 product template runs the description through `wp_kses_post` and `iframe` is not
 an allowed tag there, so on Twenty Twenty-Five the studio renders as an empty
 `div`. teeshoop.com runs Woodmart, which is classic; the harness switches the
