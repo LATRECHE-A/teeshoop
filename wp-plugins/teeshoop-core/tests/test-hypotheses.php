@@ -12,6 +12,21 @@
  * @package Teeshoop\Core
  */
 
+/*
+ * COMMAND LINE ONLY. `wp-content/plugins/` is served by URL and this directory
+ * is inside it: before the guards, GET on any of these files ran the suite to
+ * the public internet and printed the figures of every failing assertion.
+ *
+ * A file whose first statement is a `require_once` of a class guarded on
+ * ABSPATH answers 200 with an empty body rather than a fatal, which looks
+ * harmless and is not: it confirms the path exists, and it becomes a live suite
+ * the day somebody reorders the requires.
+ */
+if ( 'cli' !== PHP_SAPI ) {
+	http_response_code( 404 );
+	exit( 1 );
+}
+
 require_once __DIR__ . '/../includes/Hypotheses.php';
 
 use Teeshoop\Core\Hypotheses;
