@@ -168,9 +168,21 @@ if ( empty( $rows ) ) {
 		?>
 	</p>
 
-	<?php if ( current_user_can( 'manage_woocommerce' ) ) : ?>
-		<p class="ts-admin-note">
-			<?php esc_html_e( 'Visible par vous seul : grille de démonstration. Les colonnes sont déduites des paliers de remise enregistrés, elles ne sont pas choisies à la main. Les vrais tarifs sont la question 04 du document de questions à l’associé.', 'teeshoop' ); ?>
-		</p>
-	<?php endif; ?>
+	<?php
+	/*
+	 * ONE MARKER, DRAWN FROM THE REGISTER. It draws nothing for a visitor:
+ * `Hypotheses::note` checks the capability itself.
+	 *
+	 * The sentence that used to be here sent the reader to question 04, which
+	 * is about DTF supplier rates; the selling grid is questions 03, 06 and 08.
+	 * `Hypotheses` reads which values on this page are still assumed and names
+	 * their real questions, so the pointer cannot be wrong and cannot go stale.
+	 * The column sentence rides inside the same paragraph rather than beside
+	 * it: two admin notes in a row read as decoration.
+	 */
+	Teeshoop\Core\Hypotheses::note(
+		Teeshoop\Core\Hypotheses::HOME_PRICING,
+		__( 'Les colonnes, elles, sont déduites des paliers de remise enregistrés et non choisies à la main : une colonne ne peut pas laisser croire à un palier qui n’existe pas.', 'teeshoop' )
+	);
+	?>
 </section>

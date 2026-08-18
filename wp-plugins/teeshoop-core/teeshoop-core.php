@@ -59,6 +59,7 @@ require_once __DIR__ . '/includes/Pricing.php';
 require_once __DIR__ . '/includes/Margin.php';
 require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Garments.php';
+require_once __DIR__ . '/includes/Hypotheses.php';
 require_once __DIR__ . '/includes/Design.php';
 require_once __DIR__ . '/includes/Product.php';
 require_once __DIR__ . '/includes/Catalogue.php';
@@ -101,6 +102,7 @@ function boot(): void {
 	Shortcode::init();
 	ProductPage::init();
 	Quote::init();
+	Hypotheses::init();
 	Compat::init();
 	Cli::init();
 	add_action( 'admin_notices', __NAMESPACE__ . '\\currency_notice' );

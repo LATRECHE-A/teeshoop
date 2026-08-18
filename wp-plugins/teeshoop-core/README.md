@@ -280,7 +280,17 @@ different things.
 `Pricing::default_config()` — set `vat_rate` alone without restating the rest.
 
 **⚠ The shipped prices are placeholders**, the studio's demo figures converted
-1:1 from dollars. The real grid is question 04 of `QUESTIONS-ASSOCIE.md`.
+1:1 from dollars. Every one of them has a row in `docs/hypotheses.json` with the
+question that settles it: the garment tariffs are question 06 (the margin rate)
+fed by question 03 (the real purchase grids), the surcharge and discount ladders
+are question 08, the VAT rate is question 17 and the self-serve thresholds are
+question 02. This paragraph used to send the reader to question 04, which is
+about DTF supplier rates and settles none of them.
+
+`scripts/hypotheses-guard.mjs` fails the build when one of those values acquires
+a second copy, when its home moves, or when a Bloquant question loses its row.
+The shop's own admin marker is drawn from the same register, so it cannot point
+at the wrong question either.
 
 `blank_margin_rate` is the exception: it is `null`, and null is a refusal rather
 than a placeholder. Until somebody sets it, the importer writes no price and the

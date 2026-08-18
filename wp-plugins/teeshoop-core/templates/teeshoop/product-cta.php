@@ -278,9 +278,17 @@ $ts_over_cap  = ! empty( $request['over_cap'] );
 		?>
 	</p>
 
-	<?php if ( current_user_can( 'manage_woocommerce' ) ) : ?>
-		<p class="ts-admin-note">
-			<?php esc_html_e( 'Visible par vous seul : la grille tarifaire est encore une grille de démonstration. Les vrais tarifs sont la question 04 du document de questions à l’associé, et se règlent dans l’option teeshoop_pricing.', 'teeshoop' ); ?>
-		</p>
-	<?php endif; ?>
+	<?php
+	/*
+	 * ONE MARKER, DRAWN FROM THE REGISTER. It draws nothing for a visitor:
+ * `Hypotheses::note` checks the capability itself.
+	 *
+	 * This note used to be a sentence typed here, and it sent the reader to
+	 * question 04, which is about DTF supplier rates. The selling grid is
+	 * questions 03, 06 and 08. `Hypotheses` reads which values on this page are
+	 * still assumed and names their real questions, so the pointer cannot be
+	 * wrong and cannot go stale.
+	 */
+	Teeshoop\Core\Hypotheses::note( Teeshoop\Core\Hypotheses::HOME_PRICING );
+	?>
 </div>
