@@ -103,6 +103,31 @@ describe( 'Hypotheses: the shop\'s copy of the register', function (): void {
 		truthy( Hypotheses::readable(), 'the shipped projection did not read as readable' );
 	} );
 
+	/*
+	 * The register describes what the extension SHIPS. What a shop charges is the
+	 * stored option merged over it, and the continuous integration guard runs with
+	 * no WordPress and no database, so it can never see that option. Mapping a
+	 * row's home onto the config key an option would overwrite is what lets the
+	 * one screen that DOES run inside WordPress say which sentences have been
+	 * overtaken.
+	 */
+	it( 'maps a row home onto the config key a stored setting would overwrite', function (): void {
+		eq( Hypotheses::config_key( Hypotheses::HOME_PRICING . '#garments.tee.base_ht+garments.tee.first_side_ht' ), 'garments' );
+		eq( Hypotheses::config_key( Hypotheses::HOME_PRICING . '#vat_rate' ), 'vat_rate' );
+		eq( Hypotheses::config_key( Hypotheses::HOME_PRICING . '#area_tiers' ), 'area_tiers' );
+		// A row homed anywhere else is not something a price setting can overtake.
+		eq( Hypotheses::config_key( 'phpconst:Teeshoop\\Core\\Quote::KEEP_DAYS' ), '' );
+		eq( Hypotheses::config_key( 'anchor:wp-plugins/teeshoop-core/includes/Cart.php#check_cart_items' ), '' );
+	} );
+
+	it( 'finds a config key for every price row the shop carries', function (): void {
+		$priced = Hypotheses::assumed_at( Hypotheses::HOME_PRICING );
+		truthy( count( $priced ) > 0 );
+		foreach ( $priced as $row ) {
+			truthy( '' !== Hypotheses::config_key( (string) $row['home'] ), $row['id'] . ' has no config key' );
+		}
+	} );
+
 	it( 'returns nothing for a home nobody registered', function (): void {
 		$rows = Hypotheses::assumed_at( 'php:Teeshoop\\Core\\NoSuchClass::nothing()' );
 		eq( $rows, array() );

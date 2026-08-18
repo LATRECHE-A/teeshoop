@@ -128,6 +128,37 @@ final class Hypotheses {
 	}
 
 	/**
+	 * The price-config key a row's home reads, or '' when it reads none.
+	 *
+	 * `php:…Pricing::default_config()#garments.tee.base_ht+garments.tee.first_side_ht`
+	 * is about `garments`. Only the first segment matters, because that is the
+	 * granularity `Pricing::merge_config` overwrites at.
+	 */
+	public static function config_key( string $home ): string {
+		if ( 0 !== strpos( $home, self::HOME_PRICING . '#' ) ) {
+			return '';
+		}
+		$path = substr( $home, strlen( self::HOME_PRICING ) + 1 );
+		$path = explode( '+', $path )[0];
+		return explode( '.', $path )[0];
+	}
+
+	/**
+	 * Whether a stored setting has overtaken this row.
+	 *
+	 * THIS IS THE HALF THE CI GUARD STRUCTURALLY CANNOT DO. It runs with no
+	 * WordPress and no database, so it can only ever read what the plugin
+	 * SHIPS; the option that changes a price in production does not exist where
+	 * it looks. This class is the one piece of the register that runs inside
+	 * WordPress, so telling the reader that a sentence describes the shipped
+	 * default rather than what this shop charges is its job and nobody else's.
+	 */
+	public static function overridden_row( array $row ): bool {
+		$key = self::config_key( (string) ( $row['home'] ?? '' ) );
+		return '' !== $key && in_array( $key, self::overridden_keys(), true );
+	}
+
+	/**
 	 * The rows still assumed whose value lives at `$home_prefix`.
 	 *
 	 * Prefix and not equality, because one home string carries the path into
@@ -240,6 +271,29 @@ final class Hypotheses {
 				count( $rows ),
 				esc_html( self::question_list( $rows ) )
 			);
+
+			/*
+			 * A row whose key a stored setting overwrites no longer describes
+			 * what this shop charges, only what the extension ships. Saying so
+			 * here matters more than on the register screen: this is the page
+			 * where the prices are.
+			 */
+			$overtaken = array_filter( $rows, array( self::class, 'overridden_row' ) );
+			if ( ! empty( $overtaken ) ) {
+				echo ' ';
+				printf(
+					esc_html(
+						/* translators: %d: a number of values. */
+						_n(
+							'%d d’entre elles est remplacée par un réglage enregistré, donc la phrase du registre décrit ce que l’extension livre et non ce que cette boutique facture.',
+							'%d d’entre elles sont remplacées par un réglage enregistré, donc les phrases du registre décrivent ce que l’extension livre et non ce que cette boutique facture.',
+							count( $overtaken ),
+							'teeshoop'
+						)
+					),
+					count( $overtaken )
+				);
+			}
 			/*
 			 * A block may add one sentence of its own INSIDE this paragraph
 			 * rather than beside it. Two consecutive admin notes on the same
@@ -348,7 +402,7 @@ final class Hypotheses {
 			echo '<div class="notice notice-warning inline"><p>' . esc_html(
 				sprintf(
 					/* translators: %s: a list of configuration keys. */
-					__( 'Attention : un réglage enregistré remplace ce que l’extension livre pour %s. Les phrases ci-dessous décrivent les valeurs livrées, pas forcément celles que cette boutique facture.', 'teeshoop' ),
+					__( 'Attention : un réglage enregistré remplace ce que l’extension livre pour %s. Les lignes concernées sont marquées ci-dessous : leur phrase décrit la valeur livrée, pas celle que cette boutique facture.', 'teeshoop' ),
 					implode( ', ', $overridden )
 				)
 			) . '</p></div>';
@@ -372,6 +426,9 @@ final class Hypotheses {
 				. esc_html( (string) ( $row['id'] ?? '' ) ) . '</code>';
 			if ( 'refused' === ( $row['status'] ?? '' ) ) {
 				echo ' <em>' . esc_html__( 'refus assumé : rien n’a été construit', 'teeshoop' ) . '</em>';
+			}
+			if ( self::overridden_row( $row ) ) {
+				echo ' <strong>' . esc_html__( 'remplacée par un réglage enregistré', 'teeshoop' ) . '</strong>';
 			}
 			echo '</td>';
 			echo '<td>' . esc_html( str_replace( 'Q', '', (string) ( $row['question'] ?? '' ) ) )
