@@ -45,6 +45,8 @@ includes/
   Invoice.php         the number, the frozen document, the PDF
   Pdf.php             a single-purpose PDF writer; pure
   Checkout.php        the gates between a basket and an order
+  Settlement.php      what an order has been paid and what that allows; pure
+  Ledger.php          the receipts on the order, and the acompte status
   Payment.php         which account a gateway would charge, and the alarms
   Admin.php           the one screen where the facts nobody can invent go
   Pricing.php         the price authority. Pure, no WordPress calls
@@ -501,6 +503,35 @@ The number is allocated in a single SQL statement against
 `{prefix}teeshoop_sequence`. `tests/concurrency.php` races six processes for 150
 numbers; a read-then-write version of the same code collided 48 times.
 
+**Each acompte gets its own invoice, because the law says so.** This file argued
+the opposite for an afternoon, on the belief that an advance payment for goods
+obliges nothing until delivery. It was wrong twice: CGI art. 289, I-1-c covers
+"les livraisons de biens OU les prestations de services", BOI-TVA-DECLA-30-20-10-10
+§ 120 says the obligation applies to every acompte "et non pas pour les seules
+opérations pour lesquelles ces versements entraînent l'exigibilité de la TVA",
+and since 1 January 2023 the VAT is exigible on collection anyway (CGI art. 269,
+2-a). So a receipt that leaves a balance issues a facture d'acompte, numbered
+from the SAME continuous series (BOI-TVA-DECLA-30-20-20-10 § 60 extends the
+numbering obligation to them), and the final invoice states the whole operation
+and deducts each acompte by its number and date, as § 60 requires. The layout of
+that deduction is the standard one and is prescribed by no text we could find;
+question 16 asks the accountant to confirm it.
+
+**A deposit is a state, not a checkbox.** WooCommerce knows one thing about
+money, paid or not; chapter 2 of the Bible puts "7. paiement partiel" in its
+lifecycle and its own data model asks for a `payments` table. So each receipt is
+a row on the order, with its date, its means and its reference, and what an order
+may DO is derived from the sum: `Settlement::stage_allows()`.
+
+That is also where the chapter contradicts itself. It permits "acompte possible,
+solde avant expédition" and then states "une commande non payée ne peut pas
+passer en production", and a half-paid order is not paid. The reading that makes
+both true is per order: an order nobody authorised a deposit for needs the whole
+total before production, which is every self-serve order; one somebody did may
+start on the deposit and still may not be dispatched. Both readings are asserted
+in `tests/test-settlement.php`, so whichever way question 16 comes back, one of
+the two cases is already right.
+
 **The seller's identity ships empty.** Nine fields, all `''`, and no placeholder
 will ever be added: a plausible SIRET is a thing that ships. In production an
 incomplete identity refuses both the document and the sale; anywhere else it
@@ -520,11 +551,21 @@ oversight, and none is blocked on code.
   two deliveries would need either two invoices or one invoice and a delivery
   note, and the choice is the accountant's. Nothing today can produce a partial
   shipment, because production does not exist until session 07.
-- **Deposits and instalments.** Question 16, and refused rather than assumed: the
-  Bible authorises an acompte without naming a percentage, a threshold or a
-  definition of "importante", and its own acceptance criterion ("une commande non
-  payée ne peut pas passer en production") forbids the path its payment rule
-  allows. Every order on the site is paid in full.
+- **Refunds and credit notes after a deposit.** The Bible's own cancellation
+  policy says "après commande fournisseur ou préparation spécifique :
+  remboursement du solde non engagé", so authorising a deposit creates an
+  obligation this plugin cannot discharge: it issues no avoir and makes no
+  refund. Until session 06 that is done by hand.
+- **An échéancier.** An order is settled in one or two payments, never on a
+  calendar: question 16's default says "aucun paiement à échéance au lancement",
+  and the Bible's one door to deferred payment, "client récurrent fiable :
+  conditions dérogatoires validées", names neither the terms, the approver nor
+  the eligibility test.
+- **Paying a balance by card.** WooCommerce has no concept of a remaining
+  balance anywhere: every pay surface charges `$order->get_total()`, the whole
+  total, again. Measured on a 240,00 order with 120,00 banked. So a deposit
+  order is deliberately NOT made payable and the balance arrives by transfer,
+  which is what a French B2B deposit is anyway.
 - **Intra-EU B2B exemption and VIES.** The shop delivers to metropolitan France
   only (question 35), so no intra-EU supply can be made through it and no
   exemption may be granted. Building an unreachable VIES check would be building

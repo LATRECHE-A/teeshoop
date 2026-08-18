@@ -73,11 +73,18 @@ const OPTION_SHIPPING = 'teeshoop_shipping';
 /** Option holding the invoice series, its counter and the payment terms. */
 const OPTION_INVOICE = 'teeshoop_invoice';
 
+/**
+ * Option holding the deposit rule: from what size, and for what share. See
+ * includes/Settlement.php for why a deposit is a state and not a checkbox.
+ */
+const OPTION_PAYMENT = 'teeshoop_payment';
+
 require_once __DIR__ . '/includes/Money.php';
 require_once __DIR__ . '/includes/Pricing.php';
 require_once __DIR__ . '/includes/Vat.php';
 require_once __DIR__ . '/includes/Legal.php';
 require_once __DIR__ . '/includes/Pdf.php';
+require_once __DIR__ . '/includes/Settlement.php';
 require_once __DIR__ . '/includes/Margin.php';
 require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Garments.php';
@@ -91,6 +98,7 @@ require_once __DIR__ . '/includes/Shelf.php';
 require_once __DIR__ . '/includes/Importer.php';
 require_once __DIR__ . '/includes/Cart.php';
 require_once __DIR__ . '/includes/Shipping.php';
+require_once __DIR__ . '/includes/Ledger.php';
 require_once __DIR__ . '/includes/Invoice.php';
 require_once __DIR__ . '/includes/Payment.php';
 require_once __DIR__ . '/includes/Checkout.php';
@@ -127,6 +135,7 @@ function boot(): void {
 	Cart::init();
 	Shipping::init();
 	Payment::init();
+	Ledger::init();
 	Checkout::init();
 	Invoice::init();
 	Rest::init();

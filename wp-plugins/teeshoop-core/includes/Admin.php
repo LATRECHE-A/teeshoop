@@ -125,6 +125,19 @@ final class Admin {
 		$stored = get_option( OPTION_SHIPPING, array() );
 		update_option( OPTION_SHIPPING, Shipping::config_delta( $posted, is_array( $stored ) ? $stored : array() ) );
 
+		$payment = get_option( OPTION_PAYMENT, array() );
+		$payment = is_array( $payment ) ? $payment : array();
+		if ( isset( $_POST['acompte']['deposit_from_ht'] ) ) {
+			$payment['deposit_from_ht'] = Money::from_eur( sanitize_text_field( wp_unslash( (string) $_POST['acompte']['deposit_from_ht'] ) ) );
+		}
+		if ( isset( $_POST['acompte']['deposit_rate'] ) ) {
+			// A share typed as a percentage, stored as a rate. Clamped to a real
+			// share: a deposit of 120 % is not a deposit.
+			$rate                    = (float) str_replace( ',', '.', sanitize_text_field( wp_unslash( (string) $_POST['acompte']['deposit_rate'] ) ) ) / 100;
+			$payment['deposit_rate'] = max( 0.0, min( 1.0, $rate ) );
+		}
+		update_option( OPTION_PAYMENT, $payment );
+
 		/*
 		 * AND WOOCOMMERCE HAS TO BE TOLD. It caches the rates a package resolved
 		 * to, in the customer's session, keyed on the package: our option is not
@@ -168,6 +181,7 @@ final class Admin {
 		self::render_identity( $identity, $verdict );
 		self::render_invoice( $invoice );
 		self::render_shipping( $shipping );
+		self::render_deposit( Ledger::config() );
 
 		submit_button( __( 'Enregistrer', 'teeshoop' ) );
 		echo '</form></div>';
@@ -360,6 +374,31 @@ final class Admin {
 			);
 		}
 
+		echo '</tbody></table>';
+	}
+
+	private static function render_deposit( array $config ): void {
+		echo '<h2>' . esc_html__( 'L’acompte', 'teeshoop' ) . '</h2>';
+		echo '<p class="description" style="max-width:46em">' . esc_html__(
+			'Un acompte n’est jamais automatique : il se décide commande par commande, sur la fiche de la commande, et seulement au-dessus du seuil ci-dessous. La production peut alors démarrer sur l’acompte ; l’expédition attend toujours le solde. Ces deux valeurs sont les nôtres : la Bible autorise un acompte pour « les commandes complexes ou importantes » sans jamais définir ni l’un ni l’autre, et c’est la question 16.',
+			'teeshoop'
+		) . '</p>';
+
+		echo '<table class="form-table" role="presentation"><tbody>';
+		printf(
+			'<tr><th scope="row"><label for="acompte-seuil">%s</label></th><td>'
+				. '<input type="text" id="acompte-seuil" name="acompte[deposit_from_ht]" value="%s" size="10" inputmode="decimal">'
+				. ' <span class="description">%s</span></td></tr>',
+			esc_html__( 'Acompte possible à partir de (EUR HT)', 'teeshoop' ),
+			esc_attr( Money::number( Money::to_eur( (int) $config['deposit_from_ht'] ), 2 ) ),
+			esc_html__( 'Le paiement en autonomie s’arrête avant ce seuil, donc seule une commande préparée à la main peut l’atteindre.', 'teeshoop' )
+		);
+		printf(
+			'<tr><th scope="row"><label for="acompte-taux">%s</label></th><td>'
+				. '<input type="text" id="acompte-taux" name="acompte[deposit_rate]" value="%s" size="6" inputmode="decimal"> %%</td></tr>',
+			esc_html__( 'Part demandée à la commande', 'teeshoop' ),
+			esc_attr( Money::number( (float) $config['deposit_rate'] * 100, 0 ) )
+		);
 		echo '</tbody></table>';
 	}
 

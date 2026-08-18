@@ -53,6 +53,7 @@ final class Hypotheses {
 	/** The other two shipped configs a stored option can overtake the same way. */
 	public const HOME_SHIPPING = 'php:Teeshoop\\Core\\Shipping::default_config()';
 	public const HOME_INVOICE  = 'php:Teeshoop\\Core\\Invoice::default_config()';
+	public const HOME_PAYMENT  = 'php:Teeshoop\\Core\\Settlement::default_config()';
 
 	public static function path(): string {
 		return ( defined( 'TEESHOOP_CORE_DIR' ) ? TEESHOOP_CORE_DIR : __DIR__ . '/../' ) . 'data/hypotheses.php';
@@ -175,6 +176,11 @@ final class Hypotheses {
 				'option'   => OPTION_INVOICE,
 				'defaults' => array( Invoice::class, 'default_config' ),
 			),
+			array(
+				'home'     => self::HOME_PAYMENT,
+				'option'   => OPTION_PAYMENT,
+				'defaults' => array( Settlement::class, 'default_config' ),
+			),
 		);
 	}
 
@@ -184,7 +190,7 @@ final class Hypotheses {
 	 * @return string[]
 	 */
 	private static function home_prefixes(): array {
-		return array( self::HOME_PRICING, self::HOME_SHIPPING, self::HOME_INVOICE );
+		return array( self::HOME_PRICING, self::HOME_SHIPPING, self::HOME_INVOICE, self::HOME_PAYMENT );
 	}
 
 	/**

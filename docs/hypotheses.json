@@ -1431,19 +1431,89 @@
 			"shipped_matches_default": "Il n'y a pas d'hypothèse par défaut : la question 45 est née de cette séance. Vide n'est pas une mention manquante, c'est exactement le régime qui s'applique quand les conditions de vente n'en fixent aucun (article L. 441-10, II du code de commerce), donc la facture est conforme sans qu'aucun pourcentage ait été inventé. Un taux contractuel ne pourrait pas descendre sous trois fois le taux d'intérêt légal, soit 8,25 % au second semestre 2026."
 		},
 		{
-			"id": "H-Q16-AUCUN-ACOMPTE",
+			"id": "H-Q16-SEUIL-ACOMPTE",
+			"question": "Q16",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "Un acompte n'est possible qu'au-dessus de 3 000,00 EUR hors taxes de commande, et jamais sans qu'une personne l'ait autorisé sur cette commande.",
+			"home": "php:Teeshoop\\Core\\Settlement::default_config()#deposit_from_ht",
+			"mirrors": [],
+			"literals": [
+				"300000"
+			],
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [
+				"Ce qu'une commande doit avoir encaissé pour entrer en production : tout, ou l'acompte si quelqu'un l'a autorisé."
+			],
+			"sessions": [
+				"04",
+				"06",
+				"07"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui : « acompte de 50 % possible au-dessus de 3 000 EUR hors taxes après votre validation ». La Bible autorise un acompte pour « les commandes complexes ou importantes » et ne définit jamais ni « complexe » ni « importante », ne donne aucun pourcentage et aucun seuil : ce chiffre est celui de la question 16 et rien d'autre. À noter, et c'est à lui de trancher : la question 02 arrête le paiement en autonomie à 2 000 EUR hors taxes, donc aucun panier rempli par un client ne peut atteindre ce seuil. Un acompte n'est aujourd'hui possible que sur une commande préparée à la main.",
+			"literal_scope": [
+				"wp-plugins/"
+			],
+			"literal_scope_why": "300000 est une dimension et un délai ailleurs dans le dépôt. Un second seuil d'acompte ne peut s'écrire que dans l'extension.",
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/tests/test-settlement.php"
+			],
+			"literal_allow_why": "Le test encadre le seuil au centime près, en dessous et exactement dessus.",
+			"statement_amounts": [
+				{
+					"from": "deposit_from_ht",
+					"as": "eur",
+					"text": "3 000,00 EUR",
+					"in": "au-dessus de 3 000,00 EUR hors taxes"
+				}
+			]
+		},
+		{
+			"id": "H-Q16-TAUX-ACOMPTE",
+			"question": "Q16",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-18",
+			"statement_fr": "L'acompte demandé est de 50 % du montant toutes taxes comprises de la commande, et il ouvre la production sans ouvrir l'expédition.",
+			"home": "php:Teeshoop\\Core\\Settlement::default_config()#deposit_rate",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est 0.5, une fraction ordinaire présente dans des dizaines de fichiers comme rapport, comme milieu et comme seuil. Aucune recherche de littéral ne peut l'en distinguer.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [
+				"Le montant qu'une commande doit avoir encaissé avant que l'atelier puisse presser."
+			],
+			"sessions": [
+				"04",
+				"06",
+				"07"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Acompte reçu",
+			"shipped_matches_default": "Oui pour le taux. Le SEUIL sur lequel il s'applique est hors taxes et le MONTANT est toutes taxes comprises, parce qu'un acompte est de l'argent que le client vire et qu'il vire ce qu'il doit : les deux bases sont différentes et c'est écrit dans le code là où elles sont lues. La Bible ne donne aucun pourcentage."
+		},
+		{
+			"id": "H-Q16-AUCUNE-ECHEANCE",
 			"question": "Q16",
 			"level": "important",
 			"status": "refused",
 			"since": "2026-08-18",
-			"statement_fr": "Aucun acompte n'est possible : toute commande passée sur le site est payée à 100 % avant production, et aucun paiement à échéance n'existe.",
-			"home": "anchor:wp-plugins/teeshoop-core/includes/Invoice.php#Règlement à la commande",
+			"statement_fr": "Aucun échéancier et aucun paiement à échéance n'existe : une commande est réglée en une ou deux fois, jamais selon un calendrier.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Settlement.php#No échéancier (an instalment plan with dates), no payment terms, no dunning",
 			"mirrors": [],
 			"literals": [],
-			"literals_why": "C'est l'absence d'un mécanisme. Le foyer est la seule phrase que le client lit à ce sujet.",
+			"literals_why": "C'est l'absence d'un mécanisme. Le foyer est la ligne du dossier de conception qui dit pourquoi.",
 			"reaches": [
-				"customer",
-				"operator"
+				"operator",
+				"internal"
 			],
 			"derives": [],
 			"sessions": [
@@ -1451,7 +1521,7 @@
 				"06"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Pour moitié. « 100 % avant production » est bien ce qui est livré ; « acompte de 50 % possible au-dessus de 3 000 EUR hors taxes après votre validation » ne l'est pas, et les deux chiffres sont de nous : la Bible autorise un acompte (« pour les commandes complexes ou importantes ») sans jamais donner de pourcentage ni de seuil, et ne définit ni « complexe » ni « importante ». Pire, son propre critère d'acceptation (« une commande non payée ne peut pas passer en production ») interdit le parcours que sa règle de paiement autorise. Rien ne peut être construit là-dessus sans une réponse ; c'est la séance 06."
+			"shipped_matches_default": "Oui : « aucun paiement à échéance au lancement ». La Bible nomme un échéancier une seule fois, sur le parcours grand compte, et la seule porte vers un paiement différé qu'elle ouvre est « client récurrent fiable : conditions dérogatoires validées », qui ne nomme ni les conditions, ni celui qui valide, ni le critère d'éligibilité. Il n'y a rien à construire là-dessus."
 		}
 	],
 	"not_applicable": [

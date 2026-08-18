@@ -26,6 +26,8 @@ if ( 'cli' !== PHP_SAPI ) {
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Checkout;
 use Teeshoop\Core\Invoice;
+use Teeshoop\Core\Ledger;
+use Teeshoop\Core\Settlement;
 use Teeshoop\Core\Legal;
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Payment;
@@ -856,6 +858,211 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		ts_eq( WC()->cart->get_cart_contents_count(), 0, 'the basket kept it anyway' );
 
 		wp_delete_post( $id, true );
+	} );
+
+	// ── the deposit, which is a state and not a checkbox ─────────────────────
+
+	/**
+	 * An order an OPERATOR made, above the deposit threshold.
+	 *
+	 * It cannot come from a basket: question 02 stops self-serve at 2 000 EUR HT
+	 * and question 16 opens deposits at 3 000, so the only orders that can ever
+	 * qualify are the ones a person makes. That is the quote path of session 06,
+	 * and it is why this fixture is built with the order API rather than the
+	 * cart.
+	 */
+	$big_order = static function ( int $product_id, int $cents_ht ): \WC_Order {
+		$order = wc_create_order();
+		$item  = new \WC_Order_Item_Product();
+		$item->set_product( wc_get_product( $product_id ) );
+		$item->set_quantity( 1 );
+		$item->set_subtotal( (string) Money::to_eur( $cents_ht ) );
+		$item->set_total( (string) Money::to_eur( $cents_ht ) );
+		$order->add_item( $item );
+		$order->set_billing_country( 'FR' );
+		$order->calculate_totals( true );
+		$order->save();
+		return $order;
+	};
+
+	ts_it( 'offers no deposit on an order below the threshold', function () use ( $product_id, $big_order ) {
+		ts_ck_regime( Vat::STANDARD );
+		$config = Ledger::config();
+		$order  = $big_order( $product_id, (int) $config['deposit_from_ht'] - 100 );
+
+		ts_assert( ! Ledger::authorise( $order ), 'a small order was authorised for a deposit' );
+		ts_assert( ! Ledger::authorised( wc_get_order( $order->get_id() ) ), 'and it was recorded anyway' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'lets a person authorise one above it, and never a rule', function () use ( $product_id, $big_order ) {
+		ts_ck_regime( Vat::STANDARD );
+		$config = Ledger::config();
+		$order  = $big_order( $product_id, (int) $config['deposit_from_ht'] + 100000 );
+
+		// Nothing authorises itself: until somebody says so, the order needs the
+		// whole total before production, which is chapter 2 line 330.
+		ts_assert( ! Ledger::authorised( $order ), 'a deposit authorised itself' );
+		ts_assert( ! Ledger::stage_allows( $order, Settlement::STAGE_PRODUCTION ), 'production opened on nothing' );
+
+		ts_assert( Ledger::authorise( $order ), 'a large order was refused a deposit' );
+		$order = wc_get_order( $order->get_id() );
+		ts_assert( Ledger::authorised( $order ), 'the authorisation was not recorded' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'starts production on the acompte and holds the parcel for the solde', function () use ( $product_id, $big_order ) {
+		ts_ck_regime( Vat::STANDARD );
+		$config = Ledger::config();
+		$order  = $big_order( $product_id, (int) $config['deposit_from_ht'] + 100000 );
+		Ledger::authorise( $order );
+
+		$order   = wc_get_order( $order->get_id() );
+		$due     = Ledger::due( $order );
+		$deposit = Settlement::deposit_due( $due, $config );
+
+		// A cent under the deposit is not a deposit.
+		ts_assert( Ledger::record( $order, $deposit - 1, 'Virement bancaire', 'VIR-COURT' ), 'the short transfer was not recorded' );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( Ledger::state( $order ), Settlement::SHORT, 'a short transfer read as a deposit' );
+		ts_assert( ! Ledger::stage_allows( $order, Settlement::STAGE_PRODUCTION ), 'production started on a short transfer' );
+
+		// And the cent that completes it is.
+		Ledger::record( $order, 1, 'Virement bancaire', 'VIR-COMPLEMENT' );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( Ledger::state( $order ), Settlement::DEPOSIT, 'state after the deposit' );
+		ts_eq( $order->get_status(), 'ts-acompte', 'the order does not say what it is' );
+		ts_assert( Ledger::stage_allows( $order, Settlement::STAGE_PRODUCTION ), 'the acompte did not open production' );
+		ts_assert( ! Ledger::stage_allows( $order, Settlement::STAGE_DISPATCH ), 'the parcel left on an acompte' );
+
+		// No FINAL invoice on a half-paid order.
+		ts_assert( ! $order->is_paid(), 'WooCommerce thinks an acompte is a paid order' );
+		$refused = Invoice::issue( $order );
+		ts_assert( is_wp_error( $refused ), 'an acompte was invoiced as a final invoice' );
+		ts_eq( $refused->get_error_code(), 'teeshoop_not_paid', 'refusal reason' );
+		ts_eq( Invoice::stored( $order ), null, 'a final invoice exists on a half-paid order' );
+
+		/*
+		 * BUT A FACTURE D'ACOMPTE, WHICH THE LAW MAKES MANDATORY. Article 289,
+		 * I-1-c du CGI obliges an invoice for money received before a supply of
+		 * goods is made, and BOI-TVA-DECLA-30-20-10-10 § 120 says it applies to
+		 * every acompte and not only to those where VAT becomes exigible.
+		 */
+		$acomptes = Invoice::deposits( $order );
+		ts_eq( count( $acomptes ), 2, 'each receipt did not get its own acompte invoice' );
+		$last = $acomptes[1];
+		ts_eq( $last['kind'], Invoice::KIND_DEPOSIT, 'the document is not an acompte' );
+		ts_eq( $last['total_ht'] + $last['total_vat'], $last['total_ttc'], 'the acompte does not add up' );
+		ts_eq( $last['total_ttc'], 1, 'the acompte is not the money that arrived' );
+		ts_assert( '' !== $last['number'], 'the acompte carries no number' );
+		ts_assert( strlen( Invoice::pdf( $last ) ) > 800, 'the acompte renders no PDF' );
+
+		// The balance opens everything, and THAT is what issues the invoice.
+		Ledger::record( $order, Settlement::remaining( $due, Ledger::received( $order ) ), 'Virement bancaire', 'VIR-SOLDE' );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( Ledger::state( $order ), Settlement::PAID, 'state after the balance' );
+		ts_assert( Ledger::stage_allows( $order, Settlement::STAGE_DISPATCH ), 'the solde did not open expedition' );
+		ts_assert( $order->is_paid(), 'a fully settled order is still unpaid' );
+		ts_assert( null !== Invoice::stored( $order ), 'the solde did not issue the invoice' );
+
+		// And the ledger says how it got there.
+		ts_eq( count( Ledger::receipts( $order ) ), 3, 'the receipts were not all kept' );
+		ts_eq( Ledger::received( $order ), $due, 'the ledger does not add up to the order' );
+
+		/*
+		 * THE FINAL INVOICE REFERENCES THEM AND DEDUCTS THEM.
+		 * BOI-TVA-DECLA-30-20-20-10 § 60: "la facture définitive doit faire
+		 * référence aux différentes factures d'acomptes". And the VAT on those
+		 * was already declared when they were collected, so what is left to pay
+		 * is the total less what they covered.
+		 */
+		$final = Invoice::stored( $order );
+		ts_eq( count( $final['deducted'] ), 2, 'the final invoice deducts no acompte' );
+		$covered = 0;
+		foreach ( $final['deducted'] as $deduction ) {
+			ts_assert( '' !== $deduction['number'], 'an acompte is deducted without its number' );
+			$covered += (int) $deduction['ttc'];
+		}
+		ts_eq( $final['net_to_pay'], $final['total_ttc'] - $covered, 'the net to pay is not the balance' );
+
+		// Every document of the order, in one unbroken run of the same series.
+		$numbers = array();
+		foreach ( Invoice::documents( $order ) as $document ) {
+			$numbers[] = (int) substr( (string) $document['number'], strlen( (string) $document['series'] ) + 1 );
+			ts_eq( $document['series'], Invoice::series( Settings::today() ), 'a document left the shop’s series' );
+		}
+		ts_eq( count( $numbers ), 3, 'the order does not carry three documents' );
+		sort( $numbers );
+		for ( $i = 1; $i < count( $numbers ); $i++ ) {
+			ts_eq( $numbers[ $i ], $numbers[ $i - 1 ] + 1, 'the documents are not consecutive' );
+		}
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'stops an order being edited once any money has arrived', function () use ( $product_id, $big_order ) {
+		/*
+		 * Not the status: a partial transfer on an order nobody authorised a
+		 * deposit for leaves it `pending`, which WooCommerce considers editable,
+		 * and a facture d'acompte has already been issued against those lines.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		$order = $big_order( $product_id, 400000 );
+		ts_assert( $order->is_editable(), 'an order with no money in it is already locked' );
+
+		Ledger::record( $order, 50000, 'Virement bancaire', 'VIR-PARTIEL' );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( $order->get_status(), 'pending', 'the fixture moved status, so this proves nothing' );
+		ts_assert( ! $order->is_editable(), 'an order holding a customer’s money could still be edited' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'records the same encashment once, however many times it arrives', function () use ( $product_id, $big_order ) {
+		ts_ck_regime( Vat::STANDARD );
+		$order = $big_order( $product_id, 400000 );
+
+		ts_assert( Ledger::record( $order, 120000, 'Virement bancaire', 'VIR-1' ), 'the first was not recorded' );
+		$order = wc_get_order( $order->get_id() );
+		ts_assert( ! Ledger::record( $order, 120000, 'Virement bancaire', 'VIR-1' ), 'the same reference was recorded twice' );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( Ledger::received( $order ), 120000, 'the ledger after one transfer' );
+
+		// Two genuine transfers of the same amount are still two.
+		Ledger::record( $order, 120000, 'Virement bancaire', 'VIR-2' );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( Ledger::received( $order ), 240000, 'two real transfers were read as one' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'records a card payment once even though two hooks watch for it', function () use ( $product_id, $sides, $design ) {
+		/*
+		 * `payment_complete()` fires `woocommerce_payment_complete` AND a status
+		 * transition into a paid status, and this file listens to both because
+		 * BACS only ever does the second. Both firing for one payment must not
+		 * put the money in twice.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		$order->payment_complete( 'pi_verification' );
+
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( count( Ledger::receipts( $order ) ), 1, 'one payment was recorded twice' );
+		ts_eq( Ledger::received( $order ), Ledger::due( $order ), 'the ledger and the order disagree' );
+		ts_eq( Ledger::state( $order ), Settlement::PAID, 'a completed card payment' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'carries the acompte status in WooCommerce’s own list', function () {
+		$statuses = wc_get_order_statuses();
+		ts_assert( isset( $statuses[ Ledger::STATUS ] ), 'the status is not registered' );
+		// And it is NOT a paid status, which is what keeps the invoice shut.
+		ts_assert( ! in_array( 'ts-acompte', wc_get_is_paid_statuses(), true ), 'an acompte counts as paid' );
 	} );
 
 	// ── the payment rail ─────────────────────────────────────────────────────

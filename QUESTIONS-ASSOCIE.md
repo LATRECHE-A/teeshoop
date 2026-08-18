@@ -450,19 +450,63 @@ maintenue par Stripe, gratuite. Trois points qui demandent votre avis :
 
 *Si vous ne répondez pas, on partira sur :* 100 % avant production ; acompte de 50 % possible au-dessus de 3 000 EUR hors taxes après votre validation ; aucun paiement à échéance au lancement.
 
-*Ce que la séance 04 a trouvé, le 18 août :* **rien n'est construit, et c'est volontaire.**
-Les 50 % et les 3 000 EUR de l'hypothèse par défaut sont de nous : la Bible autorise un
-acompte « pour les commandes complexes ou importantes » sans jamais donner de pourcentage,
-de seuil, ni de définition de « importante ».
+*Ce que la séance 04 a construit, le 18 août :* **l'acompte existe**, sur vos deux chiffres
+par défaut, et il n'est jamais automatique. Quatre choses à savoir.
 
-Pire, elle se contredit : sa règle de paiement autorise « acompte possible, solde avant
-expédition », et son critère d'acceptation dit « une commande non payée ne peut pas passer
-en production ». Une commande payée à 50 % n'est pas payée. Le premier autorise ce que le
-second interdit, et il n'y a pas de moyen de deviner lequel des deux vous vouliez.
+1. **Votre Bible se contredit, et il a fallu trancher.** Sa règle de paiement dit « commande
+   importante : acompte possible, solde avant expédition ou avant production selon le
+   risque » ; son critère d'acceptation dit « une commande non payée ne peut pas passer en
+   production ». Une commande payée à 50 % n'est pas payée : la première phrase autorise ce
+   que la seconde interdit. Nous avons retenu la lecture qui rend les deux vraies en même
+   temps : **une commande sur laquelle personne n'a autorisé d'acompte doit être payée
+   intégralement avant production** (votre critère), et **une commande sur laquelle vous
+   l'avez autorisé peut démarrer sur l'acompte** (votre règle), **sans jamais partir avant
+   le solde**. Les deux lectures sont dans les tests, côte à côte. Si nous nous sommes
+   trompés, dites-le et c'est une ligne à changer.
+2. **Un acompte se décide commande par commande.** Il n'y a pas de règle qui l'accorde toute
+   seule : un bouton sur la fiche de la commande, qui n'apparaît qu'au-dessus du seuil.
+   C'est ce que dit votre hypothèse par défaut, « après votre validation ».
+3. **Vos deux seuils ne se rencontrent jamais.** La question 02 arrête le paiement en
+   autonomie à 2 000 EUR hors taxes et celle-ci ouvre l'acompte à 3 000 : **aucun panier
+   rempli par un client ne peut y arriver**. Un acompte n'est donc possible que sur une
+   commande que vous préparez, ce qui est cohérent (les acomptes sont faits pour les gros
+   dossiers), mais autant que vous le sachiez avant de confirmer les deux chiffres.
+4. **Chaque acompte encaissé émet une facture d'acompte, et c'est obligatoire.** Nous
+   avions d'abord écrit ici le contraire, en croyant qu'une vente de marchandises n'oblige
+   à rien tant que le bien n'est pas livré. **C'était faux**, sur deux points, et nous ne
+   l'avons su qu'en allant lire les textes :
+   - l'article 289, I-1-c du code général des impôts impose une facture « pour les acomptes
+     qui lui sont versés avant que l'une des opérations visées aux a et b ne soit
+     effectuée », et le a) vise « les livraisons de biens **ou** les prestations de
+     services ». Les seules exceptions sont les livraisons intracommunautaires exonérées et
+     les moyens de transport neufs ;
+   - le BOFiP le dit sans détour : « une facture doit donc être délivrée pour **tous** les
+     versements d'acomptes [...] et non pas pour les seules opérations pour lesquelles ces
+     versements entraînent l'exigibilité de la TVA » ;
+   - et depuis le 1er janvier 2023 la TVA est de toute façon exigible dès l'encaissement de
+     l'acompte, même sur une vente de marchandises (article 269, 2-a).
 
-Il nous faut donc trois choses : le **seuil**, le **pourcentage**, et **à quel moment le
-solde est dû** (avant production, ou avant expédition). Tant qu'elles manquent, toute
-commande passée sur le site est payée à 100 %.
+   Le client reçoit donc **une facture d'acompte à chaque versement**, numérotée dans la
+   même série continue que les factures, puis **la facture définitive** qui reprend
+   l'opération entière et déduit chaque acompte par son numéro et sa date, comme le BOFiP
+   l'exige. **Une chose à faire confirmer par votre comptable :** aucun texte ne prescrit la
+   présentation. Nous avons retenu la plus courante (tout le montant, puis la déduction des
+   acomptes, puis un « net à payer »), déduite de la mécanique de TVA et non copiée d'une
+   source officielle.
+
+5. **Que se passe-t-il si le solde n'arrive jamais ?** Votre Bible n'a ni le mot, ni la
+   procédure : « impayé », « relance de paiement », « délai de paiement » et « pénalité »
+   n'apparaissent nulle part dans les huit chapitres. Une commande produite sur acompte dont
+   le solde ne vient pas reste donc indéfiniment dans l'atelier, personnalisée et
+   invendable. Aujourd'hui le site la laisse à l'état « acompte reçu » et n'expédie pas ;
+   il ne relance pas, ne facture aucune pénalité et ne clôt rien. Au bout de combien de
+   temps, et pour faire quoi ?
+
+6. **Que rembourse-t-on si une commande avec acompte est annulée ?** Votre Bible dit
+   « après commande fournisseur ou préparation spécifique : remboursement du solde non
+   engagé ». Autoriser un acompte crée donc une obligation que le site **ne sait pas
+   honorer** : il n'émet aucun avoir et ne fait aucun remboursement. C'est le service
+   après-vente de la séance 06, et d'ici là un remboursement se fait à la main.
 
 **Votre réponse :**
 

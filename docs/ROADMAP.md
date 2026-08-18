@@ -146,6 +146,16 @@ elle est relue par poppler, qui ne partage pas une ligne avec le code qui l'écr
 L'identité légale du vendeur est **vide** et le restera : en production une facture
 incomplète est refusée, ailleurs elle sort marquée « document non conforme ».
 
+**L'acompte** est un état et non une case : chaque encaissement est une ligne sur la
+commande, avec sa date, son moyen et sa référence, et ce que l'atelier a le droit de faire
+se déduit de la somme, jamais du statut affiché. La Bible se contredit sur ce point (elle
+autorise « acompte possible, solde avant expédition » et exige « une commande non payée ne
+peut pas passer en production »), et les deux lectures sont tenues côte à côte dans les
+tests : sans autorisation il faut tout payer avant production, avec autorisation l'acompte
+suffit à produire et jamais à expédier. Chaque acompte encaissé émet **une facture
+d'acompte** numérotée dans la même série continue, ce que l'article 289, I-1-c du CGI rend
+obligatoire, et la facture définitive reprend l'opération entière et les déduit.
+
 ---
 
 ## Ce qu'il reste : seize séances

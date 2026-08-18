@@ -64,6 +64,21 @@ final class Invoice {
 	public const META_DATE   = '_teeshoop_invoice_date';
 	public const META_DOC    = '_teeshoop_invoice_document';
 
+	/**
+	 * Every document this order has produced, in the order it produced them.
+	 *
+	 * A list rather than a field, because an order settled in two payments
+	 * produces two invoices and both are numbered: article 289, I-1-c du CGI
+	 * makes a facture d'acompte mandatory on receipt of an advance payment for
+	 * a supply of goods, and BOI-TVA-DECLA-30-20-20-10 § 60 requires the final
+	 * one to reference them.
+	 */
+	public const META_DOCS = '_teeshoop_factures';
+
+	/** The kinds of document this issues. Both are factures in the law's sense. */
+	public const KIND_INVOICE = 'facture';
+	public const KIND_DEPOSIT = 'acompte';
+
 	/** How many characters of the document could not be written to a PDF. */
 	public const META_LOST = '_teeshoop_invoice_lost';
 
@@ -340,9 +355,7 @@ final class Invoice {
 				self::log( sprintf( 'order %d: %d character(s) cannot be written to a PDF', $order->get_id(), $lost ) );
 			}
 
-			$order->update_meta_data( self::META_NUMBER, $doc['number'] );
-			$order->update_meta_data( self::META_DATE, $doc['date'] );
-			$order->update_meta_data( self::META_DOC, wp_json_encode( $doc ) );
+			self::freeze_document( $order, $doc );
 			$order->update_meta_data( self::META_LOST, (string) $lost );
 			$order->save();
 
@@ -350,6 +363,137 @@ final class Invoice {
 		} finally {
 			self::unlock( $lock );
 		}
+	}
+
+	/**
+	 * Issue the facture d'acompte a receipt obliges.
+	 *
+	 * MANDATORY, AND THIS FILE ONCE SAID THE OPPOSITE. The first version of the
+	 * README argued that an advance payment on a supply of GOODS triggers no
+	 * document because VAT is not due until delivery. Both halves of that are
+	 * wrong as the law stands, and it took reading the texts to find out:
+	 *
+	 *   CGI art. 289, I-1-c obliges an invoice "pour les acomptes qui lui sont
+	 *   versés avant que l'une des opérations visées aux a et b ne soit
+	 *   effectuée", and a) covers "les livraisons de biens OU les prestations de
+	 *   services". The only carve-outs are exempt intra-EU supplies and new
+	 *   means of transport. A domestic French sale of printed garments is
+	 *   neither.
+	 *
+	 *   BOI-TVA-DECLA-30-20-10-10 § 120 removes the excuse in terms: "une
+	 *   facture doit donc être délivrée pour TOUS les versements d'acomptes ...
+	 *   et non pas pour les seules opérations pour lesquelles ces versements
+	 *   entraînent l'exigibilité de la TVA".
+	 *
+	 *   And since 1 January 2023 the VAT is exigible anyway: CGI art. 269, 2-a,
+	 *   "en cas de versement préalable d'un acompte, la taxe devient exigible au
+	 *   moment de son encaissement, à concurrence du montant encaissé".
+	 *
+	 * SAME SEQUENCE, SAME SERIES. BOI-TVA-DECLA-30-20-20-10 § 60: the numbering
+	 * obligation "concerne également les factures d'acomptes". A separate series
+	 * would need a justification, and an acompte/solde split is not among the
+	 * ones the administration lists.
+	 *
+	 * @param array $receipt One entry of the order's ledger.
+	 * @return array|\WP_Error
+	 */
+	public static function issue_deposit( \WC_Order $order, array $receipt, ?string $environment = null ) {
+		$reference = (string) ( $receipt['reference'] ?? '' );
+		foreach ( self::deposits( $order ) as $existing ) {
+			if ( '' !== $reference && ( $existing['receipt'] ?? '' ) === $reference ) {
+				// One receipt, one document. The ledger already refuses a
+				// duplicate receipt; this refuses a duplicate document for a
+				// receipt that reached here twice by another road.
+				return $existing;
+			}
+		}
+
+		$doc = self::compose_deposit( $order, $receipt, $environment );
+		if ( is_wp_error( $doc ) ) {
+			self::log( sprintf( 'no deposit invoice for order %d: %s', $order->get_id(), $doc->get_error_message() ) );
+			return $doc;
+		}
+
+		$lock = 'teeshoop_invoice_' . $order->get_id();
+		if ( ! self::lock( $lock ) ) {
+			return new \WP_Error( 'teeshoop_busy', __( 'Un document est en cours d’émission pour cette commande.', 'teeshoop' ) );
+		}
+
+		try {
+			$series = self::series( $doc['date'] );
+			$n      = self::next_number( $series );
+			if ( $n <= 0 ) {
+				return new \WP_Error( 'teeshoop_sequence', __( 'Le numéro de facture n’a pas pu être attribué.', 'teeshoop' ) );
+			}
+			$doc['series'] = $series;
+			$doc['number'] = self::format_number( $series, $n );
+
+			self::freeze_document( $order, $doc );
+			$order->save();
+			return $doc;
+		} finally {
+			self::unlock( $lock );
+		}
+	}
+
+	/**
+	 * The document model of a facture d'acompte.
+	 *
+	 * ONE LINE, AND THE VAT IS DERIVED FROM THE MONEY THAT ARRIVED. The customer
+	 * transferred a TTC amount, so the HT is that amount divided by one plus the
+	 * rate, rounded once, and the VAT is the remainder: the two always add back
+	 * to what the bank shows, with no third rounding anywhere.
+	 *
+	 * @return array|\WP_Error
+	 */
+	public static function compose_deposit( \WC_Order $order, array $receipt, ?string $environment = null ) {
+		$context = self::context( $order, $environment );
+		if ( is_wp_error( $context ) ) {
+			return $context;
+		}
+
+		$ttc = (int) ( $receipt['cents'] ?? 0 );
+		if ( $ttc <= 0 ) {
+			return new \WP_Error( 'teeshoop_no_amount', __( 'Cet encaissement ne porte aucun montant.', 'teeshoop' ) );
+		}
+
+		$rate = (float) $context['rate'];
+		$ht   = Money::round( $ttc / ( 1 + $rate ) );
+		$vat  = $ttc - $ht;
+
+		return array_merge(
+			$context['common'],
+			array(
+				'kind'        => self::KIND_DEPOSIT,
+				'receipt'     => (string) ( $receipt['reference'] ?? '' ),
+				// 10° of article 242 nonies A: the date the acompte was paid,
+				// when it differs from the date the document is issued.
+				'paid_on'     => (string) ( $receipt['date'] ?? '' ),
+				'method'      => (string) ( $receipt['method'] ?? '' ),
+				'lines'       => array(
+					array(
+						'label'    => sprintf(
+							/* translators: %s: an order number. */
+							__( 'Acompte sur la commande %s', 'teeshoop' ),
+							(string) $order->get_order_number()
+						),
+						'detail'   => '',
+						'qty'      => 1,
+						'unit_ht'  => $ht,
+						'total_ht' => $ht,
+						'rate'     => $rate,
+					),
+				),
+				'shipping_ht' => 0,
+				'discount_ht' => 0,
+				'fees_ht'     => 0,
+				'total_ht'    => $ht,
+				'total_vat'   => $vat,
+				'total_ttc'   => $ttc,
+				'deducted'    => array(),
+				'net_to_pay'  => 0,
+			)
+		);
 	}
 
 	/**
@@ -369,14 +513,60 @@ final class Invoice {
 		$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $name ) );
 	}
 
-	/** The frozen document, or null when this order has no invoice yet. */
-	public static function stored( \WC_Order $order ): ?array {
-		$raw = (string) $order->get_meta( self::META_DOC, true );
-		if ( '' === $raw ) {
-			return null;
+	/**
+	 * Every frozen document on this order, oldest first.
+	 *
+	 * Falls back to the single-document meta for orders invoiced before this
+	 * plugin knew about deposits. Those are real orders with real numbers and
+	 * dropping them would be losing a fiscal record to a refactor.
+	 */
+	public static function documents( \WC_Order $order ): array {
+		$raw = (string) $order->get_meta( self::META_DOCS, true );
+		if ( '' !== $raw ) {
+			$docs = json_decode( $raw, true );
+			return is_array( $docs ) ? array_values( array_filter( $docs, 'is_array' ) ) : array();
 		}
-		$doc = json_decode( $raw, true );
-		return is_array( $doc ) && ! empty( $doc['number'] ) ? $doc : null;
+
+		$single = (string) $order->get_meta( self::META_DOC, true );
+		if ( '' === $single ) {
+			return array();
+		}
+		$doc = json_decode( $single, true );
+		return is_array( $doc ) && ! empty( $doc['number'] ) ? array( $doc ) : array();
+	}
+
+	/** The FINAL invoice, or null when the order has not been settled yet. */
+	public static function stored( \WC_Order $order ): ?array {
+		foreach ( self::documents( $order ) as $doc ) {
+			if ( self::KIND_DEPOSIT !== ( $doc['kind'] ?? self::KIND_INVOICE ) ) {
+				return $doc;
+			}
+		}
+		return null;
+	}
+
+	/** The deposit invoices already issued, oldest first. */
+	public static function deposits( \WC_Order $order ): array {
+		return array_values(
+			array_filter(
+				self::documents( $order ),
+				static fn( array $doc ): bool => self::KIND_DEPOSIT === ( $doc['kind'] ?? '' )
+			)
+		);
+	}
+
+	/** Append a frozen document to the order, under the sequence lock. */
+	private static function freeze_document( \WC_Order $order, array $doc ): void {
+		$docs   = self::documents( $order );
+		$docs[] = $doc;
+		$order->update_meta_data( self::META_DOCS, wp_json_encode( $docs ) );
+		if ( self::KIND_DEPOSIT !== ( $doc['kind'] ?? self::KIND_INVOICE ) ) {
+			// The final invoice keeps the two flat fields the admin and the
+			// customer link read.
+			$order->update_meta_data( self::META_NUMBER, $doc['number'] );
+			$order->update_meta_data( self::META_DATE, $doc['date'] );
+			$order->update_meta_data( self::META_DOC, wp_json_encode( $doc ) );
+		}
 	}
 
 	/**
@@ -391,7 +581,17 @@ final class Invoice {
 	 *
 	 * @return array|\WP_Error
 	 */
-	public static function compose( \WC_Order $order, ?string $environment = null ) {
+	/**
+	 * Everything both kinds of document share, or the reason there is none.
+	 *
+	 * Extracted so the two gates that refuse a document, an unknown regime and
+	 * an incomplete seller, are asked once. A facture d'acompte that skipped
+	 * either of them would be exactly as non-conforming as a final invoice that
+	 * did, and it would already be numbered.
+	 *
+	 * @return array|\WP_Error
+	 */
+	private static function context( \WC_Order $order, ?string $environment = null ) {
 		/*
 		 * THE DATE OF ISSUE, not the date of the order, and that is both the law
 		 * and the sequence. Article 242 nonies A, I, 6° wants "la date de
@@ -434,6 +634,46 @@ final class Invoice {
 				)
 			);
 		}
+
+		$config = self::config();
+
+		return array(
+			'rate'   => $rate,
+			'common' => array(
+				'number'      => '',
+				'series'      => '',
+				'kind'        => self::KIND_INVOICE,
+				'date'        => $date,
+				'order'       => array(
+					'number' => (string) $order->get_order_number(),
+					'date'   => $order->get_date_created() ? $order->get_date_created()->date( 'Y-m-d' ) : $date,
+					'paid'   => $order->get_date_paid() ? $order->get_date_paid()->date( 'Y-m-d' ) : '',
+					'method' => (string) $order->get_payment_method_title(),
+				),
+				'seller'      => $identity,
+				'buyer'       => self::buyer( $order ),
+				'shipping_to' => self::shipping_address( $order ),
+				'regime'      => $regime,
+				'rate'        => $rate,
+				'mention'     => $note,
+				'receipts'    => Ledger::receipts( $order ),
+				'terms'       => array(
+					'penalty_rate' => (string) $config['penalty_rate'],
+					'indemnity'    => self::RECOVERY_INDEMNITY_EUR,
+				),
+				'stamp'       => Legal::STAMP === $verdict['action'] ? Legal::STAMP_TEXT : '',
+				'missing'     => $verdict['labels'],
+			),
+		);
+	}
+
+	public static function compose( \WC_Order $order, ?string $environment = null ) {
+		$context = self::context( $order, $environment );
+		if ( is_wp_error( $context ) ) {
+			return $context;
+		}
+		$rate   = (float) $context['rate'];
+		$regime = (string) $context['common']['regime'];
 
 		$lines    = array();
 		$goods_ht = 0;
@@ -534,39 +774,43 @@ final class Invoice {
 			);
 		}
 
-		$config = self::config();
+		/*
+		 * THE ACOMPTE INVOICES ALREADY ISSUED, DEDUCTED BY NUMBER AND BY DATE.
+		 * BOI-TVA-DECLA-30-20-20-10 § 60: "la facture définitive doit faire
+		 * référence aux différentes factures d'acomptes". And the VAT on those
+		 * became exigible when they were collected, so it must not be declared
+		 * again: the document states the whole operation, deducts each acompte
+		 * at its TTC, and shows what is left to pay.
+		 *
+		 * The layout is the standard one and it is NOT prescribed by any text we
+		 * could find. Question 16 asks the accountant to confirm it before it is
+		 * treated as settled.
+		 */
+		$deducted = array();
+		$paid_off = 0;
+		foreach ( self::deposits( $order ) as $deposit ) {
+			$deducted[] = array(
+				'number' => (string) $deposit['number'],
+				'date'   => (string) $deposit['date'],
+				'ttc'    => (int) $deposit['total_ttc'],
+			);
+			$paid_off += (int) $deposit['total_ttc'];
+		}
 
-		return array(
-			'number'      => '',
-			'series'      => '',
-			'date'        => $date,
-			'order'       => array(
-				'number' => (string) $order->get_order_number(),
-				'date'   => $order->get_date_created() ? $order->get_date_created()->date( 'Y-m-d' ) : $date,
-				'paid'   => $order->get_date_paid() ? $order->get_date_paid()->date( 'Y-m-d' ) : '',
-				'method' => (string) $order->get_payment_method_title(),
-			),
-			'seller'      => $identity,
-			'buyer'       => self::buyer( $order ),
-			'shipping_to' => self::shipping_address( $order ),
-			'regime'      => $regime,
-			'rate'        => $rate,
-			'mention'     => $note,
-			'lines'       => $lines,
-			'shipping_ht' => $shipping_ht,
-			'discount_ht' => $discount_ht,
-			'fees_ht'     => $fees_ht,
-			'total_ht'    => $total_ht,
-			'total_vat'   => $total_tax,
-			'total_ttc'   => $total_ttc,
-			'terms'       => array(
-				'penalty_rate' => (string) $config['penalty_rate'],
-				'indemnity'    => self::RECOVERY_INDEMNITY_EUR,
-			),
-			// Carried so the renderer never has to ask the environment again: a
-			// document issued stamped stays stamped in its own record.
-			'stamp'       => Legal::STAMP === $verdict['action'] ? Legal::STAMP_TEXT : '',
-			'missing'     => $verdict['labels'],
+		return array_merge(
+			$context['common'],
+			array(
+				'kind'        => self::KIND_INVOICE,
+				'lines'       => $lines,
+				'shipping_ht' => $shipping_ht,
+				'discount_ht' => $discount_ht,
+				'fees_ht'     => $fees_ht,
+				'total_ht'    => $total_ht,
+				'total_vat'   => $total_tax,
+				'total_ttc'   => $total_ttc,
+				'deducted'    => $deducted,
+				'net_to_pay'  => max( 0, $total_ttc - $paid_off ),
+			)
 		);
 	}
 
@@ -673,7 +917,8 @@ final class Invoice {
 		$col_rate  = 168.0;
 		$col_total = $right;
 
-		$y = self::pdf_header( $pdf, $doc, $left, $right );
+		$deposit = self::KIND_DEPOSIT === ( $doc['kind'] ?? self::KIND_INVOICE );
+		$y       = self::pdf_header( $pdf, $doc, $left, $right, $deposit );
 
 		// ── the table ────────────────────────────────────────────────────────
 		$pdf->fill( $left, $y - 4.5, $right - $left, 6.5, 0.94 );
@@ -759,6 +1004,29 @@ final class Invoice {
 			$y += 9;
 		}
 
+		// ── what the acomptes already covered ────────────────────────────────
+		if ( ! empty( $doc['deducted'] ) ) {
+			$pdf->rule( $totals_label - 40, $y - 4, $right, 0.15, 0.82 );
+			foreach ( (array) $doc['deducted'] as $deduction ) {
+				$pdf->text_right(
+					$totals_label,
+					$y,
+					sprintf(
+						/* translators: 1: an invoice number, 2: a date. */
+						__( 'Acompte %1$s du %2$s', 'teeshoop' ),
+						(string) $deduction['number'],
+						Vat::fr_date( (string) $deduction['date'] )
+					)
+				);
+				$pdf->text_right( $col_total, $y, Money::format( -(int) $deduction['ttc'] ) );
+				$y += 5.5;
+			}
+			$y += 1;
+			$pdf->text_right( $totals_label, $y, __( 'Net à payer', 'teeshoop' ), Pdf::BOLD, 10.5 );
+			$pdf->text_right( $col_total, $y, Money::format( (int) $doc['net_to_pay'] ), Pdf::BOLD, 10.5 );
+			$y += 9;
+		}
+
 		// ── the mentions ─────────────────────────────────────────────────────
 		/*
 		 * WRAPPED, NOT TRUNCATED, and the block is placed from its own height.
@@ -823,7 +1091,7 @@ final class Invoice {
 	}
 
 	/** The two identity blocks and the title. Returns the y to carry on from. */
-	private static function pdf_header( Pdf $pdf, array $doc, float $left, float $right ): float {
+	private static function pdf_header( Pdf $pdf, array $doc, float $left, float $right, bool $deposit = false ): float {
 		$seller = (array) $doc['seller'];
 
 		$y = 22.0;
@@ -872,7 +1140,15 @@ final class Invoice {
 		}
 
 		// The title block, right, level with the top of the seller block.
-		$pdf->text_right( $right, 24, __( 'FACTURE', 'teeshoop' ), Pdf::BOLD, 20 );
+		// A facture d'acompte says so in the largest type on the page: it is a
+		// different document and a customer must not file it as the invoice.
+		$pdf->text_right(
+			$right,
+			24,
+			$deposit ? __( 'FACTURE D’ACOMPTE', 'teeshoop' ) : __( 'FACTURE', 'teeshoop' ),
+			Pdf::BOLD,
+			$deposit ? 15 : 20
+		);
 		$pdf->text_right( $right, 31, (string) $doc['number'], Pdf::BOLD, 11 );
 		$pdf->text_right( $right, 37, Vat::fr_date( (string) $doc['date'] ), Pdf::REGULAR, 9 );
 
@@ -912,6 +1188,24 @@ final class Invoice {
 			9
 		);
 		$y += 5;
+
+		// 10° of article 242 nonies A: the date the acompte was paid, when it
+		// is not the date the document is issued.
+		if ( $deposit && '' !== (string) ( $doc['paid_on'] ?? '' ) && $doc['paid_on'] !== $doc['date'] ) {
+			$pdf->text(
+				$left,
+				$y,
+				sprintf(
+					/* translators: 1: a date, 2: a payment method. */
+					__( 'Acompte versé le %1$s par %2$s', 'teeshoop' ),
+					Vat::fr_date( (string) $doc['paid_on'] ),
+					'' !== (string) ( $doc['method'] ?? '' ) ? (string) $doc['method'] : __( 'virement', 'teeshoop' )
+				),
+				Pdf::REGULAR,
+				9
+			);
+			$y += 5;
+		}
 
 		$ship = (array) $doc['shipping_to'];
 		if ( ! empty( $ship ) ) {
@@ -962,8 +1256,39 @@ final class Invoice {
 		// is part of the good, not a separate service.
 		$out[] = __( 'Opérations : livraisons de biens.', 'teeshoop' );
 
-		$order = (array) $doc['order'];
-		if ( '' !== (string) $order['paid'] ) {
+		/*
+		 * WHAT THE MONEY IS, on the document that asks for it. An advance
+		 * payment that is not qualified is presumed to be des arrhes for a
+		 * consumer (L. 214-1), and that presumption is disapplied here by
+		 * L. 214-3 for goods made to order, so nothing decides it except what
+		 * the document says. An acompte binds both sides; arrhes let either walk
+		 * away. The difference is the whole order.
+		 */
+		if ( self::KIND_DEPOSIT === ( $doc['kind'] ?? self::KIND_INVOICE ) ) {
+			$out[] = Settlement::COMMITMENT_FR;
+		}
+
+		$order    = (array) $doc['order'];
+		$receipts = (array) ( $doc['receipts'] ?? array() );
+
+		if ( count( $receipts ) > 1 ) {
+			// Two or more transfers: name each, because that is what a bank
+			// statement will show and what an accountant will reconcile against.
+			$parts = array();
+			foreach ( $receipts as $receipt ) {
+				$parts[] = sprintf(
+					/* translators: 1: an amount, 2: a date. */
+					__( '%1$s le %2$s', 'teeshoop' ),
+					Money::format( (int) $receipt['cents'] ),
+					Vat::fr_date( (string) $receipt['date'] )
+				);
+			}
+			$out[] = sprintf(
+				/* translators: %s: a list of payments, already assembled. */
+				__( 'Règlement à la commande. Reçu : %s.', 'teeshoop' ),
+				implode( ', ', $parts )
+			);
+		} elseif ( '' !== (string) $order['paid'] ) {
 			$out[] = sprintf(
 				/* translators: 1: a date, 2: a payment method. */
 				__( 'Règlement à la commande. Facture payée le %1$s par %2$s.', 'teeshoop' ),
@@ -1038,16 +1363,24 @@ final class Invoice {
 
 	// ── Handing it over ──────────────────────────────────────────────────────
 
-	/** The URL that downloads an order's invoice. */
-	public static function url( \WC_Order $order ): string {
-		return add_query_arg(
-			array(
-				'action'   => 'teeshoop_facture',
-				'order_id' => $order->get_id(),
-				'key'      => $order->get_order_key(),
-			),
-			admin_url( 'admin-post.php' )
+	/**
+	 * The URL that downloads one of an order's documents.
+	 *
+	 * `$number` names which, because an order settled in two payments has two
+	 * and a customer needs both: the acompte for their own accounts when they
+	 * pay it, and the final invoice when the job is done. Empty means the final
+	 * invoice, which is what every existing link asks for.
+	 */
+	public static function url( \WC_Order $order, string $number = '' ): string {
+		$args = array(
+			'action'   => 'teeshoop_facture',
+			'order_id' => $order->get_id(),
+			'key'      => $order->get_order_key(),
 		);
+		if ( '' !== $number ) {
+			$args['numero'] = $number;
+		}
+		return add_query_arg( $args, admin_url( 'admin-post.php' ) );
 	}
 
 	/**
@@ -1092,10 +1425,24 @@ final class Invoice {
 		 * Invoices are issued when the money arrives, by `on_payment` and
 		 * `on_status`, and by nothing else.
 		 */
-		$doc = self::stored( $order );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the order key is the capability, checked above.
+		$wanted = isset( $_GET['numero'] ) ? sanitize_text_field( wp_unslash( $_GET['numero'] ) ) : '';
+
+		$doc = null;
+		if ( '' !== $wanted ) {
+			foreach ( self::documents( $order ) as $candidate ) {
+				if ( ( $candidate['number'] ?? '' ) === $wanted ) {
+					$doc = $candidate;
+					break;
+				}
+			}
+		} else {
+			$doc = self::stored( $order );
+		}
+
 		if ( null === $doc ) {
 			wp_die(
-				esc_html__( 'La facture de cette commande n’est pas encore émise : elle l’est au règlement.', 'teeshoop' ),
+				esc_html__( 'Ce document n’est pas encore émis : la facture l’est au règlement, l’acompte à son encaissement.', 'teeshoop' ),
 				'',
 				array( 'response' => 409 )
 			);
@@ -1111,16 +1458,24 @@ final class Invoice {
 		exit;
 	}
 
-	/** The link a customer sees under their order. */
+	/** The links a customer sees under their order, one per document. */
 	public static function customer_link( \WC_Order $order ): void {
-		if ( null === self::stored( $order ) ) {
-			return;
+		foreach ( self::documents( $order ) as $doc ) {
+			printf(
+				'<p class="teeshoop-facture"><a href="%s">%s</a></p>',
+				esc_url( self::url( $order, (string) $doc['number'] ) ),
+				esc_html(
+					sprintf(
+						self::KIND_DEPOSIT === ( $doc['kind'] ?? self::KIND_INVOICE )
+							/* translators: %s: a document number. */
+							? __( 'Télécharger la facture d’acompte %s (PDF)', 'teeshoop' )
+							/* translators: %s: a document number. */
+							: __( 'Télécharger la facture %s (PDF)', 'teeshoop' ),
+						(string) $doc['number']
+					)
+				)
+			);
 		}
-		printf(
-			'<p class="teeshoop-facture"><a href="%s">%s</a></p>',
-			esc_url( self::url( $order ) ),
-			esc_html__( 'Télécharger la facture (PDF)', 'teeshoop' )
-		);
 	}
 
 	/** And the one an operator sees, with the reason when there is none. */
