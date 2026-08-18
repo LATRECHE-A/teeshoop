@@ -628,6 +628,14 @@ ts_it( 'still recognises the WooCommerce it was written against', function () {
 require_once __DIR__ . '/integration-checkout.php';
 ts_checkout_suite( $product_id, $hoodie_id, $bare_id );
 
+/*
+ * The third half: what the order cost, what it must not have been sold below,
+ * and what the salesperson earned. It runs AFTER the checkout suite because it
+ * needs the shipping zone, the customer and the VAT regime that one sets up.
+ */
+require_once __DIR__ . '/integration-margin.php';
+ts_margin_suite( $product_id );
+
 // And the one thing a single process cannot check about itself.
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();

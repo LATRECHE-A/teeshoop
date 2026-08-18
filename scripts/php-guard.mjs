@@ -192,6 +192,14 @@ const ALLOWED = new Map([
     { why: 'the tests for the direct-cost model', needles: ['Cost::', 'Margin::'] },
   ],
   [
+    'wp-plugins/teeshoop-core/tests/demo-order.php',
+    { why: 'builds the worked order the session report quotes; wp-cli only, guarded on PHP_SAPI, renders nothing', needles: ['Costing::'] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/integration-margin.php',
+    { why: 'the WooCommerce test for the costing; runs under wp-cli, renders to nobody', needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::'] },
+  ],
+  [
     'wp-plugins/teeshoop-core/tests/test-commission.php',
     { why: 'the tests for the commission', needles: ['Cost::', 'Commission::', 'Margin::'] },
   ],

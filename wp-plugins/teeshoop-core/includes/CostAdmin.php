@@ -292,6 +292,11 @@ final class CostAdmin {
 			'Trois postes de coût n’ont aucune valeur mesurée : la provision de défaut, les consommables et cinq des sept opérations d’atelier. Tant qu’ils sont vides, le plancher affiché sur une commande est un plancher MINIMUM : le vrai est au moins celui-là, et probablement plus haut.',
 			'teeshoop'
 		);
+		echo '</p><p>';
+		esc_html_e(
+			'Le contrôle du plancher se fait commande par commande, sur l’écran de la commande, et pas sur la grille publique. Ce n’est pas un oubli : le métrage de film dépend des visuels réellement imprimés, et une colonne de grille n’a pas de visuel à mesurer. Une commande, elle, en a.',
+			'teeshoop'
+		);
 		echo '</p>';
 
 		if ( ! Nest::configured() ) {
@@ -736,7 +741,7 @@ final class CostAdmin {
 		echo '<h4 style="margin-bottom:.4em">' . esc_html__( 'Ce qu’elle rapporte', 'teeshoop' ) . '</h4>';
 		echo '<div style="overflow-x:auto;max-width:100%"><table class="widefat striped"><tbody>';
 
-		self::row( __( 'Vendue HT', 'teeshoop' ), Money::format( (int) $report['revenue']['total_ht'] ), __( 'Marchandises, port et remises, hors taxes. Le même total que la facture.', 'teeshoop' ) );
+		self::row( __( 'Vendue HT', 'teeshoop' ), Money::format( (int) $report['revenue']['total_ht'] ), self::verdict_sentence( $verdict ) );
 		self::row(
 			__( 'Prix conseillé', 'teeshoop' ),
 			Money::format( (int) $plan['recommended_ht'] ),
@@ -749,7 +754,15 @@ final class CostAdmin {
 				? __( 'En dessous, une dérogation est nécessaire.', 'teeshoop' )
 				: __( 'Calculé sur un coût incomplet : le vrai plancher est au moins celui-là.', 'teeshoop' )
 		);
-		self::row( __( 'Marge contributive', 'teeshoop' ), Money::format( (int) $verdict['margin_ht'] ), self::verdict_sentence( $verdict ) );
+		self::row(
+			__( 'Marge contributive', 'teeshoop' ),
+			Money::format( (int) $verdict['margin_ht'] ),
+			sprintf(
+				/* translators: %s: the margin as a percentage of the selling price. */
+				__( '%s du prix de vente. C’est la base de la commission, jamais le chiffre d’affaires.', 'teeshoop' ),
+				Money::number( (float) $verdict['margin_rate'] * 100, 1 ) . "\u{00A0}%"
+			)
+		);
 		self::row(
 			__( 'Commission', 'teeshoop' ),
 			Money::format( (int) $report['commission']['earned_ht'] ),

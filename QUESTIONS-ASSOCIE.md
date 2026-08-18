@@ -241,6 +241,17 @@ chiffres, ou le minimum est-il en réalité **uniquement** un nombre de pièces 
 
 *Si vous ne répondez pas, on partira sur :* On utilise le prix d'achat renvoyé par l'interface Falk & Ross, sans remise, plus 8 EUR hors taxes de port en dessous de 200 EUR de commande, et le coût est signalé comme « estimé » à l'écran.
 
+*Ce que la séance 05 a trouvé, le 18 août :* le catalogue vous sauve à moitié.
+
+Les **459 références importées portent leur prix d'achat réel**, article par article, et le
+moteur de coût s'en sert directement. En revanche, les trois vêtements de démonstration du
+studio (t-shirt, sweat, vêtement fourni par le client) ne sont rattachés à aucune référence
+fournisseur : leur coût textile est **inconnu**, et une commande qui en contient n'a donc pas
+de prix plancher chiffrable. L'écran « Coûts et marges » vous permet de saisir un prix
+d'achat par vêtement, avec sa source et sa date, mais c'est un pansement : la vraie réponse
+est de rattacher chaque produit personnalisable à sa référence fournisseur, ce qui suppose
+votre grille.
+
 **Votre réponse :**
 
 > 
@@ -252,6 +263,21 @@ chiffres, ou le minimum est-il en réalité **uniquement** un nombre de pièces 
 *Pourquoi on a besoin de la réponse :* Le coût du marquage et le choix automatique entre la France (urgence) et l'Espagne (standard) reposent entièrement sur ces chiffres. C'est aussi ce qui permet de mesurer l'économie réelle de notre optimisation de placement des visuels sur le film.
 
 *Si vous ne répondez pas, on partira sur :* 17 EUR hors taxes le mètre linéaire en 56 cm en France (48 h), 9 EUR hors taxes en Espagne (5 jours), 15 EUR de livraison par commande, 1 mètre minimum, 5 % de perte prévue.
+
+*Ce que la séance 05 a trouvé, le 18 août :* vos deux tarifs sont maintenant dans le code et
+pilotent le coût de marquage de chaque commande. Il manque encore deux précisions.
+
+1. **La longueur maximale d'un fichier d'impression** chez votre fournisseur. Nous
+   travaillons sur 30 mètres. Ce nombre décide du nombre de feuilles facturées sur une
+   grosse commande, donc du nombre d'arrondis à la tranche de facturation.
+2. **Le tarif rapporté à la laize.** « 17 EUR le mètre linéaire de 56 cm » est un seul
+   tarif : si votre fournisseur livre en 58 ou en 60 cm, le prix au mètre n'est pas
+   comparable, et notre imbrication calcule sur la mauvaise largeur.
+
+Pour information : les tarifs **publics** relevés chez cinq imprimeurs français en juillet
+2026 vont de 5,45 à 15,99 EUR le mètre linéaire à l'unité. Si vos 17 EUR sont un tarif
+négocié, il est plus cher que les prix affichés ailleurs, et cela vaut la peine d'être
+vérifié avant que nous ne chiffrions six mois de commandes dessus.
 
 **Votre réponse :**
 
@@ -265,6 +291,26 @@ chiffres, ou le minimum est-il en réalité **uniquement** un nombre de pièces 
 
 *Si vous ne répondez pas, on partira sur :* 20 EUR de l'heure chargé, 45 secondes par pose de transfert, 60 secondes de préparation par commande.
 
+*Ce que la séance 05 a trouvé, le 18 août :* vos deux temps couvrent moins d'un sixième de
+ce que votre propre document facture.
+
+Avec 20,00 EUR de l'heure, 60 secondes de préparation par commande et 45 secondes par pose
+de transfert, la commande de 30 t-shirts de votre chapitre 1 coûte **7,83 EUR de
+main-d'œuvre**. Ce même chapitre y inscrit **45,00 EUR**. L'écart, **37,17 EUR**, correspond
+exactement aux cinq opérations que votre document énumère et que personne n'a jamais
+chronométrées : réception et tri, pelage, second pressage, contrôle, pliage et emballage.
+Soit environ 223 secondes par vêtement.
+
+Ce n'est pas un détail comptable : sur cette commande, ces 37,17 EUR déplacent le **prix
+plancher de 63,72 EUR**. Nous comptons donc ces cinq opérations à zéro, et le rapport de
+chaque commande affiche « jamais chronométrée » en face de chacune plutôt que de faire
+comme si elles étaient gratuites.
+
+**Une seule série chronométrée, montre en main, referme le trou.** Profitez-en pour nous
+donner aussi le **coût des consommables par vêtement** (feuille de transfert, adhésif,
+nettoyage de la presse) : le chapitre 1 les range dans les coûts directs et ne les chiffre
+nulle part, donc ils valent zéro eux aussi.
+
 **Votre réponse :**
 
 > 
@@ -276,6 +322,45 @@ chiffres, ou le minimum est-il en réalité **uniquement** un nombre de pièces 
 *Pourquoi on a besoin de la réponse :* Le moteur calcule le prix conseillé à partir du coût et du taux de marge, puis un prix plancher que le système refusera de franchir. Sans ces deux nombres, aucun prix ne peut être affiché ni aucune remise autorisée.
 
 *Si vous ne répondez pas, on partira sur :* Marge cible 55 % sur textile et marquage, contribution minimale 25 % du prix hors taxes, remise maximale de 15 % sans validation de votre part.
+
+*Ce que la séance 05 a trouvé, le 18 août :* trois choses, et la première change le prix de
+tout ce que vous vendez.
+
+**1. « Taux de marge » ne désigne pas le calcul que votre document applique.** En commerce
+français, le *taux de marge* est la marge rapportée au prix d'achat, et le *taux de marque*
+la marge rapportée au prix de vente. La formule du chapitre 1, « prix conseillé =
+coût / (1 − taux) », est celle du taux de **marque**, et son propre exemple chiffré le
+confirme (625 = 250 / 0,40). Le mot et le calcul ne disent donc pas la même chose. Sur un
+coût de 250,00 EUR, votre « 55 % » vaut **555,56 EUR** lu comme la formule et
+**387,50 EUR** lu comme les mots : **168,06 EUR d'écart sur une seule commande**, soit 43 %
+du plus petit des deux. Nous appliquons la formule, l'écran d'administration affiche les
+deux prix côte à côte, et nous avons besoin de savoir lequel vous aviez en tête.
+
+**2. La contribution minimale n'est pas du même type dans votre document et dans votre
+hypothèse par défaut.** Le chapitre 1 la prend en euros ; l'hypothèse la donne en pourcentage
+du prix (« 25 % du prix hors taxes »). Ce n'est pas la même formule, et la version en
+pourcentage a un cas **sans aucune solution** : garder 25 % du prix alors qu'on verse 80 %
+de la marge en commission est impossible quel que soit le prix. Les deux sont codées, la
+version en pourcentage est celle qui tourne, et le cas impossible est refusé au lieu de
+produire un prix plancher négatif.
+
+**3. Aux réglages actuels, aucune colonne de votre grille publique n'est vendable sans
+validation.** Mesuré en faisant tourner le moteur, sur un t-shirt acheté 3,37 EUR, imprimé
+d'un visuel en deux morceaux, avec le film réellement imbriqué :
+
+| Quantité | Prix public HT | Coût direct | Prix plancher | Prix conseillé | Verdict |
+|---|---|---|---|---|---|
+| 5 | 72,50 EUR | 65,03 EUR | 86,71 EUR | 144,51 EUR | **sous le plancher de 14,21 EUR** |
+| 10 | 123,20 EUR | 87,38 EUR | 116,51 EUR | 194,18 EUR | à valider |
+| 25 | 271,75 EUR | 163,36 EUR | 217,81 EUR | 363,02 EUR | à valider |
+| 50 | 471,00 EUR | 301,88 EUR | 402,51 EUR | 670,84 EUR | à valider |
+| 100 | 942,00 EUR | 569,15 EUR | 758,87 EUR | 1 264,78 EUR | à valider |
+
+Le coût de cette table est encore **incomplet** : il ne compte ni provision de défaut, ni
+consommables, ni cinq des sept opérations d'atelier, donc le vrai plancher est plus haut que
+la colonne qui l'affiche. Trois nombres peuvent expliquer l'écart et un seul est de notre
+fait : le tarif public affiché (une valeur de démonstration, jamais validée par vous), le
+prix d'achat, ou vos taux. Dites-nous lequel doit bouger.
 
 **Votre réponse :**
 
@@ -437,6 +522,12 @@ maintenue par Stripe, gratuite. Trois points qui demandent votre avis :
    livraison ne peut pas partir de la commande.
 3. **Le prélèvement SEPA est possible et change la promesse de délai** : un paiement SEPA
    met plusieurs jours à se confirmer et peut échouer après la commande. Le voulez-vous ?
+
+*Ce que nous comptons en attendant, depuis la séance 05 :* **1,5 % + 0,25 EUR par
+encaissement par carte**, le tarif public de Stripe pour les cartes européennes, appliqué au
+montant **TTC**, parce que la plateforme facture sur ce qu'elle encaisse et ne sait pas
+quelle part est votre TVA. Le virement et le chèque ne coûtent rien et sont comptés à zéro.
+Si vous avez négocié un autre tarif, c'est un réglage sur l'écran « Coûts et marges ».
 
 **Votre réponse :**
 
@@ -690,6 +781,17 @@ recopier depuis un Kbis.
 
 *Si vous ne répondez pas, on partira sur :* Remplacement si l'erreur vient de Teeshoop ; tolérance de position de plus ou moins 1 cm et écart de couleur d'écran accepté ; aucune reprise si le client s'est trompé de taille.
 
+*Ce qu'il nous manque pour chiffrer, depuis la séance 05 :* un **taux de non-conformité**.
+
+Le chapitre 1 range la « provision de défaut » parmi les coûts directs et ne donne aucun
+chiffre ; son exemple chiffré la fond dans une seule ligne « paiement et provision SAV :
+16 EUR », dont elle ne se déduit pas. Nous la comptons donc à zéro, et c'est le sens
+**dangereux** : un zéro ici **abaisse** le prix plancher, donc autorise des ventes qu'il
+faudrait refuser. Le rapport de chaque commande signale la ligne comme non renseignée, et
+refuse de déclarer le coût complet tant qu'elle l'est.
+
+Un pourcentage de pièces à refaire, même approximatif, suffit.
+
 **Votre réponse :**
 
 > 
@@ -719,6 +821,22 @@ recopier depuis un Kbis.
 *Pourquoi on a besoin de la réponse :* Le calcul de commission est automatique et s'affiche en direct au commercial pendant qu'il négocie. Il faut les taux exacts, la durée d'attribution d'un client et les cas de reprise, sinon les commissions seront contestées dès les premières ventes.
 
 *Si vous ne répondez pas, on partira sur :* 40 % sur la première commande, 25 % sur une nouvelle commande, 12 % sur un réassort, 0 % sur une commande passée seule sur le site ; attribution du client pendant 12 mois ; commission définitive 30 jours après livraison sans litige.
+
+*Une question que votre document ne tranche pas, trouvée en séance 05 :* **qu'acquiert un
+commercial sur un acompte ?**
+
+Le chapitre 1 dit que la commission porte sur « la marge contributive encaissée » et qu'elle
+devient provisoire « à l'encaissement ». Il ne dit pas ce que rapporte un paiement partiel.
+Deux lectures possibles : rien jusqu'au dernier centime, ou la part proportionnelle à ce qui
+est arrivé. Nous avons pris la seconde, parce que la première fait de la commission une
+marche d'escalier qui paie 0 EUR sur un acompte de 3 000 EUR puis tout d'un coup. Confirmez,
+parce que cela figurera dans leur contrat.
+
+Pour mémoire, sur l'exemple chiffré de votre chapitre 1 : la commission vaut 150,00 EUR sur
+la marge contributive, 250,00 EUR si on la calculait sur le chiffre d'affaires et
+300,00 EUR sur le TTC, alors que la commande ne laisse que 225,00 EUR avant frais fixes.
+Deux de ces trois lectures paient plus que ce que la commande rapporte. C'est bien la
+première qui est codée.
 
 **Votre réponse :**
 

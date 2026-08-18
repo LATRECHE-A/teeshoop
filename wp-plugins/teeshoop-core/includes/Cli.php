@@ -534,6 +534,16 @@ final class Cli {
 		\WP_CLI::log( sprintf( '  %-22s %s   %s (%s)', 'Commission', $money( (int) $report['commission']['earned_ht'] ), (string) $report['state']['state'], (string) $report['sale_type'] ) );
 		\WP_CLI::log( sprintf( '  %-22s %s', 'Reste à Teeshoop', $money( (int) $report['verdict']['margin_ht'] - (int) $report['commission']['full_ht'] ) ) );
 
+		$verdict = 'VENDABLE SANS VALIDATION';
+		if ( ! empty( $report['verdict']['below_cost'] ) ) {
+			$verdict = 'SOUS LE COÛT DIRECT';
+		} elseif ( ! empty( $report['verdict']['below_floor'] ) ) {
+			$verdict = empty( $report['covered'] ) ? 'SOUS LE PLANCHER, SANS DÉROGATION' : 'SOUS LE PLANCHER, SOUS DÉROGATION';
+		} elseif ( ! empty( $report['verdict']['needs_approval'] ) ) {
+			$verdict = 'REMISE AU-DELÀ DE CE QU’UN COMMERCIAL PEUT ACCORDER';
+		}
+		\WP_CLI::log( sprintf( '  %-22s %s', 'Verdict', str_pad( $verdict, 14, ' ', STR_PAD_LEFT ) ) );
+
 		if ( is_array( $report['film'] ) ) {
 			\WP_CLI::log( '' );
 			\WP_CLI::log(

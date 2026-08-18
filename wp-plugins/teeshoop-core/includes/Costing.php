@@ -561,6 +561,26 @@ final class Costing {
 			$warnings[] = __( 'Cette commande a été vendue en dessous de son coût direct connu.', 'teeshoop' );
 		}
 
+		/*
+		 * THE ONE THE CHAPTER ASKS FOR. A sale under the floor needs an
+		 * exception, and an exception is only an exception while it covers this
+		 * price and this floor: see `derogation_covers`. Reported here rather
+		 * than only on the screen so it reaches the CLI report and anything else
+		 * that reads a stored one.
+		 */
+		$derogation = self::derogation( $order );
+		if ( $verdict['below_floor'] ) {
+			$warnings[] = self::derogation_covers( $derogation, $verdict, $plan, Settings::today() )
+				? sprintf(
+					/* translators: %s: who authorised the sale below the floor. */
+					__( 'Vendue sous le prix plancher, sous dérogation accordée par %s.', 'teeshoop' ),
+					(string) $derogation['approver']
+				)
+				: __( 'Vendue sous le prix plancher, sans dérogation en cours : il en faut une, avec un motif, un valideur et une durée.', 'teeshoop' );
+		} elseif ( $verdict['needs_approval'] ) {
+			$warnings[] = __( 'La remise consentie dépasse ce qu’un commercial peut accorder seul : cette vente demandait votre accord.', 'teeshoop' );
+		}
+
 		return array(
 			'version'     => self::VERSION,
 			'computed_on' => Settings::today(),
@@ -579,7 +599,8 @@ final class Costing {
 			'seller'      => self::seller( $order ),
 			'commission'  => $accrued + array( 'known_rate' => null !== $rate ),
 			'state'       => $state,
-			'derogation'  => self::derogation( $order ),
+			'derogation'  => $derogation,
+			'covered'     => self::derogation_covers( $derogation, $verdict, $plan, Settings::today() ),
 			'warnings'    => $warnings,
 		);
 	}
