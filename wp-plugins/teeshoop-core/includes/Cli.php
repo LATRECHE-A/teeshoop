@@ -655,7 +655,17 @@ final class Cli {
 		$product->set_slug( self::DEMO_SLUG );
 		$product->set_status( 'publish' );
 		$product->set_catalog_visibility( 'visible' );
-		$product->set_regular_price( number_format( Money::to_eur( (int) Settings::pricing()['garments']['tee']['base_ht'] ), 2, '.', '' ) );
+		/*
+		 * Read defensively, because `merge_config` replaces the whole `garments`
+		 * map on purpose: an admin who overlays it without a `tee` key is doing
+		 * something the price config explicitly allows, and a demo product is not
+		 * a reason to fatal on their site. No key, no price written, and the
+		 * product keeps whatever it had.
+		 */
+		$ts_blank = Settings::pricing()['garments']['tee']['base_ht'] ?? null;
+		if ( null !== $ts_blank ) {
+			$product->set_regular_price( number_format( Money::to_eur( (int) $ts_blank ), 2, '.', '' ) );
+		}
 		$product->set_short_description(
 			'Un t-shirt à personnaliser avec votre logo, votre texte ou votre visuel. '
 			. 'Imprimé à la demande, à partir d’une pièce.'

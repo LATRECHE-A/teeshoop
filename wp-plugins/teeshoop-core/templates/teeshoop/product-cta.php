@@ -280,15 +280,15 @@ $ts_over_cap  = ! empty( $request['over_cap'] );
 
 	<?php
 	/*
-	 * ONE MARKER, DRAWN FROM THE REGISTER. It draws nothing for a visitor:
- * `Hypotheses::note` checks the capability itself.
+	 * THE MARKER IS NOT HERE, and that is deliberate.
 	 *
-	 * This note used to be a sentence typed here, and it sent the reader to
-	 * question 04, which is about DTF supplier rates. The selling grid is
-	 * questions 03, 06 and 08. `Hypotheses` reads which values on this page are
-	 * still assumed and names their real questions, so the pointer cannot be
-	 * wrong and cannot go stale.
+	 * A sentence used to be typed here saying the grid was a demonstration, and
+	 * it sent the reader to question 04, which is about DTF supplier rates and
+	 * settles no selling price. It is now drawn from `docs/hypotheses.json`, ONCE
+	 * per page, under the price grid a few blocks below: this box shows one
+	 * estimate and that block is the price list, so that is where a reader
+	 * checking prices is looking. `Hypotheses::note` enforces the once-per-page
+	 * rule itself, so a second call here would print nothing anyway.
 	 */
-	Teeshoop\Core\Hypotheses::note( Teeshoop\Core\Hypotheses::HOME_PRICING );
 	?>
 </div>

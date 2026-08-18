@@ -41,6 +41,12 @@ final class Hypotheses {
 	/** @var array<int,array<string,mixed>>|null Parsed once per request. */
 	private static ?array $cache = null;
 
+	/** Whether the last read actually reached a well-formed projection. */
+	private static bool $readable = false;
+
+	/** One marker per request, however many blocks ask for it. */
+	private static bool $drawn = false;
+
 	/** The register's home prefix for everything the price authority holds. */
 	public const HOME_PRICING = 'php:Teeshoop\\Core\\Pricing::default_config()';
 
@@ -49,12 +55,19 @@ final class Hypotheses {
 	}
 
 	/**
-	 * The rows, or none.
+	 * The rows, and separately whether we were able to read them.
 	 *
-	 * None is a legible state: no marker is drawn, which is what a shop with
-	 * nothing left to assume should look like. It is never a guess, and the
-	 * continuous integration check refuses a missing or stale file, so "none"
-	 * here cannot quietly mean "the file went away".
+	 * THESE ARE TWO STATES, NOT ONE, and conflating them is the defect this
+	 * project keeps finding in its own code: "there is nothing assumed here" and
+	 * "I could not look" are different answers, and only one of them means the
+	 * marker should stay quiet. A deploy that copies `includes/` and not `data/`
+	 * would otherwise produce a shop that silently claims every figure on it is
+	 * decided, which is the single thing this class exists to prevent.
+	 *
+	 * The file is executable PHP, so a truncated one is a ParseError and not a
+	 * caught decoding failure. `require` is wrapped for that reason: a half
+	 * written projection must degrade to a warning on an admin screen, never to
+	 * a fatal on a product page.
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
@@ -63,16 +76,55 @@ final class Hypotheses {
 			return self::$cache;
 		}
 
+		self::$cache    = array();
+		self::$readable = false;
+
 		$path = self::path();
 		if ( ! is_readable( $path ) ) {
-			self::$cache = array();
 			return self::$cache;
 		}
 
-		$rows = require $path;
+		try {
+			$rows = require $path;
+		} catch ( \Throwable $e ) {
+			return self::$cache;
+		}
 
-		self::$cache = is_array( $rows ) ? array_values( array_filter( $rows, 'is_array' ) ) : array();
+		if ( ! is_array( $rows ) ) {
+			return self::$cache;
+		}
+
+		self::$readable = true;
+		self::$cache    = array_values( array_filter( $rows, 'is_array' ) );
 		return self::$cache;
+	}
+
+	/** Whether the projection was actually read. False is a fault, not an empty register. */
+	public static function readable(): bool {
+		self::rows();
+		return self::$readable;
+	}
+
+	/**
+	 * Top-level price-config keys a stored option overrides.
+	 *
+	 * The register homes every money row at `Pricing::default_config()`, which is
+	 * what ships. What the cart charges is `Settings::pricing()`, the stored
+	 * `teeshoop_pricing` option merged over those defaults, and the README
+	 * documents that option as the supported way to change one value. So an
+	 * overridden key means the row's statement describes the shipped default and
+	 * not what this shop charges, and the screen says so rather than letting the
+	 * reader assume otherwise. Only the key names are read, never the values:
+	 * this method is about provenance, not about money.
+	 *
+	 * @return string[]
+	 */
+	public static function overridden_keys(): array {
+		$stored = get_option( OPTION_PRICING, array() );
+		if ( ! is_array( $stored ) || empty( $stored ) ) {
+			return array();
+		}
+		return array_values( array_intersect( array_keys( $stored ), array_keys( Pricing::default_config() ) ) );
 	}
 
 	/**
@@ -131,12 +183,47 @@ final class Hypotheses {
 			return;
 		}
 
+		/*
+		 * ONCE PER REQUEST, not once per block.
+		 *
+		 * A product page draws the buy box and the price grid, and both are about
+		 * the same price config, so both used to print the same paragraph. Two
+		 * identical notices on one page is the badge soup the design bar bans,
+		 * and it teaches the reader to skip the thing they are supposed to read.
+		 */
+		if ( self::$drawn ) {
+			return;
+		}
+
+		/*
+		 * "Could not look" is not "nothing to say".
+		 *
+		 * A missing or unreadable projection produces no rows, which would render
+		 * a page carrying ten assumed figures as though every one of them were
+		 * decided. So the fault gets its own sentence.
+		 */
+		if ( ! self::readable() ) {
+			self::$drawn = true;
+			?>
+			<p class="ts-admin-note">
+				<?php
+				esc_html_e(
+					'Visible par vous seul : le registre des hypothèses de l’extension est introuvable ou illisible, donc cette page ne peut pas dire lesquels de ses montants sont supposés. Ce n’est pas la même chose que « tout est validé ».',
+					'teeshoop'
+				);
+				?>
+			</p>
+			<?php
+			return;
+		}
+
 		$rows = self::assumed_at( $home_prefix );
 		if ( empty( $rows ) ) {
 			return;
 		}
 
-		$url = admin_url( 'admin.php?page=teeshoop-hypotheses' );
+		self::$drawn = true;
+		$url         = admin_url( 'admin.php?page=teeshoop-hypotheses' );
 		?>
 		<p class="ts-admin-note">
 			<?php
@@ -144,8 +231,8 @@ final class Hypotheses {
 				esc_html(
 					/* translators: 1: a number of values, 2: a list of question numbers. */
 					_n(
-						'Visible par vous seul : %1$d valeur de cette page est une hypothèse et non une décision de l’associé (question %2$s).',
-						'Visible par vous seul : %1$d valeurs de cette page sont des hypothèses et non des décisions de l’associé (questions %2$s).',
+						'Visible par vous seul : %1$d valeur du calcul de prix de cette boutique est une hypothèse et non une décision de l’associé (question %2$s).',
+						'Visible par vous seul : %1$d valeurs du calcul de prix de cette boutique sont des hypothèses et non des décisions de l’associé (questions %2$s).',
 						count( $rows ),
 						'teeshoop'
 					)
@@ -223,9 +310,23 @@ final class Hypotheses {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Les hypothèses de la boutique', 'teeshoop' ) . '</h1>';
 
+		if ( ! self::readable() ) {
+			// The fault and the empty register get different sentences, because
+			// they call for different actions: one is a deploy to repair, the
+			// other is a project with nothing left to assume.
+			echo '<div class="notice notice-error"><p>' . esc_html(
+				sprintf(
+					/* translators: %s: a file path inside the plugin. */
+					__( 'Le registre est introuvable ou illisible : %s. Tant que c’est le cas, aucune page ne peut dire lesquels de ses montants sont supposés, ce qui n’est pas la même chose que « tout est validé ». Il est engendré par « node scripts/hypotheses-guard.mjs --write » et doit être déployé avec l’extension.', 'teeshoop' ),
+					'data/hypotheses.php'
+				)
+			) . '</p></div></div>';
+			return;
+		}
+
 		if ( empty( $rows ) ) {
 			echo '<p>' . esc_html__(
-				'Aucune hypothèse enregistrée pour la boutique. Si ce n’est pas ce que vous attendiez, le fichier data/hypotheses.json de l’extension est absent ou illisible.',
+				'Aucune hypothèse n’est enregistrée pour la boutique : plus rien ici n’attend une réponse de l’associé.',
 				'teeshoop'
 			) . '</p></div>';
 			return;
@@ -235,6 +336,23 @@ final class Hypotheses {
 			'Ces valeurs ont été choisies à la place de l’associé, faute de réponse, et le site s’appuie dessus. Chacune n’existe qu’à un seul endroit dans le code, et un contrôle automatique échoue si une copie apparaît ailleurs. Le registre complet, y compris ce qui ne concerne pas la boutique, est dans docs/hypotheses.json.',
 			'teeshoop'
 		) . '</p>';
+
+		/*
+		 * The register describes what the plugin SHIPS. A stored option can
+		 * override any of it, and the README documents that as the supported way
+		 * to set a value, so the reader has to be told when a row's sentence is
+		 * no longer what this shop charges.
+		 */
+		$overridden = self::overridden_keys();
+		if ( ! empty( $overridden ) ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html(
+				sprintf(
+					/* translators: %s: a list of configuration keys. */
+					__( 'Attention : un réglage enregistré remplace ce que l’extension livre pour %s. Les phrases ci-dessous décrivent les valeurs livrées, pas forcément celles que cette boutique facture.', 'teeshoop' ),
+					implode( ', ', $overridden )
+				)
+			) . '</p></div>';
+		}
 
 		echo '<table class="widefat striped"><thead><tr>';
 		echo '<th scope="col">' . esc_html__( 'Ce qui est supposé', 'teeshoop' ) . '</th>';

@@ -234,7 +234,7 @@ return array(
 		'level' => 'bloquant',
 		'status' => 'assumption',
 		'since' => '2026-08-14',
-		'statement_fr' => 'Trois familles sont publiées, t-shirts, polos et sweats, sans plafond de nombre de références.',
+		'statement_fr' => 'Trois familles sont publiées, t-shirts, polos et sweats, sans plafond de nombre de références. La règle est écrite des deux côtés : le Worker filtre ce qu\'il renvoie, l\'extension décide ce qu\'elle dépublie.',
 		'home' => 'phpconst:Teeshoop\\Core\\Catalogue::PRINTABLE_FAMILIES',
 		'reaches' => array(
 			'operator',
@@ -254,9 +254,9 @@ return array(
 		'statement_fr' => 'Des trois nombres de stock que le fournisseur donne par article, seul le premier est traité comme du stock vendable.',
 		'home' => 'phpconst:Teeshoop\\Core\\Catalogue::STOCK_INDEX',
 		'reaches' => array(
-			'customer',
-			'operator',
 			'supplier',
+			'operator',
+			'internal',
 		),
 		'cost_if_late' => 'reglage',
 		'sessions' => array(

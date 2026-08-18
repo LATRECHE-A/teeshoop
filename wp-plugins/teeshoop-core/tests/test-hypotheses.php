@@ -96,10 +96,14 @@ describe( 'Hypotheses: the shop\'s copy of the register', function (): void {
 		eq( Hypotheses::question_list( $rows ), '02, 06, 17' );
 	} );
 
-	it( 'says nothing rather than something wrong when the file is gone', function (): void {
-		// A missing projection must render no marker at all: a marker that says
-		// "0 valeurs" would read as "everything here is decided", which is the
-		// one thing it must never say.
+	it( 'knows the difference between reading nothing and reading a file that is not there', function (): void {
+		// The shipped projection is present, so this is true. It is asserted
+		// because the whole point of the flag is that an empty list is not
+		// evidence of an empty register, and a flag nothing checks is a comment.
+		truthy( Hypotheses::readable(), 'the shipped projection did not read as readable' );
+	} );
+
+	it( 'returns nothing for a home nobody registered', function (): void {
 		$rows = Hypotheses::assumed_at( 'php:Teeshoop\\Core\\NoSuchClass::nothing()' );
 		eq( $rows, array() );
 	} );

@@ -170,8 +170,9 @@ if ( empty( $rows ) ) {
 
 	<?php
 	/*
-	 * ONE MARKER, DRAWN FROM THE REGISTER. It draws nothing for a visitor:
- * `Hypotheses::note` checks the capability itself.
+	 * ONE MARKER, DRAWN FROM THE REGISTER, and the only one on the page.
+	 * It draws nothing for a visitor: `Hypotheses::note` checks the capability
+	 * and the once-per-page rule itself.
 	 *
 	 * The sentence that used to be here sent the reader to question 04, which
 	 * is about DTF supplier rates; the selling grid is questions 03, 06 and 08.

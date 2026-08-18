@@ -137,8 +137,17 @@ const ALLOWED = new Map([
 /**
  * Directories whose contents reach a browser directly, where a needle is worse
  * than elsewhere. Reported separately so a failure says how bad it is.
+ *
+ * `data/` joined the list when `Hypotheses::screen()` started printing
+ * `data/hypotheses.php` into an admin page. The four `rendered`-scoped needles
+ * are ordinary French words a docblock may legitimately use; a file that is
+ * echoed to a browser has no such excuse, and that one now is.
  */
-const RENDERED = ['wp-plugins/teeshoop-core/templates/', 'wp-plugins/teeshoop-core/assets/']
+const RENDERED = [
+  'wp-plugins/teeshoop-core/templates/',
+  'wp-plugins/teeshoop-core/assets/',
+  'wp-plugins/teeshoop-core/data/',
+]
 
 const SCAN_EXT = new Set(['.php', '.js', '.css', '.json', '.html'])
 

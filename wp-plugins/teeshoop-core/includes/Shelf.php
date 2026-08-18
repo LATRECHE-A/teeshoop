@@ -164,6 +164,25 @@ final class Shelf {
 					);
 				}
 				echo '</p>';
+
+				/*
+				 * THE COLOUR NAMES ARE THE MAKER'S, AND THE PAGE SAYS SO.
+				 *
+				 * This page is a colour list and a size list, and the names in it
+				 * are written exactly as the manufacturer writes them: "Heather
+				 * Grey", "Bottle Green". Translating them is question 44 and the
+				 * shipped answer is not to, because a professional buyer looking
+				 * for "Sport Grey" is looking for the word on the label and in the
+				 * paper catalogue. That is an assumption a customer meets, so it
+				 * is registered as H-Q44-COLORIS-NON-TRADUITS and it is said out
+				 * loud rather than left as a silent oddity.
+				 */
+				echo '<p class="teeshoop-colour-source">';
+				esc_html_e(
+					'Les coloris portent le nom du fabricant, celui de l’étiquette et des catalogues papier.',
+					'teeshoop'
+				);
+				echo '</p>';
 			},
 			30
 		);

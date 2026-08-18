@@ -60,7 +60,7 @@
  *       php or esbuild unavailable, or the self-test did not fire).
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -419,7 +419,7 @@ function validateShape(data) {
 // The checks. Each returns a list of failures; an empty list is a pass.
 
 /** 1 + 2: every reference resolves, and home and mirrors hold the same value. */
-function checkResolvesAndAgrees(entries, roots) {
+function checkResolvesAndAgrees(entries, roots, skipped = []) {
   const fails = []
   const resolve = (ref) => {
     const parsed = parseRef(ref)
@@ -451,7 +451,13 @@ function checkResolvesAndAgrees(entries, roots) {
         fails.push({ check: 'resolves', id: entry.id, where: mirror.ref, why: got.why })
         continue
       }
-      if (home.presenceOnly || got.presenceOnly) continue
+      if (home.presenceOnly || got.presenceOnly) {
+        // An anchor has no value to compare, so the declared relation cannot
+        // run. Counted and printed rather than passed over: a comparison that
+        // silently did not happen reads exactly like one that succeeded.
+        skipped.push(`${entry.id} -> ${mirror.ref}`)
+        continue
+      }
       const relation = mirror.relation ?? 'equal'
       const fn = RELATIONS[relation]
       if (!fn) {
@@ -491,15 +497,32 @@ function checkNoSecondCopy(entries, files) {
      * check that found nothing.
      */
     const scope = entry.literal_scope ?? []
+    /*
+     * "Found at home" counts hits in the HOME and its MIRRORS only, never in the
+     * allow-list. Counting the allow-list too meant a mistyped literal could be
+     * kept alive by a test fixture that happens to contain the same digits: the
+     * check that exists to stop "nothing found" reading as "nothing wrong" would
+     * itself have been satisfied by the wrong file.
+     */
+    const homes = new Set([...refFiles(entry.home), ...entry.mirrors.flatMap((m) => refFiles(m.ref))])
+    /*
+     * Counted across the row, not per literal.
+     *
+     * A value can have more than one written form and the home holds only one
+     * of them: H-Q17-TVA declares the fraction the price config keeps and the
+     * four-decimal percentage WooCommerce keeps, and the second is nowhere near
+     * Pricing.php by design. What must be true is that the row describes
+     * something real, which is one form found where the row says it lives.
+     */
+    let foundAtHome = 0
     for (const literal of entry.literals) {
       const re = literalRegex(literal)
-      let foundAtHome = 0
       for (const [path, abs] of byPath) {
         if (scope.length > 0 && !scope.some((prefix) => path.startsWith(prefix)) && !allowed.has(path)) continue
         const hits = [...textOf(abs).matchAll(re)]
         if (hits.length === 0) continue
         if (allowed.has(path)) {
-          foundAtHome += hits.length
+          if (homes.has(path)) foundAtHome += hits.length
           continue
         }
         const text = textOf(abs)
@@ -512,16 +535,16 @@ function checkNoSecondCopy(entries, files) {
           })
         }
       }
-      if (foundAtHome === 0) {
-        // A literal that matches nothing is indistinguishable from a scanner
-        // that read nothing.
-        fails.push({
-          check: 'second-copy',
-          id: entry.id,
-          where: [...allowed].join(', ') || '(nowhere declared)',
-          why: `the declared literal is not written in its own home; the register describes something that is not there`,
-        })
-      }
+    }
+    if (foundAtHome === 0) {
+      // A literal that matches nothing is indistinguishable from a scanner that
+      // read nothing.
+      fails.push({
+        check: 'second-copy',
+        id: entry.id,
+        where: [...homes].join(', ') || '(nowhere declared)',
+        why: 'no declared literal is written in this row\'s home or mirrors; the register describes something that is not there',
+      })
     }
   }
   return fails
@@ -546,8 +569,17 @@ function literalRegex(literal) {
 /** 4: every Bloquant question is accounted for. */
 function checkNothingForgotten(entries, data, questionsText) {
   const fails = []
-  const blocking = parseBlockingQuestions(questionsText)
-  if (blocking.length === 0) return { fails, blocking, untrustworthy: true }
+  const { blocking, unreadable } = parseBlockingQuestions(questionsText)
+  if (blocking.length === 0) {
+    return { fails, blocking, untrustworthy: 'no Bloquant question was parsed out of QUESTIONS-ASSOCIE.md' }
+  }
+  if (unreadable.length > 0) {
+    return {
+      fails,
+      blocking,
+      untrustworthy: `${unreadable.join(', ')}: no level this guard can read, so it cannot tell "not blocking" from "not understood"`,
+    }
+  }
 
   const covered = new Set(entries.map((e) => e.question))
   const excused = new Map((data.not_applicable ?? []).map((na) => [na.question, na.why]))
@@ -573,14 +605,30 @@ function checkNothingForgotten(entries, data, questionsText) {
  */
 function parseBlockingQuestions(text) {
   const out = []
+  const unreadable = []
   const sections = text.split(/^### /m).slice(1)
   for (const section of sections) {
     const num = section.match(/^(\d+)\./)
     if (!num) continue
     const body = section.split(/^## /m)[0]
-    if (/\*\*Bloquant\*\*/.test(body)) out.push(`Q${String(num[1]).padStart(2, '0')}`)
+    const id = `Q${String(num[1]).padStart(2, '0')}`
+    const level = body.match(/\*\*(Bloquant|Important|Utile|Secondaire|À confirmer)\*\*/)
+    /*
+     * A level the parser does not recognise is NOT "not blocking".
+     *
+     * The document already carries a fifth vocabulary word ("À confirmer") that
+     * an earlier version of this parser could not read, and a sixth would be
+     * silently treated as harmless: the one check that makes forgetting
+     * impossible would forget. So an unknown level makes the scan
+     * untrustworthy, and the guard exits 2 rather than passing.
+     */
+    if (!level) {
+      unreadable.push(id)
+      continue
+    }
+    if (level[1] === 'Bloquant') out.push(id)
   }
-  return out
+  return { blocking: out, unreadable }
 }
 
 /** 5: an assumed value a customer meets is labelled, in French, in a real table. */
@@ -724,19 +772,20 @@ async function run(ledgerData, { questionsText, files, tables }) {
   if (!ts.ok) return { untrustworthy: ts.why }
   const roots = { ...php.roots, ...ts.roots, ...loadJsonRoots([...jsonFiles]) }
 
+  const skippedComparisons = []
   const forgotten = checkNothingForgotten(entries, ledgerData, questionsText)
   if (forgotten.untrustworthy) {
-    return { untrustworthy: 'no Bloquant question was parsed out of QUESTIONS-ASSOCIE.md' }
+    return { untrustworthy: forgotten.untrustworthy }
   }
 
   const fails = [
     ...shape.map((why) => ({ check: 'shape', id: '', where: rel(LEDGER), why })),
-    ...checkResolvesAndAgrees(entries, roots),
+    ...checkResolvesAndAgrees(entries, roots, skippedComparisons),
     ...checkNoSecondCopy(entries, files),
     ...forgotten.fails,
     ...checkSaidOutLoud(entries, tables),
   ]
-  return { fails, blocking: forgotten.blocking }
+  return { fails, blocking: forgotten.blocking, skippedComparisons }
 }
 
 // ─── the world, read once ────────────────────────────────────────────────────
@@ -755,7 +804,16 @@ if (tables.length === 0) die(2, 'hypotheses-guard: found no string table. A labe
 
 if (WRITE) {
   mkdirSync(dirname(SHOP_COPY), { recursive: true })
-  writeFileSync(SHOP_COPY, projectForShop(ledger.data))
+  /*
+   * Written aside and renamed, because the shop `require`s this file.
+   * A half-written JSON file parses as invalid and is caught; a half-written
+   * PHP file is a ParseError, which in WordPress is a fatal error on a product
+   * page. rename() within one directory is atomic on every filesystem this
+   * project runs on.
+   */
+  const tmp = `${SHOP_COPY}.tmp`
+  writeFileSync(tmp, projectForShop(ledger.data))
+  renameSync(tmp, SHOP_COPY)
   console.log(`hypotheses-guard: wrote ${rel(SHOP_COPY)}`)
   process.exit(0)
 }
@@ -809,7 +867,7 @@ if (SELF_TEST) {
       name: 'nothing-forgotten',
       why: 'a Bloquant question with no row and no reason',
       mutate: (d) => {
-        const blocking = parseBlockingQuestions(questionsText)
+        const { blocking } = parseBlockingQuestions(questionsText)
         const victim = blocking.find((q) => d.entries.some((e) => e.question === q)) ?? blocking[0]
         d.entries = d.entries.filter((e) => e.question !== victim)
         d.not_applicable = (d.not_applicable ?? []).filter((na) => na.question !== victim)
@@ -882,6 +940,12 @@ console.log(
 )
 // Not failures, but never silent: a check that looked in fewer places, or did
 // not look at all, must not read like a check that found nothing.
+if ((result.skippedComparisons ?? []).length > 0) {
+  console.log(
+    `  ${result.skippedComparisons.length} mirror comparison(s) could not run because one end is an anchor: ` +
+      result.skippedComparisons.join(', '),
+  )
+}
 if (scoped.length > 0) {
   console.log(`  ${scoped.length} row(s) hunted in a declared scope only: ${scoped.map((e) => e.id).join(', ')}`)
 }

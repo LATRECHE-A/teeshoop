@@ -120,10 +120,15 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 	 */
 	global $wpdb;
 	$wpdb->query( "DELETE FROM {$wpdb->prefix}woocommerce_tax_rates WHERE tax_rate_name = 'TVA'" );
+	/*
+	 * Derived, not typed. A harness that asserts the cart total against the
+	 * quote's TTC while writing its own idea of the rate would agree with itself
+	 * and with nothing else, which is the failure the comment above describes.
+	 */
 	\WC_Tax::_insert_tax_rate(
 		array(
 			'tax_rate_country'  => 'FR',
-			'tax_rate'          => '20.0000',
+			'tax_rate'          => number_format( (float) \Teeshoop\Core\Settings::pricing()['vat_rate'] * 100, 4, '.', '' ),
 			'tax_rate_name'     => 'TVA',
 			'tax_rate_priority' => 1,
 			'tax_rate_shipping' => 1,

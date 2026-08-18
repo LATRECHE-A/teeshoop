@@ -124,7 +124,7 @@
 				"wp-plugins/teeshoop-core/tests/test-pricing.php"
 			],
 			"literal_allow_why": "Le test écrit sa propre configuration de prix.",
-			"literal_scope_why": "1200 est aussi une dimension de rendu dans huit harnesses de capture. Il est donc cherché là où un second PRIX pourrait s'écrire : l'extension, la table du studio et le pont qui les relie."
+			"literal_scope_why": "1200 apparaît dans huit harnesses de capture comme dimension de rendu, dans treize fichiers en tout. Il est donc cherché là où un second PRIX pourrait s'écrire : l'extension, la table du studio et le pont qui les relie."
 		},
 		{
 			"id": "H-Q06-MARQUAGE-FACE-SUP",
@@ -136,9 +136,29 @@
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.extra_side_ht",
 			"mirrors": [
 				{
+					"ref": "php:Teeshoop\\Core\\Pricing::default_config()#garments.hoodie.extra_side_ht",
+					"relation": "equal",
+					"why": "la même valeur, réécrite pour le sweat dans la même table."
+				},
+				{
+					"ref": "php:Teeshoop\\Core\\Pricing::default_config()#garments.custom.extra_side_ht",
+					"relation": "equal",
+					"why": "et une troisième fois pour le vêtement fourni par le client."
+				},
+				{
 					"ref": "ts:src/content/pricing.ts#PRICING.tee.perExtraSideUsd",
 					"relation": "eur-to-cents",
-					"why": "même table de démonstration que le t-shirt."
+					"why": "la table de démonstration du studio la réécrit une fois par vêtement, elle aussi."
+				},
+				{
+					"ref": "ts:src/content/pricing.ts#PRICING.hoodie.perExtraSideUsd",
+					"relation": "eur-to-cents",
+					"why": "deuxième copie côté studio."
+				},
+				{
+					"ref": "ts:src/content/pricing.ts#PRICING.custom.perExtraSideUsd",
+					"relation": "eur-to-cents",
+					"why": "troisième copie côté studio."
 				}
 			],
 			"literals": [
@@ -155,7 +175,7 @@
 			],
 			"cost_if_late": "reglage et remesure",
 			"label_fr": "Prix à la pièce, impression comprise.",
-			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. À noter, sans réponse à ce jour : une face supplémentaire coûte plus cher que la première (6,00 contre 5,00), ce qui n'est écrit nulle part comme une intention commerciale.",
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. Deux choses à savoir avant de répondre : une face supplémentaire coûte plus cher que la première (6,00 contre 5,00), ce qui n'est écrit nulle part comme une intention commerciale ; et la valeur est la même pour les trois vêtements, ce qui est une coïncidence tenue par un contrôle et non par le code.",
 			"literal_scope": [
 				"wp-plugins/",
 				"src/content/",
@@ -167,7 +187,7 @@
 				"src/lib/teeshoop/bridge.test.ts"
 			],
 			"literal_allow_why": "Dans l'importeur, 600 est un nombre de secondes dans un exemple de ligne de commande ; les deux autres sont des tests.",
-			"literal_scope_why": "600 apparaît dix-sept fois dans le dépôt comme dimension, comme délai et comme taille de police. Il est cherché là où un second prix par face pourrait s'écrire. À signaler : la valeur est écrite trois fois dans son propre foyer, une par vêtement, ce qui est une duplication interne à traiter par la séance 05 quand la grille sera vraie ; la démonter aujourd'hui reviendrait à redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire."
+			"literal_scope_why": "600 apparaît dans dix-sept fichiers du dépôt comme dimension, comme délai et comme taille de police, et trente-quatre fois en tout. Il est cherché là où un second prix par face pourrait s'écrire. La valeur est écrite SIX fois au total, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées ci-dessus comme miroirs et comparées, faute de pouvoir les supprimer sans redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire."
 		},
 		{
 			"id": "H-Q08-PALIERS-SURFACE",
@@ -256,7 +276,7 @@
 				"wp-plugins/teeshoop-core/includes/Money.php"
 			],
 			"literal_allow_why": "Trois tests qui écrivent leurs propres taux, un poids de 0,15 kg dans une fiche d'essai, et deux commentaires qui prennent 0,15 comme exemple de remise et d'arrondi.",
-			"literal_scope_why": "Trois fractions ordinaires, présentes une vingtaine de fois chacune dans les géométries et les seuils d'image. Elles sont cherchées là où une seconde grille de remise pourrait s'écrire."
+			"literal_scope_why": "Trois fractions ordinaires, présentes dans une vingtaine de fichiers chacune, dans les géométries et les seuils d'image. Elles sont cherchées là où une seconde grille de remise pourrait s'écrire."
 		},
 		{
 			"id": "H-Q17-TVA",
@@ -332,7 +352,7 @@
 				"wp-plugins/teeshoop-core/tests/test-pricing.php"
 			],
 			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251).",
-			"literal_scope_why": "250 apparaît vingt-huit fois comme dimension, comme seuil d'image et comme longueur de rouleau. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas."
+			"literal_scope_why": "250 apparaît dans vingt-huit fichiers comme dimension, comme seuil d'image et comme longueur de rouleau, soixante et une fois en tout. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas."
 		},
 		{
 			"id": "H-Q02-SEUIL-DEVIS-MONTANT",
@@ -440,7 +460,7 @@
 				"09"
 			],
 			"cost_if_late": "on refait",
-			"label_fr": "Coloris",
+			"label_fr": "Cette référence est au catalogue, son tarif n’est pas encore publié.",
 			"shipped_matches_default": "Oui. À noter que rien n'est commandable pour deux raisons indépendantes : l'article n'a pas de prix, et un produit personnalisable refuse séparément toute mise au panier sans création vérifiée."
 		},
 		{
@@ -449,9 +469,15 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-14",
-			"statement_fr": "Trois familles sont publiées, t-shirts, polos et sweats, sans plafond de nombre de références.",
+			"statement_fr": "Trois familles sont publiées, t-shirts, polos et sweats, sans plafond de nombre de références. La règle est écrite des deux côtés : le Worker filtre ce qu'il renvoie, l'extension décide ce qu'elle dépublie.",
 			"home": "phpconst:Teeshoop\\Core\\Catalogue::PRINTABLE_FAMILIES",
-			"mirrors": [],
+			"mirrors": [
+				{
+					"ref": "anchor:worker/falkross.ts#k === 'tee' || k === 'polo' || k === 'sweat'",
+					"relation": "equal",
+					"why": "la règle existe des deux côtés de la frontière : le Worker décide ce qu'il RENVOIE comme imprimable, la constante PHP décide ce que l'import DÉPUBLIE quand une référence disparaît. Le Worker ne peut pas lire du PHP et l'extension ne parle jamais au fournisseur, donc les deux ne peuvent pas être fusionnées ; elles sont donc tenues ensemble ici. Les désaccorder publierait des références que la passe suivante dépublierait, ou l'inverse."
+				}
+			],
 			"literals": [],
 			"literals_why": "Trois chaînes de trois à cinq lettres ('tee', 'polo', 'sweat') sont des identifiants de vêtement dans tout le studio ; les chercher ailleurs ne dirait rien.",
 			"reaches": [
@@ -480,9 +506,9 @@
 			"literals": [],
 			"literals_why": "L'indice vaut 0 : un littéral qu'il serait absurde de chercher dans le dépôt. Le foyer est une constante nommée précisément pour que le registre puisse la désigner.",
 			"reaches": [
-				"customer",
+				"supplier",
 				"operator",
-				"supplier"
+				"internal"
 			],
 			"derives": [
 				"Mesuré sur 26 300 lignes : le premier nombre totalise 4,7 millions de pièces, le deuxième 7 935, le troisième 32,4 millions."
@@ -491,8 +517,7 @@
 				"08"
 			],
 			"cost_if_late": "reglage",
-			"label_fr": "Coloris",
-			"shipped_matches_default": "Oui : « seul le premier nombre est du stock. C'est le sens prudent. » Se tromper dans ce sens refuse des commandes que le fournisseur pourrait honorer ; se tromper dans l'autre en encaisserait d'impossibles à livrer."
+			"shipped_matches_default": "Oui : « seul le premier nombre est du stock. C'est le sens prudent. » Se tromper dans ce sens refuse des commandes que le fournisseur pourrait honorer ; se tromper dans l'autre en encaisserait d'impossibles à livrer. Ce que le CLIENT voit du stock n'est pas cette ligne mais H-Q11-STOCK-CHIFFRE : personne n'a encore décidé comment la boutique affiche le nombre."
 		},
 		{
 			"id": "H-Q44-COLORIS-NON-TRADUITS",
@@ -514,7 +539,7 @@
 				"09"
 			],
 			"cost_if_late": "reglage",
-			"label_fr": "Coloris",
+			"label_fr": "Les coloris portent le nom du fabricant",
 			"shipped_matches_default": "Oui : « les noms du fabricant, tels quels ». Deux choses à savoir avant de répondre. Le terme de taxonomie est identifié PAR ce nom, donc traduire plus tard renomme 442 termes existants et ne change pas seulement l'affichage. Et le catalogue est déjà bilingue par attribut : le col, les manches et le public SONT traduits, le coloris non, ce qu'aucune réponse à la question 44 ne décrit."
 		},
 		{

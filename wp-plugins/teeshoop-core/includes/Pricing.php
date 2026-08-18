@@ -35,10 +35,15 @@ final class Pricing {
 	 *
 	 * ⚠ THESE NUMBERS ARE PLACEHOLDERS AND ARE NOT THE BUSINESS'S PRICES.
 	 * They are the studio's demo figures converted 1:1 from dollars to euros so
-	 * the plumbing can be tested end to end. The real grid is question 04 of
-	 * QUESTIONS-ASSOCIE.md and lands in the `teeshoop_pricing` option — which is
-	 * why every one of them is configurable and none is hard-coded at a call
-	 * site.
+	 * the plumbing can be tested end to end. Each one has a row in
+	 * `docs/hypotheses.json` naming the question that settles it: the garment
+	 * tariffs are question 06 (the margin rates) fed by question 03 (the real
+	 * purchase grids), the surcharge and discount ladders are question 08, the
+	 * VAT rate is question 17 and the self-serve thresholds are question 02.
+	 * This paragraph used to say "question 04", which is the negotiated DTF rate
+	 * per linear metre and settles none of them. The real values land in the
+	 * `teeshoop_pricing` option — which is why every one of them is configurable
+	 * and none is hard-coded at a call site.
 	 */
 	public static function default_config(): array {
 		return array(
