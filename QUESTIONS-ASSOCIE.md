@@ -957,6 +957,22 @@ première qui est codée.
 
 *Si vous ne répondez pas, on partira sur :* Un seul prix de marquage par ligne, calculé sur la surface à la taille M, quelles que soient les tailles commandées.
 
+*Ce que la séance 05 a ajouté, le 18 août :* ce n'est plus seulement une question de
+prix, c'est une question de **coût**.
+
+Le moteur de coût mesure maintenant le film réellement occupé par une commande en
+imbriquant ses visuels sur la laize de 56 cm. Il les mesure à la taille de tarification,
+c'est-à-dire en M, pour toutes les tailles de la ligne. Mesuré sur la commande de
+démonstration (trente t-shirts, un visuel en deux morceaux) : **1,80 mètre de rouleau en
+M contre 2,70 mètres en 3XL**, soit **50 % de film en plus** pour exactement le même
+dessin. Nous chiffrons le premier.
+
+Donc, aux réglages actuels, une commande en grandes tailles est facturée au palier de la
+taille M **et chiffrée au coût de la taille M** : l'erreur va deux fois dans le même sens,
+et elle est en notre défaveur. Le rapport de marge le signale sur chaque commande
+concernée. Le corriger demande d'imbriquer une pièce par taille, ce qui est le travail de
+la séance 07.
+
 **Votre réponse :**
 
 > 

@@ -143,6 +143,7 @@ final class Costing {
 		$transfers = 0;
 		$complete  = true;
 		$lines     = 0;
+		$graded    = false;
 
 		foreach ( $order->get_items() as $item ) {
 			if ( ! $item instanceof \WC_Order_Item_Product ) {
@@ -151,6 +152,36 @@ final class Costing {
 			$qty       = max( 1, (int) $item->get_quantity() );
 			$garments += $qty;
 			++$lines;
+
+			/*
+			 * THE RECTANGLES ARE MEASURED AT ONE SIZE and this order may not be
+			 * in it. `src/lib/ink.ts` measures at the priced size (M on every
+			 * garment we sell), and the studio grades a print with the garment:
+			 * a 3XL chest is 64 cm where an M is 52, so the same design prints
+			 * 23 % larger in each direction.
+			 *
+			 * That is question 37, and until now it was a question about the
+			 * PRICE. It is now also a question about the FILM: measured by
+			 * nesting the worked order's own two visuals at both sizes, thirty
+			 * garments take 1,80 m of roll at M and 2,70 m at 3XL, which is 50 %
+			 * more film for the same order. We cost the M.
+			 *
+			 * Flagged rather than corrected here, deliberately. Correcting it
+			 * means emitting one rectangle per (visual, size), which is what
+			 * session 07 builds when it nests film ACROSS orders, and it means
+			 * the grading factor existing in PHP as well as in the studio, which
+			 * is a second implementation of one rule. A warning that names the
+			 * measured size of the error is worth more than a second answer.
+			 */
+			$grid = json_decode( (string) $item->get_meta( '_teeshoop_size_grid', true ), true );
+			if ( is_array( $grid ) ) {
+				$priced = Garments::priced_size( (string) $item->get_meta( '_teeshoop_garment', true ) );
+				foreach ( $grid as $size => $count ) {
+					if ( (int) $count > 0 && (string) $size !== $priced ) {
+						$graded = true;
+					}
+				}
+			}
 
 			$sides = json_decode( (string) $item->get_meta( '_teeshoop_sides', true ), true );
 			if ( ! is_array( $sides ) || array() === $sides ) {
@@ -189,6 +220,7 @@ final class Costing {
 			'transfers' => $transfers,
 			'complete'  => $complete,
 			'lines'     => $lines,
+			'graded'    => $graded,
 		);
 	}
 
@@ -553,6 +585,9 @@ final class Costing {
 
 		if ( ! $cost['complete'] ) {
 			$warnings[] = __( 'Le coût est incomplet : le plancher affiché est un plancher MINIMUM, le vrai est au moins celui-là.', 'teeshoop' );
+		}
+		if ( ! empty( $work['graded'] ) ) {
+			$warnings[] = __( 'Cette commande contient des tailles autres que celle de tarification : le film est chiffré à cette taille-là. Mesuré sur une commande de trente pièces, l’imbrication réelle demande 2,70 m en 3XL contre 1,80 m en M, soit 50 % de film en plus (question 37).', 'teeshoop' );
 		}
 		if ( $plan['raised_to_floor'] ) {
 			$warnings[] = __( 'Le prix conseillé a été relevé au plancher : la marge cible et la contribution minimale se contredisent aux réglages actuels.', 'teeshoop' );

@@ -830,7 +830,8 @@
 				"printer"
 			],
 			"derives": [
-				"Le chiffre de la question elle-même : un visuel de 500 cm² en M en fait 757 en 3XL, soit 120,00 EUR HT non facturés sur 30 pièces en 3XL, pour environ 50 % de film en plus."
+				"Le chiffre de la question elle-même : un visuel de 500 cm² en M en fait 757 en 3XL, soit 120,00 EUR HT non facturés sur 30 pièces en 3XL, pour environ 50 % de film en plus.",
+				"Le métrage de film de toute commande dont les tailles ne sont pas la taille de tarification : mesuré en imbriquant les deux visuels de la commande de démonstration, trente pièces prennent 1,80 m de rouleau en M et 2,70 m en 3XL, soit 50 % de film en plus pour le même dessin (séance 05)."
 			],
 			"sessions": [
 				"05",

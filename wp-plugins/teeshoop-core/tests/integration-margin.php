@@ -23,6 +23,7 @@ if ( 'cli' !== PHP_SAPI ) {
 	exit( 1 );
 }
 
+use Teeshoop\Core\Cart;
 use Teeshoop\Core\Commission;
 use Teeshoop\Core\Cost;
 use Teeshoop\Core\Costing;
@@ -249,6 +250,57 @@ function ts_margin_suite( int $product_id ): void {
 		ts_assert( ! (bool) $report['work']['complete'], 'the geometry is not complete and the report says otherwise' );
 		ts_assert( in_array( 'marquage', (array) $report['cost']['unknown'], true ), 'the film must be UNKNOWN' );
 		ts_eq( (int) $report['work']['transfers'], 12, 'the presses are still counted, so the labour is not free too' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'says so when the order is not in the size the film was measured at', function () use ( $product_id ) {
+		// Six garments spread over three sizes, only two of them at M. The
+		// rectangles were measured at M and the film is costed on them, which
+		// understates a run of large sizes by up to half. Question 37.
+		WC()->cart->empty_cart();
+		$key = Cart::add(
+			array(
+				'product_id' => $product_id,
+				'qty'        => 6,
+				'sides'      => ts_mg_sides(),
+				'design_id'  => 'abcdefghijklmnop1234',
+				'size_grid'  => array( 'M' => 2, 'XL' => 2, '3XL' => 2 ),
+			)
+		);
+		ts_assert( ! is_wp_error( $key ), 'the size grid was refused' );
+		WC()->cart->calculate_totals();
+		$order  = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		$report = Costing::compute( $order );
+
+		ts_assert( (bool) $report['work']['graded'], 'the report did not notice the sizes' );
+		$said = false;
+		foreach ( (array) $report['warnings'] as $warning ) {
+			if ( str_contains( (string) $warning, 'question 37' ) ) {
+				$said = true;
+			}
+		}
+		ts_assert( $said, 'a graded order must say the film is costed at one size' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'says nothing about sizes on an order that is entirely in the priced one', function () use ( $product_id ) {
+		WC()->cart->empty_cart();
+		Cart::add(
+			array(
+				'product_id' => $product_id,
+				'qty'        => 6,
+				'sides'      => ts_mg_sides(),
+				'design_id'  => 'abcdefghijklmnop1234',
+				'size_grid'  => array( 'M' => 6 ),
+			)
+		);
+		WC()->cart->calculate_totals();
+		$order  = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		$report = Costing::compute( $order );
+
+		ts_assert( ! (bool) $report['work']['graded'], 'a warning that fires on every order is a warning nobody reads' );
 
 		$order->delete( true );
 	} );
