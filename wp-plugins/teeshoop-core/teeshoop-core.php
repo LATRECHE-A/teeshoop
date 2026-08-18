@@ -32,8 +32,8 @@
  *      Files live in R2. wp-content/uploads is readable by URL, and robots.txt is
  *      not an access control.
  *
- * The pure classes (Money, Pricing, Margin) call no WordPress function, so they
- * are tested by `php tests/run.php` with no bootstrap at all.
+ * The pure classes (Money, Pricing, Margin, Cost, Commission) call no WordPress
+ * function, so they are tested by `php tests/run.php` with no bootstrap at all.
  */
 
 declare( strict_types = 1 );
@@ -86,6 +86,8 @@ require_once __DIR__ . '/includes/Legal.php';
 require_once __DIR__ . '/includes/Pdf.php';
 require_once __DIR__ . '/includes/Settlement.php';
 require_once __DIR__ . '/includes/Margin.php';
+require_once __DIR__ . '/includes/Cost.php';
+require_once __DIR__ . '/includes/Commission.php';
 require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Garments.php';
 require_once __DIR__ . '/includes/Hypotheses.php';

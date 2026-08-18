@@ -97,6 +97,25 @@ const FORBIDDEN = [
   { s: 'floor_price', cat: 'margin', scope: 'rendered' },
   { s: 'marge contributive', cat: 'margin', scope: 'rendered' },
 
+  /*
+   * The cost engine session 05 added. Same shape as `Margin::` above and for
+   * the same reason: a call is not a word, so it is global, and the three
+   * French phrases beside it are ordinary enough that only a file which is
+   * OUTPUT has no excuse for containing them.
+   *
+   * NOTE ON SUBSTRINGS. These needles match anywhere, so a class named
+   * `OrderCost` would carry `Cost::` into every file that called it and each
+   * of those would need an exemption for a name that means nothing. The
+   * classes are therefore named so that no needle is a prefix of another:
+   * `Costing`, `CostScreen`, `Nest`.
+   */
+  { s: 'Cost::', cat: 'margin' },
+  { s: 'Commission::', cat: 'margin' },
+  { s: 'Costing::', cat: 'margin' },
+  { s: 'taux horaire', cat: 'margin', scope: 'rendered' },
+  { s: 'coût direct', cat: 'margin', scope: 'rendered' },
+  { s: 'marge Teeshoop', cat: 'margin', scope: 'rendered' },
+
   // WooCommerce API credentials.
   { s: 'consumerSecret', cat: 'woo-credentials' },
   { s: 'consumer_secret', cat: 'woo-credentials' },
@@ -131,6 +150,18 @@ const ALLOWED = new Map([
   [
     'wp-plugins/teeshoop-core/includes/Importer.php',
     { why: 'asks the cost engine for a selling price; server-only, renders nothing', needles: ['Margin::'] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/includes/Commission.php',
+    { why: 'what a salesperson earns; server-only, never rendered, and it reads the cost confidences', needles: ['Cost::'] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/test-cost.php',
+    { why: 'the tests for the direct-cost model', needles: ['Cost::', 'Margin::'] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/test-commission.php',
+    { why: 'the tests for the commission', needles: ['Cost::', 'Commission::', 'Margin::'] },
   ],
 ])
 
