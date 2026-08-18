@@ -214,6 +214,20 @@ refuse quoi que ce soit. La Bible écrit « 50 EUR » trois fois sans jamais pr�
 taxes ou toutes taxes comprises, ni par ligne ou par panier. Confirmez-vous les deux
 chiffres, ou le minimum est-il en réalité **uniquement** un nombre de pièces ?
 
+*Ce que la séance 05 a ajouté, le 18 août :* nous avons besoin de savoir **comment vous
+classez vos clients**, parce que le prix plancher peut désormais dépendre du type de
+client (le chapitre 1 le demande explicitement).
+
+Faute de liste dans vos documents, nous en avons composé une à partir de ce que vos
+propres questions nomment déjà : **particulier** et **professionnel** (cette question-ci),
+**collectivité** (le « mandat administratif : mairies, écoles, hôpitaux » de la question
+15) et **grand compte** (la question 16). Ce ne sont pas des inventions, mais ce ne sont
+pas non plus vos mots. Confirmez la liste ou remplacez-la.
+
+Rien n'est faussé en attendant : aucune commande ne porte de type de client tant qu'un
+opérateur ne l'a pas choisi, et une règle qui sélectionne sur un type ne s'applique donc
+à aucune commande.
+
 **Votre réponse :**
 
 > 
@@ -361,6 +375,23 @@ consommables, ni cinq des sept opérations d'atelier, donc le vrai plancher est 
 la colonne qui l'affiche. Trois nombres peuvent expliquer l'écart et un seul est de notre
 fait : le tarif public affiché (une valeur de démonstration, jamais validée par vous), le
 prix d'achat, ou vos taux. Dites-nous lequel doit bouger.
+
+*Ce que la séance 05 a livré, le 18 août :* **le plancher peut maintenant être différent
+selon le périmètre**, comme votre chapitre 1 le demande (par famille de produits, par
+technique, par commercial, par taille de commande, par type de client, par niveau
+d'urgence). L'écran « Coûts et marges » permet d'écrire ces règles.
+
+**La table est livrée VIDE, et c'est délibéré.** Votre question demande un taux de marge
+*par famille de produits* et n'a pas de réponse ; écrire une règle à votre place
+reviendrait à décider votre politique de prix. Une règle est par ailleurs la seule chose
+de ce moteur qui puisse **abaisser** un plancher, donc elle attend une décision et non une
+valeur par défaut.
+
+Quand vous nous donnerez vos taux par famille, chaque règle se saisit en une ligne, et
+l'écran affiche sous chacune **le plancher qu'elle produit** sur l'exemple chiffré de
+votre chapitre 1. C'est là que se voit une erreur de saisie : « 0,25 » au lieu de « 25 »
+se relit « 0,25 » et fait tomber le plancher de 428,57 EUR à 251,05 EUR sans que rien
+d'autre ne bouge à l'écran.
 
 **Votre réponse :**
 

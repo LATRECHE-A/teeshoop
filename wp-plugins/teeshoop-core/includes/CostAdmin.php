@@ -237,11 +237,43 @@ final class CostAdmin {
 			)
 		);
 
+		/*
+		 * UNSLASHED, like `couts` above and unlike `commissions` below it, which
+		 * is an inconsistency this fixes on the way past. WordPress addslashes
+		 * every superglobal: stored raw, "Réassort d'un client" becomes
+		 * "Réassort d\'un client" after one save and grows another backslash on
+		 * every save after that, and a commercial or client selector containing
+		 * an apostrophe stops matching anything at all.
+		 */
+		$posted_rules = isset( $_POST['regles'] ) && is_array( $_POST['regles'] ) ? wp_unslash( $_POST['regles'] ) : array();
+		$rules        = array();
+		foreach ( $posted_rules as $row ) {
+			if ( ! is_array( $row ) || ! empty( $row['delete'] ) ) {
+				continue;
+			}
+			$rule = PriceRule::normalise( $row );
+			if ( null === $rule ) {
+				continue;
+			}
+			/*
+			 * A STABLE ID, minted once and never reused. A frozen report names
+			 * the rule that priced it, and a rule identified by its row index
+			 * would make every historical report point at a different policy the
+			 * first time somebody deletes a row above it.
+			 */
+			if ( '' === $rule['id'] ) {
+				$rule['id'] = 'r' . substr( str_replace( '-', '', wp_generate_uuid4() ), 0, 12 );
+			}
+			$rules[] = $rule;
+		}
+		update_option( OPTION_PRICE_RULES, array_slice( $rules, 0, PriceRule::MAX_RULES ) );
+
 		$com_defaults = Costing::commission_config();
-		$rates        = array();
+		$posted_commissions = isset( $_POST['commissions'] ) && is_array( $_POST['commissions'] ) ? wp_unslash( $_POST['commissions'] ) : array();
+		$rates              = array();
 		foreach ( array_keys( Commission::SALE_TYPES ) as $type ) {
 			$rates[ $type ] = self::pct_in(
-				$_POST['commissions']['rates'][ $type ] ?? '',
+				$posted_commissions['rates'][ $type ] ?? '',
 				(float) $com_defaults['rates'][ $type ]
 			);
 		}
@@ -250,8 +282,8 @@ final class CostAdmin {
 			OPTION_COMMISSION,
 			array(
 				'rates'                 => $rates,
-				'attribution_days'      => self::int_in( $_POST['commissions']['attribution_days'] ?? '', (int) $com_defaults['attribution_days'], 0, 3650 ),
-				'definitive_after_days' => self::int_in( $_POST['commissions']['definitive_after_days'] ?? '', (int) $com_defaults['definitive_after_days'], 0, 365 ),
+				'attribution_days'      => self::int_in( $posted_commissions['attribution_days'] ?? '', (int) $com_defaults['attribution_days'], 0, 3650 ),
+				'definitive_after_days' => self::int_in( $posted_commissions['definitive_after_days'] ?? '', (int) $com_defaults['definitive_after_days'], 0, 365 ),
 			)
 		);
 		// phpcs:enable
@@ -327,7 +359,21 @@ final class CostAdmin {
 		echo '<input type="hidden" name="action" value="' . esc_attr( self::ACTION_SAVE ) . '">';
 		wp_nonce_field( self::ACTION_SAVE );
 
+		/*
+		 * The salespeople who really appear on orders. A rule selects a
+		 * commercial by an exact (case-insensitive) name, and both sides are
+		 * typed by hand: "Karim B" against "Karim B." never matches, for ever,
+		 * with nothing on screen to say so. Offering the names that exist is what
+		 * makes the typo visible at the moment of writing.
+		 */
+		echo '<datalist id="ts-commerciaux">';
+		foreach ( self::known_sellers() as $seller ) {
+			printf( '<option value="%s"></option>', esc_attr( $seller ) );
+		}
+		echo '</datalist>';
+
 		self::render_margins( $config );
+		self::render_rules( Costing::rules_table(), $config, $commission );
 		self::render_labour( $config );
 		self::render_film( $config );
 		self::render_other( $config );
@@ -336,6 +382,38 @@ final class CostAdmin {
 
 		submit_button( __( 'Enregistrer', 'teeshoop' ) );
 		echo '</form></div>';
+	}
+
+	/**
+	 * The salespeople who actually appear on orders.
+	 *
+	 * Read from the orders rather than from a roster, because there is no roster:
+	 * the seller is a free-text field on the order panel. HPOS keeps order meta
+	 * in its own table, so both stores are asked and neither is assumed.
+	 */
+	private static function known_sellers(): array {
+		global $wpdb;
+
+		$names = array();
+		foreach ( array( $wpdb->prefix . 'wc_orders_meta', $wpdb->postmeta ) as $table ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- no API reads distinct meta values.
+			$found = $wpdb->get_col(
+				$wpdb->prepare(
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb.
+					"SELECT DISTINCT meta_value FROM {$table} WHERE meta_key = %s AND meta_value <> '' LIMIT 100",
+					Costing::META_SELLER
+				)
+			);
+			if ( is_array( $found ) ) {
+				foreach ( $found as $name ) {
+					$names[ (string) $name ] = true;
+				}
+			}
+		}
+
+		$out = array_keys( $names );
+		sort( $out );
+		return $out;
 	}
 
 	private static function render_intro( array $config ): void {
@@ -482,7 +560,17 @@ final class CostAdmin {
 		echo '</tbody></table></div>';
 	}
 
-	private static function verdict_sentence( array $verdict ): string {
+	private static function verdict_sentence( ?array $verdict ): string {
+		/*
+		 * THE FIFTH STATE, and it is the one that mattered. `(array) null` is an
+		 * empty array, every `! empty()` below is then false, and the sentence
+		 * fell through to "Vendable sans validation" on an order whose floor
+		 * could not be computed at all: a green line under a red warning, and
+		 * the associate reads the last sentence.
+		 */
+		if ( null === $verdict || array() === $verdict ) {
+			return __( 'Aucun plancher n’est calculable pour cette commande : voir l’avertissement ci-dessus.', 'teeshoop' );
+		}
 		if ( ! empty( $verdict['below_cost'] ) ) {
 			return __( 'Sous le coût direct : cette vente perd de l’argent avant même la commission.', 'teeshoop' );
 		}
@@ -647,6 +735,244 @@ final class CostAdmin {
 		) . '</p>';
 	}
 
+	/**
+	 * The scoped floors, one stacked block per rule.
+	 *
+	 * BLOCKS AND NOT A TABLE ROW, and that is a money decision rather than a
+	 * taste one. A rule is fifteen controls; the two repeatable tables already on
+	 * these screens are three and five columns and both need a sideways scroll on
+	 * a phone. At 375 px a fifteen-column row shows about a sixth of itself, so
+	 * pairing a contribution rate with the label it belongs to means scrolling,
+	 * and that pairing is exactly what decides whether a floor is 428,57 EUR or
+	 * 251,05 EUR.
+	 *
+	 * EVERY BLOCK PRINTS THE FLOOR IT PRODUCES, on the page's own worked example
+	 * and at the highest commission rate on the books. That single line is what
+	 * makes the whole screen safe to use: a contribution typed "0,25" instead of
+	 * "25" is 0,25 %, it round-trips looking exactly like what was typed, and the
+	 * only thing that shows it is the floor beside it collapsing to 251,05 EUR.
+	 * It also shows an insoluble rule, a rule with no criteria, and a rule that
+	 * has expired, without anybody having to reason about any of them.
+	 */
+	private static function render_rules( array $rules, array $config, array $commission ): void {
+		$worst = 0.0;
+		foreach ( (array) $commission['rates'] as $rate ) {
+			$worst = max( $worst, (float) $rate );
+		}
+
+		self::section(
+			__( 'Planchers par périmètre', 'teeshoop' ),
+			__( 'Le chapitre 1 demande de pouvoir définir un plancher par famille de produits, par technique, par commercial, par taille de commande, par type de client et par niveau d’urgence. Une règle remplace la marge cible, la contribution minimale, ou les deux ; ce qu’elle laisse vide garde le réglage général. Un critère vide vaut « toutes les commandes ».', 'teeshoop' )
+		);
+
+		echo '<p class="description" style="max-width:46em">' . esc_html(
+			sprintf(
+				/* translators: 1: a direct cost, 2: the highest commission rate. */
+				__( 'Le plancher affiché sous chaque règle est celui qu’elle produirait sur l’exemple de cette page (%1$s de coût direct) au taux de commission le plus élevé que vous versez (%2$s). C’est là que se voit une erreur de saisie : « 0,25 » au lieu de « 25 » se relit « 0,25 » et ne se remarque que sur ce chiffre.', 'teeshoop' ),
+				Money::format( self::EXAMPLE_COST_HT ),
+				self::pct_out( $worst ) . "\u{00A0}%"
+			)
+		) . '</p>';
+
+		$impossible = PriceRule::impossible( $rules, $config, $worst );
+		if ( array() !== $impossible ) {
+			echo '<div class="notice notice-error"><p><strong>'
+				. esc_html__( 'Ces règles n’ont aucune solution', 'teeshoop' ) . '</strong><br>'
+				. esc_html(
+					sprintf(
+						/* translators: 1: a list of rule names, 2: the highest commission rate. */
+						__( '%1$s : la contribution minimale demandée ne peut pas rester après une commission de %2$s, à aucun prix. Les commandes qu’elles touchent n’auront pas de prix plancher du tout tant que ce n’est pas corrigé.', 'teeshoop' ),
+						implode( ', ', array_map( 'strval', $impossible ) ),
+						self::pct_out( $worst ) . "\u{00A0}%"
+					)
+				) . '</p></div>';
+		}
+
+		// One empty block at the end, so adding a rule needs no button and no
+		// JavaScript: the form grows by being filled in. Same shape as the VAT
+		// periods on the Facturation screen.
+		$blocks = array_merge( $rules, array( null ) );
+		foreach ( $blocks as $i => $rule ) {
+			self::render_rule_block( (int) $i, $rule, $config, $worst );
+		}
+
+		if ( count( $rules ) >= PriceRule::MAX_RULES ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html(
+				sprintf(
+					/* translators: %d: the maximum number of rules. */
+					__( 'La liste est pleine (%d règles). Une règle supplémentaire ne serait pas enregistrée : supprimez-en une d’abord.', 'teeshoop' ),
+					PriceRule::MAX_RULES
+				)
+			) . '</p></div>';
+		}
+	}
+
+	private static function render_rule_block( int $i, ?array $rule, array $config, float $worst ): void {
+		$name  = static fn( string $field ): string => sprintf( 'regles[%d][%s]', $i, $field );
+		$value = static fn( string $field, mixed $fallback = '' ): mixed => $rule[ $field ] ?? $fallback;
+		$new   = null === $rule;
+
+		echo '<fieldset style="border:1px solid #c3c4c7;padding:.8em 1em;margin:0 0 1em;max-width:52em">';
+		echo '<legend style="padding:0 .4em;font-weight:600">' . esc_html(
+			$new ? __( 'Nouvelle règle', 'teeshoop' ) : ( '' !== (string) $value( 'label' ) ? (string) $value( 'label' ) : __( 'Règle sans nom', 'teeshoop' ) )
+		) . '</legend>';
+
+		printf( '<input type="hidden" name="%s" value="%s">', esc_attr( $name( 'id' ) ), esc_attr( (string) $value( 'id' ) ) );
+
+		if ( ! $new ) {
+			self::render_rule_state( $rule, $config, $worst );
+		}
+
+		echo '<p style="display:flex;flex-wrap:wrap;gap:.8em 1.2em;align-items:flex-end;margin:.6em 0 0">';
+
+		printf(
+			'<label style="flex:1 1 18em">%s<br><input type="text" name="%s" value="%s" maxlength="80" style="width:100%%" placeholder="%s"></label>',
+			esc_html__( 'Nom de la règle', 'teeshoop' ),
+			esc_attr( $name( 'label' ) ),
+			esc_attr( (string) $value( 'label' ) ),
+			esc_attr__( 'Sweats à partir de 50 pièces', 'teeshoop' )
+		);
+
+		self::render_rule_select( $name( 'famille' ), __( 'Famille', 'teeshoop' ), PriceRule::FAMILIES, (string) $value( 'famille' ) );
+		self::render_rule_select( $name( 'technique' ), __( 'Technique', 'teeshoop' ), PriceRule::TECHNIQUES, (string) $value( 'technique' ) );
+		self::render_rule_select( $name( 'client' ), __( 'Type de client', 'teeshoop' ), PriceRule::CLIENTS, (string) $value( 'client' ) );
+		self::render_rule_select( $name( 'urgence' ), __( 'Urgence', 'teeshoop' ), PriceRule::URGENCES, (string) $value( 'urgence' ) );
+
+		printf(
+			'<label>%s<br><input type="text" name="%s" value="%s" size="16" list="ts-commerciaux"></label>',
+			esc_html__( 'Commercial', 'teeshoop' ),
+			esc_attr( $name( 'commercial' ) ),
+			esc_attr( (string) $value( 'commercial' ) )
+		);
+
+		printf(
+			'<label>%s<br><input type="number" min="0" name="%s" value="%s" size="5"></label>',
+			esc_html__( 'Quantité min.', 'teeshoop' ),
+			esc_attr( $name( 'qty_min' ) ),
+			esc_attr( (int) $value( 'qty_min', 0 ) > 0 ? (string) (int) $value( 'qty_min' ) : '' )
+		);
+		printf(
+			'<label>%s<br><input type="number" min="0" name="%s" value="%s" size="5"></label>',
+			esc_html__( 'Quantité max.', 'teeshoop' ),
+			esc_attr( $name( 'qty_max' ) ),
+			esc_attr( (int) $value( 'qty_max', 0 ) > 0 ? (string) (int) $value( 'qty_max' ) : '' )
+		);
+
+		printf(
+			'<label>%s<br><input type="text" name="%s" value="%s" size="7" inputmode="decimal" placeholder="%s"> %%</label>',
+			esc_html__( 'Marge cible', 'teeshoop' ),
+			esc_attr( $name( 'target_margin_rate' ) ),
+			esc_attr( null === $value( 'target_margin_rate', null ) ? '' : self::pct_out( (float) $value( 'target_margin_rate' ) ) ),
+			esc_attr( self::pct_out( (float) $config['target_margin_rate'] ) )
+		);
+		printf(
+			'<label>%s<br><input type="text" name="%s" value="%s" size="7" inputmode="decimal" placeholder="%s"> %%</label>',
+			esc_html__( 'Contribution min.', 'teeshoop' ),
+			esc_attr( $name( 'min_contribution_rate' ) ),
+			esc_attr( null === $value( 'min_contribution_rate', null ) ? '' : self::pct_out( (float) $value( 'min_contribution_rate' ) ) ),
+			esc_attr( self::pct_out( (float) $config['min_contribution_rate'] ) )
+		);
+
+		printf(
+			'<label>%s<br><input type="date" name="%s" value="%s"></label>',
+			esc_html__( 'À partir du', 'teeshoop' ),
+			esc_attr( $name( 'from' ) ),
+			esc_attr( (string) $value( 'from' ) )
+		);
+		printf(
+			'<label>%s<br><input type="date" name="%s" value="%s"></label>',
+			esc_html__( 'Jusqu’au', 'teeshoop' ),
+			esc_attr( $name( 'to' ) ),
+			esc_attr( (string) $value( 'to' ) )
+		);
+		printf(
+			'<label>%s<br><input type="number" min="0" max="999" name="%s" value="%s" size="4"></label>',
+			esc_html__( 'Priorité', 'teeshoop' ),
+			esc_attr( $name( 'priority' ) ),
+			esc_attr( (string) (int) $value( 'priority', 0 ) )
+		);
+
+		printf(
+			'<label><input type="checkbox" name="%s" value="1"%s> %s</label>',
+			esc_attr( $name( 'active' ) ),
+			checked( ! empty( $value( 'active' ) ) || $new, true, false ),
+			esc_html__( 'Active', 'teeshoop' )
+		);
+
+		if ( ! $new ) {
+			/*
+			 * AN EXPLICIT DELETE, because a rule has no natural key to blank.
+			 * The VAT table on the other screen is deleted by emptying its date,
+			 * which is the gesture this associate has been taught; applied here
+			 * it would clear a rule's selectors and leave its contribution rate,
+			 * turning a narrow rule into a shop-wide floor cut. Measured on the
+			 * shipped figures, that is 428,57 EUR down to 300,00 EUR on every
+			 * order in the shop.
+			 */
+			printf(
+				'<label style="color:#b32d2e"><input type="checkbox" name="%s" value="1"> %s</label>',
+				esc_attr( $name( 'delete' ) ),
+				esc_html__( 'Supprimer', 'teeshoop' )
+			);
+		}
+
+		echo '</p></fieldset>';
+	}
+
+	/** Why this rule does or does not price anything today, and what it produces. */
+	private static function render_rule_state( array $rule, array $config, float $worst ): void {
+		$today = Settings::today();
+		$notes = array();
+		$tone  = 'description';
+
+		if ( empty( $rule['active'] ) ) {
+			$notes[] = __( 'inactive', 'teeshoop' );
+		} elseif ( '' !== (string) $rule['from'] && $today < (string) $rule['from'] ) {
+			$notes[] = sprintf( __( 'commence le %s', 'teeshoop' ), (string) $rule['from'] );
+		} elseif ( '' !== (string) $rule['to'] && $today > (string) $rule['to'] ) {
+			$notes[] = sprintf( __( 'expirée le %s', 'teeshoop' ), (string) $rule['to'] );
+		} else {
+			$notes[] = __( 'active aujourd’hui', 'teeshoop' );
+		}
+
+		if ( 0 === PriceRule::specificity( $rule ) ) {
+			$notes[] = __( 'AUCUN CRITÈRE : s’applique à toutes les commandes', 'teeshoop' );
+			$tone    = 'notice notice-warning inline';
+		}
+
+		$k = null === $rule['min_contribution_rate']
+			? (float) $config['min_contribution_rate']
+			: (float) $rule['min_contribution_rate'];
+
+		if ( PriceRule::insoluble( $k, $worst ) ) {
+			$notes[] = __( 'AUCUNE SOLUTION à ce taux de commission : les commandes touchées n’auront pas de plancher', 'teeshoop' );
+			$tone    = 'notice notice-error inline';
+		} else {
+			$floor = Margin::floor_price_rate( self::EXAMPLE_COST_HT, $k, $worst );
+			$notes[] = sprintf(
+				/* translators: 1: a floor price, 2: the shop's floor without any rule. */
+				__( 'plancher sur l’exemple : %1$s (sans règle : %2$s)', 'teeshoop' ),
+				Money::format( $floor ),
+				Money::format( Margin::floor_price_rate( self::EXAMPLE_COST_HT, (float) $config['min_contribution_rate'], $worst ) )
+			);
+		}
+
+		if ( 'description' === $tone ) {
+			echo '<p class="description" style="margin:.2em 0 0">' . esc_html( implode( ' · ', $notes ) ) . '</p>';
+		} else {
+			echo '<div class="' . esc_attr( $tone ) . '" style="margin:.2em 0 0"><p>' . esc_html( implode( ' · ', $notes ) ) . '</p></div>';
+		}
+	}
+
+	private static function render_rule_select( string $name, string $label, array $options, string $current ): void {
+		printf( '<label>%s<br><select name="%s">', esc_html( $label ), esc_attr( $name ) );
+		printf( '<option value=""%s>%s</option>', selected( '', $current, false ), esc_html__( 'toutes', 'teeshoop' ) );
+		foreach ( $options as $key => $text ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( (string) $key ), selected( (string) $key, $current, false ), esc_html( (string) $text ) );
+		}
+		echo '</select></label>';
+	}
+
 	private static function render_commissions( array $commission ): void {
 		self::section(
 			__( 'Les commissions', 'teeshoop' ),
@@ -720,16 +1046,27 @@ final class CostAdmin {
 			return;
 		}
 
-		if ( ! Costing::current( $order, $report ) ) {
+		$stale = Costing::staleness( $order, $report );
+		if ( '' !== $stale ) {
 			/*
 			 * A STALE REPORT IS WORSE THAN NO REPORT, because it is believed.
 			 * Everything below describes the order as it was when somebody last
 			 * asked, and the derogation section is gated on that verdict: an
 			 * order edited into being under its floor would show a green panel
 			 * and no exception form at all.
+			 *
+			 * THREE SENTENCES, because they send the reader to three different
+			 * places. "The order changed" is on the order. "The rules changed" is
+			 * on the Coûts et marges screen, and it fires on orders nobody
+			 * touched, which is the case an order-only check could never catch.
 			 */
+			$why = array(
+				'commande'  => __( 'Cette commande a changé depuis le dernier chiffrage', 'teeshoop' ),
+				'reglages'  => __( 'Les règles de plancher ou les taux ont changé depuis ce chiffrage', 'teeshoop' ),
+				'version'   => __( 'Ce chiffrage est antérieur aux règles de plancher', 'teeshoop' ),
+			);
 			echo '<div class="notice notice-warning inline"><p><strong>'
-				. esc_html__( 'Cette commande a changé depuis le dernier chiffrage', 'teeshoop' ) . '</strong><br>'
+				. esc_html( $why[ $stale ] ?? $why['commande'] ) . '</strong><br>'
 				. esc_html__( 'Les montants ci-dessous décrivent la commande telle qu’elle était. Recalculez avant de vous en servir, et avant d’accorder une dérogation.', 'teeshoop' )
 				. '</p></div>';
 		}
@@ -773,16 +1110,40 @@ final class CostAdmin {
 			esc_html__( 'Livrée le', 'teeshoop' ),
 			esc_attr( Costing::delivered_on( $order ) )
 		);
+
+		/*
+		 * The two facts a price rule can select on that nothing else records.
+		 * SELECTS and not free text, from the same constants the rule editor
+		 * offers, so the two ends cannot drift: a rule reading "professionnel"
+		 * against an order reading "Professionnel " would match nothing, for
+		 * ever, with nothing on either screen to say so.
+		 */
+		echo '<label>' . esc_html__( 'Type de client', 'teeshoop' ) . '<br><select name="type_client">';
+		printf( '<option value=""%s>%s</option>', selected( '', Costing::client_type( $order ), false ), esc_html__( 'non renseigné', 'teeshoop' ) );
+		foreach ( PriceRule::CLIENTS as $key => $label ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $key ), selected( $key, Costing::client_type( $order ), false ), esc_html( $label ) );
+		}
+		echo '</select></label>';
+
+		echo '<label>' . esc_html__( 'Urgence', 'teeshoop' ) . '<br><select name="urgence">';
+		printf( '<option value=""%s>%s</option>', selected( '', Costing::urgence( $order ), false ), esc_html__( 'non renseigné', 'teeshoop' ) );
+		foreach ( PriceRule::URGENCES as $key => $label ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $key ), selected( $key, Costing::urgence( $order ), false ), esc_html( $label ) );
+		}
+		echo '</select></label>';
+
 		submit_button( __( 'Enregistrer', 'teeshoop' ), 'secondary', '', false );
 		echo '</p>';
-		echo '<p class="description">' . esc_html__( 'Le type de vente décide du taux de commission ; la date de livraison ouvre le délai de contestation au bout duquel elle devient définitive. Ni l’un ni l’autre n’apparaît jamais sur un document client.', 'teeshoop' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Le type de vente décide du taux de commission ; la date de livraison ouvre le délai de contestation au bout duquel elle devient définitive ; le type de client, l’urgence et le commercial peuvent faire jouer une règle de plancher. Aucun de ces champs n’apparaît jamais sur un document client. Enregistrer recalcule le chiffrage.', 'teeshoop' ) . '</p>';
 		echo '</form>';
 	}
 
 	private static function render_report( \WC_Order $order, array $report ): void {
 		$cost    = (array) $report['cost'];
-		$plan    = (array) $report['plan'];
-		$verdict = (array) $report['verdict'];
+		// NOT cast to array. `(array) null` is `array()`, which reads as a plan
+		// whose every field is zero and whose every verdict is false.
+		$plan    = is_array( $report['plan'] ?? null ) ? $report['plan'] : null;
+		$verdict = is_array( $report['verdict'] ?? null ) ? $report['verdict'] : null;
 
 		foreach ( (array) $report['warnings'] as $warning ) {
 			echo '<div class="notice notice-warning inline" style="margin:.4em 0"><p>' . esc_html( (string) $warning ) . '</p></div>';
@@ -834,6 +1195,20 @@ final class CostAdmin {
 		) . '</td></tr>';
 		echo '</tbody></table></div>';
 
+		if ( null === $plan ) {
+			/*
+			 * No floor, so nothing that looks like a verdict. The cost above is
+			 * still worth reading and still true; what cannot be said is what the
+			 * order should have sold for.
+			 */
+			echo '<div class="notice notice-error inline"><p><strong>'
+				. esc_html__( 'Pas de prix plancher pour cette commande', 'teeshoop' ) . '</strong><br>'
+				. esc_html__( 'Les taux en vigueur n’ont pas de solution : aucun prix, si élevé soit-il, ne laisserait la contribution minimale demandée après la commission. Corrigez la règle ou les réglages, puis recalculez.', 'teeshoop' )
+				. '</p></div>';
+			self::render_applied_rule( $report );
+			return;
+		}
+
 		echo '<h4 style="margin-bottom:.4em">' . esc_html__( 'Ce qu’elle rapporte', 'teeshoop' ) . '</h4>';
 		echo '<div style="overflow-x:auto;max-width:100%"><table class="widefat striped"><tbody>';
 
@@ -846,9 +1221,10 @@ final class CostAdmin {
 		self::row(
 			$cost['complete'] ? __( 'Prix plancher', 'teeshoop' ) : __( 'Prix plancher minimum', 'teeshoop' ),
 			Money::format( (int) $plan['floor_ht'] ),
-			$cost['complete']
+			( $cost['complete']
 				? __( 'En dessous, une dérogation est nécessaire.', 'teeshoop' )
-				: __( 'Calculé sur un coût incomplet : le vrai plancher est au moins celui-là.', 'teeshoop' )
+				: __( 'Calculé sur un coût incomplet : le vrai plancher est au moins celui-là.', 'teeshoop' ) )
+				. ' ' . self::rule_sentence( $report )
 		);
 		self::row(
 			__( 'Marge contributive', 'teeshoop' ),
@@ -884,6 +1260,56 @@ final class CostAdmin {
 		if ( ! empty( $verdict['below_floor'] ) && Costing::current( $order, $report ) ) {
 			self::render_derogation( $order, $report );
 		}
+	}
+
+	/**
+	 * Which rule set this order's floor, in one sentence.
+	 *
+	 * THREE ANSWERS AND NOT TWO. A report computed before the rule table existed
+	 * never consulted one, and saying "aucune règle" of it would be a claim the
+	 * shop cannot make: an operator would read it as "the table was consulted and
+	 * nothing matched", see a rule that plainly should match, and go looking for
+	 * a bug in the matching. `Costing::VERSION` tells them apart.
+	 */
+	private static function rule_sentence( array $report ): string {
+		if ( (int) ( $report['version'] ?? 1 ) < Costing::VERSION ) {
+			return __( 'Chiffrée avant les règles de plancher : recalculez pour savoir laquelle s’applique.', 'teeshoop' );
+		}
+		$rule = is_array( $report['rule'] ?? null ) ? $report['rule'] : null;
+		if ( null === $rule ) {
+			return __( 'Réglages généraux : aucune règle de plancher ne s’applique à cette commande.', 'teeshoop' );
+		}
+		return sprintf(
+			/* translators: 1: the rule's name, 2: what it set, in French. */
+			__( 'Règle « %1$s » : %2$s.', 'teeshoop' ),
+			'' !== (string) $rule['label'] ? (string) $rule['label'] : (string) $rule['id'],
+			self::rule_sets( $rule )
+		);
+	}
+
+	/** What a rule actually changed, at the rates it was frozen with. */
+	private static function rule_sets( array $rule ): string {
+		$parts = array();
+		if ( null !== ( $rule['min_contribution_rate'] ?? null ) ) {
+			$parts[] = sprintf(
+				/* translators: %s: a percentage. */
+				__( 'contribution minimale %s', 'teeshoop' ),
+				self::pct_out( (float) $rule['min_contribution_rate'] ) . "\u{00A0}%"
+			);
+		}
+		if ( null !== ( $rule['target_margin_rate'] ?? null ) ) {
+			$parts[] = sprintf(
+				/* translators: %s: a percentage. */
+				__( 'marge cible %s', 'teeshoop' ),
+				self::pct_out( (float) $rule['target_margin_rate'] ) . "\u{00A0}%"
+			);
+		}
+		return array() === $parts ? __( 'elle ne change aucun taux', 'teeshoop' ) : implode( ', ', $parts );
+	}
+
+	/** The applied rule on its own, for the states that print no price table. */
+	private static function render_applied_rule( array $report ): void {
+		echo '<p class="description">' . esc_html( self::rule_sentence( $report ) ) . '</p>';
 	}
 
 	private static function confidence_fr( string $confidence ): string {
@@ -1008,6 +1434,12 @@ final class CostAdmin {
 		}
 		$order->update_meta_data( Costing::META_SELLER, sanitize_text_field( wp_unslash( (string) ( $_POST['commercial'] ?? '' ) ) ) );
 		$order->update_meta_data( Costing::META_DELIVERED, self::iso_date( sanitize_text_field( wp_unslash( (string) ( $_POST['livree_le'] ?? '' ) ) ) ) );
+
+		$client = sanitize_key( wp_unslash( (string) ( $_POST['type_client'] ?? '' ) ) );
+		$order->update_meta_data( Costing::META_CLIENT, isset( PriceRule::CLIENTS[ $client ] ) ? $client : '' );
+
+		$urgence = sanitize_key( wp_unslash( (string) ( $_POST['urgence'] ?? '' ) ) );
+		$order->update_meta_data( Costing::META_URGENCE, isset( PriceRule::URGENCES[ $urgence ] ) ? $urgence : '' );
 		// phpcs:enable
 		$order->save();
 

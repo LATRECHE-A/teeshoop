@@ -24,6 +24,7 @@ if ( 'cli' !== PHP_SAPI ) {
 }
 
 use Teeshoop\Core\Cart;
+use const Teeshoop\Core\OPTION_PRICE_RULES;
 use Teeshoop\Core\Commission;
 use Teeshoop\Core\Cost;
 use Teeshoop\Core\Costing;
@@ -70,6 +71,16 @@ function ts_mg_order( int $product_id, int $qty, array $sides, string $method = 
 function ts_margin_suite( int $product_id ): void {
 	$saved_costing    = get_option( 'teeshoop_costing', array() );
 	$saved_commission = get_option( 'teeshoop_commission', array() );
+	$saved_rules      = get_option( OPTION_PRICE_RULES, array() );
+
+	/*
+	 * CLEARED AT THE START AND NOT ONLY AT THE END. A test that fails throws
+	 * before its own cleanup, and a price rule left in the option then changes
+	 * the floor of every order the NEXT run computes: one broken assertion would
+	 * otherwise be followed by two mystifying ones about numbers that moved for
+	 * no visible reason. Found exactly that way.
+	 */
+	update_option( OPTION_PRICE_RULES, array() );
 
 	ts_ck_regime( Vat::STANDARD );
 	ts_ck_customer_in_france();
@@ -434,6 +445,161 @@ function ts_margin_suite( int $product_id ): void {
 		$order->delete( true );
 	} );
 
+	// ── the scoped floors ────────────────────────────────────────────────────
+
+	ts_it( 'reads the six facts a rule can select an order on', function () use ( $product_id ) {
+		$order = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$order->update_meta_data( Costing::META_SELLER, 'Karim B.' );
+		$order->update_meta_data( Costing::META_CLIENT, 'professionnel' );
+		$order->update_meta_data( Costing::META_URGENCE, 'standard' );
+		$order->save();
+
+		$facts = Costing::facts( wc_get_order( $order->get_id() ) );
+		ts_eq( $facts['famille'], 'tee', 'the studio garment, in the catalogue’s vocabulary' );
+		ts_eq( $facts['technique'], 'dtf', 'the only thing the studio produces' );
+		ts_eq( $facts['commercial'], 'Karim B.', 'the seller' );
+		ts_eq( $facts['client'], 'professionnel', 'the client type' );
+		ts_eq( $facts['urgence'], 'standard', 'the urgency' );
+		ts_eq( $facts['quantite'], 12, 'the garments' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'moves the floor of the orders a rule names, and says which rule did it', function () use ( $product_id ) {
+		$order = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$before = Costing::compute( $order );
+		ts_eq( $before['rule'], null, 'nothing applies before a rule exists' );
+
+		update_option(
+			OPTION_PRICE_RULES,
+			array(
+				array(
+					'id'                    => 'r-tee',
+					'label'                 => 'T-shirts en volume',
+					'active'                => true,
+					'famille'               => 'tee',
+					'qty_min'               => 10,
+					'min_contribution_rate' => '15',
+				),
+			)
+		);
+
+		$after = Costing::compute( wc_get_order( $order->get_id() ) );
+		ts_eq( $after['rule']['label'], 'T-shirts en volume', 'the report must name the rule that priced it' );
+		ts_assert(
+			(int) $after['plan']['floor_ht'] < (int) $before['plan']['floor_ht'],
+			'a thinner contribution must lower the floor, which is what a rule is for'
+		);
+		ts_eq(
+			(int) $after['plan']['recommended_ht'],
+			(int) $before['plan']['recommended_ht'],
+			'and it must not touch the target margin it said nothing about'
+		);
+
+		update_option( OPTION_PRICE_RULES, array() );
+		$order->delete( true );
+	} );
+
+	ts_it( 'leaves an order the rule does not name exactly where it was', function () use ( $product_id ) {
+		$order  = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$before = Costing::compute( $order );
+
+		update_option(
+			OPTION_PRICE_RULES,
+			array(
+				array( 'id' => 'r-sweat', 'label' => 'Sweats', 'active' => true, 'famille' => 'sweat', 'min_contribution_rate' => '5' ),
+			)
+		);
+
+		$after = Costing::compute( wc_get_order( $order->get_id() ) );
+		ts_eq( $after['rule'], null, 'a rule for another family must not apply' );
+		ts_eq( (int) $after['plan']['floor_ht'], (int) $before['plan']['floor_ht'], 'and the floor must not move' );
+
+		update_option( OPTION_PRICE_RULES, array() );
+		$order->delete( true );
+	} );
+
+	ts_it( 'marks every stored report stale the moment a rule is written', function () use ( $product_id ) {
+		/*
+		 * THE HALF AN ORDER-ONLY CHECK COULD NEVER CATCH. Writing a rule changes
+		 * the floor of every order it matches and touches no order at all, so a
+		 * freshness check built on the order alone goes on saying "à jour" while
+		 * the derogation form offers an exception against a floor that has been
+		 * replaced.
+		 */
+		$order  = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$report = Costing::refresh( $order );
+		ts_assert( Costing::current( wc_get_order( $order->get_id() ), $report ), 'a fresh report describes its own order' );
+
+		update_option(
+			OPTION_PRICE_RULES,
+			array( array( 'id' => 'r-x', 'label' => 'Une règle', 'active' => true, 'min_contribution_rate' => '30' ) )
+		);
+
+		ts_eq( Costing::staleness( wc_get_order( $order->get_id() ), $report ), 'reglages', 'and it must say WHICH kind of stale' );
+		ts_assert( ! Costing::current( wc_get_order( $order->get_id() ), $report ), 'a report computed under other rules is not current' );
+
+		update_option( OPTION_PRICE_RULES, array() );
+		$order->delete( true );
+	} );
+
+	ts_it( 'reports no floor at all rather than dying, when a rule has no solution', function () use ( $product_id ) {
+		$order = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$order->update_meta_data( Costing::META_SALE_TYPE, 'premiere' );
+		$order->save();
+
+		// 65 % kept after 40 % of the margin is commissioned: impossible at any
+		// price. Margin::plan throws, and an order screen is on the other side.
+		update_option(
+			OPTION_PRICE_RULES,
+			array( array( 'id' => 'r-imp', 'label' => 'Impossible', 'active' => true, 'min_contribution_rate' => '65' ) )
+		);
+
+		$report = Costing::compute( wc_get_order( $order->get_id() ) );
+		ts_eq( $report['plan'], null, 'no plan rather than a fatal' );
+		ts_eq( $report['verdict'], null, 'and no verdict either' );
+		ts_assert( (int) $report['cost']['total_ht'] > 0, 'the cost is still worth reading' );
+		ts_eq( (bool) $report['covered'], false, 'nothing can be shown to be covered without a floor' );
+
+		$said = false;
+		foreach ( (array) $report['warnings'] as $warning ) {
+			if ( str_contains( (string) $warning, 'Impossible' ) ) {
+				$said = true;
+			}
+		}
+		ts_assert( $said, 'the warning must name the rule in question' );
+
+		// And it survives being stored and read back, which is what the screen does.
+		Costing::refresh( wc_get_order( $order->get_id() ) );
+		ts_eq( Costing::stored( wc_get_order( $order->get_id() ) )['plan'], null, 'and it survives being stored and read back' );
+
+		update_option( OPTION_PRICE_RULES, array() );
+		$order->delete( true );
+	} );
+
+	ts_it( 'never lets a rule survive a save of the cost settings', function () {
+		/*
+		 * The rules live in their own option because the cost option is rewritten
+		 * from a literal on every save, which is exactly how `billing_step_cm`
+		 * and 291,94 EUR of floor price were deleted one commit earlier.
+		 */
+		update_option(
+			OPTION_PRICE_RULES,
+			array( array( 'id' => 'r-keep', 'label' => 'À garder', 'active' => true, 'min_contribution_rate' => '30' ) )
+		);
+		update_option( 'teeshoop_costing', array( 'hourly_ht' => 2500 ) );
+
+		$rules = Costing::rules_table();
+		ts_eq( count( $rules ), 1, 'writing the cost settings must not touch the rules' );
+		ts_eq( $rules[0]['label'], 'À garder', 'and the rule is intact' );
+
+		update_option( OPTION_PRICE_RULES, array() );
+		update_option(
+			'teeshoop_costing',
+			array( 'garment_supply' => array( 'tee' => array( 'ht' => 337, 'source' => 'Tarif fournisseur de vérification', 'on' => '2026-08-01' ) ) )
+		);
+	} );
+
 	// ── the commission is on money that arrived ──────────────────────────────
 
 	ts_it( 'pays a share of a deposit and the rest on the balance', function () use ( $product_id ) {
@@ -584,4 +750,5 @@ function ts_margin_suite( int $product_id ): void {
 
 	update_option( 'teeshoop_costing', is_array( $saved_costing ) ? $saved_costing : array() );
 	update_option( 'teeshoop_commission', is_array( $saved_commission ) ? $saved_commission : array() );
+	update_option( OPTION_PRICE_RULES, is_array( $saved_rules ) ? $saved_rules : array() );
 }

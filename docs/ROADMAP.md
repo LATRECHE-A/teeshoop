@@ -180,6 +180,13 @@ exprimée en pourcentage dans l'hypothèse par défaut, donne une formule diffé
 **n'a aucune solution** dans un cas que le code refuse au lieu de renvoyer un plancher
 négatif.
 
+**Le plancher n'est pas le même partout.** Le chapitre 1 demande de pouvoir le définir
+par famille de produits, par technique, par commercial, par taille de commande, par type
+de client et par niveau d'urgence : les six existent, se règlent depuis l'écran, et la
+règle qui s'applique à une commande est gelée dans son rapport et nommée sur son écran.
+**La table est livrée vide** parce qu'une règle est la seule chose de ce moteur qui puisse
+ABAISSER un plancher, et que les taux par famille sont la question 06.
+
 **Et une mesure qui appelle une décision.** Aux réglages actuels, **aucune colonne de la
 grille publique n'est vendable sans validation** : à 5 pièces le tarif de démonstration
 passe 14,21 EUR sous son propre plancher, et toutes les autres dépassent les 15 % de remise

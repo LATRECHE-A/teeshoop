@@ -665,6 +665,23 @@ return array(
 				'06',
 			),
 		),
+		array(
+			'id' => 'H-Q01-TYPES-CLIENT',
+			'question' => 'Q01',
+			'level' => 'important',
+			'status' => 'assumption',
+			'since' => '2026-08-18',
+			'statement_fr' => 'Une commande peut être marquée « particulier », « professionnel », « grand compte » ou « collectivité », et rien d\'autre. Aucune commande n\'en porte tant qu\'un opérateur ne l\'a pas choisi.',
+			'home' => 'anchor:wp-plugins/teeshoop-core/includes/PriceRule.php#public const CLIENTS',
+			'reaches' => array(
+				'internal',
+				'operator',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'05',
+			),
+		),
 	),
-	'withheld' => 25,
+	'withheld' => 26,
 );

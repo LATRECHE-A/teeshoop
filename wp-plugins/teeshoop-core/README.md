@@ -57,8 +57,10 @@ includes/
                       prudent length bound. Pure
   Commission.php      rates by kind of sale, accrual on money received, and the
                       Bible's four conditions for a definitive one. Pure
+  PriceRule.php       the floor by perimeter: which rule applies to an order,
+                      and what a rule may change. Pure
   Costing.php         one ORDER: its cost, its floor, its commission, its
-                      derogation. The file where the three above meet WooCommerce
+                      derogation. The file where the four above meet WooCommerce
   Nest.php            asks the Worker how many linear metres of film an order
                       needs. Fails closed; never packs anything itself
   CostAdmin.php       the two screens the associate maintains it all from
@@ -103,6 +105,8 @@ tests/
   test-cost.php       the cost model, and the two places our numbers do not
                       match the Bible's own worked example
   test-commission.php the base the Bible requires and the three it forbids
+  test-pricerule.php  the scoped floors: which rule wins, and the ways one must
+                      not silently lower a floor
   test-catalogue.php  the supplier mapping: sizes, families, grammage, the
                       guards that refuse a payload about another style
   integration.php     the WooCommerce seam. Needs a real WP (see below)
@@ -647,6 +651,35 @@ never the TTC: on the Bible's own worked example those two pay 250 EUR and
 300 EUR against a result before fixed costs of 225 EUR. A partial payment earns
 its share pro rata, which is the one thing the Bible does not say and question 29
 now asks.
+
+**The floor is not the same everywhere.** Chapter 1 asks for it in one
+sentence and means six: a floor definable by product family, by technique, by
+salesperson, by order size, by client type and by urgency. `PriceRule.php` is
+that, stored in its own option (never in the cost config, which is rewritten
+from a literal on every save and would delete it), edited as one stacked block
+per rule.
+
+A rule is the ONLY thing in this engine that can LOWER a floor, which is what it
+is for and why it is built the way it is:
+
+- it overrides only the rates it sets, because a blank field is not a zero;
+- a tie between two equally specific, equally prioritised rules goes to the
+  STRICTER one, because picking the first-written would be an arbitrary choice
+  between two floor prices;
+- an order whose fact is unknown (a basket spanning two families has no family)
+  matches only rules that do not select on it;
+- the winning rule is frozen into the report with its rates and named on the
+  panel, so a floor is always explainable after the rule has been edited away;
+- and every block on the screen prints the floor it produces on the page's own
+  worked example. That one line is what makes the screen safe: a contribution
+  typed "0,25" instead of "25" is 0,25 %, it reads back as exactly what was
+  typed, and the only thing that shows it is the floor beside it collapsing from
+  428,57 EUR to 251,05 EUR.
+
+A rule can also make the floor INSOLUBLE (keeping k of the price after paying c
+of the margin has no solution once k ≥ 1 − c). The formula throws, `Costing`
+catches, and the report carries no plan and no verdict at all rather than a
+floor of 0,00 EUR beside the words "vendable sans validation".
 
 **Selling under the floor takes an exception**, with all four of the parts the
 chapter names: a motive, an approver, a validity window and a displayed impact.

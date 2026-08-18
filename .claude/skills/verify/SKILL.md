@@ -36,7 +36,7 @@ it scanned nothing, because "no markers found" and "no files found" are differen
 | Catalogue import, the importer, the supplier client, the shop taxonomy | `npm run verify:wp-catalogue` (needs `npm run wp:up`) |
 | Catalogue or supplier code | `scripts/catalog-verify.mjs`, `scripts/fr-verify.mjs`. |
 | Checkout, cart, order | `npm run test:wp`, then a real order through the local WordPress. |
-| The cost engine, the floor price, commissions (`Cost.php`, `Margin.php`, `Commission.php`, `Costing.php`, `Nest.php`, `CostAdmin.php`) | `npm run test:php` and `npm run test:wp`. The integration half reconciles the report against the ISSUED invoice, not against a recomputation. |
+| The cost engine, the floor price, commissions (`Cost.php`, `Margin.php`, `Commission.php`, `PriceRule.php`, `Costing.php`, `Nest.php`, `CostAdmin.php`) | `npm run test:php` and `npm run test:wp`. The integration half reconciles the report against the ISSUED invoice, not against a recomputation. |
 | `POST /api/nest`, `src/lib/dtf/nesting.ts`, `Cost::prudent_length_cm`, `src/lib/ink.ts`'s piece rectangles | `npm run verify:nest`. Boots a real `wrangler dev` and a real `php`; needs `ADMIN_TOKEN` in `.dev.vars`. It proves the gate, that the route's answer IS `nestRoll`'s, and that PHP's fallback bound is above the real packing. Out of CI for the usual reason: it spawns a server. |
 
 ## Rules while verifying

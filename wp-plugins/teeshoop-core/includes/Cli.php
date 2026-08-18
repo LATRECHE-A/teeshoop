@@ -545,8 +545,33 @@ final class Cli {
 		\WP_CLI::log( '' );
 		\WP_CLI::log( 'PRIX' );
 		\WP_CLI::log( sprintf( '  %-22s %s', 'Vendue HT', $money( (int) $report['revenue']['total_ht'] ) ) );
+
+		/*
+		 * NO PLAN, NO PRICE BLOCK. Reading a null plan's fields yields 0 and
+		 * every verdict test yields false, so this printed a clean green report
+		 * of five zeroes and the words VENDABLE SANS VALIDATION, while the
+		 * warnings that explained it went to stderr. `> preuve.txt` captured the
+		 * green half and dropped the red one. This command exists to be evidence.
+		 */
+		if ( ! is_array( $report['plan'] ?? null ) ) {
+			\WP_CLI::log( '  ' . str_pad( 'AUCUN PRIX PLANCHER CALCULABLE', 24, ' ', STR_PAD_LEFT ) );
+			foreach ( (array) $report['warnings'] as $warning ) {
+				\WP_CLI::log( '  ' . (string) $warning );
+			}
+			\WP_CLI::log( '' );
+			\WP_CLI::error( 'Les taux en vigueur n’ont pas de solution pour cette commande.' );
+		}
 		\WP_CLI::log( sprintf( '  %-22s %s', 'Prix conseillé', $money( (int) $report['plan']['recommended_ht'] ) ) );
 		\WP_CLI::log( sprintf( '  %-22s %s   %s', 'Prix plancher', $money( (int) $report['plan']['floor_ht'] ), $report['cost']['complete'] ? '' : '(minimum : coût incomplet)' ) );
+		\WP_CLI::log(
+			sprintf(
+				'  %-22s %s',
+				'Règle appliquée',
+				is_array( $report['rule'] ?? null )
+					? ( '' !== (string) $report['rule']['label'] ? (string) $report['rule']['label'] : (string) $report['rule']['id'] )
+					: ( (int) ( $report['version'] ?? 1 ) < Costing::VERSION ? 'chiffrage antérieur aux règles' : 'aucune, réglages généraux' )
+			)
+		);
 		\WP_CLI::log( sprintf( '  %-22s %s', 'Marge contributive', $money( (int) $report['verdict']['margin_ht'] ) ) );
 		\WP_CLI::log( sprintf( '  %-22s %s   %s (%s)', 'Commission', $money( (int) $report['commission']['earned_ht'] ), (string) $report['state']['state'], (string) $report['sale_type'] ) );
 		\WP_CLI::log( sprintf( '  %-22s %s', 'Reste à Teeshoop', $money( (int) $report['verdict']['margin_ht'] - (int) $report['commission']['full_ht'] ) ) );

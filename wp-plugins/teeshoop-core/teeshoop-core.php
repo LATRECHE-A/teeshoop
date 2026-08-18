@@ -88,6 +88,12 @@ const OPTION_COSTING = 'teeshoop_costing';
 /** Option holding the commission rates and the acquisition delays. */
 const OPTION_COMMISSION = 'teeshoop_commission';
 
+/**
+ * Option holding the scoped floor rules. ITS OWN, never inside the cost config:
+ * that one is rewritten from a literal on every save and would delete them.
+ */
+const OPTION_PRICE_RULES = 'teeshoop_price_rules';
+
 require_once __DIR__ . '/includes/Money.php';
 require_once __DIR__ . '/includes/Pricing.php';
 require_once __DIR__ . '/includes/Vat.php';
@@ -97,6 +103,7 @@ require_once __DIR__ . '/includes/Settlement.php';
 require_once __DIR__ . '/includes/Margin.php';
 require_once __DIR__ . '/includes/Cost.php';
 require_once __DIR__ . '/includes/Commission.php';
+require_once __DIR__ . '/includes/PriceRule.php';
 require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Garments.php';
 require_once __DIR__ . '/includes/Hypotheses.php';

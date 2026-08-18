@@ -65,8 +65,20 @@ final class Costing {
 	/** Order meta: the date the order was delivered or closed. */
 	public const META_DELIVERED = '_teeshoop_livree_le';
 
-	/** What the report format is, so a stored one can be read years later. */
-	public const VERSION = 1;
+	/** Order meta: which kind of client this is, for a scoped floor. */
+	public const META_CLIENT = '_teeshoop_type_client';
+
+	/** Order meta: how urgent this order is, for a scoped floor. */
+	public const META_URGENCE = '_teeshoop_urgence';
+
+	/**
+	 * What the report format is, so a stored one can be read years later.
+	 *
+	 * 2 since the scoped floors: a version 1 report was computed before the rule
+	 * table existed, and "no rule applied" and "there were no rules" are
+	 * different claims. The panel says which.
+	 */
+	public const VERSION = 2;
 
 	// ── Configuration ────────────────────────────────────────────────────────
 
@@ -78,6 +90,20 @@ final class Costing {
 	public static function commission_config(): array {
 		$stored = get_option( OPTION_COMMISSION, array() );
 		return Commission::merge_config( is_array( $stored ) ? $stored : array() );
+	}
+
+	/**
+	 * The scoped floor rules, normalised.
+	 *
+	 * ITS OWN OPTION, and that is not tidiness. `Cost::merge_config` drops any
+	 * stored top-level key it does not ship a default for, and `CostAdmin::save`
+	 * rewrites the cost option from a literal, so a rules key living in there
+	 * would be deleted by the next press of Enregistrer on an unrelated field.
+	 * That is exactly the mechanism that deleted `billing_step_cm` and 291,94 EUR
+	 * of floor price, one commit ago.
+	 */
+	public static function rules_table(): array {
+		return PriceRule::normalise_all( get_option( OPTION_PRICE_RULES, array() ) );
 	}
 
 	/**
@@ -119,6 +145,92 @@ final class Costing {
 	public static function delivered_on( \WC_Order $order ): string {
 		$stored = (string) $order->get_meta( self::META_DELIVERED, true );
 		return 1 === preg_match( '/^\d{4}-\d{2}-\d{2}$/', $stored ) ? $stored : '';
+	}
+
+	public static function client_type( \WC_Order $order ): string {
+		$stored = (string) $order->get_meta( self::META_CLIENT, true );
+		return isset( PriceRule::CLIENTS[ $stored ] ) ? $stored : '';
+	}
+
+	public static function urgence( \WC_Order $order ): string {
+		$stored = (string) $order->get_meta( self::META_URGENCE, true );
+		return isset( PriceRule::URGENCES[ $stored ] ) ? $stored : '';
+	}
+
+	/**
+	 * The six things a price rule may select an order on.
+	 *
+	 * ── THE FAMILY IS THE HARD ONE, AND IT WAS WRONG TWICE ───────────────────
+	 *
+	 * A catalogue line's family lives on the PARENT product and not on the
+	 * variation the order item points at, so reading it off `get_product()`
+	 * returns nothing for every imported line, silently. It is read off
+	 * `get_product_id()`, which is the parent.
+	 *
+	 * And the two sources speak different languages: the importer writes
+	 * tee/polo/sweat/shirt/other, the studio writes tee/hoodie/custom, and
+	 * measured on the mirror not one product carries both. `Costing` translates
+	 * the studio's word into the catalogue's here, once, so a rule is written in
+	 * one vocabulary (`PriceRule::FAMILIES`).
+	 *
+	 * ── AND A MIXED ORDER HAS NO FAMILY ──────────────────────────────────────
+	 *
+	 * An order whose lines are not all one family reports '', which matches only
+	 * rules that do not select on a family. That is the conservative reading: a
+	 * thin floor written for t-shirts has not been shown to apply to a basket
+	 * that is half sweatshirts, and the alternative (letting the majority decide)
+	 * would let one cheap line of another family pull a whole order onto a
+	 * different floor.
+	 */
+	public static function facts( \WC_Order $order ): array {
+		$families = array();
+		$garments = 0;
+
+		foreach ( $order->get_items() as $item ) {
+			if ( ! $item instanceof \WC_Order_Item_Product ) {
+				continue;
+			}
+			$garments += max( 1, (int) $item->get_quantity() );
+
+			// The PARENT, because that is where the importer writes it.
+			$family = (string) get_post_meta( (int) $item->get_product_id(), Catalogue::META_FAMILY, true );
+			if ( '' === $family ) {
+				$family = self::family_of_garment( (string) $item->get_meta( '_teeshoop_garment', true ) );
+			}
+			if ( '' !== $family ) {
+				$families[ $family ] = true;
+			}
+		}
+
+		return array(
+			'famille'    => 1 === count( $families ) ? (string) array_key_first( $families ) : '',
+			/*
+			 * The only thing this shop produces. See PriceRule::TECHNIQUES: a
+			 * studio order IS a DTF order, and it is derived rather than stored
+			 * because nothing records a technique on an order.
+			 */
+			'technique'  => 'dtf',
+			'commercial' => self::seller( $order ),
+			'client'     => self::client_type( $order ),
+			'urgence'    => self::urgence( $order ),
+			'quantite'   => $garments,
+		);
+	}
+
+	/**
+	 * The studio's word for a garment, in the catalogue's vocabulary.
+	 *
+	 * A hoodie is a sweat: the catalogue has one family for both and the studio
+	 * has one garment for the hooded one. `custom` has no catalogue family
+	 * because the customer's own shirt was never bought from anybody.
+	 */
+	public static function family_of_garment( string $garment ): string {
+		$map = array(
+			'tee'    => 'tee',
+			'hoodie' => 'sweat',
+			'custom' => 'custom',
+		);
+		return $map[ $garment ] ?? '';
 	}
 
 	/**
@@ -446,10 +558,11 @@ final class Costing {
 				(int) $film['amount_ht'],
 				Cost::ESTIMATED,
 				sprintf(
-					/* translators: 1: metres of film, 2: rate per metre in euros. */
-					__( '%1$s m imbriqués sur laize de %2$s cm, tarif au mètre linéaire', 'teeshoop' ),
+					/* translators: 1: metres of film, 2: roll width in cm, 3: the rate per linear metre. */
+					__( '%1$s m imbriqués sur laize de %2$s cm, à %3$s le mètre linéaire', 'teeshoop' ),
 					Money::number( (float) $film['billed_m'], 2 ),
-					Money::number( (float) ( $config['film']['width_cm'] ?? 0 ), 0 )
+					Money::number( (float) ( $config['film']['width_cm'] ?? 0 ), 0 ),
+					Money::format( (int) $film['rate_ht'] )
 				),
 				''
 			);
@@ -607,8 +720,35 @@ final class Costing {
 			$warnings[] = __( 'Le type de vente de cette commande n’est pas renseigné : aucune commission n’est calculée.', 'teeshoop' );
 		}
 
-		$plan = Margin::plan( (int) $cost['total_ht'], self::rules( $rate ?? 0.0, $config ) );
-		$verdict = Margin::verdict( (int) $totals['total_ht'], $plan );
+		$facts   = self::facts( $order );
+		$scoped  = PriceRule::apply( self::rules( $rate ?? 0.0, $config ), self::rules_table(), $facts, Settings::today() );
+
+		/*
+		 * A RULE CAN MAKE THE FLOOR INSOLUBLE, and then there is no floor to
+		 * state. Keeping k of the price after paying c of the margin away has no
+		 * solution once k ≥ 1 − c, `Margin::floor_price_rate` refuses it by
+		 * throwing, and a rule that is fine against a 12 % reassort commission
+		 * detonates on the first order attributed at 40 %.
+		 *
+		 * Caught here rather than allowed to fatal, because the thing on the
+		 * other side of it is an order screen. The report then carries a NULL
+		 * plan and no verdict, every reader branches on that, and nothing prints
+		 * a floor of 0,00 EUR beside the words "vendable sans validation".
+		 */
+		$plan    = null;
+		$verdict = null;
+		try {
+			$plan    = Margin::plan( (int) $cost['total_ht'], $scoped['rules'] );
+			$verdict = Margin::verdict( (int) $totals['total_ht'], $plan );
+		} catch ( \InvalidArgumentException $e ) {
+			$warnings[] = sprintf(
+				/* translators: 1: the minimum contribution rate, 2: the commission rate, 3: the rule that set it or a dash. */
+				__( 'Aucun prix plancher n’est calculable : garder %1$s du prix de vente après avoir versé %2$s de la marge est impossible à tout prix. Règle en cause : %3$s.', 'teeshoop' ),
+				Money::number( (float) $scoped['rules']['min_contribution_rate'] * 100, 2 ) . "\u{00A0}%",
+				Money::number( (float) $scoped['rules']['commission_rate'] * 100, 2 ) . "\u{00A0}%",
+				null === $scoped['rule'] ? __( 'aucune, ce sont les réglages généraux', 'teeshoop' ) : (string) $scoped['rule']['label']
+			);
+		}
 
 		/*
 		 * MONEY GIVEN BACK IS NOT MONEY EARNED, and this is the second half of
@@ -630,8 +770,16 @@ final class Costing {
 		$refunded_ht  = $refunded_ttc - Money::from_eur( (string) $order->get_total_tax_refunded() );
 		$kept_ttc     = max( 0, Ledger::received( $order ) - $refunded_ttc );
 
+		/*
+		 * The margin does not need a floor: it is what the order sold for minus
+		 * what it cost, and both are known even when no floor can be stated.
+		 */
+		$margin_ht = null === $verdict
+			? (int) $totals['total_ht'] - (int) $cost['total_ht']
+			: (int) $verdict['margin_ht'];
+
 		$accrued = Commission::accrue(
-			(int) $verdict['margin_ht'] - $refunded_ht,
+			$margin_ht - $refunded_ht,
 			$rate ?? 0.0,
 			$kept_ttc,
 			(int) $totals['total_ttc'],
@@ -662,10 +810,10 @@ final class Costing {
 		if ( ! empty( $work['graded'] ) ) {
 			$warnings[] = __( 'Cette commande contient des tailles autres que celle de tarification : le film est chiffré à cette taille-là. Mesuré sur une commande de trente pièces, l’imbrication réelle demande 2,70 m en 3XL contre 1,80 m en M, soit 50 % de film en plus (question 37).', 'teeshoop' );
 		}
-		if ( $plan['raised_to_floor'] ) {
+		if ( null !== $plan && $plan['raised_to_floor'] ) {
 			$warnings[] = __( 'Le prix conseillé a été relevé au plancher : la marge cible et la contribution minimale se contredisent aux réglages actuels.', 'teeshoop' );
 		}
-		if ( $verdict['below_cost'] ) {
+		if ( null !== $verdict && $verdict['below_cost'] ) {
 			$warnings[] = __( 'Cette commande a été vendue en dessous de son coût direct connu.', 'teeshoop' );
 		}
 
@@ -677,7 +825,7 @@ final class Costing {
 		 * that reads a stored one.
 		 */
 		$derogation = self::derogation( $order );
-		if ( $verdict['below_floor'] ) {
+		if ( null !== $verdict && $verdict['below_floor'] ) {
 			$warnings[] = self::derogation_covers( $derogation, $verdict, $plan, Settings::today() )
 				? sprintf(
 					/* translators: %s: who authorised the sale below the floor. */
@@ -685,7 +833,7 @@ final class Costing {
 					(string) $derogation['approver']
 				)
 				: __( 'Vendue sous le prix plancher, sans dérogation en cours : il en faut une, avec un motif, un valideur et une durée.', 'teeshoop' );
-		} elseif ( $verdict['needs_approval'] ) {
+		} elseif ( null !== $verdict && $verdict['needs_approval'] ) {
 			$warnings[] = __( 'La remise consentie dépasse ce qu’un commercial peut accorder seul : cette vente demandait votre accord.', 'teeshoop' );
 		}
 
@@ -704,6 +852,7 @@ final class Costing {
 			 * what it read and the panel compares.
 			 */
 			'order_stamp' => self::stamp( $order ),
+			'settings_stamp' => self::settings_stamp(),
 			'revenue'     => $totals,
 			'received_ttc' => Ledger::received( $order ),
 			'refunded_ttc' => $refunded_ttc,
@@ -721,6 +870,8 @@ final class Costing {
 			'seller'      => self::seller( $order ),
 			'commission'  => $accrued + array( 'known_rate' => null !== $rate ),
 			'state'       => $state,
+			'facts'       => $facts,
+			'rule'        => $scoped['rule'],
 			'derogation'  => $derogation,
 			'covered'     => self::derogation_covers( $derogation, $verdict, $plan, Settings::today() ),
 			'warnings'    => $warnings,
@@ -752,6 +903,17 @@ final class Costing {
 			self::sale_type( $order ),
 			self::delivered_on( $order ),
 			(string) Ledger::received( $order ),
+			/*
+			 * THE THREE THAT NOW MOVE THE FLOOR. The docblock above already
+			 * claimed to cover "who is said to have sold it" and did not, which
+			 * was harmless while the seller changed no number. It is not any
+			 * more: all three are price-rule selectors, so a write to any of them
+			 * that does not go through the panel would otherwise leave a stale
+			 * report reading "à jour".
+			 */
+			self::seller( $order ),
+			self::client_type( $order ),
+			self::urgence( $order ),
 		);
 		foreach ( $order->get_items() as $item ) {
 			$parts[] = $item->get_id() . ':' . $item->get_quantity() . ':' . $item->get_subtotal();
@@ -762,9 +924,56 @@ final class Costing {
 		return md5( implode( '|', $parts ) );
 	}
 
-	/** Whether a stored report still describes the order in front of us. */
+	/**
+	 * A fingerprint of the SETTINGS a report was computed under.
+	 *
+	 * The order stamp catches an edited order. It cannot catch the other half,
+	 * and the other half is now the bigger one: writing a price rule changes
+	 * every floor it matches, and nothing about any order moves. Without this,
+	 * an operator could add a rule that raises a floor by 150,00 EUR and every
+	 * stored report would go on reading "à jour", with the derogation form still
+	 * offering an exception measured against the floor the rule replaced.
+	 */
+	public static function settings_stamp(): string {
+		return md5(
+			(string) wp_json_encode(
+				array(
+					self::rules_table(),
+					get_option( OPTION_COSTING, array() ),
+					get_option( OPTION_COMMISSION, array() ),
+					self::VERSION,
+				)
+			)
+		);
+	}
+
+	/**
+	 * Why a stored report no longer describes the order in front of us, or ''.
+	 *
+	 * TWO SENTENCES AND NOT ONE, because they send an operator to two different
+	 * places: "the order changed" means look at the order, "the rules changed"
+	 * means look at the rule table. And a report older than the rule table is a
+	 * third thing again: it never consulted one.
+	 */
+	public static function staleness( \WC_Order $order, ?array $report ): string {
+		if ( null === $report ) {
+			return '';
+		}
+		if ( (int) ( $report['version'] ?? 1 ) < self::VERSION ) {
+			return 'version';
+		}
+		if ( ( $report['order_stamp'] ?? '' ) !== self::stamp( $order ) ) {
+			return 'commande';
+		}
+		if ( ( $report['settings_stamp'] ?? '' ) !== self::settings_stamp() ) {
+			return 'reglages';
+		}
+		return '';
+	}
+
+	/** Whether a stored report still describes the order AND the rules in force. */
 	public static function current( \WC_Order $order, ?array $report ): bool {
-		return null !== $report && isset( $report['order_stamp'] ) && $report['order_stamp'] === self::stamp( $order );
+		return null !== $report && '' === self::staleness( $order, $report );
 	}
 
 	/** The stored report, or null when nobody has ever asked for one. */
@@ -813,8 +1022,15 @@ final class Costing {
 	 * stated shortfall; if the cost has since been corrected upwards and the
 	 * shortfall is larger, nobody has authorised the new one.
 	 */
-	public static function derogation_covers( ?array $derogation, array $verdict, array $plan, string $today ): bool {
-		if ( null === $derogation ) {
+	public static function derogation_covers( ?array $derogation, ?array $verdict, ?array $plan, string $today ): bool {
+		/*
+		 * No plan means no floor, so nothing can be shown to be covered: an
+		 * exception authorises a stated shortfall against a stated floor, and
+		 * with neither there is nothing to compare. Typed nullable rather than
+		 * called conditionally, because `compute()` calls it on every path and a
+		 * TypeError on an order screen is not an error message.
+		 */
+		if ( null === $derogation || null === $verdict || null === $plan ) {
 			return false;
 		}
 		if ( $derogation['until'] < $today ) {

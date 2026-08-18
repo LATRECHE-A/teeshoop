@@ -112,6 +112,7 @@ const FORBIDDEN = [
   { s: 'Cost::', cat: 'margin' },
   { s: 'Commission::', cat: 'margin' },
   { s: 'Costing::', cat: 'margin' },
+  { s: 'PriceRule::', cat: 'margin' },
   { s: 'taux horaire', cat: 'margin', scope: 'rendered' },
   { s: 'coût direct', cat: 'margin', scope: 'rendered' },
   { s: 'marge Teeshoop', cat: 'margin', scope: 'rendered' },
@@ -156,10 +157,18 @@ const ALLOWED = new Map([
     { why: 'what a salesperson earns; server-only, never rendered, and it reads the cost confidences', needles: ['Cost::'] },
   ],
   [
+    'wp-plugins/teeshoop-core/includes/PriceRule.php',
+    { why: 'the scoped floor rules; pure, server-only, never rendered, and naming its own methods is its job', needles: ['PriceRule::', 'Margin::', 'Costing::'] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/test-pricerule.php',
+    { why: 'the tests for the scoped floors', needles: ['PriceRule::', 'Margin::', 'Costing::'] },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/Costing.php',
     {
       why: 'the order-facing cost, floor and commission report; admin-only screens and order meta, never a customer surface',
-      needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::'],
+      needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::', 'PriceRule::'],
     },
   ],
   [
@@ -173,7 +182,7 @@ const ALLOWED = new Map([
        * category, so this file is still checked for supplier names, for film
        * tariffs per linear metre and for the seven other purchase-cost strings.
        */
-      needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::', 'CostAdmin::', 'Prix d’achat'],
+      needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::', 'CostAdmin::', 'PriceRule::', 'Prix d’achat'],
     },
   ],
   [
@@ -197,7 +206,7 @@ const ALLOWED = new Map([
   ],
   [
     'wp-plugins/teeshoop-core/tests/integration-margin.php',
-    { why: 'the WooCommerce test for the costing; runs under wp-cli, renders to nobody', needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::'] },
+    { why: 'the WooCommerce test for the costing; runs under wp-cli, renders to nobody', needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::', 'PriceRule::'] },
   ],
   [
     'wp-plugins/teeshoop-core/tests/test-commission.php',
