@@ -379,6 +379,42 @@ et ne peut pas y être, c'est ce que le fournisseur a réellement **facturé** :
 ne publie aucune facture, et l'écran le dit plutôt que de laisser croire que le
 rapprochement est complet.
 
+**Et ce que la passe adverse a trouvé sur un changement pourtant vert.** Six angles,
+quarante et un agents, chaque trouvaille réfutée avant d'être crue : 28 ont survécu, et les
+quatre qui comptent sont exactement celles que la séance existait pour empêcher.
+
+La plus chère : **le textile nu était résolu en direct et non gelé à la vente**. Le panier
+lisait la référence sur la fiche produit au moment où quelqu'un appuyait sur « Préparer »,
+des jours après la vente et souvent après l'impression du film. Reproduit sur le miroir
+avec de vraies données de catalogue : un gestionnaire remplace une référence en fin de vie,
+la 00142 devient la 00517, le nom de coloris « Navy » existe sur les deux parce que
+`pa_couleur` est un seul attribut partagé par tous les styles importés, rien ne refuse
+nulle part, et vingt polos sont achetés pour une série dont le film est imprimé pour des
+t-shirts. La collision est le cas ordinaire : dans le miroir, « Navy » est porté par 4
+styles et « White » par 5. La référence et le coloris fournisseur sont désormais gelés sur
+la ligne au moment de la vente.
+
+Trois autres du même genre : la résolution d'un article prenait **le premier** que
+WooCommerce rendait quand un coloris et une taille en désignaient deux, ce qui achetait à
+pile ou face ; une commande **acceptée avec des lignes refusées** s'affichait comme
+entièrement « Commandée », les refus étant enregistrés puis masqués par l'écran, de sorte
+que la pénurie se découvrait à l'ouverture des cartons ; et l'importateur **datait des
+articles que le relevé de stock n'avait jamais mentionnés**, dont la quantité est
+volontairement gelée, si bien que ce chiffre ne pouvait plus jamais vieillir.
+
+Côté argent : **`send()` ne prenait aucun verrou** là où `prepare()`, qui ne dépense rien,
+en prend un depuis le premier jour, donc un double clic pouvait envoyer deux documents sous
+la même clé ; une réponse nommant un numéro de commande **et** une erreur était classée
+« refusée », ce qui libère les commandes et les fait racheter ; et un refus du Worker
+survenu **avant** l'envoi arrivait sous la forme d'un 502, donc de l'état terminal « envoi
+incertain ».
+
+Et une de sécurité : **un seul secret dépensait de l'argent.** `ADMIN_TOKEN` ouvre toutes
+les routes, et l'un de ses porteurs est la tâche de nuit qui importe le catalogue depuis un
+WordPress mutualisé. La route d'envoi demande désormais un second jeton, sur un en-tête à
+elle, et n'accepte que la forme `Bearer`, parce que la forme `Basic` existe pour qu'un
+navigateur ouvre `/admin.html` et qu'un navigateur la rejoue.
+
 **Deux questions nouvelles, toutes deux trouvées en construisant.** La **46**, bloquante :
 combien de temps s'écoule entre un bon de commande textile et la réception ? Personne ne l'a
 jamais mesuré, la Bible ne le donne dans aucun de ses huit chapitres, et l'atelier ne
