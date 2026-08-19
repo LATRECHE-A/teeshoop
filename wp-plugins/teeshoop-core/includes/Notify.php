@@ -69,8 +69,15 @@ final class Notify {
 	 *
 	 * @return array{ok:bool,reason:string,id:int}
 	 */
-	public static function bat( \WC_Order $order, array $version, string $token ): array {
-		return Mail::send( self::message( self::spec_bat( $order, $version, $token ), $order, self::KIND_BAT ) );
+	/**
+	 * @param ?string $environment threaded, not read, for the reason
+	 *                `Mail::deliver` takes one: Brevo runs in production and
+	 *                nowhere else, so a suite asserting the Brevo request has to
+	 *                be able to say which environment it is standing in without
+	 *                restating the message.
+	 */
+	public static function bat( \WC_Order $order, array $version, string $token, ?string $environment = null ): array {
+		return Mail::send( self::message( self::spec_bat( $order, $version, $token ), $order, self::KIND_BAT ), $environment );
 	}
 
 	public static function confirmation( \WC_Order $order ): array {

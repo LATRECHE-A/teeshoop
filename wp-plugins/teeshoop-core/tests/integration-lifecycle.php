@@ -617,7 +617,7 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		ts_lc_capture_http();
 		$order  = ts_lc_order( $product_id );
 		$issued = Bat::issue( $order );
-		$sent   = Notify::bat( $order, $issued['version'], (string) $issued['token'] );
+		$sent   = ts_lc_send_bat( $order, $issued );
 
 		ts_assert( $sent['ok'], 'l’envoi a échoué : ' . $sent['reason'] );
 		$calls = ts_lc_brevo_calls();
@@ -649,7 +649,7 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		ts_lc_capture_http( 400, array( 'message' => 'sender not verified' ) );
 		$order  = ts_lc_order( $product_id );
 		$issued = Bat::issue( $order );
-		$sent   = Notify::bat( $order, $issued['version'], (string) $issued['token'] );
+		$sent   = ts_lc_send_bat( $order, $issued );
 
 		ts_eq( $sent['ok'], false, 'un refus a été lu comme un envoi' );
 		ts_assert( false !== strpos( $sent['reason'], '400' ), 'le code HTTP n’est pas repris' );
@@ -668,11 +668,11 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		ts_lc_capture_http( 502, array( 'message' => 'oops' ) );
 		$order  = ts_lc_order( $product_id );
 		$issued = Bat::issue( $order );
-		$sent   = Notify::bat( $order, $issued['version'], (string) $issued['token'] );
+		$sent   = ts_lc_send_bat( $order, $issued );
 		ts_eq( $sent['ok'], false, 'le 502 devrait échouer' );
 
 		ts_lc_capture_http( 201 );
-		$again = Mail::retry( (int) $sent['id'] );
+		$again = Mail::retry( (int) $sent['id'], 'production' );
 		ts_assert( $again['ok'], 'le renvoi a échoué : ' . $again['reason'] );
 
 		/*
@@ -793,6 +793,103 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 
 		ts_eq( wc_get_order( $order->get_id() )->get_status(), Lifecycle::SHIPPED, 'le retour arrière n’a pas tenu' );
 		ts_eq( count( Mail::for_order( $order->get_id() ) ), $before, 'un deuxième avis d’expédition est parti' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'never reaches Brevo from anywhere but production', function () use ( $product_id ) {
+		/*
+		 * THE PREPRODUCTION IS A COPY OF PRODUCTION, real customers and real
+		 * addresses, and its runbook trusts an mu-plugin on `pre_wp_mail` to stop
+		 * a status change mailing one of them. `wp_remote_post` to Brevo is not
+		 * `wp_mail` and that circuit-breaker cannot see it, so the first version
+		 * of `deliver()` reading the key before the environment meant that
+		 * defining a key on the preproduction, the natural way to try this,
+		 * would have mailed a real customer a proof for an order they received
+		 * weeks ago with a live approval link into the copy.
+		 */
+		ts_assert( '' !== Mail::api_key(), 'ce cas suppose une clé définie' );
+
+		$order = ts_lc_order( $product_id );
+		foreach ( array( 'staging', 'local', 'development' ) as $environment ) {
+			ts_lc_capture_http();
+			Mail::send(
+				array(
+					'kind'     => Notify::KIND_CONFIRM,
+					'order_id' => $order->get_id(),
+					'to'       => 'client@example.test',
+					'subject'  => 'essai',
+					'html'     => '<p>essai</p>',
+					'text'     => 'essai',
+				),
+				$environment
+			);
+			ts_eq( ts_lc_brevo_calls(), array(), "Brevo a été appelé depuis {$environment}" );
+		}
+
+		ts_lc_capture_http();
+		Mail::send(
+			array(
+				'kind'     => Notify::KIND_CONFIRM,
+				'order_id' => $order->get_id(),
+				'to'       => 'client@example.test',
+				'subject'  => 'essai',
+				'html'     => '<p>essai</p>',
+				'text'     => 'essai',
+			),
+			'production'
+		);
+		ts_assert( ! empty( ts_lc_brevo_calls() ), 'Brevo n’est plus appelé depuis la production non plus' );
+
+		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'dates the delivery, so a commission can stop being provisional', function () use ( $product_id ) {
+		/*
+		 * « Livrée » existed in two places that did not know about each other: a
+		 * status the workshop's button sets, and a date only a free-text field on
+		 * the margin screen wrote. `Commission::state()` reads the date, so an
+		 * order the shop itself called delivered still answered « Commande non
+		 * livrée ou non clôturée » and the salesperson's commission stayed
+		 * provisional for ever.
+		 */
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+		foreach ( array( Lifecycle::PRODUCTION, Lifecycle::PRINTED, Lifecycle::SHIPPED, Lifecycle::DELIVERED ) as $step ) {
+			Lifecycle::transition( wc_get_order( $order->get_id() ), $step );
+		}
+
+		$dated = (string) wc_get_order( $order->get_id() )->get_meta( '_teeshoop_livree_le', true );
+		ts_assert( '' !== $dated, 'une commande livrée ne porte aucune date de livraison' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'sees a message nobody knows the fate of, and retries it', function () use ( $product_id ) {
+		/*
+		 * A ROW LEFT AT `queued` was the worst of the three states and the one
+		 * nothing looked at: not retried, not counted, not shown. It happens when
+		 * the process does not survive the send, which is a timeout, a fatal in
+		 * another hook or a deploy.
+		 */
+		global $wpdb;
+		$order = ts_lc_order( $product_id );
+		$before = Mail::stuck();
+		$wpdb->insert(
+			Mail::table(),
+			array(
+				'created_at' => gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ),
+				'kind'       => Notify::KIND_CONFIRM,
+				'order_id'   => $order->get_id(),
+				'recipient'  => 'client@example.test',
+				'subject'    => 'un envoi dont personne ne sait rien',
+				'status'     => Mail::QUEUED,
+				'attempts'   => 0,
+			),
+			array( '%s', '%s', '%d', '%s', '%s', '%s', '%d' )
+		);
+		ts_eq( Mail::stuck(), $before + 1, 'un envoi resté en attente n’est pas compté' );
+		ts_assert( ! empty( Mail::stalled() ), 'un envoi resté en attente n’est pas listé' );
 		$order->delete( true );
 	} );
 
@@ -982,6 +1079,20 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 			'deux versions portent le même numéro'
 		);
 		ts_eq( count( Quote::versions( $devis ) ), 2, 'la chaîne garde les deux' );
+
+		/*
+		 * AND NOT OUT OF THE INVOICE'S COUNTER. Both series are a rehearsal one
+		 * off production and the first version made them the same string, so
+		 * every devis on the mirror burned an invoice number: the invoice
+		 * suite's "no hole in the sequence" case failed intermittently,
+		 * depending on which suite ran first. In production the two prefixes
+		 * differ, which is what would have made it a surprise on the day
+		 * somebody rehearsed.
+		 */
+		ts_assert(
+			Quote::series( '2026-08-19' ) !== Invoice::series( '2026-08-19' ),
+			'un devis et une facture partagent le même compteur'
+		);
 		wp_delete_post( $devis, true );
 	} );
 
@@ -1100,6 +1211,19 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 
 	update_option( 'teeshoop_settings', $saved_settings );
 	remove_all_filters( 'pre_http_request' );
+}
+
+/**
+ * Send the proof AS PRODUCTION WOULD, through the shipped composer.
+ *
+ * Brevo runs in production and nowhere else, so a suite that wants to assert the
+ * Brevo request has to say which environment it is standing in. That is what the
+ * parameter is for, and it is why `Mail::deliver` takes one: the preproduction
+ * is a copy of production with real customers on it, and the runbook's
+ * `pre_wp_mail` circuit-breaker cannot see a `wp_remote_post`.
+ */
+function ts_lc_send_bat( \WC_Order $order, array $issued ): array {
+	return Notify::bat( $order, (array) $issued['version'], (string) $issued['token'], 'production' );
 }
 
 /** A devis request, as the public form would have written it. */

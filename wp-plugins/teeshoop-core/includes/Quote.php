@@ -1141,12 +1141,22 @@ final class Quote {
 	 * The devis series for a date, mirroring `Invoice::series`.
 	 *
 	 * COPIES ITS SHAPE INCLUDING THE ENVIRONMENT SWITCH, which is the part that
-	 * matters: outside production the series is ESSAI, so a rehearsal cannot
-	 * consume numbers out of a sequence a real customer's offers are counted in.
+	 * matters: outside production the series is a rehearsal one, so a dress
+	 * rehearsal cannot consume numbers out of a sequence a real customer's
+	 * offers are counted in.
+	 *
+	 * AND IT IS A DIFFERENT REHEARSAL SERIES FROM THE INVOICE'S. The first
+	 * version returned plain `ESSAI` + year, which is exactly what
+	 * `Invoice::series` returns off production, so on the mirror and on the
+	 * preproduction every devis burned an invoice number out of the same
+	 * counter. The invoice suite caught it as a hole in a sequence that is
+	 * required by law to have none, intermittently, depending on the order the
+	 * suites happened to run in. In production the two never collided, which is
+	 * what would have made this a surprise on the day somebody rehearsed.
 	 */
 	public static function series( string $iso_date ): string {
 		$year = substr( $iso_date, 0, 4 );
-		return ( 'production' === Legal::environment() ? self::SERIES_PREFIX : 'ESSAI' ) . $year;
+		return ( 'production' === Legal::environment() ? self::SERIES_PREFIX : 'ESSAIDE' ) . $year;
 	}
 
 	/** @return array<int,array<string,mixed>> */

@@ -341,6 +341,7 @@ final class Lifecycle {
 
 		add_action( 'admin_head', array( self::class, 'status_style' ) );
 		add_action( 'admin_notices', array( self::class, 'refusal_notice' ) );
+		add_action( 'admin_notices', array( self::class, 'flash_notice' ) );
 		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
 		add_action( 'admin_post_' . self::ACTION_MOVE, array( self::class, 'handle_move' ) );
 		add_action( 'admin_post_' . self::ACTION_TRACKING, array( self::class, 'handle_tracking' ) );
@@ -497,6 +498,7 @@ final class Lifecycle {
 		if ( self::CANCELLED === $to ) {
 			$order->update_meta_data( self::META_CANCEL_STAGE, $from );
 		}
+		self::stamp_delivery( $order, $to );
 
 		$order->set_status( $to );
 		$order->save();
@@ -531,11 +533,22 @@ final class Lifecycle {
 	 * WHY IT REVERTS RATHER THAN THROWS. `WC_Order::save()` wraps the whole
 	 * thing in a try/catch that only logs, and then calls `status_transition()`
 	 * regardless. A throw therefore produces an order that was NOT saved while
-	 * every listener in the shop is told it moved, which is worse than the
-	 * illegal status: the proof e-mail goes out, the workshop screen lights up,
-	 * and the database disagrees with all of them. Putting the stored status
-	 * back makes the write a no-op and makes the pending transition from-equals-to,
-	 * so nothing downstream is told anything happened.
+	 * every listener in the shop is told it moved TO THE ILLEGAL STATUS: the
+	 * proof e-mail goes out, the workshop screen lights up, and the database
+	 * disagrees with all of them. Putting the stored status back makes the write
+	 * a no-op and makes the pending transition from-equals-to, so what fires is
+	 * the status the order was already in.
+	 *
+	 * WHICH IS NOT NOTHING, and this docblock used to claim it was. WooCommerce
+	 * keeps the original `from` (class-wc-order.php:324) and fires
+	 * `woocommerce_order_status_{$to}` unconditionally, plus
+	 * `woocommerce_order_status_changed`, plus its own « État de la commande
+	 * modifié de Expédiée à Expédiée » note. Believing the comment is how the
+	 * dispatch e-mail came to be sent twice: `silence_woo_email` was written for
+	 * WooCommerce's two plain triggers and nothing was written for ours, until
+	 * `Notify::on_shipped` learned to read the transition. What is left is one
+	 * nonsense WooCommerce note per refusal, sitting directly above the plugin's
+	 * own note saying what was refused and why.
 	 */
 	public static function guard( $order ): void {
 		if ( ! $order instanceof \WC_Order ) {
@@ -592,6 +605,7 @@ final class Lifecycle {
 			if ( self::CANCELLED === $to ) {
 				$order->update_meta_data( self::META_CANCEL_STAGE, $from );
 			}
+			self::stamp_delivery( $order, $to );
 			self::remember( $order, $from, $to, array( 'source' => 'woocommerce' ) );
 			return;
 		}
@@ -648,6 +662,39 @@ final class Lifecycle {
 		);
 	}
 
+	/**
+	 * Say what happened, to whoever just did it.
+	 *
+	 * ONE READER FOR EVERY FLASH THIS SESSION WRITES, and it exists because the
+	 * writers shipped without one. `Bat::handle_issue`, `handle_waiver`,
+	 * `Claim::handle_open`, `handle_close` and `Quote::handle_issue` all set a
+	 * transient and redirect, and nothing rendered any of them: an operator
+	 * pressing « Établir et envoyer le BAT » was returned to the order screen
+	 * with no word about whether the proof went out, whether the e-mail failed,
+	 * or why the whole thing was refused. A control says what will happen and
+	 * the confirmation says it happened; half of that was missing.
+	 *
+	 * One function rather than five, because five would be five places to forget
+	 * the next one.
+	 */
+	public static function flash_notice(): void {
+		if ( ! function_exists( 'get_transient' ) || ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
+		$user = get_current_user_id();
+		foreach ( array( 'teeshoop_bat_', 'teeshoop_sav_', 'teeshoop_devis_', 'teeshoop_mail_' ) as $prefix ) {
+			$message = get_transient( $prefix . $user );
+			if ( ! is_string( $message ) || '' === $message ) {
+				continue;
+			}
+			delete_transient( $prefix . $user );
+			printf(
+				'<div class="notice notice-info is-dismissible"><p><strong>Teeshoop</strong> : %s</p></div>',
+				esc_html( $message )
+			);
+		}
+	}
+
 	/** Show the last refusal to whoever caused it. */
 	public static function refusal_notice(): void {
 		if ( ! function_exists( 'get_transient' ) ) {
@@ -667,6 +714,36 @@ final class Lifecycle {
 	}
 
 	// ── the journal ──────────────────────────────────────────────────────────
+
+	/**
+	 * « Livrée » writes the date the commission waits on.
+	 *
+	 * DELIVERED USED TO EXIST IN TWO PLACES THAT DID NOT KNOW ABOUT EACH OTHER:
+	 * this status, which the workshop's own button sets, and
+	 * `Costing::META_DELIVERED`, which only a free-text field on the margin
+	 * screen wrote. What a salesperson earns reads that date, so an order the
+	 * shop called delivered still reported « Commande non livrée ou non
+	 * clôturée » as the open condition and what they were owed stayed
+	 * provisional for ever. The person who would have noticed is the one being
+	 * paid.
+	 *
+	 * WRITTEN ONLY WHEN IT IS EMPTY, so the margin screen's field stays a
+	 * correction rather than becoming a second author: a parcel handed over on
+	 * Friday and marked delivered on Monday keeps Friday if somebody typed it.
+	 *
+	 * It is called from both the API and the guard's legal-but-foreign branch,
+	 * because a gateway, WP-CLI or another plugin marking an order complete is
+	 * still the order being delivered.
+	 */
+	private static function stamp_delivery( \WC_Order $order, string $to ): void {
+		if ( self::DELIVERED !== $to ) {
+			return;
+		}
+		if ( '' !== trim( (string) $order->get_meta( Costing::META_DELIVERED, true ) ) ) {
+			return;
+		}
+		$order->update_meta_data( Costing::META_DELIVERED, Settings::today() );
+	}
 
 	/**
 	 * Write one transition down: what moved, when, and who moved it.

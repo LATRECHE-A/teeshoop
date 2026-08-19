@@ -412,14 +412,18 @@ CSS;
 			self::fig( __( 'Dimensions données pour la taille', 'teeshoop' ), strtoupper( (string) $line['measured_at'] ) );
 		}
 		echo '</dl>';
+		if ( true === $side['graded'] ) {
+			echo '<p class="hint">';
+			esc_html_e( 'Le marquage est mis à l’échelle avec le vêtement : il est plus grand sur les grandes tailles et plus petit sur les petites.', 'teeshoop' );
+			echo '</p>';
+		} elseif ( false === $side['graded'] ) {
+			echo '<p class="hint">';
+			esc_html_e( 'Le même marquage, aux mêmes dimensions, est pressé sur toutes les tailles commandées.', 'teeshoop' );
+			echo '</p>';
+		}
 		if ( ! empty( $anchorless ) ) {
 			echo '<p class="hint">';
 			esc_html_e( 'Cette face n’a pas de couture d’encolure à laquelle rattacher la zone : les cotes ci-dessus placent le visuel dans la zone, et nous confirmons la position de la zone avec vous avant impression.', 'teeshoop' );
-			echo '</p>';
-		}
-		if ( ! empty( $line['measured_at'] ) ) {
-			echo '<p class="hint">';
-			esc_html_e( 'Le marquage est mis à l’échelle avec le vêtement : il est plus grand sur les grandes tailles et plus petit sur les petites.', 'teeshoop' );
 			echo '</p>';
 		}
 		echo '</div></div></div>';

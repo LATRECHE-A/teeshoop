@@ -50,6 +50,9 @@ final class Mail {
 	/** It did not go, and the row says why. */
 	public const FAILED = 'failed';
 
+	/** Claimed by a retry, and on the wire right now. */
+	public const SENDING = 'sending';
+
 	/**
 	 * It did not go and it never will: nothing can rebuild it.
 	 *
@@ -191,12 +194,39 @@ final class Mail {
 	 * @return array{ok:bool,reason:string,transport:string,message_id:string}
 	 */
 	private static function deliver( array $message, ?string $environment = null ): array {
+		$environment = null === $environment ? Legal::environment() : $environment;
+
+		/*
+		 * THE ENVIRONMENT IS READ FIRST, AND THAT ORDER IS THE WHOLE POINT.
+		 *
+		 * The first version read the key first: a key present meant Brevo,
+		 * wherever it was running. The preproduction is a full copy of
+		 * production, real customers and real addresses, and `ACCES-REQUIS.md`
+		 * documents an mu-plugin there that intercepts `pre_wp_mail` precisely
+		 * so that « changer le statut d'une commande sur la copie » cannot mail
+		 * a real customer. `wp_remote_post()` to api.brevo.com is not `wp_mail`
+		 * and that circuit-breaker never sees it. So the day somebody defined
+		 * TEESHOOP_BREVO_KEY on the preproduction, which is the natural way to
+		 * try what this session built, pressing « Établir et envoyer le BAT » on
+		 * a copied order would have mailed that real customer a proof for an
+		 * order they received weeks ago, with a live approval link into the
+		 * copy.
+		 *
+		 * Brevo runs in production and nowhere else. Everything else goes to
+		 * `wp_mail`, which is what the runbook's circuit-breaker can stop. The
+		 * Brevo call itself is exercised by `tests/integration-lifecycle.php`,
+		 * which drives the real `wp_remote_post` with only the wire replaced,
+		 * and that is a better proof than one machine's live send anyway.
+		 */
+		if ( 'production' !== $environment ) {
+			return self::wp_mail_fallback( $message, $environment );
+		}
+
 		$key = self::api_key();
 		if ( '' !== $key ) {
 			return self::brevo( $message, $key );
 		}
 
-		$environment = null === $environment ? Legal::environment() : $environment;
 		if ( 'production' === $environment ) {
 			/*
 			 * FAIL CLOSED, and loudly. An unset secret denies everything: the
@@ -214,6 +244,37 @@ final class Mail {
 		}
 
 		return self::wp_mail_fallback( $message, $environment );
+	}
+
+	/**
+	 * Rows that have not moved, oldest first.
+	 *
+	 * A ROW LEFT AT `queued` IS THE WORST OF THE THREE STATES and it was the one
+	 * nothing looked at. `send()` inserts the row, talks to Brevo, then writes
+	 * the answer; if the process does not survive that window (a php-fpm
+	 * `request_terminate_timeout`, a fatal in another hook, a deploy restarting
+	 * the pool) the row stays queued for ever. It was retried by nothing,
+	 * counted by nothing and shown nowhere: a customer never sent a proof, an
+	 * order stalled at « BAT envoyé », and no signal at all, which is exactly
+	 * the failure this outbox exists to make impossible.
+	 *
+	 * Five minutes, because that is longer than any request this shop makes and
+	 * short enough that an operator hears about it the same morning.
+	 *
+	 * @return array<int,object>
+	 */
+	public static function stalled( int $limit = 50 ): array {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return (array) $wpdb->get_results(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				'SELECT * FROM ' . self::table() . ' WHERE status = %s AND created_at < %s ORDER BY id ASC LIMIT %d',
+				self::QUEUED,
+				gmdate( 'Y-m-d H:i:s', time() - 5 * MINUTE_IN_SECONDS ),
+				max( 1, min( 200, $limit ) )
+			)
+		);
 	}
 
 	/**
@@ -419,8 +480,11 @@ final class Mail {
 	/** How many messages are sitting unsent. */
 	public static function stuck(): int {
 		global $wpdb;
+		// A stalled row counts too: "we do not know whether it went" is worse
+		// than "it did not go", not better, and it used to be counted by nothing.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table() . ' WHERE status = %s', self::FAILED ) );
+		$failed = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table() . ' WHERE status = %s', self::FAILED ) );
+		return $failed + count( self::stalled( 200 ) );
 	}
 
 	/** The rows for one order, oldest first, for the order screen. */
@@ -455,7 +519,7 @@ final class Mail {
 				self::MAX_ATTEMPTS
 			)
 		);
-		foreach ( $rows as $row ) {
+		foreach ( array_merge( $rows, self::stalled( 20 ) ) as $row ) {
 			self::retry( (int) $row->id );
 		}
 	}
@@ -481,6 +545,31 @@ final class Mail {
 			return array(
 				'ok'     => true,
 				'reason' => '',
+			);
+		}
+
+		/*
+		 * CLAIM THE ROW BEFORE TALKING TO ANYONE. Reading the status and then
+		 * spending fifteen seconds on the network before writing it back is a
+		 * window in which the hourly cron and an operator pressing Réessayer
+		 * both pass the check and both send. One conditional UPDATE closes it:
+		 * whoever changes a row from its own status wins, and the loser is told
+		 * nothing happened rather than sending a second copy.
+		 */
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$claimed = $wpdb->query(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				'UPDATE ' . self::table() . ' SET status = %s WHERE id = %d AND status = %s',
+				self::SENDING,
+				$id,
+				(string) $row->status
+			)
+		);
+		if ( 1 !== (int) $claimed ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'Ce message est déjà en cours de renvoi.',
 			);
 		}
 
@@ -617,7 +706,7 @@ final class Mail {
 			);
 		}
 
-		$failed = array_merge( self::recent( 50, self::FAILED ), self::recent( 50, self::ABANDONED ) );
+		$failed = array_merge( self::recent( 50, self::FAILED ), self::recent( 50, self::ABANDONED ), self::stalled( 50 ) );
 		echo '<h2>' . esc_html__( 'Ce qui n’est pas parti', 'teeshoop' ) . '</h2>';
 		if ( empty( $failed ) ) {
 			printf( '<p>%s</p>', esc_html__( 'Rien. Tous les messages enregistrés ont été acceptés par leur transporteur.', 'teeshoop' ) );
@@ -693,6 +782,12 @@ final class Mail {
 		}
 		if ( self::ABANDONED === $status ) {
 			return __( 'Abandonné : ce message ne peut pas être reconstruit', 'teeshoop' );
+		}
+		if ( self::SENDING === $status ) {
+			return __( 'Renvoi en cours', 'teeshoop' );
+		}
+		if ( self::QUEUED === $status ) {
+			return __( 'En attente : on ne sait pas s’il est parti', 'teeshoop' );
 		}
 		return __( 'En attente', 'teeshoop' );
 	}

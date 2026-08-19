@@ -824,9 +824,23 @@ export interface PiecePlacedIn {
 }
 
 /**
- * `areaRectIn` in press terms. The top of the print area is a fixed drop below
- * the collar (see printDropBelowCollarIn) and the centre line is the garment's
- * fold, so these two numbers place a transfer with a ruler and nothing else.
+ * `areaRectIn` in press terms, MEASURED FROM THE PRINT AREA and not from the
+ * collar. `topCm` is below the area's own top edge and `centerDxCm` is from its
+ * centre line, which is the garment's fold.
+ *
+ * READ THIS BEFORE COMBINING IT WITH A COLLAR NUMBER. `printDropBelowCollarIn`
+ * returns the collar to the area's CENTRE, not to its top: on a tee front that
+ * is 27,94 cm, while the collar to the area's top is 7,62 cm. Adding it to
+ * `topCm` puts a chest print on the belly. The number a press is actually set
+ * to is
+ *
+ *     collar to transfer top = drop - areaHeight / 2 + topCm
+ *
+ * and the proof prints the two halves separately rather than that sum, because
+ * only one of them is a property of the garment.
+ *
+ * The earlier version of this comment said the area's TOP was the fixed drop
+ * below the collar, which is the mistake above written down as a fact.
  *
  * It takes the geometry rather than a `RenderedPiece` so that the two things
  * that must agree can both call it: the DTF export, which has pixels, and the

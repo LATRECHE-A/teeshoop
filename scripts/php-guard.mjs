@@ -186,6 +186,21 @@ const ALLOWED = new Map([
     },
   ],
   [
+    'wp-plugins/teeshoop-core/includes/Lifecycle.php',
+    {
+      /*
+       * ONE CONSTANT, AND IT IS A META KEY. `Costing::META_DELIVERED` is
+       * `_teeshoop_livree_le`, the date an order was delivered, which is a
+       * lifecycle fact that the costing happens to read (a commission cannot
+       * become definitive without it). This file writes that key and reads no
+       * cost, no floor and no commission; naming the needle alone leaves it
+       * checked for everything else.
+       */
+      why: 'writes the delivery date the commission waits on, by its constant; reads no cost of any kind',
+      needles: ['Costing::'],
+    },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/Quote.php',
     {
       /*
@@ -226,7 +241,10 @@ const ALLOWED = new Map([
   ],
   [
     'wp-plugins/teeshoop-core/tests/integration-lifecycle.php',
-    { why: 'the WooCommerce test for the devis costing; runs under wp-cli, renders to nobody', needles: ['Costing::'] },
+    {
+      why: 'the WooCommerce tests for the devis costing and for the delivery date a commission waits on; run under wp-cli, render to nobody',
+      needles: ['Costing::', 'Commission::'],
+    },
   ],
   [
     'wp-plugins/teeshoop-core/tests/test-commission.php',

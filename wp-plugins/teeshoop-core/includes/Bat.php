@@ -1228,7 +1228,12 @@ final class Bat {
 			$rows[] = 'Placement non mesuré : à confirmer avec le client avant impression.';
 		}
 		if ( ! empty( $line['measured_at'] ) ) {
-			$rows[] = 'Dimensions données pour la taille ' . strtoupper( (string) $line['measured_at'] ) . ', mises à l’échelle avec le vêtement.';
+			// The archive copy says the same thing the page said, including
+			// saying nothing when the document predates the grading flag.
+			$grading = true === $side['graded']
+				? ', mises à l’échelle avec le vêtement'
+				: ( false === $side['graded'] ? ', identiques sur toutes les tailles' : '' );
+			$rows[]  = 'Dimensions données pour la taille ' . strtoupper( (string) $line['measured_at'] ) . $grading . '.';
 		}
 
 		$ty = $top + 4;
