@@ -375,13 +375,41 @@ final class Quote {
 	}
 
 	/** Handle the POST, write the record, notify, and redirect. */
+	/**
+	 * Where the prospect is sent back to, whether it worked or not.
+	 *
+	 * The form used to be on ONE page, the product page, so the product's own
+	 * permalink was the answer. Session 09 puts the same form on a standalone
+	 * `/devis/` page, where `product_id` is 0 and `get_permalink( 0 )` is false:
+	 * a buyer who mistyped their e-mail was bounced to the homepage, with the
+	 * error message on a page that does not carry the form.  So the page says
+	 * where it is.
+	 *
+	 * IT IS A POSTED FIELD, therefore untrusted, therefore validated. Sending a
+	 * visitor to an arbitrary URL on the strength of a form field is an open
+	 * redirect, and an open redirect on a page whose address bar says Teeshoop
+	 * is a phishing kit. `wp_validate_redirect` returns the empty fallback for
+	 * anything not on this host, and the product permalink takes over.
+	 *
+	 * @param array $post       The unslashed submission.
+	 * @param int   $product_id The product the form declared, 0 when standalone.
+	 */
+	private static function return_url( array $post, int $product_id ): string {
+		$asked = isset( $post['retour'] ) ? esc_url_raw( (string) $post['retour'] ) : '';
+		$safe  = '' !== $asked ? wp_validate_redirect( $asked, '' ) : '';
+		if ( '' !== $safe ) {
+			return $safe;
+		}
+		return get_permalink( $product_id ) ?: home_url( '/' );
+	}
+
 	public static function submit(): void {
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- an open public form; see the stamp, honeypot and rate limit above.
 		$post = wp_unslash( $_POST );
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		$product_id = (int) ( $post['product_id'] ?? 0 );
-		$back       = get_permalink( $product_id ) ?: home_url( '/' );
+		$back       = self::return_url( $post, $product_id );
 
 		// The honeypot is a real, labelled field hidden from sight, so a bot
 		// that fills every input gives itself away and a screen reader is told

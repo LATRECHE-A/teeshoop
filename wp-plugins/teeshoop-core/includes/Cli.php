@@ -697,6 +697,7 @@ final class Cli {
 		self::ensure_shipping_zone( $changed );
 		self::ensure_permalinks( $changed );
 		self::ensure_classic_theme( $changed );
+		self::ensure_site_pages( $changed );
 		self::ensure_settings( $assoc_args, $changed );
 
 		$product_id = self::ensure_demo_product( $changed );
@@ -1070,24 +1071,87 @@ final class Cli {
 	}
 
 	/**
-	 * A classic theme, like production.
+	 * A classic theme, because the studio cannot live under a block one.
 	 *
 	 * WooCommerce's BLOCK product template runs the description through
 	 * `wp_kses_post` after expanding shortcodes, and `iframe` is not allowed
 	 * there: on Twenty Twenty-Five the studio renders as an empty div, silently.
-	 * teeshoop.com runs Woodmart, which is classic.
+	 * Our own theme is classic, and so is Woodmart, which teeshoop.com still runs
+	 * until session 14 deploys ours.
 	 */
 	private static function ensure_classic_theme( array &$changed ): void {
 		if ( ! function_exists( 'wp_is_block_theme' ) || ! wp_is_block_theme() ) {
 			return;
 		}
-		$classic = wp_get_theme( 'twentytwentyone' );
-		if ( ! $classic->exists() ) {
-			\WP_CLI::warning( 'Le thème actif est un thème de blocs et twentytwentyone n’est pas installé : le studio ne s’affichera pas. wp theme install twentytwentyone --activate' );
-			return;
+		/*
+		 * OUR OWN THEME FIRST. Since session 09 the shop has a classic theme it
+		 * owns, `wp-themes/teeshoop`, and that is what production runs. Twenty
+		 * Twenty-One stays as the fallback for a checkout of this repository
+		 * that has not mounted the theme, because the point of this call is to
+		 * get OFF a block theme: WooCommerce's block product template runs the
+		 * description through `wp_kses_post`, `iframe` is not allowed there, and
+		 * the studio renders as an empty div with no error.
+		 */
+		foreach ( array( 'teeshoop', 'twentytwentyone' ) as $slug ) {
+			if ( wp_get_theme( $slug )->exists() ) {
+				switch_theme( $slug );
+				$changed[] = 'thème classique (' . $slug . ')';
+				return;
+			}
 		}
-		switch_theme( 'twentytwentyone' );
-		$changed[] = 'thème classique';
+		\WP_CLI::warning( 'Le thème actif est un thème de blocs et aucun thème classique n’est installé : le studio ne s’affichera pas. wp theme activate teeshoop' );
+	}
+
+	/**
+	 * The pages the site's own navigation links to.
+	 *
+	 * WooCommerce creates its four (boutique, panier, commande, mon compte) on
+	 * activation and remembers their ids in options. These two are ours, and
+	 * they are found BY SLUG rather than by a stored id, which is the
+	 * convention `Shelf::unpriced_notice` already uses: a page a shop manager
+	 * deleted and recreated keeps working, and a theme that cannot find one
+	 * simply does not print the link rather than sending a buyer to a 404.
+	 *
+	 * NO CONTENT IS WRITTEN INTO THEM. `page-devis.php` and
+	 * `page-entreprises.php` in the theme supply everything, so the copy lives
+	 * in the repository where it can be reviewed in a diff, and the page in the
+	 * database is a stub carrying a slug and a title. Anything the associate
+	 * types into the editor is printed above what the template renders.
+	 *
+	 * IDEMPOTENT: an existing page of that slug is left exactly as it is,
+	 * including a draft one, because republishing a page somebody deliberately
+	 * unpublished is not this command's business.
+	 */
+	private static function ensure_site_pages( array &$changed ): void {
+		$pages = array(
+			// NOT « Demander un devis »: the form the page renders carries that
+			// heading itself, and the page would open on the same six words twice.
+			'devis'       => __( 'Un devis pour votre projet', 'teeshoop' ),
+			'entreprises' => __( 'Entreprises et associations', 'teeshoop' ),
+		);
+
+		foreach ( $pages as $slug => $title ) {
+			if ( get_page_by_path( $slug ) instanceof \WP_Post ) {
+				continue;
+			}
+			$id = wp_insert_post(
+				array(
+					'post_type'      => 'page',
+					'post_status'    => 'publish',
+					'post_title'     => $title,
+					'post_name'      => $slug,
+					'post_content'   => '',
+					'comment_status' => 'closed',
+					'ping_status'    => 'closed',
+				),
+				true
+			);
+			if ( is_wp_error( $id ) ) {
+				\WP_CLI::warning( sprintf( 'Page « %s » non créée : %s', $slug, $id->get_error_message() ) );
+				continue;
+			}
+			$changed[] = 'page ' . $slug;
+		}
 	}
 
 	/** Studio origin and Worker URL, only when the caller supplied them. */

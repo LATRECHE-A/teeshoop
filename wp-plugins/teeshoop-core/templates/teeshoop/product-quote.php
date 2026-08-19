@@ -67,6 +67,8 @@ $ts_errors = array(
 		<form class="ts-devis__form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<input type="hidden" name="action" value="<?php echo esc_attr( Quote::ACTION ); ?>">
 			<input type="hidden" name="product_id" value="<?php echo esc_attr( (string) $product_id ); ?>">
+			<?php /* The page this form is on, so a refusal comes back to the form and not to the homepage. Validated against this host in Quote::return_url. */ ?>
+			<input type="hidden" name="retour" value="<?php echo esc_url( get_permalink( (int) get_queried_object_id() ) ?: home_url( '/' ) ); ?>">
 			<input type="hidden" name="stamp" value="<?php echo esc_attr( Quote::stamp() ); ?>">
 			<input type="hidden" name="faces" value="<?php echo esc_attr( (string) (int) $request['faces'] ); ?>">
 			<?php foreach ( (array) $request['grid'] as $ts_size => $ts_count ) : ?>

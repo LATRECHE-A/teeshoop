@@ -245,8 +245,19 @@ final class Shelf {
 				 * is somewhere to send them, and otherwise states the fact and
 				 * stops. A real contact route for the catalogue is session 09's.
 				 */
-				$contact = get_page_by_path( 'contact' );
-				$url     = $contact instanceof \WP_Post ? get_permalink( $contact ) : '';
+				/*
+				 * The quote page first, then a contact page.
+				 *
+				 * Since session 09 the shop has a `/devis/` page carrying the
+				 * same form the product page does, and it is the right
+				 * destination here: a buyer looking at an unpriced reference
+				 * wants a price for their quantity, which is exactly what that
+				 * form asks for. A generic contact page is the fallback, and
+				 * neither existing still means no link at all rather than a
+				 * sentence pointing nowhere.
+				 */
+				$page = get_page_by_path( 'devis' ) ?: get_page_by_path( 'contact' );
+				$url  = $page instanceof \WP_Post ? get_permalink( $page ) : '';
 
 				echo '<p class="teeshoop-unpriced">';
 				if ( '' === $url ) {
