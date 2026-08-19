@@ -188,6 +188,26 @@ final class Waiver {
 						 * `required` attribute is a browser hint and nothing
 						 * more: a POST built by hand carries no checkbox and no
 						 * browser refused it.
+						 *
+						 * AND IT IS REQUIRED ON EVERY BASKET, WHICH IS WRONG AND
+						 * IS WRITTEN DOWN RATHER THAN PAPERED OVER. The Store
+						 * API validates a registered field's `required` flag on
+						 * every checkout POST, with no way to make it depend on
+						 * the cart, so a basket carrying nothing personalised is
+						 * asked to waive a right it keeps. The classic checkout
+						 * does not have that fault (`classic_field` and
+						 * `classic_validate` both ask `needed()` first).
+						 *
+						 * It cannot bite today: `H-Q41-CATALOGUE-CONSULTABLE`
+						 * and `H-Q42-MARGE-TEXTILE-NU` mean the catalogue is
+						 * browsable and not purchasable, so every basket that
+						 * reaches a checkout contains a personalised line. It
+						 * bites the day a blank garment can be bought, which is
+						 * session 09's business, and the fix is to register the
+						 * field as optional and refuse in
+						 * `woocommerce_store_api_checkout_update_order_from_request`
+						 * instead. Doing that now would trade a fault nothing
+						 * can reach for a change nothing here can test.
 						 */
 						'required' => true,
 					)

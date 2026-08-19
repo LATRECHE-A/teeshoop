@@ -321,6 +321,30 @@ async function sendableRaster(blob: Blob): Promise<Blob> {
   }
 }
 
+/**
+ * Whether a mockup of this side would show anything at all.
+ *
+ * A SIDE WITH NOTHING TO PHOTOGRAPH IS NOT PHOTOGRAPHED. `renderMockup` returns
+ * an entirely transparent canvas for a side of a customer's own garment that has
+ * no photograph behind it (`renderDesign.ts`: `if (!setup) return canvas`), and
+ * that is reachable: the setup modal lets a customer REMOVE the back photo while
+ * their back layers stay in the document, and `getAreaSizeIn` then falls back to
+ * the front's print area so the side is still measured and still printed.
+ *
+ * Before the proof, that transparent canvas went nowhere. Now it would be
+ * uploaded and shown to the customer under « Dos » as a blank square, which
+ * reads as a proof of a print that is not there. The side is skipped instead,
+ * and the proof says the mockup is unavailable for that face and to ask us,
+ * which is the empty state it already draws.
+ *
+ * A catalogue garment always draws its own body, so this only ever refuses a
+ * ship-your-own one.
+ */
+function canShowSide(design: Design, side: Side): boolean {
+  if (design.garmentId !== 'custom') return true
+  return side !== 'sleeve' && !!design.custom?.[side]
+}
+
 /** The flattened proof. Front unless the front is bare and another side is not. */
 function previewSide(design: Design): Side {
   return PRINTABLE_SIDES.find((s) => sideLayers(design, s).length > 0) ?? 'front'
@@ -488,8 +512,10 @@ export async function uploadDesign(design: Design): Promise<UploadedDesign> {
       const perSide: { side: Side; blob: Blob }[] = []
       try {
         for (const measured of sides) {
-          const canvas = await renderMockup(design, measured.id as Side, PREVIEW_PX)
-          perSide.push({ side: measured.id as Side, blob: await canvasToBlob(canvas, 'image/png') })
+          const side = measured.id as Side
+          if (!canShowSide(design, side)) continue
+          const canvas = await renderMockup(design, side, PREVIEW_PX)
+          perSide.push({ side, blob: await canvasToBlob(canvas, 'image/png') })
         }
       } catch {
         throw new DesignUploadError('preview_failed')
