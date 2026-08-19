@@ -432,7 +432,8 @@ async function runOrderZip(
     if (hit) sources.set(p.key, hit)
   }
   const labels = new Map<string, string>()
-  for (const p of raw) labels.set(p.key, `#${p.orderId} ${p.key}`)
+  // The shape `rowLabel` produces in the modal: the order, then the transfer.
+  for (const p of raw) labels.set(p.key, `#${p.orderId} · ${p.partKey}`)
 
   const keysByOrder = new Map<string, string[]>()
   for (const p of raw) {

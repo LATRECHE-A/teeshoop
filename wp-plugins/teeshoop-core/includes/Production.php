@@ -1101,6 +1101,13 @@ final class Production {
 				'ref'         => (string) $order->get_order_number(),
 				'customer'    => trim( $order->get_billing_company() ?: ( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() ) ),
 				'urgency'     => $urgency,
+				/*
+				 * THE WORD, not the slug. The press sheet is read by a human and
+				 * `PriceRule::URGENCES` is where the shop's three levels are
+				 * named; sending only `urgent` put a database key on a document an
+				 * operator works from.
+				 */
+				'urgency_label' => PriceRule::URGENCES[ $urgency ] ?? $urgency,
 				'bat'         => $approved,
 				'designs'     => self::designs( $order ),
 				'lines'       => self::lines( $order ),

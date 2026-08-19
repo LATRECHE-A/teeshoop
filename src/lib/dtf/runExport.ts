@@ -81,6 +81,7 @@ export interface RunArchive {
 const eur = (cents: number): string =>
   `${(cents / 100).toFixed(2).replace('.', ',')} EUR HT`
 const n1 = (v: number): string => v.toFixed(1).replace('.', ',')
+const n2 = (v: number): string => v.toFixed(2).replace('.', ',')
 const frDate = (iso: string): string => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
@@ -267,37 +268,39 @@ export function costSheet(run: RunArchive): string {
   const L: string[] = [
     `RÉPARTITION DU FILM, LOT N° ${run.lotId}`,
     '='.repeat(60),
-    `Film ${run.origin === 'es' ? 'Espagne' : 'France'}, ${n1(run.pooledM)} m imbriqués, à commander avant le ${frDate(run.orderByOn)}`,
+    `Film ${run.origin === 'es' ? 'Espagne' : 'France'}, ${n2(run.pooledM)} m imbriqués, ` +
+      `à commander avant le ${frDate(run.orderByOn)}`,
     '',
-    'La règle : chaque commande paie la même fraction de la facture du lot que ce',
-    'qu’elle aurait pesé si chacune avait été achetée séparément. La colonne',
-    '« part surface » montre ce qu’aurait donné la règle proportionnelle à la',
-    'surface d’encre ; elle est publiée et n’est pas facturée.',
+    'La règle : chaque commande paie la part de la facture du lot que représente le',
+    'film qu’elle exige, mesuré en l’imbriquant seule avec le même imbricateur et',
+    'les mêmes réglages. La colonne « part surface » montre ce qu’aurait donné la',
+    'règle proportionnelle à la surface d’encre ; elle est publiée et n’est jamais',
+    'facturée, parce qu’elle facture l’encre portée et non le film exigé.',
     '',
     pad('Commande', 14) +
-      padStart('Seule (m)', 11) +
-      padStart('Seule', 13) +
-      padStart('Part', 13) +
-      padStart('Économie', 13) +
-      padStart('Part surface', 15),
-    '-'.repeat(80),
+      padStart('Seule (m)', 10) +
+      padStart('Seule', 16) +
+      padStart('Part', 16) +
+      padStart('Économie', 16) +
+      padStart('Part surface', 16),
+    '-'.repeat(88),
   ]
   for (const o of run.orders)
     L.push(
       pad(o.ref, 14) +
-        padStart(n1(o.soloM), 11) +
-        padStart(eur(o.soloCents), 13) +
-        padStart(eur(o.shareCents), 13) +
-        padStart(eur(o.savedCents), 13) +
-        padStart(eur(o.areaShareCents), 15),
+        padStart(n1(o.soloM), 10) +
+        padStart(eur(o.soloCents), 16) +
+        padStart(eur(o.shareCents), 16) +
+        padStart(eur(o.savedCents), 16) +
+        padStart(eur(o.areaShareCents), 16),
     )
   L.push(
-    '-'.repeat(80),
+    '-'.repeat(88),
     pad('TOTAL', 14) +
-      padStart('', 11) +
-      padStart(eur(run.soloTotalCents), 13) +
-      padStart(eur(run.totalCents), 13) +
-      padStart(eur(run.savedCents), 13),
+      padStart('', 10) +
+      padStart(eur(run.soloTotalCents), 16) +
+      padStart(eur(run.totalCents), 16) +
+      padStart(eur(run.savedCents), 16),
   )
   if (run.worse)
     L.push(

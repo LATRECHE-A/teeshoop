@@ -251,7 +251,7 @@ export function runArchive(
       id,
       ref: str(m.ref),
       customer: str(m.customer),
-      urgency: str(m.urgency),
+      urgency: str(m.urgency_label) || str(m.urgency),
       targetOn: str(m.target_on),
       batVersion: num(bat.version),
       batBy: str(bat.by),
