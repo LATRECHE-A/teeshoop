@@ -251,7 +251,31 @@ final class Purchase {
 		 * and computes nothing of its own.
 		 */
 		if ( array() !== $basket['stock']['short'] ) {
-			$announced = Supply::deliveries();
+			/*
+			 * NARROWED TO THE REFERENCES THAT ARE SHORT, not the whole feed. The
+			 * unnarrowed answer is 9 552 announcements, about a megabyte of JSON,
+			 * and a basket is short in one or two references: fetching everything
+			 * to read four rows would put a megabyte through a shared-hosting
+			 * PHP every time an operator opened a screen.
+			 *
+			 * The reference is the leading five digits of an article number,
+			 * which is the supplier's own construction and is the one place this
+			 * plugin relies on it: it does not GUESS an article number from a
+			 * reference, it reads the reference off an article the importer
+			 * already wrote.
+			 */
+			$refs = array();
+			foreach ( $basket['stock']['short'] as $one ) {
+				$ref = substr( (string) $one['sku'], 0, 5 );
+				if ( 1 === preg_match( '/^\d{5}$/', $ref ) ) {
+					$refs[ $ref ] = true;
+				}
+			}
+			$announced = array();
+			// Cast: PHP turns a numeric string array key back into an int.
+			foreach ( array_keys( $refs ) as $ref ) {
+				$announced += Supply::deliveries( (string) $ref );
+			}
 			foreach ( $basket['stock']['short'] as $i => $one ) {
 				$basket['stock']['short'][ $i ]['back_on'] = (string) ( $announced[ $one['sku'] ]['date'] ?? '' );
 				$basket['stock']['short'][ $i ]['back_qty'] = (int) ( $announced[ $one['sku'] ]['qty'] ?? 0 );

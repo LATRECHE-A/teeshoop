@@ -169,6 +169,18 @@ function ts_ac_stub(): void {
 				'filename' => null,
 			);
 
+			if ( str_contains( (string) $url, '/deliveries' ) ) {
+				return $json(
+					array(
+						'at'    => '2026-08-19 08:00:00',
+						'items' => array(
+							// Two announcements for one article: the earlier wins.
+							array( 'sku' => '180010007', 'date' => '2026-09-30', 'qty' => 300, 'freeToSell' => 300 ),
+							array( 'sku' => '180010007', 'date' => '2026-09-08', 'qty' => 120, 'freeToSell' => 120 ),
+						),
+					)
+				);
+			}
 			if ( str_contains( (string) $url, '/catalogue/' ) ) {
 				return $json( $GLOBALS['ts_ac_entry'] ?? ts_ac_entry() );
 			}
@@ -471,6 +483,16 @@ function ts_purchase_suite( int $product_id ): void {
 		ts_assert( 20 === (int) $basket['stock']['short'][0]['want'], 'la quantité demandée n’est pas celle de la commande' );
 		// And it is a warning, not a refusal: the supplier restocks.
 		ts_assert( $basket['complete'], 'une rupture a bloqué un panier par ailleurs identifiable' );
+
+		/*
+		 * AND IT SAYS WHEN HE SAYS IT COMES BACK, which is the only forward date
+		 * in this whole file: nobody has measured how long he takes to deliver
+		 * (question 46), so the shop prints his announcement and computes none of
+		 * its own. The EARLIER of his two announcements, because the workshop
+		 * wants to know when it can press.
+		 */
+		ts_assert( '2026-09-08' === (string) $basket['stock']['short'][0]['back_on'], 'le réapprovisionnement annoncé est ' . (string) $basket['stock']['short'][0]['back_on'] );
+		ts_assert( 120 === (int) $basket['stock']['short'][0]['back_qty'], 'la quantité annoncée ne suit pas sa date' );
 	} );
 
 	// ── preparing, and what that pins ────────────────────────────────────────
