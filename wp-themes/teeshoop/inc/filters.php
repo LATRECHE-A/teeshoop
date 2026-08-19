@@ -382,6 +382,36 @@ function context_ids( string $except = '' ): array {
 		);
 	}
 
+	/*
+	 * THE SAME VISIBILITY RULES THE LISTING ITSELF OBEYS.
+	 *
+	 * Without this the count and the list disagree the moment a shop hides a
+	 * product from its catalogue, or turns on "hide out of stock items": the
+	 * facet would promise five references and the page would show four, which is
+	 * precisely the failure `npm run verify:site` exists to catch.
+	 *
+	 * WRITTEN OUT RATHER THAN BORROWED, and that is the lesser of two evils.
+	 * `WC_Query::get_tax_query()` builds this clause, but it ends by applying
+	 * `woocommerce_product_query_tax_query`, which is where `filter_tax_query()`
+	 * above lives: calling it here would re-add every facet including the one
+	 * this count has to ignore. The term ids still come from WooCommerce
+	 * (`wc_get_product_visibility_term_ids`) and the option is read, not
+	 * assumed, so nothing about the RULE is duplicated, only the assembly.
+	 */
+	if ( function_exists( 'wc_get_product_visibility_term_ids' ) ) {
+		$visibility = wc_get_product_visibility_term_ids();
+		$hidden     = array( $visibility['exclude-from-catalog'] );
+		if ( 'yes' === get_option( 'woocommerce_hide_out_of_stock_items' ) ) {
+			$hidden[] = $visibility['outofstock'];
+		}
+		$tax_query[] = array(
+			'taxonomy' => 'product_visibility',
+			'field'    => 'term_taxonomy_id',
+			'terms'    => array_values( array_filter( $hidden ) ),
+			'operator' => 'NOT IN',
+		);
+	}
+
 	$args = array(
 		'post_type'              => 'product',
 		'post_status'            => 'publish',

@@ -105,6 +105,17 @@ try {
   if (browser) await browser.close()
   try {
     wp('theme', 'activate', started)
+    /*
+     * AND FLUSH THE REWRITE RULES.
+     *
+     * `switch_theme` fires `after_switch_theme`, and a block theme registers
+     * post types and templates a classic one does not. Switching away and back
+     * left this mirror with rules that no longer resolved `/devis/`, which
+     * answered 404 while `get_permalink()` still returned the pretty URL: the
+     * page existed, the link was right, and the address did not work. A
+     * benchmark has no business leaving a shop in that state.
+     */
+    wp('rewrite', 'flush')
   } catch (e) {
     console.error(`the theme could NOT be put back to ${started}: ${String(e).slice(0, 200)}`)
     failed = true
