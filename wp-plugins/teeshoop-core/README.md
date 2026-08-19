@@ -195,6 +195,15 @@ catalogue import has set them.
 rule, and `tests/run.php` enforces it by construction: the day someone reaches
 for `get_option()` inside `Pricing`, the runner stops working and says so.
 
+## The mirror's admin account
+
+`dev`, password `redteam-local`. It is written down because checking that an
+admin screen renders at all needs a browser and a login, and an undocumented
+password means the next person either guesses or resets it. Nothing here is a
+secret: the mirror is docker on localhost, its database password is in
+`wp-local/docker-compose.yml`, and it holds no real data. Production
+credentials live in `~/.config/teeshoop/` and in `ACCES-REQUIS.md`, never here.
+
 ## Running the tests
 
 ```bash

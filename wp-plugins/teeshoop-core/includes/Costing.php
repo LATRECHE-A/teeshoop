@@ -315,7 +315,7 @@ final class Costing {
 	 * 400 cm² is one 20 × 20 transfer or four 10 × 10 ones, and those cost very
 	 * different amounts of a 56 cm roll.
 	 *
-	 * @return array{pieces:array,garments:int,transfers:int,complete:bool,lines:int}
+	 * @return array{pieces:array,garments:int,transfers:int,poses:int,complete:bool,lines:int,graded:bool}
 	 */
 	public static function transfers( \WC_Order $order ): array {
 		$pieces    = array();
@@ -347,12 +347,20 @@ final class Costing {
 			 * garments take 1,80 m of roll at M and 2,70 m at 3XL, which is 50 %
 			 * more film for the same order. We cost the M.
 			 *
-			 * Flagged rather than corrected here, deliberately. Correcting it
-			 * means emitting one rectangle per (visual, size), which is what
-			 * session 07 builds when it nests film ACROSS orders, and it means
-			 * the grading factor existing in PHP as well as in the studio, which
-			 * is a second implementation of one rule. A warning that names the
-			 * measured size of the error is worth more than a second answer.
+			 * Flagged rather than corrected here, deliberately, and STILL flagged
+			 * after session 07. Correcting it means emitting one rectangle per
+			 * (visual, size), which needs the grading factor in PHP as well as in
+			 * the studio: a second implementation of one rule. A warning that
+			 * names the measured size of the error is worth more than a second
+			 * answer.
+			 *
+			 * What session 07 changed is where the right number is available. The
+			 * studio re-renders a paid order from R2 at the sizes actually
+			 * ordered (`src/lib/dtf/fromR2.ts`), so a print run is nested on real
+			 * per-size transfers; those rectangles never come back here, because
+			 * this report has to be computable for an order that has not been
+			 * scheduled yet. An order in a SENT run is costed on its share of a
+			 * real purchase and this approximation no longer reaches it.
 			 */
 			$grid = json_decode( (string) $item->get_meta( '_teeshoop_size_grid', true ), true );
 			if ( is_array( $grid ) ) {

@@ -137,7 +137,9 @@ final class PriceRule {
 	 * instead of 17,00 whenever somebody ticked "standard": 44 % off the film on
 	 * a twelve-metre order, off the direct cost, and off the floor. A dropdown is
 	 * not evidence about which roll was bought. The origin stays where a purchase
-	 * can be recorded against it.
+	 * can be recorded against it, which since session 07 is the print run: it
+	 * records the origin the film was actually ordered from, on a date, by
+	 * somebody, and it is frozen from that moment (`Production::send_lot`).
 	 */
 	public const URGENCES = array(
 		'standard' => 'Standard',

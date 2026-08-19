@@ -76,17 +76,25 @@
  * coordination time, computed in percent or at real cost plus margin, and wants
  * urgency accepted only once stock, proof and capacity are confirmed. Nothing
  * here adds a centime for it. Urgency reaches the FLOOR and nothing else,
- * through `PriceRule`'s urgence selector, and every order is costed at the
- * French film rate whatever its urgency, which is the dearer of the two and
- * therefore the safe direction. `film()` takes an origin and no order path ever
- * passes 'es': `rate_es_ht` is little more than half `rate_fr_ht`, so letting a
- * dropdown choose it would take most of that difference off the film cost of any
- * order an operator ticked as standard, and a tick is not evidence about which
- * roll was actually bought.
+ * through `PriceRule`'s urgence selector, and no order is ever costed at the
+ * Spanish rate because somebody ticked a box: `rate_es_ht` is little more than
+ * half `rate_fr_ht`, so letting a dropdown choose it would take most of that
+ * difference off the film cost of any order an operator marked standard, and a
+ * tick is not evidence about which roll was actually bought.
+ *
+ * WHAT THE ORIGIN NOW ANSWERS TO, since session 07. `film()` takes an origin and
+ * exactly one path passes anything but 'fr': `attribute()`, splitting the bill of
+ * a print run whose film HAS been ordered. A sent run is not a tick, it is a
+ * purchase, with a date, an operator and a frozen layout against it, and it
+ * cannot be edited afterwards (`Production::send_lot`). A run still in draft
+ * changes no cost at all, so an order's film is costed in France until the
+ * moment the film is genuinely bought elsewhere.
  *
  * It is also downstream of a promise the shop does not make. No lead time is
  * announced anywhere (H-Q14-UN-COLIS-MAXIMUM), so express cannot be sold at all
- * before sessions 06 and 07 give it a date to hold and a capacity to check.
+ * before the associate answers question 14. Session 07 gave the workshop the
+ * date and the capacity to schedule against, and measured that two of the three
+ * promised lead times are shorter than the work they contain.
  *
  * Pure by construction: no WordPress function is called anywhere in this file,
  * so it runs under `php tests/run.php` with no bootstrap. Everything is integer
