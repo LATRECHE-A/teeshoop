@@ -63,16 +63,18 @@ $ts_lead = lead_days();
 				</li>
 			<?php endif; ?>
 			<li><?php esc_html_e( 'Un bon à tirer avant impression, avec la position du marquage en centimètres.', 'teeshoop' ); ?></li>
-			<li>
-				<?php
-				printf(
-					/* translators: 1: minimum pieces, 2: minimum order value. */
-					esc_html__( 'À partir de %1$s pièces et %2$s. Au-delà, le tarif baisse par paliers et le devis les applique.', 'teeshoop' ),
-					'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
-					'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
-				);
-				?>
-			</li>
+			<?php if ( null !== $ts_min ) : ?>
+				<li>
+					<?php
+					printf(
+						/* translators: 1: minimum pieces, 2: minimum order value. */
+						esc_html__( 'À partir de %1$s pièces et %2$s. Au-delà, le tarif baisse par paliers et le devis les applique.', 'teeshoop' ),
+						'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
+						'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
+					);
+					?>
+				</li>
+			<?php endif; ?>
 		</ul>
 
 		<p class="ts-note">
@@ -82,6 +84,21 @@ $ts_lead = lead_days();
 
 	<div class="ts-devispage__form">
 		<?php
+		/*
+		 * A WAY BACK TO AN EMPTY FORM.
+		 *
+		 * `Quote::back()` sends a success to `?devis=ok`, and the plugin's
+		 * template replaces the whole form with the confirmation. On a product
+		 * page that is harmless, because the buy box and the estimator are still
+		 * there. Here the form IS the page, and that URL is the one that lands in
+		 * the buyer's history the instant their first request succeeds: the
+		 * address bar offers it ahead of the clean one from then on, and it is
+		 * what they forward to a colleague. So the confirmation gets a link to
+		 * the page without the flag.
+		 */
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading our own redirect result.
+		$ts_sent = isset( $_GET['devis'] ) && 'ok' === sanitize_key( wp_unslash( (string) $_GET['devis'] ) );
+
 		/*
 		 * The plugin's own template, loaded the way the plugin loads it, so a
 		 * theme override at `yourtheme/teeshoop/product-quote.php` would still
@@ -99,7 +116,7 @@ $ts_lead = lead_days();
 						'grid'  => array(),
 						// The shop's own minimum, so the quantity box opens on a
 						// number that can actually be ordered rather than on 0.
-						'typed' => $ts_min['qty'],
+						'typed' => null !== $ts_min ? $ts_min['qty'] : 1,
 					),
 					'sizes'      => array(),
 				),
@@ -117,6 +134,14 @@ $ts_lead = lead_days();
 			<?php
 		}
 		?>
+
+		<?php if ( $ts_sent ) : ?>
+			<p class="ts-note ts-note--strong">
+				<a href="<?php echo esc_url( remove_query_arg( array( 'devis', 'raison', 'reprise' ) ) ); ?>">
+					<?php esc_html_e( 'Envoyer une autre demande', 'teeshoop' ); ?>
+				</a>
+			</p>
+		<?php endif; ?>
 	</div>
 </div>
 <?php

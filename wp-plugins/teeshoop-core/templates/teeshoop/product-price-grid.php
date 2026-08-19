@@ -23,6 +23,12 @@
  * @var array      $rows      One row per face count, cells in $qtys order.
  * @var float|null $std_area  Largest area the base price covers, cm².
  * @var array      $request   What the estimator above is currently showing.
+ * @var string     $quote_url  Where a « sur devis » cell leads. Optional: it
+ *                             defaults to the in-page anchor the product page
+ *                             renders, and a page that does not carry that form
+ *                             has to pass its own, or the cell is a link that
+ *                             does nothing on the one page whose whole job is to
+ *                             catch a buyer whose order needs a quote.
  */
 
 use Teeshoop\Core\Money;
@@ -37,6 +43,9 @@ if ( empty( $rows ) ) {
 // Whether this shop has two bases to print at all, and which leads. Under the
 // franchise there is one number and it is the only one the customer pays.
 $ts_bases = Settings::price_bases();
+
+// The anchor is the product page's own; anywhere else the caller says where.
+$ts_quote_url = isset( $quote_url ) && '' !== $quote_url ? (string) $quote_url : '#teeshoop-devis';
 ?>
 <section class="ts-pricing" id="teeshoop-tarifs">
 	<h2 class="ts-pricing__title"><?php esc_html_e( 'Le prix par quantité', 'teeshoop' ); ?></h2>
@@ -106,7 +115,7 @@ $ts_bases = Settings::price_bases();
 									 * simply being thrown away.
 									 */
 									?>
-									<a class="ts-table__quote" href="#teeshoop-devis"><?php esc_html_e( 'sur devis', 'teeshoop' ); ?></a>
+									<a class="ts-table__quote" href="<?php echo esc_url( $ts_quote_url ); ?>"><?php esc_html_e( 'sur devis', 'teeshoop' ); ?></a>
 								<?php else : ?>
 									<?php
 									$ts_lead   = 'ttc' === $ts_bases['lead'] ? (int) $ts_cell['unit_ttc'] : (int) $ts_cell['unit_ht'];
@@ -138,45 +147,20 @@ $ts_bases = Settings::price_bases();
 		</table>
 	</div>
 
-	<p class="ts-note">
-		<?php
-		if ( null !== $std_area ) {
-			printf(
-				/* translators: %s: an area in square centimetres. */
-				esc_html__( 'Ces prix valent pour une impression jusqu’à %s cm² par face.', 'teeshoop' ),
-				esc_html( Money::number( $std_area ) )
-			);
-		}
-
-		$ts_extra = array();
-		foreach ( (array) $config['area_tiers'] as $ts_i => $ts_tier ) {
-			if ( 0 === $ts_i || (int) $ts_tier['add_ht'] <= 0 ) {
-				continue;
-			}
-			$ts_extra[] = null === $ts_tier['max_sq_cm']
-				? sprintf(
-					/* translators: %s: a surcharge amount. */
-					__( 'au-delà, %s par face', 'teeshoop' ),
-					Money::format( (int) $ts_tier['add_ht'] )
-				)
-				: sprintf(
-					/* translators: 1: an area in square centimetres, 2: a surcharge amount. */
-					__( 'jusqu’à %1$s cm², %2$s par face', 'teeshoop' ),
-					Money::number( (float) $ts_tier['max_sq_cm'] ),
-					Money::format( (int) $ts_tier['add_ht'] )
-				);
-		}
-
-		if ( ! empty( $ts_extra ) ) {
-			echo ' ';
-			printf(
-				/* translators: %s: a list of area surcharges, already assembled. */
-				esc_html__( 'Pour une face plus grande, un supplément s’ajoute : %s.', 'teeshoop' ),
-				esc_html( implode( ' ; ', $ts_extra ) )
-			);
-		}
-		?>
-	</p>
+	<?php
+	/*
+	 * THE AREA BOUND, from `Settings::area_note()`.
+	 *
+	 * It used to be assembled here. Session 09 gave the same headline price a
+	 * homepage and an entreprises page, and a bound that lives in one template
+	 * is a bound the other two pages publish a price without. It is one
+	 * sentence, in one place, and every page that prints the price prints it.
+	 */
+	$ts_area_note = Settings::area_note( $config );
+	?>
+	<?php if ( '' !== $ts_area_note ) : ?>
+		<p class="ts-note"><?php echo esc_html( $ts_area_note ); ?></p>
+	<?php endif; ?>
 	<p class="ts-note">
 		<?php esc_html_e( 'La surface retenue est celle de l’encre, pas celle du fichier : les marges transparentes autour d’un logo ne sont jamais facturées.', 'teeshoop' ); ?>
 	</p>

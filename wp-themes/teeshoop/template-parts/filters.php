@@ -10,7 +10,10 @@
  * (checked 2026-08-19). Ours is a URL.
  *
  * With a script, `site.js` collapses the panel behind a button on a phone and
- * submits on change. Both are enhancements; neither is required.
+ * narrows a long facet as you type in its search box. It does NOT submit on
+ * change: a form that reloads the page on every checkbox makes choosing three
+ * colours three page loads, and on a listing that already answers in 200 ms the
+ * button is faster than the reload it would replace.
  *
  * @package Teeshoop\Theme
  */
@@ -211,14 +214,15 @@ $ts_action = (string) preg_replace( '#/page/\d+/?$#', '/', $ts_action );
 
 		<?php
 		/*
-		 * The three facets chapter 04 asks for and this shop cannot honestly
-		 * offer. Written on the panel rather than left as a gap, because a buyer
+		 * The five facets chapter 04 asks for and this shop cannot honestly offer:
+		 * availability, the blank's price, the lead time, the technique and the
+		 * sector. Written on the panel rather than left as a gap, because a buyer
 		 * looking for "disponible" needs to know where the answer is, and because
 		 * a silent omission is how a missing feature becomes a forgotten one.
 		 */
 		?>
 		<p class="ts-filters__gap">
-			<?php esc_html_e( 'Pas encore filtrables : la disponibilité, qui est indiquée en toutes lettres sur chaque fiche et se lit article par article, et le prix du textile nu, qui n’est pas encore publié.', 'teeshoop' ); ?>
+			<?php esc_html_e( 'Pas encore filtrables : la disponibilité, qui est indiquée en toutes lettres sur chaque fiche et se lit article par article ; le prix du textile nu, qui n’est pas encore publié ; le délai, la technique de marquage et le secteur d’activité, dont nous n’avons pas encore la donnée. Dites-nous ce que vous cherchez et nous le trouvons.', 'teeshoop' ); ?>
 		</p>
 	</div>
 </form>

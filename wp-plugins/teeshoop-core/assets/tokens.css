@@ -97,6 +97,22 @@
 	--ts-warn: #a85b00; /* 5,05:1 */
 	--ts-bad: #b3261e; /* 6,54:1 */
 
+	/*
+	 * AND EACH ONE'S PANEL, because a message sits on a tint and not on paper.
+	 * The rules are darker than the border colour above, which is chosen to be
+	 * read on WHITE: on its own tint it would be too light. Measured on the
+	 * tint, not on paper: 7,49:1, 7,37:1 and 8,09:1.
+	 *
+	 * They were three pairs of literals inside `components.css`, which is what
+	 * made that file a fourth copy of the palette the guard was not looking at.
+	 */
+	--ts-warn-wash: #fdf6ec;
+	--ts-warn-ink: #6b4a12; /* on --ts-warn-wash: 7,49:1 */
+	--ts-good-wash: #eef7f2;
+	--ts-good-ink: #0b5c3b; /* on --ts-good-wash: 7,37:1 */
+	--ts-bad-wash: #fdeeed;
+	--ts-bad-ink: #8c1d18; /* on --ts-bad-wash: 8,09:1 */
+
 	/* -------------------------------------------------------------- type */
 
 	/*

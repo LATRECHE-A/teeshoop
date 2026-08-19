@@ -136,9 +136,10 @@ Il n'y a **ni taille, ni prix, ni grammage**. tostadora n'a aucune facette : dix
 de thème, un arbre de catégories, une recherche plein texte, et 836 pages de 60 produits.
 
 Nous en avons dix, dont le **grammage**, que le chapitre 04 place en troisième position et
-qui est le premier chiffre qu'un acheteur d'entreprise compare. Trois facettes du chapitre
-sont absentes et le panneau le dit à l'écran plutôt que de les cacher : la disponibilité,
-le prix du textile nu, et les techniques.
+qui est le premier chiffre qu'un acheteur d'entreprise compare. Cinq facettes du chapitre
+sont absentes et le panneau les nomme à l'écran plutôt que de les cacher : la
+disponibilité, le prix du textile nu, le délai, la technique de marquage et le secteur
+d'activité.
 
 ### 7. La disponibilité est dite
 

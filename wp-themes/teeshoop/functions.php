@@ -100,8 +100,23 @@ function setup(): void {
 	);
 
 	add_theme_support( 'woocommerce' );
-	add_theme_support( 'wc-product-gallery-zoom' );
-	add_theme_support( 'wc-product-gallery-lightbox' );
+
+	/*
+	 * THE SLIDER, AND NOT THE ZOOM OR THE LIGHTBOX.
+	 *
+	 * 4 241 per-colour photographs are NOT in the media library: they live on the
+	 * Worker and `Shelf::variation_json()` injects the URL into WooCommerce's
+	 * variation image object, deliberately, at no disk cost. It sends
+	 * `full_src_w` and `full_src_h` as `false`, because nobody has ever measured
+	 * them, and `wc_set_variation_attr()` REMOVES an attribute whose value is
+	 * exactly `false`. So the moment a buyer picks a colour, the gallery image
+	 * loses `data-large_image_width`, which is what both the zoom and the
+	 * lightbox read to decide what to show. They would break on exactly the
+	 * photograph the buyer just asked for, which is worse than not offering them:
+	 * a control that works until it is used properly.
+	 *
+	 * They come back the day the import stores those two numbers beside the URL.
+	 */
 	add_theme_support( 'wc-product-gallery-slider' );
 
 	register_nav_menus(
@@ -114,18 +129,24 @@ function setup(): void {
 add_action( 'after_setup_theme', __NAMESPACE__ . '\\setup' );
 
 /**
- * How many products a listing shows before it paginates.
+ * How many columns WooCommerce believes the grid has.
  *
- * Twenty-four rather than WooCommerce's sixteen because the grid is three wide
- * at 1440 px and four at the widest, so both fill exactly. It is a filter and
- * not a setting because a shop manager changing it in the Customizer would
- * break the grid without being told why.
+ * The stylesheet decides the real number per breakpoint; this is what Woo writes
+ * into the `columns-N` class, and that class is what its own width rules key off.
  */
 function loop_columns(): int {
 	return 3;
 }
 add_filter( 'loop_shop_columns', __NAMESPACE__ . '\\loop_columns', 20 );
 
+/**
+ * How many products a listing shows before it paginates.
+ *
+ * Twenty-four rather than WooCommerce's sixteen because the grid is three wide
+ * at 1440 px and four at the widest, so both fill exactly. It is a filter and
+ * not a setting because a shop manager changing it in the Customizer would break
+ * the grid without being told why.
+ */
 function loop_per_page(): int {
 	return 24;
 }
@@ -284,13 +305,22 @@ function headline( string $garment ): array {
  * basket below them and a homepage that promised a different number would be
  * a promise the checkout breaks.
  *
- * @return array{qty:int,ht_cents:int}
+ * NULL WHEN THERE IS NO CONFIG, NOT ZERO. With the plugin deactivated this
+ * returned 0, and `eur( 0 )` returned the empty string, so every page of the
+ * site advertised « Commande minimum : 0 pièces et  de commande » in the footer,
+ * the homepage offered « à partir de 0 pièces », and all of it answered 200 with
+ * nothing a visitor could see. A missing number is an omitted line.
+ *
+ * @return array{qty:int,ht_cents:int}|null
  */
-function minimum(): array {
+function minimum(): ?array {
 	$config = pricing_config();
+	if ( ! isset( $config['min_qty'], $config['min_ht'] ) ) {
+		return null;
+	}
 	return array(
-		'qty'      => (int) ( $config['min_qty'] ?? 0 ),
-		'ht_cents' => (int) ( $config['min_ht'] ?? 0 ),
+		'qty'      => (int) $config['min_qty'],
+		'ht_cents' => (int) $config['min_ht'],
 	);
 }
 
@@ -331,23 +361,47 @@ function personalisable_products( int $limit = 12 ): array {
 		return array();
 	}
 
-	$ids = get_posts(
-		array(
-			'post_type'      => 'product',
-			'post_status'    => 'publish',
-			'posts_per_page' => $limit,
-			'fields'         => 'ids',
-			'orderby'        => 'menu_order title',
-			'order'          => 'ASC',
-			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- a dozen rows, once per page, and there is no taxonomy for it.
-			'meta_query'     => array(
-				array(
-					'key'     => \Teeshoop\Core\Product::META,
-					'compare' => 'EXISTS',
-				),
+	$args = array(
+		'post_type'      => 'product',
+		'post_status'    => 'publish',
+		'posts_per_page' => $limit,
+		'fields'         => 'ids',
+		'orderby'        => 'menu_order title',
+		'order'          => 'ASC',
+		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- a dozen rows, once per page, and there is no taxonomy for it.
+		'meta_query'     => array(
+			array(
+				'key'     => \Teeshoop\Core\Product::META,
+				'compare' => 'EXISTS',
 			),
-		)
+		),
 	);
+
+	/*
+	 * HIDDEN FROM THE CATALOGUE MEANS HIDDEN HERE TOO.
+	 *
+	 * `[0]` of this list decides the homepage's published price, the garment its
+	 * print zone is drawn for, and the whole tariff table on the entreprises
+	 * page. Without this clause it was whatever sorted first INCLUDING products
+	 * a manager had deliberately taken out of the catalogue: on this mirror the
+	 * first three were test fixtures marked `exclude-from-catalog`, so the shop
+	 * published a fixture's price list as its own while the listing correctly
+	 * refused to show it.
+	 */
+	if ( function_exists( 'wc_get_product_visibility_term_ids' ) ) {
+		$visibility = wc_get_product_visibility_term_ids();
+		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- one clause on an indexed taxonomy.
+		$args['tax_query'] = array(
+			array(
+				'taxonomy' => 'product_visibility',
+				'field'    => 'term_taxonomy_id',
+				'terms'    => array_values( array_filter( array( $visibility['exclude-from-catalog'] ) ) ),
+				'operator' => 'NOT IN',
+			),
+		);
+	}
+
+	$ids = get_posts( $args );
 
 	$products = array();
 	foreach ( $ids as $id ) {
@@ -461,6 +515,24 @@ function price_pair( int $ht_cents, int $ttc_cents ): array {
 		);
 	}
 	return \Teeshoop\Core\Settings::price_pair( $ht_cents, $ttc_cents );
+}
+
+/**
+ * The area every published headline price is actually for.
+ *
+ * `Pricing::headline()` prices each side at the CHEAPEST area tier, so
+ * "impression comprise" holds up to that tier's ceiling and not beyond, while
+ * the print zone published two tiles away is comfortably into the next one.
+ * Printing the price and the zone without the bound between them publishes a
+ * price the cart will not honour, and in France an announced price is an offer.
+ * `Settings::area_note()` is the one home for the sentence, and the product page
+ * prints the same one.
+ */
+function area_note(): string {
+	if ( ! class_exists( '\\Teeshoop\\Core\\Settings' ) ) {
+		return '';
+	}
+	return \Teeshoop\Core\Settings::area_note( pricing_config() );
 }
 
 /**
@@ -624,7 +696,24 @@ function placeholder_media( $html ): string {
 		. esc_attr__( 'Aucune photo pour cet article', 'teeshoop' ) . '"><span aria-hidden="true">'
 		. esc_html__( 'Sans photo', 'teeshoop' ) . '</span></span>';
 }
-add_filter( 'woocommerce_placeholder_img', __NAMESPACE__ . '\\placeholder_media', 10, 1 );
+/*
+ * FRONT END ONLY, and registered late enough to know which side it is on.
+ *
+ * `woocommerce_placeholder_img` is global: it also reaches the thumbnail column
+ * of the operator's Products list, which would read « Sans photo » in words
+ * where a tile belongs, and `emails/email-order-items.php`, which would put the
+ * span into a message where nothing has inlined the class and the surrounding
+ * table expects an image of a known width.
+ */
+add_action(
+	'wp',
+	static function (): void {
+		if ( is_admin() ) {
+			return;
+		}
+		add_filter( 'woocommerce_placeholder_img', __NAMESPACE__ . '\\placeholder_media', 10, 1 );
+			}
+);
 
 /**
  * The same tile on a product page, which does not go through the same function.

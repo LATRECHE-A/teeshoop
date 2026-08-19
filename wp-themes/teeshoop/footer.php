@@ -41,16 +41,18 @@ $ts_min      = minimum();
 		<section class="ts-foot__col">
 			<h2 class="ts-foot__title"><?php esc_html_e( 'Nos conditions', 'teeshoop' ); ?></h2>
 			<ul class="ts-foot__list">
-				<li>
-					<?php
-					printf(
-						/* translators: 1: minimum number of pieces, 2: minimum order value, before tax. */
-						esc_html__( 'Commande minimum : %1$s pièces et %2$s', 'teeshoop' ),
-						'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
-						'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
-					);
-					?>
-				</li>
+				<?php if ( null !== $ts_min ) : ?>
+					<li>
+						<?php
+						printf(
+							/* translators: 1: minimum number of pieces, 2: minimum order value, before tax. */
+							esc_html__( 'Commande minimum : %1$s pièces et %2$s', 'teeshoop' ),
+							'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
+							'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
+						);
+						?>
+					</li>
+				<?php endif; ?>
 				<?php if ( isset( $ts_lead['standard'] ) ) : ?>
 					<li>
 						<?php

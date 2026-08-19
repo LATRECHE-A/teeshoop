@@ -82,7 +82,21 @@ $ts_chips = applied_chips();
 			<div class="ts-empty">
 				<h2 class="ts-empty__title"><?php esc_html_e( 'Rien ne correspond à cette combinaison', 'teeshoop' ); ?></h2>
 				<?php if ( has_filters() ) : ?>
-					<p><?php esc_html_e( 'Retirez un critère et la liste se remplit. Les nombres à côté de chaque case disent combien de références restent si vous cochez celle-là.', 'teeshoop' ); ?></p>
+					<?php
+					/*
+					 * THE SENTENCE DESCRIBES WHAT THE COUNTS ACTUALLY ARE.
+					 *
+					 * It used to promise "combien de références restent si vous
+					 * cochez celle-là", which is true only while that facet has
+					 * nothing ticked. A facet's counts ignore its own selection,
+					 * deliberately, or ticking « Blanc » would show every other
+					 * colour at zero and nobody could ask for two. Within one
+					 * facet the operator is AND, so with Blanc ticked the number
+					 * beside Noir is how many references are Noir among the other
+					 * criteria, not how many are both.
+					 */
+					?>
+					<p><?php esc_html_e( 'Retirez un critère et la liste se remplit. Les nombres à côté de chaque case comptent les références qui portent cette valeur parmi vos autres critères ; dans une même famille, cocher deux valeurs demande les deux à la fois.', 'teeshoop' ); ?></p>
 					<p><a href="<?php echo esc_url( without_filters() ); ?>"><?php esc_html_e( 'Effacer les filtres', 'teeshoop' ); ?></a></p>
 				<?php else : ?>
 					<p><?php esc_html_e( 'Cette catégorie ne contient aucune référence publiée. L’import fournisseur la remplira ; en attendant, dites-nous ce que vous cherchez et nous le trouvons.', 'teeshoop' ); ?></p>

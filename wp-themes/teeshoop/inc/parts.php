@@ -32,27 +32,27 @@ function catalogue_stats(): array {
 	}
 
 	/*
-	 * COUNTED IN THE CATALOGUE TREE, NOT IN THE POST TABLE. `wp_count_posts`
-	 * answers with every published product, which on a development mirror is
-	 * the imported references PLUS the fixtures each test run leaves behind and
-	 * the demonstration garments: it said "30 références" over six real ones.
-	 * The families listed underneath are the categories, so the total has to be
-	 * the same population or the page contradicts itself two lines apart.
+	 * COUNTED THE SAME WAY THE ROWS UNDERNEATH IT ARE COUNTED.
+	 *
+	 * `wp_count_posts` answers with every published product, which on a mirror
+	 * is the imported references PLUS the fixtures each test run leaves behind:
+	 * it said "30 références" over six real ones. The first fix counted them in
+	 * the catalogue tree with raw SQL, which was closer and still a SECOND
+	 * counting method: WooCommerce maintains the term counts printed in the list
+	 * below through `_wc_term_recount()`, which rolls descendants up into the
+	 * parent and excludes anything hidden from the catalogue, and the SQL did
+	 * neither. Measured, the two disagreed in both directions.
+	 *
+	 * So the heading is the SUM of the rows. One number, one source, and if it
+	 * is ever wrong it is wrong in the same way as the list beside it.
+	 *
+	 * A reference in two top-level families is counted twice. That is the price
+	 * of agreeing with the list, and the list is what a buyer checks it against.
 	 */
-	global $wpdb;
-	$default = (int) get_option( 'default_product_cat', 0 );
-
-	$references = (int) $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT COUNT(DISTINCT p.ID)
-			 FROM {$wpdb->posts} p
-			 INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
-			 INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
-			 WHERE p.post_type = 'product' AND p.post_status = 'publish'
-			   AND tt.taxonomy = 'product_cat' AND tt.term_id <> %d",
-			$default
-		)
-	);
+	$references = 0;
+	foreach ( top_categories() as $term ) {
+		$references += (int) $term->count;
+	}
 
 	/*
 	 * AND WHETHER ANY OF THEM CARRIES A PRICE.
@@ -63,6 +63,7 @@ function catalogue_stats(): array {
 	 * price), but it is a SETTING: the day somebody answers, the listing starts
 	 * showing prices and the sentence beside it goes on denying they exist.
 	 */
+	global $wpdb;
 	$priced = (int) $wpdb->get_var(
 		$wpdb->prepare(
 			"SELECT COUNT(*)
@@ -301,7 +302,17 @@ function print_zone_figure( string $garment = 'tee' ): string {
 				<?php
 				printf(
 					/* translators: 1: reference size, 2: largest size. */
-					esc_html__( 'À l’échelle. Le visuel grandit avec le vêtement, il n’est pas simplement recadré : le trait plein est la taille %1$s et le pointillé la taille %2$s. Nous facturons la surface d’encre, pas le fichier.', 'teeshoop' ),
+					/*
+					 * THE SAME QUALIFICATION THE PRODUCT PAGE MAKES.
+					 *
+					 * `product-specs.php` says « Quand le visuel est gradué avec
+					 * le vêtement, ce qui est le réglage par défaut », and the
+					 * comment above it records why the unqualified form was
+					 * removed: the studio has a per-side control that turns
+					 * grading off, so an unqualified promise is one the customer
+					 * can break themselves and then be told the print is right.
+					 */
+					esc_html__( 'À l’échelle. Le trait plein est la taille %1$s et le pointillé la taille %2$s : quand le visuel est gradué avec le vêtement, ce qui est le réglage par défaut, il grandit avec lui au lieu d’être simplement recadré. Nous facturons la surface d’encre, pas le fichier.', 'teeshoop' ),
 					esc_html( $small ),
 					esc_html( $large )
 				);

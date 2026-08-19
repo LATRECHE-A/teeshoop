@@ -16,6 +16,14 @@
  *
  * Loaded after `tokens.css` and before `product.css`, in that order, so the
  * cascade is the same as when all of it was one file.
+ *
+ * NO HEXADECIMAL LITERAL MAY APPEAR IN THIS FILE. It held nine, and two of them
+ * were a second darker blue for a button hover (#1841ba) sitting on the same
+ * page as `--ts-accent-dark` (#1b45bd): a filter's submit button and a
+ * checkout's Commander button hovered to two different blues, 1,2 points of
+ * lightness apart, which reads as a mistake rather than as a choice. The rest
+ * were the three message tints. `scripts/palette-guard.mjs` now fails on any
+ * hex found here.
  */
 
 /* Digits that line up in a column: prices, quantities, dimensions. */
@@ -44,8 +52,8 @@
 	margin: 0.75rem 0 0;
 	padding: 0.5rem 0.625rem;
 	border-left: 3px solid var(--ts-warn);
-	background: #fdf6ec;
-	color: #6b4a12;
+	background: var(--ts-warn-wash);
+	color: var(--ts-warn-ink);
 	font-size: 0.8125rem;
 	line-height: 1.45;
 }
@@ -66,8 +74,8 @@
 
 .ts-cta:hover,
 .ts-cta:focus {
-	background: #1841ba;
-	border-color: #1841ba;
+	background: var(--ts-accent-dark);
+	border-color: var(--ts-accent-dark);
 	color: var(--ts-accent-ink);
 }
 
@@ -77,7 +85,7 @@
 }
 
 .ts-cta--ghost {
-	background: #fff;
+	background: var(--ts-paper);
 	border-color: var(--ts-line-strong);
 	color: var(--ts-ink);
 	font-weight: 500;
@@ -224,12 +232,12 @@
 
 .ts-msg--good {
 	border-color: var(--ts-good);
-	background: #eef7f2;
-	color: #0b5c3b;
+	background: var(--ts-good-wash);
+	color: var(--ts-good-ink);
 }
 
 .ts-msg--bad {
 	border-color: var(--ts-bad);
-	background: #fdeeed;
-	color: #8c1d18;
+	background: var(--ts-bad-wash);
+	color: var(--ts-bad-ink);
 }

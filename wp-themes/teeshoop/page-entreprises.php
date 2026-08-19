@@ -101,17 +101,19 @@ $ts_bases = price_bases();
 			<?php endif; ?>
 		</dd>
 
-		<dt><?php esc_html_e( 'Le minimum', 'teeshoop' ); ?></dt>
-		<dd>
-			<?php
-			printf(
-				/* translators: 1: minimum pieces, 2: minimum order value. */
-				esc_html__( '%1$s pièces et %2$s. Le minimum porte sur la commande entière, pas sur chaque ligne : trois t-shirts et trois sweats font six pièces et passent.', 'teeshoop' ),
-				'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
-				'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
-			);
-			?>
-		</dd>
+		<?php if ( null !== $ts_min ) : ?>
+			<dt><?php esc_html_e( 'Le minimum', 'teeshoop' ); ?></dt>
+			<dd>
+				<?php
+				printf(
+					/* translators: 1: minimum pieces, 2: minimum order value. */
+					esc_html__( '%1$s pièces et %2$s. Le minimum porte sur la commande entière, pas sur chaque ligne : trois t-shirts et trois sweats font six pièces et passent.', 'teeshoop' ),
+					'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
+					'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
+				);
+				?>
+			</dd>
+		<?php endif; ?>
 
 		<dt><?php esc_html_e( 'Les échantillons', 'teeshoop' ); ?></dt>
 		<dd>
@@ -169,10 +171,13 @@ if ( '' !== $ts_garment && class_exists( '\\Teeshoop\\Core\\Pricing' ) && define
 				'qtys'     => $ts_qtys,
 				'rows'     => $ts_rows,
 				'std_area' => \Teeshoop\Core\Pricing::std_area_sq_cm( $ts_conf ),
-				'request'  => array(
+				'request'   => array(
 					'qty'   => 0,
 					'faces' => 1,
 				),
+				// This page carries no form, so a « sur devis » cell must lead to
+				// the one that does rather than to an anchor that is not here.
+				'quote_url' => quote_url(),
 			),
 			'',
 			TEESHOOP_CORE_DIR . 'templates/'

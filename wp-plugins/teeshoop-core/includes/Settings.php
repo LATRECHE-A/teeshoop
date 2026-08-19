@@ -204,6 +204,73 @@ final class Settings {
 	}
 
 	/**
+	 * The area every published headline price is actually for, in one sentence.
+	 *
+	 * `Pricing::headline()` builds its anchors from `Pricing::grid()`, which
+	 * prices every side through `standard_sides()`, which is the CHEAPEST area
+	 * tier. So "impression comprise" is true up to the first tier's ceiling and
+	 * not beyond, while the tee's published print zone at its priced size is
+	 * comfortably into the second: measured, the same 50-piece run costs 27,6 %
+	 * more at the zone than at the headline. A page that prints the price and the
+	 * zone and not the bound between them has published a price the cart will not
+	 * honour, and in France an announced price is an offer.
+	 *
+	 * The product page has always printed it, at the foot of the grid. Session 09
+	 * added a homepage and an entreprises page that print the same headline, so
+	 * the sentence moved here rather than being written a second and a third
+	 * time. `product-price-grid.php` calls it too.
+	 *
+	 * @param array $config The price config, so a caller that already has it
+	 *                      does not read the option twice.
+	 * @return string Empty when there is no bound to state.
+	 */
+	public static function area_note( array $config = array() ): string {
+		if ( empty( $config ) ) {
+			$config = self::pricing();
+		}
+
+		$std = Pricing::std_area_sq_cm( $config );
+		if ( null === $std ) {
+			return '';
+		}
+
+		$sentence = sprintf(
+			/* translators: %s: an area in square centimetres. */
+			__( 'Ces prix valent pour une impression jusqu’à %s cm² par face.', 'teeshoop' ),
+			Money::number( $std )
+		);
+
+		$extra = array();
+		foreach ( (array) ( $config['area_tiers'] ?? array() ) as $i => $tier ) {
+			if ( 0 === $i || (int) ( $tier['add_ht'] ?? 0 ) <= 0 ) {
+				continue;
+			}
+			$extra[] = null === ( $tier['max_sq_cm'] ?? null )
+				? sprintf(
+					/* translators: %s: a surcharge amount. */
+					__( 'au-delà, %s par face', 'teeshoop' ),
+					Money::format( (int) $tier['add_ht'] )
+				)
+				: sprintf(
+					/* translators: 1: an area in square centimetres, 2: a surcharge amount. */
+					__( 'jusqu’à %1$s cm², %2$s par face', 'teeshoop' ),
+					Money::number( (float) $tier['max_sq_cm'] ),
+					Money::format( (int) $tier['add_ht'] )
+				);
+		}
+
+		if ( ! empty( $extra ) ) {
+			$sentence .= ' ' . sprintf(
+				/* translators: %s: a list of surcharges by printed area. */
+				__( 'Pour une face plus grande, un supplément s’ajoute : %s.', 'teeshoop' ),
+				implode( ' ; ', $extra )
+			);
+		}
+
+		return $sentence;
+	}
+
+	/**
 	 * Today, in the shop's own timezone.
 	 *
 	 * `wp_date` and not `date`: the server is UTC and the shop is in Paris, so

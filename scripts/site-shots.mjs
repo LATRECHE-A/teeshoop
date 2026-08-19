@@ -4,7 +4,7 @@
  *
  *   node scripts/site-shots.mjs [base] [outDir]
  *
- * Six pages at three widths, which is the evidence the session brief asks for.
+ * Seven pages at three widths, which is the evidence the session brief asks for.
  * It also ASSERTS, because a screenshot proves a page rendered and nothing else,
  * and because two of the things this session added cannot be checked any other
  * way:

@@ -543,6 +543,12 @@ p {
 	font-variant-numeric: tabular-nums;
 }
 
+/* The bound the price is true up to, under the block that prints the price. */
+.ts-facts__note {
+	margin: var(--ts-space-3) 0 0;
+	max-width: none;
+}
+
 .ts-facts__value small {
 	display: block;
 	color: var(--ts-muted);

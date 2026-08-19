@@ -107,6 +107,25 @@ const texts = SOURCES.map((s) => ({ ...s, text: read(s.file) }))
 const problems = []
 let compared = 0
 
+/*
+ * AND ONE FILE THAT MAY HOLD NO COLOUR AT ALL.
+ *
+ * `components.css` is not a copy of the palette, it is a CONSUMER of it, and it
+ * held nine hexadecimal literals: a second darker blue for a button hover
+ * (#1841ba) painted on the same page as `--ts-accent-dark`, and the three
+ * message tints. A fourth palette nobody was comparing. Comments are stripped
+ * first, because this file's own header now names the two blues in prose.
+ */
+const NO_HEX = ['wp-plugins/teeshoop-core/assets/components.css']
+for (const file of NO_HEX) {
+  const bare = read(file).replace(/\/\*[\s\S]*?\*\//g, '')
+  const hits = bare.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []
+  compared++
+  if (hits.length > 0) {
+    problems.push(`${file} : ${hits.length} couleur(s) écrite(s) en dur, alors que ce fichier ne doit lire que des jetons`)
+  }
+}
+
 for (const role of ROLES) {
   const seen = texts
     .filter((s) => s.holds.includes(role))

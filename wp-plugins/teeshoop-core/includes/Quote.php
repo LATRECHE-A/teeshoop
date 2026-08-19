@@ -308,6 +308,31 @@ final class Quote {
 	 * still valid until it ages out, and a bot that POSTs without ever fetching
 	 * the form has nothing to send.
 	 */
+	/**
+	 * Why a request carries no self-serve estimate, in words an operator can act
+	 * on.
+	 *
+	 * TWO REASONS, TWO SENTENCES. A run past `max_qty` is genuinely outside the
+	 * public grid and wants a hand chiffrage; a request that names no product,
+	 * which is every request the standalone /devis/ page produces, has nothing to
+	 * price and wants the operator to pick the garment first. Both stored a zero,
+	 * and both screens said the quantity was too large, which for a 240-piece
+	 * request on a grid that runs to ten thousand is simply false.
+	 *
+	 * An empty reason is a record written before this was stored, and it gets the
+	 * neutral sentence rather than either guess.
+	 */
+	private static function no_estimate( string $why ): string {
+		switch ( $why ) {
+			case 'sans_article':
+				return __( 'aucune : la demande ne désigne pas d’article', 'teeshoop' );
+			case 'hors_grille':
+				return __( 'aucune : cette quantité dépasse la grille publique', 'teeshoop' );
+			default:
+				return __( 'aucune', 'teeshoop' );
+		}
+	}
+
 	public static function stamp(): string {
 		$now = (string) time();
 		return $now . '.' . hash_hmac( 'sha256', $now, wp_salt( 'teeshoop_devis' ) );
@@ -530,6 +555,16 @@ final class Quote {
 			'_ts_echeance'    => self::date( (string) ( $post['echeance'] ?? '' ) ),
 			'_ts_message'     => self::text( $post['message'] ?? '', 4000 ),
 			'_ts_estimate_ht' => $estimate_ht,
+			/*
+			 * WHY IT IS ZERO, because there are now two reasons and they read
+			 * differently to an operator. A run past `max_qty` is out of the
+			 * public grid; a request that names no product (the standalone
+			 * /devis/ page posts `product_id = 0`) has no garment to price at
+			 * all. Both stored 0 and both screens printed « la quantité dépasse
+			 * la grille publique », so a 240-piece request was reported as being
+			 * over a grid that runs to ten thousand.
+			 */
+			'_ts_estimate_why' => $estimate_ht > 0 ? '' : ( '' === $garment ? 'sans_article' : 'hors_grille' ),
 			'_ts_design_id'   => Design::valid_id( (string) ( $post['design_id'] ?? '' ) ) ? (string) $post['design_id'] : '',
 		);
 		foreach ( $meta as $key => $value ) {
@@ -651,7 +686,11 @@ final class Quote {
 			sprintf( __( 'Faces imprimées : %d', 'teeshoop' ), $meta['_ts_faces'] ),
 			(int) $meta['_ts_estimate_ht'] > 0
 				? sprintf( __( 'Estimation libre-service : %s HT', 'teeshoop' ), Money::format( (int) $meta['_ts_estimate_ht'] ) )
-				: __( 'Estimation libre-service : aucune, la quantité dépasse la grille publique', 'teeshoop' ),
+				: sprintf(
+					/* translators: %s: why there is no self-serve estimate. */
+					__( 'Estimation libre-service : %s', 'teeshoop' ),
+					self::no_estimate( (string) ( $meta['_ts_estimate_why'] ?? '' ) )
+				),
 			'',
 			$edit,
 		);
@@ -724,7 +763,7 @@ final class Quote {
 				echo esc_html(
 					$estimate > 0
 						? Money::format( $estimate )
-						: __( 'hors grille publique', 'teeshoop' )
+						: self::no_estimate( (string) get_post_meta( $post_id, '_ts_estimate_why', true ) )
 				);
 				break;
 		}
@@ -782,7 +821,7 @@ final class Quote {
 			esc_html(
 				$estimate > 0
 					? Money::format( $estimate ) . ' HT'
-					: __( 'aucune : cette quantité dépasse la grille publique', 'teeshoop' )
+					: self::no_estimate( (string) get_post_meta( $post->ID, '_ts_estimate_why', true ) )
 			)
 		);
 		echo '</tbody></table>';

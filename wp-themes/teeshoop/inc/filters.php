@@ -453,7 +453,19 @@ function context_ids( string $except = '' ): array {
 		$args['meta_query'] = filter_meta_query( array() ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 	}
 
-	$search = get_search_query();
+	/*
+	 * THE RAW SEARCH TERM, NOT THE ESCAPED ONE.
+	 *
+	 * `get_search_query()` defaults to `$escaped = true` and runs the term
+	 * through `esc_attr()`, which is right for printing it into an attribute and
+	 * wrong for re-running the query. Any search containing `&`, `"`, `<`, `>`
+	 * or `'` then gave the panel a different string from the one `WP_Query` used:
+	 * measured on `?s=B%26C`, the listing said 5 references and the panel said
+	 * B&C 3, and the two could never reconcile because ticking the brand filters
+	 * on the raw term. B&C is this catalogue's largest brand, so the first
+	 * ampersand a buyer types is the one that breaks it.
+	 */
+	$search = (string) get_query_var( 's' );
 	if ( '' !== $search && ( is_search() || is_shop() ) ) {
 		$args['s'] = $search;
 	}

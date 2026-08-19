@@ -63,11 +63,15 @@ $ts_cat      = catalogue_stats();
 
 		<p class="ts-lead">
 			<?php
-			printf(
-				/* translators: %s: the minimum number of pieces. */
-				esc_html__( 'T-shirts, polos et sweats marqués à votre logo, à partir de %s pièces. Vous dessinez en ligne et vous voyez le prix avant de commander, ou vous nous décrivez le projet et nous le chiffrons.', 'teeshoop' ),
-				'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>'
-			);
+			if ( null !== $ts_min ) {
+				printf(
+					/* translators: %s: the minimum number of pieces. */
+					esc_html__( 'T-shirts, polos et sweats marqués à votre logo, à partir de %s pièces. Vous dessinez en ligne et vous voyez le prix avant de commander, ou vous nous décrivez le projet et nous le chiffrons.', 'teeshoop' ),
+					'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>'
+				);
+			} else {
+				esc_html_e( 'T-shirts, polos et sweats marqués à votre logo. Vous dessinez en ligne et vous voyez le prix avant de commander, ou vous nous décrivez le projet et nous le chiffrons.', 'teeshoop' );
+			}
 			?>
 		</p>
 
@@ -116,6 +120,7 @@ $ts_cat      = catalogue_stats();
 			</div>
 		<?php endif; ?>
 
+		<?php if ( null !== $ts_min ) : ?>
 		<div class="ts-facts__item">
 			<dt class="ts-facts__term"><?php esc_html_e( 'Commande minimum', 'teeshoop' ); ?></dt>
 			<dd class="ts-facts__value">
@@ -137,6 +142,7 @@ $ts_cat      = catalogue_stats();
 				</small>
 			</dd>
 		</div>
+		<?php endif; ?>
 
 		<?php if ( isset( $ts_lead['standard'] ) ) : ?>
 			<div class="ts-facts__item">
@@ -190,6 +196,23 @@ $ts_cat      = catalogue_stats();
 	</dl>
 
 	<?php
+	/*
+	 * THE BOUND THAT CONNECTS THE PRICE TILE TO THE ZONE TILE.
+	 *
+	 * They sit in the same block: the headline price with "impression comprise",
+	 * and the print zone in centimetres. The price is the cheapest area tier and
+	 * that zone is into the next one, so printing the two without the sentence
+	 * between them advertises a figure the cart does not charge: measured on the
+	 * shipped config, 27,6 % under. It is the same sentence the product page
+	 * prints, from the same call.
+	 */
+	$ts_area_note = area_note();
+	if ( '' !== $ts_area_note && ! empty( $ts_headline['best'] ) ) :
+		?>
+		<p class="ts-facts__note ts-note"><?php echo esc_html( $ts_area_note ); ?></p>
+		<?php
+	endif;
+
 	// The admin-only marker: these figures are assumptions, not the associate's
 	// answers. Printed once per request, and only to someone who can act on it.
 	if ( class_exists( '\\Teeshoop\\Core\\Hypotheses' ) ) {
