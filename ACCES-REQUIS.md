@@ -49,6 +49,43 @@ Le compte admin WordPress n'a jamais manqué en réalité : `LTHAbdou` est admin
 depuis le 22/07, ce qui est démontré par le fait que la clé API du 14/08 a été créée
 sous cet identifiant (`user_id = 30` dans `wp68_woocommerce_api_keys`).
 
+### Depuis le 19 août : ce qu'il faut poser pour qu'une commande fournisseur puisse partir
+
+Rien de ce qui suit ne bloque une séance de développement. Tout bloque **l'envoi réel
+d'une commande au fournisseur**, et le refus est explicite à chaque fois : la route
+répond 503 ou 401 et l'écran des achats affiche pourquoi.
+
+| À poser | Qui | Où | Sans lui |
+|---|---|---|---|
+| `FR_CUSTOMER_NR` | **l'associé** (ou son contact fournisseur) | `wrangler secret put FR_CUSTOMER_NR` | La route répond 503 et ne construit aucun document. Voir §5 : nous avons essayé de le deviner, et la sonde dit que c'est indécidable |
+| `FR_ORDER_TOKEN` | nous, à tirer au sort | `wrangler secret put FR_ORDER_TOKEN` | La route répond 401. C'est le second secret, celui que l'importateur de catalogue ne porte pas |
+| `TEESHOOP_ORDER_TOKEN` | nous, **la même valeur** | `wp config set TEESHOOP_ORDER_TOKEN <valeur> --type=constant` | L'écran des achats refuse d'envoyer et le dit |
+| La ligne de cron du stock | déploiement | `0 2,6,10,14,18,22 * * * … wp teeshoop stock rafraichir --discret` | Les relevés vieillissent et la boutique dit « Délai à confirmer », ce qui est correct et non une panne |
+| Le textile nu déclaré sur chaque produit personnalisable | un opérateur | fiche produit, sous « Vêtement Teeshoop » | Le panier d'achat refuse **chaque ligne** par son nom. Aujourd'hui aucun produit ne le déclare, donc aucun panier réel n'est chiffrable |
+
+Les deux premiers sont détaillés au §5. Le dernier n'est pas un accès, c'est une saisie,
+et c'est la seule des cinq qui doit être faite pour **chaque** produit vendu.
+
+### Et une correction du miroir local, à refaire après un `docker compose down -v`
+
+Le `docker-compose.yml` posait `TEESHOOP_CATALOGUE_TOKEN` par `WORDPRESS_CONFIG_EXTRA`
+avec un défaut vide, ce qui définissait une constante **vide** que le `define` écrit à la
+main plus bas ne pouvait plus remplacer : le conteneur web tenait un jeton vide pendant
+que `wp-cli` tenait le vrai. Tous les tests passaient et l'écran d'administration ne
+joignait pas le Worker. La ligne est retirée ; sur un miroir reconstruit, poser les
+secrets une fois :
+
+```bash
+npm run wp:cli -- config set TEESHOOP_CATALOGUE_TOKEN <valeur> --type=constant
+npm run wp:cli -- config set TEESHOOP_WORKER_TOKEN <valeur> --type=constant
+npm run wp:cli -- config set TEESHOOP_ORDER_TOKEN <valeur> --type=constant
+```
+
+Le fuseau horaire du miroir est UTC et celui de la boutique de production l'est aussi.
+Ce n'est pas un problème pour le stock, dont l'horodatage est lu dans le fuseau du
+fournisseur explicitement depuis le 19 août, mais c'est à savoir avant de conclure quoi
+que ce soit d'une date affichée par WordPress.
+
 ---
 
 ## 1. SSH o2switch : en place depuis le 14/08/2026

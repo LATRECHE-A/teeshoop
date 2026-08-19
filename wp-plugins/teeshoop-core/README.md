@@ -884,6 +884,20 @@ past in summer.
 
 ## Not built yet
 
+- **A blank declared on any product.** `Product::META_BLANK_REF` and its colour map are the
+  field that lets a purchase basket resolve an article, and nothing fills them in: on the
+  real shop every basket line comes back « aucun textile nu n'est déclaré sur ce produit ».
+  It is a saisie per sellable product, not a code task, and `docs/ROADMAP.md` and
+  `ACCES-REQUIS.md` both list it.
+- **A supplier order that can actually leave.** `FR_CUSTOMER_NR` is unset (the associate's)
+  and `FR_ORDER_TOKEN` is unset (ours to generate), so `POST /api/fr/order` answers 503 then
+  401. Both refusals are explicit on the purchase screen.
+- **The path back from a purchase served in part.** The state and the refused lines exist;
+  re-ordering just the missing sizes does not, and the orders stay pinned. `docs/ROADMAP.md`
+  carries the exception and what would close it.
+- **The supplier's invoice.** The cost reconciliation compares assumed against
+  at-purchase; his interface publishes no invoice, so the third number is absent and the
+  screen says so.
 - An admin screen for the pricing config. It is set through the option.
 - An admin screen for the integration settings (studio origin, Worker URL). Same.
   The facturation screen (`Admin.php`) covers VAT, the legal identity, the
