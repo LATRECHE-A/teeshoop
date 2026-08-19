@@ -120,7 +120,7 @@ final class Costing {
 	 * table existed, and "no rule applied" and "there were no rules" are
 	 * different claims. The panel says which.
 	 */
-	public const VERSION = 2;
+	public const VERSION = 3;
 
 	// ── Configuration ────────────────────────────────────────────────────────
 
@@ -619,7 +619,63 @@ final class Costing {
 		$film = null;
 		$nest = Nest::billed_metres( $work['pieces'], $config );
 
-		if ( $nest['ok'] && $work['complete'] ) {
+		/*
+		 * A SENT LOT OUTRANKS THE ORDER'S OWN NESTING, and it is the only thing
+		 * that does.
+		 *
+		 * Session 07 stopped buying film one order at a time. When this order's
+		 * transfers were ganged with other people's onto one roll, what it cost
+		 * is its share of that roll and not what it would have cost alone —
+		 * `Production` records the share and `Cost::attribute()` computed it.
+		 *
+		 * ONLY A SENT LOT. A draft is a plan, and a plan is not a purchase: until
+		 * the film is ordered the order keeps its own solo cost at the FRENCH
+		 * rate, which is the dearer of the two and therefore the safe direction
+		 * for a floor price. That is also what finally answers the objection
+		 * `PriceRule::URGENCES` records against letting a dropdown pick the
+		 * origin: a sent lot is not a tick, it is a purchase, frozen, with a date
+		 * and an operator against it.
+		 */
+		$lot = Production::lot_of( $order );
+		if ( null !== $lot && Production::DRAFT !== ( $lot['state'] ?? '' ) ) {
+			$film = array(
+				'origin'    => (string) ( $lot['origin'] ?? 'fr' ),
+				'lot_id'    => (int) $lot['lot_id'],
+				'billed_m'  => (float) ( $lot['pooled_m'] ?? 0.0 ),
+				'solo_m'    => (float) ( $lot['solo_m'] ?? 0.0 ),
+				'solo_ht'   => (int) ( $lot['solo_ht'] ?? 0 ),
+				'amount_ht' => (int) ( $lot['share_ht'] ?? 0 ),
+				'saved_ht'  => (int) ( $lot['saved_ht'] ?? 0 ),
+				'orders'    => (int) ( $lot['orders'] ?? 1 ),
+				'pooled'    => true,
+			);
+			$components[] = Cost::component(
+				'marquage',
+				(int) $film['amount_ht'],
+				Cost::ESTIMATED,
+				sprintf(
+					/* translators: 1: how many orders shared the film, 2: metres of film, 3: the lot number. */
+					__( 'Part de %1$d commandes imbriquées ensemble sur %2$s m de film (lot n° %3$d)', 'teeshoop' ),
+					(int) $film['orders'],
+					Money::number( (float) $film['billed_m'], 2 ),
+					(int) $film['lot_id']
+				),
+				''
+			);
+			if ( (int) $film['saved_ht'] > 0 ) {
+				$warnings[] = sprintf(
+					/* translators: %s: money saved by printing this order with others. */
+					__( 'Imbriquée avec d’autres commandes : %s de film économisés par rapport à un tirage seul.', 'teeshoop' ),
+					Money::format( (int) $film['saved_ht'] )
+				);
+			} elseif ( (int) $film['saved_ht'] < 0 ) {
+				$warnings[] = sprintf(
+					/* translators: %s: money this order lost by being printed with others. */
+					__( 'Ce lot a coûté %s de plus à cette commande qu’un tirage seul : les transferts ne s’imbriquaient pas.', 'teeshoop' ),
+					Money::format( -(int) $film['saved_ht'] )
+				);
+			}
+		} elseif ( $nest['ok'] && $work['complete'] ) {
 			$film         = Cost::film( (float) $nest['billed_m'], $config );
 			$components[] = Cost::component(
 				'marquage',
@@ -991,6 +1047,13 @@ final class Costing {
 			// The day the order was placed decides which rules were in force for
 			// it, and an operator can edit an order's date.
 			self::placed_on( $order ),
+			/*
+			 * THE LOT, because it now decides the film cost. Without this a
+			 * report computed before the film was ordered went on reading « à
+			 * jour » while the order's biggest cost line had been replaced by a
+			 * share of somebody else's roll.
+			 */
+			(string) $order->get_meta( Production::META_ORDER_LOT, true ),
 		);
 		foreach ( $order->get_items() as $item ) {
 			$parts[] = $item->get_id() . ':' . $item->get_quantity() . ':' . $item->get_subtotal();

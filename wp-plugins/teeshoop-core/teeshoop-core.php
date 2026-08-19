@@ -89,6 +89,16 @@ const OPTION_COSTING = 'teeshoop_costing';
 const OPTION_COMMISSION = 'teeshoop_commission';
 
 /**
+ * Option holding the workshop's schedule: lead times, capacity, slack.
+ *
+ * ITS OWN, and not inside the cost config, for the reason the floor rules are:
+ * that one is rewritten wholesale from a literal on every save of the cost
+ * screen, and a schedule stored inside it would be deleted by the first person
+ * who pressed Enregistrer there.
+ */
+const OPTION_PRODUCTION = 'teeshoop_production';
+
+/**
  * Option holding the scoped floor rules. ITS OWN, never inside the cost config:
  * that one is rewritten from a literal on every save and would delete them.
  */
@@ -126,6 +136,7 @@ require_once __DIR__ . '/includes/Compat.php';
 require_once __DIR__ . '/includes/ProductPage.php';
 require_once __DIR__ . '/includes/Nest.php';
 require_once __DIR__ . '/includes/Costing.php';
+require_once __DIR__ . '/includes/Production.php';
 require_once __DIR__ . '/includes/Waiver.php';
 require_once __DIR__ . '/includes/Lifecycle.php';
 require_once __DIR__ . '/includes/Mail.php';
@@ -176,6 +187,7 @@ function boot(): void {
 	Bat::init();
 	Claim::init();
 	Quote::init();
+	Production::init();
 	Hypotheses::init();
 	Compat::init();
 	Admin::init();

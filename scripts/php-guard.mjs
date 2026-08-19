@@ -186,6 +186,25 @@ const ALLOWED = new Map([
     },
   ],
   [
+    'wp-plugins/teeshoop-core/includes/Production.php',
+    {
+      /*
+       * The workshop's queue and the print lots. It asks the cost engine what an
+       * order's transfers are and what a pooled roll costs, and it writes the
+       * share back; it renders nothing at all, and the screen that reads it is
+       * behind `manage_woocommerce`. The needles are named rather than the file,
+       * so it is still checked for supplier names, purchase prices and film
+       * tariffs per linear metre — none of which it has any business carrying.
+       */
+      why: 'the production queue and the print lots; server-only, renders nothing, and splitting a film bill is its job',
+      needles: [ 'Cost::', 'Costing::', 'PriceRule::' ],
+    },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/test-production.php',
+    { why: 'the tests for the queue and the lots', needles: [ 'Cost::', 'Costing::', 'PriceRule::' ] },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/Lifecycle.php',
     {
       /*
