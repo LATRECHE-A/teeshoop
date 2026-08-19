@@ -23,6 +23,7 @@ use Teeshoop\Core\Invoice;
 use Teeshoop\Core\Lifecycle;
 use Teeshoop\Core\Mail;
 use Teeshoop\Core\Notify;
+use Teeshoop\Core\Quote;
 use Teeshoop\Core\Settlement;
 use Teeshoop\Core\Vat;
 use Teeshoop\Core\Waiver;
@@ -822,6 +823,132 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		$order->delete( true );
 	} );
 
+	// ── the devis as a document ──────────────────────────────────────────────
+
+	ts_it( 'gives a devis a number from the ONE sequence, and freezes what it says', function () use ( $product_id ) {
+		/*
+		 * Chapitre 2: « chaque envoi crée une version [...] le client doit
+		 * accepter la version exacte qu'il paie ». The number comes from
+		 * `Invoice::next_number`, the same table and the same atomic idiom, in
+		 * its own series: a second counter would be a second thing to get right,
+		 * and this one has already been driven by six concurrent processes.
+		 */
+		$devis = ts_lc_devis( $product_id, 40, 1 );
+
+		$first = Quote::issue( $devis );
+		ts_assert( $first['ok'], 'établissement refusé : ' . ( $first['reason'] ?? '' ) );
+		ts_eq( $first['version']['version'], 1, 'première version' );
+		ts_assert( '' !== (string) $first['version']['number'], 'aucun numéro' );
+		ts_assert( (int) $first['version']['total_ht'] > 0, 'aucun prix' );
+
+		$second = Quote::issue( $devis );
+		ts_eq( $second['version']['version'], 2, 'deuxième version' );
+		ts_assert(
+			$second['version']['number'] !== $first['version']['number'],
+			'deux versions portent le même numéro'
+		);
+		ts_eq( count( Quote::versions( $devis ) ), 2, 'la chaîne garde les deux' );
+		wp_delete_post( $devis, true );
+	} );
+
+	ts_it( 'says when a sent devis no longer describes what the shop would sell', function () use ( $product_id ) {
+		// The chapter's own requirement is that a sent quote never changes
+		// SILENTLY. Recalculating it in place would be exactly that failure, so
+		// what moves is a sentence and never the stored number.
+		$devis  = ts_lc_devis( $product_id, 40, 1 );
+		$issued = Quote::issue( $devis );
+		ts_eq( Quote::moved( $devis ), '', 'un devis tout juste établi a déjà bougé' );
+
+		$config = get_option( 'teeshoop_pricing', array() );
+		update_option( 'teeshoop_pricing', array_merge( (array) $config, array( 'garments' => array( 'tee' => array( 'base_ht' => 4000 ) ) ) ) );
+
+		$moved = Quote::moved( $devis );
+		ts_assert( '' !== $moved, 'une hausse du textile ne se voit pas' );
+		ts_assert( false !== strpos( $moved, (string) $issued['version']['number'] ), 'la phrase ne nomme pas le devis' );
+		ts_eq(
+			(int) Quote::current( $devis )['total_ht'],
+			(int) $issued['version']['total_ht'],
+			'le devis envoyé a été réécrit'
+		);
+
+		update_option( 'teeshoop_pricing', $config );
+		wp_delete_post( $devis, true );
+	} );
+
+	ts_it( 'costs a devis with the ONE engine, without writing an order', function () use ( $product_id ) {
+		/*
+		 * This is chapter 1's `POST /pricing/quotes/calculate`. `Costing::compute`
+		 * takes a `WC_Order`, so the devis is handed to it as one, built in
+		 * memory and never saved: `calculate_totals()` is deliberately not
+		 * called, because WooCommerce's own implementation ends in `save()` and
+		 * would write a phantom order for every quote anybody costed.
+		 */
+		$before = count( wc_get_orders( array( 'limit' => -1, 'status' => 'any', 'return' => 'ids' ) ) );
+
+		$devis  = ts_lc_devis( $product_id, 40, 1 );
+		$costed = Quote::costing( $devis );
+		ts_assert( $costed['ok'], 'chiffrage refusé : ' . ( $costed['reason'] ?? '' ) );
+		ts_assert( isset( $costed['report']['cost'] ), 'aucun coût dans le rapport' );
+		// `plan` is where the recommended price, the floor and the negotiation
+		// zone live; `verdict` is what the engine says about a proposed price.
+		ts_assert( isset( $costed['report']['plan'] ), 'aucun plancher dans le rapport' );
+		ts_assert( isset( $costed['report']['verdict'] ), 'aucun verdict dans le rapport' );
+
+		$after = count( wc_get_orders( array( 'limit' => -1, 'status' => 'any', 'return' => 'ids' ) ) );
+		ts_eq( $after, $before, 'chiffrer un devis a créé une commande' );
+		wp_delete_post( $devis, true );
+	} );
+
+	ts_it( 'refuses to price a devis whose création cannot be confirmed', function () use ( $product_id ) {
+		/*
+		 * FAIL CLOSED, and it is a money gate. A design the Worker cannot
+		 * confirm might carry far more ink than the standard face tier, so
+		 * quoting the shorthand would put a price on a document the cart will
+		 * then refuse to honour.
+		 */
+		$devis = ts_lc_devis( $product_id, 40, 1 );
+		update_post_meta( $devis, '_ts_design_id', 'jamaisvuparleworker00' );
+
+		/*
+		 * A 404 AND NOT A TRANSPORT ERROR, and the difference is the test.
+		 * `TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` is on in this suite, as it is on
+		 * every developer's machine, and it rescues exactly two reasons:
+		 * `worker_not_configured` and `worker_unreachable`, which both mean "we
+		 * could not ask". A 404 means "we asked and it is not there", which is
+		 * a different answer and is never rescued. A test driving the first
+		 * would have proved nothing about the second.
+		 */
+		$settings = get_option( 'teeshoop_settings', array() );
+		update_option( 'teeshoop_settings', array_merge( (array) $settings, array( 'worker_url' => 'https://worker.invalid' ) ) );
+		remove_all_filters( 'pre_http_request' );
+		add_filter(
+			'pre_http_request',
+			static function () {
+				return array(
+					'headers'  => array(),
+					'body'     => '{"error":"not found"}',
+					'response' => array(
+						'code'    => 404,
+						'message' => 'Not Found',
+					),
+					'cookies'  => array(),
+					'filename' => null,
+				);
+			},
+			10,
+			3
+		);
+
+		$priced = Quote::price( $devis );
+		ts_eq( $priced['ok'], false, 'un devis a été chiffré sur une création non confirmée' );
+		ts_assert( false !== strpos( (string) $priced['reason'], 'design_not_found' ), 'le refus ne dit pas laquelle des deux' );
+		ts_eq( Quote::issue( $devis )['ok'], false, 'et une version a quand même été établie' );
+
+		remove_all_filters( 'pre_http_request' );
+		update_option( 'teeshoop_settings', $settings );
+		wp_delete_post( $devis, true );
+	} );
+
 	// ── the archive copy ─────────────────────────────────────────────────────
 
 	ts_it( 'renders an archive copy that names the version and its numbers', function () use ( $product_id ) {
@@ -839,6 +966,34 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 
 	update_option( 'teeshoop_settings', $saved_settings );
 	remove_all_filters( 'pre_http_request' );
+}
+
+/** A devis request, as the public form would have written it. */
+function ts_lc_devis( int $product_id, int $qty, int $faces ): int {
+	$post_id = wp_insert_post(
+		array(
+			'post_type'   => Quote::POST_TYPE,
+			'post_status' => 'ts-recu',
+			'post_title'  => 'Demande du harnais',
+		),
+		true
+	);
+	foreach (
+		array(
+			'_ts_societe'    => 'Atelier Roux',
+			'_ts_contact'    => 'Camille Roux',
+			'_ts_email'      => 'camille@example.test',
+			'_ts_product_id' => $product_id,
+			'_ts_garment'    => 'tee',
+			'_ts_qty'        => $qty,
+			'_ts_faces'      => $faces,
+			'_ts_tailles'    => wp_json_encode( array( 'M' => $qty ) ),
+			'_ts_design_id'  => '',
+		) as $key => $value
+	) {
+		update_post_meta( $post_id, $key, $value );
+	}
+	return (int) $post_id;
 }
 
 /** Approve, the way the customer's own POST does. */

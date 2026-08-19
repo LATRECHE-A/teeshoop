@@ -95,6 +95,7 @@ final class Quote {
 		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
 		add_action( 'post_submitbox_misc_actions', array( self::class, 'status_control' ) );
 		add_action( 'save_post_' . self::POST_TYPE, array( self::class, 'save_status' ), 10, 2 );
+		add_action( 'admin_post_' . self::ACTION_ISSUE, array( self::class, 'handle_issue' ) );
 
 		/*
 		 * THE RETENTION IS A MECHANISM, NOT A SENTENCE.
@@ -765,6 +766,110 @@ final class Quote {
 		}
 
 		echo '<p class="description">' . esc_html__( 'L’estimation est ce que la fiche produit aurait annoncé à cette quantité, au tarif public. Ce n’est pas un prix proposé au client.', 'teeshoop' ) . '</p>';
+
+		self::render_document( $post->ID );
+	}
+
+	/**
+	 * The document half of the screen: the versions, and what has moved.
+	 *
+	 * THE STALENESS LINE IS THE POINT. Chapitre 2 asks that a sent quote never
+	 * change silently, and this is what "not silently" looks like: the number
+	 * that was sent, the number today, and a sentence saying to send a new
+	 * version before taking money. Recalculating it in place would be exactly
+	 * the failure the chapter names.
+	 */
+	private static function render_document( int $post_id ): void {
+		$versions = self::versions( $post_id );
+
+		echo '<h4>' . esc_html__( 'Devis envoyés', 'teeshoop' ) . '</h4>';
+		if ( empty( $versions ) ) {
+			echo '<p>' . esc_html__( 'Aucune version n’a encore été établie.', 'teeshoop' ) . '</p>';
+		} else {
+			echo '<table class="widefat striped"><thead><tr>';
+			printf(
+				'<th>%s</th><th>%s</th><th>%s</th><th>%s</th>',
+				esc_html__( 'Version', 'teeshoop' ),
+				esc_html__( 'Numéro', 'teeshoop' ),
+				esc_html__( 'Date', 'teeshoop' ),
+				esc_html__( 'Total HT', 'teeshoop' )
+			);
+			echo '</tr></thead><tbody>';
+			foreach ( array_reverse( $versions ) as $version ) {
+				printf(
+					'<tr><td>%d</td><td>%s</td><td>%s</td><td style="text-align:right">%s</td></tr>',
+					(int) $version['version'],
+					esc_html( (string) $version['number'] ),
+					esc_html( (string) $version['date'] ),
+					esc_html( Money::format( (int) $version['total_ht'] ) )
+				);
+			}
+			echo '</tbody></table>';
+
+			$moved = self::moved( $post_id );
+			if ( '' !== $moved ) {
+				printf( '<div class="notice notice-warning inline"><p>%s</p></div>', esc_html( $moved ) );
+			}
+		}
+
+		$priced = self::price( $post_id );
+		if ( empty( $priced['ok'] ) ) {
+			printf( '<p class="description">%s</p>', esc_html( (string) $priced['reason'] ) );
+			return;
+		}
+		printf(
+			'<p class="description">%s</p>',
+			esc_html(
+				sprintf(
+					/* translators: 1: an amount excl. VAT, 2: where the printed surfaces came from. */
+					__( 'Aux conditions du jour : %1$s HT, surfaces %2$s.', 'teeshoop' ),
+					Money::format( (int) $priced['total_ht'] ),
+					'design' === $priced['source']
+						? __( 'mesurées sur la création du client', 'teeshoop' )
+						: __( 'au forfait par face, faute de création', 'teeshoop' )
+				)
+			)
+		);
+		if ( '' !== (string) $priced['reason'] ) {
+			printf( '<p class="description">%s</p>', esc_html( (string) $priced['reason'] ) );
+		}
+
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( self::ACTION_ISSUE );
+		printf( '<input type="hidden" name="action" value="%s">', esc_attr( self::ACTION_ISSUE ) );
+		printf( '<input type="hidden" name="devis_id" value="%d">', $post_id );
+		printf(
+			'<p><button type="submit" class="button">%s</button></p>',
+			esc_html( empty( $versions ) ? __( 'Établir le devis', 'teeshoop' ) : __( 'Établir une nouvelle version', 'teeshoop' ) )
+		);
+		echo '</form>';
+	}
+
+	public static function handle_issue(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'Vous n’avez pas le droit de faire cela.', 'teeshoop' ), '', array( 'response' => 403 ) );
+		}
+		check_admin_referer( self::ACTION_ISSUE );
+
+		$post_id = isset( $_POST['devis_id'] ) ? absint( wp_unslash( $_POST['devis_id'] ) ) : 0;
+		if ( $post_id < 1 || self::POST_TYPE !== get_post_type( $post_id ) ) {
+			wp_die( esc_html__( 'Cette demande n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
+		}
+		$issued = self::issue( $post_id );
+		set_transient(
+			'teeshoop_devis_' . get_current_user_id(),
+			$issued['ok']
+				? sprintf(
+					/* translators: 1: a document number, 2: an amount excl. VAT. */
+					__( 'Devis %1$s établi, %2$s HT.', 'teeshoop' ),
+					(string) $issued['version']['number'],
+					Money::format( (int) $issued['version']['total_ht'] )
+				)
+				: (string) $issued['reason'],
+			60
+		);
+		wp_safe_redirect( (string) get_edit_post_link( $post_id, 'raw' ) );
+		exit;
 	}
 
 	/** A state selector in the publish box, because WordPress's own hides custom statuses. */
@@ -810,5 +915,346 @@ final class Quote {
 			)
 		);
 		add_action( 'save_post_' . self::POST_TYPE, array( self::class, 'save_status' ), 10, 2 );
+	}
+
+	// ── the devis as a DOCUMENT ──────────────────────────────────────────────
+	//
+	// Everything above is the REQUEST: a message with a state, which is what a
+	// prospect sends. Everything below is the document we send back, and it is
+	// a different object with a different rule: chapitre 2 says « chaque envoi
+	// crée une version [...] le client doit accepter la version exacte qu'il
+	// paie », so a sent quote can never change under the customer's feet.
+	//
+	// `docs/ROADMAP.md` carried this as an assumed exception since session 05,
+	// with two halves: no `POST /pricing/quotes/calculate`, because the costing
+	// engine takes a `WC_Order` and a devis had no lines; and no version chain,
+	// because there was no document to version. Both are closed here.
+
+	/** Post meta: every version, oldest first, JSON. */
+	public const META_VERSIONS = '_ts_versions';
+
+	/** The invoice sequence's series for devis numbers. */
+	public const SERIES_PREFIX = 'DE';
+
+	public const ACTION_ISSUE = 'teeshoop_devis_version';
+
+	/**
+	 * The lines this devis is for.
+	 *
+	 * ONE LINE TODAY, and that is the request's own shape rather than a
+	 * limitation invented here: the form asks for one product, one quantity and
+	 * one size grid, so that is what there is to price. The function returns a
+	 * LIST because the document's shape must not have to change the day the form
+	 * grows a second line, and because everything downstream (the pricing, the
+	 * costing, the totals) is written over a list already.
+	 *
+	 * THE SURFACES COME FROM THE DESIGN WHEN THERE IS ONE. `Pricing::standard_sides`
+	 * is the shorthand a public grid uses, N faces at the standard tier, and it
+	 * is what the request was estimated with because a prospect who has not been
+	 * in the studio has no artwork to measure. A devis with a design id is a
+	 * different thing: the Worker holds the measured ink of every printed side,
+	 * and quoting the shorthand instead would offer a price that the cart will
+	 * not honour.
+	 *
+	 * @return array{lines:array,source:string,reason:string}
+	 */
+	public static function lines( int $post_id ): array {
+		$garment = (string) get_post_meta( $post_id, '_ts_garment', true );
+		$qty     = (int) get_post_meta( $post_id, '_ts_qty', true );
+		$faces   = (int) get_post_meta( $post_id, '_ts_faces', true );
+		$design  = (string) get_post_meta( $post_id, '_ts_design_id', true );
+
+		if ( '' === $garment || $qty < 1 ) {
+			return array(
+				'lines'  => array(),
+				'source' => '',
+				'reason' => 'Cette demande ne dit ni quel vêtement ni combien : il n’y a rien à chiffrer.',
+			);
+		}
+
+		$source = 'faces';
+		$sides  = Pricing::standard_sides( max( 1, $faces ) );
+		$reason = '';
+
+		if ( '' !== $design ) {
+			$check = Design::verify( $design );
+			if ( empty( $check['ok'] ) ) {
+				/*
+				 * FAIL CLOSED, and say which of the two it is. A design the
+				 * Worker could not confirm is not a design that prints nothing:
+				 * quoting the face shorthand here would put a price on a
+				 * document while the artwork it is for might be larger than the
+				 * standard tier, and the cart would then refuse the very order
+				 * this document offered.
+				 */
+				return array(
+					'lines'  => array(),
+					'source' => '',
+					'reason' => sprintf(
+						'La création jointe à cette demande n’a pas pu être confirmée (%s). Rien n’est chiffré tant qu’on ne sait pas ce qui est imprimé.',
+						(string) $check['reason']
+					),
+				);
+			}
+			$measured = Design::normalise_sides( $check['meta']['sides'] ?? array() );
+			if ( ! empty( $measured ) ) {
+				$sides  = $measured;
+				$source = 'design';
+			} else {
+				$reason = 'La création jointe ne déclare aucune surface mesurée : le chiffrage retient les faces standard.';
+			}
+		}
+
+		return array(
+			'lines'  => array(
+				array(
+					'product_id' => (int) get_post_meta( $post_id, '_ts_product_id', true ),
+					'garment'    => $garment,
+					'qty'        => $qty,
+					'sides'      => $sides,
+					'design_id'  => $design,
+					'sizes'      => json_decode( (string) get_post_meta( $post_id, '_ts_tailles', true ), true ) ?: array(),
+				),
+			),
+			'source' => $source,
+			'reason' => $reason,
+		);
+	}
+
+	/**
+	 * What this devis would be sold for, today, from `Pricing` and nothing else.
+	 *
+	 * @return array{ok:bool,lines?:array,total_ht?:int,reason?:string}
+	 */
+	public static function price( int $post_id ): array {
+		$read = self::lines( $post_id );
+		if ( empty( $read['lines'] ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => (string) $read['reason'],
+			);
+		}
+
+		$config = Settings::pricing();
+		$out    = array();
+		$total  = 0;
+		foreach ( $read['lines'] as $line ) {
+			try {
+				$quote = Pricing::quote(
+					array(
+						'garment' => (string) $line['garment'],
+						'qty'     => (int) $line['qty'],
+						'sides'   => (array) $line['sides'],
+					),
+					$config
+				);
+			} catch ( \InvalidArgumentException $e ) {
+				return array(
+					'ok'     => false,
+					'reason' => 'Ce vêtement n’est plus au catalogue : le devis ne peut pas être chiffré.',
+				);
+			}
+			$out[]  = array_merge( $line, array(
+				'unit_ht'  => (int) $quote['unit_ht'],
+				'total_ht' => (int) $quote['total_ht'],
+			) );
+			$total += (int) $quote['total_ht'];
+		}
+
+		return array(
+			'ok'       => true,
+			'lines'    => $out,
+			'total_ht' => $total,
+			'source'   => (string) $read['source'],
+			'reason'   => (string) $read['reason'],
+		);
+	}
+
+	/**
+	 * Freeze a version and give it a number.
+	 *
+	 * WHY A NUMBER FROM THE INVOICE SEQUENCE. It is the same table, the same
+	 * atomic `LAST_INSERT_ID` idiom and the same collision proof, under its own
+	 * series: a devis number that repeats is a customer holding two different
+	 * offers called the same thing. Building a second counter would be a second
+	 * thing to get right, and this one has already been driven by six concurrent
+	 * processes for twenty-five numbers each.
+	 *
+	 * WHAT IS FROZEN AND WHY EACH. The lines and their prices, because that is
+	 * the offer. The VAT regime in force, because a devis crossing the franchise
+	 * threshold must not silently become a different total. The pricing config's
+	 * own version, because a rate the associate changes next month must not
+	 * rewrite an offer already sent. What is NOT frozen is a validity period:
+	 * question 38 is unanswered and its written default says explicitly that no
+	 * duration is displayed anywhere until it comes back.
+	 *
+	 * @return array{ok:bool,version?:array,reason?:string}
+	 */
+	public static function issue( int $post_id ): array {
+		$priced = self::price( $post_id );
+		if ( empty( $priced['ok'] ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => (string) $priced['reason'],
+			);
+		}
+
+		$regime   = Settings::vat();
+		$versions = self::versions( $post_id );
+		$date     = Settings::today();
+		$series   = self::series( $date );
+		$number   = Invoice::next_number( $series );
+		if ( $number < 1 ) {
+			// 0 is never issued: `Invoice::next_number` returns it when the
+			// database refused, and a document with no number is not a document.
+			return array(
+				'ok'     => false,
+				'reason' => 'Le numéro de devis n’a pas pu être attribué. Rien n’a été envoyé.',
+			);
+		}
+
+		$version = array(
+			'version'  => count( $versions ) + 1,
+			'number'   => Invoice::format_number( $series, $number ),
+			'date'     => $date,
+			'at'       => gmdate( 'c' ),
+			'by'       => function_exists( 'get_current_user_id' ) ? get_current_user_id() : 0,
+			'lines'    => $priced['lines'],
+			'total_ht' => (int) $priced['total_ht'],
+			'regime'   => (string) $regime['regime'],
+			'rate'     => (float) $regime['rate'],
+			'mention'  => (string) $regime['mention'],
+			'source'   => (string) $priced['source'],
+			'config'   => Settings::pricing(),
+		);
+
+		$versions[] = $version;
+		update_post_meta( $post_id, self::META_VERSIONS, wp_json_encode( $versions ) );
+
+		return array(
+			'ok'      => true,
+			'version' => $version,
+		);
+	}
+
+	/**
+	 * The devis series for a date, mirroring `Invoice::series`.
+	 *
+	 * COPIES ITS SHAPE INCLUDING THE ENVIRONMENT SWITCH, which is the part that
+	 * matters: outside production the series is ESSAI, so a rehearsal cannot
+	 * consume numbers out of a sequence a real customer's offers are counted in.
+	 */
+	public static function series( string $iso_date ): string {
+		$year = substr( $iso_date, 0, 4 );
+		return ( 'production' === Legal::environment() ? self::SERIES_PREFIX : 'ESSAI' ) . $year;
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public static function versions( int $post_id ): array {
+		$raw = (string) get_post_meta( $post_id, self::META_VERSIONS, true );
+		if ( '' === $raw ) {
+			return array();
+		}
+		$rows = json_decode( $raw, true );
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/** The version in force, or null. */
+	public static function current( int $post_id ): ?array {
+		$all = self::versions( $post_id );
+		return empty( $all ) ? null : $all[ count( $all ) - 1 ];
+	}
+
+	/**
+	 * Whether a sent version still describes what the shop would sell today.
+	 *
+	 * THE POINT OF THE VERSION CHAIN, and the thing the chapter asks for in as
+	 * many words. A devis is a firm offer for as long as it stands, so what
+	 * matters is not that the price moved but that somebody can SEE it moved
+	 * before the customer pays: the answer is a sentence, not a silent
+	 * recalculation. `Costing::staleness` does the same job for an order's cost
+	 * report and this is its shape.
+	 */
+	public static function moved( int $post_id ): string {
+		$current = self::current( $post_id );
+		if ( null === $current ) {
+			return '';
+		}
+		$now = self::price( $post_id );
+		if ( empty( $now['ok'] ) ) {
+			return (string) $now['reason'];
+		}
+		if ( (int) $now['total_ht'] === (int) $current['total_ht'] ) {
+			return '';
+		}
+		return sprintf(
+			'Le devis %1$s annonce %2$s HT ; aux conditions du jour la même commande vaut %3$s HT. Envoyez une nouvelle version avant de faire payer.',
+			(string) $current['number'],
+			Money::format( (int) $current['total_ht'] ),
+			Money::format( (int) $now['total_ht'] )
+		);
+	}
+
+	/**
+	 * What this devis would COST us, and what its floor price is.
+	 *
+	 * THIS IS `POST /pricing/quotes/calculate`, and it is the whole of it. The
+	 * chapter describes an HTTP route; what it actually specifies is a
+	 * computation, and that computation is `Costing::compute()`, which has been
+	 * correct since session 05 and takes a `WC_Order`. So a devis is handed to
+	 * it AS an order, built in memory from the lines above and never saved.
+	 *
+	 * NOT A SECOND ENGINE, which is the rule this obeys and the reason the
+	 * roadmap held the route open rather than writing one. Everything the
+	 * costing reads off an order is a property or a piece of item meta, so an
+	 * unsaved `WC_Order` carrying the same item meta the cart would have written
+	 * is the same input. What is NOT done is `calculate_totals()`: WooCommerce's
+	 * own implementation ends in `$this->save()`, so calling it would write a
+	 * phantom order into the shop for every quote anyone costed. The totals are
+	 * set from `Pricing` instead, which is where they come from anyway.
+	 *
+	 * AND IT IS NOT A PUBLIC ROUTE, which is a departure from the chapter worth
+	 * naming. What comes back is our purchase cost, our film economics, our
+	 * floor price and our commission. The chapter draws `/pricing/quotes/...`
+	 * beside the customer-facing endpoints; exposing this one would put the shop
+	 * on the wrong side of the boundary `scripts/php-guard.mjs` and
+	 * `scripts/bundle-guard.mjs` exist to hold. It is reachable from the devis
+	 * screen, by somebody with `manage_woocommerce`, and from nowhere else.
+	 *
+	 * @return array{ok:bool,report?:array,reason?:string}
+	 */
+	public static function costing( int $post_id ): array {
+		$priced = self::price( $post_id );
+		if ( empty( $priced['ok'] ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => (string) $priced['reason'],
+			);
+		}
+
+		$order = new \WC_Order();
+		foreach ( $priced['lines'] as $line ) {
+			$item = new \WC_Order_Item_Product();
+			$item->set_name( (string) $line['garment'] );
+			$item->set_quantity( (int) $line['qty'] );
+			$item->set_subtotal( (string) Money::to_eur( (int) $line['total_ht'] ) );
+			$item->set_total( (string) Money::to_eur( (int) $line['total_ht'] ) );
+			// THE SAME KEYS THE CART WRITES. `Costing` reads these and nothing
+			// else off a line; spelling one of them differently here would make
+			// the devis cost a different order from the one it becomes.
+			$item->add_meta_data( '_teeshoop_garment', (string) $line['garment'], true );
+			$item->add_meta_data( '_teeshoop_sides', wp_json_encode( $line['sides'] ), true );
+			$item->add_meta_data( '_teeshoop_design_id', (string) $line['design_id'], true );
+			$item->add_meta_data( '_teeshoop_size_grid', wp_json_encode( $line['sizes'] ), true );
+			$order->add_item( $item );
+		}
+
+		$order->set_total( (string) Money::to_eur( (int) $priced['total_ht'] ) );
+
+		return array(
+			'ok'     => true,
+			'report' => Costing::compute( $order ),
+			'source' => (string) $priced['source'],
+		);
 	}
 }

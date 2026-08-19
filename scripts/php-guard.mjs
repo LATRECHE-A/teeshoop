@@ -186,6 +186,22 @@ const ALLOWED = new Map([
     },
   ],
   [
+    'wp-plugins/teeshoop-core/includes/Quote.php',
+    {
+      /*
+       * The devis costing, which is chapter 1's `POST /pricing/quotes/calculate`
+       * and is deliberately NOT a public route: what it returns is our purchase
+       * cost, our film economics and our floor price. It is reachable from the
+       * devis admin screen with `manage_woocommerce` and from nowhere else, and
+       * the customer-facing half of this file (the form, the notification) names
+       * none of it. The needle is listed alone so the file is still checked for
+       * supplier names, film tariffs and the seven other purchase-cost strings.
+       */
+      why: 'the devis costing calls the ONE cost engine rather than growing a second one; admin-only, and no customer surface in this file touches it',
+      needles: ['Costing::'],
+    },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/Cli.php',
     {
       why: '`wp teeshoop marge` prints an order’s costing to a terminal an operator already had to log in to; WP-CLI renders to no browser',
@@ -207,6 +223,10 @@ const ALLOWED = new Map([
   [
     'wp-plugins/teeshoop-core/tests/integration-margin.php',
     { why: 'the WooCommerce test for the costing; runs under wp-cli, renders to nobody', needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::', 'PriceRule::'] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/integration-lifecycle.php',
+    { why: 'the WooCommerce test for the devis costing; runs under wp-cli, renders to nobody', needles: ['Costing::'] },
   ],
   [
     'wp-plugins/teeshoop-core/tests/test-commission.php',
