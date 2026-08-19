@@ -220,19 +220,30 @@ export function getCachedAssetImage(
  * ever removes it. This fills the image cache alone, so it lives as long as the
  * tab and not a minute longer.
  *
- * It keeps the id the document references, because that is how a layer finds its
- * pixels; `ensureAssetImage` checks this cache first, so the whole ink pipeline
- * works unchanged and never reaches storage.
+ * BOTH VARIANTS, FROM ONE BLOB, and that is not laziness.
+ *
+ * R2 holds exactly ONE raster per asset id, and it is the one the design draws:
+ * `assetVariants` in src/lib/teeshoop/upload.ts sends the CUTOUT bytes under the
+ * plain id when the layer that references it has `useCutout`. So there is no
+ * second blob to fetch and no way to tell from the bytes which variant they are.
+ * Registering them under `original` alone meant that any layer with background
+ * removal looked up `cutout`, missed, fell through to IndexedDB, missed again
+ * and threw. `ensureInkProbes` swallows that throw and reports the layer as
+ * unmeasurable, and `renderPieces` then refuses the whole side, so EVERY paid
+ * order whose customer removed a background was unrenderable in the production
+ * queue. Loudly, which is the only mercy in it: background removal is a headline
+ * feature of the studio, so that was most of the interesting orders.
+ *
+ * The failure mode of doing it this way is the opposite one and it is harmless:
+ * a design that draws the original while a cutout exists would find the original
+ * under both names, which is exactly what it wanted.
  */
-export async function adoptAssetImage(
-  id: string,
-  blob: Blob,
-  variant: AssetVariant = 'original',
-): Promise<HTMLImageElement> {
-  const key = cacheKey(id, variant)
-  const previous = imageCache.get(key)
-  if (previous?.url) URL.revokeObjectURL(previous.url)
-  imageCache.delete(key)
+export async function adoptAssetImage(id: string, blob: Blob): Promise<HTMLImageElement> {
+  for (const variant of VARIANTS) {
+    const previous = imageCache.get(cacheKey(id, variant))
+    if (previous?.url) URL.revokeObjectURL(previous.url)
+    imageCache.delete(cacheKey(id, variant))
+  }
 
   const url = URL.createObjectURL(blob)
   const img = new Image()
@@ -247,10 +258,23 @@ export async function adoptAssetImage(
     URL.revokeObjectURL(url)
     throw err
   }
-  imageCache.set(key, { img, url, promise: Promise.resolve(img) })
-  revisions.set(key, (revisions.get(key) ?? 0) + 1)
+  /*
+   * ONE object URL, revoked once. `releaseAdoptedImages` walks the same two
+   * variants, and `invalidateAssetImage` revokes whatever url it finds, so the
+   * second entry must NOT carry a copy of it: revoking the same url twice is
+   * harmless, but handing a stale entry a live url is not.
+   */
+  imageCache.set(cacheKey(id, 'original'), { img, url, promise: Promise.resolve(img) })
+  imageCache.set(cacheKey(id, 'cutout'), { img, url: null, promise: Promise.resolve(img) })
+  for (const variant of VARIANTS) {
+    const key = cacheKey(id, variant)
+    revisions.set(key, (revisions.get(key) ?? 0) + 1)
+  }
   return img
 }
+
+/** The two names one stored raster answers to. */
+const VARIANTS: readonly AssetVariant[] = ['original', 'cutout']
 
 /** Drop every adopted image and its object URL. Call it when a run is done. */
 export function releaseAdoptedImages(ids: readonly string[]): void {

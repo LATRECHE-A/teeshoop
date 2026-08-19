@@ -1010,6 +1010,31 @@ try {
   //   with the same hand-rolled reader: one press sheet per order, the picking
   //   list, the split of the film bill, and a manifest naming each order's proof
   //   VERSION and design id, which is the chain a dispute is settled on.
+  /*
+   * R2 STORES ONE RASTER PER ASSET AND IT ANSWERS TO TWO NAMES.
+   *
+   * `assetVariants` in the upload sends the CUTOUT bytes under the plain asset
+   * id when the layer that references them has background removal on, so there
+   * is no second blob and nothing in the bytes says which variant they are.
+   * Adopted under `original` alone, every such layer looked up `cutout`, missed,
+   * fell through to IndexedDB, missed again and threw, `ensureInkProbes` reported
+   * the layer as unmeasurable and `renderPieces` refused the whole side. Every
+   * paid order whose customer removed a background was unrenderable in the
+   * production queue.
+   */
+  const adopt = await page.evaluate(() => window.__dtf.adoptProbe())
+  if (!adopt.original || !adopt.cutout) {
+    console.error(
+      `❌ an adopted raster is not found under both variant names (original=${adopt.original}, cutout=${adopt.cutout}): ` +
+        'an order whose artwork had its background removed cannot be re-rendered',
+    )
+    done(1)
+  }
+  if (!adopt.released) {
+    console.error('❌ releasing an adopted raster left it in the cache; the tab keeps customers’ artwork')
+    done(1)
+  }
+
   const WEEK = [
     { id: '1041', design: 'sample', sizes: { M: 6, L: 4 } },
     { id: '1042', design: 'padded', sizes: { S: 3, M: 3 } },
@@ -1096,7 +1121,8 @@ try {
     done(1)
   }
   console.log(
-    `pooling: ${WEEK.length} orders, ${owned} transfers, ${pooled.soloCm} cm apart -> ` +
+    `pooling: ${WEEK.length} orders, ${owned} transfers, adopted rasters answer to both ` +
+      `variant names and are released, ${pooled.soloCm} cm apart -> ` +
       `${pooled.pooledCm} cm together, archive carries ${WEEK.length} press sheets, ` +
       `the picking list and the film split`,
   )

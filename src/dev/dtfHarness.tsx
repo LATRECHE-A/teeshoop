@@ -32,6 +32,7 @@ import {
 import { clampSheetDpi, renderSheet } from '@/lib/dtf/sheet'
 import { buildOrderZip, planLegend } from '@/lib/dtf/zipExport'
 import { buildRun, measureRun, type RunOrder } from '@/lib/dtf/run'
+import { adoptAssetImage, getCachedAssetImage, releaseAdoptedImages } from '@/state/assets'
 import type { RunArchive } from '@/lib/dtf/runExport'
 import { estimateCost, loadSuppliers, type CostEstimate } from '@/lib/dtf/suppliers'
 import { APP_VERSION } from '@/config'
@@ -169,6 +170,16 @@ declare global {
           placements: { part: number; topCm: number; centerDxCm: number; insideArea: boolean }[]
         }[]
       >
+      /**
+       * Adopt one stored raster and report which variant names find it.
+       *
+       * R2 stores ONE blob per asset id, being whichever variant the design
+       * draws, so a layer with background removal has to find it under `cutout`
+       * and a layer without has to find it under `original`. Before this was
+       * true, every paid order whose customer removed a background refused to
+       * render at all in the production queue.
+       */
+      adoptProbe: () => Promise<{ original: boolean; cutout: boolean; released: boolean }>
       /**
        * Nest a week of orders as ONE run, and build the workshop archive for it.
        *
@@ -341,6 +352,33 @@ declare global {
  * size from the sheet's cm geometry alone.
  */
 const CUTPLAN_DPI = 32
+
+/**
+ * One stored raster, adopted, looked up under both names, then released.
+ *
+ * A browser probe rather than a unit test because it is a statement about the
+ * DOM: a decoded `HTMLImageElement` in a module-level cache, addressed by two
+ * keys, and an object URL that must be revoked exactly once.
+ */
+async function adoptProbe(): Promise<{ original: boolean; cutout: boolean; released: boolean }> {
+  const canvas = document.createElement('canvas')
+  canvas.width = 8
+  canvas.height = 8
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, 8, 8)
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no blob'))), 'image/png'),
+  )
+  const id = 'probe-adopt'
+  await adoptAssetImage(id, blob)
+  const original = getCachedAssetImage(id, 'original') !== null
+  const cutout = getCachedAssetImage(id, 'cutout') !== null
+  releaseAdoptedImages([id])
+  const released =
+    getCachedAssetImage(id, 'original') === null && getCachedAssetImage(id, 'cutout') === null
+  return { original, cutout, released }
+}
 
 /**
  * A pooled run, nested and packaged, the way the workshop would receive it.
@@ -995,6 +1033,7 @@ window.__dtf = {
   paddedPieces,
   weekPieces,
   runOrderZip,
+  adoptProbe,
   previewReady: () => {
     const els = document.querySelectorAll<HTMLCanvasElement>('canvas[data-dtf="sheet-canvas"]')
     if (els.length === 0) return false
