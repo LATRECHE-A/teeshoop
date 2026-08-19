@@ -58,7 +58,8 @@ final class Notify {
 		add_action( 'woocommerce_payment_complete', array( self::class, 'on_paid' ), 30, 1 );
 		add_action( 'teeshoop_bat_approved', array( self::class, 'on_approved' ), 10, 2 );
 		add_action( 'teeshoop_bat_changes', array( self::class, 'on_changes' ), 10, 2 );
-		add_action( 'woocommerce_order_status_' . Lifecycle::SHIPPED, array( self::class, 'on_shipped' ), 10, 2 );
+		// Three arguments, and the third is the point. See `on_shipped`.
+		add_action( 'woocommerce_order_status_' . Lifecycle::SHIPPED, array( self::class, 'on_shipped' ), 10, 3 );
 	}
 
 	// ── the messages ─────────────────────────────────────────────────────────
@@ -275,8 +276,28 @@ final class Notify {
 		);
 	}
 
-	/** @param int $order_id */
-	public static function on_shipped( $order_id, $order = null ): void {
+	/**
+	 * @param int   $order_id
+	 * @param mixed $order
+	 * @param array $transition WooCommerce's own from/to, third argument of
+	 *                          `woocommerce_order_status_{$status}`.
+	 */
+	public static function on_shipped( $order_id, $order = null, $transition = null ): void {
+		/*
+		 * A TRANSITION THAT DID NOT MOVE IS NOT A DISPATCH.
+		 *
+		 * `Lifecycle::guard` refuses an illegal status change by putting the
+		 * stored status back, which makes WooCommerce's pending transition
+		 * from-equals-to and fires this hook for the status the order was
+		 * already in. An operator picking « Annulée » on a shipped order would
+		 * therefore have sent the customer a second « votre commande est en
+		 * route ». `silence_woo_email` covers WooCommerce's own two e-mails and
+		 * could never have covered ours; this is our half of it, and it is on
+		 * the listener because that is where the fact is known.
+		 */
+		if ( is_array( $transition ) && isset( $transition['from'], $transition['to'] ) && $transition['from'] === $transition['to'] ) {
+			return;
+		}
 		$order = $order instanceof \WC_Order ? $order : wc_get_order( $order_id );
 		if ( $order instanceof \WC_Order ) {
 			self::shipped( $order );
@@ -302,6 +323,19 @@ final class Notify {
 	 *
 	 * @return array{ok:bool,message?:array,reason?:string}
 	 */
+	/**
+	 * Whether a kind can ever be rebuilt.
+	 *
+	 * Separate from `rebuild()` returning false, because the two mean different
+	 * things: this one is "no code exists to make this message again", which
+	 * never changes, and that one is also used for "this proof has been
+	 * answered" and "the sender address is not verified yet", which do.
+	 * `Mail::retry` needs to tell them apart to know whether to keep trying.
+	 */
+	public static function rebuildable( string $kind ): bool {
+		return in_array( $kind, array( self::KIND_BAT, self::KIND_CONFIRM, self::KIND_SHIPPED, self::KIND_RECEIPT, self::KIND_CHANGES ), true );
+	}
+
 	public static function rebuild( string $kind, int $order_id ): array {
 		$order = $order_id > 0 ? wc_get_order( $order_id ) : null;
 		if ( ! $order instanceof \WC_Order ) {

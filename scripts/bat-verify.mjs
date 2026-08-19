@@ -147,7 +147,12 @@ ok('la zone d’impression est dessus', body.includes('30,5') && body.includes('
 ok('la descente sous l’encolure est dessus', body.includes('22,4'))
 ok('le décalage à l’axe est dit dans un sens', body.includes('vers la gauche'), '-1,5 cm')
 ok('la taille de mesure est dite', body.includes('Dimensions données pour la taille'))
-ok('la tolérance de position est dessus', body.includes('La position du marquage peut varier'))
+ok('la tolérance de position est dessus', body.includes('la position du marquage peut varier'))
+ok(
+  'et elle dit à quelle taille elle s’applique',
+  body.includes('Sur la taille indiquée'),
+  'sans ces mots, la tolérance est une promesse absolue que le gradage ne tient sur aucune taille sauf une',
+)
 ok('la remarque de l’atelier est dessus', body.includes('recadré au plus près'))
 ok('rien n’est imprimé avant validation, et c’est écrit', body.includes('Rien n’est imprimé'))
 

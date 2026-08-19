@@ -105,6 +105,15 @@ export interface DesignDocSide {
   area_w_cm?: number
   area_h_cm?: number
   drop_cm?: number
+  /**
+   * Whether the marking scales with the garment (`printScale.mode`).
+   *
+   * On the proof and nowhere else. It is not a price input and not a film
+   * input; it decides which sentence the customer reads about the sizes they
+   * did not order, and a document that gets it wrong promises something that
+   * will not be pressed.
+   */
+  graded?: boolean
 }
 
 export interface DesignDocSummary {
@@ -298,7 +307,13 @@ const PLACEMENT_SLACK_CM = 0.05
 function readPlacement(
   side: Record<string, unknown>,
   pieces?: DesignDocPiece[],
-): { pieces?: DesignDocPiece[]; area_w_cm?: number; area_h_cm?: number; drop_cm?: number } {
+): {
+  pieces?: DesignDocPiece[]
+  area_w_cm?: number
+  area_h_cm?: number
+  drop_cm?: number
+  graded?: boolean
+} {
   /*
    * REFUSING A PLACEMENT MEANS NOT STORING IT. `readPieces` carries the two raw
    * numbers through so this function can see them; every path that declines
@@ -324,11 +339,18 @@ function readPlacement(
   }
 
   const drop = num(side.drop_cm)
-  const out: { pieces: DesignDocPiece[]; area_w_cm: number; area_h_cm: number; drop_cm?: number } = {
+  const out: {
+    pieces: DesignDocPiece[]
+    area_w_cm: number
+    area_h_cm: number
+    drop_cm?: number
+    graded?: boolean
+  } = {
     pieces: placed,
     area_w_cm: aw,
     area_h_cm: ah,
   }
   if (drop > 0 && drop <= 100) out.drop_cm = drop
+  if (typeof side.graded === 'boolean') out.graded = side.graded
   return out
 }

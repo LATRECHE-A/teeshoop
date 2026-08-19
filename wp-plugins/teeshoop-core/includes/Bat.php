@@ -60,6 +60,46 @@ final class Bat {
 	private const COMMENT_MAX = 4000;
 
 	/**
+	 * How many links stay live on one version.
+	 *
+	 * MORE THAN ONE, AND THAT IS A CORRECTION. A re-send used to mint a token
+	 * and drop the previous digest, on the argument that a retry only runs when
+	 * the first message did not arrive. That argument is wrong in the one case
+	 * that matters: Brevo can accept and deliver a message and still have our
+	 * read time out, which is recorded as a failure, and the hourly retry then
+	 * killed the link the customer was already holding. So a version keeps its
+	 * last few digests and any of them opens it. They all die together the
+	 * moment a newer version exists, which is the property that actually
+	 * matters.
+	 */
+	private const LIVE_TOKENS = 3;
+
+	/**
+	 * What a writer says when the lock is held.
+	 *
+	 * ONE STRING, because the page has to tell it apart from every other
+	 * refusal: a customer whose approval was not recorded must not be shown the
+	 * page that says the proof is settled.
+	 */
+	public const BUSY_REASON = 'Un autre enregistrement est en cours sur cette commande. Réessayez dans un instant.';
+
+	/**
+	 * How long ONE archive copy may spend fetching mockups, seconds.
+	 *
+	 * Twelve, because a document with eight printed sides would otherwise make
+	 * eight independent eight-second requests inside one admin page load.
+	 */
+	private const FETCH_BUDGET_S = 12.0;
+
+	/** What is left of it, for the render in progress. */
+	private static float $fetch_budget = self::FETCH_BUDGET_S;
+
+	/** The named lock every writer of the version list takes. */
+	private static function lock_name( \WC_Order $order ): string {
+		return 'teeshoop_bat_' . $order->get_id();
+	}
+
+	/**
 	 * What is assumed about proofs, in one place, because none of it is
 	 * answered yet. Question 26 and question 27.
 	 *
@@ -167,6 +207,19 @@ final class Bat {
 		$current = self::current( $order );
 		if ( null === $current ) {
 			return 'Aucun BAT n’a été envoyé : rien n’a été approuvé, donc rien ne peut être imprimé.';
+		}
+		/*
+		 * A REFUSAL BEATS A WAIVER, whatever order they arrived in. The waiver
+		 * used to be read first and returned "nothing blocks this", so a
+		 * customer who asked for changes on a version somebody had already
+		 * waived was told nothing and the press stayed open. Their word about
+		 * their own artwork is the more recent one and the more authoritative.
+		 */
+		if ( ! empty( $current['changes'] ) ) {
+			return sprintf(
+				'Le client a demandé des modifications sur le BAT version %d. Rien ne s’imprime tant qu’une nouvelle version n’a pas été validée.',
+				(int) $current['version']
+			);
 		}
 		if ( ! empty( $current['waiver'] ) ) {
 			return '';
@@ -282,7 +335,7 @@ final class Bat {
 					'email'   => $order->get_billing_email(),
 				),
 				'lines'      => $lines,
-				'tolerances' => self::tolerances( $config ),
+				'tolerances' => self::tolerances( $config, self::grades( $lines ) ),
 				'text'       => self::acceptance_text(),
 			),
 		);
@@ -309,6 +362,7 @@ final class Bat {
 				'zone_w_cm'  => $placed ? (float) $side['area_w_cm'] : null,
 				'zone_h_cm'  => $placed ? (float) $side['area_h_cm'] : null,
 				'drop_cm'    => isset( $side['drop_cm'] ) ? (float) $side['drop_cm'] : null,
+				'graded'     => isset( $side['graded'] ) ? (bool) $side['graded'] : null,
 				'placed'     => $placed,
 				'pieces'     => $placed ? array_map(
 					static fn( array $p ): array => array(
@@ -349,16 +403,65 @@ final class Bat {
 	 *
 	 * @return string[]
 	 */
-	public static function tolerances( array $config ): array {
-		return array(
+	public static function tolerances( array $config, ?bool $graded = null ): array {
+		$out = array(
 			sprintf(
-				'La position du marquage peut varier de %s par rapport au bon à tirer.',
+				/*
+				 * « SUR LA TAILLE INDIQUÉE » IS LOAD-BEARING. The dimensions on
+				 * the proof are measured at one size and the marking is graded
+				 * with the garment, so a 3XL print sits further below the collar
+				 * than the number printed above by much more than a centimetre.
+				 * Without those four words the tolerance reads as an absolute
+				 * promise this shop cannot keep on any size but one, and the
+				 * customer would be right.
+				 */
+				'Sur la taille indiquée, la position du marquage peut varier de %s par rapport au bon à tirer.',
 				Garments::cm( (float) $config['tolerance_position_cm'] )
 			),
 			'Les couleurs d’un écran ne sont pas celles d’un textile imprimé : un écart de teinte est normal et n’est pas un défaut.',
-			'Les dimensions indiquées sont mesurées sur la taille de référence et sont mises à l’échelle avec le vêtement : un marquage est plus grand sur un 3XL que sur un S.',
 			'Une erreur de taille choisie par vos soins ne donne pas lieu à reprise : un vêtement personnalisé ne peut pas être remis en vente.',
 		);
+
+		/*
+		 * THE GRADING SENTENCE DEPENDS ON THE DESIGN, and it used to be printed
+		 * unconditionally. The studio offers a two-button choice: `scaled`, where
+		 * the marking grows with the garment, and `fixed`, where one identical
+		 * transfer is pressed on every size, which is the cheaper option and a
+		 * real convention. Telling a `fixed` customer their marking scales is
+		 * promising something that will not be pressed. Null is a document
+		 * written before the flag existed, and it says nothing rather than
+		 * guessing which answer is commoner.
+		 */
+		if ( true === $graded ) {
+			array_splice( $out, 2, 0, array( 'Les dimensions indiquées sont mesurées sur la taille de référence et sont mises à l’échelle avec le vêtement : un marquage est plus grand sur un 3XL que sur un S.' ) );
+		} elseif ( false === $graded ) {
+			array_splice( $out, 2, 0, array( 'Le même marquage, aux mêmes dimensions, est pressé sur toutes les tailles commandées.' ) );
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Whether the marking grades, across every line of this proof.
+	 *
+	 * Null when nothing says. FALSE only when every side that says anything says
+	 * no: a document mixing the two is not one this shop can describe in one
+	 * sentence, so it says nothing rather than picking a side.
+	 */
+	private static function grades( array $lines ): ?bool {
+		$seen = array();
+		foreach ( $lines as $line ) {
+			foreach ( (array) $line['sides'] as $side ) {
+				if ( null !== $side['graded'] ) {
+					$seen[] = (bool) $side['graded'];
+				}
+			}
+		}
+		if ( empty( $seen ) ) {
+			return null;
+		}
+		$unique = array_unique( $seen );
+		return 1 === count( $unique ) ? (bool) $unique[ array_key_first( $unique ) ] : null;
 	}
 
 	/**
@@ -407,9 +510,28 @@ final class Bat {
 			);
 		}
 
-		$config   = self::config();
+		$config = self::config();
+		$token  = self::mint();
+
+		/*
+		 * THE LOCK, AND WHAT IT COSTS NOT TO HAVE ONE. Every writer here does a
+		 * read-modify-write on one JSON list in order meta. Two of them at once
+		 * and the loser vanishes: an operator issuing version 2 while the
+		 * customer approves version 1 could leave the order approved on v1 with
+		 * v2 gone, so the workshop presses the artwork the operator had just
+		 * replaced. `Invoice::issue` has taken this lock since session 04 for
+		 * exactly the same shape of write.
+		 */
+		if ( ! Invoice::lock( self::lock_name( $order ) ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => self::BUSY_REASON,
+			);
+		}
+		// Re-read INSIDE the lock: the object we were handed may have been read
+		// before the other writer committed.
+		$order    = wc_get_order( $order->get_id() ) ?: $order;
 		$versions = self::versions( $order );
-		$token    = self::mint();
 
 		$version = array_merge(
 			$composed['doc'],
@@ -418,7 +540,7 @@ final class Bat {
 				'issued_at'   => gmdate( 'c' ),
 				'issued_by'   => function_exists( 'get_current_user_id' ) ? get_current_user_id() : 0,
 				'note'        => mb_substr( trim( $note ), 0, 1000 ),
-				'token'       => hash( 'sha256', $token ),
+				'tokens'      => array( hash( 'sha256', $token ) ),
 				'expires_at'  => gmdate( 'c', time() + (int) $config['lien_jours'] * DAY_IN_SECONDS ),
 				'approval'    => null,
 				'waiver'      => null,
@@ -429,6 +551,7 @@ final class Bat {
 		$versions[] = $version;
 		$order->update_meta_data( self::META_VERSIONS, wp_json_encode( $versions ) );
 		$order->save();
+		Invoice::unlock( self::lock_name( $order ) );
 
 		/*
 		 * THE STATUS FOLLOWS THE DOCUMENT, and it is allowed to fail without
@@ -467,34 +590,73 @@ final class Bat {
 	 * @return array{ok:bool,version?:array,token?:string,reason?:string}
 	 */
 	public static function resend( \WC_Order $order ): array {
+		if ( ! Invoice::lock( self::lock_name( $order ) ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => self::BUSY_REASON,
+			);
+		}
+		$order    = wc_get_order( $order->get_id() ) ?: $order;
 		$versions = self::versions( $order );
 		if ( empty( $versions ) ) {
+			Invoice::unlock( self::lock_name( $order ) );
 			return array(
 				'ok'     => false,
 				'reason' => 'Aucun BAT n’a encore été établi sur cette commande.',
 			);
 		}
 		$last = count( $versions ) - 1;
-		if ( ! empty( $versions[ $last ]['approval'] ) ) {
+
+		/*
+		 * A VERSION THAT HAS BEEN ANSWERED IS NOT RE-SENDABLE, whichever way it
+		 * was answered. Approved, refused, or covered by a written waiver: in
+		 * all three cases the file has moved on, and an hourly retry of a failed
+		 * e-mail would otherwise mail a customer a live link inviting them to
+		 * approve something the workshop is already pressing. Checking only the
+		 * approval left the other two open.
+		 */
+		if ( ! empty( $versions[ $last ]['approval'] ) || ! empty( $versions[ $last ]['waiver'] ) || ! empty( $versions[ $last ]['changes'] ) ) {
+			Invoice::unlock( self::lock_name( $order ) );
 			return array(
 				'ok'     => false,
-				'reason' => 'Ce BAT est déjà validé : il n’y a plus rien à approuver.',
+				'reason' => 'Ce BAT a déjà reçu une réponse : il n’y a plus rien à approuver.',
 			);
 		}
 
-		$token   = self::mint();
-		$config  = self::config();
-		$versions[ $last ]['token']      = hash( 'sha256', $token );
+		$token  = self::mint();
+		$config = self::config();
+		// APPENDED, never replaced. See LIVE_TOKENS.
+		$tokens   = self::digests( $versions[ $last ] );
+		$tokens[] = hash( 'sha256', $token );
+		$versions[ $last ]['tokens']     = array_slice( $tokens, -self::LIVE_TOKENS );
 		$versions[ $last ]['expires_at'] = gmdate( 'c', time() + (int) $config['lien_jours'] * DAY_IN_SECONDS );
 
 		$order->update_meta_data( self::META_VERSIONS, wp_json_encode( $versions ) );
 		$order->save();
+		Invoice::unlock( self::lock_name( $order ) );
 
 		return array(
 			'ok'      => true,
 			'version' => $versions[ $last ],
 			'token'   => $token,
 		);
+	}
+
+	/**
+	 * The digests that open one version.
+	 *
+	 * Reads `tokens` and falls back to the single `token` a version frozen
+	 * before this existed carries. Dropping that fallback would 404 every proof
+	 * already sent, which is a customer holding a link we told them to use.
+	 *
+	 * @return string[]
+	 */
+	private static function digests( array $version ): array {
+		$list = (array) ( $version['tokens'] ?? array() );
+		if ( empty( $list ) && ! empty( $version['token'] ) ) {
+			$list = array( (string) $version['token'] );
+		}
+		return array_values( array_filter( array_map( 'strval', $list ) ) );
 	}
 
 	/**
@@ -595,8 +757,16 @@ final class Bat {
 		 * CONSTANT TIME, and the comparison is against the DIGEST. Anything else
 		 * on this route leaks by timing, and storing the token itself would make
 		 * a database backup a set of live approvals.
+		 *
+		 * Every live digest is compared and the loop is NOT short-circuited, so
+		 * the work is the same whichever one matches and whether any does.
 		 */
-		if ( ! hash_equals( (string) $found['token'], hash( 'sha256', $token ) ) ) {
+		$offered = hash( 'sha256', $token );
+		$match   = false;
+		foreach ( self::digests( $found ) as $digest ) {
+			$match = hash_equals( $digest, $offered ) || $match;
+		}
+		if ( ! $match ) {
 			// The same answer as a missing order, deliberately: a different one
 			// would confirm that this order number exists.
 			return $none;
@@ -753,8 +923,22 @@ final class Bat {
 
 		$decided = self::record_decision( $found['order'], $version, $choice, $comment, $ip, $ua );
 		if ( empty( $decided['ok'] ) ) {
+			/*
+			 * TWO REFUSALS THAT MUST NOT LOOK ALIKE. "Already answered" is a
+			 * settled document and the page says so. A lock that timed out is
+			 * a customer whose approval was NOT recorded, and rendering the
+			 * settled page for it would tell them their click had counted while
+			 * the order sat unapproved: the workshop waits, the customer waits,
+			 * and neither knows. Two seconds of `GET_LOCK` is enough for this to
+			 * happen exactly when an operator is issuing a new version.
+			 */
 			status_header( 409 );
-			BatPage::render( $found['order'], $found['version'], 'decided', $token );
+			BatPage::render(
+				$found['order'],
+				$found['version'],
+				self::BUSY_REASON === (string) $decided['reason'] ? 'busy' : 'decided',
+				$token
+			);
 			exit;
 		}
 
@@ -778,6 +962,15 @@ final class Bat {
 	 * @return array{ok:bool,version?:array,reason?:string}
 	 */
 	public static function record_decision( \WC_Order $order, int $version, string $choice, string $comment, string $ip, string $ua ): array {
+		if ( ! Invoice::lock( self::lock_name( $order ) ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => self::BUSY_REASON,
+			);
+		}
+		// Re-read inside the lock, so a decision cannot be written over a
+		// version issued between the page load and the click.
+		$order    = wc_get_order( $order->get_id() ) ?: $order;
 		$versions = self::versions( $order );
 		$index    = null;
 		foreach ( $versions as $i => $candidate ) {
@@ -787,15 +980,19 @@ final class Bat {
 			}
 		}
 		if ( null === $index ) {
+			Invoice::unlock( self::lock_name( $order ) );
 			return array(
 				'ok'     => false,
 				'reason' => 'Cette version du bon à tirer n’existe pas.',
 			);
 		}
-		if ( ! empty( $versions[ $index ]['approval'] ) || ! empty( $versions[ $index ]['changes'] ) ) {
+		if ( ! empty( $versions[ $index ]['approval'] ) || ! empty( $versions[ $index ]['changes'] ) || ! empty( $versions[ $index ]['waiver'] ) ) {
 			// ANSWERED ONCE. A second decision on the same version would either
 			// overwrite an approval or count a correction round twice, and both
-			// are worse than telling the customer it is already done.
+			// are worse than telling the customer it is already done. This is
+			// also what a double click resolves to, now that the read and the
+			// write are inside one lock.
+			Invoice::unlock( self::lock_name( $order ) );
 			return array(
 				'ok'     => false,
 				'reason' => 'Ce bon à tirer a déjà reçu une réponse.',
@@ -828,6 +1025,7 @@ final class Bat {
 
 		$order->update_meta_data( self::META_VERSIONS, wp_json_encode( $versions ) );
 		$order->save();
+		Invoice::unlock( self::lock_name( $order ) );
 
 		$approved = 'valider' === $choice;
 		Lifecycle::transition(
@@ -868,6 +1066,7 @@ final class Bat {
 	 *                          no network, which is what a test wants.
 	 */
 	public static function pdf( array $version, bool $with_images = true ): string {
+		self::$fetch_budget = self::FETCH_BUDGET_S;
 		$pdf  = new Pdf();
 		$left = 18.0;
 		$right = 192.0;
@@ -1074,17 +1273,41 @@ final class Bat {
 		if ( ! function_exists( 'imagecreatefromstring' ) || ! function_exists( 'imagejpeg' ) ) {
 			return '';
 		}
+		/*
+		 * A BUDGET FOR THE WHOLE DOCUMENT, not a timeout per fetch. A four-line
+		 * order printed front and back is eight sequential fetches, and eight
+		 * times eight seconds is a minute of an admin request holding a php-fpm
+		 * worker before anything renders. The budget is spent once per render
+		 * and the sides that do not fit in it print the same "aperçu non
+		 * disponible" line an unreachable one does, which the page already says.
+		 */
+		if ( self::$fetch_budget <= 0 ) {
+			return '';
+		}
+		$started = microtime( true );
+
 		$response = wp_remote_get(
 			$url,
 			array(
-				'timeout'     => 8,
+				'timeout'     => min( 8, max( 1, (int) ceil( self::$fetch_budget ) ) ),
 				'redirection' => 0,
 			)
 		);
+		self::$fetch_budget -= microtime( true ) - $started;
 		if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
 			return '';
 		}
 		$png = (string) wp_remote_retrieve_body( $response );
+		/*
+		 * AND A BOUND ON WHAT IS DECODED. `imagecreatefromstring` allocates
+		 * width x height x 4 bytes whatever the compressed size, so a crafted or
+		 * simply enormous PNG is a memory limit hit in the middle of rendering a
+		 * document. The mockups this shop writes are 900 px wide; twelve
+		 * megabytes is the Worker's own per-file cap and far above any of them.
+		 */
+		if ( strlen( $png ) > 12 * 1024 * 1024 ) {
+			return '';
+		}
 		// Magic bytes, never the content-type header: what a response calls
 		// itself is a claim by whoever sent it, and this goes into a document.
 		if ( "\x89PNG\r\n\x1a\n" !== substr( $png, 0, 8 ) ) {
@@ -1340,8 +1563,16 @@ final class Bat {
 			);
 		}
 
+		if ( ! Invoice::lock( self::lock_name( $order ) ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => self::BUSY_REASON,
+			);
+		}
+		$order    = wc_get_order( $order->get_id() ) ?: $order;
 		$versions = self::versions( $order );
 		if ( empty( $versions ) ) {
+			Invoice::unlock( self::lock_name( $order ) );
 			return array(
 				'ok'     => false,
 				'reason' => __( 'Établissez d’abord le bon à tirer : une renonciation porte sur un document, pas sur rien.', 'teeshoop' ),
@@ -1354,8 +1585,17 @@ final class Bat {
 			'by'   => function_exists( 'get_current_user_id' ) ? get_current_user_id() : 0,
 			'text' => mb_substr( $text, 0, self::COMMENT_MAX ),
 		);
+		/*
+		 * AND THE LINK DIES WITH IT. A waiver means somebody took the agreement
+		 * by telephone or by e-mail and the press is being opened; leaving the
+		 * proof link live left the customer able to open it and press « Demander
+		 * des modifications » on a document already in production. They would
+		 * have every reason to believe they had stopped it.
+		 */
+		$versions[ $last ]['tokens'] = array();
 		$order->update_meta_data( self::META_VERSIONS, wp_json_encode( $versions ) );
 		$order->save();
+		Invoice::unlock( self::lock_name( $order ) );
 
 		$order->add_order_note(
 			sprintf(

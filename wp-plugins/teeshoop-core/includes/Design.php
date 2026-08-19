@@ -396,6 +396,12 @@ final class Design {
 		if ( is_finite( $drop ) && $drop > 0 && $drop <= 100 ) {
 			$out['drop_cm'] = $drop;
 		}
+		// A tri-state, deliberately: true, false, and "the document predates the
+		// field". The proof says nothing about grading in the third case rather
+		// than picking whichever answer is commoner.
+		if ( isset( $side['graded'] ) && is_bool( $side['graded'] ) ) {
+			$out['graded'] = $side['graded'];
+		}
 		return $out;
 	}
 }

@@ -138,7 +138,7 @@ CSS;
 	 * The proof.
 	 *
 	 * @param array  $version the frozen version.
-	 * @param string $state   ok | expired | superseded | decided | operateur.
+	 * @param string $state   ok | busy | expired | superseded | decided | operateur.
 	 * @param string $token   the capability, echoed into the decision form.
 	 */
 	public static function render( \WC_Order $order, array $version, string $state, string $token ): void {
@@ -183,7 +183,7 @@ CSS;
 
 		self::tolerances( $version );
 
-		if ( 'ok' === $state ) {
+		if ( 'ok' === $state || 'busy' === $state ) {
 			self::decision_form( $order, $version, $token );
 		}
 
@@ -212,6 +212,19 @@ CSS;
 					Lifecycle::human_date( (string) $version['approval']['at'] )
 				)
 			);
+			echo '</p></div>';
+			return;
+		}
+
+		if ( 'busy' === $state ) {
+			/*
+			 * NOT RECORDED, AND SAYING SO. The one thing this page must never do
+			 * is tell a customer their approval counted when it did not.
+			 */
+			echo '<div class="note bad"><p><strong>';
+			esc_html_e( 'Nous n’avons pas pu enregistrer votre réponse', 'teeshoop' );
+			echo '</strong></p><p>';
+			esc_html_e( 'Quelqu’un travaillait sur votre commande au même moment. Rien n’a été enregistré : réessayez dans quelques secondes, le bouton est toujours en bas de cette page.', 'teeshoop' );
 			echo '</p></div>';
 			return;
 		}
@@ -348,6 +361,17 @@ CSS;
 			);
 			if ( null !== $side['drop_cm'] ) {
 				self::fig( __( 'Centre de la zone sous l’encolure', 'teeshoop' ), Garments::cm( (float) $side['drop_cm'] ) );
+			} else {
+				/*
+				 * AN ABSENT DROP IS SAID OUT LOUD, never left blank. A sleeve has
+				 * no collar to measure from and a garment the customer ships has
+				 * no seam in our data at all, so the numbers above place the
+				 * marking inside its zone and nothing places the zone. A proof
+				 * that showed the zone and said nothing about what anchors it
+				 * would read as though the anchor were obvious.
+				 */
+				self::fig( __( 'Repère de la zone', 'teeshoop' ), __( 'à confirmer avec vous', 'teeshoop' ) );
+				$anchorless = true;
 			}
 			$n = 1;
 			foreach ( (array) $side['pieces'] as $piece ) {
@@ -388,6 +412,11 @@ CSS;
 			self::fig( __( 'Dimensions données pour la taille', 'teeshoop' ), strtoupper( (string) $line['measured_at'] ) );
 		}
 		echo '</dl>';
+		if ( ! empty( $anchorless ) ) {
+			echo '<p class="hint">';
+			esc_html_e( 'Cette face n’a pas de couture d’encolure à laquelle rattacher la zone : les cotes ci-dessus placent le visuel dans la zone, et nous confirmons la position de la zone avec vous avant impression.', 'teeshoop' );
+			echo '</p>';
+		}
 		if ( ! empty( $line['measured_at'] ) ) {
 			echo '<p class="hint">';
 			esc_html_e( 'Le marquage est mis à l’échelle avec le vêtement : il est plus grand sur les grandes tailles et plus petit sur les petites.', 'teeshoop' );

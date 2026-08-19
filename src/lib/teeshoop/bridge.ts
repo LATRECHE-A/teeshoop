@@ -59,6 +59,16 @@ export interface BridgeSide {
   area_w_cm?: number
   area_h_cm?: number
   /**
+   * Whether the marking scales with the garment.
+   *
+   * A per-DESIGN choice the customer makes in the Produit panel, and the proof
+   * has to state the right one: in `fixed` mode one identical physical transfer
+   * is pressed on the S and on the 3XL, which is the cheaper option, and a proof
+   * telling that customer their marking grades is telling them something that
+   * will not happen.
+   */
+  graded?: boolean
+  /**
    * Collar seam to the print area's CENTRE, cm, positive downwards.
    *
    * The one number a press is actually set up from: professional placement is

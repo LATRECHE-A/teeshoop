@@ -44,7 +44,7 @@ import { ensureInkProbes, sideAreaCm, sideArtworkSqCm, sidePiecesCm } from '@/li
 import { ensureFont } from '@/lib/fonts'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
 import { printDropBelowCollarIn, renderMockup, sideLayers } from '@/lib/renderDesign'
-import { printScaleK } from '@/lib/printScale'
+import { printScaleK, printScaleOf } from '@/lib/printScale'
 import { assetRevision, getAssetBlob, type AssetVariant } from '@/state/assets'
 import { canvasToBlob } from '@/lib/download'
 import { readDesignDoc } from './designDoc'
@@ -167,21 +167,36 @@ function layerLabel(l: Layer): string {
  * Measured at PRICED_SIZE with the design's own grading factor, so it describes
  * the same garment as `area_sq_cm` and `pieces` beside it.
  *
- * A `custom` garment gets the area and NO drop. Its print area is defined on
- * the customer's own photograph, there is no collar seam in our data, and a
- * number invented from the photo's bounding box would read on the proof exactly
- * like a measured one.
+ * TWO SIDES GET A DROP AND THE OTHERS DO NOT, and that is a correction rather
+ * than a simplification. `printDropBelowCollarIn` measures from `collarPx`, and
+ * for the sleeve `collarPx` is not a collar: `SLEEVE_ART` puts it at the print
+ * area's own top centre and says so in its comment, « cap-seam proxy », because
+ * what the 3D preview and the AR bake need there is a scaling anchor and not a
+ * landmark. Passing it through produced exactly half the sleeve zone's height
+ * and the proof printed it as « centre de la zone sous l'encolure ». A number
+ * nobody measured, in the same type as one somebody did, on the document that
+ * decides who pays for a reprint.
+ *
+ * A `custom` garment gets no drop either, for the plainer reason: its print area
+ * is defined on the customer's own photograph and there is no collar seam in our
+ * data at all.
+ *
+ * The proof says where the placement IS measured from when there is no drop, so
+ * an absent one is never read as a zero.
  */
+const HAS_COLLAR: Side[] = ['front', 'back']
+
 function sideProofPlacement(
   design: Design,
   side: Side,
-): { area_w_cm: number; area_h_cm: number; drop_cm?: number } {
+): { area_w_cm: number; area_h_cm: number; graded: boolean; drop_cm?: number } {
   const area = sideAreaCm(design, side, PRICED_SIZE)
-  const out: { area_w_cm: number; area_h_cm: number; drop_cm?: number } = {
+  const out: { area_w_cm: number; area_h_cm: number; graded: boolean; drop_cm?: number } = {
     area_w_cm: area.w_cm,
     area_h_cm: area.h_cm,
+    graded: printScaleOf(design).mode === 'scaled',
   }
-  if (design.garmentId === 'custom') return out
+  if (design.garmentId === 'custom' || !HAS_COLLAR.includes(side)) return out
   const drop =
     printDropBelowCollarIn(design.garmentId, side, printScaleK(design, PRICED_SIZE)) * CM_PER_IN
   if (Number.isFinite(drop) && drop > 0) out.drop_cm = Math.round(drop * 100) / 100

@@ -288,23 +288,50 @@ final class Lifecycle {
 		add_filter( 'wc_order_statuses', array( self::class, 'list_statuses' ) );
 
 		/*
-		 * OUR STATUSES ARE PAID STATUSES. `wc_get_is_paid_statuses()` ships
-		 * `processing` and `completed` only, and it is what `$order->is_paid()`
-		 * reads, what the sales reports count and what several WooCommerce
-		 * screens use to decide an order is real. An order sitting in « En
-		 * production » with its money banked is as paid as one in `processing`,
-		 * and leaving it off this list makes it vanish from the shop's own
-		 * takings between the press and the parcel.
-		 */
-		add_filter( 'woocommerce_order_is_paid_statuses', array( self::class, 'paid_statuses' ) );
-
-		/*
+		 * THEY ARE NOT PAID STATUSES, AND THE FIRST VERSION OF THIS FILE HAD IT
+		 * THE OTHER WAY. The argument for adding them was that an order on the
+		 * press with its money banked is as paid as one in `processing`, and it
+		 * cost two things that matter more than the reports.
+		 *
+		 *   THE DEFINITIVE INVOICE STOPPED BEING ISSUED. `Ledger::follow` calls
+		 *   `payment_complete()` only `if ( ! $order->is_paid() )`, which is how
+		 *   the balance of a deposit order produces its final invoice and its
+		 *   commission. With `ts-bat` counted as paid, an order that took a
+		 *   deposit and then received its balance was already "paid" and the
+		 *   invoice was never issued at all.
+		 *
+		 *   AND EVERY ORDER COLLECTED NOTES ACCUSING ITSELF. `Ledger::on_status`
+		 *   fires on any move into a paid status and writes an order note when
+		 *   the balance is short; six moves down the lifecycle produced six.
+		 *
+		 * The doctrine this plugin already holds settles it: the ledger is the
+		 * authority and the status is a label. `is_paid()` is a label-derived
+		 * predicate, and teaching it to answer for our statuses was teaching a
+		 * label to speak for the money. `Ledger` deliberately never added
+		 * `ts-acompte` to this list either.
+		 *
 		 * AND THEY ARE NOT PAYABLE. `woocommerce_valid_order_statuses_for_payment`
 		 * is what lights up the My Account "Payer" button and the pay link in
 		 * WooCommerce's own e-mails, and every one of those surfaces charges the
-		 * WHOLE `get_total()` again. `Ledger` records the same trap for the
-		 * deposit status. Nothing is added to it here, deliberately.
+		 * WHOLE `get_total()` again. `Ledger` records that trap for the deposit
+		 * status. Nothing is added to it here either.
 		 */
+
+		/*
+		 * OUT OF ANALYTICS UNTIL THE ORDER IS DELIVERED, for the reason
+		 * `Ledger::out_of_reports` gives for the deposit status: Analytics books
+		 * the ORDER total for any status not on its exclusion list, so a
+		 * 5 472,00 EUR order sitting on a 2 736,00 EUR deposit booked the whole
+		 * 5 472,00 EUR the moment its proof was sent, because the proof moved it
+		 * out of `ts-acompte` and into a status nothing excluded.
+		 *
+		 * The exclusion list is a list of STATUSES and cannot ask the ledger, so
+		 * the choice is between booking money that has not arrived and booking
+		 * late. It books late: an order counts when it reaches `completed`, and
+		 * what has actually been received is readable from the ledger at any
+		 * time. Session 13's indicators read the ledger, not this.
+		 */
+		add_filter( 'woocommerce_analytics_excluded_order_statuses', array( self::class, 'out_of_reports' ) );
 
 		add_filter( 'woocommerce_valid_order_statuses_for_payment_complete', array( self::class, 'completable' ) );
 
@@ -359,7 +386,7 @@ final class Lifecycle {
 	}
 
 	/** @param string[] $statuses */
-	public static function paid_statuses( $statuses ): array {
+	public static function out_of_reports( $statuses ): array {
 		$statuses = array_merge( (array) $statuses, self::ours() );
 		return array_values( array_unique( $statuses ) );
 	}
@@ -398,14 +425,32 @@ final class Lifecycle {
 			}
 			$stage = self::stage( $need );
 			if ( '' !== $stage && ! Ledger::stage_allows( $order, $stage ) ) {
+				/*
+				 * THE SHORTFALL FOR THIS STAGE, NOT THE WHOLE BALANCE. A
+				 * production stage is covered by whatever deposit somebody
+				 * authorised, so on a 5 472,00 EUR order with 2 736,00 EUR
+				 * authorised and 1 000,00 EUR received, what is missing before
+				 * the press is 1 736,00 EUR. Printing the whole balance told the
+				 * operator 4 472,00 EUR, which is what is missing before the
+				 * PARCEL: a number four times too large for the decision in
+				 * front of them, on the screen built to make that decision.
+				 */
+				$required = Settlement::required_for(
+					$stage,
+					Ledger::due( $order ),
+					Ledger::authorised( $order ),
+					Ledger::config()
+				);
+				$short = max( 0, $required - Ledger::received( $order ) );
+
 				$out[] = Settlement::STAGE_DISPATCH === $stage
 					? sprintf(
 						'Le solde n’est pas encaissé : %s reste dû. Rien ne quitte l’atelier contre une promesse.',
-						Money::format( Settlement::remaining( Ledger::due( $order ), Ledger::received( $order ) ) )
+						Money::format( $short )
 					)
 					: sprintf(
 						'La production n’est pas couverte : %s reste dû sur ce qui a été autorisé.',
-						Money::format( Settlement::remaining( Ledger::due( $order ), Ledger::received( $order ) ) )
+						Money::format( $short )
 					);
 			}
 		}

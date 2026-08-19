@@ -703,7 +703,7 @@ return array(
 			'level' => 'important',
 			'status' => 'assumption',
 			'since' => '2026-08-19',
-			'statement_fr' => 'La position du marquage est garantie à 1 cm près par rapport au bon à tirer validé.',
+			'statement_fr' => 'Sur la taille pour laquelle les cotes sont données, la position du marquage est garantie à 1 cm près par rapport au bon à tirer validé.',
 			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#tolerance_position_cm',
 			'reaches' => array(
 				'customer',

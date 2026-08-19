@@ -2560,7 +2560,7 @@
 			"level": "important",
 			"status": "assumption",
 			"since": "2026-08-19",
-			"statement_fr": "La position du marquage est garantie à 1 cm près par rapport au bon à tirer validé.",
+			"statement_fr": "Sur la taille pour laquelle les cotes sont données, la position du marquage est garantie à 1 cm près par rapport au bon à tirer validé.",
 			"home": "php:Teeshoop\\Core\\Bat::default_config()#tolerance_position_cm",
 			"mirrors": [],
 			"literals": [],
@@ -2576,8 +2576,8 @@
 				"06"
 			],
 			"cost_if_late": "reglage",
-			"label_fr": "La position du marquage peut varier de",
-			"shipped_matches_default": "Oui : « tolérance de position de plus ou moins 1 cm », l'hypothèse par défaut de la question 27. Elle est affichée au client au moment exact où cette question demande qu'elle le soit, c'est-à-dire sur le bon à tirer, avant validation.",
+			"label_fr": "la position du marquage peut varier de",
+			"shipped_matches_default": "Oui : « tolérance de position de plus ou moins 1 cm », l'hypothèse par défaut de la question 27, affichée au client au moment exact où cette question demande qu'elle le soit, sur le bon à tirer, avant validation. Une précision ajoutée après relecture adverse : la phrase dit « sur la taille indiquée ». Les cotes du BAT sont mesurées à une seule taille et le marquage est mis à l'échelle avec le vêtement, donc un 3XL sort à plus d'un centimètre des cotes imprimées. Sans ces quatre mots la tolérance est une promesse absolue que la boutique ne peut tenir sur aucune taille sauf une.",
 			"statement_amounts": [
 				{
 					"from": "tolerance_position_cm",

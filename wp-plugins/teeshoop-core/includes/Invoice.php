@@ -538,13 +538,21 @@ final class Invoice {
 	 * Two seconds, because the work inside it is one INSERT and one order save:
 	 * anything slower than that is a database in trouble, and waiting longer
 	 * would only turn a race into a queue of stalled checkouts.
+	 *
+	 * PUBLIC, AND THIS IS THE SHOP'S ONE NAMED LOCK. `Bat` needs the same thing
+	 * for the same reason: a read-modify-write on a JSON list in order meta,
+	 * where losing the loser of the race loses a customer's approval or a
+	 * version the workshop is about to press. Copying two lines of SQL into a
+	 * second file would be a second idiom to get the timeout and the release
+	 * right in. It lives here because this is where it was first needed, not
+	 * because it is about invoices.
 	 */
-	private static function lock( string $name ): bool {
+	public static function lock( string $name ): bool {
 		global $wpdb;
 		return '1' === (string) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $name, 2 ) );
 	}
 
-	private static function unlock( string $name ): void {
+	public static function unlock( string $name ): void {
 		global $wpdb;
 		$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $name ) );
 	}

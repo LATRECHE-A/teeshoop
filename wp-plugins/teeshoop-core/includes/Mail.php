@@ -50,6 +50,19 @@ final class Mail {
 	/** It did not go, and the row says why. */
 	public const FAILED = 'failed';
 
+	/**
+	 * It did not go and it never will: nothing can rebuild it.
+	 *
+	 * A THIRD STATE BECAUSE TWO WERE NOT ENOUGH. The workshop's own alerts carry
+	 * a heading and lines that are composed at the moment of the event and not
+	 * stored (they hold no capability, but they hold no order state either), so
+	 * `Notify::rebuild` cannot make one again. Left as `failed`, one such row
+	 * kept the "a customer never got their proof" banner on every admin screen
+	 * for ever, and a permanent banner is a banner nobody reads. This one stays
+	 * in the log, out of the count, and says what it is.
+	 */
+	public const ABANDONED = 'abandoned';
+
 	/** How many times a message is retried before it waits for a human. */
 	private const MAX_ATTEMPTS = 5;
 
@@ -473,7 +486,16 @@ final class Mail {
 
 		$rebuilt = Notify::rebuild( (string) $row->kind, (int) $row->order_id );
 		if ( empty( $rebuilt['ok'] ) ) {
-			self::finish( $id, self::FAILED, '', '', (string) $rebuilt['reason'] );
+			/*
+			 * A REFUSAL THAT WILL NEVER CHANGE IS NOT A FAILURE TO RETRY. An
+			 * internal alert has nothing to rebuild from and a proof whose
+			 * version has been answered must never be re-sent; both are settled,
+			 * and leaving them as `failed` kept the banner up for ever. A
+			 * refusal that MIGHT change, an unverified sender address say, stays
+			 * failed and is retried.
+			 */
+			$settled = ! Notify::rebuildable( (string) $row->kind );
+			self::finish( $id, $settled ? self::ABANDONED : self::FAILED, '', '', (string) $rebuilt['reason'] );
 			return array(
 				'ok'     => false,
 				'reason' => (string) $rebuilt['reason'],
@@ -595,7 +617,7 @@ final class Mail {
 			);
 		}
 
-		$failed = self::recent( 50, self::FAILED );
+		$failed = array_merge( self::recent( 50, self::FAILED ), self::recent( 50, self::ABANDONED ) );
 		echo '<h2>' . esc_html__( 'Ce qui n’est pas parti', 'teeshoop' ) . '</h2>';
 		if ( empty( $failed ) ) {
 			printf( '<p>%s</p>', esc_html__( 'Rien. Tous les messages enregistrés ont été acceptés par leur transporteur.', 'teeshoop' ) );
@@ -668,6 +690,9 @@ final class Mail {
 		}
 		if ( self::FAILED === $status ) {
 			return __( 'Échec', 'teeshoop' );
+		}
+		if ( self::ABANDONED === $status ) {
+			return __( 'Abandonné : ce message ne peut pas être reconstruit', 'teeshoop' );
 		}
 		return __( 'En attente', 'teeshoop' );
 	}

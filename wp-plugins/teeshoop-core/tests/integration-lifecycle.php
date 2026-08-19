@@ -20,6 +20,7 @@
 use Teeshoop\Core\Bat;
 use Teeshoop\Core\Claim;
 use Teeshoop\Core\Invoice;
+use Teeshoop\Core\Ledger;
 use Teeshoop\Core\Lifecycle;
 use Teeshoop\Core\Mail;
 use Teeshoop\Core\Notify;
@@ -171,16 +172,36 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		$order->delete( true );
 	} );
 
-	ts_it( 'keeps an order in one of our statuses inside the shop’s own takings', function () use ( $product_id ) {
-		// `wc_get_is_paid_statuses()` ships `processing` and `completed` only. An
-		// order on the press with its money banked is as paid as either, and
-		// leaving it off makes it vanish from every report between the press and
-		// the parcel.
+	ts_it( 'never teaches is_paid() to answer for our statuses', function () use ( $product_id ) {
+		/*
+		 * THE FIRST VERSION DID, and it cost the definitive invoice.
+		 * `Ledger::follow` calls `payment_complete()` only `if ( ! $order->is_paid() )`,
+		 * which is how the balance of a deposit order produces its final invoice
+		 * and its commission; with « BAT envoyé » counted as paid, that order was
+		 * already "paid" and the invoice was never issued at all. The ledger is
+		 * the authority and the status is a label, and this is the case that
+		 * keeps the label from speaking for the money.
+		 */
 		$order = ts_lc_order( $product_id );
 		Lifecycle::transition( $order, Lifecycle::PROOF );
 		$order = wc_get_order( $order->get_id() );
-		ts_assert( $order->is_paid(), 'une commande « BAT envoyé » doit rester payée' );
+		ts_eq( $order->is_paid(), false, 'un statut Teeshoop se fait passer pour un statut payé' );
+		ts_assert( Ledger::received( $order ) > 0, 'et pourtant l’argent est bien là, dans le registre' );
 		$order->delete( true );
+	} );
+
+	ts_it( 'keeps a part-paid order out of the reports, whatever its status', function () use ( $product_id ) {
+		/*
+		 * `Ledger::out_of_reports` excluded only « Acompte reçu », and sending
+		 * the proof moved the order out of it: a 5 472,00 EUR order sitting on a
+		 * 2 736,00 EUR deposit booked its whole total the moment the customer
+		 * was sent something to look at.
+		 */
+		$excluded = apply_filters( 'woocommerce_analytics_excluded_order_statuses', array() );
+		foreach ( Lifecycle::ours() as $status ) {
+			ts_assert( in_array( $status, $excluded, true ), "{$status} est compté par Analytics" );
+		}
+		ts_assert( in_array( 'ts-acompte', $excluded, true ), 'l’acompte a cessé d’être exclu' );
 	} );
 
 	ts_it( 'finds an order in one of our statuses when asked for any', function () use ( $product_id ) {
@@ -363,8 +384,31 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		ts_eq( $side['zone_w_cm'], 30.5, 'largeur de zone' );
 		ts_eq( $side['drop_cm'], 22.4, 'descente sous l’encolure' );
 		ts_eq( $side['pieces'][0]['top_cm'], 5.2, 'haut du premier visuel' );
-		ts_eq( count( $composed['doc']['tolerances'] ), 4, 'les tolérances de la question 27' );
+
+		/*
+		 * THE GRADING SENTENCE IS CONDITIONAL, and this fixture declares
+		 * nothing, which is a design document written before the flag existed.
+		 * Saying nothing is the third answer: guessing which of the two is
+		 * commoner would put a promise on the proof that half the customers
+		 * would not get.
+		 */
+		ts_eq( $side['graded'], null, 'une grille absente doit rester absente' );
+		ts_eq( count( $composed['doc']['tolerances'] ), 3, 'aucune phrase sur la mise à l’échelle' );
+
+		$mots = implode( ' ', $composed['doc']['tolerances'] );
+		ts_assert( false !== strpos( $mots, 'Sur la taille indiquée' ), 'la tolérance ne dit pas à quelle taille elle s’applique' );
 		$order->delete( true );
+	} );
+
+	ts_it( 'says the right thing about grading, and nothing when nothing says', function () use ( $product_id ) {
+		// `scaled` grows the marking with the garment; `fixed` presses one
+		// identical transfer on every size, which is the cheaper convention.
+		// Telling a `fixed` customer their marking scales promises something
+		// that will not be pressed.
+		$config = Bat::config();
+		ts_assert( false !== strpos( implode( ' ', Bat::tolerances( $config, true ) ), 'mises à l’échelle' ), 'scaled' );
+		ts_assert( false !== strpos( implode( ' ', Bat::tolerances( $config, false ) ), 'toutes les tailles commandées' ), 'fixed' );
+		ts_eq( count( Bat::tolerances( $config, null ) ), 3, 'inconnu' );
 	} );
 
 	ts_it( 'freezes a version, mints a link, and moves the order to « BAT envoyé »', function () use ( $product_id ) {
@@ -378,8 +422,9 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		// The digest and never the token itself: a database dump must not be a
 		// set of live approvals.
 		$stored = Bat::current( wc_get_order( $order->get_id() ) );
-		ts_assert( $stored['token'] !== $issued['token'], 'le jeton est stocké en clair' );
-		ts_eq( $stored['token'], hash( 'sha256', (string) $issued['token'] ), 'ce n’est pas l’empreinte du jeton' );
+		ts_eq( count( $stored['tokens'] ), 1, 'une seule empreinte à l’émission' );
+		ts_assert( $stored['tokens'][0] !== $issued['token'], 'le jeton est stocké en clair' );
+		ts_eq( $stored['tokens'][0], hash( 'sha256', (string) $issued['token'] ), 'ce n’est pas l’empreinte du jeton' );
 		$order->delete( true );
 	} );
 
@@ -630,9 +675,15 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		$again = Mail::retry( (int) $sent['id'] );
 		ts_assert( $again['ok'], 'le renvoi a échoué : ' . $again['reason'] );
 
-		// The retry re-rendered, so the old token is dead and a new one works.
+		/*
+		 * The retry re-rendered and minted a second link. The FIRST one still
+		 * works, and that is the correction: Brevo can accept a message and
+		 * still have our read time out, so a row marked failed does not mean
+		 * nobody received it. Its own case is « keeps the link a customer is
+		 * already holding » below.
+		 */
 		$order = wc_get_order( $order->get_id() );
-		ts_eq( Bat::locate( $order->get_id(), 1, (string) $issued['token'] )['state'], 'not_found', 'l’ancien lien survit au renvoi' );
+		ts_eq( Bat::locate( $order->get_id(), 1, (string) $issued['token'] )['state'], 'ok', 'le renvoi a tué le lien déjà envoyé' );
 
 		$rows = Mail::for_order( $order->get_id() );
 		$bat  = array_values( array_filter( $rows, static fn( $row ): bool => Notify::KIND_BAT === $row->kind ) );
@@ -659,6 +710,89 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		ts_assert( in_array( Notify::KIND_WORKSHOP, $kinds, true ), 'aucune alerte à l’atelier' );
 
 		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'keeps the link a customer is already holding when a failed send is retried', function () use ( $product_id ) {
+		/*
+		 * BREVO CAN ACCEPT A MESSAGE AND STILL TIME OUT ON OUR SIDE. The row is
+		 * then FAILED while the customer has the e-mail, and the hourly retry
+		 * used to mint a token and drop the old digest, so the link they were
+		 * holding stopped working. A version keeps its last few digests now, and
+		 * they all die together when a newer version exists, which is the
+		 * property that actually matters.
+		 */
+		$order  = ts_lc_order( $product_id );
+		$first  = Bat::issue( $order );
+		$order  = wc_get_order( $order->get_id() );
+		$second = Bat::resend( $order );
+		ts_assert( $second['ok'], 'le renvoi a échoué : ' . ( $second['reason'] ?? '' ) );
+
+		ts_eq( Bat::locate( $order->get_id(), 1, (string) $second['token'] )['state'], 'ok', 'le nouveau lien n’ouvre pas' );
+		ts_eq( Bat::locate( $order->get_id(), 1, (string) $first['token'] )['state'], 'ok', 'l’ancien lien a été tué par le renvoi' );
+
+		// And both die together when a newer version exists.
+		Bat::issue( wc_get_order( $order->get_id() ), 'version 2' );
+		ts_eq( Bat::locate( $order->get_id(), 1, (string) $first['token'] )['state'], 'superseded', 'l’ancien lien survit à la version suivante' );
+		ts_eq( Bat::locate( $order->get_id(), 1, (string) $second['token'] )['state'], 'superseded', 'le nouveau lien survit à la version suivante' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'never re-sends a BAT that has been answered, whichever way', function () use ( $product_id ) {
+		// A retry of a failed e-mail would otherwise mail a customer a live link
+		// inviting them to approve something the workshop is already pressing.
+		foreach ( array( 'valider', 'modifier', 'renonciation' ) as $answer ) {
+			$order  = ts_lc_order( $product_id );
+			$issued = Bat::issue( $order );
+			$order  = wc_get_order( $order->get_id() );
+
+			if ( 'renonciation' === $answer ) {
+				Bat::record_waiver( $order, 'Courriel du 12/09 : « lancez sans BAT, je prends le risque. »' );
+			} else {
+				Bat::record_decision( $order, 1, $answer, 'trop bas', '203.0.113.7', 'suite' );
+			}
+
+			$again = Bat::resend( wc_get_order( $order->get_id() ) );
+			ts_eq( $again['ok'], false, "un BAT « {$answer} » a été renvoyé" );
+			$order->delete( true );
+		}
+	} );
+
+	ts_it( 'answers a double click once, and never counts two corrections for one', function () use ( $product_id ) {
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		$order  = wc_get_order( $order->get_id() );
+
+		$first  = Bat::record_decision( $order, 1, 'modifier', 'le logo est trop bas', '203.0.113.7', 'suite' );
+		$second = Bat::record_decision( wc_get_order( $order->get_id() ), 1, 'modifier', 'le logo est trop bas', '203.0.113.7', 'suite' );
+		ts_assert( $first['ok'], 'le premier clic a été refusé' );
+		ts_eq( $second['ok'], false, 'le deuxième clic a compté' );
+		ts_eq( Bat::corrections( wc_get_order( $order->get_id() ) )['used'], 1, 'un aller-retour compté deux fois' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'sends no second « en route » when a shipped order’s status change is refused', function () use ( $product_id ) {
+		/*
+		 * OUR OWN HALF OF THE SAME TRAP. Reverting makes WooCommerce's pending
+		 * transition from-equals-to and fires `woocommerce_order_status_ts-expedie`,
+		 * which is OUR hook: the dispatch e-mail went out a second time.
+		 * `silence_woo_email` covers WooCommerce's two and could never have
+		 * covered this one.
+		 */
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+		foreach ( array( Lifecycle::PRODUCTION, Lifecycle::PRINTED, Lifecycle::SHIPPED ) as $step ) {
+			Lifecycle::transition( wc_get_order( $order->get_id() ), $step );
+		}
+		$before = count( Mail::for_order( $order->get_id() ) );
+
+		$order = wc_get_order( $order->get_id() );
+		$order->set_status( Lifecycle::PROOF );
+		$order->save();
+
+		ts_eq( wc_get_order( $order->get_id() )->get_status(), Lifecycle::SHIPPED, 'le retour arrière n’a pas tenu' );
+		ts_eq( count( Mail::for_order( $order->get_id() ) ), $before, 'un deuxième avis d’expédition est parti' );
 		$order->delete( true );
 	} );
 
