@@ -104,6 +104,7 @@ function ts_pr_layout( int $a, int $b, array $over = array() ): array {
 		'orders'       => array(
 			(string) $a => array(
 				'solo_m' => 0.3,
+				'poses'  => 4,
 				'pieces' => array(
 					array( 'key' => 'front~1', 'w_cm' => 18.0, 'h_cm' => 14.5, 'qty' => 4 ),
 					array( 'key' => 'front~2', 'w_cm' => 12.0, 'h_cm' => 3.2, 'qty' => 4 ),
@@ -111,6 +112,7 @@ function ts_pr_layout( int $a, int $b, array $over = array() ): array {
 			),
 			(string) $b => array(
 				'solo_m' => 0.2,
+				'poses'  => 2,
 				'pieces' => array(
 					array( 'key' => 'front', 'w_cm' => 17.0, 'h_cm' => 14.0, 'qty' => 2 ),
 				),
@@ -292,17 +294,51 @@ function ts_production_suite( int $product_id ): void {
 		ts_eq( $two['ok'], false, 'une commande a été mise dans deux lots' );
 	} );
 
-	ts_it( 'refuses a layout claiming fewer transfers than the order has', function () use ( $product_id, $today ) {
+	ts_it( 'refuses a layout that has lost a garment-side', function () use ( $product_id, $today ) {
 		ts_pr_stub_nest();
 		$a = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0030' );
 		$b = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0031' );
-		// One visual quietly dropped from the chest lockup: the film would print
-		// four garments with half their artwork and the cost would look fine.
+		// Three poses declared where the order needs four: one garment would come
+		// off the press with nothing on its chest, and the cost would look right.
 		$short = ts_pr_layout( $a->get_id(), $b->get_id() );
-		array_pop( $short['orders'][ (string) $a->get_id() ]['pieces'] );
+		$short['orders'][ (string) $a->get_id() ]['poses'] = 3;
 		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $short, $today );
-		ts_eq( $made['ok'], false, 'un transfert manquant est passé' );
-		ts_assert( str_contains( $made['reason'], 'transferts' ), 'la raison ne dit pas ce qui manque : ' . $made['reason'] );
+		ts_eq( $made['ok'], false, 'une pose manquante est passée' );
+		ts_assert( str_contains( $made['reason'], 'poses' ), 'la raison ne dit pas ce qui manque : ' . $made['reason'] );
+	} );
+
+	ts_it( 'lets the operator force a single pose without the lot refusing it', function () use ( $product_id, $today ) {
+		/*
+		 * QUESTION 32 IS AN OPERATOR'S DECISION, and an earlier version of the
+		 * gate above made it impossible: it compared the transfers on the film
+		 * against the transfers the order was measured with, so a job pressed as
+		 * one transfer per side — which the workshop screen offers, for a run
+		 * where handling costs more than film — was refused as a corrupted
+		 * layout.
+		 */
+		ts_pr_stub_nest();
+		$a      = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0032' );
+		$b      = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0033' );
+		$merged = ts_pr_layout( $a->get_id(), $b->get_id() );
+		// One transfer for the whole chest instead of two, and it is BIGGER,
+		// because merging two visuals boxes the empty space between them.
+		$merged['orders'][ (string) $a->get_id() ]['pieces'] = array(
+			array( 'key' => 'front', 'w_cm' => 18.0, 'h_cm' => 22.0, 'qty' => 4 ),
+		);
+		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $merged, $today );
+		ts_assert( $made['ok'], 'une pose unique a été refusée : ' . $made['reason'] );
+	} );
+
+	ts_it( 'refuses a layout carrying less ink than the order was charged for', function () use ( $product_id, $today ) {
+		ts_pr_stub_nest();
+		$a      = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0034' );
+		$b      = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0035' );
+		$tiny   = ts_pr_layout( $a->get_id(), $b->get_id() );
+		$tiny['orders'][ (string) $a->get_id() ]['pieces'] = array(
+			array( 'key' => 'front', 'w_cm' => 2.0, 'h_cm' => 2.0, 'qty' => 4 ),
+		);
+		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $tiny, $today );
+		ts_eq( $made['ok'], false, 'une planche portant une autre création a été acceptée' );
 	} );
 
 	ts_it( 'refuses a length no amount of ink could fit on', function () use ( $product_id, $today ) {

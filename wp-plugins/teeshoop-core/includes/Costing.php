@@ -321,6 +321,7 @@ final class Costing {
 		$pieces    = array();
 		$garments  = 0;
 		$transfers = 0;
+		$poses     = 0;
 		$complete  = true;
 		$lines     = 0;
 		$graded    = false;
@@ -375,6 +376,18 @@ final class Costing {
 					continue;
 				}
 				/*
+				 * GARMENT-SIDES, and the reason they are counted beside the
+				 * transfers is question 32. How many transfers a side prints as
+				 * is an OPERATOR'S decision — the workshop screen can force a
+				 * single pose on a job where handling costs more than film — so
+				 * a count of transfers is not a property of the order at all.
+				 * A count of sides pressed is: it does not move when the split
+				 * moves, and it does not move when the marking is graded up a
+				 * size either. It is therefore the one number session 07 can
+				 * check a browser-measured layout against exactly.
+				 */
+				$poses += $qty;
+				/*
 				 * THE AREA IS PASSED AGAIN HERE, and it is not belt and braces
 				 * for its own sake: these rectangles reached the order through
 				 * an open route, and this is the last point before they become
@@ -410,6 +423,7 @@ final class Costing {
 			'pieces'    => $pieces,
 			'garments'  => $garments,
 			'transfers' => $transfers,
+			'poses'     => $poses,
 			'complete'  => $complete,
 			'lines'     => $lines,
 			'graded'    => $graded,

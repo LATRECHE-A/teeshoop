@@ -80,6 +80,24 @@ final class Production {
 	/** ORDER meta: this order's place in a lot, JSON. Read by `Costing`. */
 	public const META_ORDER_LOT = '_teeshoop_lot_part';
 
+	/**
+	 * Bounds on a posted layout. They are the Worker's own
+	 * (`worker/nest.ts`: MAX_PIECES, MAX_INSTANCES, MAX_PIECE_CM), restated here
+	 * because this end has to refuse a body the other end would refuse anyway —
+	 * and because a bound that only exists downstream is a bound nobody applied
+	 * when the downstream call fails.
+	 */
+	private const MAX_PIECES    = 512;
+	private const MAX_INSTANCES = 20000;
+	private const MAX_PIECE_CM  = 200;
+	/**
+	 * No print run is two kilometres of film. A sanity bound, not a policy: at
+	 * the shipped tariff it is thirty-four thousand euros of one order.
+	 */
+	private const MAX_RUN_M     = 2000;
+	/** Transfers one side may split into — `MAX_SIDE_PIECES` in designDoc.ts. */
+	private const MAX_SIDE_PIECES = 32;
+
 	/** Being assembled. Nothing has been bought; anything may still change. */
 	public const DRAFT = 'brouillon';
 
@@ -810,11 +828,13 @@ final class Production {
 	 * SO THE SHOP DOES NOT TRUST IT — IT BOUNDS IT. Four checks, none of which
 	 * needs a tolerance anybody chose:
 	 *
-	 *   1. COUNT. The copies the studio says it nested for an order must equal
-	 *      the copies `Costing::transfers()` says that order has. This is the
-	 *      strong one and it survives grading, because grading changes the SIZE
-	 *      of a transfer and never how many are pressed. A re-render that
-	 *      silently dropped a side fails here.
+	 *   1. POSES. The garment-sides the studio says it pressed for an order must
+	 *      equal the garment-sides that order has. It is the strong check and the
+	 *      only exact one, because it is the only quantity that moves with
+	 *      neither the grading (a 3XL transfer is bigger, not more numerous) nor
+	 *      the split (question 32 lets the workshop force a single pose). The
+	 *      transfers themselves are bounded, not counted: never fewer than the
+	 *      poses, never more than a document may declare per side.
 	 *   2. FLOOR. The billed length must be at least the posted artwork area
 	 *      divided by the roll's printable width. You cannot print a square metre
 	 *      of ink on less than a square metre of film. A length that is too short
@@ -824,11 +844,12 @@ final class Production {
 	 *      That bound is exact rather than generous: `nestShapeRoll` keeps the
 	 *      shelf result as its own restart #0, so the layout it returns can never
 	 *      be longer.
-	 *   4. GEOMETRY. For an order whose design does not scale with the garment,
-	 *      the posted artwork area must match the area stored on the order at the
-	 *      cart. A graded order is exempt from this one and only this one, because
-	 *      its real transfers genuinely differ per size from the single set
-	 *      measured at the pricing size (question 37).
+	 *   4. INK. For an order whose design does not scale with the garment, the
+	 *      posted transfers must be big enough to hold the ink the order was
+	 *      charged for. That is the document's own invariant rather than a
+	 *      tolerance, and it holds under any split: merging two visuals makes the
+	 *      boxes bigger, never smaller. A graded order is exempt from this one
+	 *      and only this one (question 37).
 	 *
 	 * WHEN THE WORKER CANNOT BE REACHED THE LOT IS REFUSED. « We could not ask »
 	 * is not « it passed », and a lot created without its ceiling is a lot whose
@@ -898,13 +919,31 @@ final class Production {
 			$posted = $read['orders'][ (string) $id ];
 
 			// 1. COUNT.
-			if ( $posted['copies'] !== (int) $work['transfers'] ) {
+			if ( $posted['poses'] !== (int) $work['poses'] ) {
 				return $fail(
 					sprintf(
-						'La commande %s compte %d transferts et la planche en pose %d : le lot ne décrit pas cette commande.',
+						'La commande %s demande %d poses et la planche en porte %d : le lot ne décrit pas cette commande.',
 						$order->get_order_number(),
-						(int) $work['transfers'],
-						$posted['copies']
+						(int) $work['poses'],
+						$posted['poses']
+					)
+				);
+			}
+			/*
+			 * And the transfers are BOUNDED rather than counted, because how many
+			 * a side prints as is the operator's decision (question 32: the
+			 * workshop can force a single pose on a job where handling costs more
+			 * than film). What cannot happen either way is fewer transfers than
+			 * garment-sides — that is a side that will not be pressed — or more
+			 * than the document format allows per side.
+			 */
+			if ( $posted['copies'] < $posted['poses'] || $posted['copies'] > $posted['poses'] * self::MAX_SIDE_PIECES ) {
+				return $fail(
+					sprintf(
+						'La commande %s porte %d transferts pour %d poses : ce n’est pas une découpe possible.',
+						$order->get_order_number(),
+						$posted['copies'],
+						$posted['poses']
 					)
 				);
 			}
@@ -915,13 +954,30 @@ final class Production {
 				return $fail( sprintf( 'La commande %s ne peut pas tenir sur %.2f m de film : son encre en demande %.2f m au minimum.', $order->get_order_number(), $posted['solo_m'], $floor_m ) );
 			}
 
-			// 4. GEOMETRY, for an order whose marking does not scale with the size.
-			$stored_area = self::stored_box_sq_cm( $order );
-			if ( ! $work['graded'] && $stored_area > 0
-				&& ( $posted['area_sq_cm'] < $stored_area * 0.99 || $posted['area_sq_cm'] > $stored_area * 1.01 ) ) {
+			/*
+			 * 4. GEOMETRY, for an order whose marking does not scale with the
+			 * garment.
+			 *
+			 * The invariant is the document's own: the transfer rectangles must
+			 * be big enough to hold the ink they claim to carry, which is what
+			 * `Design::normalise_pieces` already enforces at the cart. It holds
+			 * whatever the operator does to the split — merging two visuals
+			 * makes the boxes BIGGER, never smaller — so it is a real check and
+			 * not a tolerance. A layout nesting a different, smaller design fails
+			 * it; one nesting a bigger design costs more film, which is the safe
+			 * direction and needs no check.
+			 *
+			 * A GRADED order is exempt, and only from this one. Its real
+			 * transfers are physically different per garment size from the single
+			 * set measured at the pricing size, so a size run below M legitimately
+			 * carries less ink than the order records (question 37). The pose
+			 * count above still holds it.
+			 */
+			$stored_ink = self::ink_sq_cm( $order );
+			if ( ! $work['graded'] && $stored_ink > 0 && $posted['area_sq_cm'] < $stored_ink * 0.99 ) {
 				return $fail(
 					sprintf(
-						'Les visuels imbriqués pour la commande %s ne font pas la surface enregistrée sur la commande. La planche ne vient pas de cette création.',
+						'Les visuels imbriqués pour la commande %s portent moins de surface que l’encre enregistrée sur elle. La planche ne vient pas de cette création.',
 						$order->get_order_number()
 					)
 				);
@@ -1184,15 +1240,6 @@ final class Production {
 		return $area_sq_cm / $width_cm / 100;
 	}
 
-	/** Σ of the transfer rectangles stored on the order at the cart, cm2. */
-	public static function stored_box_sq_cm( \WC_Order $order ): float {
-		$total = 0.0;
-		foreach ( Costing::transfers( $order )['pieces'] as $piece ) {
-			$total += (float) $piece['w_cm'] * (float) $piece['h_cm'] * (int) $piece['qty'];
-		}
-		return $total;
-	}
-
 	/**
 	 * Read what the studio says it nested, or say which rule the body broke.
 	 *
@@ -1212,7 +1259,7 @@ final class Production {
 		);
 
 		$pooled = isset( $layout['pooled_m'] ) && is_numeric( $layout['pooled_m'] ) ? (float) $layout['pooled_m'] : -1.0;
-		if ( ! is_finite( $pooled ) || $pooled <= 0 || $pooled > 10000 ) {
+		if ( ! is_finite( $pooled ) || $pooled <= 0 || $pooled > self::MAX_RUN_M ) {
 			return $fail( 'La planche n’annonce aucune longueur utilisable.' );
 		}
 
@@ -1229,11 +1276,11 @@ final class Production {
 			}
 			$row  = $raw[ $key ];
 			$solo = isset( $row['solo_m'] ) && is_numeric( $row['solo_m'] ) ? (float) $row['solo_m'] : -1.0;
-			if ( ! is_finite( $solo ) || $solo <= 0 || $solo > 10000 ) {
+			if ( ! is_finite( $solo ) || $solo <= 0 || $solo > self::MAX_RUN_M ) {
 				return $fail( sprintf( 'La planche n’annonce pas ce que la commande %d aurait coûté seule.', $id ) );
 			}
 			$pieces = is_array( $row['pieces'] ?? null ) ? $row['pieces'] : array();
-			if ( array() === $pieces || count( $pieces ) > 512 ) {
+			if ( array() === $pieces || count( $pieces ) > self::MAX_PIECES ) {
 				return $fail( sprintf( 'La planche décrit %d transferts pour la commande %d.', count( $pieces ), $id ) );
 			}
 			$clean  = array();
@@ -1246,7 +1293,9 @@ final class Production {
 				$w   = isset( $piece['w_cm'] ) && is_numeric( $piece['w_cm'] ) ? (float) $piece['w_cm'] : 0.0;
 				$h   = isset( $piece['h_cm'] ) && is_numeric( $piece['h_cm'] ) ? (float) $piece['h_cm'] : 0.0;
 				$qty = isset( $piece['qty'] ) && is_numeric( $piece['qty'] ) ? (int) $piece['qty'] : 0;
-				if ( ! is_finite( $w ) || ! is_finite( $h ) || $w <= 0 || $h <= 0 || $w > 200 || $h > 200 || $qty <= 0 || $qty > 10000 ) {
+				if ( ! is_finite( $w ) || ! is_finite( $h ) || $w <= 0 || $h <= 0
+					|| $w > self::MAX_PIECE_CM || $h > self::MAX_PIECE_CM
+					|| $qty <= 0 || $qty > self::MAX_INSTANCES ) {
 					return $fail( sprintf( 'Un transfert de la commande %d n’a pas des dimensions plausibles.', $id ) );
 				}
 				$clean[] = array(
@@ -1258,10 +1307,20 @@ final class Production {
 				$copies += $qty;
 				$area   += $w * $h * $qty;
 			}
+			/*
+			 * The poses are DECLARED, not derived from the pieces, because they
+			 * are the thing being checked: a layout that had lost a side would
+			 * derive the wrong number from its own wrong pieces and check out.
+			 */
+			$poses = isset( $row['poses'] ) && is_numeric( $row['poses'] ) ? (int) $row['poses'] : 0;
+			if ( $poses <= 0 || $poses > self::MAX_INSTANCES ) {
+				return $fail( sprintf( 'La planche ne dit pas combien de poses elle porte pour la commande %d.', $id ) );
+			}
 			$out[ $key ] = array(
 				'solo_m'     => $solo,
 				'pieces'     => $clean,
 				'copies'     => $copies,
+				'poses'      => $poses,
 				'area_sq_cm' => $area,
 			);
 		}

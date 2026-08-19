@@ -131,7 +131,7 @@ describe( 'Production — when the film has to be bought', function () use ( $ts
 
 	it( 'pushes a big order onto the fast origin, because pressing it takes days', function () use ( $ts_prod_config, $ts_prod_film ) {
 		$small = Production::origin_for( '2026-08-19', '2026-09-04', 60, $ts_prod_config, $ts_prod_film );
-		$big   = Production::origin_for( '2026-08-19', '2026-09-04', 1500, $ts_prod_config, $ts_prod_film );
+		$big   = Production::origin_for( '2026-08-19', '2026-09-04', 1400, $ts_prod_config, $ts_prod_film );
 		eq( $small['origin'], 'es' );
 		eq( $big['origin'], 'fr', 'five days of pressing eat the whole Spanish margin' );
 	} );
@@ -193,6 +193,7 @@ describe( 'Production — reading a layout the shop did not compute', function (
 				'orders'   => array(
 					'12' => array(
 						'solo_m' => 2.5,
+						'poses'  => 10,
 						'pieces' => array( array( 'key' => 'front', 'w_cm' => 20.0, 'h_cm' => 25.0, 'qty' => 10 ) ),
 					),
 				),
@@ -225,6 +226,14 @@ describe( 'Production — reading a layout the shop did not compute', function (
 
 	it( 'refuses a layout that is silent about an order in the lot', function () use ( $layout ) {
 		eq( Production::read_layout( $layout(), array( 12, 13 ) )['ok'], false );
+	} );
+
+	it( 'refuses a layout that will not say how many poses it carries', function () use ( $layout ) {
+		// Derived from the pieces it would be worthless: a layout that had lost a
+		// side would derive the wrong number from its own wrong pieces and pass.
+		$mute = $layout();
+		unset( $mute['orders']['12']['poses'] );
+		eq( Production::read_layout( $mute, array( 12 ) )['ok'], false );
 	} );
 
 	it( 'refuses a layout carrying an order that is NOT in the lot', function () use ( $layout ) {
@@ -273,14 +282,14 @@ describe( 'Production — a lot that has bought film is frozen', function () {
 describe( 'Production — a waiver is not an approval', function () {
 	it( 'records who cleared the proof, because a dispute turns on it', function () {
 		$approved = Production::approval(
-			array( 'version' => 3, 'approval' => array( 'at' => '2026-08-18T09:30:00+00:00' ) )
+			array( 'version' => 3, 'approval' => array( 'at' => '2026-08-17T09:30:00+00:00' ) )
 		);
 		eq( $approved['by'], 'client' );
-		eq( $approved['on'], '2026-08-18' );
+		eq( $approved['on'], '2026-08-17' );
 		eq( $approved['version'], 3 );
 
 		$waived = Production::approval(
-			array( 'version' => 3, 'waiver' => array( 'at' => '2026-08-18T09:30:00+00:00' ) )
+			array( 'version' => 3, 'waiver' => array( 'at' => '2026-08-17T09:30:00+00:00' ) )
 		);
 		eq( $waived['by'], 'atelier', 'the workshop waived it; nobody approved anything' );
 	} );
@@ -289,7 +298,7 @@ describe( 'Production — a waiver is not an approval', function () {
 		$asked = Production::approval(
 			array(
 				'version'  => 3,
-				'approval' => array( 'at' => '2026-08-18T09:30:00+00:00' ),
+				'approval' => array( 'at' => '2026-08-17T09:30:00+00:00' ),
 				'changes'  => array( array( 'at' => '2026-08-19T10:00:00+00:00' ) ),
 			)
 		);
