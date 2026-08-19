@@ -669,26 +669,33 @@ ul.products li.product .price {
 }
 
 /*
- * The line that says what the shop can promise about a blank, in words and
- * never a figure: the three strings come from `Shelf::availability()` and the
- * ledger fails if one of them disappears.
+ * The line that says what the shop can promise about a blank, in words and never
+ * a figure: the three strings come from `Shelf::availability()` and the ledger
+ * fails if one of them disappears.
+ *
+ * THE CLASS NAMES ARE THE PLUGIN'S, not ones invented here. `Shelf::availability`
+ * returns `teeshoop-stock-in`, `teeshoop-stock-late` and `teeshoop-stock-unknown`
+ * and WooCommerce prints them on the `<p class="stock">`. This file first styled
+ * `.ts-stock--yes/no/unknown`, which nothing on the site emits: three rules that
+ * matched nothing, so the one sentence the shop says about supplier stock was
+ * rendered in WooCommerce's default green whatever it said, including
+ * « Rupture ».
  */
-.ts-stock {
-	display: inline-block;
-	margin-top: var(--ts-space-1);
-	font-size: var(--ts-text-xs);
+.woocommerce p.stock {
+	margin: var(--ts-space-2) 0 0;
+	font-size: var(--ts-text-sm);
 	font-weight: 600;
 }
 
-.ts-stock--yes {
+.woocommerce p.stock.teeshoop-stock-in {
 	color: var(--ts-good);
 }
 
-.ts-stock--no {
+.woocommerce p.stock.teeshoop-stock-late {
 	color: var(--ts-bad);
 }
 
-.ts-stock--unknown {
+.woocommerce p.stock.teeshoop-stock-unknown {
 	color: var(--ts-muted);
 }
 
@@ -1145,6 +1152,14 @@ a.ts-chip:hover {
 	max-width: none;
 }
 
+/* The admin-only assumptions marker, readable on the dark ground it sits on. */
+.ts-foot__marker .ts-admin-note {
+	margin: 0 0 var(--ts-space-4);
+	border-left-color: var(--ts-on-ink-warn);
+	background: color-mix(in srgb, var(--ts-paper) 6%, transparent);
+	color: var(--ts-on-ink-warn);
+}
+
 .ts-foot__base {
 	padding-top: var(--ts-space-4);
 	padding-bottom: var(--ts-space-5);
@@ -1370,18 +1385,64 @@ a.ts-chip:hover {
 	stroke-width: 1.5;
 }
 
-.ts-zone__cm {
-	fill: var(--ts-muted);
-	font-family: var(--ts-font);
-	font-size: 13px;
-	font-variant-numeric: tabular-nums;
-}
-
+/*
+ * THE KEY IS HTML, NOT SVG TEXT.
+ *
+ * The drawing is a 640-unit viewBox displayed at whatever width it gets, so a
+ * 13-unit label inside it rendered at 6,9 px on a 375 px phone: the one place on
+ * the page where the numbers are the point, in the smallest type on the site.
+ * Out here they are at the site's own size and they zoom with everything else.
+ */
 .ts-zone__caption {
 	margin: var(--ts-space-4) 0 0;
 	color: var(--ts-muted);
 	font-size: var(--ts-text-xs);
 	line-height: var(--ts-leading);
+}
+
+.ts-zone__key {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2) var(--ts-space-4);
+	margin: 0 0 var(--ts-space-3);
+	padding: 0;
+	list-style: none;
+	font-size: var(--ts-text-sm);
+}
+
+/* Each key item carries the mark it names, so the list reads against the drawing. */
+.ts-zone__key-item {
+	display: flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	color: var(--ts-ink);
+}
+
+.ts-zone__key-item::before {
+	display: block;
+	width: 1.25rem;
+	height: 0.75rem;
+	flex: 0 0 auto;
+	content: '';
+}
+
+.ts-zone__key-item--ref::before {
+	border: 1.5px solid var(--ts-accent);
+	background: color-mix(in srgb, var(--ts-accent) 10%, transparent);
+}
+
+.ts-zone__key-item--max::before {
+	border: 1.5px dashed var(--ts-line-strong);
+}
+
+.ts-zone__key-item--a4::before {
+	border: 1.5px solid var(--ts-line-strong);
+	background: var(--ts-paper);
+}
+
+.ts-zone__note {
+	margin: 0;
+	max-width: none;
 }
 
 /* ─────────────────────────────────────────────────────── the families list ── */

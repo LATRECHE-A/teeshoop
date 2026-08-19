@@ -113,14 +113,34 @@ function applied_filters(): array {
 		if ( ! is_array( $raw ) ) {
 			continue;
 		}
-		$slugs = array_values( array_unique( array_filter( array_map( 'sanitize_title', wp_unslash( $raw ) ) ) ) );
+
+		/*
+		 * EVERY ELEMENT IS FLATTENED TO A SCALAR FIRST, and that is not
+		 * defensive programming, it is a fix.
+		 *
+		 * `?f_couleur[][]=x` puts an ARRAY inside the array, and PHP 8 makes
+		 * `sanitize_title()` fatal on one: it takes a string. The result was
+		 * HTTP 500 on EVERY page of the site, not only the listing, because
+		 * `applied_filters()` is also reached from `filter_robots()` on
+		 * `wp_robots` and from `body_class()`. One unauthenticated GET, any
+		 * URL, the whole storefront down. Measured on the mirror before this
+		 * was written: the homepage, the devis page, a product page and the
+		 * shop all answered 500.
+		 *
+		 * A non-scalar value is DROPPED rather than stringified: there is no
+		 * term slug it could have meant, and "" would select nothing anyway.
+		 */
+		$scalars = array_filter( wp_unslash( $raw ), static fn( $v ): bool => is_scalar( $v ) );
+		$slugs   = array_values( array_unique( array_filter( array_map( 'sanitize_title', $scalars ) ) ) );
 		if ( ! empty( $slugs ) ) {
 			$terms[ $taxonomy ] = $slugs;
 		}
 	}
 
-	$min = isset( $_GET['g_min'] ) ? absint( wp_unslash( $_GET['g_min'] ) ) : 0;
-	$max = isset( $_GET['g_max'] ) ? absint( wp_unslash( $_GET['g_max'] ) ) : 0;
+	// Same reason: `absint()` on an array is a fatal, and `?g_min[]=1` is one
+	// character of typing. A non-scalar is no bound at all.
+	$min = isset( $_GET['g_min'] ) && is_scalar( $_GET['g_min'] ) ? absint( wp_unslash( $_GET['g_min'] ) ) : 0;
+	$max = isset( $_GET['g_max'] ) && is_scalar( $_GET['g_max'] ) ? absint( wp_unslash( $_GET['g_max'] ) ) : 0;
 	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 	// A reversed range is a typo, not a query. Swapping is friendlier than
@@ -349,8 +369,12 @@ function context_ids( string $except = '' ): array {
 	 * `$except` only matters when that facet is actually narrowing the list, so
 	 * on the common landing (a category, no filters yet) all eight facets share
 	 * one answer. Keyed naively this was eight identical `WP_Query` runs per
-	 * page. Measured on the mirror: 25 SQL queries for the facet block before,
-	 * 11 after.
+	 * page; keyed like this it is one. Measured on the mirror, the facet block
+	 * runs 25 SQL queries in total either way, because the eight it saves are
+	 * the cheap ones and the rest are `get_terms` (two per facet) and the
+	 * grouped count (one per facet), which no cache key can remove. What the
+	 * shared key buys is the SCAN, not the round trip: at production scale that
+	 * query walks the whole category rather than one eighth of it eight times.
 	 */
 	$key = empty( applied_filters()['terms'] ) ? '' : $except;
 	if ( isset( $cache[ $key ] ) ) {

@@ -1123,6 +1123,21 @@ final class Cli {
 	 * unpublished is not this command's business.
 	 */
 	private static function ensure_site_pages( array &$changed ): void {
+		/*
+		 * PUBLISHED ONLY UNDER OUR OWN THEME.
+		 *
+		 * These two pages are empty on purpose: everything they show comes from
+		 * `page-devis.php` and `page-entreprises.php` in `wp-themes/teeshoop`.
+		 * Under any other theme they are two blank pages with a title, and this
+		 * command can be pointed at production with `--forcer`. So elsewhere
+		 * they are created as DRAFTS: they exist, their slugs are reserved, the
+		 * theme's own links stay hidden because `page_url()` only returns a
+		 * published page, and publishing them is one click for whoever switches
+		 * the theme over.
+		 */
+		$ours   = 'teeshoop' === get_template();
+		$status = $ours ? 'publish' : 'draft';
+
 		$pages = array(
 			// NOT « Demander un devis »: the form the page renders carries that
 			// heading itself, and the page would open on the same six words twice.
@@ -1137,7 +1152,7 @@ final class Cli {
 			$id = wp_insert_post(
 				array(
 					'post_type'      => 'page',
-					'post_status'    => 'publish',
+					'post_status'    => $status,
 					'post_title'     => $title,
 					'post_name'      => $slug,
 					'post_content'   => '',
@@ -1150,7 +1165,17 @@ final class Cli {
 				\WP_CLI::warning( sprintf( 'Page « %s » non créée : %s', $slug, $id->get_error_message() ) );
 				continue;
 			}
-			$changed[] = 'page ' . $slug;
+			$changed[] = 'page ' . $slug . ( $ours ? '' : ' (brouillon)' );
+		}
+
+		if ( ! $ours && ! empty( $changed ) ) {
+			\WP_CLI::warning(
+				sprintf(
+					/* translators: %s: the active theme's directory name. */
+					__( 'Le thème actif est « %s » et non « teeshoop » : les pages devis et entreprises sont créées en brouillon, parce que leur contenu vient des gabarits du thème et qu’elles seraient vides sans lui.', 'teeshoop' ),
+					get_template()
+				)
+			);
 		}
 	}
 

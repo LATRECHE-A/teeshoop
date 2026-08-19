@@ -32,9 +32,20 @@ get_header();
 
 $ts_products = personalisable_products( 8 );
 $ts_first    = $ts_products[0] ?? null;
-$ts_headline = $ts_first instanceof \WC_Product
-	? headline( \Teeshoop\Core\Product::garment_of( $ts_first->get_id() ) )
-	: array();
+/*
+ * ONE GARMENT FOR THE WHOLE HERO.
+ *
+ * The price, the "Personnaliser" button and the print zone all describe the
+ * SAME product, and the drawing used to be hardcoded to the tee while the other
+ * two followed whatever product sorted first. On a shop whose first
+ * personalisable product is a sweat, the page offered a sweat at a sweat's price
+ * beside a t-shirt's 30,5 x 40,6 cm, and a buyer who sized their logo from that
+ * drawing would have paid for a reprint.
+ */
+$ts_garment  = $ts_first instanceof \WC_Product && class_exists( '\Teeshoop\Core\Product' )
+	? \Teeshoop\Core\Product::garment_of( $ts_first->get_id() )
+	: '';
+$ts_headline = '' !== $ts_garment ? headline( $ts_garment ) : array();
 $ts_min      = minimum();
 $ts_lead     = lead_days();
 $ts_cat      = catalogue_stats();
@@ -72,9 +83,9 @@ $ts_cat      = catalogue_stats();
 		</div>
 	</div>
 
-	<div class="ts-hero__figure">
+	<div class="ts-hero__media">
 		<?php
-		$ts_figure = print_zone_figure( 'tee' );
+		$ts_figure = '' !== $ts_garment ? print_zone_figure( $ts_garment ) : '';
 		if ( '' !== $ts_figure ) {
 			echo $ts_figure; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure().
 		}
@@ -144,10 +155,13 @@ $ts_cat      = catalogue_stats();
 		<?php endif; ?>
 
 		<?php
-		$ts_area = class_exists( '\\Teeshoop\\Core\\Garments' )
-			? \Teeshoop\Core\Garments::area_by_size( 'tee', 'front' )
+		// The same garment as the price and the button above, for the same reason.
+		$ts_area = '' !== $ts_garment && class_exists( '\\Teeshoop\\Core\\Garments' )
+			? \Teeshoop\Core\Garments::area_by_size( $ts_garment, 'front' )
 			: array();
-		$ts_ref  = class_exists( '\\Teeshoop\\Core\\Garments' ) ? \Teeshoop\Core\Garments::priced_size( 'tee' ) : '';
+		$ts_ref  = '' !== $ts_garment && class_exists( '\\Teeshoop\\Core\\Garments' )
+			? \Teeshoop\Core\Garments::priced_size( $ts_garment )
+			: '';
 		if ( isset( $ts_area[ $ts_ref ] ) ) :
 			?>
 			<div class="ts-facts__item">
@@ -228,9 +242,12 @@ $ts_cat      = catalogue_stats();
 			<?php endforeach; ?>
 		</ul>
 
-		<p class="ts-note ts-note--strong">
-			<?php esc_html_e( 'Les tarifs des textiles nus ne sont pas encore publiés. Le catalogue se consulte librement ; pour un prix, dites-nous la référence, la quantité et les tailles.', 'teeshoop' ); ?>
-		</p>
+		<?php if ( ! $ts_cat['priced'] ) : ?>
+			<?php /* Read from the shop, not stated: the day a margin rate is set the listing starts showing prices and this sentence has to stop denying they exist. */ ?>
+			<p class="ts-note ts-note--strong">
+				<?php esc_html_e( 'Les tarifs des textiles nus ne sont pas encore publiés. Le catalogue se consulte librement ; pour un prix, dites-nous la référence, la quantité et les tailles.', 'teeshoop' ); ?>
+			</p>
+		<?php endif; ?>
 	<?php endif; ?>
 </section>
 

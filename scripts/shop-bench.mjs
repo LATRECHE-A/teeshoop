@@ -215,11 +215,22 @@ echo json_encode( array( 'made' => count( $made ), 'rels' => $rels, 'ms' => roun
   }
 }
 
-const worst = Math.max(...rows.map((r) => r[1]))
-if (!facets && rows.length === 0) {
-  console.error('shop-bench: rien n’a été mesuré.')
+/*
+ * NOTHING MEASURED IS NOT A PASS.
+ *
+ * This used to read `if (!facets && rows.length === 0)`, and `rows` is a literal
+ * of three entries built two lines above: it can never be empty, so the whole
+ * guard was unreachable and the script could print PASS having failed to measure
+ * the facet arithmetic at all. `timePage` throws on a non-200, so the three page
+ * timings are real by the time we get here; what has to be checked is the part
+ * that is allowed to fail quietly.
+ */
+if (!facets) {
+  console.error('shop-bench: le calcul des facettes n’a pas pu être mesuré, ce qui ne prouve rien.')
   process.exit(2)
 }
+
+const worst = Math.max(...rows.map((r) => r[1]))
 if (worst > BUDGET_MS) {
   console.error(`\nshop-bench: ${worst.toFixed(0)} ms dépasse le budget de ${BUDGET_MS} ms.`)
   process.exit(1)

@@ -39,7 +39,20 @@ foreach ( array( 's', 'post_type', 'product_cat', 'orderby' ) as $ts_key ) {
 	}
 }
 ?>
-<form class="ts-filters" method="get" action="<?php echo esc_url( strtok( (string) home_url( add_query_arg( array() ) ), '?' ) ); ?>">
+<?php
+/*
+ * THE ACTION IS PAGE ONE, ALWAYS.
+ *
+ * `add_query_arg( array() )` returns the current request path, which on
+ * `/product-category/t-shirts/page/3/` includes the page. Submitting a filter
+ * from there posted to page 3 of a result set that now has one page, and the
+ * buyer got a 404 with no filter panel on it and no way back except the browser
+ * button. Narrowing a list always starts it again from the top.
+ */
+$ts_action = (string) strtok( (string) home_url( add_query_arg( array() ) ), '?' );
+$ts_action = (string) preg_replace( '#/page/\d+/?$#', '/', $ts_action );
+?>
+<form class="ts-filters" method="get" action="<?php echo esc_url( $ts_action ); ?>">
 	<?php foreach ( $ts_carry as $ts_key => $ts_value ) : ?>
 		<input type="hidden" name="<?php echo esc_attr( $ts_key ); ?>" value="<?php echo esc_attr( $ts_value ); ?>">
 	<?php endforeach; ?>
@@ -73,10 +86,20 @@ foreach ( array( 's', 'post_type', 'product_cat', 'orderby' ) as $ts_key ) {
 				<legend class="ts-facet__legend"><?php esc_html_e( 'Catégorie', 'teeshoop' ); ?></legend>
 				<ul class="ts-facet__list ts-facet__list--short">
 					<?php foreach ( $ts_kids as $ts_kid ) : ?>
+						<?php
+						/*
+						 * NO NUMBER ON A CATEGORY CHIP, and that is deliberate.
+						 * It printed `$term->count`, which is the whole shop's
+						 * count for that term and does not move when a facet is
+						 * ticked, sitting in the same row as counts that do. Two
+						 * numbers in the same panel meaning different things is
+						 * worse than one number missing; the category's own count
+						 * is at the top of the page it leads to.
+						 */
+						?>
 						<li>
 							<a class="ts-chip" href="<?php echo esc_url( (string) get_term_link( $ts_kid ) ); ?>">
 								<?php echo esc_html( $ts_kid->name ); ?>
-								<span class="ts-chip__n"><?php echo esc_html( num( (float) $ts_kid->count ) ); ?></span>
 							</a>
 						</li>
 					<?php endforeach; ?>
@@ -106,7 +129,7 @@ foreach ( array( 's', 'post_type', 'product_cat', 'orderby' ) as $ts_key ) {
 							inputmode="numeric"
 							min="<?php echo esc_attr( (string) $ts_bounds['min'] ); ?>"
 							max="<?php echo esc_attr( (string) $ts_bounds['max'] ); ?>"
-							step="5"
+							step="1"
 							placeholder="<?php echo esc_attr( (string) $ts_bounds['min'] ); ?>"
 							value="<?php echo esc_attr( $ts_applied['weight']['min'] > 0 ? (string) $ts_applied['weight']['min'] : '' ); ?>"
 						>
@@ -120,7 +143,7 @@ foreach ( array( 's', 'post_type', 'product_cat', 'orderby' ) as $ts_key ) {
 							inputmode="numeric"
 							min="<?php echo esc_attr( (string) $ts_bounds['min'] ); ?>"
 							max="<?php echo esc_attr( (string) $ts_bounds['max'] ); ?>"
-							step="5"
+							step="1"
 							placeholder="<?php echo esc_attr( (string) $ts_bounds['max'] ); ?>"
 							value="<?php echo esc_attr( $ts_applied['weight']['max'] > 0 ? (string) $ts_applied['weight']['max'] : '' ); ?>"
 						>

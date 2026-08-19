@@ -23,7 +23,7 @@ defined( 'ABSPATH' ) || exit;
  * claimed "plusieurs centaines de références" over a shop holding thirty would
  * be the first thing a professional buyer checks and the first thing they catch.
  *
- * @return array{references:int,families:int}
+ * @return array{references:int,families:int,priced:bool}
  */
 function catalogue_stats(): array {
 	static $stats = null;
@@ -54,9 +54,31 @@ function catalogue_stats(): array {
 		)
 	);
 
+	/*
+	 * AND WHETHER ANY OF THEM CARRIES A PRICE.
+	 *
+	 * The homepage used to state, unconditionally, that the blank catalogue has
+	 * no published tariff. That is the shipped default (question 42 is
+	 * unanswered so `blank_margin_rate` is null and the importer writes no
+	 * price), but it is a SETTING: the day somebody answers, the listing starts
+	 * showing prices and the sentence beside it goes on denying they exist.
+	 */
+	$priced = (int) $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT COUNT(*)
+			 FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} ref ON ref.post_id = p.ID AND ref.meta_key = %s
+			 INNER JOIN {$wpdb->postmeta} pr ON pr.post_id = p.ID AND pr.meta_key = '_price' AND pr.meta_value <> ''
+			 WHERE p.post_type = 'product' AND p.post_status = 'publish'
+			 LIMIT 1",
+			class_exists( '\Teeshoop\Core\Catalogue' ) ? \Teeshoop\Core\Catalogue::META_REF : '_teeshoop_ref'
+		)
+	);
+
 	$stats = array(
 		'references' => $references,
 		'families'   => count( top_categories() ),
+		'priced'     => $priced > 0,
 	);
 	return $stats;
 }
@@ -122,51 +144,68 @@ function sectors(): array {
  * state, rather than a diagram of invented rectangles.
  */
 function print_zone_figure( string $garment = 'tee' ): string {
-	if ( ! class_exists( '\\Teeshoop\\Core\\Garments' ) ) {
+	if ( ! class_exists( '\Teeshoop\Core\Garments' ) || '' === $garment ) {
 		return '';
 	}
 
-	$areas = \Teeshoop\Core\Garments::area_by_size( $garment, 'front' );
-	if ( empty( $areas ) ) {
+	$front = \Teeshoop\Core\Garments::area_by_size( $garment, 'front' );
+	$back  = \Teeshoop\Core\Garments::area_by_size( $garment, 'back' );
+	if ( empty( $front ) ) {
 		return '';
 	}
 
 	$priced = \Teeshoop\Core\Garments::priced_size( $garment );
-	$sizes  = array_keys( $areas );
-	$small  = isset( $areas[ $priced ] ) ? $priced : (string) reset( $sizes );
+	$sizes  = array_keys( $front );
+	$small  = isset( $front[ $priced ] ) ? $priced : (string) reset( $sizes );
 	$large  = (string) end( $sizes );
 
-	$ref = $areas[ $small ] ?? null;
-	$max = $areas[ $large ] ?? null;
+	$ref = $front[ $small ] ?? null;
+	$max = $front[ $large ] ?? null;
 	if ( ! is_array( $ref ) || ! is_array( $max ) ) {
 		return '';
 	}
+
+	/*
+	 * IT ONLY SAYS "AND THE BACK" WHEN THE BACK IS THE SAME RECTANGLE.
+	 *
+	 * It read the front and captioned it "devant et dos", which is true of the
+	 * tee and the hoodie and is true of neither by construction: the garment
+	 * data carries a separate `back` area and nothing makes the two equal. A
+	 * caption that names a side it did not measure is a print size a buyer can
+	 * be given for a face nobody checked.
+	 */
+	$back_ref  = $back[ $small ] ?? null;
+	$same_back = is_array( $back_ref )
+		&& (float) $back_ref['wCm'] === (float) $ref['wCm']
+		&& (float) $back_ref['hCm'] === (float) $ref['hCm'];
 
 	// A4, in centimetres. ISO 216, not a number anybody had to be told.
 	$a4_w = 21.0;
 	$a4_h = 29.7;
 
-	// One scale for the whole drawing, so the three rectangles are comparable.
-	// 1 cm of garment is PX_PER_CM units of the viewBox.
-	$pad  = 8.0;
-	$gap  = 10.0;
+	/*
+	 * One scale for the whole drawing, so the three rectangles are comparable.
+	 * The labels are NOT in the SVG: it is drawn on a 640-unit viewBox and
+	 * displayed at whatever width it gets, so a 13-unit label came out at 6,9 px
+	 * on a 375 px phone. They are HTML underneath, at the site's own type size.
+	 */
+	$pad  = 4.0;
+	$gap  = 8.0;
 	$span = (float) $max['wCm'] + $gap + $a4_w;
 	$tall = max( (float) $max['hCm'], $a4_h );
 
 	$scale = 640.0 / ( $span + 2 * $pad );
-	$vb_h  = ( $tall + 2 * $pad + 14 ) * $scale;
+	$vb_h  = ( $tall + 2 * $pad ) * $scale;
 
 	$x = static fn( float $cm ): float => round( ( $pad + $cm ) * $scale, 2 );
 	$y = static fn( float $cm ): float => round( ( $pad + $cm ) * $scale, 2 );
 	$d = static fn( float $cm ): float => round( $cm * $scale, 2 );
 
-	$label = sprintf(
-		/* translators: 1: garment size, 2: width in cm, 3: height in cm. */
-		__( 'Zone d’impression au dos et devant, taille %1$s : %2$s sur %3$s.', 'teeshoop' ),
-		$small,
-		\Teeshoop\Core\Garments::cm( (float) $ref['wCm'] ),
-		\Teeshoop\Core\Garments::cm( (float) $ref['hCm'] )
-	);
+	$cm = static fn( float $v ): string => \Teeshoop\Core\Garments::cm( $v );
+
+	$sides = $same_back
+		? __( 'devant et dos', 'teeshoop' )
+		: __( 'devant', 'teeshoop' );
 
 	ob_start();
 	?>
@@ -177,22 +216,26 @@ function print_zone_figure( string $garment = 'tee' ): string {
 			role="img"
 			aria-labelledby="ts-zone-title ts-zone-desc"
 		>
-			<title id="ts-zone-title"><?php echo esc_html( $label ); ?></title>
+			<title id="ts-zone-title">
+				<?php
+				printf(
+					/* translators: 1: which sides, 2: garment size, 3: width, 4: height. */
+					esc_html__( 'Zone d’impression %1$s, taille %2$s : %3$s sur %4$s.', 'teeshoop' ),
+					esc_html( $sides ),
+					esc_html( $small ),
+					esc_html( $cm( (float) $ref['wCm'] ) ),
+					esc_html( $cm( (float) $ref['hCm'] ) )
+				);
+				?>
+			</title>
 			<desc id="ts-zone-desc">
 				<?php
 				printf(
-					/* translators: 1: largest size, 2: width, 3: height. */
-					esc_html__( 'Le rectangle plein est la zone imprimable en taille %1$s. Le rectangle en pointillé est la même zone en taille %2$s, %3$s. Le troisième rectangle est une feuille A4, 21 cm sur 29,7 cm, à la même échelle.', 'teeshoop' ),
-					esc_html( $small ),
+					/* translators: 1: largest size, 2: its width, 3: its height. */
+					esc_html__( 'Le rectangle en pointillé est la même zone en taille %1$s, %2$s sur %3$s. Le troisième rectangle est une feuille A4, 21 cm sur 29,7 cm, à la même échelle.', 'teeshoop' ),
 					esc_html( $large ),
-					esc_html(
-						sprintf(
-							/* translators: 1: width, 2: height. */
-							__( '%1$s sur %2$s', 'teeshoop' ),
-							\Teeshoop\Core\Garments::cm( (float) $max['wCm'] ),
-							\Teeshoop\Core\Garments::cm( (float) $max['hCm'] )
-						)
-					)
+					esc_html( $cm( (float) $max['wCm'] ) ),
+					esc_html( $cm( (float) $max['hCm'] ) )
 				);
 				?>
 			</desc>
@@ -215,22 +258,6 @@ function print_zone_figure( string $garment = 'tee' ): string {
 				height="<?php echo esc_attr( (string) $d( (float) $ref['hCm'] ) ); ?>"
 			/>
 
-			<text
-				class="ts-zone__cm"
-				x="<?php echo esc_attr( (string) $x( 0 ) ); ?>"
-				y="<?php echo esc_attr( (string) round( $y( (float) $max['hCm'] ) + 18, 2 ) ); ?>"
-			><?php
-				echo esc_html(
-					sprintf(
-						/* translators: 1: size, 2: width, 3: height. */
-						__( '%1$s : %2$s × %3$s', 'teeshoop' ),
-						$small,
-						\Teeshoop\Core\Garments::cm( (float) $ref['wCm'] ),
-						\Teeshoop\Core\Garments::cm( (float) $ref['hCm'] )
-					)
-				);
-			?></text>
-
 			<?php // A4, to the same scale, because that is the ruler people own. ?>
 			<rect
 				class="ts-zone__a4"
@@ -239,22 +266,47 @@ function print_zone_figure( string $garment = 'tee' ): string {
 				width="<?php echo esc_attr( (string) $d( $a4_w ) ); ?>"
 				height="<?php echo esc_attr( (string) $d( $a4_h ) ); ?>"
 			/>
-			<text
-				class="ts-zone__cm"
-				x="<?php echo esc_attr( (string) $x( (float) $max['wCm'] + $gap ) ); ?>"
-				y="<?php echo esc_attr( (string) round( $y( $a4_h ) + 18, 2 ) ); ?>"
-			><?php esc_html_e( 'A4 : 21 × 29,7 cm', 'teeshoop' ); ?></text>
 		</svg>
 
 		<figcaption class="ts-zone__caption">
-			<?php
-			printf(
-				/* translators: 1: reference size, 2: largest size. */
-				esc_html__( 'Les dimensions imprimables, à l’échelle. Le trait plein est la taille %1$s, le pointillé la taille %2$s : le visuel grandit avec le vêtement, il n’est pas simplement recadré. Nous facturons la surface d’encre, pas le fichier.', 'teeshoop' ),
-				esc_html( $small ),
-				esc_html( $large )
-			);
-			?>
+			<ul class="ts-zone__key">
+				<li class="ts-zone__key-item ts-zone__key-item--ref">
+					<?php
+					printf(
+						/* translators: 1: size, 2: which sides, 3: width, 4: height. */
+						esc_html__( 'Taille %1$s, %2$s : %3$s × %4$s', 'teeshoop' ),
+						esc_html( $small ),
+						esc_html( $sides ),
+						'<span class="ts-num">' . esc_html( $cm( (float) $ref['wCm'] ) ) . '</span>',
+						'<span class="ts-num">' . esc_html( $cm( (float) $ref['hCm'] ) ) . '</span>'
+					);
+					?>
+				</li>
+				<li class="ts-zone__key-item ts-zone__key-item--max">
+					<?php
+					printf(
+						/* translators: 1: size, 2: width, 3: height. */
+						esc_html__( 'Taille %1$s : %2$s × %3$s', 'teeshoop' ),
+						esc_html( $large ),
+						'<span class="ts-num">' . esc_html( $cm( (float) $max['wCm'] ) ) . '</span>',
+						'<span class="ts-num">' . esc_html( $cm( (float) $max['hCm'] ) ) . '</span>'
+					);
+					?>
+				</li>
+				<li class="ts-zone__key-item ts-zone__key-item--a4">
+					<?php esc_html_e( 'Une feuille A4 : 21 × 29,7 cm', 'teeshoop' ); ?>
+				</li>
+			</ul>
+			<p class="ts-zone__note">
+				<?php
+				printf(
+					/* translators: 1: reference size, 2: largest size. */
+					esc_html__( 'À l’échelle. Le visuel grandit avec le vêtement, il n’est pas simplement recadré : le trait plein est la taille %1$s et le pointillé la taille %2$s. Nous facturons la surface d’encre, pas le fichier.', 'teeshoop' ),
+					esc_html( $small ),
+					esc_html( $large )
+				);
+				?>
+			</p>
 		</figcaption>
 	</figure>
 	<?php

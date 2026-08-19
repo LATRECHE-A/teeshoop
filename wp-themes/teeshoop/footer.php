@@ -63,7 +63,10 @@ $ts_min      = minimum();
 					</li>
 				<?php endif; ?>
 				<li><?php esc_html_e( 'Livraison Colissimo en France métropolitaine', 'teeshoop' ); ?></li>
-				<li><?php echo esc_html( tax_basis_note() ); ?></li>
+				<?php $ts_tax = tax_basis_note(); ?>
+				<?php if ( '' !== $ts_tax ) : ?>
+					<li><?php echo esc_html( $ts_tax ); ?></li>
+				<?php endif; ?>
 			</ul>
 		</section>
 
@@ -165,6 +168,24 @@ $ts_min      = minimum();
 			</section>
 		<?php endif; ?>
 	</div>
+
+	<?php
+	/*
+	 * THE MARKER THAT SAYS THESE FIGURES ARE ASSUMPTIONS, on every page.
+	 *
+	 * The lead time and the order minimum are printed in this footer, so they
+	 * are on every page of the site, and the minimum is question 01's default
+	 * while the lead time is question 14's. `Hypotheses::note()` draws once per
+	 * request and only for somebody with `manage_woocommerce`, so on the
+	 * homepage the facts block has already claimed it and this is a no-op, and
+	 * everywhere else this is the only place it can appear.
+	 */
+	if ( class_exists( '\Teeshoop\Core\Hypotheses' ) ) {
+		echo '<div class="ts-wrap ts-foot__marker">';
+		\Teeshoop\Core\Hypotheses::note( \Teeshoop\Core\Hypotheses::HOME_PRICING );
+		echo '</div>';
+	}
+	?>
 
 	<div class="ts-wrap ts-foot__base">
 		<p class="ts-foot__copy">

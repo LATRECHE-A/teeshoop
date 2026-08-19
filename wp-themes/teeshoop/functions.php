@@ -472,7 +472,15 @@ function price_pair( int $ht_cents, int $ttc_cents ): array {
 function tax_basis_note(): string {
 	$bases = price_bases();
 	if ( ! $bases['known'] ) {
-		return __( 'Prix hors taxes.', 'teeshoop' );
+		/*
+		 * NOTHING. Not "prix hors taxes", which is a statement about the
+		 * seller's tax position made on no evidence: `price_bases()` says
+		 * `known` is false when nobody has recorded a VAT regime, and its own
+		 * docblock records that reading that state as an answer once put "aucune
+		 * taxe ne s'y ajoute" in front of every visitor. Callers omit the line
+		 * when this is empty; the basket refuses the sale in that state anyway.
+		 */
+		return '';
 	}
 	if ( ! $bases['two'] ) {
 		return __( 'Ce sont les montants à payer : aucune taxe ne s’y ajoute.', 'teeshoop' );
@@ -497,8 +505,16 @@ function page_url( string $slug ): string {
 	if ( isset( $cache[ $slug ] ) ) {
 		return $cache[ $slug ];
 	}
+	/*
+	 * PUBLISHED, not merely present. `get_page_by_path()` returns a draft and a
+	 * page in the bin as happily as a live one, so a devis page somebody
+	 * unpublished would have left the « Devis » control in the masthead of every
+	 * page of the site pointing at a 404 for every visitor while working
+	 * perfectly for the logged-in editor looking at it.
+	 */
 	$page           = get_page_by_path( $slug );
-	$cache[ $slug ] = $page instanceof \WP_Post ? (string) get_permalink( $page ) : '';
+	$live           = $page instanceof \WP_Post && 'publish' === $page->post_status;
+	$cache[ $slug ] = $live ? (string) get_permalink( $page ) : '';
 	return $cache[ $slug ];
 }
 

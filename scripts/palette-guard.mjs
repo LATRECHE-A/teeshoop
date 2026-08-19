@@ -34,21 +34,33 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8')
 /** The roles every source has to hold, and nothing else is compared. */
 const ROLES = ['ink', 'muted', 'line', 'surface', 'paper', 'accent', 'good', 'warn', 'bad']
 
+/*
+ * EACH SOURCE DECLARES WHICH ROLES IT HOLDS, and a declared role it cannot read
+ * is a FAILURE rather than a skip.
+ *
+ * The first version simply dropped any role a regular expression did not match,
+ * so renaming `--accent` in the proof page, or reformatting `$blue = '#1f4fd8';`
+ * onto two lines, would have taken that colour out of the comparison and left
+ * the guard printing "Clean" over a divergence it could no longer see. A check
+ * that silently narrows itself is worse than no check: it is a green tick with
+ * nothing behind it.
+ */
 const SOURCES = [
   {
     file: 'wp-plugins/teeshoop-core/assets/tokens.css',
     what: 'the home',
     // `--ts-ink: #14171a;`
+    holds: ROLES,
     read: (text, role) => {
-      const alias = { muted: 'muted', surface: 'surface', paper: 'paper' }[role] ?? role
-      const m = text.match(new RegExp(`--ts-${alias}:\\s*(#[0-9a-fA-F]{3,8})`))
+      const m = text.match(new RegExp(`--ts-${role}:\\s*(#[0-9a-fA-F]{3,8})`))
       return m && m[1].toLowerCase()
     },
   },
   {
     file: 'wp-plugins/teeshoop-core/includes/Notify.php',
     what: 'the e-mails',
-    // `$ink   = '#14171a';` — five roles only; the others are not used there.
+    // `$ink   = '#14171a';` — five roles; the others are not painted there.
+    holds: ['ink', 'muted', 'line', 'surface', 'accent'],
     read: (text, role) => {
       const name = { ink: 'ink', muted: 'soft', line: 'line', surface: 'wash', accent: 'blue' }[role]
       if (!name) return null
@@ -60,12 +72,29 @@ const SOURCES = [
     file: 'wp-plugins/teeshoop-core/includes/BatPage.php',
     what: 'the proof page',
     // `--ink:#14171a; --ink-soft:#5b6470; …` in one inline :root
+    holds: ['ink', 'muted', 'line', 'surface', 'paper', 'accent', 'good', 'warn', 'bad'],
     read: (text, role) => {
       const name = { ink: 'ink', muted: 'ink-soft', line: 'line', surface: 'wash', paper: 'paper', accent: 'accent', good: 'good', warn: 'warn', bad: 'bad' }[role]
       if (!name) return null
       const m = text.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})`))
       return m && m[1].toLowerCase()
     },
+  },
+  {
+    /*
+     * The fourth copy, and the one nobody thinks of: the colour a phone paints
+     * its own browser chrome with. It is an HTML attribute, so no custom
+     * property can reach it, and it is the ink. A site whose address bar is one
+     * black and whose page is another is a site that looks broken on the device
+     * most of its visitors use.
+     */
+    file: 'wp-themes/teeshoop/header.php',
+    what: "the phone's browser chrome",
+    holds: ['ink'],
+    read: (text, role) =>
+      'ink' === role
+        ? (text.match(/name="theme-color" content="(#[0-9a-fA-F]{3,8})"/) ?? [])[1]?.toLowerCase() ?? null
+        : null,
   },
 ]
 
@@ -80,19 +109,27 @@ let compared = 0
 
 for (const role of ROLES) {
   const seen = texts
+    .filter((s) => s.holds.includes(role))
     .map((s) => ({ file: s.file, what: s.what, value: norm(s.read(s.text, role)) }))
-    .filter((s) => s.value)
+
+  // A source that declares a role and cannot produce it has been renamed or
+  // reformatted under the guard. That is the failure, not the absence.
+  for (const s of seen) {
+    if (!s.value) {
+      problems.push(`${role}: ${s.what} (${s.file}) déclare cette couleur et le contrôle ne sait plus la lire`)
+    }
+  }
 
   // The home must carry every role. A role that vanished from tokens.css is a
   // token somebody deleted while three files still paint with it.
   const home = seen.find((s) => s.file.endsWith('tokens.css'))
-  if (!home) {
+  if (!home || !home.value) {
     problems.push(`${role}: absent de tokens.css, qui est pourtant son unique foyer`)
     continue
   }
 
   for (const other of seen) {
-    if (other === home) continue
+    if (other === home || !other.value) continue
     compared++
     if (other.value !== home.value) {
       problems.push(`${role}: ${other.what} (${other.file}) ne dit pas la même chose que tokens.css`)
@@ -114,7 +151,7 @@ if (process.argv.includes('--self-test')) {
     s.file.endsWith('tokens.css') ? { ...s, text: s.text.replace('#1f4fd8', '#0f0f0f') } : s,
   )
   const homeBroken = broken.find((s) => s.file.endsWith('tokens.css'))
-  const others = broken.filter((s) => !s.file.endsWith('tokens.css'))
+  const others = broken.filter((s) => !s.file.endsWith('tokens.css') && s.holds.includes('accent'))
   const caught = others.filter((s) => norm(s.read(s.text, 'accent')) !== norm(homeBroken.read(homeBroken.text, 'accent')))
   if (caught.length !== others.length) {
     console.error(`palette-guard --self-test: ${others.length - caught.length} copie(s) n’ont pas vu la divergence.`)

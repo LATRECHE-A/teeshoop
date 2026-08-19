@@ -72,8 +72,13 @@ $ts_bases = price_bases();
 
 		<dt><?php esc_html_e( 'Le prix', 'teeshoop' ); ?></dt>
 		<dd>
-			<?php echo esc_html( tax_basis_note() ); ?>
-			<?php esc_html_e( 'Le tarif baisse par paliers de quantité, et le palier atteint est appliqué automatiquement : il n’y a pas de code promotionnel à saisir et pas de remise à demander.', 'teeshoop' ); ?>
+			<?php
+			$ts_tax = tax_basis_note();
+			if ( '' !== $ts_tax ) {
+				echo esc_html( $ts_tax ) . ' ';
+			}
+			esc_html_e( 'Le tarif baisse par paliers de quantité, et le palier atteint est appliqué automatiquement : il n’y a pas de code promotionnel à saisir et pas de remise à demander.', 'teeshoop' );
+			?>
 		</dd>
 
 		<dt><?php esc_html_e( 'L’acompte', 'teeshoop' ); ?></dt>
