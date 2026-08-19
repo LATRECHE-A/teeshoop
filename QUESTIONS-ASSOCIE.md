@@ -293,6 +293,30 @@ Pour information : les tarifs **publics** relevés chez cinq imprimeurs françai
 négocié, il est plus cher que les prix affichés ailleurs, et cela vaut la peine d'être
 vérifié avant que nous ne chiffrions six mois de commandes dessus.
 
+*Ce que la séance 07 a mesuré, le 19 août :* **le tarif espagnol devient enfin atteignable,
+et le gros de l'économie du groupage n'est pas le film.**
+
+Jusqu'ici toute commande était chiffrée au tarif français, le plus cher, quelle que soit
+son urgence : une case cochée n'est pas une preuve d'achat. Un **lot d'impression** en est
+une, parce qu'il enregistre l'origine réellement commandée, à une date, par quelqu'un, et
+qu'il est gelé ensuite. C'est ce qui autorise enfin le tarif espagnol sur les commandes
+standard.
+
+Mesuré sur une semaine de six commandes réalistes (`scripts/dtf-bench.mjs`) : le film
+acheté commande par commande coûte **198,89 EUR**, acheté en une fois **77,48 EUR**, soit
+**121,41 EUR d'économie**. Mais la décomposition compte plus que le total :
+
+- **75,00 EUR** : cinq livraisons de film évitées sur six (vos 15 EUR par commande) ;
+- **42,84 EUR** : cinq commandes sur six tenaient sous un mètre et payaient chacune votre
+  minimum d'un mètre ;
+- **3,57 EUR** seulement : l'imbrication elle-même, qui fait passer le métrage de 370 à
+  350 cm.
+
+Ce qui veut dire que **vos frais de livraison et votre minimum décident de l'économie du
+groupage bien plus que la géométrie**. Si votre fournisseur facture autrement, le calcul
+change du tout au tout, et c'est la partie de la question 04 qui vaut le plus cher à
+laisser sans réponse.
+
 **Votre réponse :**
 
 > 
@@ -560,6 +584,41 @@ sur quel rouleau la commande a été imprimée, parce qu'une case n'est pas une 
 du tout, puisque le site n'annonce aucune date de livraison. Le supplément et le délai se
 répondent, et c'est la même réponse qui débloque les deux.
 
+*Ce que la séance 07 a mesuré, le 19 août :* **deux des trois délais ci-dessus ne peuvent
+pas être tenus, et c'est de l'arithmétique, pas une question d'organisation.**
+
+L'atelier a maintenant un calendrier : il calcule, commande par commande, la date à
+laquelle le film doit être acheté pour que le colis parte à l'heure. Entre la validation du
+bon à tirer et la remise du colis il y a quatre choses, et voici ce que les valeurs par
+défaut de cette question et de la question 04 leur donnent :
+
+| Étape | Jours ouvrés | D'où vient le chiffre |
+|---|---|---|
+| Transit du film, France | 2 | question 04, « 48 h » |
+| Transit du film, Espagne | 5 | question 04, « 5 jours » |
+| Pressage | 1 au minimum | question 23, 300 pièces par jour |
+| Battement d'atelier | 1 | choisi, aucune hypothèse ne le donne |
+| Transport client | 2 | Colissimo, non confirmé |
+
+Soit **6 jours ouvrés de travail incompressible** avec le film français, 9 avec l'espagnol.
+
+| Délai annoncé | Promis | Marge en achetant en France | En Espagne |
+|---|---|---|---|
+| Standard | 12 j | **+6 j** | **+3 j** |
+| Express | 7 j | **+1 j** | **−2 j** |
+| Urgence | 4 j | **−2 j** | **−5 j** |
+
+Autrement dit : **toute commande urgente est en retard de deux jours au moment même où le
+client valide son bon à tirer**, quoi que fasse l'atelier. L'express tient à un jour près,
+et ce jour est le battement lui-même : un transporteur en retard le consomme entièrement.
+Seul le standard a de la place, et c'est le seul des trois où l'origine espagnole, moitié
+moins chère, soit jouable.
+
+Rien n'a été ajusté pour faire passer le contrôle. Les trois chiffres sont ceux de votre
+hypothèse par défaut et le calcul est écrit dans `tests/test-production.php`, donc une
+réponse de votre part déplace un test et pas un paragraphe. **Ce qu'il nous faut : le délai
+d'urgence que vous tenez réellement, ou l'accord pour ne pas vendre d'urgence.**
+
 
 **Votre réponse :**
 
@@ -811,6 +870,21 @@ demanderait.
 *Pourquoi on a besoin de la réponse :* Le site calcule une date de livraison en fonction de la charge de l'atelier. Sans capacité réelle, il promettra des dates intenables sur les grosses commandes, ce qui provoque des litiges et des remboursements.
 
 *Si vous ne répondez pas, on partira sur :* 300 pièces par jour avec une personne, alerte automatique et validation manuelle au-delà de 500 pièces sur une même commande.
+
+*Ce que la séance 07 en a fait, le 19 août :* les deux chiffres sont désormais exécutables.
+La cadence décide combien de jours de pressage un lot demande, donc la date à laquelle son
+film doit être commandé, donc s'il peut être acheté en Espagne : mesuré, une commande de
+1 400 vêtements bascule sur l'origine française là où une de 60 tient en Espagne, uniquement
+à cause des jours de presse.
+
+Le seuil de validation est appliqué au **lot** et non à la commande, et c'est un écart
+volontaire : quatre commandes de 200 pièces le même jour saturent la presse exactement
+comme une de 800, et c'est le lot qui est lancé. C'est un avertissement à l'écran, pas un
+blocage.
+
+**Ce qu'il nous faut :** la cadence réelle, chronométrée une fois sur une vraie série, en
+comptant la préparation, le pelage et le contrôle et pas seulement le temps de presse. Le
+chapitre 5 le demande lui-même.
 
 **Votre réponse :**
 

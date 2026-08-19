@@ -873,7 +873,8 @@
 				"internal"
 			],
 			"derives": [
-				"52 % de film économisé, mesuré, en posant un transfert par visuel au lieu d'un par vêtement."
+				"52 % de film économisé, mesuré, en posant un transfert par visuel au lieu d'un par vêtement.",
+				"Le nombre de poses d'une commande, qui est le seul contrôle exact que la boutique applique à une planche imbriquée dans le navigateur : il tient précisément parce qu'il ne bouge ni avec la découpe ni avec la gradation."
 			],
 			"sessions": [
 				"07"
@@ -896,7 +897,8 @@
 				"internal"
 			],
 			"derives": [
-				"37,40 EUR ramenés à 10,20 EUR sur une commande de 20 vêtements : les deux montants sont ce tarif multiplié par un métrage mesuré, donc les deux bougent avec lui. Le métrage, lui, reste vrai."
+				"37,40 EUR ramenés à 10,20 EUR sur une commande de 20 vêtements : les deux montants sont ce tarif multiplié par un métrage mesuré, donc les deux bougent avec lui. Le métrage, lui, reste vrai.",
+				"121,41 EUR économisés sur une semaine de six commandes en achetant le film une fois au lieu de six (scripts/dtf-bench.mjs), dont 3,57 EUR d'imbrication réellement gagnée. Les trois montants sont ce tarif multiplié par des métrages mesurés."
 			],
 			"sessions": [
 				"05",
@@ -1838,7 +1840,8 @@
 				"operator"
 			],
 			"derives": [
-				"L'écart de 33,60 EUR entre la France et l'Espagne sur 4 mètres imbriqués (tests/test-cost.php)."
+				"L'écart de 33,60 EUR entre la France et l'Espagne sur 4 mètres imbriqués (tests/test-cost.php).",
+				"Le fait qu'une commande puisse enfin être chiffrée à ce tarif : jusqu'à la séance 07 aucun chemin ne le passait, faute de preuve d'achat. Un lot expédié en est une."
 			],
 			"sessions": [
 				"05"
@@ -1893,7 +1896,8 @@
 				"operator"
 			],
 			"derives": [
-				"Le coût de 86,40 EUR pour 4 mètres imbriqués en France, livraison et provision de perte comprises (tests/test-cost.php)."
+				"Le coût de 86,40 EUR pour 4 mètres imbriqués en France, livraison et provision de perte comprises (tests/test-cost.php).",
+				"75,00 EUR des 121,41 EUR économisés sur la semaine de référence, soit cinq livraisons évitées sur six (scripts/dtf-bench.mjs). C'est le premier poste de l'économie du groupage, loin devant l'imbrication."
 			],
 			"sessions": [
 				"05"
@@ -1924,7 +1928,8 @@
 				"operator"
 			],
 			"derives": [
-				"Le fait qu'une commande d'une seule pièce paie 1 mètre de film et que le rapport le signale (tests/test-cost.php)."
+				"Le fait qu'une commande d'une seule pièce paie 1 mètre de film et que le rapport le signale (tests/test-cost.php).",
+				"42,84 EUR des 121,41 EUR économisés sur la semaine de référence : cinq des six commandes tenaient sous un mètre et payaient chacune le minimum (scripts/dtf-bench.mjs)."
 			],
 			"sessions": [
 				"05"
@@ -2618,6 +2623,264 @@
 					"in": "actif 30 jours"
 				}
 			]
+		},
+		{
+			"id": "H-Q14-DELAI-STANDARD",
+			"question": "Q14",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et la remise du colis. C'est un objectif d'atelier interne : rien sur le site n'annonce de date à un client.",
+			"home": "php:Teeshoop\\Core\\Production::default_config()#lead_days.standard",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "12 est un petit entier omniprésent : des heures, des tailles de police, des index. Le foyer est la table des délais et il est unique.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Les six jours ouvrés de marge que ce délai laisse en achetant le film en France, et les trois en l'achetant en Espagne (tests/test-production.php).",
+				"Le fait que le standard soit le seul des trois délais où l'origine espagnole tienne."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui, c'est l'hypothèse par défaut de la question 14 reprise telle quelle. Ce que la séance 07 y ajoute est qu'elle est désormais exécutable : elle décide la date à laquelle le film doit être commandé et donc l'origine.",
+			"statement_amounts": [
+				{
+					"from": "lead_days.standard",
+					"as": "int",
+					"text": "12",
+					"in": "12 jours ouvrés"
+				}
+			]
+		},
+		{
+			"id": "H-Q14-DELAI-EXPRESS",
+			"question": "Q14",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Une commande express vise 7 jours ouvrés entre la validation du bon à tirer et la remise du colis.",
+			"home": "php:Teeshoop\\Core\\Production::default_config()#lead_days.express",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "7 est un entier trop courant pour être cherché : des jours, des index, des tailles. Le foyer est la table des délais.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le seul jour ouvré de marge que l'express laisse en achetant le film en France, et les deux jours qui lui manquent en Espagne (tests/test-production.php)."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui. Mesuré depuis, ce délai ne laisse qu'un jour de marge, qui est exactement le jour de battement de l'atelier : un transporteur en retard le consomme entièrement.",
+			"statement_amounts": [
+				{
+					"from": "lead_days.express",
+					"as": "int",
+					"text": "7",
+					"in": "7 jours ouvrés"
+				}
+			]
+		},
+		{
+			"id": "H-Q14-DELAI-URGENT",
+			"question": "Q14",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Une commande urgente vise 4 jours ouvrés entre la validation du bon à tirer et la remise du colis, et ce délai est plus court que le travail qu'il contient.",
+			"home": "php:Teeshoop\\Core\\Production::default_config()#lead_days.urgent",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "4 est un entier omniprésent. Le foyer est la table des délais et il est unique.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Les deux jours ouvrés qui manquent à toute commande urgente, même en achetant le film en France (tests/test-production.php).",
+				"Le fait que la file de production marque en retard toute commande urgente dès sa validation."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Non, et c'est le constat le plus dur de la séance. La valeur par défaut est bien celle de la question 14, mais mesurée contre les autres valeurs par défaut de la même question elle est impossible : 2 jours de transport, 1 de pressage, 1 de battement et 2 de transit du film font 6 jours ouvrés dans une promesse de 4. Rien n'est ajusté pour la faire tenir, parce que le nombre juste est la réponse de l'associé et pas un chiffre choisi pour que le contrôle passe.",
+			"statement_amounts": [
+				{
+					"from": "lead_days.urgent",
+					"as": "int",
+					"text": "4",
+					"in": "4 jours ouvrés"
+				}
+			]
+		},
+		{
+			"id": "H-Q14-DELAI-TRANSPORT",
+			"question": "Q14",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Le transporteur met 2 jours ouvrés pour livrer en France métropolitaine.",
+			"home": "php:Teeshoop\\Core\\Production::default_config()#ship_days",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "2 ne se cherche pas. Le foyer est le paramètre d'ordonnancement.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"La date limite de commande du film de chaque commande, donc l'origine retenue."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Partiellement. La question 14 nomme Colissimo et ne donne aucun temps de transit ; deux jours ouvrés est ce que Colissimo publie pour la métropole, et personne ne nous y a engagés."
+		},
+		{
+			"id": "H-Q14-MARGE-ATELIER",
+			"question": "Q14",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "L'ordonnancement garde 1 jour ouvré de battement entre l'arrivée du film et le début du pressage.",
+			"home": "php:Teeshoop\\Core\\Production::default_config()#buffer_days",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "1 ne se cherche pas.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le jour de marge unique que l'express conserve : sans ce battement il en aurait deux, avec deux il n'en aurait aucun."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. L'algorithme de routage du chapitre 5 nomme un « buffer » parmi ses entrées sans le chiffrer ; un jour est le choix le moins cher, puisqu'il déplace un lot vers la France quand la date est tendue."
+		},
+		{
+			"id": "H-Q23-CADENCE",
+			"question": "Q23",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "L'atelier presse 300 pièces par jour ouvré avec une personne.",
+			"home": "php:Teeshoop\\Core\\Production::default_config()#press_per_day",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "300 est la densité d'export des planches en points par pouce, présente partout dans le module d'impression. Le foyer est le paramètre d'atelier.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le nombre de jours de pressage qu'un lot demande, donc sa date limite de commande de film : mesuré, une commande de 1 400 vêtements bascule sur l'origine française là où une de 60 tient en Espagne."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui pour la cadence, qui est l'hypothèse par défaut de la question 23. Le chapitre 5 avertit lui-même qu'elle n'a jamais été mesurée en conditions complètes, et ce qui est modélisé ici est un jour de pressage plancher par lot, même pour un vêtement.",
+			"statement_amounts": [
+				{
+					"from": "press_per_day",
+					"as": "int",
+					"text": "300",
+					"in": "300 pièces par jour"
+				}
+			]
+		},
+		{
+			"id": "H-Q23-VALIDATION-MANUELLE",
+			"question": "Q23",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Au-delà de 500 vêtements dans un même lot d'impression, l'écran demande une validation humaine avant de lancer la production.",
+			"home": "php:Teeshoop\\Core\\Production::default_config()#manual_above",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "500 est un entier rond très courant, notamment en pixels et en millisecondes. Le foyer est le paramètre d'atelier.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Presque. La question 23 demande le seuil « sur une même commande » et il est appliqué au LOT, qui est l'unité qui sature une presse : quatre commandes de 200 pièces le même jour posent le même problème qu'une de 800. C'est un avertissement sur l'écran et sur le lot, pas un blocage.",
+			"statement_amounts": [
+				{
+					"from": "manual_above",
+					"as": "int",
+					"text": "500",
+					"in": "500 vêtements"
+				}
+			]
+		},
+		{
+			"id": "H-Q04-DELAI-FILM-FRANCE",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Le film commandé en France arrive en 2 jours ouvrés.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.days_fr",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "2 ne se cherche pas. Le foyer est la table du film, à côté du tarif dont ce délai est inséparable.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"La date limite de commande du film de toute commande achetée en France.",
+				"Les deux jours ouvrés qui manquent à une commande urgente."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui : la question 04 écrit « 17 EUR hors taxes le mètre linéaire en 56 cm en France (48 h) ». Le délai vit désormais à côté du tarif parce que c'est une seule et même phrase, et qu'ordonnancer un lot au prix de l'origine bon marché et au calendrier de l'autre est la façon la plus simple de rater une date."
+		},
+		{
+			"id": "H-Q04-DELAI-FILM-ESPAGNE",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Le film commandé en Espagne arrive en 5 jours ouvrés.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.days_es",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "5 ne se cherche pas. Le foyer est la table du film.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Le fait que seule une commande standard puisse être achetée en Espagne : l'express y perd deux jours ouvrés et l'urgence cinq.",
+				"Le tarif espagnol devient atteignable pour une commande réelle, ce qu'aucune n'avait jamais fait avant la séance 07."
+			],
+			"sessions": [
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Oui : la question 04 écrit « 9 EUR hors taxes en Espagne (5 jours) ». Ces cinq jours sont ce qui décide, commande par commande, si l'origine bon marché est jouable."
 		}
 	],
 	"not_applicable": [
