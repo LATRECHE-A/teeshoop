@@ -39,10 +39,12 @@
  * upload rather than being priced at its padded size.
  */
 import type { Design, Layer, Side } from '@/lib/types'
-import { ensureInkProbes, sideArtworkSqCm, sidePiecesCm } from '@/lib/ink'
+import { CM_PER_IN } from '@/lib/units'
+import { ensureInkProbes, sideAreaCm, sideArtworkSqCm, sidePiecesCm } from '@/lib/ink'
 import { ensureFont } from '@/lib/fonts'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
-import { renderMockup, sideLayers } from '@/lib/renderDesign'
+import { printDropBelowCollarIn, renderMockup, sideLayers } from '@/lib/renderDesign'
+import { printScaleK } from '@/lib/printScale'
 import { assetRevision, getAssetBlob, type AssetVariant } from '@/state/assets'
 import { canvasToBlob } from '@/lib/download'
 import { readDesignDoc } from './designDoc'
@@ -153,6 +155,40 @@ function layerLabel(l: Layer): string {
 }
 
 /**
+ * The print area and its drop below the collar, for the proof.
+ *
+ * NOT a price input and not a film input: the customer pays for ink and the
+ * roll is packed from rectangles, and neither of those changes if a chest print
+ * sits two centimetres lower. It is here because it can only be measured here,
+ * and because the bon a tirer (`Bat.php`) is what a customer approves before
+ * anything is pressed: a proof that cannot say where the marking goes decides
+ * nothing, and a reprint argument then has no document to settle it.
+ *
+ * Measured at PRICED_SIZE with the design's own grading factor, so it describes
+ * the same garment as `area_sq_cm` and `pieces` beside it.
+ *
+ * A `custom` garment gets the area and NO drop. Its print area is defined on
+ * the customer's own photograph, there is no collar seam in our data, and a
+ * number invented from the photo's bounding box would read on the proof exactly
+ * like a measured one.
+ */
+function sideProofPlacement(
+  design: Design,
+  side: Side,
+): { area_w_cm: number; area_h_cm: number; drop_cm?: number } {
+  const area = sideAreaCm(design, side, PRICED_SIZE)
+  const out: { area_w_cm: number; area_h_cm: number; drop_cm?: number } = {
+    area_w_cm: area.w_cm,
+    area_h_cm: area.h_cm,
+  }
+  if (design.garmentId === 'custom') return out
+  const drop =
+    printDropBelowCollarIn(design.garmentId, side, printScaleK(design, PRICED_SIZE)) * CM_PER_IN
+  if (Number.isFinite(drop) && drop > 0) out.drop_cm = Math.round(drop * 100) / 100
+  return out
+}
+
+/**
  * Warm the ink probes and measure every printed side.
  *
  * Refuses rather than guesses. An artwork whose pixels could not be read is not
@@ -207,6 +243,7 @@ export async function measureOrder(design: Design): Promise<MeasuredOrder> {
         id: side,
         area_sq_cm: Math.round(area * 100) / 100,
         pieces: sidePiecesCm(design, side, PRICED_SIZE),
+        ...sideProofPlacement(design, side),
       })
   }
   if (sides.length === 0) throw new DesignUploadError('no_printable_side')

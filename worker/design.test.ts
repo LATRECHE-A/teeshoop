@@ -142,6 +142,99 @@ describe('readDesignDoc — the gate on what may be stored', () => {
     expect(r.sides[0].pieces).toBeUndefined()
   })
 
+  it('carries the placement a bon a tirer states and a press is set up from', () => {
+    const r = readDesignDoc({
+      ...DOC,
+      sides: [
+        {
+          id: 'front',
+          area_sq_cm: 250,
+          area_w_cm: 30.5,
+          area_h_cm: 40.6,
+          drop_cm: 22.4,
+          pieces: [{ w_cm: 18, h_cm: 14.5, top_cm: 5.2, center_dx_cm: -1.5 }],
+        },
+      ],
+    })!
+    expect(r.sides[0].pieces).toEqual([{ w_cm: 18, h_cm: 14.5, top_cm: 5.2, center_dx_cm: -1.5 }])
+    expect(r.sides[0].area_w_cm).toBe(30.5)
+    expect(r.sides[0].area_h_cm).toBe(40.6)
+    expect(r.sides[0].drop_cm).toBe(22.4)
+  })
+
+  it('drops a placement that does not fit the print area it declares', () => {
+    // Nothing downstream would ever notice: a 30 cm drop inside a 40,6 cm area
+    // whose transfer is 14,5 cm tall is a print running off the hem, and the
+    // first thing that would catch it is a customer opening a parcel.
+    const r = readDesignDoc({
+      ...DOC,
+      sides: [
+        {
+          id: 'front',
+          area_sq_cm: 250,
+          area_w_cm: 30.5,
+          area_h_cm: 40.6,
+          pieces: [{ w_cm: 18, h_cm: 14.5, top_cm: 30, center_dx_cm: 0 }],
+        },
+      ],
+    })!
+    expect(r.sides[0].area_w_cm).toBeUndefined()
+    expect(r.sides[0].pieces?.[0].top_cm).toBeUndefined()
+  })
+
+  it('drops the placement and KEEPS the film geometry, because they cost different things', () => {
+    // The rectangles are the film and the floor price; the placement is the
+    // proof. Losing the second must not silently lower the first.
+    const r = readDesignDoc({
+      ...DOC,
+      sides: [
+        {
+          id: 'front',
+          area_sq_cm: 288,
+          area_w_cm: 30.5,
+          area_h_cm: 40.6,
+          pieces: [
+            { w_cm: 18, h_cm: 14.5, top_cm: 5.2, center_dx_cm: 0 },
+            { w_cm: 12, h_cm: 3.2, top_cm: 22, center_dx_cm: 90 },
+          ],
+        },
+      ],
+    })!
+    expect(r.sides[0].pieces).toEqual([{ w_cm: 18, h_cm: 14.5 }, { w_cm: 12, h_cm: 3.2 }])
+    expect(r.sides[0].area_w_cm).toBeUndefined()
+  })
+
+  it('keeps the rectangles of a document written before the placement existed', () => {
+    // Every design already stored carries no placement. Requiring one would
+    // have taken the film geometry off every one of them, which is a floor
+    // price that silently drops on orders nobody touched.
+    const r = readDesignDoc({
+      ...DOC,
+      sides: [{ id: 'front', area_sq_cm: 288, pieces: [{ w_cm: 18, h_cm: 14.5 }, { w_cm: 12, h_cm: 3.2 }] }],
+    })!
+    expect(r.sides[0].pieces).toHaveLength(2)
+    expect(r.sides[0].area_w_cm).toBeUndefined()
+  })
+
+  it('refuses a drop below the collar no garment could have', () => {
+    const r = readDesignDoc({
+      ...DOC,
+      sides: [
+        {
+          id: 'front',
+          area_sq_cm: 250,
+          area_w_cm: 30.5,
+          area_h_cm: 40.6,
+          drop_cm: 4000,
+          pieces: [{ w_cm: 18, h_cm: 14.5, top_cm: 5.2, center_dx_cm: 0 }],
+        },
+      ],
+    })!
+    expect(r.sides[0].drop_cm).toBeUndefined()
+    // and the rest of the placement survives, because it is a separate fact
+    expect(r.sides[0].area_h_cm).toBe(40.6)
+  })
+
   it('refuses anything that is not a design document', () => {
     expect(readDesignDoc(null)).toBeNull()
     expect(readDesignDoc('a string')).toBeNull()

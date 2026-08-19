@@ -802,10 +802,64 @@ export function sideInkParts(
   return seen.map(({ rect, layers: ls }) => ({ rect, layers: ls }))
 }
 
-/** One transfer's footprint on the film, centimetres. */
+/** Where a transfer goes on the garment, in the numbers a press is set up from. */
+export interface PiecePlacementCm {
+  /** Drop from the TOP of the print area to the top of the transfer. */
+  topCm: number
+  /** Signed offset of the transfer's centre from the area's centre line (+ = right). */
+  centerDxCm: number
+  /** Distance from the area's left edge, for anyone squaring off the edge instead. */
+  leftCm: number
+  areaWCm: number
+  areaHCm: number
+}
+
+/** The only geometry `piecePlacementCm` reads. `RenderedPiece` satisfies it. */
+export interface PiecePlacedIn {
+  /** The transfer's box inside the (graded) print area, top-left origin, inches. */
+  areaRectIn: RectIn
+  /** The (graded) print area those coordinates are relative to, inches. */
+  areaWIn: number
+  areaHIn: number
+}
+
+/**
+ * `areaRectIn` in press terms. The top of the print area is a fixed drop below
+ * the collar (see printDropBelowCollarIn) and the centre line is the garment's
+ * fold, so these two numbers place a transfer with a ruler and nothing else.
+ *
+ * It takes the geometry rather than a `RenderedPiece` so that the two things
+ * that must agree can both call it: the DTF export, which has pixels, and the
+ * design document, which has none. The bon a tirer states these numbers to the
+ * customer and the workshop presses to them; two implementations of that is one
+ * reprint nobody can be billed for.
+ */
+export function piecePlacementCm(p: PiecePlacedIn): PiecePlacementCm {
+  return {
+    topCm: p.areaRectIn.yIn * CM_PER_IN,
+    centerDxCm: (p.areaRectIn.xIn + p.areaRectIn.wIn / 2 - p.areaWIn / 2) * CM_PER_IN,
+    leftCm: p.areaRectIn.xIn * CM_PER_IN,
+    areaWCm: p.areaWIn * CM_PER_IN,
+    areaHCm: p.areaHIn * CM_PER_IN,
+  }
+}
+
+/**
+ * One transfer's footprint on the film, centimetres, and where it goes.
+ *
+ * The last two are the proof's, not the packer's: a gang sheet does not care
+ * where on a shirt a rectangle lands, and a customer approving a bon a tirer
+ * cares about nothing else. They ride here because they are measured from the
+ * SAME rect at the SAME moment, and measuring them anywhere else would be a
+ * second answer to "where is this print".
+ */
 export interface PieceCm {
   w_cm: number
   h_cm: number
+  /** Top edge of the transfer below the top edge of the print area, cm. */
+  top_cm: number
+  /** Its centre, signed, from the print area's centre line, cm. + is to the right. */
+  center_dx_cm: number
 }
 
 /**
@@ -826,8 +880,21 @@ export interface PieceCm {
  */
 export function sidePiecesCm(design: Design, side: Side, size?: SizeId): PieceCm[] {
   const round2 = (v: number) => Math.round(v * 100) / 100
-  return sideInkParts(design, side, size).map((p) => ({
-    w_cm: round2(p.rect.wIn * CM_PER_IN),
-    h_cm: round2(p.rect.hIn * CM_PER_IN),
-  }))
+  const area = getAreaSizeIn(design, side, size)
+  return sideInkParts(design, side, size).map((p) => {
+    const place = piecePlacementCm({ areaRectIn: p.rect, areaWIn: area.wIn, areaHIn: area.hIn })
+    return {
+      w_cm: round2(p.rect.wIn * CM_PER_IN),
+      h_cm: round2(p.rect.hIn * CM_PER_IN),
+      top_cm: round2(place.topCm),
+      center_dx_cm: round2(place.centerDxCm),
+    }
+  })
+}
+
+/** The (graded) print area a side's transfers are placed inside, cm. */
+export function sideAreaCm(design: Design, side: Side, size?: SizeId): { w_cm: number; h_cm: number } {
+  const round2 = (v: number) => Math.round(v * 100) / 100
+  const area = getAreaSizeIn(design, side, size)
+  return { w_cm: round2(area.wIn * CM_PER_IN), h_cm: round2(area.hIn * CM_PER_IN) }
 }

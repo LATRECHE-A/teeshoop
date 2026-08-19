@@ -59,10 +59,21 @@ export const MAX_LAYERS = 200
 export const MAX_ASSETS = 32
 export const MAX_GARMENT_ID_LEN = 40
 
-/** One transfer's footprint on the film, cm. */
+/**
+ * One transfer's footprint on the film, cm, and where on the side it goes.
+ *
+ * The last two are OPTIONAL and travel as one block with the side's
+ * `area_*_cm` (see `readPlacement`): a document written before the proof
+ * existed carries none of them, and it must keep its film geometry rather than
+ * lose it to a field it predates.
+ */
 export interface DesignDocPiece {
   w_cm: number
   h_cm: number
+  /** Top edge of the transfer below the top edge of the print area, cm. */
+  top_cm?: number
+  /** Its centre, signed, from the print area's centre line, cm. + is to the right. */
+  center_dx_cm?: number
 }
 
 /** One printed side, as the price engine and the workshop both need it. */
@@ -77,6 +88,23 @@ export interface DesignDocSide {
    * the roll width and calling the answer a length.
    */
   pieces?: DesignDocPiece[]
+  /**
+   * The print area those placements are measured inside, cm, and the collar
+   * seam to its centre.
+   *
+   * OPTIONAL FOR THE SAME REASON `pieces` IS, and dropped by the same
+   * all-or-nothing rule. They are what a bon a tirer states and a press is set
+   * up from; they are not a price input and not a film input, so a document
+   * that lacks them is still a sale, and the proof says the placement was not
+   * measured rather than printing a number nobody took.
+   *
+   * `drop_cm` is absent for a garment the customer ships themselves: there is
+   * no collar seam in our data for it, and a plausible number would read on the
+   * proof exactly like a measured one.
+   */
+  area_w_cm?: number
+  area_h_cm?: number
+  drop_cm?: number
 }
 
 export interface DesignDocSummary {
@@ -147,7 +175,8 @@ export function readDesignDoc(raw: unknown): DesignDocSummary | null {
     if (!id || !SIDE_ID_RE.test(id)) continue
     if (!Number.isFinite(area) || area <= 0) continue
     const capped = Math.min(area, MAX_SIDE_SQ_CM)
-    sides.push({ id, area_sq_cm: capped, ...readPieces(side.pieces, capped) })
+    const read = readPieces(side.pieces, capped)
+    sides.push({ id, area_sq_cm: capped, ...readPlacement(side, read.pieces) })
     if (sides.length >= MAX_SIDES) break
   }
 
@@ -196,7 +225,12 @@ function readPieces(raw: unknown, areaSqCm: number): { pieces?: DesignDocPiece[]
     if (!Number.isFinite(w) || !Number.isFinite(h)) return {}
     if (w <= 0 || h <= 0 || w > MAX_PIECE_CM || h > MAX_PIECE_CM) return {}
     boxed += w * h
-    pieces.push({ w_cm: w, h_cm: h })
+    // Carried through unvalidated; `readPlacement` is what decides whether they
+    // are kept, because the check is per SIDE and this loop sees one rectangle.
+    const kept: DesignDocPiece = { w_cm: w, h_cm: h }
+    if (typeof piece.top_cm === 'number') kept.top_cm = piece.top_cm
+    if (typeof piece.center_dx_cm === 'number') kept.center_dx_cm = piece.center_dx_cm
+    pieces.push(kept)
   }
 
   /*
@@ -225,4 +259,76 @@ function readPieces(raw: unknown, areaSqCm: number): { pieces?: DesignDocPiece[]
   if (boxed < areaSqCm * 0.99) return {}
 
   return { pieces }
+}
+
+/**
+ * How far a placement may sit outside the print area it declares, cm.
+ *
+ * NOT a tolerance we chose, and not a margin for artwork that overflows: the
+ * producer clamps every transfer to the area exactly (`clampInkToArea` in
+ * src/lib/ink.ts bounds both spans to [0, limit]), so the true answer is zero.
+ * What is left is the rounding: six numbers are each rounded to 0,01 cm before
+ * they are written, so a comparison of sums can be off by a few hundredths.
+ * 0,05 cm is above that and far below anything a press could act on.
+ */
+const PLACEMENT_SLACK_CM = 0.05
+
+/**
+ * The side's placement: the print area, the drop below the collar, and each
+ * transfer's position inside the area.
+ *
+ * ALL OR NOTHING PER SIDE, and separate from the film geometry above, which is
+ * the whole point of it being its own function. These numbers are what a bon a
+ * tirer states and what a press is set up from; they are not a price input and
+ * not a film input. So a placement that cannot be read drops the PLACEMENT and
+ * keeps the rectangles: the order still costs what it costs, and the proof says
+ * the position was not measured instead of printing one nobody took.
+ *
+ * The fit check is what an OPEN route needs. `top_cm` and `center_dx_cm` are
+ * the numbers an operator puts a ruler to, and unlike the area and the pieces
+ * nothing downstream would ever notice them being wrong: a document claiming a
+ * 30 cm drop inside a 40 cm area is a print half off the shoulder, and the
+ * first thing that would catch it today is a customer opening a parcel.
+ *
+ * `drop_cm` is bounded but not derived from anything here: the shop has no
+ * collar geometry to check it against (`data/garments.json` publishes print
+ * areas and body measurements, not seam positions). The bound is a sanity one,
+ * a metre, which no garment we sell can reach.
+ */
+function readPlacement(
+  side: Record<string, unknown>,
+  pieces?: DesignDocPiece[],
+): { pieces?: DesignDocPiece[]; area_w_cm?: number; area_h_cm?: number; drop_cm?: number } {
+  /*
+   * REFUSING A PLACEMENT MEANS NOT STORING IT. `readPieces` carries the two raw
+   * numbers through so this function can see them; every path that declines
+   * them has to strip them again, or the document keeps the very numbers the
+   * fit check just rejected and the proof prints them as measured.
+   */
+  const bare = pieces ? { pieces: pieces.map((p) => ({ w_cm: p.w_cm, h_cm: p.h_cm })) } : {}
+  const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : NaN)
+
+  const aw = num(side.area_w_cm)
+  const ah = num(side.area_h_cm)
+  if (!(aw > 0) || !(ah > 0) || aw > MAX_PIECE_CM || ah > MAX_PIECE_CM) return bare
+  if (!pieces || pieces.length === 0) return bare
+
+  const placed: DesignDocPiece[] = []
+  for (const p of pieces) {
+    const top = num(p.top_cm)
+    const dx = num(p.center_dx_cm)
+    if (Number.isNaN(top) || Number.isNaN(dx)) return bare
+    if (top < -PLACEMENT_SLACK_CM || top + p.h_cm > ah + PLACEMENT_SLACK_CM) return bare
+    if (Math.abs(dx) + p.w_cm / 2 > aw / 2 + PLACEMENT_SLACK_CM) return bare
+    placed.push({ w_cm: p.w_cm, h_cm: p.h_cm, top_cm: top, center_dx_cm: dx })
+  }
+
+  const drop = num(side.drop_cm)
+  const out: { pieces: DesignDocPiece[]; area_w_cm: number; area_h_cm: number; drop_cm?: number } = {
+    pieces: placed,
+    area_w_cm: aw,
+    area_h_cm: ah,
+  }
+  if (drop > 0 && drop <= 100) out.drop_cm = drop
+  return out
 }

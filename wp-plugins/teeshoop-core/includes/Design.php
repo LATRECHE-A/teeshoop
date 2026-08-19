@@ -22,7 +22,15 @@ declare( strict_types = 1 );
 
 namespace Teeshoop\Core;
 
-defined( 'ABSPATH' ) || exit;
+/*
+ * THE TEST HATCH REACHES TWO FUNCTIONS AND NO MORE. `normalise_pieces` and
+ * `normalise_placement` are pure arithmetic on an untrusted payload and they
+ * are the shop's half of a gate whose other half is a TypeScript file; the two
+ * have to be proved to agree, and `tests/run.php` is where that is cheap.
+ * Everything else here calls WordPress and will fatal without it, which is the
+ * correct signal rather than a silent pass.
+ */
+defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 final class Design {
 
@@ -158,13 +166,13 @@ final class Design {
 				continue;
 			}
 
-			$out[] = array(
+			$capped = min( $area, 10000.0 );
+			$out[]  = array(
 				'id'         => $id,
 				// Cap at a square metre: past that it is a data error, and it
 				// must not be able to drive the price to an absurd number.
-				'area_sq_cm' => min( $area, 10000.0 ),
-				'pieces'     => self::normalise_pieces( $side['pieces'] ?? null, min( $area, 10000.0 ) ),
-			);
+				'area_sq_cm' => $capped,
+			) + self::normalise_placement( $side, self::normalise_pieces( $side['pieces'] ?? null, $capped ) );
 
 			if ( count( $out ) >= 8 ) {
 				break;
@@ -213,10 +221,19 @@ final class Design {
 				return array();
 			}
 			$boxed += $w * $h;
-			$out[]  = array(
+			$piece_out = array(
 				'w_cm' => $w,
 				'h_cm' => $h,
 			);
+			// Carried through unvalidated; `normalise_placement` is what decides
+			// whether they are kept, because the check is per SIDE and this loop
+			// only sees one rectangle at a time.
+			foreach ( array( 'top_cm', 'center_dx_cm' ) as $key ) {
+				if ( isset( $piece[ $key ] ) && is_numeric( $piece[ $key ] ) ) {
+					$piece_out[ $key ] = (float) $piece[ $key ];
+				}
+			}
+			$out[] = $piece_out;
 		}
 
 		// 1 % of slack for the 0,01 cm rounding both numbers carry, and nothing
@@ -225,6 +242,100 @@ final class Design {
 			return array();
 		}
 
+		return $out;
+	}
+
+	/**
+	 * How far a placement may sit outside the print area it declares, cm.
+	 *
+	 * The producer clamps every transfer to the area exactly, so the true answer
+	 * is zero and what is left is rounding: six numbers each rounded to 0,01 cm
+	 * before they are written. Identical to PLACEMENT_SLACK_CM in
+	 * src/lib/teeshoop/designDoc.ts, because the two ends read one document.
+	 */
+	private const PLACEMENT_SLACK_CM = 0.05;
+
+	/**
+	 * The side's placement: the print area, the drop below the collar, and each
+	 * transfer's position inside that area.
+	 *
+	 * ALL OR NOTHING PER SIDE, and separate from the film geometry, which is why
+	 * it is its own function on both ends. These numbers are what the bon a
+	 * tirer states and what a press is set up from; they are not a price input
+	 * and not a film input. A placement that cannot be read therefore drops the
+	 * PLACEMENT and keeps the rectangles: the order costs what it costs, and the
+	 * proof says the position was not measured instead of printing one nobody
+	 * took.
+	 *
+	 * The fit check is what an OPEN route needs. Unlike the area and the
+	 * rectangles, nothing downstream would ever notice these being wrong: a
+	 * document claiming a 30 cm drop inside a 40 cm area is a print half off the
+	 * shoulder, and the first thing that would catch it today is a customer
+	 * opening a parcel. The bounds mirror src/lib/teeshoop/designDoc.ts exactly.
+	 *
+	 * @param array $side   the raw side payload.
+	 * @param array $pieces what `normalise_pieces` kept, possibly empty.
+	 *
+	 * @return array{pieces:array,area_w_cm?:float,area_h_cm?:float,drop_cm?:float}
+	 */
+	public static function normalise_placement( array $side, array $pieces ): array {
+		/*
+		 * REFUSING A PLACEMENT MEANS NOT STORING IT. `normalise_pieces` carries
+		 * the two raw numbers through so this function can see them; every path
+		 * that declines them has to strip them again, or the order keeps the
+		 * very numbers the fit check just rejected and the bon a tirer prints
+		 * them as measured.
+		 */
+		$bare = array( 'pieces' => array() );
+		foreach ( $pieces as $piece ) {
+			$bare['pieces'][] = array(
+				'w_cm' => (float) $piece['w_cm'],
+				'h_cm' => (float) $piece['h_cm'],
+			);
+		}
+
+		$aw = isset( $side['area_w_cm'] ) && is_numeric( $side['area_w_cm'] ) ? (float) $side['area_w_cm'] : -1.0;
+		$ah = isset( $side['area_h_cm'] ) && is_numeric( $side['area_h_cm'] ) ? (float) $side['area_h_cm'] : -1.0;
+		if ( ! is_finite( $aw ) || ! is_finite( $ah ) || $aw <= 0 || $ah <= 0 || $aw > 200 || $ah > 200 ) {
+			return $bare;
+		}
+		if ( array() === $pieces ) {
+			return $bare;
+		}
+
+		$placed = array();
+		foreach ( $pieces as $piece ) {
+			if ( ! isset( $piece['top_cm'], $piece['center_dx_cm'] ) ) {
+				return $bare;
+			}
+			$top = (float) $piece['top_cm'];
+			$dx  = (float) $piece['center_dx_cm'];
+			if ( ! is_finite( $top ) || ! is_finite( $dx ) ) {
+				return $bare;
+			}
+			if ( $top < -self::PLACEMENT_SLACK_CM || $top + (float) $piece['h_cm'] > $ah + self::PLACEMENT_SLACK_CM ) {
+				return $bare;
+			}
+			if ( abs( $dx ) + (float) $piece['w_cm'] / 2 > $aw / 2 + self::PLACEMENT_SLACK_CM ) {
+				return $bare;
+			}
+			$placed[] = array(
+				'w_cm'         => (float) $piece['w_cm'],
+				'h_cm'         => (float) $piece['h_cm'],
+				'top_cm'       => $top,
+				'center_dx_cm' => $dx,
+			);
+		}
+
+		$out  = array(
+			'pieces'    => $placed,
+			'area_w_cm' => $aw,
+			'area_h_cm' => $ah,
+		);
+		$drop = isset( $side['drop_cm'] ) && is_numeric( $side['drop_cm'] ) ? (float) $side['drop_cm'] : -1.0;
+		if ( is_finite( $drop ) && $drop > 0 && $drop <= 100 ) {
+			$out['drop_cm'] = $drop;
+		}
 		return $out;
 	}
 }

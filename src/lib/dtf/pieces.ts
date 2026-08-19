@@ -232,32 +232,19 @@ export interface RenderedPiece {
   hCm: number
 }
 
-/** Where a transfer goes on the garment, in the numbers a press is set up from. */
-export interface PiecePlacementCm {
-  /** Drop from the TOP of the print area to the top of the transfer. */
-  topCm: number
-  /** Signed offset of the transfer's centre from the area's centre line (+ = right). */
-  centerDxCm: number
-  /** Distance from the area's left edge, for anyone squaring off the edge instead. */
-  leftCm: number
-  areaWCm: number
-  areaHCm: number
-}
-
-/**
- * `areaRectIn` in press terms. The top of the print area is a fixed drop below
- * the collar (see printDropBelowCollarIn) and the centre line is the garment's
- * fold, so these two numbers place a transfer with a ruler and nothing else.
+/*
+ * WHERE A TRANSFER GOES lives in `src/lib/ink.ts`, not here, and it is
+ * re-exported so every existing caller keeps the name it already uses.
+ *
+ * It moved because the bon a tirer needs it. This module is admin-only
+ * (`src/app/adminBoundary.test.ts` refuses an import of `src/lib/dtf/**` from
+ * the customer bundle), and a proof the customer approves has to state where
+ * the marking goes. Copying four lines of arithmetic into the customer side
+ * would put the placement a customer approves and the placement a press is set
+ * up from in two files, which is how they end up disagreeing.
  */
-export function piecePlacementCm(p: RenderedPiece): PiecePlacementCm {
-  return {
-    topCm: p.areaRectIn.yIn * CM_PER_IN,
-    centerDxCm: (p.areaRectIn.xIn + p.areaRectIn.wIn / 2 - p.areaWIn / 2) * CM_PER_IN,
-    leftCm: p.areaRectIn.xIn * CM_PER_IN,
-    areaWCm: p.areaWIn * CM_PER_IN,
-    areaHCm: p.areaHIn * CM_PER_IN,
-  }
-}
+export type { PiecePlacementCm } from '@/lib/ink'
+export { piecePlacementCm } from '@/lib/ink'
 
 /**
  * Render one printed side as DTF pieces at `dpi`, graded for `size` — one piece

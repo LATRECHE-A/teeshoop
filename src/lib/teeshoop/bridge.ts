@@ -54,7 +54,20 @@ export interface BridgeSide {
    * (`src/lib/ink.ts`) taken once, at the priced size, in the only place that
    * can take it: a browser that has decoded the artwork.
    */
-  pieces?: { w_cm: number; h_cm: number }[]
+  pieces?: { w_cm: number; h_cm: number; top_cm: number; center_dx_cm: number }[]
+  /** The (graded) print area those placements are measured inside, cm. */
+  area_w_cm?: number
+  area_h_cm?: number
+  /**
+   * Collar seam to the print area's CENTRE, cm, positive downwards.
+   *
+   * The one number a press is actually set up from: professional placement is
+   * measured in centimetres below the collar and it is where the operator puts
+   * the ruler. Absent for a garment the customer ships themselves, which has no
+   * collar landmark in our data and whose print area is defined on their own
+   * photograph instead. Absent means the proof says so; it never means zero.
+   */
+  drop_cm?: number
 }
 
 /** What the shop page tells us about the product we are decorating. */
