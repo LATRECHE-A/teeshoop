@@ -232,6 +232,92 @@ for (const [name, path] of PAGES) {
   await context.close()
 }
 
+/* ------------------------------------------------ keyboard, and the names -- */
+
+/*
+ * WHAT A PERSON WITHOUT A MOUSE CAN DO.
+ *
+ * Session 12 audits accessibility, and the session brief is explicit that
+ * retrofitting focus is the one thing that cannot be done cheaply later. These
+ * five are the load-bearing ones, and they are asserted rather than checked
+ * once, because a checked-once claim decays on the next stylesheet.
+ */
+{
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR' })
+  const page = await context.newPage()
+  await page.goto(BASE + '/product-category/t-shirts/', { waitUntil: 'networkidle' })
+
+  await page.keyboard.press('Tab')
+  const first = await page.evaluate(() => {
+    const el = document.activeElement
+    const cs = getComputedStyle(el)
+    return {
+      cls: (el.className || '').toString(),
+      onScreen: el.getBoundingClientRect().left >= 0,
+      ring: cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0,
+    }
+  })
+  ok('the first tab stop is the skip link', first.cls.includes('ts-skip'), first.cls)
+  ok('and it becomes visible, with a focus ring', first.onScreen && first.ring, JSON.stringify(first))
+
+  await page.evaluate(() => document.activeElement.blur())
+
+  /*
+   * FOCUS IS MOVED INTO THE MENU FIRST, or the assertion is vacuous.
+   *
+   * Clicking the button leaves focus on the button, so "focus is on the button
+   * after Escape" is true whether or not anything hands it back. Checked by
+   * deleting `burger.focus()` from site.js: the first version of this assertion
+   * still passed. A person who opens the menu is inside it by the time they give
+   * up on it, and that is the state that has to be tested.
+   */
+  await page.locator('.ts-burger').click()
+  const opened = await page.locator('#ts-nav').evaluate((e) => e.classList.contains('is-open'))
+  await page.locator('#ts-nav a').first().focus()
+  const inside = await page.evaluate(() => !!document.activeElement.closest('#ts-nav'))
+  await page.keyboard.press('Escape')
+  const closed = await page.evaluate(() => ({
+    open: document.getElementById('ts-nav').classList.contains('is-open'),
+    onBurger: document.activeElement.classList.contains('ts-burger'),
+  }))
+  ok(
+    'escape closes the menu and hands focus back',
+    opened && inside && !closed.open && closed.onBurger,
+    JSON.stringify({ opened, inside, ...closed }),
+  )
+
+  await page.locator('.ts-filters__toggle').focus()
+  await page.keyboard.press('Enter')
+  ok(
+    'the filter panel opens from the keyboard',
+    await page.locator('#ts-filters-body').evaluate((e) => e.classList.contains('is-open')),
+  )
+
+  /*
+   * A control with no accessible name is a control a screen reader announces as
+   * "button". The chips hide their checkbox visually and must never hide it from
+   * the accessibility tree, which is why they are a `<label>` and not a `<div>`.
+   */
+  const nameless = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea')]
+      .filter((el) => {
+        const name =
+          el.getAttribute('aria-label') ||
+          el.textContent ||
+          el.getAttribute('title') ||
+          (el.labels && el.labels[0] && el.labels[0].textContent) ||
+          el.getAttribute('placeholder') ||
+          ''
+        return name.trim() === ''
+      })
+      .map((el) => el.tagName.toLowerCase() + '.' + (el.className || '').toString().slice(0, 40))
+      .slice(0, 5),
+  )
+  ok('every control has an accessible name', nameless.length === 0, nameless.join(' '))
+
+  await context.close()
+}
+
 /* --------------------------------------------------- and without a script -- */
 
 {
