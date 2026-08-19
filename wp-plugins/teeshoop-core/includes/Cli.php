@@ -697,6 +697,7 @@ final class Cli {
 		self::ensure_shipping_zone( $changed );
 		self::ensure_permalinks( $changed );
 		self::ensure_classic_theme( $changed );
+		self::ensure_french_shop_pages( $changed );
 		self::ensure_site_pages( $changed );
 		self::ensure_settings( $assoc_args, $changed );
 
@@ -1122,6 +1123,55 @@ final class Cli {
 	 * including a draft one, because republishing a page somebody deliberately
 	 * unpublished is not this command's business.
 	 */
+	/**
+	 * WooCommerce's four pages, in French.
+	 *
+	 * They are created at activation from the locale WordPress had at the time,
+	 * which on a fresh install is `en_US`: the mirror's catalogue answered under
+	 * the heading « Shop » on a French shop, and « Cart », « Checkout » and
+	 * « My account » with it. Installing the French language pack afterwards does
+	 * not rename a page that is already a post.
+	 *
+	 * THE SLUG DOES NOT MOVE WITH IT, and that is a correction rather than an
+	 * omission. WordPress's own `wp_old_slug_redirect()` begins
+	 * `if ( is_404() && '' !== get_query_var( 'name' ) )`, and a PAGE is matched
+	 * on `pagename`: an old page slug is never redirected, it 404s. Measured
+	 * here by renaming `shop` to `boutique` and watching `/shop/` answer 404 with
+	 * `_wp_old_slug` correctly written. teeshoop.com has been selling since 2024,
+	 * so every link anybody holds to its catalogue would break for a French word
+	 * in an address bar. A French heading on an English path is the smaller
+	 * wrong.
+	 *
+	 * A page whose title somebody has already changed is left alone: this is a
+	 * translation of WooCommerce's default, not a policy about naming.
+	 */
+	private static function ensure_french_shop_pages( array &$changed ): void {
+		$known = array(
+			'woocommerce_shop_page_id'      => array( 'Shop', 'Boutique' ),
+			'woocommerce_cart_page_id'      => array( 'Cart', 'Panier' ),
+			'woocommerce_checkout_page_id'  => array( 'Checkout', 'Commander' ),
+			'woocommerce_myaccount_page_id' => array( 'My account', 'Mon compte' ),
+		);
+
+		foreach ( $known as $option => $names ) {
+			list( $english, $french ) = $names;
+
+			$id   = (int) get_option( $option );
+			$page = $id > 0 ? get_post( $id ) : null;
+			if ( ! $page instanceof \WP_Post || $english !== $page->post_title ) {
+				continue;
+			}
+
+			wp_update_post(
+				array(
+					'ID'         => $id,
+					'post_title' => $french,
+				)
+			);
+			$changed[] = 'titre de la page ' . $page->post_name;
+		}
+	}
+
 	private static function ensure_site_pages( array &$changed ): void {
 		/*
 		 * PUBLISHED ONLY UNDER OUR OWN THEME.
