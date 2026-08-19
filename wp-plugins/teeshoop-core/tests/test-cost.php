@@ -458,3 +458,128 @@ describe( 'Cost — the bound when the file limit is close to the artwork', func
 		truthy( Cost::default_config()['film']['max_length_cm'] <= 250.0 );
 	} );
 } );
+
+describe( 'Cost — splitting a pooled film bill', function () use ( $ts_cost_config ) {
+	it( 'hands out every cent of the bill and not one more', function () use ( $ts_cost_config ) {
+		$a = Cost::attribute( array( '1042' => 2.5, '1043' => 1.8, '99' => 0.9 ), 3.9, $ts_cost_config );
+		$sum = 0;
+		foreach ( $a['shares'] as $share ) {
+			$sum += $share['share_ht'];
+		}
+		eq( $sum, $a['total_ht'], 'the shares must reconcile against the supplier invoice exactly' );
+	} );
+
+	it( 'reconciles on a split that does not divide evenly', function () use ( $ts_cost_config ) {
+		// Three identical orders on a bill that is not a multiple of three, so the
+		// leftover cents really are handed out rather than the test passing on a
+		// division that happened to come out whole.
+		$a = Cost::attribute( array( 'a' => 1.0, 'b' => 1.0, 'c' => 1.0 ), 1.1, $ts_cost_config );
+		truthy( 0 !== $a['total_ht'] % 3, 'a bill that divides evenly would not exercise the remainder' );
+		$sum = 0;
+		foreach ( $a['shares'] as $share ) {
+			$sum += $share['share_ht'];
+		}
+		eq( $sum, $a['total_ht'] );
+		eq( $a['shares']['a']['share_ht'], 1155, 'the leftover cents go to the first ids, deterministically' );
+		eq( $a['shares']['c']['share_ht'], 1154 );
+	} );
+
+	it( 'charges the bigger order more, always', function () use ( $ts_cost_config ) {
+		$a = Cost::attribute( array( 'petit' => 0.4, 'gros' => 6.0 ), 6.2, $ts_cost_config );
+		truthy(
+			$a['shares']['gros']['share_ht'] > $a['shares']['petit']['share_ht'],
+			'the order that would have cost more alone must pay more in the pool'
+		);
+	} );
+
+	it( 'gives the same cents whatever order the orders arrive in', function () use ( $ts_cost_config ) {
+		$forwards  = Cost::attribute( array( 'a' => 1.0, 'b' => 1.0, 'c' => 1.0 ), 2.0, $ts_cost_config );
+		$backwards = Cost::attribute( array( 'c' => 1.0, 'b' => 1.0, 'a' => 1.0 ), 2.0, $ts_cost_config );
+		foreach ( array( 'a', 'b', 'c' ) as $id ) {
+			eq( $backwards['shares'][ $id ]['share_ht'], $forwards['shares'][ $id ]['share_ht'], "order $id" );
+		}
+	} );
+
+	it( 'never divides by a total weight of zero', function () {
+		$free = Cost::merge_config(
+			array( 'film' => array( 'rate_fr_ht' => 0, 'delivery_ht' => 0 ) )
+		);
+		$a = Cost::attribute( array( 'a' => 1.0, 'b' => 3.0 ), 4.0, $free );
+		eq( $a['total_ht'], 0 );
+		eq( $a['shares']['a']['share_ht'], 0 );
+		eq( $a['shares']['b']['share_ht'], 0 );
+	} );
+
+	/*
+	 * THE MEASURED CASE WHERE POOLING BUYS MORE FILM AND STILL COSTS LESS.
+	 *
+	 * Two 30 x 20 cm transfers cannot share a row on the roll, so the pool pays
+	 * an inter-shelf gap neither order pays alone: 20 + 20 = 40 cm apart against
+	 * 50 cm together (src/lib/dtf/run.test.ts measures it against the real
+	 * packer). In money the run still wins by half, because two orders are two
+	 * one-metre minimums and two delivery charges.
+	 *
+	 * This is why `attribute()` compares euros and not centimetres, and why the
+	 * screen shows `worse` rather than a saving that is arithmetically true and
+	 * commercially meaningless.
+	 */
+	it( 'prices a run that buys MORE film and finds it still cheaper', function () use ( $ts_cost_config ) {
+		$a = Cost::attribute( array( '1' => 0.2, '2' => 0.2 ), 0.5, $ts_cost_config );
+		eq( $a['solo_total_ht'], 6570, 'two orders bought apart: two minimums, two deliveries' );
+		eq( $a['total_ht'], 3285, 'one order pooled: one minimum, one delivery' );
+		eq( $a['saved_ht'], 3285 );
+		eq( $a['worse'], false );
+	} );
+
+	it( 'says a run is worse rather than reporting a saving nobody made', function () {
+		// No supplier minimum and no delivery charge: nothing is left to hide a
+		// pool that genuinely nests worse than its parts.
+		$bare = Cost::merge_config(
+			array( 'film' => array( 'min_m' => 0.0, 'delivery_ht' => 0, 'waste_rate' => 0.0 ) )
+		);
+		$a = Cost::attribute( array( '1' => 0.2, '2' => 0.2 ), 0.5, $bare );
+		eq( $a['total_ht'], 850 );
+		eq( $a['solo_total_ht'], 680 );
+		eq( $a['saved_ht'], -170, 'a negative saving is reported, never clamped to zero' );
+		eq( $a['worse'], true );
+	} );
+
+	/*
+	 * The alternative rule, published beside the one that is charged. The gap is
+	 * the argument: on this pool the small order pays 19,91 EUR under the rule
+	 * that charges what it would have cost alone and 8,46 EUR under the rule that
+	 * charges its share of the ink — 135 % apart, on the same invoice.
+	 */
+	it( 'publishes what the area rule would have charged, and it is not the same', function () use ( $ts_cost_config ) {
+		$a = Cost::attribute(
+			array( '1042' => 2.5, '1043' => 1.8, '99' => 0.9 ),
+			3.9,
+			$ts_cost_config,
+			'fr',
+			array( '1042' => 1800.0, '1043' => 900.0, '99' => 300.0 )
+		);
+		eq( $a['shares']['99']['share_ht'], 1991 );
+		eq( $a['shares']['99']['area_share_ht'], 846 );
+		$sum = 0;
+		foreach ( $a['shares'] as $share ) {
+			$sum += $share['area_share_ht'];
+		}
+		eq( $sum, $a['total_ht'], 'the published rule has to reconcile too, or it is not a rule' );
+	} );
+
+	it( 'falls back to equal shares when no ink area was measured', function () use ( $ts_cost_config ) {
+		$a = Cost::attribute( array( 'a' => 1.0, 'b' => 3.0 ), 3.5, $ts_cost_config );
+		eq(
+			$a['shares']['a']['area_share_ht'] + $a['shares']['b']['area_share_ht'],
+			$a['total_ht']
+		);
+	} );
+
+	it( 'costs the Spanish origin at the Spanish rate and nothing else', function () use ( $ts_cost_config ) {
+		$fr = Cost::attribute( array( 'a' => 2.0 ), 2.0, $ts_cost_config, 'fr' );
+		$es = Cost::attribute( array( 'a' => 2.0 ), 2.0, $ts_cost_config, 'es' );
+		eq( $fr['origin'], 'fr' );
+		eq( $es['origin'], 'es' );
+		truthy( $es['total_ht'] < $fr['total_ht'], 'Spain is the cheap origin, which is why it needs evidence' );
+	} );
+} );

@@ -278,6 +278,23 @@ final class Cost {
 				 * figure.
 				 */
 				'max_length_cm'  => 100.0,
+				/*
+				 * How long the film takes to arrive, WORKING DAYS, per origin.
+				 *
+				 * They live beside the rates because they are the same sentence.
+				 * Question 04's written default is « 17 EUR hors taxes le mètre
+				 * linéaire en 56 cm en France (48 h), 9 EUR hors taxes en Espagne
+				 * (5 jours) »: a rate and a delay quoted together, and taking one
+				 * without the other is how a run gets scheduled on the cheap
+				 * origin's price and the dear origin's calendar.
+				 *
+				 * They are what decides which origin a print run may be bought
+				 * from (`Production::origin_for`), which is the first thing in
+				 * this project that ever lets an order be costed at the Spanish
+				 * rate. Nothing else in the plugin reads them.
+				 */
+				'days_fr'        => 2,
+				'days_es'        => 5,
 			),
 
 			/*
@@ -663,6 +680,193 @@ final class Cost {
 			 */
 			'at_minimum'  => $nested_m < $min,
 		);
+	}
+
+	/**
+	 * Split a POOLED film bill across the orders that shared the roll.
+	 *
+	 * Session 07 stopped nesting one order at a time. A run is whatever was
+	 * ready to print, ganged onto the same film, and the supplier sends one
+	 * invoice. Every order in it still needs to know what its own share was, or
+	 * the margin report is a work of fiction and the floor price under it is a
+	 * guess.
+	 *
+	 * ── THE RULE, AND WHY IT IS NOT THE OBVIOUS ONE ──────────────────────────
+	 *
+	 * Each order pays the same FRACTION of the pooled bill as it would have paid
+	 * of the total had every order been bought separately. Formally
+	 * share_i = bill x solo_i / Sum(solo_j), allocated to whole cents so that the
+	 * shares add up to the bill exactly.
+	 *
+	 * The obvious answer is proportional to nested AREA, and it is defensible
+	 * until you notice what it charges for. Area charges an order for the ink it
+	 * carries; the run is bought for the film that ink FORCES. One 55 x 40 cm back
+	 * print on a 56 cm roll leaves a ribbon down the side that nothing else can
+	 * use; forty 6 x 6 cm chest marks fill whatever they are given. Under the area
+	 * rule the second subsidises the first, and the margin report then says the
+	 * awkward order was the cheap one, which is the exact fact the report exists
+	 * to surface. Both numbers are computed; only the solo one is charged, and
+	 * `scripts/dtf-bench.mjs` prints the gap between them on a real week.
+	 *
+	 * Three properties this rule has and the area rule does not:
+	 *   - an order that would have cost more alone always pays more here;
+	 *   - it is scale-free, so re-running a pool with the same orders in a
+	 *     different sequence cannot move a single cent;
+	 *   - it needs no notion of "who caused the waste", which nobody can measure
+	 *     and everybody would argue about.
+	 *
+	 * ── POOLING CAN COST MORE, AND THIS FUNCTION SAYS SO ─────────────────────
+	 *
+	 * Measured, not feared: two 30 x 20 cm transfers pool into 50 cm of roll and
+	 * nest apart into 20 + 20 = 40 cm, because they cannot share a row on a 58 cm
+	 * laize and the pool then pays an inter-shelf gap and one rounding up
+	 * (src/lib/dtf/run.test.ts holds the case). `saved` therefore goes NEGATIVE
+	 * rather than being clamped, and the workshop screen refuses to send a run
+	 * that is worth less than its parts. In euros that particular pool still wins
+	 * by a distance, because two orders are two supplier minimums and two
+	 * delivery charges — which is the whole reason the comparison is made in
+	 * money and not in centimetres.
+	 *
+	 * @param array<string,float> $solo_m   order id => metres that order alone was billed.
+	 * @param float               $pooled_m metres the run was billed.
+	 * @param array<string,float> $ink_cm2  order id => ink area, for the published area rule.
+	 *
+	 * @return array{origin:string,total_ht:int,solo_total_ht:int,saved_ht:int,worse:bool,shares:array<string,array{solo_ht:int,share_ht:int,saved_ht:int,area_share_ht:int,solo_m:float}>}
+	 */
+	public static function attribute( array $solo_m, float $pooled_m, array $config, string $origin = 'fr', array $ink_cm2 = array() ): array {
+		$run   = self::film( $pooled_m, $config, $origin );
+		$total = (int) $run['amount_ht'];
+
+		$solo   = array();
+		$weight = array();
+		foreach ( $solo_m as $id => $metres ) {
+			$one            = self::film( (float) $metres, $config, $origin );
+			$solo[ (string) $id ]   = (int) $one['amount_ht'];
+			$weight[ (string) $id ] = (int) $one['amount_ht'];
+		}
+
+		/*
+		 * A run whose every order costs zero alone is not a thing a supplier
+		 * invoices, but a configuration with a zero rate and no delivery charge
+		 * produces one, and dividing by that sum would hand every order a NaN
+		 * share that reads on screen as a missing cost rather than as a zero.
+		 * Equal weights are the only defensible answer when nothing distinguishes
+		 * the orders.
+		 */
+		if ( 0 === array_sum( $weight ) ) {
+			foreach ( $weight as $id => $_ ) {
+				$weight[ $id ] = 1;
+			}
+		}
+
+		$share = self::allocate( $total, $weight );
+		$area  = self::allocate( $total, self::area_weights( array_keys( $solo ), $ink_cm2 ) );
+
+		$shares = array();
+		foreach ( $solo as $id => $alone ) {
+			$shares[ $id ] = array(
+				'solo_m'        => (float) ( $solo_m[ $id ] ?? 0.0 ),
+				'solo_ht'       => $alone,
+				'share_ht'      => $share[ $id ],
+				'saved_ht'      => $alone - $share[ $id ],
+				'area_share_ht' => $area[ $id ],
+			);
+		}
+
+		$solo_total = array_sum( $solo );
+
+		return array(
+			'origin'        => $run['origin'],
+			'total_ht'      => $total,
+			'solo_total_ht' => $solo_total,
+			'saved_ht'      => $solo_total - $total,
+			// The one thing an operator must not have to work out for themselves.
+			'worse'         => $total > $solo_total,
+			'shares'        => $shares,
+		);
+	}
+
+	/**
+	 * Ink areas as integer weights, falling back to equal shares.
+	 *
+	 * The area rule is PUBLISHED and never charged, so an order whose ink could
+	 * not be measured must not make the whole comparison disappear: it gets an
+	 * equal weight and the number stays printable beside the one that is charged.
+	 */
+	private static function area_weights( array $ids, array $ink_cm2 ): array {
+		$out = array();
+		$sum = 0.0;
+		foreach ( $ids as $id ) {
+			$v          = (float) ( $ink_cm2[ $id ] ?? 0.0 );
+			$out[ $id ] = $v > 0 && is_finite( $v ) ? (int) round( $v * 100 ) : 0;
+			$sum       += $out[ $id ];
+		}
+		if ( $sum <= 0 ) {
+			foreach ( $out as $id => $_ ) {
+				$out[ $id ] = 1;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Split `$amount` cents by `$weights`, largest remainder, total preserved.
+	 *
+	 * THE POINT IS THE LAST LINE OF THE FUNCTION. Rounding each share on its own
+	 * loses or invents cents: three equal shares of 100 cents rounded
+	 * independently make 99 or 102, and a supplier invoice of 145,00 EUR would
+	 * then reconcile against 144,99 EUR of order costs forever. The remainders
+	 * are ranked instead, and the leftover cents are handed out one at a time.
+	 *
+	 * Ties are broken by order id, numerically where both ids are numbers, so
+	 * two runs of the same pool cannot allocate the same cent differently. That
+	 * ordering is the same one `compareOrderIds` uses in src/lib/dtf/run.ts, for
+	 * the same reason.
+	 *
+	 * @param array<string,int> $weights
+	 * @return array<string,int>
+	 */
+	private static function allocate( int $amount, array $weights ): array {
+		$total = 0;
+		foreach ( $weights as $w ) {
+			$total += max( 0, (int) $w );
+		}
+		$out = array();
+		if ( $total <= 0 || array() === $weights ) {
+			foreach ( $weights as $id => $_ ) {
+				$out[ $id ] = 0;
+			}
+			return $out;
+		}
+
+		$rest = array();
+		$sum  = 0;
+		foreach ( $weights as $id => $w ) {
+			$exact       = $amount * max( 0, (int) $w );
+			$out[ $id ]  = intdiv( $exact, $total );
+			$rest[ $id ] = $exact % $total;
+			$sum        += $out[ $id ];
+		}
+
+		$ids = array_keys( $weights );
+		usort(
+			$ids,
+			static function ( $a, $b ) use ( $rest ) {
+				if ( $rest[ $a ] !== $rest[ $b ] ) {
+					return $rest[ $b ] <=> $rest[ $a ];
+				}
+				if ( is_numeric( $a ) && is_numeric( $b ) && (float) $a !== (float) $b ) {
+					return (float) $a <=> (float) $b;
+				}
+				return strcmp( (string) $a, (string) $b );
+			}
+		);
+
+		$left = $amount - $sum;
+		for ( $i = 0; $left > 0 && $i < count( $ids ); $i++, $left-- ) {
+			++$out[ $ids[ $i ] ];
+		}
+		return $out;
 	}
 
 	/**
