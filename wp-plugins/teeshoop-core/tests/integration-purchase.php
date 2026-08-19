@@ -295,6 +295,21 @@ function ts_ac_variation( string $sku ): ?\WC_Product {
 	return $product instanceof \WC_Product ? $product : null;
 }
 
+/** Remove the imported reference and every article under it. */
+function ts_ac_forget_blank(): void {
+	$blank = Importer::find( '18001' );
+	if ( $blank <= 0 ) {
+		return;
+	}
+	$parent = wc_get_product( $blank );
+	if ( $parent instanceof \WC_Product_Variable ) {
+		foreach ( $parent->get_children() as $child ) {
+			wp_delete_post( (int) $child, true );
+		}
+	}
+	wp_delete_post( $blank, true );
+}
+
 /**
  * The suite.
  *
@@ -317,6 +332,17 @@ function ts_purchase_suite( int $product_id ): void {
 	ts_ac_stub();
 
 	// ── the catalogue, imported by the shipped importer ──────────────────────
+
+	/*
+	 * CLEARED FIRST, because this suite asserts PRICES and the mirror may already
+	 * carry this reference from `tests/demo-achat.php`, which imports it from the
+	 * live service at the real tariff. Measured: a mirror seeded by that script
+	 * then failed 74 cases here, because the articles this suite buys from had
+	 * the supplier's own 4,15 EUR on them and the fixture says 3,37. A suite that
+	 * only passes on a shop it happens to find empty is a suite that reports the
+	 * mirror's history, not the code.
+	 */
+	ts_ac_forget_blank();
 
 	$GLOBALS['ts_ac_entry'] = ts_ac_entry();
 	$imported               = Importer::one( '18001' );
@@ -630,16 +656,7 @@ function ts_purchase_suite( int $product_id ): void {
 	delete_post_meta( $product_id, Product::META_BLANK_REF );
 	delete_post_meta( $product_id, Product::META_BLANK_COLOURS );
 
-	$blank = Importer::find( '18001' );
-	if ( $blank > 0 ) {
-		$parent = wc_get_product( $blank );
-		if ( $parent instanceof \WC_Product_Variable ) {
-			foreach ( $parent->get_children() as $child ) {
-				wp_delete_post( (int) $child, true );
-			}
-		}
-		wp_delete_post( $blank, true );
-	}
+	ts_ac_forget_blank();
 
 	$settings               = (array) get_option( 'teeshoop_settings', array() );
 	$settings['worker_url'] = $saved_worker;

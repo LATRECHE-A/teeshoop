@@ -740,32 +740,25 @@ final class Purchase {
 	}
 
 	/**
-	 * Is a supplier stock timestamp young enough to support a claim?
+	 * How a supplier stock timestamp stands against the clock. FOUR answers.
 	 *
-	 * ── THE TIMESTAMP IS NOT UTC, AND ASSUMING IT WAS COST AN HOUR ───────────
+	 * `fresh` the reading supports a claim · `stale` it is too old to · `future`
+	 * the two clocks disagree · `unknown` there is no readable reading at all.
 	 *
-	 * MEASURED 2026-08-19: one Worker response carried its own `request_date_time`
-	 * of `14:49:09`, stamped in UTC by `worker/…`'s `stamp()`, beside a supplier
-	 * `export_data_date` of `16:49:10` for the same instant. The supplier writes
-	 * his own wall clock, which is central European time, the same as the shop's.
-	 * WordPress sets PHP's default timezone to UTC, so `strtotime()` on that
-	 * string reads it two hours into the past in summer and one in winter. Under
-	 * a 24-hour window that never quite breaks anything, which is exactly why it
-	 * would have stayed: it just makes every reading look older than it is, and
-	 * one day the window is four hours and it starts refusing fresh stock.
+	 * FOUR AND NOT TWO, because the screen has to say something different about
+	 * each and the first version could not. It collapsed everything but `fresh`
+	 * into « trop ancien », and the first time the workshop screen was actually
+	 * LOOKED AT, it said « trop ancien » about a reading four minutes old: the
+	 * mirror's WordPress runs on UTC, the supplier writes central European time,
+	 * so his stamp read two hours into the future and the future guard fired. The
+	 * guard was right and the word was a lie.
 	 *
-	 * So the string is parsed in the SHOP's timezone, explicitly.
-	 *
-	 * @param string $at  Supplier timestamp, `Y-m-d H:i:s`.
-	 * @param string $now '' for the real clock, a date for the end of that day,
-	 *                    or a full timestamp. The tests need a fixed instant, and
-	 *                    a test that cannot fix the clock is a test that fails at
-	 *                    midnight.
+	 * @return string one of fresh, stale, future, unknown
 	 */
-	public static function fresh( string $at, string $now = '' ): bool {
+	public static function freshness( string $at, string $now = '' ): string {
 		$read = self::moment( $at );
 		if ( null === $read ) {
-			return false;
+			return 'unknown';
 		}
 		$then = '' === trim( $now )
 			? time()
@@ -773,37 +766,62 @@ final class Purchase {
 				? self::moment( trim( $now ) . ' 23:59:59' )
 				: self::moment( $now ) );
 		if ( null === $then ) {
-			return false;
+			return 'unknown';
 		}
 		/*
 		 * A READING FROM THE FUTURE IS NOT A FRESH READING. Two clocks are
-		 * involved and one of them is not ours; a supplier timestamp ahead of us
-		 * means one of the two is wrong, and « we cannot tell » is the only
-		 * answer that is true either way. An hour of slack, because the two
-		 * clocks are also on two sides of a daylight-saving boundary twice a year.
+		 * involved and one of them is not ours; a stamp ahead of us means one of
+		 * the two is wrong, and « nous ne savons pas » is the only answer true
+		 * either way. An hour of slack, because the two also sit on either side
+		 * of a daylight-saving boundary twice a year.
 		 */
 		if ( $read > $then + 3600 ) {
-			return false;
+			return 'future';
 		}
-		return ( $then - $read ) <= self::STOCK_TRUST_HOURS * 3600;
+		return ( $then - $read ) <= self::STOCK_TRUST_HOURS * 3600 ? 'fresh' : 'stale';
+	}
+
+	/** Whether a reading may support a claim of availability at all. */
+	public static function fresh( string $at, string $now = '' ): bool {
+		return 'fresh' === self::freshness( $at, $now );
 	}
 
 	/**
-	 * `Y-m-d H:i:s` in the shop's own timezone, as a unix timestamp, or null.
+	 * The zone the SUPPLIER writes his timestamps in.
 	 *
-	 * `wp_timezone()` under WordPress, PHP's own outside it. Strict parsing:
-	 * `DateTimeImmutable::createFromFormat` accepts a great deal that is not a
-	 * date, and a string this could not read must come back as « we do not know »
-	 * rather than as the epoch, which is a reading forty years old and would read
-	 * on every screen as « trop ancien » instead of « illisible ».
+	 * ── MEASURED, AND NOT THE SHOP'S SETTING ────────────────────────────────
+	 *
+	 * On 2026-08-19 one response carried our own `request_date_time` of
+	 * `14:49:09`, written in UTC, beside an `export_data_date` of `16:49:10` for
+	 * the same instant. He writes central European wall-clock time.
+	 *
+	 * This used to read `wp_timezone()`, which is the SHOP's setting, on the
+	 * argument that the two are the same zone. They are not the same THING: a
+	 * WordPress installed with no timezone chosen runs on UTC, which is what
+	 * both the mirror and a fresh o2switch site do, and every stock reading then
+	 * looked two hours into the future in summer and one in winter. The
+	 * timestamp belongs to the supplier, so it is read in his zone, and his zone
+	 * is a fact we measured rather than a preference anybody can change.
+	 *
+	 * Both this and Paris are UTC+1/+2 on the same dates, so the string names a
+	 * zone without naming a country we may not name here.
+	 */
+	private const SUPPLIER_TZ = 'Europe/Paris';
+
+	/**
+	 * `Y-m-d H:i:s` in the supplier's zone, as a unix timestamp, or null.
+	 *
+	 * Strict: `DateTimeImmutable::createFromFormat` accepts a great deal that is
+	 * not a date, and a string this cannot read must come back as « we do not
+	 * know » rather than as the epoch, which is a reading forty years old and
+	 * would read on every screen as « trop ancien » instead of « illisible ».
 	 */
 	private static function moment( string $value ): ?int {
 		$value = trim( $value );
 		if ( '' === $value ) {
 			return null;
 		}
-		$zone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( date_default_timezone_get() );
-		$when = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $value, $zone );
+		$when = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $value, new \DateTimeZone( self::SUPPLIER_TZ ) );
 		if ( false === $when || array() !== array_filter( (array) \DateTimeImmutable::getLastErrors() ) ) {
 			return null;
 		}

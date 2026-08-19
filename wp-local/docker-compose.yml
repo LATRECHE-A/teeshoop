@@ -106,12 +106,32 @@ services:
       #
       #   npm run wp:cli language core install fr_FR --activate
       #   npm run wp:cli language plugin install woocommerce fr_FR
+      #
+      # AND NO SECRET IS DEFINED HERE, which is a correction and not a style
+      # choice. This block used to carry
+      #
+      #   define('TEESHOOP_CATALOGUE_TOKEN', '${TEESHOOP_CATALOGUE_TOKEN:-}');
+      #
+      # and the `:-` made it emit an EMPTY define whenever the host had no such
+      # variable, which is always. The generated wp-config.php `eval`s this block
+      # BEFORE its own hand-written defines, PHP keeps the first definition of a
+      # constant, and this service sets the variable while the `wpcli` service
+      # does not. So the two containers disagreed about a secret: `wp-cli` read
+      # the real 44-character token and every test passed, while the web request
+      # read an empty one and the admin screen reported the Worker unreachable.
+      # Found on 19/08/2026 by LOOKING at a rendered admin screen, which no test
+      # in this repository does.
+      #
+      # Secrets go in wp-config.php once, where both containers read the same
+      # thing:
+      #
+      #   npm run wp:cli config set TEESHOOP_CATALOGUE_TOKEN <valeur> --type=constant
+      #   npm run wp:cli config set TEESHOOP_WORKER_TOKEN <valeur> --type=constant
       WORDPRESS_CONFIG_EXTRA: |
         define('WP_DEBUG', true);
         define('WP_DEBUG_LOG', true);
         define('WP_DEBUG_DISPLAY', false);
         define('SCRIPT_DEBUG', true);
-        define('TEESHOOP_CATALOGUE_TOKEN', '${TEESHOOP_CATALOGUE_TOKEN:-}');
         define('WP_ENVIRONMENT_TYPE', 'local');
     volumes:
       - wp:/var/www/html

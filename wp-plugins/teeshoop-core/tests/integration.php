@@ -97,6 +97,25 @@ include_once WC_ABSPATH . 'includes/wc-cart-functions.php';
 include_once WC_ABSPATH . 'includes/class-wc-cart.php';
 wc_load_cart();
 
+/*
+ * THE SUITE DOES NOT INHERIT THE MIRROR'S WORKER ADDRESS.
+ *
+ * Almost every case here builds a cart, and `Cart::add` asks the Worker whether
+ * the design exists, which is right and is what stops an unprintable order being
+ * paid for. These designs were never uploaded, because the suite invents them,
+ * so `TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` carries them: it rescues an UNREACHABLE
+ * Worker, not a reachable one answering an honest 404.
+ *
+ * So a mirror pointed at a REAL Worker failed 74 cases here, and the same mirror
+ * pointed at nothing passed all 182. Measured on 19/08/2026 after
+ * `tests/demo-achat.php` left a live address behind. Whether a suite passes must
+ * not depend on what somebody last typed into a settings option, so the address
+ * is cleared here and restored at the end; the two suites that need one set
+ * their own and stub the calls.
+ */
+$ts_settings_before = get_option( 'teeshoop_settings', array() );
+update_option( 'teeshoop_settings', array_merge( (array) $ts_settings_before, array( 'worker_url' => '' ) ) );
+
 /**
  * Disposable products to decorate.
  *
@@ -656,6 +675,9 @@ ts_production_suite( $product_id );
 require_once __DIR__ . '/integration-purchase.php';
 ts_purchase_suite( $product_id );
 
+require_once __DIR__ . '/zz-repro-sending.php';
+ts_repro_suite( $product_id );
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 
@@ -665,6 +687,7 @@ WC()->cart->empty_cart();
 foreach ( array( $product_id, $hoodie_id, $bare_id ) as $id ) {
 	wp_delete_post( $id, true );
 }
+update_option( 'teeshoop_settings', $ts_settings_before );
 
 echo "\n";
 

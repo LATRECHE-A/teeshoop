@@ -224,6 +224,37 @@ describe( 'Purchase::fresh — trois réponses, pas deux', function () {
 	it( 'refuse une lecture venue du futur', function () use ( $now ) {
 		eq( Purchase::fresh( '2026-05-19 18:00:00', $now ), false );
 	} );
+
+	/*
+	 * Le mot compte autant que le refus. La première version n'avait que « frais »
+	 * et « trop ancien », et l'écran de l'atelier a annoncé « trop ancien » sur un
+	 * relevé de quatre minutes, sur une boutique dont WordPress tourne en UTC
+	 * alors que le fournisseur écrit son heure murale.
+	 */
+	it( 'distingue les quatre réponses, parce que l’écran en dit quatre choses', function () use ( $now ) {
+		eq( Purchase::freshness( '2026-05-19 11:00:00', $now ), 'fresh' );
+		eq( Purchase::freshness( '2026-05-17 11:00:00', $now ), 'stale' );
+		eq( Purchase::freshness( '2026-05-19 18:00:00', $now ), 'future' );
+		eq( Purchase::freshness( 'pas une date', $now ), 'unknown' );
+	} );
+
+	/*
+	 * L'horodatage est lu dans le fuseau du FOURNISSEUR et non dans celui du
+	 * processus. Le contrôle est le même des deux côtés d'un changement de
+	 * fuseau du système : c'est ce qui a cassé quand il lisait wp_timezone().
+	 */
+	it( 'lit l’heure du fournisseur indépendamment du fuseau du processus', function () use ( $now ) {
+		$was = date_default_timezone_get();
+		try {
+			foreach ( array( 'UTC', 'America/Chicago', 'Asia/Tokyo' ) as $zone ) {
+				date_default_timezone_set( $zone );
+				eq( Purchase::freshness( '2026-05-19 11:00:00', $now ), 'fresh', 'sous ' . $zone );
+				eq( Purchase::freshness( '2026-05-17 11:00:00', $now ), 'stale', 'sous ' . $zone );
+			}
+		} finally {
+			date_default_timezone_set( $was );
+		}
+	} );
 } );
 
 describe( 'Purchase::stock_verdict — ce qui manque, et ce qu’on ne sait plus', function () {

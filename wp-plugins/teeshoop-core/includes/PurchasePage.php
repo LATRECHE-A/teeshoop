@@ -361,19 +361,33 @@ final class PurchasePage {
 			echo '</tr>';
 		}
 
-		echo '</tbody><tfoot><tr>';
-		echo '<th scope="row" colspan="3">' . esc_html__( 'Total', 'teeshoop' ) . '</th>';
-		echo '<td ' . $num . '><strong>' . esc_html( (string) (int) $purchase['garments'] ) . '</strong></td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-		echo '<td></td>';
-		echo '<td ' . $num . '><strong>' . esc_html( Money::format( (int) $purchase['blanks_ht'] ) ) . '</strong></td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-		echo '<td colspan="2"></td></tr>';
-		echo '<tr><th scope="row" colspan="5">' . esc_html__( 'Port fournisseur', 'teeshoop' ) . '</th>';
-		echo '<td ' . $num . '>' . esc_html( Money::format( (int) $purchase['freight_ht'] ) ) . '</td><td colspan="2" class="description">'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-		echo esc_html( 0 === (int) $purchase['freight_ht'] ? __( 'franco atteint', 'teeshoop' ) : __( 'question 03, à confirmer', 'teeshoop' ) );
-		echo '</td></tr>';
-		echo '<tr><th scope="row" colspan="5">' . esc_html__( 'À payer au fournisseur', 'teeshoop' ) . '</th>';
-		echo '<td ' . $num . '><strong>' . esc_html( Money::format( (int) $purchase['total_ht'] ) . ' HT' ) . '</strong></td><td colspan="2"></td></tr>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-		echo '</tfoot></table></div>';
+		echo '</tbody></table></div>';
+
+		/*
+		 * THE TOTALS ARE OUTSIDE THE TABLE, and that is a mobile decision made by
+		 * looking at the screen at 375 px rather than by reasoning about it. As a
+		 * `tfoot` they sat in the horizontally scrolling region: the label « À
+		 * payer au fournisseur » was visible with an empty cell beside it and the
+		 * amount two screens to the right. The three figures that decide whether
+		 * to press the button cannot be the ones you have to go looking for.
+		 */
+		echo '<table class="widefat" style="max-width:34em;margin-top:.6em"><tbody>';
+		self::total_row( __( 'Textiles', 'teeshoop' ), Money::format( (int) $purchase['blanks_ht'] ), sprintf( /* translators: %d: how many garments. */ _n( '%d pièce', '%d pièces', (int) $purchase['garments'], 'teeshoop' ), (int) $purchase['garments'] ) );
+		self::total_row(
+			__( 'Port fournisseur', 'teeshoop' ),
+			Money::format( (int) $purchase['freight_ht'] ),
+			0 === (int) $purchase['freight_ht'] ? __( 'franco atteint', 'teeshoop' ) : __( 'question 03, à confirmer', 'teeshoop' )
+		);
+		self::total_row( __( 'À payer au fournisseur', 'teeshoop' ), Money::format( (int) $purchase['total_ht'] ) . ' HT', '', true );
+		echo '</tbody></table>';
+	}
+
+	/** One line of the summary under the basket. */
+	private static function total_row( string $label, string $amount, string $note, bool $strong = false ): void {
+		echo '<tr><th scope="row" style="width:14em">' . esc_html( $label ) . '</th>';
+		echo '<td style="font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap">';
+		echo $strong ? '<strong>' . esc_html( $amount ) . '</strong>' : esc_html( $amount );
+		echo '</td><td class="description">' . esc_html( $note ) . '</td></tr>';
 	}
 
 	/** What each customer order contributes, and what it was assumed to cost. */
@@ -525,13 +539,26 @@ final class PurchasePage {
 		return __( 'disponible', 'teeshoop' );
 	}
 
-	/** One cell about the stock behind one article. */
+	/**
+	 * One cell about the stock behind one article.
+	 *
+	 * FOUR STATES AND NOT TWO, because the first version had two and lied. It
+	 * printed « trop ancien » about a reading four minutes old, on a shop whose
+	 * WordPress runs on UTC while the supplier writes his own wall clock: a
+	 * timestamp from the future is not an old timestamp, and an operator told his
+	 * data is stale goes and refreshes something that was never stale.
+	 */
 	private static function stock_cell( array $row ): string {
-		if ( null === $row['stock'] || '' === (string) $row['stock_at'] ) {
+		if ( null === $row['stock'] ) {
 			return __( 'inconnu', 'teeshoop' );
 		}
-		if ( ! Purchase::fresh( (string) $row['stock_at'] ) ) {
-			return __( 'trop ancien', 'teeshoop' );
+		switch ( Purchase::freshness( (string) $row['stock_at'] ) ) {
+			case 'unknown':
+				return __( 'sans relevé', 'teeshoop' );
+			case 'stale':
+				return __( 'trop ancien', 'teeshoop' );
+			case 'future':
+				return __( 'horloges décalées', 'teeshoop' );
 		}
 		if ( (int) $row['stock'] < (int) $row['qty'] ) {
 			/* translators: %d: how many the supplier has, when it is fewer than we need. */
