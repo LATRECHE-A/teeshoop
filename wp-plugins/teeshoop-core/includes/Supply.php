@@ -41,12 +41,34 @@ declare( strict_types = 1 );
 
 namespace Teeshoop\Core;
 
-defined( 'ABSPATH' ) || exit;
+/*
+ * `TEESHOOP_TEST` joins the guard because `Purchase::TRANSMITTABLE` names
+ * `Supply::SOURCE`, and the pure test runner loads `Purchase.php`. The adapter
+ * code has ONE home and the constant is it; copying the string into the other
+ * class so this file could stay unloadable would be a second copy of exactly
+ * the value the register exists to keep single.
+ */
+defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 final class Supply {
 
 	/** Where the catalogue lives on the Worker. */
 	private const ROUTE = '/api/fr/';
+
+	/**
+	 * The adapter code every article this file imports is stamped with.
+	 *
+	 * A CODE, NOT A NAME, and the difference is enforced: `scripts/php-guard.mjs`
+	 * keeps every supplier name out of this plugin, and `Catalogue::public_ref()`
+	 * records what it cost when the procurement key leaked into a public product
+	 * reference. What the shop needs in order to be second-sourced is not who is
+	 * at the end of the route, it is WHICH ADAPTER wrote an article, so that two
+	 * suppliers' articles can sit in one catalogue and a basket can refuse to
+	 * mix them. `ws` is that: the adapter that speaks a webservice through the
+	 * Worker. A second one gets a second code here and a second route, and
+	 * nothing in `Purchase.php` changes.
+	 */
+	public const SOURCE = 'ws';
 
 	/**
 	 * Per-request deadline, seconds.
@@ -60,6 +82,17 @@ final class Supply {
 
 	/** Wall-clock ceiling for the catalogue walk, seconds. */
 	private const LIST_TIMEOUT = 60;
+
+	/**
+	 * Articles per stock page.
+	 *
+	 * The Worker will serve up to twenty thousand in one answer and the whole
+	 * snapshot is about forty-six thousand, so this is a shared-hosting choice
+	 * rather than an upstream limit: a dozen small JSON responses WordPress can
+	 * decode inside its memory limit, instead of three large ones a modest PHP
+	 * would decode with nothing to spare on the day the catalogue grows.
+	 */
+	private const STOCK_PAGE = 4000;
 
 	/**
 	 * Is the shop configured to import at all?
@@ -255,6 +288,218 @@ final class Supply {
 			'ok'    => true,
 			'entry' => $res['body'],
 		);
+	}
+
+	/**
+	 * One page of the whole catalogue's stock.
+	 *
+	 * ONE UPSTREAM CALL, WHATEVER THE PAGE. The Worker holds a snapshot of every
+	 * article (`loadStockAll`) and serves slices of it, so a sweep of the whole
+	 * catalogue costs the supplier one request and this shop a handful. The
+	 * shape that would have been obvious, one request per reference, is 460
+	 * round trips for a number that changes several times a day.
+	 *
+	 * `at` IS THE SUPPLIER'S OWN TIMESTAMP for the snapshot this page came from,
+	 * and it is the reason this route exists in this shape. Chapter 05 of the
+	 * brief: « Le stock affiché par une API n'est pas une garantie absolue. Le
+	 * système doit enregistrer la date de consultation. » A quantity with no
+	 * date behind it cannot be shown to anybody.
+	 *
+	 * @return array{ok:bool,error?:string,at?:string,total?:int,rows?:array,next?:?int}
+	 */
+	public static function stock_page( int $offset, int $limit = self::STOCK_PAGE ): array {
+		$why = self::unconfigured();
+		if ( '' !== $why ) {
+			return array(
+				'ok'    => false,
+				'error' => $why,
+			);
+		}
+
+		$res = self::get(
+			'stock',
+			array(
+				'offset' => max( 0, $offset ),
+				'limit'  => max( 1, min( 20000, $limit ) ),
+			),
+			self::TIMEOUT
+		);
+		if ( ! $res['ok'] ) {
+			return array(
+				'ok'    => false,
+				'error' => $res['error'],
+			);
+		}
+
+		$body = $res['body'];
+		if ( ! isset( $body['rows'] ) || ! is_array( $body['rows'] ) || ! isset( $body['at'] ) ) {
+			return array(
+				'ok'    => false,
+				'error' => 'Réponse de stock illisible.',
+			);
+		}
+
+		/*
+		 * A PAGE WITH NO TIMESTAMP IS REFUSED, not stored with an empty date.
+		 * The date is what makes the quantity usable; an article whose freshness
+		 * is blank reads on every screen as « nous ne savons pas », which is a
+		 * safe answer and a wrong one when the supplier did tell us.
+		 */
+		if ( '' === trim( (string) $body['at'] ) ) {
+			return array(
+				'ok'    => false,
+				'error' => 'Le fournisseur n’a pas daté ce relevé de stock.',
+			);
+		}
+
+		return array(
+			'ok'    => true,
+			'at'    => (string) $body['at'],
+			'total' => (int) ( $body['total'] ?? 0 ),
+			'rows'  => $body['rows'],
+			'next'  => isset( $body['nextOffset'] ) && null !== $body['nextOffset'] ? (int) $body['nextOffset'] : null,
+		);
+	}
+
+	/**
+	 * Is the supplier account a rehearsal or the real thing?
+	 *
+	 * `unknown` when we could not ask, and `unknown` is NOT a synonym for
+	 * « probably test ». It is the state in which nothing may be sent: the whole
+	 * confirmation this shop asks a human for is a comparison against this word,
+	 * and confirming against a word nobody could read confirms nothing.
+	 *
+	 * @return array{mode:string,error:string,at:string}
+	 */
+	public static function mode(): array {
+		$why = self::unconfigured();
+		if ( '' !== $why ) {
+			return array(
+				'mode'  => 'unknown',
+				'error' => $why,
+				'at'    => '',
+			);
+		}
+		$res = self::get( 'state', array(), 10 );
+		if ( ! $res['ok'] ) {
+			return array(
+				'mode'  => 'unknown',
+				'error' => (string) $res['error'],
+				'at'    => '',
+			);
+		}
+		$mode = (string) ( $res['body']['mode'] ?? '' );
+		return array(
+			'mode'  => in_array( $mode, array( 'test', 'live' ), true ) ? $mode : 'unknown',
+			'error' => in_array( $mode, array( 'test', 'live' ), true ) ? '' : 'réponse inattendue',
+			'at'    => (string) ( $res['body']['at'] ?? '' ),
+		);
+	}
+
+	/**
+	 * Place a supplier order. The only call in this plugin that spends money.
+	 *
+	 * ── IT IS NOT `self::get()` AND IT MUST NOT BECOME IT ────────────────────
+	 *
+	 * That helper retries once on a transport failure, which is right for an
+	 * idempotent GET and catastrophic here: the first attempt may have arrived.
+	 * This posts exactly once, and every failure mode that could mean « it may
+	 * have arrived » comes back as `outcome => unknown` rather than as an error,
+	 * so the caller records the doubt instead of resolving it by guessing.
+	 *
+	 * `$expect_mode` is the word the operator confirmed against. The Worker reads
+	 * the account's real mode and refuses on a disagreement, before building
+	 * anything.
+	 *
+	 * @param string $key         Our idempotency key, also the supplier's reference.
+	 * @param string $expect_mode 'test' or 'live'.
+	 * @param array  $lines       [['sku'=>string,'qty'=>int,'lineRef'=>string], …]
+	 *
+	 * @return array{outcome:string,ok:bool,orderId:string,message:string,lines:array,mode:array}
+	 */
+	public static function place_order( string $key, string $expect_mode, array $lines ): array {
+		$unknown = static fn( string $why ): array => array(
+			'outcome' => 'unknown',
+			'ok'      => false,
+			'orderId' => '',
+			'message' => $why,
+			'lines'   => array(),
+			'mode'    => array(),
+		);
+		$refused = static fn( string $why ): array => array(
+			'outcome' => 'rejected',
+			'ok'      => false,
+			'orderId' => '',
+			'message' => $why,
+			'lines'   => array(),
+			'mode'    => array(),
+		);
+
+		$why = self::unconfigured();
+		if ( '' !== $why ) {
+			// Nothing was sent: the shop is not configured to send at all.
+			return $refused( $why );
+		}
+
+		$response = wp_remote_post(
+			self::base() . self::ROUTE . 'order',
+			array(
+				'timeout'     => self::TIMEOUT,
+				'redirection' => 0,
+				'headers'     => array(
+					'content-type'  => 'application/json',
+					'accept'        => 'application/json',
+					'authorization' => 'Bearer ' . self::token(),
+				),
+				'body'        => (string) wp_json_encode(
+					array(
+						'idempotencyKey' => $key,
+						'mode'           => $expect_mode,
+						'partialShipment' => false,
+						'note'           => 'Teeshoop ' . $key,
+						'lines'          => array_values( $lines ),
+					)
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			/*
+			 * A TRANSPORT FAILURE HERE IS AMBIGUOUS AND STAYS AMBIGUOUS. WordPress
+			 * cannot tell a connection refused from a response lost after the
+			 * Worker forwarded the document, and the Worker cannot tell a lost
+			 * answer from an order the supplier never saw.
+			 */
+			return $unknown( 'Le Worker est injoignable : ' . $response->get_error_message() );
+		}
+
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		$body = is_array( $body ) ? $body : array();
+
+		if ( 200 === $code && isset( $body['outcome'] ) ) {
+			return array(
+				'outcome' => (string) $body['outcome'],
+				'ok'      => ! empty( $body['ok'] ),
+				'orderId' => (string) ( $body['orderId'] ?? '' ),
+				'message' => (string) ( $body['message'] ?? '' ),
+				'lines'   => is_array( $body['lines'] ?? null ) ? $body['lines'] : array(),
+				'mode'    => is_array( $body['mode'] ?? null ) ? $body['mode'] : array(),
+			);
+		}
+
+		/*
+		 * EVERY REFUSAL THE WORKER MAKES BEFORE SENDING IS A REFUSAL, and it
+		 * names them: 400 for a document it will not build, 401 for a token,
+		 * 409 for a mode that moved, 503 for a customer number nobody has set.
+		 * Anything else is a Worker that answered something we do not recognise,
+		 * which cannot be told from a document that went out.
+		 */
+		$message = (string) ( $body['message'] ?? ( 'Le Worker a répondu ' . $code . '.' ) );
+		if ( in_array( $code, array( 400, 401, 403, 409, 503 ), true ) ) {
+			return $refused( $message );
+		}
+		return $unknown( $message );
 	}
 
 	/**

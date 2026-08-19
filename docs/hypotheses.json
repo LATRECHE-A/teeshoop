@@ -730,7 +730,8 @@
 				"internal"
 			],
 			"derives": [
-				"Mesuré sur 26 300 lignes : le premier nombre totalise 4,7 millions de pièces, le deuxième 7 935, le troisième 32,4 millions."
+				"Mesuré sur 26 300 lignes : le premier nombre totalise 4,7 millions de pièces, le deuxième 7 935, le troisième 32,4 millions.",
+				"Le rafraîchissement de stock de la séance 08 lit le même indice que la vente, par son nom : si la réponse déplace l’indice, la boutique ne peut pas se retrouver à vendre contre un nombre et à acheter contre un autre."
 			],
 			"sessions": [
 				"08"
@@ -782,7 +783,35 @@
 				"09"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Moitié. L'hypothèse par défaut de la question 11 demande une « mention disponible ou délai allongé SANS CHIFFRE ». Le chiffre est écrit, et le réglage WooCommerce qui déciderait de son affichage (woocommerce_stock_format) n'est posé nulle part : à ce jour il n'atteint pas un client parce qu'aucun article importé n'est achetable, ce qui cesse d'être vrai le jour où la question 42 est répondue."
+			"shipped_matches_default": "Oui depuis la séance 08. La quantité exacte reste écrite sur l’article, parce que l’atelier en a besoin pour acheter, mais ce qu’un client lit ne la contient plus : « Disponible », « Délai allongé » ou « Délai à confirmer », sans chiffre, ce qui est l’hypothèse par défaut de la question 11. La fenêtre au-delà de laquelle la boutique cesse d’annoncer une disponibilité est H-Q11-FRAICHEUR-STOCK."
+		},
+		{
+			"id": "H-Q11-FRAICHEUR-STOCK",
+			"question": "Q11",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Un relevé de stock de plus de 24 heures ne permet plus d’annoncer une disponibilité : la boutique affiche « Délai à confirmer » plutôt qu’un état qu’elle ne peut plus prouver.",
+			"home": "phpconst:Teeshoop\\Core\\Purchase::STOCK_TRUST_HOURS",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "24 est un nombre d’heures, et le dépôt en écrit des dizaines qui ne sont ni des heures ni du stock (une limite de pagination, une largeur, une taille). Le foyer est une constante nommée exprès pour que le registre puisse la désigner sans chasser un littéral qui ne veut rien dire.",
+			"reaches": [
+				"customer",
+				"operator",
+				"internal"
+			],
+			"derives": [
+				"Le relevé complet du fournisseur, 46 591 articles, revient en une seule requête (mesuré le 19 août 2026 : 908 Ko, 674 ms), ce qui rend un rafraîchissement toutes les 4 heures gratuit.",
+				"L’horodatage du fournisseur est écrit dans SON fuseau, pas en UTC : mesuré le 19 août 2026, une même réponse portait 14:49:09 en UTC et 16:49:10 chez lui."
+			],
+			"sessions": [
+				"08",
+				"09"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Délai à confirmer",
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne de fenêtre. La question 11 demande une mention « disponible » ou « délai allongé » sans chiffre, ce qui suppose de savoir si le stock est encore vrai, et ne dit pas à partir de quand il cesse de l’être. Vingt-quatre heures est une journée de commandes des autres clients du fournisseur : au-delà, le nombre ne dit plus rien de son entrepôt."
 		},
 		{
 			"id": "H-Q08-SURFACE-ENCRE",
@@ -1008,23 +1037,28 @@
 			"id": "H-Q22-COMMANDE-FOURNISSEUR",
 			"question": "Q22",
 			"level": "bloquant",
-			"status": "refused",
-			"since": "2026-08-08",
-			"statement_fr": "Aucune commande fournisseur ne peut partir : le numéro de client n'est configuré nulle part et la route refuse plutôt que de deviner.",
-			"home": "anchor:worker/falkross.ts#customerNumber = env.FR_CUSTOMER_NR",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "La commande fournisseur est préparée automatiquement à partir des commandes et de leurs grilles de tailles, et elle n’est transmise qu’après une confirmation manuelle : l’opérateur recopie le mode du compte fournisseur affiché à l’écran, et la transmission est refusée si ce mode a changé entre-temps.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/PurchasePage.php#Pour envoyer, recopiez le mode du compte",
 			"mirrors": [],
 			"literals": [],
-			"literals_why": "C'est un refus, donc l'absence d'un secret. Le contrôle vérifie que le point où il serait lu existe toujours.",
+			"literals_why": "C’est une politique, pas un chiffre : ce qui est supposé est qu’un humain confirme. Le foyer est la phrase que cet humain lit à l’écran, donc le contrôle vérifie qu’elle est toujours là.",
 			"reaches": [
 				"supplier",
+				"operator",
 				"internal"
 			],
-			"derives": [],
+			"derives": [
+				"Le compte fournisseur est en mode test, relevé en direct le 19 août 2026 (webservice_mode_code = 1).",
+				"L’interface du fournisseur ne publie aucune route qui liste les commandes : une commande envoyée ne peut pas être relue, donc un envoi dont la réponse s’est perdue n’est jamais rejoué.",
+				"Une sonde en mode test, avec un numéro de client délibérément faux, obtient exactement la même réponse qu’avec le nôtre : l’interface ne permet pas de confirmer notre numéro de client."
+			],
 			"sessions": [
 				"08"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Plus prudent que le défaut écrit, qui prévoit une commande « préparée automatiquement mais toujours validée manuellement ». Rien n'est préparé du tout, donc rien ne peut partir par erreur, ce que la question elle-même donne comme motif d'inquiétude."
+			"shipped_matches_default": "Oui, c’est l’hypothèse par défaut écrite : « commande fournisseur préparée automatiquement mais toujours validée manuellement par vous, et accès à cette fonction protégé par mot de passe ». L’écran demande la capacité manage_woocommerce, et la route du Worker demande le jeton d’administration. Rien ne peut partir sans le numéro de client du fournisseur, qui n’est configuré nulle part : c’est le dernier verrou et il est vide."
 		},
 		{
 			"id": "H-Q39-COMMISSION-JAMAIS-AFFICHEE",
@@ -2149,7 +2183,7 @@
 			"level": "bloquant",
 			"status": "refused",
 			"since": "2026-08-18",
-			"statement_fr": "Aucun prix d'achat n'est écrit pour les vêtements du studio : leur coût textile est INCONNU, et une commande qui en contient n'a pas de plancher chiffrable.",
+			"statement_fr": "Aucun prix d’achat n’est saisi à la main pour les vêtements du studio : la table est vide, et un vêtement dont la fiche produit ne déclare aucun textile nu n’a pas de coût textile chiffrable.",
 			"home": "php:Teeshoop\\Core\\Cost::default_config()#garment_supply",
 			"mirrors": [],
 			"literals": [],
@@ -2159,10 +2193,11 @@
 			],
 			"derives": [],
 			"sessions": [
-				"05"
+				"05",
+				"08"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Ce n'est pas une hypothèse, c'est un refus. Les articles du catalogue fournisseur portent déjà leur prix d'achat réel ; les vêtements de démonstration du studio ne sont rattachés à aucune référence. Un chiffre inventé ici produirait un plancher, une marge et une commission qui ont l'air calculés, sur un prix d'achat que personne n'a payé. L'écran « Coûts et marges » permet de le saisir avec sa source et sa date.",
+			"shipped_matches_default": "Ce n’est pas une hypothèse, c’est un refus, et la séance 08 en referme la moitié. Une fiche produit déclare désormais la référence du catalogue sur laquelle elle est imprimée et la correspondance de ses coloris ; le coût textile vient alors de l’article réel, taille par taille, avec le prix que le fournisseur publie. Ce qui reste refusé est la saisie à la main : un chiffre tapé là produirait un plancher et une commission qui ont l’air calculés, sur un prix d’achat que personne n’a payé. L’écran « Coûts et marges » permet de le saisir avec sa source et sa date.",
 			"literals_why": "La table est vide."
 		},
 		{
@@ -2913,6 +2948,30 @@
 					"in": "5 jours ouvrés"
 				}
 			]
+		},
+		{
+			"id": "H-Q46-DELAI-TEXTILE",
+			"question": "Q46",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-19",
+			"statement_fr": "Aucun délai d’approvisionnement textile n’est calculé : personne n’a jamais mesuré le temps entre un bon de commande fournisseur et la réception des vêtements, et l’atelier ne planifie donc que le film.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Purchase.php#this file computes no blank-side deadline at all",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C’est un refus : il n’y a pas de valeur. Le contrôle vérifie que la raison est toujours écrite là où le calcul aurait eu lieu.",
+			"reaches": [
+				"operator",
+				"internal"
+			],
+			"derives": [
+				"La séance 07 a mesuré 6 jours ouvrés de travail incompressible entre un bon à tirer validé et un colis, contre 4 promis en urgence. Ces 6 jours ne comptent PAS l’acheminement des vêtements nus."
+			],
+			"sessions": [
+				"08"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Il n’y a pas d’hypothèse par défaut à comparer : aucune question ne posait ce chiffre avant la séance 08, et la Bible ne le donne dans aucun de ses huit chapitres. Un délai inventé ici deviendrait une date de livraison promise à un client, calculée à partir d’un nombre que personne n’a tenu."
 		}
 	],
 	"not_applicable": [

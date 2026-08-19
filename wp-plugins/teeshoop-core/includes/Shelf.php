@@ -80,6 +80,13 @@ final class Shelf {
 		 * the seal beside it held.
 		 */
 		Catalogue::META_REF,
+		/*
+		 * The adapter that wrote the article. It names no supplier, but it
+		 * PARTITIONS the catalogue by supplier, which is the same information a
+		 * competitor wants and which nothing on a customer surface has any use
+		 * for. It is procurement identity, so it is sealed with the rest of it.
+		 */
+		Catalogue::META_SUPPLY_SOURCE,
 	);
 
 	public static function init(): void {
@@ -99,6 +106,76 @@ final class Shelf {
 		add_filter( 'woocommerce_hidden_order_itemmeta', array( self::class, 'hide_order_itemmeta' ), 10, 1 );
 
 		add_action( 'wp', array( self::class, 'unpriced_notice' ) );
+
+		/*
+		 * THE ONE PLACE THE SHOP SPEAKS ABOUT SUPPLIER STOCK TO A CUSTOMER.
+		 *
+		 * WooCommerce's own answer is a quantity or « En stock », computed from a
+		 * number this shop copied from a supplier at some point in the past and
+		 * with no idea how long ago. Chapter 05 of the brief is explicit that the
+		 * number is an observation and not a guarantee, and question 11's written
+		 * default is a mention « disponible » or « délai allongé » WITHOUT a
+		 * figure. Both are handled here, and so is the third case neither of them
+		 * names: a reading too old to support any claim at all.
+		 */
+		add_filter( 'woocommerce_get_availability', array( self::class, 'availability' ), 10, 2 );
+	}
+
+	/**
+	 * What a customer is told about a supplier article's availability.
+	 *
+	 * Three answers, because there are three facts:
+	 *
+	 *   · fresh and in stock       → « Disponible »
+	 *   · fresh and out of stock   → « Délai allongé »
+	 *   · anything else            → « Délai à confirmer »
+	 *
+	 * NEVER A NUMBER. Publishing a figure turns the supplier's warehouse into our
+	 * promise, and question 11 asks the associate whether he wants that; until he
+	 * answers, the shop says the thing that stays true whatever the warehouse
+	 * holds. `Purchase::STOCK_TRUST_HOURS` is what separates the second answer
+	 * from the third, and the third is not a degraded version of the other two:
+	 * « nous ne savons pas depuis assez peu de temps pour le dire » is a
+	 * different statement from « il y en a » and is the honest one.
+	 *
+	 * ONLY IMPORTED ARTICLES. A shop manager's own product keeps WooCommerce's
+	 * message, which is right for stock they manage themselves.
+	 *
+	 * @param mixed $data    ['availability' => string, 'class' => string]
+	 * @param mixed $product The product WooCommerce is describing.
+	 */
+	public static function availability( $data, $product ): array {
+		$data = is_array( $data ) ? $data : array(
+			'availability' => '',
+			'class'        => '',
+		);
+		if ( ! $product instanceof \WC_Product ) {
+			return $data;
+		}
+		if ( '' === (string) $product->get_meta( Catalogue::META_SUPPLY_SKU, true ) ) {
+			return $data;
+		}
+
+		$at    = (string) $product->get_meta( Catalogue::META_STOCK_AT, true );
+		$have  = $product->get_stock_quantity();
+		$fresh = Purchase::fresh( $at );
+
+		if ( ! $fresh || null === $have ) {
+			return array(
+				'availability' => __( 'Délai à confirmer', 'teeshoop' ),
+				'class'        => 'teeshoop-stock-unknown',
+			);
+		}
+		if ( (int) $have > 0 ) {
+			return array(
+				'availability' => __( 'Disponible', 'teeshoop' ),
+				'class'        => 'teeshoop-stock-in',
+			);
+		}
+		return array(
+			'availability' => __( 'Délai allongé', 'teeshoop' ),
+			'class'        => 'teeshoop-stock-late',
+		);
 	}
 
 	/**

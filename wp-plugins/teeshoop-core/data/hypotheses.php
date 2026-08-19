@@ -305,6 +305,25 @@ return array(
 			),
 		),
 		array(
+			'id' => 'H-Q11-FRAICHEUR-STOCK',
+			'question' => 'Q11',
+			'level' => 'utile',
+			'status' => 'assumption',
+			'since' => '2026-08-19',
+			'statement_fr' => 'Un relevé de stock de plus de 24 heures ne permet plus d’annoncer une disponibilité : la boutique affiche « Délai à confirmer » plutôt qu’un état qu’elle ne peut plus prouver.',
+			'home' => 'phpconst:Teeshoop\\Core\\Purchase::STOCK_TRUST_HOURS',
+			'reaches' => array(
+				'customer',
+				'operator',
+				'internal',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'08',
+				'09',
+			),
+		),
+		array(
 			'id' => 'H-Q12-TECHNIQUE-ET-ZONES',
 			'question' => 'Q12',
 			'level' => 'bloquant',
@@ -337,6 +356,24 @@ return array(
 			'cost_if_late' => 'reglage et remesure',
 			'sessions' => array(
 				'05',
+				'08',
+			),
+		),
+		array(
+			'id' => 'H-Q22-COMMANDE-FOURNISSEUR',
+			'question' => 'Q22',
+			'level' => 'bloquant',
+			'status' => 'assumption',
+			'since' => '2026-08-19',
+			'statement_fr' => 'La commande fournisseur est préparée automatiquement à partir des commandes et de leurs grilles de tailles, et elle n’est transmise qu’après une confirmation manuelle : l’opérateur recopie le mode du compte fournisseur affiché à l’écran, et la transmission est refusée si ce mode a changé entre-temps.',
+			'home' => 'anchor:wp-plugins/teeshoop-core/includes/PurchasePage.php#Pour envoyer, recopiez le mode du compte',
+			'reaches' => array(
+				'supplier',
+				'operator',
+				'internal',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
 				'08',
 			),
 		),
@@ -847,6 +884,23 @@ return array(
 			'cost_if_late' => 'reglage',
 			'sessions' => array(
 				'07',
+			),
+		),
+		array(
+			'id' => 'H-Q46-DELAI-TEXTILE',
+			'question' => 'Q46',
+			'level' => 'bloquant',
+			'status' => 'refused',
+			'since' => '2026-08-19',
+			'statement_fr' => 'Aucun délai d’approvisionnement textile n’est calculé : personne n’a jamais mesuré le temps entre un bon de commande fournisseur et la réception des vêtements, et l’atelier ne planifie donc que le film.',
+			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Purchase.php#this file computes no blank-side deadline at all',
+			'reaches' => array(
+				'operator',
+				'internal',
+			),
+			'cost_if_late' => 'reglage et remesure',
+			'sessions' => array(
+				'08',
 			),
 		),
 	),

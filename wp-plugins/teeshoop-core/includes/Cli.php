@@ -39,6 +39,263 @@ final class Cli {
 		\WP_CLI::add_command( 'teeshoop catalogue etat', array( self::class, 'catalogue_state' ) );
 		\WP_CLI::add_command( 'teeshoop catalogue purger', array( self::class, 'catalogue_purge' ) );
 		\WP_CLI::add_command( 'teeshoop marge', array( self::class, 'margin_report' ) );
+		\WP_CLI::add_command( 'teeshoop stock rafraichir', array( self::class, 'stock_refresh' ) );
+	}
+
+	/**
+	 * Refresh every imported article's stock from one supplier snapshot.
+	 *
+	 * ## WHY THIS IS NOT THE CATALOGUE IMPORT
+	 *
+	 * The import walks 459 references, writing titles, photos, attributes and
+	 * prices, and takes half an hour. Chapter 04 of the brief asks for stock
+	 * « plusieurs fois par jour si l'API le permet » and for purchase prices
+	 * « quotidien ou selon changement », which are two different jobs. This is
+	 * the fast one: ONE upstream call for the whole catalogue (the Worker holds
+	 * the snapshot, MEASURED at 46 591 articles in 674 ms), then a handful of
+	 * page requests to read it.
+	 *
+	 *     0 2,6,10,14,18,22 * * *  cd /home/xxx/public_html && wp teeshoop stock rafraichir --discret
+	 *
+	 * Six times a day, which is `Purchase::STOCK_REFRESH_HOURS`. Written out
+	 * rather than as a step expression because a step expression contains the
+	 * two characters that end a PHP comment, and this line lives in one.
+	 *
+	 * ## WHAT IT WRITES, AND WHAT IT REFUSES TO WRITE
+	 *
+	 * The quantity, through WooCommerce, only for the articles whose quantity
+	 * actually moved. And the supplier's own snapshot timestamp on every article
+	 * the snapshot mentioned, which is what lets a product page say « Disponible »
+	 * rather than « Délai à confirmer ».
+	 *
+	 * AN ARTICLE THE SNAPSHOT DID NOT MENTION KEEPS ITS OLD DATE, and therefore
+	 * goes stale by itself. That is the whole point: a sweep that stamped
+	 * everything it did not see with today's date would turn a supplier who
+	 * dropped an article into a shop that claims it is available.
+	 *
+	 * A PARTIAL SWEEP STAMPS ONLY WHAT IT SAW. If a page fails halfway, the
+	 * articles already written carry a real observation and the rest carry their
+	 * previous one; nothing is invented and nothing is rolled back, because a
+	 * quantity that was true five minutes ago is not made false by the next page
+	 * timing out.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--pages=<n>]
+	 * : Stop after this many pages. 0 = walk to the end. Default 0.
+	 *
+	 * [--discret]
+	 * : Print only the summary line, for a cron.
+	 */
+	public static function stock_refresh( array $args, array $assoc_args ): void {
+		$quiet     = isset( $assoc_args['discret'] );
+		$max_pages = max( 0, (int) ( $assoc_args['pages'] ?? 0 ) );
+
+		$why = Supply::unconfigured();
+		if ( '' !== $why ) {
+			\WP_CLI::error( $why );
+		}
+
+		$started = microtime( true );
+		$known   = self::supply_index();
+		if ( array() === $known ) {
+			\WP_CLI::error( 'Aucun article importé ne porte de référence fournisseur : il n’y a rien à rafraîchir. Lancez d’abord « wp teeshoop catalogue importer ».' );
+		}
+		if ( ! $quiet ) {
+			\WP_CLI::log( sprintf( '%d articles importés à rafraîchir.', count( $known ) ) );
+		}
+
+		$current = self::stock_index( array_values( $known ) );
+
+		$offset  = 0;
+		$pages   = 0;
+		$seen    = array();
+		$moved   = 0;
+		$latest  = '';
+		$failure = '';
+
+		while ( true ) {
+			$page = Supply::stock_page( $offset );
+			if ( ! $page['ok'] ) {
+				$failure = (string) $page['error'];
+				break;
+			}
+			++$pages;
+			$latest = (string) $page['at'];
+
+			foreach ( $page['rows'] as $row ) {
+				if ( ! is_array( $row ) || count( $row ) < 2 ) {
+					continue;
+				}
+				$sku = (string) $row[0];
+				if ( ! isset( $known[ $sku ] ) ) {
+					continue;
+				}
+				$id = (int) $known[ $sku ];
+				/*
+				 * THE SAME INDEX THE CATALOGUE SELLS AGAINST, by name rather than
+				 * by a literal 0 here. Question 43 asks the supplier which of his
+				 * three numbers is stock; the day the answer moves that index,
+				 * this sweep has to move with it or the shop would sell against
+				 * one number and buy against another.
+				 */
+				$qty = max( 0, (int) ( $row[ Catalogue::STOCK_INDEX + 1 ] ?? 0 ) );
+				$seen[] = $id;
+				if ( ( $current[ $id ] ?? null ) !== $qty ) {
+					$product = wc_get_product( $id );
+					if ( $product instanceof \WC_Product ) {
+						wc_update_product_stock( $product, $qty, 'set' );
+						++$moved;
+					}
+				}
+			}
+
+			if ( ! $quiet ) {
+				\WP_CLI::log( sprintf( 'page %d : %d lignes, %d articles connus vus, %d quantités modifiées.', $pages, (int) $page['total'] > 0 ? count( $page['rows'] ) : 0, count( $seen ), $moved ) );
+			}
+
+			$next = $page['next'];
+			if ( null === $next || ( $max_pages > 0 && $pages >= $max_pages ) ) {
+				break;
+			}
+			$offset = (int) $next;
+		}
+
+		$stamped = '' !== $latest ? self::stamp_stock( array_unique( $seen ), $latest ) : 0;
+
+		update_option(
+			'teeshoop_stock_sweep',
+			array(
+				'at'      => $latest,
+				'on'      => Settings::today(),
+				'seen'    => count( array_unique( $seen ) ),
+				'known'   => count( $known ),
+				'moved'   => $moved,
+				'pages'   => $pages,
+				'error'   => $failure,
+				'seconds' => round( microtime( true ) - $started, 1 ),
+			),
+			false
+		);
+
+		$summary = sprintf(
+			'Stock : %d articles sur %d relevés au %s, %d quantités modifiées, %d dates écrites, %d page(s), %s s.',
+			count( array_unique( $seen ) ),
+			count( $known ),
+			'' !== $latest ? $latest : '(sans date)',
+			$moved,
+			$stamped,
+			$pages,
+			Money::number( round( microtime( true ) - $started, 1 ), 1 )
+		);
+
+		if ( '' !== $failure ) {
+			\WP_CLI::warning( $summary );
+			\WP_CLI::error( 'Relevé interrompu : ' . $failure );
+		}
+		\WP_CLI::success( $summary );
+	}
+
+	/**
+	 * Every imported article, by supplier article number.
+	 *
+	 * One query. `get_post_meta` per variation would be 26 399 round trips for a
+	 * job whose whole point is to be cheap enough to run six times a day.
+	 *
+	 * @return array<string,int>
+	 */
+	private static function supply_index(): array {
+		global $wpdb;
+		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- one indexed read of our own meta; see the docblock.
+			$wpdb->prepare( "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s", Catalogue::META_SUPPLY_SKU ),
+			ARRAY_A
+		);
+		$out = array();
+		foreach ( (array) $rows as $row ) {
+			$sku = (string) ( $row['meta_value'] ?? '' );
+			if ( '' !== $sku ) {
+				$out[ $sku ] = (int) $row['post_id'];
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The quantity each of those articles currently carries.
+	 *
+	 * Read straight from `_stock` rather than through `wc_get_product`, because
+	 * the only thing this is for is deciding which articles need loading at all.
+	 * Anything that WRITES goes through WooCommerce (`wc_update_product_stock`),
+	 * which keeps the product lookup table and the transients in step.
+	 *
+	 * @param int[] $ids
+	 * @return array<int,int>
+	 */
+	private static function stock_index( array $ids ): array {
+		global $wpdb;
+		$out = array();
+		foreach ( array_chunk( $ids, 2000 ) as $chunk ) {
+			$in   = implode( ',', array_map( 'intval', $chunk ) );
+			$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL -- ids are cast to int on the line above.
+				"SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_stock' AND post_id IN ({$in})",
+				ARRAY_A
+			);
+			foreach ( (array) $rows as $row ) {
+				$out[ (int) $row['post_id'] ] = null === $row['meta_value'] || '' === $row['meta_value'] ? null : (int) $row['meta_value'];
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Write the snapshot's timestamp onto every article it mentioned.
+	 *
+	 * ONE VALUE FOR ALL OF THEM, which is what makes this affordable: the whole
+	 * sweep reads one snapshot, so 26 399 articles receive the same string and
+	 * the write is a handful of `UPDATE … WHERE post_id IN (…)` rather than
+	 * 26 399 calls. Rows that do not exist yet are inserted in the same chunks.
+	 *
+	 * DIRECT SQL, DELIBERATELY, and only on our own private meta: nothing else
+	 * indexes it, no lookup table mirrors it, and no WooCommerce cache holds it.
+	 * The quantity beside it is written through WooCommerce for exactly the
+	 * opposite reasons.
+	 *
+	 * @param int[] $ids
+	 * @return int How many rows now carry the date.
+	 */
+	private static function stamp_stock( array $ids, string $at ): int {
+		global $wpdb;
+		$key     = Catalogue::META_STOCK_AT;
+		$written = 0;
+
+		foreach ( array_chunk( array_map( 'intval', $ids ), 2000 ) as $chunk ) {
+			$in = implode( ',', $chunk );
+			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL -- ids cast to int; the value is prepared.
+				$wpdb->prepare(
+					"UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE meta_key = %s AND post_id IN ({$in})",
+					$at,
+					$key
+				)
+			);
+			$missing = $wpdb->get_col( // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL
+				$wpdb->prepare(
+					"SELECT p.ID FROM {$wpdb->posts} p LEFT JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s WHERE p.ID IN ({$in}) AND m.meta_id IS NULL",
+					$key
+				)
+			);
+			foreach ( (array) $missing as $id ) {
+				add_post_meta( (int) $id, $key, $at, true );
+			}
+			$written += count( $chunk );
+		}
+
+		/*
+		 * The meta cache holds what was read before the direct write. Leaving it
+		 * would make the very next read on this process return yesterday's date,
+		 * which on a cron matters not at all and in a test matters entirely.
+		 */
+		wp_cache_flush_group( 'post_meta' );
+		return $written;
 	}
 
 	/**

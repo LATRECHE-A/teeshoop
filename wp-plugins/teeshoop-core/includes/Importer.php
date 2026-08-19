@@ -734,11 +734,21 @@ final class Importer {
 				'weight' => $row['weight_kg'] > 0 ? (string) $row['weight_kg'] : '',
 			);
 			$meta  = array(
-				Catalogue::META_SUPPLY_SKU   => $supply,
-				Catalogue::META_COLOUR_PHOTO => (string) $row['photo'],
-				Catalogue::META_ORIGIN       => (string) $row['origin'],
-				Catalogue::META_CLOSEOUT     => $row['closeout'] ? '1' : '',
+				Catalogue::META_SUPPLY_SKU    => $supply,
+				Catalogue::META_SUPPLY_SOURCE => Supply::SOURCE,
+				Catalogue::META_COLOUR_PHOTO  => (string) $row['photo'],
+				Catalogue::META_ORIGIN        => (string) $row['origin'],
+				Catalogue::META_CLOSEOUT      => $row['closeout'] ? '1' : '',
 			);
+			/*
+			 * ONLY WHEN THERE IS A DATE. An empty value would overwrite the last
+			 * good one, and an article whose freshness has been erased is an
+			 * article the shop stops being able to speak about; the quantity
+			 * itself is already frozen in that case (see `set_stock`).
+			 */
+			if ( '' !== (string) ( $row['stock_at'] ?? '' ) ) {
+				$meta[ Catalogue::META_STOCK_AT ] = (string) $row['stock_at'];
+			}
 			if ( $prices_usable ) {
 				$props['regular_price']                = self::price_of( $row['supply_cents'], $rate );
 				$meta[ Catalogue::META_SUPPLY_CENTS ] = null === $row['supply_cents'] ? '' : (string) $row['supply_cents'];

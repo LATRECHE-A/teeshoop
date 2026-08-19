@@ -1360,6 +1360,40 @@ développement, et on vous informera simplement du résultat.
 11. L'optimisation des performances (cache, compression, images).
 12. Le maintien ou non du moteur Cloudflare existant pour parler aux fournisseurs.
 
+## Fournisseurs, suite
+
+### 46. Combien de temps s'écoule réellement entre votre bon de commande textile et la réception des vêtements à l'atelier ?
+
+🔴 **Bloquant**
+
+*Pourquoi on a besoin de la réponse :* La séance 07 a mesuré qu'entre un bon à tirer validé et un colis il y a 6 jours ouvrés de travail incompressible, dans une promesse d'urgence de 4. Ce calcul ne compte **pas** le temps d'acheminement des vêtements nus, parce que ce chiffre n'existe nulle part : ni dans la Bible, qui ne donne aucun délai textile dans ses huit chapitres, ni chez le fournisseur, dont l'interface ne publie pas de délai, ni chez nous, qui n'avons jamais passé de commande fournisseur.
+
+Autrement dit, la seule date que l'atelier calcule aujourd'hui est celle du **film**. Nous savons quand commander le film, et nous ne savons pas quand commander les vêtements. Tant que ce chiffre manque, aucune date de livraison ne peut être calculée honnêtement, et la séance 08 n'en invente pas.
+
+Ce qu'il nous faut est une durée en jours ouvrés, mesurée une fois : commande passée le lundi matin, colis reçu le … ? Et si elle dépend de l'article (stock immédiat contre réapprovisionnement annoncé), les deux durées.
+
+*Si vous ne répondez pas, on partira sur :* rien. Aucune date d'approvisionnement textile n'est calculée, et l'écran d'achat le dit à l'opérateur au lieu d'afficher un délai que personne n'a tenu.
+
+**Votre réponse :**
+
+> 
+
+
+### 47. Que faisons-nous quand le prix d'achat d'un textile augmente entre le devis et l'achat ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* Le chapitre 4 de la Bible demande de resynchroniser les prix d'achat « quotidien ou selon changement », le chapitre 2 interdit de modifier un devis envoyé, et le chapitre 1 rend une commission reprenable quand « la marge réelle est inférieure à la marge estimée ». Mis bout à bout, cela veut dire que Teeshoop absorbe silencieusement toute hausse du fournisseur, et que le commercial perd une partie de sa commission pour une hausse qu'il n'a pas causée. Aucun chapitre ne dit ce qu'il faut faire.
+
+*Ce que la séance 08 en a fait, le 19 août :* l'écart est **mesuré et affiché**, par commande, sur l'écran des achats : ce que les textiles coûtent au moment où on les achète, contre ce que le rapport de marge de la commande avait supposé. Rien n'est décidé automatiquement, parce que c'est une décision commerciale.
+
+*Si vous ne répondez pas, on partira sur :* Teeshoop absorbe l'écart, il reste visible commande par commande, et personne n'est repris dessus.
+
+**Votre réponse :**
+
+> 
+
+
 ---
 
 ## Point à régler entre associés

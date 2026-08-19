@@ -648,6 +648,14 @@ ts_lifecycle_suite( $product_id, $bare_id );
 require_once __DIR__ . '/integration-production.php';
 ts_production_suite( $product_id );
 
+/*
+ * And the other half of a run: the blanks. It runs after the production suite
+ * because it uses the same machinery (a paid order with an approved proof) and
+ * because it imports a real catalogue reference, which it removes again.
+ */
+require_once __DIR__ . '/integration-purchase.php';
+ts_purchase_suite( $product_id );
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 

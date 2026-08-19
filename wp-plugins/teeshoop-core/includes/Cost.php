@@ -856,10 +856,17 @@ final class Cost {
 	 * ordering is the same one `compareOrderIds` uses in src/lib/dtf/run.ts, for
 	 * the same reason.
 	 *
+	 * PUBLIC SINCE SESSION 08, and for the reason the rule exists at all. The
+	 * blanks of several orders are bought in one supplier order, so their
+	 * inbound freight is one charge to be split exactly as the film's is. A
+	 * second largest-remainder allocator beside this one would be a second
+	 * answer to « qui paie ce centime », and the two would disagree on the day
+	 * a supplier invoice had to reconcile against the sum of the orders.
+	 *
 	 * @param array<string,int> $weights
 	 * @return array<string,int>
 	 */
-	private static function allocate( int $amount, array $weights ): array {
+	public static function allocate( int $amount, array $weights ): array {
 		$total = 0;
 		foreach ( $weights as $w ) {
 			$total += max( 0, (int) $w );

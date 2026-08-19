@@ -491,6 +491,56 @@ final class Costing {
 
 			$best = null;
 
+			/*
+			 * THE BLANK DECLARED ON THE PRODUCT, which is source 1½.
+			 *
+			 * It ranks above a typed price and below the article's own, because
+			 * it IS the article's own, reached by a declaration instead of by the
+			 * product being the article: the size grid names a size, the product
+			 * names a reference and a colour, and the importer already wrote what
+			 * the supplier charges for that exact article.
+			 *
+			 * ONE COMPONENT PER SIZE, not one per line. A 2XL costs more than an
+			 * M (4,46 EUR against 3,37 on the reference this was measured with),
+			 * so a line of « 12 M et 8 L et 5 2XL » has three purchase prices and
+			 * flattening them into an average would invent a unit price nobody
+			 * is charged. `Cost::total()` adds components of the same type
+			 * together precisely so a cost can have several provenances.
+			 */
+			if ( null === $unit ) {
+				$read = Purchase::articles_for( $order, $item );
+				if ( array() === $read['refused'] && array() !== $read['claims'] ) {
+					$known = true;
+					foreach ( $read['claims'] as $claim ) {
+						if ( null === $claim['unit_ht'] ) {
+							$known = false;
+						}
+					}
+					if ( $known ) {
+						foreach ( $read['claims'] as $claim ) {
+							$amount      = (int) $claim['unit_ht'] * (int) $claim['qty'];
+							$total      += $amount;
+							$best_total += $amount;
+							$lines[]     = array(
+								'label'      => $item->get_name() . ( '' !== $claim['size'] ? ' (' . $claim['size'] . ')' : '' ),
+								'qty'        => (int) $claim['qty'],
+								'unit_ht'    => (int) $claim['unit_ht'],
+								'amount_ht'  => $amount,
+								'best_ht'    => null,
+								'confidence' => Cost::ESTIMATED,
+								'source'     => sprintf(
+									/* translators: %s: a supplier article reference. */
+									__( 'Tarif fournisseur de l’article %s', 'teeshoop' ),
+									(string) $claim['sku']
+								),
+								'on'         => (string) $claim['stock_at'],
+							);
+						}
+						continue;
+					}
+				}
+			}
+
 			if ( null === $unit && isset( $garment_costs[ $garment ] ) ) {
 				$typed = $garment_costs[ $garment ];
 				if ( is_array( $typed ) && isset( $typed['ht'] ) && (int) $typed['ht'] > 0 ) {
@@ -768,14 +818,54 @@ final class Costing {
 			}
 		}
 
-		// ── inbound freight ──────────────────────────────────────────────────
-		$freight = Cost::freight( $blanks['total_ht'], $config );
-		$components[] = Cost::component(
-			'transport_in',
-			$freight,
-			$blanks['total_ht'] > 0 ? Cost::ESTIMATED : Cost::UNKNOWN,
-			__( 'Port fournisseur textile, franco supposé (question 03)', 'teeshoop' )
-		);
+		/*
+		 * ── inbound freight ──────────────────────────────────────────────────
+		 *
+		 * THE SAME RULE AS THE FILM, and for the same reason. Until session 08
+		 * every order was its own supplier order, so it carried its own carriage.
+		 * `Purchase.php` buys several orders' blanks in ONE document with ONE
+		 * charge, and that charge is split by `Cost::allocate()` exactly as the
+		 * film's is, weighted by what each order's blanks cost.
+		 *
+		 * IT COUNTS ONLY ONCE THE PURCHASE HAS LEFT. A prepared purchase changes
+		 * no cost, for the same reason a draft lot changes none: nothing has been
+		 * bought, and an order whose report already spent the saving would be
+		 * defending a floor price against a purchase that never happened.
+		 */
+		$bought_with = Purchase::part_of( $order );
+		$pooled      = null !== $bought_with
+			&& in_array( (string) ( $bought_with['state'] ?? '' ), array( Purchase::SENT, Purchase::UNCERTAIN, Purchase::RECEIVED ), true );
+
+		if ( $pooled ) {
+			$freight      = (int) ( $bought_with['freight_ht'] ?? 0 );
+			$components[] = Cost::component(
+				'transport_in',
+				$freight,
+				Cost::ESTIMATED,
+				sprintf(
+					/* translators: 1: how many orders were bought together, 2: the purchase number. */
+					__( 'Part de %1$d commandes achetées ensemble (achat n° %2$d)', 'teeshoop' ),
+					max( 1, (int) ( $bought_with['orders'] ?? 1 ) ),
+					(int) ( $bought_with['purchase_id'] ?? 0 )
+				)
+			);
+			$saved = (int) ( $bought_with['freight_saved_ht'] ?? 0 );
+			if ( $saved > 0 ) {
+				$warnings[] = sprintf(
+					/* translators: %s: money saved by buying the blanks with other orders. */
+					__( 'Textiles achetés avec d’autres commandes : %s de port économisés par rapport à un achat seul.', 'teeshoop' ),
+					Money::format( $saved )
+				);
+			}
+		} else {
+			$freight      = Cost::freight( $blanks['total_ht'], $config );
+			$components[] = Cost::component(
+				'transport_in',
+				$freight,
+				$blanks['total_ht'] > 0 ? Cost::ESTIMATED : Cost::UNKNOWN,
+				__( 'Port fournisseur textile, franco supposé (question 03)', 'teeshoop' )
+			);
+		}
 
 		// ── packaging and carriage ───────────────────────────────────────────
 		$components[] = Cost::component(
@@ -1098,6 +1188,13 @@ final class Costing {
 			 * for no reason soon stops believing the ones that are.
 			 */
 			Production::cost_stamp( $order ),
+			/*
+			 * AND THE PURCHASE, for exactly the same reason: it replaces the
+			 * order's own inbound freight with a share of one document. Same
+			 * discipline too, only the parts that move money, so ticking « reçue »
+			 * does not make six reports read « périmé » for nothing.
+			 */
+			Purchase::cost_stamp( $order ),
 		);
 		foreach ( $order->get_items() as $item ) {
 			$parts[] = $item->get_id() . ':' . $item->get_quantity() . ':' . $item->get_subtotal();

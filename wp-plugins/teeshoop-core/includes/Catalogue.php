@@ -158,6 +158,29 @@ final class Catalogue {
 	/** Variation: the per-colour photo, on the Worker, never an attachment. */
 	public const META_COLOUR_PHOTO = '_teeshoop_colour_photo';
 
+	/**
+	 * Variation: WHEN the supplier published the stock figure beside it.
+	 *
+	 * The quantity alone is not usable. Chapter 05 of the brief: « Le stock
+	 * affiché par une API n'est pas une garantie absolue. Le système doit
+	 * enregistrer la date de consultation. » It is the supplier's OWN timestamp
+	 * for the snapshot, not the moment we wrote it: what decides whether the shop
+	 * may say « Disponible » is how old the observation is, and copying an
+	 * eighteen-hour-old number today does not make it eighteen minutes old.
+	 */
+	public const META_STOCK_AT = '_teeshoop_stock_at';
+
+	/**
+	 * Variation: which adapter wrote this article.
+	 *
+	 * A code and never a name (`Supply::SOURCE`). It exists so two suppliers'
+	 * articles can live in one catalogue without the purchase basket having to
+	 * guess which one an article number belongs to, which is the whole of what
+	 * « adaptateur par fournisseur » needs from this side. Sealed like the
+	 * article number and the cost: it is part of the same procurement identity.
+	 */
+	public const META_SUPPLY_SOURCE = '_teeshoop_supply_source';
+
 	/** Variation: country of manufacture, ISO 3166-1 alpha-2 as the supplier gives it. */
 	public const META_ORIGIN = '_teeshoop_origin';
 
@@ -473,7 +496,16 @@ final class Catalogue {
 		$sleeve      = self::text( $style['sleeve'] ?? 'unknown' );
 		$description = self::text( $style['description'] ?? '' );
 
-		$variations = self::variations( $style, is_array( $prices ) ? $prices : array(), is_array( $stock ) ? $stock : array() );
+		/*
+		 * THE SUPPLIER'S OWN TIMESTAMP FOR THE STOCK, carried onto every article.
+		 *
+		 * It is the first line of the stock CSV and the Worker hands it back as
+		 * `at`. Empty when the stock could not be read at all, and empty then
+		 * means « we do not know », which is what every screen has to say rather
+		 * than repeating yesterday's quantity as though it were today's.
+		 */
+		$stock_at   = is_array( $entry['stock'] ?? null ) ? self::text( $entry['stock']['at'] ?? '' ) : '';
+		$variations = self::variations( $style, is_array( $prices ) ? $prices : array(), is_array( $stock ) ? $stock : array(), null === $stock ? '' : $stock_at );
 		if ( empty( $variations ) ) {
 			/*
 			 * `empty`, NOT `malformed`, and the difference is whether a cron
@@ -643,7 +675,7 @@ final class Catalogue {
 	 * at zero would sell it at nothing. Null is the third answer and the
 	 * importer refuses to publish a price for it.
 	 */
-	private static function variations( array $style, array $prices, array $stock ): array {
+	private static function variations( array $style, array $prices, array $stock, string $stock_at = '' ): array {
 		$colour_names  = array();
 		$colour_photos = array();
 		foreach ( (array) ( $style['colourways'] ?? array() ) as $cw ) {
@@ -741,6 +773,7 @@ final class Catalogue {
 			$out[] = array(
 				'sku_suffix'   => $suffix,
 				'supply_sku'   => $supply,
+				'stock_at'     => $stock_at,
 				'couleur'      => $colour,
 				'taille'       => $size,
 				'ean'          => self::text( $sku['ean'] ?? '' ),

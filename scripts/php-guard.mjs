@@ -186,6 +186,30 @@ const ALLOWED = new Map([
     },
   ],
   [
+    'wp-plugins/teeshoop-core/includes/Purchase.php',
+    {
+      /*
+       * The other half of a run: the blanks. It asks the cost engine what
+       * inbound freight is due on a pooled purchase and splits it with the same
+       * largest-remainder allocator the film uses, and it reads the frozen
+       * margin report to say what the blanks were ASSUMED to cost. Server-only,
+       * renders nothing, and it names no supplier: the adapter an article came
+       * from is a code (`Supply::SOURCE`), which is why no supplier needle is
+       * on this line and none may be added to it.
+       */
+      why: 'the purchase basket and the supplier order; server-only, renders nothing, and splitting an inbound freight bill is its job',
+      needles: [ 'Cost::', 'Costing::' ],
+    },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/test-purchase.php',
+    { why: 'the pure tests for the basket arithmetic; CLI only, never served', needles: [ 'Cost::', 'Costing::' ] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/integration-purchase.php',
+    { why: 'the WooCommerce tests for the basket, the freight split and the supplier order', needles: [ 'Cost::', 'Costing::', 'PriceRule::' ] },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/ProductionPage.php',
     {
       /*
