@@ -456,6 +456,74 @@ function ts_production_suite( int $product_id ): void {
 		ts_eq( Production::lot_of( wc_get_order( $a->get_id() ) )['state'], Production::RECEIVED, 'la commande ignore où en est son lot' );
 	} );
 
+	ts_it( 'refuses to make an order late by buying the cheap film, and says which one', function () use ( $product_id, $today ) {
+		/*
+		 * The whole point of an origin. Both orders hold their date on French
+		 * film; the Spanish one takes three more working days, and on a target
+		 * date that is close that is the difference between on time and late.
+		 * Deciding that on the customer's behalf to halve the film cost is a
+		 * commercial choice, so it is refused rather than warned about.
+		 *
+		 * The date is moved by making the lot late RELATIVE to it: `$today` is a
+		 * parameter of every schedule in this module precisely so a case can put
+		 * itself on a chosen day instead of waiting for one.
+		 */
+		ts_pr_stub_nest();
+		$a = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0110' );
+		$b = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0111' );
+
+		$config = Production::config();
+		$film   = (array) ( Costing::config()['film'] ?? array() );
+		$target = Production::target_date(
+			Production::approval( \Teeshoop\Core\Bat::current( $a ) )['on'],
+			'standard',
+			$config
+		);
+		// The day on which French film still holds and Spanish film no longer does.
+		$edge = Production::latest_order_on( $target, 4, 'fr', $config, $film );
+
+		$refused = Production::create_lot(
+			array( $a->get_id(), $b->get_id() ),
+			'es',
+			ts_pr_layout( $a->get_id(), $b->get_id() ),
+			$edge
+		);
+		ts_eq( $refused['ok'], false, 'un lot espagnol a rendu une commande en retard sans le dire' );
+		ts_assert(
+			str_contains( $refused['reason'], (string) $a->get_order_number() )
+				|| str_contains( $refused['reason'], (string) $b->get_order_number() ),
+			'le refus ne nomme pas la commande concernée : ' . $refused['reason']
+		);
+
+		// And the same lot bought in France is accepted, because France is faster.
+		$made = Production::create_lot(
+			array( $a->get_id(), $b->get_id() ),
+			'fr',
+			ts_pr_layout( $a->get_id(), $b->get_id() ),
+			$edge
+		);
+		ts_assert( $made['ok'], 'le même lot acheté en France a été refusé : ' . $made['reason'] );
+	} );
+
+	ts_it( 'still prints an order that was late before any lot existed', function () use ( $product_id ) {
+		/*
+		 * The other half of the rule. An order nobody can save must not become
+		 * unprintable as well as late: it is scheduled at the fastest origin and
+		 * flagged, and a lot carrying it is created with a warning.
+		 */
+		ts_pr_stub_nest();
+		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0120' );
+		$b    = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0121' );
+		$made = Production::create_lot(
+			array( $a->get_id(), $b->get_id() ),
+			'fr',
+			ts_pr_layout( $a->get_id(), $b->get_id() ),
+			'2027-01-04'
+		);
+		ts_assert( $made['ok'], 'une commande déjà en retard est devenue impossible à imprimer : ' . $made['reason'] );
+		ts_assert( array() !== $made['lot']['warnings'], 'un lot en retard ne le dit pas' );
+	} );
+
 	ts_it( 'never puts an order already in a lot back in the queue', function () use ( $product_id, $today ) {
 		ts_pr_stub_nest();
 		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0100' );

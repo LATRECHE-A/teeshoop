@@ -35,7 +35,7 @@
  * archive of everybody's artwork, and `releaseStoredDesigns` drops them when the
  * run is done.
  */
-import type { Design, Layer, Side, SizeId } from '@/lib/types'
+import type { Design, Side, SizeId } from '@/lib/types'
 import { migrateDesign } from '@/lib/migrate'
 import { adoptAssetImage, releaseAdoptedImages } from '@/state/assets'
 import { adminAuthHeaders } from '@/lib/admin/token'
@@ -335,7 +335,3 @@ export function pickingList(orders: readonly QueueOrder[]): PickRow[] {
     return a.size.localeCompare(b.size)
   })
 }
-
-/** Whether a side carries anything at all. Cheap, for a caller sizing up work. */
-export const sideHasArt = (design: Design, side: Side): boolean =>
-  design.layers.some((l: Layer) => l.side === side)

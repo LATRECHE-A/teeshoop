@@ -12,13 +12,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildRun,
   compareOrderIds,
-  groupCandidates,
-  joinRefusal,
   measureRun,
-  minimumRunLengthCm,
   runPieceKey,
-  runRectangles,
-  type RunCandidate,
   type RunOrder,
 } from './run'
 import { nestRoll, type NestOptions } from './nesting'
@@ -78,7 +73,7 @@ describe('run assembly', () => {
       [...POOL].reverse().map((o) => ({ ...o, pieces: [...o.pieces].reverse() })),
     )
     expect(backwards.orderIds).toEqual(forwards.orderIds)
-    expect(JSON.stringify(runRectangles(backwards))).toBe(JSON.stringify(runRectangles(forwards)))
+    expect([...backwards.ownerOf]).toEqual([...forwards.ownerOf])
     expect(JSON.stringify(pack(backwards.pieces))).toBe(JSON.stringify(pack(forwards.pieces)))
   })
 
@@ -149,58 +144,29 @@ describe('what pooling saves', () => {
   })
 })
 
-describe('the lower bound the shop checks a reported length against', () => {
-  it('is the ink that has to fit, divided by the roll', () => {
-    expect(minimumRunLengthCm(5800, 58)).toBe(100)
-  })
-
-  it('is never above a length the packer actually produced', () => {
+/*
+ * THE PROPERTY THE SHOP'S GATE RESTS ON, proven here against the real packer.
+ *
+ * `Production::minimum_length_m` refuses a browser-measured layout whose length
+ * is below the artwork area divided by the roll width. That refusal is only
+ * sound if a real packing never goes below it, which is a claim about the packer
+ * and not about the formula, so it is asserted here and the formula itself lives
+ * in exactly one place, in PHP, where the money is.
+ */
+describe('a packing can never be shorter than its own artwork over the roll', () => {
+  it('holds on the pooled run', () => {
     const run = buildRun(POOL)
     const result = pack(run.pieces)
-    const ink = run.pieces.reduce((a, p) => a + p.wCm * p.hCm * p.qty, 0)
-    expect(minimumRunLengthCm(ink, OPTS.printableWidthCm)).toBeLessThanOrEqual(result.totalLengthCm)
+    const areaSqCm = run.pieces.reduce((a, p) => a + p.wCm * p.hCm * p.qty, 0)
+    expect(areaSqCm / OPTS.printableWidthCm).toBeLessThanOrEqual(result.totalLengthCm)
   })
 
-  it('refuses to invent a bound it cannot derive', () => {
-    expect(minimumRunLengthCm(0, 58)).toBe(0)
-    expect(minimumRunLengthCm(100, 0)).toBe(0)
-  })
-})
-
-const cand = (
-  id: string,
-  origin: 'fr' | 'es',
-  orderByOn: string,
-  dueOn: string,
-  late = false,
-): RunCandidate => ({ id, ref: `#${id}`, origin, orderByOn, dueOn, urgency: 'standard', garments: 10, late })
-
-describe('which orders share a run', () => {
-  it('makes one run per origin and dates it on the earliest deadline in it', () => {
-    const groups = groupCandidates([
-      cand('3', 'es', '2026-09-02', '2026-09-18'),
-      cand('1', 'fr', '2026-08-24', '2026-08-28'),
-      cand('2', 'es', '2026-08-28', '2026-09-14'),
-    ])
-    expect(groups.map((g) => g.origin)).toEqual(['es', 'fr'])
-    expect(groups[0].orderByOn).toBe('2026-08-28')
-    expect(groups[0].dueOn).toBe('2026-09-14')
-    expect(groups[0].candidates.map((c) => c.id)).toEqual(['2', '3'])
-    expect(groups[0].garments).toBe(20)
-  })
-
-  it('counts the orders that hold no date any more instead of dropping them', () => {
-    const groups = groupCandidates([cand('1', 'fr', '2026-08-10', '2026-08-14', true)])
-    expect(groups[0].late).toBe(1)
-    expect(groups[0].candidates).toHaveLength(1)
-  })
-
-  it('lets anything move to France and refuses to drag a French order to Spain', () => {
-    const es: RunCandidate = cand('2', 'es', '2026-09-02', '2026-09-18')
-    const fr: RunCandidate = cand('1', 'fr', '2026-08-24', '2026-08-28')
-    const [esGroup, frGroup] = groupCandidates([es, fr])
-    expect(joinRefusal(frGroup, es)).toBe('')
-    expect(joinRefusal(esGroup, fr)).toContain('24/08/2026')
-    expect(joinRefusal(esGroup, es)).toBe('')
+  it('holds on each order alone, which is what a per-order share is checked against', () => {
+    for (const order of POOL) {
+      const run = buildRun([order])
+      const result = pack(run.pieces)
+      const areaSqCm = run.pieces.reduce((a, p) => a + p.wCm * p.hCm * p.qty, 0)
+      expect(areaSqCm / OPTS.printableWidthCm).toBeLessThanOrEqual(result.totalLengthCm)
+    }
   })
 })

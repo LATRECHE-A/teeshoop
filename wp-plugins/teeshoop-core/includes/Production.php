@@ -844,6 +844,9 @@ final class Production {
 	 *      That bound is exact rather than generous: `nestShapeRoll` keeps the
 	 *      shelf result as its own restart #0, so the layout it returns can never
 	 *      be longer.
+	 *   5. THE DATE. An order that holds its target date on French film and does
+	 *      not hold it in this lot is refused by name. An order that is late
+	 *      whatever anybody does is not: it still has to be printed.
 	 *   4. INK. For an order whose design does not scale with the garment, the
 	 *      posted transfers must be big enough to hold the ink the order was
 	 *      charged for. That is the document's own invariant rather than a
@@ -1003,6 +1006,34 @@ final class Production {
 			$target   = self::target_date( $approved['on'], $urgency, $config );
 			$plan     = self::origin_for( $today, $target, (int) $work['garments'], $config, $film );
 
+			$order_by = $plan[ 'es' === $origin ? 'order_by_es' : 'order_by_fr' ];
+			$late     = '' === $order_by || $order_by < $today;
+
+			/*
+			 * A LOT MAY NOT PUSH AN ORDER PAST ITS OWN DATE, and the difference
+			 * between refusing and warning is who decided.
+			 *
+			 * An order that is already late whatever we do still has to be
+			 * printed, and refusing it would leave it unprintable as well as
+			 * late. But an order that WOULD hold its date on French film and
+			 * misses it on Spanish is not late: somebody has just decided, on the
+			 * customer's behalf, that five more days are acceptable in order to
+			 * save half the film. That is refused here, by name, because it is a
+			 * commercial decision wearing a technical one's clothes.
+			 *
+			 * The other direction is never refused: moving work to France is
+			 * always faster and only ever costs us money.
+			 */
+			if ( $late && ! ( '' === $plan['order_by_fr'] || $plan['order_by_fr'] < $today ) ) {
+				return $fail(
+					sprintf(
+						'La commande %s tient sa date cible avec du film français, et ne la tient pas avec ce lot : il faudrait commander le film avant le %s. Achetez ce lot en France, ou sortez cette commande.',
+						$order->get_order_number(),
+						self::fr_date( $order_by )
+					)
+				);
+			}
+
 			$members[ (string) $id ] = array(
 				'id'          => $id,
 				'ref'         => (string) $order->get_order_number(),
@@ -1015,15 +1046,9 @@ final class Production {
 				'transfers'   => (int) $work['transfers'],
 				'graded'      => (bool) $work['graded'],
 				'target_on'   => $target,
-				'order_by'    => $plan[ 'es' === $origin ? 'order_by_es' : 'order_by_fr' ],
-				/*
-				 * A LOT MAY NOT PUSH AN ORDER PAST ITS OWN DATE. Buying French
-				 * film is always allowed, it is faster, but dragging an order
-				 * into the Spanish lot is deciding on the customer's behalf that
-				 * five more days are acceptable. This is where that is refused,
-				 * and the operator sees which order refused it.
-				 */
-				'late'        => $plan[ 'es' === $origin ? 'order_by_es' : 'order_by_fr' ] < $today,
+				'order_by'    => $order_by,
+				/* Already late before this lot existed. Printed anyway, and said. */
+				'late'        => $late,
 			);
 		}
 
