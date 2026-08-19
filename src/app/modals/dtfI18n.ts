@@ -38,6 +38,38 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.queue.current_none': 'Le design en cours n’a aucun côté imprimé',
     'dtf.queue.current_added': 'Design en cours ajouté à la file',
     'dtf.queue.transfers': '{n} transferts',
+    // La production : les commandes payées, dont le bon a tirer est valide, et
+    // dont le film est acheté une fois pour toutes.
+    'dtf.prod.src': 'Production',
+    'dtf.prod.load': 'Charger la file de la boutique',
+    'dtf.prod.reload': 'Recharger',
+    'dtf.prod.busy_queue': 'Lecture de la file de production',
+    'dtf.prod.busy_art': 'Récupération des créations {n}/{total}',
+    'dtf.prod.busy_solo': 'Mesure de la commande {n}/{total} imbriquée seule',
+    'dtf.prod.busy_lot': 'Enregistrement du lot dans la boutique',
+    'dtf.prod.none':
+      'Aucune commande n’attend la presse. Tout ce qui est payé et dont le bon à tirer est validé est déjà dans un lot.',
+    'dtf.prod.pick_none': 'Aucune commande sélectionnée',
+    'dtf.prod.nothing_to_print': 'Les commandes choisies ne portent aucun côté imprimé.',
+    'dtf.prod.art_failed':
+      'Création introuvable ou illisible : {ids}. Le lot n’est pas constitué : une commande dont le visuel manque serait imprimée sans elle.',
+    'dtf.prod.queue_it': 'Imbriquer {n} commande(s)',
+    'dtf.prod.incomplete': 'Géométrie incomplète, non imbricable',
+    'dtf.prod.late': 'En retard',
+    'dtf.prod.due': 'Film avant le {date}',
+    'dtf.prod.origin': 'Origine du film',
+    'dtf.prod.origin_fr': 'France',
+    'dtf.prod.origin_es': 'Espagne',
+    'dtf.prod.make_lot': 'Constituer le lot',
+    'dtf.prod.lot_made': 'Lot enregistré dans la boutique',
+    'dtf.prod.lot_title': 'Lot n° {id}',
+    'dtf.prod.lot_saving': '{saved} de film économisés sur {solo} achetés séparément',
+    'dtf.prod.lot_worse':
+      'Ce lot coûte plus cher que les mêmes commandes achetées séparément. Les transferts ne s’imbriquent pas mieux ensemble.',
+    'dtf.prod.lot_note':
+      'Le dossier d’atelier contient une fiche de pose par commande, la liste de prélèvement et la répartition du film.',
+    'dtf.prod.slack':
+      'Délai {urgency} : {days} jours ouvrés promis, {slack} de moins qu’il n’en faut, même en achetant le film en France.',
     // Un côté peut donner plusieurs transferts : sans la position de pose, le
     // poseur a trois films et aucune idée de leur place sur le vêtement.
     'dtf.piece.part': '{n}/{tot}',
@@ -246,6 +278,36 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.queue.current_none': 'The current design has no printed side',
     'dtf.queue.current_added': 'Current design added to the queue',
     'dtf.queue.transfers': '{n} transfers',
+    'dtf.prod.src': 'Production',
+    'dtf.prod.load': 'Load the shop queue',
+    'dtf.prod.reload': 'Reload',
+    'dtf.prod.busy_queue': 'Reading the production queue',
+    'dtf.prod.busy_art': 'Fetching designs {n}/{total}',
+    'dtf.prod.busy_solo': 'Measuring order {n}/{total} nested on its own',
+    'dtf.prod.busy_lot': 'Recording the run in the shop',
+    'dtf.prod.none':
+      'Nothing is waiting for the press. Everything paid for with an approved proof is already in a run.',
+    'dtf.prod.pick_none': 'No order selected',
+    'dtf.prod.nothing_to_print': 'The chosen orders carry no printed side.',
+    'dtf.prod.art_failed':
+      'Design missing or unreadable: {ids}. No run was made: an order whose artwork is missing would be printed without it.',
+    'dtf.prod.queue_it': 'Nest {n} order(s)',
+    'dtf.prod.incomplete': 'Incomplete geometry, cannot be nested',
+    'dtf.prod.late': 'Late',
+    'dtf.prod.due': 'Film to order by {date}',
+    'dtf.prod.origin': 'Film origin',
+    'dtf.prod.origin_fr': 'France',
+    'dtf.prod.origin_es': 'Spain',
+    'dtf.prod.make_lot': 'Create the run',
+    'dtf.prod.lot_made': 'Run recorded in the shop',
+    'dtf.prod.lot_title': 'Run no. {id}',
+    'dtf.prod.lot_saving': '{saved} of film saved against {solo} bought separately',
+    'dtf.prod.lot_worse':
+      'This run costs more than the same orders bought separately. The transfers do not nest better together.',
+    'dtf.prod.lot_note':
+      'The workshop package holds one press sheet per order, the picking list and the film cost split.',
+    'dtf.prod.slack':
+      '{urgency} lead time: {days} working days promised, {slack} short of what it takes, even buying the film in France.',
     'dtf.piece.part': '{n}/{tot}',
     'dtf.piece.pos': '{top} cm below the top of the area · {dx}',
     'dtf.piece.pos_short': '↧{top} ↔{dx} cm',

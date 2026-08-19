@@ -23,6 +23,7 @@
 import type { DtfSheet, NestOptions, NestResult } from './nesting'
 import type { RenderedPiece } from './pieces'
 import type { PreflightIssue } from './preflight'
+import type { RunArchive } from './runExport'
 import type {
   BillingModel,
   CostBreakdown,
@@ -358,6 +359,16 @@ export interface ManifestPiece {
 
 export interface DtfManifest {
   generatedAt: string
+  /**
+   * PRESENT WHEN THIS FILM BELONGS TO SEVERAL ORDERS: the whole run, as the shop
+   * recorded it, including each order's proof version and design ids.
+   *
+   * It is the traceability record and the reason it is in the MANIFEST rather
+   * than only in the readable sheets: a dispute three months later is answered
+   * from a file, and a file a program can read is a file that can be checked
+   * against the order it names.
+   */
+  run?: RunArchive
   tool: 'tshop-dtf'
   /** App build the archive came from — the first thing to check on a dispute. */
   appVersion: string
@@ -437,6 +448,7 @@ export interface DtfManifest {
  * a delivered archive.
  */
 export function buildManifest(args: {
+  run?: RunArchive
   result: NestResult
   supplier: SupplierProfile
   process: DtfProcess
@@ -454,6 +466,7 @@ export function buildManifest(args: {
   const { result, supplier, process: proc } = args
   return {
     generatedAt: (args.generatedAt ?? new Date()).toISOString(),
+    ...(args.run ? { run: args.run } : {}),
     tool: 'tshop-dtf',
     appVersion: args.appVersion ?? '',
     orderName: args.orderName ?? '',

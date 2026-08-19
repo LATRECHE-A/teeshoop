@@ -32,6 +32,16 @@ export default defineConfig({
         target: process.env.TSHOP_WORKER ?? 'http://127.0.0.1:8787',
         changeOrigin: true,
       },
+      /*
+       * The stored design documents and the customers' own rasters. The
+       * workshop's production queue re-renders a paid order from these
+       * (src/lib/dtf/fromR2.ts), so a dev studio without this proxy gets a Vite
+       * 404 for every design and reports every order as unreadable artwork.
+       */
+      '/r2': {
+        target: process.env.TSHOP_WORKER ?? 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
     },
   },
   build: {

@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Download,
+  Factory,
   FileArchive,
   Loader2,
   Plus,
@@ -67,6 +68,31 @@ import {
   type ShapePiece,
 } from '@/lib/dtf/trueshape'
 import { createNestClient } from '@/lib/dtf/nestClient'
+import {
+  loadRunDesigns,
+  layoutReport,
+  posesOf,
+  productionRows,
+  runArchive,
+  type ProductionRow,
+  type ReportedPiece,
+  type RowOrder,
+} from '@/lib/dtf/productionRun'
+import {
+  createLot,
+  fetchQueue,
+  shopCredentials,
+  shopFailureFr,
+  type ShopQueue,
+} from '@/lib/dtf/shopQueue'
+import {
+  pickingList,
+  releaseStoredDesigns,
+  type QueueOrder,
+  type StoredDesign,
+} from '@/lib/dtf/fromR2'
+import { buildRun, type RunOrder } from '@/lib/dtf/run'
+import type { RunArchive } from '@/lib/dtf/runExport'
 import { buildOrderZip, planLegend } from '@/lib/dtf/zipExport'
 import { hasErrors, preflight, type PreflightIssue } from '@/lib/dtf/preflight'
 import { isGraded, printScaleK } from '@/lib/printScale'
@@ -113,6 +139,23 @@ const INTERLOCK_STOPS = INTERLOCK_STOPS_CM
  * film they did not know they were saving.
  */
 const DEFAULT_INTERLOCK_INDEX = INTERLOCK_STOPS.indexOf(2)
+/** An ISO date the way an operator reads it. Display only, never parsed back. */
+const frShort = (iso: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  return m ? `${m[3]}/${m[2]}` : iso
+}
+
+/**
+ * Integer cents as euros. The SHOP computed the number; this only prints it.
+ *
+ * Nothing in this modal may compute a film cost for a real order: `Cost.php` is
+ * the authority and its answer is what the margin report, the archive and this
+ * panel all show. The supplier tariffs elsewhere in this modal are a market
+ * survey and are labelled as one.
+ */
+const eurOf = (cents: number): string =>
+  `${(cents / 100).toFixed(2).replace('.', ',')} EUR`
+
 /** Restart counts offered. A COUNT, never a time budget — see trueshape.ts. */
 const RESTART_CHOICES = [6, 12, 24]
 
@@ -141,8 +184,17 @@ interface QueueRow {
   design: Design
   side: Side
   qty: number
-  /** Basket rows mirror the order — their quantity is owned by the basket. */
-  from: 'basket' | 'manual'
+  /** Basket rows mirror the order, their quantity is owned by the basket. */
+  from: 'basket' | 'manual' | 'production'
+  /**
+   * PRESENT ON A PRODUCTION ROW: the paid order this transfer belongs to.
+   *
+   * It is what makes a pooled film readable. A cutting plan carrying four
+   * customers' artwork is unusable unless every label says whose it is, and the
+   * press sheet, the archive and the shop's lot record all key off the same
+   * identity.
+   */
+  order?: RowOrder
   /** Garment size this transfer is graded for; absent = base-size transfer. */
   size?: SizeId
   /** Size × qty summary for merged rows, e.g. `S ×3 · M ×5`. */
@@ -244,7 +296,10 @@ export default function DtfModal() {
   // The basket is the real order, so it drives the queue whenever it has
   // lines; the manual rows (current design, saved designs) stay available and
   // are simply appended.
-  const [fromBasket, setFromBasket] = useState(() => basket.length > 0)
+  const [source, setSource] = useState<'production' | 'basket' | 'manual'>(() =>
+    basket.length > 0 ? 'basket' : 'manual',
+  )
+  const fromBasket = source === 'basket'
   const [manualRows, setManualRows] = useState<QueueRow[]>(() =>
     basket.length > 0 ? [] : rowsFromDesign(design),
   )
@@ -252,9 +307,33 @@ export default function DtfModal() {
     () => (fromBasket ? rowsFromBasket(basket) : []),
     [fromBasket, basket],
   )
+
+  /*
+   * THE PRODUCTION SOURCE: paid orders, from the shop.
+   *
+   * It is EXCLUSIVE of the other two, which the basket and the manual queue are
+   * not of each other. Pooling a customer's paid order with a design somebody
+   * happens to have open in this tab would put artwork nobody bought onto a film
+   * somebody is invoiced for, and the shop would refuse the lot anyway because
+   * the poses would not add up. Better to make it impossible than to explain it.
+   */
+  const [shop, setShop] = useState<ShopQueue | null>(null)
+  const [shopBusy, setShopBusy] = useState<string | null>(null)
+  const [shopError, setShopError] = useState('')
+  const [picked, setPicked] = useState<ReadonlySet<number>>(() => new Set<number>())
+  const [prodRows, setProdRows] = useState<QueueRow[]>([])
+  const [prodOrders, setProdOrders] = useState<QueueOrder[]>([])
+  const [origin, setOrigin] = useState<'fr' | 'es'>('fr')
+  const [lot, setLot] = useState<RunArchive | null>(null)
+  const designsRef = useRef<Map<string, StoredDesign>>(new Map())
+  useEffect(
+    () => () => releaseStoredDesigns([...designsRef.current.values()]),
+    [],
+  )
+
   const rows = useMemo(
-    () => [...basketRows, ...manualRows],
-    [basketRows, manualRows],
+    () => (source === 'production' ? prodRows : [...basketRows, ...manualRows]),
+    [source, prodRows, basketRows, manualRows],
   )
 
   const addCurrentDesign = () => {
@@ -560,15 +639,214 @@ export default function DtfModal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, pieceVersion, clearanceIn])
 
+  /*
+   * ------------------------------------------------------------------------
+   * The production loop: ask the shop, render from R2, nest, hand back a lot.
+   * ------------------------------------------------------------------------
+   *
+   * `soloNester` is a SECOND channel and not the one above. A nesting client
+   * cancels its own previous job, which is right for a preview that must follow
+   * the operator's last change, and fatal here: the per-order baselines and the
+   * pooled layout would take turns killing each other. The dev harness makes the
+   * same split for the same reason.
+   */
+  const soloNester = useMemo(() => createNestClient(), [])
+  useEffect(() => () => soloNester.cancel(), [soloNester])
+
+  /** Which paid order a transfer on the film belongs to. A map, never a parse. */
+  const ownerOf = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const [key, { row }] of partsByKey) if (row.order) m.set(key, row.order.id)
+    return m
+  }, [partsByKey])
+
+  const loadShop = async () => {
+    setShopError('')
+    setShopBusy(t('dtf.prod.busy_queue'))
+    try {
+      const q = await fetchQueue(shopCredentials())
+      setShop(q)
+      /*
+       * PRESELECTED, BUT ONLY WHAT IS COMPLETE. An order whose geometry could
+       * not be read on one side would be nested short and costed short, and the
+       * shop refuses it anyway; ticking it by default would make the operator
+       * discover that at the last click.
+       */
+      setPicked(new Set(q.orders.filter((o) => o.complete).map((o) => o.id)))
+    } catch (err) {
+      setShop(null)
+      setShopError(shopFailureFr(err))
+    } finally {
+      setShopBusy(null)
+    }
+  }
+
+  const queuePicked = async () => {
+    if (!shop) return
+    const chosen = shop.orders.filter((o) => picked.has(o.id))
+    if (chosen.length === 0) {
+      toast('info', t('dtf.prod.pick_none'))
+      return
+    }
+    setShopError('')
+    setShopBusy(t('dtf.prod.busy_art', { n: 0, total: chosen.length }))
+    try {
+      /*
+       * RELATIVE URLS. The admin studio is served by the same Worker that holds
+       * the design documents, so `/api/design/...` and `/r2/design/...` are
+       * same-origin; the admin token travels as a header either way. Hard-coding
+       * an absolute origin here would be a second place to keep it right.
+       */
+      releaseStoredDesigns([...designsRef.current.values()])
+      const { designs, failed } = await loadRunDesigns('', chosen, (n, total) =>
+        setShopBusy(t('dtf.prod.busy_art', { n, total })),
+      )
+      designsRef.current = designs
+      if (failed.length > 0) {
+        /*
+         * A RUN MISSING ONE ORDER'S ARTWORK MUST NOT QUIETLY BECOME A RUN OF THE
+         * OTHERS. It would nest, cost and print perfectly, and one customer
+         * would simply never be made.
+         */
+        setShopError(t('dtf.prod.art_failed', { ids: failed.map((f) => f.designId).join(', ') }))
+        return
+      }
+      const built = chosen.flatMap((order) =>
+        productionRows(order, designs).map(
+          (r): QueueRow => ({ ...r, from: 'production' as const }),
+        ),
+      )
+      if (built.length === 0) {
+        setShopError(t('dtf.prod.nothing_to_print'))
+        return
+      }
+      setProdRows(built)
+      setProdOrders(chosen)
+      setLot(null)
+      setSource('production')
+      /*
+       * THE SHOP'S ROLL, NOT THE STUDIO'S. The rate and the laize are one tariff
+       * (`Cost.php` says so where it stores them), so nesting on 58 cm while the
+       * shop pays for 56 would produce a layout the supplier cannot print and a
+       * cost nobody can reconcile. The supplier profiles in this modal are a
+       * market survey and never what we pay.
+       */
+      setSheetWCm(shop.film.width_cm)
+      setSheetLenCm(shop.film.max_length_cm)
+      setGap(shop.film.gap_cm)
+      /* Spain when every chosen order can still hold its date on it. */
+      setOrigin(chosen.every((o) => o.origin === 'es') ? 'es' : 'fr')
+    } catch (err) {
+      setShopError(shopFailureFr(err))
+    } finally {
+      setShopBusy(null)
+    }
+  }
+
+  /**
+   * Measure what each order would have needed ALONE, then ask the shop to
+   * record the lot.
+   *
+   * The baselines are packed with the same packer, the same interlock ceiling,
+   * the same restart count and the same geometry as the pool. Anything cheaper
+   * would nest worse and inflate every saving reported against it, which is the
+   * one number this whole session exists to state honestly.
+   */
+  const makeLot = async () => {
+    if (!shop || prodOrders.length === 0 || !effProc) return
+    setShopError('')
+    try {
+      const byOrder = new Map<string, ShapePiece[]>()
+      for (const piece of pieces) {
+        const owner = ownerOf.get(piece.sourceKey)
+        if (!owner) continue
+        const list = byOrder.get(owner)
+        if (list) list.push(piece)
+        else byOrder.set(owner, [piece])
+      }
+
+      const solo = new Map<string, number>()
+      let n = 0
+      for (const [orderId, ps] of byOrder) {
+        setShopBusy(t('dtf.prod.busy_solo', { n: ++n, total: byOrder.size }))
+        const alone = await soloNester.nest({
+          pieces: ps,
+          options: { ...options, maxInterlockCm: interlockCm, restarts },
+          ...(supplier ? { supplier } : {}),
+          process: effProc,
+        })
+        solo.set(orderId, alone.totalLengthM)
+      }
+
+      const piecesByOrder = new Map<string, ReportedPiece[]>()
+      for (const [orderId, ps] of byOrder)
+        piecesByOrder.set(
+          orderId,
+          ps.map((piece) => ({
+            key: piece.sourceKey,
+            w_cm: piece.wCm,
+            h_cm: piece.hCm,
+            qty: piece.qty,
+          })),
+        )
+
+      const posesByOrder = new Map<string, number>()
+      for (const order of prodOrders)
+        posesByOrder.set(
+          String(order.id),
+          posesOf(prodRows.filter((r) => r.order?.id === String(order.id))),
+        )
+
+      setShopBusy(t('dtf.prod.busy_lot'))
+      const stored = await createLot(shopCredentials(), {
+        orders: prodOrders.map((o) => o.id),
+        origin,
+        layout: layoutReport({
+          result,
+          restarts,
+          flip: allowFlip,
+          appVersion: APP_VERSION,
+          piecesByOrder,
+          posesByOrder,
+          soloByOrder: solo,
+        }),
+        today: shop.today,
+      })
+
+      const keysByOrder = new Map<string, string[]>()
+      for (const [key, owner] of ownerOf) {
+        const list = keysByOrder.get(owner)
+        if (list) list.push(key)
+        else keysByOrder.set(owner, [key])
+      }
+      setLot(runArchive(stored, keysByOrder, pickingList(prodOrders)))
+      toast('ok', t('dtf.prod.lot_made'))
+    } catch (err) {
+      setShopError(shopFailureFr(err))
+    } finally {
+      setShopBusy(null)
+    }
+  }
+
   const previewSources = useMemo(() => {
     const map = new Map<string, RenderedPiece>()
     for (const [key, { piece }] of partsByKey) map.set(key, piece)
     return map
   }, [partsByKey])
 
-  /** What one QUEUE ROW is: a design side, at a size when the design grades. */
+  /**
+   * What one QUEUE ROW is: a design side, at a size when the design grades.
+   *
+   * A PRODUCTION ROW LEADS WITH ITS ORDER NUMBER, and it is not decoration. On a
+   * pooled film the cutting plan carries several customers' artwork side by side
+   * and the labels are the only thing that says which pile a cut piece goes on.
+   * The order comes first because that is the sort an operator does with their
+   * hands.
+   */
   const rowLabel = (row: QueueRow): string =>
-    `${row.design.name} · ${t('side.' + row.side)}` + (row.size ? ` · ${row.size}` : '')
+    (row.order ? `${row.order.ref} · ` : '') +
+    `${row.design.name} · ${t('side.' + row.side)}` +
+    (row.size ? ` · ${row.size}` : '')
 
   // What one TRANSFER is. The size belongs in the label because on a graded
   // order the cutting plan carries several transfers of the same design and
@@ -808,6 +1086,14 @@ export default function DtfModal() {
           cutplanDpi: CUTPLAN_DPI,
           restarts,
           flip: allowFlip,
+          /*
+           * PRESENT ONLY ONCE THE SHOP HAS RECORDED THE LOT. Before that there
+           * is no lot number, no split and no traceability chain, and an archive
+           * that invented them would be the copy the workshop holds. The button
+           * order on the panel is deliberate for the same reason: constitute the
+           * lot, then download the package.
+           */
+          ...(lot ? { run: lot } : {}),
         },
         (p) => setBusy(t('dtf.zip.busy', { label: p.label, n: p.done, total: p.total })),
       )
@@ -892,8 +1178,23 @@ export default function DtfModal() {
             <section>
               <div className="panel-title mb-2">{t('dtf.queue.title')}</div>
 
-              {/* Order basket vs manual queue. */}
+              {/* Paid orders, the order basket, or a hand-built queue. */}
               <div className="mb-2 flex gap-1 rounded-lg border border-line bg-bg1 p-1">
+                <button
+                  className={clsx(
+                    'btn btn-ghost h-7 flex-1 justify-center text-[11.5px]',
+                    source === 'production' && 'btn-primary',
+                  )}
+                  data-dtf="src-production"
+                  aria-pressed={source === 'production'}
+                  onClick={() => {
+                    setSource('production')
+                    if (!shop && !shopBusy) void loadShop()
+                  }}
+                >
+                  <Factory size={12} />
+                  {t('dtf.prod.src')}
+                </button>
                 <button
                   className={clsx(
                     'btn btn-ghost h-7 flex-1 justify-center text-[11.5px]',
@@ -901,7 +1202,7 @@ export default function DtfModal() {
                   )}
                   data-dtf="src-basket"
                   aria-pressed={fromBasket}
-                  onClick={() => setFromBasket(true)}
+                  onClick={() => setSource('basket')}
                 >
                   <ShoppingBag size={12} />
                   {t('dtf.queue.src_basket', { n: basket.length })}
@@ -909,14 +1210,171 @@ export default function DtfModal() {
                 <button
                   className={clsx(
                     'btn btn-ghost h-7 flex-1 justify-center text-[11.5px]',
-                    !fromBasket && 'btn-primary',
+                    source === 'manual' && 'btn-primary',
                   )}
-                  aria-pressed={!fromBasket}
-                  onClick={() => setFromBasket(false)}
+                  aria-pressed={source === 'manual'}
+                  onClick={() => setSource('manual')}
                 >
                   {t('dtf.queue.src_manual')}
                 </button>
               </div>
+
+              {source === 'production' && (
+                <div className="mb-2 flex flex-col gap-2" data-dtf="production">
+                  {shopError !== '' && (
+                    <div className="rounded-lg border border-rd/40 bg-rd/10 p-2 text-[11.5px] leading-relaxed text-tx">
+                      {shopError}
+                    </div>
+                  )}
+                  {shopBusy !== null && (
+                    <div className="flex items-center gap-2 text-[11.5px] text-tx2">
+                      <Loader2 size={12} className="animate-spin" />
+                      {shopBusy}
+                    </div>
+                  )}
+
+                  {/*
+                    THE PROMISE THAT CANNOT BE KEPT, said here as well as on the
+                    shop's own screen. An operator planning a day in this modal
+                    is exactly who needs to know that an urgent order starts two
+                    days late whatever they do with the film.
+                  */}
+                  {shop &&
+                    Object.entries(shop.feasibility)
+                      .filter(([, slack]) => slack.fr < 0)
+                      .map(([urgency, slack]) => (
+                        <div
+                          key={urgency}
+                          className="rounded-lg border border-am/40 bg-am/10 p-2 text-[11.5px] leading-relaxed text-tx"
+                        >
+                          {t('dtf.prod.slack', {
+                            urgency,
+                            days: slack.days,
+                            slack: `${-slack.fr} j`,
+                          })}
+                        </div>
+                      ))}
+
+                  {shop === null && shopBusy === null && (
+                    <button className="btn btn-ghost h-7 text-[11.5px]" onClick={() => void loadShop()}>
+                      <RefreshCcw size={12} />
+                      {t('dtf.prod.load')}
+                    </button>
+                  )}
+
+                  {shop && shop.orders.length === 0 && (
+                    <div className="rounded-lg border border-line bg-bg1 p-3 text-[12px] leading-relaxed text-tx2">
+                      {t('dtf.prod.none')}
+                    </div>
+                  )}
+
+                  {shop && shop.orders.length > 0 && (
+                    <>
+                      <div className="flex max-h-[22vh] flex-col gap-1 overflow-y-auto">
+                        {shop.orders.map((o) => (
+                          <label
+                            key={o.id}
+                            className={clsx(
+                              'flex cursor-pointer items-start gap-2 rounded-lg border p-2 text-[11.5px]',
+                              picked.has(o.id) ? 'border-cy/60 bg-cy/5' : 'border-line bg-bg1',
+                              !o.complete && 'opacity-60',
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={picked.has(o.id)}
+                              disabled={!o.complete}
+                              onChange={(e) =>
+                                setPicked((cur) => {
+                                  const next = new Set(cur)
+                                  if (e.target.checked) next.add(o.id)
+                                  else next.delete(o.id)
+                                  return next
+                                })
+                              }
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="font-mono text-tx">{o.ref}</span>{' '}
+                              <span className="text-tx2">{o.customer}</span>
+                              <span className="mt-0.5 block text-tx3">
+                                {t('dtf.prod.due', { date: frShort(o.order_by) })}
+                                {' · '}
+                                {o.garments} × {o.transfers}
+                                {o.late && (
+                                  <span className="ml-1 text-rd">{t('dtf.prod.late')}</span>
+                                )}
+                              </span>
+                              {!o.complete && (
+                                <span className="mt-0.5 block text-am">
+                                  {t('dtf.prod.incomplete')}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          className="btn btn-primary h-7 flex-1 text-[11.5px]"
+                          disabled={shopBusy !== null || picked.size === 0}
+                          onClick={() => void queuePicked()}
+                        >
+                          {t('dtf.prod.queue_it', { n: picked.size })}
+                        </button>
+                        <button
+                          className="btn btn-ghost h-7 text-[11.5px]"
+                          disabled={shopBusy !== null}
+                          onClick={() => void loadShop()}
+                        >
+                          <RefreshCcw size={12} />
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {prodOrders.length > 0 && (
+                    <div className="flex flex-col gap-2 rounded-lg border border-line bg-bg1 p-2">
+                      <label className="flex items-center justify-between text-[11.5px] text-tx2">
+                        {t('dtf.prod.origin')}
+                        <select
+                          className="input h-7 w-28 text-[11.5px]"
+                          value={origin}
+                          disabled={lot !== null}
+                          onChange={(e) => setOrigin(e.target.value === 'es' ? 'es' : 'fr')}
+                        >
+                          <option value="fr">{t('dtf.prod.origin_fr')}</option>
+                          <option value="es">{t('dtf.prod.origin_es')}</option>
+                        </select>
+                      </label>
+                      {lot === null ? (
+                        <button
+                          className="btn btn-primary h-7 text-[11.5px]"
+                          disabled={shopBusy !== null || result.sheets.length === 0 || blocked}
+                          onClick={() => void makeLot()}
+                        >
+                          {t('dtf.prod.make_lot')}
+                        </button>
+                      ) : (
+                        <div className="text-[11.5px] leading-relaxed text-tx2">
+                          <div className="font-mono text-tx">
+                            {t('dtf.prod.lot_title', { id: lot.lotId })}
+                          </div>
+                          <div>
+                            {lot.worse
+                              ? t('dtf.prod.lot_worse')
+                              : t('dtf.prod.lot_saving', {
+                                  saved: eurOf(lot.savedCents),
+                                  solo: eurOf(lot.soloTotalCents),
+                                })}
+                          </div>
+                          <div className="mt-1 text-tx3">{t('dtf.prod.lot_note')}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {fromBasket && (
                 <div className="mb-2 text-[11px] leading-relaxed text-tx3">
                   {basket.length === 0 ? t('dtf.queue.basket_empty') : t('dtf.queue.basket_note')}{' '}

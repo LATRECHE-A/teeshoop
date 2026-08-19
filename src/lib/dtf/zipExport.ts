@@ -33,6 +33,7 @@ import { INTERLOCK_MAX_CM } from './trueshape'
 import type { RenderedPiece } from './pieces'
 import type { PreflightIssue } from './preflight'
 import type { CostBreakdown, DtfProcess, SupplierProfile } from './suppliers'
+import { runEntries, type RunArchive } from './runExport'
 
 export interface OrderZipInput {
   /** Operator-entered order / basket name. Drives the archive + folder name. */
@@ -58,8 +59,20 @@ export interface OrderZipInput {
   requestedDpi: number
   cutplanDpi: number
   restarts: number
-  /** 180°/270° were allowed — part of what makes the layout reproducible. */
+  /** 180°/270° were allowed, part of what makes the layout reproducible. */
   flip: boolean
+  /**
+   * PRESENT WHEN THIS FILM BELONGS TO SEVERAL ORDERS.
+   *
+   * Absent it is the archive it always was: one order, one film. Present, the
+   * same archive gains a picking list, a cost split and one press sheet per
+   * order, and the manifest gains the chain a dispute is settled on (order,
+   * proof version, design id). The numbers come from the shop and are never
+   * recomputed here: `Cost::attribute()` owns the split, and an archive that
+   * quietly disagreed with the margin report would be believed over it, because
+   * it is the copy the workshop is holding.
+   */
+  run?: RunArchive
 }
 
 export interface OrderZipResult {
@@ -226,6 +239,7 @@ export async function buildOrderZip(
   }
 
   const manifest = buildManifest({
+    ...(input.run ? { run: input.run } : {}),
     result,
     supplier: input.supplier,
     process: input.process,
@@ -240,6 +254,9 @@ export async function buildOrderZip(
     flip: input.flip,
     generatedAt: date,
   })
+  if (input.run)
+    entries.push(...runEntries(input.run, folder, input.pieces, result, input.labels, date))
+
   entries.push(
     textEntry(`${folder}/${t.manifest}`, JSON.stringify(manifest, null, 2), date),
     textEntry(`${folder}/${t.readme}`, readmeText(input, manifest), date),
@@ -397,6 +414,61 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
         ? '    découpe donne le haut de chaque pièce — vérifier avant de presser.'
         : '    plan gives each piece’s up — check it before pressing.',
     )
+
+  /*
+   * THE LOT COMES FIRST, before the supplier and the geometry, because on a
+   * pooled film the first question anybody opening this archive has is whose
+   * garments are on it. On a single-order archive nothing changes.
+   */
+  if (i.run) {
+    const run = i.run
+    rule(fr ? 'Lot d’impression' : 'Print run')
+    L.push(
+      `  ${fr ? 'Lot n°' : 'Run no.'} ${run.lotId} · ${
+        run.origin === 'es' ? (fr ? 'film Espagne' : 'film from Spain') : fr ? 'film France' : 'film from France'
+      } · ${run.orders.length} ${fr ? 'commande(s)' : 'order(s)'}`,
+      (fr ? '  Film à commander avant le ' : '  Film to order by ') + run.orderByOn,
+      '',
+    )
+    for (const o of run.orders)
+      L.push(
+        `  ${o.ref}  ${o.customer}`,
+        `      ${fr ? 'BAT v' : 'proof v'}${o.batVersion} ${
+          o.batBy === 'client'
+            ? fr
+              ? '(validé par le client)'
+              : '(approved by the customer)'
+            : fr
+              ? '(renonciation atelier, aucune validation client)'
+              : '(waived by the workshop, no customer approval)'
+        } · ${fr ? 'création' : 'design'} ${o.designIds.join(', ') || '-'}`,
+        `      ${fr ? 'part du film' : 'film share'} ${n2(o.shareCents / 100)} EUR ${
+          fr ? 'sur' : 'of'
+        } ${n2(o.soloCents / 100)} EUR ${fr ? 'seule' : 'alone'}`,
+      )
+    L.push(
+      '',
+      `  ${fr ? 'TOTAL FILM' : 'FILM TOTAL'} ${n2(run.totalCents / 100)} EUR ${
+        fr ? 'contre' : 'against'
+      } ${n2(run.soloTotalCents / 100)} EUR ${
+        fr ? 'en achetant chaque commande séparément' : 'buying each order separately'
+      }`,
+    )
+    if (run.worse)
+      L.push(
+        fr
+          ? '  ! Ce lot coûte PLUS CHER que les mêmes commandes achetées séparément.'
+          : '  ! This run costs MORE than the same orders bought separately.',
+      )
+    L.push(
+      fr
+        ? '  Une fiche de pose par commande est dans commandes/, la liste de'
+        : '  One press sheet per order is in commandes/, the picking list and the',
+      fr
+        ? '  prélèvement et la répartition du film sont à la racine.'
+        : '  film cost split are at the root.',
+    )
+  }
 
   rule(fr ? 'Planches' : 'Sheets')
   for (let k = 0; k < r.sheets.length; k++) {
