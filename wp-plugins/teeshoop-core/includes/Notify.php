@@ -16,10 +16,13 @@
  * reads in a web interface that is not in this repository, cannot be reviewed in
  * a diff, cannot be tested, and is edited by whoever has the password.
  *
- * ONE PALETTE, RESTATED AS LITERAL HEX. `assets/product.css` is a linked
- * stylesheet built on custom properties and a media query, and none of those
- * three survives a mail client. So the colours are written out here, once, and
- * the layout is a table because that is what Outlook renders.
+ * ONE PALETTE, RESTATED AS LITERAL HEX. `assets/tokens.css` is a linked
+ * stylesheet built on custom properties, and neither survives a mail client. So
+ * the colours are written out here, once, and the layout is a table because that
+ * is what Outlook renders. `scripts/palette-guard.mjs` compares this copy with
+ * the home and with the proof page's third one, role by role, and fails when
+ * one of them drifts: a customer who reads an e-mail in one blue, approves a
+ * proof in a second and buys on a third is looking at three companies.
  *
  * THE HTML AND THE TEXT SAY THE SAME THING. A text part that is a stub is a
  * message half the recipients cannot read, and on a business list a fair number

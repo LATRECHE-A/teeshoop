@@ -101,7 +101,7 @@ const SELF_TEST = process.argv.includes('--self-test')
  * would not be: the projection is rewritten from the register and compared byte
  * for byte on every run, so it cannot hold a value the register does not.
  */
-const SCAN_DIRS = ['src', 'worker', 'wp-plugins', 'scripts']
+const SCAN_DIRS = ['src', 'worker', 'wp-plugins', 'wp-themes', 'scripts']
 const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.php', '.json'])
 const SCAN_SKIP = new Set(['node_modules', 'dist', '.git'])
 const SCAN_EXCLUDE_FILES = new Set(['wp-plugins/teeshoop-core/data/hypotheses.php'])
@@ -118,6 +118,9 @@ const STRING_TABLE_ROOTS = [
   'src/app/modals',
   'wp-plugins/teeshoop-core/templates',
   'wp-plugins/teeshoop-core/includes',
+  // Added in session 09. The theme is where most of what a customer READS now
+  // lives, so a `label_fr` that only exists there has to count as said out loud.
+  'wp-themes/teeshoop',
 ]
 const STRING_TABLE_EXT = new Set(['.ts', '.tsx', '.php'])
 

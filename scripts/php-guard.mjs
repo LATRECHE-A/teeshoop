@@ -8,9 +8,14 @@
  * not minified, it renders directly into a page, and `templates/` is exactly
  * where a well-meaning "show the margin so the shop can see it" would land.
  *
- * WHAT IT SCANS. Every `.php`, `.js` and `.css` under `wp-plugins/`, plus the
- * generated `data/garments.json`. Both the code and the markup, because on this
- * side there is no build step to separate them.
+ * WHAT IT SCANS. Every `.php`, `.js` and `.css` under `wp-plugins/` AND under
+ * `wp-themes/`, plus the generated `data/garments.json`. Both the code and the
+ * markup, because on this side there is no build step to separate them.
+ *
+ * THE THEME WAS ADDED IN SESSION 09, and it is the more exposed of the two: the
+ * plugin renders four blocks on a product page, the theme renders every page
+ * there is. A homepage that printed a purchase price to "show the shop how it
+ * is doing" would land in exactly the same place a template does.
  *
  * WHAT IT LOOKS FOR. The same string needles as the bundle guard, plus the
  * supplier names, plus the vocabulary of our own cost model. Symbol names work
@@ -30,7 +35,7 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const SCAN_ROOT = join(ROOT, 'wp-plugins')
+const SCAN_ROOTS = [join(ROOT, 'wp-plugins'), join(ROOT, 'wp-themes')]
 
 /**
  * Needles, in three groups.
@@ -377,7 +382,7 @@ function scan(files, extra = []) {
   return hits
 }
 
-const files = walk(SCAN_ROOT)
+const files = SCAN_ROOTS.flatMap((r) => walk(r))
 
 if (files.length === 0) {
   // "Nothing found" and "nothing looked" are different results.

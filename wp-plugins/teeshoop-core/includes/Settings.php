@@ -164,6 +164,46 @@ final class Settings {
 	}
 
 	/**
+	 * One amount, written with the tax basis this shop actually has.
+	 *
+	 * EXTRACTED SO THERE IS ONE COPY. `ProductPage::price_html` held this
+	 * arithmetic inline, and session 09 needed the same sentence on a homepage,
+	 * on a listing card and on the entreprises page. Four copies of a rule whose
+	 * whole job is to say "HT" only when there is an HT is four chances to print
+	 * "9,42 EUR HT (9,42 EUR TTC)" under the franchise, which states the same
+	 * amount twice and invites the reader to look for a tax that must not exist.
+	 *
+	 * Returns the strings, already formatted by `Money`, never the numbers: a
+	 * caller that got cents back would format them its own way and we would be
+	 * back to four conventions.
+	 *
+	 * @param int $ht_cents  The amount before tax.
+	 * @param int $ttc_cents The same amount, tax included.
+	 * @return array{lead:string,second:string} `second` is empty when there is
+	 *         nothing useful to say beside the first, which is the case under an
+	 *         unrecorded regime.
+	 */
+	public static function price_pair( int $ht_cents, int $ttc_cents ): array {
+		$bases    = self::price_bases();
+		$lead_ttc = $bases['two'] && 'ttc' === $bases['lead'];
+
+		if ( ! $bases['two'] ) {
+			return array(
+				'lead'   => Money::format( $ht_cents ),
+				'second' => $bases['mention'],
+			);
+		}
+
+		$lead   = Money::format( $lead_ttc ? $ttc_cents : $ht_cents );
+		$second = Money::format( $lead_ttc ? $ht_cents : $ttc_cents );
+
+		return array(
+			'lead'   => $lead . ( $lead_ttc ? ' TTC' : ' HT' ),
+			'second' => sprintf( '(%s %s)', $second, $lead_ttc ? 'HT' : 'TTC' ),
+		);
+	}
+
+	/**
 	 * Today, in the shop's own timezone.
 	 *
 	 * `wp_date` and not `date`: the server is UTC and the shop is in Paris, so

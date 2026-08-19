@@ -41,6 +41,12 @@ final class BatPage {
 	 *
 	 * The palette separates the brand accent from the semantic colours, so
 	 * "this is the button" and "this went well" are never the same blue.
+	 *
+	 * IT IS THE THIRD COPY OF THAT PALETTE, and it names its properties
+	 * differently from `assets/tokens.css` (`--accent`, not `--ts-accent`),
+	 * which is exactly how a divergence hides: nothing greps them together.
+	 * `scripts/palette-guard.mjs` compares them by ROLE rather than by name,
+	 * and fails when one of the three drifts.
 	 */
 	private static function css(): string {
 		return <<<'CSS'

@@ -167,7 +167,7 @@ final class ProductPage {
 	}
 
 	private static function enqueue(): void {
-		wp_enqueue_style( 'teeshoop-product', TEESHOOP_CORE_URL . 'assets/product.css', array(), VERSION );
+		wp_enqueue_style( 'teeshoop-product', TEESHOOP_CORE_URL . 'assets/product.css', array( 'teeshoop-components' ), VERSION );
 		wp_enqueue_script( 'teeshoop-product', TEESHOOP_CORE_URL . 'assets/product.js', array(), VERSION, true );
 
 		$config = Settings::pricing();
@@ -378,25 +378,22 @@ final class ProductPage {
 			return $html;
 		}
 
-		$best  = $headline['best'];
-		$bases = Settings::price_bases();
+		$best = $headline['best'];
 
 		/*
 		 * ONE NUMBER WHEN THERE IS ONE NUMBER. Under the franchise this line
 		 * printed "9,42 EUR HT (9,42 EUR TTC)": the same amount twice, with a
 		 * parenthesis that invites the reader to look for a tax that must not
-		 * exist. The decision lives in `Settings::price_bases` because three
-		 * templates and this line all need it and four copies of it would
-		 * eventually disagree.
+		 * exist. Both the decision and the writing of it live in `Settings`,
+		 * because the homepage, the listing card and the entreprises page print
+		 * the same sentence and four copies of it would eventually disagree.
 		 */
-		$lead_ttc = $bases['two'] && 'ttc' === $bases['lead'];
-		$lead     = Money::format( (int) $best[ $lead_ttc ? 'unit_ttc' : 'unit_ht' ] );
-		$second   = Money::format( (int) $best[ $lead_ttc ? 'unit_ht' : 'unit_ttc' ] );
+		$pair = Settings::price_pair( (int) $best['unit_ht'], (int) $best['unit_ttc'] );
 
 		return sprintf(
 			'<span class="teeshoop-price">%s <span class="teeshoop-price__ttc">%s</span> <span class="teeshoop-price__from">%s</span></span>',
-			esc_html( $bases['two'] ? $lead . ( $lead_ttc ? ' TTC' : ' HT' ) : $lead ),
-			esc_html( $bases['two'] ? sprintf( '(%s %s)', $second, $lead_ttc ? 'HT' : 'TTC' ) : $bases['mention'] ),
+			esc_html( $pair['lead'] ),
+			esc_html( $pair['second'] ),
 			esc_html(
 				sprintf(
 					/* translators: %d: the quantity at which that unit price is reached. */

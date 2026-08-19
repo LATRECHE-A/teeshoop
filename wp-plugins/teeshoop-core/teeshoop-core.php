@@ -203,6 +203,25 @@ function boot(): void {
 }
 
 /**
+ * Register the design tokens and the shared components, once, for everything that paints.
+ *
+ * `assets/tokens.css` is the ONE home for the palette, the type scale and the
+ * spacing steps. The product page depends on it, and so does our theme, which
+ * enqueues it by handle. It is REGISTERED here rather than enqueued: a shop
+ * page with no Teeshoop block on it has no reason to download it.
+ *
+ * Priority 0 so the handle exists before anything on `wp_enqueue_scripts` asks
+ * for it, and `wp` (which is where ProductPage enqueues) has already run by
+ * then. Dependencies are resolved when styles are PRINTED, not when they are
+ * enqueued, so an enqueue that names this handle earlier still resolves.
+ */
+function register_tokens(): void {
+	wp_register_style( 'teeshoop-tokens', TEESHOOP_CORE_URL . 'assets/tokens.css', array(), VERSION );
+	wp_register_style( 'teeshoop-components', TEESHOOP_CORE_URL . 'assets/components.css', array( 'teeshoop-tokens' ), VERSION );
+}
+add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\register_tokens', 0 );
+
+/**
  * Say so when WooCommerce and the price authority disagree about the currency.
  *
  * `Pricing` works in cents of `config['currency']`, which is EUR, and hands

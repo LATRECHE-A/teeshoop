@@ -8,29 +8,30 @@
  * nothing, because the product must not look generated.
  *
  * Every rule is scoped under a `ts-` class. This stylesheet loads inside
- * whatever theme the shop runs (Woodmart in production, Twenty Twenty-One on
- * the mirror) and it has no business restyling anything of theirs.
+ * whatever theme the shop runs and it has no business restyling anything of
+ * theirs. Since session 09 that theme is usually OURS (`wp-themes/teeshoop`),
+ * on the mirror and, from session 14, in production, where Woodmart still runs
+ * today. The scoping stays: the plugin has to keep working under a theme it
+ * does not own, which is exactly the state production is in until it is
+ * deployed.
  *
  * Mobile first: everything below is written for 375 px and widened at 720 px.
  */
 
+/*
+ * THE PALETTE IS NOT DECLARED HERE ANY MORE. It lives once, in
+ * `assets/tokens.css`, which this stylesheet is enqueued after and which the
+ * theme reads as well. It used to be declared on this selector, which meant a
+ * shop-wide colour could only be changed by editing a rule that also set a font
+ * size on four blocks of the product page.
+ */
 .ts-buy,
 .ts-specs,
 .ts-pricing,
 .ts-devis {
-	--ts-ink: #14171a;
-	--ts-muted: #5b6470;
-	--ts-line: #dce0e5;
-	--ts-surface: #f6f7f9;
-	--ts-accent: #1f4fd8;
-	--ts-accent-ink: #ffffff;
-	--ts-good: #0f7b4f;
-	--ts-warn: #a85b00;
-	--ts-bad: #b3261e;
-
 	color: var(--ts-ink);
-	font-size: 0.9375rem;
-	line-height: 1.5;
+	font-size: var(--ts-text);
+	line-height: var(--ts-leading);
 }
 
 /*
@@ -53,7 +54,7 @@
 	min-height: 0;
 	margin: 0;
 	padding: 0.375rem 0.5rem;
-	border: 1px solid var(--ts-line);
+	border: 1px solid var(--ts-line-strong);
 	border-radius: 3px;
 	background: #fff;
 	color: var(--ts-ink);
@@ -63,37 +64,7 @@
 	box-shadow: none;
 }
 
-/* Digits that line up in a column: prices, quantities, dimensions. */
-.ts-num,
-.ts-buy input,
-.ts-estimate,
-.ts-table td,
-.ts-table th.ts-num,
-.ts-defs dd.ts-num {
-	font-variant-numeric: tabular-nums;
-	font-feature-settings: 'tnum' 1;
-}
 
-.ts-note {
-	margin: 0.5rem 0 0;
-	color: var(--ts-muted);
-	font-size: 0.8125rem;
-	line-height: 1.45;
-}
-
-.ts-note--strong {
-	color: var(--ts-ink);
-}
-
-.ts-admin-note {
-	margin: 0.75rem 0 0;
-	padding: 0.5rem 0.625rem;
-	border-left: 3px solid var(--ts-warn);
-	background: #fdf6ec;
-	color: #6b4a12;
-	font-size: 0.8125rem;
-	line-height: 1.45;
-}
 
 /* ------------------------------------------------------------------ price */
 
@@ -159,7 +130,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0;
-	border: 1px solid var(--ts-line);
+	border: 1px solid var(--ts-line-strong);
 	border-radius: 3px;
 	overflow: hidden;
 }
@@ -192,7 +163,7 @@
 .ts-seg__item span {
 	display: block;
 	padding: 0.5rem 0.625rem;
-	border-left: 1px solid var(--ts-line);
+	border-left: 1px solid var(--ts-line-strong);
 	background: #fff;
 	text-align: center;
 	font-size: 0.875rem;
@@ -249,7 +220,7 @@
 	box-sizing: border-box;
 	width: 100%;
 	padding: 0.5rem 0.625rem;
-	border: 1px solid var(--ts-line);
+	border: 1px solid var(--ts-line-strong);
 	border-radius: 3px;
 	background: #fff;
 	color: var(--ts-ink);
@@ -332,7 +303,7 @@
 .ts-recalc {
 	margin-top: 0.75rem;
 	padding: 0.5rem 0.875rem;
-	border: 1px solid var(--ts-line);
+	border: 1px solid var(--ts-line-strong);
 	border-radius: 3px;
 	background: var(--ts-surface);
 	color: var(--ts-ink);
@@ -411,49 +382,6 @@
 	line-height: 1.45;
 }
 
-.ts-cta {
-	display: block;
-	padding: 0.75rem 1rem;
-	border: 1px solid var(--ts-accent);
-	border-radius: 3px;
-	background: var(--ts-accent);
-	color: var(--ts-accent-ink);
-	font-size: 1rem;
-	font-weight: 600;
-	text-align: center;
-	text-decoration: none;
-	cursor: pointer;
-}
-
-.ts-cta:hover,
-.ts-cta:focus {
-	background: #1841ba;
-	border-color: #1841ba;
-	color: var(--ts-accent-ink);
-}
-
-.ts-cta:focus-visible {
-	outline: 2px solid var(--ts-ink);
-	outline-offset: 2px;
-}
-
-.ts-cta--ghost {
-	background: #fff;
-	border-color: var(--ts-line);
-	color: var(--ts-ink);
-	font-weight: 500;
-}
-
-.ts-cta--ghost:hover,
-.ts-cta--ghost:focus {
-	background: var(--ts-surface);
-	border-color: var(--ts-ink);
-	color: var(--ts-ink);
-}
-
-.teeshoop-loop-cta {
-	font-variant-numeric: normal;
-}
 
 /* ---------------------------------------------------------------- specs */
 
@@ -515,79 +443,6 @@
 	background: var(--ts-chip, #fff);
 }
 
-/* ---------------------------------------------------------------- table */
-
-.ts-table__scroll {
-	overflow-x: auto;
-	-webkit-overflow-scrolling: touch;
-}
-
-.ts-table {
-	width: 100%;
-	margin: 0;
-	border-collapse: collapse;
-	font-size: 0.875rem;
-}
-
-.ts-table caption,
-.ts-table__caption {
-	margin: 0 0 0.375rem;
-	color: var(--ts-muted);
-	font-size: 0.8125rem;
-	text-align: left;
-	caption-side: top;
-}
-
-.ts-table th,
-.ts-table td {
-	padding: 0.4375rem 0.625rem;
-	border-bottom: 1px solid var(--ts-line);
-	text-align: left;
-	vertical-align: top;
-}
-
-.ts-table thead th {
-	border-bottom: 2px solid var(--ts-ink);
-	color: var(--ts-muted);
-	font-size: 0.75rem;
-	font-weight: 600;
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-	white-space: nowrap;
-}
-
-.ts-table td.ts-num,
-.ts-table th.ts-num {
-	text-align: right;
-	white-space: nowrap;
-}
-
-.ts-table--pricing tbody th {
-	white-space: nowrap;
-	font-weight: 600;
-}
-
-.ts-table--pricing td b {
-	display: block;
-	font-size: 0.9375rem;
-}
-
-.ts-table__ttc {
-	display: block;
-	color: var(--ts-muted);
-	font-size: 0.75rem;
-}
-
-.ts-table__off {
-	display: block;
-	color: var(--ts-good);
-	font-size: 0.6875rem;
-	font-weight: 600;
-}
-
-.ts-table--areas {
-	max-width: 24rem;
-}
 
 /* ---------------------------------------------------------------- devis */
 
@@ -604,34 +459,6 @@
 	max-width: 60ch;
 }
 
-.ts-form__row {
-	display: grid;
-	gap: 0.75rem;
-	margin-bottom: 0.75rem;
-}
-
-.ts-form__field {
-	display: block;
-	margin-bottom: 0.75rem;
-}
-
-.ts-form__row .ts-form__field {
-	margin-bottom: 0;
-}
-
-.ts-form__label {
-	display: block;
-	margin-bottom: 0.1875rem;
-	font-size: 0.8125rem;
-	font-weight: 600;
-}
-
-.ts-form__hint {
-	display: block;
-	margin-top: 0.1875rem;
-	color: var(--ts-muted);
-	font-size: 0.75rem;
-}
 
 .ts-devis input[type='text'],
 .ts-devis input[type='email'],
@@ -641,7 +468,7 @@
 .ts-devis textarea {
 	width: 100%;
 	padding: 0.5rem 0.625rem;
-	border: 1px solid var(--ts-line);
+	border: 1px solid var(--ts-line-strong);
 	border-radius: 3px;
 	background: #fff;
 	font-size: 1rem;
@@ -660,42 +487,7 @@
 	max-width: 18rem;
 }
 
-.ts-form__legal {
-	margin: 0.875rem 0 0;
-	max-width: 68ch;
-	color: var(--ts-muted);
-	font-size: 0.75rem;
-	line-height: 1.5;
-}
 
-/* The honeypot: off-screen rather than display:none, because some bots skip
-   what is not rendered and a real person never reaches it (tabindex -1). */
-.ts-hp {
-	position: absolute;
-	left: -9999px;
-	width: 1px;
-	height: 1px;
-	overflow: hidden;
-}
-
-.ts-msg {
-	margin: 0 0 1rem;
-	padding: 0.625rem 0.75rem;
-	border-left: 3px solid;
-	font-size: 0.9375rem;
-}
-
-.ts-msg--good {
-	border-color: var(--ts-good);
-	background: #eef7f2;
-	color: #0b5c3b;
-}
-
-.ts-msg--bad {
-	border-color: var(--ts-bad);
-	background: #fdeeed;
-	color: #8c1d18;
-}
 
 /* --------------------------------------------------------------- studio */
 

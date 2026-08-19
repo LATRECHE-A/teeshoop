@@ -1,0 +1,235 @@
+/*
+ * The shared interface pieces: what a button, a table, a note, a form field
+ * and a message look like on this shop.
+ *
+ * SPLIT OUT OF `product.css`, AND THAT IS THE WHOLE POINT. These rules were
+ * written for the product page and are needed on every other page too, so the
+ * theme has to be able to load them WITHOUT loading the buy box, the size grid
+ * and the estimator with them: `product.css` says of itself that it "has no
+ * business restyling anything of theirs", and shipping `.ts-buy input` onto a
+ * homepage is exactly that. A second copy in the theme was the alternative, and
+ * a second copy of a button is how two buttons stop matching.
+ *
+ * WHAT BELONGS HERE: a rule that is about a component, not about a page. If it
+ * names `.ts-buy`, `.ts-specs`, `.ts-pricing`, `.ts-devis` or `.ts-estimate` it
+ * belongs in `product.css`.
+ *
+ * Loaded after `tokens.css` and before `product.css`, in that order, so the
+ * cascade is the same as when all of it was one file.
+ */
+
+/* Digits that line up in a column: prices, quantities, dimensions. */
+.ts-num,
+.ts-buy input,
+.ts-estimate,
+.ts-table td,
+.ts-table th.ts-num,
+.ts-defs dd.ts-num {
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: 'tnum' 1;
+}
+
+.ts-note {
+	margin: 0.5rem 0 0;
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+	line-height: 1.45;
+}
+
+.ts-note--strong {
+	color: var(--ts-ink);
+}
+
+.ts-admin-note {
+	margin: 0.75rem 0 0;
+	padding: 0.5rem 0.625rem;
+	border-left: 3px solid var(--ts-warn);
+	background: #fdf6ec;
+	color: #6b4a12;
+	font-size: 0.8125rem;
+	line-height: 1.45;
+}
+
+.ts-cta {
+	display: block;
+	padding: 0.75rem 1rem;
+	border: 1px solid var(--ts-accent);
+	border-radius: 3px;
+	background: var(--ts-accent);
+	color: var(--ts-accent-ink);
+	font-size: 1rem;
+	font-weight: 600;
+	text-align: center;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ts-cta:hover,
+.ts-cta:focus {
+	background: #1841ba;
+	border-color: #1841ba;
+	color: var(--ts-accent-ink);
+}
+
+.ts-cta:focus-visible {
+	outline: 2px solid var(--ts-ink);
+	outline-offset: 2px;
+}
+
+.ts-cta--ghost {
+	background: #fff;
+	border-color: var(--ts-line-strong);
+	color: var(--ts-ink);
+	font-weight: 500;
+}
+
+.ts-cta--ghost:hover,
+.ts-cta--ghost:focus {
+	background: var(--ts-surface);
+	border-color: var(--ts-ink);
+	color: var(--ts-ink);
+}
+
+.teeshoop-loop-cta {
+	font-variant-numeric: normal;
+}
+
+/* ---------------------------------------------------------------- table */
+
+.ts-table__scroll {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.ts-table {
+	width: 100%;
+	margin: 0;
+	border-collapse: collapse;
+	font-size: 0.875rem;
+}
+
+.ts-table caption,
+.ts-table__caption {
+	margin: 0 0 0.375rem;
+	color: var(--ts-muted);
+	font-size: 0.8125rem;
+	text-align: left;
+	caption-side: top;
+}
+
+.ts-table th,
+.ts-table td {
+	padding: 0.4375rem 0.625rem;
+	border-bottom: 1px solid var(--ts-line);
+	text-align: left;
+	vertical-align: top;
+}
+
+.ts-table thead th {
+	border-bottom: 2px solid var(--ts-ink);
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.ts-table td.ts-num,
+.ts-table th.ts-num {
+	text-align: right;
+	white-space: nowrap;
+}
+
+.ts-table--pricing tbody th {
+	white-space: nowrap;
+	font-weight: 600;
+}
+
+.ts-table--pricing td b {
+	display: block;
+	font-size: 0.9375rem;
+}
+
+.ts-table__ttc {
+	display: block;
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+}
+
+.ts-table__off {
+	display: block;
+	color: var(--ts-good);
+	font-size: 0.6875rem;
+	font-weight: 600;
+}
+
+.ts-table--areas {
+	max-width: 24rem;
+}
+
+.ts-form__row {
+	display: grid;
+	gap: 0.75rem;
+	margin-bottom: 0.75rem;
+}
+
+.ts-form__field {
+	display: block;
+	margin-bottom: 0.75rem;
+}
+
+.ts-form__row .ts-form__field {
+	margin-bottom: 0;
+}
+
+.ts-form__label {
+	display: block;
+	margin-bottom: 0.1875rem;
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.ts-form__hint {
+	display: block;
+	margin-top: 0.1875rem;
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+}
+
+.ts-form__legal {
+	margin: 0.875rem 0 0;
+	max-width: 68ch;
+	color: var(--ts-muted);
+	font-size: 0.75rem;
+	line-height: 1.5;
+}
+
+/* The honeypot: off-screen rather than display:none, because some bots skip
+   what is not rendered and a real person never reaches it (tabindex -1). */
+.ts-hp {
+	position: absolute;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}
+
+.ts-msg {
+	margin: 0 0 1rem;
+	padding: 0.625rem 0.75rem;
+	border-left: 3px solid;
+	font-size: 0.9375rem;
+}
+
+.ts-msg--good {
+	border-color: var(--ts-good);
+	background: #eef7f2;
+	color: #0b5c3b;
+}
+
+.ts-msg--bad {
+	border-color: var(--ts-bad);
+	background: #fdeeed;
+	color: #8c1d18;
+}

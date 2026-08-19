@@ -1,0 +1,180 @@
+/*
+ * The design tokens. One home for every brand and interface value the shop
+ * paints with, in the plugin rather than in the theme.
+ *
+ * WHY HERE AND NOT IN THE THEME. The plugin is what is active on teeshoop.com
+ * today, under Woodmart, and its product page already needs these values; a
+ * palette that lived in the theme would disappear from a working product page
+ * for the whole window in which a theme is being swapped. The mail composer
+ * (`includes/Notify.php`) also has to hold the same five hexes, because no mail
+ * client resolves a custom property, and `scripts/palette-guard.mjs` fails when
+ * the two copies disagree. Keeping both in the same package is what makes that
+ * pairing obvious to whoever changes one of them.
+ *
+ * WHAT THIS FILE MAY CONTAIN: custom property declarations on `:root`, and
+ * nothing else. It is loaded on a shop whose theme we may not own, so a single
+ * rule that styled an element would be this plugin restyling someone else's
+ * page. Declaring a variable nobody reads costs a visitor nothing.
+ *
+ * QUESTION 31 IS NOT ANSWERED. The associate has not sent a logo, a palette or
+ * a type specimen. These values are EXTRACTED from what teeshoop.com already
+ * uses (blue and black, Inter) and from `assets/product.css`, which was written
+ * against them; they are not an invented brand. When the real assets arrive,
+ * session 13b changes this file and nothing else.
+ *
+ * EVERY COLOUR PAIR BELOW HAS A MEASURED CONTRAST RATIO, computed with the
+ * WCAG 2.1 relative-luminance formula and printed in the comment beside it.
+ * Accessibility is session 12's audit, but a palette is the one thing that
+ * cannot be retrofitted: changing it late re-opens every screen.
+ */
+
+:root {
+	/* ------------------------------------------------------------ brand */
+
+	/*
+	 * The blue already on the site and in the product page. On white it is
+	 * 6,63:1, so it carries body text, a link and a button label at AA, and
+	 * it is also the focus ring.
+	 */
+	--ts-accent: #1f4fd8;
+	--ts-accent-ink: #ffffff; /* on --ts-accent: 6,63:1 */
+
+	/*
+	 * Hover and pressed. Same hue and saturation, lightness -6 points, so it
+	 * is visibly the same colour and not a second blue. White on it: 7,98:1.
+	 */
+	--ts-accent-dark: #1b45bd;
+
+	/*
+	 * The tint a selected filter or an active tab sits on. Same hue, +42
+	 * points of lightness. The accent still reads on it at 4,93:1 and the ink
+	 * at 13,38:1, which is what lets a chip be selected without needing a
+	 * second border to say so.
+	 */
+	--ts-accent-wash: #d4def9;
+
+	/* -------------------------------------------------------- ink, paper */
+
+	--ts-ink: #14171a; /* on paper 17,99:1, on surface 16,78:1 */
+	--ts-muted: #5b6470; /* on paper 6,00:1, on surface 5,59:1 */
+	--ts-paper: #ffffff;
+	--ts-surface: #f6f7f9;
+
+	/*
+	 * TWO RULE COLOURS, AND THE DIFFERENCE IS NOT DECORATIVE.
+	 *
+	 * `--ts-line` is 1,33:1 against paper. That is fine for a rule that
+	 * separates two blocks of text, and it is NOT fine for the edge of a
+	 * control: WCAG 1.4.11 asks 3:1 of anything that tells you where an input
+	 * begins. The product page has been drawing its number inputs in
+	 * `--ts-line` since it was written.
+	 *
+	 * `--ts-line-strong` is the same hue (213°) and the same saturation
+	 * (0,148) darkened until it clears 3:1 on BOTH backgrounds it is drawn on:
+	 * 3,26:1 on paper, 3,04:1 on surface. It is derived, not picked.
+	 */
+	--ts-line: #dce0e5;
+	--ts-line-strong: #8190a2;
+
+	/*
+	 * ON THE DARK GROUND. The footer is the one surface painted in `--ts-ink`,
+	 * and neither `--ts-muted` nor `--ts-warn` survives the inversion:
+	 * `--ts-muted` measures 3,00:1 on ink, which is a hint colour used for a
+	 * heading, and `--ts-warn` is worse. These two are chosen for that ground
+	 * and measured on it.
+	 */
+	--ts-on-ink-muted: #a7b0bd; /* on --ts-ink: 8,21:1 */
+	--ts-on-ink-warn: #f0c98a; /* on --ts-ink: 11,50:1 */
+
+	/* ---------------------------------------------------------- semantic */
+
+	/*
+	 * Separate from the accent on purpose: a shop whose "good" is its brand
+	 * blue cannot say "en stock" and "en promotion" in the same sentence.
+	 * All three are read on paper, all three clear AA.
+	 */
+	--ts-good: #0f7b4f; /* 5,29:1 */
+	--ts-warn: #a85b00; /* 5,05:1 */
+	--ts-bad: #b3261e; /* 6,54:1 */
+
+	/* -------------------------------------------------------------- type */
+
+	/*
+	 * Inter, which is what the site uses, with the system stack behind it so a
+	 * page is readable before a webfont arrives and if one never does. No
+	 * second family: a display face is a brand decision and question 31 has
+	 * not been answered, so the display sizes get their character from weight
+	 * and tracking instead of from a typeface nobody chose.
+	 */
+	--ts-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+	--ts-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+	/*
+	 * A text scale of four sizes and a display scale of four more, on a 1,24
+	 * ratio from 15 px. Two scales rather than one long one because the shop
+	 * has exactly two jobs: reading a specification (13 to 21 px, tight) and
+	 * announcing something (26 px and up, fluid). Nothing on this site is
+	 * allowed a size that is not one of these eight.
+	 */
+	--ts-text-xs: 0.8125rem; /* 13 px, notes, legal, table captions */
+	--ts-text-sm: 0.875rem; /* 14 px, labels and dense tables */
+	--ts-text: 0.9375rem; /* 15 px, body. The product page's size */
+	--ts-text-lg: 1.0625rem; /* 17 px, lead paragraph */
+
+	--ts-display-xs: 1.3125rem; /* 21 px */
+	--ts-display-sm: clamp(1.5rem, 1.32rem + 0.78vw, 1.875rem); /* 24 to 30 */
+	--ts-display: clamp(1.875rem, 1.55rem + 1.39vw, 2.5rem); /* 30 to 40 */
+	--ts-display-lg: clamp(2.25rem, 1.5rem + 3.2vw, 3.5rem); /* 36 to 56 */
+
+	/* Uppercase micro-labels. The tracking is what makes them legible. */
+	--ts-eyebrow-size: 0.75rem;
+	--ts-eyebrow-tracking: 0.08em;
+
+	--ts-leading-tight: 1.15;
+	--ts-leading: 1.5;
+	--ts-leading-loose: 1.65;
+
+	/* Running text, so a paragraph never crosses the width where the eye loses the line. */
+	--ts-measure: 65ch;
+
+	/* ----------------------------------------------------------- spacing */
+
+	/* 4 px base. Eight steps, and a page that needs a ninth is wrong. */
+	--ts-space-1: 0.25rem;
+	--ts-space-2: 0.5rem;
+	--ts-space-3: 0.75rem;
+	--ts-space-4: 1rem;
+	--ts-space-5: 1.5rem;
+	--ts-space-6: 2rem;
+	--ts-space-7: 3rem;
+	--ts-space-8: 4.5rem;
+
+	/* ------------------------------------------------------------ layout */
+
+	--ts-page: 1200px;
+	--ts-gutter: 1rem;
+	--ts-gutter-wide: 2rem;
+
+	/* ------------------------------------------------------------- shape */
+
+	/*
+	 * 3 px, which is what the product page already draws, and 0 for anything
+	 * that reads as a printed rule. There is deliberately no large radius:
+	 * the same soft corner on every element is how an interface announces that
+	 * nobody chose it.
+	 */
+	--ts-radius: 3px;
+	--ts-radius-lg: 6px;
+
+	/*
+	 * Shadow is elevation, never decoration. One value for a thing that floats
+	 * over the page (a menu, a drawer) and one for a thing that floats over
+	 * that. Nothing at rest on the page casts a shadow.
+	 */
+	--ts-elev-1: 0 1px 2px rgb(20 23 26 / 0.08), 0 2px 8px rgb(20 23 26 / 0.08);
+	--ts-elev-2: 0 2px 4px rgb(20 23 26 / 0.10), 0 12px 32px rgb(20 23 26 / 0.16);
+
+	/* Focus, one ring everywhere, drawn outside the element so it never moves layout. */
+	--ts-focus-width: 2px;
+	--ts-focus-offset: 2px;
+}
