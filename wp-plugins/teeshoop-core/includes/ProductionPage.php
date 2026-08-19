@@ -8,7 +8,7 @@
  * planned here: the orders, the money, the proofs and the dates all live in
  * WooCommerce, and an operator who has to open a second application to find out
  * what is late will not. So this screen answers the three questions of a morning
- * — what can be printed, what must be bought today, what is already on film —
+ *, what can be printed, what must be bought today, what is already on film ,
  * and hands off to the studio for the one thing it cannot do.
  *
  * WHAT IT REFUSES TO DO. It never creates a lot. A lot needs a measured layout
@@ -165,7 +165,7 @@ final class ProductionPage {
 			echo '<h3>' . esc_html(
 				sprintf(
 					/* translators: 1: where the film is bought, 2: how many orders, 3: how many garments. */
-					__( 'Film %1$s — %2$d commande(s), %3$d vêtements', 'teeshoop' ),
+					__( 'Film %1$s, %2$d commande(s), %3$d vêtements', 'teeshoop' ),
 					'es' === $origin ? __( 'Espagne', 'teeshoop' ) : __( 'France', 'teeshoop' ),
 					count( $rows ),
 					$garments

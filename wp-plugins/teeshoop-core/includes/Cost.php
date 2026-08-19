@@ -724,7 +724,7 @@ final class Cost {
 	 * rather than being clamped, and the workshop screen refuses to send a run
 	 * that is worth less than its parts. In euros that particular pool still wins
 	 * by a distance, because two orders are two supplier minimums and two
-	 * delivery charges — which is the whole reason the comparison is made in
+	 * delivery charges, which is the whole reason the comparison is made in
 	 * money and not in centimetres.
 	 *
 	 * @param array<string,float> $solo_m   order id => metres that order alone was billed.

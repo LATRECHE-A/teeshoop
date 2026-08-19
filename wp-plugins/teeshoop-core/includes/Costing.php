@@ -378,8 +378,8 @@ final class Costing {
 				/*
 				 * GARMENT-SIDES, and the reason they are counted beside the
 				 * transfers is question 32. How many transfers a side prints as
-				 * is an OPERATOR'S decision — the workshop screen can force a
-				 * single pose on a job where handling costs more than film — so
+				 * is an OPERATOR'S decision, the workshop screen can force a
+				 * single pose on a job where handling costs more than film, so
 				 * a count of transfers is not a property of the order at all.
 				 * A count of sides pressed is: it does not move when the split
 				 * moves, and it does not move when the marking is graded up a
@@ -639,7 +639,7 @@ final class Costing {
 		 *
 		 * Session 07 stopped buying film one order at a time. When this order's
 		 * transfers were ganged with other people's onto one roll, what it cost
-		 * is its share of that roll and not what it would have cost alone —
+		 * is its share of that roll and not what it would have cost alone ,
 		 * `Production` records the share and `Cost::attribute()` computed it.
 		 *
 		 * ONLY A SENT LOT. A draft is a plan, and a plan is not a purchase: until

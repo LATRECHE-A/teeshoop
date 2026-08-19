@@ -28,7 +28,7 @@ use Teeshoop\Core\Production;
 $ts_prod_config = Production::default_config();
 $ts_prod_film   = Cost::default_config()['film'];
 
-describe( 'Production — the French calendar', function () {
+describe( 'Production: the French calendar', function () {
 	it( 'computes Easter without the calendar extension', function () {
 		// Three years checked against the published dates, one of them a leap
 		// year and one where Easter falls in March.
@@ -87,7 +87,7 @@ describe( 'Production — the French calendar', function () {
 	} );
 } );
 
-describe( 'Production — when the film has to be bought', function () use ( $ts_prod_config, $ts_prod_film ) {
+describe( 'Production: when the film has to be bought', function () use ( $ts_prod_config, $ts_prod_film ) {
 	it( 'starts the promise at the proof and not at the payment', function () use ( $ts_prod_config ) {
 		// Question 14 says « à partir de la validation du bon à tirer », and it
 		// is the only one of the two dates the workshop controls: a customer who
@@ -137,7 +137,7 @@ describe( 'Production — when the film has to be bought', function () use ( $ts
 	} );
 } );
 
-describe( 'Production — parameters', function () {
+describe( 'Production: parameters', function () {
 	it( 'keeps the lead times a partial save did not mention', function () {
 		$c = Production::merge_config( array( 'lead_days' => array( 'urgent' => 6 ) ) );
 		eq( $c['lead_days']['urgent'], 6 );
@@ -152,7 +152,7 @@ describe( 'Production — parameters', function () {
 	} );
 } );
 
-describe( 'Production — the promise that cannot be kept', function () use ( $ts_prod_config, $ts_prod_film ) {
+describe( 'Production: the promise that cannot be kept', function () use ( $ts_prod_config, $ts_prod_film ) {
 	/*
 	 * FOUR DEFAULTS, NONE CONFIRMED, AND THEY CONTRADICT EACH OTHER.
 	 *
@@ -185,7 +185,7 @@ describe( 'Production — the promise that cannot be kept', function () use ( $t
 	} );
 } );
 
-describe( 'Production — reading a layout the shop did not compute', function () {
+describe( 'Production: reading a layout the shop did not compute', function () {
 	$layout = static function ( array $over = array() ): array {
 		return array_merge(
 			array(
@@ -250,7 +250,7 @@ describe( 'Production — reading a layout the shop did not compute', function (
 	} );
 } );
 
-describe( 'Production — the floor a reported length must clear', function () {
+describe( 'Production: the floor a reported length must clear', function () {
 	it( 'is the artwork divided by the roll, in metres', function () {
 		near( Production::minimum_length_m( 5600.0, 56.0 ), 1.0, 1e-9 );
 		near( Production::minimum_length_m( 28000.0, 56.0 ), 5.0, 1e-9 );
@@ -262,7 +262,7 @@ describe( 'Production — the floor a reported length must clear', function () {
 	} );
 } );
 
-describe( 'Production — a lot that has bought film is frozen', function () {
+describe( 'Production: a lot that has bought film is frozen', function () {
 	it( 'calls every state but the draft frozen', function () {
 		eq( Production::frozen( Production::DRAFT ), false );
 		eq( Production::frozen( Production::SENT ), true );
@@ -279,7 +279,7 @@ describe( 'Production — a lot that has bought film is frozen', function () {
 	} );
 } );
 
-describe( 'Production — a waiver is not an approval', function () {
+describe( 'Production: a waiver is not an approval', function () {
 	it( 'records who cleared the proof, because a dispute turns on it', function () {
 		$approved = Production::approval(
 			array( 'version' => 3, 'approval' => array( 'at' => '2026-08-17T09:30:00+00:00' ) )

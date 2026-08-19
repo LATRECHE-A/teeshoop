@@ -13,7 +13,7 @@
  *
  * `create_lot()` asks the Worker for the shelf packing of the lot, and uses it
  * as the CEILING a browser-measured layout may not exceed. This mirror has no
- * Worker, so `pre_http_request` answers instead — with `Cost::prudent_length_cm`,
+ * Worker, so `pre_http_request` answers instead, with `Cost::prudent_length_cm`,
  * the bound this plugin already proves is never SHORTER than a real packing
  * (`scripts/nest-verify.mjs` re-proves it against the real packer on every run).
  * That makes it a valid ceiling and a loose one: what these cases prove is the
@@ -62,7 +62,7 @@ function ts_pr_sides_b(): array {
 	);
 }
 
-/** A paid order with an APPROVED proof — the only thing the queue accepts. */
+/** A paid order with an APPROVED proof: the only thing the queue accepts. */
 function ts_pr_ready( int $product_id, int $qty, array $sides, string $design ): \WC_Order {
 	$GLOBALS['ts_pr_sides'] = $sides;
 	ts_pr_stub_nest();
@@ -203,7 +203,7 @@ function ts_production_suite( int $product_id ): void {
 	echo "\n\033[2mProduction : imbrication entre commandes\033[0m\n";
 
 	// `Settings` has no writer: it reads the option, so the option is what a test
-	// sets. `worker.invalid` never resolves, which is deliberate — every call is
+	// sets. `worker.invalid` never resolves, which is deliberate, every call is
 	// answered by the filter below and one that escaped it would fail loudly
 	// rather than reach something real.
 	$stored                = get_option( \Teeshoop\Core\OPTION_SETTINGS, array() );
@@ -312,8 +312,8 @@ function ts_production_suite( int $product_id ): void {
 		 * QUESTION 32 IS AN OPERATOR'S DECISION, and an earlier version of the
 		 * gate above made it impossible: it compared the transfers on the film
 		 * against the transfers the order was measured with, so a job pressed as
-		 * one transfer per side — which the workshop screen offers, for a run
-		 * where handling costs more than film — was refused as a corrupted
+		 * one transfer per side, which the workshop screen offers, for a run
+		 * where handling costs more than film, was refused as a corrupted
 		 * layout.
 		 */
 		ts_pr_stub_nest();

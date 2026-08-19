@@ -4,9 +4,9 @@
  * which orders are printed on the same film.
  *
  * Until this file, nesting was a property of one order. The Bible says
- * otherwise in as many words — « Chaque commande est divisée en lots homogènes »
+ * otherwise in as many words, « Chaque commande est divisée en lots homogènes »
  * and « Le DTF peut être commandé en France pour les urgences ou en Espagne pour
- * les délais standards » — and so does `worker/design.ts`, which stores the
+ * les délais standards », and so does `worker/design.ts`, which stores the
  * SOURCE of every order rather than a frozen layout, deliberately, so that the
  * layout can be decided later over several orders at once.
  *
@@ -42,7 +42,7 @@
  * Nothing on this site announces a delivery date. `H-Q14-UN-COLIS-MAXIMUM` says
  * so and it is still true after this session: question 14 has not been answered,
  * so no lead time has been agreed with anybody. What this file computes is an
- * INTERNAL target — the date the workshop plans against — and it is called
+ * INTERNAL target: the date the workshop plans against, and it is called
  * « date cible » everywhere an operator can read it, never « date de
  * livraison ». It becomes a promise the day the associate answers and the site
  * publishes it, and not before. Printing it to a customer before then would be
@@ -52,7 +52,7 @@
  *
  * A lot that has been sent to the printer is frozen: its orders cannot leave, no
  * order can join, and the layout cannot be re-nested. Re-nesting a sent lot
- * silently is how two customers get each other's shirt — the film that arrives
+ * silently is how two customers get each other's shirt, the film that arrives
  * was cut from the layout that was sent, and a screen showing a different one is
  * a screen that will be trusted.
  *
@@ -83,7 +83,7 @@ final class Production {
 	/**
 	 * Bounds on a posted layout. They are the Worker's own
 	 * (`worker/nest.ts`: MAX_PIECES, MAX_INSTANCES, MAX_PIECE_CM), restated here
-	 * because this end has to refuse a body the other end would refuse anyway —
+	 * because this end has to refuse a body the other end would refuse anyway ,
 	 * and because a bound that only exists downstream is a bound nobody applied
 	 * when the downstream call fails.
 	 */
@@ -95,7 +95,7 @@ final class Production {
 	 * the shipped tariff it is thirty-four thousand euros of one order.
 	 */
 	private const MAX_RUN_M     = 2000;
-	/** Transfers one side may split into — `MAX_SIDE_PIECES` in designDoc.ts. */
+	/** Transfers one side may split into: `MAX_SIDE_PIECES` in designDoc.ts. */
 	private const MAX_SIDE_PIECES = 32;
 
 	/** Being assembled. Nothing has been bought; anything may still change. */
@@ -292,7 +292,7 @@ final class Production {
 	 * whole schedule a free day nobody worked.
 	 *
 	 * Negative counts backwards, which is how every "latest date to order" in
-	 * this file is derived — the promise is fixed and the work is subtracted
+	 * this file is derived, the promise is fixed and the work is subtracted
 	 * from it.
 	 */
 	public static function add_working_days( string $iso, int $days ): string {
@@ -530,7 +530,7 @@ final class Production {
 	 * Everything that could go on a press today, oldest deadline first.
 	 *
 	 * WHAT MAKES AN ORDER READY is `Lifecycle::blockers( $order, PRODUCTION )`
-	 * and nothing else — the money that actually landed and the proof that is
+	 * and nothing else, the money that actually landed and the proof that is
 	 * actually approved, both read from records rather than from a status. An
 	 * order already in a lot is excluded: it has been scheduled once and putting
 	 * it in a second lot would press it twice.
@@ -595,7 +595,7 @@ final class Production {
 	 *
 	 * Null covers three different things and they are not the same: the order is
 	 * blocked (unpaid, unapproved), it is already in a lot, or it carries nothing
-	 * to press. Only the last is silent — the other two are visible on the screen
+	 * to press. Only the last is silent, the other two are visible on the screen
 	 * through `blocked()` and `lot_of()`, because an order that simply disappears
 	 * is an order nobody chases.
 	 */
@@ -699,7 +699,7 @@ final class Production {
 	}
 
 	/**
-	 * Ink area of the whole order, cm2 — the witness the shop checks a reported
+	 * Ink area of the whole order, cm2, the witness the shop checks a reported
 	 * layout against.
 	 *
 	 * It is the measured area the CUSTOMER was charged for, times the garments,
@@ -742,7 +742,7 @@ final class Production {
 	}
 
 	/**
-	 * The blanks this order needs, one row per line — the picking list's source.
+	 * The blanks this order needs, one row per line, the picking list's source.
 	 *
 	 * The SKU comes from the WooCommerce product, which is where the catalogue
 	 * importer put the supplier's own reference. A picking list built from the
@@ -825,7 +825,7 @@ final class Production {
 	 * themselves are hundreds of megabytes of pixels at 300 DPI. Both belong in
 	 * the admin bundle, which is where the code that renders them already lives.
 	 *
-	 * SO THE SHOP DOES NOT TRUST IT — IT BOUNDS IT. Four checks, none of which
+	 * SO THE SHOP DOES NOT TRUST IT: IT BOUNDS IT. Four checks, none of which
 	 * needs a tolerance anybody chose:
 	 *
 	 *   1. POSES. The garment-sides the studio says it pressed for an order must
@@ -934,7 +934,7 @@ final class Production {
 			 * a side prints as is the operator's decision (question 32: the
 			 * workshop can force a single pose on a job where handling costs more
 			 * than film). What cannot happen either way is fewer transfers than
-			 * garment-sides — that is a side that will not be pressed — or more
+			 * garment-sides, that is a side that will not be pressed, or more
 			 * than the document format allows per side.
 			 */
 			if ( $posted['copies'] < $posted['poses'] || $posted['copies'] > $posted['poses'] * self::MAX_SIDE_PIECES ) {
@@ -961,8 +961,8 @@ final class Production {
 			 * The invariant is the document's own: the transfer rectangles must
 			 * be big enough to hold the ink they claim to carry, which is what
 			 * `Design::normalise_pieces` already enforces at the cart. It holds
-			 * whatever the operator does to the split — merging two visuals
-			 * makes the boxes BIGGER, never smaller — so it is a real check and
+			 * whatever the operator does to the split, merging two visuals
+			 * makes the boxes BIGGER, never smaller, so it is a real check and
 			 * not a tolerance. A layout nesting a different, smaller design fails
 			 * it; one nesting a bigger design costs more film, which is the safe
 			 * direction and needs no check.
@@ -1018,7 +1018,7 @@ final class Production {
 				'order_by'    => $plan[ 'es' === $origin ? 'order_by_es' : 'order_by_fr' ],
 				/*
 				 * A LOT MAY NOT PUSH AN ORDER PAST ITS OWN DATE. Buying French
-				 * film is always allowed — it is faster — but dragging an order
+				 * film is always allowed, it is faster, but dragging an order
 				 * into the Spanish lot is deciding on the customer's behalf that
 				 * five more days are acceptable. This is where that is refused,
 				 * and the operator sees which order refused it.
@@ -1360,7 +1360,7 @@ final class Production {
 	 * `wc-teeshoop/v1`, and the prefix is the whole point.
 	 *
 	 * The workshop tool is the admin studio, which runs on the Worker's origin
-	 * and therefore has no WordPress cookie and no REST nonce — the same problem
+	 * and therefore has no WordPress cookie and no REST nonce, the same problem
 	 * the customer studio has, for the same reason. What it DOES have is the
 	 * WooCommerce consumer key and secret the catalogue importer already uses
 	 * (`src/lib/ingest/woo.ts`).
@@ -1435,7 +1435,7 @@ final class Production {
 		);
 	}
 
-	/** GET /production/queue — what could go on a press today. */
+	/** GET /production/queue: what could go on a press today. */
 	public static function rest_queue( \WP_REST_Request $request ): \WP_REST_Response {
 		$today  = self::read_date( (string) $request->get_param( 'today' ) );
 		$config = self::config();
@@ -1474,7 +1474,7 @@ final class Production {
 		);
 	}
 
-	/** GET /production/lots — the recent lots, newest first. */
+	/** GET /production/lots: the recent lots, newest first. */
 	public static function rest_lots( \WP_REST_Request $request ): \WP_REST_Response {
 		$limit = (int) $request->get_param( 'limit' );
 		return new \WP_REST_Response(
@@ -1482,7 +1482,7 @@ final class Production {
 		);
 	}
 
-	/** POST /production/lots — create one from a chosen set and a measured layout. */
+	/** POST /production/lots: create one from a chosen set and a measured layout. */
 	public static function rest_create_lot( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
 		$body = $request->get_json_params();
 		if ( ! is_array( $body ) ) {
@@ -1500,7 +1500,7 @@ final class Production {
 		return new \WP_REST_Response( array( 'lot' => $made['lot'] ), 201 );
 	}
 
-	/** POST /production/lots/{id}/etat — order the film, receive it, close it. */
+	/** POST /production/lots/{id}/etat: order the film, receive it, close it. */
 	public static function rest_lot_state( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
 		$id    = (int) $request->get_param( 'id' );
 		$body  = $request->get_json_params();

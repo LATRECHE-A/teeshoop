@@ -191,7 +191,7 @@ const ALLOWED = new Map([
       /*
        * The workshop's screen. It prints what a lot of film cost and what
        * pooling saved, which is shop-internal, to `manage_woocommerce` and to
-       * nobody else — the same posture as `CostAdmin.php` and for the same
+       * nobody else, the same posture as `CostAdmin.php` and for the same
        * reason. It is NOT in the `RENDERED` list because it is a wp-admin page
        * behind a capability, unlike `BatPage.php`, which renders a whole
        * document to a customer.
@@ -209,7 +209,7 @@ const ALLOWED = new Map([
        * share back; it renders nothing at all, and the screen that reads it is
        * behind `manage_woocommerce`. The needles are named rather than the file,
        * so it is still checked for supplier names, purchase prices and film
-       * tariffs per linear metre — none of which it has any business carrying.
+       * tariffs per linear metre, none of which it has any business carrying.
        */
       why: 'the production queue and the print lots; server-only, renders nothing, and splitting a film bill is its job',
       needles: [ 'Cost::', 'Costing::', 'PriceRule::' ],

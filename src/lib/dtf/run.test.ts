@@ -4,7 +4,7 @@
  * Two things are being defended here and they have different costs. The first
  * is DETERMINISM: pooling is assembled from whatever arrived in whatever order,
  * and `scripts/dtf-verify.mjs` promises the workshop that the same job produces
- * the same film. The second is that the saving reported is a REAL saving — that
+ * the same film. The second is that the saving reported is a REAL saving, that
  * the counterfactual each order is measured against is the same order, packed
  * the same way, and that no transfer is lost between the two arms.
  */

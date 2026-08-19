@@ -209,6 +209,57 @@ export function getCachedAssetImage(
   return imageCache.get(cacheKey(id, variant))?.img ?? null
 }
 
+/**
+ * Put someone else's artwork in the runtime cache and NOWHERE ELSE.
+ *
+ * The workshop re-renders a paid order from the rasters stored on R2
+ * (`src/lib/dtf/fromR2.ts`). Those are customers' own files, borrowed for the
+ * length of one nesting, and `importAsset` above would write every one of them
+ * into this machine's IndexedDB for ever, an operator's browser slowly
+ * accumulating the artwork of everybody who has ever ordered, with nothing that
+ * ever removes it. This fills the image cache alone, so it lives as long as the
+ * tab and not a minute longer.
+ *
+ * It keeps the id the document references, because that is how a layer finds its
+ * pixels; `ensureAssetImage` checks this cache first, so the whole ink pipeline
+ * works unchanged and never reaches storage.
+ */
+export async function adoptAssetImage(
+  id: string,
+  blob: Blob,
+  variant: AssetVariant = 'original',
+): Promise<HTMLImageElement> {
+  const key = cacheKey(id, variant)
+  const previous = imageCache.get(key)
+  if (previous?.url) URL.revokeObjectURL(previous.url)
+  imageCache.delete(key)
+
+  const url = URL.createObjectURL(blob)
+  const img = new Image()
+  img.decoding = 'async'
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error(`Could not decode artwork ${id}`))
+      img.src = url
+    })
+  } catch (err) {
+    URL.revokeObjectURL(url)
+    throw err
+  }
+  imageCache.set(key, { img, url, promise: Promise.resolve(img) })
+  revisions.set(key, (revisions.get(key) ?? 0) + 1)
+  return img
+}
+
+/** Drop every adopted image and its object URL. Call it when a run is done. */
+export function releaseAdoptedImages(ids: readonly string[]): void {
+  for (const id of ids) {
+    invalidateAssetImage(id, 'original')
+    invalidateAssetImage(id, 'cutout')
+  }
+}
+
 /** Read an asset as a data URL (for design-file export). */
 export async function assetToDataUrl(
   id: string,

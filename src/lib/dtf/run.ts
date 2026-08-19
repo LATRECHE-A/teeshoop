@@ -1,5 +1,5 @@
 /**
- * A PRINT RUN — the film of several orders, bought once.
+ * A PRINT RUN: the film of several orders, bought once.
  *
  * Until this file, nesting was a property of one order. That is the wrong unit
  * and it always was: a roll is 56 cm wide whoever is paying for it, and two
@@ -41,14 +41,14 @@
  * the packer. See `RunMeasurement`.
  *
  * The rule is PROPORTIONAL TO WHAT EACH ORDER WOULD HAVE COST ALONE, and the
- * obvious alternative — proportional to nested area — was measured against it
+ * obvious alternative, proportional to nested area, was measured against it
  * rather than argued about (`scripts/dtf-bench.mjs`, `attribution` block). Area
  * is the wrong denominator for one reason: it charges an order for the ink it
  * carries and not for the film it forces. An order of one 55 × 40 cm back print
  * leaves a 1 cm ribbon down the side of a 56 cm roll that no other order can
  * use; an order of forty 6 × 6 cm chest marks fills whatever it is given. Under
  * the area rule the second subsidises the first, and the margin report then says
- * the awkward order was cheap — which is exactly the fact the report exists to
+ * the awkward order was cheap, which is exactly the fact the report exists to
  * surface. Both numbers are computed and both are reported; only the solo one is
  * charged.
  */
@@ -65,7 +65,7 @@ import type { ShapePiece } from './trueshape'
  */
 export const RUN_KEY_SEP = '/'
 
-/** `<order id>/<transfer key>` — unique across the whole run. */
+/** `<order id>/<transfer key>`: unique across the whole run. */
 export const runPieceKey = (orderId: string, key: string): string =>
   `${orderId}${RUN_KEY_SEP}${key}`
 
@@ -95,7 +95,7 @@ export interface RunOrderPiece {
 export interface RunOrder {
   /** WooCommerce order id, as a string. Sorted on, so keep it stable. */
   id: string
-  /** What a human reads on a press sheet — «#1042», «Devis 2026-114». */
+  /** What a human reads on a press sheet: «#1042», «Devis 2026-114». */
   ref: string
   pieces: RunOrderPiece[]
 }
@@ -108,7 +108,7 @@ export interface RunIndex {
   ownerOf: ReadonlyMap<string, string>
   /** order id → the order, for labels and press sheets. */
   orderOf: ReadonlyMap<string, RunOrder>
-  /** Order ids, sorted — the order everything in a run is reported in. */
+  /** Order ids, sorted: the order everything in a run is reported in. */
   orderIds: string[]
 }
 
@@ -177,7 +177,7 @@ export function buildRun(orders: RunOrder[]): RunIndex {
   return { pieces, ownerOf, orderOf, orderIds }
 }
 
-/** The same, as plain rectangles — what the shop's `POST /api/nest` accepts. */
+/** The same, as plain rectangles: what the shop's `POST /api/nest` accepts. */
 export function runRectangles(index: RunIndex): DtfPiece[] {
   return index.pieces.map((p) => ({
     id: p.id,
@@ -190,7 +190,7 @@ export function runRectangles(index: RunIndex): DtfPiece[] {
 }
 
 /**
- * What one order needs on its own — the counterfactual the saving is measured
+ * What one order needs on its own: the counterfactual the saving is measured
  * against, and the weight the bill is split by.
  *
  * It must be packed with the SAME settings as the pool. A baseline computed at
@@ -202,7 +202,7 @@ export interface RunSolo {
   orderId: string
   lengthCm: number
   sheets: number
-  /** Σ placed bounding-box area, cm² — the area rule's denominator. */
+  /** Σ placed bounding-box area, cm²: the area rule's denominator. */
   boxSqCm: number
   /** Copies placed. A mismatch with the pooled count means a piece was lost. */
   placed: number
@@ -239,7 +239,7 @@ const boxAreaOf = (r: NestResult): number =>
  * `pack` is a parameter so the caller decides which packer this is: the shelf
  * one for a cheap server-side answer, the true-shape one for the layout that
  * will be printed. It is called N+1 times for N orders, which is the honest
- * cost of knowing what pooling saved — the counterfactual cannot be inferred
+ * cost of knowing what pooling saved, the counterfactual cannot be inferred
  * from the pooled layout.
  */
 export function measureRun(
@@ -297,7 +297,7 @@ export interface RunShare {
   shareCents: number
   /** `soloCents - shareCents`. Never negative under the proportional rule. */
   savedCents: number
-  /** What the area rule would have charged instead — published, not applied. */
+  /** What the area rule would have charged instead: published, not applied. */
   areaShareCents: number
 }
 
@@ -318,7 +318,7 @@ export interface RunBill {
  * print a square metre of ink on less than a square metre of film, whatever the
  * packer does. It exists because the layout is measured in a browser (see
  * `docs/PRODUCTION.md`) and the shop must be able to refuse a length that is
- * physically impossible rather than take it on trust — a run length that is too
+ * physically impossible rather than take it on trust, a run length that is too
  * SHORT under-costs every order in it and lowers every floor price.
  *
  * The billed length is the raw extent rounded UP and split across sheets, so it
@@ -378,7 +378,7 @@ export interface RunGroup {
   /**
    * The film has to be ordered on or before this date: the EARLIEST deadline in
    * the group. It is also how long the run may be held to collect more orders,
-   * which is the only legitimate reason to wait — and the reason it may never
+   * which is the only legitimate reason to wait, and the reason it may never
    * be waited past. An urgent order does not wait for a cheap one; a cheap one
    * rides along with an urgent one for nothing.
    */

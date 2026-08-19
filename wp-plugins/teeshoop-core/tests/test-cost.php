@@ -459,7 +459,7 @@ describe( 'Cost — the bound when the file limit is close to the artwork', func
 	} );
 } );
 
-describe( 'Cost — splitting a pooled film bill', function () use ( $ts_cost_config ) {
+describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_config ) {
 	it( 'hands out every cent of the bill and not one more', function () use ( $ts_cost_config ) {
 		$a = Cost::attribute( array( '1042' => 2.5, '1043' => 1.8, '99' => 0.9 ), 3.9, $ts_cost_config );
 		$sum = 0;
@@ -548,7 +548,7 @@ describe( 'Cost — splitting a pooled film bill', function () use ( $ts_cost_co
 	 * The alternative rule, published beside the one that is charged. The gap is
 	 * the argument: on this pool the small order pays 19,91 EUR under the rule
 	 * that charges what it would have cost alone and 8,46 EUR under the rule that
-	 * charges its share of the ink — 135 % apart, on the same invoice.
+	 * charges its share of the ink, 135 % apart, on the same invoice.
 	 */
 	it( 'publishes what the area rule would have charged, and it is not the same', function () use ( $ts_cost_config ) {
 		$a = Cost::attribute(
