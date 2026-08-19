@@ -10,9 +10,18 @@
  * half of the PDF specification, it is stable since 1993, and it is far less
  * risk than a megabyte of vendored code nobody here reads.
  *
- * WHAT IT DELIBERATELY DOES NOT DO: images, colour spaces beyond grey, embedded
- * fonts, unicode beyond Windows-1252, automatic line breaking, tables. The
- * invoice lays itself out; this only puts glyphs where it is told.
+ * WHAT IT DELIBERATELY DOES NOT DO: colour spaces beyond grey for drawing,
+ * embedded fonts, unicode beyond Windows-1252, automatic line breaking, tables.
+ * The document lays itself out; this only puts glyphs where it is told.
+ *
+ * IT DOES DO ONE IMAGE FORMAT, AND ONLY SINCE THE BON A TIRER. A proof that
+ * cannot show the artwork proves nothing, and it is the document that decides
+ * who pays for a reprint. JPEG and nothing else, because a baseline JPEG is the
+ * one raster PDF takes VERBATIM: `/DCTDecode` means the bytes are copied in
+ * unexamined, so the whole feature is a dictionary and a `Do`, with no decoder
+ * and no re-encoder in this file. PNG would need one (its `IDAT` is zlib with a
+ * per-row predictor, and its alpha needs a second image as a soft mask), which
+ * is exactly the megabyte of unread code this writer exists to avoid.
  *
  * WHY HELVETICA. It is one of the fourteen fonts every PDF reader is required to
  * have, so nothing is embedded and nothing can fail to load. Its metrics are
@@ -55,6 +64,13 @@ final class Pdf {
 
 	/** Characters that could not be written in Windows-1252, across the document. */
 	private int $lost = 0;
+
+	/**
+	 * Every image placed in the document, by name.
+	 *
+	 * @var array<string,array{w:int,h:int,gray:bool,bytes:string}>
+	 */
+	private array $images = array();
 
 	public function __construct( float $width_mm = 210.0, float $height_mm = 297.0 ) {
 		$this->width_pt  = $width_mm * self::MM;
@@ -138,6 +154,150 @@ final class Pdf {
 		);
 	}
 
+	/**
+	 * Place a baseline JPEG, fitted inside a box, and say whether it went in.
+	 *
+	 * RETURNS FALSE RATHER THAN DRAWING SOMETHING. A proof that shows a grey
+	 * rectangle where the artwork should be is a proof a customer approves
+	 * without having seen what they are approving. The caller is expected to
+	 * print a sentence saying the image could not be read; there is nothing
+	 * useful this function can put in its place.
+	 *
+	 * FITTED, NEVER STRETCHED. The box is a maximum: the image keeps its own
+	 * aspect ratio and is centred in whatever it does not fill. A proof is a
+	 * document about proportions, and a print squeezed to fill a box on the
+	 * page is a print the customer is being shown wrong.
+	 *
+	 * @return bool false when the bytes are not a JPEG this writer will embed.
+	 */
+	public function image( string $jpeg, float $x_mm, float $y_mm, float $max_w_mm, float $max_h_mm ): bool {
+		$size = self::jpeg_size( $jpeg );
+		if ( null === $size ) {
+			return false;
+		}
+
+		$scale = min( $max_w_mm / $size['w'], $max_h_mm / $size['h'] );
+		$w_mm  = $size['w'] * $scale;
+		$h_mm  = $size['h'] * $scale;
+		$x_mm += ( $max_w_mm - $w_mm ) / 2;
+		$y_mm += ( $max_h_mm - $h_mm ) / 2;
+
+		$name = 'Im' . ( count( $this->images ) + 1 );
+		$this->images[ $name ] = array(
+			'w'     => $size['w'],
+			'h'     => $size['h'],
+			'gray'  => $size['gray'],
+			'bytes' => $jpeg,
+		);
+
+		// `cm` sets the unit square to the image's box, so the width and height
+		// ARE the transform. The origin is bottom-left, hence the flip.
+		$this->current .= sprintf(
+			"q %s 0 0 %s %s %s cm /%s Do Q\n",
+			$this->num( $w_mm * self::MM ),
+			$this->num( $h_mm * self::MM ),
+			$this->num( $x_mm * self::MM ),
+			$this->num( $this->height_pt - ( $y_mm + $h_mm ) * self::MM ),
+			$name
+		);
+		return true;
+	}
+
+	/**
+	 * A JPEG's pixel size and colour model, or null when this writer will not
+	 * embed it.
+	 *
+	 * READS THE BYTES, NEVER A FILENAME OR A DECLARED TYPE, for the same reason
+	 * `worker/design.ts` does: what a thing is called is a claim by whoever
+	 * called it. Walking the marker segments is also what makes the refusals
+	 * possible, and the refusals are the point:
+	 *
+	 *   PROGRESSIVE JPEG (SOF2) is refused. `/DCTDecode` copies the bytes in
+	 *   unexamined, and a reader that cannot decode progressive shows nothing at
+	 *   all: the customer gets a blank space where the artwork was, on the one
+	 *   document whose whole job is showing them the artwork. We produce these
+	 *   files ourselves, from GD, which writes baseline.
+	 *
+	 *   CMYK (four components) is refused. An Adobe-marker CMYK JPEG is stored
+	 *   inverted and needs a `/Decode` array to come out right; getting it wrong
+	 *   prints a photographic negative of the customer's logo, which is worse
+	 *   than no image.
+	 *
+	 *   ANYTHING BUT 8 BITS is refused, because `/BitsPerComponent` would be a
+	 *   guess.
+	 *
+	 * @return array{w:int,h:int,gray:bool}|null
+	 */
+	public static function jpeg_size( string $bytes ): ?array {
+		$len = strlen( $bytes );
+		if ( $len < 4 || "\xFF\xD8" !== substr( $bytes, 0, 2 ) ) {
+			return null;
+		}
+
+		// The frame headers that carry a size. 0xC4, 0xC8 and 0xCC share the
+		// range and are not frames (Huffman table, reserved, arithmetic table).
+		$baseline = array( 0xC0, 0xC1 );
+
+		$i = 2;
+		while ( $i + 3 < $len ) {
+			if ( "\xFF" !== $bytes[ $i ] ) {
+				// Not on a marker boundary: the file is malformed, or padded in
+				// a way this walker does not model. Refuse rather than scan for
+				// something that looks like a header.
+				return null;
+			}
+			$marker = ord( $bytes[ $i + 1 ] );
+			++$i;
+			// Fill bytes: a marker may be preceded by any number of 0xFF.
+			if ( 0xFF === $marker ) {
+				continue;
+			}
+			++$i;
+			// Standalone markers, no length field.
+			if ( 0xD8 === $marker || ( $marker >= 0xD0 && $marker <= 0xD9 ) || 0x01 === $marker ) {
+				continue;
+			}
+			if ( $i + 1 >= $len ) {
+				return null;
+			}
+			$seg = ( ord( $bytes[ $i ] ) << 8 ) + ord( $bytes[ $i + 1 ] );
+			if ( $seg < 2 || $i + $seg > $len ) {
+				return null;
+			}
+			if ( in_array( $marker, $baseline, true ) ) {
+				if ( $seg < 8 ) {
+					return null;
+				}
+				$precision  = ord( $bytes[ $i + 2 ] );
+				$height     = ( ord( $bytes[ $i + 3 ] ) << 8 ) + ord( $bytes[ $i + 4 ] );
+				$width      = ( ord( $bytes[ $i + 5 ] ) << 8 ) + ord( $bytes[ $i + 6 ] );
+				$components = ord( $bytes[ $i + 7 ] );
+				if ( 8 !== $precision || $width < 1 || $height < 1 ) {
+					return null;
+				}
+				if ( 1 !== $components && 3 !== $components ) {
+					return null;
+				}
+				return array(
+					'w'    => $width,
+					'h'    => $height,
+					'gray' => 1 === $components,
+				);
+			}
+			// Any OTHER frame marker in the 0xC0..0xCF range that is not a table
+			// is a coding this writer will not embed. Progressive lands here.
+			if ( $marker >= 0xC0 && $marker <= 0xCF && 0xC4 !== $marker && 0xC8 !== $marker && 0xCC !== $marker ) {
+				return null;
+			}
+			// The scan begins; there is no frame header after it.
+			if ( 0xDA === $marker ) {
+				return null;
+			}
+			$i += $seg;
+		}
+		return null;
+	}
+
 	public function page_break(): void {
 		$this->pages[]  = $this->current;
 		$this->current  = '';
@@ -171,6 +331,32 @@ final class Pdf {
 		$objects[5] = '<< /Title (' . $this->escape( $this->encode( $title ) ) . ') /Producer (Teeshoop Core) /CreationDate (' . $this->escape( $created ) . ') >>';
 
 		$next = 6;
+
+		/*
+		 * The images first, so a page can point at them.
+		 *
+		 * DECLARED ON EVERY PAGE RATHER THAN ONLY THE ONE THAT USES THEM. A PDF
+		 * resource dictionary that names an XObject the page never draws costs
+		 * one line and nothing else; a page that draws one it did not name is a
+		 * broken file. This writer does not track which page a `Do` landed on,
+		 * so it declares them all and stays correct by construction.
+		 */
+		$xobjects = array();
+		foreach ( $this->images as $name => $image ) {
+			$obj              = $next++;
+			$xobjects[]       = sprintf( '/%s %d 0 R', $name, $obj );
+			$objects[ $obj ]  = sprintf(
+				"<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /%s /BitsPerComponent 8 /Filter /DCTDecode /Length %d >>\nstream\n%s\nendstream",
+				$image['w'],
+				$image['h'],
+				$image['gray'] ? 'DeviceGray' : 'DeviceRGB',
+				strlen( $image['bytes'] ),
+				$image['bytes']
+			);
+		}
+		$resources = '/Font << /F1 3 0 R /F2 4 0 R >>'
+			. ( empty( $xobjects ) ? '' : ' /XObject << ' . implode( ' ', $xobjects ) . ' >>' );
+
 		$kids = array();
 		foreach ( $pages as $content ) {
 			$page_obj    = $next++;
@@ -179,9 +365,10 @@ final class Pdf {
 			$compressed  = gzcompress( $content, 6 );
 
 			$objects[ $page_obj ] = sprintf(
-				'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %s %s] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents %d 0 R >>',
+				'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %s %s] /Resources << %s >> /Contents %d 0 R >>',
 				$this->num( $this->width_pt ),
 				$this->num( $this->height_pt ),
+				$resources,
 				$stream_obj
 			);
 			$objects[ $stream_obj ] = sprintf(

@@ -149,3 +149,139 @@ describe( 'Pdf: the metrics that align a column of prices', function () {
 		eq( Pdf::fit( 'court', 40, Pdf::REGULAR, 9.5 ), 'court', 'a string that fits was cut anyway' );
 	} );
 } );
+
+/**
+ * A real 6 x 4 baseline JPEG, three components, written by libjpeg through GD.
+ *
+ * BYTES AND NOT A GENERATOR, because the machine this suite runs on has no GD
+ * at all (the WordPress container has, and so does o2switch). A parser tested
+ * against a fixture some other code in this repository produced would be a
+ * parser tested against itself. This one came out of libjpeg, and what it
+ * contains was read back by two things that share no code with `Pdf`: poppler
+ * (`pdfimages -list`: 6 x 4, rgb, 3 comp, 8 bpc, jpeg) and a Python marker
+ * walker (SOF0, precision 8, 6 x 4, three components).
+ */
+function ts_pdf_jpeg_rgb(): string {
+	return base64_decode(
+		'/9j/4AAQSkZJRgABAQEAYABgAAD//gA7Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBFRyB2NjIpLCBx'
+		. 'dWFsaXR5ID0gNzAK/9sAQwAKBwcIBwYKCAgICwoKCw4YEA4NDQ4dFRYRGCMfJSQiHyIhJis3LyYpNCkhIjBBMTQ5Oz4+'
+		. 'PiUuRElDPEg3PT47/9sAQwEKCwsODQ4cEBAcOygiKDs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7'
+		. 'Ozs7Ozs7Ozs7Ozs7/8AAEQgABAAGAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQ'
+		. 'AAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2'
+		. 'Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4'
+		. 'ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYH'
+		. 'CAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEX'
+		. 'GBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWm'
+		. 'p6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/aAAwDAQACEQMRAD8AzaKKK8E/'
+		. 'Qj//2Q=='
+	);
+}
+
+/** The same image written progressive (SOF2), which this writer must refuse. */
+function ts_pdf_jpeg_progressive(): string {
+	return base64_decode(
+		'/9j/4AAQSkZJRgABAQEAYABgAAD//gA7Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBFRyB2NjIpLCBx'
+		. 'dWFsaXR5ID0gNzAK/9sAQwAKBwcIBwYKCAgICwoKCw4YEA4NDQ4dFRYRGCMfJSQiHyIhJis3LyYpNCkhIjBBMTQ5Oz4+'
+		. 'PiUuRElDPEg3PT47/9sAQwEKCwsODQ4cEBAcOygiKDs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7'
+		. 'Ozs7Ozs7Ozs7Ozs7/8IAEQgABAAGAwEiAAIRAQMRAf/EABUAAQEAAAAAAAAAAAAAAAAAAAAE/8QAFQEBAQAAAAAAAAAA'
+		. 'AAAAAAAABAb/2gAMAwEAAhADEAAAAZgCh//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAQUCf//EABQRAQAAAAAA'
+		. 'AAAAAAAAAAAAAAD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Bf//EABQQAQAAAAAAAAAA'
+		. 'AAAAAAAAAAD/2gAIAQEABj8Cf//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8hf//aAAwDAQACAAMAAAAQA//E'
+		. 'ABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQMBAT8Qf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Qf//EABQQ'
+		. 'AQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8Qf//Z'
+	);
+}
+
+/**
+ * The first page's decompressed content stream.
+ *
+ * NAMED BY ITS FILTER, not by being the first `stream` in the file. An image
+ * object is emitted before any page, and looking for the first one handed a
+ * JPEG to gzuncompress: the case that catches a stretched image failed with a
+ * zlib warning instead of with its own assertion.
+ */
+function ts_pdf_page_ops( string $pdf ): string {
+	$needle = "/Filter /FlateDecode >>\nstream\n";
+	$at     = strpos( $pdf, $needle );
+	if ( false === $at ) {
+		fail( 'no content stream in the document' );
+	}
+	$from = $at + strlen( $needle );
+	$end  = strpos( $pdf, "\nendstream", $from );
+	return (string) gzuncompress( substr( $pdf, $from, $end - $from ) );
+}
+
+describe( 'Pdf: the one raster it embeds', function () {
+	it( 'reads a real baseline JPEG the way two independent parsers do', function () {
+		$size = Pdf::jpeg_size( ts_pdf_jpeg_rgb() );
+		eq( $size['w'], 6, 'largeur' );
+		eq( $size['h'], 4, 'hauteur' );
+		eq( $size['gray'], false, 'trois composantes, donc RVB' );
+	} );
+
+	it( 'refuses a progressive JPEG rather than embedding one nobody can decode', function () {
+		/*
+		 * DCTDecode copies the bytes in unexamined, so a reader that cannot
+		 * decode progressive shows NOTHING: a blank space on the one document
+		 * whose whole job is showing the customer their artwork. Refusing means
+		 * the caller prints a sentence saying so, which is a proof nobody
+		 * approves by accident.
+		 */
+		eq( Pdf::jpeg_size( ts_pdf_jpeg_progressive() ), null, 'progressif accepté' );
+	} );
+
+	it( 'refuses anything that is not a JPEG, and a JPEG cut short', function () {
+		eq( Pdf::jpeg_size( 'hello world' ), null, 'du texte' );
+		eq( Pdf::jpeg_size( '' ), null, 'rien du tout' );
+		eq( Pdf::jpeg_size( substr( ts_pdf_jpeg_rgb(), 0, 12 ) ), null, 'un fichier tronqué' );
+		// A PNG signature: the format the design preview is actually stored in,
+		// which is why the caller has to convert before it reaches here.
+		eq( Pdf::jpeg_size( "\x89PNG\r\n\x1a\n" . str_repeat( 'x', 64 ) ), null, 'un PNG' );
+	} );
+
+	it( 'says whether the image went in, and writes nothing when it did not', function () {
+		$good = new Pdf();
+		truthy( $good->image( ts_pdf_jpeg_rgb(), 20, 40, 80, 60 ), 'un JPEG valable a été refusé' );
+
+		$bad = new Pdf();
+		eq( $bad->image( 'not a jpeg at all', 20, 40, 80, 60 ), false, 'des octets quelconques ont été acceptés' );
+		$out = $bad->render( 'essai', 'D:20260819000000+00' );
+		truthy( false === strpos( $out, '/Subtype /Image' ), 'un objet image écrit malgré le refus' );
+		truthy( false === strpos( ts_pdf_page_ops( $out ), ' Do Q' ), 'un appel de dessin écrit malgré le refus' );
+	} );
+
+	it( 'fits the image inside its box and never stretches it', function () {
+		/*
+		 * A proof is a document about proportions, so the box is a maximum and
+		 * never a shape. 6 x 4 into an 80 x 60 box is limited by the width, so
+		 * it comes out 80 x 53,33 and is centred in the 6,67 mm of height it
+		 * does not fill. Read off the transform, which is what a reader acts on.
+		 */
+		$pdf = new Pdf();
+		$pdf->image( ts_pdf_jpeg_rgb(), 20.0, 40.0, 80.0, 60.0 );
+		$ops = ts_pdf_page_ops( $pdf->render( 'essai', 'D:20260819000000+00' ) );
+
+		truthy( (bool) preg_match( '/q ([0-9.]+) 0 0 ([0-9.]+) ([0-9.]+) ([0-9.]+) cm/', $ops, $m ), 'aucune transformation' );
+		$mm = 72 / 25.4;
+		near( (float) $m[1] / $mm, 80.0, 0.01, 'largeur posée' );
+		near( (float) $m[2] / $mm, 53.3333, 0.01, 'hauteur posée, rapport conservé' );
+		near( (float) $m[3] / $mm, 20.0, 0.01, 'bord gauche' );
+		// Bottom-left origin: 297 moins (40 + 3,333 de centrage + 53,333).
+		near( (float) $m[4] / $mm, 297.0 - ( 40.0 + 3.3333 + 53.3333 ), 0.01, 'bord bas, image centrée dans sa boîte' );
+	} );
+
+	it( 'declares the image the page draws, in that page resources', function () {
+		// A page that draws an XObject it did not name in its own resources is
+		// a broken file, and readers differ on how loudly they say so.
+		$pdf = new Pdf();
+		$pdf->image( ts_pdf_jpeg_rgb(), 20, 40, 80, 60 );
+		$out = $pdf->render( 'essai', 'D:20260819000000+00' );
+
+		truthy( (bool) preg_match( '#/XObject << /Im1 ([0-9]+) 0 R >>#', $out, $m ), 'la page ne nomme pas l’image' );
+		truthy( (bool) preg_match( '/\b' . $m[1] . ' 0 obj\s*<< \/Type \/XObject/', $out ), 'l’objet nommé n’existe pas' );
+		truthy( false !== strpos( $out, '/Filter /DCTDecode' ), 'les octets ne passent pas tels quels' );
+		truthy( false !== strpos( $out, '/ColorSpace /DeviceRGB' ), 'espace colorimétrique' );
+		eq( strlen( ts_pdf_jpeg_rgb() ), 694, 'la taille du flux annoncée doit être celle des octets' );
+		truthy( false !== strpos( $out, '/Length 694 >>' ), 'la longueur déclarée n’est pas celle du JPEG' );
+	} );
+} );
