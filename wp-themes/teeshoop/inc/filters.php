@@ -1,0 +1,521 @@
+<?php
+/**
+ * The facets: how several hundred references become a handful.
+ *
+ * Chapter 04 of the brief opens on this and everything else in it follows from
+ * it: « le catalogue doit se comporter comme un moteur de recherche spécialisé,
+ * pas comme une succession de centaines de pages ». It lists thirteen filters in
+ * priority order, and it sets a budget: « moins d'une seconde sur les pages
+ * courantes » with an explicit ban on heavy meta queries per click.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT IS BUILT, AND WHAT IS NOT, AND WHY
+ *
+ * Ten facets exist because ten have real data behind them. mistertee.fr offers
+ * five (gamme, genre, col, manches, marque) and its colour facet renders no
+ * options at all; tostadora.fr offers none, only category links and free text
+ * (both checked 2026-08-19). Three of the chapter's thirteen are deliberately
+ * absent and none of them is an oversight:
+ *
+ *   PRIX. The imported catalogue carries no selling price, because nobody has
+ *   set `blank_margin_rate` (question 42). A price slider over 462 references
+ *   that all cost nothing is a control that filters nothing. It appears the day
+ *   a margin is set.
+ *
+ *   DISPONIBILITÉ. The only honest version of it is per-variation and per-hour:
+ *   `Shelf::availability()` answers « Disponible » only when the reading is
+ *   inside `Purchase::STOCK_TRUST_HOURS`, and a parent-level facet would have to
+ *   join 26 399 variations on every click to know. Worse, the stock sweep is not
+ *   installed anywhere until session 14, so today every article would answer
+ *   « Délai à confirmer » and the facet would select the whole catalogue. The
+ *   panel says so rather than leaving a gap.
+ *
+ *   DÉLAI, TECHNIQUE, SECTEUR. No data exists. There is no per-reference lead
+ *   time, DTF is the only technique open online (question 12), and the usage
+ *   collections the chapter asks for (restauration, BTP, sécurité…) are a second
+ *   taxonomy nobody has built. Inventing any of the three would be inventing
+ *   content, which is the one thing a catalogue may never do.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY NOT WOOCOMMERCE'S OWN LAYERED NAV
+ *
+ * Because it cannot be driven by a form that works without JavaScript.
+ * `WC_Query::get_layered_nav_chosen_attributes()` reads `filter_couleur` as a
+ * COMMA-SEPARATED STRING and skips the value outright when it is not a string
+ * (`if ( ! is_string( $value ) ) continue;`, class-wc-query.php:1063). A group of
+ * checkboxes in HTML submits either `name[]=a&name[]=b`, which is an array and
+ * is skipped, or the same scalar name twice, of which PHP keeps only the last.
+ * So the native format needs a script to assemble it, and a catalogue whose
+ * filters need a script is a catalogue that does not work on a bad connection.
+ *
+ * The clauses are therefore added through WooCommerce's own documented seams,
+ * `woocommerce_product_query_tax_query` and `woocommerce_product_query_meta_query`,
+ * so everything else about the archive (visibility, ordering, pagination,
+ * counts) stays WooCommerce's. Nothing here re-implements a query WooCommerce
+ * would otherwise run; it appends to the one it is already building.
+ *
+ * @package Teeshoop\Theme
+ */
+
+declare( strict_types = 1 );
+
+namespace Teeshoop\Theme;
+
+defined( 'ABSPATH' ) || exit;
+
+/** Meta key holding the fabric weight, written by the catalogue importer. */
+const WEIGHT_META = '_teeshoop_weight_gsm';
+
+/**
+ * The attribute facets, in the order chapter 04 asks for them.
+ *
+ * A facet is offered only when its taxonomy exists AND has terms in use, so a
+ * shop that has imported nothing shows no empty controls.
+ *
+ * @return array<string,string> taxonomy => the legend a buyer reads
+ */
+function facet_taxonomies(): array {
+	return array(
+		'pa_matiere'       => __( 'Matière', 'teeshoop' ),
+		'pa_marque'        => __( 'Marque', 'teeshoop' ),
+		'pa_taille'        => __( 'Taille', 'teeshoop' ),
+		'pa_couleur'       => __( 'Coloris', 'teeshoop' ),
+		'pa_public'        => __( 'Public', 'teeshoop' ),
+		'pa_certification' => __( 'Certification', 'teeshoop' ),
+		'pa_col'           => __( 'Col', 'teeshoop' ),
+		'pa_manches'       => __( 'Manches', 'teeshoop' ),
+	);
+}
+
+/** The query parameter a facet reads, e.g. `pa_couleur` -> `f_couleur`. */
+function facet_param( string $taxonomy ): string {
+	return 'f_' . preg_replace( '/^pa_/', '', $taxonomy );
+}
+
+/**
+ * What the visitor has currently selected, sanitised.
+ *
+ * Read once per request. Slugs only: a term that does not exist simply selects
+ * nothing, so a hand-edited URL cannot produce an error page.
+ *
+ * @return array{terms:array<string,string[]>,weight:array{min:int,max:int}}
+ */
+function applied_filters(): array {
+	static $applied = null;
+	if ( null !== $applied ) {
+		return $applied;
+	}
+
+	$terms = array();
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- a public, bookmarkable listing; nothing is written.
+	foreach ( array_keys( facet_taxonomies() ) as $taxonomy ) {
+		$raw = $_GET[ facet_param( $taxonomy ) ] ?? null;
+		if ( ! is_array( $raw ) ) {
+			continue;
+		}
+		$slugs = array_values( array_unique( array_filter( array_map( 'sanitize_title', wp_unslash( $raw ) ) ) ) );
+		if ( ! empty( $slugs ) ) {
+			$terms[ $taxonomy ] = $slugs;
+		}
+	}
+
+	$min = isset( $_GET['g_min'] ) ? absint( wp_unslash( $_GET['g_min'] ) ) : 0;
+	$max = isset( $_GET['g_max'] ) ? absint( wp_unslash( $_GET['g_max'] ) ) : 0;
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+	// A reversed range is a typo, not a query. Swapping is friendlier than
+	// returning nothing and leaves the buyer's two numbers on screen.
+	if ( $min > 0 && $max > 0 && $min > $max ) {
+		list( $min, $max ) = array( $max, $min );
+	}
+
+	$applied = array(
+		'terms'  => $terms,
+		'weight' => array(
+			'min' => $min,
+			'max' => $max,
+		),
+	);
+	return $applied;
+}
+
+/** True when at least one facet is narrowing the list. */
+function has_filters(): bool {
+	$applied = applied_filters();
+	return ! empty( $applied['terms'] ) || $applied['weight']['min'] > 0 || $applied['weight']['max'] > 0;
+}
+
+/**
+ * Append the chosen terms to the archive's tax query.
+ *
+ * AND between facets and AND within a facet, which is WooCommerce's own default
+ * (`woocommerce_layered_nav_default_query_type`). Two colours selected on one
+ * reference is meaningful here: a variable product carries every colour it is
+ * available in, so "Navy AND White" means "a reference that comes in both",
+ * which is exactly what a buyer kitting out a two-tone team is asking for.
+ *
+ * @param array $tax_query WooCommerce's tax query so far.
+ * @return array
+ */
+function filter_tax_query( $tax_query ): array {
+	if ( ! is_array( $tax_query ) ) {
+		$tax_query = array();
+	}
+	foreach ( applied_filters()['terms'] as $taxonomy => $slugs ) {
+		$tax_query[] = array(
+			'taxonomy'         => $taxonomy,
+			'field'            => 'slug',
+			'terms'            => $slugs,
+			'operator'         => 'AND',
+			'include_children' => false,
+		);
+	}
+	return $tax_query;
+}
+add_filter( 'woocommerce_product_query_tax_query', __NAMESPACE__ . '\\filter_tax_query', 10, 1 );
+
+/**
+ * Append the fabric weight range.
+ *
+ * A meta query, and the one the chapter warns about. It is bounded: 462 parent
+ * products carry `_teeshoop_weight_gsm`, not 26 399 variations, and the clause
+ * is `BETWEEN` on a numeric cast of a single key. `scripts/shop-bench.mjs`
+ * measures the page with and without it rather than assuming.
+ *
+ * @param array $meta_query WooCommerce's meta query so far.
+ * @return array
+ */
+function filter_meta_query( $meta_query ): array {
+	if ( ! is_array( $meta_query ) ) {
+		$meta_query = array();
+	}
+	$weight = applied_filters()['weight'];
+	if ( $weight['min'] <= 0 && $weight['max'] <= 0 ) {
+		return $meta_query;
+	}
+
+	$clause = array(
+		'key'  => WEIGHT_META,
+		'type' => 'NUMERIC',
+	);
+	if ( $weight['min'] > 0 && $weight['max'] > 0 ) {
+		$clause['value']   = array( $weight['min'], $weight['max'] );
+		$clause['compare'] = 'BETWEEN';
+	} elseif ( $weight['min'] > 0 ) {
+		$clause['value']   = $weight['min'];
+		$clause['compare'] = '>=';
+	} else {
+		$clause['value']   = $weight['max'];
+		$clause['compare'] = '<=';
+	}
+
+	$meta_query[] = $clause;
+	return $meta_query;
+}
+add_filter( 'woocommerce_product_query_meta_query', __NAMESPACE__ . '\\filter_meta_query', 10, 1 );
+
+/**
+ * A filtered listing is not a page to index.
+ *
+ * Chapter 04, SEO section: « filtres non indexables par défaut ». Every
+ * combination of ten facets is a URL, and a crawler that finds them all indexes
+ * a few million near-identical pages of the same 462 references. `follow` is
+ * kept so the products themselves are still reached through it.
+ *
+ * @param array $robots The directives WordPress has assembled.
+ * @return array
+ */
+function filter_robots( $robots ): array {
+	if ( ! is_array( $robots ) || ! has_filters() ) {
+		return is_array( $robots ) ? $robots : array();
+	}
+	$robots['noindex'] = true;
+	$robots['follow']  = true;
+	return $robots;
+}
+add_filter( 'wp_robots', __NAMESPACE__ . '\\filter_robots', 20, 1 );
+
+/**
+ * The terms of one facet, with how many references each would leave.
+ *
+ * THE COUNT IGNORES THIS FACET'S OWN SELECTION and honours every other one,
+ * which is the only arithmetic that makes a facet usable: counted with its own
+ * selection applied, choosing "Blanc" would show "Blanc (37)" and every other
+ * colour at zero, and the buyer could never add a second colour.
+ *
+ * One query per facet, over parent products only. `fields => ids` and
+ * `no_found_rows` because nothing here needs pagination or a total.
+ *
+ * @return array<int,array{slug:string,name:string,count:int}>
+ */
+function facet_terms( string $taxonomy ): array {
+	$args = array(
+		'taxonomy'   => $taxonomy,
+		'hide_empty' => true,
+		'orderby'    => 'name',
+	);
+	if ( 'pa_taille' === $taxonomy ) {
+		/*
+		 * Sizes sort by their rank, not by their name, or the list reads
+		 * L, M, S, XL. The rank lives in the plain term meta key `order`,
+		 * written by `Taxonomy::rank_size()`; the suffixed `order_pa_taille`
+		 * that every tutorial names is read by nothing on WooCommerce 11.0.1.
+		 */
+		$args['orderby']  = 'meta_value_num';
+		$args['meta_key'] = 'order'; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+	}
+
+	$terms = get_terms( $args );
+	if ( ! is_array( $terms ) || empty( $terms ) ) {
+		return array();
+	}
+
+	$counts = facet_counts( $taxonomy );
+
+	$out = array();
+	foreach ( $terms as $term ) {
+		$n = $counts[ $term->slug ] ?? 0;
+		// A term that nothing in the current context carries is dropped, not
+		// shown at zero: a list of four hundred colours is only usable if it is
+		// the colours this category actually comes in.
+		if ( 0 === $n && ! in_array( $term->slug, applied_filters()['terms'][ $taxonomy ] ?? array(), true ) ) {
+			continue;
+		}
+		$out[] = array(
+			'slug'  => $term->slug,
+			'name'  => $term->name,
+			'count' => $n,
+		);
+	}
+	return $out;
+}
+
+/**
+ * How many references each term of one facet would leave, in context.
+ *
+ * Two steps, both indexed: WordPress resolves the product ids that match
+ * everything except this facet, then one grouped query over the term
+ * relationships counts them. The alternative, one query per term, is 442
+ * queries on the colour facet alone.
+ *
+ * @return array<string,int> term slug => count
+ */
+function facet_counts( string $taxonomy ): array {
+	global $wpdb;
+
+	$ids = context_ids( $taxonomy );
+	if ( empty( $ids ) ) {
+		return array();
+	}
+
+	$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+
+	// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is built from a count, and every value goes through prepare().
+	$rows = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT t.slug AS slug, COUNT(*) AS n
+			 FROM {$wpdb->term_relationships} tr
+			 INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
+			 INNER JOIN {$wpdb->terms} t ON t.term_id = tt.term_id
+			 WHERE tt.taxonomy = %s AND tr.object_id IN ({$placeholders})
+			 GROUP BY t.slug",
+			array_merge( array( $taxonomy ), $ids )
+		)
+	);
+	// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+	$out = array();
+	foreach ( (array) $rows as $row ) {
+		$out[ (string) $row->slug ] = (int) $row->n;
+	}
+	return $out;
+}
+
+/**
+ * The product ids the page would show if `$except` were not selected.
+ *
+ * Built from the archive's own context (the category being browsed, the search
+ * term) plus every OTHER facet, so the counts describe the list the buyer is
+ * actually looking at.
+ *
+ * @return int[]
+ */
+function context_ids( string $except = '' ): array {
+	static $cache = array();
+
+	/*
+	 * WITH NOTHING SELECTED, EVERY FACET ASKS THE SAME QUESTION.
+	 *
+	 * `$except` only matters when that facet is actually narrowing the list, so
+	 * on the common landing (a category, no filters yet) all eight facets share
+	 * one answer. Keyed naively this was eight identical `WP_Query` runs per
+	 * page. Measured on the mirror: 25 SQL queries for the facet block before,
+	 * 11 after.
+	 */
+	$key = empty( applied_filters()['terms'] ) ? '' : $except;
+	if ( isset( $cache[ $key ] ) ) {
+		return $cache[ $key ];
+	}
+
+	$tax_query = array( 'relation' => 'AND' );
+
+	$term = is_tax( array( 'product_cat', 'product_tag' ) ) ? get_queried_object() : null;
+	if ( $term instanceof \WP_Term ) {
+		$tax_query[] = array(
+			'taxonomy'         => $term->taxonomy,
+			'field'            => 'term_id',
+			'terms'            => array( $term->term_id ),
+			'include_children' => true,
+		);
+	}
+
+	foreach ( applied_filters()['terms'] as $taxonomy => $slugs ) {
+		if ( $taxonomy === $except ) {
+			continue;
+		}
+		$tax_query[] = array(
+			'taxonomy'         => $taxonomy,
+			'field'            => 'slug',
+			'terms'            => $slugs,
+			'operator'         => 'AND',
+			'include_children' => false,
+		);
+	}
+
+	$args = array(
+		'post_type'              => 'product',
+		'post_status'            => 'publish',
+		'posts_per_page'         => -1,
+		'fields'                 => 'ids',
+		'no_found_rows'          => true,
+		'ignore_sticky_posts'    => true,
+		'update_post_meta_cache' => false,
+		'update_post_term_cache' => false,
+		'tax_query'              => $tax_query, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
+	);
+
+	$weight = applied_filters()['weight'];
+	if ( $weight['min'] > 0 || $weight['max'] > 0 ) {
+		$args['meta_query'] = filter_meta_query( array() ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+	}
+
+	$search = get_search_query();
+	if ( '' !== $search && ( is_search() || is_shop() ) ) {
+		$args['s'] = $search;
+	}
+
+	$query         = new \WP_Query( $args );
+	$cache[ $key ] = array_map( 'intval', (array) $query->posts );
+	return $cache[ $key ];
+}
+
+/**
+ * The URL of the current listing with one facet value removed.
+ *
+ * Used by the "applied filters" row, so every narrowing the buyer has done has
+ * a visible way back out. Losing your way in a facet stack is the classic
+ * catalogue dead end and it is why the chapter asks the list never to trap.
+ */
+function without_filter( string $taxonomy, string $slug ): string {
+	$applied = applied_filters()['terms'];
+	$left    = array_values( array_diff( $applied[ $taxonomy ] ?? array(), array( $slug ) ) );
+	$param   = facet_param( $taxonomy );
+
+	$url = remove_query_arg( array( $param, 'paged' ) );
+	if ( ! empty( $left ) ) {
+		$url = add_query_arg( array( $param => $left ), $url );
+	}
+	return $url;
+}
+
+/** The current listing with every facet cleared. */
+function without_filters(): string {
+	$params = array_map( __NAMESPACE__ . '\\facet_param', array_keys( facet_taxonomies() ) );
+	return remove_query_arg( array_merge( $params, array( 'g_min', 'g_max', 'paged' ) ) );
+}
+
+/**
+ * The lightest and the heaviest fabric the shop actually carries.
+ *
+ * Read from the catalogue rather than written down, so the placeholders in the
+ * grammage boxes are a real range and not a guess: a shop that suggests
+ * "120 – 400" over a catalogue running 145 to 320 invites two searches that
+ * return nothing. Cached for an hour, because it changes only when the nightly
+ * import changes it and it is read on every listing.
+ *
+ * @return array{min:int,max:int}|null null when nothing carries a weight.
+ */
+function weight_bounds(): ?array {
+	$cached = get_transient( 'teeshoop_weight_bounds' );
+	if ( is_array( $cached ) ) {
+		return $cached['min'] > 0 ? $cached : null;
+	}
+
+	global $wpdb;
+	$row = $wpdb->get_row(
+		$wpdb->prepare(
+			"SELECT MIN(CAST(pm.meta_value AS UNSIGNED)) AS lo, MAX(CAST(pm.meta_value AS UNSIGNED)) AS hi
+			 FROM {$wpdb->postmeta} pm
+			 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_type = 'product' AND p.post_status = 'publish'
+			 WHERE pm.meta_key = %s AND pm.meta_value <> ''",
+			WEIGHT_META
+		)
+	);
+
+	$bounds = array(
+		'min' => $row ? (int) $row->lo : 0,
+		'max' => $row ? (int) $row->hi : 0,
+	);
+	set_transient( 'teeshoop_weight_bounds', $bounds, HOUR_IN_SECONDS );
+
+	return $bounds['min'] > 0 ? $bounds : null;
+}
+
+/**
+ * Everything currently narrowing the list, each with a way to remove it.
+ *
+ * @return array<int,array{label:string,name:string,url:string}>
+ */
+function applied_chips(): array {
+	$out     = array();
+	$applied = applied_filters();
+
+	foreach ( $applied['terms'] as $taxonomy => $slugs ) {
+		foreach ( $slugs as $slug ) {
+			$term = get_term_by( 'slug', $slug, $taxonomy );
+			if ( ! $term instanceof \WP_Term ) {
+				continue;
+			}
+			$out[] = array(
+				'label' => facet_taxonomies()[ $taxonomy ] ?? $taxonomy,
+				'name'  => $term->name,
+				'url'   => without_filter( $taxonomy, $slug ),
+			);
+		}
+	}
+
+	$weight = $applied['weight'];
+	if ( $weight['min'] > 0 || $weight['max'] > 0 ) {
+		if ( $weight['min'] > 0 && $weight['max'] > 0 ) {
+			$name = sprintf(
+				/* translators: 1: lowest weight, 2: highest weight, in g/m². */
+				__( '%1$s à %2$s g/m²', 'teeshoop' ),
+				num( (float) $weight['min'] ),
+				num( (float) $weight['max'] )
+			);
+		} elseif ( $weight['min'] > 0 ) {
+			/* translators: %s: a fabric weight in g/m². */
+			$name = sprintf( __( '%s g/m² et plus', 'teeshoop' ), num( (float) $weight['min'] ) );
+		} else {
+			/* translators: %s: a fabric weight in g/m². */
+			$name = sprintf( __( 'jusqu’à %s g/m²', 'teeshoop' ), num( (float) $weight['max'] ) );
+		}
+		$out[] = array(
+			'label' => __( 'Grammage', 'teeshoop' ),
+			'name'  => $name,
+			'url'   => remove_query_arg( array( 'g_min', 'g_max', 'paged' ) ),
+		);
+	}
+
+	return $out;
+}

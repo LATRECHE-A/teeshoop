@@ -75,8 +75,9 @@ function ts_e2e_out( array $payload ) {
  * expanding shortcodes. `iframe` is not an allowed tag there, so the studio
  * came out as an empty `<div class="teeshoop-studio">`: rendered, sanitised
  * away, and silent about it. teeshoop.com runs Woodmart, which is a classic
- * theme, so the mirror should be on one too. Twenty Twenty-One is the nearest
- * bundled equivalent.
+ * theme, and since session 09 so is ours: `teeshoop` is what the shop will
+ * actually run, so it is what the harness switches TO. Twenty Twenty-One stays
+ * behind it for a checkout that has not mounted `wp-themes/`.
  *
  * Worth carrying into session 02: on a block theme the studio cannot live in a
  * product description at all, whatever the shortcode does.
@@ -86,12 +87,13 @@ function ts_e2e_classic_theme() {
 	if ( ! $active->is_block_theme() ) {
 		return array( 'theme' => $active->get_stylesheet(), 'switched' => false );
 	}
-	$classic = wp_get_theme( 'twentytwentyone' );
-	if ( ! $classic->exists() ) {
-		return array( 'theme' => $active->get_stylesheet(), 'switched' => false, 'need_classic' => true );
+	foreach ( array( 'teeshoop', 'twentytwentyone' ) as $slug ) {
+		if ( wp_get_theme( $slug )->exists() ) {
+			switch_theme( $slug );
+			return array( 'theme' => $slug, 'switched' => true );
+		}
 	}
-	switch_theme( 'twentytwentyone' );
-	return array( 'theme' => 'twentytwentyone', 'switched' => true );
+	return array( 'theme' => $active->get_stylesheet(), 'switched' => false, 'need_classic' => true );
 }
 
 function ts_e2e_setup( string $studio_origin, string $worker_url ) {

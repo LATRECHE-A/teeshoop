@@ -136,6 +136,10 @@ services:
     volumes:
       - wp:/var/www/html
       - ../wp-plugins/teeshoop-core:/var/www/html/wp-content/plugins/teeshoop-core
+      # The theme is ours and lives in the repository too, for the same reason
+      # the plugin does: editing it here is immediately live in the container,
+      # and nothing WordPress writes ends up in git.
+      - ../wp-themes/teeshoop:/var/www/html/wp-content/themes/teeshoop
 
   # One-shot WP-CLI, same filesystem and network as the site.
   wpcli:
@@ -157,6 +161,7 @@ services:
     volumes:
       - wp:/var/www/html
       - ../wp-plugins/teeshoop-core:/var/www/html/wp-content/plugins/teeshoop-core
+      - ../wp-themes/teeshoop:/var/www/html/wp-content/themes/teeshoop
     entrypoint: ['wp']
     command: ['--info']
 

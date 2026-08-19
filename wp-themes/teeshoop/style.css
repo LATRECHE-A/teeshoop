@@ -1,0 +1,1979 @@
+/*
+Theme Name: Teeshoop
+Theme URI: https://teeshoop.com
+Author: Teeshoop
+Description: Le thème de teeshoop.com. Classique, sans dépendance, écrit pour une boutique WooCommerce de plusieurs centaines de références textiles personnalisables. Il ne calcule aucun prix : tous les chiffres viennent de l'extension Teeshoop Core.
+Version: 1.0.0
+Requires at least: 6.6
+Tested up to: 7.0.4
+Requires PHP: 8.1
+License: GPL-2.0-or-later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: teeshoop
+Tags: e-commerce, woocommerce, custom-logo, custom-menu, translation-ready
+*/
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE LOOK, AND WHY IT IS THIS ONE
+ *
+ * We sell printing, and the one thing our two competitors do not do is publish
+ * the numbers: neither mistertee.fr nor tostadora.fr states a single print
+ * dimension on a product page. Our product page already does, in centimetres,
+ * and bills the ink rather than the box the file was dropped into. So the site
+ * is built to look like what it is — a printer's specification sheet — and not
+ * like a marketplace: hairline rules instead of cards, tabular figures wherever
+ * digits sit in a column, one accent used for actions and nothing else, and
+ * white space instead of decoration.
+ *
+ * There is no gradient, no glass, no drop shadow that is not a real elevation,
+ * no icon that carries no meaning and no animation that serves nothing. Those
+ * are house rules (CLAUDE.md §7) and they are also what stops a page reading as
+ * generated, which on a market where every competitor uses the same three
+ * WordPress themes is the difference a buyer notices before the price.
+ *
+ * MOBILE FIRST, LITERALLY. Everything below is authored at 375 px. There are
+ * three widenings and they are at the bottom: 640 px, 900 px and 1200 px.
+ *
+ * NO COLOUR, SIZE OR SPACE IS CHOSEN HERE. Every one of them comes from
+ * `teeshoop-core/assets/tokens.css`, which is the one home for them, so
+ * session 13b can drop in the real brand and change nothing else. Where a rule
+ * needs a translucent wash it is `color-mix` of one of those same tokens, not a
+ * fourth grey somebody picked.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/* ──────────────────────────────────────────────────────────────── base ── */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-family: var(--ts-font);
+	font-size: var(--ts-text);
+	line-height: var(--ts-leading);
+	/* Inter's own kerning and contextual alternates; off by default in some engines. */
+	font-feature-settings: 'kern' 1, 'calt' 1;
+	text-rendering: optimizeLegibility;
+}
+
+img,
+svg,
+video {
+	max-width: 100%;
+	height: auto;
+	vertical-align: middle;
+}
+
+/*
+ * ONE FOCUS RING FOR THE WHOLE SITE, drawn outside the element so that showing
+ * it never moves anything. `:focus-visible` rather than `:focus` so a mouse
+ * click on a button does not leave a ring behind, while every keyboard tab
+ * does. Session 12 audits this; it is here from the first line because
+ * retrofitting focus is the one thing that cannot be done cheaply later.
+ */
+:focus-visible {
+	outline: var(--ts-focus-width) solid var(--ts-accent);
+	outline-offset: var(--ts-focus-offset);
+	border-radius: 1px;
+}
+
+/* The one exception: on the accent itself, the ink ring is what is visible. */
+.ts-btn:focus-visible,
+.ts-cta:focus-visible {
+	outline-color: var(--ts-ink);
+}
+
+a {
+	color: var(--ts-accent);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.15em;
+}
+
+a:hover {
+	color: var(--ts-accent-dark);
+}
+
+/* The skip link is real, and it is the first thing in the tab order. */
+.ts-skip {
+	position: absolute;
+	left: -9999px;
+	top: 0;
+	z-index: 100;
+	padding: var(--ts-space-3) var(--ts-space-4);
+	background: var(--ts-ink);
+	color: var(--ts-paper);
+	text-decoration: none;
+}
+
+.ts-skip:focus {
+	left: 0;
+}
+
+/* ────────────────────────────────────────────────────────── typography ── */
+
+h1,
+h2,
+h3,
+h4 {
+	margin: 0 0 var(--ts-space-3);
+	font-weight: 600;
+	line-height: var(--ts-leading-tight);
+	/*
+	 * Inter needs negative tracking above about 24 px or the display sizes read
+	 * loose. The value is per size, not global: at body size the same tracking
+	 * closes the letters up and costs legibility.
+	 */
+	letter-spacing: -0.015em;
+	text-wrap: balance;
+}
+
+h1 {
+	font-size: var(--ts-display);
+	letter-spacing: -0.022em;
+}
+
+h2 {
+	font-size: var(--ts-display-sm);
+}
+
+h3 {
+	font-size: var(--ts-display-xs);
+	letter-spacing: -0.01em;
+}
+
+p {
+	margin: 0 0 var(--ts-space-4);
+	max-width: var(--ts-measure);
+}
+
+/*
+ * The uppercase micro-label above a section. It is a LABEL, not a badge: no
+ * pill, no background, no colour of its own beyond the muted ink, so a page
+ * with six of them does not read as badge soup.
+ */
+.ts-eyebrow {
+	display: block;
+	margin: 0 0 var(--ts-space-2);
+	color: var(--ts-muted);
+	font-size: var(--ts-eyebrow-size);
+	font-weight: 600;
+	letter-spacing: var(--ts-eyebrow-tracking);
+	text-transform: uppercase;
+}
+
+.ts-lead {
+	max-width: 46ch;
+	font-size: var(--ts-text-lg);
+	line-height: var(--ts-leading-loose);
+}
+
+.ts-muted {
+	color: var(--ts-muted);
+}
+
+/* ───────────────────────────────────────────────────────────── layout ── */
+
+.ts-wrap {
+	margin: 0 auto;
+	padding: 0 var(--ts-gutter);
+	max-width: var(--ts-page);
+}
+
+.ts-main {
+	display: block;
+	min-height: 40vh;
+}
+
+/*
+ * A section is separated from the next by a hairline and space, never by a
+ * card. Cards on a catalogue page turn a listing into a wall of boxes, and
+ * boxes are what every generated shop looks like.
+ */
+.ts-section {
+	padding: var(--ts-space-7) 0;
+	border-top: 1px solid var(--ts-line);
+}
+
+.ts-section:first-child {
+	border-top: 0;
+}
+
+.ts-section__head {
+	margin: 0 0 var(--ts-space-5);
+}
+
+.ts-section__head p {
+	margin-bottom: 0;
+}
+
+/* ─────────────────────────────────────────────────────────── masthead ── */
+
+.ts-mast {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+	background: var(--ts-paper);
+	border-bottom: 1px solid var(--ts-line);
+}
+
+.ts-mast__bar {
+	display: flex;
+	align-items: center;
+	gap: var(--ts-space-3);
+	min-height: 3.5rem;
+}
+
+/*
+ * THE WORDMARK SHRINKS BEFORE ANYTHING ELSE DOES.
+ *
+ * At 375 px the bar carries a menu button, the name, "Devis" and "Panier", and
+ * measured before this was written the row was 457 px wide: every page on the
+ * site scrolled sideways. The two controls are the ones a buyer needs, so the
+ * name is the one that gives way, and it truncates rather than wrapping the bar
+ * onto two lines.
+ */
+.ts-wordmark {
+	flex: 0 1 auto;
+	min-width: 0;
+	margin-right: auto;
+	overflow: hidden;
+	color: var(--ts-ink);
+	font-size: 1.0625rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-overflow: ellipsis;
+	text-transform: uppercase;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.custom-logo-link {
+	margin-right: auto;
+	display: inline-flex;
+	align-items: center;
+}
+
+.custom-logo {
+	max-height: 2.25rem;
+	width: auto;
+}
+
+/*
+ * The menu button does not exist without JavaScript.
+ *
+ * It is `hidden` in the markup and revealed by `site.js`, because a button that
+ * toggles a panel is useless when nothing can toggle it. With the script
+ * blocked the navigation below is simply visible, which is the honest
+ * degradation: every link reachable, no control that does nothing.
+ */
+/*
+ * Below 640 px the button is the icon alone and its name lives in text only a
+ * screen reader reads. A hamburger is one of the few icons that genuinely
+ * carries its meaning; forty-five pixels of the word "Menu" is what pushed the
+ * bar over the viewport.
+ */
+.ts-burger__label {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	border: 0;
+	clip-path: inset(50%);
+	overflow: hidden;
+}
+
+.ts-burger {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	margin: 0;
+	padding: var(--ts-space-2) var(--ts-space-3);
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font: inherit;
+	font-size: var(--ts-text-sm);
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.ts-burger__bars,
+.ts-burger__bars::before,
+.ts-burger__bars::after {
+	display: block;
+	width: 1rem;
+	height: 1.5px;
+	background: currentColor;
+}
+
+.ts-burger__bars {
+	position: relative;
+}
+
+.ts-burger__bars::before,
+.ts-burger__bars::after {
+	position: absolute;
+	left: 0;
+	content: '';
+}
+
+.ts-burger__bars::before {
+	top: -5px;
+}
+
+.ts-burger__bars::after {
+	top: 5px;
+}
+
+.ts-nav__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-1) var(--ts-space-5);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ts-nav__list a,
+.ts-nav a {
+	display: block;
+	padding: var(--ts-space-2) 0;
+	color: var(--ts-ink);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.ts-nav__list a:hover,
+.ts-nav a:hover {
+	color: var(--ts-accent);
+	text-decoration: underline;
+}
+
+/* Current section, stated with a rule rather than with a colour alone. */
+.ts-nav .current-menu-item > a,
+.ts-nav .current-cat > a,
+.ts-nav__item--current > a {
+	box-shadow: inset 0 -2px 0 0 var(--ts-accent);
+}
+
+.ts-mast__tools {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	margin-left: auto;
+}
+
+.ts-mast__quote,
+.ts-mast__cart {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	padding: var(--ts-space-2) var(--ts-space-3);
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	color: var(--ts-ink);
+	font-size: var(--ts-text-sm);
+	font-weight: 600;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.ts-mast__quote:hover,
+.ts-mast__cart:hover {
+	border-color: var(--ts-ink);
+	color: var(--ts-ink);
+}
+
+.ts-mast__cart-n {
+	min-width: 1.25rem;
+	padding: 0 0.25rem;
+	border-radius: 999px;
+	background: var(--ts-accent);
+	color: var(--ts-accent-ink);
+	font-size: var(--ts-text-xs);
+	text-align: center;
+}
+
+/*
+ * WITH JAVASCRIPT the navigation becomes a drawer under the bar. Without it,
+ * none of this applies and the list stays where it is, visible.
+ */
+.has-js .ts-nav {
+	display: none;
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 100%;
+	padding: var(--ts-space-3) var(--ts-gutter) var(--ts-space-5);
+	border-bottom: 1px solid var(--ts-line);
+	background: var(--ts-paper);
+	box-shadow: var(--ts-elev-1);
+}
+
+.has-js .ts-nav.is-open {
+	display: block;
+}
+
+.has-js .ts-nav .ts-nav__list {
+	flex-direction: column;
+	gap: 0;
+}
+
+.has-js .ts-nav .ts-nav__list > li {
+	border-top: 1px solid var(--ts-line);
+}
+
+.has-js .ts-nav .ts-nav__list > li:first-child {
+	border-top: 0;
+}
+
+.has-js .ts-nav .ts-nav__list a {
+	padding: var(--ts-space-3) 0;
+}
+
+/* ───────────────────────────────────────────────────────────── buttons ── */
+
+/*
+ * `.ts-cta` lives in the plugin's `components.css` and is the SAME button the
+ * product page uses. What is here is only the secondary size and the
+ * side-by-side row, which the product page has no use for.
+ */
+.ts-cta--wide {
+	width: 100%;
+}
+
+.ts-btnrow {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ts-space-3);
+	margin: var(--ts-space-5) 0 0;
+}
+
+.ts-btnrow .ts-cta {
+	margin: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────── home ── */
+
+.ts-hero {
+	padding: var(--ts-space-6) 0 var(--ts-space-7);
+}
+
+.ts-hero__title {
+	margin-bottom: var(--ts-space-4);
+	font-size: var(--ts-display-lg);
+	letter-spacing: -0.028em;
+}
+
+.ts-hero__strap {
+	margin: 0 0 var(--ts-space-5);
+	max-width: 34ch;
+	color: var(--ts-muted);
+	font-size: var(--ts-text-lg);
+	line-height: var(--ts-leading);
+}
+
+.ts-hero__media {
+	margin: var(--ts-space-6) 0 0;
+	border: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+}
+
+.ts-hero__media img {
+	display: block;
+	width: 100%;
+}
+
+.ts-hero__caption {
+	margin: 0;
+	padding: var(--ts-space-3) var(--ts-space-4);
+	border-top: 1px solid var(--ts-line);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading);
+	max-width: none;
+}
+
+/*
+ * The four facts, as a specification block and not as four badges. Each is a
+ * term and its value, ruled off from the next, which is how a spec sheet reads
+ * and how a phone can show four of them without scrolling past them.
+ */
+.ts-facts {
+	display: grid;
+	gap: 0;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid var(--ts-line);
+}
+
+.ts-facts__item {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--ts-space-4);
+	padding: var(--ts-space-3) 0;
+	border-bottom: 1px solid var(--ts-line);
+}
+
+.ts-facts__term {
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
+}
+
+.ts-facts__value {
+	font-size: var(--ts-text-lg);
+	font-weight: 600;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.ts-facts__value small {
+	display: block;
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	font-weight: 400;
+}
+
+/* ──────────────────────────────────────────────────── cards and grids ── */
+
+/*
+ * The garment tiles and the WooCommerce loop share one grid. Two columns on a
+ * phone, because a one-column list of t-shirts is a scroll nobody finishes, and
+ * the photographs are square so two fit honestly at 375 px.
+ */
+.ts-grid,
+.woocommerce ul.products,
+ul.products {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--ts-space-5) var(--ts-space-4);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.woocommerce ul.products::before,
+.woocommerce ul.products::after,
+ul.products::before,
+ul.products::after {
+	display: none;
+}
+
+/*
+ * THE SELECTOR IS LONG BECAUSE WOOCOMMERCE'S IS.
+ *
+ * `woocommerce-layout.css` sets the card width four different ways, and the one
+ * that actually applies is `.woocommerce ul.products.columns-3 li.product`,
+ * which is one class more specific than the obvious override. Measured on the
+ * mirror before this was written: the grid was correctly three columns of
+ * 293 px and every card inside was 90,19 px, which is 30,75 % of a column. The
+ * attribute selector matches every `columns-N` at once and ties with theirs, and
+ * ours is printed last.
+ */
+.woocommerce ul.products li.product,
+.woocommerce ul.products[class*='columns-'] li.product,
+.woocommerce[class*='columns-'] ul.products li.product,
+.woocommerce-page ul.products[class*='columns-'] li.product,
+ul.products li.product,
+.ts-card {
+	position: relative;
+	float: none;
+	width: auto;
+	margin: 0;
+	padding: 0;
+	text-align: left;
+}
+
+.woocommerce ul.products li.product a img,
+ul.products li.product a img,
+.ts-card__media img {
+	display: block;
+	width: 100%;
+	aspect-ratio: 1 / 1;
+	object-fit: contain;
+	margin: 0 0 var(--ts-space-3);
+	border: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+}
+
+.woocommerce ul.products li.product .woocommerce-loop-product__title,
+ul.products li.product .woocommerce-loop-product__title,
+.ts-card__title {
+	margin: 0 0 var(--ts-space-1);
+	padding: 0;
+	font-size: var(--ts-text);
+	font-weight: 600;
+	line-height: var(--ts-leading);
+	letter-spacing: 0;
+}
+
+.woocommerce ul.products li.product a,
+ul.products li.product a {
+	color: var(--ts-ink);
+	text-decoration: none;
+}
+
+.woocommerce ul.products li.product a:hover .woocommerce-loop-product__title,
+ul.products li.product a:hover .woocommerce-loop-product__title {
+	text-decoration: underline;
+	text-decoration-color: var(--ts-accent);
+}
+
+.woocommerce ul.products li.product .price,
+ul.products li.product .price {
+	display: block;
+	margin: 0;
+	color: var(--ts-ink);
+	font-size: var(--ts-text-sm);
+	font-variant-numeric: tabular-nums;
+}
+
+/* What a product with no photograph looks like: a labelled tile, not a frame. */
+.ts-nomedia {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	aspect-ratio: 1 / 1;
+	margin: 0 0 var(--ts-space-3);
+	border: 1px dashed var(--ts-line-strong);
+	background: var(--ts-surface);
+	color: var(--ts-muted);
+	font-size: var(--ts-eyebrow-size);
+	font-weight: 600;
+	letter-spacing: var(--ts-eyebrow-tracking);
+	text-transform: uppercase;
+}
+
+.ts-card__meta {
+	margin: 0;
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	max-width: none;
+}
+
+/*
+ * The line that says what the shop can promise about a blank, in words and
+ * never a figure: the three strings come from `Shelf::availability()` and the
+ * ledger fails if one of them disappears.
+ */
+.ts-stock {
+	display: inline-block;
+	margin-top: var(--ts-space-1);
+	font-size: var(--ts-text-xs);
+	font-weight: 600;
+}
+
+.ts-stock--yes {
+	color: var(--ts-good);
+}
+
+.ts-stock--no {
+	color: var(--ts-bad);
+}
+
+.ts-stock--unknown {
+	color: var(--ts-muted);
+}
+
+/* ────────────────────────────────────────────── an honest empty state ── */
+
+.ts-empty {
+	padding: var(--ts-space-6);
+	border: 1px dashed var(--ts-line-strong);
+	background: var(--ts-surface);
+}
+
+.ts-empty__title {
+	margin: 0 0 var(--ts-space-2);
+	font-size: var(--ts-display-xs);
+}
+
+.ts-empty p:last-child {
+	margin-bottom: 0;
+}
+
+/* ──────────────────────────────────────────────────────────── filters ── */
+
+.ts-shop {
+	display: block;
+	padding: var(--ts-space-6) 0 var(--ts-space-8);
+}
+
+.ts-shop__head {
+	margin: 0 0 var(--ts-space-5);
+}
+
+.ts-shop__count {
+	margin: 0;
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
+	font-variant-numeric: tabular-nums;
+}
+
+.ts-filters {
+	margin: 0 0 var(--ts-space-6);
+	border: 1px solid var(--ts-line);
+	background: var(--ts-paper);
+}
+
+.ts-filters__toggle {
+	display: none;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ts-space-3);
+	width: 100%;
+	padding: var(--ts-space-3) var(--ts-space-4);
+	border: 0;
+	background: var(--ts-surface);
+	color: var(--ts-ink);
+	font: inherit;
+	font-weight: 600;
+	text-align: left;
+	cursor: pointer;
+}
+
+/* A disclosure triangle, drawn rather than iconified, that says which way the
+   panel will go. It is the one mark on this site that means "this opens". */
+.ts-filters__toggle::after {
+	display: block;
+	width: 0.5rem;
+	height: 0.5rem;
+	content: '';
+	border-right: 2px solid currentColor;
+	border-bottom: 2px solid currentColor;
+	transform: rotate(45deg) translate(-0.15rem, -0.15rem);
+}
+
+.ts-filters__toggle[aria-expanded='true']::after {
+	transform: rotate(225deg) translate(-0.1rem, -0.1rem);
+}
+
+.has-js .ts-filters__toggle {
+	display: flex;
+}
+
+.has-js .ts-filters__body {
+	display: none;
+}
+
+.has-js .ts-filters__body.is-open {
+	display: block;
+}
+
+.ts-filters__body {
+	padding: var(--ts-space-4);
+}
+
+.ts-facet {
+	margin: 0 0 var(--ts-space-5);
+	padding: 0;
+	border: 0;
+}
+
+.ts-facet:last-of-type {
+	margin-bottom: var(--ts-space-4);
+}
+
+.ts-facet__legend {
+	display: block;
+	margin: 0 0 var(--ts-space-2);
+	padding: 0;
+	color: var(--ts-muted);
+	font-size: var(--ts-eyebrow-size);
+	font-weight: 600;
+	letter-spacing: var(--ts-eyebrow-tracking);
+	text-transform: uppercase;
+}
+
+.ts-facet__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	/*
+	 * A colour facet on this catalogue is several hundred terms long. It is
+	 * capped in height and scrolls in place, so a phone never has to swipe past
+	 * four hundred checkboxes to reach the next facet.
+	 */
+	/*
+	 * The colour facet on this catalogue is four hundred and forty-two terms and
+	 * the brief forbids merging them, so the list stays long and scrolls inside
+	 * its own box. The border is what says so: without it the last visible item
+	 * looks cut off rather than scrollable.
+	 */
+	max-height: 11rem;
+	padding: var(--ts-space-2);
+	border: 1px solid var(--ts-line);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+.ts-facet__list--short {
+	max-height: none;
+	padding: 0;
+	border: 0;
+	overflow: visible;
+}
+
+/*
+ * A facet value is a real checkbox with a real label, so the whole panel works
+ * with the keyboard and submits without a script. The checkbox itself is
+ * visually replaced by the chip, never removed from the accessibility tree.
+ */
+.ts-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	padding: 0.3125rem var(--ts-space-3);
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-size: var(--ts-text-sm);
+	text-decoration: none;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+/* A category chip is a link and a facet chip is a checkbox; they look alike on
+   purpose, because to a buyer they do the same job. */
+a.ts-chip:hover {
+	color: var(--ts-accent);
+	border-color: var(--ts-accent);
+}
+
+.ts-chip input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	border: 0;
+	clip-path: inset(50%);
+	overflow: hidden;
+}
+
+.ts-chip:hover {
+	border-color: var(--ts-ink);
+}
+
+.ts-chip:has(input:checked) {
+	border-color: var(--ts-accent);
+	background: var(--ts-accent-wash);
+	color: var(--ts-accent);
+	font-weight: 600;
+}
+
+.ts-chip:has(input:focus-visible) {
+	outline: var(--ts-focus-width) solid var(--ts-accent);
+	outline-offset: var(--ts-focus-offset);
+}
+
+.ts-chip__n {
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	font-variant-numeric: tabular-nums;
+}
+
+.ts-chip:has(input:checked) .ts-chip__n {
+	color: inherit;
+}
+
+/* A colour value shows the colour, and the name stays the maker's. */
+.ts-chip__swatch {
+	width: 0.875rem;
+	height: 0.875rem;
+	border: 1px solid color-mix(in srgb, var(--ts-ink) 25%, transparent);
+	border-radius: 2px;
+	flex: 0 0 auto;
+}
+
+.ts-facet__range {
+	display: flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+}
+
+.ts-facet__range input {
+	width: 6rem;
+	padding: 0.375rem 0.5rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	font: inherit;
+	font-size: 1rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.ts-filters__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ts-space-3);
+	padding-top: var(--ts-space-4);
+	border-top: 1px solid var(--ts-line);
+}
+
+.ts-filters__actions .ts-cta {
+	flex: 1 1 auto;
+	display: inline-block;
+	width: auto;
+}
+
+.ts-filters__clear {
+	font-size: var(--ts-text-sm);
+}
+
+/* What is currently filtering the list, and a way out of each one. */
+.ts-applied {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ts-space-2);
+	margin: 0 0 var(--ts-space-4);
+	padding: 0;
+	list-style: none;
+}
+
+.ts-applied__item a {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	padding: 0.25rem var(--ts-space-2);
+	border: 1px solid var(--ts-accent);
+	border-radius: var(--ts-radius);
+	background: var(--ts-accent-wash);
+	color: var(--ts-accent);
+	font-size: var(--ts-text-sm);
+	text-decoration: none;
+}
+
+.ts-applied__item a::after {
+	content: '\00d7';
+	font-size: 1rem;
+	line-height: 1;
+}
+
+/* ───────────────────────────────────────────────────────── pagination ── */
+
+.woocommerce nav.woocommerce-pagination ul,
+.ts-pager {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2);
+	margin: var(--ts-space-6) 0 0;
+	padding: 0;
+	border: 0;
+	list-style: none;
+}
+
+.woocommerce nav.woocommerce-pagination ul li {
+	border: 0;
+	margin: 0;
+	overflow: visible;
+}
+
+.woocommerce nav.woocommerce-pagination ul li a,
+.woocommerce nav.woocommerce-pagination ul li span {
+	display: block;
+	min-width: 2.5rem;
+	padding: var(--ts-space-2) var(--ts-space-3);
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-size: var(--ts-text-sm);
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+	text-decoration: none;
+}
+
+.woocommerce nav.woocommerce-pagination ul li span.current {
+	border-color: var(--ts-accent);
+	background: var(--ts-accent);
+	color: var(--ts-accent-ink);
+	font-weight: 600;
+}
+
+/* ─────────────────────────────────────────────────────────────── studio ── */
+
+/*
+ * The editor is an iframe on our own product page, and it is dressed like the
+ * rest of the site: our rule above it, our breadcrumb back, no browser chrome
+ * of its own. A customer never sees that it is served from another origin, and
+ * that is the point — the frame boundary is an engineering decision, not
+ * something a buyer should have to notice.
+ */
+.ts-studio {
+	padding: var(--ts-space-4) 0 var(--ts-space-7);
+}
+
+.ts-studio__head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--ts-space-3);
+	margin: 0 0 var(--ts-space-4);
+	padding-bottom: var(--ts-space-3);
+	border-bottom: 1px solid var(--ts-line);
+}
+
+.ts-studio__title {
+	margin: 0;
+	font-size: var(--ts-display-xs);
+}
+
+.ts-studio__back {
+	font-size: var(--ts-text-sm);
+	font-weight: 600;
+}
+
+/* ─────────────────────────────────────────────────────────────── footer ── */
+
+.ts-foot {
+	margin-top: var(--ts-space-8);
+	border-top: 1px solid var(--ts-line);
+	background: var(--ts-ink);
+	color: var(--ts-paper);
+}
+
+.ts-foot a {
+	color: var(--ts-paper);
+	text-decoration: none;
+}
+
+.ts-foot a:hover {
+	color: var(--ts-paper);
+	text-decoration: underline;
+}
+
+.ts-foot__grid {
+	display: grid;
+	gap: var(--ts-space-6);
+	padding-top: var(--ts-space-7);
+	padding-bottom: var(--ts-space-6);
+}
+
+.ts-foot__title {
+	margin: 0 0 var(--ts-space-3);
+	font-size: var(--ts-eyebrow-size);
+	font-weight: 600;
+	letter-spacing: var(--ts-eyebrow-tracking);
+	text-transform: uppercase;
+	/*
+	 * Deliberately not `--ts-muted`: measured on this ground it is 3,00:1, and
+	 * this is a heading rather than a hint.
+	 */
+	color: var(--ts-on-ink-muted);
+}
+
+.ts-foot__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: var(--ts-text-sm);
+	line-height: var(--ts-leading-loose);
+}
+
+.ts-foot__list .ts-num {
+	font-variant-numeric: tabular-nums;
+}
+
+.ts-foot__address {
+	margin: 0 0 var(--ts-space-3);
+	font-style: normal;
+	font-size: var(--ts-text-sm);
+	line-height: var(--ts-leading-loose);
+}
+
+.ts-foot__address span {
+	display: block;
+}
+
+.ts-foot__name {
+	font-weight: 600;
+}
+
+.ts-foot__legal {
+	margin: 0;
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading-loose);
+}
+
+.ts-foot__legal dt {
+	color: var(--ts-on-ink-muted);
+}
+
+.ts-foot__legal dd {
+	margin: 0 0 var(--ts-space-2);
+}
+
+/*
+ * The missing legal identity, said out loud.
+ *
+ * Warn-coloured on a dark ground, so the paper tone cannot be used:
+ * `--ts-warn` is chosen against white. `--ts-on-ink-warn` is chosen against
+ * this one and measures 11,50:1 on it, for the text and for the rule.
+ */
+.ts-foot__gap {
+	margin: var(--ts-space-3) 0 0;
+	padding: var(--ts-space-3);
+	border-left: 3px solid var(--ts-on-ink-warn);
+	background: color-mix(in srgb, var(--ts-paper) 6%, transparent);
+	color: var(--ts-on-ink-warn);
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading);
+	max-width: none;
+}
+
+.ts-foot__base {
+	padding-top: var(--ts-space-4);
+	padding-bottom: var(--ts-space-5);
+	border-top: 1px solid color-mix(in srgb, var(--ts-paper) 12%, transparent);
+}
+
+.ts-foot__copy {
+	margin: 0;
+	color: var(--ts-on-ink-muted);
+	font-size: var(--ts-text-xs);
+	font-variant-numeric: tabular-nums;
+}
+
+/* ───────────────────────────────────────── WooCommerce, brought into line ── */
+
+.woocommerce-breadcrumb {
+	margin: var(--ts-space-4) 0 var(--ts-space-3);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+}
+
+.woocommerce-breadcrumb a {
+	color: var(--ts-muted);
+}
+
+/*
+ * WooCommerce floats the sort control right and the result count left, which in
+ * a grid container leaves both hanging over the products. The count is removed
+ * in `functions.php` (the listing prints its own); the sort stays, as a block.
+ */
+.woocommerce .woocommerce-result-count,
+.woocommerce .woocommerce-ordering {
+	float: none;
+	display: flex;
+	justify-content: flex-end;
+	margin: 0 0 var(--ts-space-4);
+	font-size: var(--ts-text-sm);
+}
+
+.woocommerce-notices-wrapper:empty {
+	display: none;
+}
+
+.woocommerce .woocommerce-ordering select {
+	padding: var(--ts-space-2) var(--ts-space-3);
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	background: var(--ts-paper);
+	font: inherit;
+	font-size: 1rem;
+}
+
+.woocommerce-message,
+.woocommerce-info,
+.woocommerce-error {
+	margin: 0 0 var(--ts-space-5);
+	padding: var(--ts-space-3) var(--ts-space-4);
+	border: 0;
+	border-left: 3px solid var(--ts-accent);
+	border-radius: 0;
+	background: var(--ts-surface);
+	color: var(--ts-ink);
+	font-size: var(--ts-text);
+	list-style: none;
+}
+
+.woocommerce-message::before,
+.woocommerce-info::before,
+.woocommerce-error::before {
+	display: none;
+}
+
+.woocommerce-message {
+	border-left-color: var(--ts-good);
+}
+
+.woocommerce-error {
+	border-left-color: var(--ts-bad);
+}
+
+/*
+ * WooCommerce's own buttons, brought into the same language as `.ts-cta`.
+ *
+ * They appear on the listing ("Choix des options"), in the cart, at the
+ * checkout and in the account area, so they are restyled rather than replaced:
+ * a second button component would be a second set of states to keep in step.
+ */
+.woocommerce a.button,
+.woocommerce button.button,
+.woocommerce input.button,
+.woocommerce #respond input#submit {
+	display: inline-block;
+	padding: 0.5rem 0.875rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-family: inherit;
+	font-size: var(--ts-text-sm);
+	font-weight: 600;
+	line-height: 1.3;
+	text-decoration: none;
+	white-space: normal;
+}
+
+.woocommerce a.button:hover,
+.woocommerce button.button:hover,
+.woocommerce input.button:hover,
+.woocommerce #respond input#submit:hover {
+	border-color: var(--ts-ink);
+	background: var(--ts-surface);
+	color: var(--ts-ink);
+}
+
+/* The one that completes a purchase is the accent one. */
+.woocommerce button.button.alt,
+.woocommerce a.button.alt,
+.woocommerce input.button.alt,
+.woocommerce #place_order {
+	border-color: var(--ts-accent);
+	background: var(--ts-accent);
+	color: var(--ts-accent-ink);
+}
+
+.woocommerce button.button.alt:hover,
+.woocommerce a.button.alt:hover,
+.woocommerce input.button.alt:hover,
+.woocommerce #place_order:hover {
+	border-color: var(--ts-accent-dark);
+	background: var(--ts-accent-dark);
+	color: var(--ts-accent-ink);
+}
+
+.woocommerce ul.products li.product .button {
+	margin-top: var(--ts-space-2);
+}
+
+/*
+ * THE PRODUCT PAGE IS A GRID, NOT TWO FLOATS.
+ *
+ * WooCommerce lays a product out with `div.images { float: left; width: 48% }`
+ * and `div.summary { float: right; width: 48% }`, and clears only the tabs.
+ * Everything the Teeshoop plugin adds below the summary (the price grid at
+ * priority 5 and the devis block at 12) therefore rendered INSIDE the 48 %
+ * gutter left by the floats: the heading « Le prix par quantité » came out four
+ * words wide, stacked down the page, over the photograph.
+ *
+ * Turning the wrapper into a two-column grid fixes it without copying a single
+ * WooCommerce template: the two known children take a column each and
+ * everything else spans the full width, whatever a plugin adds later.
+ */
+.woocommerce div.product {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0 var(--ts-space-7);
+	align-items: start;
+}
+
+.woocommerce div.product > div.images,
+.woocommerce div.product > div.summary,
+.woocommerce div.product > * {
+	float: none;
+	width: auto;
+	grid-column: 1 / -1;
+}
+
+/* The catalogue's own state: a reference with no published tariff. */
+.teeshoop-unpriced {
+	margin: var(--ts-space-4) 0 var(--ts-space-2);
+	padding: var(--ts-space-3) var(--ts-space-4);
+	border-left: 3px solid var(--ts-warn);
+	background: var(--ts-surface);
+	font-size: var(--ts-text);
+}
+
+.teeshoop-colour-source {
+	margin: 0 0 var(--ts-space-4);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+}
+
+/* ───────────────────────────────────────────────── hero, and the drawing ── */
+
+.ts-hero__second {
+	font-weight: 600;
+}
+
+/*
+ * The print-zone drawing. Three rectangles, all to one scale, all real: two
+ * garment zones from `Garments::areas()` and an A4 sheet, because "30,5 cm"
+ * means nothing to a buyer and "wider than a sheet of paper" means everything.
+ */
+.ts-zone {
+	margin: 0;
+	padding: var(--ts-space-5) var(--ts-space-4) var(--ts-space-4);
+	border: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+}
+
+.ts-zone__svg {
+	display: block;
+	width: 100%;
+	height: auto;
+	overflow: visible;
+}
+
+.ts-zone__ref {
+	fill: color-mix(in srgb, var(--ts-accent) 10%, transparent);
+	stroke: var(--ts-accent);
+	stroke-width: 1.5;
+}
+
+.ts-zone__max {
+	fill: none;
+	stroke: var(--ts-line-strong);
+	stroke-width: 1.5;
+	stroke-dasharray: 5 4;
+}
+
+.ts-zone__a4 {
+	fill: var(--ts-paper);
+	stroke: var(--ts-line-strong);
+	stroke-width: 1.5;
+}
+
+.ts-zone__cm {
+	fill: var(--ts-muted);
+	font-family: var(--ts-font);
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+}
+
+.ts-zone__caption {
+	margin: var(--ts-space-4) 0 0;
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading);
+}
+
+/* ─────────────────────────────────────────────────────── the families list ── */
+
+/*
+ * The catalogue's own shape, as a ruled list rather than as tiles. Tiles need a
+ * photograph each and a category has no single honest photograph; a list can
+ * carry the one thing a buyer wants here, which is how many references are in
+ * it.
+ */
+.ts-families {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border-top: 1px solid var(--ts-line);
+}
+
+.ts-families__item {
+	border-bottom: 1px solid var(--ts-line);
+}
+
+.ts-families__link {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--ts-space-4);
+	padding: var(--ts-space-4) 0;
+	color: var(--ts-ink);
+	text-decoration: none;
+}
+
+.ts-families__link:hover .ts-families__name {
+	color: var(--ts-accent);
+	text-decoration: underline;
+}
+
+.ts-families__name {
+	font-size: var(--ts-text-lg);
+	font-weight: 600;
+}
+
+.ts-families__n {
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
+	white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────── sectors ── */
+
+.ts-sectors {
+	display: grid;
+	gap: var(--ts-space-5);
+}
+
+.ts-sector {
+	padding-top: var(--ts-space-4);
+	border-top: 2px solid var(--ts-ink);
+}
+
+.ts-sector__title {
+	margin: 0 0 var(--ts-space-3);
+	font-size: var(--ts-display-xs);
+}
+
+.ts-sector__needs {
+	margin: 0 0 var(--ts-space-3);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
+	max-width: none;
+}
+
+.ts-sector__answer {
+	margin: 0;
+	max-width: none;
+}
+
+.ts-section__more {
+	margin: var(--ts-space-5) 0 0;
+	font-weight: 600;
+}
+
+/* ────────────────────────────────────────────────────────────────── steps ── */
+
+/*
+ * Numbered, because this IS a sequence: the numbers carry the order, they are
+ * not decoration on four unrelated blocks.
+ */
+.ts-steps {
+	display: grid;
+	gap: var(--ts-space-5);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	counter-reset: ts-step;
+}
+
+.ts-steps__item {
+	padding-left: 2.5rem;
+	counter-increment: ts-step;
+	position: relative;
+}
+
+.ts-steps__item::before {
+	position: absolute;
+	left: 0;
+	top: 0.1em;
+	display: block;
+	width: 1.75rem;
+	content: counter(ts-step);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	text-align: right;
+	border-right: 2px solid var(--ts-accent);
+	padding-right: 0.5rem;
+	line-height: 1.4;
+}
+
+.ts-steps__title {
+	margin: 0 0 var(--ts-space-2);
+	font-size: var(--ts-text-lg);
+}
+
+.ts-steps__item p {
+	margin: 0;
+	color: var(--ts-muted);
+}
+
+/* ─────────────────────────────────────────────────────── the way to a human ── */
+
+.ts-advice {
+	margin-top: var(--ts-space-8);
+	padding: var(--ts-space-6) 0;
+	border-top: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+}
+
+.ts-advice__inner {
+	display: grid;
+	gap: var(--ts-space-4);
+}
+
+.ts-advice__title {
+	margin: 0 0 var(--ts-space-2);
+	font-size: var(--ts-display-xs);
+}
+
+.ts-advice__lead {
+	margin: 0;
+	color: var(--ts-muted);
+}
+
+.ts-advice__cta {
+	margin: 0;
+	max-width: none;
+}
+
+.ts-advice__cta .ts-cta {
+	display: inline-block;
+}
+
+/* ──────────────────────────────────────────────────────── prose and lists ── */
+
+.ts-prose {
+	padding: var(--ts-space-6) 0 var(--ts-space-7);
+}
+
+.ts-prose__title {
+	margin-bottom: var(--ts-space-5);
+}
+
+.ts-prose__meta {
+	margin-top: -1rem;
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
+}
+
+.ts-single {
+	padding: var(--ts-space-5) 0 var(--ts-space-7);
+}
+
+.ts-postlist {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ts-postlist__item {
+	padding: var(--ts-space-5) 0;
+	border-top: 1px solid var(--ts-line);
+}
+
+.ts-postlist__title {
+	margin: 0 0 var(--ts-space-2);
+	font-size: var(--ts-display-xs);
+}
+
+.ts-postlist__date {
+	margin: 0 0 var(--ts-space-2);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+}
+
+.ts-checks {
+	margin: var(--ts-space-5) 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ts-checks li {
+	position: relative;
+	padding: var(--ts-space-2) 0 var(--ts-space-2) var(--ts-space-5);
+	border-bottom: 1px solid var(--ts-line);
+	max-width: var(--ts-measure);
+}
+
+.ts-checks li::before {
+	position: absolute;
+	left: 0;
+	top: var(--ts-space-2);
+	content: '';
+	width: 0.5rem;
+	height: 0.5rem;
+	margin-top: 0.45em;
+	background: var(--ts-accent);
+}
+
+.ts-defs--wide dt {
+	margin-top: var(--ts-space-4);
+	font-weight: 600;
+}
+
+.ts-defs--wide dd {
+	margin: var(--ts-space-1) 0 0;
+	max-width: var(--ts-measure);
+	color: var(--ts-muted);
+}
+
+.ts-devispage {
+	display: grid;
+	gap: var(--ts-space-6);
+	padding: var(--ts-space-6) 0 var(--ts-space-7);
+}
+
+/* ──────────────────────────────────────────────────────── shop internals ── */
+
+.ts-shop__title {
+	margin: 0 0 var(--ts-space-2);
+	font-size: var(--ts-display-sm);
+}
+
+.ts-shop__intro {
+	margin: 0 0 var(--ts-space-3);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
+}
+
+.ts-shop__intro p {
+	margin: 0 0 var(--ts-space-2);
+}
+
+.ts-facet__rangelabel {
+	display: block;
+}
+
+.ts-facet__unit {
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
+	white-space: nowrap;
+}
+
+.ts-facet__find {
+	display: block;
+	margin: 0 0 var(--ts-space-2);
+}
+
+.ts-facet__findinput {
+	width: 100%;
+	padding: 0.375rem 0.5rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	font: inherit;
+	/* 16 px, or iOS zooms the viewport the moment it is focused. */
+	font-size: 1rem;
+}
+
+.ts-filters__gap {
+	margin: var(--ts-space-4) 0 0;
+	padding-top: var(--ts-space-3);
+	border-top: 1px solid var(--ts-line);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading);
+	max-width: none;
+}
+
+/* Only visible to a screen reader, and still focusable. */
+.screen-reader-text {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	border: 0;
+	clip-path: inset(50%);
+	overflow: hidden;
+	word-wrap: normal;
+}
+
+/* ──────────────────────────────────────── the editor, dressed as our own ── */
+
+/*
+ * The studio is served from another origin and framed. A customer must not be
+ * able to tell: our masthead is above it, our rule under the heading, and the
+ * frame runs to the edge of the page on a phone, where every pixel of an editor
+ * counts. The plugin renders the container and the back link; this is the only
+ * place the theme touches its markup, and it adds to it rather than fighting it.
+ */
+.ts-editing .teeshoop-studio-view {
+	margin: 0 0 var(--ts-space-6);
+	padding-top: var(--ts-space-4);
+}
+
+.ts-editing .teeshoop-studio-view__back {
+	margin: 0 0 var(--ts-space-3);
+	padding-bottom: var(--ts-space-3);
+	border-bottom: 1px solid var(--ts-line);
+	font-size: var(--ts-text-sm);
+	font-weight: 600;
+}
+
+.ts-editing .teeshoop-studio {
+	border: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+}
+
+/* ────────────────────────────────────────────────────────────── 640 px ── */
+
+@media (min-width: 640px) {
+	:root {
+		--ts-gutter: var(--ts-gutter-wide);
+	}
+
+	.ts-burger__label {
+		position: static;
+		width: auto;
+		height: auto;
+		margin: 0;
+		clip-path: none;
+	}
+
+	.ts-mast__tools {
+		gap: var(--ts-space-3);
+	}
+
+	.ts-facts {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		column-gap: var(--ts-space-6);
+	}
+
+	.ts-btnrow {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.ts-btnrow .ts-cta {
+		flex: 0 0 auto;
+		min-width: 14rem;
+	}
+
+	.ts-grid,
+	.woocommerce ul.products,
+	ul.products {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
+	.ts-sectors {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--ts-space-5);
+	}
+
+	.ts-steps {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--ts-space-6) var(--ts-space-5);
+	}
+
+	.ts-advice__inner {
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: var(--ts-space-6);
+	}
+
+	.ts-devispage {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+		gap: var(--ts-space-7);
+		align-items: start;
+	}
+
+	/*
+	 * The administrative facts read as a table of terms, which is what they are.
+	 * Stacked they left half the page empty on a desktop and the eye had to
+	 * travel back to the left margin for every one of the six.
+	 */
+	.ts-defs--wide {
+		display: grid;
+		grid-template-columns: 12rem minmax(0, 1fr);
+		gap: var(--ts-space-2) var(--ts-space-5);
+	}
+
+	.ts-defs--wide dt {
+		margin-top: 0;
+		grid-column: 1;
+		padding-top: var(--ts-space-4);
+		border-top: 1px solid var(--ts-line);
+	}
+
+	.ts-defs--wide dd {
+		grid-column: 2;
+		margin: 0;
+		padding-top: var(--ts-space-4);
+		border-top: 1px solid var(--ts-line);
+	}
+
+	.ts-defs--wide dt:first-of-type,
+	.ts-defs--wide dt:first-of-type + dd {
+		border-top: 0;
+		padding-top: 0;
+	}
+}
+
+/* ────────────────────────────────────────────────────────────── 900 px ── */
+
+@media (min-width: 900px) {
+	.ts-burger {
+		display: none;
+	}
+
+	/*
+	 * At this width the navigation is a row in the bar again, whatever the
+	 * script did to it at a smaller size.
+	 */
+	.has-js .ts-nav {
+		display: block;
+		position: static;
+		padding: 0;
+		border: 0;
+		box-shadow: none;
+	}
+
+	.has-js .ts-nav .ts-nav__list {
+		flex-direction: row;
+		gap: var(--ts-space-1) var(--ts-space-5);
+	}
+
+	.has-js .ts-nav .ts-nav__list > li {
+		border-top: 0;
+	}
+
+	.has-js .ts-nav .ts-nav__list a {
+		padding: var(--ts-space-2) 0;
+	}
+
+	.ts-nav {
+		margin: 0 var(--ts-space-5);
+	}
+
+	.ts-hero {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		align-items: center;
+		gap: var(--ts-space-7);
+		padding: var(--ts-space-8) 0;
+	}
+
+	.ts-hero__media {
+		margin: 0;
+	}
+
+	.ts-facts {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		border-bottom: 1px solid var(--ts-line);
+	}
+
+	.ts-facts__item {
+		flex-direction: column;
+		align-items: flex-start;
+		justify-content: flex-end;
+		gap: var(--ts-space-1);
+		border-bottom: 0;
+		border-left: 1px solid var(--ts-line);
+		padding: var(--ts-space-4);
+	}
+
+	.ts-facts__item:first-child {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.ts-facts__value {
+		text-align: left;
+	}
+
+	/* The listing gets a filter column, sticky, because the list is long. */
+	.ts-shop {
+		display: grid;
+		grid-template-columns: 15rem minmax(0, 1fr);
+		align-items: start;
+		/*
+		 * The row gap is small and the column gap is not. With one value the
+		 * heading and the grid of products sat 48 px apart for no reason, which
+		 * on a listing reads as a page that failed to load something.
+		 */
+		column-gap: var(--ts-space-7);
+		row-gap: var(--ts-space-4);
+	}
+
+	.ts-shop__head,
+	.ts-shop__results {
+		grid-column: 2;
+	}
+
+	.ts-filters {
+		/* Exactly the two rows that exist. `span 3` invented a third, empty
+		   one, and the page ended on a band of nothing. */
+		grid-row: 1 / span 2;
+		grid-column: 1;
+		position: sticky;
+		top: 4.5rem;
+		max-height: calc(100vh - 6rem);
+		overflow-y: auto;
+	}
+
+	/*
+	 * From here the panel is a column, so the button that opens it has nothing
+	 * to open and the panel is open whatever the script did at a smaller width.
+	 */
+	.has-js .ts-filters__toggle {
+		display: none;
+	}
+
+	.has-js .ts-filters__body {
+		display: block;
+	}
+
+	.ts-foot__grid {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: var(--ts-space-6);
+	}
+
+	.ts-steps {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+
+	.woocommerce div.product {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+
+	.woocommerce div.product > div.images {
+		grid-column: 1;
+		position: sticky;
+		top: 4.5rem;
+	}
+
+	.woocommerce div.product > div.summary {
+		grid-column: 2;
+	}
+}
+
+/* ───────────────────────────────────────────────────────────── 1200 px ── */
+
+@media (min-width: 1200px) {
+	.ts-grid,
+	.woocommerce ul.products,
+	ul.products {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+
+	.ts-shop__results ul.products {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+/* ────────────────────────────────────────────────────────── less motion ── */
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
