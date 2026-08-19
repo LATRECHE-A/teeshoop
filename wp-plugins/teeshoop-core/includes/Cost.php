@@ -420,9 +420,15 @@ final class Cost {
 	 * `Pricing::merge_config` replaces per top-level key, and it is right to:
 	 * `garments` is a COLLECTION, and an admin who removes a garment must not
 	 * silently get it back. Copying that rule here was wrong, because `film` is
-	 * not a collection. The settings screen owns eight of its nine fields, so
-	 * the first press of Enregistrer stored an eight-key `film` array that
-	 * REPLACED the nine-key default, and `billing_step_cm` stopped existing.
+	 * not a collection. The settings screen owned eight of its nine fields at the
+	 * time, so the first press of Enregistrer stored an eight-key `film` array
+	 * that REPLACED the nine-key default, and `billing_step_cm` stopped existing.
+	 *
+	 * The map has ELEVEN fields now: session 07 added the two transit delays,
+	 * `days_fr` and `days_es`, which no screen writes either. That is why this
+	 * merge is key by key and not a replacement, and it is the reason a new field
+	 * can be added here without a screen at all: the ones nobody edits keep their
+	 * shipped value instead of vanishing.
 	 *
 	 * `prudent_length_cm()` then read a billing step of 0 and refused, so
 	 * the film became UNKNOWN on every order costed on a shop where the nesting

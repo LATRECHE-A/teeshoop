@@ -86,7 +86,7 @@ export function clearWooCredentials(): void {
 /** Local WordPress dev stores — Basic over loopback never leaves the machine. */
 const LOOPBACK_RE = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i
 
-function normalizeBaseUrl(url: string): string {
+export function normalizeBaseUrl(url: string): string {
   let u = url.trim().replace(/\/+$/, '')
   if (!/^https?:\/\//i.test(u)) u = `https://${u}`
   // A pasted http:// store would send the consumer key/secret in cleartext

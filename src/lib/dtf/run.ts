@@ -40,17 +40,19 @@
  * module owns the MEASUREMENTS the rule is applied to, because they come out of
  * the packer. See `RunMeasurement`.
  *
- * The rule is PROPORTIONAL TO WHAT EACH ORDER WOULD HAVE COST ALONE, and the
- * obvious alternative, proportional to nested area, was measured against it
- * rather than argued about (`scripts/dtf-bench.mjs`, `attribution` block). Area
- * is the wrong denominator for one reason: it charges an order for the ink it
- * carries and not for the film it forces. An order of one 55 × 40 cm back print
- * leaves a 1 cm ribbon down the side of a 56 cm roll that no other order can
- * use; an order of forty 6 × 6 cm chest marks fills whatever it is given. Under
- * the area rule the second subsidises the first, and the margin report then says
- * the awkward order was cheap, which is exactly the fact the report exists to
- * surface. Both numbers are computed and both are reported; only the solo one is
- * charged.
+ * The rule is PROPORTIONAL TO THE FILM EACH ORDER REQUIRES, measured by packing
+ * it alone with the same packer and the same settings as the pool. The obvious
+ * alternative, proportional to nested area, is computed and published beside it
+ * and never charged: area charges an order for the ink it carries and not for
+ * the film it forces, so one 55 x 40 cm back print, which leaves a ribbon down a
+ * 56 cm roll that nothing else can use, would be subsidised by forty 6 x 6 cm
+ * chest marks that fill whatever they are given.
+ *
+ * The textbook rule, proportional to what each order would have COST alone, was
+ * tried first and the bench broke it: five of six orders in a realistic week fell
+ * under the supplier's one-metre minimum, so five stand-alone bills were
+ * identical and an eighty-pose order was charged like a sixteen-pose one.
+ * `scripts/dtf-bench.mjs` prints both rules on the same week.
  */
 import type { DtfPiece, NestResult } from './nesting'
 import type { ShapePiece } from './trueshape'

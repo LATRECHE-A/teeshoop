@@ -201,9 +201,21 @@ interface QueueRow {
   detail?: string
 }
 
+/**
+ * THREE STATES AND NOT TWO, and the third is the one that costs a garment.
+ *
+ * `empty` means the side was rendered and carries no ink: a legitimate answer,
+ * and the row is simply not printed. `failed` means the render THREW, which is
+ * a different fact entirely: the artwork could not be decoded, or could not be
+ * measured, or arrived from R2 half-read. Both used to land in `empty`, so a
+ * transient failure to fetch a paid customer's file read on screen as « visuel
+ * vide » and dropped their side off the film. Silently, and permanently, because
+ * the cache never retries a settled key.
+ */
 type PieceState =
   | { status: 'pending' }
   | { status: 'empty' }
+  | { status: 'failed'; message: string }
   /** Every transfer this side splits into, in part order. */
   | { status: 'ok'; pieces: RenderedPiece[] }
 
@@ -397,14 +409,25 @@ export default function DtfModal() {
    * Spacing AND sheet geometry follow the process guidelines on every switch
    * (never on edit). The geometry override has to reset too: 58 cm typed for
    * DTF+ would silently overflow a 55 cm supplier.
+   *
+   * EXCEPT WHEN A PAID RUN IS QUEUED, and that exception is a print. The shop
+   * buys a 56 cm roll and hands its width over with the queue; resetting to the
+   * supplier profile's maximum puts the layout on 58, which is a SHORTER sheet,
+   * so the length falls and no bound on the shop's side can see it. Two
+   * centimetres of every gang sheet then fall outside the roll that arrives, and
+   * it is discovered at the press with several customers' garments pulled.
+   * `Production::create_lot` refuses such a layout outright; this stops it being
+   * produced in the first place.
    */
+  const shopFilmRef = useRef<{ width: number; length: number; gap: number; step: number } | null>(null)
   const adoptSpacing = (p: DtfProcess | null | undefined) => {
     if (!p) return
-    setGap(p.guidelines.gapCm)
+    const film = shopFilmRef.current
+    setGap(film ? film.gap : p.guidelines.gapCm)
     setMarginSide(p.guidelines.marginCm)
     setMarginEnd(p.guidelines.marginEndCm ?? p.guidelines.marginCm)
-    setSheetWCm(null)
-    setSheetLenCm(null)
+    setSheetWCm(film ? film.width : null)
+    setSheetLenCm(film ? film.length : null)
   }
 
   const pickSupplier = (id: string) => {
@@ -465,8 +488,11 @@ export default function DtfModal() {
           )
           bumpPieces()
         })
-        .catch(() => {
-          cacheRef.current.set(ck, { status: 'empty' })
+        .catch((err: unknown) => {
+          cacheRef.current.set(ck, {
+            status: 'failed',
+            message: err instanceof Error ? err.message : String(err),
+          })
           bumpPieces()
         })
     }
@@ -517,7 +543,13 @@ export default function DtfModal() {
       edgeMarginCm: marginSide,
       edgeMarginSideCm: marginSide,
       edgeMarginEndCm: marginEnd,
-      billingStepCm: proc?.billingStepCm ?? 10,
+      /*
+       * THE SHOP'S BILLING STEP WHEN A PAID RUN IS QUEUED. The supplier profiles
+       * here are a market survey and their step is theirs; the run is invoiced on
+       * the shop's, and a layout rounded to a different granularity reports a
+       * length the invoice will not match.
+       */
+      billingStepCm: shopFilmRef.current?.step ?? proc?.billingStepCm ?? 10,
     }),
     [effWCm, effLenCm, gap, marginSide, marginEnd, proc],
   )
@@ -698,11 +730,21 @@ export default function DtfModal() {
        * an absolute origin here would be a second place to keep it right.
        */
       releaseStoredDesigns([...designsRef.current.values()])
+      designsRef.current = new Map()
       const { designs, failed } = await loadRunDesigns('', chosen, (n, total) =>
         setShopBusy(t('dtf.prod.busy_art', { n, total })),
       )
+      /*
+       * ADOPTED BEFORE IT IS ACCEPTED. `loadRunDesigns` fetches designs one at a
+       * time and every one it got is already in the image cache, so the ref has
+       * to take them BEFORE the failure check below returns: otherwise a run that
+       * failed on its last design left every earlier customer's artwork in this
+       * tab with nothing holding a reference to release it.
+       */
       designsRef.current = designs
       if (failed.length > 0) {
+        releaseStoredDesigns([...designs.values()])
+        designsRef.current = new Map()
         /*
          * A RUN MISSING ONE ORDER'S ARTWORK MUST NOT QUIETLY BECOME A RUN OF THE
          * OTHERS. It would nest, cost and print perfectly, and one customer
@@ -711,6 +753,7 @@ export default function DtfModal() {
         setShopError(t('dtf.prod.art_failed', { ids: failed.map((f) => f.designId).join(', ') }))
         return
       }
+
       const built = chosen.flatMap((order) =>
         productionRows(order, designs).map(
           (r): QueueRow => ({ ...r, from: 'production' as const }),
@@ -731,11 +774,26 @@ export default function DtfModal() {
        * cost nobody can reconcile. The supplier profiles in this modal are a
        * market survey and never what we pay.
        */
+      shopFilmRef.current = {
+        width: shop.film.width_cm,
+        length: shop.film.max_length_cm,
+        gap: shop.film.gap_cm,
+        step: shop.film.billing_step_cm,
+      }
       setSheetWCm(shop.film.width_cm)
       setSheetLenCm(shop.film.max_length_cm)
       setGap(shop.film.gap_cm)
-      /* Spain when every chosen order can still hold its date on it. */
-      setOrigin(chosen.every((o) => o.origin === 'es') ? 'es' : 'fr')
+      /*
+       * FRANCE BY DEFAULT, ALWAYS, even when every chosen order could hold its
+       * date on Spanish film. Spain is half the price and the difference reaches
+       * the floor price of every order in the run, so it has to be a decision
+       * somebody makes rather than one a screen makes for them: the operator is
+       * the only one who knows which supplier they are about to order from.
+       * France is also the dearer of the two, which is the safe direction to be
+       * wrong in. The shop then refuses a Spanish lot that would make an order
+       * late, which is the other half of the same rule.
+       */
+      setOrigin('fr')
     } catch (err) {
       setShopError(shopFailureFr(err))
     } finally {
@@ -752,8 +810,72 @@ export default function DtfModal() {
    * would nest worse and inflate every saving reported against it, which is the
    * one number this whole session exists to state honestly.
    */
+  /*
+   * A RECORDED LOT DESCRIBES ONE LAYOUT, AND THE LAYOUT CAN STILL MOVE.
+   *
+   * The lot is recorded from `result` at one instant. Everything below is an
+   * input to `result`, and an operator who nudges the interlock, the roll, the
+   * split or the supplier afterwards would download an archive whose gang sheets
+   * are not the ones the shop bounded, costed and told the printer about. Nothing
+   * would look wrong: the sheets render, the manifest is plausible, and the film
+   * that arrives is cut from a layout nobody recorded.
+   *
+   * So the lot is dropped the moment any of them changes, and the operator is
+   * told. Re-recording it is one click and re-reading it is not possible at all.
+   */
+  const layoutStamp = useMemo(
+    () =>
+      JSON.stringify([
+        options,
+        interlockCm,
+        restarts,
+        allowFlip,
+        allowRotate,
+        clearanceIn,
+        supplierId,
+        processId,
+        result.totalLengthCm,
+        result.sheets.length,
+        result.packer,
+      ]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [options, interlockCm, restarts, allowFlip, allowRotate, clearanceIn, supplierId, processId, result],
+  )
+  const lotStampRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (lot === null) return
+    if (lotStampRef.current === null) {
+      lotStampRef.current = layoutStamp
+      return
+    }
+    if (lotStampRef.current === layoutStamp) return
+    lotStampRef.current = null
+    setLot(null)
+    setShopError(t('dtf.prod.lot_dropped'))
+  }, [layoutStamp, lot, t])
+
   const makeLot = async () => {
     if (!shop || prodOrders.length === 0 || !effProc) return
+    /*
+     * NOT WHILE THE OPTIMISER IS STILL RUNNING. `result` falls back to the
+     * straight-strip layout until the true-shape packer answers, deliberately,
+     * so the preview is never empty. Recording THAT is recording a run the
+     * workshop will not print: the shop would bound and bill the longer layout,
+     * the archive would carry the shorter one, and the difference is money in the
+     * wrong direction on every order in the lot.
+     */
+    if (nestBusy !== null || optimised === null) {
+      toast('info', t('dtf.prod.still_nesting'))
+      return
+    }
+    if (failedRows.length > 0) {
+      setShopError(
+        t('dtf.prod.render_failed', {
+          rows: failedRows.map((r) => rowLabel(r)).join(', '),
+        }),
+      )
+      return
+    }
     setShopError('')
     try {
       const byOrder = new Map<string, ShapePiece[]>()
@@ -790,11 +912,30 @@ export default function DtfModal() {
           })),
         )
 
+      /*
+       * THE POSES ARE COUNTED FROM WHAT WAS NESTED, not from what was queued,
+       * and that is the whole value of the check.
+       *
+       * It is the one number the shop verifies exactly, precisely because it
+       * moves with neither the grading nor the split. Counting it from the queue
+       * rows made it move with neither the RENDER either: a side whose artwork
+       * failed to decode produces no transfer, drops silently off the film, and
+       * would have been declared as pressed anyway. The check would then have
+       * agreed with itself and the garment would have come off the press blank.
+       *
+       * A row that produced at least one transfer is a side that will be pressed.
+       * A row that produced none is not, and the shop refuses the lot because its
+       * own count of the order's sides is higher.
+       */
       const posesByOrder = new Map<string, number>()
       for (const order of prodOrders)
         posesByOrder.set(
           String(order.id),
-          posesOf(prodRows.filter((r) => r.order?.id === String(order.id))),
+          posesOf(
+            prodRows.filter(
+              (r) => r.order?.id === String(order.id) && partsOf(r.key).length > 0,
+            ),
+          ),
         )
 
       setShopBusy(t('dtf.prod.busy_lot'))
@@ -981,7 +1122,19 @@ export default function DtfModal() {
   const [askName, setAskName] = useState(false)
   const [orderName, setOrderName] = useState('')
 
-  const canExport = !busy && result.sheets.length > 0 && !blocked
+  /**
+   * A row whose artwork could not be rendered, if any.
+   *
+   * IT BLOCKS THE EXPORT AND THE LOT. `buildOrderZip` already refuses an archive
+   * with a missing source, but that only catches a source that vanished between
+   * the layout and the export; a side that never rendered at all is simply not in
+   * the layout, so the archive is complete, the sheets are right, and one
+   * customer's garment comes off the press blank. The refusal has to happen here,
+   * where the failure is known and has a name to show.
+   */
+  const failedRows = rows.filter((row) => pieceOf(row.key).status === 'failed')
+
+  const canExport = !busy && result.sheets.length > 0 && !blocked && failedRows.length === 0
 
   /**
    * What the operator most likely wants the order called. The basket is the
@@ -1202,7 +1355,10 @@ export default function DtfModal() {
                   )}
                   data-dtf="src-basket"
                   aria-pressed={fromBasket}
-                  onClick={() => setSource('basket')}
+                  onClick={() => {
+                    shopFilmRef.current = null
+                    setSource('basket')
+                  }}
                 >
                   <ShoppingBag size={12} />
                   {t('dtf.queue.src_basket', { n: basket.length })}
@@ -1213,7 +1369,10 @@ export default function DtfModal() {
                     source === 'manual' && 'btn-primary',
                   )}
                   aria-pressed={source === 'manual'}
-                  onClick={() => setSource('manual')}
+                  onClick={() => {
+                    shopFilmRef.current = null
+                    setSource('manual')
+                  }}
                 >
                   {t('dtf.queue.src_manual')}
                 </button>
@@ -1260,6 +1419,12 @@ export default function DtfModal() {
                       <RefreshCcw size={12} />
                       {t('dtf.prod.load')}
                     </button>
+                  )}
+
+                  {shop?.truncated && (
+                    <div className="rounded-lg border border-am/40 bg-am/10 p-2 text-[11.5px] leading-relaxed text-tx">
+                      {t('dtf.prod.truncated')}
+                    </div>
                   )}
 
                   {shop && shop.orders.length === 0 && (
@@ -1325,6 +1490,8 @@ export default function DtfModal() {
                         <button
                           className="btn btn-ghost h-7 text-[11.5px]"
                           disabled={shopBusy !== null}
+                          aria-label={t('dtf.prod.reload')}
+                          title={t('dtf.prod.reload')}
                           onClick={() => void loadShop()}
                         >
                           <RefreshCcw size={12} />
@@ -1424,7 +1591,9 @@ export default function DtfModal() {
                               : `${parts[0].wCm.toFixed(1)} × ${parts[0].hCm.toFixed(1)} cm`
                             : st.status === 'pending'
                               ? t('dtf.queue.rendering')
-                              : t('dtf.queue.empty_side')}
+                              : st.status === 'failed'
+                                ? t('dtf.queue.render_failed')
+                                : t('dtf.queue.empty_side')}
                           {row.size && (
                             <span className="ml-1.5 text-cy">
                               {t('dtf.queue.size', { size: row.size })}
@@ -1462,10 +1631,24 @@ export default function DtfModal() {
                           </ul>
                         )}
                       </div>
-                      {row.from === 'basket' ? (
+                      {row.from !== 'manual' ? (
+                        /*
+                         * A ROW THAT MIRRORS A REAL ORDER IS READ ONLY. The
+                         * basket owns its quantities, and a PAID order owns them
+                         * absolutely: a spinner that let an operator press three
+                         * of the four garments a customer bought would produce a
+                         * film, an archive and a lot that all agreed with each
+                         * other and with nothing the customer paid for. The shop
+                         * refuses such a lot on the pose count, which is the
+                         * backstop, not the interface.
+                         */
                         <span
                           className="shrink-0 rounded-md border border-line px-1.5 py-0.5 font-mono text-[11px] text-tx2"
-                          title={t('dtf.queue.basket_note')}
+                          title={
+                            row.from === 'basket'
+                              ? t('dtf.queue.basket_note')
+                              : t('dtf.prod.row_locked')
+                          }
                         >
                           ×{row.qty}
                         </span>

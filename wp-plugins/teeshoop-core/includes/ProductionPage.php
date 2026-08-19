@@ -8,8 +8,8 @@
  * planned here: the orders, the money, the proofs and the dates all live in
  * WooCommerce, and an operator who has to open a second application to find out
  * what is late will not. So this screen answers the three questions of a morning
- *, what can be printed, what must be bought today, what is already on film ,
- * and hands off to the studio for the one thing it cannot do.
+ * (what can be printed, what must be bought today, what is already on film) and
+ * hands off to the studio for the one thing it cannot do.
  *
  * WHAT IT REFUSES TO DO. It never creates a lot. A lot needs a measured layout
  * and this screen has none; a button here that guessed one would be a second,
@@ -65,9 +65,13 @@ final class ProductionPage {
 		$id    = isset( $_POST['lot'] ) ? (int) $_POST['lot'] : 0;
 		$state = isset( $_POST['etat'] ) ? sanitize_key( wp_unslash( $_POST['etat'] ) ) : '';
 
-		$done = Production::SENT === $state
-			? Production::send_lot( $id )
-			: Production::advance_lot( $id, $state );
+		if ( 'defaire' === $state ) {
+			$done = Production::discard_lot( $id );
+		} elseif ( Production::SENT === $state ) {
+			$done = Production::send_lot( $id );
+		} else {
+			$done = Production::advance_lot( $id, $state );
+		}
 
 		wp_safe_redirect(
 			add_query_arg(
@@ -147,6 +151,12 @@ final class ProductionPage {
 			 */
 			echo '<p>' . esc_html__( 'Aucune commande n’attend la presse : tout ce qui est payé et dont le bon à tirer est validé est déjà dans un lot.', 'teeshoop' ) . '</p>';
 			return;
+		}
+
+		if ( Production::queue_truncated() ) {
+			echo '<div class="notice notice-warning inline"><p>' .
+				esc_html__( 'Cette liste est tronquée : il y a plus de commandes en attente que cet écran n’en lit d’un coup. Traitez celles-ci et rechargez.', 'teeshoop' ) .
+				'</p></div>';
 		}
 
 		$groups = array();
@@ -335,12 +345,25 @@ final class ProductionPage {
 			return;
 		}
 		[ $to, $label ] = $next[ $state ];
+		self::state_form( $lot_id, $to, $label, false );
+		/*
+		 * UNDOING A DRAFT IS THE ONLY WAY OUT. The queue excludes anything already
+		 * in a lot, so a draft built from the wrong selection strands paid,
+		 * approved orders out of production with no path back. It is offered on a
+		 * draft and on nothing else: past that the film is bought.
+		 */
+		if ( Production::DRAFT === $state ) {
+			self::state_form( $lot_id, 'defaire', __( 'Défaire le lot', 'teeshoop' ), true );
+		}
+	}
+
+	private static function state_form( int $lot_id, string $to, string $label, bool $link ): void {
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 		wp_nonce_field( self::ACTION_STATE );
 		echo '<input type="hidden" name="action" value="' . esc_attr( self::ACTION_STATE ) . '">';
 		echo '<input type="hidden" name="lot" value="' . esc_attr( (string) $lot_id ) . '">';
 		echo '<input type="hidden" name="etat" value="' . esc_attr( $to ) . '">';
-		echo '<button type="submit" class="button">' . esc_html( $label ) . '</button>';
+		echo '<button type="submit" class="button' . ( $link ? '-link' : '' ) . '">' . esc_html( $label ) . '</button>';
 		echo '</form>';
 	}
 }

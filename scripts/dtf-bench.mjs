@@ -53,7 +53,7 @@ function attribute(soloM, pooledM, inkCm2, origin = 'fr') {
       }),
     )
   } catch (e) {
-    console.error('❌ could not split the pooled bill with the price authority:', e?.message ?? e)
+    console.error('ECHEC: could not split the pooled bill with the price authority:', e?.message ?? e)
     process.exit(2)
   }
 }
@@ -67,7 +67,7 @@ function filmTariff() {
   try {
     return JSON.parse(execFileSync('php', ['-r', code], { encoding: 'utf8' }))
   } catch (e) {
-    console.error('❌ could not read the film tariff from the price authority:', e?.message ?? e)
+    console.error('ECHEC: could not read the film tariff from the price authority:', e?.message ?? e)
     process.exit(2)
   }
 }
@@ -540,12 +540,19 @@ try {
    * of magnitude: the film itself moves 5 %, and almost all of the euros are six
    * delivery charges and six one-metre minimums collapsing into one of each.
    *
-   * Three terms, and they are the algebra of `Cost::film` rather than an
+   * FOUR terms, and they are the algebra of `Cost::film` rather than an
    * apportionment we chose:
    *   saved = rate x (1 + perte) x [ Σ max(min, mᵢ) − max(min, P) ] + (N−1) x port
    *         = rate x (1 + perte) x ( Σ max(min, mᵢ) − Σ mᵢ )      the minimums
    *         + rate x (1 + perte) x ( Σ mᵢ − P )                    the nesting
+   *         − rate x (1 + perte) x ( max(min, P) − P )             the pool's own
    *         + (N−1) x port                                          the deliveries
+   *
+   * The third term is what an earlier version of this block dropped, by using P
+   * where the formula uses max(min, P). It is zero on any run past the supplier's
+   * minimum and it is NOT zero on a small one, which is exactly the case pooling
+   * is most valuable in: the identity then failed and the guard below rejected a
+   * correct split.
    */
   const N = week.orders.length
   const sumRaw = week.orders.reduce((a, id) => a + week.solo[id].fillCm / 100, 0)
@@ -553,20 +560,24 @@ try {
     (a, id) => a + Math.max(film.min_m, week.solo[id].fillCm / 100),
     0,
   )
+  const pooledRaw = week.pooledFillCm / 100
   const perM = film.rate_fr_ht * (1 + film.waste_rate)
   const fromMinimums = Math.round(perM * (sumBilled - sumRaw))
-  const fromNesting = Math.round(perM * (sumRaw - week.pooledFillCm / 100))
+  const fromNesting = Math.round(perM * (sumRaw - pooledRaw))
+  const pooledUnused = Math.round(perM * (Math.max(film.min_m, pooledRaw) - pooledRaw))
   const fromDelivery = (N - 1) * film.delivery_ht
-  const modelled = fromMinimums + fromNesting + fromDelivery
+  const modelled = fromMinimums + fromNesting + fromDelivery - pooledUnused
   console.log(
     `d'où viennent les ${e(bill.saved_ht)} : ` +
       `${e(fromDelivery)} de livraisons mutualisées, ` +
       `${e(fromMinimums)} de minimum fournisseur non gaspillé, ` +
-      `${e(fromNesting)} d'imbrication réellement gagnée.`,
+      `${e(fromNesting)} d'imbrication réellement gagnée` +
+      (pooledUnused > 0 ? `, moins ${e(pooledUnused)} de minimum que le lot lui-même n'utilise pas` : '') +
+      '.',
   )
   if (Math.abs(modelled - bill.saved_ht) > 5) {
     console.error(
-      `❌ la décomposition (${e(modelled)}) ne rend pas l'économie mesurée (${e(bill.saved_ht)})`,
+      `ECHEC: la décomposition (${e(modelled)}) ne rend pas l'économie mesurée (${e(bill.saved_ht)})`,
     )
     if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ instances: out, week, bill }, null, 2))
     done(1)

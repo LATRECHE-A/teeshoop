@@ -154,11 +154,13 @@ const r2 = (v: number): number => Math.round(v * 100) / 100
 /**
  * The report the shop bounds and records.
  *
- * `solos` is what each order was measured at ON ITS OWN, with the same packer
- * and the same settings as the pool. A baseline packed at fewer restarts or a
- * lower interlock ceiling would nest worse and inflate every saving reported
- * against it, so the caller has to hand in solos it measured the same way, and
- * `measureRun` in run.ts is what does that.
+ * `soloByOrder` is what each order was measured at ON ITS OWN, and the caller has
+ * to have measured it with the same packer, the same interlock ceiling and the
+ * same restart count as the pool: a cheaper baseline nests worse and inflates
+ * every saving reported against it. `DtfModal.makeLot` is what does that, on its
+ * own nesting channel so that the baselines and the pooled layout cannot cancel
+ * each other; `measureRun` in run.ts is the same measurement for a caller that
+ * has the pieces but not the modal, and the bench and the verifier use it.
  */
 export function layoutReport(input: {
   result: NestResult
@@ -179,9 +181,19 @@ export function layoutReport(input: {
       poses: input.posesByOrder.get(orderId) ?? 0,
       pieces: pieces.map((p) => ({ ...p, w_cm: r2(p.w_cm), h_cm: r2(p.h_cm) })),
     }
+  const geometry = input.result.options
   return {
     pooled_m: input.result.totalLengthM,
     sheets: input.result.sheets.length,
+    /*
+     * READ OFF THE RESULT, never off the settings the operator can still move.
+     * `NestResult.options` is the geometry the packer really used, echoed back by
+     * `resolveNestOptions`, so this cannot describe a layout other than the one
+     * measured.
+     */
+    width_cm: geometry.printableWidthCm,
+    gap_cm: geometry.gapCm,
+    billing_step_cm: geometry.billingStepCm ?? 10,
     packer: input.result.packer,
     interlock_cm: input.result.interlockCm,
     restarts: input.restarts,

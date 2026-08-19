@@ -647,7 +647,7 @@ final class Costing {
 		 *
 		 * Session 07 stopped buying film one order at a time. When this order's
 		 * transfers were ganged with other people's onto one roll, what it cost
-		 * is its share of that roll and not what it would have cost alone ,
+		 * is its share of that roll and not what it would have cost alone.
 		 * `Production` records the share and `Cost::attribute()` computed it.
 		 *
 		 * ONLY A SENT LOT. A draft is a plan, and a plan is not a purchase: until
@@ -658,8 +658,24 @@ final class Costing {
 		 * origin: a sent lot is not a tick, it is a purchase, frozen, with a date
 		 * and an operator against it.
 		 */
-		$lot = Production::lot_of( $order );
-		if ( null !== $lot && Production::DRAFT !== ( $lot['state'] ?? '' ) ) {
+		/*
+		 * READ THE STATE POSITIVELY. `DRAFT !== ($lot['state'] ?? '')` was the
+		 * obvious test and it is the dangerous one: a record whose state could not
+		 * be read answers '' to it, '' is not DRAFT, and the order was costed as
+		 * though its film had been bought. With no share to read either, the
+		 * marquage line became 0,00 EUR marked ESTIMATED, which is a real cost of
+		 * zero and a floor price to match. That is exactly the confusion between
+		 * "nothing" and "we could not look" that `Cost.php`'s header exists about.
+		 *
+		 * A share of zero is refused for the same reason. A run costs money; a
+		 * member of one whose share is zero has not been attributed, and the order
+		 * falls back to its own nesting rather than to a free lunch.
+		 */
+		$lot   = Production::lot_of( $order );
+		$bought = null !== $lot
+			&& in_array( (string) ( $lot['state'] ?? '' ), array( Production::SENT, Production::RECEIVED, Production::DONE ), true )
+			&& (int) ( $lot['share_ht'] ?? 0 ) > 0;
+		if ( $bought ) {
 			$film = array(
 				'origin'    => (string) ( $lot['origin'] ?? 'fr' ),
 				'lot_id'    => (int) $lot['lot_id'],
@@ -1074,8 +1090,14 @@ final class Costing {
 			 * report computed before the film was ordered went on reading « à
 			 * jour » while the order's biggest cost line had been replaced by a
 			 * share of somebody else's roll.
+			 *
+			 * ONLY THE PARTS THAT MOVE MONEY, not the whole record. Stamping the
+			 * JSON made every report on the lot read « périmé » the moment
+			 * somebody marked the film received or closed the run, when nothing
+			 * about the cost had moved: an operator who is told a report is stale
+			 * for no reason soon stops believing the ones that are.
 			 */
-			(string) $order->get_meta( Production::META_ORDER_LOT, true ),
+			Production::cost_stamp( $order ),
 		);
 		foreach ( $order->get_items() as $item ) {
 			$parts[] = $item->get_id() . ':' . $item->get_quantity() . ':' . $item->get_subtotal();

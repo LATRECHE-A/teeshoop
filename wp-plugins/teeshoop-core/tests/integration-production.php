@@ -78,8 +78,9 @@ function ts_pr_ready( int $product_id, int $qty, array $sides, string $design ):
 	$order->set_billing_company( 'Client ' . $design );
 	$order->save();
 	$order->payment_complete( 'ts-pr-' . $order->get_id() );
-	$order  = wc_get_order( $order->get_id() );
-	$issued = Bat::issue( $order );
+	$order                   = wc_get_order( $order->get_id() );
+	$GLOBALS['ts_pr_made'][] = $order->get_id();
+	$issued                  = Bat::issue( $order );
 	if ( empty( $issued['ok'] ) ) {
 		throw new \RuntimeException( 'BAT refusé : ' . ( $issued['reason'] ?? '?' ) );
 	}
@@ -96,6 +97,9 @@ function ts_pr_ready( int $product_id, int $qty, array $sides, string $design ):
 function ts_pr_layout( int $a, int $b, array $over = array() ): array {
 	$layout = array(
 		'pooled_m'     => 0.4,
+		'width_cm'     => 56.0,
+		'gap_cm'       => 0.5,
+		'billing_step_cm' => 10.0,
 		'sheets'       => 1,
 		'packer'       => 'trueshape',
 		'interlock_cm' => 2.0,
@@ -222,6 +226,7 @@ function ts_production_suite( int $product_id ): void {
 		ts_ck_fill( $product_id, 3, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0002' );
 		$unapproved = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
 		$unapproved->payment_complete( 'ts-pr-open' );
+		$GLOBALS['ts_pr_made'][] = $unapproved->get_id();
 
 		$ids = array_column( Production::queue( $today ), 'id' );
 		ts_assert( in_array( $ready->get_id(), $ids, true ), 'une commande prête est absente de la file' );
@@ -339,6 +344,36 @@ function ts_production_suite( int $product_id ): void {
 		);
 		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $tiny, $today );
 		ts_eq( $made['ok'], false, 'une planche portant une autre création a été acceptée' );
+	} );
+
+	ts_it( 'refuses a layout packed on a roll the shop is not buying', function () use ( $product_id, $today ) {
+		/*
+		 * The dangerous direction, and the one no other check can see: a WIDER
+		 * sheet is a SHORTER one, so the floor passes more easily and the ceiling,
+		 * which only refuses a layout that is too long, never fires. Two
+		 * centimetres of every gang sheet would fall outside the roll that
+		 * arrives, and it is found at the press with garments already pulled.
+		 */
+		ts_pr_stub_nest();
+		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0160' );
+		$b    = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0161' );
+		$made = Production::create_lot(
+			array( $a->get_id(), $b->get_id() ),
+			'fr',
+			ts_pr_layout( $a->get_id(), $b->get_id(), array( 'width_cm' => 58.0 ) ),
+			$today
+		);
+		ts_eq( $made['ok'], false, 'une planche imbriquée sur 58 cm a été acceptée pour un film de 56' );
+		ts_assert( str_contains( $made['reason'], 'laize' ), 'la raison ne parle pas de la laize : ' . $made['reason'] );
+
+		// And a layout packed tighter than the workshop's spacing.
+		$tight = Production::create_lot(
+			array( $a->get_id(), $b->get_id() ),
+			'fr',
+			ts_pr_layout( $a->get_id(), $b->get_id(), array( 'gap_cm' => 0.0 ) ),
+			$today
+		);
+		ts_eq( $tight['ok'], false, 'une planche sans espacement entre les transferts a été acceptée' );
 	} );
 
 	ts_it( 'refuses a length no amount of ink could fit on', function () use ( $product_id, $today ) {
@@ -524,6 +559,84 @@ function ts_production_suite( int $product_id ): void {
 		ts_assert( array() !== $made['lot']['warnings'], 'un lot en retard ne le dit pas' );
 	} );
 
+	ts_it( 'sends every member or none, and never half a lot', function () use ( $product_id, $today ) {
+		/*
+		 * Skipping a member that cannot be written looked defensive and is the
+		 * opposite: that order keeps no share, so its report costs its own film in
+		 * full while the others have already split the same roll, and the same
+		 * metres are paid for twice.
+		 */
+		ts_pr_stub_nest();
+		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0130' );
+		$b    = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0131' );
+		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', ts_pr_layout( $a->get_id(), $b->get_id() ), $today );
+		ts_assert( $made['ok'], $made['reason'] );
+		$lot_id = (int) $made['lot']['lot_id'];
+
+		// One member loses its part, the way a concurrent write would take it.
+		$b = wc_get_order( $b->get_id() );
+		$b->delete_meta_data( Production::META_ORDER_LOT );
+		$b->save();
+
+		$sent = Production::send_lot( $lot_id, $today );
+		ts_eq( $sent['ok'], false, 'un lot a été commandé alors qu’une de ses commandes n’en faisait plus partie' );
+		ts_eq( Production::lot( $lot_id )['state'], Production::DRAFT, 'le lot a bougé malgré le refus' );
+	} );
+
+	ts_it( 'lets a draft be undone so its orders come back to the queue', function () use ( $product_id, $today ) {
+		ts_pr_stub_nest();
+		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0140' );
+		$b    = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0141' );
+		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', ts_pr_layout( $a->get_id(), $b->get_id() ), $today );
+		ts_assert( $made['ok'], $made['reason'] );
+		$lot_id = (int) $made['lot']['lot_id'];
+
+		$ids = array_column( Production::queue( $today ), 'id' );
+		ts_assert( ! in_array( $a->get_id(), $ids, true ), 'une commande d’un lot est restée dans la file' );
+
+		ts_assert( Production::discard_lot( $lot_id )['ok'], 'un brouillon n’a pas pu être défait' );
+		ts_eq( Production::lot( $lot_id ), null, 'le lot défait existe encore' );
+		ts_eq( Production::lot_of( wc_get_order( $a->get_id() ) ), null, 'la commande porte encore une part' );
+		$ids = array_column( Production::queue( $today ), 'id' );
+		ts_assert( in_array( $a->get_id(), $ids, true ), 'la commande n’est pas revenue dans la file' );
+
+		// And a lot whose film is bought can never be undone.
+		$made2 = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', ts_pr_layout( $a->get_id(), $b->get_id() ), $today );
+		ts_assert( $made2['ok'], $made2['reason'] );
+		ts_assert( Production::send_lot( (int) $made2['lot']['lot_id'], $today )['ok'], 'envoi refusé' );
+		ts_eq( Production::discard_lot( (int) $made2['lot']['lot_id'] )['ok'], false, 'un lot acheté a été défait' );
+	} );
+
+	ts_it( 'costs an order on its own film when its lot record cannot be read', function () use ( $product_id, $today ) {
+		/*
+		 * `DRAFT !== $state` was the obvious test and the dangerous one: a record
+		 * whose state is missing answers '' to it, '' is not DRAFT, and the order
+		 * was costed as though its film had been bought. With no share either, the
+		 * marquage line became 0,00 EUR marked ESTIMATED, which is a real cost of
+		 * zero and a floor price to match.
+		 */
+		ts_pr_stub_nest();
+		$a = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0150' );
+		$b = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0151' );
+		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', ts_pr_layout( $a->get_id(), $b->get_id() ), $today );
+		ts_assert( $made['ok'], $made['reason'] );
+
+		$a = wc_get_order( $a->get_id() );
+		$a->update_meta_data( Production::META_ORDER_LOT, wp_json_encode( array( 'lot_id' => (int) $made['lot']['lot_id'] ) ) );
+		$a->save();
+
+		$report = Costing::refresh( wc_get_order( $a->get_id() ) );
+		$line   = null;
+		foreach ( $report['cost']['lines'] as $candidate ) {
+			if ( 'marquage' === $candidate['type'] ) {
+				$line = $candidate;
+			}
+		}
+		ts_assert( null !== $line, 'aucune ligne de marquage' );
+		ts_assert( $line['amount_ht'] > 0, 'un lot illisible a rendu le film gratuit' );
+		ts_eq( (bool) ( $report['film']['pooled'] ?? false ), false, 'un lot illisible a été lu comme un achat' );
+	} );
+
 	ts_it( 'never puts an order already in a lot back in the queue', function () use ( $product_id, $today ) {
 		ts_pr_stub_nest();
 		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0100' );
@@ -535,4 +648,20 @@ function ts_production_suite( int $product_id ): void {
 	} );
 
 	remove_all_filters( 'pre_http_request' );
+
+	/*
+	 * TRASH WHAT THIS SUITE MADE. Every case here creates paid, approved orders,
+	 * and `Production::queue()` reads exactly those; leaving them behind means the
+	 * mirror's queue grows by thirty on every run until it crosses the cap, at
+	 * which point the suite fails for a reason that has nothing to do with the
+	 * code. It found the cap the first time it happened, which is the only good
+	 * thing about it.
+	 */
+	foreach ( $GLOBALS['ts_pr_made'] ?? array() as $id ) {
+		$order = wc_get_order( (int) $id );
+		if ( $order instanceof \WC_Order ) {
+			$order->delete( true );
+		}
+	}
+	$GLOBALS['ts_pr_made'] = array();
 }

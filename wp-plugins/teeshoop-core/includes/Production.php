@@ -83,9 +83,9 @@ final class Production {
 	/**
 	 * Bounds on a posted layout. They are the Worker's own
 	 * (`worker/nest.ts`: MAX_PIECES, MAX_INSTANCES, MAX_PIECE_CM), restated here
-	 * because this end has to refuse a body the other end would refuse anyway ,
-	 * and because a bound that only exists downstream is a bound nobody applied
-	 * when the downstream call fails.
+	 * because this end has to refuse a body the other end would refuse anyway, and
+	 * because a bound that only exists downstream is a bound nobody applied when
+	 * the downstream call fails.
 	 */
 	private const MAX_PIECES    = 512;
 	private const MAX_INSTANCES = 20000;
@@ -97,6 +97,27 @@ final class Production {
 	private const MAX_RUN_M     = 2000;
 	/** Transfers one side may split into: `MAX_SIDE_PIECES` in designDoc.ts. */
 	private const MAX_SIDE_PIECES = 32;
+
+	/** The shop's named lock, for the read-modify-write that builds a lot. */
+	private const LOCK = 'teeshoop_lot';
+
+	/**
+	 * Orders one call to `queue()` will look at.
+	 *
+	 * Far above a real day: question 23's cadence is 300 garments, so five hundred
+	 * ORDERS waiting on a press is a workshop in a different kind of trouble. It
+	 * exists so one screen cannot read a year of orders, and it is reported when
+	 * it bites.
+	 */
+	private const QUEUE_MAX = 500;
+
+	/** Whether the last `queue()` hit the cap. Read by the screen and by REST. */
+	private static bool $truncated = false;
+
+	/** True when the last queue was cut short. Never let a cap be silent. */
+	public static function queue_truncated(): bool {
+		return self::$truncated;
+	}
 
 	/** Being assembled. Nothing has been bought; anything may still change. */
 	public const DRAFT = 'brouillon';
@@ -538,6 +559,12 @@ final class Production {
 	 * `$today` is a PARAMETER. Nothing here reads the clock, so the screen, the
 	 * REST route and the tests all see the same day, and a run can be replayed.
 	 *
+	 * IT CAN BE TRUNCATED AND IT SAYS SO. The query is capped, because a shop that
+	 * has been running a year should not read every order it ever took to draw one
+	 * screen. A cap that is silent is worse than no cap: the workshop would see a
+	 * queue, believe it was the queue, and never print what fell off the end.
+	 * `queue_truncated()` is what the screen and the REST answer read to say it.
+	 *
 	 * @return array<int,array>
 	 */
 	public static function queue( string $today = '' ): array {
@@ -560,12 +587,20 @@ final class Production {
 					Lifecycle::PAID,
 					Lifecycle::DEPOSIT,
 				),
-				'limit'   => 200,
+				/*
+				 * One more than the cap, so the truncation can be DETECTED rather
+				 * than assumed. Oldest first, because the oldest deadline is the
+				 * one that matters and a cap must never drop the urgent end.
+				 */
+				'limit'   => self::QUEUE_MAX + 1,
 				'orderby' => 'date',
 				'order'   => 'ASC',
 				'type'    => 'shop_order',
 			)
 		);
+
+		self::$truncated = count( $orders ) > self::QUEUE_MAX;
+		$orders          = array_slice( $orders, 0, self::QUEUE_MAX );
 
 		$out = array();
 		foreach ( $orders as $order ) {
@@ -773,6 +808,30 @@ final class Production {
 
 	// ── the lot, WordPress ───────────────────────────────────────────────────
 
+	/**
+	 * The part of an order's lot that decides its cost, for `Costing::stamp()`.
+	 *
+	 * Three fields and no more: whether the film was bought, at which origin, and
+	 * for how much. The rest of the record moves for reasons that change no
+	 * number, and a report that goes stale when the workshop ticks « film reçu »
+	 * teaches an operator to ignore the word.
+	 */
+	public static function cost_stamp( \WC_Order $order ): string {
+		$lot = self::lot_of( $order );
+		if ( null === $lot ) {
+			return '';
+		}
+		return implode(
+			'|',
+			array(
+				(string) ( $lot['lot_id'] ?? '' ),
+				self::DRAFT === ( $lot['state'] ?? '' ) ? 'brouillon' : 'achete',
+				(string) ( $lot['origin'] ?? '' ),
+				(string) (int) ( $lot['share_ht'] ?? 0 ),
+			)
+		);
+	}
+
 	/** The lot record this order belongs to, or null. */
 	public static function lot_of( \WC_Order $order ): ?array {
 		$raw = json_decode( (string) $order->get_meta( self::META_ORDER_LOT, true ), true );
@@ -844,15 +903,18 @@ final class Production {
 	 *      That bound is exact rather than generous: `nestShapeRoll` keeps the
 	 *      shelf result as its own restart #0, so the layout it returns can never
 	 *      be longer.
-	 *   5. THE DATE. An order that holds its target date on French film and does
-	 *      not hold it in this lot is refused by name. An order that is late
-	 *      whatever anybody does is not: it still has to be printed.
 	 *   4. INK. For an order whose design does not scale with the garment, the
 	 *      posted transfers must be big enough to hold the ink the order was
 	 *      charged for. That is the document's own invariant rather than a
 	 *      tolerance, and it holds under any split: merging two visuals makes the
 	 *      boxes bigger, never smaller. A graded order is exempt from this one
 	 *      and only this one (question 37).
+	 *   5. THE DATE. An order that holds its target date on French film and does
+	 *      not hold it in this lot is refused by name. An order that is late
+	 *      whatever anybody does is not: it still has to be printed.
+	 *   6. THE ROLL. The layout must have been packed on the film being bought,
+	 *      at no less than the workshop's spacing. A wider sheet is a SHORTER
+	 *      one, so no other check here can see it.
 	 *
 	 * WHEN THE WORKER CANNOT BE REACHED THE LOT IS REFUSED. « We could not ask »
 	 * is not « it passed », and a lot created without its ceiling is a lot whose
@@ -954,7 +1016,7 @@ final class Production {
 			// 2. FLOOR, per order.
 			$floor_m = self::minimum_length_m( $posted['area_sq_cm'], $width );
 			if ( $posted['solo_m'] + 1e-9 < $floor_m ) {
-				return $fail( sprintf( 'La commande %s ne peut pas tenir sur %.2f m de film : son encre en demande %.2f m au minimum.', $order->get_order_number(), $posted['solo_m'], $floor_m ) );
+				return $fail( sprintf( 'La commande %s ne peut pas tenir sur %s m de film : son encre en demande %s m au minimum.', $order->get_order_number(), Money::number( $posted['solo_m'], 2 ), Money::number( $floor_m, 2 ) ) );
 			}
 
 			/*
@@ -1056,7 +1118,40 @@ final class Production {
 		$total_ink   = array_sum( $ink );
 		$lot_floor_m = self::minimum_length_m( $total_ink, $width );
 		if ( $read['pooled_m'] + 1e-9 < $lot_floor_m ) {
-			return $fail( sprintf( 'Le lot ne peut pas tenir sur %.2f m de film : l’encre qu’il porte en demande %.2f m au minimum.', $read['pooled_m'], $lot_floor_m ) );
+			return $fail( sprintf( 'Le lot ne peut pas tenir sur %s m de film : l’encre qu’il porte en demande %s m au minimum.', Money::number( $read['pooled_m'], 2 ), Money::number( $lot_floor_m, 2 ) ) );
+		}
+
+		/*
+		 * 6. THE ROLL. A layout packed wider than the film being bought puts every
+		 * transfer in that outer band outside the roll, and nothing else here can
+		 * see it: a wider sheet is a SHORTER one, so the floor passes more easily
+		 * and the ceiling, which only refuses a layout that is too long, never
+		 * fires. The studio adopts the shop's geometry when a run is queued and
+		 * then hands it back, so this compares what was measured against what is
+		 * paid for rather than trusting either.
+		 *
+		 * The spacing is checked with it because the two are one setting: film
+		 * packed at 0 mm between transfers is film the workshop cannot cut apart,
+		 * and it is also a shorter sheet.
+		 */
+		if ( abs( $read['width_cm'] - $width ) > 0.01 ) {
+			return $fail(
+				sprintf(
+					'La planche a été imbriquée sur une laize de %s cm alors que le film acheté fait %s cm. Reprenez l’imbrication sur la bonne laize.',
+					Money::number( $read['width_cm'], 1 ),
+					Money::number( $width, 1 )
+				)
+			);
+		}
+		$gap_cm = (float) ( $film['gap_cm'] ?? 0 );
+		if ( $read['gap_cm'] + 0.001 < $gap_cm ) {
+			return $fail(
+				sprintf(
+					'La planche laisse %s cm entre les transferts alors que l’atelier en demande %s.',
+					Money::number( $read['gap_cm'], 2 ),
+					Money::number( $gap_cm, 2 )
+				)
+			);
 		}
 
 		// 3. CEILING, asked of the packer that will print it.
@@ -1065,7 +1160,7 @@ final class Production {
 			return $fail( 'Le métrage du lot n’a pas pu être vérifié : ' . Nest::reason_fr( $bound['reason'] ) . ' Aucun lot n’est créé sur un chiffrage invérifiable.' );
 		}
 		if ( $read['pooled_m'] > $bound['billed_m'] + 1e-9 ) {
-			return $fail( sprintf( 'La planche annonce %.2f m alors que l’imbrication en bandes droites des mêmes transferts en fait %.2f m. Une planche ne peut pas être plus longue que ça.', $read['pooled_m'], $bound['billed_m'] ) );
+			return $fail( sprintf( 'La planche annonce %s m alors que l’imbrication en bandes droites des mêmes transferts en fait %s m. Une planche ne peut pas être plus longue que ça.', Money::number( $read['pooled_m'], 2 ), Money::number( $bound['billed_m'], 2 ) ) );
 		}
 
 		$bill = Cost::attribute( $solo_m, $read['pooled_m'], $cost, $origin, $ink );
@@ -1107,6 +1202,25 @@ final class Production {
 			'warnings'  => $warnings,
 		);
 
+		/*
+		 * ONE LOT AT A TIME. The "already in a lot" check above and the write
+		 * below are separated by a Worker round trip of up to ten seconds, so two
+		 * admin tabs, or a double click, could both pass the check and both write
+		 * a lot naming the same orders: the second write wins on the order meta,
+		 * the first lot keeps a member that no longer points at it, and the film
+		 * of those orders is paid for twice. The lock is the one the invoice
+		 * sequence already uses.
+		 */
+		if ( ! Invoice::lock( self::LOCK ) ) {
+			return $fail( 'Un autre lot est en cours de constitution. Réessayez dans un instant.' );
+		}
+		foreach ( $orders as $id => $order ) {
+			if ( null !== self::lot_of( wc_get_order( $id ) ) ) {
+				Invoice::unlock( self::LOCK );
+				return $fail( sprintf( 'La commande %s vient d’être mise dans un autre lot.', $order->get_order_number() ) );
+			}
+		}
+
 		$lot_id = wp_insert_post(
 			array(
 				'post_type'   => self::POST_TYPE,
@@ -1116,10 +1230,25 @@ final class Production {
 			true
 		);
 		if ( is_wp_error( $lot_id ) || 0 === (int) $lot_id ) {
+			Invoice::unlock( self::LOCK );
 			return $fail( 'Le lot n’a pas pu être enregistré.' );
 		}
 		$record['lot_id'] = (int) $lot_id;
-		update_post_meta( (int) $lot_id, self::META_LOT, wp_json_encode( $record ) );
+		/*
+		 * THE RECORD IS THE LOT. The post is only somewhere to hang it, so a post
+		 * that exists with no record is worse than no post at all: `lot()` returns
+		 * null for it, the orders below would still be pinned to its id, and the
+		 * queue would exclude them for ever with nothing to undo. `wp_json_encode`
+		 * returns false on a value it cannot encode and `update_post_meta` returns
+		 * false when the write fails; both are checked, and the post goes with the
+		 * failure.
+		 */
+		$encoded = wp_json_encode( $record );
+		if ( false === $encoded || false === update_post_meta( (int) $lot_id, self::META_LOT, $encoded ) ) {
+			wp_delete_post( (int) $lot_id, true );
+			Invoice::unlock( self::LOCK );
+			return $fail( 'Le lot n’a pas pu être enregistré : aucune commande n’y a été rattachée.' );
+		}
 
 		foreach ( $orders as $id => $order ) {
 			$share = $bill['shares'][ (string) $id ] ?? array();
@@ -1143,6 +1272,8 @@ final class Production {
 			$order->save();
 		}
 
+		Invoice::unlock( self::LOCK );
+
 		return array(
 			'ok'     => true,
 			'reason' => '',
@@ -1158,13 +1289,16 @@ final class Production {
 	 * other's shirt. Nothing may join, nothing may leave, and the layout is the
 	 * one in the record.
 	 *
-	 * It is also the moment the origin becomes EVIDENCE. Until now every order in
-	 * this project is costed at the French film rate whatever anybody ticked,
-	 * because « a dropdown is not evidence about which roll was bought »
-	 * (`PriceRule::URGENCES`). A sent lot is that evidence: it records which
-	 * origin the film was actually ordered from, it cannot be edited afterwards,
-	 * and the report is recomputed against it. A DRAFT lot is not evidence and
-	 * changes no cost.
+	 * IT IS ALSO THE MOMENT THE ORIGIN STARTS TO COUNT, and it is worth being
+	 * precise about what that is worth. `PriceRule::URGENCES` refuses to let an
+	 * urgency dropdown pick the film's country because a tick is not evidence
+	 * about which roll was bought. What a sent lot records is stronger than a
+	 * tick and weaker than an invoice: ONE declaration for a whole run, made by a
+	 * named user on a dated act that also freezes the layout, and defaulting to
+	 * France, the dearer origin, so that choosing the cheap one is deliberate.
+	 * It is not proof of purchase, and the day a supplier invoice can be attached
+	 * to a run that is what should decide. Until then this is the best evidence
+	 * the shop has, and a DRAFT lot is not evidence at all: it changes no cost.
 	 *
 	 * @return array{ok:bool,reason:string}
 	 */
@@ -1183,11 +1317,104 @@ final class Production {
 			);
 		}
 
+		/*
+		 * EVERY MEMBER, OR NONE. Skipping a member that could not be read looked
+		 * defensive and is the opposite: that order keeps no share, so its report
+		 * costs its own film in full while the others have already split the same
+		 * roll between them, and the same metres are paid for twice. A run is one
+		 * purchase; sending it is one act.
+		 */
+		$orders = array();
+		foreach ( $lot['members'] as $member ) {
+			$order = wc_get_order( (int) $member['id'] );
+			if ( ! $order instanceof \WC_Order ) {
+				return array(
+					'ok'     => false,
+					'reason' => sprintf( 'La commande %d de ce lot est introuvable : rien n’a été commandé.', (int) $member['id'] ),
+				);
+			}
+			$part = self::lot_of( $order );
+			if ( null === $part || (int) $part['lot_id'] !== $lot_id ) {
+				return array(
+					'ok'     => false,
+					'reason' => sprintf( 'La commande %s ne porte plus sa part de ce lot : rien n’a été commandé.', $order->get_order_number() ),
+				);
+			}
+			$orders[] = array( $order, $part );
+		}
+
+		/*
+		 * THE BILL IS SPLIT AT THE MOMENT OF PURCHASE, not at the moment of
+		 * planning. A draft can sit for a day, and the tariff, the roll width or
+		 * the delivery charge can be edited on the cost screen in between; the
+		 * shares written at draft time would then describe a purchase at last
+		 * week's prices, and nothing would say so, because a draft deliberately
+		 * changes no cost and therefore raises no staleness anywhere.
+		 *
+		 * Re-splitting uses the SAME measured lengths: the layout is what it is,
+		 * only the tariff can have moved.
+		 */
+		$solo = array();
+		$ink  = array();
+		foreach ( (array) ( $lot['layout']['orders'] ?? array() ) as $id => $row ) {
+			$solo[ (string) $id ] = (float) ( $row['solo_m'] ?? 0 );
+			$ink[ (string) $id ]  = (float) ( $row['area_sq_cm'] ?? 0 );
+		}
+		$bill = array() !== $solo
+			? Cost::attribute( $solo, (float) ( $lot['layout']['pooled_m'] ?? 0 ), Costing::config(), (string) $lot['origin'], $ink )
+			: $lot['bill'];
+
+		$lot['bill']    = $bill;
 		$lot['state']   = self::SENT;
 		$lot['sent_on'] = '' !== $today ? $today : Settings::today();
 		$lot['sent_by'] = get_current_user_id();
 		update_post_meta( $lot_id, self::META_LOT, wp_json_encode( $lot ) );
 
+		foreach ( $orders as [ $order, $part ] ) {
+			$share            = $bill['shares'][ (string) $order->get_id() ] ?? array();
+			$part['solo_ht']  = (int) ( $share['solo_ht'] ?? $part['solo_ht'] ?? 0 );
+			$part['share_ht'] = (int) ( $share['share_ht'] ?? $part['share_ht'] ?? 0 );
+			$part['saved_ht'] = (int) ( $share['saved_ht'] ?? $part['saved_ht'] ?? 0 );
+			$part['area_share_ht'] = (int) ( $share['area_share_ht'] ?? $part['area_share_ht'] ?? 0 );
+			$part['state']   = self::SENT;
+			$part['sent_on'] = $lot['sent_on'];
+			$order->update_meta_data( self::META_ORDER_LOT, wp_json_encode( $part ) );
+			$order->save();
+			// The share only reaches the margin engine once the film is bought.
+			Costing::refresh( $order );
+		}
+
+		return array(
+			'ok'     => true,
+			'reason' => '',
+		);
+	}
+
+	/**
+	 * Undo a draft: the orders go back into the queue.
+	 *
+	 * WITHOUT THIS AN ORDER COULD JOIN A LOT AND NEVER LEAVE ONE. The queue
+	 * excludes anything already in a lot, deliberately, so a draft built from the
+	 * wrong selection stranded paid, approved orders out of production with no way
+	 * back. Only a DRAFT can be undone: past that the film is bought, and the
+	 * layout that was sent is the one that will arrive.
+	 *
+	 * @return array{ok:bool,reason:string}
+	 */
+	public static function discard_lot( int $lot_id ): array {
+		$lot = self::lot( $lot_id );
+		if ( null === $lot ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'Ce lot n’existe pas.',
+			);
+		}
+		if ( self::DRAFT !== $lot['state'] ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'Le film de ce lot a été commandé : il ne peut plus être défait.',
+			);
+		}
 		foreach ( $lot['members'] as $member ) {
 			$order = wc_get_order( (int) $member['id'] );
 			if ( ! $order instanceof \WC_Order ) {
@@ -1197,14 +1424,12 @@ final class Production {
 			if ( null === $part || (int) $part['lot_id'] !== $lot_id ) {
 				continue;
 			}
-			$part['state']   = self::SENT;
-			$part['sent_on'] = $lot['sent_on'];
-			$order->update_meta_data( self::META_ORDER_LOT, wp_json_encode( $part ) );
+			$order->delete_meta_data( self::META_ORDER_LOT );
 			$order->save();
-			// The share only reaches the margin engine once the film is bought.
+			// The order pays for its own film again from this moment.
 			Costing::refresh( $order );
 		}
-
+		wp_delete_post( $lot_id, true );
 		return array(
 			'ok'     => true,
 			'reason' => '',
@@ -1288,6 +1513,12 @@ final class Production {
 			return $fail( 'La planche n’annonce aucune longueur utilisable.' );
 		}
 
+		$width = isset( $layout['width_cm'] ) && is_numeric( $layout['width_cm'] ) ? (float) $layout['width_cm'] : 0.0;
+		$gap   = isset( $layout['gap_cm'] ) && is_numeric( $layout['gap_cm'] ) ? (float) $layout['gap_cm'] : -1.0;
+		if ( ! is_finite( $width ) || $width <= 0 || ! is_finite( $gap ) || $gap < 0 ) {
+			return $fail( 'La planche ne dit pas sur quelle laize elle a été imbriquée.' );
+		}
+
 		$raw = $layout['orders'] ?? null;
 		if ( ! is_array( $raw ) ) {
 			return $fail( 'La planche ne dit pas ce qu’elle contient pour chaque commande.' );
@@ -1360,9 +1591,14 @@ final class Production {
 			'ok'       => true,
 			'reason'   => '',
 			'pooled_m' => $pooled,
+			'width_cm' => $width,
+			'gap_cm'   => $gap,
 			'orders'   => $out,
 			'layout'   => array(
 				'pooled_m'   => $pooled,
+				'width_cm'   => $width,
+				'gap_cm'     => $gap,
+				'billing_step_cm' => isset( $layout['billing_step_cm'] ) && is_numeric( $layout['billing_step_cm'] ) ? (float) $layout['billing_step_cm'] : 0.0,
 				'sheets'     => isset( $layout['sheets'] ) ? max( 0, (int) $layout['sheets'] ) : 0,
 				'packer'     => 'trueshape' === ( $layout['packer'] ?? '' ) ? 'trueshape' : 'shelf',
 				'interlock_cm' => isset( $layout['interlock_cm'] ) ? (float) $layout['interlock_cm'] : 0.0,
@@ -1432,6 +1668,16 @@ final class Production {
 
 		register_rest_route(
 			self::REST_NS,
+			'/production/lots/(?P<id>\d+)',
+			array(
+				'methods'             => \WP_REST_Server::DELETABLE,
+				'callback'            => array( self::class, 'rest_discard_lot' ),
+				'permission_callback' => $admin,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NS,
 			'/production/lots/(?P<id>\d+)/etat',
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
@@ -1468,8 +1714,14 @@ final class Production {
 
 		return new \WP_REST_Response(
 			array(
-				'today'  => $today,
-				'orders' => self::queue( $today ),
+				'today'     => $today,
+				'orders'    => self::queue( $today ),
+				/*
+				 * Reported rather than assumed. A studio that nested "the queue"
+				 * while the queue was cut short would leave the tail of the
+				 * workshop's day unprinted with nothing saying so.
+				 */
+				'truncated' => Production::queue_truncated(),
 				/*
 				 * The geometry the studio must nest on. It is sent rather than
 				 * assumed because the roll the shop is quoted on is a stored
@@ -1539,6 +1791,15 @@ final class Production {
 			return new \WP_Error( 'teeshoop_lot_etat', $done['reason'], array( 'status' => 409 ) );
 		}
 		return new \WP_REST_Response( array( 'lot' => self::lot( $id ) ) );
+	}
+
+	/** DELETE /production/lots/{id}: undo a draft, freeing its orders. */
+	public static function rest_discard_lot( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$done = self::discard_lot( (int) $request->get_param( 'id' ) );
+		if ( ! $done['ok'] ) {
+			return new \WP_Error( 'teeshoop_lot_defait', $done['reason'], array( 'status' => 409 ) );
+		}
+		return new \WP_REST_Response( array( 'ok' => true ) );
 	}
 
 	/**

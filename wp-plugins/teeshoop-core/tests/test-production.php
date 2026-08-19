@@ -190,6 +190,14 @@ describe( 'Production: reading a layout the shop did not compute', function () {
 		return array_merge(
 			array(
 				'pooled_m' => 4.0,
+				/*
+				 * The geometry the layout was packed on. Without it the shop
+				 * cannot tell that a run it is buying 56 cm of film for was
+				 * nested 58 cm wide, and a wider sheet is a SHORTER one, so no
+				 * other bound can see it either.
+				 */
+				'width_cm' => 56.0,
+				'gap_cm'   => 0.5,
 				'orders'   => array(
 					'12' => array(
 						'solo_m' => 2.5,
@@ -207,6 +215,14 @@ describe( 'Production: reading a layout the shop did not compute', function () {
 		eq( $r['ok'], true, $r['reason'] );
 		eq( $r['orders']['12']['copies'], 10 );
 		near( $r['orders']['12']['area_sq_cm'], 5000.0, 1e-9 );
+	} );
+
+	it( 'refuses a layout that will not say which roll it was packed on', function () use ( $layout ) {
+		$mute = $layout();
+		unset( $mute['width_cm'] );
+		eq( Production::read_layout( $mute, array( 12 ) )['ok'], false );
+		eq( Production::read_layout( $layout( array( 'width_cm' => 0 ) ), array( 12 ) )['ok'], false );
+		eq( Production::read_layout( $layout( array( 'gap_cm' => -1 ) ), array( 12 ) )['ok'], false );
 	} );
 
 	it( 'refuses a length that is not a length', function () use ( $layout ) {

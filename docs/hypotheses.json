@@ -2744,7 +2744,15 @@
 				"07"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Partiellement. La question 14 nomme Colissimo et ne donne aucun temps de transit ; deux jours ouvrés est ce que Colissimo publie pour la métropole, et personne ne nous y a engagés."
+			"shipped_matches_default": "Partiellement. La question 14 nomme Colissimo et ne donne aucun temps de transit ; deux jours ouvrés est ce que Colissimo publie pour la métropole, et personne ne nous y a engagés.",
+			"statement_amounts": [
+				{
+					"from": "ship_days",
+					"as": "int",
+					"text": "2",
+					"in": "2 jours ouvrés"
+				}
+			]
 		},
 		{
 			"id": "H-Q14-MARGE-ATELIER",
@@ -2768,7 +2776,15 @@
 				"07"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. L'algorithme de routage du chapitre 5 nomme un « buffer » parmi ses entrées sans le chiffrer ; un jour est le choix le moins cher, puisqu'il déplace un lot vers la France quand la date est tendue."
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne ce chiffre. L'algorithme de routage du chapitre 5 nomme un « buffer » parmi ses entrées sans le chiffrer ; un jour est le choix le moins cher, puisqu'il déplace un lot vers la France quand la date est tendue.",
+			"statement_amounts": [
+				{
+					"from": "buffer_days",
+					"as": "int",
+					"text": "1",
+					"in": "1 jour ouvré"
+				}
+			]
 		},
 		{
 			"id": "H-Q23-CADENCE",
@@ -2855,7 +2871,15 @@
 				"07"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Oui : la question 04 écrit « 17 EUR hors taxes le mètre linéaire en 56 cm en France (48 h) ». Le délai vit désormais à côté du tarif parce que c'est une seule et même phrase, et qu'ordonnancer un lot au prix de l'origine bon marché et au calendrier de l'autre est la façon la plus simple de rater une date."
+			"shipped_matches_default": "Oui : la question 04 écrit « 17 EUR hors taxes le mètre linéaire en 56 cm en France (48 h) ». Le délai vit désormais à côté du tarif parce que c'est une seule et même phrase, et qu'ordonnancer un lot au prix de l'origine bon marché et au calendrier de l'autre est la façon la plus simple de rater une date.",
+			"statement_amounts": [
+				{
+					"from": "film.days_fr",
+					"as": "int",
+					"text": "2",
+					"in": "2 jours ouvrés"
+				}
+			]
 		},
 		{
 			"id": "H-Q04-DELAI-FILM-ESPAGNE",
@@ -2880,7 +2904,15 @@
 				"07"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Oui : la question 04 écrit « 9 EUR hors taxes en Espagne (5 jours) ». Ces cinq jours sont ce qui décide, commande par commande, si l'origine bon marché est jouable."
+			"shipped_matches_default": "Oui : la question 04 écrit « 9 EUR hors taxes en Espagne (5 jours) ». Ces cinq jours sont ce qui décide, commande par commande, si l'origine bon marché est jouable.",
+			"statement_amounts": [
+				{
+					"from": "film.days_es",
+					"as": "int",
+					"text": "5",
+					"in": "5 jours ouvrés"
+				}
+			]
 		}
 	],
 	"not_applicable": [

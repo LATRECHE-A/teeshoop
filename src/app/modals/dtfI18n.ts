@@ -24,6 +24,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.queue.remove': 'Retirer {name}',
     'dtf.queue.rendering': 'Rendu…',
     'dtf.queue.empty_side': 'Visuel vide',
+    'dtf.queue.render_failed': 'Visuel illisible',
     'dtf.queue.unplaceable': 'Trop grand pour la laize',
     'dtf.queue.source': 'Source',
     'dtf.queue.src_basket': 'Panier ({n})',
@@ -50,6 +51,12 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.prod.none':
       'Aucune commande n’attend la presse. Tout ce qui est payé et dont le bon à tirer est validé est déjà dans un lot.',
     'dtf.prod.pick_none': 'Aucune commande sélectionnée',
+    'dtf.prod.truncated':
+      'La boutique a plus de commandes en attente que cette liste n’en lit d’un coup. Imbriquez celles-ci, puis rechargez.',
+    'dtf.prod.row_locked':
+      'Quantités et tailles issues de la commande payée. Elles ne se modifient pas ici.',
+    'dtf.prod.render_failed':
+      'Un visuel n’a pas pu être rendu : {rows}. Le lot n’est pas constitué : ce côté serait absent du film et le vêtement sortirait de presse nu. Rechargez la file pour réessayer.',
     'dtf.prod.nothing_to_print': 'Les commandes choisies ne portent aucun côté imprimé.',
     'dtf.prod.art_failed':
       'Création introuvable ou illisible : {ids}. Le lot n’est pas constitué : une commande dont le visuel manque serait imprimée sans elle.',
@@ -62,6 +69,10 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.prod.origin_es': 'Espagne',
     'dtf.prod.make_lot': 'Constituer le lot',
     'dtf.prod.lot_made': 'Lot enregistré dans la boutique',
+    'dtf.prod.lot_dropped':
+      'Les réglages d’imbrication ont changé depuis l’enregistrement du lot. Le lot a été détaché : la planche à l’écran n’est plus celle que la boutique a chiffrée. Reconstituez-le avant de télécharger le dossier.',
+    'dtf.prod.still_nesting':
+      'L’imbrication est encore en cours. Attendez la planche définitive : sans elle le lot serait chiffré sur la disposition en bandes droites, plus longue.',
     'dtf.prod.lot_title': 'Lot n° {id}',
     'dtf.prod.lot_saving': '{saved} de film économisés sur {solo} achetés séparément',
     'dtf.prod.lot_worse':
@@ -264,6 +275,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.queue.remove': 'Remove {name}',
     'dtf.queue.rendering': 'Rendering…',
     'dtf.queue.empty_side': 'Empty artwork',
+    'dtf.queue.render_failed': 'Artwork unreadable',
     'dtf.queue.unplaceable': 'Too large for the roll width',
     'dtf.queue.source': 'Source',
     'dtf.queue.src_basket': 'Basket ({n})',
@@ -288,6 +300,12 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.prod.none':
       'Nothing is waiting for the press. Everything paid for with an approved proof is already in a run.',
     'dtf.prod.pick_none': 'No order selected',
+    'dtf.prod.truncated':
+      'The shop has more orders waiting than this list reads at once. Nest these, then reload.',
+    'dtf.prod.row_locked':
+      'Quantities and sizes come from the paid order. They are not editable here.',
+    'dtf.prod.render_failed':
+      'Artwork could not be rendered: {rows}. No run was made: that side would be missing from the film and the garment would come off the press blank. Reload the queue to try again.',
     'dtf.prod.nothing_to_print': 'The chosen orders carry no printed side.',
     'dtf.prod.art_failed':
       'Design missing or unreadable: {ids}. No run was made: an order whose artwork is missing would be printed without it.',
@@ -300,6 +318,10 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.prod.origin_es': 'Spain',
     'dtf.prod.make_lot': 'Create the run',
     'dtf.prod.lot_made': 'Run recorded in the shop',
+    'dtf.prod.lot_dropped':
+      'The nesting settings changed after the run was recorded. It has been detached: the layout on screen is no longer the one the shop costed. Record it again before downloading the package.',
+    'dtf.prod.still_nesting':
+      'The optimiser is still running. Wait for the final layout: without it the run would be costed on the straight-strip one, which is longer.',
     'dtf.prod.lot_title': 'Run no. {id}',
     'dtf.prod.lot_saving': '{saved} of film saved against {solo} bought separately',
     'dtf.prod.lot_worse':

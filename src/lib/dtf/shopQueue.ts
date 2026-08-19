@@ -19,7 +19,7 @@
  * NOTHING HERE COMPUTES MONEY. It carries measurements up and reads an answer
  * back. `Cost::attribute()` splits the bill, in integer cents, on the server.
  */
-import { loadWooCredentials, type WooCredentials } from '@/lib/ingest/woo'
+import { loadWooCredentials, normalizeBaseUrl, type WooCredentials } from '@/lib/ingest/woo'
 import type { QueueOrder } from './fromR2'
 
 /** The film geometry the shop is quoted on. The studio must nest on THIS. */
@@ -35,6 +35,8 @@ export interface ShopFilm {
 export interface ShopQueue {
   today: string
   orders: QueueOrder[]
+  /** True when the shop had more ready orders than one call reads. */
+  truncated: boolean
   film: ShopFilm
   capacity: { press_per_day: number; manual_above: number }
   /** Per urgency, working days of slack. Negative is a promise that cannot hold. */
@@ -45,6 +47,19 @@ export interface ShopQueue {
 export interface LayoutReport {
   pooled_m: number
   sheets: number
+  /**
+   * THE ROLL THE LAYOUT WAS ACTUALLY NESTED ON, cm, and the spacing with it.
+   *
+   * Without them the shop cannot tell that a run it is buying 56 cm of film for
+   * was packed 58 cm wide: the length would simply be shorter, so the floor check
+   * passes more easily and the ceiling check, which only refuses a layout that is
+   * too long, never fires. Two centimetres of every gang sheet would fall outside
+   * the roll, and it is discovered at the press with several customers' garments
+   * already pulled off the shelf.
+   */
+  width_cm: number
+  gap_cm: number
+  billing_step_cm: number
   packer: 'shelf' | 'trueshape'
   interlock_cm: number
   restarts: number
@@ -100,7 +115,15 @@ async function call(
   path: string,
   init?: { method: 'POST'; body: unknown },
 ): Promise<unknown> {
-  const url = `${cred.baseUrl.replace(/\/+$/, '')}/${NS}/${path}`
+  /*
+   * THROUGH THE ONE NORMALISER, not off the stored string. `loadWooCredentials`
+   * returns what was saved, and what was saved can be `http://boutique.example`:
+   * the catalogue importer upgrades it to https before every call, precisely
+   * because Basic auth over http puts a read-write WooCommerce key on the wire in
+   * clear. This route carries the same key, so it goes through the same function
+   * rather than a second `replace` that only trims a slash.
+   */
+  const url = `${normalizeBaseUrl(cred.baseUrl)}/${NS}/${path}`
   let res: Response
   try {
     res = await fetch(url, {

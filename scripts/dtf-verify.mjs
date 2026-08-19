@@ -16,15 +16,15 @@
  *     billing-step bounds, bbox non-overlap at interlock 0, and an INK-LEVEL
  *     collision audit on real rendered artwork (bounding boxes legitimately
  *     overlap once pieces interlock, so only rasterised ink can prove clearance).
- *  6. POOLING — several orders on one film: determinism survives assembling a
- *     run from whatever arrived, every transfer maps back to exactly one order,
- *     and the archive carries the workshop's paperwork (a press sheet per
- *     order stating the PROOF VERSION and the design id, the picking list, the
- *     split of the film bill).
  *  5. ZIP EXPORT — the archive is cracked open HERE, in Node, with a
  *     hand-rolled reader: every member's CRC-32 is recomputed from its stored
  *     bytes, and every PNG's IHDR width/height is checked against the pixel
  *     size its sheet's cm geometry and DPI imply.
+ *  6. POOLING: several orders on one film, determinism survives assembling a
+ *     run from whatever arrived, every transfer maps back to exactly one order,
+ *     and the archive carries the workshop's paperwork (a press sheet per order
+ *     stating the PROOF VERSION and the design id, the picking list, the split
+ *     of the film bill).
  *
  *   DTF_OUT_DIR=/abs/dir node scripts/dtf-verify.mjs
  */
@@ -1025,13 +1025,13 @@ try {
   const adopt = await page.evaluate(() => window.__dtf.adoptProbe())
   if (!adopt.original || !adopt.cutout) {
     console.error(
-      `❌ an adopted raster is not found under both variant names (original=${adopt.original}, cutout=${adopt.cutout}): ` +
+      `ECHEC: an adopted raster is not found under both variant names (original=${adopt.original}, cutout=${adopt.cutout}): ` +
         'an order whose artwork had its background removed cannot be re-rendered',
     )
     done(1)
   }
   if (!adopt.released) {
-    console.error('❌ releasing an adopted raster left it in the cache; the tab keeps customers’ artwork')
+    console.error('ECHEC: releasing an adopted raster left it in the cache; the tab keeps customers’ artwork')
     done(1)
   }
 
@@ -1047,22 +1047,22 @@ try {
   )
   if (pooled.pooledCm !== reversed.pooledCm) {
     console.error(
-      `❌ pooling is order-dependent: ${pooled.pooledCm} cm forwards, ${reversed.pooledCm} cm reversed`,
+      `ECHEC: pooling is order-dependent: ${pooled.pooledCm} cm forwards, ${reversed.pooledCm} cm reversed`,
     )
     done(1)
   }
   if (JSON.stringify(pooled.owners) !== JSON.stringify(reversed.owners)) {
-    console.error('❌ the transfer-to-order map depends on the order the run was assembled in')
+    console.error('ECHEC: the transfer-to-order map depends on the order the run was assembled in')
     done(1)
   }
   const owned = Object.keys(pooled.owners).length
   if (owned === 0) {
-    console.error('❌ the pooled run mapped no transfer back to an order')
+    console.error('ECHEC: the pooled run mapped no transfer back to an order')
     done(1)
   }
   for (const [key, orderId] of Object.entries(pooled.owners))
     if (!key.startsWith(`${orderId}/`)) {
-      console.error(`❌ transfer ${key} is owned by ${orderId}, which its own key contradicts`)
+      console.error(`ECHEC: transfer ${key} is owned by ${orderId}, which its own key contradicts`)
       done(1)
     }
 
@@ -1116,7 +1116,7 @@ try {
     }
   }
   if (runFails.length) {
-    console.error(`❌ ${runFails.length} pooled-run assertion(s) failed:`)
+    console.error(`ECHEC: ${runFails.length} pooled-run assertion(s) failed:`)
     for (const f of runFails.slice(0, 20)) console.error('  -', f)
     done(1)
   }

@@ -6,6 +6,13 @@
 #
 #   docker compose up -d          then  http://localhost:8080
 #   docker compose run --rm wpcli wp plugin list
+#
+# THE WORDPRESS ADMIN is `dev`. Set its password yourself with
+# `npm run wp:cli -- user update dev --user_pass=...` and keep it out of the
+# repository. You need a login to check that an admin screen renders at all,
+# which no unit test can do; what you must NOT do is write it into
+# `wp-plugins/teeshoop-core/`, because that directory is served by URL on the
+# real site and a README in it is a public document.
 #   docker compose down -v        wipes it back to nothing
 #
 # The plugin source is BIND-MOUNTED from the repo: editing wp-plugins/teeshoop-core/

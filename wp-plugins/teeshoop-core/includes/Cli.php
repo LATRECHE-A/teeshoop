@@ -588,12 +588,26 @@ final class Cli {
 
 		if ( is_array( $report['film'] ) ) {
 			\WP_CLI::log( '' );
+			/*
+			 * A POOLED ORDER'S `billed_m` IS THE WHOLE RUN'S, not this order's.
+			 * Printing it under this order's number read as a fifteen-metre order
+			 * where the order needed two, and the transfer count beside it made it
+			 * look like a measurement of this order. Say whose metres they are.
+			 */
 			\WP_CLI::log(
-				sprintf(
+				empty( $report['film']['pooled'] )
+				? sprintf(
 					'FILM  %s m imbriqués, %d transferts%s',
 					Money::number( (float) $report['film']['billed_m'], 2 ),
 					(int) $report['work']['transfers'],
 					empty( $report['film']['bound'] ) ? '' : ' (borne haute, service indisponible)'
+				)
+				: sprintf(
+					'FILM  part d’un lot de %d commandes imbriquées sur %s m (lot n° %d), %d transferts pour celle-ci',
+					(int) ( $report['film']['orders'] ?? 1 ),
+					Money::number( (float) $report['film']['billed_m'], 2 ),
+					(int) ( $report['film']['lot_id'] ?? 0 ),
+					(int) $report['work']['transfers']
 				)
 			);
 		}
