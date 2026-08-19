@@ -774,6 +774,7 @@
 			"literals": [],
 			"literals_why": "C'est une politique : écrire le chiffre plutôt qu'un état. La valeur elle-même vient du fournisseur à chaque import.",
 			"reaches": [
+				"customer",
 				"operator",
 				"internal"
 			],
@@ -783,7 +784,8 @@
 				"09"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Oui depuis la séance 08. La quantité exacte reste écrite sur l’article, parce que l’atelier en a besoin pour acheter, mais ce qu’un client lit ne la contient plus : « Disponible », « Délai allongé » ou « Délai à confirmer », sans chiffre, ce qui est l’hypothèse par défaut de la question 11. La fenêtre au-delà de laquelle la boutique cesse d’annoncer une disponibilité est H-Q11-FRAICHEUR-STOCK."
+			"shipped_matches_default": "Moitié, et la moitié qui diverge a été corrigée par la séance 08. La quantité exacte reste écrite sur l'article, parce que l'atelier en a besoin pour acheter, et ce qu'un client lit ne la contient pas : « Disponible », « Rupture, nous consulter » ou « Délai à confirmer », sans chiffre. « Rupture, nous consulter » n'est PAS le mot de la question 11, qui dit « délai allongé » : l'importateur pose backorders = no sur chaque article, donc WooCommerce refuse la commande qu'un « délai allongé » inviterait à passer. La formulation suit le comportement ; l'inverse serait une promesse que la boutique ne tient pas. La fenêtre au-delà de laquelle elle cesse d'annoncer une disponibilité est H-Q11-FRAICHEUR-STOCK.",
+			"label_fr": "Rupture, nous consulter"
 		},
 		{
 			"id": "H-Q11-FRAICHEUR-STOCK",
@@ -2164,10 +2166,11 @@
 			],
 			"derives": [],
 			"sessions": [
-				"05"
+				"05",
+				"08"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Oui, même phrase de la question 03.",
+			"shipped_matches_default": "Oui, même phrase de la question 03. Depuis la séance 08 il ATTEINT un opérateur : l'écran des achats affiche « franco supposé atteint, question 03 à confirmer » quand un panier groupé passe le seuil, et le rapport de marge nomme la question sur la ligne de port. Mesuré sur une semaine de six commandes : 48,00 EUR de port économisés reposent entièrement sur ce seuil.",
 			"literals_why": "20000 est ailleurs une taille en octets et un délai.",
 			"statement_amounts": [
 				{

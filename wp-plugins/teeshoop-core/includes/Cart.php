@@ -264,6 +264,17 @@ final class Cart {
 			 * stop the workshop.
 			 */
 			'colour'       => (string) ( $check['meta']['color'] ?? '' ),
+			/*
+			 * THE BLANK THIS IS SOLD AS, resolved now and never again. The
+			 * reasoning is at the `add_meta_data` call that stores it.
+			 *
+			 * It is read from the product, like the garment above and for the
+			 * same reason, and it is allowed to be empty: a shop that has not
+			 * declared its blanks yet still sells, and the purchase basket then
+			 * refuses that line by name rather than the cart refusing the sale.
+			 */
+			'blank_ref'    => Product::blank_ref_of( $product_id ),
+			'blank_colour' => (string) ( Product::blank_colours_of( $product_id )[ (string) ( $check['meta']['color'] ?? '' ) ] ?? '' ),
 			'files'        => array(
 				'print'    => (string) ( $check['meta']['print_file'] ?? '' ),
 				'preview'  => (string) ( $check['meta']['preview'] ?? '' ),
@@ -556,6 +567,32 @@ final class Cart {
 		$line->add_meta_data( '_teeshoop_size_grid', wp_json_encode( $data['size_grid'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_sides_source', (string) ( $data['sides_source'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_couleur', (string) ( $data['colour'] ?? '' ), true );
+
+		/*
+		 * WHICH BLANK THIS LINE WAS SOLD AS, frozen here and not looked up later.
+		 *
+		 * ── WHAT THIS PREVENTS, AND IT IS A SCRAPPED RUN ────────────────────
+		 *
+		 * The blank is declared on the PRODUCT (`Product::META_BLANK_REF` and its
+		 * colour map), and the purchase basket used to read it at the moment
+		 * somebody pressed « Préparer », which is days after the sale and often
+		 * after the film is printed. A shop manager who changes that reference,
+		 * because a style is discontinued, changes what the workshop buys FOR
+		 * ORDERS ALREADY SOLD. Reproduced on the mirror by the adversarial pass:
+		 * reference 00142 changed to 00517, the colour name « Navy » exists on
+		 * both because `pa_couleur` is one global taxonomy, nothing refused, and
+		 * twenty polos were bought for a run whose film was printed for t-shirts.
+		 *
+		 * Frozen, the basket buys what was sold. A declaration that has moved
+		 * since is then a difference the screen can NAME, instead of a silent
+		 * substitution nobody sees until the boxes are opened.
+		 *
+		 * Sealed with the rest of the procurement identity (`Shelf::SEALED`): the
+		 * reference is the supplier's style number, which is most of the article
+		 * number that seal exists to hide.
+		 */
+		$line->add_meta_data( '_teeshoop_blank_ref', (string) ( $data['blank_ref'] ?? '' ), true );
+		$line->add_meta_data( '_teeshoop_blank_colour', (string) ( $data['blank_colour'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_files', wp_json_encode( $data['files'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_verified', ! empty( $data['verified'] ) ? 'yes' : 'no', true );
 

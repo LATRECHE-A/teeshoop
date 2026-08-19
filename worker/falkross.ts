@@ -63,6 +63,22 @@ export interface FalkRossEnv extends AdminEnv {
    * nothing here assumes it.
    */
   FR_CUSTOMER_NR?: string
+  /**
+   * A SECOND SECRET, FOR THE ONE ROUTE THAT SPENDS MONEY.
+   *
+   * `wrangler secret put FR_ORDER_TOKEN`. Unset means `POST /api/fr/order`
+   * answers 503 and nothing is sent, which is the state this ships in.
+   *
+   * WHY IT EXISTS. `ADMIN_TOKEN` opens every route in this file, and one of its
+   * holders is a cron on the shop that reads the catalogue every night: the
+   * token that imports product photographs was also the token that could place a
+   * purchase order for any article in any quantity. A read-only job and a
+   * spending job had one credential, and the read-only one is the one that lives
+   * in a WordPress on shared hosting. `ADMIN_TOKEN` is still required; this is in
+   * addition, on a header of its own, and the shop keeps it in a different
+   * wp-config constant so the catalogue importer never carries it.
+   */
+  FR_ORDER_TOKEN?: string
 }
 
 const DOWNLOAD = 'https://download.falk-ross.eu'
@@ -1414,14 +1430,19 @@ export interface FrOrderResult {
   /** True only for an order the supplier accepted and gave an id to. */
   ok: boolean
   /**
-   * THREE OUTCOMES, BECAUSE TWO CANNOT BE TOLD APART BY A CALLER.
+   * FOUR OUTCOMES, BECAUSE THREE COLLAPSED TWO DIFFERENT FACTS.
    *
-   *  - `accepted` — the supplier created an order and named it.
-   *  - `rejected` — the supplier refused it and said why. Nothing exists.
-   *  - `unknown`  — the request left and no usable answer came back. It may
+   *  - `accepted` — the supplier created an order, named it, and took every line.
+   *  - `partial`  — he created it and REFUSED SOME LINES. The run is short by
+   *    exactly those articles, and the shop is about to press a job it does not
+   *    have the blanks for. This used to report as `accepted` and the per-line
+   *    refusals were stored and then hidden by the screen.
+   *  - `rejected` — he refused the whole thing and said why. Nothing exists.
+   *  - `unknown`  — the request left and no usable answer came back, or the
+   *    answer names an order AND a global error, which we cannot read. It may
    *    have been created. Never retry on this; a human has to look.
    */
-  outcome: 'accepted' | 'rejected' | 'unknown'
+  outcome: 'accepted' | 'partial' | 'rejected' | 'unknown'
   /** Supplier order id. "0" means the order was REJECTED. */
   orderId: string
   errorCode: string
@@ -1590,7 +1611,25 @@ async function placeOrder(
    * an account that has been switched to live since then must not be able to
    * turn that confirmation into a real purchase.
    */
-  const mode = await loadState(origin, env, ctx)
+  /*
+   * A FAILURE HERE HAPPENS BEFORE ANYTHING IS SENT, and must not reach the shop
+   * as the same 502 a lost answer produces. `loadState` throws `upstream` on a
+   * timeout, the route's catch turns that into HTTP 502, and the shop's only
+   * reading of a 502 is « the document may have gone out »: a purchase would
+   * have gone to « envoi incertain », which is terminal, over a supplier who was
+   * merely slow to say what mode the account is in.
+   */
+  let mode: FrWsState
+  try {
+    mode = await loadState(origin, env, ctx)
+  } catch (err) {
+    if (err instanceof FrError && (err.code === 'config' || err.code === 'auth')) throw err
+    throw new FrError(
+      'bad_request',
+      409,
+      'Could not read the account mode, so nothing was sent. Try again.',
+    )
+  }
   if (mode.mode !== expectMode) {
     throw new FrError(
       'bad_request',
@@ -1683,10 +1722,27 @@ async function placeOrder(
     return unknown('Falk&Ross answered in a shape this Worker does not recognise.')
   }
 
-  const accepted = !!orderId && orderId !== '0' && (!errorCode || errorCode === '0')
+  /*
+   * AN ORDER ID IS THE EVIDENCE THAT SOMETHING EXISTS, and it outranks every
+   * other field. The first version read `orders_id 4412345` beside an error code
+   * as `rejected`, and `Purchase::send` unpins the orders of a rejected purchase
+   * so they can be bought again: an order the supplier had created would have
+   * been created a second time. `rejected` is now reserved for the two shapes
+   * actually verified against the account, `orders_id 0` and the gateway's own
+   * `<error>` envelope.
+   */
+  const created = !!orderId && orderId !== '0'
+  const globalError = !!errorCode && errorCode !== '0'
+  const outcome: FrOrderResult['outcome'] = !created
+    ? 'rejected'
+    : lines.length > 0
+      ? 'partial'
+      : globalError
+        ? 'unknown'
+        : 'accepted'
   return {
-    ok: accepted,
-    outcome: accepted ? 'accepted' : 'rejected',
+    ok: outcome === 'accepted',
+    outcome,
     orderId,
     errorCode,
     message: elementText(xml, 'err_msg') || lines[0]?.message || '',
@@ -1758,6 +1814,42 @@ function json(body: unknown, status = 200, maxAge = 0): Response {
   })
 }
 
+/**
+ * The second gate, and the only route that has one.
+ *
+ * BEARER ONLY, and not the Basic form `requireAdmin` also accepts. That form
+ * exists so a browser's own login box can open `/admin.html`, and no browser is
+ * a legitimate caller here: an operator who has authenticated to the admin page
+ * carries a credential their browser will replay on any URL under this origin,
+ * so a page on another site could have made their browser place a purchase
+ * order. A header nothing replays automatically closes that.
+ *
+ * Compared the same way `worker/auth.ts` compares its own: SHA-256 first,
+ * because `timingSafeEqual` throws on unequal lengths, which would both crash
+ * the request and leak the expected length.
+ */
+async function orderTokenOk(request: Request, env: FalkRossEnv): Promise<boolean> {
+  /*
+   * BEARER ONLY. `requireAdmin` also accepts `Basic base64(anything:token)`, so
+   * that a browser's own login box can open `/admin.html`; a browser that has
+   * done that replays the credential on every request to this origin, including
+   * one a page on another site caused. The custom header below already blocks
+   * that (a cross-origin fetch carrying it needs a preflight, and this route
+   * answers no CORS), but a route that spends money should not rest its safety
+   * on a second mechanism when refusing the browser form costs one line.
+   */
+  if (!(request.headers.get('authorization') ?? '').startsWith('Bearer ')) return false
+  const expected = env.FR_ORDER_TOKEN ?? ''
+  if (expected.length < 24) return false
+  const presented = request.headers.get('x-teeshoop-order-token') ?? ''
+  if (presented.length === 0) return false
+  const [a, b] = await Promise.all([
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(presented)),
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(expected)),
+  ])
+  return crypto.subtle.timingSafeEqual(new Uint8Array(a), new Uint8Array(b))
+}
+
 const clampInt = (v: string | null, def: number, min: number, max: number) => {
   const n = parseInt(v ?? '', 10)
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def
@@ -1782,7 +1874,8 @@ const clampInt = (v: string | null, def: number, min: number, max: number) => {
  *   GET  /api/fr/stock/{styleNr}            stock per SKU
  *   GET  /api/fr/stock?offset&limit         EVERY SKU's stock, paged, one call
  *   GET  /api/fr/deliveries/{styleNr?}      announced restocks
- *   POST /api/fr/order                      place a supplier order (see below)
+ *   POST /api/fr/order                      place a supplier order. ADMIN_TOKEN
+ *                                           **and** FR_ORDER_TOKEN (see below)
  *   GET  /api/fr/img/{picture|picto}/{file} photo proxy (ungated — see below)
  *   GET  /media/blank/{picture|picto}/{file} the same photos, supplier-neutral
  *                                           prefix, for URLs the shop stores
@@ -1944,6 +2037,20 @@ export async function handleFalkRoss(
      * the supplier's gateway.
      */
     if (rest === 'order' && method === 'POST') {
+      if (!(await orderTokenOk(request, env))) {
+        /*
+         * The same body whether the secret is unset or wrong, like `deny()` in
+         * worker/auth.ts: a caller must not be able to tell a misconfigured
+         * Worker from a wrong credential.
+         */
+        return json(
+          {
+            error: 'auth',
+            message: 'This route needs its own token (X-Teeshoop-Order-Token).',
+          },
+          401,
+        )
+      }
       const raw = (await request.json().catch(() => null)) as Record<string, unknown> | null
       if (!raw || typeof raw !== 'object') {
         throw new FrError('bad_request', 400, 'The order body must be a JSON object.')

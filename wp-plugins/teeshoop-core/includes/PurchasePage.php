@@ -45,6 +45,7 @@ final class PurchasePage {
 	private const ACTION_SEND     = 'teeshoop_achat_envoyer';
 	private const ACTION_DISCARD  = 'teeshoop_achat_annuler';
 	private const ACTION_RECEIVE  = 'teeshoop_achat_recevoir';
+	private const ACTION_ABANDON  = 'teeshoop_achat_abandonner';
 	private const ACTION_EXPORT   = 'teeshoop_achat_exporter';
 
 	public static function init(): void {
@@ -53,6 +54,7 @@ final class PurchasePage {
 		add_action( 'admin_post_' . self::ACTION_SEND, array( self::class, 'handle_send' ) );
 		add_action( 'admin_post_' . self::ACTION_DISCARD, array( self::class, 'handle_discard' ) );
 		add_action( 'admin_post_' . self::ACTION_RECEIVE, array( self::class, 'handle_receive' ) );
+		add_action( 'admin_post_' . self::ACTION_ABANDON, array( self::class, 'handle_abandon' ) );
 		add_action( 'admin_post_' . self::ACTION_EXPORT, array( self::class, 'handle_export' ) );
 	}
 
@@ -154,6 +156,14 @@ final class PurchasePage {
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- checked above.
 		$id   = isset( $_POST['achat'] ) ? (int) $_POST['achat'] : 0;
 		$done = Purchase::receive( $id );
+		self::back( $done['ok'] ? array( 'teeshoop_ok' => '1', 'achat' => $id ) : array( 'teeshoop_ko' => rawurlencode( $done['reason'] ), 'achat' => $id ) );
+	}
+
+	public static function handle_abandon(): void {
+		self::guard( self::ACTION_ABANDON, __( 'déclarer une commande non reçue par le fournisseur', 'teeshoop' ) );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- checked above.
+		$id   = isset( $_POST['achat'] ) ? (int) $_POST['achat'] : 0;
+		$done = Purchase::abandon( $id );
 		self::back( $done['ok'] ? array( 'teeshoop_ok' => '1', 'achat' => $id ) : array( 'teeshoop_ko' => rawurlencode( $done['reason'] ), 'achat' => $id ) );
 	}
 
@@ -289,12 +299,24 @@ final class PurchasePage {
 					true
 				);
 			} else {
-				echo '<span class="description">' . esc_html__( 'des lignes ne sont pas identifiées', 'teeshoop' ) . '</span>';
+				echo '<span class="description">' . esc_html(
+					$basket['ok'] ? __( 'des lignes ne sont pas identifiées', 'teeshoop' ) : __( 'panier impossible', 'teeshoop' )
+				) . '</span>';
 			}
 			echo '</td></tr>';
 
 			if ( ! $basket['complete'] ) {
 				echo '<tr><td colspan="6"><ul style="list-style:disc;margin-left:1.5em">';
+				/*
+				 * A BASKET CAN FAIL WITHOUT ANY LINE FAILING: an order that has
+				 * vanished, or the internal traceability check refusing. That
+				 * reason was computed and then thrown away, and the row printed an
+				 * empty list under « des lignes ne sont pas identifiées », which
+				 * is a screen telling an operator to go and fix nothing.
+				 */
+				if ( '' !== (string) $basket['reason'] ) {
+					echo '<li>' . esc_html( (string) $basket['reason'] ) . '</li>';
+				}
 				foreach ( (array) $basket['unresolved'] as $bad ) {
 					echo '<li>' . esc_html( sprintf( '%s · %s : %s', (string) $bad['order_ref'], (string) $bad['label'], (string) $bad['why'] ) ) . '</li>';
 				}
@@ -321,14 +343,26 @@ final class PurchasePage {
 		}
 		echo '</p>';
 
-		if ( Purchase::UNCERTAIN === $state ) {
-			echo '<div class="notice notice-error"><p>' . esc_html__( 'Le fournisseur n’a pas répondu à cet envoi. La commande a peut-être été créée chez lui. Vérifiez sur son site avant toute nouvelle tentative : rien ne sera renvoyé automatiquement d’ici, parce qu’un second envoi serait une seconde livraison à payer.', 'teeshoop' ) . '</p></div>';
+		if ( Purchase::PARTIAL === $state ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Le fournisseur a créé la commande mais REFUSÉ des lignes : la série sera incomplète. Les articles refusés sont détaillés ci-dessous ; ils ne seront pas livrés, et la presse ne pourra pas tourner sur les vêtements manquants.', 'teeshoop' ) . '</p></div>';
 		}
-		if ( is_array( $purchase['answer'] ?? null ) && '' !== Purchase::answer_fr( $purchase['answer'] ) && Purchase::SENT !== $state ) {
+
+		if ( Purchase::UNCERTAIN === $state ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Le fournisseur n’a pas répondu à cet envoi. La commande a peut-être été créée chez lui. Vérifiez sur son site avant toute nouvelle tentative : rien ne sera renvoyé automatiquement d’ici, parce qu’un second envoi serait une seconde livraison à payer.', 'teeshoop' ) . '</p>';
+			echo '<p>' . esc_html__( 'Une fois la vérification faite, dites laquelle des deux : « Marquer les textiles reçus » si la livraison arrive, « Le fournisseur n’a rien reçu » si sa commande n’existe pas, ce qui rend ces commandes achetables de nouveau.', 'teeshoop' ) . '</p></div>';
+		}
+		/*
+		 * WHAT THE SUPPLIER SAID, ALWAYS. This used to be hidden on an accepted
+		 * order, on the reasoning that a success needs no explanation, and an
+		 * order accepted WITH refused lines is stored with those refusals and was
+		 * therefore silent about exactly the case that costs a run.
+		 */
+		if ( is_array( $purchase['answer'] ?? null ) && '' !== Purchase::answer_fr( $purchase['answer'] ) ) {
 			echo '<div class="notice notice-warning inline"><p>' . esc_html( Purchase::answer_fr( $purchase['answer'] ) ) . '</p></div>';
 		}
 
 		self::rows_table( $purchase );
+		self::short_table( $purchase );
 		self::orders_table( $purchase );
 		self::actions( $purchase );
 	}
@@ -376,7 +410,11 @@ final class PurchasePage {
 		self::total_row(
 			__( 'Port fournisseur', 'teeshoop' ),
 			Money::format( (int) $purchase['freight_ht'] ),
-			0 === (int) $purchase['freight_ht'] ? __( 'franco atteint', 'teeshoop' ) : __( 'question 03, à confirmer', 'teeshoop' )
+			// The threshold itself is question 03's written default, not a tariff
+			// anybody has confirmed, so neither branch may state it as a fact.
+			0 === (int) $purchase['freight_ht']
+				? __( 'franco supposé atteint, question 03 à confirmer', 'teeshoop' )
+				: __( 'question 03, à confirmer', 'teeshoop' )
 		);
 		self::total_row( __( 'À payer au fournisseur', 'teeshoop' ), Money::format( (int) $purchase['total_ht'] ) . ' HT', '', true );
 		echo '</tbody></table>';
@@ -388,6 +426,41 @@ final class PurchasePage {
 		echo '<td style="font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap">';
 		echo $strong ? '<strong>' . esc_html( $amount ) . '</strong>' : esc_html( $amount );
 		echo '</td><td class="description">' . esc_html( $note ) . '</td></tr>';
+	}
+
+	/**
+	 * What the supplier does not have enough of, and when he says it comes back.
+	 *
+	 * The restock date is HIS announcement, not our estimate: nobody has measured
+	 * how long he takes to deliver (question 46), so this file prints the only
+	 * forward-looking fact that exists and computes none of its own.
+	 */
+	private static function short_table( array $purchase ): void {
+		$short = (array) ( $purchase['stock']['short'] ?? array() );
+		if ( array() === $short ) {
+			return;
+		}
+		echo '<h3>' . esc_html__( 'Ce qui manque chez le fournisseur', 'teeshoop' ) . '</h3>';
+		echo '<p class="description" style="max-width:46em">' . esc_html__( 'Un relevé de stock est une observation datée, jamais une réservation : le fournisseur sert d’autres clients entre le relevé et la commande. Ces lignes partiront quand même, et il dira ce qu’il peut servir.', 'teeshoop' ) . '</p>';
+		echo '<div style="overflow-x:auto;max-width:100%"><table class="widefat striped"><thead><tr>';
+		foreach ( array( 'Article', 'Coloris', 'Taille', 'Demandé', 'En stock', 'Réapprovisionnement annoncé' ) as $head ) {
+			echo '<th scope="col">' . esc_html( $head ) . '</th>';
+		}
+		echo '</tr></thead><tbody>';
+		$num = 'style="font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap"';
+		foreach ( $short as $one ) {
+			echo '<tr><th scope="row">' . esc_html( (string) $one['sku'] ) . '</th>';
+			echo '<td>' . esc_html( (string) $one['colour'] ) . '</td>';
+			echo '<td>' . esc_html( (string) $one['size'] ) . '</td>';
+			echo '<td ' . $num . '>' . esc_html( (string) (int) $one['want'] ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a literal above.
+			echo '<td ' . $num . '>' . esc_html( (string) (int) $one['have'] ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo '<td>';
+			echo '' !== (string) ( $one['back_on'] ?? '' )
+				? esc_html( sprintf( /* translators: 1: a date, 2: how many pieces. */ __( 'le %1$s, %2$d pièces', 'teeshoop' ), Production::fr_date( (string) $one['back_on'] ), (int) ( $one['back_qty'] ?? 0 ) ) )
+				: '<span class="description">' . esc_html__( 'rien d’annoncé', 'teeshoop' ) . '</span>';
+			echo '</td></tr>';
+		}
+		echo '</tbody></table></div>';
 	}
 
 	/** What each customer order contributes, and what it was assumed to cost. */
@@ -469,6 +542,15 @@ final class PurchasePage {
 		self::form( self::ACTION_EXPORT, array( 'achat' => $id ), __( 'Exporter le panier (CSV)', 'teeshoop' ), false );
 		if ( in_array( $state, array( Purchase::SENT, Purchase::UNCERTAIN ), true ) ) {
 			self::form( self::ACTION_RECEIVE, array( 'achat' => $id ), __( 'Marquer les textiles reçus', 'teeshoop' ), true );
+		}
+		/*
+		 * THE ONLY WAY OUT OF « ENVOI INCERTAIN », and it is a human assertion
+		 * rather than a check the shop can make: this supplier publishes no route
+		 * that lists orders. Without it those orders stay pinned to a purchase
+		 * that may not exist, and their blanks can never be bought.
+		 */
+		if ( Purchase::UNCERTAIN === $state ) {
+			self::form( self::ACTION_ABANDON, array( 'achat' => $id ), __( 'Le fournisseur n’a rien reçu', 'teeshoop' ), false );
 		}
 		echo '</p>';
 

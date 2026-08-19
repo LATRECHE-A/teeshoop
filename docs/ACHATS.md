@@ -71,6 +71,28 @@ l'achat. Les quatre refus possibles, avec leur phrase à l'écran :
 
 Rien n'est approximé à la taille ou au coloris le plus proche.
 
+### 1 bis. Ce qui est acheté est ce qui a été VENDU
+
+La référence du textile nu et le coloris fournisseur sont **gelés sur la ligne de commande
+au moment de la vente**, pas relus au moment de l'achat.
+
+La première version les relisait sur la fiche produit, des jours après la vente et souvent
+après l'impression du film. La passe adverse l'a reproduit sur le miroir : un gestionnaire
+change une référence en fin de vie, la 00142 devient la 00517, le nom de coloris « Navy »
+existe sur les deux parce que `pa_couleur` est un seul attribut global partagé par tous les
+styles importés, rien ne refuse, et vingt polos sont achetés pour une série dont le film
+est imprimé pour des t-shirts. Dans le catalogue du miroir, « Navy » est porté par 4 styles
+et « White » par 5 : la collision est le cas ordinaire, pas un cas tordu.
+
+Gelé, le panier achète ce qui a été vendu, et une fiche produit qui a bougé depuis est une
+différence que l'écran peut **nommer** au lieu d'une substitution que personne ne voit avant
+l'ouverture des cartons.
+
+Même famille : quand un coloris et une taille désignent **deux** articles d'un même style,
+le panier refuse au lieu de prendre le premier que WooCommerce rend. Deux noms de coloris
+du fournisseur peuvent se réduire au même suffixe public, et l'importateur publie alors les
+deux articles avec le même terme de coloris.
+
 ### 2. Le lien entre un produit et son textile nu
 
 Une fiche produit déclare désormais deux choses de plus, au même endroit et pour la même
@@ -127,12 +149,33 @@ meurt en tenant la requête laisse un dossier qui dit « envoi incertain », et 
 de repartir. Cela coûte un coup de téléphone au fournisseur ; l'inverse coûte une seconde
 livraison, payée, sur une série dont le film est déjà acheté.
 
-Trois issues et non deux :
+**Quatre issues et non deux :**
 
-- **acceptée** : le fournisseur a créé la commande et lui a donné un numéro ;
-- **refusée** : il a dit non, rien n'existe chez lui, les commandes retournent au panier ;
-- **incertaine** : la réponse s'est perdue. La commande a **peut-être** été créée. Les
-  commandes restent rattachées, parce que leurs textiles sont peut-être en route.
+| Issue | Ce que ça veut dire | Ce que fait la boutique |
+|---|---|---|
+| **acceptée** | commande créée, toutes les lignes prises | rien à faire |
+| **commandée en partie** | commande créée, **des lignes refusées** | la série sera incomplète, les articles refusés sont affichés |
+| **refusée** | rien n'existe chez lui | les commandes retournent au panier |
+| **incertaine** | la réponse s'est perdue, ou elle nomme une commande créée **et** une erreur globale | les commandes restent rattachées, un opérateur va vérifier |
+
+La deuxième vient de la passe adverse : une commande acceptée avec des lignes refusées
+était affichée comme entièrement « Commandée », et le détail des refus était enregistré
+puis masqué par l'écran. La pénurie se découvrait à l'ouverture des cartons, à côté d'un
+film déjà imprimé.
+
+Et une réponse qui nomme un numéro de commande n'est **jamais** « refusée », quoi qu'elle
+porte d'autre : une commande refusée libère ses commandes clients, qui peuvent alors être
+achetées une seconde fois. Un numéro de commande est la preuve que quelque chose existe, et
+il l'emporte sur le reste.
+
+**Un envoi mort a une sortie.** L'état « envoi en cours » n'en avait aucune : envoyer,
+annuler et recevoir refusaient tous cet état, donc le dossier restait bloqué pour toujours,
+ses commandes rattachées pour toujours, et l'écran de l'atelier continuait à les compter
+comme achetées. Un « envoi en cours » plus vieux que cinq minutes devient donc **« envoi
+incertain »** à la lecture, parce qu'une requête dont le délai est de quarante secondes
+n'est plus en vol au bout de cinq minutes. Et un envoi incertain a une sortie, qui est une
+affirmation humaine parce que la boutique ne peut pas la vérifier : **« Le fournisseur n'a
+rien reçu »**, qui libère les commandes et enregistre qui l'a dit et quand.
 
 Chaque envoi porte une **clé d'idempotence** (`TS-A{n}-{8 hexadécimaux}`) qui voyage aussi
 comme la référence de commande du fournisseur, donc un doublon est reconnaissable de son
@@ -150,6 +193,33 @@ confirmation en vraie commande. C'est exactement l'accident que la question 22 r
 **Au 19 août 2026 le compte est en mode test**, relevé en direct. Ce n'est pas une réponse
 à la question 22, c'est un fait mesuré : le mode peut changer chez le fournisseur sans que
 nous le décidions, et c'est pourquoi il est relu à chaque envoi.
+
+### 5 bis. Deux secrets, parce qu'un seul dépensait de l'argent
+
+`ADMIN_TOKEN` ouvre toutes les routes du Worker, et l'un de ses porteurs est une tâche de
+nuit sur la boutique qui lit le catalogue. Le jeton qui importe des photographies de
+produits était donc aussi celui qui pouvait passer une commande d'achat, pour n'importe
+quel article et n'importe quelle quantité, et c'est le jeton en lecture seule qui vit dans
+un WordPress sur hébergement mutualisé.
+
+`POST /api/fr/order` demande donc **un second secret**, `FR_ORDER_TOKEN`, sur un en-tête à
+lui (`X-Teeshoop-Order-Token`), en plus de `ADMIN_TOKEN`. La boutique le garde dans une
+constante distincte (`TEESHOOP_ORDER_TOKEN`), que l'importateur de catalogue ne porte
+jamais.
+
+Cette route n'accepte par ailleurs que la forme `Bearer`. Le contrôle d'administration
+accepte aussi `Basic`, pour qu'un navigateur puisse ouvrir `/admin.html` avec sa propre
+fenêtre de connexion : un navigateur qui a fait cela rejoue l'identifiant sur toutes les
+requêtes vers cette origine, y compris celles qu'une page d'un autre site lui fait faire.
+L'en-tête personnalisé bloque déjà ce cas (une requête inter-origines qui le porte demande
+un contrôle préalable, et cette route n'en accorde aucun), mais une route qui dépense de
+l'argent ne doit pas reposer sur un second mécanisme quand refuser la forme navigateur
+coûte une ligne.
+
+```
+wrangler secret put FR_ORDER_TOKEN
+npm run wp:cli -- config set TEESHOOP_ORDER_TOKEN <valeur> --type=constant
+```
 
 ### 6. Le dernier verrou est vide
 
@@ -213,8 +283,19 @@ construire :
 | Ce que nous savons | Ce que le client lit |
 |---|---|
 | Relevé de moins de 24 h, stock positif | **Disponible** |
-| Relevé de moins de 24 h, stock nul | **Délai allongé** |
+| Relevé de moins de 24 h, stock nul | **Rupture, nous consulter** |
 | Relevé plus vieux que 24 h, ou aucun relevé | **Délai à confirmer** |
+
+La deuxième n'est **pas** le mot de la question 11, qui dit « délai allongé ».
+L'importateur pose `backorders = no` sur chaque article, donc WooCommerce refuse la
+commande qu'un « délai allongé » inviterait à passer : la formulation suit le
+comportement, parce que l'inverse est une promesse que la boutique ne tient pas. L'écart
+est enregistré dans `H-Q11-STOCK-CHIFFRE`.
+
+L'écran de l'atelier, lui, en dit **quatre**, parce qu'il en a besoin de quatre : « en
+stock », « n seulement », « trop ancien » et « horloges décalées ». La première version
+n'en disait que deux et a annoncé « trop ancien » sur un relevé de quatre minutes, ce qui
+envoie un opérateur rafraîchir quelque chose qui ne l'était pas.
 
 Publier un chiffre transformerait l'entrepôt du fournisseur en notre promesse, ce que la
 question 11 laisse à l'associé. La fenêtre de 24 heures est à nous et elle est enregistrée
@@ -294,6 +375,10 @@ urgence. Ces 6 jours **ne comptent pas** l'acheminement des vêtements nus.
 
 **Aucune réservation de stock.** Le fournisseur n'en propose pas et la Bible n'en décrit
 aucune. Entre le relevé et la commande, il sert d'autres clients.
+
+**Ce que le fournisseur annonce, en revanche, est lu et affiché.** Une ligne dont il n'a
+pas assez porte la date de réapprovisionnement qu'il publie, avec la quantité annoncée, ou
+« rien d'annoncé ». C'est la seule date de tout ce fichier, et elle vient de lui.
 
 **Aucune règle de rupture automatique.** La question 11 propose « substitution, changement
 de couleur, fractionnement ou remboursement partiel après accord client ». Les quatre

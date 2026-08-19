@@ -397,6 +397,55 @@ final class Supply {
 	}
 
 	/**
+	 * When the supplier says an article comes back, by article number.
+	 *
+	 * The one forward-looking fact he publishes, and the only thing this shop can
+	 * honestly say about a date: nobody has ever measured how long HE takes to
+	 * deliver (question 46), so the basket shows what he announces and computes
+	 * no date of its own.
+	 *
+	 * A failure is an empty map and not an error: a missing restock date makes a
+	 * short line say « rupture » instead of « rupture, annoncé le … », which is
+	 * less useful and not less true.
+	 *
+	 * @param string $ref A catalogue reference, to narrow it. '' for everything.
+	 * @return array<string,array{date:string,qty:int}>
+	 */
+	public static function deliveries( string $ref = '' ): array {
+		if ( '' !== self::unconfigured() ) {
+			return array();
+		}
+		$res = self::get( 'deliveries' . ( '' !== $ref ? '/' . $ref : '' ), array(), self::TIMEOUT );
+		if ( ! $res['ok'] || ! is_array( $res['body']['items'] ?? null ) ) {
+			return array();
+		}
+		$out = array();
+		foreach ( $res['body']['items'] as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+			$sku  = (string) ( $item['sku'] ?? '' );
+			$date = (string) ( $item['date'] ?? '' );
+			if ( '' === $sku || '' === $date ) {
+				continue;
+			}
+			/*
+			 * THE EARLIEST ANNOUNCED DATE WINS. He publishes several restocks per
+			 * article; the workshop wants to know when it can press, which is the
+			 * first delivery that covers it, and showing the last would answer a
+			 * question nobody asked.
+			 */
+			if ( ! isset( $out[ $sku ] ) || $date < $out[ $sku ]['date'] ) {
+				$out[ $sku ] = array(
+					'date' => $date,
+					'qty'  => (int) ( $item['freeToSell'] ?? $item['qty'] ?? 0 ),
+				);
+			}
+		}
+		return $out;
+	}
+
+	/**
 	 * Place a supplier order. The only call in this plugin that spends money.
 	 *
 	 * ── IT IS NOT `self::get()` AND IT MUST NOT BECOME IT ────────────────────
@@ -441,6 +490,20 @@ final class Supply {
 			return $refused( $why );
 		}
 
+		/*
+		 * A SECOND CONSTANT, AND IT IS NOT THE CATALOGUE'S.
+		 *
+		 * `TEESHOOP_CATALOGUE_TOKEN` is carried by the nightly import, which is
+		 * the job most likely to be copied into a staging site, a backup or a
+		 * screenshot. Until now it also opened the route that buys garments. The
+		 * Worker requires this one in addition, on a header of its own, so the
+		 * read-only job cannot spend money even holding its own secret.
+		 */
+		$order_token = defined( 'TEESHOOP_ORDER_TOKEN' ) ? (string) constant( 'TEESHOOP_ORDER_TOKEN' ) : '';
+		if ( strlen( $order_token ) < 24 ) {
+			return $refused( 'Le jeton d’achat est absent. Ajoutez define( \'TEESHOOP_ORDER_TOKEN\', \'…\' ); dans wp-config.php.' );
+		}
+
 		$response = wp_remote_post(
 			self::base() . self::ROUTE . 'order',
 			array(
@@ -450,6 +513,7 @@ final class Supply {
 					'content-type'  => 'application/json',
 					'accept'        => 'application/json',
 					'authorization' => 'Bearer ' . self::token(),
+					'x-teeshoop-order-token' => $order_token,
 				),
 				'body'        => (string) wp_json_encode(
 					array(
@@ -489,14 +553,23 @@ final class Supply {
 		}
 
 		/*
-		 * EVERY REFUSAL THE WORKER MAKES BEFORE SENDING IS A REFUSAL, and it
-		 * names them: 400 for a document it will not build, 401 for a token,
-		 * 409 for a mode that moved, 503 for a customer number nobody has set.
-		 * Anything else is a Worker that answered something we do not recognise,
-		 * which cannot be told from a document that went out.
+		 * WHAT THE WORKER REFUSED BEFORE SENDING IS A REFUSAL, and it says which:
+		 * every failure it can name happens before the document is posted. The
+		 * CODE is read and not only the status, because a failure that happens
+		 * before the POST can still carry a 502 (`upstream`, e.g. reading the
+		 * account mode), and reading that as « the document may have gone out »
+		 * moves a purchase to « envoi incertain », which is terminal, over a
+		 * supplier who was merely slow.
+		 *
+		 * `upstream` alone stays unknown: that is the code the Worker uses for a
+		 * failure of the order POST itself.
 		 */
 		$message = (string) ( $body['message'] ?? ( 'Le Worker a répondu ' . $code . '.' ) );
-		if ( in_array( $code, array( 400, 401, 403, 409, 503 ), true ) ) {
+		$named   = (string) ( $body['error'] ?? '' );
+		if ( in_array( $named, array( 'config', 'auth', 'bad_request', 'not_found', 'parse' ), true ) ) {
+			return $refused( $message );
+		}
+		if ( '' === $named && in_array( $code, array( 400, 401, 403, 409, 503 ), true ) ) {
 			return $refused( $message );
 		}
 		return $unknown( $message );

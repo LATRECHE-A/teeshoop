@@ -8,8 +8,17 @@
 	//                                       Generate: openssl rand -base64 32
 	//   wrangler secret put FR_WS_USER      Falk&Ross webservice account
 	//   wrangler secret put FR_WS_PASS      … and its password
-	//   wrangler secret put FR_CUSTOMER_NR  read only by the UNROUTED placeOrder;
-	//                                       the public order route was removed.
+	//   wrangler secret put FR_CUSTOMER_NR  the supplier customer number. Unset,
+	//                                       POST /api/fr/order answers 503 and
+	//                                       builds no document. NEVER derived.
+	//   wrangler secret put FR_ORDER_TOKEN   a SECOND secret, required by that
+	//                                       one route in addition to
+	//                                       ADMIN_TOKEN, on the header
+	//                                       X-Teeshoop-Order-Token. ADMIN_TOKEN
+	//                                       is carried by the shop's nightly
+	//                                       catalogue cron; a read-only job must
+	//                                       not hold the credential that spends
+	//                                       money. Generate: openssl rand -base64 32
 	// Locally, the same keys go in .dev.vars (git-ignored). Declared on the
 	// Worker's Env interface in worker/falkross.ts (FalkRossEnv).
 	//

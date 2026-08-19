@@ -773,7 +773,19 @@ final class Catalogue {
 			$out[] = array(
 				'sku_suffix'   => $suffix,
 				'supply_sku'   => $supply,
-				'stock_at'     => $stock_at,
+				/*
+				 * THE DATE BELONGS TO THE QUANTITY, not to the style.
+				 *
+				 * Stamping every article of a style with the snapshot's timestamp
+				 * dated articles the feed never mentioned. Their quantity is
+				 * deliberately frozen (see `$quantity` below), so a fresh date on
+				 * a frozen number is a number that can never go stale: the shop
+				 * would go on answering « Disponible » for ever from a figure
+				 * nobody has confirmed since. Empty here, and `Importer` then
+				 * leaves the previous date alone, so the article ages out by
+				 * itself inside `Purchase::STOCK_TRUST_HOURS`.
+				 */
+				'stock_at'     => null === $quantity ? '' : $stock_at,
 				'couleur'      => $colour,
 				'taille'       => $size,
 				'ean'          => self::text( $sku['ean'] ?? '' ),

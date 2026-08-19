@@ -207,7 +207,14 @@ function ts_ac_stub(): void {
 					array(
 						'id'          => substr( (string) $url, strrpos( (string) $url, '/' ) + 1 ),
 						'garment'     => 'tee',
-						'color'       => 'white',
+						/*
+						 * THE COLOUR COMES FROM THE MANIFEST, because that is where
+						 * `Cart::add` reads it, and since session 08 the cart uses
+						 * it to freeze which supplier colour the line is sold as.
+						 * A stub that always said white froze white on every order
+						 * whatever colour the case asked for.
+						 */
+						'color'       => (string) ( $GLOBALS['ts_ac_colour'] ?? 'white' ),
 						'sides'       => $GLOBALS['ts_ac_sides'] ?? array(),
 						'preview'     => '/r2/design/x/preview.png',
 						'previews'    => array(),
@@ -228,8 +235,9 @@ function ts_ac_stub(): void {
 
 /** A paid order with an approved proof, carrying a size grid. */
 function ts_ac_order( int $product_id, array $grid, string $colour, string $design ): \WC_Order {
-	$sides                  = array( array( 'id' => 'front', 'area_sq_cm' => 400.0, 'pieces' => array( array( 'w_cm' => 20.0, 'h_cm' => 20.0 ) ) ) );
-	$GLOBALS['ts_ac_sides'] = $sides;
+	$sides                   = array( array( 'id' => 'front', 'area_sq_cm' => 400.0, 'pieces' => array( array( 'w_cm' => 20.0, 'h_cm' => 20.0 ) ) ) );
+	$GLOBALS['ts_ac_sides']  = $sides;
+	$GLOBALS['ts_ac_colour'] = $colour;
 	ts_ac_stub();
 
 	WC()->cart->empty_cart();
@@ -252,18 +260,6 @@ function ts_ac_order( int $product_id, array $grid, string $colour, string $desi
 	$order->set_billing_company( 'Client ' . $design );
 	$order->save();
 	$order->payment_complete( 'ts-ac-' . $order->get_id() );
-	$order = wc_get_order( $order->get_id() );
-
-	/*
-	 * The colour is what the customer chose in the studio, and the basket
-	 * resolves it through the product's own map. The stub's manifest says
-	 * `white`; a case that wants another colour writes it here, which is the
-	 * same field `Cart::add` wrote.
-	 */
-	foreach ( $order->get_items() as $item ) {
-		$item->update_meta_data( '_teeshoop_couleur', $colour );
-		$item->save();
-	}
 	$order = wc_get_order( $order->get_id() );
 
 	$issued = Bat::issue( $order );
@@ -327,6 +323,10 @@ function ts_purchase_suite( int $product_id ): void {
 	update_option( 'teeshoop_settings', $settings );
 	if ( ! defined( 'TEESHOOP_CATALOGUE_TOKEN' ) ) {
 		define( 'TEESHOOP_CATALOGUE_TOKEN', str_repeat( 'k', 32 ) );
+	}
+	// The money route needs its own secret, which the catalogue's does not open.
+	if ( ! defined( 'TEESHOOP_ORDER_TOKEN' ) ) {
+		define( 'TEESHOOP_ORDER_TOKEN', str_repeat( 'o', 32 ) );
 	}
 
 	ts_ac_stub();
@@ -421,16 +421,23 @@ function ts_purchase_suite( int $product_id ): void {
 
 	// ── what a basket must refuse ────────────────────────────────────────────
 
-	ts_it( 'refuses a colour nobody has mapped, instead of buying the nearest one', function () use ( $product_id, $made ) {
+	ts_it( 'refuses a colour nobody has mapped, instead of buying the nearest one', function () use ( $product_id ) {
+		/*
+		 * The mapping is removed BEFORE the sale, because the sale is what freezes
+		 * which blank a line is bought as. Removing it afterwards changes nothing,
+		 * deliberately: see « buys the blank that was SOLD » below.
+		 */
 		update_post_meta( $product_id, Product::META_BLANK_COLOURS, wp_json_encode( array( 'white' => 'White' ) ) );
-		$basket = Purchase::basket( $made );
+		$order = ts_ac_order( $product_id, array( 'M' => 3 ), 'black', 'pppppppppppppppp1616' );
+		update_post_meta( $product_id, Product::META_BLANK_COLOURS, wp_json_encode( array( 'white' => 'White', 'black' => 'Black' ) ) );
+
+		$basket = Purchase::basket( array( $order->get_id() ) );
 		ts_assert( ! $basket['complete'], 'un coloris non associé n’a pas bloqué le panier' );
 		$why = '';
 		foreach ( $basket['unresolved'] as $one ) {
 			$why .= $one['why'];
 		}
 		ts_assert( str_contains( $why, 'coloris' ), 'le refus ne dit pas que c’est le coloris : ' . $why );
-		update_post_meta( $product_id, Product::META_BLANK_COLOURS, wp_json_encode( array( 'white' => 'White', 'black' => 'Black' ) ) );
 	} );
 
 	ts_it( 'refuses a size the supplier does not sell in that colour', function () use ( $product_id ) {
@@ -628,6 +635,168 @@ function ts_purchase_suite( int $product_id ): void {
 		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'accepted' );
 		$again                  = Purchase::prepare( array( $order->get_id() ) );
 		ts_assert( ! empty( $again['ok'] ), 'la commande refusée ne peut plus être achetée : ' . ( $again['reason'] ?? '' ) );
+	} );
+
+	ts_it( 'buys the blank that was SOLD, not the one the product names today', function () use ( $product_id ) {
+		/*
+		 * THE SCRAP-PRINT CASE THE ADVERSARIAL PASS REPRODUCED ON THE MIRROR.
+		 * A shop manager changes a discontinued reference on the product page.
+		 * The basket used to read that reference live, days after the sale and
+		 * often after the film was printed, so orders already sold were bought as
+		 * a different garment. The colour name resolving on both styles is the
+		 * ordinary case, not a contrived one: `pa_couleur` is one taxonomy shared
+		 * by every imported style.
+		 */
+		$order  = ts_ac_order( $product_id, array( 'M' => 4 ), 'white', 'kkkkkkkkkkkkkkkk1212' );
+		$before = Purchase::basket( array( $order->get_id() ) );
+		ts_assert( $before['complete'], 'panier initial incomplet : ' . wp_json_encode( $before['unresolved'] ) );
+		$sold = $before['rows'][0]['sku'];
+
+		// The product now says something else entirely.
+		update_post_meta( $product_id, Product::META_BLANK_REF, '99999' );
+		$after = Purchase::basket( array( $order->get_id() ) );
+		ts_assert( $after['complete'], 'le panier a suivi la fiche produit au lieu de la vente : ' . wp_json_encode( $after['unresolved'] ) );
+		ts_assert( $after['rows'][0]['sku'] === $sold, 'l’article acheté a changé après la vente : ' . $after['rows'][0]['sku'] . ' au lieu de ' . $sold );
+
+		update_post_meta( $product_id, Product::META_BLANK_REF, '18001' );
+	} );
+
+	ts_it( 'refuses when a colour and a size name two articles instead of one', function () use ( $product_id ) {
+		/*
+		 * Two articles of one style can carry the same colour NAME: the supplier
+		 * publishes colour names that collide, and the attributes are the names.
+		 * WooCommerce's own matcher returns the first, so the workshop bought a
+		 * coin flip between two colourways. A second article is grafted onto the
+		 * imported style here, which is exactly what the importer does when two
+		 * of the supplier's colour names reduce to the same public suffix.
+		 */
+		$order = ts_ac_order( $product_id, array( 'M' => 3 ), 'white', 'llllllllllllllll1313' );
+
+		$twin = ts_ac_variation( '180010004' );
+		ts_assert( $twin instanceof \WC_Product, 'l’article de référence est introuvable' );
+		$clone = new \WC_Product_Variation();
+		$clone->set_parent_id( $twin->get_parent_id() );
+		$clone->set_attributes( $twin->get_attributes() );
+		$clone->set_status( 'publish' );
+		$clone->save();
+		$clone->update_meta_data( Catalogue::META_SUPPLY_SKU, '180019994' );
+		$clone->save();
+
+		$basket = Purchase::basket( array( $order->get_id() ) );
+		$why    = '';
+		foreach ( $basket['unresolved'] as $one ) {
+			$why .= $one['why'];
+		}
+		ts_assert( ! $basket['complete'], 'un coloris ambigu a produit un panier complet, donc un achat à pile ou face' );
+		ts_assert( str_contains( $why, 'plusieurs articles' ), 'le refus ne dit pas que le coloris est ambigu : ' . $why );
+
+		wp_delete_post( $clone->get_id(), true );
+	} );
+
+	ts_it( 'never reports an order the supplier accepted with refused lines as fully ordered', function () use ( $product_id ) {
+		$order    = ts_ac_order( $product_id, array( 'M' => 2, 'L' => 2 ), 'white', 'mmmmmmmmmmmmmmmm1414' );
+		$prepared = Purchase::prepare( array( $order->get_id() ) );
+		ts_assert( ! empty( $prepared['ok'] ), 'préparation refusée : ' . ( $prepared['reason'] ?? '' ) );
+
+		// An order id AND a refused line: the run is short by exactly that line.
+		$GLOBALS['ts_ac_order'] = array(
+			'outcome' => 'partial',
+			'orderId' => '4412346',
+			'lines'   => array( array( 'sku' => '180010005', 'errorCode' => '30', 'message' => 'Artno not found' ) ),
+		);
+		$done = Purchase::send( (int) $prepared['id'], 'test' );
+		ts_assert( empty( $done['ok'] ), 'une commande servie à moitié a été rapportée comme un succès' );
+		ts_assert( Purchase::PARTIAL === $done['state'], 'état ' . $done['state'] . ' au lieu de ' . Purchase::PARTIAL );
+		ts_assert( str_contains( (string) $done['reason'], 'incomplète' ), 'le message ne dit pas que la série sera incomplète' );
+
+		// Money moved: the orders stay pinned and the carriage is still shared.
+		ts_assert( null !== Purchase::part_of( wc_get_order( $order->get_id() ) ), 'une commande créée chez le fournisseur a été détachée' );
+		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'accepted' );
+	} );
+
+	ts_it( 'never unpins orders on an answer that names an order the supplier created', function () use ( $product_id ) {
+		/*
+		 * `orders_id 4412347` beside a global error code used to read as
+		 * `rejected`, and a rejected purchase RELEASES its orders so they can be
+		 * bought again. An order the supplier had created would have been created
+		 * a second time, and the boxes arrive twice.
+		 */
+		$order    = ts_ac_order( $product_id, array( 'M' => 2 ), 'white', 'nnnnnnnnnnnnnnnn1515' );
+		$prepared = Purchase::prepare( array( $order->get_id() ) );
+		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'unknown', 'orderId' => '4412347', 'message' => 'err 12' );
+		$done = Purchase::send( (int) $prepared['id'], 'test' );
+		ts_assert( Purchase::UNCERTAIN === $done['state'], 'état ' . $done['state'] . ' pour une réponse qui nomme une commande créée' );
+		ts_assert( null !== Purchase::part_of( wc_get_order( $order->get_id() ) ), 'les commandes ont été libérées alors que le fournisseur en a peut-être créé une' );
+		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'accepted' );
+	} );
+
+	ts_it( 'never strands a purchase whose process died in the middle of sending', function () use ( $product_id ) {
+		/*
+		 * THE CASE THE ADVERSARIAL PASS REPRODUCED. `send()` writes SENDING and
+		 * saves BEFORE it calls, so a process that dies holding the request
+		 * leaves a trace. It left a trap: send(), discard() and receive() all
+		 * refused that state, so the purchase could never move, its orders were
+		 * pinned to it for ever and their blanks could never be bought, on a run
+		 * whose film may already be ordered.
+		 */
+		$order    = ts_ac_order( $product_id, array( 'M' => 2 ), 'white', 'iiiiiiiiiiiiiiii9999' );
+		$prepared = Purchase::prepare( array( $order->get_id() ) );
+		ts_assert( ! empty( $prepared['ok'] ), 'préparation refusée : ' . ( $prepared['reason'] ?? '' ) );
+		$id = (int) $prepared['id'];
+
+		// The death: the request leaves and this process never comes back.
+		ts_ac_stub();
+		add_filter(
+			'pre_http_request',
+			function ( $pre, $args, $url ) {
+				if ( str_ends_with( (string) $url, '/order' ) ) {
+					throw new \RuntimeException( 'process tué en plein envoi' );
+				}
+				return $pre;
+			},
+			5,
+			3
+		);
+		$died = false;
+		try {
+			Purchase::send( $id, 'test' );
+		} catch ( \Throwable $e ) {
+			$died = true;
+		}
+		ts_ac_stub();
+		ts_assert( $died, 'le processus n’est pas mort là où le test le voulait' );
+
+		$stuck = Purchase::get( $id );
+		ts_assert( Purchase::SENDING === $stuck['state'], 'l’état juste après la mort devrait être ' . Purchase::SENDING );
+
+		/*
+		 * Age it past the deadline the way the clock would. `Supply::TIMEOUT` is
+		 * forty seconds, so a request started five minutes ago is not in flight.
+		 */
+		$stuck['attempted_at'] = time() - 3600;
+		update_post_meta( $id, Purchase::META_ORDER, wp_json_encode( $stuck ) );
+
+		$resolved = Purchase::get( $id );
+		ts_assert( Purchase::UNCERTAIN === $resolved['state'], 'un envoi mort reste bloqué à ' . $resolved['state'] );
+
+		// And now there is exactly one way out, and it releases the orders.
+		$out = Purchase::abandon( $id );
+		ts_assert( ! empty( $out['ok'] ), 'impossible de déclarer l’envoi non reçu : ' . $out['reason'] );
+		ts_assert( null === Purchase::part_of( wc_get_order( $order->get_id() ) ), 'la commande reste attachée à un achat déclaré inexistant' );
+
+		$again = Purchase::prepare( array( $order->get_id() ) );
+		ts_assert( ! empty( $again['ok'] ), 'la commande ne peut toujours pas être achetée : ' . ( $again['reason'] ?? '' ) );
+		Purchase::discard( (int) $again['id'] );
+	} );
+
+	ts_it( 'refuses to declare a purchase unreceived when it was plainly accepted', function () use ( $product_id ) {
+		// The way out is for a lost answer, not for undoing a real purchase.
+		$order    = ts_ac_order( $product_id, array( 'M' => 2 ), 'white', 'jjjjjjjjjjjjjjjj0000' );
+		$prepared = Purchase::prepare( array( $order->get_id() ) );
+		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'accepted' );
+		Purchase::send( (int) $prepared['id'], 'test' );
+		$out = Purchase::abandon( (int) $prepared['id'] );
+		ts_assert( empty( $out['ok'] ), 'une commande acceptée a été déclarée non reçue' );
 	} );
 
 	ts_it( 'will not send against a mode nobody confirmed', function () use ( $product_id ) {

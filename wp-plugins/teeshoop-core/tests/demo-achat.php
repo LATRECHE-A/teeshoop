@@ -166,9 +166,21 @@ foreach ( $week as $one ) {
 	$order->save();
 	$order->payment_complete( 'demo-achat-' . $order->get_id() );
 
+	/*
+	 * THE COLOUR THE DESIGN WAS DRAWN ON, and the blank it was sold as.
+	 *
+	 * A real sale takes both from the design manifest the Worker confirmed:
+	 * `Cart::add` reads the colour there and freezes the matching supplier term
+	 * beside it. This script invents its designs, so the manifest is bypassed by
+	 * the development allowance and carries no colour; the two fields are
+	 * therefore written here, with exactly the values that path would have
+	 * produced. Writing only the first would leave a line sold with no supplier
+	 * colour, which the basket then refuses by name, correctly.
+	 */
 	$order = wc_get_order( $order->get_id() );
 	foreach ( $order->get_items() as $item ) {
 		$item->update_meta_data( '_teeshoop_couleur', 'black' );
+		$item->update_meta_data( '_teeshoop_blank_colour', $colour_term );
 		$item->save();
 	}
 	$order = wc_get_order( $order->get_id() );

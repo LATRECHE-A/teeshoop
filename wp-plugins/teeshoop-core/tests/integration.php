@@ -107,14 +107,19 @@ wc_load_cart();
  * Worker, not a reachable one answering an honest 404.
  *
  * So a mirror pointed at a REAL Worker failed 74 cases here, and the same mirror
- * pointed at nothing passed all 182. Measured on 19/08/2026 after
+ * pointed at an unreachable one passed all 182. Measured on 19/08/2026 after
  * `tests/demo-achat.php` left a live address behind. Whether a suite passes must
- * not depend on what somebody last typed into a settings option, so the address
- * is cleared here and restored at the end; the two suites that need one set
- * their own and stub the calls.
+ * not depend on what somebody last typed into a settings option.
+ *
+ * PINNED TO AN UNREACHABLE ADDRESS AND NOT TO AN EMPTY ONE, which is the second
+ * half of the same lesson: clearing it broke 34 other cases, because the print
+ * lots refuse to exist without a nesting service configured at all and their
+ * suite stubs the CALL rather than the setting. `.invalid` is reserved by RFC
+ * 2606 and can never resolve, so `Design::verify` falls to the development
+ * allowance and `Nest::configured()` is still true.
  */
 $ts_settings_before = get_option( 'teeshoop_settings', array() );
-update_option( 'teeshoop_settings', array_merge( (array) $ts_settings_before, array( 'worker_url' => '' ) ) );
+update_option( 'teeshoop_settings', array_merge( (array) $ts_settings_before, array( 'worker_url' => 'https://worker.invalid' ) ) );
 
 /**
  * Disposable products to decorate.
@@ -674,9 +679,6 @@ ts_production_suite( $product_id );
  */
 require_once __DIR__ . '/integration-purchase.php';
 ts_purchase_suite( $product_id );
-
-require_once __DIR__ . '/zz-repro-sending.php';
-ts_repro_suite( $product_id );
 
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();

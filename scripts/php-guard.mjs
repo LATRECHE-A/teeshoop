@@ -210,6 +210,10 @@ const ALLOWED = new Map([
     { why: 'the WooCommerce tests for the basket, the freight split and the supplier order', needles: [ 'Cost::', 'Costing::', 'PriceRule::' ] },
   ],
   [
+    'wp-plugins/teeshoop-core/tests/demo-achat.php',
+    { why: 'seeds one worked purchase on the mirror from the live catalogue, so an admin screen can be looked at; CLI only, refuses to answer a GET, and it costs the orders it makes so the screen has an assumption to compare against', needles: [ 'Costing::' ] },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/ProductionPage.php',
     {
       /*

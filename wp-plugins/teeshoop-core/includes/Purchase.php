@@ -28,7 +28,8 @@
  * Inventing one would put a date on a customer's parcel nobody has ever kept.
  *
  * What the supplier DOES publish is the restock date of what is out of stock,
- * and that is read and shown, because it is a fact.
+ * and that is read (`Supply::deliveries()`) and shown beside every short line,
+ * because it is a fact. It is the only date this file prints.
  *
  * ── STOCK IS AN OBSERVATION, WITH A TIMESTAMP ────────────────────────────────
  *
@@ -93,6 +94,18 @@ final class Purchase {
 	/** The supplier accepted it and gave it a number. */
 	public const SENT = 'envoye';
 
+	/**
+	 * He created the order AND refused some lines. The run is short.
+	 *
+	 * A state of its own because the two facts it replaces are not the same:
+	 * money has moved and blanks are coming, AND the workshop is about to press
+	 * a job it does not have every garment for. This used to report as SENT and
+	 * the per-line refusals were stored and then hidden by the screen, so the
+	 * shortage was discovered when the cartons were opened, next to film already
+	 * printed.
+	 */
+	public const PARTIAL = 'partielle';
+
 	/** The supplier refused it, and nothing exists on their side. */
 	public const REFUSED = 'refuse';
 
@@ -114,6 +127,7 @@ final class Purchase {
 			self::PREPARED  => 'Préparée',
 			self::SENDING   => 'Envoi en cours',
 			self::SENT      => 'Commandée',
+			self::PARTIAL   => 'Commandée en partie',
 			self::REFUSED   => 'Refusée',
 			self::UNCERTAIN => 'Envoi incertain',
 			self::RECEIVED  => 'Reçue',
@@ -122,7 +136,7 @@ final class Purchase {
 
 	/** A purchase in one of these has spent money and may not be sent again. */
 	public static function spent( string $state ): bool {
-		return in_array( $state, array( self::SENDING, self::SENT, self::UNCERTAIN, self::RECEIVED ), true );
+		return in_array( $state, array( self::SENDING, self::SENT, self::PARTIAL, self::UNCERTAIN, self::RECEIVED ), true );
 	}
 
 	/** The shop's named lock, for the read-modify-write that builds a purchase. */
@@ -226,6 +240,24 @@ final class Purchase {
 		$basket['orders'] = self::per_order( $orders, $basket );
 		$basket['stock']  = self::stock_verdict( $basket['rows'], $today );
 		$basket['reason'] = '';
+
+		/*
+		 * AND WHEN THE SUPPLIER SAYS THE MISSING ONES COME BACK.
+		 *
+		 * Asked only when something is actually short, because it is a request
+		 * over the network for a screen that usually has nothing to say. It is
+		 * the only date in this file: nobody has measured how long the supplier
+		 * takes to deliver (question 46), so the basket reports what HE announces
+		 * and computes nothing of its own.
+		 */
+		if ( array() !== $basket['stock']['short'] ) {
+			$announced = Supply::deliveries();
+			foreach ( $basket['stock']['short'] as $i => $one ) {
+				$basket['stock']['short'][ $i ]['back_on'] = (string) ( $announced[ $one['sku'] ]['date'] ?? '' );
+				$basket['stock']['short'][ $i ]['back_qty'] = (int) ( $announced[ $one['sku'] ]['qty'] ?? 0 );
+			}
+		}
+
 		return $basket;
 	}
 
@@ -285,7 +317,14 @@ final class Purchase {
 		$refused  = array();
 		$order_id = $order->get_id();
 
-		$reject = static function ( string $why, string $size = '' ) use ( $order, $item, $qty ) {
+		/*
+		 * `$count` IS THE SIZE'S OWN QUANTITY on a per-size refusal, and the whole
+		 * line's only on a whole-line one. It used to be the line's either way, so
+		 * a line of « 12 M et 8 L et 5 2XL » with only the 2XL unavailable told the
+		 * operator that twenty-five garments were blocked instead of five, on the
+		 * screen where he decides whether to wait for a restock or re-cut the run.
+		 */
+		$reject = static function ( string $why, string $size = '', ?int $count = null ) use ( $order, $item, $qty ) {
 			return array(
 				'order_id'  => $order->get_id(),
 				'order_ref' => (string) $order->get_order_number(),
@@ -294,7 +333,7 @@ final class Purchase {
 				'garment'   => (string) $item->get_meta( '_teeshoop_garment', true ),
 				'colour'    => (string) $item->get_meta( '_teeshoop_couleur', true ),
 				'size'      => $size,
-				'qty'       => $qty,
+				'qty'       => null === $count ? $qty : $count,
 				'why'       => $why,
 			);
 		};
@@ -336,7 +375,27 @@ final class Purchase {
 			);
 		}
 
-		$ref = Product::blank_ref_of( $item->get_product_id() );
+		/*
+		 * WHAT WAS SOLD, NOT WHAT THE PRODUCT SAYS TODAY.
+		 *
+		 * `Cart::persist_to_order` freezes the reference and the supplier colour
+		 * term on the line at the moment of sale. Reading them from the product
+		 * here instead meant that changing a discontinued reference on a product
+		 * page changed what the workshop buys for orders ALREADY SOLD, whose film
+		 * may already be printed. The adversarial pass reproduced it on the
+		 * mirror: 00142 changed to 00517, « Navy » resolving on both because
+		 * `pa_couleur` is one global taxonomy, twenty polos bought for a t-shirt
+		 * run, nothing refused anywhere.
+		 *
+		 * A LINE OLDER THAN THE FREEZE HAS NEITHER, and falls back to the product,
+		 * because that is the only thing there is. It is the ONLY case where this
+		 * reads the product, and it says so on the claim so a screen can too.
+		 */
+		$frozen_ref    = (string) $item->get_meta( '_teeshoop_blank_ref', true );
+		$frozen_colour = (string) $item->get_meta( '_teeshoop_blank_colour', true );
+		$from_product  = '' === $frozen_ref;
+
+		$ref = '' !== $frozen_ref ? $frozen_ref : Product::blank_ref_of( $item->get_product_id() );
 		if ( '' === $ref ) {
 			return array(
 				'garments' => $qty,
@@ -355,8 +414,19 @@ final class Purchase {
 		}
 
 		$studio_colour = (string) $item->get_meta( '_teeshoop_couleur', true );
-		$map           = Product::blank_colours_of( $item->get_product_id() );
-		$term          = (string) ( $map[ $studio_colour ] ?? '' );
+		/*
+		 * THE TWO FIELDS ARE READ TOGETHER, and the reason is a real difference.
+		 * An empty frozen colour on a line that HAS a frozen reference means the
+		 * product had no mapping for that colour when it was sold, which is a
+		 * refusal. Falling back to the product's map because the field happens to
+		 * be empty would resolve it from a mapping added afterwards, which is the
+		 * same substitution the freeze exists to prevent, arriving by the back
+		 * door. Only a line with no frozen reference at all, sold before session
+		 * 08, reads the product for either field.
+		 */
+		$term = $from_product
+			? (string) ( Product::blank_colours_of( $item->get_product_id() )[ $studio_colour ] ?? '' )
+			: $frozen_colour;
 		if ( '' === $term ) {
 			return array(
 				'garments' => $qty,
@@ -369,10 +439,19 @@ final class Purchase {
 		foreach ( $grid as $size => $count ) {
 			$garments      += (int) $count;
 			$variation_id   = self::variation_of( $blank_id, $term, (string) $size );
+			if ( -1 === $variation_id ) {
+				$refused[] = $reject(
+					sprintf( 'La référence %s vend plusieurs articles en %s taille %s : le coloris ne désigne pas un article unique.', $ref, $term, $size ),
+					(string) $size,
+					(int) $count
+				);
+				continue;
+			}
 			if ( 0 === $variation_id ) {
 				$refused[] = $reject(
 					sprintf( 'Le fournisseur ne vend pas la taille %s en %s pour la référence %s.', $size, $term, $ref ),
-					(string) $size
+					(string) $size,
+					(int) $count
 				);
 				continue;
 			}
@@ -381,11 +460,12 @@ final class Purchase {
 			if ( '' === $sku ) {
 				$refused[] = $reject(
 					sprintf( 'L’article %s en %s n’a pas de référence fournisseur enregistrée.', $size, $term ),
-					(string) $size
+					(string) $size,
+					(int) $count
 				);
 				continue;
 			}
-			$claims[] = self::claim( $order, $item, $variation, $sku, (string) $size, (int) $count );
+			$claims[] = self::claim( $order, $item, $variation, $sku, (string) $size, (int) $count, $from_product );
 		}
 
 		return array(
@@ -410,7 +490,8 @@ final class Purchase {
 		\WC_Product $article,
 		string $sku,
 		string $size,
-		int $qty
+		int $qty,
+		bool $from_product = false
 	): array {
 		$cents = $article->get_meta( Catalogue::META_SUPPLY_CENTS, true );
 		$stock = $article->get_stock_quantity();
@@ -427,6 +508,13 @@ final class Purchase {
 			'unit_ht'    => is_numeric( $cents ) && (int) $cents > 0 ? (int) $cents : null,
 			'stock'      => null === $stock ? null : (int) $stock,
 			'stock_at'   => (string) $article->get_meta( Catalogue::META_STOCK_AT, true ),
+			/*
+			 * TRUE when the line predates the freeze and the blank had to be read
+			 * from the product as it stands today. It is not an error, it is the
+			 * only thing there is for an order taken before session 08; the screen
+			 * says so rather than presenting it as what was sold.
+			 */
+			'from_product' => $from_product,
 		);
 	}
 
@@ -471,6 +559,7 @@ final class Purchase {
 					'unit_ht'  => $c['unit_ht'],
 					'stock'    => $c['stock'],
 					'stock_at' => (string) $c['stock_at'],
+					'from_product' => ! empty( $c['from_product'] ),
 					'from'     => array(),
 				);
 			}
@@ -856,11 +945,26 @@ final class Purchase {
 	}
 
 	/**
-	 * The variation of `$blank_id` in this colour term and this size name, or 0.
+	 * The variation of `$blank_id` in this colour term and this size name.
 	 *
-	 * Uses WooCommerce's own matcher, which is what add-to-cart uses, rather than
-	 * walking the children: a style runs to 366 variations and a purchase screen
-	 * that loaded them all would read the whole catalogue to buy twelve t-shirts.
+	 * Returns the id, 0 when there is none, and **-1 when there is more than
+	 * one**, which is the answer this used to be unable to give.
+	 *
+	 * ── WHY AMBIGUITY IS ITS OWN ANSWER ─────────────────────────────────────
+	 *
+	 * It used `WC_Data_Store::find_matching_product_variation`, which is what
+	 * add-to-cart uses and which returns THE FIRST match. Two articles of one
+	 * style can carry the same colour name and size: `Catalogue::variations()`
+	 * has a comment about exactly that, because two of the supplier's colour
+	 * names can reduce to the same public suffix and it appends a number rather
+	 * than dropping the second. The attribute TERMS are the names, so both
+	 * variations then answer to the same pair, and the workshop bought whichever
+	 * WordPress returned that day: a coin flip between two colourways, silent,
+	 * on a run whose film is already printed.
+	 *
+	 * A single query on the two chosen attributes, asking for two, is exact and
+	 * cheap. `numberposts => 2` is the whole trick: it costs nothing and it is
+	 * the difference between « one article » and « an article ».
 	 *
 	 * MATCHED ON THE NAME, EXACTLY. Term slugs are computed from names and
 	 * several supplier colour names sanitise to the same slug, which is why
@@ -868,24 +972,39 @@ final class Purchase {
 	 * case-folding, no nearest match: a size that is not sold is refused.
 	 */
 	public static function variation_of( int $blank_id, string $colour_term, string $size_name ): int {
-		$parent = wc_get_product( $blank_id );
-		if ( ! $parent instanceof \WC_Product_Variable ) {
-			return 0;
-		}
 		$colour = get_term_by( 'name', $colour_term, Taxonomy::taxonomy( 'couleur' ) );
 		$size   = get_term_by( 'name', $size_name, Taxonomy::taxonomy( 'taille' ) );
 		if ( ! $colour instanceof \WP_Term || ! $size instanceof \WP_Term ) {
 			return 0;
 		}
-		$store = \WC_Data_Store::load( 'product' );
-		$match = $store->find_matching_product_variation(
-			$parent,
+
+		$found = get_posts(
 			array(
-				'attribute_' . Taxonomy::taxonomy( 'couleur' ) => $colour->slug,
-				'attribute_' . Taxonomy::taxonomy( 'taille' )  => $size->slug,
+				'post_type'   => 'product_variation',
+				'post_parent' => $blank_id,
+				'post_status' => 'any',
+				'numberposts' => 2,
+				'fields'      => 'ids',
+				'orderby'     => 'ID',
+				'order'       => 'ASC',
+				// phpcs:ignore WordPress.DB.SlowMetaQuery.SlowMetaQuery -- the attribute pair IS the identity of a variation; there is no other way to reach it.
+				'meta_query'  => array(
+					array(
+						'key'   => 'attribute_' . Taxonomy::taxonomy( 'couleur' ),
+						'value' => $colour->slug,
+					),
+					array(
+						'key'   => 'attribute_' . Taxonomy::taxonomy( 'taille' ),
+						'value' => $size->slug,
+					),
+				),
 			)
 		);
-		return (int) $match;
+
+		if ( count( $found ) > 1 ) {
+			return -1;
+		}
+		return 1 === count( $found ) ? (int) $found[0] : 0;
 	}
 
 	/**
@@ -957,14 +1076,70 @@ final class Purchase {
 		);
 	}
 
-	/** One purchase record by id, or null. */
+	/**
+	 * How long after an attempt a record may still honestly say « envoi en cours ».
+	 *
+	 * `Supply::TIMEOUT` is forty seconds, so a request that started five minutes
+	 * ago is not in flight: either it came back and this process wrote the
+	 * outcome, or the process is gone. Generous, because the only cost of being
+	 * generous is that the screen says « envoi en cours » for a few minutes
+	 * longer than it had to.
+	 */
+	private const SENDING_DEADLINE_S = 300;
+
+	/**
+	 * One purchase record by id, or null.
+	 *
+	 * ── IT RESOLVES A SEND THAT NOBODY CAME BACK FROM ────────────────────────
+	 *
+	 * `send()` writes SENDING before it calls, deliberately, so a process that
+	 * dies holding the request leaves a trace. It left more than a trace: nothing
+	 * could move that record afterwards. `send()` refuses a state that is not
+	 * PREPARED, `discard()` refuses one that is not PREPARED, `receive()` refuses
+	 * one that is not SENT or UNCERTAIN, so the purchase was stuck for ever, its
+	 * orders were pinned to it for ever and could never be bought, and the
+	 * workshop screen went on counting them as bought. Found by an adversarial
+	 * pass that reproduced the death rather than reasoning about it.
+	 *
+	 * A stale SENDING IS an uncertain send, and that is not a downgrade: it is
+	 * the same fact said accurately. « Nous avons envoyé et nous ne savons pas ce
+	 * qui est arrivé » is exactly what UNCERTAIN means, and UNCERTAIN has the
+	 * actions a human needs.
+	 *
+	 * The promotion is written once, here, rather than left to a cron: a record
+	 * nobody opens costs nothing, and the moment somebody opens it they need it
+	 * to be true.
+	 */
 	public static function get( int $id ): ?array {
 		$post = get_post( $id );
 		if ( ! $post || self::POST_TYPE !== $post->post_type ) {
 			return null;
 		}
 		$raw = json_decode( (string) get_post_meta( $id, self::META_ORDER, true ), true );
-		return is_array( $raw ) ? $raw : null;
+		if ( ! is_array( $raw ) ) {
+			return null;
+		}
+
+		if ( self::SENDING === ( $raw['state'] ?? '' ) ) {
+			$since = (int) ( $raw['attempted_at'] ?? 0 );
+			/*
+			 * NO TIMESTAMP MEANS THE ATTEMPT PREDATES THIS FIELD, which is a
+			 * record already stuck. Treating it as expired is the only reading
+			 * that lets anybody act on it.
+			 */
+			if ( 0 === $since || ( time() - $since ) > self::SENDING_DEADLINE_S ) {
+				$raw['state']  = self::UNCERTAIN;
+				$raw['answer'] = is_array( $raw['answer'] ?? null ) ? $raw['answer'] : array(
+					'outcome' => 'unknown',
+					'message' => 'Le processus qui envoyait cette commande n’est jamais revenu. Elle a peut-être été créée chez le fournisseur.',
+					'lines'   => array(),
+				);
+				self::store( $id, $raw );
+				self::stamp_orders( $raw );
+			}
+		}
+
+		return $raw;
 	}
 
 	/** The most recent purchases, newest first. */
@@ -1119,7 +1294,23 @@ final class Purchase {
 		foreach ( $record['orders'] as $row ) {
 			$order = wc_get_order( (int) $row['id'] );
 			if ( ! $order instanceof \WC_Order ) {
-				continue;
+				/*
+				 * EVERY ORDER OR NONE. An order that could not be pinned is an
+				 * order this purchase will buy blanks for and which nothing
+				 * records as bought: it stays in the queue, gets put on a second
+				 * purchase, and its garments are bought twice. `send_lot()` makes
+				 * the same refusal for the same reason.
+				 */
+				wp_delete_post( (int) $id, true );
+				foreach ( $record['orders'] as $undo ) {
+					$other = wc_get_order( (int) $undo['id'] );
+					if ( $other instanceof \WC_Order ) {
+						$other->delete_meta_data( self::META_ORDER_PART );
+						$other->save();
+					}
+				}
+				Invoice::unlock( self::LOCK );
+				return $fail( sprintf( 'La commande %d a disparu pendant la préparation : rien n’a été enregistré.', (int) $row['id'] ) );
 			}
 			$order->update_meta_data(
 				self::META_ORDER_PART,
@@ -1169,14 +1360,30 @@ final class Purchase {
 	 * @return array{ok:bool,reason:string}
 	 */
 	public static function discard( int $id ): array {
+		/*
+		 * UNDER THE SAME LOCK AS THE SEND TRANSITION. Without it, a discard that
+		 * arrived while a send was in flight read PREPARED (the send had not yet
+		 * written SENDING) and DELETED the record of a document already on the
+		 * wire: the delivery arrives against a purchase that no longer exists,
+		 * the orders are unpinned and can be bought a second time, and nothing
+		 * anywhere records that anything was ever sent.
+		 */
+		if ( ! Invoice::lock( self::LOCK ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'Une autre opération est en cours sur les achats. Réessayez dans un instant.',
+			);
+		}
 		$record = self::get( $id );
 		if ( null === $record ) {
+			Invoice::unlock( self::LOCK );
 			return array(
 				'ok'     => false,
 				'reason' => 'Cette commande fournisseur n’existe pas.',
 			);
 		}
 		if ( self::PREPARED !== $record['state'] ) {
+			Invoice::unlock( self::LOCK );
 			return array(
 				'ok'     => false,
 				'reason' => 'Cette commande fournisseur est partie ou a pu partir : elle ne peut plus être annulée ici.',
@@ -1190,6 +1397,7 @@ final class Purchase {
 			}
 		}
 		wp_delete_post( $id, true );
+		Invoice::unlock( self::LOCK );
 		return array(
 			'ok'     => true,
 			'reason' => '',
@@ -1261,11 +1469,49 @@ final class Purchase {
 			);
 		}
 
+		/*
+		 * ── THE TRANSITION IS LOCKED, AND THE SUPPLIER CALL IS NOT ───────────
+		 *
+		 * `prepare()`, which spends nothing, took this lock from the start;
+		 * `send()`, the one call in the plugin that spends money, took none. Two
+		 * submits of the confirmation form, a double click or two operators,
+		 * both read PREPARED at the check above and both reached the write below:
+		 * two documents, two deliveries, paid twice, and the idempotency key on
+		 * both is the SAME, so the duplicate is recognisable only to a human
+		 * reading the supplier's screen. Found by four independent readings of the
+		 * adversarial pass, which is what a hole this shape looks like.
+		 *
+		 * The lock covers the re-read, the check and the SENDING write, and is
+		 * released BEFORE the call: holding it across forty seconds of supplier
+		 * network would make every other purchase screen block on one slow order.
+		 * Once SENDING is stored, the state machine is the guard: nothing else
+		 * can enter this branch.
+		 */
+		if ( ! Invoice::lock( self::LOCK ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'Une autre commande fournisseur est en cours d’envoi. Rien n’a été envoyé ; réessayez dans un instant.',
+			);
+		}
+
+		$fresh = self::get( $id );
+		if ( null === $fresh || self::PREPARED !== $fresh['state'] ) {
+			Invoice::unlock( self::LOCK );
+			return array(
+				'ok'     => false,
+				'reason' => 'Cette commande fournisseur vient de partir. Rien n’a été renvoyé.',
+			);
+		}
+		$record = $fresh;
+
 		// DURABLE BEFORE THE CALL. See the docblock.
 		$record['state']        = self::SENDING;
 		$record['attempted_on'] = $today;
+		// A DATE CANNOT SAY WHETHER A REQUEST IS STILL IN FLIGHT. See `get()`.
+		$record['attempted_at'] = time();
 		$record['attempted_by'] = get_current_user_id();
 		self::store( $id, $record );
+		Invoice::unlock( self::LOCK );
 
 		$answer = Supply::place_order( (string) $record['key'], $expect_mode, $lines );
 
@@ -1275,6 +1521,9 @@ final class Purchase {
 
 		if ( 'accepted' === ( $answer['outcome'] ?? '' ) ) {
 			$record['state'] = self::SENT;
+		} elseif ( 'partial' === ( $answer['outcome'] ?? '' ) ) {
+			// Money has moved and the run is short. Both, and neither hidden.
+			$record['state'] = self::PARTIAL;
 		} elseif ( 'rejected' === ( $answer['outcome'] ?? '' ) ) {
 			/*
 			 * A REFUSAL PUTS THE ORDERS BACK. The supplier created nothing, so
@@ -1297,6 +1546,13 @@ final class Purchase {
 				'state'  => $record['state'],
 			);
 		}
+		if ( self::PARTIAL === $record['state'] ) {
+			return array(
+				'ok'     => false,
+				'state'  => $record['state'],
+				'reason' => 'Le fournisseur a accepté la commande MAIS refusé des lignes : la série sera incomplète. ' . self::answer_fr( $answer ),
+			);
+		}
 		if ( self::REFUSED === $record['state'] ) {
 			return array(
 				'ok'     => false,
@@ -1311,6 +1567,51 @@ final class Purchase {
 		);
 	}
 
+	/**
+	 * A human has checked with the supplier: nothing was created. Release it.
+	 *
+	 * THE ONLY WAY OUT OF « ENVOI INCERTAIN », and it has to be a human act
+	 * because the shop cannot find out: this webservice publishes no route that
+	 * lists orders (VERIFIED 2026-08-19). Without it, a lost answer stranded its
+	 * orders for ever: they could never be put on another purchase, so their
+	 * blanks could never be bought, on a run whose film may already be ordered.
+	 *
+	 * It records WHO said so and WHEN, because the assertion is the evidence. If
+	 * they were wrong, a delivery arrives against an order the shop has bought
+	 * twice, and the record has to be able to say whose reading that was.
+	 *
+	 * @return array{ok:bool,reason:string}
+	 */
+	public static function abandon( int $id, string $today = '' ): array {
+		$record = self::get( $id );
+		if ( null === $record ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'Cette commande fournisseur n’existe pas.',
+			);
+		}
+		if ( self::UNCERTAIN !== $record['state'] ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'Seul un envoi incertain peut être déclaré non reçu par le fournisseur.',
+			);
+		}
+		$record['state']         = self::REFUSED;
+		$record['abandoned_on']  = '' !== $today ? $today : Settings::today();
+		$record['abandoned_by']  = get_current_user_id();
+		$record['answer']        = array(
+			'outcome' => 'rejected',
+			'message' => 'Déclarée non reçue par le fournisseur, après vérification par un opérateur.',
+			'lines'   => array(),
+		);
+		self::store( $id, $record );
+		self::stamp_orders( $record );
+		return array(
+			'ok'     => true,
+			'reason' => '',
+		);
+	}
+
 	/** Mark the blanks as arrived and checked in. */
 	public static function receive( int $id, string $today = '' ): array {
 		$record = self::get( $id );
@@ -1320,7 +1621,7 @@ final class Purchase {
 				'reason' => 'Cette commande fournisseur n’existe pas.',
 			);
 		}
-		if ( ! in_array( (string) $record['state'], array( self::SENT, self::UNCERTAIN ), true ) ) {
+		if ( ! in_array( (string) $record['state'], array( self::SENT, self::PARTIAL, self::UNCERTAIN ), true ) ) {
 			return array(
 				'ok'     => false,
 				'reason' => 'Seule une commande partie peut être reçue.',
@@ -1364,8 +1665,23 @@ final class Purchase {
 				Costing::refresh( $order );
 				continue;
 			}
+			/*
+			 * REBUILT FROM THE RECORD'S OWN ROW, never from a bare id. A pin that
+			 * had been lost was rebuilt with nothing but `purchase_id`, and
+			 * `Costing::compute()` then read its missing `freight_ht` as a share
+			 * of ZERO: that order's inbound carriage vanished from its margin
+			 * report and the shares stopped summing to the supplier's bill. The
+			 * row already carries every figure the pin needs.
+			 */
 			$part = self::part_of( $order );
-			$part = is_array( $part ) ? $part : array( 'purchase_id' => (int) $record['purchase_id'] );
+			$part = is_array( $part ) ? $part : array(
+				'purchase_id'      => (int) $record['purchase_id'],
+				'blanks_ht'        => (int) ( $row['blanks_ht'] ?? 0 ),
+				'freight_ht'       => (int) ( $row['freight_ht'] ?? 0 ),
+				'solo_freight_ht'  => (int) ( $row['solo_freight_ht'] ?? 0 ),
+				'freight_saved_ht' => (int) ( $row['freight_saved_ht'] ?? 0 ),
+				'orders'           => count( (array) $record['orders'] ),
+			);
 			$part['state']   = (string) $record['state'];
 			$part['sent_on'] = (string) $record['sent_on'];
 			$order->update_meta_data( self::META_ORDER_PART, wp_json_encode( $part ) );

@@ -119,8 +119,16 @@ final class Costing {
 	 * 2 since the scoped floors: a version 1 report was computed before the rule
 	 * table existed, and "no rule applied" and "there were no rules" are
 	 * different claims. The panel says which.
+	 *
+	 * 4 since session 08, and this one is a change of BASIS rather than of shape.
+	 * A version 3 report costed a studio garment's textile as UNKNOWN, because
+	 * nothing joined it to a supplier article; a version 4 one costs the real
+	 * article, size by size. Every stored report therefore describes a different
+	 * cost model, and `staleness()` has to say so: without the bump they read
+	 * « à jour », and the purchase screen's « Écart » column reported the change
+	 * of basis as a supplier who had raised his prices.
 	 */
-	public const VERSION = 3;
+	public const VERSION = 4;
 
 	// ── Configuration ────────────────────────────────────────────────────────
 
@@ -533,7 +541,16 @@ final class Costing {
 									__( 'Tarif fournisseur de l’article %s', 'teeshoop' ),
 									(string) $claim['sku']
 								),
-								'on'         => (string) $claim['stock_at'],
+								/*
+								 * THE PRICE'S OWN DATE, and not the stock's. It
+								 * borrowed `stock_at`, so a purchase price last
+								 * refreshed a month ago was presented in the cost
+								 * report as read four hours ago, on the column an
+								 * operator uses to judge how much to trust it. The
+								 * import writes both; only one of them is about
+								 * this number.
+								 */
+								'on'         => (string) $item->get_product()?->get_meta( Garments::META_SPECS_DATE, true ),
 							);
 						}
 						continue;
@@ -834,7 +851,16 @@ final class Costing {
 		 */
 		$bought_with = Purchase::part_of( $order );
 		$pooled      = null !== $bought_with
-			&& in_array( (string) ( $bought_with['state'] ?? '' ), array( Purchase::SENT, Purchase::UNCERTAIN, Purchase::RECEIVED ), true );
+			&& in_array( (string) ( $bought_with['state'] ?? '' ), array( Purchase::SENT, Purchase::PARTIAL, Purchase::UNCERTAIN, Purchase::RECEIVED ), true )
+			/*
+			 * AND THE PIN MUST CARRY A SHARE. `stamp_orders()` can rebuild a pin
+			 * that was lost, and a rebuilt pin with no `freight_ht` read as a
+			 * share of ZERO here: the order's inbound carriage silently vanished
+			 * and the shares stopped summing to the supplier's bill. A pooled pin
+			 * that cannot say what it owes falls back to the order's own carriage,
+			 * which is the honest answer and never zero.
+			 */
+			&& array_key_exists( 'freight_ht', (array) $bought_with );
 
 		if ( $pooled ) {
 			$freight      = (int) ( $bought_with['freight_ht'] ?? 0 );
@@ -844,7 +870,7 @@ final class Costing {
 				Cost::ESTIMATED,
 				sprintf(
 					/* translators: 1: how many orders were bought together, 2: the purchase number. */
-					__( 'Part de %1$d commandes achetées ensemble (achat n° %2$d)', 'teeshoop' ),
+					__( 'Part de %1$d commandes achetées ensemble (achat n° %2$d), franco supposé (question 03)', 'teeshoop' ),
 					max( 1, (int) ( $bought_with['orders'] ?? 1 ) ),
 					(int) ( $bought_with['purchase_id'] ?? 0 )
 				)
@@ -1196,6 +1222,22 @@ final class Costing {
 			 */
 			Purchase::cost_stamp( $order ),
 		);
+		/*
+		 * AND WHICH BLANK EACH LINE IS BOUGHT AS, because since session 08 it is
+		 * a cost input: declaring one turns an UNKNOWN textile line into a real
+		 * purchase price, and changing one changes the price. Without this a
+		 * report computed before the declaration went on reading « à jour » while
+		 * its biggest cost line described a garment nobody was buying, and the
+		 * purchase screen's « Écart » column reported the change of basis as a
+		 * supplier price rise.
+		 */
+		foreach ( $order->get_items() as $line ) {
+			if ( ! $line instanceof \WC_Order_Item_Product ) {
+				continue;
+			}
+			$parts[] = (string) $line->get_meta( '_teeshoop_blank_ref', true ) . ':' . (string) $line->get_meta( '_teeshoop_blank_colour', true );
+			$parts[] = (string) Product::blank_ref_of( $line->get_product_id() );
+		}
 		foreach ( $order->get_items() as $item ) {
 			$parts[] = $item->get_id() . ':' . $item->get_quantity() . ':' . $item->get_subtotal();
 			if ( $item instanceof \WC_Order_Item_Product ) {

@@ -87,6 +87,23 @@ final class Shelf {
 		 * for. It is procurement identity, so it is sealed with the rest of it.
 		 */
 		Catalogue::META_SUPPLY_SOURCE,
+		/*
+		 * The blank a sellable product is printed on, and the colour map that
+		 * resolves it. Added the day they were: `META_BLANK_REF` IS the
+		 * supplier's style number, which is the first five digits of the article
+		 * number this list exists to seal, and this time it sits on the products
+		 * a CUSTOMER buys rather than on an imported catalogue nobody can order
+		 * yet. The same leak as `META_REF`, one seam further out.
+		 */
+		Product::META_BLANK_REF,
+		Product::META_BLANK_COLOURS,
+		/*
+		 * And the stock date, which is not identity but is a fact about our
+		 * supplier relationship that no customer surface has any use for: what a
+		 * customer is told about availability is `availability()` below, in
+		 * words, never a figure and never a timestamp.
+		 */
+		Catalogue::META_STOCK_AT,
 	);
 
 	public static function init(): void {
@@ -127,8 +144,16 @@ final class Shelf {
 	 * Three answers, because there are three facts:
 	 *
 	 *   · fresh and in stock       → « Disponible »
-	 *   · fresh and out of stock   → « Délai allongé »
+	 *   · fresh and out of stock   → « Rupture, nous consulter »
 	 *   · anything else            → « Délai à confirmer »
+	 *
+	 * THE SECOND ONE IS NOT QUESTION 11'S WORD, and the difference is deliberate.
+	 * Its written default says « délai allongé », which tells a buyer to order and
+	 * wait. `Importer::set_stock` sets `backorders` to `no` on every imported
+	 * article, so WooCommerce refuses that order outright: the customer would be
+	 * invited to do something the shop then declines. The wording follows the
+	 * behaviour, and `H-Q11-STOCK-CHIFFRE` records the divergence, because the
+	 * other way round is a promise the shop does not keep.
 	 *
 	 * NEVER A NUMBER. Publishing a figure turns the supplier's warehouse into our
 	 * promise, and question 11 asks the associate whether he wants that; until he
@@ -173,7 +198,7 @@ final class Shelf {
 			);
 		}
 		return array(
-			'availability' => __( 'Délai allongé', 'teeshoop' ),
+			'availability' => __( 'Rupture, nous consulter', 'teeshoop' ),
 			'class'        => 'teeshoop-stock-late',
 		);
 	}

@@ -489,6 +489,25 @@ wrangler secret put FR_CUSTOMER_NR
 Ne la collez nulle part ailleurs : ni dans un message, ni dans un fichier
 versionné. En local, elle va dans `.dev.vars`, qui est ignoré par git.
 
+### Et un second secret, à créer nous-mêmes : `FR_ORDER_TOKEN`
+
+Ce n'est pas un accès à demander, c'est une valeur à tirer au sort et à poser,
+des deux côtés. `ADMIN_TOKEN` ouvre toutes les routes du Worker, et l'un de ses
+porteurs est la tâche de nuit qui importe le catalogue : le jeton en lecture
+seule qui vit dans un WordPress sur hébergement mutualisé était aussi celui qui
+pouvait passer une commande d'achat. La route d'envoi demande donc un second
+jeton, sur un en-tête à elle, que l'importateur ne porte jamais.
+
+```bash
+openssl rand -base64 32                 # la valeur, une fois
+wrangler secret put FR_ORDER_TOKEN      # côté Worker
+npm run wp:cli -- config set TEESHOOP_ORDER_TOKEN <valeur> --type=constant
+```
+
+Sur la boutique de production, la même constante va dans `wp-config.php`, à la
+main, comme `TEESHOOP_CATALOGUE_TOKEN` et `TEESHOOP_WORKER_TOKEN`. Sans elle
+l'écran des achats refuse d'envoyer et le dit.
+
 ---
 
 ## 6. GitHub

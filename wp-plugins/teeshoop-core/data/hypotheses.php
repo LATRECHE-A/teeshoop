@@ -295,6 +295,7 @@ return array(
 			'statement_fr' => 'La quantité exacte annoncée par le fournisseur est écrite sur chaque article, et rien ne décide encore comment la boutique l\'affiche.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Importer.php#manage_stock',
 			'reaches' => array(
+				'customer',
 				'operator',
 				'internal',
 			),
