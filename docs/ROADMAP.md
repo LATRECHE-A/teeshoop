@@ -509,6 +509,59 @@ l'urgence (4 jours) restent internes, parce que la séance 07 a mesuré 6 jours 
 travail incompressible entre un bon à tirer validé et un colis : publier une promesse qu'on
 a soi-même mesurée comme intenable est une pratique commerciale trompeuse.
 
+**Et deux garde-fous étaient rouges depuis quatre séances.** Trouvés en les
+faisant tourner, pas en lisant du code. **Trois fichiers de test de l'extension
+répondaient 200 sur une URL publique** : `run.php` et `integration.php` portent
+un verrou depuis la séance 04, les trois fichiers d'intégration ajoutés ensuite
+ne l'ont jamais eu, parce qu'ils sont `require`és par le premier et que cela
+semblait suffire. Ce n'est pas le cas : leur chemin est aussi devinable et PHP
+exécute ce qu'on lui demande. Ils ne rendaient rien aujourd'hui par chance, pas
+par construction.
+
+Et surtout, **la vérification de bout en bout s'arrêtait à la caisse**. La séance
+06 a ajouté la renonciation au droit de rétractation, une case obligatoire sur
+les deux tunnels ; le harnais cochait `#terms` et jamais celle-là, donc le tunnel
+en blocs refusait de valider, le disait en français en rouge sur la page, et
+**tout ce qui suit est dans un `if ( orderId > 0 )`** : le statut de la commande,
+la création qui survit à la caisse, la ligne de livraison, l'addition des totaux,
+le régime de TVA gelé et toute la moitié facture étaient sautés depuis quatre
+séances. La feuille de route affirmait pendant ce temps que ce chemin était
+vérifié jusqu'à la facture. La cocher fait passer le harnais de 70 assertions
+dont 4 en échec à **84 dont aucune**.
+
+**Et ce que la passe adverse a trouvé sur un changement pourtant vert.** Cinq
+angles, cinquante agents, chaque trouvaille réfutée avant d'être crue : 32 ont
+survécu sur 45.
+
+La plus chère est un prix. `Pricing::headline()` chiffre chaque face au **palier
+de surface le moins cher**, et le même bloc de faits imprimait ce prix avec
+« impression comprise » à trois tuiles de « Zone d'impression 30,5 × 40,6 cm », à
+côté d'un dessin à l'échelle de cette zone entière. Cette zone est dans le palier
+suivant : mesuré sur le miroir, la série de 50 pièces annoncée coûte **27,6 % de
+plus** que le chiffre affiché à côté. La fiche produit a toujours imprimé la
+borne au pied de sa grille ; l'accueil et la page entreprises imprimaient le prix
+sans elle. `Settings::area_note()` est désormais l'unique foyer de cette phrase et
+les trois pages l'appellent.
+
+La deuxième aurait coûté une réimpression : **le dessin de la zone était figé sur
+le t-shirt** pendant que le prix, le nom et le bouton suivaient le premier produit
+venu. Sur une boutique dont le premier vêtement personnalisable est un sweat, la
+page proposait un sweat, au prix d'un sweat, à côté des 30,5 × 40,6 cm d'un
+t-shirt.
+
+Et **une seule requête GET non authentifiée mettait tout le site en 500** :
+`?f_couleur[][]=x` met un tableau dans le tableau, `sanitize_title()` est fatale
+sur un tableau en PHP 8, et `applied_filters()` est aussi atteinte depuis
+`wp_robots` et `body_class`. L'accueil, la page devis, une fiche produit et la
+boutique répondaient toutes 500.
+
+Deux des garde-fous étaient eux-mêmes faibles : `palette-guard` laissait tomber
+en silence tout rôle dont l'expression régulière ne trouvait rien, donc renommer
+`--accent` sur le bon à tirer l'aurait sorti de la comparaison ; et le
+« rien n'a été mesuré » de `shop-bench` testait la longueur d'un littéral de trois
+entrées, donc il était injoignable. Les deux ont été cassés exprès pour prouver
+qu'ils tirent.
+
 **Et la marque est un jeu de jetons, pas un dessin.** La question 31 n'a pas de réponse et
 un logo ne se défaut pas : le thème déclare le support `custom-logo` de WordPress et, tant
 qu'aucun fichier n'y est déposé, rend le **nom** du site en toutes lettres. La couleur et la
