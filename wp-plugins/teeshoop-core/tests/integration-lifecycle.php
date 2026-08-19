@@ -18,11 +18,14 @@
  */
 
 use Teeshoop\Core\Bat;
+use Teeshoop\Core\Claim;
+use Teeshoop\Core\Invoice;
 use Teeshoop\Core\Lifecycle;
 use Teeshoop\Core\Mail;
 use Teeshoop\Core\Notify;
 use Teeshoop\Core\Settlement;
 use Teeshoop\Core\Vat;
+use Teeshoop\Core\Waiver;
 
 /** One printed side with real geometry AND the placement a proof states. */
 function ts_lc_sides(): array {
@@ -116,7 +119,7 @@ function ts_lc_brevo_calls(): array {
 	);
 }
 
-function ts_lifecycle_suite( int $product_id ): void {
+function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 	$saved_settings = get_option( 'teeshoop_settings', array() );
 
 	/*
@@ -655,6 +658,167 @@ function ts_lifecycle_suite( int $product_id ): void {
 		ts_assert( in_array( Notify::KIND_WORKSHOP, $kinds, true ), 'aucune alerte à l’atelier' );
 
 		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
+	// ── the withdrawal right ─────────────────────────────────────────────────
+
+	ts_it( 'asks for the acknowledgement only when something is personalised', function () use ( $product_id, $bare_id ) {
+		/*
+		 * A BLANK GARMENT KEEPS THE ORDINARY WITHDRAWAL RIGHT, and asking a
+		 * customer to give up a right they keep is both false and, read by the
+		 * DGCCRF, an unfair term. The exclusion is article L221-28 3° and it is
+		 * about the GOOD, not about the shop.
+		 */
+		ts_ck_fill( $product_id, 6, ts_lc_sides() );
+		ts_assert( Waiver::needed( WC()->cart ), 'un panier personnalisé ne demande pas la renonciation' );
+
+		WC()->cart->empty_cart();
+		WC()->cart->add_to_cart( $bare_id, 1 );
+		WC()->cart->calculate_totals();
+		ts_eq( Waiver::needed( WC()->cart ), false, 'un panier sans personnalisation la demande quand même' );
+		WC()->cart->empty_cart();
+	} );
+
+	ts_it( 'refuses a personalised checkout with the box unticked', function () use ( $product_id ) {
+		// `required` on an input is a browser hint and nothing more: a POST
+		// built by hand carries no checkbox and no browser refused it.
+		ts_ck_fill( $product_id, 6, ts_lc_sides() );
+		unset( $_POST['teeshoop_renonciation'] );
+
+		$errors = new \WP_Error();
+		Waiver::classic_validate( array(), $errors );
+		ts_assert( $errors->has_errors(), 'la case décochée passe' );
+		ts_assert(
+			false !== strpos( implode( ' ', $errors->get_error_messages() ), 'personnalisés' ),
+			'le refus ne dit pas de quoi il parle'
+		);
+
+		$_POST['teeshoop_renonciation'] = '1';
+		$fine = new \WP_Error();
+		Waiver::classic_validate( array(), $fine );
+		ts_eq( $fine->has_errors(), false, 'la case cochée est refusée' );
+		unset( $_POST['teeshoop_renonciation'] );
+		WC()->cart->empty_cart();
+	} );
+
+	ts_it( 'freezes the instant, the address and the exact words that were shown', function () use ( $product_id ) {
+		$_POST['teeshoop_renonciation'] = '1';
+		$_SERVER['REMOTE_ADDR']         = '198.51.100.9';
+		$order                          = ts_lc_order( $product_id );
+		unset( $_POST['teeshoop_renonciation'] );
+
+		$record = Waiver::record( $order );
+		ts_assert( null !== $record, 'aucune renonciation enregistrée' );
+		ts_eq( $record['ip'], '198.51.100.9', 'adresse' );
+		ts_eq( $record['text'], Waiver::text(), 'ce ne sont pas les mots affichés' );
+		ts_assert( '' !== (string) $record['at'], 'aucune date' );
+		// Empty until session 12 writes the terms, and recorded as empty rather
+		// than as a plausible "v1" nobody could produce.
+		ts_eq( $record['cgv'], '', 'la version des CGV est inventée' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'writes it once, whichever checkout fired', function () use ( $product_id ) {
+		// Both `woocommerce_checkout_create_order` and the Store API path can
+		// fire on one order, and two records saying different times would be
+		// worse than one.
+		$_POST['teeshoop_renonciation'] = '1';
+		$order                          = ts_lc_order( $product_id );
+		unset( $_POST['teeshoop_renonciation'] );
+
+		$first = Waiver::record( $order );
+		Waiver::freeze( $order );
+		$order->save();
+		ts_eq( Waiver::record( wc_get_order( $order->get_id() ) )['at'], $first['at'], 'la deuxième écriture a écrasé la première' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'puts it on the invoice, and admits when there is nothing to put', function () use ( $product_id ) {
+		$_POST['teeshoop_renonciation'] = '1';
+		$with                           = ts_lc_order( $product_id );
+		unset( $_POST['teeshoop_renonciation'] );
+
+		$line = Waiver::invoice_line( $with );
+		ts_assert( false !== strpos( $line, 'L221-28' ), 'la mention ne cite pas l’article' );
+		ts_assert( false !== strpos( $line, 'accepté le' ), 'la mention ne dit pas quand' );
+
+		$doc = Invoice::stored( $with );
+		ts_assert( null !== $doc, 'aucune facture émise' );
+		ts_assert(
+			in_array( $line, Invoice::mentions( $doc ), true ),
+			'la mention n’est pas dans les mentions de la facture'
+		);
+		$with->delete( true );
+
+		/*
+		 * AND THE HONEST ANSWER WHEN IT IS MISSING. An order with a
+		 * personalised line and no acknowledgement is one we cannot refuse a
+		 * withdrawal on, and the invoice is where whoever handles it looks. It
+		 * says so rather than printing a claim we cannot back.
+		 */
+		$without = ts_lc_order( $product_id );
+		$absent  = Waiver::invoice_line( $without );
+		ts_assert( false !== strpos( $absent, 'Aucune renonciation' ), 'une renonciation absente passe pour acquise' );
+		$without->delete( true );
+	} );
+
+	// ── the SAV ──────────────────────────────────────────────────────────────
+
+	ts_it( 'links a claim to the proof that was approved, and freezes it there', function () use ( $product_id ) {
+		/*
+		 * THE ONE THING THIS SCREEN EXISTS FOR. « Erreur validée dans le BAT » is
+		 * a row of chapitre 5's matrix and it is decided by which version was
+		 * approved and when. The order goes on moving after a claim is opened,
+		 * so the answer is frozen onto the claim rather than looked up later.
+		 */
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+		$order = wc_get_order( $order->get_id() );
+
+		$opened = Claim::open( $order, 'position', 'Le logo est 4 cm plus bas que sur le bon à tirer.', 3 );
+		ts_assert( $opened['ok'], 'ouverture refusée : ' . ( $opened['reason'] ?? '' ) );
+		ts_eq( $opened['claim']['bat']['version'], 1, 'la version approuvée n’est pas retenue' );
+		ts_assert( '' !== (string) $opened['claim']['bat']['approved'], 'la date de validation n’est pas retenue' );
+		ts_eq( $opened['claim']['stage'], Lifecycle::APPROVED, 'l’étape de la commande n’est pas retenue' );
+		ts_eq( $opened['claim']['quantity'], 3, 'les pièces concernées' );
+
+		// And it survives the order moving on.
+		$order = wc_get_order( $order->get_id() );
+		Lifecycle::transition( $order, Lifecycle::PRODUCTION );
+		$again = Claim::all( wc_get_order( $order->get_id() ) );
+		ts_eq( $again[0]['stage'], Lifecycle::APPROVED, 'l’étape a suivi la commande au lieu d’être gelée' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'refuses a claim with no motif and one with no description', function () use ( $product_id ) {
+		// A dossier that cannot be counted or read six months later is not a
+		// dossier, and chapitre 5 asks for a cause, a cost and a solution on
+		// every one of them.
+		$order = ts_lc_order( $product_id );
+		ts_eq( Claim::open( $order, 'inconnu', 'Une description bien assez longue.' )['ok'], false, 'motif inconnu accepté' );
+		ts_eq( Claim::open( $order, 'colis', 'court' )['ok'], false, 'description vide acceptée' );
+		ts_eq( Claim::all( $order ), array(), 'un refus a quand même écrit une réclamation' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'never closes a claim on the matrix alone', function () use ( $product_id ) {
+		// The matrix proposes; a person decides, in their own words. A dossier
+		// closed by a dropdown is a decision nobody can explain later.
+		$order = ts_lc_order( $product_id );
+		Claim::open( $order, 'marquage', 'Le flocage se décolle après un lavage.' );
+		$order = wc_get_order( $order->get_id() );
+
+		ts_eq( Claim::close( $order, 1, 'teeshoop', '' )['ok'], false, 'une décision vide a été acceptée' );
+		ts_eq( Claim::close( $order, 1, '', 'On refait la série.' )['ok'], false, 'une cause vide a été acceptée' );
+
+		$done = Claim::close( wc_get_order( $order->get_id() ), 1, 'teeshoop', 'On refait les 12 pièces et on renvoie en express.' );
+		ts_assert( $done['ok'], 'clôture refusée : ' . $done['reason'] );
+		$claim = Claim::all( wc_get_order( $order->get_id() ) )[0];
+		ts_eq( $claim['cause'], 'teeshoop', 'cause' );
+		ts_assert( '' !== (string) $claim['closed_at'], 'la clôture n’est pas datée' );
+		ts_eq( Claim::verdict( $claim['cause'] )['owed'], true, 'la matrice ne dit pas que nous payons' );
 		$order->delete( true );
 	} );
 

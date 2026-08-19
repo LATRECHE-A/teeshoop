@@ -316,6 +316,7 @@ final class Lifecycle {
 		add_action( 'admin_notices', array( self::class, 'refusal_notice' ) );
 		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
 		add_action( 'admin_post_' . self::ACTION_MOVE, array( self::class, 'handle_move' ) );
+		add_action( 'admin_post_' . self::ACTION_TRACKING, array( self::class, 'handle_tracking' ) );
 	}
 
 	/** The admin action that moves an order, from the metabox. */
@@ -783,6 +784,8 @@ final class Lifecycle {
 			echo '</form>';
 		}
 
+		self::tracking_form( $order );
+
 		$journal = self::journal( $order );
 		if ( empty( $journal ) ) {
 			return;
@@ -801,6 +804,60 @@ final class Lifecycle {
 			);
 		}
 		echo '</ol>';
+	}
+
+	/**
+	 * The carrier and the parcel number.
+	 *
+	 * TYPED, NOT FETCHED. There is no carrier API and question 14 has no answer,
+	 * so what the shop knows is what somebody read off a label. Shown from the
+	 * moment the run is printed, because that is when the parcel is packed and
+	 * the number exists; asking for it only after the order is marked shipped
+	 * would mean the dispatch e-mail always goes out without one.
+	 */
+	private static function tracking_form( \WC_Order $order ): void {
+		if ( ! in_array( $order->get_status(), array( self::PRINTED, self::SHIPPED, self::DELIVERED ), true ) ) {
+			return;
+		}
+		$tracking = Notify::tracking( $order );
+		echo '<hr><form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( self::ACTION_TRACKING );
+		printf( '<input type="hidden" name="action" value="%s">', esc_attr( self::ACTION_TRACKING ) );
+		printf( '<input type="hidden" name="order_id" value="%d">', (int) $order->get_id() );
+		printf( '<p><label for="ts-suivi">%s</label>', esc_html__( 'Numéro de suivi', 'teeshoop' ) );
+		printf(
+			'<input type="text" id="ts-suivi" name="suivi" class="widefat" value="%s" inputmode="latin" autocapitalize="characters"></p>',
+			esc_attr( $tracking['number'] )
+		);
+		printf( '<p><label for="ts-transporteur">%s</label>', esc_html__( 'Transporteur', 'teeshoop' ) );
+		printf(
+			'<input type="text" id="ts-transporteur" name="transporteur" class="widefat" value="%s"></p>',
+			esc_attr( $tracking['carrier'] )
+		);
+		printf( '<p><button type="submit" class="button">%s</button></p>', esc_html__( 'Enregistrer le suivi', 'teeshoop' ) );
+		echo '</form>';
+	}
+
+	/** The admin action behind the tracking form. */
+	public const ACTION_TRACKING = 'teeshoop_suivi';
+
+	public static function handle_tracking(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'Vous n’avez pas le droit de faire cela.', 'teeshoop' ), '', array( 'response' => 403 ) );
+		}
+		check_admin_referer( self::ACTION_TRACKING );
+
+		$order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
+		$order    = $order_id > 0 ? wc_get_order( $order_id ) : null;
+		if ( ! $order instanceof \WC_Order ) {
+			wp_die( esc_html__( 'Cette commande n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
+		}
+		$order->update_meta_data( Notify::META_TRACKING, isset( $_POST['suivi'] ) ? sanitize_text_field( wp_unslash( $_POST['suivi'] ) ) : '' );
+		$order->update_meta_data( Notify::META_CARRIER, isset( $_POST['transporteur'] ) ? sanitize_text_field( wp_unslash( $_POST['transporteur'] ) ) : '' );
+		$order->save();
+
+		wp_safe_redirect( self::order_url( $order_id ) );
+		exit;
 	}
 
 	/** An ISO instant as a Paris date an operator reads. */

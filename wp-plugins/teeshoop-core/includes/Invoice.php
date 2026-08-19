@@ -692,6 +692,9 @@ final class Invoice {
 				'regime'      => $regime,
 				'rate'        => $rate,
 				'mention'     => $note,
+				// Read ONCE, here, and frozen with the rest of the document. See
+				// the note in `mentions()`.
+				'renonciation' => Waiver::invoice_line( $order ),
 				'receipts'    => Ledger::receipts( $order ),
 				'terms'       => array(
 					'penalty_rate' => (string) $config['penalty_rate'],
@@ -1358,6 +1361,19 @@ final class Invoice {
 		// 8° bis of article 242 nonies A. This shop sells garments; the printing
 		// is part of the good, not a separate service.
 		$out[] = __( 'Opérations : livraisons de biens.', 'teeshoop' );
+
+		/*
+		 * THE WITHDRAWAL RIGHT, ON THE DOCUMENT THE CUSTOMER KEEPS.
+		 *
+		 * Frozen into the document at issue rather than read from the order when
+		 * the PDF is rendered, like everything else here: an invoice re-rendered
+		 * a year later must say what was true when it was issued, and the whole
+		 * reason a frozen snapshot exists is that the order will have moved.
+		 * `Waiver::invoice_line` reads the order once, in `compose()`.
+		 */
+		if ( '' !== (string) ( $doc['renonciation'] ?? '' ) ) {
+			$out[] = (string) $doc['renonciation'];
+		}
 
 		/*
 		 * WHAT THE MONEY IS, on the document that asks for it. An advance

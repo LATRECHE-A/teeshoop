@@ -202,6 +202,24 @@ final class Legal {
 		return '' === $clean ? '' : substr( $clean, 0, 9 );
 	}
 
+	/**
+	 * Which version of the terms is in force, or ''.
+	 *
+	 * EMPTY UNTIL SOMEBODY WRITES THEM, exactly like every field above and for
+	 * the same reason: a plausible "v1" recorded against a customer's
+	 * acknowledgement would say we can produce the document they agreed to, and
+	 * we cannot. Session 12 writes the CGV and sets this; `Waiver` records
+	 * whatever it says, including nothing.
+	 *
+	 * A DATE AND NOT A NUMBER, when it is set: two revisions in one year both
+	 * called "v2" is the whole failure mode of versioning a legal document, and
+	 * `2026-09-01` cannot collide with itself.
+	 */
+	public static function cgv_version(): string {
+		$stored = get_option( OPTION_LEGAL, array() );
+		return is_array( $stored ) ? trim( (string) ( $stored['cgv_version'] ?? '' ) ) : '';
+	}
+
 	// ── WordPress side ───────────────────────────────────────────────────────
 
 	/** The stored identity, merged over empty defaults. Never a placeholder. */

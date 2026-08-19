@@ -81,7 +81,18 @@ final class Admin {
 		// date it cannot parse is dropped here rather than at every read site.
 		update_option( OPTION_VAT, Vat::merge_periods( $periods ) );
 
-		$legal = array();
+		/*
+		 * ONLY THE KEYS THIS FORM OWNS, merged over what is stored.
+		 *
+		 * The option holds more than `Legal::fields()`: `cgv_version` lives
+		 * there too and no field on this screen sets it. Rebuilding the array
+		 * from the form alone deleted it on every save, silently, and the first
+		 * symptom would have been a customer's recorded acknowledgement losing
+		 * the version of the terms it was given against. This is the same trap
+		 * the shipping block below records, found the same way.
+		 */
+		$stored = get_option( OPTION_LEGAL, array() );
+		$legal  = is_array( $stored ) ? $stored : array();
 		foreach ( array_keys( Legal::fields() ) as $key ) {
 			$legal[ $key ] = sanitize_text_field( wp_unslash( (string) ( $_POST['legal'][ $key ] ?? '' ) ) );
 		}

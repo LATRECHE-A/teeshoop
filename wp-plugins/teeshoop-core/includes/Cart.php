@@ -637,6 +637,27 @@ final class Cart {
 	 * table, and a second list of French labels would be a second place for
 	 * "Manche" to become "Manches" for one of them.
 	 */
+	/**
+	 * Whether this basket carries anything personalised.
+	 *
+	 * A PREDICATE RATHER THAN A PUBLIC `KEY`. What makes a line personalised is
+	 * this file's business, and the shape of the cart item is deliberately
+	 * private: the day it grows a field, every reader outside would have to be
+	 * found. `Waiver` needs the answer and not the shape.
+	 */
+	public static function has_personalised( ?\WC_Cart $cart = null ): bool {
+		$cart = $cart ?? ( function_exists( 'WC' ) && WC()->cart ? WC()->cart : null );
+		if ( ! $cart instanceof \WC_Cart ) {
+			return false;
+		}
+		foreach ( $cart->get_cart() as $item ) {
+			if ( ! empty( $item[ self::KEY ]['design_id'] ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public static function side_label( string $id ): string {
 		$labels = array(
 			'front'    => __( 'Devant', 'teeshoop' ),

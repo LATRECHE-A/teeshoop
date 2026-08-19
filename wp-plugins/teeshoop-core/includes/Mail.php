@@ -68,6 +68,7 @@ final class Mail {
 		add_action( 'init', array( self::class, 'schedule' ) );
 		add_action( 'admin_post_' . self::ACTION_RETRY, array( self::class, 'handle_retry' ) );
 		add_action( 'admin_notices', array( self::class, 'stuck_notice' ) );
+		add_action( 'admin_menu', array( self::class, 'menu' ) );
 	}
 
 	public static function table(): string {
@@ -535,8 +536,139 @@ final class Mail {
 					$stuck
 				)
 			),
-			esc_url( admin_url( 'admin.php?page=teeshoop-envois' ) ),
+			esc_url( admin_url( 'admin.php?page=' . self::SLUG ) ),
 			esc_html__( 'Voir les envois', 'teeshoop' )
 		);
+	}
+
+	// ── the screen ───────────────────────────────────────────────────────────
+
+	/** The page the stuck notice links to. */
+	public const SLUG = 'teeshoop-envois';
+
+	public static function menu(): void {
+		add_submenu_page(
+			'woocommerce',
+			__( 'Envois Teeshoop', 'teeshoop' ),
+			__( 'Envois', 'teeshoop' ),
+			'manage_woocommerce',
+			self::SLUG,
+			array( self::class, 'screen' )
+		);
+	}
+
+	/**
+	 * What went out, what did not, and what to do about it.
+	 *
+	 * FAILURES FIRST AND ALWAYS VISIBLE, because that is the only thing on this
+	 * page anybody has to act on. The rest is a log, and a log is read when
+	 * somebody is already asking a question.
+	 */
+	public static function screen(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'Vous n’avez pas le droit de voir cette page.', 'teeshoop' ), '', array( 'response' => 403 ) );
+		}
+
+		$flash = get_transient( 'teeshoop_mail_' . get_current_user_id() );
+		if ( is_string( $flash ) && '' !== $flash ) {
+			delete_transient( 'teeshoop_mail_' . get_current_user_id() );
+			printf( '<div class="notice notice-info is-dismissible"><p>%s</p></div>', esc_html( $flash ) );
+		}
+
+		echo '<div class="wrap"><h1>' . esc_html__( 'Envois', 'teeshoop' ) . '</h1>';
+
+		$key = self::api_key();
+		printf(
+			'<p class="description" style="max-width:46em">%s</p>',
+			esc_html(
+				'' === $key
+					? 'Aucune clé Brevo n’est définie. En production, plus rien ne part et chaque message est enregistré ici comme échoué ; ailleurs, WordPress les envoie lui-même. La clé se pose dans wp-config.php : define( \'TEESHOOP_BREVO_KEY\', \'…\' );'
+					: 'Les messages partent par Brevo. Un envoi refusé garde le code et le message de Brevo, et se retente depuis cette page.'
+			)
+		);
+
+		$sender = self::sender();
+		if ( '' === $sender['email'] ) {
+			printf(
+				'<div class="notice notice-warning inline"><p>%s</p></div>',
+				esc_html__( 'Aucune adresse d’expédition n’est réglée. Brevo refuse d’envoyer depuis une adresse que personne n’a vérifiée dans le compte, et rien ne partira tant qu’elle manque.', 'teeshoop' )
+			);
+		}
+
+		$failed = self::recent( 50, self::FAILED );
+		echo '<h2>' . esc_html__( 'Ce qui n’est pas parti', 'teeshoop' ) . '</h2>';
+		if ( empty( $failed ) ) {
+			printf( '<p>%s</p>', esc_html__( 'Rien. Tous les messages enregistrés ont été acceptés par leur transporteur.', 'teeshoop' ) );
+		} else {
+			self::rows_table( $failed, true );
+		}
+
+		echo '<h2>' . esc_html__( 'Les cinquante derniers', 'teeshoop' ) . '</h2>';
+		$recent = self::recent( 50 );
+		if ( empty( $recent ) ) {
+			printf( '<p>%s</p>', esc_html__( 'Aucun message n’a encore été envoyé depuis cette boutique.', 'teeshoop' ) );
+		} else {
+			self::rows_table( $recent, false );
+		}
+
+		echo '</div>';
+	}
+
+	/** @param array<int,object> $rows */
+	private static function rows_table( array $rows, bool $with_retry ): void {
+		echo '<table class="widefat striped"><thead><tr>';
+		printf(
+			'<th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th></th>',
+			esc_html__( 'Quand', 'teeshoop' ),
+			esc_html__( 'Type', 'teeshoop' ),
+			esc_html__( 'Commande', 'teeshoop' ),
+			esc_html__( 'Destinataire', 'teeshoop' ),
+			esc_html__( 'État', 'teeshoop' )
+		);
+		echo '</tr></thead><tbody>';
+
+		foreach ( $rows as $row ) {
+			echo '<tr>';
+			printf( '<td>%s</td>', esc_html( Lifecycle::human_date( (string) $row->created_at . '+00:00' ) ) );
+			printf( '<td>%s</td>', esc_html( (string) $row->kind ) );
+			printf(
+				'<td>%s</td>',
+				(int) $row->order_id > 0
+					? '<a href="' . esc_url( Lifecycle::order_url( (int) $row->order_id ) ) . '">' . (int) $row->order_id . '</a>'
+					: '&mdash;'
+			);
+			printf( '<td>%s</td>', esc_html( (string) $row->recipient ) );
+			printf(
+				'<td>%s%s</td>',
+				esc_html( self::state_label( (string) $row->status, (string) $row->transport ) ),
+				'' !== (string) $row->last_error
+					? '<br><span class="description">' . esc_html( (string) $row->last_error ) . '</span>'
+					: ''
+			);
+			echo '<td>';
+			if ( $with_retry && self::SENT !== (string) $row->status ) {
+				echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+				wp_nonce_field( self::ACTION_RETRY );
+				printf( '<input type="hidden" name="action" value="%s">', esc_attr( self::ACTION_RETRY ) );
+				printf( '<input type="hidden" name="id" value="%d">', (int) $row->id );
+				printf( '<button type="submit" class="button button-small">%s</button>', esc_html__( 'Réessayer', 'teeshoop' ) );
+				echo '</form>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table>';
+	}
+
+	private static function state_label( string $status, string $transport ): string {
+		if ( self::SENT === $status ) {
+			return 'wp_mail' === $transport
+				/* translators: the development transport, which is not Brevo. */
+				? __( 'Parti par WordPress (pas par Brevo)', 'teeshoop' )
+				: __( 'Parti', 'teeshoop' );
+		}
+		if ( self::FAILED === $status ) {
+			return __( 'Échec', 'teeshoop' );
+		}
+		return __( 'En attente', 'teeshoop' );
 	}
 }
