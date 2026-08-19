@@ -14,9 +14,20 @@
  * never printed. If you keep them in .dev.vars (git-ignored), this picks them
  * up from there automatically.
  *
- * READ-ONLY: it never places an order. The order endpoint is probed with a
- * deliberately invalid document, which the supplier's gateway rejects before
- * anything is created — that is enough to verify the contract.
+ * READ-ONLY: it never places an order that could be filled. The order endpoint
+ * is probed twice, and BOTH probes are built so that the supplier cannot create
+ * anything from them:
+ *
+ *   - check 7 posts a document with no `<product_list>` at all, which the
+ *     gateway refuses before looking at the account;
+ *   - check 8 posts a structurally complete document whose only line is the
+ *     article number 999999999. MEASURED 2026-08-19 against the live snapshot
+ *     of 46 591 articles: it does not exist, and the largest number the
+ *     supplier publishes is 999671018, so it cannot come to exist by a new
+ *     colour being added. An order all of whose lines are unknown articles is
+ *     an order with nothing to ship.
+ *
+ * Check 8 also refuses to run unless the account is in TEST mode.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -62,6 +73,32 @@ const tag = (xml, name) => {
 const tagsAll = (xml, name) => [
   ...xml.matchAll(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`, 'g')),
 ].map((m) => m[1])
+
+// --- the order probe -------------------------------------------------------
+
+/**
+ * An article number the supplier does not use, and cannot start using by
+ * accident. MEASURED 2026-08-19 over all 46 591 published articles: the largest
+ * is 999671018.
+ */
+const PROBE_SKU = '999999999'
+
+/** A customer number that is certainly not ours, so the probe can be falsified. */
+const WRONG_CUSTOMER = '000000'
+
+/** The probe document. One line, and that line names nothing that exists. */
+const probeOrder = (customerNumber) =>
+  '<?xml version="1.0" encoding="utf-8"?><order>' +
+  `<request_date_time>${new Date().toISOString().slice(0, 19).replace('T', ' ')}</request_date_time>` +
+  `<customers_number><cn_value><![CDATA[${customerNumber}]]></cn_value></customers_number>` +
+  '<shipping_method><sm_value>0</sm_value></shipping_method>' +
+  '<partial_shipment><ps_value>false</ps_value></partial_shipment>' +
+  '<order_reference><or_value><![CDATA[TS-PROBE-NE-PAS-SERVIR]]></or_value></order_reference>' +
+  '<order_note><on_value><![CDATA[Sonde automatique Teeshoop, ne pas traiter.]]></on_value></order_note>' +
+  '<delivery_address><da_is_different><da_value>false</da_value></da_is_different></delivery_address>' +
+  `<product_list><product><p_sku>${PROBE_SKU}</p_sku><p_lineref><![CDATA[probe]]></p_lineref>` +
+  '<p_quantity><pq_ordered>1</pq_ordered></p_quantity></product></product_list>' +
+  '</order>'
 
 // --- reporting -------------------------------------------------------------
 
@@ -208,6 +245,117 @@ async function main() {
       ok('order endpoint reachable', `echoed order, err=${code}`)
     } else {
       bad('unexpected order response', `HTTP ${res.status} ${body.slice(0, 120)}`)
+    }
+  }
+
+  head('8. Whole-catalogue stock in one call (truncation wildcard at every digit)')
+  {
+    /*
+     * The measurement the stock sweep is built on. If the supplier ever stops
+     * accepting a fully wild product filter, `GET /api/fr/stock` degrades from
+     * one upstream call to 460 and this is where that is noticed, not in
+     * production when the sweep times out.
+     */
+    const t0 = Date.now()
+    const { status, body } = await get(
+      `${WS}/webservice/R03_000/stockinfo/product/_________?format=csv`,
+      true,
+    )
+    const rows = body.trim().split(/\r?\n/)
+    const skus = rows.slice(1).filter((l) => /^\d{6,};/.test(l)).length
+    if (status !== 200 || skus < 1000) {
+      bad('whole-catalogue stock unreadable', `HTTP ${status}, ${skus} rows`)
+    } else {
+      ok(
+        'whole-catalogue stock',
+        `${skus} SKUs · ${(body.length / 1024).toFixed(0)} KB · ${Date.now() - t0} ms · as of ${rows[0]}`,
+      )
+    }
+    // The probe article of check 9 must stay a number the supplier does not use.
+    if (rows.some((l) => l.startsWith(`${PROBE_SKU};`))) {
+      bad('the probe article now exists upstream', `${PROBE_SKU} is a real SKU — pick another`)
+    } else {
+      ok('probe article is not a real SKU', PROBE_SKU)
+    }
+  }
+
+  head('9. Customer number (NOTHING ORDERABLE IS IN THE DOCUMENT)')
+  {
+    /*
+     * WHAT THIS ANSWERS. `FR_CUSTOMER_NR` is not set anywhere, and the Worker
+     * refuses to place an order without it rather than deriving one from the
+     * login, which is shaped `{account}-{n}-{token}`. The obvious guess is that
+     * the leading segment IS the customer number. This check asks the supplier
+     * instead of assuming, and it is written so it can come back "I cannot
+     * tell": the same document is posted twice, once with the derived number
+     * and once with a number that is certainly not ours, and the answer only
+     * means something if the two differ.
+     *
+     * A LOCAL XML BUILDER, ON PURPOSE. Every other helper in this file is an
+     * independent re-implementation for the same reason (a bug copied into the
+     * checker verifies itself). This document is not an order: it is a probe
+     * whose single line names an article that does not exist, so it cannot be
+     * filled, and its only structural job is to get far enough for the gateway
+     * to judge the account.
+     */
+    const state = await get(`${WS}/ws/run/state.pl?action=getstate`, true)
+    const mode = tag(state.body, 'webservice_mode_code')
+    if (mode !== '1') {
+      bad(
+        'refusing to probe: the account is not in test mode',
+        `webservice_mode_code=${mode} — nothing was sent`,
+      )
+    } else {
+      const derived = /^(\d+)-/.exec(USER)?.[1] ?? ''
+      if (!derived) {
+        bad('cannot derive a candidate customer number from FR_WS_USER', 'unexpected login shape')
+      } else {
+        const answers = []
+        for (const [label, cn] of [
+          ['derived from the login', derived],
+          ['deliberately wrong', WRONG_CUSTOMER],
+        ]) {
+          const res = await fetch(`${WS}/webservice/R02_000/order?format=xml`, {
+            method: 'POST',
+            headers: { authorization: AUTH, 'content-type': 'application/x-www-form-urlencoded' },
+            body: probeOrder(cn),
+          })
+          const body = await res.text()
+          answers.push({
+            label,
+            status: res.status,
+            orderId: tag(body, 'orders_id'),
+            err: tag(body, 'code') || tag(body, 'err'),
+            msg: (tag(body, 'message') || tag(body, 'err_msg') || tag(body, 'msg')).slice(0, 80),
+          })
+        }
+        const [mine, wrong] = answers
+        for (const a of answers) {
+          console.log(
+            `  ${a.label.padEnd(24)} HTTP ${a.status} · orders_id ${a.orderId || '(none)'} · code ${a.err || '(none)'} · ${a.msg}`,
+          )
+        }
+        const same = mine.status === wrong.status && mine.err === wrong.err && mine.msg === wrong.msg
+        if (same) {
+          /*
+           * NOT A FAILURE, AND NOT A PASS. The endpoint answers a bad account
+           * exactly as it answers ours, so this cannot tell them apart and must
+           * not be reported as if it could. The customer number stays a
+           * question for the supplier.
+           */
+          ok(
+            'inconclusive, and says so',
+            'the gateway answers a wrong customer number identically — this cannot confirm ours',
+          )
+        } else if (mine.orderId === '0' || mine.err === '30' || /artno|article/i.test(mine.msg)) {
+          ok('the derived customer number is ACCEPTED', 'refused on the article, not on the account')
+        } else {
+          bad(
+            'the derived customer number looks REFUSED',
+            'do not set FR_CUSTOMER_NR from the login; ask the supplier',
+          )
+        }
+      }
     }
   }
 

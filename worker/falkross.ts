@@ -48,14 +48,19 @@ export interface FalkRossEnv extends AdminEnv {
   /** Webservice password. `wrangler secret put FR_WS_PASS`. */
   FR_WS_PASS?: string
   /**
-   * Falk&Ross customer number. Read only by `placeOrder`, which is NOT routed
-   * (see the order section below — the public route was removed on
-   * 2026-08-12). Kept configured so a future authenticated order path does not
-   * have to re-derive it. Absent, `placeOrder` falls back to the leading
-   * account-number segment of FR_WS_USER, which is shaped
-   * `{customer}-{n}-{token}`, and REPORTS that it did (`customerNumberSource`)
-   * — guessing a customer number silently is how an order lands on the wrong
-   * account.
+   * Falk&Ross customer number, and the ONLY place an order may get one.
+   *
+   * `wrangler secret put FR_CUSTOMER_NR`. Unset means `POST /api/fr/order`
+   * answers 503 and nothing is sent, which is the state this ships in.
+   *
+   * IT USED TO HAVE A FALLBACK AND THAT WAS THE BUG. The login is shaped
+   * `{account}-{n}-{token}`, so `placeOrder` derived the customer number from
+   * its leading digits when the secret was absent, and reported that it had.
+   * A number that decides which account a supplier bills is exactly the kind
+   * this project may not guess, and a field saying `derived-from-user` only
+   * protects whoever reads it. `scripts/fr-verify.mjs` probes whether that
+   * leading segment IS the customer number, and until the supplier says yes,
+   * nothing here assumes it.
    */
   FR_CUSTOMER_NR?: string
 }
@@ -161,6 +166,19 @@ interface FetchOpts {
   contentType?: string
   /** Edge cache lifetime for the RAW upstream response. */
   cacheTtl?: number
+  /**
+   * Statuses to hand back to the caller instead of throwing.
+   *
+   * ONE CALLER, AND IT EXISTS BECAUSE THE ABSENCE OF IT WAS A BUG. The order
+   * gateway reports a malformed document as HTTP 400 with the reason in the
+   * body (`<response><error><code>400</code><message>…`), and that is the
+   * response an order is MOST likely to get: `scripts/fr-verify.mjs` gets one
+   * on every run. `placeOrder` was written to parse it and could not: the
+   * `!res.ok` throw below turned the 400 into a 502 before the body was ever
+   * read, and the `catch` that looked for `err.status === 400` was therefore
+   * unreachable. Found 2026-08-19 by reading the two paths side by side.
+   */
+  allowStatus?: readonly number[]
 }
 
 /**
@@ -210,6 +228,7 @@ async function fetchUpstream(url: string, opts: FetchOpts = {}): Promise<Respons
   if (res.status === 401 || res.status === 403) {
     throw new FrError('auth', 502, 'Falk&Ross rejected the webservice credentials.')
   }
+  if (opts.allowStatus?.includes(res.status)) return res
   if (res.status === 404) throw new FrError('not_found', 404, `Not published upstream: ${url}`)
   if (!res.ok) {
     throw new FrError('upstream', 502, `Falk&Ross returned ${res.status} for ${url}`)
@@ -1074,6 +1093,70 @@ async function loadStock(
   })
 }
 
+/**
+ * ONE ROW PER SKU, FOR THE WHOLE CATALOGUE, IN ONE UPSTREAM CALL.
+ *
+ * The truncation wildcard the per-style route uses (`18001____`) turns out to
+ * accept an underscore at EVERY position. MEASURED 2026-08-19 against the live
+ * account, in one run, warm:
+ *
+ *     18001____   25 lines        529 B   282 ms   (one style)
+ *     1800_____   541 lines    10 851 B    95 ms   (a hundred styles)
+ *     _________  46 592 lines  908 447 B  674 ms   (everything)
+ *
+ * That measurement is the whole reason a stock sweep is affordable here. The
+ * alternative shapes both fail on Cloudflare's fifty-subrequest ceiling or on
+ * time: one call per SKU is 26 399 requests, and one call per style is 460
+ * Worker invocations for a number the supplier will happily hand over in a
+ * single 900 KB response.
+ *
+ * THE FIRST LINE IS THE SNAPSHOT'S OWN TIMESTAMP, and it is the point of this
+ * route rather than a detail. The Bible's one substantive rule about stock
+ * (chapter 05, « Réservation et confirmation ») is that « le stock affiché par
+ * une API n'est pas une garantie absolue. Le système doit enregistrer la date
+ * de consultation ». A quantity without the moment it was read cannot be shown
+ * honestly, so `at` travels with every page and the shop stores it per article.
+ *
+ * SUBREQUEST BUDGET: one `cache.match`, one upstream `fetch` on a miss, one
+ * `cache.put` in `waitUntil`. Three, against a ceiling of fifty, whatever the
+ * page asked for — the parse happens once per cache miss and every page after
+ * that is a slice of memory.
+ */
+async function loadStockAll(
+  origin: string,
+  env: FalkRossEnv,
+  ctx: ExecutionContext,
+): Promise<{ at: string; rows: [string, number, number, number][] }> {
+  return cachedJson(origin, 'stock:all', TTL.stock, ctx, async () => {
+    const csv = await fetchText(
+      `${WS}/webservice/R03_000/stockinfo/product/_________?format=csv`,
+      { auth: true, env },
+    )
+    throwIfErrorDoc(csv)
+    const lines = csv.split(/\r?\n/)
+    const at = (lines[0] ?? '').trim()
+    const rows: [string, number, number, number][] = []
+    for (const line of lines.slice(1)) {
+      const [sku, g, y, b] = line.split(';')
+      if (!sku || !/^\d{6,}$/.test(sku)) continue
+      rows.push([sku, parseInt(g, 10) || 0, parseInt(y, 10) || 0, parseInt(b, 10) || 0])
+    }
+    /*
+     * A SNAPSHOT WITH NO ROWS IS NOT A SNAPSHOT OF AN EMPTY WAREHOUSE.
+     *
+     * The upstream CGI answers HTTP 200 with a timestamp and nothing else when
+     * it is rebuilding, and a sweep that believed it would write zero onto
+     * every article in the shop, which reads on a product page as « rupture »
+     * on the entire catalogue. Refusing costs one stale hour; believing it
+     * costs a day of sales.
+     */
+    if (rows.length === 0) {
+      throw new FrError('parse', 502, 'Falk&Ross returned a stock snapshot with no rows.')
+    }
+    return { at, rows }
+  })
+}
+
 export interface FrWsState {
   /** 'test' — orders are simulated. 'live' — orders are REAL. */
   mode: 'test' | 'live' | 'unknown'
@@ -1253,16 +1336,43 @@ async function loadCatalogueEntry(
 }
 
 // ---------------------------------------------------------------------------
-// Order placement — DELIBERATELY NOT ROUTED
+// Order placement
 //
-// `POST /api/fr/order` was removed on 2026-08-12: it was an UNAUTHENTICATED
-// public route that placed a real purchase order on our Falk&Ross account.
-// Nothing below is reachable over HTTP, and that is the intended state.
+// ── WHY THIS ROUTE EXISTS AGAIN, AND WHAT IS DIFFERENT ──────────────────────
 //
-// It is kept, unreferenced, because it encodes two response envelopes verified
-// live against the real account, one of which contradicts the supplier's own
-// PDF (see `placeOrder`). Re-wiring it needs an authenticated admin route AND
-// an explicit human confirmation step in front of it — not just a caller.
+// `POST /api/fr/order` was DELETED on 2026-08-12 because it was an
+// UNAUTHENTICATED public route that placed a real purchase order on our
+// account. It is back on 2026-08-19 as a decision, not as a restoration, and
+// the difference is five properties rather than one:
+//
+//   1. It is behind `requireAdmin` like every other route in this file, and the
+//      gate sits at the TOP of `handleFalkRoss`, so it is protected by
+//      construction rather than by remembering.
+//   2. The customer number comes from `FR_CUSTOMER_NR` ONLY. The old code fell
+//      back to the leading digits of the webservice login and reported that it
+//      had; a guessed number that decides which account is billed is exactly
+//      what this project forbids, and "it reported it" only helps somebody who
+//      reads the field. Unset means 503, and nothing leaves.
+//   3. The caller must STATE the account mode it believes it is ordering in.
+//      The shop shows an operator « compte fournisseur : test » and the human
+//      confirms against that word; if the account has been switched to live in
+//      between, the belief and the reality differ and the order is refused
+//      before it is built. A mode read after the fact would have told us what
+//      we had already done.
+//   4. Every order carries an idempotency key, which is ALSO sent as the
+//      supplier's `order_reference`. There is no way to ask this webservice
+//      whether an order already exists (VERIFIED 2026-08-19: `GET
+//      /webservice/R02_000/order` answers `<response>0</response>` and there is
+//      no `get_orders` action), so the key's job is to make a duplicate
+//      recognisable by a human on the supplier's own screen. It cannot prevent
+//      one here, and this file does not pretend to: see `outcome` below.
+//   5. A lost response is its own answer. `outcome: 'unknown'` means the
+//      document may or may not have been received, and the shop records that
+//      and refuses to retry blind. Conflating it with a failure is how a
+//      delivery arrives twice.
+//
+// It still encodes two response envelopes verified live against the real
+// account, one of which contradicts the supplier's own PDF (see `placeOrder`).
 // ---------------------------------------------------------------------------
 
 export interface FrOrderLine {
@@ -1282,17 +1392,36 @@ export interface FrOrderAddress {
 }
 
 export interface FrOrderInput {
-  reference: string
+  /**
+   * Our own key for this purchase, 8 to 32 characters of `[A-Za-z0-9._-]`.
+   *
+   * It travels as the supplier's `order_reference`, which is capped at 32 by
+   * them, so the cap here is theirs and not a choice. It is REQUIRED: an order
+   * with no key is an order nobody can recognise twice.
+   */
+  idempotencyKey: string
   note?: string
   partialShipment?: boolean
   lines: FrOrderLine[]
   /** Omit to ship to the account's registered address. */
   deliveryAddress?: FrOrderAddress
-  customerNumber?: string
 }
 
+/** What the caller believed the account was, before it asked to spend money. */
+export type FrExpectedMode = 'test' | 'live'
+
 export interface FrOrderResult {
+  /** True only for an order the supplier accepted and gave an id to. */
   ok: boolean
+  /**
+   * THREE OUTCOMES, BECAUSE TWO CANNOT BE TOLD APART BY A CALLER.
+   *
+   *  - `accepted` — the supplier created an order and named it.
+   *  - `rejected` — the supplier refused it and said why. Nothing exists.
+   *  - `unknown`  — the request left and no usable answer came back. It may
+   *    have been created. Never retry on this; a human has to look.
+   */
+  outcome: 'accepted' | 'rejected' | 'unknown'
   /** Supplier order id. "0" means the order was REJECTED. */
   orderId: string
   errorCode: string
@@ -1300,9 +1429,8 @@ export interface FrOrderResult {
   lines: { sku: string; errorCode: string; message: string }[]
   /** The webservice mode this order was placed in — see `loadState`. */
   mode: FrWsState
-  /** Customer number actually sent, and where it came from. */
-  customerNumber: string
-  customerNumberSource: 'env' | 'request' | 'derived-from-user'
+  /** Echoed so the caller can pin the answer to the act without matching by time. */
+  idempotencyKey: string
 }
 
 /**
@@ -1315,6 +1443,24 @@ const cdata = (v: string) => `<![CDATA[${String(v).replace(/]]>/g, ']]]]><![CDAT
 function stamp(now: Date): string {
   return now.toISOString().slice(0, 19).replace('T', ' ')
 }
+
+/** Our key, as the supplier will store and display it. */
+export const FR_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{7,31}$/
+
+/** A Falk&Ross article number. Nine digits, no exceptions seen in 26 399. */
+const FR_SKU_RE = /^\d{9}$/
+
+/**
+ * Lines one order may carry.
+ *
+ * Not a supplier limit (they publish none) and not a guess about their
+ * gateway: a bound on a body this Worker will build, because an admin route
+ * that will assemble a document of any size is a way to spend our CPU and
+ * their patience. Two hundred distinct articles is already a purchase nobody
+ * on this shop has made; the biggest realistic basket is one style's full size
+ * run in a handful of colours, which is tens.
+ */
+const MAX_ORDER_LINES = 200
 
 export function buildOrderXml(input: FrOrderInput, customerNumber: string, now: Date): string {
   const addr = input.deliveryAddress
@@ -1350,13 +1496,52 @@ export function buildOrderXml(input: FrOrderInput, customerNumber: string, now: 
     // Shipping method 0 = "as agreed"; the doc allows no other value.
     `<shipping_method><sm_value>0</sm_value></shipping_method>` +
     `<partial_shipment><ps_value>${input.partialShipment ? 'true' : 'false'}</ps_value></partial_shipment>` +
-    // "Your reference" is capped at 32 characters by the supplier.
-    `<order_reference><or_value>${cdata(input.reference.slice(0, 32))}</or_value></order_reference>` +
+    // OUR IDEMPOTENCY KEY IS "YOUR REFERENCE". The supplier caps it at 32
+    // characters and shows it back on their own order screen, which is the only
+    // place a duplicate can be recognised at all: this webservice has no route
+    // that lists orders (VERIFIED 2026-08-19).
+    `<order_reference><or_value>${cdata(input.idempotencyKey.slice(0, 32))}</or_value></order_reference>` +
     `<order_note><on_value>${cdata(input.note ?? '')}</on_value></order_note>` +
     `<delivery_address>${address}</delivery_address>` +
     `<product_list>${products}</product_list>` +
     `</order>`
   )
+}
+
+/** Everything `placeOrder` checks before it is willing to build a document. */
+function validateOrder(input: FrOrderInput): void {
+  if (!FR_KEY_RE.test(String(input.idempotencyKey ?? ''))) {
+    throw new FrError(
+      'bad_request',
+      400,
+      'An order needs an idempotency key of 8 to 32 characters ([A-Za-z0-9._-]).',
+    )
+  }
+  if (!Array.isArray(input.lines) || input.lines.length === 0) {
+    throw new FrError('bad_request', 400, 'An order needs at least one line.')
+  }
+  if (input.lines.length > MAX_ORDER_LINES) {
+    throw new FrError('bad_request', 400, `An order may not carry more than ${MAX_ORDER_LINES} lines.`)
+  }
+  const seen = new Set<string>()
+  for (const l of input.lines) {
+    if (!FR_SKU_RE.test(String(l.sku))) {
+      throw new FrError('bad_request', 400, `Not a 9-digit Falk&Ross SKU: ${l.sku}`)
+    }
+    /*
+     * TWO LINES FOR ONE ARTICLE IS AN ARITHMETIC ACCIDENT, NOT AN ORDER.
+     * The supplier's echo is per article, so a document naming 180010004 twice
+     * comes back with one status for two of our lines and the reconciliation
+     * cannot say which quantity was accepted. The caller merges; this refuses.
+     */
+    if (seen.has(l.sku)) {
+      throw new FrError('bad_request', 400, `SKU ${l.sku} appears on two lines; merge them.`)
+    }
+    seen.add(l.sku)
+    if (!Number.isInteger(l.qty) || l.qty < 1 || l.qty > 100000) {
+      throw new FrError('bad_request', 400, `Bad quantity for SKU ${l.sku}.`)
+    }
+  }
 }
 
 /**
@@ -1371,75 +1556,103 @@ export function buildOrderXml(input: FrOrderInput, customerNumber: string, now: 
  *    nested in `<item><p_err>30</p_err><msg>Artno not found</msg></item>` —
  *    NOT the `<p_err>/<p_err_msg>` pair the PDF documents (VERIFIED live).
  * Both are parsed, so a caller never has to guess which one it got.
+ *
+ * NOTHING IS RETRIED HERE, at any level. `Supply::get()` on the shop retries an
+ * idempotent GET once; this is the one call in the project where a second
+ * attempt can produce a second delivery, and the first attempt's silence is not
+ * evidence that it did not arrive.
  */
 async function placeOrder(
   origin: string,
   env: FalkRossEnv,
   ctx: ExecutionContext,
   input: FrOrderInput,
+  expectMode: FrExpectedMode,
   now: Date,
 ): Promise<FrOrderResult> {
-  if (!Array.isArray(input.lines) || input.lines.length === 0) {
-    throw new FrError('bad_request', 400, 'An order needs at least one line.')
-  }
-  for (const l of input.lines) {
-    if (!/^\d{9}$/.test(String(l.sku))) {
-      throw new FrError('bad_request', 400, `Not a 9-digit Falk&Ross SKU: ${l.sku}`)
-    }
-    if (!Number.isFinite(l.qty) || l.qty < 1) {
-      throw new FrError('bad_request', 400, `Bad quantity for SKU ${l.sku}.`)
-    }
+  validateOrder(input)
+
+  const customerNumber = env.FR_CUSTOMER_NR ?? ''
+  if (!customerNumber) {
+    throw new FrError(
+      'config',
+      503,
+      'No Falk&Ross customer number. Set it with: wrangler secret put FR_CUSTOMER_NR',
+    )
   }
 
-  let customerNumber = input.customerNumber ?? ''
-  let source: FrOrderResult['customerNumberSource'] = 'request'
-  if (!customerNumber) {
-    customerNumber = env.FR_CUSTOMER_NR ?? ''
-    source = 'env'
-  }
-  if (!customerNumber) {
-    // Last resort: the webservice login is "{customer}-{n}-{token}".
-    customerNumber = /^(\d+)-/.exec(env.FR_WS_USER ?? '')?.[1] ?? ''
-    source = 'derived-from-user'
-  }
-  if (!customerNumber) {
-    throw new FrError('config', 503, 'No Falk&Ross customer number (set FR_CUSTOMER_NR).')
-  }
-
-  // Read the mode BEFORE ordering: whoever gets this result has to be able to
-  // tell a rehearsal from a purchase without a second call.
+  /*
+   * READ THE MODE FIRST, AND REFUSE ON A DISAGREEMENT.
+   *
+   * `loadState` is cached for two minutes (TTL.state), which is short precisely
+   * because this is what it gates. The comparison is the point: the shop wrote
+   * « compte fournisseur : test » on the screen a human confirmed against, and
+   * an account that has been switched to live since then must not be able to
+   * turn that confirmation into a real purchase.
+   */
   const mode = await loadState(origin, env, ctx)
+  if (mode.mode !== expectMode) {
+    throw new FrError(
+      'bad_request',
+      409,
+      `The account is in ${mode.mode} mode and the caller expected ${expectMode}. Nothing was sent.`,
+    )
+  }
 
   const body = buildOrderXml(input, customerNumber, now)
-  // The supplier's own reference implementation posts the raw XML under a
-  // form content-type; their gateway rejects application/xml. Mirrored.
-  const res = await fetchUpstream(`${WS}/webservice/R02_000/order?format=xml`, {
-    auth: true,
-    env,
-    method: 'POST',
-    body,
-    contentType: 'application/x-www-form-urlencoded',
-  }).catch((err: unknown) => {
-    if (err instanceof FrError && err.status === 400) return null
-    throw err
+
+  const unknown = (why: string): FrOrderResult => ({
+    ok: false,
+    outcome: 'unknown',
+    orderId: '',
+    errorCode: '',
+    message: why,
+    lines: [],
+    mode,
+    idempotencyKey: input.idempotencyKey,
   })
 
-  const xml = res ? await res.text() : ''
-  if (!xml) {
-    throw new FrError('bad_request', 400, 'Falk&Ross refused the order document.')
+  // The supplier's own reference implementation posts the raw XML under a form
+  // content-type; their gateway rejects application/xml. Mirrored.
+  let res: Response
+  try {
+    res = await fetchUpstream(`${WS}/webservice/R02_000/order?format=xml`, {
+      auth: true,
+      env,
+      method: 'POST',
+      body,
+      contentType: 'application/x-www-form-urlencoded',
+      // The gateway's own rejection envelope. Without this it was unreachable:
+      // see FetchOpts.allowStatus.
+      allowStatus: [400],
+    })
+  } catch (err) {
+    /*
+     * A CONFIG OR AUTH FAILURE HAPPENS BEFORE ANYTHING IS SENT and is a plain
+     * failure. Everything else here is a timeout or a transport error AFTER the
+     * document went out, which is the ambiguous case this function exists to
+     * name rather than swallow.
+     */
+    if (err instanceof FrError && (err.code === 'config' || err.code === 'auth')) throw err
+    return unknown(
+      'Falk&Ross did not answer. The order may or may not have been created; check the supplier before sending it again.',
+    )
   }
+
+  const xml = await res.text().catch(() => '')
+  if (!xml) return unknown('Falk&Ross answered with an empty body.')
 
   const gatewayError = elementInner(xml, 'error')
   if (gatewayError) {
     return {
       ok: false,
+      outcome: 'rejected',
       orderId: '0',
       errorCode: elementText(gatewayError, 'code') || '400',
       message: elementText(gatewayError, 'message') || 'Rejected by Falk&Ross.',
       lines: [],
       mode,
-      customerNumber,
-      customerNumberSource: source,
+      idempotencyKey: input.idempotencyKey,
     }
   }
 
@@ -1458,15 +1671,28 @@ async function placeOrder(
     })
   }
 
+  /*
+   * AN ANSWER WITH NEITHER AN ORDER ID NOR AN ERROR IS NOT A REFUSAL.
+   *
+   * `<orders_id>0</orders_id>` with an `<err>` is the supplier saying no. A
+   * document we cannot find either field in is a document we did not
+   * understand, and reading it as "rejected" would tell an operator that
+   * nothing was created on the strength of not knowing.
+   */
+  if (!orderId && !errorCode && lines.length === 0) {
+    return unknown('Falk&Ross answered in a shape this Worker does not recognise.')
+  }
+
+  const accepted = !!orderId && orderId !== '0' && (!errorCode || errorCode === '0')
   return {
-    ok: !!orderId && orderId !== '0' && (!errorCode || errorCode === '0'),
+    ok: accepted,
+    outcome: accepted ? 'accepted' : 'rejected',
     orderId,
     errorCode,
     message: elementText(xml, 'err_msg') || lines[0]?.message || '',
     lines,
     mode,
-    customerNumber,
-    customerNumberSource: source,
+    idempotencyKey: input.idempotencyKey,
   }
 }
 
@@ -1554,7 +1780,9 @@ const clampInt = (v: string | null, def: number, min: number, max: number) => {
  *   GET  /api/fr/catalogue/{styleNr}        detail + prices + stock, one call
  *   GET  /api/fr/price/{styleNr}            purchase prices per SKU
  *   GET  /api/fr/stock/{styleNr}            stock per SKU
+ *   GET  /api/fr/stock?offset&limit         EVERY SKU's stock, paged, one call
  *   GET  /api/fr/deliveries/{styleNr?}      announced restocks
+ *   POST /api/fr/order                      place a supplier order (see below)
  *   GET  /api/fr/img/{picture|picto}/{file} photo proxy (ungated — see below)
  *   GET  /media/blank/{picture|picto}/{file} the same photos, supplier-neutral
  *                                           prefix, for URLs the shop stores
@@ -1662,12 +1890,112 @@ export async function handleFalkRoss(
       return json(await loadStock(origin, env, ctx, stock[1]), 200, 60)
     }
 
+    /*
+     * The whole catalogue's stock, paged out of ONE upstream snapshot.
+     *
+     * `no-store`, like the catalogue route and unlike the per-style one: this
+     * exists to be current, its caller is the shop's refresh sweep, and a
+     * browser cache would be a second staleness nobody could see. The page cap
+     * is 20 000 rows because the snapshot is ~46 600 and a shop on shared
+     * hosting parsing a megabyte of JSON in one `wp_remote_get` is a memory
+     * limit waiting for the day the catalogue grows.
+     *
+     * `at` IS PER PAGE, DELIBERATELY. A sweep takes several requests and the
+     * five-minute cache can turn over between them, so pages can come from two
+     * snapshots. The shop stores the freshness carried by the page that wrote
+     * each article, which makes a mixed sweep exactly as honest as a clean one
+     * instead of something to detect.
+     */
+    if (rest === 'stock' && method === 'GET') {
+      const all = await loadStockAll(origin, env, ctx)
+      const offset = clampInt(url.searchParams.get('offset'), 0, 0, 1_000_000)
+      const limit = clampInt(url.searchParams.get('limit'), 5000, 1, 20000)
+      const rows = all.rows.slice(offset, offset + limit)
+      const next = offset + rows.length
+      return json({
+        at: all.at,
+        total: all.rows.length,
+        offset,
+        count: rows.length,
+        nextOffset: next < all.rows.length ? next : null,
+        rows,
+      })
+    }
+
     const deliveries = /^deliveries(?:\/(\d{4,6}))?$/.exec(rest)
     if (deliveries && method === 'GET') {
       return json(await loadDeliveries(origin, env, ctx, deliveries[1] ?? ''), 200, 300)
     }
 
-    // NOTE: there is deliberately no `order` route — see the order section.
+    /*
+     * THE ONE ROUTE ON THIS WORKER THAT SPENDS MONEY.
+     *
+     * Admin-gated above with everything else. What it adds is the refusal to
+     * act on a belief that has gone stale: `mode` is what the caller thinks the
+     * account is, and `placeOrder` compares it with what the account actually
+     * is before building a document. The human confirmation itself lives on the
+     * shop, where the basket, the total and the operator are; a Worker cannot
+     * confirm anything, and a route that pretended to would be a second,
+     * weaker gate beside the real one.
+     *
+     * `dryRun` returns the exact document instead of sending it. It is how the
+     * shop's tests and `scripts/fr-verify.mjs` exercise this path without
+     * buying anything, and it is why nothing in the test suite needs a mock of
+     * the supplier's gateway.
+     */
+    if (rest === 'order' && method === 'POST') {
+      const raw = (await request.json().catch(() => null)) as Record<string, unknown> | null
+      if (!raw || typeof raw !== 'object') {
+        throw new FrError('bad_request', 400, 'The order body must be a JSON object.')
+      }
+      const expect = raw.mode
+      if (expect !== 'test' && expect !== 'live') {
+        throw new FrError(
+          'bad_request',
+          400,
+          'The order body must state the account mode it expects: "test" or "live".',
+        )
+      }
+      const input: FrOrderInput = {
+        idempotencyKey: String(raw.idempotencyKey ?? ''),
+        note: typeof raw.note === 'string' ? raw.note : undefined,
+        partialShipment: raw.partialShipment === true,
+        lines: Array.isArray(raw.lines)
+          ? (raw.lines as unknown[]).map((l) => {
+              const row = (l ?? {}) as Record<string, unknown>
+              return {
+                sku: String(row.sku ?? ''),
+                qty: Number(row.qty),
+                lineRef: typeof row.lineRef === 'string' ? row.lineRef : undefined,
+              }
+            })
+          : [],
+      }
+
+      if (raw.dryRun === true) {
+        validateOrder(input)
+        const customerNumber = env.FR_CUSTOMER_NR ?? ''
+        if (!customerNumber) {
+          throw new FrError(
+            'config',
+            503,
+            'No Falk&Ross customer number. Set it with: wrangler secret put FR_CUSTOMER_NR',
+          )
+        }
+        const state = await loadState(origin, env, ctx)
+        return json({
+          dryRun: true,
+          mode: state,
+          modeMatches: state.mode === expect,
+          idempotencyKey: input.idempotencyKey,
+          lines: input.lines.length,
+          garments: input.lines.reduce((n, l) => n + l.qty, 0),
+          xml: buildOrderXml(input, customerNumber, new Date()),
+        })
+      }
+
+      return json(await placeOrder(origin, env, ctx, input, expect, new Date()))
+    }
 
     return json({ error: 'not_found', message: `No Falk&Ross route ${rest}` }, 404)
   } catch (err) {
