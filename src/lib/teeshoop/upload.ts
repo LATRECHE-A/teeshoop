@@ -371,12 +371,17 @@ async function send(
   sides: BridgeSide[],
   parts: { id: string; blob: Blob }[],
   preview: Blob,
+  perSide: { side: Side; blob: Blob }[],
 ): Promise<UploadedDesign> {
   const form = new FormData()
   const docBlob = new Blob([JSON.stringify(doc)], { type: 'application/json' })
   form.append('design', docBlob, 'design.json')
   form.append('preview', preview, 'preview.png')
   let bytes = docBlob.size + preview.size
+  for (const one of perSide) {
+    form.append(`preview:${one.side}`, one.blob, `preview-${one.side}.png`)
+    bytes += one.blob.size
+  }
   for (const part of parts) {
     form.append(`asset:${part.id}`, part.blob, part.id)
     bytes += part.blob.size
@@ -451,15 +456,35 @@ export async function uploadDesign(design: Design): Promise<UploadedDesign> {
       }
       if (missing.length > 0) throw new DesignUploadError('missing_artwork', missing.join(', '))
 
-      let preview: Blob
+      /*
+       * ONE MOCKUP PER PRINTED SIDE, and the first of them is also the cart
+       * thumbnail.
+       *
+       * The bon a tirer is the document that decides who pays for a reprint,
+       * and one showing only the front of a garment printed front and back
+       * decides nothing about the back. The customer has to see every side they
+       * are approving, so every side is rendered here, which is the only place
+       * with a canvas and the artwork decoded.
+       *
+       * Rendered from `sides`, not from PRINTABLE_SIDES: `measureOrder` has
+       * already dropped any side that carries no ink, so this cannot upload a
+       * picture of a bare garment and call it a proof.
+       */
+      const perSide: { side: Side; blob: Blob }[] = []
       try {
-        const canvas = await renderMockup(design, previewSide(design), PREVIEW_PX)
-        preview = await canvasToBlob(canvas, 'image/png')
+        for (const measured of sides) {
+          const canvas = await renderMockup(design, measured.id as Side, PREVIEW_PX)
+          perSide.push({ side: measured.id as Side, blob: await canvasToBlob(canvas, 'image/png') })
+        }
       } catch {
         throw new DesignUploadError('preview_failed')
       }
+      if (perSide.length === 0) throw new DesignUploadError('preview_failed')
 
-      return send(doc, sides, parts, preview)
+      const first = previewSide(design)
+      const preview = (perSide.find((p) => p.side === first) ?? perSide[0]).blob
+
+      return send(doc, sides, parts, preview, perSide)
     })(),
   )
 }

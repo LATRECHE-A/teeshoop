@@ -252,9 +252,22 @@ final class Cart {
 			'design_id'    => $design_id,
 			'size_grid'    => $size_grid,
 			'verified'     => (bool) ( $check['meta']['verified'] ?? false ),
+			/*
+			 * THE COLOUR THE DESIGN WAS MADE ON, frozen with everything else.
+			 *
+			 * Mandatory content of a bon à tirer (chapitre 2) and it exists
+			 * nowhere on this side otherwise: the garment comes from the product
+			 * and the areas come from the manifest, but the colour is the
+			 * customer's own choice inside the studio. Frozen here rather than
+			 * fetched when the proof is issued, so a proof is composed from the
+			 * ORDER and does not depend on a network call whose failure would
+			 * stop the workshop.
+			 */
+			'colour'       => (string) ( $check['meta']['color'] ?? '' ),
 			'files'        => array(
-				'print'   => (string) ( $check['meta']['print_file'] ?? '' ),
-				'preview' => (string) ( $check['meta']['preview'] ?? '' ),
+				'print'    => (string) ( $check['meta']['print_file'] ?? '' ),
+				'preview'  => (string) ( $check['meta']['preview'] ?? '' ),
+				'previews' => (array) ( $check['meta']['previews'] ?? array() ),
 			),
 		);
 
@@ -542,6 +555,7 @@ final class Cart {
 		// carry an M-sized chest print, 23 % narrow.
 		$line->add_meta_data( '_teeshoop_size_grid', wp_json_encode( $data['size_grid'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_sides_source', (string) ( $data['sides_source'] ?? '' ), true );
+		$line->add_meta_data( '_teeshoop_couleur', (string) ( $data['colour'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_files', wp_json_encode( $data['files'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_verified', ! empty( $data['verified'] ) ? 'yes' : 'no', true );
 

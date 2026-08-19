@@ -45,6 +45,24 @@ final class Settings {
 			 * integer cents, so there is nothing to migrate.
 			 */
 			'price_display'      => 'ht_first',
+
+			/*
+			 * Who the shop writes as, and where an alert to the workshop goes.
+			 *
+			 * EMPTY IS A REFUSAL, not a default. Brevo will not send from an
+			 * address nobody has verified in their account, and a plausible
+			 * `contact@teeshoop.com` written here would produce a 400 on the
+			 * first real proof e-mail and nothing on the screen to explain it.
+			 * `Mail::deliver` records the refusal by name instead.
+			 *
+			 * `mail_atelier` falls back to the site administrator, the same way
+			 * `quote_email` does and for the same reason: an alert nobody
+			 * receives is an order that stalls with no one knowing.
+			 */
+			'mail_from'          => '',
+			'mail_from_name'     => '',
+			'mail_reply_to'      => '',
+			'mail_atelier'       => '',
 		);
 
 		$stored = get_option( OPTION_SETTINGS, array() );

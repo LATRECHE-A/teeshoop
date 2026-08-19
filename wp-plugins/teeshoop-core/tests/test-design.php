@@ -61,7 +61,7 @@ function ts_design_placed( array $side ): array {
 	);
 }
 
-describe( 'Design::normalise_placement — where the marking goes', function () {
+describe( 'Design::normalise_placement : where the marking goes', function () {
 
 	it( 'carries the placement a bon à tirer states and a press is set up from', function () {
 		$out = ts_design_placed( ts_design_side() );

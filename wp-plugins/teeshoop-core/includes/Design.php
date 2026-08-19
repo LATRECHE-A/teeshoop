@@ -124,9 +124,69 @@ final class Design {
 				'verified'   => true,
 				'print_file' => isset( $body['print_file'] ) ? (string) $body['print_file'] : '',
 				'preview'    => isset( $body['preview'] ) ? (string) $body['preview'] : '',
+				/*
+				 * ONE PREVIEW PER PRINTED SIDE, by side id. `preview` above is
+				 * the cart thumbnail and stays what it was. These exist for the
+				 * bon à tirer, which has to show every side the customer is
+				 * approving; a proof showing only the front of a garment printed
+				 * front and back decides nothing about the back.
+				 */
+				'previews'   => isset( $body['previews'] ) && is_array( $body['previews'] ) ? self::normalise_previews( $body['previews'] ) : array(),
 				'sides'      => isset( $body['sides'] ) && is_array( $body['sides'] ) ? $body['sides'] : array(),
+				/*
+				 * THE COLOUR, because a bon à tirer has to print it and there is
+				 * nowhere else it exists on this side. The manifest has carried
+				 * it since the design route was written and this function threw
+				 * it away; the alternative was a second `wp_remote_get` to the
+				 * same URL from `Bat`, which is two readers of one fact and one
+				 * more network call on the path to a customer promise.
+				 *
+				 * It is frozen onto the order line at add-to-cart, so issuing a
+				 * proof reads the order and not the Worker.
+				 */
+				'garment'    => isset( $body['garment'] ) ? (string) $body['garment'] : '',
+				'color'      => isset( $body['color'] ) ? (string) $body['color'] : '',
+				/*
+				 * WHICH BUILD RENDERED IT. The artwork is re-rendered later by
+				 * whatever is deployed then (`worker/design.ts` stamps this for
+				 * exactly that reason), so a proof approved under one version and
+				 * a transfer pressed under another are not guaranteed to be the
+				 * same pixels. This field is the only thing that would ever let
+				 * anyone notice.
+				 */
+				'app_version' => isset( $body['app_version'] ) ? (string) $body['app_version'] : '',
 			),
 		);
+	}
+
+	/**
+	 * The per-side preview paths, keyed by a side id we recognise.
+	 *
+	 * Bounded and pattern-checked because these strings end up in an `img src`
+	 * on a page a customer opens: the manifest is ours, but the shop treats
+	 * everything that arrives over HTTP as a claim. A path that is not one of
+	 * the shapes the Worker stores is dropped, and the proof then says the
+	 * mockup for that side is unavailable rather than rendering a broken image
+	 * or, worse, an address somebody else chose.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function normalise_previews( array $raw ): array {
+		$out = array();
+		foreach ( $raw as $side => $path ) {
+			$id = sanitize_key( (string) $side );
+			if ( '' === $id || ! is_string( $path ) ) {
+				continue;
+			}
+			if ( ! preg_match( '#^/r2/design/[A-Za-z0-9_-]{16,64}/preview-[a-z_]{1,16}\.png$#', $path ) ) {
+				continue;
+			}
+			$out[ $id ] = $path;
+			if ( count( $out ) >= 8 ) {
+				break;
+			}
+		}
+		return $out;
 	}
 
 	/**

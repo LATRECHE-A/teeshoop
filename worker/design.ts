@@ -41,7 +41,14 @@
  * the shape we expect before anything is written.
  */
 import { requireAdmin, type AdminEnv } from './auth'
-import { ASSET_ID_RE, MAX_ASSETS, readDesignDoc, type DesignDocSide } from '../src/lib/teeshoop/designDoc'
+import {
+  ASSET_ID_RE,
+  MAX_ASSETS,
+  MAX_SIDES,
+  SIDE_ID_RE,
+  readDesignDoc,
+  type DesignDocSide,
+} from '../src/lib/teeshoop/designDoc'
 
 /*
  * WHAT A DESIGN DOCUMENT IS lives in src/lib/teeshoop/designDoc.ts, imported
@@ -112,6 +119,18 @@ export interface DesignManifest {
   sides: DesignSide[]
   assets: string[]
   preview: string
+  /**
+   * One flattened mockup per PRINTED side, by side id.
+   *
+   * `preview` above is the cart thumbnail and stays what it always was: the
+   * first side that carries ink. These exist because of the bon a tirer. A
+   * proof is the document that decides who pays for a reprint, and one showing
+   * only the front of a garment printed front and back decides nothing about
+   * the back. Reachable on the id alone, exactly like `preview`, for the same
+   * reason: the customer has to be able to see their own proof and an e-mail
+   * cannot carry a token.
+   */
+  previews: Record<string, string>
   /** Where the workshop finds the document. Admin-gated; see the header. */
   print_file: string
 }
@@ -183,6 +202,30 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
     assets.push({ id, file: value, type })
   }
 
+  /*
+   * The per-side mockups. Bounded the same way everything else on this open
+   * route is: a known side id, PNG by its bytes, the same per-file cap, and at
+   * most one per side the document actually declares. A form naming a side the
+   * design does not print is refused rather than stored, because R2 as a dead
+   * drop is exactly what the asset check above exists to stop.
+   */
+  const previews: { side: string; file: File }[] = []
+  for (const [name, value] of form.entries()) {
+    if (!name.startsWith('preview:')) continue
+    const side = name.slice(8)
+    if (!SIDE_ID_RE.test(side)) return json({ error: `bad preview name ${name}` }, 400)
+    if (!doc.sides.some((s) => s.id === side))
+      return json({ error: `preview ${side} is not a printed side` }, 422)
+    if (previews.some((p) => p.side === side)) return json({ error: `preview ${side} sent twice` }, 400)
+    if (previews.length >= MAX_SIDES) return json({ error: 'too many previews' }, 413)
+    if (!(value instanceof File)) return json({ error: `preview ${side} is not a file` }, 400)
+    if (value.size > MAX_FILE_BYTES) return json({ error: `preview ${side} too large` }, 413)
+    if ((await imageType(value)) !== 'png') return json({ error: `preview ${side} is not a png` }, 415)
+    total += value.size
+    if (total > MAX_TOTAL_BYTES) return json({ error: 'design too large' }, 413)
+    previews.push({ side, file: value })
+  }
+
   const missing = doc.assetIds.filter((id) => !assets.some((a) => a.id === id))
   if (missing.length > 0)
     return json({ error: `design references artwork that was not uploaded: ${missing.join(', ')}` }, 422)
@@ -198,6 +241,9 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
     sides: doc.sides,
     assets: assets.map((a) => a.id),
     preview: `/r2/design/${id}/preview.png`,
+    previews: Object.fromEntries(
+      previews.map((p) => [p.side, `/r2/design/${id}/preview-${p.side}.png`]),
+    ),
     print_file: `/r2/design/${id}/design.json`,
   }
 
@@ -212,6 +258,14 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
           httpMetadata: { contentType: 'image/png' },
           customMetadata: { created },
         }),
+      ),
+      ...previews.map((p) =>
+        p.file.arrayBuffer().then((buf) =>
+          env.AR_BUCKET.put(key(id, `preview-${p.side}.png`), buf, {
+            httpMetadata: { contentType: 'image/png' },
+            customMetadata: { created },
+          }),
+        ),
       ),
       ...assets.map((a) =>
         a.file.arrayBuffer().then((buf) =>
@@ -234,7 +288,7 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
     return json({ error: 'storage write failed' }, 502)
   }
 
-  return json({ id, preview: manifest.preview, sides: manifest.sides })
+  return json({ id, preview: manifest.preview, previews: manifest.previews, sides: manifest.sides })
 }
 
 /**
@@ -273,7 +327,10 @@ export async function serveDesignFile(
   path: string,
 ): Promise<Response> {
   if (!ID_RE.test(id)) return new Response('not found', { status: 404 })
-  const isPreview = path === 'preview.png'
+  // `preview.png` and `preview-<side>.png`. Both are the customer's own proof
+  // and both are readable on the id alone; the side ids come from the studio's
+  // own union and the pattern is the document gate's, not a looser one.
+  const isPreview = path === 'preview.png' || /^preview-[a-z_]{1,16}\.png$/.test(path)
   const isDoc = path === 'design.json'
   const asset = /^assets\/([A-Za-z0-9_-]{1,64})$/.exec(path)
   if (!isPreview && !isDoc && !asset) return new Response('not found', { status: 404 })

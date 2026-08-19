@@ -126,6 +126,11 @@ require_once __DIR__ . '/includes/Compat.php';
 require_once __DIR__ . '/includes/ProductPage.php';
 require_once __DIR__ . '/includes/Nest.php';
 require_once __DIR__ . '/includes/Costing.php';
+require_once __DIR__ . '/includes/Lifecycle.php';
+require_once __DIR__ . '/includes/Mail.php';
+require_once __DIR__ . '/includes/Notify.php';
+require_once __DIR__ . '/includes/Bat.php';
+require_once __DIR__ . '/includes/BatPage.php';
 require_once __DIR__ . '/includes/Quote.php';
 require_once __DIR__ . '/includes/Admin.php';
 require_once __DIR__ . '/includes/CostAdmin.php';
@@ -162,6 +167,10 @@ function boot(): void {
 	Rest::init();
 	Shortcode::init();
 	ProductPage::init();
+	Lifecycle::init();
+	Mail::init();
+	Notify::init();
+	Bat::init();
 	Quote::init();
 	Hypotheses::init();
 	Compat::init();
@@ -217,9 +226,11 @@ add_action( 'plugins_loaded', __NAMESPACE__ . '\\boot' );
 register_deactivation_hook(
 	__FILE__,
 	static function (): void {
-		$next = wp_next_scheduled( 'teeshoop_purge_devis' );
-		if ( $next ) {
-			wp_unschedule_event( $next, 'teeshoop_purge_devis' );
+		foreach ( array( 'teeshoop_purge_devis', Mail::cron() ) as $hook ) {
+			$next = wp_next_scheduled( $hook );
+			if ( $next ) {
+				wp_unschedule_event( $next, $hook );
+			}
 		}
 	}
 );

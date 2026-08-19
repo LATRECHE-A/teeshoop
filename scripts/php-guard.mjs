@@ -227,6 +227,11 @@ const RENDERED = [
   'wp-plugins/teeshoop-core/templates/',
   'wp-plugins/teeshoop-core/assets/',
   'wp-plugins/teeshoop-core/data/',
+  // A file and not a directory, because this one IS output: `BatPage` renders a
+  // whole HTML document to a customer from `admin-post.php`, without a template
+  // and without the theme. It lives in `includes/` because it is a class, which
+  // is exactly why the directory rule would have missed it.
+  'wp-plugins/teeshoop-core/includes/BatPage.php',
 ]
 
 const SCAN_EXT = new Set(['.php', '.js', '.css', '.json', '.html'])
