@@ -10,9 +10,67 @@
  *   node scripts/dtf-bench.mjs
  *   BENCH_JSON=/abs/path.json node scripts/dtf-bench.mjs
  */
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
+
+/**
+ * The film tariff this shop is actually quoted on, read out of the PRICE
+ * AUTHORITY by running it.
+ *
+ * NOT the supplier profiles in `src/lib/dtf/suppliers.ts`. Those are public
+ * tariffs surveyed in July 2026, they are a market comparison, and they are five
+ * to fifteen euros the linear metre; what the associate says he pays is
+ * seventeen, and it lives in `Cost::default_config()['film']` because that is the
+ * one number allowed to drive a floor price. A bench that converted a measured
+ * saving into euros at the wrong rate would publish a number the margin report
+ * contradicts.
+ *
+ * `scripts/hypotheses-guard.mjs` reads PHP the same way and for the same reason:
+ * comparing two files as text would not need php, and would not be worth having.
+ */
+/**
+ * The split of a pooled bill, computed by the function that charges it.
+ *
+ * `Cost::attribute()` in PHP is the authority: it is what writes a share onto a
+ * real order and what the margin report reads. Re-implementing the same rule in
+ * this script to print a benchmark would be a second answer to "what did this
+ * order cost", and the two would eventually disagree on a rounding.
+ */
+function attribute(soloM, pooledM, inkCm2, origin = 'fr') {
+  const code =
+    "define('TEESHOOP_TEST',1);" +
+    "require 'wp-plugins/teeshoop-core/includes/Money.php';" +
+    "require 'wp-plugins/teeshoop-core/includes/Cost.php';" +
+    "$in = json_decode(file_get_contents('php://stdin'), true);" +
+    "echo json_encode(Teeshoop\\Core\\Cost::attribute(" +
+    "$in['solo'], $in['pooled'], Teeshoop\\Core\\Cost::default_config(), $in['origin'], $in['ink']));"
+  try {
+    return JSON.parse(
+      execFileSync('php', ['-r', code], {
+        encoding: 'utf8',
+        input: JSON.stringify({ solo: soloM, pooled: pooledM, ink: inkCm2, origin }),
+      }),
+    )
+  } catch (e) {
+    console.error('❌ could not split the pooled bill with the price authority:', e?.message ?? e)
+    process.exit(2)
+  }
+}
+
+function filmTariff() {
+  const code =
+    "define('TEESHOOP_TEST',1);" +
+    "require 'wp-plugins/teeshoop-core/includes/Money.php';" +
+    "require 'wp-plugins/teeshoop-core/includes/Cost.php';" +
+    "echo json_encode(Teeshoop\\Core\\Cost::default_config()['film']);"
+  try {
+    return JSON.parse(execFileSync('php', ['-r', code], { encoding: 'utf8' }))
+  } catch (e) {
+    console.error('❌ could not read the film tariff from the price authority:', e?.message ?? e)
+    process.exit(2)
+  }
+}
 
 const PORT = 5199
 const BASE = `http://localhost:${PORT}`
@@ -54,7 +112,7 @@ try {
   await page.goto(BASE + '/dev/dtf.html', { waitUntil: 'load', timeout: 60000 })
   await page.waitForFunction(() => !!window.__dtf, { timeout: 25000 })
 
-  const out = await page.evaluate(async () => {
+  const page_out = await page.evaluate(async () => {
     const { nest, shape, samplePieces, interlockMax } = window.__dtf
     const interlockStops = window.__dtf.interlockStops
 
@@ -266,9 +324,72 @@ try {
         restarts24: run(interlockMax, 24, false),
       })
     }
-    return rows
+
+    // --- a realistic week of orders, pooled against one at a time --------
+    //
+    // Six paid orders of the kind this shop takes: a club order in two sizes,
+    // two small reassorts, a padded customer upload, a staff run. The designs
+    // are the same two the rest of this bench uses, rendered through the real
+    // pipeline, and each order is nested BOTH inside the pool and on its own so
+    // the saving is a difference between two measurements rather than a claim.
+    const WEEK = [
+      { id: '1041', design: 'sample', sizes: { M: 12, L: 8 } },
+      { id: '1042', design: 'padded', sizes: { S: 4, M: 6 } },
+      { id: '1043', design: 'sample', sizes: { L: 5 } },
+      { id: '1044', design: 'padded', sizes: { M: 3, L: 3, XL: 2 } },
+      { id: '1045', design: 'sample', sizes: { S: 2, XL: 2 } },
+      { id: '1046', design: 'padded', sizes: { M: 20 } },
+    ]
+    const weekRaw = await window.__dtf.weekPieces(48, WEEK)
+    const toShape = (list) =>
+      list.map((p) => ({
+        id: p.key,
+        sourceKey: p.key,
+        wCm: p.wCm,
+        hCm: p.hCm,
+        qty: p.qty,
+        allowRotate: true,
+        ...(p.mask ? { mask: p.mask.mask, maskW: p.mask.maskW, maskH: p.mask.maskH } : {}),
+      }))
+
+    const byOrder = new Map()
+    for (const p of weekRaw) {
+      const list = byOrder.get(p.orderId)
+      if (list) list.push(p)
+      else byOrder.set(p.orderId, [p])
+    }
+
+    // 56 cm and 100 cm are the SHOP's roll and file length (Cost.php), not the
+    // studio's surveyed profile: the whole point is a euro figure the margin
+    // report would agree with.
+    const shopGeom = { ...base, printableWidthCm: 56, maxLengthCm: 100 }
+    const packShelf = (ps) => nest(ps, shopGeom)
+    const packFill = (ps) =>
+      shape({ pieces: ps, options: { ...shopGeom, maxInterlockCm: interlockMax, restarts: 12 } })
+
+    const allPieces = toShape(weekRaw)
+    const week = {
+      orders: [...byOrder.keys()].sort(),
+      pooledShelfCm: packShelf(allPieces).totalLengthCm,
+      pooledFillCm: packFill(allPieces).totalLengthCm,
+      pooledSheets: packFill(allPieces).sheets.length,
+      solo: {},
+      ink: {},
+      poses: {},
+    }
+    for (const [orderId, list] of byOrder) {
+      const ps = toShape(list)
+      week.solo[orderId] = {
+        shelfCm: packShelf(ps).totalLengthCm,
+        fillCm: packFill(ps).totalLengthCm,
+      }
+      week.ink[orderId] = list.reduce((a, p) => a + p.wCm * p.hCm * p.qty, 0)
+      week.poses[orderId] = list.reduce((a, p) => a + p.qty, 0)
+    }
+    return { rows, week }
   })
 
+  const { rows: out, week } = page_out
   const pc = (a, b) => (b > 0 ? `${(((a - b) / a) * 100).toFixed(1)} %` : '—')
   const fmt = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)} %`)
   console.log(
@@ -336,6 +457,142 @@ try {
     if (r.shelf.pieces !== r.maxFill.pieces)
       console.error(`⚠ ${r.instance}: piece count differs (${r.shelf.pieces} vs ${r.maxFill.pieces})`)
 
+  // -------------------------------------------------------------------------
+  // POOLING, on a realistic week
+  // -------------------------------------------------------------------------
+  //
+  // The euros come from the price authority, twice over: the tariff from
+  // `Cost::default_config()`, the split from `Cost::attribute()`. Nothing here
+  // multiplies a rate by a length itself.
+  const film = filmTariff()
+  const soloFill = {}
+  const soloShelf = {}
+  for (const id of week.orders) {
+    soloFill[id] = week.solo[id].fillCm / 100
+    soloShelf[id] = week.solo[id].shelfCm / 100
+  }
+  const bill = attribute(soloFill, week.pooledFillCm / 100, week.ink)
+  const billShelf = attribute(soloShelf, week.pooledShelfCm / 100, week.ink)
+
+  const m2 = (cm) => (cm * film.width_cm) / 10000
+  const e = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} EUR`
+  const sumSoloFill = week.orders.reduce((a, id) => a + week.solo[id].fillCm, 0)
+  const sumSoloShelf = week.orders.reduce((a, id) => a + week.solo[id].shelfCm, 0)
+
+  console.log('\nUNE SEMAINE DE COMMANDES : imbriquées ensemble vs une par une')
+  console.log('-'.repeat(96))
+  console.log(
+    `laize ${film.width_cm} cm · fichier max ${film.max_length_cm} cm · ` +
+      `${film.rate_fr_ht / 100} EUR/m · minimum ${film.min_m} m · ` +
+      `perte ${Math.round(film.waste_rate * 100)} % · livraison ${film.delivery_ht / 100} EUR`,
+  )
+  console.log(
+    'commande'.padEnd(10) +
+      'poses'.padStart(7) +
+      'seule cm'.padStart(11) +
+      'part €'.padStart(12) +
+      'seule €'.padStart(12) +
+      'économie'.padStart(12) +
+      'part surface'.padStart(15),
+  )
+  for (const id of week.orders) {
+    const sh = bill.shares[id]
+    console.log(
+      id.padEnd(10) +
+        String(week.poses[id]).padStart(7) +
+        week.solo[id].fillCm.toFixed(1).padStart(11) +
+        e(sh.share_ht).padStart(12) +
+        e(sh.solo_ht).padStart(12) +
+        e(sh.saved_ht).padStart(12) +
+        e(sh.area_share_ht).padStart(15),
+    )
+  }
+  console.log('-'.repeat(96))
+  console.log(
+    'TOTAL'.padEnd(10) +
+      String(week.orders.reduce((a, id) => a + week.poses[id], 0)).padStart(7) +
+      sumSoloFill.toFixed(1).padStart(11) +
+      e(bill.total_ht).padStart(12) +
+      e(bill.solo_total_ht).padStart(12) +
+      e(bill.saved_ht).padStart(12),
+  )
+  console.log(
+    `\nremplissage max   ${sumSoloFill.toFixed(1)} cm → ${week.pooledFillCm.toFixed(1)} cm   ` +
+      `${m2(sumSoloFill).toFixed(2)} → ${m2(week.pooledFillCm).toFixed(2)} m²   ` +
+      `${pc(sumSoloFill, week.pooledFillCm)} de film en moins   ` +
+      `${e(bill.saved_ht)} économisés (${((bill.saved_ht / bill.solo_total_ht) * 100).toFixed(1)} %)`,
+  )
+  console.log(
+    `bandes droites    ${sumSoloShelf.toFixed(1)} cm → ${week.pooledShelfCm.toFixed(1)} cm   ` +
+      `${m2(sumSoloShelf).toFixed(2)} → ${m2(week.pooledShelfCm).toFixed(2)} m²   ` +
+      `${pc(sumSoloShelf, week.pooledShelfCm)} de film en moins   ` +
+      `${e(billShelf.saved_ht)} économisés`,
+  )
+  console.log(
+    `${week.orders.length} commandes, ${week.pooledSheets} planche(s) au lieu de ` +
+      `${week.orders.length}, une livraison au lieu de ${week.orders.length}, ` +
+      `un minimum fournisseur au lieu de ${week.orders.length}.`,
+  )
+
+  /*
+   * WHERE THE MONEY ACTUALLY COMES FROM, decomposed rather than left as a
+   * headline. « 61 % d'économie » read as « 61 % de film » is wrong by an order
+   * of magnitude: the film itself moves 5 %, and almost all of the euros are six
+   * delivery charges and six one-metre minimums collapsing into one of each.
+   *
+   * Three terms, and they are the algebra of `Cost::film` rather than an
+   * apportionment we chose:
+   *   saved = rate x (1 + perte) x [ Σ max(min, mᵢ) − max(min, P) ] + (N−1) x port
+   *         = rate x (1 + perte) x ( Σ max(min, mᵢ) − Σ mᵢ )      the minimums
+   *         + rate x (1 + perte) x ( Σ mᵢ − P )                    the nesting
+   *         + (N−1) x port                                          the deliveries
+   */
+  const N = week.orders.length
+  const sumRaw = week.orders.reduce((a, id) => a + week.solo[id].fillCm / 100, 0)
+  const sumBilled = week.orders.reduce(
+    (a, id) => a + Math.max(film.min_m, week.solo[id].fillCm / 100),
+    0,
+  )
+  const perM = film.rate_fr_ht * (1 + film.waste_rate)
+  const fromMinimums = Math.round(perM * (sumBilled - sumRaw))
+  const fromNesting = Math.round(perM * (sumRaw - week.pooledFillCm / 100))
+  const fromDelivery = (N - 1) * film.delivery_ht
+  const modelled = fromMinimums + fromNesting + fromDelivery
+  console.log(
+    `d'où viennent les ${e(bill.saved_ht)} : ` +
+      `${e(fromDelivery)} de livraisons mutualisées, ` +
+      `${e(fromMinimums)} de minimum fournisseur non gaspillé, ` +
+      `${e(fromNesting)} d'imbrication réellement gagnée.`,
+  )
+  if (Math.abs(modelled - bill.saved_ht) > 5) {
+    console.error(
+      `❌ la décomposition (${e(modelled)}) ne rend pas l'économie mesurée (${e(bill.saved_ht)})`,
+    )
+    if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ instances: out, week, bill }, null, 2))
+    done(1)
+  }
+
+  // Which rule charges what. The gap is the argument for choosing one.
+  const spread = week.orders.map((id) => {
+    const sh = bill.shares[id]
+    return {
+      id,
+      solo: sh.share_ht,
+      area: sh.area_share_ht,
+      gapPct: sh.area_share_ht > 0 ? ((sh.share_ht - sh.area_share_ht) / sh.area_share_ht) * 100 : 0,
+    }
+  })
+  const worst = spread.reduce((a, r) => (Math.abs(r.gapPct) > Math.abs(a.gapPct) ? r : a), spread[0])
+  console.log(
+    `\nrègle appliquée (au métrage) contre règle publiée (à la surface) : ` +
+      `écart maximal sur la commande ${worst.id}, ${e(worst.solo)} contre ${e(worst.area)} ` +
+      `(${worst.gapPct >= 0 ? '+' : ''}${worst.gapPct.toFixed(1)} %)`,
+  )
+  if (bill.worse)
+    console.log(
+      'ATTENTION : ce lot coûte PLUS CHER que les mêmes commandes achetées séparément.',
+    )
+
   console.log('\ninterlock ladder (cm par cran, doit être décroissant)')
   console.log('-'.repeat(80))
   let bad = 0
@@ -350,7 +607,7 @@ try {
     done(1)
   }
 
-  if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify(out, null, 2))
+  if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ instances: out, week, bill }, null, 2))
   code = 0
 } catch (e) {
   console.error('❌', e?.stack || e?.message || e)

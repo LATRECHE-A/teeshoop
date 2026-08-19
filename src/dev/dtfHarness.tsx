@@ -31,6 +31,8 @@ import {
 } from '@/lib/dtf/pieces'
 import { clampSheetDpi, renderSheet } from '@/lib/dtf/sheet'
 import { buildOrderZip, planLegend } from '@/lib/dtf/zipExport'
+import { buildRun, measureRun, type RunOrder } from '@/lib/dtf/run'
+import type { RunArchive } from '@/lib/dtf/runExport'
 import { estimateCost, loadSuppliers, type CostEstimate } from '@/lib/dtf/suppliers'
 import { APP_VERSION } from '@/config'
 import { makeSampleDesign } from '@/content/sampleDesign'
@@ -167,6 +169,51 @@ declare global {
           placements: { part: number; topCm: number; centerDxCm: number; insideArea: boolean }[]
         }[]
       >
+      /**
+       * Nest a week of orders as ONE run, and build the workshop archive for it.
+       *
+       * Everything a pooled archive has to carry that a single-order one does
+       * not: a press sheet per order, the picking list, the split of the film
+       * bill, and a manifest naming each order's proof version and design. The
+       * verifier cracks the ZIP open in Node and reads them.
+       */
+      runOrderZip: (
+        dpi: number,
+        orders: { id: string; design: 'sample' | 'padded'; sizes: Record<string, number> }[],
+      ) => Promise<{
+        base64: string
+        fileName: string
+        pooledCm: number
+        soloCm: number
+        owners: Record<string, string>
+      }>
+      /**
+       * A WEEK OF ORDERS, each one rendered through the real pipeline.
+       *
+       * `samplePieces` is one order: every side at every size, one quantity
+       * ladder. Pooling is a property of SEVERAL orders, so the bench needs
+       * several, each with its own size grid and its own quantities, and each
+       * one nestable on its own so the counterfactual is measurable. The design
+       * is either the sample (a lockup that splits into three visuals) or the
+       * padded upload (transparent margins, one visual per side), because a real
+       * week is a mix and the two nest very differently.
+       */
+      weekPieces: (
+        dpi: number,
+        orders: { id: string; design: 'sample' | 'padded'; sizes: Record<string, number> }[],
+      ) => Promise<
+        {
+          orderId: string
+          /** `<order>/<side>#<size>[~n]`, unique across the run. */
+          key: string
+          /** The same transfer without its order prefix, for `buildRun`. */
+          partKey: string
+          wCm: number
+          hCm: number
+          qty: number
+          mask: PieceMask | null
+        }[]
+      >
       /** The padded order as nest pieces, either geometry — same shape as `samplePieces`. */
       paddedPieces: (
         dpi: number,
@@ -294,6 +341,151 @@ declare global {
  * size from the sheet's cm geometry alone.
  */
 const CUTPLAN_DPI = 32
+
+/**
+ * A pooled run, nested and packaged, the way the workshop would receive it.
+ *
+ * The archive is the SAME `buildOrderZip` a single order uses, with the run
+ * block filled in: two archive builders would drift, and the one that drifted
+ * would be the one somebody opened. The lot record here is synthetic, because
+ * this harness has no WordPress; the shape is the one `runArchive()` produces
+ * from a real lot, and the numbers are measured rather than invented (the solo
+ * lengths come from packing each order on its own with the same packer).
+ */
+async function runOrderZip(
+  dpi: number,
+  orders: { id: string; design: 'sample' | 'padded'; sizes: Record<string, number> }[],
+) {
+  const supplier = loadSuppliers()[0]
+  const process = supplier.processes.find((p) => p.id === 'dtf') ?? supplier.processes[0]
+  const raw = await weekPieces(dpi, orders)
+
+  const runOrders: RunOrder[] = orders.map((o) => ({
+    id: o.id,
+    ref: `#${o.id}`,
+    pieces: raw
+      .filter((p) => p.orderId === o.id)
+      .map((p) => ({
+        key: p.partKey,
+        wCm: p.wCm,
+        hCm: p.hCm,
+        qty: p.qty,
+        ...(p.mask ? { mask: p.mask.mask, maskW: p.mask.maskW, maskH: p.mask.maskH } : {}),
+      })),
+  }))
+
+  const geom = {
+    printableWidthCm: 56,
+    maxLengthCm: 100,
+    gapCm: 0.5,
+    edgeMarginCm: 0,
+    edgeMarginSideCm: 0,
+    edgeMarginEndCm: 0,
+    billingStepCm: 10,
+  }
+  const index = buildRun(runOrders)
+  const measured = measureRun(index, (ps) => nest(ps, geom), { restarts: 1, flip: false })
+  const result = nest(index.pieces, geom)
+
+  const sources = new Map<string, RenderedPiece>()
+  const store = window.__dtfSources ?? new Map<string, RenderedPiece>()
+  for (const p of raw) {
+    const hit = store.get(p.key)
+    if (hit) sources.set(p.key, hit)
+  }
+  const labels = new Map<string, string>()
+  for (const p of raw) labels.set(p.key, `#${p.orderId} ${p.key}`)
+
+  const keysByOrder = new Map<string, string[]>()
+  for (const p of raw) {
+    const list = keysByOrder.get(p.orderId)
+    if (list) list.push(p.key)
+    else keysByOrder.set(p.orderId, [p.key])
+  }
+
+  const run: RunArchive = {
+    lotId: 7,
+    origin: 'fr',
+    state: 'brouillon',
+    createdOn: '2026-07-26',
+    orderByOn: '2026-07-31',
+    pooledM: measured.pooledLengthCm / 100,
+    totalCents: 7748,
+    soloTotalCents: 19889,
+    savedCents: 12141,
+    worse: false,
+    picking: orders.map((o) => ({
+      sku: `REF-${o.id}`,
+      label: 'T-shirt',
+      colour: 'blanc',
+      size: Object.keys(o.sizes)[0] ?? 'M',
+      qty: Object.values(o.sizes).reduce((a, n) => a + n, 0),
+      orders: [`#${o.id}`],
+    })),
+    warnings: [],
+    orders: orders.map((o, i) => ({
+      id: o.id,
+      ref: `#${o.id}`,
+      customer: `Client ${o.id}`,
+      urgency: 'standard',
+      targetOn: '2026-08-14',
+      batVersion: i + 1,
+      batBy: i === 0 ? 'atelier' : 'client',
+      designIds: [`design-${o.id}`],
+      keys: keysByOrder.get(o.id) ?? [],
+      soloM: (measured.solos.find((sl) => sl.orderId === o.id)?.lengthCm ?? 0) / 100,
+      soloCents: 3285,
+      shareCents: 1290,
+      savedCents: 1995,
+      areaShareCents: 1300,
+      garments: Object.values(o.sizes).reduce((a, n) => a + n, 0),
+    })),
+  }
+
+  const dpis = result.sheets.map((s) =>
+    clampSheetDpi(s.widthCm, s.lengthCm, dpi, process.guidelines.minDpi),
+  )
+  const built = await buildOrderZip({
+    orderName: 'Lot de vérification',
+    date: new Date(Date.UTC(2026, 6, 26, 9, 30, 0)),
+    lang: 'fr',
+    appVersion: APP_VERSION,
+    result,
+    supplier,
+    process,
+    cost: estimateCost(supplier, process, result.sheets),
+    preflight: [],
+    pieces: [...sources.entries()].map(([sourceKey, p]) => ({
+      sourceKey,
+      label: labels.get(sourceKey) ?? sourceKey,
+      wCm: p.wCm,
+      hCm: p.hCm,
+      qty: raw.find((r) => r.key === sourceKey)?.qty ?? 1,
+      ...(p.parts > 1 ? { part: p.part, parts: p.parts } : {}),
+      placement: piecePlacementCm(p),
+    })),
+    labels,
+    sources,
+    planSources: sources,
+    effectiveDpis: dpis,
+    requestedDpi: dpi,
+    cutplanDpi: CUTPLAN_DPI,
+    restarts: 1,
+    flip: false,
+    run,
+  })
+  const bytes = new Uint8Array(await built.blob.arrayBuffer())
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return {
+    base64: btoa(bin),
+    fileName: built.fileName,
+    pooledCm: measured.pooledLengthCm,
+    soloCm: measured.soloLengthCm,
+    owners: Object.fromEntries(index.ownerOf),
+  }
+}
 
 async function sampleOrderZip(
   result: NestResult,
@@ -588,6 +780,62 @@ const r1 = (v: number) => Math.round(v * 10) / 10
 const r2 = (v: number) => Math.round(v * 100) / 100
 
 /**
+ * A week of orders, as nest pieces, keyed by order.
+ *
+ * The key is `<order>/<side>#<size>` and then `~n` per visual, which is exactly
+ * the shape `src/lib/dtf/run.ts` produces from a real production queue: the
+ * bench measures the pooling of the same identities the workshop will pool.
+ */
+async function weekPieces(
+  dpi: number,
+  orders: { id: string; design: 'sample' | 'padded'; sizes: Record<string, number> }[],
+) {
+  const out: {
+    orderId: string
+    key: string
+    partKey: string
+    wCm: number
+    hCm: number
+    qty: number
+    mask: PieceMask | null
+  }[] = []
+  const store: Map<string, RenderedPiece> = window.__dtfSources ?? new Map()
+  const padded = await makePaddedDesign()
+  for (const order of orders) {
+    const design = order.design === 'padded' ? padded : makeSampleDesign()
+    for (const side of ['front', 'back'] as Side[]) {
+      for (const [size, qty] of Object.entries(order.sizes)) {
+        if (qty <= 0) continue
+        /*
+         * Rendered under the BARE key and stored under the run key. `buildRun`
+         * is what prefixes an order id, so handing it an already-prefixed key
+         * produced `1041/1041/front#M~1` and an archive that refused itself for
+         * missing artwork. Two names, one construction, no parsing.
+         */
+        const parts = await renderPieces(design, side, dpi, size as SizeId, {
+          baseKey: `${side}#${size}`,
+        })
+        for (const p of parts) {
+          const key = `${order.id}/${p.sourceKey}`
+          store.set(key, p)
+          out.push({
+            orderId: order.id,
+            key,
+            partKey: p.sourceKey,
+            wCm: p.wCm,
+            hCm: p.hCm,
+            qty,
+            mask: pieceMask(p),
+          })
+        }
+      }
+    }
+  }
+  window.__dtfSources = store
+  return out
+}
+
+/**
  * The padded order, as nest pieces — the same shape `samplePieces` returns so
  * the bench can run both arms through the identical packing code.
  */
@@ -745,6 +993,8 @@ window.__dtf = {
   splitProbe,
   trimProbe,
   paddedPieces,
+  weekPieces,
+  runOrderZip,
   previewReady: () => {
     const els = document.querySelectorAll<HTMLCanvasElement>('canvas[data-dtf="sheet-canvas"]')
     if (els.length === 0) return false

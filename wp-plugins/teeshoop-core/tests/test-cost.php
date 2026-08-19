@@ -546,9 +546,11 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 
 	/*
 	 * The alternative rule, published beside the one that is charged. The gap is
-	 * the argument: on this pool the small order pays 19,91 EUR under the rule
-	 * that charges what it would have cost alone and 8,46 EUR under the rule that
-	 * charges its share of the ink, 135 % apart, on the same invoice.
+	 * the argument: on this pool the small order pays 14,65 EUR under the rule
+	 * that charges the film it requires and 8,46 EUR under the rule that charges
+	 * its share of the ink, 73 % apart, on the same invoice. Its ink is dense and
+	 * its film is not, which is exactly the difference the two rules disagree
+	 * about and exactly what a margin report has to see.
 	 */
 	it( 'publishes what the area rule would have charged, and it is not the same', function () use ( $ts_cost_config ) {
 		$a = Cost::attribute(
@@ -558,7 +560,7 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 			'fr',
 			array( '1042' => 1800.0, '1043' => 900.0, '99' => 300.0 )
 		);
-		eq( $a['shares']['99']['share_ht'], 1991 );
+		eq( $a['shares']['99']['share_ht'], 1465 );
 		eq( $a['shares']['99']['area_share_ht'], 846 );
 		$sum = 0;
 		foreach ( $a['shares'] as $share ) {
@@ -573,6 +575,23 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 			$a['shares']['a']['area_share_ht'] + $a['shares']['b']['area_share_ht'],
 			$a['total_ht']
 		);
+	} );
+
+	/*
+	 * THE CORRECTION THE BENCH FORCED, kept as a test so it cannot come back.
+	 *
+	 * Weighting by each order's stand-alone BILL is the textbook proportional
+	 * rule and it collapses under this supplier's one-metre minimum: two orders
+	 * that both fall under it have the identical stand-alone bill however
+	 * different they are, so the rule charged them the same. Weighted by the film
+	 * they actually require, the order needing five times the film pays five
+	 * times the share.
+	 */
+	it( 'does not charge a small order like a big one just because both hit the minimum', function () use ( $ts_cost_config ) {
+		$a = Cost::attribute( array( 'petite' => 0.2, 'grosse' => 1.0 ), 1.1, $ts_cost_config );
+		eq( $a['shares']['petite']['solo_ht'], $a['shares']['grosse']['solo_ht'], 'both would have paid the same minimum alone' );
+		$ratio = $a['shares']['grosse']['share_ht'] / max( 1, $a['shares']['petite']['share_ht'] );
+		truthy( $ratio > 4.5 && $ratio < 5.5, "five times the film should be about five times the share, got {$ratio}" );
 	} );
 
 	it( 'costs the Spanish origin at the Spanish rate and nothing else', function () use ( $ts_cost_config ) {

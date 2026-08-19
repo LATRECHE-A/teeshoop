@@ -16,6 +16,11 @@
  *     billing-step bounds, bbox non-overlap at interlock 0, and an INK-LEVEL
  *     collision audit on real rendered artwork (bounding boxes legitimately
  *     overlap once pieces interlock, so only rasterised ink can prove clearance).
+ *  6. POOLING — several orders on one film: determinism survives assembling a
+ *     run from whatever arrived, every transfer maps back to exactly one order,
+ *     and the archive carries the workshop's paperwork (a press sheet per
+ *     order stating the PROOF VERSION and the design id, the picking list, the
+ *     split of the film bill).
  *  5. ZIP EXPORT — the archive is cracked open HERE, in Node, with a
  *     hand-rolled reader: every member's CRC-32 is recomputed from its stored
  *     bytes, and every PNG's IHDR width/height is checked against the pixel
@@ -984,6 +989,117 @@ try {
       done(1)
     }
   console.log('plan legends:', legends.map((l) => `${l.tag}=${l.drawsVerticals ? 'shelf' : 'free'}`).join(' '))
+
+  // ------------------------------------------------------------------
+  // SUITE 6 — POOLING: several orders on one film
+  // ------------------------------------------------------------------
+  //
+  // Three things, and each has a euro or a garment behind it.
+  //
+  //   DETERMINISM SURVIVES POOLING. A run is assembled from whatever arrived in
+  //   whatever order it arrived, which is precisely how the "same job, same
+  //   film" guarantee dies. Reversing the orders AND reversing each order's
+  //   pieces must produce a byte-identical layout.
+  //
+  //   NOTHING IS LOST BETWEEN THE ARMS. Every copy nested in the pool is nested
+  //   in exactly one order's solo pass, and every transfer maps back to exactly
+  //   one order. A run that dropped an order's transfer would print, cost and
+  //   invoice perfectly, and one customer would simply never be made.
+  //
+  //   AND THE ARCHIVE CARRIES THE WORKSHOP'S PAPERWORK. Opened here, in Node,
+  //   with the same hand-rolled reader: one press sheet per order, the picking
+  //   list, the split of the film bill, and a manifest naming each order's proof
+  //   VERSION and design id, which is the chain a dispute is settled on.
+  const WEEK = [
+    { id: '1041', design: 'sample', sizes: { M: 6, L: 4 } },
+    { id: '1042', design: 'padded', sizes: { S: 3, M: 3 } },
+    { id: '1043', design: 'sample', sizes: { L: 5 } },
+  ]
+  const pooled = await page.evaluate((week) => window.__dtf.runOrderZip(120, week), WEEK)
+  const reversed = await page.evaluate(
+    (week) => window.__dtf.runOrderZip(120, week),
+    [...WEEK].reverse(),
+  )
+  if (pooled.pooledCm !== reversed.pooledCm) {
+    console.error(
+      `❌ pooling is order-dependent: ${pooled.pooledCm} cm forwards, ${reversed.pooledCm} cm reversed`,
+    )
+    done(1)
+  }
+  if (JSON.stringify(pooled.owners) !== JSON.stringify(reversed.owners)) {
+    console.error('❌ the transfer-to-order map depends on the order the run was assembled in')
+    done(1)
+  }
+  const owned = Object.keys(pooled.owners).length
+  if (owned === 0) {
+    console.error('❌ the pooled run mapped no transfer back to an order')
+    done(1)
+  }
+  for (const [key, orderId] of Object.entries(pooled.owners))
+    if (!key.startsWith(`${orderId}/`)) {
+      console.error(`❌ transfer ${key} is owned by ${orderId}, which its own key contradicts`)
+      done(1)
+    }
+
+  const runZip = readZip(Buffer.from(pooled.base64, 'base64'))
+  const runFails = []
+  const names = [...runZip.keys()]
+  const folder = names[0]?.split('/')[0] ?? ''
+  for (const order of WEEK) {
+    const sheet = `${folder}/commandes/#${order.id}/fiche-de-pose.txt`
+    const entry = runZip.get(sheet)
+    if (!entry) {
+      runFails.push(`no press sheet for order ${order.id} (${sheet})`)
+      continue
+    }
+    const text = entry.data.toString('utf8')
+    if (!text.includes('Version')) runFails.push(`press sheet ${order.id} states no proof version`)
+    if (!text.includes(`design-${order.id}`))
+      runFails.push(`press sheet ${order.id} names no design id`)
+    // The heading is uppercased by the writer; what matters is that the sheet is
+    // not the EMPTY state, which is what an order whose transfers went missing
+    // from the film would produce, silently and legibly.
+    if (!text.includes('TRANSFERTS À POSER') || text.includes('Aucun transfert'))
+      runFails.push(`press sheet ${order.id} lists no transfers`)
+    if (!text.includes('Planche')) runFails.push(`press sheet ${order.id} names no sheet`)
+  }
+  // The FIRST order's proof was waived rather than approved, and the sheet has
+  // to say which: both authorise production and they are not the same fact.
+  const waived = runZip.get(`${folder}/commandes/#${WEEK[0].id}/fiche-de-pose.txt`)
+  if (waived && !waived.data.toString('utf8').includes('renonciation'))
+    runFails.push('a waived proof is printed as an approval on the press sheet')
+  const approved = runZip.get(`${folder}/commandes/#${WEEK[1].id}/fiche-de-pose.txt`)
+  if (approved && !approved.data.toString('utf8').includes('le client'))
+    runFails.push('a customer approval is not named on the press sheet')
+
+  for (const doc of ['liste-de-prelevement.txt', 'repartition-du-film.txt'])
+    if (!runZip.has(`${folder}/${doc}`)) runFails.push(`the run archive has no ${doc}`)
+
+  const runManifestEntry = runZip.get(`${folder}/manifeste.json`)
+  if (!runManifestEntry) runFails.push('the run archive has no manifest')
+  else {
+    const m = JSON.parse(runManifestEntry.data.toString('utf8'))
+    if (!m.run) runFails.push('the manifest of a pooled run carries no run block')
+    else {
+      if (m.run.orders.length !== WEEK.length)
+        runFails.push(`manifest run block names ${m.run.orders.length} orders, expected ${WEEK.length}`)
+      for (const o of m.run.orders) {
+        if (!(o.batVersion > 0)) runFails.push(`order ${o.ref} has no proof version in the manifest`)
+        if (!o.designIds.length) runFails.push(`order ${o.ref} has no design id in the manifest`)
+        if (!o.keys.length) runFails.push(`order ${o.ref} claims no transfer on the film`)
+      }
+    }
+  }
+  if (runFails.length) {
+    console.error(`❌ ${runFails.length} pooled-run assertion(s) failed:`)
+    for (const f of runFails.slice(0, 20)) console.error('  -', f)
+    done(1)
+  }
+  console.log(
+    `pooling: ${WEEK.length} orders, ${owned} transfers, ${pooled.soloCm} cm apart -> ` +
+      `${pooled.pooledCm} cm together, archive carries ${WEEK.length} press sheets, ` +
+      `the picking list and the film split`,
+  )
 
   const zipFails = checkZip(
     Buffer.from(zipInfo.base64, 'base64'),

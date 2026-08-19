@@ -693,10 +693,22 @@ final class Cost {
 	 *
 	 * ── THE RULE, AND WHY IT IS NOT THE OBVIOUS ONE ──────────────────────────
 	 *
-	 * Each order pays the same FRACTION of the pooled bill as it would have paid
-	 * of the total had every order been bought separately. Formally
-	 * share_i = bill x solo_i / Sum(solo_j), allocated to whole cents so that the
-	 * shares add up to the bill exactly.
+	 * Each order pays the share of the bill that its own FILM REQUIREMENT is of
+	 * the total. Formally share_i = bill x metres_i / Sum(metres_j), where
+	 * metres_i is what that order alone was packed into by the same packer at the
+	 * same settings, allocated to whole cents so the shares add up exactly.
+	 *
+	 * THE WEIGHT IS METRES AND NOT EUROS, and that correction came out of the
+	 * bench rather than out of a discussion. Weighting by each order's stand-alone
+	 * BILL is the textbook proportional rule and it collapses here, because a
+	 * stand-alone bill is dominated by two charges the pool pays once: the
+	 * supplier's one-metre minimum and the delivery. Measured on the bench's week
+	 * of six orders, five of them fell under the minimum, so five stand-alone
+	 * bills were the identical 32,85 EUR and the rule charged an eighty-pose order
+	 * and a sixteen-pose order the same 12,80 EUR. That is not an attribution, it
+	 * is an average wearing one's clothes. Spreading a shared fixed cost in
+	 * proportion to the usage that caused the run is the standard answer and it is
+	 * the one taken here.
 	 *
 	 * The obvious answer is proportional to nested AREA, and it is defensible
 	 * until you notice what it charges for. Area charges an order for the ink it
@@ -740,18 +752,25 @@ final class Cost {
 		$solo   = array();
 		$weight = array();
 		foreach ( $solo_m as $id => $metres ) {
-			$one            = self::film( (float) $metres, $config, $origin );
-			$solo[ (string) $id ]   = (int) $one['amount_ht'];
-			$weight[ (string) $id ] = (int) $one['amount_ht'];
+			$one                  = self::film( (float) $metres, $config, $origin );
+			$solo[ (string) $id ] = (int) $one['amount_ht'];
+			/*
+			 * MILLIMETRES, because the allocator below is integer arithmetic and
+			 * a float weight would make the largest-remainder step depend on a
+			 * rounding nobody chose. The UNCLAMPED length is what is weighed:
+			 * `film()` would have raised anything under the supplier's minimum to
+			 * one metre, which is exactly the fixed charge this rule exists to
+			 * spread rather than to inherit.
+			 */
+			$weight[ (string) $id ] = (int) round( max( 0.0, (float) $metres ) * 1000 );
 		}
 
 		/*
-		 * A run whose every order costs zero alone is not a thing a supplier
-		 * invoices, but a configuration with a zero rate and no delivery charge
-		 * produces one, and dividing by that sum would hand every order a NaN
-		 * share that reads on screen as a missing cost rather than as a zero.
-		 * Equal weights are the only defensible answer when nothing distinguishes
-		 * the orders.
+		 * A run in which no order needs any film at all is not a run, but a
+		 * caller can produce one (every length zero, or a corrupt report), and
+		 * dividing by that sum would hand every order a NaN share that reads on
+		 * screen as a missing cost rather than as a zero. Equal weights are the
+		 * only defensible answer when nothing distinguishes the orders.
 		 */
 		if ( 0 === array_sum( $weight ) ) {
 			foreach ( $weight as $id => $_ ) {
