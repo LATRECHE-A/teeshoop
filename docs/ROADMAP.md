@@ -242,9 +242,63 @@ sécurité : une table de corps de messages serait une table de liens d'approbat
 donc après la conclusion du contrat. Les deux existent désormais, parce que ce sont deux
 actes différents.
 
+**Le film est acheté une fois pour plusieurs commandes (séance 07).** L'unité qui achète
+du film n'est plus la commande, c'est le **lot** : tout ce qui est payé et dont le bon à
+tirer est validé, imbriqué sur les mêmes planches, une commande fournisseur, une livraison,
+et la facture répartie entre les commandes pour que chaque rapport de marge dise ce que la
+sienne a réellement coûté.
+
+Mesuré sur une semaine de six commandes réalistes (`scripts/dtf-bench.mjs`) : **198,89 EUR
+de film achetés commande par commande deviennent 77,48 EUR achetés en une fois**, soit
+121,41 EUR. La décomposition compte plus que le total, et elle est imprimée par le banc :
+**75,00 EUR sont cinq livraisons évitées**, **42,84 EUR cinq minimums d'un mètre non
+gaspillés**, et **3,57 EUR seulement l'imbrication elle-même**, qui fait passer le métrage
+de 370 à 350 cm. Lire « 61 % d'économie » comme « 61 % de film » se trompe d'un ordre de
+grandeur, et ce sont les frais de livraison et le minimum du fournisseur, pas la géométrie,
+qui décident de la valeur du groupage.
+
+**Et le groupage ne fait pas toujours gagner du film.** Deux transferts de 30 × 20 cm ne
+tiennent pas côte à côte sur une laize de 58 cm : ensemble ils coûtent 50 cm de rouleau,
+séparément 20 + 20. Le cas est tenu par un test des deux côtés, et c'est pourquoi la
+comparaison se fait en euros et pas en centimètres, et pourquoi un lot qui vaut moins que
+ses parties revient marqué comme tel au lieu de porter une économie que personne n'a faite.
+
+**La répartition a une règle, et ce n'est pas la plus évidente.** Chaque commande paie la
+part de la facture que représente le film qu'elle exige. La règle proportionnelle au coût
+que chacune aurait payé seule est celle des manuels et elle s'effondre ici : cinq des six
+commandes de la semaine tenaient sous le minimum d'un mètre, donc cinq factures
+individuelles identiques, donc une commande de 80 poses facturée comme une de 16. La règle
+proportionnelle à la surface d'encre est calculée et **publiée** à côté, jamais facturée :
+elle facture l'encre portée et non le film exigé, et un dos de 55 cm laisse sur le rouleau
+une bande que personne d'autre ne peut utiliser.
+
+**La planche est mesurée dans le navigateur, et la boutique la borne.** L'étendue d'un
+transfert est son encre, l'encre vit dans un canal alpha, et ni PHP ni le Worker n'ont de
+canvas : c'est déjà pourquoi `POST /api/nest` n'imbrique que des rectangles. La boutique ne
+fait donc pas confiance à la planche, elle l'encadre : les **poses** doivent correspondre
+exactement (c'est le seul nombre qui ne bouge ni avec la gradation ni avec la découpe, que
+la question 32 laisse à l'atelier), la longueur doit valoir au moins la surface divisée par
+la laize et au plus ce que l'imbricateur en bandes droites en fait, et les transferts
+doivent être assez grands pour porter l'encre facturée. Un imbricateur injoignable refuse
+le lot : « on n'a pas pu demander » n'est pas « c'est bon ».
+
+**Un lot expédié est la preuve qui manquait.** Jusqu'ici toute commande était chiffrée au
+tarif français quelle que soit son urgence, parce qu'une case cochée n'est pas une preuve
+d'achat. Un lot dont le film a été commandé en est une : il enregistre l'origine, à une
+date, par quelqu'un, et il est gelé ensuite. Un lot en **brouillon** ne change aucun coût.
+
+**Et l'atelier a un calendrier, qui a trouvé une promesse intenable.** Jours ouvrés, onze
+jours fériés dont quatre suivent Pâques, une date cible par commande à partir de la
+validation du bon à tirer, et la date limite à laquelle son film doit être commandé selon
+l'origine. Mesuré : entre un BAT validé et un colis il y a 6 jours ouvrés de travail
+incompressible, dans une promesse d'urgence de 4. **Toute commande urgente est en retard de
+deux jours au moment où le client valide son bon à tirer**, l'express tient à un jour près,
+et seul le standard laisse la place d'acheter le film en Espagne. Rien n'a été ajusté pour
+que ça passe : les trois chiffres sont ceux de la question 14 et le calcul est un test.
+
 ---
 
-## Ce qu'il reste : seize séances
+## Ce qu'il reste : quinze séances
 
 Le détail exécutable de chacune vit dans `prompts/` (non versionné : ce sont des
 instructions de travail, elles changent plus vite que le code).
@@ -258,7 +312,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~04~~ | ~~Paiement : Stripe, TVA, livraison, facture~~ **faite** | - |
 | ~~05~~ | ~~Moteur de coût, prix plancher, commissions~~ **faite** | - |
 | ~~06~~ | ~~BAT, cycle de vie de la commande, e-mails~~ **faite** | - |
-| 07 | Production : imbrication du film entre commandes | 06 |
+| ~~07~~ | ~~Production : imbrication du film entre commandes~~ **faite** | - |
 | 08 | Commande fournisseur et stock | 03, 07 |
 | 09 | Le site : accueil, navigation, système de design | 02 |
 | 10 | Le studio en vitrine : 3D et mockups | 09 |
@@ -288,6 +342,7 @@ ne peut le lever.
 | **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Depuis la séance 04 les deux régimes sont construits et la bascule est une date à saisir : ce qui manque n'est plus du code, c'est la réponse. Les 15 commandes, elles, ne sont facturables par le site sous aucun régime, parce qu'aucune période ne couvre leur date |
 | La vraie grille tarifaire | associé | Questions **06** (taux de marge) et **03** (grilles d'achat réelles), sa forme publique étant la **08**. Les prix actuels sont des **valeurs de démonstration**, enregistrées une par une dans `docs/hypotheses.json`. Ce tableau renvoyait à la question 04, qui porte sur les tarifs DTF fournisseur et ne tranche aucun prix de vente. **Depuis la séance 05 ce n'est plus seulement une imprécision** : mesuré, le tarif affiché passe sous son propre prix plancher à 5 pièces et n'est vendable sans validation à aucune quantité |
 | **Le sens de « taux de marge »** | associé | Question 06. Le mot et la formule de la Bible désignent deux ratios différents, et l'écart est de 168,06 EUR sur une commande de 250 EUR de coût. Les deux lectures sont affichées côte à côte sur l'écran « Coûts et marges » pour que la réponse ne puisse pas être ambiguë |
+| **Le délai d'urgence, qui est impossible** | associé | Question 14. Mesuré par la séance 07 : 4 jours ouvrés promis contre 6 jours de travail incompressible (transport 2, pressage 1, battement 1, transit du film 2). Toute commande urgente est en retard de deux jours dès la validation du BAT, et l'express ne tient qu'à un jour près. Le calcul est dans `tests/test-production.php`, donc la réponse déplace un test |
 | **Les cinq temps d'atelier jamais chronométrés** | associé | Question 05. Nos deux temps chiffrent la main-d'œuvre de sa propre commande d'exemple à 7,83 EUR là où elle en inscrit 45,00 : 37,17 EUR de trou, et 63,72 EUR de prix plancher. Une série chronométrée une fois referme l'écart |
 | **Le taux de marge sur un textile nu** | associé | Question 42. Les 26 399 articles du catalogue sont importés avec leur coût réel et **sans prix de vente** : consultables, non commandables, tant que le taux n'est pas fixé |
 | Clés Stripe (test puis production) | associé | Séance 04. L'extension officielle est branchée et l'alarme distingue un compte de test d'un compte réel par le préfixe de la clé, pas par la case à cocher, qui se contredit elle-même sur une configuration jamais enregistrée |
@@ -382,7 +437,7 @@ ne peut pas porter : des arbitrages d'ingénierie qui n'attendent la réponse de
 | **`POST /pricing/quotes/{id}/approval-request` n'existe pas**, et c'est le seul reste de l'écart « API de prix » | Les deux autres tiers sont refermés par la séance 06 : le devis est devenu un document avec des lignes, un numéro et une version gelée à chaque envoi, et son chiffrage appelle `Costing::compute()` en lui passant une commande construite en mémoire, jamais enregistrée. Celui-ci suppose **deux rôles**, un commercial qui demande et quelqu'un qui approuve ; la boutique n'en a qu'un, et une demande sans second rôle produirait une approbation qui n'approuve rien, indiscernable à l'écran d'une vraie. L'exception elle-même est construite : motif, approbateur, validité, manque à gagner, et elle cesse de couvrir la commande si le plancher bouge | Le second rôle, le jour où il y a des commerciaux, ce que la feuille de route ne programme pas (c'est le chapitre 3) | aucune |
 | **Le chiffrage d'un devis n'est pas une route publique**, alors que le chapitre 1 le dessine à côté des points d'entrée client | Ce qu'il renvoie est notre coût d'achat, notre économie du film, notre prix plancher et notre commission. L'exposer mettrait la boutique du mauvais côté de la frontière que `scripts/php-guard.mjs` et `scripts/bundle-guard.mjs` existent pour tenir. Il est joignable depuis l'écran du devis, avec `manage_woocommerce`, et de nulle part ailleurs | Rien : c'est un refus, pas un oubli. À relire si un espace commercial arrive (chapitre 3) | aucune |
 | **Le supplément de correction n'est pas facturé automatiquement** (question 26 : deux corrections incluses, puis 15 EUR HT) | Les cycles sont comptés et le montant est affiché à l'opérateur, qui facture à la main. L'ajouter tout seul suppose un second encaissement et une facture rectificative, que la séance 04 n'a pas construits, et le chiffre lui-même est une décision commerciale que personne n'a prise | La réponse à la question 26, puis un avoir et une facture complémentaire | 13b |
-| **Les dix indicateurs du chapitre 1 ne sont calculés nulle part** (marge contributive moyenne, taux de remise, part des commandes express, coût SAV par commande, etc.) | Neuf des dix sont des ratios sur une population de commandes, et la population est les quinze vraies commandes d'août sur un catalogue où aucun prix de vente n'est écrit : une moyenne là-dessus aurait l'apparence d'une information de gestion sans en être une. Le dixième, coût estimé contre coût réel, suppose que le coût réel revienne après la production, ce qui n'existe pas encore | Le retour du coût réel après production (séances 07 et 08), puis un écran qui les affiche. Les données brutes sont déjà là : chaque commande garde son rapport gelé avec son coût, son plancher, sa marge et sa commission | 13 |
+| **Les dix indicateurs du chapitre 1 ne sont calculés nulle part** (marge contributive moyenne, taux de remise, part des commandes express, coût SAV par commande, etc.) | Neuf des dix sont des ratios sur une population de commandes, et la population est les quinze vraies commandes d'août sur un catalogue où aucun prix de vente n'est écrit : une moyenne là-dessus aurait l'apparence d'une information de gestion sans en être une. Le dixième, coût estimé contre coût réel, suppose que le coût réel revienne après la production. **La séance 07 en rend un morceau** : le film d'une commande dans un lot expédié n'est plus une estimation, c'est sa part d'un achat réel. Le textile et le temps ne reviennent toujours pas | Le retour du coût réel du textile et du temps (séance 08), puis un écran qui les affiche. Les données brutes sont là : chaque commande garde son rapport gelé, et celles qui sont passées par un lot gardent en plus le métrage acheté et leur part | 13 |
 
 La rotation éventuelle de `ADMIN_TOKEN` est dans `ACCES-REQUIS.md` et n'est pas un écart :
 c'est une action à faire.

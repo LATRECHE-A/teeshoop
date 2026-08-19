@@ -26,6 +26,20 @@ The nonce never crosses the origin boundary.
 R2. `wp-content/uploads` is served by URL with no access control, and
 `robots.txt` is not a permission.
 
+**The print run.** A roll of film is 56 cm wide whoever is paying for it, so from
+session 07 the unit that buys film is the LOT and not the order: everything paid
+for and approved, ganged onto one set of gang sheets, one supplier order, one
+delivery charge, and the bill split back so each margin report still says what
+its own order cost. `Production.php` owns the queue, the calendar and the lot;
+`Cost::attribute()` owns the split.
+
+The LAYOUT is measured in the admin studio, because a transfer's extent is its
+ink and ink lives in an alpha channel, which neither PHP nor a Worker can read.
+So the shop does not trust it, it bounds it: the garment-sides must match, the
+length must be at least the artwork over the roll width and at most what the
+packer makes of the same pieces, and the transfers must be big enough to hold
+the ink the order was charged for. An unreachable packer refuses the lot.
+
 **The catalogue.** 463 references and 26 399 articles arrive here from the
 supplier, through our own Worker, on a nightly cron. What our supplier charges
 us is stored on the variation and leaves by no door: not the REST API, not the
@@ -296,6 +310,22 @@ code and WooCommerce is where the money is lost.**
 | `GET /wp-json/teeshoop/v1/quote` | public | Pure computation. Returns selling prices only, never a purchase cost, supplier name or film rate. `faces=N` is shorthand for N sides at the standard area tier, so a browser never has to know that convention. |
 | `GET /wp-json/teeshoop/v1/grid` | public | The faces × quantity table shown before the editor opens. Columns derived from the discount breaks. |
 | `POST /wp-json/teeshoop/v1/cart` | `X-WP-Nonce` | Adds a personalised line. The nonce is checked explicitly: WordPress only rejects a *bad* cookie nonce, not a missing one, so without this any site could POST into a visitor's basket through their browser. |
+
+And one namespace that is not customer-facing at all.
+
+| Route | Auth | Notes |
+|---|---|---|
+| `GET /wp-json/wc-teeshoop/v1/production/queue` | `manage_woocommerce` | What could go on a press today, with the roll geometry to nest it on and the deadline arithmetic. Returns customers, dates and film. |
+| `GET·POST /wp-json/wc-teeshoop/v1/production/lots` | `manage_woocommerce` | Read the recent runs, or record one from a chosen set of orders and a measured layout. Every refusal names the order it is about. |
+| `POST /wp-json/wc-teeshoop/v1/production/lots/{id}/etat` | `manage_woocommerce` | Order the film, receive it, close the run. Frozen from the first of those onwards. |
+
+**The `wc-` prefix is the whole reason that namespace is not `teeshoop/v1`.** The
+admin studio runs on the Worker's origin, so it has no WordPress cookie and no
+REST nonce, exactly like the customer studio; what it does have is the
+WooCommerce consumer key the catalogue importer already uses. WooCommerce
+authenticates by key only for routes that look like its own, and `wc-` is its
+documented opt-in for third parties. It also keeps the two surfaces visibly
+apart: `teeshoop/v1` is public and returns selling prices.
 
 Two more endpoints are customer-reachable and neither is REST. They are
 `admin-post.php` actions, the same shape `Invoice::serve` uses, because both have
@@ -793,8 +823,18 @@ their count.
   `H-Q12-COUT-PAR-TECHNIQUE`; the header of `Cost.php` says what would receive
   it and warns that `Costing::facts()` calls every printed order DTF today.
 - An express or urgency supplement. Urgency reaches the FLOOR only, through a
-  `PriceRule` scope, and every order is costed at the dearer French film rate
-  whatever it is marked. Registered as `H-Q14-AUCUN-SUPPLEMENT-URGENCE`.
+  `PriceRule` scope. Registered as `H-Q14-AUCUN-SUPPLEMENT-URGENCE`. What
+  session 07 changed is the other half of that sentence: an order is no longer
+  costed at the French rate *whatever it is marked*, it is costed at the rate of
+  the origin its film was actually bought from, and only once a lot has been
+  SENT. `PriceRule::URGENCES` refuses to let a dropdown choose the country
+  because a tick is not evidence; a frozen, dated, signed purchase is.
+- Any promise of a delivery date. The workshop now plans against a target date
+  per order, and it is internal: nothing on the site announces a lead time
+  (`H-Q14-UN-COLIS-MAXIMUM`), and the screens call it « date cible » for that
+  reason. Two of the three default lead times are shorter than the work they
+  contain, which is measured in `tests/test-production.php` and written into
+  question 14.
 - The chapter's pricing API (`POST /pricing/quotes/calculate`,
   `POST /pricing/quotes/{id}/approval-request`), a version kept per price
   change, and its ten KPIs. Reasons and the session that should treat each are
