@@ -424,6 +424,97 @@ d'achat augmente entre le devis et l'achat ? Mises bout à bout, les règles de 
 que Teeshoop absorbe la hausse et reprend une part de commission au commercial pour une
 hausse qu'il n'a pas causée.
 
+**Le site autour de la machinerie (séance 09).** Il y a maintenant un thème, et c'est le
+nôtre. Trois stratégies ont été comparées avant d'écrire une ligne, et la raison de garder
+le nôtre n'est pas la vitesse : un thème de blocs met la structure des pages **dans la base
+de données**, où le dépôt ne peut plus la contrôler, alors que toute la discipline de ce
+projet est qu'une règle a un foyer et qu'un contrôle échoue quand deux copies divergent. Il
+coûte aussi le studio, parce que le gabarit produit en blocs passe la description dans
+`wp_kses_post`, où `iframe` n'est pas autorisé. Un thème enfant de Woodmart, lui, met une
+licence que nous ne contrôlons pas sur le chemin critique, et hérite de la guerre de
+priorités que `Compat.php` existe déjà pour éviter.
+
+La vitesse a quand même été mesurée, parce qu'elle était affirmée : sur la même page
+boutique, `npm run bench:theme` relève **224 ms de rendu serveur contre 493 ms** pour Twenty
+Twenty-Five, **73 ko de HTML contre 221**, **15 feuilles de style contre 39** et un premier
+affichage à **672 ms contre 864**.
+
+**La palette a quitté la fiche produit.** Les neuf couleurs étaient déclarées sur quatre
+sélecteurs de `assets/product.css`, chargées uniquement sur une fiche produit : un accueil,
+une catégorie ou un panier n'en avait aucune. Elles vivent désormais dans
+`assets/tokens.css`, sur `:root`, avec **le rapport de contraste mesuré à côté de chaque
+paire**. Une valeur a changé au passage : le bord des champs de saisie était dessiné à
+1,33:1 sur blanc, là où la règle 1.4.11 en demande 3. `--ts-line-strong` est le même bleu
+gris (213°, saturation 0,148) assombri jusqu'à passer 3,26:1 sur le papier et 3,04:1 sur le
+fond gris, sur les deux surfaces où il est dessiné.
+
+Et les trois copies imposées de cette palette sont désormais tenues ensemble : les e-mails
+l'écrivent en hexadécimal parce qu'aucun client de messagerie ne résout une propriété
+personnalisée, le bon à tirer l'inline parce qu'il est servi sans thème et **sous d'autres
+noms** (`--accent` et non `--ts-accent`), ce qui est exactement la façon dont une divergence
+se cache. `npm run verify:palette` les compare rôle par rôle et a été cassé exprès pour
+prouver qu'il tire.
+
+**Le catalogue se comporte comme un moteur de recherche, ce que le chapitre 4 exige en
+première phrase.** Dix facettes, contre cinq chez mistertee.fr, dont la couleur ne rend
+aucune option, et zéro chez tostadora.fr. Le **grammage** en fait partie, que le chapitre
+place en troisième position : « le client type est un professionnel qui compare des
+grammages, pas un particulier qui achète un motif ».
+
+Les facettes sont **un formulaire GET**, pas la navigation à facettes de WooCommerce, et
+c'est une contrainte et non un goût : `WC_Query::get_layered_nav_chosen_attributes()` lit
+`filter_couleur` comme une chaîne séparée par des virgules et ignore la valeur quand ce
+n'est pas une chaîne, alors qu'un groupe de cases à cocher en HTML envoie soit un tableau,
+soit deux fois le même nom scalaire dont PHP ne garde que le dernier. Le format natif exige
+donc un script, et un catalogue dont les filtres exigent un script est un catalogue qui ne
+marche pas sur une mauvaise connexion. Les clauses passent quand même par les coutures
+documentées de WooCommerce (`woocommerce_product_query_tax_query`), donc rien n'est
+réimplémenté.
+
+**Les nombres à côté des cases ne mentent pas.** Chacun annonce « voilà ce qu'il reste si
+vous me cochez », et il est calculé en ignorant la sélection de sa propre facette : compté
+autrement, cocher « Blanc » afficherait « Blanc (37) » et tous les autres coloris à zéro, et
+personne ne pourrait ajouter une seconde couleur. `npm run verify:site` coche la première
+case et compte ce qui revient ; le contrôle a été cassé exprès (« annoncé 6, obtenu 5 »).
+
+**Et le budget du chapitre 4 est mesuré, pas espéré.** Il demande moins d'une seconde.
+`npm run bench:shop` relève **176 à 211 ms** pour la page entière et **22,6 ms** pour
+l'arithmétique des facettes seule, en 25 requêtes SQL. Le miroir ne portant qu'un import
+partiel, la mesure a été refaite **à l'échelle de la production** : 462 références
+synthétiques, 12 768 relations de termes, **114,6 ms** pour 349 valeurs de facettes, et les
+produits du banc d'essai supprimés à la fin.
+
+**Ce que ni l'un ni l'autre concurrent ne publie, nous le dessinons.** Vérifié le 19 août
+2026 : mistertee.fr détient ses zones d'impression en millimètres dans une charge utile JSON
+et les chaînes « mm » et « × » apparaissent **zéro fois** dans le HTML qu'un client lit ;
+tostadora.fr n'en publie aucune. L'accueil dessine la zone imprimable **à l'échelle**, à
+côté d'une feuille A4, parce que « 30,5 cm » ne dit rien et « plus large qu'une feuille » dit
+tout. Les rectangles viennent de `Garments::areas()`, généré depuis le studio, donc ils ne
+peuvent pas diverger de ce à quoi la presse est réglée. La comparaison complète avec les deux
+sites est dans `docs/CONCURRENTS.md`.
+
+**Le devis a sa page, et un refus y revient.** Le formulaire n'est pas recopié : c'est le
+gabarit du greffon, `teeshoop/product-quote.php`, rendu avec `product_id` à 0. Il y a donc
+un seul jeu de champs, un seul jeton HMAC, un seul piège à robots, une seule limite par
+adresse et un seul texte de confidentialité. Ce que la séance a dû ajouter, c'est le retour :
+`get_permalink( 0 )` est faux, donc un prospect qui tapait mal son adresse était renvoyé à
+l'accueil, sur une page qui ne porte pas le formulaire. Le champ de retour est **posté**,
+donc non fiable, donc passé par `wp_validate_redirect` : une adresse étrangère au site est
+refusée et le repli reprend la main (vérifié avec `retour=https://evil.example/phish`).
+
+**Un délai est publié, et un seul.** Les 12 jours ouvrés du standard apparaissent désormais
+sur l'accueil, dans le pied de page, sur la page devis et sur la page entreprises, cadrés
+« à partir de la validation du bon à tirer » et jamais « livré le ». L'express (7 jours) et
+l'urgence (4 jours) restent internes, parce que la séance 07 a mesuré 6 jours ouvrés de
+travail incompressible entre un bon à tirer validé et un colis : publier une promesse qu'on
+a soi-même mesurée comme intenable est une pratique commerciale trompeuse.
+
+**Et la marque est un jeu de jetons, pas un dessin.** La question 31 n'a pas de réponse et
+un logo ne se défaut pas : le thème déclare le support `custom-logo` de WordPress et, tant
+qu'aucun fichier n'y est déposé, rend le **nom** du site en toutes lettres. La couleur et la
+typographie sont extraites de ce que le site utilise déjà. Déposer les vrais éléments en
+séance 13b sera un envoi dans le personnalisateur et un fichier de jetons, pas une refonte.
+
 ---
 
 ## Ce qu'il reste : quinze séances
@@ -442,7 +533,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~06~~ | ~~BAT, cycle de vie de la commande, e-mails~~ **faite** | - |
 | ~~07~~ | ~~Production : imbrication du film entre commandes~~ **faite** | - |
 | ~~08~~ | ~~Commande fournisseur et stock~~ **faite** | - |
-| 09 | Le site : accueil, navigation, système de design | 02 |
+| ~~09~~ | ~~Le site : accueil, navigation, système de design~~ **faite** | - |
 | 10 | Le studio en vitrine : 3D et mockups | 09 |
 | 11 | Référencement, contenu, données structurées | 09 |
 | 12 | Juridique, RGPD, accessibilité | 09 |

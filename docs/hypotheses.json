@@ -2668,24 +2668,27 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-19",
-			"statement_fr": "Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et la remise du colis. C'est un objectif d'atelier interne : rien sur le site n'annonce de date à un client.",
+			"statement_fr": "Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et la remise du colis, et c'est le seul des trois délais que le site publie.",
 			"home": "php:Teeshoop\\Core\\Production::default_config()#lead_days.standard",
 			"mirrors": [],
 			"literals": [],
 			"literals_why": "12 est un petit entier omniprésent : des heures, des tailles de police, des index. Le foyer est la table des délais et il est unique.",
 			"reaches": [
-				"internal",
-				"operator"
+				"customer",
+				"operator",
+				"internal"
 			],
 			"derives": [
 				"Les six jours ouvrés de marge que ce délai laisse en achetant le film en France, et les trois en l'achetant en Espagne (tests/test-production.php).",
-				"Le fait que le standard soit le seul des trois délais où l'origine espagnole tienne."
+				"Le fait que le standard soit le seul des trois délais où l'origine espagnole tienne.",
+				"La ligne « Fabrication : 12 jours ouvrés, à partir de votre bon à tirer validé » sur l'accueil, dans le pied de page, sur la page devis et sur la page entreprises (séance 09)."
 			],
 			"sessions": [
-				"07"
+				"07",
+				"09"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Oui, c'est l'hypothèse par défaut de la question 14 reprise telle quelle. Ce que la séance 07 y ajoute est qu'elle est désormais exécutable : elle décide la date à laquelle le film doit être commandé et donc l'origine.",
+			"shipped_matches_default": "Oui, c'est l'hypothèse par défaut de la question 14 reprise telle quelle. Ce que la séance 07 y ajoute est qu'elle est désormais exécutable : elle décide la date à laquelle le film doit être commandé et donc l'origine. La séance 09 le PUBLIE, et publie celui-là seul. L'express (7 jours) et l'urgence (4 jours) restent internes parce que la séance 07 a mesuré 6 jours ouvrés de travail incompressible entre un bon à tirer validé et un colis : l'urgence est en retard de deux jours au moment où le client valide, et l'express tient à un jour près. Publier une promesse qu'on a soi-même mesurée comme intenable est une pratique commerciale trompeuse, donc les deux sont traitées au cas par cas, sur devis. Le chiffre publié est aussi cadré : « à partir de la validation du bon à tirer », jamais « livré le ».",
 			"statement_amounts": [
 				{
 					"from": "lead_days.standard",
@@ -2693,7 +2696,8 @@
 					"text": "12",
 					"in": "12 jours ouvrés"
 				}
-			]
+			],
+			"label_fr": "jours ouvrés"
 		},
 		{
 			"id": "H-Q14-DELAI-EXPRESS",
@@ -2975,6 +2979,118 @@
 			],
 			"cost_if_late": "reglage et remesure",
 			"shipped_matches_default": "Il n’y a pas d’hypothèse par défaut à comparer : aucune question ne posait ce chiffre avant la séance 08, et la Bible ne le donne dans aucun de ses huit chapitres. Un délai inventé ici deviendrait une date de livraison promise à un client, calculée à partir d’un nombre que personne n’a tenu."
+		},
+		{
+			"id": "H-Q31-PALETTE-ET-TYPE",
+			"question": "Q31",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "La marque est le bleu #1f4fd8 sur du noir #14171a, en Inter, avec le nom du site comme signature tant qu'aucun logo n'a été fourni.",
+			"home": "anchor:wp-plugins/teeshoop-core/assets/tokens.css#--ts-accent: #1f4fd8",
+			"mirrors": [
+				{
+					"ref": "anchor:wp-plugins/teeshoop-core/includes/Notify.php#$blue  = '#1f4fd8';",
+					"relation": "meme-valeur",
+					"why": "aucun client de messagerie ne résout une propriété personnalisée, donc la palette des e-mails est écrite en hexadécimal ; scripts/palette-guard.mjs échoue quand les deux divergent."
+				},
+				{
+					"ref": "anchor:wp-plugins/teeshoop-core/includes/BatPage.php#--accent:#1f4fd8",
+					"relation": "meme-valeur",
+					"why": "le bon à tirer est servi depuis admin-post.php sans thème et sans enqueue, donc sa feuille de style est en ligne et nomme ses propriétés autrement (--accent et non --ts-accent) ; scripts/palette-guard.mjs compare les trois par rôle."
+				}
+			],
+			"literals": [
+				"#1f4fd8"
+			],
+			"reaches": [
+				"customer"
+			],
+			"derives": [
+				"Chaque contraste mesuré et inscrit dans tokens.css : 6,63:1 pour l'accent sur blanc, 17,99:1 pour l'encre, 3,26:1 pour le bord des champs.",
+				"Le fait que remplacer la marque en séance 13b soit un changement de fichier et non une refonte."
+			],
+			"sessions": [
+				"09"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Teeshoop",
+			"shipped_matches_default": "C'est l'hypothèse écrite de la question 31 (« le logo actuellement sur le site, bleu et noir, Inter ») et rien n'a été inventé : les valeurs sont EXTRAITES de assets/product.css, qui avait été écrit contre le site existant. LE LOGO N'EST PAS DESSINÉ : le thème déclare le support `custom-logo` de WordPress et, tant qu'aucun fichier n'y est déposé, rend le NOM du site en toutes lettres. Déposer le vrai logo est un envoi dans le personnalisateur, pas une modification de code.",
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Notify.php",
+				"wp-plugins/teeshoop-core/includes/BatPage.php",
+				"scripts/palette-guard.mjs"
+			],
+			"literal_allow_why": "Les deux copies imposées de la palette, et le contrôle qui les compare. Aucune n'est une seconde décision : ce sont les endroits où une propriété personnalisée ne survit pas (un client de messagerie, un document servi sans thème), et palette-guard échoue quand l'une d'elles s'écarte du foyer."
+		},
+		{
+			"id": "H-Q31-ACCROCHE",
+			"question": "Q31",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "L'accroche du site reste « Vous vous occupez de votre entreprise, Teeshoop s'occupe de votre image », dans sa version longue qui ajoute « textile, de la création à la livraison ».",
+			"home": "anchor:wp-themes/teeshoop/front-page.php#Vous vous occupez de votre entreprise.",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une phrase, pas une valeur : le contrôle de chaîne (label_fr) la cherche déjà mot pour mot dans les gabarits livrés.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [],
+			"sessions": [
+				"09"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Vous vous occupez de votre entreprise",
+			"shipped_matches_default": "Oui. La phrase n'est pas de nous : le chapitre 00 de la Bible la donne comme promesse centrale et la question 31 demande seulement de confirmer qu'elle reste. Elle est reprise mot pour mot sur l'accueil et sur la page entreprises."
+		},
+		{
+			"id": "H-Q17-FABRICATION-FRANCE",
+			"question": "Q17",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Le marquage est réalisé en France, dans l'atelier de l'entreprise, et le site le dit à ses visiteurs.",
+			"home": "anchor:wp-themes/teeshoop/front-page.php#Marquage textile, imprimé en France",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une affirmation, pas un nombre. Elle se cherche par sa phrase, et le contrôle de chaîne le fait.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [],
+			"sessions": [
+				"09"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "imprimé en France",
+			"shipped_matches_default": "Ce n'est pas un défaut écrit, c'est une lecture du chapitre 00 : « Teeshoop est une activité B2B de personnalisation textile exploitée depuis Bobigny ». La VILLE n'est pas publiée, parce que l'identité légale est vide et qu'une adresse ne s'invente pas ; le pays l'est, parce que c'est l'argument que notre concurrent direct met en tête de son accueil (« Imprimé en France, dans nos ateliers au Mans ») et que le nôtre est vrai. Si l'atelier sous-traite hors de France, cette phrase devient fausse et doit partir le jour même."
+		},
+		{
+			"id": "H-Q01-SITE-PROFESSIONNEL",
+			"question": "Q01",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Le site s'adresse d'abord aux professionnels, sans refuser un particulier nulle part.",
+			"home": "anchor:wp-themes/teeshoop/front-page.php#Le textile personnalisé, pour les professionnels",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une orientation éditoriale : elle vit dans le titre de l'accueil et dans l'ordre HT puis TTC, pas dans une valeur.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [
+				"Le fait que le prix hors taxes mène partout, ce que Settings::price_bases() décide déjà.",
+				"Le vocabulaire de l'accueil et des filtres : grammage, matière, coloris, référence, marquage."
+			],
+			"sessions": [
+				"09"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "pour les professionnels",
+			"shipped_matches_default": "C'est l'hypothèse écrite de la question 01 (« Site réservé aux professionnels ») à une nuance près, et la nuance est délibérée : le site S'ADRESSE aux professionnels et ne REFUSE personne. Aucun code ne refuse un particulier aujourd'hui, donc une page qui écrirait « réservé aux professionnels » annoncerait un refus que la boutique ne fait pas. Le chapitre 00 dit « activité B2B » et ne parle jamais des particuliers, ni pour les accepter ni pour les exclure."
 		}
 	],
 	"not_applicable": [

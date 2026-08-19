@@ -774,15 +774,17 @@ return array(
 			'level' => 'bloquant',
 			'status' => 'assumption',
 			'since' => '2026-08-19',
-			'statement_fr' => 'Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et la remise du colis. C\'est un objectif d\'atelier interne : rien sur le site n\'annonce de date à un client.',
+			'statement_fr' => 'Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et la remise du colis, et c\'est le seul des trois délais que le site publie.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#lead_days.standard',
 			'reaches' => array(
-				'internal',
+				'customer',
 				'operator',
+				'internal',
 			),
 			'cost_if_late' => 'reglage et remesure',
 			'sessions' => array(
 				'07',
+				'09',
 			),
 		),
 		array(
@@ -902,6 +904,22 @@ return array(
 			'cost_if_late' => 'reglage et remesure',
 			'sessions' => array(
 				'08',
+			),
+		),
+		array(
+			'id' => 'H-Q31-PALETTE-ET-TYPE',
+			'question' => 'Q31',
+			'level' => 'important',
+			'status' => 'assumption',
+			'since' => '2026-08-19',
+			'statement_fr' => 'La marque est le bleu #1f4fd8 sur du noir #14171a, en Inter, avec le nom du site comme signature tant qu\'aucun logo n\'a été fourni.',
+			'home' => 'anchor:wp-plugins/teeshoop-core/assets/tokens.css#--ts-accent: #1f4fd8',
+			'reaches' => array(
+				'customer',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'09',
 			),
 		),
 	),

@@ -627,6 +627,22 @@ d'urgence que vous tenez réellement, ou l'accord pour ne pas vendre d'urgence.*
 
 ## Paiements
 
+*Ce que la séance 09 publie, le 19 août :* **les 12 jours ouvrés du standard, et eux
+seuls**, sur l'accueil, dans le pied de page, sur la page devis et sur la page entreprises,
+toujours formulés « à partir de la validation du bon à tirer » et jamais « livré le ».
+
+L'express (7 jours) et l'urgence (4 jours) **ne sont pas publiés**, et ce n'est pas un
+oubli : la séance 07 a mesuré 6 jours ouvrés de travail incompressible entre un bon à tirer
+validé et un colis remis au transporteur. Une commande urgente est donc en retard de deux
+jours au moment où le client valide son bon à tirer, et l'express tient à un jour près.
+Annoncer publiquement un délai que nous avons nous-mêmes mesuré comme intenable est une
+pratique commerciale trompeuse au sens de l'article L. 121-2 du code de la consommation, et
+c'est surtout le meilleur moyen de transformer un client pressé en client mécontent.
+
+Les deux restent traitables **au cas par cas, sur devis**, où un humain regarde le
+calendrier avant de s'engager. Si vous voulez les publier, il faut d'abord soit raccourcir
+les 6 jours, soit rallonger les promesses.
+
 ### 15. Confirmez-vous Revolut Pay, ou préférez-vous Stripe ? Avez-vous déjà un compte marchand ouvert quelque part ? Acceptez-vous aussi le virement, le mandat administratif (mairies, écoles, hôpitaux) et le paiement en plusieurs fois ?
 
 🔴 **Bloquant**
@@ -1074,6 +1090,27 @@ première qui est codée.
 
 *Si vous ne répondez pas, on partira sur :* Logo actuellement présent sur le site, teintes bleu et noir, police Inter, vouvoiement, accroche conservée telle quelle.
 
+*Ce que la séance 09 a construit, le 19 août :* le site entier, avec cette hypothèse, et
+**de façon à ce que votre réponse coûte un fichier et pas une refonte**. Concrètement :
+
+- **Le logo n'est pas dessiné.** Nulle part. Le thème réserve l'emplacement (le support
+  `custom-logo` de WordPress) et, tant qu'aucun fichier n'y est déposé, écrit simplement
+  « Teeshoop » en toutes lettres. Déposer votre logo vectoriel se fait depuis
+  l'administration, en trente secondes, sans nous.
+- **La couleur et la typographie vivent dans un seul fichier**, `assets/tokens.css`, et
+  nulle part ailleurs : ni dans les pages, ni dans les e-mails, ni sur les bons à tirer,
+  qui la lisent tous depuis là. Un contrôle automatique refuse le jour où deux endroits
+  n'en disent plus la même chose.
+- **L'accroche est reprise mot pour mot**, dans sa version longue : « Vous vous occupez de
+  votre entreprise. Teeshoop s'occupe de votre image textile, de la création à la
+  livraison. » Elle est en tête de l'accueil et de la page entreprises.
+
+Ce qu'il nous faut donc, par ordre d'utilité : **le logo en SVG ou en PDF vectoriel** (et
+sa version sur fond sombre s'il en existe une), **vos deux ou trois couleurs en
+hexadécimal**, et un **oui ou non sur l'accroche**. La police peut rester Inter : elle est
+hébergée chez nous, ce qui évite d'envoyer l'adresse IP de chaque visiteur à un serveur
+américain, ce que la CNIL a déjà sanctionné.
+
 **Votre réponse :**
 
 > 
@@ -1418,6 +1455,44 @@ Il serait sain de mettre par écrit, sur une page, avant d'aller plus loin :
 
 Ce n'est pas une question de méfiance : c'est ce qui évite qu'un désaccord dans six mois
 ne coûte le projet entier.
+
+## Catalogue
+
+### 48. Le chapitre 4 demande d'afficher le stock par variante sur la fiche produit. Le chapitre 5, la question 11 et ce que nous avons livré disent l'inverse. Lequel tranchez-vous ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* Ce n'est pas une nuance de rédaction, c'est une
+contradiction interne à votre document, trouvée en construisant le catalogue de la séance 09.
+
+Le **chapitre 4** met « stock par variante » dans les informations détaillées d'une fiche
+produit, et « stock » dans la liste des filtres à construire. Il demande donc de publier un
+nombre, taille par taille et coloris par coloris.
+
+Le **chapitre 5** et l'hypothèse écrite de la question 11 demandent l'inverse : une mention
+« disponible » ou « sur commande », sans chiffre.
+
+*Ce que nous avons livré, et pourquoi :* la mention sans chiffre, en trois phrases et jamais
+un nombre : « Disponible », « Rupture, nous consulter », « Délai à confirmer ». Publier une
+quantité transforme l'entrepôt de votre fournisseur en votre promesse : le stock que nous
+lisons est une **observation datée**, relevée six fois par jour, et entre deux relevés il
+peut avoir été vidé par un autre revendeur. La troisième phrase est celle que personne ne
+pense à construire : elle veut dire « notre relevé a plus de vingt-quatre heures, nous ne
+pouvons rien affirmer », et c'est ce que la boutique dira le plus souvent tant que la tâche
+de relevé n'est pas installée sur le serveur (séance 14).
+
+Le **filtre** « disponibilité » n'est pas construit non plus, pour la même raison plus une
+seconde : il faudrait interroger 26 399 articles à chaque clic pour répondre honnêtement.
+Le panneau de filtres le dit à l'écran au lieu de laisser un trou.
+
+*Si vous ne répondez pas, on garde ce qui est livré.* Changer d'avis plus tard est un
+réglage, pas une reprise : les quantités sont déjà stockées article par article, avec la
+date du relevé, parce que l'atelier en a besoin pour acheter.
+
+**Votre réponse :**
+
+> 
+
 
 ---
 

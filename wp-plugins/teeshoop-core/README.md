@@ -112,6 +112,18 @@ includes/
   Shortcode.php       [teeshoop_studio]
   Cli.php             wp teeshoop provisionner | verifier | marge
                          | catalogue importer | catalogue etat | catalogue purger
+assets/
+  tokens.css          THE PALETTE, THE TYPE SCALE AND THE SPACING, once, on :root.
+                      Custom property declarations and nothing else: this file
+                      loads on a shop whose theme we may not own, and a single
+                      rule that styled an element would be this plugin restyling
+                      someone else's page. Every colour pair carries its measured
+                      contrast ratio in the comment beside it
+  components.css      the shared pieces: the button, the table, the note, the
+                      form field, the message, the tabular figures. Split out of
+                      product.css in session 09 so the THEME can load them without
+                      also loading the buy box and the size grid
+  product.css         the product page's own blocks, and only those
 data/
   garments.json       GENERATED from the studio. Do not edit; see below
 templates/teeshoop/
@@ -190,6 +202,28 @@ Fabric composition and grammage are **not** in it. They exist nowhere in this
 project for `tee` and `hoodie`, so the page renders the empty state and reads
 them from product meta (`_teeshoop_material`, `_teeshoop_weight_gsm`) when a
 catalogue import has set them.
+
+## The theme is ours too
+
+Since session 09 the shop runs `wp-themes/teeshoop`, a classic theme in this
+repository. The decision and its three rejected alternatives are written at the
+top of its `functions.php`, and two things about it matter here.
+
+**It overrides no WooCommerce template either**, for the reasons in `Compat.php`
+plus one more: a copied template stops receiving upstream fixes. `woocommerce.php`
+is a THEME template, not a Woo one, and it calls `woocommerce_content()`, so every
+`do_action( 'woocommerce_single_product_summary' )` this plugin hooks still fires.
+
+**It computes no price.** Every figure on every page comes back through
+`Pricing`, `Production::config()`, `Garments` or `Settings::price_pair()`. That
+last one is new and exists because four places now print the same sentence: the
+decision about whether to write "HT", "TTC", both or neither belongs to
+`Settings::price_bases()`, and the WRITING of it belongs beside it. It used to be
+inline in `ProductPage::price_html`, which was fine while there was one caller.
+
+`wp teeshoop provisionner` creates the two pages the theme links to, `devis` and
+`entreprises`, by slug, and prefers `teeshoop` over Twenty Twenty-One when it has
+to get a mirror off a block theme.
 
 `Money`, `Pricing` and `Margin` call **no WordPress function**. That is a design
 rule, and `tests/run.php` enforces it by construction: the day someone reaches
@@ -293,8 +327,9 @@ order: the invoice has to be issued by the status listener as well, and this is
 where that is proved. It expects the mirror on a CLASSIC theme, because WooCommerce's block
 product template runs the description through `wp_kses_post` and `iframe` is not
 an allowed tag there, so on Twenty Twenty-Five the studio renders as an empty
-`div`. teeshoop.com runs Woodmart, which is classic; the harness switches the
-mirror to Twenty Twenty-One and says so.
+`div`. teeshoop.com runs Woodmart, which is classic, and `wp-themes/teeshoop`
+is classic too; the harness switches the mirror to ours, with Twenty Twenty-One
+behind it, and says which one it picked.
 
 Keep both. The pure tests cannot see the bug that actually shipped here:
 `recompute_prices()` carried the standard `did_action(...) > 1` guard, which
