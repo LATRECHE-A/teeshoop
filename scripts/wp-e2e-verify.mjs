@@ -283,7 +283,8 @@ try {
     bail(
       'the mirror is on a block theme, whose product template strips the studio\n' +
         'iframe through wp_kses_post. teeshoop.com runs Woodmart, a classic theme,\n' +
-        'so the mirror should be on one too. Install the nearest bundled equivalent:\n' +
+        'and so is ours. Activate it, or the nearest bundled equivalent:\n' +
+        '  npm run wp:cli theme activate teeshoop\n' +
         '  npm run wp:cli theme install twentytwentyone --activate',
     )
   if (!fixture.product_id) bail(`setup produced no product: ${JSON.stringify(fixture)}`)
@@ -710,6 +711,30 @@ try {
     }
     const terms = page.locator('#terms')
     if ((await terms.count()) > 0) await terms.check().catch(() => {})
+
+    /*
+     * THE WITHDRAWAL WAIVER, which is REQUIRED and which this harness had never
+     * ticked.
+     *
+     * `Waiver` was added in session 06 and puts a required checkbox on both
+     * checkouts: on personalised goods the customer acknowledges losing the
+     * right of withdrawal BEFORE the order, because that right is lost at the
+     * conclusion of the contract and not at the proof. The block checkout
+     * refuses to submit without it and says so in French, in red, on the page.
+     *
+     * So this assertion has been FAILING SINCE SESSION 06 and everything after
+     * it — the order status, the design surviving the checkout, the delivery
+     * line, the totals adding up, the frozen VAT regime, the invoice — has been
+     * skipped for four sessions, because they are all inside `if (orderId > 0)`.
+     * Nobody read the tail. Found on 2026-08-19 by running it.
+     *
+     * Located by its LABEL rather than by an id: the block checkout generates
+     * the id from the field key and the classic one does not, so a selector
+     * would have to know which checkout it is on, and the sentence is the thing
+     * a customer actually reads.
+     */
+    const waiver = page.getByLabel(/droit de rétractation/i)
+    if ((await waiver.count()) > 0) await waiver.first().check({ timeout: 5000 }).catch(() => {})
 
     await shot('wp-e2e-6-checkout')
 

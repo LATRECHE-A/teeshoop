@@ -30,6 +30,28 @@
  * @package Teeshoop\Core
  */
 
+/*
+ * NOT A PUBLIC URL. `wp-content/plugins/` is served by URL, and this file is
+ * reachable at one. It is `require`d by `integration.php`, which carries the
+ * same guard, and it was written assuming that was enough: it is not, because
+ * the path to THIS file is just as guessable and PHP executes what it is asked
+ * for. Answering 200 with an empty body today is luck (nothing runs at the top
+ * level yet), not a design, and the day somebody adds a line outside a function
+ * the suite starts reporting to the internet.
+ *
+ * PHP_SAPI rather than a WP_CLI check, for the reason `integration.php` gives:
+ * `php tests/run.php` runs with no WordPress at all, while the integration
+ * files run under wp-cli, which is also CLI.
+ *
+ * Found by `npm run verify:wp-e2e`, which reads the directory from disk rather
+ * than a hard-coded list, and had been failing on these three files since the
+ * session that added them.
+ */
+if ( 'cli' !== PHP_SAPI ) {
+	http_response_code( 404 );
+	exit( 1 );
+}
+
 use Teeshoop\Core\Bat;
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Catalogue;
