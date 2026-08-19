@@ -498,6 +498,24 @@ un réglage : envoyez-nous la grille.
 
 *Si vous ne répondez pas, on partira sur :* DTF seul en personnalisation en ligne (cœur, dos, manches, 30 x 40 cm maximum) ; broderie, flocage et sublimation présentés mais traités sur devis.
 
+*Ce que la séance 05 n'a pas pu construire, le 19 août :* **le coût des autres techniques.**
+Le moteur de coût chiffre une commande DTF de bout en bout, du film imbriqué à la
+main-d'œuvre, et il ne sait chiffrer aucune des quatre autres. Le chapitre 1 de votre Bible
+demande, pour la broderie, un prix par tranche de points, un forfait de mise en route, le
+temps machine, le cerclage, les changements de fil, la numérisation et un taux d'incident
+machine ; pour le flocage, le vinyle et la sublimation, la matière, le temps de découpe ou
+d'impression, l'échenillage, le temps de presse, la perte, la préparation et un minimum de
+facturation. Nous n'avons aucun de ces chiffres et nous n'en avons inventé aucun : un
+chiffre plausible ici fabriquerait un prix plancher, une marge et une commission qui ont
+l'air calculés.
+
+Ce que cela change au quotidien : une commande de broderie se chiffre à la main, et le
+système ne dit pas si elle est vendable. Si vous ouvrez une deuxième technique, dites-le
+avec ses chiffres, et sachez que c'est du développement et non un réglage : la question 13
+en décide déjà la moitié, puisqu'une broderie sous-traitée et une broderie faite chez vous
+n'ont pas le même modèle de coût.
+
+
 **Votre réponse :**
 
 > 
@@ -524,6 +542,24 @@ un réglage : envoyez-nous la grille.
 *Pourquoi on a besoin de la réponse :* Le site doit afficher une date de livraison, pas un vague délai : c'est ce qui fait la différence face aux concurrents. Cette date est calculée à partir de vos délais réels, du choix du fournisseur DTF et du transporteur. Sans engagement de votre part, on ne peut afficher aucune date.
 
 *Si vous ne répondez pas, on partira sur :* Standard 12 jours ouvrés, express 7 jours, urgence 4 jours (France uniquement), Colissimo comme transporteur, retrait sur rendez-vous à Bobigny, pas de livraison en main propre annoncée sur le site.
+
+*Ce que la séance 05 a laissé ouvert, le 19 août :* **combien facturez-vous l'express et
+l'urgence ?** Cette question ne demandait que des délais ; elle demande maintenant aussi un
+prix, parce que le chapitre 1 veut un supplément qui couvre le film plus cher en France, la
+priorité de production, un éventuel déplacement, le risque accru et le temps de
+coordination, calculé en pourcentage ou au coût réel majoré. Aucun de ces deux montants
+n'existe, donc **aucun supplément n'est chiffré ni facturé aujourd'hui.**
+
+L'urgence d'une commande sert à une seule chose dans le moteur : elle peut faire jouer un
+plancher différent, si vous en écrivez un dans l'écran « Coûts et marges ». Elle ne change
+pas le coût. En particulier, toute commande est chiffrée au tarif film **français**, le plus
+cher des deux, quelle que soit son urgence : nous ne laissons pas une case cochée décider
+sur quel rouleau la commande a été imprimée, parce qu'une case n'est pas une preuve d'achat.
+
+À noter : tant que les délais ci-dessus ne sont pas confirmés, l'express n'est pas vendable
+du tout, puisque le site n'annonce aucune date de livraison. Le supplément et le délai se
+répondent, et c'est la même réponse qui débloque les deux.
+
 
 **Votre réponse :**
 

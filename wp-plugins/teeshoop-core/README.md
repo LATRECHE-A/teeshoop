@@ -712,6 +712,19 @@ their count.
 - Réassort. "Commander à nouveau" is deliberately REFUSED on a personalisable
   product rather than silently producing a plain garment at the catalogue price
   (`woocommerce_order_again_cart_item_data` defaults to an empty payload).
+- A cost model for any technique other than DTF. Embroidery, flocking, vinyl and
+  sublimation are named by Bible chapter 1 with all their drivers and none of
+  their numbers, so nothing is costed and nothing is guessed. Registered as
+  `H-Q12-COUT-PAR-TECHNIQUE`; the header of `Cost.php` says what would receive
+  it and warns that `Costing::facts()` calls every printed order DTF today.
+- An express or urgency supplement. Urgency reaches the FLOOR only, through a
+  `PriceRule` scope, and every order is costed at the dearer French film rate
+  whatever it is marked. Registered as `H-Q14-AUCUN-SUPPLEMENT-URGENCE`.
+- The chapter's pricing API (`POST /pricing/quotes/calculate`,
+  `POST /pricing/quotes/{id}/approval-request`), a version kept per price
+  change, and its ten KPIs. Reasons and the session that should treat each are
+  in `docs/ROADMAP.md` under "Les exceptions assumées"; `Costing.php`'s header
+  says the same thing beside the code that would serve them.
 
 Built and proved end to end on 2026-08-13 by `scripts/wp-e2e-verify.mjs`: the
 studio's bridge client and design upload (`src/lib/teeshoop/`), the buy flow,

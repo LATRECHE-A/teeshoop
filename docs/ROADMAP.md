@@ -192,6 +192,17 @@ grille publique n'est vendable sans validation** : à 5 pièces le tarif de dém
 passe 14,21 EUR sous son propre plancher, et toutes les autres dépassent les 15 % de remise
 qu'un commercial peut accorder seul. Le tableau mesuré est dans la question 06.
 
+**Et ce que la séance n'a pas construit, écrit avant de fermer.** Le chapitre 1 est plus
+large que ce que la séance demandait, et quatre morceaux restent dehors, délibérément. Deux
+attendent un chiffre de l'associé et sont donc dans le registre, avec un contrôle qui les
+tient : **aucune technique autre que le DTF n'a de modèle de coût** (broderie, flocage,
+vinyle, sublimation, `H-Q12-COUT-PAR-TECHNIQUE`, questions 12 et 13) et **aucun supplément
+d'express ou d'urgence n'est chiffré** (`H-Q14-AUCUN-SUPPLEMENT-URGENCE`, question 14).
+Les deux autres n'attendent la réponse de personne et sont dans le tableau des exceptions
+plus bas : **l'API de prix** du chapitre et **les dix indicateurs**. Aucun des quatre
+n'était dans le périmètre de la séance ; ils sont écrits ici pour que la séance qui les
+prendra les trouve, et non pour qu'on les redécouvre.
+
 ---
 
 ## Ce qu'il reste : seize séances
@@ -329,6 +340,8 @@ ne peut pas porter : des arbitrages d'ingénierie qui n'attendent la réponse de
 | **Les photos par coloris publient le nom de fichier du fournisseur** (`/media/blank/picture/001_42_000_f-2020_01.jpg`, soit le style et le coloris) | Les copier coûte 267 Mo, ~650 Mo après vignettes, et 1 h 30 d'import. Les trois options sont chiffrées dans `docs/CATALOGUE.md` et le choix a un prix, donc il appartient à l'associé | Une des trois options. En attendant, le contrôle **épingle la porte à la largeur exacte** de cette URL : ce motif ailleurs sur une surface client fait échouer la vérification | 09 ou perf |
 | **378 ms par page de liste pour n'afficher aucun prix.** `get_price_html()` parcourt les articles de chaque produit variable, 23,6 ms par produit, seize par page | Tant qu'aucun prix n'est écrit, ce calcul produit une chaîne vide. Le corriger avant de connaître le prix de vente, c'est optimiser une forme qui va changer | Soit ne pas afficher de prix en liste tant qu'il n'y en a pas, soit stocker la fourchette sur le produit parent à l'import. À décider **avec** le prix de vente, pas avant | 05 puis perf |
 | **Six articles sont en ligne sans code-barres** | 4 codes-barres sur les 21 479 du catalogue sont réutilisés par le fournisseur sur plusieurs articles, dont un `4053840000000` manifestement bouche-trou. WooCommerce refuse le doublon, et l'import préfère publier l'article sans code-barres plutôt que de perdre la référence entière | Rien de notre côté : c'est une donnée fournisseur. À savoir le jour où un flux marchand (Google Shopping) exigera un GTIN par article | 10 |
+| **Le chapitre 1 décrit une API de prix et il n'en existe aucune** : `POST /pricing/quotes/calculate`, `POST /pricing/quotes/{id}/approval-request`, et une version conservée à chaque changement de prix | Le calcul, lui, existe : `Costing::compute()` fait exactement ce que la route décrit, mais il prend une **commande** WooCommerce, et un devis n'a encore ni lignes ni création à chiffrer. La demande d'exception suppose **deux rôles**, un commercial qui demande et quelqu'un qui approuve ; la boutique n'en a qu'un, et une demande sans second rôle produirait une approbation qui n'approuve rien, indiscernable à l'écran d'une vraie. L'exception elle-même est construite : motif, approbateur, validité, manque à gagner, et elle cesse de couvrir la commande si le plancher bouge | Un devis qui devient un document avec des lignes et une version par envoi, en séance 06 ; le second rôle le jour où il y a des commerciaux, ce que la feuille de route ne programme pas (c'est le chapitre 3) | 06 |
+| **Les dix indicateurs du chapitre 1 ne sont calculés nulle part** (marge contributive moyenne, taux de remise, part des commandes express, coût SAV par commande, etc.) | Neuf des dix sont des ratios sur une population de commandes, et la population est les quinze vraies commandes d'août sur un catalogue où aucun prix de vente n'est écrit : une moyenne là-dessus aurait l'apparence d'une information de gestion sans en être une. Le dixième, coût estimé contre coût réel, suppose que le coût réel revienne après la production, ce qui n'existe pas encore | Le retour du coût réel après production (séances 07 et 08), puis un écran qui les affiche. Les données brutes sont déjà là : chaque commande garde son rapport gelé avec son coût, son plancher, sa marge et sa commission | 13 |
 
 La rotation éventuelle de `ADMIN_TOKEN` est dans `ACCES-REQUIS.md` et n'est pas un écart :
 c'est une action à faire.

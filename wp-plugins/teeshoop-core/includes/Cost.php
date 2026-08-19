@@ -41,6 +41,53 @@
  * supplier profiles live in the studio's admin-only module, behind the bundle
  * split, and they are not what we pay.
  *
+ * ── WHAT THE CHAPTER ASKS FOR AND THIS FILE DOES NOT COST ────────────────────
+ *
+ * Two parts of "Modèle de coût détaillé" are not built. Both wait on a number
+ * nobody has given us rather than on work, and both have a row in
+ * `docs/hypotheses.json` so that a late answer finds them:
+ * H-Q12-COUT-PAR-TECHNIQUE and H-Q14-AUCUN-SUPPLEMENT-URGENCE. The rest of the
+ * chapter's unbuilt surface, the part that awaits nobody's answer, is in
+ * `docs/ROADMAP.md` under "Les exceptions assumées".
+ *
+ * ONLY DTF HAS A COST MODEL. The chapter costs embroidery by stitch count,
+ * machine time, hooping, thread changes, digitising, support complexity and the
+ * incident rate of a machine it calls unreliable, and wants a price per stitch
+ * bracket, a setup fee, a subcontracting mode and a larger risk provision; it
+ * wants flocking, vinyl and sublimation to each carry material, cutting or
+ * printing time, weeding, press time, loss, preparation and a billing minimum.
+ * None of that is here. Every one of those drivers is a number nobody has
+ * measured or quoted: question 12 has not said which techniques open at launch,
+ * and question 13 has not said whether embroidery is even ours. A plausible rate
+ * per thousand stitches would produce a floor price, a margin and a commission
+ * that look computed, on a cost we invented, which is the one thing this file
+ * exists to prevent.
+ *
+ * What would receive it, when the answers come: `marquage` and `sous_traite` are
+ * the components, `OPERATIONS` is where weeding and press time would join, and
+ * the TECHNIQUES vocabulary in the scoped-floor rules is where the name goes.
+ * Read `facts()` in the order-facing report before adding a key there: the
+ * technique is DERIVED and not stored, so today every order with something to
+ * press is called DTF and costed on film, and a second technique is mis-costed
+ * by that one line before it ever reaches a cost model.
+ *
+ * NO EXPRESS OR URGENCY SUPPLEMENT. The chapter wants one covering dearer film
+ * in France, production priority, a possible journey, higher risk and
+ * coordination time, computed in percent or at real cost plus margin, and wants
+ * urgency accepted only once stock, proof and capacity are confirmed. Nothing
+ * here adds a centime for it. Urgency reaches the FLOOR and nothing else,
+ * through `PriceRule`'s urgence selector, and every order is costed at the
+ * French film rate whatever its urgency, which is the dearer of the two and
+ * therefore the safe direction. `film()` takes an origin and no order path ever
+ * passes 'es': `rate_es_ht` is little more than half `rate_fr_ht`, so letting a
+ * dropdown choose it would take most of that difference off the film cost of any
+ * order an operator ticked as standard, and a tick is not evidence about which
+ * roll was actually bought.
+ *
+ * It is also downstream of a promise the shop does not make. No lead time is
+ * announced anywhere (H-Q14-UN-COLIS-MAXIMUM), so express cannot be sold at all
+ * before sessions 06 and 07 give it a date to hold and a capacity to check.
+ *
  * Pure by construction: no WordPress function is called anywhere in this file,
  * so it runs under `php tests/run.php` with no bootstrap. Everything is integer
  * cents HT unless the name says otherwise.

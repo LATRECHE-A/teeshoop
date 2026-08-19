@@ -953,6 +953,29 @@
 			"shipped_matches_default": "Sur la technique, oui : DTF seul. Sur la taille, non. L'hypothèse par défaut dit « 30 x 40 cm maximum » ; la zone publiée sur un t-shirt vaut 30,5 x 40,6 cm dès la taille M et 37,5 x 50 cm en 3XL, et elle est affichée au client. C'est un dépassement de 25 % en 3XL sur une limite que l'atelier n'a pas confirmée."
 		},
 		{
+			"id": "H-Q12-COUT-PAR-TECHNIQUE",
+			"question": "Q12",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-19",
+			"statement_fr": "Le DTF est la seule technique qui ait un modèle de coût : la broderie, le flocage, le vinyle et la sublimation ne sont chiffrés nulle part, donc une commande qui en contiendrait n'aurait pas de plancher.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Cost.php#ONLY DTF HAS A COST MODEL",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est l'absence de quatre modèles de coût et non une valeur. Le foyer est le passage du dossier de conception qui dit ce qui manque, pourquoi rien n'a été écrit, et ce qui le recevrait le jour où la réponse arrive.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05",
+				"13b"
+			],
+			"cost_if_late": "on refait",
+			"shipped_matches_default": "Oui sur ce qui se vend en ligne : « DTF seul en personnalisation en ligne ; broderie, flocage et sublimation présentés mais traités sur devis ». Le refus porte sur le COÛT, que l'hypothèse par défaut ne couvre pas : un devis de broderie se chiffre à la main tant que personne n'a donné un prix par tranche de points, un forfait de mise en route, un temps de cerclage ni un taux d'incident machine, et le chapitre 1 les demande tous. La question 13 décide en plus si la broderie est la nôtre ou sous-traitée, ce qui change le modèle entier. À savoir pour la séance qui ouvrira une deuxième technique : elle n'est pas stockée, elle est DÉDUITE dans Costing::facts(), et toute commande à presser est aujourd'hui appelée DTF."
+		},
+		{
 			"id": "H-Q03-PRIX-ACHAT-BRUT",
 			"question": "Q03",
 			"level": "bloquant",
@@ -1480,6 +1503,30 @@
 			],
 			"cost_if_late": "reglage et remesure",
 			"shipped_matches_default": "Non, et c'est un refus assumé plutôt qu'un écart. L'hypothèse par défaut annonce « standard 12 jours ouvrés, express 7, urgence 4, Colissimo comme transporteur, retrait sur rendez-vous à Bobigny ». Aucun de ces délais n'est écrit : une date de livraison est une promesse, et la nôtre dépendrait d'un délai d'atelier que personne n'a mesuré. Le transporteur, lui, est bien Colissimo. Le refus au-delà d'un colis vient de ce que la boutique connaît le poids d'un vêtement et pas son volume emballé : 200 t-shirts font 36 kg, deux colis au poids et environ cinq au volume."
+		},
+		{
+			"id": "H-Q14-AUCUN-SUPPLEMENT-URGENCE",
+			"question": "Q14",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-19",
+			"statement_fr": "Aucun supplément d'express ni d'urgence n'est chiffré ni facturé : l'urgence déplace le plancher et rien d'autre, et toute commande est chiffrée au tarif film français quelle que soit son urgence.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Cost.php#NO EXPRESS OR URGENCY SUPPLEMENT",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est l'absence d'un supplément. Le foyer est le passage du dossier de conception qui dit pourquoi rien n'est ajouté et ce qui le débloquerait.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"05",
+				"06",
+				"07"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "La question 14 ne demandait que des délais, pas de supplément : il n'y avait donc pas d'hypothèse par défaut à suivre, et elle le demande depuis le 19 août. Le chapitre 1 veut un supplément couvrant le film plus cher en France, la priorité de production, un éventuel déplacement, le risque accru et le temps de coordination, en pourcentage ou au coût réel majoré. Deux raisons de ne rien écrire : le pourcentage est une décision commerciale que personne n'a prise, et l'express n'est de toute façon pas vendable tant qu'aucun délai n'est annoncé (H-Q14-UN-COLIS-MAXIMUM). Le sens du refus est le prudent : le tarif film retenu est toujours le plus cher des deux (H-Q04-TARIF-FILM-FRANCE plutôt que H-Q04-TARIF-FILM-ESPAGNE)."
 		},
 		{
 			"id": "H-Q15-STRIPE",

@@ -32,6 +32,48 @@
  * next month must not silently rewrite the history of what he earned. Recomputing
  * is a button.
  *
+ * ── WHERE THIS IS REACHABLE FROM, AND WHERE IT IS NOT ────────────────────────
+ *
+ * From two screens and nothing else: the order's "Coût, plancher et marge" panel
+ * and the simulator on the "Coûts et marges" settings page. Chapter 1 also
+ * specifies an HTTP surface, and none of it exists.
+ *
+ * NO POST /pricing/quotes/calculate. The computation the chapter describes is
+ * `compute()`, but it takes a `WC_Order`, so only something already ordered can
+ * be costed. A devis (`Quote.php`) cannot: it has no lines, no garment and no
+ * design, because a request for a quote is a message and not yet a basket. The
+ * route is worth building the day a quote becomes a document with lines, which
+ * is session 06, and it should call this rather than grow a second engine.
+ *
+ * NO POST /pricing/quotes/{id}/approval-request. The exception itself is built
+ * and is the load-bearing half: `derogation()` records a below-floor sale with
+ * its reason, its approver, its validity window and the shortfall in euros, and
+ * `derogation_covers()` refuses one that no longer matches the order. What does
+ * not exist is the ROUND TRIP the chapter draws, where a salesperson asks and
+ * somebody else approves, with the competitor, the client's importance, the
+ * deadline and attachments. That needs two roles, and this shop has one: whoever
+ * is at the keyboard types the approver's name. Building the request half
+ * without the second role would produce an approval that approves nothing, which
+ * reads on screen exactly like one that does.
+ *
+ * NO HISTORY OF VERSIONS. The chapter asks that every price change create a new
+ * version and that a sent quote never change silently. An order keeps ONE report,
+ * frozen, replaced when someone presses Recalculer; `staleness()` can tell that
+ * the order, the settings or the format have moved since, which is what stops a
+ * stale number being read as current, but the previous report is gone. A quote
+ * that has been sent is the object that needs the version chain, and it belongs
+ * with the quote document in session 06.
+ *
+ * NO KPIs. The chapter lists ten, from average contributive margin to the SAV
+ * cost per order. Nine of them are ratios over a population of orders, and the
+ * population is the fifteen real orders the live shop carried in August 2026,
+ * over a demonstration catalogue on which no selling price is written at all
+ * (H-Q42-MARGE-TEXTILE-NU): a margin rate averaged over that would look like
+ * management information and would not be any. The tenth, estimated cost against real cost,
+ * needs the real cost fed back after production, which is sessions 07 and 08.
+ * `docs/ROADMAP.md` carries this under "Les exceptions assumées" with the
+ * session that should treat it.
+ *
  * ── NOTHING HERE EVER REACHES A CUSTOMER ─────────────────────────────────────
  *
  * Purchase prices, film rates and commissions. `scripts/php-guard.mjs` carries
