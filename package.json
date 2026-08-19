@@ -34,7 +34,8 @@
     "verify:php": "node scripts/php-guard.mjs",
     "verify:hypotheses": "node scripts/hypotheses-guard.mjs",
     "verify:garments": "node scripts/gen-garment-data.mjs --check",
-    "verify:product": "node scripts/product-shots.mjs"
+    "verify:product": "node scripts/product-shots.mjs",
+    "verify:bat": "node scripts/bat-verify.mjs"
   },
   "keywords": [],
   "type": "module",

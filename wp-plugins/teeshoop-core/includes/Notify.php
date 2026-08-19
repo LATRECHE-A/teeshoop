@@ -286,12 +286,15 @@ final class Notify {
 	// ── retrying ─────────────────────────────────────────────────────────────
 
 	/**
-	 * Build a message again, from the order as it is now.
+	 * Build a message again FOR SENDING, from the order as it is now.
 	 *
-	 * WHAT A RETRY CANNOT REBUILD IS THE ORIGINAL PROOF LINK, and that is the
-	 * point: the token was minted once and only its digest was kept.
-	 * `Bat::resend` mints a fresh one against the same version, which is what a
-	 * retry of a proof e-mail should do anyway.
+	 * IT HAS A SIDE EFFECT AND THE NAME HAS TO CARRY IT. Rebuilding a proof
+	 * e-mail mints a NEW approval link, because the original token was kept only
+	 * as a digest and cannot be recovered. That is exactly right for a retry:
+	 * the previous message did not arrive, so nobody holds the old link. It is
+	 * exactly wrong for anything that only wants to LOOK at a message, and this
+	 * was found the hard way, by a harness that asked for a preview and killed
+	 * the live link it was about to click. Reading is `render()`.
 	 *
 	 * A kind with no rebuilder is refused by name rather than skipped, because
 	 * an internal alert nobody can resend is a thing an operator should be told
@@ -319,6 +322,43 @@ final class Notify {
 			return array(
 				'ok'      => true,
 				'message' => self::message( self::spec_bat( $order, (array) $again['version'], (string) $again['token'] ), $order, $kind ),
+			);
+		}
+
+		return self::render( $kind, $order_id );
+	}
+
+	/**
+	 * The same message, rendered and NOTHING ELSE.
+	 *
+	 * No token minted, no order touched, no row written. This is what a preview,
+	 * a screenshot harness or a future operator-facing "see what the customer
+	 * got" reads. The proof e-mail is rendered with whatever token it is handed,
+	 * and with none it carries a link that opens nothing, which is the honest
+	 * thing for a document nobody is being asked to act on.
+	 *
+	 * @return array{ok:bool,message?:array,reason?:string}
+	 */
+	public static function render( string $kind, int $order_id, string $token = '' ): array {
+		$order = $order_id > 0 ? wc_get_order( $order_id ) : null;
+		if ( ! $order instanceof \WC_Order ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'La commande de ce message n’existe plus.',
+			);
+		}
+
+		if ( self::KIND_BAT === $kind ) {
+			$current = Bat::current( $order );
+			if ( null === $current ) {
+				return array(
+					'ok'     => false,
+					'reason' => 'Aucun bon à tirer n’a été établi sur cette commande.',
+				);
+			}
+			return array(
+				'ok'      => true,
+				'message' => self::message( self::spec_bat( $order, $current, $token ), $order, $kind ),
 			);
 		}
 

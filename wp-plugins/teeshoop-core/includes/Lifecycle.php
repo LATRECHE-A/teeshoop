@@ -860,13 +860,23 @@ final class Lifecycle {
 		exit;
 	}
 
-	/** An ISO instant as a Paris date an operator reads. */
+	/**
+	 * An ISO instant as a Paris date a French reader meets.
+	 *
+	 * `F` AND NOT `M`. WordPress's fr_FR abbreviated months are capitalised
+	 * ("Août"), and in French a month name is not: the proof read « 19 Août
+	 * 2026 » on its own header. The full name comes out of `get_month()`, which
+	 * is lowercase, and it reads better on a document anyway.
+	 *
+	 * `wp_date` and not `date`: the shop's own timezone decides the day, so an
+	 * approval recorded at 00:30 Paris is not dated to the day before.
+	 */
 	public static function human_date( string $iso ): string {
 		$ts = strtotime( $iso );
 		if ( ! $ts ) {
 			return $iso;
 		}
-		return function_exists( 'wp_date' ) ? (string) wp_date( 'j M Y à H:i', $ts ) : gmdate( 'j M Y H:i', $ts );
+		return function_exists( 'wp_date' ) ? (string) wp_date( 'j F Y à H:i', $ts ) : gmdate( 'j F Y H:i', $ts );
 	}
 
 	/** The metabox buttons. */
