@@ -1,6 +1,6 @@
 # Feuille de route de teeshoop.com
 
-État au 14 août 2026. Ce document dit **où en est le projet** et **ce qu'il reste à
+État au 19 août 2026. Ce document dit **où en est le projet** et **ce qu'il reste à
 faire**, dans l'ordre. Il est volontairement court : le détail vit dans le code et dans les
 messages de commit.
 
@@ -203,6 +203,45 @@ plus bas : **l'API de prix** du chapitre et **les dix indicateurs**. Aucun des q
 n'était dans le périmètre de la séance ; ils sont écrits ici pour que la séance qui les
 prendra les trouve, et non pour qu'on les redécouvre.
 
+**Le bon à tirer, le cycle de vie et les envois (séance 06).** Une commande payée ne part
+plus en production sur la foi d'un statut. Le client reçoit un **bon à tirer** engendré
+depuis sa création (le vêtement, le coloris, les tailles, le visuel à sa vraie place, les
+dimensions en centimètres et la descente sous l'encolure, qui est le chiffre auquel une
+presse est réglée), il l'ouvre depuis un lien qui ne demande aucun compte, et il valide ou
+demande des modifications. La validation enregistre la date, l'heure, l'adresse IP, **la
+version exacte** et le texte qui était à l'écran ; une version 4 n'hérite jamais de la
+validation de la version 3.
+
+Ces trois numéros, le placement du marquage, sont **mesurés dans le navigateur** et voyagent
+dans le fichier de création, parce que l'encre d'un visuel se lit dans le canal alpha d'une
+image décodée et que ni le Worker ni PHP n'ont de canvas. Ils forment un bloc séparé des
+rectangles de film : un placement refusé est abandonné et les rectangles restent, de sorte
+qu'un défaut d'affichage ne peut pas faire baisser un prix plancher. Le studio envoie
+désormais **une maquette par face imprimée** : un BAT qui ne montre que le devant d'un
+vêtement imprimé devant et dos ne décide rien du dos, et ce document décide qui paie une
+reprise.
+
+**Le statut est une étiquette, le dossier est l'autorité.** C'est la règle que `Ledger`
+tenait déjà pour l'argent. `Lifecycle::blockers()` demande au registre des encaissements
+combien d'argent est réellement rentré et au bon à tirer si la version **courante** est
+validée. Sept statuts sont ajoutés, chacun parce que WooCommerce n'a pas le mot ; les
+siens gardent leur sens. Un changement de statut illégal est refusé et remis en place, et
+les deux moitiés du garde-fou ont été cassées exprès pour prouver qu'elles portent quelque
+chose : sans l'une, un clic sur « Marquer terminée » suffisait à déclarer livrée une
+commande jamais imprimée.
+
+**Un envoi qui n'arrive pas est visible.** L'échec classique de WordPress est un `wp_mail()`
+dont personne ne lit le retour ; un BAT perdu, c'est une commande qui s'arrête pour toujours
+sans que personne le sache. Chaque message est une ligne avant d'être une requête, les
+échecs remontent sur tous les écrans d'administration, et un renvoi **recompose** le message
+depuis la commande au lieu de rejouer une copie stockée, ce qui est aussi une propriété de
+sécurité : une table de corps de messages serait une table de liens d'approbation vivants.
+
+**Et la renonciation au droit de rétractation est prise avant la commande.** L'hypothèse
+écrite de la question 18 la plaçait à la validation du BAT, c'est-à-dire après le paiement,
+donc après la conclusion du contrat. Les deux existent désormais, parce que ce sont deux
+actes différents.
+
 ---
 
 ## Ce qu'il reste : seize séances
@@ -218,7 +257,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~03b~~ | ~~Le registre des hypothèses~~ **faite** | - |
 | ~~04~~ | ~~Paiement : Stripe, TVA, livraison, facture~~ **faite** | - |
 | ~~05~~ | ~~Moteur de coût, prix plancher, commissions~~ **faite** | - |
-| 06 | BAT, cycle de vie de la commande, e-mails | 04 |
+| ~~06~~ | ~~BAT, cycle de vie de la commande, e-mails~~ **faite** | - |
 | 07 | Production : imbrication du film entre commandes | 06 |
 | 08 | Commande fournisseur et stock | 03, 07 |
 | 09 | Le site : accueil, navigation, système de design | 02 |
@@ -340,7 +379,9 @@ ne peut pas porter : des arbitrages d'ingénierie qui n'attendent la réponse de
 | **Les photos par coloris publient le nom de fichier du fournisseur** (`/media/blank/picture/001_42_000_f-2020_01.jpg`, soit le style et le coloris) | Les copier coûte 267 Mo, ~650 Mo après vignettes, et 1 h 30 d'import. Les trois options sont chiffrées dans `docs/CATALOGUE.md` et le choix a un prix, donc il appartient à l'associé | Une des trois options. En attendant, le contrôle **épingle la porte à la largeur exacte** de cette URL : ce motif ailleurs sur une surface client fait échouer la vérification | 09 ou perf |
 | **378 ms par page de liste pour n'afficher aucun prix.** `get_price_html()` parcourt les articles de chaque produit variable, 23,6 ms par produit, seize par page | Tant qu'aucun prix n'est écrit, ce calcul produit une chaîne vide. Le corriger avant de connaître le prix de vente, c'est optimiser une forme qui va changer | Soit ne pas afficher de prix en liste tant qu'il n'y en a pas, soit stocker la fourchette sur le produit parent à l'import. À décider **avec** le prix de vente, pas avant | 05 puis perf |
 | **Six articles sont en ligne sans code-barres** | 4 codes-barres sur les 21 479 du catalogue sont réutilisés par le fournisseur sur plusieurs articles, dont un `4053840000000` manifestement bouche-trou. WooCommerce refuse le doublon, et l'import préfère publier l'article sans code-barres plutôt que de perdre la référence entière | Rien de notre côté : c'est une donnée fournisseur. À savoir le jour où un flux marchand (Google Shopping) exigera un GTIN par article | 10 |
-| **Le chapitre 1 décrit une API de prix et il n'en existe aucune** : `POST /pricing/quotes/calculate`, `POST /pricing/quotes/{id}/approval-request`, et une version conservée à chaque changement de prix | Le calcul, lui, existe : `Costing::compute()` fait exactement ce que la route décrit, mais il prend une **commande** WooCommerce, et un devis n'a encore ni lignes ni création à chiffrer. La demande d'exception suppose **deux rôles**, un commercial qui demande et quelqu'un qui approuve ; la boutique n'en a qu'un, et une demande sans second rôle produirait une approbation qui n'approuve rien, indiscernable à l'écran d'une vraie. L'exception elle-même est construite : motif, approbateur, validité, manque à gagner, et elle cesse de couvrir la commande si le plancher bouge | Un devis qui devient un document avec des lignes et une version par envoi, en séance 06 ; le second rôle le jour où il y a des commerciaux, ce que la feuille de route ne programme pas (c'est le chapitre 3) | 06 |
+| **`POST /pricing/quotes/{id}/approval-request` n'existe pas**, et c'est le seul reste de l'écart « API de prix » | Les deux autres tiers sont refermés par la séance 06 : le devis est devenu un document avec des lignes, un numéro et une version gelée à chaque envoi, et son chiffrage appelle `Costing::compute()` en lui passant une commande construite en mémoire, jamais enregistrée. Celui-ci suppose **deux rôles**, un commercial qui demande et quelqu'un qui approuve ; la boutique n'en a qu'un, et une demande sans second rôle produirait une approbation qui n'approuve rien, indiscernable à l'écran d'une vraie. L'exception elle-même est construite : motif, approbateur, validité, manque à gagner, et elle cesse de couvrir la commande si le plancher bouge | Le second rôle, le jour où il y a des commerciaux, ce que la feuille de route ne programme pas (c'est le chapitre 3) | aucune |
+| **Le chiffrage d'un devis n'est pas une route publique**, alors que le chapitre 1 le dessine à côté des points d'entrée client | Ce qu'il renvoie est notre coût d'achat, notre économie du film, notre prix plancher et notre commission. L'exposer mettrait la boutique du mauvais côté de la frontière que `scripts/php-guard.mjs` et `scripts/bundle-guard.mjs` existent pour tenir. Il est joignable depuis l'écran du devis, avec `manage_woocommerce`, et de nulle part ailleurs | Rien : c'est un refus, pas un oubli. À relire si un espace commercial arrive (chapitre 3) | aucune |
+| **Le supplément de correction n'est pas facturé automatiquement** (question 26 : deux corrections incluses, puis 15 EUR HT) | Les cycles sont comptés et le montant est affiché à l'opérateur, qui facture à la main. L'ajouter tout seul suppose un second encaissement et une facture rectificative, que la séance 04 n'a pas construits, et le chiffre lui-même est une décision commerciale que personne n'a prise | La réponse à la question 26, puis un avoir et une facture complémentaire | 13b |
 | **Les dix indicateurs du chapitre 1 ne sont calculés nulle part** (marge contributive moyenne, taux de remise, part des commandes express, coût SAV par commande, etc.) | Neuf des dix sont des ratios sur une population de commandes, et la population est les quinze vraies commandes d'août sur un catalogue où aucun prix de vente n'est écrit : une moyenne là-dessus aurait l'apparence d'une information de gestion sans en être une. Le dixième, coût estimé contre coût réel, suppose que le coût réel revienne après la production, ce qui n'existe pas encore | Le retour du coût réel après production (séances 07 et 08), puis un écran qui les affiche. Les données brutes sont déjà là : chaque commande garde son rapport gelé avec son coût, son plancher, sa marge et sa commission | 13 |
 
 La rotation éventuelle de `ADMIN_TOKEN` est dans `ACCES-REQUIS.md` et n'est pas un écart :

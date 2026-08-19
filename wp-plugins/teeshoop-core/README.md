@@ -71,7 +71,21 @@ includes/
   Cart.php            WooCommerce cart and order integration
   ProductPage.php     the fiche produit: hooks, blocks and the add-to-cart lock
   Compat.php          the pinned WooCommerce surface, and the loud failure
-  Quote.php           the devis: a record with a state
+  Quote.php           the devis: a record with a state, then a document with
+                      lines, a number, a version per send, and a costing that
+                      calls the ONE engine
+  Lifecycle.php       where an order is, what may happen next, and the guard
+                      that refuses everything else. The status is a label; the
+                      record is the authority
+  Bat.php             le bon a tirer: composed from the design, frozen per
+                      version, approved on a capability URL, archived as a PDF
+  BatPage.php         the whole HTML document a customer approves on. No theme,
+                      no script, two forms
+  Waiver.php          the withdrawal right, and the acknowledgement the law
+                      wants BEFORE the order rather than at the proof
+  Claim.php           une reclamation, and chapitre 5's decision matrix
+  Mail.php            the outbox, then Brevo. A failed send is visible
+  Notify.php          what the shop writes to people, and when
   Catalogue.php       supplier style -> WooCommerce product. Pure. Argues the
                       mapping, the 366-variation trade-off and the image cost
   Supply.php          the HTTP client to our own Worker. The only file allowed
@@ -178,7 +192,26 @@ npm run verify:wp-e2e   # 66 assertions, real browser, real Worker, from artwork
 npm run verify:invoice  # renders real invoices, reads them back with poppler
 npm run verify:php      # no purchase cost, supplier name or film rate in a template
 npm run verify:product  # 18 assertions, real browser, the buy box's own controls
+npm run verify:bat      # 62 assertions, real browser, one order from payment to delivery
 ```
+
+**`verify:bat` covers the half a PHP suite cannot reach**: a page served from
+`admin-post.php` with no theme and no script, whether its buttons post where they
+say they do, whether the approval a browser sends is the one the database
+records, and whether the whole thing works at 375 px. It found two things on its
+first run. A preview of the proof e-mail was minting a new approval token and
+killing the live link, so reading and re-sending are now two functions
+(`Notify::render` touches nothing, `Notify::rebuild` mints, and the names carry
+it). And the proof headed itself "19 Aout 2026", because WordPress's fr_FR
+abbreviated month is capitalised and a French month name is not.
+
+**Its mail assertions are stronger than "sent", not weaker.** The container has
+no Brevo key and no MTA, so every message fails at `wp_mail`. What the run proves
+is that a message which does NOT reach the customer is visible: the row exists,
+it was attempted rather than left queued, and the failure carries a reason.
+Brevo's own request, its header, its body and its refusals are asserted in
+`tests/integration-lifecycle.php` against the real `wp_remote_post`, with only
+the wire replaced (`pre_http_request`).
 
 **The mirror needs four things doing once, and none is in the repository**
 because both live in the docker volume rather than in git:
@@ -264,6 +297,19 @@ code and WooCommerce is where the money is lost.**
 | `GET /wp-json/teeshoop/v1/grid` | public | The faces × quantity table shown before the editor opens. Columns derived from the discount breaks. |
 | `POST /wp-json/teeshoop/v1/cart` | `X-WP-Nonce` | Adds a personalised line. The nonce is checked explicitly: WordPress only rejects a *bad* cookie nonce, not a missing one, so without this any site could POST into a visitor's basket through their browser. |
 
+Two more endpoints are customer-reachable and neither is REST. They are
+`admin-post.php` actions, the same shape `Invoice::serve` uses, because both have
+to work for somebody who is not logged in and holds no nonce.
+
+| Action | Auth | Notes |
+|---|---|---|
+| `?action=teeshoop_bat` | a per-VERSION token | The proof. 32 random bytes, stored as a SHA-256 digest and compared with `hash_equals`, minted per version and dead the moment a newer one exists. A shop manager gets in without it, because they can already read the order, and the page they get draws no buttons. |
+| `?action=teeshoop_bat_decision` | the same token, in the POST | Approve, or ask for changes. There is no operator path here at all: an approval is always the customer's own act. |
+
+**The order key was the obvious token for the proof and is the wrong one.** It is
+already in every WooCommerce e-mail and in the order-received URL, so it proves
+"has seen this order". Approving a proof is a commitment, not a look.
+
 ## The postMessage contract
 
 This is what the studio side has to implement. `bridge.js` already holds up its
@@ -343,6 +389,8 @@ different things.
 | `studio_path` | Path within that origin, default `/`. |
 | `worker_url` | Cloudflare Worker base URL. **It is now a browser-facing origin as well as a server-facing one**: the catalogue stores each colour photo as a path and the shop renders `worker_url + path` in an `<img src>`, so an address only the server can resolve (`host.docker.internal`, a private hostname) leaves every colour photo broken for customers while the importer works perfectly. It must be an address a visitor's browser can reach. |
 | `design_verify_path` | Default `/api/design/`. |
+| `mail_from`, `mail_from_name`, `mail_reply_to` | Who the shop writes as. **Empty is a refusal, not a default**: Brevo will not send from an address nobody has verified in their account, and a plausible `contact@teeshoop.com` here would produce a 400 on the first real proof e-mail with nothing on screen to explain it. |
+| `mail_atelier` | Where the workshop's own alerts go. Falls back to the site administrator rather than to nowhere. |
 
 `teeshoop_pricing` (option) is a partial overlay on
 `Pricing::default_config()` — set `vat_rate` alone without restating the rest.
@@ -370,6 +418,7 @@ Constants, in `wp-config.php` and never in an option:
 |---|---|
 | `TEESHOOP_CATALOGUE_TOKEN` | Bearer token for our Worker's catalogue routes. Absent ⇒ the importer refuses. It is a constant because options are dumped by every backup and editable from the admin, and this one opens a route that returns our purchase price for the whole catalogue. |
 | `TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` | Development only. Never on production. |
+| `TEESHOOP_BREVO_KEY` | Transactional e-mail. Absent **in production** sends nothing and records every message as failed, naming this constant; absent anywhere else it falls back to `wp_mail` and records that it did, so nobody reads a green outbox on a machine that never had a key. A constant and not an option for the same reason as the two above: it can send mail as us, to anybody. |
 
 ## The catalogue
 
@@ -700,15 +749,18 @@ their count.
 - An admin screen for the integration settings (studio origin, Worker URL). Same.
   The facturation screen (`Admin.php`) covers VAT, the legal identity, the
   invoice series and the carriage settings.
-- The quote DOCUMENT: its versions, its acceptance token, its PDF and the BAT.
-  `Quote.php` holds the request and its state; the document belongs to session
-  06, when there is a payment to attach it to. **The costing is not attached to
-  a devis request either, and that is why**: a request carries a garment and a
-  quantity and no design, so it has no transfer geometry, so its largest cost
-  component would be unknown. A floor price built on that is a number with its
-  biggest term missing. The estimated/known flag reaches the margin report and
-  both admin screens today; it reaches a quote when there is a quote with a
-  design on it.
+- The devis's CUSTOMER-FACING half: a page the prospect opens, an acceptance
+  token, a PDF. Session 06 built the document (lines, a number from the invoice
+  sequence, a version frozen per send, and the costing) because the chapter's
+  version rule and its `POST /pricing/quotes/calculate` both needed it. What is
+  left is the part `QUESTIONS-ASSOCIE.md` records that we BUY: the relance
+  cadence, the open-tracking status, the pipeline screen.
+- `POST /pricing/quotes/{id}/approval-request`. The exception it would carry is
+  built and load-bearing (reason, approver, validity window, shortfall, and it
+  stops covering the order when the floor moves); what is missing is the round
+  trip, a salesperson asking and somebody else approving. That needs two roles
+  and the shop has one, so the request half would produce an approval that
+  approves nothing and looks on screen exactly like one that does.
 - Réassort. "Commander à nouveau" is deliberately REFUSED on a personalisable
   product rather than silently producing a plain garment at the catalogue price
   (`woocommerce_order_again_cart_item_data` defaults to an empty payload).

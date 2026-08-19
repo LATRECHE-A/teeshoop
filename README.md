@@ -361,6 +361,7 @@ npm test           # vitest, headless, ~2 s — no browser, no network, no secre
 npm run ci         # typecheck (app + worker) + tests, what CI runs
 npm run verify:bundle   # the admin/customer leak gate (needs a build first)
 npm run verify:nest     # the film metrage the shop costs on (boots wrangler dev + php)
+npm run verify:bat      # one order from payment to delivery (needs the docker mirror)
 ```
 
 The suite covers the modules that are pure and where a silent error costs money:
@@ -371,7 +372,17 @@ nesting (never worse than the shelf packer) and preflight. The Playwright
 harnesses in `scripts/` are unchanged and stay out of CI: they boot a dev server
 and several need a human to look at a screenshot.
 
-`npm run verify:nest` is the newest of those and the one to run after touching
+`npm run verify:bat` is the newest of those and the one to run after touching the
+bon a tirer, the order lifecycle or anything the shop writes to a customer. It
+builds a paid order in the docker mirror, issues a proof, opens the customer's
+link in a real Chromium at 375 px, asks for changes, issues a second version,
+approves it, walks the order to delivery and reads every step back out of the
+database. Sixty-two assertions. It found two things on its first run: a preview
+of the proof e-mail was minting a new approval token and killing the live link,
+and the proof headed itself "19 Aout 2026" because WordPress's fr_FR abbreviated
+month is capitalised and a French month name is not.
+
+`npm run verify:nest` is the one to run after touching
 the packer, the cost engine or `POST /api/nest`. It boots a real `wrangler dev`
 and a real `php`, and proves four things: the route is shut to anyone without
 the admin token, its answer is exactly what `nestRoll` returns called in-process,
