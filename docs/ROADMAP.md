@@ -257,6 +257,16 @@ de 370 à 350 cm. Lire « 61 % d'économie » comme « 61 % de film » se trompe
 grandeur, et ce sont les frais de livraison et le minimum du fournisseur, pas la géométrie,
 qui décident de la valeur du groupage.
 
+**Ce que ça coûte en manutention, mesuré aussi.** Sur la même semaine : **20 piles de tri
+au lieu de 7**. Une planche mutualisée mêle les visuels de plusieurs clients, donc chaque
+pièce découpée doit être triée au lieu d'aller sur l'unique pile de sa commande, et le
+nombre de piles qu'un opérateur tient ouvertes est le nombre de couples (commande,
+planche). C'est pourquoi chaque pièce porte son numéro de commande sur le plan de découpe
+et pourquoi le dossier contient une fiche de pose par commande. S'y ajoutent une
+imbrication de plus que de commandes (chacune est aussi imbriquée seule, sinon l'économie
+n'est pas mesurée mais affirmée) et le fait qu'un lot dont le film est commandé ne peut
+plus être défait.
+
 **Et le groupage ne fait pas toujours gagner du film.** Deux transferts de 30 × 20 cm ne
 tiennent pas côte à côte sur une laize de 58 cm : ensemble ils coûtent 50 cm de rouleau,
 séparément 20 + 20. Le cas est tenu par un test des deux côtés, et c'est pourquoi la

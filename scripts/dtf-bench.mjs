@@ -368,14 +368,32 @@ try {
       shape({ pieces: ps, options: { ...shopGeom, maxInterlockCm: interlockMax, restarts: 12 } })
 
     const allPieces = toShape(weekRaw)
+    const pooledResult = packFill(allPieces)
     const week = {
       orders: [...byOrder.keys()].sort(),
       pooledShelfCm: packShelf(allPieces).totalLengthCm,
-      pooledFillCm: packFill(allPieces).totalLengthCm,
-      pooledSheets: packFill(allPieces).sheets.length,
+      pooledFillCm: pooledResult.totalLengthCm,
+      pooledSheets: pooledResult.sheets.length,
       solo: {},
       ink: {},
       poses: {},
+      /*
+       * WHAT POOLING COSTS THE PERSON HOLDING THE SCISSORS.
+       *
+       * Un-pooled, a sheet belongs to one order and every piece cut off it goes
+       * on one pile. Pooled, a sheet carries several customers' artwork and each
+       * piece has to be sorted; the number of PILES a cutter keeps open is the
+       * count of (order, sheet) pairs, and it is the honest handling cost of the
+       * saving above. It is why every piece is labelled with its order and why
+       * there is a press sheet per order in the archive.
+       */
+      piles: 0,
+      soloSheets: 0,
+    }
+    for (const sheet of pooledResult.sheets) {
+      const owners = new Set()
+      for (const pl of sheet.placements) owners.add(pl.sourceKey.slice(0, pl.sourceKey.indexOf('/')))
+      week.piles += owners.size
     }
     for (const [orderId, list] of byOrder) {
       const ps = toShape(list)
@@ -385,6 +403,7 @@ try {
       }
       week.ink[orderId] = list.reduce((a, p) => a + p.wCm * p.hCm * p.qty, 0)
       week.poses[orderId] = list.reduce((a, p) => a + p.qty, 0)
+      week.soloSheets += packFill(ps).sheets.length
     }
     return { rows, week }
   })
@@ -530,8 +549,15 @@ try {
   )
   console.log(
     `${week.orders.length} commandes, ${week.pooledSheets} planche(s) au lieu de ` +
-      `${week.orders.length}, une livraison au lieu de ${week.orders.length}, ` +
+      `${week.soloSheets}, une livraison au lieu de ${week.orders.length}, ` +
       `un minimum fournisseur au lieu de ${week.orders.length}.`,
+  )
+  console.log(
+    `ce que ça coûte en manutention : ${week.piles} piles de tri au lieu de ` +
+      `${week.soloSheets} (une planche mêle plusieurs clients), ` +
+      `${week.orders.length + 1} imbrications au lieu de ${week.orders.length} ` +
+      `(chaque commande est aussi imbriquée seule pour mesurer l'économie), ` +
+      `et un lot commandé ne peut plus être défait.`,
   )
 
   /*
