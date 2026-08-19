@@ -126,7 +126,17 @@ final class Nest {
 						'width_cm'        => (float) ( $film['width_cm'] ?? 0 ),
 						'gap_cm'          => (float) ( $film['gap_cm'] ?? 0 ),
 						'max_length_cm'   => (float) ( $film['max_length_cm'] ?? 0 ),
-						'billing_step_cm' => 10.0,
+						/*
+						 * FROM THE CONFIG, like the other three. It was written
+						 * here as a literal 10, which is the shipped default, so
+						 * nothing looked wrong: change the billing step on the
+						 * cost screen and the packer went on rounding to tenths
+						 * of a metre while the prudent bound on the other side
+						 * rounded to the new one, so the measured length and the
+						 * bound it is supposed to sit under came from two
+						 * different tariffs.
+						 */
+						'billing_step_cm' => (float) ( $film['billing_step_cm'] ?? 0 ),
 					)
 				),
 			)

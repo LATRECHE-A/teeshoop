@@ -103,7 +103,24 @@ function auth(cred: WooCredentials): Record<string, string> {
   }
 }
 
-/** The stored WooCommerce credentials, or a failure the screen can name. */
+/**
+ * The stored WooCommerce credentials, or a failure the screen can name.
+ *
+ * WHAT THIS SESSION ASKED OF THAT KEY, said out loud because it went up.
+ * `src/lib/ingest/woo.ts` needed a key that could read products, to match the
+ * catalogue. These routes are gated on `manage_woocommerce`, so the key now has
+ * to belong to a user who can manage the whole shop, and it lives in
+ * localStorage in plain text on whatever machine the workshop uses. Anything
+ * that can run script on that origin can read it and then read every order and
+ * every customer.
+ *
+ * It is not fixed here because the fix is not local: it is a scoped credential
+ * the plugin mints and can revoke, which is a piece of work of its own.
+ * `src/lib/admin/token.ts` already refuses to write ITS secret to localStorage
+ * and says the Woo pattern is the one to stop repeating. Recorded in
+ * `docs/ROADMAP.md` under the assumed exceptions so it is a decision rather than
+ * an oversight.
+ */
 export function shopCredentials(): WooCredentials {
   const cred = loadWooCredentials()
   if (!cred) throw new ShopError('no-credentials')

@@ -9,7 +9,8 @@
  *
  * WHAT A RUN IS. A set of orders that are paid, whose proof is approved, and
  * whose deadlines all still hold if the film is ordered today from one origin
- * (`schedule.ts` decides that part). Their transfers are nested TOGETHER onto
+ * (`Production.php` owns that calendar, and nothing here does any date
+ * arithmetic at all). Their transfers are nested TOGETHER onto
  * one set of gang sheets, the supplier is paid once, and the bill is split back
  * across the orders so each margin report tells the truth about what its own
  * order cost.
