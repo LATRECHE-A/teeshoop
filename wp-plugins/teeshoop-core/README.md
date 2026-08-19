@@ -310,6 +310,29 @@ to work for somebody who is not logged in and holds no nonce.
 already in every WooCommerce e-mail and in the order-received URL, so it proves
 "has seen this order". Approving a proof is a commitment, not a look.
 
+A version keeps its last **three** token digests, not one. A re-send used to mint
+a token and drop the old digest, on the argument that a retry only runs when the
+first message did not arrive; that argument is wrong in the one case that
+matters, because Brevo can accept and deliver a message and still have our read
+time out. They all die together the moment a newer version exists, which is the
+property that matters.
+
+## The outbox has five states, and three of them exist because two were not enough
+
+| State | Meaning |
+|---|---|
+| `queued` | Inserted, and nothing has come back. A row **stuck** here is the worst case and is counted and retried: it means the process did not survive the send, and "we do not know whether it went" is worse than "it did not go". |
+| `sending` | Claimed by a retry, on the wire now. One conditional UPDATE, so the hourly cron and an operator pressing Réessayer cannot both send. |
+| `sent` | The transport took it. Never retried, whatever asks. |
+| `failed` | It did not go, and the row says why in the provider's own words. Retried. |
+| `abandoned` | It did not go and it never will: nothing can rebuild it. Internal alerts compose their text at the moment of the event, so a retry has nothing to make one from. Without this state one such row kept the "a customer never got their proof" banner on every admin screen for ever, and a permanent banner is a banner nobody reads. |
+
+**The row never holds the message.** A retry re-renders from the order, which is
+a security property before it is an economy: the proof e-mail carries a
+capability URL, so a table of rendered bodies would be a table of live approval
+links in every backup. `Notify::rebuild` mints a new link and `Notify::render`
+does not, and the names carry the difference.
+
 ## The postMessage contract
 
 This is what the studio side has to implement. `bridge.js` already holds up its
@@ -418,7 +441,7 @@ Constants, in `wp-config.php` and never in an option:
 |---|---|
 | `TEESHOOP_CATALOGUE_TOKEN` | Bearer token for our Worker's catalogue routes. Absent ⇒ the importer refuses. It is a constant because options are dumped by every backup and editable from the admin, and this one opens a route that returns our purchase price for the whole catalogue. |
 | `TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` | Development only. Never on production. |
-| `TEESHOOP_BREVO_KEY` | Transactional e-mail. Absent **in production** sends nothing and records every message as failed, naming this constant; absent anywhere else it falls back to `wp_mail` and records that it did, so nobody reads a green outbox on a machine that never had a key. A constant and not an option for the same reason as the two above: it can send mail as us, to anybody. |
+| `TEESHOOP_BREVO_KEY` | Transactional e-mail, **in production and nowhere else**. Absent in production sends nothing and records every message as failed, naming this constant. Everywhere else the key is ignored and the message goes through `wp_mail`, which is what the preproduction's `pre_wp_mail` circuit-breaker can stop: a `wp_remote_post` to api.brevo.com is not `wp_mail`, and the preproduction is a full copy of production with real customers on it. A constant and not an option for the same reason as the two above: it can send mail as us, to anybody. |
 
 ## The catalogue
 
