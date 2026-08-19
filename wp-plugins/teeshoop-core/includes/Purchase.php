@@ -222,10 +222,10 @@ final class Purchase {
 			}
 		}
 
-		$basket               = self::aggregate( $claims, $refused, Costing::config() );
-		$basket['orders']     = self::per_order( $orders, $basket );
-		$basket['stock']      = self::stock_verdict( $basket['rows'], $today );
-		$basket['reason']     = '';
+		$basket           = self::aggregate( $claims, $refused, Costing::config() );
+		$basket['orders'] = self::per_order( $orders, $basket );
+		$basket['stock']  = self::stock_verdict( $basket['rows'], $today );
+		$basket['reason'] = '';
 		return $basket;
 	}
 
@@ -517,10 +517,10 @@ final class Purchase {
 			// Not defensive: this is the traceability requirement, checked where
 			// it is produced rather than trusted where it is read.
 			if ( $sum !== (int) $row['qty'] ) {
-				return array_merge(
-					self::empty_basket( sprintf( 'Incohérence interne sur l’article %s : %d pièces réparties pour %d commandées.', $row['sku'], $sum, $row['qty'] ) ),
-					array( 'rows' => array(), 'unresolved' => array_values( $refused ) )
-				);
+				$broken = self::empty_basket( sprintf( 'Incohérence interne sur l’article %s : %d pièces réparties pour %d commandées.', $row['sku'], $sum, $row['qty'] ) );
+				unset( $broken['stock'] );
+				$broken['unresolved'] = array_values( $refused );
+				return $broken;
 			}
 			unset( $i );
 		}
@@ -545,11 +545,17 @@ final class Purchase {
 			'freight_ht'  => $freight,
 			'total_ht'    => $blanks + $freight,
 			'sources'     => array_keys( $sources ),
-			'stock'       => array(
-				'trusted' => false,
-				'at'      => '',
-				'short'   => array(),
-			),
+			/*
+			 * NO `stock` KEY, AND ITS ABSENCE IS THE POINT.
+			 *
+			 * This function is arithmetic on claims; the verdict on the supplier's
+			 * shelf is `stock_verdict()`, which `basket()` calls beside it. An
+			 * empty placeholder here read as « rien ne manque » to any caller that
+			 * did not know the difference, and one did: `scripts/purchase-bench.mjs`
+			 * printed « tout est en stock » over a table showing zero L and zero XL
+			 * against sixteen and four ordered. A missing key is an error; a
+			 * reassuring default is a lie with a tick beside it.
+			 */
 			'reason'      => '',
 		);
 	}

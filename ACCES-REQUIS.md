@@ -446,7 +446,48 @@ npx wrangler secret list
 ```
 
 S'il n'y a que `ADMIN_TOKEN`, `FR_WS_USER`, `FR_WS_PASS` : rien n'a pu partir.
-*(vérifié le 12/08 — c'est bien le cas, il n'y a pas de `FR_CUSTOMER_NR`)*
+*(vérifié le 12/08, c'est bien le cas, il n'y a pas de `FR_CUSTOMER_NR`)*
+
+### Répondu à moitié le 19/08/2026, par le fournisseur lui-même
+
+**Le compte est en mode test.** Relevé en direct sur le compte réel :
+`webservice_mode_code = 1`. Ce n'est pas une réponse de l'associé, c'est une
+mesure, et elle peut changer chez le fournisseur sans que nous le décidions.
+C'est pourquoi la séance 08 relit le mode **à chaque envoi** et refuse la
+commande si le mot que l'opérateur a confirmé à l'écran ne correspond plus.
+
+`scripts/fr-verify.mjs` l'affiche à chaque exécution, et signale en jaune le
+passage en mode réel.
+
+### Ce qu'il reste : le numéro de client, et il faut le demander
+
+`FR_CUSTOMER_NR` est toujours absent, et depuis la séance 08 c'est le dernier
+verrou : la route d'envoi répond 503 et ne construit aucun document sans lui.
+
+Le code le **devinait** auparavant. Le login du webservice a la forme
+`{compte}-{n}-{jeton}`, et il en prenait les premiers chiffres en signalant
+qu'il l'avait fait. Un numéro deviné qui décide quel compte est facturé est
+exactement ce que ce projet s'interdit : le repli est supprimé.
+
+Nous avons essayé de confirmer la devinette auprès du fournisseur, en mode test,
+avec un document dont la seule ligne nomme un article qui n'existe pas.
+**Non concluant** : la passerelle répond exactement la même chose à un numéro de
+client délibérément faux qu'au nôtre (`orders_id 0`, erreur 10, « Artno not
+found »), parce qu'elle refuse sur l'article avant de juger le compte. Le
+contrôle 9 de `scripts/fr-verify.mjs` le refait à chaque exécution et dit
+« inconclusive » plutôt que de valider la devinette.
+
+**Ce qu'il faut donc demander à l'associé, ou à son contact chez le
+fournisseur :** le numéro de client tel qu'il figure sur une facture. Puis, une
+seule commande, qui demande la valeur sur son entrée standard et n'écrit rien
+dans le dépôt :
+
+```bash
+wrangler secret put FR_CUSTOMER_NR
+```
+
+Ne la collez nulle part ailleurs : ni dans un message, ni dans un fichier
+versionné. En local, elle va dans `.dev.vars`, qui est ignoré par git.
 
 ---
 

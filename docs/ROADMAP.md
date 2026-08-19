@@ -306,6 +306,88 @@ deux jours au moment où le client valide son bon à tirer**, l'express tient à
 et seul le standard laisse la place d'acheter le film en Espagne. Rien n'a été ajusté pour
 que ça passe : les trois chiffres sont ceux de la question 14 et le calcul est un test.
 
+**Acheter les textiles, et savoir ce qu'on a (séance 08).** L'unité qui achète du film est
+le lot depuis la séance 07 ; l'unité qui achète les **vêtements** est la même. Le panier
+d'achat est déduit des commandes et de leurs grilles de tailles, jamais saisi, et chaque
+quantité est traçable jusqu'à une ligne de commande : le code le prouve, ligne par ligne,
+au lieu de le supposer. Une ligne dont l'article ne peut pas être identifié est refusée par
+son nom et bloque l'achat, parce que se tromper de taille est la faute la plus chère de tout
+le système, le film étant déjà imprimé quand les cartons arrivent.
+
+**La décision qui ouvre la séance est écrite dans `docs/ACHATS.md`** : la commande est
+préparée automatiquement et transmise seulement après une confirmation humaine, ce qui est
+l'hypothèse par défaut de la question 22. Les deux autres options ont été comparées, pas
+écartées : ne rien automatiser fait ressaisir quarante lignes à la main, ce qui est
+exactement l'endroit où l'on se trompe de taille ; automatiser au-dessus d'un seuil de
+confiance suppose une confiance qui n'existe pas, la question 43 étant encore une
+supposition sur le modèle de données de quelqu'un d'autre. La préparation et l'envoi sont
+**deux actes sur deux écrans**, et la confirmation est **tapée** : l'opérateur recopie le
+mode du compte fournisseur, ce mot voyage avec la commande, et le Worker refuse si le mode a
+changé entre l'écran et le clic.
+
+**Le lien qui manquait est sur la fiche produit.** Aucune commande de cette boutique ne
+pouvait nommer un article fournisseur : les 26 399 articles du catalogue n'ont pas de prix
+de vente, et le t-shirt, le sweat et le vêtement client du studio n'étaient rattachés à
+aucune référence. Une fiche produit déclare désormais la référence du catalogue sur laquelle
+elle est imprimée et la correspondance de ses coloris, au même endroit et pour les mêmes
+raisons que le vêtement du studio qu'elle déclarait déjà. La taille correspond par son nom
+exact, et rien n'est déduit de la numérotation du fournisseur, qui est référence + coloris +
+un chiffre avec la même table des tailles dans tous les coloris. **Cela referme un trou du
+moteur de coût** : le coût textile d'une commande du studio était inconnu, donc son plancher
+n'était qu'un minimum ; il vient maintenant de l'article réel, taille par taille, parce
+qu'un 2XL ne coûte pas le prix d'un M.
+
+**Mesuré sur la même semaine de six commandes que la séance 07**, tarifs relevés en direct
+le 19 août : 67 pièces à 278,05 EUR de textile, et **48,00 EUR de port économisés**, qui
+sont l'intégralité du gain. Le textile coûte le même prix des deux côtés, un article se
+vendant à l'unité ; ce sont six ports de 8,00 EUR qui deviennent zéro parce que le panier
+groupé passe le franco de 200,00 EUR qu'aucune commande seule n'atteint. Même leçon que la
+séance 07 sur le film : ce que le groupage fait gagner, ce sont des frais fixes.
+
+**Envoyer est un acte unique et n'est jamais rejoué.** L'interface du fournisseur ne permet
+pas de relire une commande (vérifié : la route de commande interrogée en lecture répond
+`<response>0</response>` et il n'y a pas d'action `get_orders`), donc l'état « envoi en
+cours » est écrit et enregistré **avant** l'appel : un processus qui meurt en tenant la
+requête laisse un dossier qui dit « envoi incertain » et refuse de repartir. Trois issues et
+non deux, parce que « la réponse s'est perdue » n'est ni un échec à rejouer ni un succès à
+attendre. **Le dernier verrou est vide** : `FR_CUSTOMER_NR` n'est configuré nulle part, donc
+rien ne peut partir. Le code **devinait** ce numéro à partir du login et le signalait ; le
+repli est supprimé, et une sonde en mode test a essayé de confirmer la devinette auprès du
+fournisseur. **Non concluant, et le script le dit** : la passerelle répond exactement la
+même chose à un numéro de client délibérément faux qu'au nôtre.
+
+**Le stock est une observation datée.** Le relevé complet du catalogue tient en **un seul
+appel** au fournisseur, ce que personne n'avait essayé : le joker de troncature accepte un
+souligné à toutes les positions. Mesuré, 46 592 lignes en 674 ms et 908 ko, contre 460
+invocations pour la forme qui semblait naturelle. C'est ce qui rend tenable le « plusieurs
+fois par jour » du chapitre 4 : le balayage tourne six fois par jour et écrit l'horodatage
+du fournisseur à côté de chaque quantité. Un article que le relevé n'a pas mentionné garde
+sa date et vieillit tout seul, sinon un article retiré du catalogue deviendrait un article
+que la boutique annonce disponible. Le client lit **« Disponible », « Délai allongé » ou
+« Délai à confirmer »**, jamais un chiffre, et la troisième mention est celle que personne
+ne pense à construire.
+
+**Et l'horodatage du fournisseur n'est pas en UTC.** Mesuré : une même réponse portait
+14:49:09 en UTC, écrit par nous, à côté de 16:49:10 écrit par lui pour le même instant. Il
+écrit son heure murale. WordPress met le fuseau par défaut de PHP à UTC, donc chaque relevé
+aurait paru deux heures plus vieux qu'il n'est en été. Sous une fenêtre de 24 heures cela ne
+casse jamais tout à fait, ce qui est exactement pourquoi cela serait resté.
+
+**Ce que l'écran des achats montre en plus**, par commande : ce que les textiles coûtent au
+moment de l'achat contre ce que le rapport de marge gelé avait supposé. Ce qui n'y est pas
+et ne peut pas y être, c'est ce que le fournisseur a réellement **facturé** : son interface
+ne publie aucune facture, et l'écran le dit plutôt que de laisser croire que le
+rapprochement est complet.
+
+**Deux questions nouvelles, toutes deux trouvées en construisant.** La **46**, bloquante :
+combien de temps s'écoule entre un bon de commande textile et la réception ? Personne ne l'a
+jamais mesuré, la Bible ne le donne dans aucun de ses huit chapitres, et l'atelier ne
+planifie donc que le film. Les 6 jours ouvrés incompressibles mesurés par la séance 07 ne
+comptent **pas** l'acheminement des vêtements nus. La **47** : que fait-on quand le prix
+d'achat augmente entre le devis et l'achat ? Mises bout à bout, les règles de la Bible font
+que Teeshoop absorbe la hausse et reprend une part de commission au commercial pour une
+hausse qu'il n'a pas causée.
+
 ---
 
 ## Ce qu'il reste : quinze séances
@@ -323,7 +405,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~05~~ | ~~Moteur de coût, prix plancher, commissions~~ **faite** | - |
 | ~~06~~ | ~~BAT, cycle de vie de la commande, e-mails~~ **faite** | - |
 | ~~07~~ | ~~Production : imbrication du film entre commandes~~ **faite** | - |
-| 08 | Commande fournisseur et stock | 03, 07 |
+| ~~08~~ | ~~Commande fournisseur et stock~~ **faite** | - |
 | 09 | Le site : accueil, navigation, système de design | 02 |
 | 10 | Le studio en vitrine : 3D et mockups | 09 |
 | 11 | Référencement, contenu, données structurées | 09 |
@@ -359,7 +441,8 @@ ne peut le lever.
 | L'identité légale complète et le RCS | associé | Questions 17 et **45**. Rien n'est facturable sans, et rien n'est inventé à la place |
 | Une plateforme de facturation électronique | associé | Constat 7. Obligatoire **en réception au 1er septembre 2026**, quelle que soit la taille de l'entreprise. Ce n'est pas du développement, c'est une démarche |
 | Compte Brevo | associé | Séance 06 |
-| `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur n'a jamais pu partir |
+| `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur ne peut partir, même confirmée : le Worker répond 503 et ne construit aucun document. Le repli qui devinait ce numéro à partir du login a été supprimé, et une sonde en mode test n'a **pas** pu le confirmer auprès du fournisseur. `wrangler secret put FR_CUSTOMER_NR` |
+| **Le délai de livraison du fournisseur textile** | associé | Question **46**, ajoutée par la séance 08. Il n'existe nulle part : ni dans la Bible, ni chez le fournisseur, ni chez nous, qui n'avons jamais passé de commande. L'atelier sait donc quand commander le film et pas quand commander les vêtements, et la séance 08 n'a rien inventé à la place |
 
 ### Ce qui a été décidé le 18/08/2026 : avancer quand même
 

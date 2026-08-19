@@ -432,6 +432,37 @@ the product; a request naming a different garment is refused rather than
 corrected, because a disagreement means the page and the studio are selling two
 different things.
 
+### And which blank it is printed on
+
+Two more fields on the same screen, from session 08, in the same file and for
+the same argument: `_teeshoop_blank_ref` is the CATALOGUE REFERENCE this product
+is printed on, and `_teeshoop_blank_colours` maps the studio's colour ids onto
+the maker's own colour names.
+
+Before them, no order in this shop could name a supplier article: the imported
+catalogue's 26 399 articles have no selling price yet, so nobody can buy one,
+and the three studio garments were attached to no reference at all. Every
+purchase basket was therefore a list of lines reading « aucune référence », and
+the cost engine could only price a blank with a figure somebody typed on the
+costs screen.
+
+The reference is the one an operator already knows and the importer already
+writes on the parent product (`Catalogue::META_REF`), so it resolves by lookup.
+The colour has to be mapped by hand because « Blanc » is not a colour a supplier
+sells and the brief says in as many words that « Navy », « French Navy » and
+« Deep Navy » must not be merged without a rule. The SIZE matches by exact name
+and nothing else: no case folding, no nearest match.
+
+Nothing is derived from the supplier's article numbering. It is
+`styleNr . colourCode . one digit` with the same size-to-digit map in every
+colour, so a reference plus a size could be turned into an article number by
+concatenation; that number would be a guessed procurement key, and
+`Catalogue::variations()` already records what it cost to publish one.
+
+A colour with no entry, or a size the supplier does not sell in that colour, is
+REFUSED by name and blocks the purchase. Ordering the wrong size is the most
+expensive mistake in this system: the film is printed before the boxes arrive.
+
 ## Settings
 
 `teeshoop_settings` (option):
@@ -795,6 +826,61 @@ vocabulary as needles in every directory that renders, question 39's written
 default is that a devis names the salesperson and never the commission, and the
 register's own projection into `data/` withholds these rows and carries only
 their count.
+
+## Buying the blanks
+
+`Purchase.php` is to garments what `Production.php` is to film: the unit that
+buys is the run, not the order. `Purchase::basket()` derives a basket from a set
+of orders and their size grids, `prepare()` freezes it, `send()` transmits it
+once, and `PurchasePage.php` is where a human confirms. The decision behind all
+of it, with the options that were not taken and their failure modes, is
+`docs/ACHATS.md`.
+
+Four properties are worth knowing before touching it.
+
+**Every quantity is traceable and the code proves it.** Each basket row carries
+the (order, line, size) claims that built it, and `aggregate()` refuses a basket
+whose row quantity is not the sum of its claims. That is not defensive coding,
+it is the requirement: a quantity nobody can trace is a size somebody guessed.
+
+**`aggregate()` answers nothing about stock, deliberately.** It used to return a
+placeholder verdict, and `scripts/purchase-bench.mjs` read it and printed « tout
+est en stock » over a table showing zero L and zero XL against sixteen and four
+ordered. The verdict is `stock_verdict()` and a caller has to ask for it. A
+missing key is an error; a reassuring default is a lie with a tick beside it.
+
+**Sending writes SENDING before it calls, and never retries.** There is no way
+to ask this supplier whether an order exists, so a process that dies holding the
+request leaves « envoi incertain » and the send refuses to run again. Three
+outcomes, not two: accepted, refused (the orders go back, nothing was created)
+and uncertain (the orders stay pinned, their blanks may be on their way).
+
+**The inbound carriage is split, not repeated.** `Costing::compute()` charges an
+order its own carriage until its blanks are bought, and then its share of one
+document, allocated by `Cost::allocate()`, which is the same largest-remainder
+function the film uses. Two allocators would disagree on a cent, and that cent
+is what a supplier invoice fails to reconcile against.
+
+## Stock is an observation with a date
+
+`_teeshoop_stock_at` on the variation holds the timestamp the SUPPLIER published
+with the quantity, not the moment we copied it. `wp teeshoop stock rafraichir`
+sweeps the whole catalogue from one snapshot (one upstream call, measured at
+46 591 articles in 674 ms) six times a day and writes both.
+
+An article the snapshot did not mention keeps its old date and goes stale by
+itself. A sweep that stamped everything it did not see would turn an article the
+supplier has withdrawn into one the shop claims is available.
+
+`Shelf::availability` is the only place the shop speaks about supplier stock to
+a customer, and it never prints a figure: « Disponible » under 24 hours with
+stock, « Délai allongé » under 24 hours without, and « Délai à confirmer » for
+anything older or unknown. The third is not a degraded version of the other two.
+
+The supplier's timestamp is in HIS wall clock, which is ours, and WordPress sets
+PHP's default timezone to UTC. `Purchase::fresh` parses it in the shop's
+timezone explicitly; `strtotime` would read every reading two hours into the
+past in summer.
 
 ## Not built yet
 
