@@ -1482,6 +1482,14 @@ final class Production {
 	 * Not a tolerance and not an estimate: area divided by width. It is the one
 	 * bound the shop can state about a layout it did not compute, and it bounds
 	 * the BILLED length too, since billing rounds a raw extent up and never down.
+	 *
+	 * THE AREA IS THE TRANSFER BOXES, not the ink inside them. It is called with
+	 * `$posted['area_sq_cm']`, the sum of the rectangles the studio says it
+	 * nested, which is larger than the ink and therefore a HIGHER floor: a bound
+	 * on how short a length may be gets stronger as the area gets bigger, so the
+	 * conservative direction is the one taken. It also makes the check a
+	 * self-consistency test of the layout's own numbers, which is what lets it
+	 * hold for a graded order whose real ink nobody here can know.
 	 */
 	public static function minimum_length_m( float $area_sq_cm, float $width_cm ): float {
 		if ( $width_cm <= 0 || $area_sq_cm <= 0 ) {

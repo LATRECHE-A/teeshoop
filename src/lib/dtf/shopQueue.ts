@@ -203,20 +203,6 @@ export async function createLot(
   return body.lot
 }
 
-/** Order the film, receive it, close the lot. Frozen from the first of those on. */
-export async function setLotState(
-  cred: WooCredentials,
-  lotId: number,
-  state: string,
-): Promise<Record<string, unknown>> {
-  const body = (await call(cred, `production/lots/${lotId}/etat`, {
-    method: 'POST',
-    body: { state },
-  })) as { lot?: Record<string, unknown> }
-  if (!body?.lot) throw new ShopError('parse')
-  return body.lot
-}
-
 /** What went wrong, in a sentence an operator can act on. */
 export function shopFailureFr(err: unknown): string {
   if (!(err instanceof ShopError)) return 'La boutique n’a pas répondu comme prévu.'

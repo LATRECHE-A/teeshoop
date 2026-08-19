@@ -24,9 +24,15 @@
  *
  * WHAT THE SHOP KEEPS is the part that decides money: it hands out the queue,
  * it bounds the layout it is handed back (`Production::create_lot` checks the
- * poses, the physical floor, the packer's own ceiling and the ink), and it does
- * the arithmetic of the bill in integer cents. The browser measures; the server
- * decides. That is the seam this project already uses for the price.
+ * poses, the physical floor, the packer's own ceiling, the ink and the roll), and
+ * it does the arithmetic of the bill in integer cents. The browser measures; the
+ * server decides. That is the seam this project already uses for the price.
+ *
+ * WHAT THIS FILE DOES NOT DO is turn an order into transfers. It fetches and it
+ * shapes; `productionRun.ts` turns an order into gang-sheet QUEUE ROWS and the
+ * modal renders them through the pipeline that already existed. An earlier draft
+ * had a `renderOrderTransfers` here doing the same work a second way, which is
+ * two implementations of one rule and was never called.
  *
  * WHAT IT DOES NOT LEAVE BEHIND
  * -----------------------------
@@ -35,13 +41,10 @@
  * archive of everybody's artwork, and `releaseStoredDesigns` drops them when the
  * run is done.
  */
-import type { Design, Side, SizeId } from '@/lib/types'
+import type { Design, SizeId } from '@/lib/types'
 import { migrateDesign } from '@/lib/migrate'
 import { adoptAssetImage, releaseAdoptedImages } from '@/state/assets'
 import { adminAuthHeaders } from '@/lib/admin/token'
-import { piecePlacementCm, printedSides, renderPieces, type RenderedPiece } from './pieces'
-import type { PieceSplitOptions } from '@/lib/ink'
-import type { RunOrderPiece } from './run'
 
 /** One order line, as the shop's production queue describes it. */
 export interface QueueLine {
@@ -188,98 +191,6 @@ export function lineSizes(line: QueueLine): { size: SizeId | undefined; qty: num
    * line is what was paid for and what the picking list will pull off a shelf.
    */
   return [{ size: undefined, qty: Math.max(1, line.qty) }]
-}
-
-/** What one order contributes to a run: its transfers, and the artwork for them. */
-export interface OrderTransfers {
-  orderId: string
-  ref: string
-  pieces: RunOrderPiece[]
-  /** Rendered artwork by transfer key, for the sheets and the cutting plans. */
-  sources: Map<string, RenderedPiece>
-  /** Garment-sides pressed. The number the shop checks exactly. */
-  poses: number
-  /** Copies of transfers on the film. Depends on the split, so it is reported. */
-  copies: number
-  /** Sum of transfer box area over every copy, cm2. */
-  areaSqCm: number
-}
-
-const SIDE_LABEL: Record<string, string> = {
-  front: 'devant',
-  back: 'dos',
-  sleeve: 'manche',
-}
-
-const sideLabel = (side: Side): string => SIDE_LABEL[side] ?? side
-
-/**
- * Render every transfer an order needs, at the size each garment is really
- * printed at.
- *
- * THIS IS WHAT RE-RENDERING BUYS. The rectangles stored on the order were all
- * measured at ONE size, the pricing size, because a price has to be one number
- * (question 37). The workshop prints the sizes that were ordered, and a graded
- * design's 3XL transfer is physically larger than its M. Nesting the stored
- * rectangles would under-buy film on a run of large garments and over-buy on a
- * run of small ones; nesting these does not.
- *
- * The key of every piece carries the line, the side, the size and the part, so a
- * placement on a shared gang sheet names exactly one transfer of one order at
- * one size, which is what the press sheet and the cutting plan are read from.
- */
-export async function renderOrderTransfers(
-  order: QueueOrder,
-  designs: ReadonlyMap<string, StoredDesign>,
-  dpi: number,
-  opts?: PieceSplitOptions,
-): Promise<OrderTransfers> {
-  const pieces: RunOrderPiece[] = []
-  const sources = new Map<string, RenderedPiece>()
-  let poses = 0
-  let copies = 0
-  let areaSqCm = 0
-
-  for (const line of order.lines) {
-    const stored = designs.get(line.design_id)
-    if (!stored) throw new StoredDesignError('not_found', line.design_id)
-    const sides: Side[] = printedSides(stored.design)
-    poses += sides.length * Math.max(1, line.qty)
-
-    for (const side of sides) {
-      for (const { size, qty } of lineSizes(line)) {
-        const baseKey = `${line.item_id}:${side}${size ? `#${size}` : ''}`
-        const parts = await renderPieces(stored.design, side, dpi, size, { ...opts, baseKey })
-        for (const part of parts) {
-          const placement = piecePlacementCm(part)
-          pieces.push({
-            key: part.sourceKey,
-            wCm: part.wCm,
-            hCm: part.hCm,
-            qty,
-            topCm: placement.topCm,
-            centerDxCm: placement.centerDxCm,
-            label: `${order.ref} ${line.label}${size ? ` ${size}` : ''} ${sideLabel(side)}${
-              part.parts > 1 ? ` ${part.part}/${part.parts}` : ''
-            }`,
-          })
-          sources.set(part.sourceKey, part)
-          copies += qty
-          areaSqCm += part.wCm * part.hCm * qty
-        }
-      }
-    }
-  }
-
-  return {
-    orderId: String(order.id),
-    ref: order.ref,
-    pieces,
-    sources,
-    poses,
-    copies,
-    areaSqCm: Math.round(areaSqCm * 1000) / 1000,
-  }
 }
 
 /** Blanks to pull off a shelf for a whole run, one row per SKU and size. */
