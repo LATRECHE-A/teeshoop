@@ -640,6 +640,14 @@ ts_margin_suite( $product_id );
 require_once __DIR__ . '/integration-lifecycle.php';
 ts_lifecycle_suite( $product_id, $bare_id );
 
+/*
+ * And the fourth: what a print run is. It runs after the lifecycle suite because
+ * it needs a paid order with an approved proof, which is what that one sets up
+ * the machinery for.
+ */
+require_once __DIR__ . '/integration-production.php';
+ts_production_suite( $product_id );
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 

@@ -186,6 +186,21 @@ const ALLOWED = new Map([
     },
   ],
   [
+    'wp-plugins/teeshoop-core/includes/ProductionPage.php',
+    {
+      /*
+       * The workshop's screen. It prints what a lot of film cost and what
+       * pooling saved, which is shop-internal, to `manage_woocommerce` and to
+       * nobody else — the same posture as `CostAdmin.php` and for the same
+       * reason. It is NOT in the `RENDERED` list because it is a wp-admin page
+       * behind a capability, unlike `BatPage.php`, which renders a whole
+       * document to a customer.
+       */
+      why: 'the workshop screen; wp-admin only, manage_woocommerce, and it names the urgency vocabulary and the film geometry',
+      needles: [ 'Costing::', 'PriceRule::' ],
+    },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/Production.php',
     {
       /*
@@ -203,6 +218,10 @@ const ALLOWED = new Map([
   [
     'wp-plugins/teeshoop-core/tests/test-production.php',
     { why: 'the tests for the queue and the lots', needles: [ 'Cost::', 'Costing::', 'PriceRule::' ] },
+  ],
+  [
+    'wp-plugins/teeshoop-core/tests/integration-production.php',
+    { why: 'the same tests against a real WooCommerce; command line only, like the rest of tests/', needles: [ 'Cost::', 'Costing::', 'PriceRule::' ] },
   ],
   [
     'wp-plugins/teeshoop-core/includes/Lifecycle.php',

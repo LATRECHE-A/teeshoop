@@ -137,6 +137,7 @@ require_once __DIR__ . '/includes/ProductPage.php';
 require_once __DIR__ . '/includes/Nest.php';
 require_once __DIR__ . '/includes/Costing.php';
 require_once __DIR__ . '/includes/Production.php';
+require_once __DIR__ . '/includes/ProductionPage.php';
 require_once __DIR__ . '/includes/Waiver.php';
 require_once __DIR__ . '/includes/Lifecycle.php';
 require_once __DIR__ . '/includes/Mail.php';
@@ -188,6 +189,7 @@ function boot(): void {
 	Claim::init();
 	Quote::init();
 	Production::init();
+	ProductionPage::init();
 	Hypotheses::init();
 	Compat::init();
 	Admin::init();

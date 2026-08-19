@@ -469,6 +469,7 @@ final class Production {
 
 	public static function init(): void {
 		add_action( 'init', array( self::class, 'register' ) );
+		add_action( 'rest_api_init', array( self::class, 'register_rest' ) );
 	}
 
 	/** The lot post type. Non-public: it names customers and their artwork. */
@@ -1292,5 +1293,179 @@ final class Production {
 	/** ISO date as a French one. Display only. */
 	public static function fr_date( string $iso ): string {
 		return 1 === preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $iso, $m ) ? "$m[3]/$m[2]/$m[1]" : $iso;
+	}
+
+	// ── the REST surface the studio talks to ─────────────────────────────────
+
+	/**
+	 * `wc-teeshoop/v1`, and the prefix is the whole point.
+	 *
+	 * The workshop tool is the admin studio, which runs on the Worker's origin
+	 * and therefore has no WordPress cookie and no REST nonce — the same problem
+	 * the customer studio has, for the same reason. What it DOES have is the
+	 * WooCommerce consumer key and secret the catalogue importer already uses
+	 * (`src/lib/ingest/woo.ts`).
+	 *
+	 * WooCommerce authenticates a REST request by key only when the route looks
+	 * like one of its own: `WC_REST_Authentication::is_request_to_rest_api()`
+	 * matches `wc/` and, expressly for third parties, `wc-`. So a namespace
+	 * beginning `wc-` is WooCommerce's own documented opt-in, and it is the
+	 * reason this is not `teeshoop/v1` beside the public routes. It also keeps
+	 * the two surfaces visibly apart: `teeshoop/v1` is public and returns selling
+	 * prices, this one is admin-only and returns customers, deadlines and film.
+	 */
+	private const REST_NS = 'wc-teeshoop/v1';
+
+	public static function register_rest(): void {
+		$admin = array( self::class, 'may_manage' );
+
+		register_rest_route(
+			self::REST_NS,
+			'/production/queue',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'rest_queue' ),
+				'permission_callback' => $admin,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NS,
+			'/production/lots',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( self::class, 'rest_lots' ),
+					'permission_callback' => $admin,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( self::class, 'rest_create_lot' ),
+					'permission_callback' => $admin,
+				),
+			)
+		);
+
+		register_rest_route(
+			self::REST_NS,
+			'/production/lots/(?P<id>\d+)/etat',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( self::class, 'rest_lot_state' ),
+				'permission_callback' => $admin,
+			)
+		);
+	}
+
+	/**
+	 * The one permission, spelled out rather than `is_user_logged_in`.
+	 *
+	 * Everything behind it is shop-internal: customer names, deadlines, our film
+	 * economics and the share each order is charged. `manage_woocommerce` is the
+	 * capability the cost screens already use, so there is one answer to "who may
+	 * see what an order costs us".
+	 */
+	public static function may_manage(): bool|\WP_Error {
+		if ( current_user_can( 'manage_woocommerce' ) ) {
+			return true;
+		}
+		return new \WP_Error(
+			'teeshoop_forbidden',
+			__( 'Cette route est réservée à l’atelier.', 'teeshoop' ),
+			array( 'status' => rest_authorization_required_code() )
+		);
+	}
+
+	/** GET /production/queue — what could go on a press today. */
+	public static function rest_queue( \WP_REST_Request $request ): \WP_REST_Response {
+		$today  = self::read_date( (string) $request->get_param( 'today' ) );
+		$config = self::config();
+		$film   = (array) ( Costing::config()['film'] ?? array() );
+
+		return new \WP_REST_Response(
+			array(
+				'today'  => $today,
+				'orders' => self::queue( $today ),
+				/*
+				 * The geometry the studio must nest on. It is sent rather than
+				 * assumed because the roll the shop is quoted on is a stored
+				 * setting: a studio packing 58 cm while the shop pays for 56 would
+				 * produce a layout the supplier cannot print and a cost nobody
+				 * can reconcile.
+				 */
+				'film'   => array(
+					'width_cm'        => (float) ( $film['width_cm'] ?? 0 ),
+					'gap_cm'          => (float) ( $film['gap_cm'] ?? 0 ),
+					'max_length_cm'   => (float) ( $film['max_length_cm'] ?? 0 ),
+					'billing_step_cm' => (float) ( $film['billing_step_cm'] ?? 10 ),
+					'days_fr'         => (int) ( $film['days_fr'] ?? 0 ),
+					'days_es'         => (int) ( $film['days_es'] ?? 0 ),
+				),
+				'capacity' => array(
+					'press_per_day' => (int) $config['press_per_day'],
+					'manual_above'  => (int) $config['manual_above'],
+				),
+				/*
+				 * Sent so the screen can say it out loud. Two of the three
+				 * promised lead times cannot be kept at these defaults, and an
+				 * operator planning a day is exactly who needs to know.
+				 */
+				'feasibility' => self::feasibility( $config, $film ),
+			)
+		);
+	}
+
+	/** GET /production/lots — the recent lots, newest first. */
+	public static function rest_lots( \WP_REST_Request $request ): \WP_REST_Response {
+		$limit = (int) $request->get_param( 'limit' );
+		return new \WP_REST_Response(
+			array( 'lots' => self::lots( $limit > 0 ? min( 100, $limit ) : 30 ) )
+		);
+	}
+
+	/** POST /production/lots — create one from a chosen set and a measured layout. */
+	public static function rest_create_lot( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$body = $request->get_json_params();
+		if ( ! is_array( $body ) ) {
+			return new \WP_Error( 'teeshoop_bad_body', __( 'Requête incorrecte.', 'teeshoop' ), array( 'status' => 400 ) );
+		}
+		$made = self::create_lot(
+			array_map( 'intval', (array) ( $body['orders'] ?? array() ) ),
+			(string) ( $body['origin'] ?? '' ),
+			is_array( $body['layout'] ?? null ) ? $body['layout'] : array(),
+			self::read_date( (string) ( $body['today'] ?? '' ) )
+		);
+		if ( ! $made['ok'] ) {
+			return new \WP_Error( 'teeshoop_lot_refuse', $made['reason'], array( 'status' => 422 ) );
+		}
+		return new \WP_REST_Response( array( 'lot' => $made['lot'] ), 201 );
+	}
+
+	/** POST /production/lots/{id}/etat — order the film, receive it, close it. */
+	public static function rest_lot_state( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$id    = (int) $request->get_param( 'id' );
+		$body  = $request->get_json_params();
+		$state = is_array( $body ) ? (string) ( $body['state'] ?? '' ) : '';
+
+		$done = self::SENT === $state
+			? self::send_lot( $id, self::read_date( is_array( $body ) ? (string) ( $body['today'] ?? '' ) : '' ) )
+			: self::advance_lot( $id, $state );
+
+		if ( ! $done['ok'] ) {
+			return new \WP_Error( 'teeshoop_lot_etat', $done['reason'], array( 'status' => 409 ) );
+		}
+		return new \WP_REST_Response( array( 'lot' => self::lot( $id ) ) );
+	}
+
+	/**
+	 * A date from a request, or today.
+	 *
+	 * A PARAMETER AND NOT A CONVENIENCE: every schedule in this module is a pure
+	 * function of the day it is asked about, which is what lets a run be replayed
+	 * and a test assert a date. It is only ever read from an admin request, so
+	 * the worst an operator can do with it is plan against the wrong Tuesday.
+	 */
+	private static function read_date( string $raw ): string {
+		return null !== self::date( $raw ) ? $raw : Settings::today();
 	}
 }
