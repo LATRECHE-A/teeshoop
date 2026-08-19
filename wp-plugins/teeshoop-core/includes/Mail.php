@@ -137,7 +137,7 @@ final class Mail {
 	 *
 	 * @return array{ok:bool,reason:string,id:int}
 	 */
-	public static function send( array $message ): array {
+	public static function send( array $message, ?string $environment = null ): array {
 		$id = self::record( $message );
 
 		$to = (string) ( $message['to'] ?? '' );
@@ -150,7 +150,7 @@ final class Mail {
 			);
 		}
 
-		$result = self::deliver( $message );
+		$result = self::deliver( $message, $environment );
 		self::finish(
 			$id,
 			$result['ok'] ? self::SENT : self::FAILED,
@@ -169,15 +169,20 @@ final class Mail {
 	/**
 	 * Hand the message to whatever can carry it.
 	 *
+	 * `$environment` is a parameter rather than a call to `wp_get_environment_type()`
+	 * for the reason `Invoice::compose` and `Legal::verdict` already take one: the
+	 * behaviour DEPENDS on it, so a suite that cannot vary it can only ever prove
+	 * one of the three answers, and the one it would prove is the developer's.
+	 *
 	 * @return array{ok:bool,reason:string,transport:string,message_id:string}
 	 */
-	private static function deliver( array $message ): array {
+	private static function deliver( array $message, ?string $environment = null ): array {
 		$key = self::api_key();
 		if ( '' !== $key ) {
 			return self::brevo( $message, $key );
 		}
 
-		$environment = Legal::environment();
+		$environment = null === $environment ? Legal::environment() : $environment;
 		if ( 'production' === $environment ) {
 			/*
 			 * FAIL CLOSED, and loudly. An unset secret denies everything: the
@@ -446,7 +451,7 @@ final class Mail {
 	 *
 	 * @return array{ok:bool,reason:string}
 	 */
-	public static function retry( int $id ): array {
+	public static function retry( int $id, ?string $environment = null ): array {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::table() . ' WHERE id = %d', $id ) );
@@ -474,7 +479,7 @@ final class Mail {
 			);
 		}
 
-		$result = self::deliver( $rebuilt['message'] );
+		$result = self::deliver( $rebuilt['message'], $environment );
 		self::finish( $id, $result['ok'] ? self::SENT : self::FAILED, $result['transport'], $result['message_id'], $result['reason'] );
 		return array(
 			'ok'     => $result['ok'],

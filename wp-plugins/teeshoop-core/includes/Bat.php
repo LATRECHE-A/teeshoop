@@ -706,15 +706,13 @@ final class Bat {
 	}
 
 	/**
-	 * Approve, or ask for changes.
+	 * Approve, or ask for changes: the REQUEST half.
 	 *
-	 * WHAT IS RECORDED AND WHY EACH PART. The instant, because « quand » is the
-	 * first question anyone asks. The address, because it is the only thing
-	 * distinguishing the customer's own click from ours. The exact version and
-	 * the exact wording that was on the screen, because a document that has
-	 * moved since cannot tell you what was agreed to. The user agent, because a
-	 * dispute about "I never clicked that" is answered by the whole record or
-	 * not at all.
+	 * It reads the request, calls `record_decision()` and renders. Nothing is
+	 * decided here, deliberately: a handler that reads `$_POST` and ends in
+	 * `exit` cannot be called from a test, so a suite driving it would have to
+	 * restate the rules, and a test that restates the rules proves that the
+	 * restatement works.
 	 */
 	public static function decide(): void {
 		$order_id = isset( $_POST['c'] ) ? absint( wp_unslash( $_POST['c'] ) ) : 0;
@@ -724,30 +722,62 @@ final class Bat {
 		$comment  = isset( $_POST['commentaire'] ) ? sanitize_textarea_field( wp_unslash( $_POST['commentaire'] ) ) : '';
 
 		$found = self::locate( $order_id, $version, $token );
-		if ( null === $found['order'] || 'ok' !== $found['state'] ) {
-			nocache_headers();
-			header( 'Content-Type: text/html; charset=utf-8' );
-			status_header( null === $found['order'] ? 404 : 409 );
-			if ( null === $found['order'] ) {
-				BatPage::not_found();
-			} else {
-				BatPage::render( $found['order'], $found['version'], $found['state'], $token );
-			}
+
+		nocache_headers();
+		header( 'X-Robots-Tag: noindex, nofollow, noarchive' );
+		header( 'Referrer-Policy: no-referrer' );
+		header( 'X-Frame-Options: DENY' );
+		header( 'Content-Type: text/html; charset=utf-8' );
+
+		if ( null === $found['order'] ) {
+			status_header( 404 );
+			BatPage::not_found();
+			exit;
+		}
+		if ( 'ok' !== $found['state'] ) {
+			// The page that says why: expired, replaced, or already answered.
+			status_header( 409 );
+			BatPage::render( $found['order'], $found['version'], $found['state'], $token );
 			exit;
 		}
 
-		$order = $found['order'];
-		$now   = gmdate( 'c' );
 		/*
 		 * REMOTE_ADDR AND NOT X-Forwarded-For. A forwarded header is written by
 		 * whoever sent the request, so recording it would let the person
 		 * approving choose what the evidence says. WordPress is served directly
-		 * on this host; the day it sits behind a proxy, the proxy's own trusted
+		 * on this host; the day it sits behind a proxy, that proxy's own trusted
 		 * header is configured once, here, on purpose.
 		 */
 		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
 		$ua = isset( $_SERVER['HTTP_USER_AGENT'] ) ? mb_substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ), 0, 300 ) : '';
 
+		$decided = self::record_decision( $found['order'], $version, $choice, $comment, $ip, $ua );
+		if ( empty( $decided['ok'] ) ) {
+			status_header( 409 );
+			BatPage::render( $found['order'], $found['version'], 'decided', $token );
+			exit;
+		}
+
+		BatPage::render( wc_get_order( $order_id ), $decided['version'], 'decided', $token );
+		exit;
+	}
+
+	/**
+	 * Write the customer's decision onto the version. THE DECISION ITSELF.
+	 *
+	 * WHAT IS RECORDED AND WHY EACH PART. The instant, because « quand » is the
+	 * first question anyone asks. The address, because it is the only thing
+	 * distinguishing the customer's own click from ours. The exact version and
+	 * the exact wording that was on the screen, because a document that has
+	 * moved since cannot tell you what was agreed to. The user agent, because a
+	 * dispute about "I never clicked that" is answered by the whole record or
+	 * not at all.
+	 *
+	 * @param string $choice `valider`, or anything else, which asks for changes.
+	 *
+	 * @return array{ok:bool,version?:array,reason?:string}
+	 */
+	public static function record_decision( \WC_Order $order, int $version, string $choice, string $comment, string $ip, string $ua ): array {
 		$versions = self::versions( $order );
 		$index    = null;
 		foreach ( $versions as $i => $candidate ) {
@@ -757,10 +787,22 @@ final class Bat {
 			}
 		}
 		if ( null === $index ) {
-			status_header( 404 );
-			BatPage::not_found();
-			exit;
+			return array(
+				'ok'     => false,
+				'reason' => 'Cette version du bon à tirer n’existe pas.',
+			);
 		}
+		if ( ! empty( $versions[ $index ]['approval'] ) || ! empty( $versions[ $index ]['changes'] ) ) {
+			// ANSWERED ONCE. A second decision on the same version would either
+			// overwrite an approval or count a correction round twice, and both
+			// are worse than telling the customer it is already done.
+			return array(
+				'ok'     => false,
+				'reason' => 'Ce bon à tirer a déjà reçu une réponse.',
+			);
+		}
+
+		$now = gmdate( 'c' );
 
 		if ( 'valider' === $choice ) {
 			$versions[ $index ]['approval'] = array(
@@ -770,50 +812,45 @@ final class Bat {
 				'text' => (string) $versions[ $index ]['text'],
 				'by'   => 'client',
 			);
-			$order->update_meta_data( self::META_VERSIONS, wp_json_encode( $versions ) );
-			$order->save();
-
-			Lifecycle::transition(
-				$order,
-				Lifecycle::APPROVED,
-				array(
-					'source' => 'client',
-					'reason' => sprintf( 'BAT version %d validé par le client', $version ),
-				)
-			);
-			do_action( 'teeshoop_bat_approved', $order, $versions[ $index ] );
 		} else {
 			/*
 			 * THE COMMENT IS THE POINT OF THIS BRANCH. A refusal that loses what
 			 * the customer asked for turns one correction round into two, and
-			 * the second one is our fault. It is stored on the version that was
-			 * refused, so the next version can be composed beside it.
+			 * the second one is our own fault. It is stored on the version that
+			 * was refused, so the next version is composed beside it.
 			 */
 			$versions[ $index ]['changes'][] = array(
 				'at'      => $now,
 				'ip'      => $ip,
 				'comment' => mb_substr( $comment, 0, self::COMMENT_MAX ),
 			);
-			$order->update_meta_data( self::META_VERSIONS, wp_json_encode( $versions ) );
-			$order->save();
-
-			Lifecycle::transition(
-				$order,
-				Lifecycle::CHANGES,
-				array(
-					'source' => 'client',
-					'reason' => sprintf( 'Modifications demandées sur le BAT version %d', $version ),
-				)
-			);
-			do_action( 'teeshoop_bat_changes', $order, $versions[ $index ] );
 		}
 
-		$fresh = self::locate( $order_id, $version, $token );
-		nocache_headers();
-		header( 'X-Robots-Tag: noindex, nofollow, noarchive' );
-		header( 'Content-Type: text/html; charset=utf-8' );
-		BatPage::render( $order, $fresh['version'] ?? $versions[ $index ], 'decided', $token );
-		exit;
+		$order->update_meta_data( self::META_VERSIONS, wp_json_encode( $versions ) );
+		$order->save();
+
+		$approved = 'valider' === $choice;
+		Lifecycle::transition(
+			$order,
+			$approved ? Lifecycle::APPROVED : Lifecycle::CHANGES,
+			array(
+				'source' => 'client',
+				'reason' => $approved
+					? sprintf( 'BAT version %d validé par le client', $version )
+					: sprintf( 'Modifications demandées sur le BAT version %d', $version ),
+			)
+		);
+
+		do_action(
+			$approved ? 'teeshoop_bat_approved' : 'teeshoop_bat_changes',
+			wc_get_order( $order->get_id() ),
+			$versions[ $index ]
+		);
+
+		return array(
+			'ok'      => true,
+			'version' => $versions[ $index ],
+		);
 	}
 
 	// ── the archive copy ─────────────────────────────────────────────────────

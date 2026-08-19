@@ -637,6 +637,9 @@ require_once __DIR__ . '/integration-margin.php';
 ts_margin_suite( $product_id );
 
 // And the one thing a single process cannot check about itself.
+require_once __DIR__ . '/integration-lifecycle.php';
+ts_lifecycle_suite( $product_id );
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 

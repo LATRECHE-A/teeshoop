@@ -1,0 +1,709 @@
+<?php
+/**
+ * The lifecycle, the proof and the outbox, against a real WooCommerce.
+ *
+ * WHY NONE OF THIS CAN BE A PURE TEST. The state machine is pure and tested in
+ * `test-lifecycle.php`; everything here is the seam, which is where this project
+ * loses money. A custom order status that is registered on one filter and not
+ * the other stores itself as `pending` with no error. A guard hooked on the
+ * wrong name never runs and the file claims a protection it does not have. An
+ * order in a status WooCommerce does not consider paid vanishes from the shop's
+ * own takings. None of those is visible from a pure test and all three have
+ * shipped in this plugin before.
+ *
+ * NO `declare(strict_types=1)`: this file is `require`d, and it must stay
+ * requirable from `integration.php`, which `wp eval-file` eval()s.
+ *
+ * @package Teeshoop\Core
+ */
+
+use Teeshoop\Core\Bat;
+use Teeshoop\Core\Lifecycle;
+use Teeshoop\Core\Mail;
+use Teeshoop\Core\Notify;
+use Teeshoop\Core\Settlement;
+use Teeshoop\Core\Vat;
+
+/** One printed side with real geometry AND the placement a proof states. */
+function ts_lc_sides(): array {
+	return array(
+		array(
+			'id'         => 'front',
+			'area_sq_cm' => 288.0,
+			'area_w_cm'  => 30.5,
+			'area_h_cm'  => 40.6,
+			'drop_cm'    => 22.4,
+			'pieces'     => array(
+				array(
+					'w_cm'         => 18.0,
+					'h_cm'         => 14.5,
+					'top_cm'       => 5.2,
+					'center_dx_cm' => -1.5,
+				),
+				array(
+					'w_cm'         => 12.0,
+					'h_cm'         => 3.2,
+					'top_cm'       => 22.0,
+					'center_dx_cm' => 0.0,
+				),
+			),
+		),
+	);
+}
+
+/** A paid order with one personalised line. */
+function ts_lc_order( int $product_id, int $qty = 6 ): \WC_Order {
+	ts_ck_fill( $product_id, $qty, ts_lc_sides() );
+	$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+	$order->set_billing_email( 'client@example.test' );
+	$order->set_billing_first_name( 'Camille' );
+	$order->set_billing_last_name( 'Roux' );
+	$order->set_billing_company( 'Atelier Roux' );
+	$order->save();
+	$order->payment_complete( 'ts-lc-' . $order->get_id() );
+	return wc_get_order( $order->get_id() );
+}
+
+/**
+ * Every outbound HTTP call, answered by us.
+ *
+ * `pre_http_request` is the only seam WordPress gives for this, and it is the
+ * right one: the plugin's real `wp_remote_post` runs, its headers and body are
+ * built by the real code, and only the wire is replaced. A test that called a
+ * mock client instead would prove that the mock works.
+ *
+ * @return array the calls that were made, by reference, so a case can read them.
+ */
+function &ts_lc_capture_http( int $status = 201, array $body = array( 'messageId' => '<abc@brevo>' ) ) {
+	remove_all_filters( 'pre_http_request' );
+	$GLOBALS['ts_lc_http'] = array();
+	add_filter(
+		'pre_http_request',
+		function ( $pre, $args, $url ) use ( $status, $body ) {
+			$GLOBALS['ts_lc_http'][] = array(
+				'url'    => $url,
+				'method' => $args['method'] ?? 'GET',
+				'body'   => isset( $args['body'] ) && is_string( $args['body'] ) ? json_decode( $args['body'], true ) : null,
+				'header' => $args['headers'] ?? array(),
+			);
+			if ( false === strpos( (string) $url, 'brevo.com' ) ) {
+				// Not ours: let the design verification keep its own stub.
+				return $pre;
+			}
+			return array(
+				'headers'  => array(),
+				'body'     => wp_json_encode( $body ),
+				'response' => array(
+					'code'    => $status,
+					'message' => 'stub',
+				),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		},
+		10,
+		3
+	);
+	return $GLOBALS['ts_lc_http'];
+}
+
+function ts_lc_brevo_calls(): array {
+	return array_values(
+		array_filter(
+			(array) ( $GLOBALS['ts_lc_http'] ?? array() ),
+			static fn( array $call ): bool => false !== strpos( (string) $call['url'], 'brevo.com' )
+		)
+	);
+}
+
+function ts_lifecycle_suite( int $product_id ): void {
+	$saved_settings = get_option( 'teeshoop_settings', array() );
+
+	/*
+	 * CLEARED AND SET AT THE START, not only restored at the end. A case that
+	 * fails throws before its own cleanup, and a leftover `mail_from` would then
+	 * change what the NEXT run's Brevo assertions see.
+	 */
+	update_option(
+		'teeshoop_settings',
+		array_merge(
+			(array) $saved_settings,
+			array(
+				'mail_from'      => 'atelier@teeshoop.test',
+				'mail_from_name' => 'Teeshoop',
+				'mail_atelier'   => 'atelier@teeshoop.test',
+			)
+		)
+	);
+
+	ts_ck_regime( Vat::STANDARD );
+	ts_ck_customer_in_france();
+
+	/*
+	 * SILENCE SENDMAIL. `wp_mail` is a real path here (no Brevo key on the
+	 * mirror) and this container has no MTA, so every send would print
+	 * "sendmail: can't connect to remote host" into the middle of the suite's
+	 * own output. `integration-checkout.php` does the same thing for the same
+	 * reason, and records that a runner skipping its suite has to repeat it.
+	 */
+	add_filter( 'pre_wp_mail', '__return_true' );
+
+	echo "\nCycle de vie, BAT et envois\n";
+
+	// ── the statuses are real ────────────────────────────────────────────────
+
+	ts_it( 'registers a status WooCommerce will actually store', function () use ( $product_id ) {
+		/*
+		 * THE TRAP THIS CATCHES. `WC_Abstract_Order::set_status()` validates
+		 * against `wc_get_order_statuses()` and silently rewrites anything else
+		 * to `pending`. A status registered as a post status but missing from
+		 * that filter therefore looks registered, saves without error, and reads
+		 * back as an unpaid order.
+		 */
+		$order = ts_lc_order( $product_id );
+		$order->set_status( Lifecycle::PROOF );
+		$order->save();
+		ts_eq( wc_get_order( $order->get_id() )->get_status(), Lifecycle::PROOF, 'statut stocké' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'keeps an order in one of our statuses inside the shop’s own takings', function () use ( $product_id ) {
+		// `wc_get_is_paid_statuses()` ships `processing` and `completed` only. An
+		// order on the press with its money banked is as paid as either, and
+		// leaving it off makes it vanish from every report between the press and
+		// the parcel.
+		$order = ts_lc_order( $product_id );
+		Lifecycle::transition( $order, Lifecycle::PROOF );
+		$order = wc_get_order( $order->get_id() );
+		ts_assert( $order->is_paid(), 'une commande « BAT envoyé » doit rester payée' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'finds an order in one of our statuses when asked for any', function () use ( $product_id ) {
+		// `exclude_from_search => true` would drop it out of `status => 'any'`,
+		// which is how an order disappears from every admin list at once.
+		$order = ts_lc_order( $product_id );
+		Lifecycle::transition( $order, Lifecycle::PROOF );
+		$ids = wc_get_orders(
+			array(
+				'status' => 'any',
+				'limit'  => -1,
+				'return' => 'ids',
+			)
+		);
+		ts_assert( in_array( $order->get_id(), $ids, true ), 'commande introuvable en statut « any »' );
+		$order->delete( true );
+	} );
+
+	// ── the gate ─────────────────────────────────────────────────────────────
+
+	ts_it( 'refuses to put an order on the press without an approved BAT', function () use ( $product_id ) {
+		$order    = ts_lc_order( $product_id );
+		$blockers = Lifecycle::blockers( $order, Lifecycle::PRODUCTION );
+		ts_assert( ! empty( $blockers ), 'aucun blocage sur une commande sans BAT' );
+		ts_assert( false !== strpos( implode( ' ', $blockers ), 'BAT' ), 'le blocage ne nomme pas le BAT' );
+
+		$moved = Lifecycle::transition( $order, Lifecycle::PRODUCTION );
+		ts_eq( $moved['ok'], false, 'la transition a été acceptée' );
+		ts_eq( wc_get_order( $order->get_id() )->get_status(), Lifecycle::PAID, 'le statut a bougé quand même' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'refuses the press just as hard when the BAT was sent and never answered', function () use ( $product_id ) {
+		/*
+		 * THE CASE ABOVE ONLY COVERS "NO BAT AT ALL", and that is the easy half:
+		 * `Bat::refusal()` finds no version and refuses on the first line.
+		 * Breaking the second branch on purpose (the one that reads the approval
+		 * on the CURRENT version) left the case above green, which is how a gate
+		 * ends up covering the state nobody was worried about.
+		 */
+		$order = ts_lc_order( $product_id );
+		Bat::issue( $order );
+		$order = wc_get_order( $order->get_id() );
+
+		ts_assert( ! Bat::approved( $order ), 'un BAT sans réponse compte comme validé' );
+		$blockers = Lifecycle::blockers( $order, Lifecycle::PRODUCTION );
+		ts_assert( ! empty( $blockers ), 'la production est ouverte sur un BAT sans réponse' );
+		ts_assert( false !== strpos( implode( ' ', $blockers ), 'version 1' ), 'le blocage ne nomme pas la version en attente' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'puts back a status forced past the gate, and says so on the order', function () use ( $product_id ) {
+		/*
+		 * THE BACKSTOP, and the one that matters. `Lifecycle::transition()` is
+		 * the API, but the admin dropdown, a bulk action, WP-CLI and any other
+		 * plugin all reach `set_status()` directly. This is that path.
+		 */
+		$order = ts_lc_order( $product_id );
+		$order->set_status( Lifecycle::SHIPPED );
+		$order->save();
+
+		$fresh = wc_get_order( $order->get_id() );
+		ts_eq( $fresh->get_status(), Lifecycle::PAID, 'un statut illégal a été enregistré' );
+
+		$notes = wc_get_order_notes( array( 'order_id' => $order->get_id() ) );
+		$said  = false;
+		foreach ( $notes as $note ) {
+			if ( false !== strpos( $note->content, 'refusé' ) ) {
+				$said = true;
+			}
+		}
+		ts_assert( $said, 'le refus n’est écrit nulle part sur la commande' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'refuses « Terminée » on a paid order nobody has approved', function () use ( $product_id ) {
+		/*
+		 * THE REALISTIC ACCIDENT, and the case that proves the EDGE check
+		 * rather than the blocker check. One click of WooCommerce's own
+		 * « Marquer terminée » on a paid order: the money is all in, so the
+		 * settlement gate has nothing to say, and only the machine's own shape
+		 * stops an unprinted order being declared delivered and the customer
+		 * getting WooCommerce's "your order is complete" e-mail.
+		 *
+		 * Written after breaking the edge check on purpose left every other
+		 * case green: they were all blocked by the money or by the proof, and
+		 * none of them was actually asking whether the transition existed.
+		 */
+		$order = ts_lc_order( $product_id );
+		ts_eq( Lifecycle::blockers( $order, Lifecycle::DELIVERED ), array(), 'ce cas doit être libre de tout blocage d’argent' );
+
+		$order->set_status( Lifecycle::DELIVERED );
+		$order->save();
+		ts_eq( wc_get_order( $order->get_id() )->get_status(), Lifecycle::PAID, 'une commande payée a été déclarée livrée' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'sends no second « commande terminée » when it puts a delivered order back', function () use ( $product_id ) {
+		/*
+		 * THE ONE PLACE THE REVERT COULD MISFIRE. Putting the status back makes
+		 * WooCommerce's pending transition from-equals-to, and of its own e-mail
+		 * triggers only two are plain single-status hooks: `completed` and
+		 * `failed`. So a refused move OUT of `completed` would re-fire the
+		 * customer's "your order is complete" message. `silence_woo_email` turns
+		 * that one off for the length of the revert, through WooCommerce's own
+		 * public filter.
+		 */
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+		$order = wc_get_order( $order->get_id() );
+		foreach ( array( Lifecycle::PRODUCTION, Lifecycle::PRINTED, Lifecycle::SHIPPED, Lifecycle::DELIVERED ) as $step ) {
+			Lifecycle::transition( wc_get_order( $order->get_id() ), $step );
+		}
+
+		/*
+		 * COUNTED AT THE WIRE, not at the action. WooCommerce fires
+		 * `..._completed_notification` and the e-mail class decides inside its
+		 * own `trigger()` whether to send, so counting the action measures
+		 * whether the hook ran and not whether a customer received anything.
+		 * The first version of this case did exactly that and reported a
+		 * failure that was not one.
+		 */
+		$sent = array();
+		$spy  = function ( $pre, $args ) use ( &$sent ) {
+			$sent[] = isset( $args['to'] ) ? (string) $args['to'] : '';
+			return true;
+		};
+		add_filter( 'pre_wp_mail', $spy, 1, 2 );
+
+		$order = wc_get_order( $order->get_id() );
+		$order->set_status( Lifecycle::PROOF );
+		$order->save();
+
+		remove_filter( 'pre_wp_mail', $spy, 1 );
+		ts_eq( wc_get_order( $order->get_id() )->get_status(), Lifecycle::DELIVERED, 'le retour arrière n’a pas tenu' );
+		ts_eq( $sent, array(), 'un message est parti pendant le retour arrière' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'lets WooCommerce do its own job through the same guard', function () use ( $product_id ) {
+		// A guard that refused a gateway moving an order, a refund or a
+		// cancellation would break the shop rather than protect it.
+		$order = ts_lc_order( $product_id );
+		$order->update_status( Lifecycle::CANCELLED );
+		ts_eq( wc_get_order( $order->get_id() )->get_status(), Lifecycle::CANCELLED, 'annulation refusée' );
+		ts_eq(
+			(string) wc_get_order( $order->get_id() )->get_meta( Lifecycle::META_CANCEL_STAGE, true ),
+			Lifecycle::PAID,
+			'l’étape d’annulation n’est pas retenue'
+		);
+		$order->delete( true );
+	} );
+
+	ts_it( 'writes who and when for every transition, ours and WooCommerce’s', function () use ( $product_id ) {
+		$order = ts_lc_order( $product_id );
+		Lifecycle::transition( $order, Lifecycle::WAIT, array( 'reason' => 'fichier illisible' ) );
+		$order = wc_get_order( $order->get_id() );
+		$order->update_status( Lifecycle::CANCELLED );
+
+		$journal = Lifecycle::journal( wc_get_order( $order->get_id() ) );
+		ts_assert( count( $journal ) >= 2, 'le journal ne retient pas les deux passages' );
+		$last = $journal[ count( $journal ) - 1 ];
+		ts_eq( $last['to'], Lifecycle::CANCELLED, 'dernière cible' );
+		ts_assert( isset( $last['at'], $last['by'], $last['by_name'] ), 'qui et quand manquent' );
+		$order->delete( true );
+	} );
+
+	// ── the proof ────────────────────────────────────────────────────────────
+
+	ts_it( 'composes a proof from the order, with the placement the studio measured', function () use ( $product_id ) {
+		$order    = ts_lc_order( $product_id );
+		$composed = Bat::compose( $order );
+		ts_assert( $composed['ok'], 'la composition a échoué' );
+
+		$line = $composed['doc']['lines'][0];
+		ts_eq( $line['quantity'], 6, 'quantité' );
+		$side = $line['sides'][0];
+		ts_eq( $side['placed'], true, 'le placement n’a pas survécu jusqu’au BAT' );
+		ts_eq( $side['zone_w_cm'], 30.5, 'largeur de zone' );
+		ts_eq( $side['drop_cm'], 22.4, 'descente sous l’encolure' );
+		ts_eq( $side['pieces'][0]['top_cm'], 5.2, 'haut du premier visuel' );
+		ts_eq( count( $composed['doc']['tolerances'] ), 4, 'les tolérances de la question 27' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'freezes a version, mints a link, and moves the order to « BAT envoyé »', function () use ( $product_id ) {
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order, 'Le logo est recadré au plus près de l’encre.' );
+		ts_assert( $issued['ok'], 'l’émission a échoué' );
+		ts_eq( $issued['version']['version'], 1, 'première version' );
+		ts_assert( strlen( (string) $issued['token'] ) >= 40, 'jeton trop court' );
+		ts_eq( wc_get_order( $order->get_id() )->get_status(), Lifecycle::PROOF, 'statut après émission' );
+
+		// The digest and never the token itself: a database dump must not be a
+		// set of live approvals.
+		$stored = Bat::current( wc_get_order( $order->get_id() ) );
+		ts_assert( $stored['token'] !== $issued['token'], 'le jeton est stocké en clair' );
+		ts_eq( $stored['token'], hash( 'sha256', (string) $issued['token'] ), 'ce n’est pas l’empreinte du jeton' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'opens on the right token and 404s on a wrong one', function () use ( $product_id ) {
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+
+		$found = Bat::locate( $order->get_id(), 1, (string) $issued['token'] );
+		ts_eq( $found['state'], 'ok', 'le bon jeton n’ouvre pas' );
+
+		$wrong = Bat::locate( $order->get_id(), 1, str_repeat( 'z', 43 ) );
+		ts_eq( $wrong['state'], 'not_found', 'un jeton faux ouvre' );
+		ts_assert( null === $wrong['order'], 'un jeton faux révèle la commande' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'records the approval against the version, with the words that were shown', function () use ( $product_id ) {
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+
+		$order   = wc_get_order( $order->get_id() );
+		$current = Bat::current( $order );
+		ts_assert( ! empty( $current['approval'] ), 'aucune validation enregistrée' );
+		ts_eq( $current['approval']['by'], 'client', 'qui a validé' );
+		ts_assert( '' !== (string) $current['approval']['at'], 'aucune date' );
+		ts_eq( $current['approval']['text'], $current['text'], 'le texte accepté n’est pas celui qui était affiché' );
+		ts_assert( Bat::approved( $order ), 'la production reste bloquée après validation' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'stops an approval of version 1 from authorising version 2', function () use ( $product_id ) {
+		/*
+		 * THE WHOLE POINT OF VERSIONING. A proof approved for version 3 must not
+		 * authorise printing version 4, and the status is not what decides:
+		 * `Bat::refusal()` reads the approval on the CURRENT version.
+		 */
+		$order  = ts_lc_order( $product_id );
+		$first  = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $first['token'] );
+		$order = wc_get_order( $order->get_id() );
+		ts_assert( Bat::approved( $order ), 'la version 1 devrait être validée' );
+
+		Bat::issue( $order, 'Nouvelle version après échange téléphonique.' );
+		$order = wc_get_order( $order->get_id() );
+		ts_assert( ! Bat::approved( $order ), 'la version 2 hérite de la validation de la 1' );
+		ts_assert( ! empty( Lifecycle::blockers( $order, Lifecycle::PRODUCTION ) ), 'la production reste ouverte' );
+
+		// And the old link is dead, because it names a version that is no longer
+		// the current one.
+		ts_eq( Bat::locate( $order->get_id(), 1, (string) $first['token'] )['state'], 'decided', 'l’ancien lien reste actif' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'keeps the customer’s words when they ask for changes', function () use ( $product_id ) {
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		$words  = 'Sur le dos, le logo est trop bas de 3 cm et le texte doit être en majuscules.';
+		ts_lc_refuse( $order, 1, (string) $issued['token'], $words );
+
+		$order   = wc_get_order( $order->get_id() );
+		$current = Bat::current( $order );
+		ts_eq( count( $current['changes'] ), 1, 'aucune demande enregistrée' );
+		ts_eq( $current['changes'][0]['comment'], $words, 'le commentaire du client est perdu' );
+		ts_eq( $order->get_status(), Lifecycle::CHANGES, 'statut après refus' );
+		ts_eq( Bat::corrections( $order )['used'], 1, 'le cycle n’est pas compté' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'refuses a waiver with no words in it', function () use ( $product_id ) {
+		// « Sauf accord écrit du client » with nothing written is not a written
+		// agreement, and this is the only gate between a paid order and a press.
+		$order = ts_lc_order( $product_id );
+		Bat::issue( $order );
+		$order = wc_get_order( $order->get_id() );
+
+		$empty = Bat::record_waiver( $order, '   ' );
+		ts_eq( $empty['ok'], false, 'une renonciation vide a été acceptée' );
+		ts_assert( ! Bat::approved( wc_get_order( $order->get_id() ) ), 'la production a été ouverte' );
+
+		$real = Bat::record_waiver( wc_get_order( $order->get_id() ), 'Courriel du 12/09 : « lancez sans BAT, je prends le risque. »' );
+		ts_eq( $real['ok'], true, 'une renonciation réelle a été refusée' );
+		ts_assert( Bat::approved( wc_get_order( $order->get_id() ) ), 'la renonciation n’autorise rien' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'walks a whole order from payment to delivery, and only in that order', function () use ( $product_id ) {
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+		$order = wc_get_order( $order->get_id() );
+
+		foreach ( array( Lifecycle::PRODUCTION, Lifecycle::PRINTED, Lifecycle::SHIPPED, Lifecycle::DELIVERED ) as $step ) {
+			$moved = Lifecycle::transition( $order, $step );
+			ts_assert( $moved['ok'], "passage refusé vers {$step} : " . $moved['reason'] );
+			$order = wc_get_order( $order->get_id() );
+			ts_eq( $order->get_status(), $step, "statut après {$step}" );
+		}
+
+		$journal = Lifecycle::journal( $order );
+		$path    = array_column( $journal, 'to' );
+		ts_assert( in_array( Lifecycle::SHIPPED, $path, true ), 'le journal a perdu l’expédition' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'never lets the parcel leave while the balance is outstanding', function () use ( $product_id ) {
+		/*
+		 * The money gate and the proof gate are two different questions and both
+		 * are asked. This drives the money one by taking the receipts off an
+		 * order that has passed the proof.
+		 */
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+		$order = wc_get_order( $order->get_id() );
+		Lifecycle::transition( $order, Lifecycle::PRODUCTION );
+		$order = wc_get_order( $order->get_id() );
+		Lifecycle::transition( $order, Lifecycle::PRINTED );
+
+		$order = wc_get_order( $order->get_id() );
+		$order->update_meta_data( '_teeshoop_encaissements', wp_json_encode( array() ) );
+		$order->save();
+
+		$blockers = Lifecycle::blockers( wc_get_order( $order->get_id() ), Lifecycle::SHIPPED );
+		ts_assert( ! empty( $blockers ), 'un colis peut partir sans le solde' );
+		ts_assert( false !== strpos( implode( ' ', $blockers ), 'solde' ), 'le blocage ne nomme pas le solde' );
+		$order->delete( true );
+	} );
+
+	// ── the outbox ───────────────────────────────────────────────────────────
+
+	ts_it( 'refuses to send anything from production with no API key', function () use ( $product_id ) {
+		/*
+		 * AN UNSET SECRET DENIES EVERYTHING. Run before the key is defined,
+		 * because a constant cannot be undefined again and this is the answer
+		 * that matters most: a production shop with no key must not quietly
+		 * fall back to a shared-hosting sendmail whose proof e-mails land in
+		 * spam while the operator reads a green outbox.
+		 */
+		ts_assert( '' === Mail::api_key(), 'ce cas doit tourner avant que la clé existe' );
+		$order = ts_lc_order( $product_id );
+		$sent  = Mail::send(
+			array(
+				'kind'     => Notify::KIND_CONFIRM,
+				'order_id' => $order->get_id(),
+				'to'       => 'client@example.test',
+				'subject'  => 'essai',
+				'html'     => '<p>essai</p>',
+				'text'     => 'essai',
+			),
+			'production'
+		);
+		ts_eq( $sent['ok'], false, 'un envoi est parti sans clé, en production' );
+		ts_assert( false !== strpos( $sent['reason'], 'TEESHOOP_BREVO_KEY' ), 'le refus ne nomme pas la constante manquante' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'falls back to wp_mail off production, and records that it did', function () use ( $product_id ) {
+		// So nobody reads a green outbox on a machine that never had a key and
+		// concludes the shop can send.
+		$order = ts_lc_order( $product_id );
+		$sent  = Mail::send(
+			array(
+				'kind'     => Notify::KIND_CONFIRM,
+				'order_id' => $order->get_id(),
+				'to'       => 'client@example.test',
+				'subject'  => 'essai',
+				'html'     => '<p>essai</p>',
+				'text'     => 'essai',
+			),
+			'local'
+		);
+		ts_assert( $sent['ok'], 'le repli de développement a échoué' );
+		$rows = Mail::for_order( $order->get_id() );
+		ts_eq( $rows[ count( $rows ) - 1 ]->transport, 'wp_mail', 'le transport n’est pas dit' );
+		$order->delete( true );
+	} );
+
+	/*
+	 * FROM HERE ON THERE IS A KEY. `Mail::api_key()` reads a wp-config constant,
+	 * which is how the real secret is held (never an option: those are dumped by
+	 * every backup and editable from the admin). A constant cannot be undefined,
+	 * so the two cases above had to come first.
+	 */
+	if ( ! defined( 'TEESHOOP_BREVO_KEY' ) ) {
+		define( 'TEESHOOP_BREVO_KEY', 'xkeysib-suite-de-verification' );
+	}
+
+	ts_it( 'sends the proof through Brevo and records the message', function () use ( $product_id ) {
+		ts_lc_capture_http();
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		$sent   = Notify::bat( $order, $issued['version'], (string) $issued['token'] );
+
+		ts_assert( $sent['ok'], 'l’envoi a échoué : ' . $sent['reason'] );
+		$calls = ts_lc_brevo_calls();
+		ts_assert( ! empty( $calls ), 'aucun appel à Brevo' );
+		$last = $calls[ count( $calls ) - 1 ];
+		ts_eq( $last['method'], 'POST', 'méthode' );
+		ts_eq( $last['header']['api-key'], 'xkeysib-suite-de-verification', 'la clé ne part pas dans l’en-tête' );
+		ts_eq( $last['body']['sender']['email'], 'atelier@teeshoop.test', 'expéditeur' );
+		ts_eq( $last['body']['to'][0]['email'], 'client@example.test', 'destinataire' );
+		ts_assert( false !== strpos( $last['body']['subject'], 'bon à tirer' ), 'objet' );
+		ts_assert( '' !== (string) $last['body']['textContent'], 'aucune partie texte' );
+
+		// The link is in both parts, and it is the real one.
+		$url = Bat::url( $order, 1, (string) $issued['token'] );
+		ts_assert( false !== strpos( $last['body']['htmlContent'], esc_url( $url ) ), 'le lien manque à la version HTML' );
+		ts_assert( false !== strpos( $last['body']['textContent'], $url ), 'le lien manque à la version texte' );
+
+		$rows = Mail::for_order( $order->get_id() );
+		$bat  = array_values( array_filter( $rows, static fn( $row ): bool => Notify::KIND_BAT === $row->kind ) );
+		ts_eq( count( $bat ), 1, 'une ligne d’envoi et une seule' );
+		ts_eq( $bat[0]->status, Mail::SENT, 'statut de l’envoi' );
+		ts_eq( $bat[0]->message_id, '<abc@brevo>', 'identifiant Brevo' );
+
+		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'records a Brevo refusal with its code, instead of losing it', function () use ( $product_id ) {
+		ts_lc_capture_http( 400, array( 'message' => 'sender not verified' ) );
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		$sent   = Notify::bat( $order, $issued['version'], (string) $issued['token'] );
+
+		ts_eq( $sent['ok'], false, 'un refus a été lu comme un envoi' );
+		ts_assert( false !== strpos( $sent['reason'], '400' ), 'le code HTTP n’est pas repris' );
+		ts_assert( false !== strpos( $sent['reason'], 'sender not verified' ), 'le message de Brevo n’est pas repris' );
+
+		$rows = Mail::for_order( $order->get_id() );
+		$bat  = array_values( array_filter( $rows, static fn( $row ): bool => Notify::KIND_BAT === $row->kind ) );
+		ts_eq( $bat[0]->status, Mail::FAILED, 'l’échec n’est pas enregistré' );
+		ts_assert( Mail::stuck() > 0, 'l’échec ne remonte pas dans le compteur' );
+
+		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'retries a failed proof with a new link, and never twice a sent one', function () use ( $product_id ) {
+		ts_lc_capture_http( 502, array( 'message' => 'oops' ) );
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		$sent   = Notify::bat( $order, $issued['version'], (string) $issued['token'] );
+		ts_eq( $sent['ok'], false, 'le 502 devrait échouer' );
+
+		ts_lc_capture_http( 201 );
+		$again = Mail::retry( (int) $sent['id'] );
+		ts_assert( $again['ok'], 'le renvoi a échoué : ' . $again['reason'] );
+
+		// The retry re-rendered, so the old token is dead and a new one works.
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( Bat::locate( $order->get_id(), 1, (string) $issued['token'] )['state'], 'not_found', 'l’ancien lien survit au renvoi' );
+
+		$rows = Mail::for_order( $order->get_id() );
+		$bat  = array_values( array_filter( $rows, static fn( $row ): bool => Notify::KIND_BAT === $row->kind ) );
+		ts_eq( count( $bat ), 1, 'un renvoi a créé une deuxième ligne' );
+		ts_eq( $bat[0]->status, Mail::SENT, 'statut après renvoi' );
+
+		// A row already sent is never sent again, whatever asks.
+		$before = count( ts_lc_brevo_calls() );
+		Mail::retry( (int) $sent['id'] );
+		ts_eq( count( ts_lc_brevo_calls() ), $before, 'un message déjà parti a été renvoyé' );
+
+		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'tells the workshop as well as the customer', function () use ( $product_id ) {
+		ts_lc_capture_http();
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+
+		$kinds = array_column( Mail::for_order( $order->get_id() ), 'kind' );
+		ts_assert( in_array( Notify::KIND_RECEIPT, $kinds, true ), 'aucun accusé au client' );
+		ts_assert( in_array( Notify::KIND_WORKSHOP, $kinds, true ), 'aucune alerte à l’atelier' );
+
+		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
+	// ── the archive copy ─────────────────────────────────────────────────────
+
+	ts_it( 'renders an archive copy that names the version and its numbers', function () use ( $product_id ) {
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		// Without images: the mockups live on the Worker and this suite has no
+		// Worker. The image path has its own cases in tests/test-pdf.php.
+		$pdf = Bat::pdf( $issued['version'], false );
+
+		ts_assert( str_starts_with( $pdf, '%PDF-1.' ), 'ce n’est pas un PDF' );
+		ts_assert( str_ends_with( rtrim( $pdf ), '%%EOF' ), 'le PDF n’est pas terminé' );
+		ts_assert( strlen( $pdf ) > 800, 'le PDF est vide' );
+		$order->delete( true );
+	} );
+
+	update_option( 'teeshoop_settings', $saved_settings );
+	remove_all_filters( 'pre_http_request' );
+}
+
+/** Approve, the way the customer's own POST does. */
+function ts_lc_approve( \WC_Order $order, int $version, string $token ): void {
+	ts_lc_decide( $order, $version, $token, 'valider', '' );
+}
+
+/** Ask for changes, the way the customer's own POST does. */
+function ts_lc_refuse( \WC_Order $order, int $version, string $token, string $comment ): void {
+	ts_lc_decide( $order, $version, $token, 'modifier', $comment );
+}
+
+/**
+ * The customer's decision, through the shipped code.
+ *
+ * `Bat::decide()` reads `$_POST` and `$_SERVER` and ends in `exit`, which is
+ * right for a request handler and impossible to call from a suite. So the
+ * decision itself lives in `Bat::record_decision()` and this calls THAT: the
+ * rules, the record, the transition and the events are the real ones. What is
+ * not covered here is the routing and the headers, which a browser drives in
+ * `scripts/bat-verify.mjs`.
+ */
+function ts_lc_decide( \WC_Order $order, int $version, string $token, string $choice, string $comment ): void {
+	$found = Bat::locate( $order->get_id(), $version, $token );
+	if ( 'ok' !== $found['state'] ) {
+		throw new \RuntimeException( 'le BAT n’est pas décidable : ' . $found['state'] );
+	}
+	$done = Bat::record_decision( $found['order'], $version, $choice, $comment, '203.0.113.7', 'suite' );
+	if ( empty( $done['ok'] ) ) {
+		throw new \RuntimeException( (string) $done['reason'] );
+	}
+}
