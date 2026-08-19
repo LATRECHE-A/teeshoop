@@ -36,6 +36,7 @@ use Teeshoop\Core\Catalogue;
 use Teeshoop\Core\Costing;
 use Teeshoop\Core\Importer;
 use Teeshoop\Core\Product;
+use Teeshoop\Core\Production;
 use Teeshoop\Core\Purchase;
 use Teeshoop\Core\Settings;
 
@@ -236,7 +237,26 @@ function ts_ac_stub(): void {
 				);
 			}
 			if ( str_contains( (string) $url, '/api/nest' ) ) {
-				return $json( array( 'billed_m' => 0.4, 'sheets' => 1, 'unplaceable' => array(), 'utilization' => 0.5 ) );
+				/*
+				 * The CEILING a browser-measured layout may not exceed. Answered
+				 * from the pieces actually posted rather than with a constant, so
+				 * a lot built here is bounded by something proportionate to what
+				 * it contains: 20 x 20 cm transfers sit two to a row on a 56 cm
+				 * roll, so the strip packing is ceil(copies / 2) rows of 20,5 cm.
+				 */
+				$body   = json_decode( (string) ( $args['body'] ?? '{}' ), true );
+				$copies = 0;
+				foreach ( (array) ( $body['pieces'] ?? array() ) as $piece ) {
+					$copies += max( 1, (int) ( $piece['qty'] ?? 1 ) );
+				}
+				return $json(
+					array(
+						'billed_m'    => 0 === $copies ? 0.4 : ( ceil( $copies / 2 ) * 20.5 ) / 100,
+						'sheets'      => 1,
+						'unplaceable' => array(),
+						'utilization' => 0.5,
+					)
+				);
 			}
 			return $pre;
 		},
@@ -325,6 +345,7 @@ function ts_ac_forget_blank(): void {
  */
 function ts_purchase_suite( int $product_id ): void {
 	$saved_worker = Settings::get( 'worker_url' );
+	$today        = Settings::today();
 	$made         = array();
 	$GLOBALS['ts_ac_made'] = array();
 
@@ -493,6 +514,68 @@ function ts_purchase_suite( int $product_id ): void {
 		 */
 		ts_assert( '2026-09-08' === (string) $basket['stock']['short'][0]['back_on'], 'le réapprovisionnement annoncé est ' . (string) $basket['stock']['short'][0]['back_on'] );
 		ts_assert( 120 === (int) $basket['stock']['short'][0]['back_qty'], 'la quantité annoncée ne suit pas sa date' );
+	} );
+
+	// ── from a print run to a basket ─────────────────────────────────────────
+
+	ts_it( 'turns a print run into the blanks that run needs', function () use ( $made, $a, $b, $today ) {
+		/*
+		 * THE PATH THE OPERATOR ACTUALLY TAKES, and the one the rest of this file
+		 * skips: the screen offers « Préparer la commande fournisseur » on a LOT,
+		 * which is session 07's unit for buying film. Everything else here starts
+		 * from a list of order ids, so the step that turns a run into that list
+		 * was real code exercised only by a screen.
+		 *
+		 * The lot is built by the shipped `create_lot`, with the layout a studio
+		 * would have posted. The poses are the two orders' real garment counts,
+		 * 20 and 10, because that check is exact and refuses anything else; the
+		 * lengths sit between the floor (12 000 cm2 of ink over a 56 cm roll,
+		 * 2,15 m) and the ceiling (what the packer makes of the same 30 pieces).
+		 */
+		$layout = array(
+			'pooled_m'        => 2.5,
+			'width_cm'        => 56.0,
+			'gap_cm'          => 0.5,
+			'billing_step_cm' => 10.0,
+			'sheets'          => 1,
+			'packer'          => 'trueshape',
+			'interlock_cm'    => 2.0,
+			'restarts'        => 12,
+			'flip'            => false,
+			'orders'          => array(),
+		);
+		foreach ( array( array( $a, 20, 2.1 ), array( $b, 10, 1.1 ) ) as [ $order, $garments, $solo ] ) {
+			$layout['orders'][ (string) $order->get_id() ] = array(
+				'solo_m'     => $solo,
+				'poses'      => $garments,
+				'area_sq_cm' => 400.0 * $garments,
+				'pieces'     => array(
+					array( 'key' => 'front', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => $garments ),
+				),
+			);
+		}
+
+		$lot = Production::create_lot( $made, 'fr', $layout, $today );
+		ts_assert( ! empty( $lot['ok'] ), 'le lot a été refusé : ' . ( $lot['reason'] ?? '' ) );
+
+		$ids = array();
+		foreach ( (array) $lot['lot']['members'] as $member ) {
+			$ids[] = (int) $member['id'];
+		}
+		sort( $ids );
+		$want = $made;
+		sort( $want );
+		ts_assert( $ids === $want, 'le lot ne nomme pas les commandes qu’on lui a données' );
+
+		$basket = Purchase::basket( $ids );
+		ts_assert( $basket['complete'], 'le panier du lot est incomplet : ' . wp_json_encode( $basket['unresolved'] ) );
+		ts_assert( 30 === (int) $basket['garments'], '30 vêtements dans le lot, ' . $basket['garments'] . ' au panier' );
+		// 30 x 3,37 EUR: the same figure the order-by-order basket above asserts,
+		// reached through the run instead of through a list of ids.
+		ts_assert( 10110 === (int) $basket['blanks_ht'], 'attendu 101,10 EUR de textile, obtenu ' . ( $basket['blanks_ht'] / 100 ) );
+
+		// The film has been costed for these orders; the blanks have not.
+		Production::discard_lot( (int) $lot['lot']['lot_id'] );
 	} );
 
 	// ── preparing, and what that pins ────────────────────────────────────────
