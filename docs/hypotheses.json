@@ -2474,6 +2474,150 @@
 			],
 			"cost_if_late": "reglage",
 			"shipped_matches_default": "Non : aucune hypothèse par défaut ne donne cette liste, et le chapitre 1 demande un plancher « par type de client » sans jamais les énumérer. Les quatre viennent du corpus : « particulier » et « professionnel » sont la distinction de la question 01 elle-même, « collectivité » vient du « mandat administratif (mairies, écoles, hôpitaux) » de la question 15, et « grand compte » de la question 16. Confirmez-les ou remplacez-les : une commande n'en porte aucun tant que personne ne l'a choisi, donc rien n'est faussé en attendant."
+		},
+		{
+			"id": "H-Q26-CORRECTIONS-INCLUSES",
+			"question": "Q26",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Le prix inclut 2 allers-retours de bon à tirer, comptés par demande du client et non par version envoyée.",
+			"home": "php:Teeshoop\\Core\\Bat::default_config()#corrections_incluses",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est 2 : un chiffre introuvable par recherche de littéral dans un dépôt PHP. Elle n'est écrite qu'à son emplacement, et l'écran de commande la lit par Bat::corrections().",
+			"reaches": [
+				"operator"
+			],
+			"derives": [
+				"Le compteur affiché sur l'écran de commande : « n correction(s) demandée(s) sur 2 incluses », qui décide du moment où un opérateur propose un supplément."
+			],
+			"sessions": [
+				"06"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui, c'est l'hypothèse par défaut de la question 26 mot pour mot. Un écart assumé : un aller-retour est compté quand le CLIENT demande une modification, jamais quand nous renvoyons le même BAT parce que le premier courriel n'est pas parti. Compter notre propre relance reviendrait à facturer au client une panne qui est la nôtre.",
+			"statement_amounts": [
+				{
+					"from": "corrections_incluses",
+					"as": "int",
+					"text": "2",
+					"in": "inclut 2 allers-retours"
+				}
+			]
+		},
+		{
+			"id": "H-Q26-SUPPLEMENT-CORRECTION",
+			"question": "Q26",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Au-delà des corrections incluses, chaque correction supplémentaire vaut 15,00 EUR hors taxes.",
+			"home": "php:Teeshoop\\Core\\Bat::default_config()#correction_ht",
+			"mirrors": [],
+			"literals": [
+				"1500"
+			],
+			"literal_allow": [
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
+				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"wp-plugins/teeshoop-core/includes/Shipping.php",
+				"wp-plugins/teeshoop-core/includes/Settlement.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
+				"wp-plugins/teeshoop-core/tests/test-shipping.php",
+				"wp-plugins/teeshoop-core/tests/integration-margin.php",
+				"wp-plugins/teeshoop-core/tests/integration-checkout.php",
+				"wp-plugins/teeshoop-core/tests/test-margin.php"
+			],
+			"literal_allow_why": "1500 s'écrit avec les mêmes chiffres qu'un grand nombre de montants ordinaires en centimes ailleurs dans le moteur de coût, la grille de transport et leurs tests. Ce ne sont pas des secondes copies de ce supplément, ce sont des collisions de littéraux.",
+			"reaches": [
+				"operator"
+			],
+			"derives": [
+				"Rien de mesuré. Le montant est AFFICHÉ à l'opérateur et facturé à la main : rien dans le code n'ajoute cette somme à une commande, parce qu'ajouter une ligne à une commande déjà payée suppose un second encaissement et un avoir, qui n'existent pas."
+			],
+			"sessions": [
+				"06"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Oui, c'est l'hypothèse par défaut de la question 26. Ce qui n'est PAS livré, et c'est délibéré : la facturation automatique du supplément. Le chiffre est une décision commerciale que personne n'a prise, et le percevoir suppose une facture rectificative que la séance 04 n'a pas construite.",
+			"statement_amounts": [
+				{
+					"from": "correction_ht",
+					"as": "eur",
+					"text": "15,00 EUR"
+				}
+			],
+			"literal_scope": [
+				"wp-plugins/"
+			],
+			"literal_scope_why": "1500 est un littéral trop banal pour être cherché dans tout le dépôt : c'est une largeur en pixels dans le studio, un délai en millisecondes dans les harnais, une hauteur de fenêtre dans les scripts de capture. Restreint à l'extension, où un montant en centimes est ce qu'il paraît être."
+		},
+		{
+			"id": "H-Q27-TOLERANCE-POSITION",
+			"question": "Q27",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "La position du marquage est garantie à 1 cm près par rapport au bon à tirer validé.",
+			"home": "php:Teeshoop\\Core\\Bat::default_config()#tolerance_position_cm",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est 1.0 : le littéral le plus courant qui soit dans un fichier PHP, et le chercher dans wp-plugins/ ne dirait rien de vrai. Elle n'est écrite qu'à son emplacement et le bon à tirer la rend par Garments::cm().",
+			"reaches": [
+				"customer",
+				"printer"
+			],
+			"derives": [
+				"La phrase que le client accepte en validant son bon à tirer, et donc la limite en dessous de laquelle un écart de position n'est pas un défaut au sens du chapitre 5. Elle décide directement qui paie une reprise."
+			],
+			"sessions": [
+				"06"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "La position du marquage peut varier de",
+			"shipped_matches_default": "Oui : « tolérance de position de plus ou moins 1 cm », l'hypothèse par défaut de la question 27. Elle est affichée au client au moment exact où cette question demande qu'elle le soit, c'est-à-dire sur le bon à tirer, avant validation.",
+			"statement_amounts": [
+				{
+					"from": "tolerance_position_cm",
+					"as": "int",
+					"text": "1",
+					"in": "à 1 cm près"
+				}
+			]
+		},
+		{
+			"id": "H-Q26-DUREE-LIEN-BAT",
+			"question": "Q26",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "Le lien de validation d'un bon à tirer reste actif 30 jours, puis il faut le redemander.",
+			"home": "php:Teeshoop\\Core\\Bat::default_config()#lien_jours",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est 30 : un nombre de jours qui s'écrit comme des dizaines d'autres choses dans un dépôt. Elle n'est écrite qu'à son emplacement, et le courriel affiche la DATE qu'elle produit, jamais la durée.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [
+				"La date annoncée dans le courriel de bon à tirer. Elle est affichée parce qu'un lien qui meurt sans prévenir est un client devant une page morte sans savoir pourquoi : c'est une durée technique, pas la validité commerciale d'un devis, qui reste la question 38 et n'est affichée nulle part."
+			],
+			"sessions": [
+				"06"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Ce lien reste actif jusqu’au",
+			"shipped_matches_default": "Aucune hypothèse par défaut ne parle de ça : la question 26 ne demandait ni durée ni lien. C'est un arbitrage de sécurité, écrit ici parce qu'il finit devant le client sous forme de date. Un lien qui n'expire jamais est un lien qui se transfère, reste dans une boîte aux lettres et se clique un an plus tard par quelqu'un qui a quitté l'entreprise. La question 26 le demande désormais.",
+			"statement_amounts": [
+				{
+					"from": "lien_jours",
+					"as": "int",
+					"text": "30",
+					"in": "actif 30 jours"
+				}
+			]
 		}
 	],
 	"not_applicable": [

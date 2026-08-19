@@ -713,6 +713,30 @@ recopier depuis un Kbis.
 
 *Si vous ne répondez pas, on partira sur :* Nous préparons des textes de base à faire relire par un avocat, et une case à cocher de renonciation à la rétractation, horodatée et enregistrée à la validation du bon à tirer.
 
+*Ce que la séance 06 a changé à cette hypothèse, le 19 août, et pourquoi :* votre hypothèse
+place la renonciation **à la validation du bon à tirer**, qui a lieu après le paiement,
+donc après la conclusion du contrat. C'est un accusé de trop tard. Les articles L221-5 et
+R221-2 du code de la consommation demandent que le client soit informé **avant** que le
+contrat soit conclu que le droit de rétractation ne s'applique pas.
+
+Nous avons donc construit les deux, parce que ce sont deux actes différents :
+
+- **au paiement**, la case sur le droit de rétractation, avec la date, l'heure, l'adresse
+  IP, la version des conditions générales en vigueur et **la phrase exacte** qui était à
+  l'écran. Elle ne s'affiche que si le panier contient quelque chose de personnalisé : un
+  vêtement nu du catalogue garde le droit de rétractation ordinaire, et demander à un
+  client de renoncer à un droit qu'il conserve serait une clause abusive.
+- **au bon à tirer**, la validation de ce qui va être pressé, avec ses propres tolérances.
+
+La mention figure sur la facture, avec sa date. Et quand une commande personnalisée n'a
+**aucune** renonciation enregistrée, la facture le dit au lieu de prétendre le contraire :
+c'est une commande sur laquelle nous ne pourrions pas refuser une rétractation.
+
+Il nous manque une chose de votre côté : **la version des conditions générales**. Elle est
+vide tant que personne n'a écrit les CGV (séance 12), et nous l'enregistrons vide plutôt
+que d'inventer un « v1 » que nous serions incapables de produire le jour où on nous le
+demanderait.
+
 **Votre réponse :**
 
 > 
@@ -833,6 +857,36 @@ recopier depuis un Kbis.
 
 *Si vous ne répondez pas, on partira sur :* Deux corrections incluses puis 15 EUR hors taxes par correction ; aucune production sans bon à tirer validé, sauf accord écrit du client indiquant qu'il renonce au bon à tirer et en assume le risque.
 
+*Ce que la séance 06 a construit, le 19 août, et les trois points qu'elle vous rend :*
+
+Le bon à tirer existe. Il est engendré depuis la création du client (vêtement, coloris,
+tailles, visuel à sa vraie place, dimensions en centimètres, position sous l'encolure), il
+est **gelé à l'envoi**, et le client le valide depuis un lien qui ne demande aucun compte.
+La validation enregistre la date, l'heure, l'adresse IP, **la version exacte** et le texte
+qui était à l'écran. Aucune commande ne peut passer en production sans cela.
+
+1. **Les deux corrections sont comptées, le supplément n'est pas facturé.** L'écran de
+   commande affiche « n corrections demandées sur 2 incluses » et, au-delà, rappelle les
+   15 EUR hors taxes à facturer **à la main**. Nous ne l'ajoutons pas tout seuls : ajouter
+   une ligne à une commande déjà payée suppose un second encaissement et une facture
+   rectificative, et surtout le chiffre est une décision commerciale que vous n'avez pas
+   encore prise. Confirmez-vous 2 et 15 EUR ?
+
+2. **Un aller-retour est compté quand le CLIENT demande une modification**, jamais quand
+   nous lui renvoyons le même BAT parce que le premier courriel n'est pas parti. Cela nous
+   paraît évident ; dites-nous si vous comptez autrement.
+
+3. **Le lien de validation expire au bout de 30 jours** et la date est annoncée dans le
+   courriel. Ce n'est pas une durée commerciale (celle du devis est la question 38, et
+   elle n'est affichée nulle part) : c'est qu'un lien qui n'expire jamais se transfère,
+   reste dans une boîte aux lettres et se clique un an plus tard par quelqu'un qui a quitté
+   l'entreprise. Un opérateur en renvoie un en un clic. 30 jours vous va ?
+
+La renonciation d'urgence est construite telle que vous l'avez écrite : elle demande de
+**recopier les mots du client** et d'où ils viennent, pas de cocher une case. Une case
+enregistre qu'un opérateur a cliqué ; une phrase recopiée enregistre ce que le client a
+dit, et c'est la différence entre une preuve et une habitude.
+
 **Votre réponse :**
 
 > 
@@ -858,6 +912,20 @@ faudrait refuser. Le rapport de chaque commande signale la ligne comme non rense
 refuse de déclarer le coût complet tant qu'elle l'est.
 
 Un pourcentage de pièces à refaire, même approximatif, suffit.
+
+*Ce que la séance 06 a construit, le 19 août :* vos tolérances sont **affichées au client
+au moment exact où cette question demande qu'elles le soient**, c'est-à-dire sur le bon à
+tirer, au-dessus du bouton de validation : position à 1 cm près, écart de teinte entre un
+écran et un textile accepté, dimensions données pour une taille de référence et mises à
+l'échelle avec le vêtement, aucune reprise sur une erreur de taille du client. Elles sont
+gelées avec la version : un BAT validé en mars se défend un an plus tard avec le texte qui
+était à l'écran en mars.
+
+La matrice de décision du chapitre 5 est aussi devenue du code, sur l'écran de la commande.
+Deux de ses lignes ne décident rien et c'est voulu : « erreur validée dans le BAT » et
+« mauvaise taille commandée » renvoient « geste éventuel » et « solution commerciale
+possible », que le chapitre laisse à un humain. Nous ne les avons tranchées ni dans un
+sens ni dans l'autre.
 
 **Votre réponse :**
 

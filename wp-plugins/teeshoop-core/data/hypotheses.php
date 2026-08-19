@@ -665,6 +665,71 @@ return array(
 				'06',
 			),
 		),
+		array(
+			'id' => 'H-Q26-CORRECTIONS-INCLUSES',
+			'question' => 'Q26',
+			'level' => 'important',
+			'status' => 'assumption',
+			'since' => '2026-08-19',
+			'statement_fr' => 'Le prix inclut 2 allers-retours de bon à tirer, comptés par demande du client et non par version envoyée.',
+			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#corrections_incluses',
+			'reaches' => array(
+				'operator',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'06',
+			),
+		),
+		array(
+			'id' => 'H-Q26-SUPPLEMENT-CORRECTION',
+			'question' => 'Q26',
+			'level' => 'important',
+			'status' => 'assumption',
+			'since' => '2026-08-19',
+			'statement_fr' => 'Au-delà des corrections incluses, chaque correction supplémentaire vaut 15,00 EUR hors taxes.',
+			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#correction_ht',
+			'reaches' => array(
+				'operator',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'06',
+			),
+		),
+		array(
+			'id' => 'H-Q27-TOLERANCE-POSITION',
+			'question' => 'Q27',
+			'level' => 'important',
+			'status' => 'assumption',
+			'since' => '2026-08-19',
+			'statement_fr' => 'La position du marquage est garantie à 1 cm près par rapport au bon à tirer validé.',
+			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#tolerance_position_cm',
+			'reaches' => array(
+				'customer',
+				'printer',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'06',
+			),
+		),
+		array(
+			'id' => 'H-Q26-DUREE-LIEN-BAT',
+			'question' => 'Q26',
+			'level' => 'important',
+			'status' => 'assumption',
+			'since' => '2026-08-19',
+			'statement_fr' => 'Le lien de validation d\'un bon à tirer reste actif 30 jours, puis il faut le redemander.',
+			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#lien_jours',
+			'reaches' => array(
+				'customer',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'06',
+			),
+		),
 	),
 	'withheld' => 29,
 );
