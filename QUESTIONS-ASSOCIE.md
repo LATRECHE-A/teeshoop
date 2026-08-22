@@ -1494,6 +1494,70 @@ date du relevé, parce que l'atelier en a besoin pour acheter.
 > 
 
 
+### 49. Le fournisseur donne 442 noms de coloris et aucune valeur de couleur. En avez-vous une source, et les onze familles ci-dessous sont-elles les bons mots ?
+
+🟡 **À confirmer**
+
+*Pourquoi on a besoin de la réponse :* un filtre de 442 noms en colonne n'est pas un filtre,
+c'est un dictionnaire, et la couleur est la première chose sur laquelle un acheteur
+professionnel resserre. Nous ne pouvons pas fusionner « Navy », « French Navy » et « Deep
+Navy » : ce sont trois articles, et celui qui recommande dans dix-huit mois a besoin du nom
+qu'il a acheté. Il fallait donc une valeur de couleur à côté de chaque nom, et le
+fournisseur n'en envoie aucune.
+
+*Ce que nous avons livré, et pourquoi :* nous la **mesurons**. Le fournisseur envoie pour
+chaque coloris un **nuancier**, un aplat de la teinture, et c'est lui qui est publié : mesuré
+sur onze d'entre eux, de 99,2 % à 100 % du cadre est une seule couleur. La photo du vêtement
+est mesurée à côté comme contrôle indépendant, et sert de repli quand aucun nuancier n'est
+lisible. Une couleur qui ne peut pas être mesurée n'a **pas** de pastille : nous n'en
+inventons pas. La méthode complète, ce qu'elle refuse et pourquoi, est dans
+`docs/COULEURS.md`.
+
+Deux limites à connaître. Un nuancier fournisseur n'est pas une référence de teinture
+contrôlée : c'est la valeur que le fabricant déclare, et elle ne dit rien de la matière ni de
+la lumière sous laquelle votre client verra le vêtement. Et un même nom sert parfois à deux
+teintures différentes selon la marque, auquel cas nous refusons plutôt que de faire une
+moyenne.
+
+**Ce que nous vous demandons, trois choses.**
+
+1. **Avez-vous une source de valeurs officielles ?** Un nuancier Falk&Ross, une
+   correspondance Pantone ou RAL par coloris, même partielle, même sur les vingt coloris les
+   plus vendus. Elle remplacerait la mesure du jour au lendemain, sans rien changer
+   d'autre : les pastilles viendraient de là, la mesure resterait le repli.
+
+2. **Les onze familles portent-elles les bons mots du métier ?** Ce sont les intitulés que
+   l'acheteur lit : Blancs et écrus · Gris · Noirs · Beiges et bruns · Rouges · Roses ·
+   Oranges · Jaunes · Verts · Bleus · Violets. Deux choix méritent votre avis. Le **kaki**
+   est rangé avec les verts (c'est un jaune sombre, et le métier dit « vert kaki »). Le
+   **turquoise** est laissé à la mesure, sans être forcé dans les bleus ni dans les verts,
+   parce que les deux se défendent et que nous préférons ne pas trancher à votre place.
+
+3. **Sept coloris ne se laissent pas ranger, et nous aimerions votre mot.** Les bornes entre
+   familles sont posées sur les 300 coloris dont le nom porte un mot de couleur sans
+   ambiguïté, ce qui laisse chaque borne dans un trou entre deux populations. Sept coloris
+   tombent quand même du mauvais côté de leur propre nom, et sont donc affichés sans
+   pastille :
+
+   - **Pixel Lime** et **Safety Green** : la teinture fluo jaune-vert. Le métier la vend
+     sous les deux mots, et elle est mesurée du côté jaune. Est-ce un jaune ou un vert
+     pour vos clients ?
+   - **Dusk Rose**, **Dusty Rose**, **Millenial Pink** : des roses poudrés très pâles, qui
+     mesurent la même chose qu'un beige. Roses ou beiges ?
+   - **Magenta** : vendu comme un rose, et mesuré **plus sombre** que « Heather Burgundy »
+     qui est vendu comme un rouge. Un des deux noms est contre-intuitif ; lequel ?
+
+   Un mot de votre part sur ces sept-là vaut mieux que n'importe quel réglage de borne :
+   déplacer une borne pour les rattraper ferait tomber d'autres coloris du mauvais côté.
+
+*Si vous ne répondez pas, on garde ce qui est livré :* la mesure, les onze familles, et
+aucune pastille là où la mesure n'a pas abouti.
+
+**Votre réponse :**
+
+> 
+
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

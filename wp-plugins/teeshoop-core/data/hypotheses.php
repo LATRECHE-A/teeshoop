@@ -922,6 +922,39 @@ return array(
 				'09',
 			),
 		),
+		array(
+			'id' => 'H-Q49-PASTILLE-MESUREE',
+			'question' => 'Q49',
+			'level' => 'utile',
+			'status' => 'assumption',
+			'since' => '2026-08-20',
+			'statement_fr' => 'La pastille de couleur affichée à côté d\'un coloris est mesurée sur le nuancier du fabricant, à défaut sur la photo du vêtement, jamais relevée sur le tissu.',
+			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Swatch.php#public static function centre( array $lab ): array',
+			'reaches' => array(
+				'customer',
+				'operator',
+			),
+			'cost_if_late' => 'reglage et remesure',
+			'sessions' => array(
+				'09',
+			),
+		),
+		array(
+			'id' => 'H-Q49-ONZE-FAMILLES',
+			'question' => 'Q49',
+			'level' => 'utile',
+			'status' => 'assumption',
+			'since' => '2026-08-20',
+			'statement_fr' => 'Les 442 coloris sont regroupés en onze familles, déduites de la couleur mesurée et jamais du nom : blancs et écrus, gris, noirs, beiges et bruns, rouges, roses, oranges, jaunes, verts, bleus, violets.',
+			'home' => 'php:Teeshoop\\Core\\Swatch::families()',
+			'reaches' => array(
+				'customer',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'09',
+			),
+		),
 	),
 	'withheld' => 31,
 );

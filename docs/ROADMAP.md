@@ -484,6 +484,67 @@ partiel, la mesure a été refaite **à l'échelle de la production** : 462 réf
 synthétiques, 12 768 relations de termes, **114,6 ms** pour 349 valeurs de facettes, et les
 produits du banc d'essai supprimés à la fin.
 
+**Les 442 coloris ont une couleur, et elle est mesurée.** C'était la seule chose du site que
+la séance ne défendait pas : quatre cent quarante-deux noms de fabricant dans une boîte qui
+défile, avec une recherche texte, alors que la couleur est le premier critère sur lequel un
+acheteur professionnel resserre. On ne peut pas les fusionner (« Navy », « French Navy »,
+« Deep Navy » et « Midnight » sont quatre articles) et le fournisseur n'envoie aucun code
+hexadécimal. Il envoie en revanche, pour chaque coloris, un **nuancier** : un aplat de la
+teinture, `sku_color_swatch_url`. Mesuré sur onze d'entre eux : de 99,2 % à 100 % du cadre
+est une seule couleur, l'écart au 90e centile valant 0,0. C'est donc la couleur **déclarée**,
+livrée en image plutôt qu'en texte, et c'est elle qui est publiée. La photo du vêtement est
+mesurée à côté, comme contrôle indépendant et comme repli : les deux tombent à 0,012 à 0,026
+l'une de l'autre en OKLab, chacune validant l'autre.
+
+Les onze familles qui regroupent ces noms sont déduites de la couleur mesurée, **jamais du
+mot**, et c'est la leçon du concurrent : chez mistertee.fr le regroupement est saisi à la
+main, si bien que « Chocolat » est dans les noirs, « Émeraude » dans les bleus et « Écru »
+dans aucun groupe, donc introuvable. La structure du classement est publiée (Wang, Luo et al.,
+CGIV 2006, ajustée sur 2 916 nominations par dix observateurs) et ses bornes ne survivent pas
+telles quelles à un vêtement : leur seuil achromatique est une chromaticité absolue, et aucune
+valeur absolue ne sépare un marine mesuré à C=0,028 d'un blanc cassé mesuré à C=0,020, parce
+que leurs clartés diffèrent d'un facteur trois. C'est la **saturation** qui les sépare, 0,109
+contre 0,022.
+
+**Les bornes de teinte sont ajustées sur les étiquettes du fabricant, et cela change 33
+coloris.** La conversion depuis CIELAB les posait près des milieux entre les références sRGB,
+et un milieu entre deux primaires n'est pas là où un nom change : l'œil appelle rgb(255,88,0)
+un orange alors que sa teinte est plus proche de celle du rouge. La borne rouge/orange à 40,0
+publiait donc « Orange », « T. Orange » et « Sunset Orange » comme des **rouges**, et la borne
+bleu/violet à 285,0 publiait « Purple », « Violet », « Dark Purple » et « Urban Purple » comme
+des **bleus**. Chaque borne est reposée sur les 300 coloris dont le nom porte un mot de
+couleur sans ambiguïté : les rouges montent à 29,16 et les oranges commencent à 31,53, les
+bleus montent à 276,2 et les violets commencent à 278,7, et ainsi de suite, si bien que chaque
+borne tombe dans un trou entre deux populations étiquetées et que **rien** n'est mal rangé.
+Une seule borne n'a pas de trou, jaune/vert, parce que la teinture fluo jaune-vert est vendue
+sous les deux mots ; le jaune pur de sRGB y sert de point fixe et deux coloris restent
+refusés. Le réglage a fait passer les désaccords entre le nom et la mesure de **28 à 8** sur
+440 coloris, sans en casser un seul dans l'autre sens.
+
+**Rien n'est inventé, et c'est le contrôle qui le dit.** Une couleur dont la mesure ne
+converge pas n'a **pas** de pastille : elle reste dans le filtre, sous « Non mesurés », avec
+son nom et ses références, parce qu'un coloris absent du filtre est une référence
+inatteignable. Un dernier verrou lit le nom du fournisseur comme signal indépendant : quand
+la photo dit « vert » et que l'étiquette dit « French Navy », l'un des deux est faux et on ne
+sait pas lequel, donc on ne publie ni l'un ni l'autre. `docs/couleurs.json` est le relevé
+commité, `npm run verify:couleurs` re-décide chaque ligne **en faisant tourner le vrai PHP**
+plutôt qu'en comparant du texte, refuse toute référence fournisseur dans le fichier, et se
+casse lui-même **deux fois** à chaque exécution pour prouver qu'il tire. Il lit le triplet
+OKLab exact et non l'arrondi affiché : lire l'arrondi le faisait crier au loup sur « Lime » et
+« Acid Lime », qui mesurent 114,972 et 114,989 et s'écrivent tous deux 115,0, de l'autre côté
+d'une borne.
+
+**Une panne réseau n'efface plus rien.** Une image qu'on n'a pas pu récupérer n'est pas une
+couleur qu'on refuse, et les deux arrivaient dans la même forme : `mesurer --recommencer`
+lancé pendant une coupure écrivait « photo non récupérée » sur les 442 coloris, supprimait
+toutes les pastilles au passage, et la passe suivante les sautait tous pour cause de « déjà
+répondu ». Le code porte désormais la différence, laisse le terme intact et compte le coloris
+comme injoignable. Dans le même esprit, `couleurs reclasser` reprend la décision de famille
+depuis les mesures déjà posées, en une seconde au lieu de dix-sept minutes de
+retéléchargement : une borne coûteuse à appliquer est une borne qu'on n'applique pas. La méthode complète est dans
+`docs/COULEURS.md` ; la question 49 demande à l'associé s'il a un nuancier officiel, qui
+remplacerait la mesure sans rien changer d'autre.
+
 **Ce que ni l'un ni l'autre concurrent ne publie, nous le dessinons.** Vérifié le 19 août
 2026 : mistertee.fr détient ses zones d'impression en millimètres dans une charge utile JSON
 et les chaînes « mm » et « × » apparaissent **zéro fois** dans le HTML qu'un client lit ;

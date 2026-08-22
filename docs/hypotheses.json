@@ -456,6 +456,7 @@
 				"wp-plugins/teeshoop-core/tests/test-grid.php",
 				"wp-plugins/teeshoop-core/tests/e2e-support.php",
 				"wp-plugins/teeshoop-core/tests/test-vat.php",
+				"wp-plugins/teeshoop-core/includes/Swatch.php",
 				"wp-plugins/teeshoop-core/includes/Cost.php",
 				"wp-plugins/teeshoop-core/includes/Commission.php",
 				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
@@ -464,7 +465,7 @@
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
 				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Quatre tests : deux écrivent leur propre configuration de prix, un pose la ligne de TVA du parcours d'achat de bout en bout, et le quatrième écrit 0.20 sur une période en franchise pour vérifier que le taux y est refusé. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
+			"literal_allow_why": "Quatre tests : deux écrivent leur propre configuration de prix, un pose la ligne de TVA du parcours d'achat de bout en bout, et le quatrième écrit 0.20 sur une période en franchise pour vérifier que le taux y est refusé. Dans Swatch, 0.20 est la part de la bordure d'un cadre qu'une pastille bicolore doit donner à sa plus petite moitié, mesurée sur les 79 pastilles bicolores du catalogue ; aucun rapport avec un taux. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -535,9 +536,11 @@
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
 				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/tests/test-pricerule.php"
+				"wp-plugins/teeshoop-core/tests/test-pricerule.php",
+				"wp-plugins/teeshoop-core/includes/Swatch.php",
+				"wp-plugins/teeshoop-core/tests/test-swatch.php"
 			],
-			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; dans Shipping et son test, la première tranche de la grille Colissimo, qui est 250 grammes ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251). Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle.",
+			"literal_allow_why": "Dans product.js, 250 est un délai d'anti-rebond en millisecondes ; dans Margin et Money, l'exemple chiffré de la Bible et un exemple de formatage ; dans Shipping et son test, la première tranche de la grille Colissimo, qui est 250 grammes ; le reste est constitué de tests qui encadrent le seuil (249, 250, 251). Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Le test des planchers par périmètre est ajouté pour la même raison : il écrit des taux ordinaires (0,25, 0,15, 0,40) qui s'écrivent comme cette valeur sans être elle. La mesure de couleur de la séance 09 écrit des valeurs de canal sur huit bits : 250 y est la clarté à laquelle le coloris « Snowwhite » est photographié, pas un nombre de pièces. C'est une collision de littéraux, pas une seconde copie, et c'est le nombre mesuré qui a fixé la tolérance de détourage : le changer pour éviter la collision rendrait le commentaire faux.",
 			"literal_scope_why": "250 apparaît dans vingt-huit fichiers comme dimension, comme seuil d'image et comme longueur de rouleau, soixante et une fois en tout. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas.",
 			"statement_amounts": [
 				{
@@ -3091,6 +3094,51 @@
 			"cost_if_late": "reglage",
 			"label_fr": "pour les professionnels",
 			"shipped_matches_default": "C'est l'hypothèse écrite de la question 01 (« Site réservé aux professionnels ») à une nuance près, et la nuance est délibérée : le site S'ADRESSE aux professionnels et ne REFUSE personne. Aucun code ne refuse un particulier aujourd'hui, donc une page qui écrirait « réservé aux professionnels » annoncerait un refus que la boutique ne fait pas. Le chapitre 00 dit « activité B2B » et ne parle jamais des particuliers, ni pour les accepter ni pour les exclure."
+		},
+		{
+			"id": "H-Q49-PASTILLE-MESUREE",
+			"question": "Q49",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-20",
+			"statement_fr": "La pastille de couleur affichée à côté d'un coloris est mesurée sur le nuancier du fabricant, à défaut sur la photo du vêtement, jamais relevée sur le tissu.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Swatch.php#public static function centre( array $lab ): array",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "Ce n'est pas un nombre, c'est une source. Le foyer est la fonction qui prend la médiane des pixels du vêtement ; le contrôle échoue si elle est réécrite, ce qui est exactement le moment où il faut relire cette ligne. Les 442 valeurs mesurées sont dans docs/couleurs.json, contrôlé par scripts/couleurs-guard.mjs, et aucune n'est écrite à la main.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"09"
+			],
+			"cost_if_late": "reglage et remesure",
+			"label_fr": "mesurées sur les nuanciers du fabricant",
+			"shipped_matches_default": "Oui, et la source a changé en cours de séance : le fournisseur n'envoie pas de valeur hexadécimale, mais il envoie pour chaque coloris une pastille, sku_color_swatch_url, qui est un aplat de la teinture. Mesuré sur onze d'entre elles : de 99,2 % à 100 % du cadre est une seule couleur. C'est donc la couleur DÉCLARÉE, livrée en image, et c'est elle qui est publiée ; la photo du vêtement reste mesurée à côté comme contrôle indépendant, et sert de repli quand aucune pastille n'est lisible. Un nuancier officiel de l'associé (Pantone, RAL) remplacerait les deux sans rien changer d'autre. L'interface le dit là où elle est lue : « Les pastilles sont mesurées sur les nuanciers du fabricant, ou à défaut sur ses photos. »"
+		},
+		{
+			"id": "H-Q49-ONZE-FAMILLES",
+			"question": "Q49",
+			"level": "utile",
+			"status": "assumption",
+			"since": "2026-08-20",
+			"statement_fr": "Les 442 coloris sont regroupés en onze familles, déduites de la couleur mesurée et jamais du nom : blancs et écrus, gris, noirs, beiges et bruns, rouges, roses, oranges, jaunes, verts, bleus, violets.",
+			"home": "php:Teeshoop\\Core\\Swatch::families()",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "Les onze intitulés n'existent qu'une fois, dans families(), et le thème les lit. Les bornes qui décident de la famille sont dans le même fichier, contrôlées en faisant tourner le vrai code sur chaque ligne du relevé (scripts/couleurs-guard.mjs), pas en comparant du texte.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [],
+			"sessions": [
+				"09"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "regroupés en onze familles",
+			"shipped_matches_default": "Le regroupement suit la structure publiée par Wang, Luo et al. (CGIV 2006), qui range d'abord les achromatiques, puis les trois noms qui demandent la clarté et la saturation en plus de la teinte (brun, rose, jaune), puis le reste par teinte. Quatre écarts assumés, tous mesurés et écrits dans docs/COULEURS.md : le kaki est rangé avec les verts parce que c'est un jaune sombre et que le métier dit « vert kaki » ; le seuil achromatique est une saturation et non une chromaticité absolue, parce qu'aucune chromaticité ne sépare un navy mesuré à C=0,028 d'un blanc cassé mesuré à C=0,020 ; le dénominateur de cette saturation est plancherisé à L=0,580 parce que le rapport C/L rend une couleur chromatique sur de moins en moins de chromaticité à mesure qu'elle s'assombrit, ce qui publiait « Pitch Black » en bleu ; et la borne de chromaticité du rose n'est pas reprise, parce que sur les 41 roses et rouges étiquetés du catalogue elle exclut un vrai rose et aucun rouge. Les bornes de teinte elles-mêmes sont posées sur les 300 coloris dont le nom porte un mot de couleur sans ambiguïté : chacune tombe dans le trou entre deux populations étiquetées, sauf jaune/vert où les deux se recouvrent et où le jaune pur de sRGB sert de point fixe. Le réglage a fait passer les désaccords nom contre mesure de 28 à 8 sur 440."
 		}
 	],
 	"not_applicable": [

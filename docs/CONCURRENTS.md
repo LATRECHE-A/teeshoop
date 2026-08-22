@@ -141,6 +141,66 @@ sont absentes et le panneau les nomme à l'écran plutôt que de les cacher : la
 disponibilité, le prix du textile nu, le délai, la technique de marquage et le secteur
 d'activité.
 
+### 6 bis. La facette Couleur, regardée de près chez cinq sites
+
+C'est la facette qui décide d'un catalogue de vêtements, et c'est celle sur laquelle nous
+avons passé le plus de temps. Cinq sites ont été ouverts dans un navigateur réel et mesurés,
+le 20 août 2026.
+
+**mistertee.fr.** Onze pastilles rondes de 24 px, une palette **fixe** dont les onze
+hexadécimaux sont identiques à l'octet près sur les cinq catégories testées : elle ne
+s'adapte jamais au rayon. Aucun nom, nulle part : mesuré sur le DOM rendu, onze `<li>`, zéro
+`title`, zéro `aria-*`, zéro `alt`, et `innerText` vide sur chacun. Aucun élément focalisable
+dans la facette, donc **inatteignable au clavier**. La pastille blanche est
+`rgb(255,255,255)` sur une page blanche avec une bordure `rgb(224,231,238)`, soit **1,25:1**
+là où WCAG 1.4.11 demande 3:1 : l'option « blanc » est invisible.
+
+Et surtout : **elle ne filtre pas.** Mesuré avec un témoin, sur la même page, quatre
+encodages différents de la facette couleur rendent 36 produits et le même premier résultat,
+exactement comme la requête sans filtre ; la facette « manches », elle, descend à 11. Le
+regroupement par familles existe pourtant dans leurs données, et il est fait à la main : leur
+groupe « noir » contient « Chocolat », leur groupe « bleu » contient « Émeraude » et « Bleu
+canard », leur groupe 9771 s'affiche en bleu saturé et ne contient que « Corde » et « Terre »,
+et « Écru » n'appartient à aucun groupe, donc aucun filtre par famille ne peut l'atteindre.
+
+**tostadora.fr.** Aucune facette couleur, ni repliée ni cachée. C'est cohérent avec leur
+métier plutôt qu'un défaut : ils vendent le motif d'un artiste et le vêtement se configure
+après.
+
+**stanleystella.com.** Liste plate de 92 noms fabricant, sans familles. L'ordre **est** le
+regroupement : ni alphabétique ni aléatoire, il suit le cercle des teintes, en-têtes en
+moins. Leur pastille est un **recadrage photo** et non un aplat (mesuré : 714 couleurs
+distinctes dans une pastille de 120 px), donc les chinés et les délavés montrent leur
+texture. C'est le meilleur balisage des cinq : vraie case à cocher, nom visible à côté, et
+sélection montrée par une coche **en plus** de la couleur.
+
+**bc-collection.eu.** La réponse à deux niveaux, la plus proche de la nôtre : **onze
+familles** (White, Black, Grey, Blue, Red, Green, Brown, Yellow, Orange, Pink, Purple), une
+ligne de raccourci « Best sellers », et l'ouverture d'une famille révèle les noms fabricant
+avec leur code (Blue en compte 22, de « Blue Fog 457 » à « Lake Blue 431 »), les bicolores
+recevant un cercle coupé en deux. Deux manques : le bouton de famille n'a pas
+d'`aria-pressed`, donc la sélection est invisible pour un lecteur d'écran, et le chevron qui
+déplie est un `<div>` sans rôle ni `tabindex`, donc **le second niveau est inatteignable au
+clavier**.
+
+**falk-ross.eu**, qui est notre propre fournisseur, appelle la facette « Colour group » et en
+offre **dix-neuf**. Chaque groupe est un vrai chemin (`/en/Products/T-Shirts/Blue/`), donc
+partageable et indexable. Sa pastille blanche a une bordure à **21:1**, à comparer au 1,25:1
+de mistertee.
+
+**Ce que nous en avons tiré.** La structure de B&C, qui est la bonne : onze familles, et les
+noms fabricant dessous, sans en fusionner un seul. Le nom visible à côté de chaque pastille
+de Stanley/Stella, qui est ce que WCAG 1.4.1 demande et ce que mistertee n'a pas. Le fait que
+le groupe soit une URL, de Falk&Ross. Et deux choses que personne ne fait :
+
+- **Les familles sont mesurées, pas saisies.** C'est la leçon de mistertee : une table écrite
+  à la main dérive, et « Chocolat » finit dans les noirs. Chez nous la famille se déduit de la
+  couleur mesurée, jamais du mot, donc « Fan Deep Royal » tombe dans les bleus sans que
+  personne n'ait à apprendre à la machine que « fan » ne veut rien dire.
+- **Le clavier depuis le début.** Nos groupes sont des `<details>`, ce qui les rend
+  ouvrables à la souris, au clavier et sans script, et annonce leur état à un lecteur d'écran
+  sans une ligne d'ARIA. B&C et mistertee échouent tous les deux sur ce point.
+
 ### 7. La disponibilité est dite
 
 mistertee ne dit **rien** : ni « en stock », ni « rupture », ni délai de réapprovisionnement.
