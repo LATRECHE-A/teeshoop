@@ -123,6 +123,8 @@ require_once __DIR__ . '/includes/Catalogue.php';
 require_once __DIR__ . '/includes/Supply.php';
 require_once __DIR__ . '/includes/Taxonomy.php';
 require_once __DIR__ . '/includes/Shelf.php';
+require_once __DIR__ . '/includes/Swatch.php';
+require_once __DIR__ . '/includes/Colours.php';
 require_once __DIR__ . '/includes/Importer.php';
 require_once __DIR__ . '/includes/Cart.php';
 require_once __DIR__ . '/includes/Shipping.php';

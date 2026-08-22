@@ -110,8 +110,13 @@ includes/
                       on the purchase price, and the colour photo swap
   Rest.php            /wp-json/teeshoop/v1/*
   Shortcode.php       [teeshoop_studio]
+  Swatch.php          the colour of a garment, measured. Pure: no WordPress and
+                      no GD, so tests/run.php exercises every branch of it
+  Colours.php         where the images come from and where the verdict goes
   Cli.php             wp teeshoop provisionner | verifier | marge
                          | catalogue importer | catalogue etat | catalogue purger
+                         | couleurs mesurer | couleurs reclasser
+                         | couleurs etat | couleurs oublier
 assets/
   tokens.css          THE PALETTE, THE TYPE SCALE AND THE SPACING, once, on :root.
                       Custom property declarations and nothing else: this file
@@ -547,6 +552,31 @@ Constants, in `wp-config.php` and never in an option:
 | `wp teeshoop catalogue importer --duree=1800` | Do half an hour and stop cleanly. A cron slot. |
 | `wp teeshoop catalogue etat` | Where the current pass got to. |
 | `wp teeshoop catalogue purger` | Remove every imported reference. Local mirror only. |
+| `wp teeshoop couleurs mesurer` | Measure a colour value for every colour name. |
+| `wp teeshoop couleurs mesurer --recommencer` | All of them again. For when an IMAGE changed. |
+| `wp teeshoop couleurs reclasser` | Re-decide every family from what is already measured, no fetch. For when a BOUNDARY changed. |
+| `wp teeshoop couleurs etat --refus` | What is known, and what is not, with the reasons. |
+| `wp teeshoop couleurs etat --releve` | The reviewable record, to stdout. Not `--json`, which WP-CLI takes for its own `--format`. |
+| `wp teeshoop couleurs oublier` | Forget every measurement. |
+
+**The colours have a value and nobody typed it in.** The supplier ships 442 colour
+names and no hexadecimal. It does ship, per colourway, a flat colour chip
+(`sku_color_swatch_url`, measured at 99,2 % to 100 % uniform) and a photograph of
+the garment. The chip is the value, the photograph is an independent check on it
+and the fallback, and both end at `Swatch::centre()`. A colour that cannot be
+measured gets NO swatch and a recorded reason: the filter shows it by name, with
+no dot, because a colour missing from the filter is a reference nobody can reach.
+`docs/COULEURS.md` is the method; `npm run verify:couleurs` holds the record and
+the code together by running the code.
+
+**An image that could not be fetched is not a colour that was refused**, and the
+code carries the difference (`reachable`) rather than inferring it. Without it a
+Worker outage during `couleurs mesurer --recommencer` writes « photo non
+récupérée » onto all 442 terms, deletes every swatch on the way, and the next
+pass skips them all as already answered. The family boundaries are a pure
+function of the stored OKLab, so moving one costs `couleurs reclasser` and a
+second, not a seventeen-minute re-fetch: a boundary that is expensive to apply is
+a boundary nobody applies.
 
 One style is one **variable** product; every article the supplier sells is one
 variation, built from the SKU list and never from the cross product of colours

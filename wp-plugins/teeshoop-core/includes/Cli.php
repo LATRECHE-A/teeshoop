@@ -40,6 +40,10 @@ final class Cli {
 		\WP_CLI::add_command( 'teeshoop catalogue purger', array( self::class, 'catalogue_purge' ) );
 		\WP_CLI::add_command( 'teeshoop marge', array( self::class, 'margin_report' ) );
 		\WP_CLI::add_command( 'teeshoop stock rafraichir', array( self::class, 'stock_refresh' ) );
+		\WP_CLI::add_command( 'teeshoop couleurs mesurer', array( self::class, 'colours_measure' ) );
+		\WP_CLI::add_command( 'teeshoop couleurs etat', array( self::class, 'colours_state' ) );
+		\WP_CLI::add_command( 'teeshoop couleurs reclasser', array( self::class, 'colours_reclassify' ) );
+		\WP_CLI::add_command( 'teeshoop couleurs oublier', array( self::class, 'colours_forget' ) );
 	}
 
 	/**
@@ -1307,4 +1311,280 @@ final class Cli {
 
 		return (int) $product->get_id();
 	}
+
+	/**
+	 * Measure a colour value for every colour name in the catalogue.
+	 *
+	 * ## WHY A COMMAND AND NOT AN IMPORT STEP
+	 *
+	 * Because it is answering a different question on a different clock. The
+	 * catalogue import runs nightly and writes what the supplier says. This
+	 * reads what the supplier's photographs SHOW, which changes only when a
+	 * garment is re-shot, and re-running it on every import would fetch three
+	 * thousand photographs a night to confirm that navy is still navy.
+	 *
+	 *     0 4 * * 0  cd /home/xxx/public_html && wp teeshoop couleurs mesurer --discret
+	 *
+	 * Once a week is generous. New colours arriving with new references are
+	 * picked up because a colour already measured is skipped: the weekly run
+	 * costs one sweep of the work list and a handful of fetches.
+	 *
+	 * ## WHAT IT WRITES, AND WHAT IT REFUSES TO WRITE
+	 *
+	 * A hexadecimal on the term, or a reason there is none. Never both. A
+	 * colour is refused when its photographs cannot be segmented, when they
+	 * disagree with each other, or when what they show contradicts the name the
+	 * supplier gave. There is no fallback value: the filter shows an unmeasured
+	 * colour as a name with no swatch, which is the truth.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--max=<n>]
+	 * : Stop after this many colours. 0 = all of them. Default 0.
+	 *
+	 * [--photos=<n>]
+	 * : How many photographs to measure per colour. Default 5.
+	 *
+	 * [--recommencer]
+	 * : Measure colours that already carry a verdict, instead of skipping them.
+	 *
+	 * [--duree=<s>]
+	 * : Stop after this many seconds. Whatever was measured is kept.
+	 *
+	 * [--discret]
+	 * : Print only the summary, for a cron.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp teeshoop couleurs mesurer
+	 *     wp teeshoop couleurs mesurer --recommencer
+	 *     wp teeshoop couleurs mesurer --max=20 --photos=3
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Flags.
+	 */
+	public static function colours_measure( array $args, array $assoc_args ): void {
+		$quiet = ! empty( $assoc_args['discret'] );
+
+		if ( ! function_exists( 'imagecreatefromstring' ) ) {
+			\WP_CLI::error( 'L’extension GD n’est pas installée : aucune photo ne peut être lue. Rien n’a été mesuré.' );
+		}
+		if ( '' === Shelf::photo_url( '/media/blank/picture/x.jpg' ) ) {
+			\WP_CLI::error( 'L’adresse du Worker n’est pas réglée (réglage « worker_url ») : les photos ne sont pas joignables.' );
+		}
+
+		$work = Colours::work_list( (int) ( $assoc_args['photos'] ?? Colours::PHOTOS_PER_COLOUR ) );
+		if ( empty( $work ) ) {
+			\WP_CLI::error( 'Aucun article importé ne porte de pastille ni de photo de coloris : il n’y a rien à mesurer. Lancez d’abord « wp teeshoop catalogue importer ».' );
+		}
+
+		$started = microtime( true );
+		$stats   = Colours::sweep(
+			array(
+				'max'      => (int) ( $assoc_args['max'] ?? 0 ),
+				'photos'   => (int) ( $assoc_args['photos'] ?? Colours::PHOTOS_PER_COLOUR ),
+				'again'    => ! empty( $assoc_args['recommencer'] ),
+				'seconds'  => (int) ( $assoc_args['duree'] ?? 0 ),
+				'progress' => $quiet ? null : static function ( \WP_Term $term, array $verdict ): void {
+					\WP_CLI::log(
+						sprintf(
+							'  %-32s %s',
+							mb_substr( (string) $term->name, 0, 32 ),
+							empty( $verdict['ok'] )
+								? 'refusé : ' . (string) $verdict['why']
+								: implode( ' ', (array) $verdict['stops'] ) . '  ' . (string) $verdict['family']
+								  . sprintf(
+									  '  (%s, %d image%s%s)',
+									  (string) ( $verdict['source'] ?? 'pastille' ),
+									  (int) $verdict['photos'],
+									  (int) $verdict['photos'] > 1 ? 's' : '',
+									  isset( $verdict['photo_ecart'] ) ? sprintf( ', photo à %.3f', (float) $verdict['photo_ecart'] ) : ''
+								  )
+						)
+					);
+				},
+			)
+		);
+
+		\WP_CLI::log(
+			sprintf(
+				'%d coloris traités sur %d (%d mesurés dont %d repliés sur la photo, %d refusés, %d déjà connus, %d injoignables), %d images, %.1f s.%s',
+				(int) $stats['colours'],
+				(int) $stats['total'],
+				(int) $stats['measured'],
+				(int) $stats['fallback'],
+				(int) $stats['refused'],
+				(int) $stats['skipped'],
+				(int) $stats['injoignable'],
+				(int) $stats['images'],
+				microtime( true ) - $started,
+				'' === $stats['stopped'] ? '' : ' Arrêt : ' . (string) $stats['stopped'] . '.'
+			)
+		);
+
+		/*
+		 * THE CROSS-CHECK REPORTS ITS COVERAGE, not only its failures. « 44
+		 * photographs far from their chip » is unreadable without the
+		 * denominator: it could be 44 of 44. It is 44 of 396, and one
+		 * photograph in 397 could not be read at all.
+		 */
+		$checked = (int) $stats['photo_verifiee'] + (int) $stats['photo_illisible'];
+		if ( $checked > 0 ) {
+			\WP_CLI::log(
+				sprintf(
+					'Contrôle par la photo : %d sur %d ont donné un écart, dont %d au-delà de %.2f ; %d illisibles.',
+					(int) $stats['photo_verifiee'],
+					$checked,
+					(int) $stats['photo_loin'],
+					Colours::PHOTO_MAX,
+					(int) $stats['photo_illisible']
+				)
+			);
+			foreach ( (array) $stats['photo_raisons'] as $why => $n ) {
+				\WP_CLI::log( sprintf( '  %-52s %d', mb_substr( (string) $why, 0, 52 ), (int) $n ) );
+			}
+		}
+
+		if ( (int) $stats['injoignable'] > 0 ) {
+			\WP_CLI::warning(
+				sprintf(
+					'%d coloris n’ont pas pu être récupérés et ont été laissés tels quels. Ce n’est pas un refus : relancez quand le Worker répond.',
+					(int) $stats['injoignable']
+				)
+			);
+		}
+
+		if ( ! empty( $stats['reasons'] ) ) {
+			\WP_CLI::log( '' );
+			foreach ( (array) $stats['reasons'] as $why => $n ) {
+				\WP_CLI::log( sprintf( '  %-52s %d', mb_substr( (string) $why, 0, 52 ), (int) $n ) );
+			}
+		}
+	}
+
+	/**
+	 * Re-decide every family from what is already measured, with no fetch.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp teeshoop couleurs reclasser
+	 *
+	 * Run it whenever a boundary moves in `Swatch`. `couleurs mesurer
+	 * --recommencer` would give the same answer and re-fetch about 1 900
+	 * supplier images to do it, which is seventeen minutes and a boundary
+	 * change that in practice never gets applied.
+	 */
+	public static function colours_reclassify(): void {
+		$stats = Colours::reclassify();
+
+		if ( 0 === (int) $stats['colours'] ) {
+			\WP_CLI::error( 'Aucun coloris ne porte de mesure : il n’y a rien à reclasser. Lancez « wp teeshoop couleurs mesurer ».' );
+		}
+
+		\WP_CLI::log(
+			sprintf(
+				'%d coloris reclassés (%d publiés, %d refusés), %d changement(s). %d jamais mesurés et %d mesurés trop tôt pour être relus : tous intacts.',
+				(int) $stats['colours'],
+				(int) $stats['publiés'],
+				(int) $stats['refusés'],
+				(int) $stats['changés'],
+				(int) $stats['sans_mesure'],
+				(int) $stats['incomplet']
+			)
+		);
+		if ( (int) $stats['incomplet'] > 0 ) {
+			\WP_CLI::warning(
+				sprintf(
+					'%d coloris bicolores ne gardent qu’une seule mesure et ne peuvent pas être relus. « wp teeshoop couleurs mesurer --recommencer » les remet en état.',
+					(int) $stats['incomplet']
+				)
+			);
+		}
+		foreach ( (array) $stats['mouvements'] as $move => $n ) {
+			\WP_CLI::log( sprintf( '  %-32s %d', (string) $move, (int) $n ) );
+		}
+		\WP_CLI::success( 'Familles à jour. Pensez à « npm run couleurs:relever » pour mettre le relevé au même état.' );
+	}
+
+	/**
+	 * What the shop knows about its colours, and what it does not.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--releve]
+	 * : Print the reviewable record and NOTHING ELSE, so it can be redirected:
+	 * `wp teeshoop couleurs etat --releve > docs/couleurs.json`. Not `--json`,
+	 * which WP-CLI reads as its own `--format` and refuses. Written to
+	 * standard output rather than to a path because the plugin runs from a
+	 * bind mount in the mirror and from a shared host in production, and
+	 * neither of them can see the repository this file belongs to.
+	 *
+	 * [--refus]
+	 * : List every refused colour with its reason, one per line.
+	 */
+	public static function colours_state( array $args, array $assoc_args ): void {
+		$ledger = Colours::ledger();
+		if ( empty( $ledger ) ) {
+			\WP_CLI::error( 'Aucun coloris n’existe dans cette boutique.' );
+		}
+
+		if ( ! empty( $assoc_args['releve'] ) ) {
+			// Nothing else on stdout, or the redirect writes broken JSON.
+			echo wp_json_encode( $ledger, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON on a command line.
+			return;
+		}
+
+		$count = (array) $ledger['compte'];
+		$total = array_sum( $count );
+		\WP_CLI::log( sprintf( 'Coloris          : %d', $total ) );
+		foreach ( $count as $label => $n ) {
+			\WP_CLI::log(
+				sprintf(
+					'  %-14s %4d  %5.1f %%',
+					$label,
+					(int) $n,
+					$total > 0 ? (int) $n / $total * 100 : 0.0
+				)
+			);
+		}
+
+		$families = array();
+		$single   = 0;
+		foreach ( (array) $ledger['couleurs'] as $row ) {
+			if ( isset( $row['famille'] ) ) {
+				$families[ $row['famille'] ] = ( $families[ $row['famille'] ] ?? 0 ) + 1;
+				if ( 1 === (int) ( $row['images'] ?? 0 ) ) {
+					++$single;
+				}
+			}
+		}
+		\WP_CLI::log( '' );
+		foreach ( Swatch::families() as $slug => $label ) {
+			\WP_CLI::log( sprintf( '  %-18s %4d', $label, (int) ( $families[ $slug ] ?? 0 ) ) );
+		}
+		\WP_CLI::log( '' );
+		\WP_CLI::log( sprintf( 'Mesurés sur une seule photo : %d', $single ) );
+
+		if ( ! empty( $assoc_args['refus'] ) ) {
+			\WP_CLI::log( '' );
+			foreach ( (array) $ledger['couleurs'] as $row ) {
+				if ( isset( $row['refus'] ) ) {
+					\WP_CLI::log( sprintf( '  %-32s %s', mb_substr( (string) $row['nom'], 0, 32 ), (string) $row['refus'] ) );
+				}
+			}
+		}
+	}
+
+	/**
+	 * Forget every colour measurement.
+	 *
+	 * The swatches disappear from the filter and the names stay, which is what
+	 * the site looked like before any of this existed. Used when a threshold in
+	 * `Swatch` moves and every verdict has to be taken again.
+	 */
+	public static function colours_forget(): void {
+		$n = Colours::forget();
+		\WP_CLI::success( sprintf( '%d coloris oublié(s).', $n ) );
+	}
+
 }

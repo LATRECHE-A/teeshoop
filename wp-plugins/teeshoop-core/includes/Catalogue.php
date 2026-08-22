@@ -159,6 +159,19 @@ final class Catalogue {
 	public const META_COLOUR_PHOTO = '_teeshoop_colour_photo';
 
 	/**
+	 * The manufacturer's own colour chip for this colourway.
+	 *
+	 * A JPEG of a flat patch of the dye, not a hexadecimal, and not a
+	 * photograph of a garment: `sku_color_swatch_url` in the supplier's XML.
+	 * MEASURED on eleven of them, 168 x 126 px each: between 99,2 % and 100 %
+	 * of every frame is one colour, and the 90th percentile deviation from its
+	 * own median is 0,0 on all eleven. It is therefore the supplier's DECLARED
+	 * colour, delivered as an image, and it is what `Swatch` measures. The
+	 * garment photograph beside it stays as an independent check on it.
+	 */
+	public const META_COLOUR_CHIP = '_teeshoop_colour_chip';
+
+	/**
 	 * Variation: WHEN the supplier published the stock figure beside it.
 	 *
 	 * The quantity alone is not usable. Chapter 05 of the brief: « Le stock
@@ -678,10 +691,14 @@ final class Catalogue {
 	private static function variations( array $style, array $prices, array $stock, string $stock_at = '' ): array {
 		$colour_names  = array();
 		$colour_photos = array();
+		$colour_chips  = array();
 		foreach ( (array) ( $style['colourways'] ?? array() ) as $cw ) {
 			$code                   = self::text( $cw['code'] ?? '' );
 			$colour_names[ $code ]  = self::text( $cw['name'] ?? '' );
 			$colour_photos[ $code ] = self::text( $cw['photo'] ?? '' );
+			// The Worker calls it `swatch`; the shop calls it a chip, to keep it
+			// apart from the coloured dot the filter draws from it.
+			$colour_chips[ $code ] = self::text( $cw['swatch'] ?? '' );
 		}
 
 		$ref  = self::text( $style['styleNr'] ?? '' );
@@ -795,6 +812,7 @@ final class Catalogue {
 				'supply_cents' => $cents,
 				'stock'        => $quantity,
 				'photo'        => $colour_photos[ $code ] ?? '',
+				'chip'         => $colour_chips[ $code ] ?? '',
 			);
 		}
 

@@ -737,6 +737,7 @@ final class Importer {
 				Catalogue::META_SUPPLY_SKU    => $supply,
 				Catalogue::META_SUPPLY_SOURCE => Supply::SOURCE,
 				Catalogue::META_COLOUR_PHOTO  => (string) $row['photo'],
+				Catalogue::META_COLOUR_CHIP   => (string) ( $row['chip'] ?? '' ),
 				Catalogue::META_ORIGIN        => (string) $row['origin'],
 				Catalogue::META_CLOSEOUT      => $row['closeout'] ? '1' : '',
 			);
