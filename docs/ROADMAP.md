@@ -478,11 +478,25 @@ personne ne pourrait ajouter une seconde couleur. `npm run verify:site` coche la
 case et compte ce qui revient ; le contrôle a été cassé exprès (« annoncé 6, obtenu 5 »).
 
 **Et le budget du chapitre 4 est mesuré, pas espéré.** Il demande moins d'une seconde.
-`npm run bench:shop` relève **176 à 211 ms** pour la page entière et **22,6 ms** pour
-l'arithmétique des facettes seule, en 25 requêtes SQL. Le miroir ne portant qu'un import
-partiel, la mesure a été refaite **à l'échelle de la production** : 462 références
-synthétiques, 12 768 relations de termes, **114,6 ms** pour 349 valeurs de facettes, et les
-produits du banc d'essai supprimés à la fin.
+`npm run bench:shop` relevait **176 à 211 ms** pour la page entière et **22,6 ms** pour
+l'arithmétique des facettes seule, sur un miroir qui ne portait qu'un import partiel ; refaite
+à l'échelle de la production avec 462 références synthétiques, l'arithmétique des facettes
+tenait en **114,6 ms** pour 349 valeurs.
+
+**Remesuré le 22 août 2026 sur le catalogue complet, ce n'est plus vrai, et il faut l'écrire.**
+Le miroir porte maintenant les 459 références et leurs 26 359 déclinaisons. Sur
+`/product-category/t-shirts/`, médiane de quinze requêtes à chaud, machine au repos : **2 431 ms
+sans filtre**, 1 978 ms avec deux facettes, 154 ms avec trois facettes et un grammage.
+L'arithmétique des facettes, elle, tient toujours : **101,7 ms**, 27 requêtes SQL, 591 valeurs
+rendues, soit 4 % de la page.
+
+**Ce n'est donc pas le panneau de filtres, et c'est mesuré aussi.** `npm run bench:theme` sur
+`/shop/` donne 3 090 ms à notre thème et **2 479 ms à twentytwentyfive**, qui n'a ni facette ni
+pastille : la page coûte déjà cela sans rien de ce que cette séance a construit. La catégorie
+« T-shirts » ne contient d'ailleurs que douze références, donc ce n'est pas non plus la
+longueur de la liste. Le coût est ailleurs, dans ce que WooCommerce fait d'un catalogue de
+26 359 déclinaisons, et **nous ne l'avons pas isolé**. C'est l'entrée numéro un de la séance 13,
+avec le chiffre du jour pour repère.
 
 **Les 442 coloris ont une couleur, et elle est mesurée.** C'était la seule chose du site que
 la séance ne défendait pas : quatre cent quarante-deux noms de fabricant dans une boîte qui
