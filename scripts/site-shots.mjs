@@ -25,7 +25,11 @@
  * Exit: 0 all assertions passed - 1 an assertion failed - 2 nothing was asserted.
  */
 import { chromium } from 'playwright'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const BASE = (process.argv[2] || 'http://localhost:8080').replace(/\/$/, '')
 const OUT = process.argv[3] || 'docs/screens/session09'
@@ -228,6 +232,200 @@ for (const [name, path] of PAGES) {
   /* A filtered listing is not a page to index. */
   const robots = await page.locator('meta[name="robots"]').getAttribute('content')
   ok('a filtered listing is noindex', /noindex/.test(robots || ''), robots || '(aucune)')
+
+  await context.close()
+}
+
+/* --------------------------------------------------- the colour facet -- */
+
+/*
+ * FOUR HUNDRED AND FORTY-TWO NAMES, ELEVEN FAMILIES, AND NOT ONE INVENTED
+ * COLOUR.
+ *
+ * The swatches are measured (`Swatch` in the plugin, `docs/couleurs.json` for
+ * the record). What is checked here is the chain from that measurement to the
+ * pixel a buyer sees, and the two ways it could lie: a swatch that is not the
+ * colour that was measured, and a swatch drawn for a colour nothing could be
+ * measured for.
+ */
+{
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  const page = await context.newPage()
+  await page.goto(BASE + '/shop/', { waitUntil: 'networkidle' })
+
+  const groups = await page.locator('.ts-fam__group').count()
+  ok('the colour facet is grouped rather than one long list', groups >= 2, `${groups} groupe(s)`)
+
+  /*
+   * WCAG 1.4.1: colour is never the only signal. Every swatch has the maker's
+   * own name beside it, which is also what the checkbox is labelled with.
+   */
+  const nameless = await page.evaluate(() =>
+    [...document.querySelectorAll('.ts-chip__swatch')].filter((sw) => {
+      const label = sw.parentElement?.querySelector('.ts-chip__label')
+      return !label || !label.textContent.trim()
+    }).length,
+  )
+  ok('every swatch carries the maker’s name beside it', nameless === 0, `${nameless} sans nom`)
+
+  /*
+   * THE GROUP THAT MUST HAVE NO COLOURS IN IT. A colour nothing could be
+   * measured for is shown, because dropping it would put its references out of
+   * reach, and it is shown WITHOUT a swatch, because we do not invent one.
+   */
+  const unmeasured = page.locator('.ts-fam__group', { hasText: 'Non mesurés' }).first()
+  if (await unmeasured.count()) {
+    const invented = await unmeasured.locator('.ts-chip__swatch').count()
+    ok('an unmeasured colour is shown and gets no swatch', invented === 0, `${invented} inventée(s)`)
+  } else {
+    skipped.push({ name: 'an unmeasured colour gets no swatch', why: 'every colour was measured' })
+  }
+
+  /*
+   * THE SWATCH ON SCREEN IS THE VALUE THAT WAS MEASURED. Read what the browser
+   * actually computed for one chip and compare it with the committed record,
+   * which is the whole chain: photograph, Swatch, term meta, template, CSS.
+   */
+  /*
+   * A HARNESS THAT CANNOT LOOK SAYS SO AND CARRIES ON. The record is generated,
+   * not built here, so on a fresh clone it may not exist yet. Reading it bare
+   * threw out of the module and took the keyboard and no-script gates below
+   * down with it, while the run still ended on the exit code of what HAD
+   * passed.
+   */
+  let ledger = null
+  try {
+    ledger = JSON.parse(readFileSync(join(ROOT, 'docs/couleurs.json'), 'utf8'))
+  } catch (e) {
+    skipped.push({
+      name: 'the swatch drawn is the colour that was measured',
+      why: `docs/couleurs.json unreadable (${e.code ?? e.message}); run npm run couleurs:relever`,
+    })
+  }
+  const known = new Map((ledger?.couleurs ?? []).filter((r) => r.pastille).map((r) => [r.nom, r.pastille]))
+  const drawn = await page.evaluate(() =>
+    [...document.querySelectorAll('.ts-chip__swatch')].slice(0, 40).map((sw) => ({
+      name: sw.parentElement?.querySelector('.ts-chip__label')?.textContent.trim() ?? '',
+      bg: getComputedStyle(sw).backgroundColor,
+      // A two-tone swatch is a linear-gradient, which is a background IMAGE:
+      // its backgroundColor is transparent and reading only that compared nine
+      // real raglans against the wrong property and called them wrong.
+      image: getComputedStyle(sw).backgroundImage,
+      border: getComputedStyle(sw).borderTopColor,
+    })),
+  )
+  const rgbOf = (hex) => {
+    const n = parseInt(hex.slice(1), 16)
+    return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+  }
+  const compared = drawn.filter((d) => known.has(d.name))
+  const wrong = compared.filter((d) => {
+    const stops = known.get(d.name)
+    if (stops.length === 1) return d.bg !== rgbOf(stops[0])
+    // Both halves have to be in the gradient, in the order the record gives.
+    const a = d.image.indexOf(rgbOf(stops[0]))
+    const b = d.image.indexOf(rgbOf(stops[1]))
+    return a < 0 || b < 0 || a > b
+  })
+  const twoTone = compared.filter((d) => known.get(d.name).length > 1).length
+  if (ledger) {
+    ok(
+      'the swatch drawn is the colour that was measured',
+      compared.length > 0 && wrong.length === 0,
+      `${compared.length} comparée(s) dont ${twoTone} bicolore(s), ${wrong.length} fausse(s)` +
+        (wrong.length ? `: ${wrong[0].name} ${wrong[0].bg} ${wrong[0].image}` : ''),
+    )
+  }
+
+  /*
+   * WCAG 1.4.11 asks 3:1 for the boundary of a control. « White » and « Off
+   * White » are real articles and their swatches are invisible on the panel
+   * without one.
+   */
+  const lum = (rgb) => {
+    const [r, g, b] = rgb.match(/\d+/g).map(Number).map((v) => {
+      const c = v / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const panel = await page.evaluate(() => getComputedStyle(document.querySelector('.ts-fam__list')).backgroundColor)
+  const edges = compared.map((d) => {
+    const a = lum(d.border)
+    const b = lum(panel)
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+  })
+  const worst = edges.length ? Math.min(...edges) : 0
+  ok('every swatch has an edge a person can see', worst >= 3, `${worst.toFixed(2)}:1 au pire`)
+
+  /*
+   * AN OPEN FAMILY IS STILL SURVIVABLE ON A PHONE. « Bleus » holds ninety-six
+   * names; without a cap on the open group the buyer swipes past all of them to
+   * reach the next facet, which is the failure the flat list had.
+   */
+  const openTall = await page.evaluate(() => {
+    /*
+     * OPEN THE BIGGEST GROUP FIRST. A shut `<details>` has a zero-height list,
+     * so measuring whatever is there measures nothing and the check passes on
+     * every page whatever the CSS says: a gate that cannot fail.
+     */
+    const groups = [...document.querySelectorAll('.ts-fam__group')]
+    if (!groups.length) return null
+    const biggest = groups.reduce((a, b) =>
+      b.querySelectorAll('.ts-fam__list > li').length > a.querySelectorAll('.ts-fam__list > li').length ? b : a,
+    )
+    biggest.open = true
+    const el = biggest.querySelector('.ts-fam__list')
+    return {
+      names: el.querySelectorAll('li').length,
+      h: el.getBoundingClientRect().height,
+      view: window.innerHeight,
+      scrolls: el.scrollHeight > el.clientHeight + 1,
+    }
+  })
+  if (openTall) {
+    ok(
+      'an open colour family is bounded rather than endless',
+      openTall.names > 12 && openTall.h > 0 && openTall.h <= openTall.view,
+      `${openTall.names} coloris, ${Math.round(openTall.h)} px pour ${openTall.view} px de fenêtre${openTall.scrolls ? ', défile' : ''}`,
+    )
+  }
+
+  /*
+   * THE FAMILY IS A REAL FILTER, not a heading. Tick « Tous les bleus » and
+   * the listing has to return the number the chip promised.
+   */
+  const family = page.locator('.ts-chip--all').first()
+  if (await family.count()) {
+    /*
+     * OPEN THE GROUP BEFORE READING IT. `innerText` returns '' for anything
+     * inside a shut `<details>`, so the claimed count came back as 0 and the
+     * check only passed while the listing also returned 0.
+     */
+    await family.locator('..').locator('..').locator('..').locator('summary').click().catch(() => {})
+    const label = (await family.locator('.ts-chip__label').innerText()).trim()
+    const claimed = Number((await family.locator('.ts-chip__n').innerText()).replace(/\D/g, ''))
+    await family.click()
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }),
+      page.locator('.ts-filters .ts-cta').click(),
+    ])
+    const shown = Number(((await page.locator('.ts-shop__count').innerText()) || '').replace(/\D/g, ''))
+    ok(
+      'a colour family filters, and returns what it promised',
+      /f_famille/.test(page.url()) && claimed === shown,
+      `${label}: annoncé ${claimed}, obtenu ${shown}`,
+    )
+
+    /*
+     * A SHARED URL DOES NOT HIDE ITS OWN CRITERIA. The group holding what is
+     * selected arrives open, whatever a script does afterwards.
+     */
+    const open = await page.locator('.ts-fam__group[open]').count()
+    ok('the chosen family arrives open', open >= 1, `${open} ouvert(s)`)
+  } else {
+    skipped.push({ name: 'a colour family filters', why: 'no family has references in this shop' })
+  }
 
   await context.close()
 }

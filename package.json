@@ -30,7 +30,7 @@
     "verify:nest": "node scripts/nest-verify.mjs",
     "verify:fr": "node scripts/fr-verify.mjs",
     "bench:achats": "node scripts/purchase-bench.mjs",
-    "ci": "npm run typecheck && npm run typecheck:worker && npm test && npm run test:php && npm run verify:php && npm run verify:garments && npm run verify:palette && npm run verify:hypotheses",
+    "ci": "npm run typecheck && npm run typecheck:worker && npm test && npm run test:php && npm run verify:php && npm run verify:garments && npm run verify:palette && npm run verify:hypotheses && npm run verify:couleurs",
     "deploy": "npm run build && npm run verify:bundle && wrangler deploy",
     "gen:garments": "node scripts/gen-garment-data.mjs",
     "verify:php": "node scripts/php-guard.mjs",
@@ -41,7 +41,11 @@
     "verify:palette": "node scripts/palette-guard.mjs",
     "verify:site": "node scripts/site-shots.mjs",
     "bench:theme": "node scripts/theme-bench.mjs",
-    "bench:shop": "node scripts/shop-bench.mjs"
+    "bench:shop": "node scripts/shop-bench.mjs",
+    "couleurs:mesurer": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs mesurer",
+    "couleurs:reclasser": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs reclasser",
+    "couleurs:relever": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs etat --releve > docs/couleurs.json",
+    "verify:couleurs": "node scripts/couleurs-guard.mjs"
   },
   "keywords": [],
   "type": "module",
