@@ -840,6 +840,20 @@ ul.products li.product .price {
 	overscroll-behavior: contain;
 }
 
+/*
+ * The colour facet is not a list any more, it is eleven groups, so the height
+ * cap above moves off the container. With every group shut the whole facet is
+ * eleven lines tall and needs no box; the cap goes on the OPEN group's list
+ * instead, because « Bleus » alone holds ninety-six names and an open group
+ * with nothing bounding it is the four-hundred-checkbox swipe the cap was
+ * written to prevent, one level down.
+ */
+.ts-facet--couleur .ts-facet__list,
+.ts-facet--couleur > .ts-fam {
+	max-height: none;
+	overflow: visible;
+}
+
 .ts-facet__list--short {
 	max-height: none;
 	padding: 0;
@@ -911,13 +925,163 @@ a.ts-chip:hover {
 	color: inherit;
 }
 
-/* A colour value shows the colour, and the name stays the maker's. */
+/*
+ * ─── the colour facet ───────────────────────────────────────────────────────
+ *
+ * A swatch is a MEASURED value (`Swatch` in the plugin), delivered per chip as
+ * `--ts-sw-a` and, for a two-tone colourway, `--ts-sw-b`. No hexadecimal is
+ * written here: this file holds no colour that is not a token, and a measured
+ * one is data, so it arrives on the element.
+ *
+ * The border is not decoration. « White » and « Off White » are real articles
+ * and their swatches are all but invisible on the panel's own paper, so every
+ * swatch carries an edge, and that edge is `--ts-line-strong`, the token
+ * chosen for WCAG 1.4.11's 3:1 on a control boundary.
+ */
 .ts-chip__swatch {
 	width: 0.875rem;
 	height: 0.875rem;
-	border: 1px solid color-mix(in srgb, var(--ts-ink) 25%, transparent);
+	border: 1px solid var(--ts-line-strong);
 	border-radius: 2px;
+	background: var(--ts-sw-a, transparent);
 	flex: 0 0 auto;
+}
+
+/*
+ * Two colours, split hard on the diagonal rather than blended. « Navy/White »
+ * is two dyes and a gradient between them would draw a colour the garment does
+ * not come in.
+ */
+.ts-chip__swatch--deux {
+	background: linear-gradient(135deg, var(--ts-sw-a) 0 50%, var(--ts-sw-b) 50% 100%);
+}
+
+.ts-fam {
+	border: 1px solid var(--ts-line);
+}
+
+.ts-fam__group + .ts-fam__group {
+	border-top: 1px solid var(--ts-line);
+}
+
+/*
+ * The native disclosure marker is removed on both engines (`list-style` for
+ * Firefox and Safari, `::-webkit-details-marker` for the rest) and a chevron is
+ * drawn below, so that it matches the one the filter panel's own button uses.
+ */
+.ts-fam__head {
+	display: flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	padding: var(--ts-space-2) var(--ts-space-3);
+	background: var(--ts-paper);
+	cursor: pointer;
+	list-style: none;
+}
+
+.ts-fam__head::-webkit-details-marker {
+	display: none;
+}
+
+.ts-fam__head::before {
+	flex: 0 0 auto;
+	width: 0.4375rem;
+	height: 0.4375rem;
+	content: '';
+	border-right: 2px solid var(--ts-muted);
+	border-bottom: 2px solid var(--ts-muted);
+	transform: rotate(-45deg) translate(0.1rem, -0.1rem);
+}
+
+.ts-fam__group[open] > .ts-fam__head::before {
+	transform: rotate(45deg) translate(-0.05rem, -0.05rem);
+}
+
+.ts-fam__head:hover {
+	background: var(--ts-surface);
+}
+
+.ts-fam__head:focus-visible {
+	outline: var(--ts-focus-width) solid var(--ts-accent);
+	outline-offset: calc(-1 * var(--ts-focus-width));
+}
+
+.ts-fam__name {
+	/*
+	 * The name pushes everything after it to the right, whether that is a strip
+	 * and a count or a count alone. Hanging the margin off the count instead
+	 * needed `:first-of-type`, which is never true of it: the name is a span too.
+	 */
+	margin-right: auto;
+	font-size: var(--ts-text-sm);
+	font-weight: 600;
+}
+
+/*
+ * Six dots of what is inside, so the eye can find the greens without reading
+ * eleven words. Decorative and marked as such: the heading beside it is the
+ * information (WCAG 1.4.1).
+ */
+.ts-fam__strip {
+	display: flex;
+	gap: 2px;
+}
+
+.ts-fam__dot {
+	width: 0.625rem;
+	height: 0.625rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: 50%;
+	background: var(--ts-sw-a, transparent);
+}
+
+.ts-fam__n {
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.ts-fam__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2);
+	max-height: 60vh;
+	margin: 0;
+	padding: var(--ts-space-3);
+	border-top: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	list-style: none;
+}
+
+/* « Tous les bleus » is the whole family and reads as the heading of its list. */
+.ts-chip--all {
+	flex: 1 0 100%;
+	justify-content: flex-start;
+	background: var(--ts-surface);
+	border-style: dashed;
+}
+
+.ts-fam__why,
+.ts-fam__source {
+	margin: 0;
+	padding: var(--ts-space-3);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading);
+	max-width: none;
+}
+
+.ts-fam__why {
+	border-top: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+}
+
+.ts-fam__source {
+	padding-left: 0;
+	padding-right: 0;
 }
 
 .ts-facet__range {

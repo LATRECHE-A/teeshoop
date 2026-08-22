@@ -67,6 +67,18 @@ defined( 'ABSPATH' ) || exit;
 const WEIGHT_META = '_teeshoop_weight_gsm';
 
 /**
+ * The colour family facet, which is not a taxonomy.
+ *
+ * A family is not a term and never becomes one. It is the answer `Swatch`
+ * derived from the colourway photographs, stored beside each colour term, and
+ * the filter resolves it back to term ids at query time. Making it a taxonomy
+ * would put a second, editable copy of a measured fact in the database, and the
+ * day somebody moved « French Navy » into the greens by hand the swatch and the
+ * heading above it would disagree for ever.
+ */
+const FAMILY_PARAM = 'f_famille';
+
+/**
  * The attribute facets, in the order chapter 04 asks for them.
  *
  * A facet is offered only when its taxonomy exists AND has terms in use, so a
@@ -137,6 +149,26 @@ function applied_filters(): array {
 		}
 	}
 
+	/*
+	 * The families, read exactly like a taxonomy facet and sanitised exactly
+	 * like one, including the array-inside-an-array that took the whole site
+	 * down: `?f_famille[][]=x` reaches this line too.
+	 */
+	$families = array();
+	$raw      = $_GET[ FAMILY_PARAM ] ?? null;
+	if ( is_array( $raw ) ) {
+		$known    = array_keys( family_labels() );
+		$scalars  = array_filter( wp_unslash( $raw ), static fn( $v ): bool => is_scalar( $v ) );
+		$families = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'sanitize_key', $scalars ),
+					static fn( string $slug ): bool => in_array( $slug, $known, true )
+				)
+			)
+		);
+	}
+
 	// Same reason: `absint()` on an array is a fatal, and `?g_min[]=1` is one
 	// character of typing. A non-scalar is no bound at all.
 	$min = isset( $_GET['g_min'] ) && is_scalar( $_GET['g_min'] ) ? absint( wp_unslash( $_GET['g_min'] ) ) : 0;
@@ -150,8 +182,9 @@ function applied_filters(): array {
 	}
 
 	$applied = array(
-		'terms'  => $terms,
-		'weight' => array(
+		'terms'    => $terms,
+		'families' => $families,
+		'weight'   => array(
 			'min' => $min,
 			'max' => $max,
 		),
@@ -159,10 +192,39 @@ function applied_filters(): array {
 	return $applied;
 }
 
+/**
+ * The eleven families and their French headings, or none at all.
+ *
+ * Empty when the plugin is not active, which makes every function below a
+ * no-op rather than a fatal: the theme is allowed to run without it, and a
+ * filter that cannot be resolved must disappear rather than half work.
+ *
+ * @return array<string,string>
+ */
+function family_labels(): array {
+	return class_exists( '\\Teeshoop\\Core\\Swatch' ) ? \Teeshoop\Core\Swatch::families() : array();
+}
+
+/**
+ * The colour term ids in one family.
+ *
+ * @return int[]
+ */
+function family_terms( string $family ): array {
+	if ( ! class_exists( '\\Teeshoop\\Core\\Colours' ) ) {
+		return array();
+	}
+	$map = \Teeshoop\Core\Colours::by_family();
+	return array_map( 'intval', $map[ $family ] ?? array() );
+}
+
 /** True when at least one facet is narrowing the list. */
 function has_filters(): bool {
 	$applied = applied_filters();
-	return ! empty( $applied['terms'] ) || $applied['weight']['min'] > 0 || $applied['weight']['max'] > 0;
+	return ! empty( $applied['terms'] )
+		|| ! empty( $applied['families'] )
+		|| $applied['weight']['min'] > 0
+		|| $applied['weight']['max'] > 0;
 }
 
 /**
@@ -190,9 +252,43 @@ function filter_tax_query( $tax_query ): array {
 			'include_children' => false,
 		);
 	}
+	foreach ( family_clauses() as $clause ) {
+		$tax_query[] = $clause;
+	}
 	return $tax_query;
 }
 add_filter( 'woocommerce_product_query_tax_query', __NAMESPACE__ . '\\filter_tax_query', 10, 1 );
+
+/**
+ * One clause per chosen family, resolved to the colour terms it holds.
+ *
+ * IN inside a family and AND between families, which is the same grammar the
+ * colour facet already uses one level down: « comes in some blue » AND « comes
+ * in some red », not « comes in a colour that is both ».
+ *
+ * A FAMILY NOBODY HAS MEASURED SELECTS NOTHING, and that is deliberate. The
+ * alternative, dropping the clause, would silently widen the query back to the
+ * whole catalogue and show the buyer four hundred references under the heading
+ * « Bleus ». An impossible term id is the clause that returns an empty list,
+ * which is the truthful answer to « show me the blues » on a shop that has not
+ * measured any.
+ *
+ * @return array<int,array>
+ */
+function family_clauses(): array {
+	$out = array();
+	foreach ( applied_filters()['families'] as $family ) {
+		$ids   = family_terms( $family );
+		$out[] = array(
+			'taxonomy'         => 'pa_couleur',
+			'field'            => 'term_id',
+			'terms'            => empty( $ids ) ? array( 0 ) : $ids,
+			'operator'         => 'IN',
+			'include_children' => false,
+		);
+	}
+	return $out;
+}
 
 /**
  * Append the fabric weight range.
@@ -269,9 +365,27 @@ add_filter( 'wp_robots', __NAMESPACE__ . '\\filter_robots', 20, 1 );
  * @return array<int,array{slug:string,name:string,count:int}>
  */
 function facet_terms( string $taxonomy ): array {
+	/*
+	 * `hide_empty => false`, AND THAT IS A FIX, not a relaxation.
+	 *
+	 * `hide_empty => true` filters on `wp_term_taxonomy.count`, which WooCommerce
+	 * maintains on product save and which a catalogue import leaves behind:
+	 * `wc_defer_product_sync()` is on for the whole run and the recount that
+	 * follows it does not cover attribute terms. MEASURED on the mirror after a
+	 * full import: 442 colour terms exist, 383 are carried by a published
+	 * product, and 25 have a non-zero stored count. The facet was therefore
+	 * offering 25 colours out of 383, 2 brands out of 18 and 9 sizes out of 87,
+	 * and every one of the missing ones was a reference a buyer could not reach.
+	 *
+	 * The stored count is a SECOND COPY of a number this file already computes
+	 * live, and the two diverged. `facet_counts()` below is the one that
+	 * decides, and it already drops a term nothing in the current context
+	 * carries, so removing the stale filter removes the divergence rather than
+	 * adding an empty option.
+	 */
 	$args = array(
 		'taxonomy'   => $taxonomy,
-		'hide_empty' => true,
+		'hide_empty' => false,
 		'orderby'    => 'name',
 	);
 	if ( 'pa_taille' === $taxonomy ) {
@@ -302,10 +416,214 @@ function facet_terms( string $taxonomy ): array {
 			continue;
 		}
 		$out[] = array(
+			'id'    => (int) $term->term_id,
 			'slug'  => $term->slug,
 			'name'  => $term->name,
 			'count' => $n,
 		);
+	}
+	return $out;
+}
+
+/**
+ * How many references each colour family would leave, in context.
+ *
+ * ONE QUERY FOR ELEVEN FAMILIES. The obvious version asks per family and runs
+ * eleven; this joins the colour terms to their measured family and groups, so
+ * the panel pays for one more query than it did before the families existed.
+ *
+ * `COUNT(DISTINCT)` and not `COUNT`, because a reference available in Navy and
+ * in Royal is one reference in the blues, not two. Getting that wrong is how a
+ * facet ends up promising more than the listing shows.
+ *
+ * @return array<string,int> family slug => references
+ */
+function family_counts(): array {
+	static $counts = null;
+	if ( null !== $counts ) {
+		return $counts;
+	}
+	$counts = array();
+
+	if ( ! class_exists( '\\Teeshoop\\Core\\Colours' ) ) {
+		return $counts;
+	}
+
+	global $wpdb;
+	$ids = context_ids( FAMILY_PARAM );
+	if ( empty( $ids ) ) {
+		return $counts;
+	}
+
+	$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+
+	// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is built from a count and every value goes through prepare().
+	$rows = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT m.meta_value AS famille, COUNT(DISTINCT tr.object_id) AS n
+			 FROM {$wpdb->term_relationships} tr
+			 INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = %s
+			 INNER JOIN {$wpdb->termmeta} m ON m.term_id = tt.term_id AND m.meta_key = %s
+			 WHERE tr.object_id IN ({$placeholders}) AND m.meta_value <> ''
+			 GROUP BY m.meta_value",
+			array_merge( array( 'pa_couleur', \Teeshoop\Core\Colours::META_FAMILY ), $ids )
+		)
+	);
+	// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+	foreach ( (array) $rows as $row ) {
+		$counts[ (string) $row->famille ] = (int) $row->n;
+	}
+	return $counts;
+}
+
+/**
+ * The colour facet, grouped into the eleven families and dressed with swatches.
+ *
+ * WHY THIS ONE FACET HAS ITS OWN FUNCTION. Every other facet is a handful of
+ * words: eight materials, four sleeve lengths. Colour is four hundred and
+ * forty-two manufacturer names, and the brief forbids merging « Navy »,
+ * « French Navy » and « Deep Navy », which is right: they are three articles a
+ * buyer re-orders by name. A flat list of 442 checkboxes is not a filter, so
+ * the names stay and a MEASURED value groups them. `Swatch` derives the family
+ * from the colourway photograph, never from the word, so « Fan Deep Royal »
+ * lands under the blues without anybody teaching it that « fan » means nothing.
+ *
+ * The last group is the colours nothing could be measured for. They are shown,
+ * not hidden: a colour missing from the filter is a reference a buyer cannot
+ * reach, and that is a worse failure than a chip with no swatch on it.
+ *
+ * @return array<int,array{family:string,label:string,terms:array,strip:string[],open:bool}>
+ */
+function colour_groups(): array {
+	$terms = facet_terms( 'pa_couleur' );
+	if ( empty( $terms ) ) {
+		return array();
+	}
+
+	$labels = family_labels();
+	if ( empty( $labels ) || ! class_exists( '\\Teeshoop\\Core\\Colours' ) ) {
+		// No plugin, no measurement: one group holding everything, which
+		// renders exactly the flat list this facet had before.
+		return array(
+			array(
+				'family' => '',
+				'label'  => __( 'Tous les coloris', 'teeshoop' ),
+				'terms'  => $terms,
+				'strip'  => array(),
+				'open'   => true,
+			),
+		);
+	}
+
+	// One query for every swatch on the page instead of one per colour.
+	\Teeshoop\Core\Colours::prime( array_column( $terms, 'id' ) );
+
+	$chosen = applied_filters()['terms']['pa_couleur'] ?? array();
+	$groups = array();
+	foreach ( $labels as $slug => $label ) {
+		$groups[ $slug ] = array(
+			'family' => $slug,
+			'label'  => $label,
+			'terms'  => array(),
+			'strip'  => array(),
+			'open'   => in_array( $slug, applied_filters()['families'], true ),
+		);
+	}
+	/*
+	 * TWO GROUPS THAT ARE NOT THE SAME THING, and the interface says so.
+	 *
+	 * « Non mesurés » is a colour whose photographs were looked at and did not
+	 * agree, or contradicted its own name. It carries an explanation, because a
+	 * buyer wondering why that one has no dot deserves one.
+	 *
+	 * « Tous les coloris » is a colour nobody has measured YET, which is what
+	 * every colour is on a shop where the sweep has never run. It carries no
+	 * explanation, because there is nothing to explain: it is the plain list
+	 * this facet was before any of this existed.
+	 */
+	$groups['refuse'] = array(
+		'family' => 'refuse',
+		'label'  => __( 'Non mesurés', 'teeshoop' ),
+		'terms'  => array(),
+		'strip'  => array(),
+		'open'   => false,
+	);
+	$groups[''] = array(
+		'family' => '',
+		'label'  => __( 'Tous les coloris', 'teeshoop' ),
+		'terms'  => array(),
+		'strip'  => array(),
+		'open'   => false,
+	);
+
+	foreach ( $terms as $term ) {
+		$read  = \Teeshoop\Core\Colours::read( (int) $term['id'] );
+		$stops = array();
+		$where = null === $read ? '' : 'refuse';
+		$light = -1.0;
+		if ( null !== $read && ! empty( $read['stops'] ) && isset( $groups[ $read['family'] ] ) ) {
+			$stops = $read['stops'];
+			$where = (string) $read['family'];
+			$lab   = (string) get_term_meta( (int) $term['id'], \Teeshoop\Core\Colours::META_LAB, true );
+			$light = '' === $lab ? -1.0 : (float) strtok( $lab, ',' );
+		}
+
+		$term['stops'] = $stops;
+		$term['light'] = $light;
+		$groups[ $where ]['terms'][] = $term;
+
+		if ( in_array( $term['slug'], $chosen, true ) ) {
+			$groups[ $where ]['open'] = true;
+		}
+	}
+
+	$out = array();
+	foreach ( $groups as $group ) {
+		if ( empty( $group['terms'] ) ) {
+			continue;
+		}
+		// Light to dark inside a family, which is how a swatch grid is read.
+		// The two groups with no swatches have no lightness, so they keep their
+		// alphabetical order from `facet_terms()`.
+		if ( '' !== $group['family'] && 'refuse' !== $group['family'] ) {
+			usort(
+				$group['terms'],
+				static fn( array $a, array $b ): int => array( -$a['light'], $a['name'] ) <=> array( -$b['light'], $b['name'] )
+			);
+			/*
+			 * SIX DOTS SAMPLED ACROSS THE FAMILY, NOT ITS FIRST SIX.
+			 *
+			 * The list is sorted light to dark, so taking the head gave « Bleus »
+			 * six pale blues and never a navy, and « Gris », « Blancs et écrus »
+			 * and « Beiges et bruns » six near-white dots each, which is the one
+			 * thing the strip exists to prevent: it is there so a shut group
+			 * says what is inside it.
+			 */
+			$all            = array_values(
+				array_filter( array_map( static fn( array $t ): string => $t['stops'][0] ?? '', $group['terms'] ) )
+			);
+			$group['strip'] = spread_across( $all, 6 );
+		}
+		$out[] = $group;
+	}
+	return $out;
+}
+
+/**
+ * At most $k items of $all, evenly spaced, first and last always kept.
+ *
+ * @param string[] $all
+ * @return string[]
+ */
+function spread_across( array $all, int $k ): array {
+	$n = count( $all );
+	if ( $n <= $k || $k < 2 ) {
+		return $all;
+	}
+	$out = array();
+	for ( $i = 0; $i < $k; $i++ ) {
+		$out[] = $all[ (int) round( $i * ( $n - 1 ) / ( $k - 1 ) ) ];
 	}
 	return $out;
 }
@@ -376,7 +694,8 @@ function context_ids( string $except = '' ): array {
 	 * shared key buys is the SCAN, not the round trip: at production scale that
 	 * query walks the whole category rather than one eighth of it eight times.
 	 */
-	$key = empty( applied_filters()['terms'] ) ? '' : $except;
+	$narrowing = ! empty( applied_filters()['terms'] ) || ! empty( applied_filters()['families'] );
+	$key       = $narrowing ? $except : '';
 	if ( isset( $cache[ $key ] ) ) {
 		return $cache[ $key ];
 	}
@@ -407,6 +726,21 @@ function context_ids( string $except = '' ): array {
 	}
 
 	/*
+	 * THE FAMILY IS COUNTED AS ITS OWN FACET, not as part of the colours.
+	 *
+	 * Ticking « Bleus » narrows the population the colour counts are taken over
+	 * to references that come in some blue. It does not shorten the colour list:
+	 * every colour those references carry is still shown, a red among them if
+	 * the reference also comes in red. The grouping is what makes 442 names
+	 * navigable; the family filter is what narrows the shelf.
+	 */
+	if ( FAMILY_PARAM !== $except ) {
+		foreach ( family_clauses() as $clause ) {
+			$tax_query[] = $clause;
+		}
+	}
+
+	/*
 	 * THE SAME VISIBILITY RULES THE LISTING ITSELF OBEYS.
 	 *
 	 * Without this the count and the list disagree the moment a shop hides a
@@ -424,7 +758,16 @@ function context_ids( string $except = '' ): array {
 	 */
 	if ( function_exists( 'wc_get_product_visibility_term_ids' ) ) {
 		$visibility = wc_get_product_visibility_term_ids();
-		$hidden     = array( $visibility['exclude-from-catalog'] );
+		/*
+		 * WHICH exclusion depends on the page, and WooCommerce switches too.
+		 * `WC_Query::get_tax_query()` excludes `exclude-from-search` on a search
+		 * results page and `exclude-from-catalog` everywhere else. This function
+		 * adds the search term when `is_search()`, so it really is describing
+		 * the search listing, and it was excluding the wrong term for it: a
+		 * product hidden from the catalogue but findable by search was counted
+		 * out of a panel sitting beside a listing that showed it.
+		 */
+		$hidden = array( is_search() ? $visibility['exclude-from-search'] : $visibility['exclude-from-catalog'] );
 		if ( 'yes' === get_option( 'woocommerce_hide_out_of_stock_items' ) ) {
 			$hidden[] = $visibility['outofstock'];
 		}
@@ -497,8 +840,16 @@ function without_filter( string $taxonomy, string $slug ): string {
 /** The current listing with every facet cleared. */
 function without_filters(): string {
 	$params = array_map( __NAMESPACE__ . '\\facet_param', array_keys( facet_taxonomies() ) );
-	return remove_query_arg( array_merge( $params, array( 'g_min', 'g_max', 'paged' ) ) );
+	return remove_query_arg( array_merge( $params, array( FAMILY_PARAM, 'g_min', 'g_max', 'paged' ) ) );
 }
+
+/** The same URL without one colour family, keeping the others. */
+function without_family( string $family ): string {
+	$left = array_values( array_diff( applied_filters()['families'], array( $family ) ) );
+	$url  = remove_query_arg( array( FAMILY_PARAM, 'paged' ) );
+	return empty( $left ) ? $url : add_query_arg( array( FAMILY_PARAM => $left ), $url );
+}
+
 
 /**
  * The lightest and the heaviest fabric the shop actually carries.
@@ -545,6 +896,15 @@ function weight_bounds(): ?array {
 function applied_chips(): array {
 	$out     = array();
 	$applied = applied_filters();
+
+	$labels = family_labels();
+	foreach ( $applied['families'] as $family ) {
+		$out[] = array(
+			'label' => __( 'Famille de coloris', 'teeshoop' ),
+			'name'  => $labels[ $family ] ?? $family,
+			'url'   => without_family( $family ),
+		);
+	}
 
 	foreach ( $applied['terms'] as $taxonomy => $slugs ) {
 		foreach ( $slugs as $slug ) {

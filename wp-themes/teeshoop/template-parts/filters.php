@@ -158,6 +158,10 @@ $ts_action = (string) preg_replace( '#/page/\d+/?$#', '/', $ts_action );
 
 		<?php foreach ( facet_taxonomies() as $ts_tax => $ts_legend ) : ?>
 			<?php
+			if ( 'pa_couleur' === $ts_tax ) {
+				get_template_part( 'template-parts/facet', 'couleur', array( 'legend' => $ts_legend ) );
+				continue;
+			}
 			$ts_terms = facet_terms( $ts_tax );
 			if ( empty( $ts_terms ) ) {
 				continue;
@@ -170,7 +174,8 @@ $ts_action = (string) preg_replace( '#/page/\d+/?$#', '/', $ts_action );
 
 				<?php if ( $ts_long ) : ?>
 					<?php /* A search box over the options, because « Coloris » is four hundred terms long and the brief forbids merging « Navy », « French Navy » and « Deep Navy » into one. It filters the list in place; without a script the whole list is simply there. */ ?>
-					<label class="ts-facet__find">
+					<?php /* Hidden on the LABEL, not on the input: with no script a hidden input still leaves its « Chercher dans » in the accessibility tree, and a screen reader announces a search box that is not there. `site.js` unhides this element and the input goes with it. */ ?>
+					<label class="ts-facet__find" data-ts-facet-shell hidden>
 						<span class="screen-reader-text">
 							<?php
 							printf(
@@ -180,7 +185,7 @@ $ts_action = (string) preg_replace( '#/page/\d+/?$#', '/', $ts_action );
 							);
 							?>
 						</span>
-						<input type="search" class="ts-facet__findinput" data-ts-facet-find hidden placeholder="<?php esc_attr_e( 'Chercher', 'teeshoop' ); ?>">
+						<input type="search" class="ts-facet__findinput" data-ts-facet-find placeholder="<?php esc_attr_e( 'Chercher', 'teeshoop' ); ?>">
 					</label>
 				<?php endif; ?>
 
