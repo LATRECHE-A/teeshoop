@@ -229,3 +229,52 @@ describe( 'Design::normalise_placement : where the marking goes', function () {
 		truthy( ! isset( $far['area_w_cm'] ), '0,5 cm au-delà est un placement faux' );
 	} );
 } );
+
+
+/*
+ * THE PATH THAT REACHES AN `img src`.
+ *
+ * `previews` (plural) has been pattern-checked since it was written, because it
+ * is drawn on the bon à tirer. `preview` (singular) was not, on the reasoning
+ * that it never left the proof. It now reaches the cart line, the order line and
+ * the transactional e-mail (`Cart::design_thumbnail`, `Cart::order_thumbnail`),
+ * so the two are the same kind of string in the same kind of place.
+ *
+ * The manifest is ours and the id is minted server-side, so none of these is a
+ * live exploit today. That is the point: the guard exists so that it does not
+ * become one the day something else about the manifest changes, and this test
+ * exists so that removing the guard is a red suite rather than a quiet one.
+ */
+describe( 'Design::normalise_preview : the flattened proof path', function () {
+	it( 'keeps the one shape the Worker mints', function () {
+		eq(
+			Design::normalise_preview( '/r2/design/AbCd1234EfGh5678/preview.png' ),
+			'/r2/design/AbCd1234EfGh5678/preview.png',
+			'le chemin que le Worker écrit passe'
+		);
+	} );
+
+	it( 'drops anything that is not that shape', function () {
+		foreach (
+			array(
+				'https://evil.tld/x.png'                      => 'une autre origine',
+				'//evil.tld/x.png'                            => 'une origine sans schéma',
+				'/r2/design/AbCd1234EfGh5678/../../secret.png' => 'une remontée de chemin',
+				'/r2/design/short/preview.png'                => 'un identifiant trop court',
+				'/r2/design/AbCd1234EfGh5678/preview-front.png' => 'une face, qui appartient à previews',
+				'javascript:alert(1)'                         => 'un schéma exécutable',
+				'data:image/png;base64,AAAA'                   => 'des octets en ligne',
+				''                                             => 'le vide',
+			) as $path => $why
+		) {
+			eq( Design::normalise_preview( (string) $path ), '', $why );
+		}
+	} );
+
+	it( 'refuses the same shapes through verify(), not only through the helper', function () {
+		// The guard is only worth having where the value actually enters, so the
+		// assertion is made on the field `Cart::add` reads.
+		eq( Design::normalise_preview( '/r2/design/AbCd1234EfGh5678/preview.png.evil' ), '', 'un suffixe collé' );
+		eq( Design::normalise_preview( '/R2/design/AbCd1234EfGh5678/preview.png' ), '', 'une casse différente' );
+	} );
+} );

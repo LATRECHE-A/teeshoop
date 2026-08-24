@@ -154,6 +154,25 @@ plus focused ones for the WebGL/AR features that OS screenshots can't capture â€
 round-trip via `wrangler dev`). Regenerate the README screenshots with
 `node scripts/readme-shots.mjs`.
 
+**`npm run verify:render` is the only gate that looks at a rendered frame.** Every
+other 3D harness measures geometry, and that is exactly where this module's defects
+were not: it asserts the properties a garment PHOTOGRAPH has, on the real bundle in
+a real browser. Is the garment cropped, is it centred, does it fill the pane, does
+it throw a shadow onto anything, can its outline be told from the backdrop, does its
+shadow side keep detail, does white cloth read white and neutral, and is the same
+capture repeatable. It classifies pixels by capturing the stage in three layers
+(garment alone, empty stage, both) rather than by guessing what cloth looks like,
+and it composites the CSS backdrop through an SVG foreignObject because the frame a
+customer sees exists in no single buffer. It runs under `prefers-reduced-motion`,
+without which no two captures are the same pose. It is slow (a few minutes per case
+under software GL) and stays out of CI, like the other browser harnesses.
+
+`npm run verify:mockups` renders the product-page and proof images from the same
+preview and fails if the same design does not come out byte-identical twice.
+`npm run bench:frame` reports the work in one frame (draw calls, triangles,
+programs) and the desktop-versus-phone-profile ratio; its milliseconds are software
+rasterisation on the build machine and are **not** a phone measurement.
+
 ## Deploy to Cloudflare Workers
 
 The repo is configured (`wrangler.jsonc`) as a Worker that serves `dist/` as

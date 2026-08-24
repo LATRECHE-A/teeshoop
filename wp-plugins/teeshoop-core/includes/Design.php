@@ -123,7 +123,7 @@ final class Design {
 			'meta' => array(
 				'verified'   => true,
 				'print_file' => isset( $body['print_file'] ) ? (string) $body['print_file'] : '',
-				'preview'    => isset( $body['preview'] ) ? (string) $body['preview'] : '',
+				'preview'    => isset( $body['preview'] ) ? self::normalise_preview( (string) $body['preview'] ) : '',
 				/*
 				 * ONE PREVIEW PER PRINTED SIDE, by side id. `preview` above is
 				 * the cart thumbnail and stays what it was. These exist for the
@@ -157,6 +157,25 @@ final class Design {
 				'app_version' => isset( $body['app_version'] ) ? (string) $body['app_version'] : '',
 			),
 		);
+	}
+
+	/**
+	 * The single flattened preview path, checked against the one shape the
+	 * Worker mints (`worker/design.ts`: `/r2/design/{id}/preview.png`).
+	 *
+	 * ITS SIBLING BELOW HAS HAD THIS SINCE IT WAS WRITTEN and this one did not,
+	 * on the reasoning that `preview` only ever reached the bon à tirer. It now
+	 * reaches the cart, the order and the e-mail, so the two paths are the same
+	 * kind of string in the same kind of place and there is no argument left for
+	 * giving them different margins. That asymmetry, one path guarded and its
+	 * sibling not, is a shape that has bitten this project before.
+	 *
+	 * An unrecognised path becomes '', and `Cart::preview_img` then falls
+	 * through to the product image rather than rendering an address somebody
+	 * else chose.
+	 */
+	public static function normalise_preview( string $path ): string {
+		return preg_match( '#^/r2/design/[A-Za-z0-9_-]{16,64}/preview\.png$#', $path ) ? $path : '';
 	}
 
 	/**

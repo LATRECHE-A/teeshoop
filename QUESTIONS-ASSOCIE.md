@@ -1558,6 +1558,58 @@ aucune pastille là où la mesure n'a pas abouti.
 > 
 
 
+
+## Aperçu 3D et bon à tirer
+
+### 50. Sur un sweat à capuche, une impression poitrine doit-elle s'arrêter au-dessus de la poche kangourou, et à quelle hauteur exactement ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* la zone d'impression avant que nous publions pour le
+sweat fait 30,5 cm de large sur 30,5 cm de haut, accrochée sous la couture de col. Le dessin
+plat de la fiche produit place le bas de cette zone juste au-dessus de la poche. Le vêtement
+en 3D, lui, est un vrai sweat simulé, et sur ce maillage la poche commence plus haut : le bas
+de la zone tombe dessus. Les deux disent donc deux choses différentes au même client, et
+aucun des deux n'est notre décision à prendre.
+
+*Ce que nous avons fait en attendant :* rien changé, ni la zone publiée ni le maillage. Une
+dimension imprimable est un engagement envers le client et envers l'atelier ; nous ne la
+déplaçons pas parce qu'un rendu nous déplaît. L'aperçu 3D montre donc l'encre passer sur la
+poche, ce qui est la vérité de ce maillage. Le contrôle `scripts/fabric-verify.mjs` mesure
+déjà ces rangées et les déclare « indécidables » (deux épaisseurs de tissu, jusqu'à 14 mm de
+désaccord entre les deux mesures indépendantes qu'il sait construire) plutôt que de trancher.
+
+*Ce que nous ferons de votre réponse :* si l'impression doit s'arrêter au-dessus de la poche,
+la hauteur de la zone avant du sweat descend à ce que vous direz, et elle descend au même
+endroit dans le studio, sur la fiche produit, sur le bon à tirer et dans le calcul du film.
+Si au contraire vous pressez par-dessus la poche, nous laissons la zone telle quelle et nous
+corrigeons le maillage.
+
+**Votre réponse :**
+
+> 
+
+
+### 51. Vos transferts DTF sont-ils imprimés avec une sous-couche blanche systématique ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* dans l'aperçu, un visuel semi-transparent (un dégradé,
+une ombre portée, un bord adouci) laisse voir la couleur du vêtement à travers. Sur un
+t-shirt noir, cela rend le visuel terne. Si votre imprimeur pose une sous-couche blanche sous
+tout le transfert, la réalité est l'inverse : la couleur du visuel reste franche quelle que
+soit la couleur du textile, et c'est notre aperçu qui ment au client.
+
+*Si vous ne répondez pas, on part sur :* pas de sous-couche simulée. C'est le rendu prudent,
+celui qui montre au client le moins flatteur des deux, jamais mieux que ce qu'il recevra.
+
+*Ce qu'il nous faut :* sous-couche blanche systématique, seulement sur textile foncé, ou
+jamais. Et si elle est systématique, est-elle facturée à part.
+
+**Votre réponse :**
+
+> 
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

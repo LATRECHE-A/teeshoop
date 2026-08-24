@@ -316,7 +316,21 @@ try {
   console.log(`product page: ${fixture.url}`)
 
   // --- 4. the customer ----------------------------------------------------
-  browser = await chromium.launch()
+  /*
+   * THE BROWSER HAS TO RESOLVE THE WORKER TOO, now that the cart shows the
+   * design's own proof image.
+   *
+   * The plugin reaches the Worker from INSIDE the container, at
+   * host.docker.internal, and that name means nothing on the host where this
+   * browser runs. On production the two are the same public address, so the
+   * split is the mirror's, not the shop's. Mapping the name is what makes the
+   * cart assertion measure the image LOADING rather than merely appearing in
+   * the markup, and it keeps "no page errors of ours" a real check instead of
+   * one with a hole cut in it.
+   */
+  browser = await chromium.launch({
+    args: ['--host-resolver-rules=MAP host.docker.internal 127.0.0.1'],
+  })
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
   const page = await context.newPage()
   const errors = []
@@ -609,6 +623,32 @@ try {
   await page.waitForTimeout(3000)
   const cartHtml = await page.content()
   ok('the cart page names the design', cartHtml.includes(line.design_id))
+  /*
+   * AND SHOWS IT. The flattened proof has been on the line since this suite was
+   * written and nothing read it back: the buyer saw the supplier's photograph of
+   * a blank shirt in the cart, at the checkout, and in their account.
+   *
+   * The obvious filter is the wrong one on this shop. Both pages are BLOCKS, so
+   * `templates/cart/cart.php` never runs and `woocommerce_cart_item_thumbnail`
+   * is never applied; the lines come from the Store API, and the filter that
+   * reaches them is `woocommerce_store_api_cart_item_images`. Asserting on the
+   * rendered page rather than on the hook is what tells those two apart.
+   */
+  ok(
+    'the cart page shows the customer their own design',
+    cartHtml.includes(`/r2/design/${line.design_id}/preview.png`),
+    `expected the proof for ${line.design_id} in the cart markup`,
+  )
+  // …and that it is an image and not a broken one. A src in the markup is a
+  // claim; naturalWidth is the browser saying it decoded.
+  const proofLoaded = await page.evaluate(
+    (id) =>
+      Array.from(document.images).some(
+        (im) => im.src.includes(`/r2/design/${id}/preview.png`) && im.naturalWidth > 0,
+      ),
+    line.design_id,
+  )
+  ok('and the image really loads', proofLoaded)
   // A personalised line has no catalogue price, so nothing may be struck
   // through beside it. WooCommerce read the product's untouched regular price
   // as a sale and printed "99,99 EUR 15,37 EUR, Save 2 115,50 EUR" on a line

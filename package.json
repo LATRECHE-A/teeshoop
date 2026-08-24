@@ -45,7 +45,10 @@
     "couleurs:mesurer": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs mesurer",
     "couleurs:reclasser": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs reclasser",
     "couleurs:relever": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs etat --releve > docs/couleurs.json",
-    "verify:couleurs": "node scripts/couleurs-guard.mjs"
+    "verify:couleurs": "node scripts/couleurs-guard.mjs",
+    "verify:render": "node scripts/render-verify.mjs",
+    "verify:mockups": "node scripts/mockup-shots.mjs",
+    "bench:frame": "node scripts/frame-bench.mjs"
   },
   "keywords": [],
   "type": "module",

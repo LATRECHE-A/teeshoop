@@ -57,6 +57,155 @@ final class Cart {
 		 * watching the other.
 		 */
 		add_action( 'woocommerce_check_cart_items', array( self::class, 'check_cart_items' ) );
+
+		/*
+		 * THE CUSTOMER'S OWN DESIGN, IN THE PLACES THEY LOOK FOR IT.
+		 *
+		 * The flattened proof has been uploaded to R2 and frozen onto the line
+		 * since session 01 (`files.preview` below, `_teeshoop_files` on the
+		 * order), and until now NOTHING read it back except the bon a tirer. So a
+		 * buyer who had just spent twenty minutes designing a shirt saw, in the
+		 * cart and at the checkout, the supplier's photograph of a BLANK garment.
+		 *
+		 * WHICH HOOK COVERS WHAT, checked against the WooCommerce running in the
+		 * local mirror rather than assumed, because the obvious filter is the
+		 * wrong one on this shop:
+		 *
+		 *   · `woocommerce_store_api_cart_item_images` is the cart and the
+		 *     checkout. Both pages here are BLOCKS (`wp:woocommerce/cart` and
+		 *     `wp:woocommerce/checkout`), which read their lines from the Store
+		 *     API and never render `templates/cart/cart.php`. This is the filter
+		 *     that matters and it wants image OBJECTS with an id, a src and a
+		 *     thumbnail that parse as URLs (`StoreApi/Schemas/V1/CartItemSchema`).
+		 *   · `woocommerce_cart_item_thumbnail` is the mini-cart, and the cart
+		 *     page of any shop that goes back to the shortcode.
+		 *   · `woocommerce_order_item_thumbnail` is the transactional e-mail, and
+		 *     only when WooCommerce's `email_improvements` feature is on: the
+		 *     template gates it on `$show_image`, which defaults to that flag.
+		 *
+		 * The order-received page and the account history have NO such hook in
+		 * this version, so they still show the blank. That is not fixed here.
+		 *
+		 * All three are display-only: no price and no production data goes
+		 * through them, so the worst a failure can do is fall through to the
+		 * product image, which is what happens today.
+		 */
+		add_filter( 'woocommerce_store_api_cart_item_images', array( self::class, 'block_cart_images' ), 10, 2 );
+		add_filter( 'woocommerce_cart_item_thumbnail', array( self::class, 'design_thumbnail' ), 10, 3 );
+		add_filter( 'woocommerce_order_item_thumbnail', array( self::class, 'order_thumbnail' ), 10, 2 );
+		// …and ASK for the image in the e-mail rather than hoping a WooCommerce
+		// feature flag is on. `wc_get_email_order_items` defaults `show_image` to
+		// whether `email_improvements` is enabled, and the template renders no
+		// thumbnail cell at all when it is false, so the filter above would never
+		// be applied on a shop that has not opted in.
+		add_filter(
+			'woocommerce_email_order_items_args',
+			static function ( $args ) {
+				$args['show_image'] = true;
+				return $args;
+			}
+		);
+	}
+
+	/**
+	 * The cart and checkout BLOCKS, which read their images from the Store API.
+	 *
+	 * Returns the schema's own shape: an array of objects carrying an id, a src,
+	 * a thumbnail and the responsive fields. WooCommerce validates each one and
+	 * silently falls back to the product's images when any is malformed, which is
+	 * the behaviour we want, so the checks here are the same ones it makes.
+	 *
+	 * @param array $images    Image objects WooCommerce was going to send.
+	 * @param array $cart_item Cart item.
+	 */
+	public static function block_cart_images( $images, $cart_item ) {
+		if ( ! is_array( $cart_item ) || empty( $cart_item[ self::KEY ]['files'] ) ) {
+			return $images;
+		}
+		$url = self::preview_url( (array) $cart_item[ self::KEY ]['files'] );
+		if ( '' === $url ) {
+			return $images;
+		}
+		$image            = new \stdClass();
+		$image->id        = 0;
+		$image->src       = $url;
+		$image->thumbnail = $url;
+		$image->srcset    = '';
+		$image->sizes     = '';
+		$image->name      = __( 'Votre création', 'teeshoop' );
+		$image->alt       = __( 'Votre création', 'teeshoop' );
+		return array( $image );
+	}
+
+	/**
+	 * The design's own proof image, sized for a thumbnail, or '' when the line
+	 * has none.
+	 *
+	 * `Bat::worker_url` returns '' when the Worker address is unset, which is the
+	 * fail-closed direction: no image rather than a broken one.
+	 */
+	private static function preview_url( array $files ): string {
+		// Re-checked here as well as at `Design::verify`, because an order placed
+		// before that guard existed carries whatever the manifest said then.
+		$path = Design::normalise_preview( (string) ( $files['preview'] ?? '' ) );
+		if ( '' === $path ) {
+			return '';
+		}
+		$url = Bat::worker_url( $path );
+		return wp_parse_url( $url, PHP_URL_HOST ) ? $url : '';
+	}
+
+	private static function preview_img( array $files, string $alt ): string {
+		$url = self::preview_url( $files );
+		if ( '' === $url ) {
+			return '';
+		}
+		return sprintf(
+			'<img src="%s" alt="%s" width="300" height="300" loading="lazy" decoding="async" style="object-fit:contain;background:transparent" />',
+			esc_url( $url ),
+			esc_attr( $alt )
+		);
+	}
+
+	/**
+	 * Cart and checkout thumbnail.
+	 *
+	 * @param string $html Whatever WooCommerce was going to show.
+	 * @param array  $item Cart item.
+	 */
+	public static function design_thumbnail( $html, $item, $key = '' ) {
+		unset( $key );
+		if ( ! is_array( $item ) || empty( $item[ self::KEY ]['files'] ) ) {
+			return $html;
+		}
+		$img = self::preview_img(
+			(array) $item[ self::KEY ]['files'],
+			__( 'Votre création', 'teeshoop' )
+		);
+		return '' === $img ? $html : $img;
+	}
+
+	/**
+	 * Order-received page, account history and the transactional e-mails.
+	 *
+	 * The order line keeps the file list as JSON (`_teeshoop_files`), because the
+	 * cart's array is gone by then and an order has to be able to say what was
+	 * bought years later without asking the Worker to still know.
+	 */
+	public static function order_thumbnail( $html, $item ) {
+		if ( ! $item instanceof \WC_Order_Item_Product ) {
+			return $html;
+		}
+		$raw = (string) $item->get_meta( '_teeshoop_files', true );
+		if ( '' === $raw ) {
+			return $html;
+		}
+		$files = json_decode( $raw, true );
+		if ( ! is_array( $files ) ) {
+			return $html;
+		}
+		$img = self::preview_img( $files, __( 'Votre création', 'teeshoop' ) );
+		return '' === $img ? $html : $img;
 	}
 
 	/**

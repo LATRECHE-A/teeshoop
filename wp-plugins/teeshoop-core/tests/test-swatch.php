@@ -12,6 +12,21 @@
 
 declare( strict_types = 1 );
 
+/*
+ * COMMAND LINE ONLY. `wp-content/plugins/` is served by URL and this directory
+ * is inside it: without this, GET on this file runs the suite to the public
+ * internet and prints the figures of every failing assertion.
+ *
+ * Every other file here has carried this since the guards went in. This one
+ * arrived after them and did not, and `scripts/wp-e2e-verify.mjs` caught it
+ * because that check enumerates the directory instead of a hard-coded list,
+ * which is exactly the reason it was written that way.
+ */
+if ( 'cli' !== PHP_SAPI ) {
+	http_response_code( 404 );
+	exit( 1 );
+}
+
 require_once __DIR__ . '/../includes/Swatch.php';
 
 use Teeshoop\Core\Swatch;

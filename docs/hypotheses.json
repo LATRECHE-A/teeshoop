@@ -3139,6 +3139,32 @@
 			"cost_if_late": "reglage",
 			"label_fr": "regroupés en onze familles",
 			"shipped_matches_default": "Le regroupement suit la structure publiée par Wang, Luo et al. (CGIV 2006), qui range d'abord les achromatiques, puis les trois noms qui demandent la clarté et la saturation en plus de la teinte (brun, rose, jaune), puis le reste par teinte. Quatre écarts assumés, tous mesurés et écrits dans docs/COULEURS.md : le kaki est rangé avec les verts parce que c'est un jaune sombre et que le métier dit « vert kaki » ; le seuil achromatique est une saturation et non une chromaticité absolue, parce qu'aucune chromaticité ne sépare un navy mesuré à C=0,028 d'un blanc cassé mesuré à C=0,020 ; le dénominateur de cette saturation est plancherisé à L=0,580 parce que le rapport C/L rend une couleur chromatique sur de moins en moins de chromaticité à mesure qu'elle s'assombrit, ce qui publiait « Pitch Black » en bleu ; et la borne de chromaticité du rose n'est pas reprise, parce que sur les 41 roses et rouges étiquetés du catalogue elle exclut un vrai rose et aucun rouge. Les bornes de teinte elles-mêmes sont posées sur les 300 coloris dont le nom porte un mot de couleur sans ambiguïté : chacune tombe dans le trou entre deux populations étiquetées, sauf jaune/vert où les deux se recouvrent et où le jaune pur de sRGB sert de point fixe. Le réglage a fait passer les désaccords nom contre mesure de 28 à 8 sur 440."
+		},
+		{
+			"id": "H-Q31-FOND-STUDIO",
+			"question": "Q31",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-24",
+			"statement_fr": "Le vêtement est photographié sur un sol sombre #181c23 dans le studio par défaut, éclairé en lumière neutre, parce que c'est le fond que le site utilise déjà.",
+			"home": "anchor:src/scenes/index.ts#ground: { color: '#181c23'",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une teinte de décor de rendu, pas une valeur de marque : elle n'existe qu'à un seul endroit, dans la scène `studio`, et rien d'autre dans le dépôt ne doit la porter. Les couleurs de marque, elles, ont leur propre ligne (H-Q31-PALETTE-ET-TYPE) et vivent dans tokens.css.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [
+				"Le pas de luminance mesuré à travers la silhouette : 0,2 niveau sur 255 avant, gardé au-dessus de 12 par scripts/render-verify.mjs.",
+				"Les pixels d'ombre au sol : 0 avant, 10 034 sur le t-shirt noir après, avec 23 niveaux de profondeur.",
+				"Le fait qu'un mockup soit reproductible à l'octet près (scripts/mockup-shots.mjs), puisque le fond en fait partie."
+			],
+			"sessions": [
+				"10"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Studio",
+			"shipped_matches_default": "Oui. La question 31 dit « on partira sur les teintes bleu et noir du site » ; le studio 3D est déjà peint dans le noir du site (--color-bg0 #0c0f13) et le sol en est dérivé, assez sombre pour qu'un vêtement noir garde un contour contre lui. Une réponse change ce hex et rien d'autre."
 		}
 	],
 	"not_applicable": [

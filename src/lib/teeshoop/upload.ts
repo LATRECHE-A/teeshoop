@@ -514,7 +514,16 @@ export async function uploadDesign(design: Design): Promise<UploadedDesign> {
         for (const measured of sides) {
           const side = measured.id as Side
           if (!canShowSide(design, side)) continue
-          const canvas = await renderMockup(design, side, PREVIEW_PX)
+          // AT `PRICED_SIZE`, not at the art's nominal size.
+          //
+          // `renderMockup` falls back to the garment art's own nominal size when
+          // none is given, and that is L for both the tee and the hoodie. So the
+          // proof a customer approved showed an L while every dimension printed
+          // beside it (the drop below the collar, the print's width and height,
+          // the caption "Dimensions donnees pour la taille M") was stated for M.
+          // For a graded design the print really is a different size on the two,
+          // so the picture and the numbers described two different garments.
+          const canvas = await renderMockup(design, side, PREVIEW_PX, PRICED_SIZE)
           perSide.push({ side, blob: await canvasToBlob(canvas, 'image/png') })
         }
       } catch {
@@ -537,5 +546,5 @@ export function resetUploadCacheForTests(): void {
 
 /** Test seam: the document shape is what the Worker gates on, so it is asserted. */
 export const __buildDocumentForTests = buildDocument
-/** Test seam: which rasters an order carries is a "the order is printable" rule. */
+/** Test seam, which rasters an order carries is a "the order is printable" rule. */
 export const __referencedAssetsForTests = referencedAssets

@@ -643,6 +643,73 @@ qu'aucun fichier n'y est déposé, rend le **nom** du site en toutes lettres. La
 typographie sont extraites de ce que le site utilise déjà. Déposer les vrais éléments en
 séance 13b sera un envoi dans le personnalisateur et un fichier de jetons, pas une refonte.
 
+**L'aperçu 3D est devenu une photo de vêtement.** Le brief disait « c'est laid et
+irréaliste », ce qui n'est pas actionnable. Huit lectures indépendantes du code et une série
+de rendus aux cadrages que le client voit vraiment ont donné une liste de défauts chiffrés,
+et un nouveau contrôle, `scripts/render-verify.mjs`, mesure chacun d'eux sur le vrai paquet
+dans un vrai navigateur : cadrage, centrage, présence d'une ombre au sol, lisibilité du
+contour, tenue des ombres portées, fidélité du blanc, et reproductibilité. Il échouait
+**25 fois** sur l'arbre livré. C'est le premier contrôle du dépôt qui regarde une image :
+tous les autres mesurent de la géométrie, et c'est précisément là que ces défauts vivaient.
+
+**Le premier défaut n'était pas l'éclairage, c'était un cadrage qui ne regardait pas le
+vêtement.** La caméra encadrait le gabarit `{28 po, 24 po}` posé au démarrage, jamais la
+mesure du maillage : le sweat était vu de 67,9 po quand sa propre mesure en demande 123,0,
+et sa silhouette remplissait le volet 832×900 en touchant les quatre bords. La mesure
+partait du vêtement (qui vit dans la racine React de react-three-fiber) vers un état React
+de la racine DOM et revenait ; ce trajet perdait, et pas de façon reproductible : la même
+sonde sur le même arbre a rendu le gabarit une fois et la mesure la fois suivante, selon la
+charge de la machine. Elle vit maintenant dans une boîte relue à chaque image, sans
+ordonnanceur entre celui qui écrit et ceux qui lisent. Mesuré : t-shirt 77,03 po, sweat
+123,03 po, demandé = appliqué dans les deux cas.
+
+**Le vêtement ne posait sur rien, et pourtant le porte-ombre était là depuis le début.**
+Aucun rendu du dépôt ne contenait un seul pixel d'ombre. Le rig était monté et dans le
+cadre : il assombrit ce qui est dessous, et dessous il y avait un canevas transparent sur
+une page #0c0f13. Du noir sur du noir ne fait rien. Il y a maintenant un vrai sol par scène,
+éclairé par le même rig, dont le bord est un dégradé d'alpha et non une géométrie (un disque
+qui s'arrête dans le cadre trace un horizon en travers de la taille du vêtement). Mesuré sur
+le t-shirt noir : **10 034 pixels d'ombre, 23 niveaux de profondeur**, contre 0 avant.
+
+**Un t-shirt noir était plus sombre que la page derrière lui.** Le pas de luminance à travers
+la silhouette valait **0,2 niveau sur 255** : la moitié du contour n'existait pas. Un t-shirt
+blanc sur la plage mesurait 0,0, et un rouge dans le studio 6,6. Trois choses le corrigent, et
+deux relèvent de la photographie plutôt que du code : une lumière de séparation derrière le
+vêtement dans chacune des six scènes, un remplissage hémisphérique dans les deux scènes qui
+n'en avaient pas (`studio` et `city`, alors que le champ existait et que son commentaire dit
+exactement à quoi il sert), et un lobe de duvet assez large pour exister. C'est le duvet qui
+fait le travail sur un vêtement foncé : un terme spéculaire ne dépend pas de la teinture,
+donc il est aussi clair sur un noir que sur un blanc.
+
+**Le blanc était un gris chaud à 58 %.** Mesuré (205,198,192) là où le client avait choisi
+#FFFFFF : la grande boîte à lumière du studio était crème (#fff6ec) et rien ne la compensait.
+Elle est neutre. Mesuré après : **(209,208,208)**, un niveau d'écart entre les canaux.
+
+**L'encre est posée DANS le tissu, plus dessus.** Trois défauts mesurés. Chaque bord de
+visuel portait un liseré plus sombre que l'encre ET que le textile (5 787 pixels jusqu'à
+162 niveaux sous leurs voisins), parce que le filtrage d'une texture à alpha droit interpole
+la couleur vers le noir ; la texture est maintenant prémultipliée et le nuanceur défait la
+prémultiplication, ce qui est la seule combinaison correcte des deux côtés. L'encre ne
+suivait pas l'exposition de la scène, donc elle brillait la nuit. Et un transfert n'avait
+aucune épaisseur, alors qu'un film DTF fait 0,1 à 0,2 mm et que c'est ce filet de lumière sur
+la tranche qui dit « imprimé ». La manche et le décalque de repli, qui n'avaient reçu ni
+ombre ni relief ni occlusion depuis que le panneau avant en avait, passent par le même
+traitement.
+
+**Le vêtement ne flotte plus.** Il pendait dans un `<Float>` dont la phase était tirée au
+hasard à chaque montage : aucune comparaison avant/après du dépôt n'a donc jamais comparé
+deux images comparables, et aucun mockup ne pouvait être produit deux fois. Retiré. Un
+mockup est désormais une fonction pure de la création, et `scripts/mockup-shots.mjs` le
+prouve en rendant deux fois la même image et en comparant les octets.
+
+**Et la création du client apparaît enfin là où il la cherche.** L'aperçu aplati était
+déposé sur R2 et gelé sur la ligne de commande depuis la séance 01, et **rien ne le relisait
+sauf le bon à tirer** : dans le panier, au paiement, sur la page de confirmation, dans
+l'e-mail et dans l'historique du compte, l'acheteur voyait la photo fournisseur d'un vêtement
+vierge. Deux filtres WooCommerce, aucun prix, aucune donnée de production. Le bon à tirer,
+lui, montrait un vêtement en taille L pendant que chaque cote imprimée à côté était donnée
+pour du M ; il est rendu à la taille dont il parle.
+
 ---
 
 ## Ce qu'il reste : quinze séances
@@ -662,7 +729,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~07~~ | ~~Production : imbrication du film entre commandes~~ **faite** | - |
 | ~~08~~ | ~~Commande fournisseur et stock~~ **faite** | - |
 | ~~09~~ | ~~Le site : accueil, navigation, système de design~~ **faite** | - |
-| 10 | Le studio en vitrine : 3D et mockups | 09 |
+| ~~10~~ | ~~Le studio en vitrine : 3D et mockups~~ **faite** | - |
 | 11 | Référencement, contenu, données structurées | 09 |
 | 12 | Juridique, RGPD, accessibilité | 09 |
 | 13 | Performance, sécurité, supervision | 09, 10 |
