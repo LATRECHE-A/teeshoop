@@ -359,7 +359,7 @@ function ExtrudedGarment({
   if (!frontTex) return null
 
   return (
-    <group>
+    <group userData={{ role: 'garment' }}>
       {/* Front cap = photo, bulged. Alpha-tested opaque so the silhouette is
           crisp and front/back/lining/interior depth-sort correctly.
           castShadow/receiveShadow: the sleeve's shadow on the ribs is the cue

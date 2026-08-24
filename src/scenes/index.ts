@@ -49,6 +49,50 @@ export interface KeyLightSpec {
   softness: number
 }
 
+/**
+ * The SEPARATION light: a second directional, behind the garment and opposite
+ * the key, that never casts a shadow.
+ *
+ * Not decoration. Measured on the shipped rig, a black tee (#191C20, the sample
+ * design's own colourway) in the default studio scene had a p05 silhouette step
+ * of 0,2 sRGB levels against the backdrop: its outline did not exist. A white
+ * tee in `beach` measured 0,0, and a red one in `studio` 6,6. An environment map
+ * plus one front key cannot produce an edge, because the surfaces at the
+ * silhouette face away from both. A grazing back light is what a photographer
+ * puts there, and it is the whole of the fix.
+ */
+export interface RimLightSpec {
+  /** Where the light comes FROM, normalised before use. Behind the garment. */
+  direction: [number, number, number]
+  intensity: number
+  color: string
+}
+
+/**
+ * The floor the garment stands on.
+ *
+ * There was none, and that is why no render in this repository contained a
+ * single shadow pixel: the contact-shadow rig WAS mounted and IS in frame, but
+ * it darkens whatever is under it, and what was under it was a transparent
+ * canvas over a #0c0f13 page. Black on black is nothing. A ground with a value
+ * the shadow can take away is the difference between a garment photographed on
+ * a surface and a cut-out pasted onto a gradient.
+ *
+ * `color` is the ground's albedo; it is lit by the same rig as the cloth, so it
+ * picks up the scene. `radiusFactor` multiplies the garment's own width; it is
+ * deliberately far larger than the frame, because the camera looks along the
+ * floor from about 12 degrees above it and a disc that ends anywhere inside the
+ * frustum draws a hard horizon straight across the garment's waist. The RADIAL
+ * ALPHA ramp is what ends the floor, not its geometry.
+ */
+export interface GroundSpec {
+  color: string
+  /** …and for the light UI theme, where a dark floor would be a hole. */
+  colorLight?: string
+  roughness: number
+  radiusFactor: number
+}
+
 export interface Scene3DConfig {
   lightformers: LightformerSpec[]
   /** Multiplies each garment material's envMapIntensity. */
@@ -58,6 +102,8 @@ export interface Scene3DConfig {
   /** Base fill so sides facing away never crush to pure black. */
   hemisphere?: { sky: string; ground: string; intensity: number }
   key: KeyLightSpec
+  rim?: RimLightSpec
+  ground?: GroundSpec
 }
 
 export interface SceneDef {
@@ -82,17 +128,32 @@ const STUDIO: SceneDef = {
     envIntensity: 1.0,
     shadowColor: '#000000',
     shadowOpacity: 0.58,
+    // The press room had no fill at all, and it is one of only two scenes that
+    // did not. Measured on a black tee: p05 luminance 9,4 of 255 with the whole
+    // garment living inside a 28-level band, i.e. a matte silhouette with no
+    // shading in it. A hemisphere lights the normals facing away from the key
+    // and the ones facing DOWN, which is also what was making the collar
+    // opening the darkest thing in the frame.
+    hemisphere: { sky: '#c8d4e6', ground: '#3a3a3c', intensity: 0.22 },
     lightformers: [
-      { form: 'rect', intensity: 5.2, color: '#fff6ec', position: [-5.5, 6.5, 6], scale: [8, 5.5, 1] },
+      // Neutral, not #fff6ec. The key is what a facing chest is lit by, so its
+      // cast is what the customer reads as the garment's colour: measured, white
+      // cloth came out (205,198,192), a 13-level warm tint on a colourway the
+      // customer picked as #FFFFFF. A press room's diffuser is daylight-balanced.
+      { form: 'rect', intensity: 5.2, color: '#fffdfa', position: [-5.5, 6.5, 6], scale: [8, 5.5, 1] },
       { form: 'rect', intensity: 2.6, color: '#a9cdff', position: [8.5, 2, -5], scale: [3.2, 8, 1] },
       { form: 'rect', intensity: 1.05, color: '#e9eef6', position: [3.5, -2.5, 7.5], scale: [8, 3.5, 1] },
       { form: 'ring', intensity: 0.7, color: '#ffffff', position: [0, 9, 0.5], scale: 6.5 },
       { form: 'rect', intensity: 0.5, color: '#35c7ff', position: [-8, 0, -6], scale: [2.5, 6, 1] },
       { form: 'rect', intensity: 1.5, color: '#e6ecf5', position: [-2, 4.5, -8], scale: [7, 4.5, 1] },
     ],
-    // Aimed at the 5.2-intensity warm softbox above and to the left; a press
-    // room's key is a big diffuser, hence the wide blur.
-    key: { direction: [-5.5, 6.5, 6], intensity: 1.25, color: '#fff6ec', softness: 5 },
+    // Aimed at the 5.2-intensity softbox above and to the left; a press room's
+    // key is a big diffuser, hence the wide blur.
+    key: { direction: [-5.5, 6.5, 6], intensity: 1.25, color: '#fffdfa', softness: 5 },
+    // Behind and opposite: the cold kicker a product photographer puts on the
+    // far side of the subject so it leaves the background.
+    rim: { direction: [7, 3.5, -7], intensity: 3.4, color: '#dce9ff' },
+    ground: { color: '#181c23', colorLight: '#dedad0', roughness: 0.96, radiusFactor: 7 },
   },
 }
 
@@ -119,6 +180,10 @@ const BEACH: SceneDef = {
     ],
     // Direct sun: the hardest, brightest key of the six.
     key: { direction: [-6, 7, 5], intensity: 2.1, color: '#fff2d6', softness: 2 },
+    // Sky and sea behind: cool, and the reason a white tee stops dissolving
+    // into a bright sky (measured p05 edge step 0,0 before this existed).
+    rim: { direction: [6, 3, -7], intensity: 2.2, color: '#bfe0ff' },
+    ground: { color: '#cbb489', roughness: 0.95, radiusFactor: 7 },
   },
 }
 
@@ -145,6 +210,8 @@ const FOREST: SceneDef = {
     ],
     // Sun through leaves — bright but broken up, so a wide penumbra.
     key: { direction: [-5, 8, 5], intensity: 1.15, color: '#eaf6d8', softness: 8 },
+    rim: { direction: [6, 3, -7], intensity: 1.9, color: '#cfe3b8' },
+    ground: { color: '#33402a', roughness: 0.97, radiusFactor: 7 },
   },
 }
 
@@ -159,6 +226,8 @@ const CITY: SceneDef = {
     envIntensity: 1.05,
     shadowColor: '#10151d',
     shadowOpacity: 0.6,
+    // The second scene that shipped with no fill; same measurement, same fix.
+    hemisphere: { sky: '#cdd8e6', ground: '#4a505a', intensity: 0.24 },
     lightformers: [
       { form: 'rect', intensity: 5.0, color: '#eef3fb', position: [-5.5, 6.5, 6], scale: [8, 6, 1] },
       { form: 'rect', intensity: 2.6, color: '#c4d2e0', position: [5, 2, 7], scale: [9, 7, 1] },
@@ -170,6 +239,8 @@ const CITY: SceneDef = {
     ],
     // Overcast: the sky IS the light source, so barely any shadow direction.
     key: { direction: [-5.5, 6.5, 6], intensity: 0.85, color: '#eef3fb', softness: 10 },
+    rim: { direction: [7, 3, -7], intensity: 2.1, color: '#d6e4f5' },
+    ground: { color: '#59626d', roughness: 0.9, radiusFactor: 7 },
   },
 }
 
@@ -196,6 +267,8 @@ const SUNSET: SceneDef = {
     ],
     // Low golden sun: long, warm, fairly crisp.
     key: { direction: [-7, 2.5, 5], intensity: 1.9, color: '#ffb86b', softness: 3.5 },
+    rim: { direction: [7, 4, -6], intensity: 2.4, color: '#ff8fb8' },
+    ground: { color: '#6b4b46', roughness: 0.93, radiusFactor: 7 },
   },
 }
 
@@ -207,10 +280,10 @@ const NIGHT: SceneDef = {
   backdrop: () =>
     'radial-gradient(64% 52% at 50% 30%, #1b2b52 0%, #0b1327 56%, #070b16 100%)',
   three: {
-    envIntensity: 0.72,
+    envIntensity: 1.0,
     shadowColor: '#05070f',
     shadowOpacity: 0.62,
-    hemisphere: { sky: '#2a3a63', ground: '#05070f', intensity: 0.35 },
+    hemisphere: { sky: '#43558a', ground: '#0b1020', intensity: 0.6 },
     lightformers: [
       { form: 'rect', intensity: 2.6, color: '#b9c9ff', position: [-6, 7, 4], scale: [5, 5, 1] },
       { form: 'rect', intensity: 0.9, color: '#3a4e7a', position: [5, 2, 7], scale: [9, 7, 1] },
@@ -220,7 +293,11 @@ const NIGHT: SceneDef = {
       { form: 'rect', intensity: 1.0, color: '#2b3d6b', position: [-3, 4, -8], scale: [7, 5, 1] },
     ],
     // Moon plus a warm practical to camera-right; dim and quite hard.
-    key: { direction: [-6, 7, 4], intensity: 0.7, color: '#b9c9ff', softness: 4 },
+    key: { direction: [-6, 7, 4], intensity: 1.25, color: '#b9c9ff', softness: 4 },
+    // The hardest case in the set: a dark garment on a dark stage. The rim IS
+    // the picture here, so it carries more of the exposure than anywhere else.
+    rim: { direction: [7, 3, -6], intensity: 4.2, color: '#9fb6ff' },
+    ground: { color: '#10162a', roughness: 0.9, radiusFactor: 7 },
   },
 }
 

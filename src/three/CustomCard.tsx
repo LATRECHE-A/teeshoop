@@ -145,7 +145,7 @@ export function CustomCard({ front, back: suppliedBack, envIntensity = 1, onMeas
   if (!primary) return null
 
   return (
-    <group>
+    <group userData={{ role: 'garment' }}>
       {(front ? frontTex : rimTex) && (
         <mesh geometry={frontCard.geometry} position={[0, 0, thickness / 2]} castShadow receiveShadow>
           <meshPhysicalMaterial

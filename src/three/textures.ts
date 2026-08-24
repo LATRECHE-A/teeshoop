@@ -13,22 +13,65 @@ interface SourceLike {
   version: number
 }
 
-function makeCanvasTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
+function makeCanvasTexture(canvas: HTMLCanvasElement, premultiplied = false): THREE.CanvasTexture {
   const tex = new THREE.CanvasTexture(canvas)
-  tex.colorSpace = THREE.SRGBColorSpace
+  /**
+   * NoColorSpace for premultiplied artwork, and the shader decodes instead.
+   *
+   * THE TWO OPERATIONS HAVE TO HAPPEN IN THE SAME SPACE. `UNPACK_PREMULTIPLY_
+   * ALPHA_WEBGL` multiplies the STORED, sRGB-ENCODED value by alpha at upload.
+   * Ask three for SRGBColorSpace as well and the sampler hands the shader
+   * `linear(srgb(c) x a)`; dividing that by alpha, which is what recovers the
+   * straight colour, leaves `c_linear x a^1.4`. Measured against the intent: ink
+   * at 50 % opacity would render at 38 % of its radiance and ink at 25 % at
+   * 15 %, so a soft edge or a drop shadow would come out far too dark and a
+   * faint layer would all but vanish. Sampling raw and decoding after the divide
+   * is exact.
+   *
+   * What it costs: filtering and mip generation then happen on encoded values
+   * rather than linear ones. That is a few per cent on a strong gradient INSIDE
+   * the ink, against a fringe measured at up to 162 sRGB levels on every edge.
+   */
+  tex.colorSpace = premultiplied ? THREE.NoColorSpace : THREE.SRGBColorSpace
   tex.anisotropy = 8
   // Canvas row 0 (top) must map to v=1: default flipY=true is correct for
   // both DecalGeometry UVs and PlaneGeometry UVs. Verified with the
   // harness' "TOP" marker.
   tex.flipY = true
+  /**
+   * PREMULTIPLIED, for artwork.
+   *
+   * A print canvas holds STRAIGHT alpha and its transparent texels are
+   * (0,0,0,0). Bilinear filtering and mip generation average colour and alpha
+   * independently, so every edge in the artwork gets a band that is darker than
+   * the ink AND darker than the shirt: measured on a white tee with the
+   * calibration grid, 5 787 pixels dipping up to 162 sRGB levels below their own
+   * neighbours. It is the dirty outline traced round every letter.
+   *
+   * Uploading premultiplied makes the filter interpolate (colour x alpha), which
+   * is the only quantity that interpolates correctly; the shader then divides it
+   * back out and decodes (see inkShaderChunks). All three are required:
+   * premultiplying without the divide darkens the ink instead, dividing without
+   * the premultiply brightens genuinely semi-transparent artwork, and doing
+   * either across a colour-space boundary gets the exponent wrong (see the
+   * colorSpace line above).
+   */
+  tex.premultiplyAlpha = premultiplied
   tex.needsUpdate = true
   return tex
 }
 
 /** Live texture view of a DecalSource/CardSource canvas. */
-export function useSourceTexture(src: SourceLike | null | undefined): THREE.CanvasTexture | null {
+export function useSourceTexture(
+  src: SourceLike | null | undefined,
+  opts?: { premultiplied?: boolean },
+): THREE.CanvasTexture | null {
   const canvas = src?.canvas ?? null
-  const tex = useMemo(() => (canvas ? makeCanvasTexture(canvas) : null), [canvas])
+  const premultiplied = !!opts?.premultiplied
+  const tex = useMemo(
+    () => (canvas ? makeCanvasTexture(canvas, premultiplied) : null),
+    [canvas, premultiplied],
+  )
   useEffect(() => () => tex?.dispose(), [tex])
   const version = src?.version ?? 0
   useEffect(() => {

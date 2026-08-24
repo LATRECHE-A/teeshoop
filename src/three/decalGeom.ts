@@ -166,7 +166,107 @@ export function buildFabricOverlay(
 const FABRIC_CLIP_CACHE_KEY = 'tshop-fabric-clip'
 
 /**
- * Print material for the overlay pass: samples the print canvas through the
+ * How proud of the cloth a cured transfer sits, as a screen-space normal tilt at
+ * the ink's own edge.
+ *
+ * A DTF film is roughly 0,1-0,2 mm thick. That is far below a pixel at any
+ * framing this app uses, so it cannot be geometry, but it is not nothing
+ * either: it is the reason a printed edge catches a hairline of light on the key
+ * side and lays a hair of shadow on the other, and the absence of that hairline
+ * is most of why artwork reads as a flat sticker rather than as something fused
+ * to the shirt. Driving it from the SCREEN-SPACE derivative of the ink's alpha
+ * is what keeps it one pixel wide at every zoom, which is what a sub-pixel
+ * feature actually looks like.
+ */
+const INK_RELIEF = 0.55
+
+/**
+ * The ink treatment both print paths share: undo the texture's premultiply, put
+ * the film's edge back, and take the cloth's own relief underneath.
+ *
+ * Two paths exist because two mappings exist. The FABRIC overlay knows where the
+ * print rect is (it carries `printReject` and fabric UVs) and clips to it; a
+ * PROJECTED decal is already cut to shape by its own geometry and carries
+ * neither. Everything else about the ink is the same on both, and it was not:
+ * the sleeve and the fallback decal shipped as bare `meshStandardMaterial`, so a
+ * sleeve print kept its own flat brightness while the sleeve under it curved
+ * into the armpit and went into the key's shadow.
+ */
+function inkShaderChunks(shader: { vertexShader: string; fragmentShader: string }, clip: boolean): void {
+  if (clip) {
+    shader.vertexShader =
+      'attribute float printReject;\nvarying float vReject;\n' +
+      shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvReject = printReject;')
+  }
+  // fwidth BEFORE the discard. `discard` is non-uniform control flow, and a
+  // screen-space derivative taken after it is undefined for the whole quad; the
+  // feather's entire job is the rect boundary, which is precisely where the
+  // discarded neighbours are. vMapUv is a varying, so its derivative is
+  // available before any branch.
+  const preGuard = clip ? '\tvec2 inkFw = max( fwidth( vMapUv ), vec2( 1e-6 ) );\n' : ''
+  const guard = clip
+    ? '\tif ( vReject > 1.0 || vMapUv.x < 0.0 || vMapUv.x > 1.0 || vMapUv.y < 0.0 || vMapUv.y > 1.0 ) discard;\n'
+    : ''
+  const feather = clip
+    ? '\t{\n' +
+      '\t\tvec2 dEdge = min( vMapUv, 1.0 - vMapUv ) / inkFw;\n' +
+      '\t\tdiffuseColor.a *= clamp( min( dEdge.x, dEdge.y ), 0.0, 1.0 );\n' +
+      '\t}\n'
+    : ''
+  shader.fragmentShader =
+    (clip ? 'varying float vReject;\n' : '') +
+    'float vInkAlpha;\n' +
+    shader.fragmentShader
+      .replace(
+        '#include <map_fragment>',
+        preGuard +
+          guard +
+          '#include <map_fragment>\n' +
+          // Undo the premultiply the texture was uploaded with, IN THE SPACE IT
+          // WAS DONE IN. The texture is sampled raw (NoColorSpace, see
+          // makeCanvasTexture) precisely so that this divide and that multiply
+          // are the same operation inverted; decoding to linear is the step
+          // after, not before.
+          '\tif ( diffuseColor.a > 0.0031 ) diffuseColor.rgb /= diffuseColor.a;\n' +
+          '\tdiffuseColor = sRGBTransferEOTF( diffuseColor );\n' +
+          feather +
+          '\tvInkAlpha = diffuseColor.a;\n',
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        '#include <normal_fragment_maps>\n' +
+          // The film's own edge. dFdx/dFdy of the ink coverage IS the slope of
+          // the transfer's shoulder in screen space; tilting the shading normal
+          // by it puts a one-pixel highlight on the lit side of every letter and
+          // a one-pixel shadow on the other.
+          `\t{\n\t\tvec2 gInk = vec2( dFdx( vInkAlpha ), dFdy( vInkAlpha ) ) * ${INK_RELIEF.toFixed(3)};\n` +
+          '\t\tnormal = normalize( normal - vec3( gInk.x, gInk.y, 0.0 ) );\n\t}\n',
+      )
+}
+
+/**
+ * Print material for a PROJECTED decal (the sleeve, and the fallback when a mesh
+ * cannot be unwrapped). Same ink, different mapping.
+ */
+export function projectedPrintMaterial(map: THREE.Texture, weave?: WeaveOptions): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({
+    map,
+    transparent: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -10,
+    depthTest: true,
+    depthWrite: false,
+    roughness: 0.86,
+    metalness: 0,
+  })
+  material.onBeforeCompile = (shader) => inkShaderChunks(shader, false)
+  material.customProgramCacheKey = () => `${FABRIC_CLIP_CACHE_KEY}|proj`
+  if (weave) applyWeaveBump(material, weave, 'tshop-print')
+  return material
+}
+
+/**
+ * Print material for the fabric overlay: samples the print canvas through the
  * fabric UVs and discards everything outside the rect or off the shell. The
  * discard (rather than ClampToEdge padding) is exact — a full-area print whose
  * ink touches the rect edge would smear across the whole garment otherwise.
@@ -195,17 +295,7 @@ export function fabricPrintMaterial(map: THREE.Texture, cavity: boolean, weave?:
     side: THREE.FrontSide,
     vertexColors: cavity,
   })
-  material.onBeforeCompile = (shader) => {
-    shader.vertexShader =
-      'attribute float printReject;\nvarying float vReject;\n' +
-      shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvReject = printReject;')
-    shader.fragmentShader =
-      'varying float vReject;\n' +
-      shader.fragmentShader.replace(
-        '#include <map_fragment>',
-        'if ( vReject > 1.0 || vMapUv.x < 0.0 || vMapUv.x > 1.0 || vMapUv.y < 0.0 || vMapUv.y > 1.0 ) discard;\n#include <map_fragment>',
-      )
-  }
+  material.onBeforeCompile = (shader) => inkShaderChunks(shader, true)
   // Without this every material instance compiles its own program.
   material.customProgramCacheKey = () => `${FABRIC_CLIP_CACHE_KEY}|${cavity ? 'c' : ''}`
   // The ink follows the weave underneath it, at a fraction of the cloth's own

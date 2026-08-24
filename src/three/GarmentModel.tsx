@@ -22,7 +22,7 @@ import type { CatalogGarmentId, DecalSource, Side, SizeId } from '@/lib/types'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
 import { CALIBRATION, MAX_BAKED_NORMAL_SCALE } from './calibration'
 import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
-import { buildFabricOverlay, fabricPrintMaterial } from './decalGeom'
+import { buildFabricOverlay, fabricPrintMaterial, projectedPrintMaterial } from './decalGeom'
 import { armProfile, buildGarmentFrame, fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
 import { useSourceTexture } from './textures'
 
@@ -144,6 +144,8 @@ interface PrintOverlayProps {
   source: DecalSource
   /** Print grading factor for the previewed size (src/lib/printScale.ts). */
   k: number
+  /** Scene lighting multiplier: the SAME one the cloth under it takes. */
+  envIntensity: number
 }
 
 /**
@@ -151,8 +153,8 @@ interface PrintOverlayProps {
  * with fabric UVs, lifted a hair along its normals; the material discards
  * everything outside the print rect and everything off the printable shell.
  */
-function PrintOverlay({ frame, garment, side, source, k }: PrintOverlayProps) {
-  const texture = useSourceTexture(source)
+function PrintOverlay({ frame, garment, side, source, k, envIntensity }: PrintOverlayProps) {
+  const texture = useSourceTexture(source, { premultiplied: true })
 
   const geometry = useMemo(
     () => buildFabricOverlay(frame.geometry, fabricFrameFor(garment, side, frame, source.wIn, source.hIn, k)),
@@ -186,8 +188,59 @@ function PrintOverlay({ frame, garment, side, source, k }: PrintOverlayProps) {
   )
   useEffect(() => () => material?.dispose(), [material])
 
+  // The ink is lit by the same scene as the cloth it is fused to. Without this
+  // the garment dimmed at night and brightened on the beach while the artwork
+  // held its studio brightness: a print that does not follow its own shirt is
+  // the definition of a sticker added afterwards.
+  useEffect(() => {
+    if (material) material.envMapIntensity = CALIBRATION[garment].envMapIntensity * envIntensity
+  }, [material, garment, envIntensity])
+
   if (!material) return null
   return <mesh geometry={geometry} material={material} renderOrder={2} receiveShadow />
+}
+
+/**
+ * The ink material for a PROJECTED decal, with the treatment the fabric overlay
+ * already had: the cloth's weave and drape underneath it, the film's own edge,
+ * the un-premultiply, and the scene's exposure.
+ *
+ * Both projected paths shipped as a bare `meshStandardMaterial`, so a sleeve
+ * print kept a flat studio brightness while the sleeve under it curved into the
+ * armpit hollow, went into the key's shadow and took the fabric's grain. The
+ * front and back panels have not looked like that since the fabric overlay
+ * landed; the sleeve never caught up.
+ */
+function useProjectedInk(
+  texture: THREE.CanvasTexture | null,
+  garment: CatalogGarmentId,
+  envIntensity: number,
+  foldHalfHeightIn: number,
+): THREE.MeshStandardMaterial | null {
+  const material = useMemo(
+    () =>
+      texture
+        ? projectedPrintMaterial(texture, {
+            ...WEAVE_DEFAULTS,
+            strength: WEAVE_DEFAULTS.strength * 0.35,
+            foldStrength: CALIBRATION[garment].cloth.foldStrength,
+            // THE SAME SLACK RAMP THE CLOTH UNDER IT TAKES. The ramp is a
+            // function of object-space Y over the whole garment, so a sleeve is
+            // inside its domain like everything else; switching it off here
+            // would give the ink a fold field at full amplitude sitting on cloth
+            // whose own folds are damped to 0,28 up there, which is two
+            // contradicting sets of wrinkles on one surface.
+            foldHalfHeightIn,
+            roughGain: 0.04,
+          })
+        : null,
+    [texture, garment, foldHalfHeightIn],
+  )
+  useEffect(() => () => material?.dispose(), [material])
+  useEffect(() => {
+    if (material) material.envMapIntensity = CALIBRATION[garment].envMapIntensity * envIntensity
+  }, [material, garment, envIntensity])
+  return material
 }
 
 interface PrintDecalProps {
@@ -196,6 +249,9 @@ interface PrintDecalProps {
   source: DecalSource
   /** World Y (inches) of the print-area centre. */
   centreYIn: number
+  garment: CatalogGarmentId
+  envIntensity: number
+  foldHalfHeightIn: number
 }
 
 /**
@@ -204,8 +260,9 @@ interface PrintDecalProps {
  * arc length, so it is deliberately the second choice — but a wrong-looking
  * print beats no print, and it is what keeps an unknown ingested mesh usable.
  */
-function PrintDecal({ geometry, side, source, centreYIn }: PrintDecalProps) {
-  const texture = useSourceTexture(source)
+function PrintDecal({ geometry, side, source, centreYIn, garment, envIntensity, foldHalfHeightIn }: PrintDecalProps) {
+  const texture = useSourceTexture(source, { premultiplied: true })
+  const material = useProjectedInk(texture, garment, envIntensity, foldHalfHeightIn)
 
   const placement = useMemo(() => {
     // Probe the surface Z over the WHOLE footprint (a 5×5 grid), skipping
@@ -233,25 +290,23 @@ function PrintDecal({ geometry, side, source, centreYIn }: PrintDecalProps) {
     return { z: (zMin + zMax) / 2, depth: THREE.MathUtils.clamp(zMax - zMin + 1.0, 0.8, 0.55 * half) }
   }, [geometry, side, centreYIn, source.wIn, source.hIn])
 
-  if (!texture) return null
+  if (!material || !texture) return null
   return (
+    // `map` and `depthTest` are passed even though the material already carries
+    // them: drei's Decal pierces `material-map` and `material-depthTest` onto
+    // whatever material the mesh ends up with, and its defaults are `undefined`
+    // and `false`, which would clear the texture and switch depth testing off
+    // on a material that needs both.
     <Decal
       position={[0, centreYIn, placement.z]}
       rotation={[0, side === 'back' ? Math.PI : 0, 0]}
       scale={[source.wIn, source.hIn, placement.depth]}
+      map={texture}
+      depthTest
       renderOrder={2}
+      receiveShadow
     >
-      <meshStandardMaterial
-        map={texture}
-        transparent
-        polygonOffset
-        polygonOffsetFactor={-10}
-        depthTest
-        depthWrite={false}
-        toneMapped
-        roughness={0.88}
-        metalness={0}
-      />
+      <primitive object={material} attach="material" />
     </Decal>
   )
 }
@@ -270,6 +325,7 @@ interface SleeveDecalProps {
   source: DecalSource
   /** +1 = one flank (+X), −1 = the other (−X). */
   sign: 1 | -1
+  envIntensity: number
 }
 
 /**
@@ -280,8 +336,9 @@ interface SleeveDecalProps {
  * What DID need fixing is the box: it is now sized from the arm's measured
  * thickness, so the print no longer loses its outboard fifth.
  */
-function SleeveDecal({ frame, garment, source, sign }: SleeveDecalProps) {
-  const texture = useSourceTexture(source)
+function SleeveDecal({ frame, garment, source, sign, envIntensity }: SleeveDecalProps) {
+  const texture = useSourceTexture(source, { premultiplied: true })
+  const material = useProjectedInk(texture, garment, envIntensity, frame.heightIn / 2)
   const calib = CALIBRATION[garment]
 
   const placement = useMemo(() => {
@@ -303,25 +360,18 @@ function SleeveDecal({ frame, garment, source, sign }: SleeveDecalProps) {
     return { x, y, z: arm.centreZ, depth }
   }, [frame, calib, sign, source.wIn])
 
-  if (!texture) return null
+  if (!material || !texture) return null
   return (
     <Decal
       position={[placement.x, placement.y, placement.z]}
       rotation={[0, (sign * Math.PI) / 2, sign * calib.sleeve.rotZ]}
       scale={[source.wIn, source.hIn, placement.depth]}
+      map={texture}
+      depthTest
       renderOrder={2}
+      receiveShadow
     >
-      <meshStandardMaterial
-        map={texture}
-        transparent
-        polygonOffset
-        polygonOffsetFactor={-10}
-        depthTest
-        depthWrite={false}
-        toneMapped
-        roughness={0.88}
-        metalness={0}
-      />
+      <primitive object={material} attach="material" />
     </Decal>
   )
 }
@@ -360,15 +410,19 @@ export function GarmentModel({
   const normalized = useNormalizedGarment(garment, sizeId ?? DEFAULT_SIZE)
   const { geometry, material, heightIn, widthIn, fitHeightIn, fitWidthIn, table } = normalized
 
-  // The sheen lobe is the FUZZ on the fibre, so it is the fibre's own colour —
-  // a shade lighter because it is forward scatter, never a fixed white. Held
-  // fixed it behaves as an additive white film, which is invisible on a white
-  // tee and catastrophic on a dark one: a warm off-white sheen over #191C20
-  // rendered that near-black hoodie as brown. Tying it to the garment keeps
-  // every colourway honest with one line.
+  // The sheen lobe is the FUZZ on the fibre. It is lit from the side and behind
+  // and it scatters forward, so it carries the LIGHT's colour more than the
+  // dye's, which is why a rim-lit black tee has a pale grey edge in a real
+  // photograph and not a black one. It still has to stay TIED to the garment,
+  // because a fixed near-white sheen behaves as an additive film: measured
+  // once, a warm off-white over #191C20 rendered that near-black hoodie brown.
+  // 0.3 -> 0.55 is what lets the grazing lobe read on a dark colourway; the
+  // warmth that caused the brown is gone from the rig itself (the studio key is
+  // neutral now), so the risk that number was guarding against is not the same
+  // risk any more.
   useEffect(() => {
     material.color.set(colorHex)
-    material.sheenColor.set(colorHex).lerp(WHITE, 0.3)
+    material.sheenColor.set(colorHex).lerp(WHITE, 0.55)
     material.needsUpdate = true
   }, [material, colorHex])
 
@@ -385,24 +439,34 @@ export function GarmentModel({
 
   const panel = (side: Exclude<Side, 'sleeve'>, source: DecalSource) =>
     table.usable ? (
-      <PrintOverlay frame={normalized} garment={garment} side={side} source={source} k={printK} />
+      <PrintOverlay
+        frame={normalized}
+        garment={garment}
+        side={side}
+        source={source}
+        k={printK}
+        envIntensity={envIntensity}
+      />
     ) : (
       <PrintDecal
         geometry={geometry}
         side={side}
         source={source}
         centreYIn={printCentreYIn(garment, side, normalized, printK)}
+        garment={garment}
+        envIntensity={envIntensity}
+        foldHalfHeightIn={normalized.heightIn / 2}
       />
     )
 
   return (
-    <mesh geometry={geometry} material={material} castShadow receiveShadow>
+    <mesh geometry={geometry} material={material} userData={{ role: 'garment' }} castShadow receiveShadow>
       {front && panel('front', front)}
       {back && panel('back', back)}
       {sleeve && (
         <>
-          <SleeveDecal frame={normalized} garment={garment} source={sleeve} sign={-1} />
-          <SleeveDecal frame={normalized} garment={garment} source={sleeve} sign={1} />
+          <SleeveDecal frame={normalized} garment={garment} source={sleeve} sign={-1} envIntensity={envIntensity} />
+          <SleeveDecal frame={normalized} garment={garment} source={sleeve} sign={1} envIntensity={envIntensity} />
         </>
       )}
     </mesh>

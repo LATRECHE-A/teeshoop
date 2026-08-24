@@ -3,12 +3,13 @@
  * rendered into a 256px environment map (no network HDRs), grounded contact
  * shadows and a damped orbit rig with smooth view-snap animation.
  */
-import { useEffect, useMemo, useRef, type ComponentRef } from 'react'
+import { useEffect, useMemo, useRef, type ComponentRef, type RefObject } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer, OrbitControls } from '@react-three/drei'
-import type { ViewSnap } from '@/lib/types'
-import type { KeyLightSpec, Scene3DConfig } from '@/scenes'
+import type { CatalogGarmentId, GarmentId, ViewSnap } from '@/lib/types'
+import { SIZE_IDS, garmentWidthInFor } from '@/content/sizeChart'
+import type { GroundSpec, KeyLightSpec, RimLightSpec, Scene3DConfig } from '@/scenes'
 
 /**
  * Procedural softbox rig baked into a 256px env map (no network HDRs). The
@@ -18,7 +19,7 @@ import type { KeyLightSpec, Scene3DConfig } from '@/scenes'
  *
  * Mount this with `key={sceneId}` so switching scenes re-bakes the map.
  */
-export function SceneEnvironment({ config }: { config: Scene3DConfig }) {
+export function SceneEnvironment({ config, resolution = 512 }: { config: Scene3DConfig; resolution?: number }) {
   return (
     // 512, up from 256: the sheen lobe integrates the env map at grazing
     // angles, and at 256 the softbox edges band visibly across a smooth
@@ -33,7 +34,7 @@ export function SceneEnvironment({ config }: { config: Scene3DConfig }) {
     // load. The real cause was that the suite's own 60 s gate straddled a
     // mount that takes 58-66 s under swiftshader, so it failed as a coin flip
     // on BOTH the changed and the unchanged tree. Fixed in e2e-verify.mjs.
-    <Environment resolution={512} frames={1}>
+    <Environment resolution={resolution} frames={1}>
       {config.lightformers.map((lf, i) => (
         <Lightformer
           key={i}
@@ -47,6 +48,37 @@ export function SceneEnvironment({ config }: { config: Scene3DConfig }) {
       ))}
     </Environment>
   )
+}
+
+/**
+ * The garment's measured extents, in inches, shared as a MUTABLE BOX.
+ *
+ * `heightIn`/`widthIn` are the PREVIEWED size (the floor's shadow is that
+ * garment's own footprint). `fitHeightIn`/`fitWidthIn` are the biggest size in
+ * the chart, which is what the camera frames, so switching S↔3XL changes the
+ * garment on screen instead of the viewing distance.
+ *
+ * Why a box and not React state: see the comment on `extent` in ./index.tsx.
+ * The writer lives inside the R3F root and so do both readers, but the state
+ * that joined them lived in the DOM root, and on the shipped tree the camera
+ * was measurably still framing the seed after the garment had loaded.
+ */
+export interface MeasuredExtent {
+  heightIn: number
+  widthIn: number
+  fitHeightIn: number
+  fitWidthIn: number
+  /** False until a garment has reported. The seed is a placeholder, not a fact. */
+  measured: boolean
+}
+
+/** Placeholder until the first garment reports: a mid-size tee, roughly. */
+export const SEED_EXTENT: MeasuredExtent = {
+  heightIn: 28,
+  widthIn: 24,
+  fitHeightIn: 28,
+  fitWidthIn: 24,
+  measured: false,
 }
 
 /**
@@ -69,50 +101,210 @@ export function SceneEnvironment({ config }: { config: Scene3DConfig }) {
  * over the fabric and comfortably kills the acne a doubleSided cloth surface
  * produces where it nearly faces the light.
  */
-export function KeyLight({ spec, extentIn }: { spec: KeyLightSpec; extentIn: number }) {
-  const half = Math.max(14, extentIn * 0.62)
-  const distance = Math.max(90, extentIn * 2.4)
-  const position = useMemo<[number, number, number]>(() => {
+export function KeyLight({
+  spec,
+  extent,
+  mapSize,
+}: {
+  spec: KeyLightSpec
+  extent: RefObject<MeasuredExtent>
+  /** Shadow-map edge. Halved on a phone, where it is the single most expensive
+   *  thing in the frame (see PROFILE in ./index.tsx). */
+  mapSize: number
+}) {
+  const light = useRef<THREE.DirectionalLight>(null)
+  const dir = useMemo(() => {
     const v = new THREE.Vector3(...spec.direction)
     if (v.lengthSq() < 1e-6) v.set(-1, 1, 1)
-    v.normalize().multiplyScalar(distance)
-    return [v.x, v.y, v.z]
-  }, [spec.direction, distance])
+    return v.normalize()
+  }, [spec.direction])
+
+  // Follow the measurement per frame, like the camera and the floor do: the
+  // frustum has to cover the garment that is actually there, and a garment
+  // reported after the last React render would otherwise be lit by a rig sized
+  // for the seed, which on a hoodie clips the sleeves out of the shadow map.
+  useFrame(() => {
+    const l = light.current
+    if (!l) return
+    const e = extent.current
+    const extentIn = Math.max(e.fitHeightIn, e.fitWidthIn)
+    const half = Math.max(14, extentIn * 0.62)
+    const distance = Math.max(90, extentIn * 2.4)
+    const cam = l.shadow.camera
+    if (cam.right === half && l.position.lengthSq() > 0 && Math.abs(l.position.length() - distance) < 1e-6) return
+    l.position.copy(dir).multiplyScalar(distance)
+    cam.left = -half
+    cam.right = half
+    cam.top = half
+    cam.bottom = -half
+    cam.near = Math.max(1, distance - half * 2.5)
+    cam.far = distance + half * 2.5
+    cam.updateProjectionMatrix()
+  })
 
   return (
     <directionalLight
-      position={position}
+      ref={light}
       intensity={spec.intensity}
       color={spec.color}
       castShadow
-      shadow-mapSize-width={2048}
-      shadow-mapSize-height={2048}
+      shadow-mapSize-width={mapSize}
+      shadow-mapSize-height={mapSize}
       shadow-radius={spec.softness}
       shadow-blurSamples={12}
       shadow-bias={-0.0006}
       shadow-normalBias={0.06}
-      shadow-camera-near={Math.max(1, distance - half * 2.5)}
-      shadow-camera-far={distance + half * 2.5}
-      shadow-camera-left={-half}
-      shadow-camera-right={half}
-      shadow-camera-top={half}
-      shadow-camera-bottom={-half}
     />
   )
 }
 
+/**
+ * The separation light. No shadow map, no frustum, no cost beyond one more
+ * light in the loop: its whole job is to put a value on the surfaces that face
+ * away from the key, which is every surface at the silhouette.
+ */
+export function RimLight({ spec, extent }: { spec: RimLightSpec; extent: RefObject<MeasuredExtent> }) {
+  const light = useRef<THREE.DirectionalLight>(null)
+  const dir = useMemo(() => {
+    const v = new THREE.Vector3(...spec.direction)
+    if (v.lengthSq() < 1e-6) v.set(1, 1, -1)
+    return v.normalize()
+  }, [spec.direction])
+  useFrame(() => {
+    const l = light.current
+    if (!l) return
+    const distance = Math.max(90, Math.max(extent.current.fitHeightIn, extent.current.fitWidthIn) * 2.4)
+    if (Math.abs(l.position.length() - distance) < 1e-6) return
+    l.position.copy(dir).multiplyScalar(distance)
+  })
+  return <directionalLight ref={light} intensity={spec.intensity} color={spec.color} castShadow={false} />
+}
+
+/**
+ * A radial alpha ramp, generated once: opaque under the garment, gone by the
+ * rim, so the ground never shows an edge and never needs a horizon.
+ *
+ * The stops are not a curve fit, they are the two things the ramp has to do:
+ * stay flat where the contact shadow lands (the shadow must darken a CONSTANT
+ * value, or the ramp's own gradient reads as part of the shadow) and be gone
+ * long before the disc's rim. At radiusFactor 7 the flat core reaches 0,11 of
+ * the radius, which is 0,77 of the garment's own width: wider than any contact
+ * shadow it throws, and the ramp is at zero by the rim.
+ */
+function groundAlphaTexture(): THREE.CanvasTexture {
+  const SIZE = 256
+  const c = document.createElement('canvas')
+  c.width = SIZE
+  c.height = SIZE
+  const x = c.getContext('2d')
+  if (x) {
+    const g = x.createRadialGradient(SIZE / 2, SIZE / 2, 0, SIZE / 2, SIZE / 2, SIZE / 2)
+    g.addColorStop(0, '#ffffff')
+    g.addColorStop(0.11, '#ffffff')
+    g.addColorStop(0.3, '#a8a8a8')
+    g.addColorStop(0.6, '#242424')
+    g.addColorStop(1, '#000000')
+    x.fillStyle = g
+    x.fillRect(0, 0, SIZE, SIZE)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.NoColorSpace
+  t.needsUpdate = true
+  return t
+}
+
+/**
+ * The floor. See GroundSpec in src/scenes for why there was none and what that
+ * cost: a contact shadow drawn onto a transparent canvas over a #0c0f13 page is
+ * black on black, which is why not one render in this repository contained a
+ * shadow pixel while the shadow rig was mounted and in frame the whole time.
+ */
+export function Ground({
+  spec,
+  theme,
+  extent,
+}: {
+  spec: GroundSpec
+  theme: 'dark' | 'light'
+  extent: RefObject<MeasuredExtent>
+}) {
+  const mesh = useRef<THREE.Mesh>(null)
+  const alphaMap = useMemo(groundAlphaTexture, [])
+  useEffect(() => () => alphaMap.dispose(), [alphaMap])
+  const color = (theme === 'light' && spec.colorLight) || spec.color
+  useFrame(() => {
+    const m = mesh.current
+    if (!m) return
+    const e = extent.current
+    const y = -(e.heightIn / 2) - 1.1
+    const r = Math.max(1e-3, e.widthIn * spec.radiusFactor)
+    if (m.position.y !== y) m.position.y = y
+    if (m.scale.x !== r) m.scale.set(r, r, 1)
+  })
+  return (
+    <mesh
+      ref={mesh}
+      rotation-x={-Math.PI / 2}
+      userData={{ role: 'ground' }}
+      position={[0, SEED_EXTENT.heightIn / -2 - 1.1, 0]}
+      scale={[SEED_EXTENT.widthIn * spec.radiusFactor, SEED_EXTENT.widthIn * spec.radiusFactor, 1]}
+      receiveShadow
+      renderOrder={-1}
+    >
+      {/* Unit circle, scaled by the parent: one geometry for every garment. */}
+      <circleGeometry args={[1, 96]} />
+      <meshStandardMaterial
+        color={color}
+        roughness={spec.roughness}
+        metalness={0}
+        alphaMap={alphaMap}
+        transparent
+        // The ground is behind everything and never occludes the garment; not
+        // writing depth keeps it out of the transparent sort entirely.
+        depthWrite={false}
+      />
+    </mesh>
+  )
+}
+
+/**
+ * How far the shadow camera reaches up the garment, in the rig's LOCAL units.
+ *
+ * It used to be derived from the measured height, which put a measured value in
+ * a drei memo dependency, and drei's ContactShadows disposes nothing, so every
+ * garment and every size change orphaned two render targets. A constant that
+ * covers both garments (0,30 local ≈ 20 in on a tee, 32 in on a hoodie, the whole
+ * lower body of each) takes the measurement out of that dependency list.
+ *
+ * WHAT IS LEFT, so nobody reads this as "fixed": `color` is still a dependency
+ * and the six scenes carry six shadow tints, so flipping through the scene
+ * picker still orphans a pair of render targets per switch. That is bounded by
+ * six. The unbounded one, which grew with every size click, is gone.
+ */
+const CONTACT_FAR_LOCAL = 0.3
+
 export function Floor({
-  heightIn,
-  widthIn,
+  extent,
   shadowColor = '#000000',
   shadowOpacity = 0.58,
 }: {
-  heightIn: number
-  widthIn: number
+  extent: RefObject<MeasuredExtent>
   shadowColor?: string
   shadowOpacity?: number
 }) {
-  const floorY = -(heightIn / 2) - 1.1
+  const group = useRef<THREE.Group>(null)
+  // Follow the measurement per frame rather than per render: the writer is the
+  // garment, inside this same root, and there is no scheduler between us.
+  useFrame(() => {
+    const g = group.current
+    if (!g) return
+    const e = extent.current
+    const scale = Math.max(1e-3, e.widthIn * 2.7)
+    // A hair above the ground plane, which now sits at exactly this height.
+    const floorY = -(e.heightIn / 2) - 1.1 + 0.02
+    if (g.position.y !== floorY) g.position.y = floorY
+    if (g.scale.x !== scale) g.scale.setScalar(scale)
+  })
   // drei's ContactShadows memoises two WebGLRenderTargets, a PlaneGeometry and
   // three materials on [resolution, width, height, scale, color] — and disposes
   // NONE of them (there is not one `dispose` call in the module). Passing a
@@ -129,14 +321,13 @@ export function Floor({
   // `far` is in the rig's LOCAL units, so it must be divided by the parent
   // scale to keep the shadow camera's reach at the same world depth. `blur`
   // works in the render target's pixel space and is scale-invariant.
-  const scale = Math.max(1e-3, widthIn * 2.7)
   return (
-    <group position={[0, floorY, 0]} scale={scale}>
+    <group ref={group} userData={{ role: 'shadow' }} position={[0, SEED_EXTENT.heightIn / -2 - 1.1 + 0.02, 0]} scale={SEED_EXTENT.widthIn * 2.7}>
       <ContactShadows
         opacity={shadowOpacity}
         scale={1}
         blur={2.1}
-        far={(heightIn * 0.55) / scale}
+        far={CONTACT_FAR_LOCAL}
         resolution={512}
         color={shadowColor}
       />
@@ -149,6 +340,37 @@ export function ReadyPing({ onReady }: { onReady?: () => void }) {
   const fired = useRef(false)
   const gl = useThree((s) => s.gl)
   const scene = useThree((s) => s.scene)
+
+  // DEV-only per-frame cost probe, for scripts/frame-bench.mjs. Draw calls,
+  // triangles and programs are the numbers that TRAVEL between machines: a
+  // millisecond measured on a software rasteriser says nothing about a phone,
+  // and this file's history is full of numbers that were quoted as if it did.
+  useFrame(() => {
+    if (!import.meta.env.DEV) return
+    // MANUAL RESET. three clears `info.render` at the top of every `render()`,
+    // and this callback runs before it, so with `autoReset` left on the counters
+    // read as zero however busy the frame was: the first run of
+    // scripts/frame-bench.mjs reported "0 draw calls, 0 triangles" beside a
+    // 6,5 second frame. Turning it off and resetting here makes the numbers the
+    // totals for exactly one frame.
+    gl.info.autoReset = false
+    ;(window as unknown as { __renderInfo?: unknown }).__renderInfo = {
+      calls: gl.info.render.calls,
+      triangles: gl.info.render.triangles,
+      programs: gl.info.programs?.length ?? 0,
+      textures: gl.info.memory.textures,
+      geometries: gl.info.memory.geometries,
+      shadowMapSize: (() => {
+        let n = 0
+        scene.traverse((o) => {
+          const l = o as THREE.DirectionalLight
+          if (l.isDirectionalLight && l.castShadow) n = Math.max(n, l.shadow.mapSize.width)
+        })
+        return n
+      })(),
+    }
+    gl.info.reset()
+  })
   useFrame(() => {
     if (fired.current) return
     fired.current = true
@@ -184,6 +406,23 @@ export function ReadyPing({ onReady }: { onReady?: () => void }) {
         toneMapping: gl.toneMapping,
         lights,
         meshes,
+      }
+      // Isolate a layer of the stage, for a headless probe that has to tell the
+      // GARMENT's silhouette from the FLOOR's. Since the floor was added, the
+      // opaque part of the frame is the floor, so a measurement that assumed
+      // "opaque = garment" now measures the stage. Objects carry a role in
+      // userData; this turns one off and leaves the render otherwise identical.
+      ;(window as unknown as { __stage?: unknown }).__stage = {
+        show: (role: string, on: boolean) => {
+          let n = 0
+          scene.traverse((o) => {
+            if (o.userData?.role === role) {
+              o.visible = on
+              n++
+            }
+          })
+          return n
+        },
       }
     }
     if (onReady) requestAnimationFrame(() => onReady())
@@ -267,24 +506,48 @@ export function fitRadius(
   )
 }
 
+/**
+ * Body width (inches) of the garment the camera is framing, WITHOUT the arm
+ * span an A-pose adds to the bounding box. Read off the size chart's laid-flat
+ * half-chest at the biggest size, because that is the same size the camera
+ * frames to (see GarmentFrame.fitWidthIn), and because a laid-flat width is a
+ * safe upper bound on the projected torso, which curves away from the viewer.
+ * A ship-your-own garment is a flat card with no sleeves: its whole width IS
+ * the body.
+ */
+function torsoWidthIn(garment: GarmentId, fallbackIn: number): number {
+  if (garment === 'custom') return fallbackIn
+  return garmentWidthInFor(garment as CatalogGarmentId, SIZE_IDS[SIZE_IDS.length - 1])
+}
+
+/**
+ * How much of the vertical slack goes UNDER the garment rather than around it.
+ *
+ * A garment framed dead centre in a pane whose limiting dimension is the arm
+ * span leaves a matching band of empty stage above and below it, and the band
+ * below is where the thing that says "this is an object in a place" belongs:
+ * its own contact shadow. Aiming the camera slightly below the garment's centre
+ * spends that slack on ground instead of on symmetry. It is CLAMPED to the
+ * slack that actually exists, so it can never crop the biggest size the rig is
+ * framing, which is the invariant scripts/board-verify.mjs check G defends.
+ */
+const GROUND_ROOM_FRAC = 0.1
+
 export interface CameraRigProps {
   viewRequest: { view: ViewSnap; nonce: number } | null
   autoRotate: boolean
   reducedMotion: boolean
-  /** Measured garment extents (inches) — the camera frames to these. */
-  fitHeightIn?: number
-  fitWidthIn?: number
-  /** Body width without the A-pose arm span — what the framing is about. */
-  fitTorsoWidthIn?: number
+  /** The measured garment, shared as a box (see MeasuredExtent). */
+  extent: RefObject<MeasuredExtent>
+  garment: GarmentId
 }
 
 export function CameraRig({
   viewRequest,
   autoRotate,
   reducedMotion,
-  fitHeightIn,
-  fitWidthIn,
-  fitTorsoWidthIn,
+  extent,
+  garment,
 }: CameraRigProps) {
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((s) => s.camera)
@@ -302,46 +565,154 @@ export function CameraRig({
   // fires, and a pane that opens narrow and widens (or a phone rotating) would
   // otherwise keep a distance computed for a viewport that no longer exists.
   const size = useThree((s) => s.size)
+  const scene = useThree((s) => s.scene)
   const perspective = camera as THREE.PerspectiveCamera
   const radiusFor = (h: number, w: number) =>
-    fitRadius(h, perspective.fov ?? 26, perspective.aspect ?? 1, w, fitTorsoWidthIn ?? w)
-  const framed = radiusFor(fitHeightIn ?? 0, fitWidthIn ?? 0)
+    fitRadius(h, perspective.fov ?? 26, perspective.aspect ?? 1, w, torsoWidthIn(garment, w))
+  const framed = radiusFor(extent.current.fitHeightIn, extent.current.fitWidthIn)
 
-  useEffect(() => {
-    if (userTook.current || !fitHeightIn) return
-    const radius = radiusFor(fitHeightIn, fitWidthIn ?? 0)
-    if (Math.abs(radius - fitted.current) < 0.5) return
+  /** Where the camera looks: below the garment's centre by the clamped slack. */
+  const aimY = (radius: number, fitHeightIn: number) => {
+    const halfV = Math.tan(((perspective.fov ?? 26) * Math.PI) / 360)
+    const slack = Math.max(0, halfV * radius - fitHeightIn / 2)
+    return -Math.min(slack, halfV * radius * GROUND_ROOM_FRAC)
+  }
+
+  /**
+   * How far the garment's SILHOUETTE sits off the view axis, in inches along the
+   * camera's own right vector.
+   *
+   * The mesh is centred on its bounding box, so its box is symmetric about the
+   * origin and a camera aimed there is, by construction, aimed at the centre of
+   * the BOX. The silhouette is not the box: at the three-quarter view the near
+   * sleeve projects further than the far one, and measured on the shipped
+   * preview the garment sat 4,3 % of the pane width left of centre, with 108 px
+   * of air on one side and 178 on the other. A photographer recomposes; this is
+   * that, measured off the vertices rather than nudged by a constant.
+   *
+   * Sampled with a stride: 2 000-odd points bound the projected extent to well
+   * under a pixel, and this runs once per fit, not per frame.
+   */
+  const projectedCentreOffset = (): number => {
+    let lo = Infinity
+    let hi = -Infinity
+    camera.updateMatrixWorld()
+    scene.traverse((o) => {
+      if (o.userData?.role !== 'garment') return
+      o.traverse((child) => {
+        const mesh = child as THREE.Mesh
+        const pos = mesh.isMesh ? (mesh.geometry?.getAttribute('position') as THREE.BufferAttribute | undefined) : undefined
+        if (!pos) return
+        mesh.updateWorldMatrix(true, false)
+        const stride = Math.max(1, Math.floor(pos.count / 2000))
+        for (let i = 0; i < pos.count; i += stride) {
+          // NDC, not a world-space projection onto the right vector: the two
+          // differ under perspective, because a vertex nearer the camera covers
+          // more of the frame per inch. Measured, the world-space version left
+          // 2,9 % of the offset behind: the near sleeve is exactly the vertex
+          // the difference is largest on.
+          V.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).project(camera)
+          if (V.x < lo) lo = V.x
+          if (V.x > hi) hi = V.x
+        }
+      })
+    })
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return 0
+    // NDC half-width back to inches at the target's distance.
+    const halfV = Math.tan(((perspective.fov ?? 26) * Math.PI) / 360)
+    const dist = camera.position.distanceTo(controlsRef.current?.target ?? ORIGIN_V)
+    return ((lo + hi) / 2) * halfV * Math.max(perspective.aspect ?? 1, 0.2) * dist
+  }
+
+  const applyFit = (radius: number) => {
     fitted.current = radius
-    const dir = camera.position.length() > 1e-3 ? camera.position.clone().normalize() : new THREE.Vector3(0, 0, 1)
-    camera.position.copy(dir.multiplyScalar(radius))
     const controls = controlsRef.current
+    // FROM THE TARGET, not from the origin. The rig aims below the garment's
+    // centre and recomposes sideways, so `camera.position` carries that offset;
+    // normalising it as if it were an orbit vector folds the offset back into
+    // the DIRECTION, and every subsequent re-fit tilts a little further down and
+    // a little further sideways. A window the customer drags wider re-fits on
+    // every resize event, so the drift is not theoretical: it walks the view
+    // into the polar limit and stays there for the session.
+    const from = DIR.copy(camera.position).sub(controls ? controls.target : ORIGIN_V)
+    const dir = from.lengthSq() > 1e-6 ? from.normalize() : from.set(0, 0, 1)
+    const y = aimY(radius, extent.current.fitHeightIn)
+    camera.position.copy(dir).multiplyScalar(radius).add(AIM.set(0, y, 0))
     if (controls) {
-      controls.target.set(0, 0, 0)
+      controls.target.set(0, y, 0)
       controls.update()
+      // The orbit ceiling has to follow the garment too: it is derived from the
+      // framed distance, and this component no longer re-renders when the
+      // measurement lands (the extents are a box, not state), so the value
+      // computed during render is the seed's.
+      controls.maxDistance = Math.max(280, radius * 1.6)
     }
-    // radiusFor reads fov/aspect off the live camera, and `size` is what makes
-    // the aspect change — so depending on it is what makes this correct.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fitHeightIn, fitWidthIn, fitTorsoWidthIn, camera, size])
+    recompose()
+  }
+
+  /**
+   * Slide the view sideways until the silhouette is centred. One pass: the
+   * offset is a few per cent of the frame, so re-projecting after the move
+   * changes it by less than the sampling stride already costs.
+   */
+  const recompose = () => {
+    const controls = controlsRef.current
+    if (!controls || userTook.current) return
+    const dx = projectedCentreOffset()
+    if (Math.abs(dx) < 1e-3) return
+    const right = RIGHT.setFromMatrixColumn(camera.matrixWorld, 0).normalize().multiplyScalar(dx)
+    controls.target.add(right)
+    camera.position.add(right)
+    controls.update()
+  }
+
+  // THE FIT RUNS ON A FRAME, not on an effect keyed to a prop.
+  //
+  // The measurement is written by the garment, which lives in this same root; a
+  // prop would carry it out through the DOM root's state and back, and measured
+  // on the shipped tree that round trip did not arrive: the rig was still
+  // framing the seed {28, 24} after `ready`, so a hoodie that asks to be viewed
+  // from 123,0 in was rendered from 67,9 and filled the pane edge to edge.
+  // Polling the box removes the scheduler from between the two.
+  //
+  // `size` still matters (a reshaped pane changes the aspect and therefore the
+  // distance), and reading it as state is what re-renders this component so the
+  // closure below sees the new aspect.
+  void size
+  useFrame(() => {
+    if (userTook.current || !extent.current.measured) return
+    const radius = radiusFor(extent.current.fitHeightIn, extent.current.fitWidthIn)
+    if (Math.abs(radius - fitted.current) < 0.5) return
+    applyFit(radius)
+  })
 
   useEffect(() => {
     if (!viewRequest || viewRequest.nonce === lastNonce.current) return
     lastNonce.current = viewRequest.nonce
-    // Keep the user's current distance (clamped around the framed one) and
-    // swing around to the requested side.
+    // Swing around to the requested side at the FRAMED distance while the fit
+    // still owns the camera. Reading `camera.position.length()` instead was a
+    // race with the measurement: a snap issued before the garment reported
+    // captured the seed distance as its goal, and the damp loop below then
+    // pulled the camera back off the fitted radius onto it.
     const fit = fitted.current || camera.position.length()
-    const radius = THREE.MathUtils.clamp(camera.position.length(), fit * 0.6, fit * 1.6)
+    const radius = userTook.current
+      ? THREE.MathUtils.clamp(camera.position.length(), fit * 0.6, fit * 1.6)
+      : fit
     const target = new THREE.Spherical(radius, VIEW_POLAR[viewRequest.view], VIEW_AZIMUTH[viewRequest.view])
     if (reducedMotion) {
       camera.position.setFromSpherical(target)
       const controls = controlsRef.current
+      const y = aimY(radius, extent.current.fitHeightIn)
+      camera.position.y += y
       if (controls) {
-        controls.target.set(0, 0, 0)
+        controls.target.set(0, y, 0)
         controls.update()
       }
+      recompose()
     } else {
       goal.current = target
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewRequest, camera, reducedMotion])
 
   // Smooth exponential damp toward the requested view — in SPHERICAL space,
@@ -350,7 +721,12 @@ export function CameraRig({
   useFrame((_, delta) => {
     const controls = controlsRef.current
     if (!goal.current || !controls) return
-    const current = SPHERICAL.setFromVector3(camera.position)
+    // Spherical AROUND THE AIM POINT, not around the origin. The rig now looks
+    // slightly below the garment so its contact shadow has room (GROUND_ROOM_FRAC);
+    // measuring the orbit from the origin would have the damp quietly drag the
+    // camera back down onto it, and the ground would leave the frame again.
+    const aim = AIM.set(0, aimY(goal.current.radius, extent.current.fitHeightIn), 0)
+    const current = SPHERICAL.setFromVector3(OFFSET.copy(camera.position).sub(controls.target))
     const wrap = (a: number) => THREE.MathUtils.euclideanModulo(a + Math.PI, Math.PI * 2) - Math.PI
     const dTheta = wrap(goal.current.theta - current.theta)
     const dPhi = goal.current.phi - current.phi
@@ -359,15 +735,19 @@ export function CameraRig({
     current.theta += dTheta * k
     current.phi += dPhi * k
     current.radius += dRadius * k
-    camera.position.setFromSpherical(current)
-    controls.target.lerp(ORIGIN, k)
+    controls.target.lerp(aim, k)
+    camera.position.setFromSpherical(current).add(controls.target)
     // Re-aim immediately: OrbitControls only re-orients on ITS update pass,
     // which may run before this write — without this, slow frames render one
     // step with a stale orientation and the garment "vanishes" mid-snap.
     camera.lookAt(controls.target)
     if (Math.abs(dTheta) < 0.02 && Math.abs(dPhi) < 0.02 && Math.abs(dRadius) < 0.5) {
       goal.current = null
+      controls.target.copy(aim)
       controls.update()
+      // The new side has its own silhouette: a front view is symmetric, a
+      // three-quarter one is not, so the composition is re-made per view.
+      recompose()
     }
   })
 
@@ -383,15 +763,29 @@ export function CameraRig({
     return () => controls.removeEventListener('start', cancel)
   }, [])
 
-  // dev-only pose probe for headless debugging
+  // dev-only pose probe for headless debugging. It carries the framing INPUTS
+  // as well as the camera, because a preview framed on the placeholder extents
+  // and one framed on the measured mesh are indistinguishable in a screenshot
+  // until you know which radius was asked for.
   useFrame(() => {
     if (import.meta.env.DEV) {
       ;(window as unknown as { __pose?: unknown }).__pose = {
         cam: camera.position.toArray().map((n) => Math.round(n * 10) / 10),
+        r: Math.round(camera.position.length() * 100) / 100,
         tgt: controlsRef.current?.target.toArray().map((n) => Math.round(n * 10) / 10),
         goal: goal.current
           ? { r: goal.current.radius, phi: goal.current.phi, theta: goal.current.theta }
           : null,
+        fit: {
+          heightIn: extent.current.fitHeightIn,
+          widthIn: extent.current.fitWidthIn,
+          measured: extent.current.measured,
+          wanted: Math.round(framed * 100) / 100,
+          applied: Math.round(fitted.current * 100) / 100,
+          userTook: userTook.current,
+          aspect: Math.round((perspective.aspect ?? 0) * 1000) / 1000,
+          fov: perspective.fov ?? null,
+        },
       }
     }
   })
@@ -417,5 +811,10 @@ export function CameraRig({
   )
 }
 
-const ORIGIN = new THREE.Vector3(0, 0, 0)
 const SPHERICAL = new THREE.Spherical()
+const OFFSET = new THREE.Vector3()
+const AIM = new THREE.Vector3()
+const RIGHT = new THREE.Vector3()
+const V = new THREE.Vector3()
+const ORIGIN_V = new THREE.Vector3(0, 0, 0)
+const DIR = new THREE.Vector3()

@@ -6,14 +6,24 @@
  * inside a procedural studio stage. All scene math uses 1 world unit = 1 inch
  * so print decals are dimensionally exact (see src/three/calibration.ts).
  */
-import { Suspense, useCallback, useEffect, useState, type JSX, type ReactNode } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState, type JSX, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
-import { Float } from '@react-three/drei'
 import type { Garment3DProps } from '@/lib/types'
-import { SIZE_IDS, garmentWidthInFor } from '@/content/sizeChart'
 import { getScene } from '@/scenes'
-import { CameraRig, Floor, KeyLight, ReadyPing, SceneEnvironment, fitRadius, homeCameraPosition } from './Stage'
+import {
+  CameraRig,
+  Floor,
+  Ground,
+  KeyLight,
+  ReadyPing,
+  RimLight,
+  SceneEnvironment,
+  SEED_EXTENT,
+  fitRadius,
+  homeCameraPosition,
+  type MeasuredExtent,
+} from './Stage'
 import { GarmentModel } from './GarmentModel'
 import { CustomGarment } from './ExtrudedGarment'
 
@@ -40,6 +50,54 @@ export function isWebGLAvailable(): boolean {
   }
 }
 
+/**
+ * What this device can afford, decided once at module load.
+ *
+ * The board canvas beside this one has had a phone profile since it shipped
+ * (src/three/Board3D.tsx:392-434); the PRIMARY preview, the one a customer
+ * actually buys from, had none: full 1,75x device pixels, MSAA on, a 2048²
+ * variance shadow map re-rendered and re-blurred every frame, and a render loop
+ * that never stops. On a mid-range phone that is the difference between a
+ * preview that reads as expensive and one that judders and then throttles.
+ *
+ * THESE NUMBERS ARE A STARTING POINT AND NOT A CLAIM, and nothing in this repo
+ * can turn them into one: there is no phone GPU on the build machine, chromium
+ * renders through a software rasteriser, and a millisecond measured there says
+ * nothing about a Mali or an Adreno. `scripts/frame-bench.mjs` measures what IS
+ * portable, the work in one frame (draw calls, triangles, programs) and the
+ * desktop-to-phone-profile ratio on one rasteriser, and it says so itself in its
+ * own header. Anyone tightening these constants should move that number, not a
+ * millisecond figure quoted as a phone.
+ */
+const MOBILE = typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767.98px)').matches
+
+export const PROFILE = {
+  mobile: MOBILE,
+  dpr: [1, MOBILE ? 1.25 : 1.75] as [number, number],
+  antialias: !MOBILE,
+  /** Edge of the directional key's variance shadow map. */
+  shadowMapSize: MOBILE ? 1024 : 2048,
+  /** Env-map bake edge. The sheen lobe integrates it at grazing angles, so a
+   *  small map bands visibly across a smooth chest; a phone pays 4x for it. */
+  envResolution: MOBILE ? 256 : 512,
+}
+
+/**
+ * THE GARMENT DOES NOT FLOAT ANY MORE.
+ *
+ * It used to hang in a drei <Float>, yawing and pitching up to 1,15 degrees and
+ * bobbing 0,18 in on a 20,9 second cycle whose phase was seeded with
+ * Math.random(). Three things were wrong with it and only one was aesthetic.
+ * A garment bobbing in mid-air is the opposite of the thing this preview is
+ * for. It made every capture a different pose, so no before/after comparison in
+ * this repository ever compared two like frames and no mockup could be
+ * generated twice. And now that the garment stands on a floor, it would drift
+ * away from its own shadow, which is a stronger "not real" cue than having no
+ * shadow at all.
+ *
+ * `reducedMotion` is still read: it is what makes a view snap land analytically
+ * instead of damping, which the capture harnesses depend on.
+ */
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
     () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -92,28 +150,7 @@ function StateCard({
   )
 }
 
-/**
- * Body width (inches) of the garment the camera is framing, WITHOUT the arm
- * span an A-pose adds to the bounding box. Read off the size chart's laid-flat
- * half-chest at the biggest size, because that is the same size the camera
- * frames to (see GarmentFrame.fitWidthIn) — and because a laid-flat width is a
- * safe upper bound on the projected torso, which curves away from the viewer.
- * A ship-your-own garment is a flat card with no sleeves: its whole width IS
- * the body.
- */
-function torsoWidthIn(garment: Garment3DProps['garment'], fallbackIn: number): number {
-  if (garment === 'custom') return fallbackIn
-  return garmentWidthInFor(garment, SIZE_IDS[SIZE_IDS.length - 1])
-}
 
-function SwayGroup({ enabled, children }: { enabled: boolean; children: ReactNode }) {
-  if (!enabled) return <>{children}</>
-  return (
-    <Float speed={1.2} rotationIntensity={0.16} floatIntensity={0.6} floatingRange={[-0.3, 0.3]}>
-      {children}
-    </Float>
-  )
-}
 
 /**
  * 3D garment preview. Mount it in a sized container; the canvas is
@@ -122,28 +159,43 @@ function SwayGroup({ enabled, children }: { enabled: boolean; children: ReactNod
 export default function Garment3D(props: Garment3DProps): JSX.Element {
   const { garment, onReady } = props
   const scene = props.scene ?? 'studio'
+  // The studio scene is the one that follows the UI theme, and its FLOOR has to
+  // follow it too: a dark disc under a garment on paper is a hole in the page.
+  const theme = props.theme ?? 'dark'
   const cfg = getScene(scene).three
   const [webgl] = useState(isWebGLAvailable)
   const [contextLost, setContextLost] = useState(false)
   const [canvasKey, setCanvasKey] = useState(0)
   const reducedMotion = usePrefersReducedMotion()
-  // Measured mesh extents. The FLOOR follows the previewed size (its shadow is
-  // the garment's own footprint); the CAMERA frames `fit`, the biggest size in
-  // the chart, so switching S↔3XL changes the garment on screen rather than the
-  // viewing distance. Garments are scaled to real inches — a 3XL hoodie with
-  // A-pose sleeves is genuinely ~49 in across — so a fixed distance would crop.
-  const [extent, setExtent] = useState({ heightIn: 28, widthIn: 24, fitHeightIn: 28, fitWidthIn: 24 })
+  // Measured mesh extents, in a MUTABLE BOX rather than in React state.
+  //
+  // They used to be `useState` in this component, written by the garment (which
+  // renders inside the R3F root) and read by the camera rig and the floor (which
+  // also render inside it). That round trip goes out of one React root and back
+  // into another, and it lost: measured on the shipped tree, the camera was
+  // still framing the PLACEHOLDER {28, 24} after the garment was fully loaded
+  // and `ready` had fired: the hoodie's silhouette filled the whole 832x900
+  // pane, touching all four edges, because it was being viewed from 67,9 in
+  // when its own measurement asks for 123,0. It was not deterministic either:
+  // the same probe on the same tree reported the placeholder on one run and the
+  // measured value on the next, depending on machine load.
+  //
+  // A box written during render and polled by `useFrame` cannot race: there is
+  // no scheduler between the two, and the writer is idempotent (the values are
+  // derived from the geometry, so writing them twice writes the same numbers).
+  // The FLOOR follows the previewed size (its shadow is the garment's own
+  // footprint); the CAMERA frames `fit`, the biggest size in the chart, so
+  // switching S↔3XL changes the garment on screen rather than the viewing
+  // distance. Garments are scaled to real inches, so a fixed distance would crop.
+  const extent = useRef<MeasuredExtent>({ ...SEED_EXTENT })
   const onMeasured = useCallback(
-    (heightIn: number, widthIn?: number, fitIn?: { heightIn: number; widthIn: number }) =>
-      setExtent((prev) => {
-        const next = {
-          heightIn,
-          widthIn: widthIn ?? heightIn * 0.9,
-          fitHeightIn: fitIn?.heightIn ?? heightIn,
-          fitWidthIn: fitIn?.widthIn ?? widthIn ?? heightIn * 0.9,
-        }
-        return (Object.keys(next) as (keyof typeof next)[]).every((k) => prev[k] === next[k]) ? prev : next
-      }),
+    (heightIn: number, widthIn?: number, fitIn?: { heightIn: number; widthIn: number }) => {
+      extent.current.heightIn = heightIn
+      extent.current.widthIn = widthIn ?? heightIn * 0.9
+      extent.current.fitHeightIn = fitIn?.heightIn ?? heightIn
+      extent.current.fitWidthIn = fitIn?.widthIn ?? widthIn ?? heightIn * 0.9
+      extent.current.measured = true
+    },
     [],
   )
 
@@ -180,7 +232,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
     <div className="relative h-full w-full">
       <Canvas
         key={canvasKey}
-        dpr={[1, 1.75]}
+        dpr={PROFILE.dpr}
         // Variance shadow maps: the only three filter whose softness is a real,
         // tunable radius, which each scene needs (a beach sun and a city
         // overcast cannot share one penumbra). Light bleeding, VSM's usual
@@ -190,7 +242,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
         camera={{ position: homeCameraPosition(fitRadius(30, 26, 1)), fov: 26, near: 1, far: 700 }}
         gl={{
           alpha: true,
-          antialias: true,
+          antialias: PROFILE.antialias,
           // Neutral (KHR_PBR_neutral), not ACES. ACES is a FILM look: it pulls
           // saturated colour toward the white point and lifts blacks, so a red
           // garment previewed here came out a different red from the one the
@@ -211,25 +263,24 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
         }}
       >
         {/* Re-key on scene id so the env map re-bakes when the scene changes. */}
-        <SceneEnvironment key={scene} config={cfg} />
+        <SceneEnvironment key={scene} config={cfg} resolution={PROFILE.envResolution} />
         {cfg.hemisphere && (
           <hemisphereLight
             args={[cfg.hemisphere.sky, cfg.hemisphere.ground, cfg.hemisphere.intensity]}
           />
         )}
         {/* Sized to the measured garment, so one rig covers a tee and a 3XL hoodie. */}
-        <KeyLight spec={cfg.key} extentIn={Math.max(extent.fitHeightIn, extent.fitWidthIn)} />
+        <KeyLight spec={cfg.key} extent={extent} mapSize={PROFILE.shadowMapSize} />
+        {cfg.rim && <RimLight spec={cfg.rim} extent={extent} />}
         <CameraRig
           viewRequest={props.viewRequest}
           autoRotate={props.autoRotate}
           reducedMotion={reducedMotion}
-          fitHeightIn={extent.fitHeightIn}
-          fitWidthIn={extent.fitWidthIn}
-          fitTorsoWidthIn={torsoWidthIn(garment, extent.fitWidthIn)}
+          extent={extent}
+          garment={garment}
         />
         <Suspense fallback={null}>
-          <SwayGroup enabled={!reducedMotion}>
-            {garment === 'custom' ? (
+          {garment === 'custom' ? (
               <CustomGarment
                 front={props.custom?.front ?? null}
                 back={props.custom?.back ?? null}
@@ -248,11 +299,10 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
                 envIntensity={cfg.envIntensity}
                 onMeasured={onMeasured}
               />
-            )}
-          </SwayGroup>
+          )}
+          {cfg.ground && <Ground spec={cfg.ground} theme={theme} extent={extent} />}
           <Floor
-            heightIn={extent.heightIn}
-            widthIn={extent.widthIn}
+            extent={extent}
             shadowColor={cfg.shadowColor}
             shadowOpacity={cfg.shadowOpacity}
           />

@@ -280,6 +280,12 @@ export interface Garment3DProps {
   colorHex: string
   /** Environment/lighting scene id (see src/scenes). Defaults to 'studio'. */
   scene?: SceneId
+  /**
+   * UI theme. Only `studio` follows it, and it does so for one reason: its
+   * GROUND. A dark floor disc under a garment standing on paper is a hole in
+   * the page, and the floor is what the contact shadow is drawn onto.
+   */
+  theme?: 'dark' | 'light'
   front: DecalSource | null
   back: DecalSource | null
   sleeve: DecalSource | null

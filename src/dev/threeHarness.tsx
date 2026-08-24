@@ -21,6 +21,8 @@ import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from 'r
 import { createRoot } from 'react-dom/client'
 import Garment3D, { isWebGLAvailable } from '@/three'
 import { removeBackground } from '@/lib/bgremove'
+import { isSceneId, SCENE_IDS, stageBackground, type SceneId } from '@/scenes'
+import { isSizeId, SIZE_IDS, type SizeId } from '@/content/sizeChart'
 import type { CardSource, DecalSource, GarmentId, Side, ViewSnap } from '@/lib/types'
 
 const PPI = 40 // texture pixels per inch
@@ -204,6 +206,14 @@ const flag = (k: string, dflt: boolean) => (qp.has(k) ? qp.get(k) === '1' : dflt
 /** Supplier photo id (public/catalog/imbretex/img/<id>-{front,back}.jpg). */
 const qpPhoto = /^[0-9]{3,8}$/.test(qp.get('cp') ?? '') ? qp.get('cp')! : null
 const qpPhotoWidthIn = Number(qp.get('cw')) > 0 ? Number(qp.get('cw')) : 22
+/** Scene and chart size, so a sweep can reach the five scenes and the six sizes
+ *  nothing has ever rendered (`sc=night`, `sz=3XL`). */
+const qpScene: SceneId = isSceneId(qp.get('sc')) ? (qp.get('sc') as SceneId) : 'studio'
+const qpSize: SizeId | undefined = isSizeId(qp.get('sz')) ? (qp.get('sz') as SizeId) : undefined
+/** `th=light` drives the app's own theme attribute, because the studio scene is
+ *  the one that follows it and nothing has ever rendered the light one here. */
+const qpTheme: 'dark' | 'light' = qp.get('th') === 'light' ? 'light' : 'dark'
+document.documentElement.dataset.theme = qpTheme
 
 /** Longest edge the app itself keeps for a custom-garment photo. */
 const PHOTO_EDGE = 1100
@@ -298,6 +308,8 @@ function Harness() {
   const [viewRequest, setViewRequest] = useState<{ view: ViewSnap; nonce: number } | null>(
     qpView ? { view: qpView, nonce: 1 } : null,
   )
+  const [scene, setScene] = useState<SceneId>(qpScene)
+  const [sizeId, setSizeId] = useState<SizeId | undefined>(qpSize)
   const [ready, setReady] = useState(false)
   const bootedAt = useRef(performance.now())
   const [readyMs, setReadyMs] = useState<number | null>(null)
@@ -418,6 +430,50 @@ function Harness() {
   )
 
   const snap = (view: ViewSnap) => setViewRequest((r) => ({ view, nonce: (r?.nonce ?? 0) + 1 }))
+
+  /**
+   * Scripted control, so a sweep can change garment, colourway, scene, size and
+   * view WITHOUT reloading the page. It is the difference between a gate that
+   * costs a minute per frame under software rendering (a fresh WebGL context, a
+   * GLB parse and a cavity solve every time) and one that costs a few seconds,
+   * which is the difference between a gate that runs and a gate that does not.
+   * `settled` reports whether the camera has stopped moving, so a caller waits
+   * on the frame rather than on a timer.
+   */
+  useEffect(() => {
+    // The garment currently MOUNTED, as a plain global. A scripted sweep sets
+    // state and then has to know the state change landed; every other signal it
+    // could poll (the pose, the measured flag) is latched by the first garment
+    // and stays true, which is how the first version of that wait came to pass
+    // before the change it was waiting for had happened.
+    ;(window as unknown as { __hGarment?: string }).__hGarment = garment
+    ;(window as unknown as { __h?: unknown }).__h = {
+      setGarment,
+      setColor: setColorHex,
+      setScene,
+      setSize: (v: string) => setSizeId(isSizeId(v) ? v : undefined),
+      setView: (v: ViewSnap) => snap(v),
+      // Bare vs printed. Judging the CLOTH's colour, its outline and its shadow
+      // side needs a garment with no artwork on it: the print is a different
+      // material and covers a third of the front panel, so a median taken over
+      // both measures neither.
+      setDecals: (on: boolean) => {
+        setShowFront(on)
+        setShowBack(on)
+      },
+      state: () => ({ garment, colorHex, scene, sizeId: sizeId ?? null, ready }),
+      settled: () => {
+        const pose = (window as unknown as { __pose?: { goal: unknown } }).__pose
+        return !!pose && pose.goal === null
+      },
+    }
+  })
+
+  // The SAME backdrop the app paints behind the transparent canvas. The proof
+  // sheet used to composite over a gradient invented in the shot script, so no
+  // still anyone reviewed had ever shown the garment against the real ground.
+  const bg = stageBackground(scene, qpTheme)
+
   const onReady = useCallback(() => {
     setReady(true)
     setReadyMs(Math.round(performance.now() - bootedAt.current))
@@ -467,6 +523,40 @@ function Harness() {
           <div className="flex gap-2">
             {COLORS.map((c) => (
               <Swatch key={c} hex={c} active={c === colorHex} onClick={() => setColorHex(c)} />
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <GroupTitle>Scene</GroupTitle>
+          <div className="flex flex-wrap gap-1.5">
+            {SCENE_IDS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className="btn"
+                style={id === scene ? { borderColor: 'var(--color-cy)', color: 'var(--color-cy)' } : undefined}
+                onClick={() => setScene(id)}
+              >
+                {id}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <GroupTitle>Size</GroupTitle>
+          <div className="flex flex-wrap gap-1.5">
+            {SIZE_IDS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className="btn"
+                style={id === sizeId ? { borderColor: 'var(--color-cy)', color: 'var(--color-cy)' } : undefined}
+                onClick={() => setSizeId(id)}
+              >
+                {id}
+              </button>
             ))}
           </div>
         </div>
@@ -531,11 +621,14 @@ function Harness() {
         </div>
       </aside>
 
-      <main className="relative flex-1 canvas-surface">
+      <main className={`relative flex-1 ${bg.className}`} style={bg.style}>
         <div className="absolute inset-0">
           <Garment3D
             garment={garment}
             colorHex={colorHex}
+            scene={scene}
+            theme={qpTheme}
+            sizeId={garment === 'custom' ? undefined : sizeId}
             front={garment === 'custom' ? null : front}
             back={garment === 'custom' ? null : back}
             sleeve={garment === 'custom' || !showSleeve ? null : sleeve}

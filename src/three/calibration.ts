@@ -149,10 +149,17 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // See bakedAoIntensity: the back island of that bake is a black smear, so
     // the map is off and the measured cavity carries the full load, at the same
     // gain as the hoodie, which never had a bake to defer to.
-    // Cotton jersey's sheen is the fibre FUZZ: a near-Lambertian retroreflector,
-    // so the Charlie lobe wants to be almost fully rough. 0.72 gave it a tight
-    // grazing highlight that beaded on every ridge of the old corrugation.
-    cloth: { foldStrength: 0.026, cavityGain: 0.44, bakedAoIntensity: 0, sheen: 0.32, sheenRoughness: 0.93 },
+    // SHEEN IS THE ONLY THING THAT CAN GIVE A DARK GARMENT AN OUTLINE, and it
+    // was set too low and too rough to do it. Arithmetic: 0.32 with roughness
+    // 0.93 puts the Charlie lobe at 4,4 % of the diffuse on a facing chest, and
+    // a black tee's diffuse is itself 1,2 % linear, so there was nothing there
+    // at all: measured, the silhouette step against the studio backdrop was
+    // 0,2 sRGB levels on a black tee and 6,6 on a red one. A specular lobe does
+    // NOT scale with the dye, which is exactly why it is the term that works
+    // here: it is the same brightness on a black tee as on a white one.
+    // 0.93 -> 0.82 narrows the lobe toward grazing angles, which is where a rim
+    // light lives and where the fibre fuzz really does scatter.
+    cloth: { foldStrength: 0.026, cavityGain: 0.44, bakedAoIntensity: 0, sheen: 0.62, sheenRoughness: 0.82 },
     // 6.5 world in at the pre-fix yScale of 38.295 — the same physical band.
     sleeve: { yRaw: 0.1697, rotZ: 0 },
   },
@@ -183,7 +190,7 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // is no baked AO map and no UV set at all here, so the cavity term is the
     // ONLY occlusion this garment gets and it carries the full gain.
     // No baked AO map and no UV set at all, so bakedAoIntensity is moot here.
-    cloth: { foldStrength: 0.01, cavityGain: 0.44, bakedAoIntensity: 1, sheen: 0.45, sheenRoughness: 0.95 },
+    cloth: { foldStrength: 0.01, cavityGain: 0.44, bakedAoIntensity: 1, sheen: 0.7, sheenRoughness: 0.84 },
     // 5 world in at the pre-fix yScale of 25.909.
     sleeve: { yRaw: 0.193, rotZ: 0.21 },
   },

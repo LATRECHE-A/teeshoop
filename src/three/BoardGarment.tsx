@@ -24,7 +24,7 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import type { CatalogGarmentId, DecalSource, Side } from '@/lib/types'
-import { buildFabricDecal, makeCurvedDecal } from './decalGeom'
+import { buildFabricDecal, makeCurvedDecal, projectedPrintMaterial } from './decalGeom'
 import { fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
 import { useSourceTexture } from './textures'
 
@@ -49,7 +49,14 @@ interface BoardPrintProps {
 }
 
 function BoardPrint({ frame, garment, side, source, k }: BoardPrintProps) {
-  const texture = useSourceTexture(source)
+  // The SAME ink as the single-garment preview. The board is the basket: a
+  // customer comparing eight lines there and then opening one of them must not
+  // see two different photographs of the same shirt, and until this shared the
+  // preview's material it did: no un-premultiply (so every artwork edge kept the
+  // dark halo the preview no longer has), no weave under the ink, no film edge.
+  const texture = useSourceTexture(source, { premultiplied: true })
+  const material = useMemo(() => (texture ? projectedPrintMaterial(texture) : null), [texture])
+  useEffect(() => () => material?.dispose(), [material])
 
   const placed = useMemo(() => {
     if (frame.table.usable)
@@ -79,24 +86,15 @@ function BoardPrint({ frame, garment, side, source, k }: BoardPrintProps) {
 
   useEffect(() => () => placed.geometry.dispose(), [placed])
 
-  if (!texture) return null
+  if (!material) return null
   return (
     <mesh
       geometry={placed.geometry}
+      material={material}
       position={placed.position}
       rotation={[0, placed.rotationY, 0]}
       renderOrder={2}
-    >
-      <meshStandardMaterial
-        map={texture}
-        transparent
-        depthWrite={false}
-        alphaTest={0.02}
-        roughness={0.88}
-        metalness={0}
-        side={THREE.FrontSide}
-      />
-    </mesh>
+    />
   )
 }
 

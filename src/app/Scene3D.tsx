@@ -241,6 +241,7 @@ export default function Scene3D() {
           garment={design.garmentId}
           colorHex={garmentColorHex(design)}
           scene={scene}
+          theme={theme}
           front={sources?.front ?? null}
           back={sources?.back ?? null}
           sleeve={sources?.sleeve ?? null}
