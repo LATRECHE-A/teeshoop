@@ -186,11 +186,26 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     roughness: 0.92,
     envMapIntensity: 1.0,
     // Its folds are simulated geometry, so a drape octave on top would read as
-    // a second, contradicting set of wrinkles — it is kept to a whisper. There
+    // a second, contradicting set of wrinkles: it is kept to a whisper. There
     // is no baked AO map and no UV set at all here, so the cavity term is the
     // ONLY occlusion this garment gets and it carries the full gain.
     // No baked AO map and no UV set at all, so bakedAoIntensity is moot here.
-    cloth: { foldStrength: 0.01, cavityGain: 0.44, bakedAoIntensity: 1, sheen: 0.7, sheenRoughness: 0.84 },
+    //
+    // THE SHEEN RAISE THAT SAVED THE TEE RUINED THIS GARMENT, so it is not
+    // applied here. The tee got 0.32 -> 0.62 because its silhouette step
+    // measured 0,2 sRGB levels against the backdrop: it had no outline at all,
+    // and a specular lobe is the only term that does not scale with the dye.
+    // The hoodie never had that problem. Measured in the same sweep, its step
+    // is 36,4 levels, the strongest of any case in the set, because its drape
+    // is real geometry and the two rim lights catch it. Raising sheen to 0.7
+    // and narrowing the lobe to 0.84 bought separation it already had, and cost
+    // the thing a customer actually looks at: on a black hoodie the lobe became
+    // one broad hard highlight down each sleeve and across the hood, which
+    // reads as coated vinyl rather than brushed fleece. Fleece is the roughest
+    // cloth in the catalogue and its lobe has to be the widest, not the
+    // tightest. Back to 0.45 / 0.95, which is where it was, with the outline
+    // re-measured rather than assumed (see docs/ROADMAP.md, session 10).
+    cloth: { foldStrength: 0.01, cavityGain: 0.44, bakedAoIntensity: 1, sheen: 0.45, sheenRoughness: 0.95 },
     // 5 world in at the pre-fix yScale of 25.909.
     sleeve: { yRaw: 0.193, rotZ: 0.21 },
   },

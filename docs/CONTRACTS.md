@@ -170,8 +170,10 @@ export default function Garment3D(props: Garment3DProps): JSX.Element
   neutral `#242A33` with the same alpha (looks like the blank reverse).
 - Stage: fully procedural studio lighting — drei `<Environment resolution={256}>`
   with `<Lightformer>` softboxes (NO preset/network HDR), key+rim, ACES tone
-  mapping, `<ContactShadows>`, dark backdrop consistent with bg0, subtle
-  `<Float>` idle sway (respect `prefers-reduced-motion`), OrbitControls
+  mapping, `<ContactShadows>` over a lit ground disc, dark backdrop consistent
+  with bg0, NO idle sway (a `<Float>` with a random phase used to hang the
+  garment here; it made two renders of one design incomparable and is gone),
+  OrbitControls
   (rotate/zoom/pan, damped, min/max distance + polar clamp), `dpr [1, 1.75]`.
   `viewRequest` animates camera to front/back/¾ when nonce changes.
   `autoRotate` prop toggles slow turntable. Call `onReady` after first frame.

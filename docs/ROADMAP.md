@@ -669,11 +669,31 @@ cadre : il assombrit ce qui est dessous, et dessous il y avait un canevas transp
 une page #0c0f13. Du noir sur du noir ne fait rien. Il y a maintenant un vrai sol par scène,
 éclairé par le même rig, dont le bord est un dégradé d'alpha et non une géométrie (un disque
 qui s'arrête dans le cadre trace un horizon en travers de la taille du vêtement). Mesuré sur
-le t-shirt noir : **10 034 pixels d'ombre, 23 niveaux de profondeur**, contre 0 avant.
+le t-shirt noir : **9 676 pixels d'ombre, 24,6 niveaux de profondeur**, contre 0 avant. (Ce
+paragraphe a d'abord porté 10 034 et 23, mesurés à mi-parcours et jamais repris après le
+commit qui a changé l'éclairage. Les chiffres ci-dessus sont ceux du dernier balayage.)
 
 **Un t-shirt noir était plus sombre que la page derrière lui.** Le pas de luminance à travers
-la silhouette valait **0,2 niveau sur 255** : la moitié du contour n'existait pas. Un t-shirt
-blanc sur la plage mesurait 0,0, et un rouge dans le studio 6,6. Trois choses le corrigent, et
+la silhouette valait **0,2 niveau sur 255** au cinquième centile des rangées : la moitié du
+contour n'existait pas. Un t-shirt blanc sur la plage mesurait 0,0, et un rouge dans le studio
+6,6.
+
+*Deux précautions sur ces chiffres-là, parce qu'ils portent le titre du paragraphe.* La
+première : le contrôle mesure aujourd'hui la MÉDIANE des rangées et l'avant ne la contient pas
+du tout, parce que l'instrument ne la calculait pas encore (le fichier
+`.qa/render-before/render-verify.json` n'a pas de champ `edgeP50`). « 0,2 avant, au moins 12
+de médiane après » compare donc deux statistiques différentes ; sur la même, le cinquième
+centile du t-shirt noir passe de 0,21 à 2,23. La seconde : l'instrument lui-même a été corrigé
+quatre fois APRÈS ce relevé (attente sur le compteur d'images au lieu d'un sommeil de 350 ms,
+prédicat d'immobilité qui était vrai avant d'être posé, `some` au lieu de `every` sur le garde
+d'étiquetage, écart à la page en valeur absolue au lieu de signé), et l'un de ces défauts
+faisait mesurer le SOL à la place du vêtement. Les relevés d'avant sont donc indicatifs et pas
+comparables au chiffre près. Ce qui reste solide, parce qu'aucun de ces défauts ne peut le
+produire : zéro pixel d'ombre (le défaut d'instrument aurait gonflé ce compte, pas mis à zéro),
+le blanc à (205,198,192), et la distance de caméra lue dans la sonde de pose et non dans des
+pixels. Refaire l'avant avec l'instrument d'aujourd'hui est impossible sans lui porter le
+correctif : il a besoin de sondes (`__stage.show`, le compteur d'images) que l'arbre d'avant
+n'a pas. Trois choses le corrigent, et
 deux relèvent de la photographie plutôt que du code : une lumière de séparation derrière le
 vêtement dans chacune des six scènes, un remplissage hémisphérique dans les deux scènes qui
 n'en avaient pas (`studio` et `city`, alors que le champ existait et que son commentaire dit
@@ -683,7 +703,9 @@ donc il est aussi clair sur un noir que sur un blanc.
 
 **Le blanc était un gris chaud à 58 %.** Mesuré (205,198,192) là où le client avait choisi
 #FFFFFF : la grande boîte à lumière du studio était crème (#fff6ec) et rien ne la compensait.
-Elle est neutre. Mesuré après : **(209,208,208)**, un niveau d'écart entre les canaux.
+Elle est neutre. Mesuré après : **(215,216,219)**, quatre niveaux d'écart entre les canaux,
+pour une limite de douze. (Là encore, la première rédaction citait (209,208,208), pris avant
+la fin du réglage.)
 
 **L'encre est posée DANS le tissu, plus dessus.** Trois défauts mesurés. Chaque bord de
 visuel portait un liseré plus sombre que l'encre ET que le textile (5 787 pixels jusqu'à
@@ -739,6 +761,63 @@ vierge. Deux filtres WooCommerce, aucun prix, aucune donnée de production. Le b
 lui, montrait un vêtement en taille L pendant que chaque cote imprimée à côté était donnée
 pour du M ; il est rendu à la taille dont il parle.
 
+**Le réglage qui a sauvé le t-shirt avait abîmé le sweat.** Le duvet du t-shirt est passé de
+0,32 à 0,62 avec un lobe resserré (rugosité 0,93 à 0,82) parce que son contour mesurait 0,2
+niveau sur 255 : il n'existait pas, et un terme spéculaire est le seul qui ne dépend pas de
+la teinture. Le même réglage a été appliqué au sweat, qui n'avait pas ce problème : dans le
+même balayage son contour mesure 36,4 niveaux, le meilleur de toute la série, parce que ses
+plis sont de la vraie géométrie et que les deux lumières de séparation les accrochent. Ce
+qu'on a acheté avec ce duvet-là, on l'avait déjà ; ce qu'on a payé, c'est l'image : sur un
+sweat noir le lobe devenait un large reflet dur le long de chaque manche et en travers de la
+capuche, qui lit comme du vinyle enduit et pas comme du molleton gratté. Le molleton est le
+tissu le plus rugueux du catalogue et son lobe doit être le plus large, pas le plus serré.
+Retour à 0,45 / 0,95, avec le contour re-mesuré et non supposé.
+
+Aucun contrôle ne l'avait vu, et c'est instructif : le contrôle qui parle de la matière
+demande que la maille garde des nuances (99e centile moins 5e centile au-dessus de 30
+niveaux), or un vêtement brillant en a PLUS qu'un vêtement mat, pas moins. Une mesure de
+« la lumière varie-t-elle sur ce tissu » ne sait pas dire « elle varie comme du plastique ».
+La seule chose qui l'a attrapé, c'est d'avoir regardé l'image.
+
+**Le panier en 3D avait le même défaut que l'aperçu, et il l'a gardé un jour de plus.** Le
+plateau (`src/three/Board3D.tsx`), c'est-à-dire le panier vu comme une grille de vêtements,
+lit la même configuration de scène que l'aperçu : il a donc hérité de la nuit remontée et des
+remplissages hémisphériques, sans les deux lumières de séparation ni le sol contre lesquels
+cette remontée avait été calibrée. Il avait aussi, depuis toujours, un porte-ombre monté sur
+un canevas transparent, c'est-à-dire du noir sur du noir, exactement le défaut nommé plus
+haut. La mission parlait de trois endroits où l'aperçu est regardé et le panier en est un.
+Il a maintenant les mêmes lumières et le même sol, et son encre reçoit le même relief de
+tissu que l'aperçu, ce que le message de commit affirmait déjà et que le code ne faisait pas.
+
+**Ce que la séance 10 n'a pas fait, et qui reste ouvert.** La ligne du tableau ci-dessous
+dit « faite » pour la partie mesurée et gardée : l'aperçu 3D d'un vêtement du catalogue.
+Le reste de la liste du brief est ouvert et vaut la peine d'être écrit plutôt que classé.
+
+- **La vue « détail » existe maintenant, la vue « porté » non, et c'est un refus motivé.**
+  Le brief demandait quatre images par vêtement : avant, dos, détail, et porté « si nous
+  avons un avatar assez bon ». L'avatar existe et il n'est pas assez bon : il ne se décline
+  pas en tailles, parce que le corps et le vêtement sont un seul maillage cuit
+  (`src/lib/arExport.ts`, LIMITE CONNUE). Une photo portée montrerait donc un visuel dont
+  la taille par rapport au vêtement est fausse, sur une boutique où la taille d'impression
+  est un engagement facturé et imprimé. Une image qui ment sur le produit vaut moins que pas
+  d'image. La question produit (mannequin photographié, ou avatar décliné par taille) est la
+  Q52.
+- **Les mockups ne sont encore relus par personne.** `scripts/mockup-shots.mjs` produit un
+  jeu déterministe, en imprimé et en vierge ; ce que le panier, le bon à tirer et les e-mails
+  affichent reste l'aperçu plat de `renderMockup`, déposé sur R2 à la commande. Brancher le
+  rendu 3D dessus n'est pas un raccord : une image de fiche produit est par vêtement et peut
+  être rendue d'avance, une image de BAT est par création et ne peut être rendue que dans le
+  navigateur du client, au moment de la commande, où three.js est un morceau paresseux de
+  1,1 Mo que le brief interdit de rendre gourmand. Et un BAT n'a peut-être pas à être un
+  rendu 3D du tout : c'est un bon à tirer, il doit montrer des cotes, pas une ambiance.
+- **`src/app/ScenePicker.tsx` n'a pas été ouvert.** Les six scènes ont été refaites, le
+  sélecteur qui permet d'en changer date d'avant. Aucun « préréglage » nouveau n'a été
+  ajouté : l'item 4 a été lu comme « améliorer les six scènes existantes ». Si un préréglage
+  au sens propre est voulu (une scène plus un cadrage, enregistrés ensemble), c'est du
+  produit et cela se décide.
+- **Le balayage `render-verify` reste lent et hors CI** (quelques minutes par cas sous
+  rendu logiciel), donc il ne protège rien automatiquement : il faut le lancer.
+
 ---
 
 ## Ce qu'il reste : quinze séances
@@ -758,7 +837,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~07~~ | ~~Production : imbrication du film entre commandes~~ **faite** | - |
 | ~~08~~ | ~~Commande fournisseur et stock~~ **faite** | - |
 | ~~09~~ | ~~Le site : accueil, navigation, système de design~~ **faite** | - |
-| ~~10~~ | ~~Le studio en vitrine : 3D et mockups~~ **faite** | - |
+| 10 | Le studio en vitrine : 3D et mockups. **L'aperçu 3D d'un vêtement du catalogue est fait, mesuré et gardé** ; la vue portée est refusée par écrit, et les mockups ne sont relus par personne (voir « Ce que la séance 10 n'a pas fait » ci-dessus) | 09 |
 | 11 | Référencement, contenu, données structurées | 09 |
 | 12 | Juridique, RGPD, accessibilité | 09 |
 | 13 | Performance, sécurité, supervision | 09, 10 |

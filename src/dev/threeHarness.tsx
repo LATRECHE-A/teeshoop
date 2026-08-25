@@ -296,6 +296,9 @@ function GroupTitle({ children }: { children: string }) {
 
 function Harness() {
   const [garment, setGarment] = useState<GarmentId>(qpGarment)
+  // The DETAIL lens. Harness state rather than a URL parameter because the
+  // capture scripts drive it through `__h` between shots without a reload.
+  const [framing, setFraming] = useState<'garment' | 'print'>('garment')
   const [colorHex, setColorHex] = useState(qpColor)
   const [autoRotate, setAutoRotate] = useState(flag('rot', false))
   const [showFront, setShowFront] = useState(flag('fd', true))
@@ -447,12 +450,19 @@ function Harness() {
     // and stays true, which is how the first version of that wait came to pass
     // before the change it was waiting for had happened.
     ;(window as unknown as { __hGarment?: string }).__hGarment = garment
+    ;(window as unknown as { __hFraming?: string }).__hFraming = framing
     ;(window as unknown as { __h?: unknown }).__h = {
       setGarment,
       setColor: setColorHex,
       setScene,
       setSize: (v: string) => setSizeId(isSizeId(v) ? v : undefined),
       setView: (v: ViewSnap) => snap(v),
+      /**
+       * 'garment' composes the whole thing, 'print' the print area. The second
+       * is the product-page detail shot; see CameraRigProps.framing for why it
+       * is a lens and not a fourth view.
+       */
+      setFraming: (f: 'garment' | 'print') => setFraming(f),
       // Bare vs printed. Judging the CLOTH's colour, its outline and its shadow
       // side needs a garment with no artwork on it: the print is a different
       // material and covers a third of the front panel, so a median taken over
@@ -636,6 +646,7 @@ function Harness() {
             custom={garment === 'custom' ? { front: customFront, back: customBack } : undefined}
             autoRotate={autoRotate}
             viewRequest={viewRequest}
+            framing={framing}
             onReady={onReady}
           />
         </div>

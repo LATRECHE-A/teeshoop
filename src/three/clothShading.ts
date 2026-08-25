@@ -61,9 +61,12 @@
  *    has mean 1.17 of a 5.39 peak, so the cloth is mostly quiet and folds where
  *    a fold is.
  *
- * WHY OBJECT SPACE, NOT WORLD. The preview floats the garment on a drei
- * <Float>, so a world-space pattern would swim across the cloth as it sways.
- * Object space is glued to the fabric, which is what a weave is.
+ * WHY OBJECT SPACE, NOT WORLD. Object space is glued to the fabric, which is
+ * what a weave is: a world-space pattern would swim across the cloth whenever
+ * the garment moved relative to the world. It USED to move for a second
+ * reason, a drei <Float> idle sway, which is gone (it seeded its phase from
+ * Math.random(), so no two renders of one design were comparable and no mockup
+ * could be produced twice). The orbit controls are reason enough on their own.
  */
 import * as THREE from 'three'
 

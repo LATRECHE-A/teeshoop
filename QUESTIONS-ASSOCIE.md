@@ -1610,6 +1610,35 @@ jamais. Et si elle est systématique, est-elle facturée à part.
 
 > 
 
+
+### 52. Voulez-vous une photo « porté » sur les fiches produit au lancement, et si oui, sur qui ?
+
+🟠 **Important**
+
+*Pourquoi on a besoin de la réponse :* les fiches produit ont besoin d'images, et nous savons
+en produire trois automatiquement à partir du studio (avant, dos, détail sur le visuel), à
+l'identique à chaque fois. La quatrième, le vêtement porté, nous ne la produirons pas telle
+quelle. Nous avons bien un mannequin 3D, celui de l'essayage en réalité augmentée, mais il ne
+se décline pas en tailles : le corps et le vêtement y sont un seul maillage, cuit une fois.
+Sur un S comme sur un 3XL, il montrerait donc un visuel dont la taille par rapport au
+vêtement est fausse, alors que cette taille est exactement ce que le client paie et ce que
+l'atelier presse. Nous préférons ne rien montrer que montrer ça.
+
+*Ce que nous avons fait en attendant :* les trois autres vues sont produites et
+reproductibles à l'octet près ; la vue portée est absente, et le refus est écrit dans le code
+qui la produirait (`scripts/mockup-shots.mjs`) pour que personne ne la rajoute sans revenir
+sur cette question.
+
+*Ce qu'il nous faut :* l'une des trois. **Photographier** un modèle portant deux ou trois
+références (le plus crédible, et le plus cher : une demi-journée de studio par saison).
+**Décliner le mannequin par taille**, ce qui veut dire un maillage où le corps et le vêtement
+sont séparés (travail de 3D, pas de code, et le résultat reste un mannequin gris). Ou
+**s'en passer** au lancement et ne publier que les trois vues rendues.
+
+**Votre réponse :**
+
+> 
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

@@ -27,6 +27,8 @@ import type { CatalogGarmentId, DecalSource, Side } from '@/lib/types'
 import { buildFabricDecal, makeCurvedDecal, projectedPrintMaterial } from './decalGeom'
 import { fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
 import { useSourceTexture } from './textures'
+import { WEAVE_DEFAULTS } from './clothShading'
+import { CALIBRATION } from './calibration'
 
 /**
  * Print lift above the fabric, inches. Larger than the preview's 0.012 because
@@ -55,7 +57,26 @@ function BoardPrint({ frame, garment, side, source, k }: BoardPrintProps) {
   // preview's material it did: no un-premultiply (so every artwork edge kept the
   // dark halo the preview no longer has), no weave under the ink, no film edge.
   const texture = useSourceTexture(source, { premultiplied: true })
-  const material = useMemo(() => (texture ? projectedPrintMaterial(texture) : null), [texture])
+  // ...INCLUDING THE WEAVE, which the sentence above claimed and the call did
+  // not do. `projectedPrintMaterial` takes the relief as an optional argument
+  // and it was being left out, so the board's ink was the only ink in the app
+  // sitting on a surface with no cloth under it: flat where the preview's is
+  // broken up by the same thread and drape field as the garment. Same options
+  // the preview passes (GarmentModel.useProjectedInk), read from the same
+  // calibration and the same frame, so the two cannot drift apart.
+  const material = useMemo(
+    () =>
+      texture
+        ? projectedPrintMaterial(texture, {
+            ...WEAVE_DEFAULTS,
+            strength: WEAVE_DEFAULTS.strength * 0.35,
+            foldStrength: CALIBRATION[garment].cloth.foldStrength,
+            foldHalfHeightIn: frame.heightIn / 2,
+            roughGain: 0.04,
+          })
+        : null,
+    [texture, garment, frame.heightIn],
+  )
   useEffect(() => () => material?.dispose(), [material])
 
   const placed = useMemo(() => {

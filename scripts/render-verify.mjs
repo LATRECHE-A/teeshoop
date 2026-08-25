@@ -84,9 +84,19 @@ const FILL_MAX = 0.97
 /** How far the garment's silhouette centre may sit off the pane centre. */
 const OFFCENTRE_MAX_FRAC = 0.045
 /**
- * The garment must cast something onto something. Counted BELOW the silhouette's
- * lowest pixel, where only the ground can be, and only pixels DARKER than the
- * backdrop count: a lighter difference there would be a lens flare, not a
+ * The garment must cast something onto something.
+ *
+ * WHAT IS ACTUALLY COUNTED, because the sentence that was here described a
+ * different measurement: every pixel of the pane that is NOT the garment's own
+ * silhouette and is darker in the composite than in the same frame with the
+ * garment hidden. Not "below the silhouette's lowest pixel" - the loop has no
+ * such bound, and it should not: a sleeve darkens the floor beside the hem as
+ * well as under it, and on a three-quarter view most of the contact patch is
+ * beside rather than below. Comparing against the EMPTY STAGE rather than the
+ * backdrop is what makes it a shadow measurement at all: the difference between
+ * a floor with something standing on it and the same floor without.
+ *
+ * Only darker counts; a lighter difference there is a bounce or a flare, not a
  * shadow. 400 px is about 0,05 % of the pane: small enough that a faint contact
  * shadow passes, large enough that a stray anti-aliased fringe does not.
  */
@@ -473,6 +483,29 @@ const CASES = [
   // Neutrality is a STUDIO claim. Every other scene is a mood: warm sun really
   // does tint white cloth, and a gate that refused that would be wrong about
   // photography rather than right about colour.
+  //
+  // THE OTHER TWO SCENES. A customer flips through six, and four of them were
+  // measured: `forest` and `city` had rigs rebuilt in the same commit as the
+  // rest and were never once looked at by the only check in this repository
+  // that looks at a frame, while the write-up said the outline reads
+  // everywhere. Two rows is what "everywhere" costs.
+  { id: 'tee-black-forest', g: 'tee', c: '#191C20', sc: 'forest', v: 'threequarter' },
+  { id: 'tee-black-city', g: 'tee', c: '#191C20', sc: 'city', v: 'threequarter' },
+  // THE HOODIE, PRINTED. Every ink number in the set was taken on jersey. The
+  // fleece has no UV set at all, its folds are simulated geometry rather than a
+  // procedural field, and it is the garment whose sheen was mis-set by a
+  // calibration done on the tee: the one case where "the ink sits in the cloth"
+  // could be true of one mesh and false of the other.
+  { id: 'hoodie-black-print', g: 'hoodie', c: '#191C20', sc: 'studio', v: 'threequarter', ink: true },
+  // THE UPLOADED GARMENT. A different renderer end to end (ExtrudedGarment /
+  // CustomCard: an alpha-cut photograph on an inflated shell, no fabric UVs, no
+  // size chart), sharing this stage, this ground and these rim lights. Nothing
+  // in this sweep touched it before, so every claim the session made about
+  // framing, ground shadow and outline separation was a claim about catalogue
+  // meshes only. The harness's synthetic card is not a customer's photograph,
+  // but it is the same code path, and `scripts/stage-shots.mjs` drives a real
+  // supplier flat-lay through it for the eye.
+  { id: 'custom-34', g: 'custom', c: '#FFFFFF', sc: 'studio', v: 'threequarter' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -635,16 +668,44 @@ try {
      *
      * `<SceneEnvironment key={scene}>` re-mounts on every scene change and bakes
      * its light probe with `frames={1}`, which the settle-wait above cannot see:
-     * it watches the camera, and the camera is already where it belongs. Measured
-     * without this, the same black tee at night read median luminance 24 inside
-     * the sweep and 27 when its case was run alone, and the white tee captured
-     * twice in one sweep differed by 4 levels. Eight drawn frames is well past
-     * the one the bake needs and costs a few seconds on a harness that already
-     * spends minutes per case.
+     * it watches the camera, and the camera is already where it belongs. Eight
+     * drawn frames is well past the one the bake needs and costs a few seconds
+     * on a harness that already spends minutes per case.
+     *
+     * IT DID NOT FIX THE 2 % DRIFT, and this comment used to read as if it had.
+     * The black tee at night measured 24 inside the sweep and 27 alone BEFORE
+     * this wait was added, and it measures the same two numbers after. The wait
+     * stays because it is correct on its own terms - a capture taken during a
+     * bake would be wrong whatever else is true - but the drift has another
+     * cause and the header says so. Run with RENDER_DOUBLE=1 to separate the
+     * two candidates that remain.
      */
     await drawn(8)
     const canvasUrl = await layer([])
     if (!canvasUrl) throw new Error(`${kase.id}: no canvas`)
+    /*
+     * RENDER_DOUBLE=1: read the SAME unchanged frame back a second time.
+     *
+     * The unexplained 2 % has exactly two shapes left, and this separates them.
+     * If two consecutive readbacks of a scene nobody touched differ, the defect
+     * is in the readback: the drawing buffer is not preserved
+     * (`preserveDrawingBuffer: false`), so `drawImage(gl, ...)` races the
+     * compositor and what lands in the 2D canvas depends on when the copy
+     * happened relative to the clear. If they are identical, the readback is
+     * sound and the drift is state accumulating in the context across cases,
+     * which is a different repair entirely.
+     *
+     * Diagnostic, not a gate: it prints and never fails, because a negative
+     * here would only mean the SECOND candidate, and that one has no fix yet.
+     */
+    if (process.env.RENDER_DOUBLE) {
+      const twiceOver = await layer([])
+      console.log(
+        `  double-readback ${kase.id}: ${
+          twiceOver === canvasUrl ? 'identical' : `DIFFER (${canvasUrl.length} vs ${twiceOver.length} chars)`
+        }`,
+      )
+    }
     const garmentUrl = await layer(['ground', 'shadow'])
     const stageUrl = await layer(['garment'])
     // The layers are kept beside the composite. Every number below is taken off
@@ -687,7 +748,10 @@ try {
     )
   }
 
-  // Determinism: the same case twice, with nothing touched in between.
+  // Determinism: the same case AGAIN, at the END of the sweep. Not "with
+  // nothing touched in between": everything in the sweep happened in between,
+  // which is what makes this the stronger claim of the two and the one that
+  // catches state accumulating in a reused WebGL context.
   const twice = await shoot(cases[0])
   const first = results[0].m
   // The POSE is the claim, and it is exact: the same design must frame the same
@@ -724,7 +788,7 @@ try {
       fail(`${tag} sits ${(m.offCentre * 100).toFixed(1)}% off the pane centre (max ${OFFCENTRE_MAX_FRAC * 100}%)`)
 
     if (m.shadowPx < SHADOW_MIN_PX)
-      fail(`${tag} throws no shadow on anything (${m.shadowPx}px below the garment, needs ${SHADOW_MIN_PX})`)
+      fail(`${tag} throws no shadow on anything (${m.shadowPx}px of ground shadow, needs ${SHADOW_MIN_PX})`)
     else ok(`${tag} stands on something (${m.shadowPx}px of ground shadow)`)
 
     if (m.edgeP50 === null) fail(`${tag} no silhouette rows could be sampled`)
@@ -774,6 +838,6 @@ try {
   console.log('verdict:', verdict)
   done(verdict === 'FAIL' ? 3 : 0)
 } catch (e) {
-  console.error('❌', e?.stack || e?.message || e)
+  console.error('FAILED', e?.stack || e?.message || e)
   done(1)
 }

@@ -167,11 +167,28 @@ customer sees exists in no single buffer. It runs under `prefers-reduced-motion`
 without which no two captures are the same pose. It is slow (a few minutes per case
 under software GL) and stays out of CI, like the other browser harnesses.
 
-`npm run verify:mockups` renders the product-page and proof images from the same
-preview and fails if the same design does not come out byte-identical twice.
-`npm run bench:frame` reports the work in one frame (draw calls, triangles,
-programs) and the desktop-versus-phone-profile ratio; its milliseconds are software
-rasterisation on the build machine and are **not** a phone measurement.
+`npm run verify:mockups` renders the garment set a product page needs, from the studio's
+own 3D preview: front, three-quarter, back and a **detail** framing that moves the camera
+in until the print area fills the pane, each shot both printed and bare. It is a render
+harness, not a publishing step: **nothing reads its output yet.** The image the cart, the
+proof and the order e-mails actually show is still the flat `renderMockup` composite the
+studio uploads to R2 at checkout, and joining the two is a project rather than a wiring
+change (a product-page image is per garment and can be rendered in advance; a proof image
+is per design and could only be rendered in the customer's browser, where three.js is a
+1,1 MB lazy chunk that must stay lazy). There is deliberately **no worn view**: the avatar
+does not grade with size, because its body and garment are one baked mesh
+(`src/lib/arExport.ts`), so a worn shot would misstate a print size the customer is paying
+for. The determinism gate has two halves, and both must pass: every view re-requested at
+the end of the sweep in the same page, and one case regenerated in a fresh page.
+
+`npm run bench:frame` reports the work in one frame (draw calls, triangles, programs) and
+the desktop-versus-phone-profile ratio; its milliseconds are software rasterisation on the
+build machine and are **not** a phone measurement. It hides the harness's 268 px sidebar
+before timing, without which the phone profile would draw a 125 px-wide canvas and the
+ratio would describe the CPU throttle and nothing else, and it records the canvas size it
+really drew in every row so that can be checked. Frames more than eight times the median
+are counted as stalls, excluded from the percentiles and reported: a shader compiling
+inside the timed window is a finding about a cold start, not a frame time.
 
 ## Deploy to Cloudflare Workers
 

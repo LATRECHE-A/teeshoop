@@ -122,6 +122,7 @@ export default function Board3DStage() {
           <Board3D
             products={products}
             scene={scene}
+            theme={theme}
             onFocus={focusLine}
             onReady={() => setReady(true)}
           />

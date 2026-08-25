@@ -36,7 +36,15 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 const PORT = Number(process.env.MOCKUP_PORT || 5192)
 const BASE = `http://localhost:${PORT}`
 const OUT = process.argv[2] || '.qa/mockups'
-const SPECS = (process.argv[3] || 'tee:FFFFFF:M,tee:191C20:M,hoodie:191C20:M').split(',')
+/*
+ * Two colourways by default, not three, and the reason is wall clock: one shot
+ * costs six to seven minutes on this software rasteriser at 1 200 x 1 500, and
+ * the set is now four views x printed-and-bare, so every spec is eight shots.
+ * A white tee and a black hoodie are the two ends of the range the lighting has
+ * to hold - the brightest cloth and the darkest, jersey and fleece - and a
+ * third colourway in between measures nothing new. Pass more as argv[3].
+ */
+const SPECS = (process.argv[3] || 'tee:FFFFFF:M,hoodie:191C20:M').split(',')
 /**
  * The pane every mockup is composed in.
  *
@@ -45,8 +53,42 @@ const SPECS = (process.argv[3] || 'tee:FFFFFF:M,tee:191C20:M,hoodie:191C20:M').s
  * covers a two-column product gallery at 2x without upscaling.
  */
 const PANE = { width: 1200, height: 1500 }
-/** The views a product page needs. `detail` is not here; see the README note. */
-const VIEWS = ['front', 'threequarter', 'back']
+/**
+ * The views a product page needs.
+ *
+ * `detail` is the close-up: the same rig and the same light, the camera moved
+ * in until the PRINT AREA fills the frame rather than the garment. It is a
+ * framing and not a fourth camera angle, and the rectangle it frames is read
+ * from the two values that place and size the ink itself, so the close-up
+ * cannot show a crop that is not the crop the customer bought (see
+ * MeasuredExtent.printHeightIn in src/three/Stage.tsx).
+ *
+ * `worn` is NOT here, deliberately. The avatar exists, and it is not good
+ * enough for this: src/lib/arExport.ts:421 records that it does not grade with
+ * size, because body and garment are one baked mesh, so a worn shot would show
+ * a print at the wrong size relative to the garment on a shop where print size
+ * is a priced, printed commitment. A picture that lies about the product is
+ * worse than no picture. QUESTIONS-ASSOCIE.md carries the product question.
+ */
+const VIEWS = [
+  { id: 'front', view: 'front', framing: 'garment' },
+  { id: 'threequarter', view: 'threequarter', framing: 'garment' },
+  { id: 'back', view: 'back', framing: 'garment' },
+  { id: 'detail', view: 'front', framing: 'print' },
+]
+/**
+ * Printed and bare, both.
+ *
+ * A CATALOGUE product page sells a blank garment and needs a picture of one;
+ * the printed set is what a proof, a basket line and a confirmation e-mail
+ * show. They are the same rig and the same framing, so shooting both is one
+ * extra toggle, and shipping only the printed set would have meant the
+ * catalogue had no image at all.
+ */
+const INKS = [
+  { id: 'print', decals: true },
+  { id: 'bare', decals: false },
+]
 
 mkdirSync(OUT, { recursive: true })
 
@@ -155,24 +197,39 @@ try {
     return { width: Math.round(r.width), height: Math.round(r.height) }
   })
 
-  const shoot = async (garment, colour, size, view) => {
+  const shoot = async (garment, colour, size, view, framing, decals) => {
     await page.evaluate(
-      ([g, c, sz, v]) => {
+      ([g, c, sz, v, f, ink]) => {
         window.__h.setGarment(g)
         window.__h.setColor(c)
         window.__h.setScene('studio')
         window.__h.setSize(sz)
-        window.__h.setDecals(true)
+        window.__h.setDecals(ink)
+        window.__h.setFraming(f)
         window.__h.setView(v)
       },
-      [garment, colour, size, view],
+      [garment, colour, size, view, framing, decals],
     )
+    /*
+     * WAIT FOR THE RIG TO BE WHERE IT WAS ASKED TO BE.
+     *
+     * The old predicate here (`goal === null && fit.measured`) was true the
+     * instant it was asked: reducedMotion makes the snap analytic so `goal` is
+     * never non-null, and `measured` latches on the first garment and never
+     * clears. It passed before the state change had any effect and the capture
+     * really ran on the timer below. This asks the three questions that have
+     * an answer: is the mounted garment the one requested, is the lens the one
+     * requested, and has the camera reached the distance THAT lens asks for.
+     */
     await page.waitForFunction(
-      () => {
+      ([wantGarment, wantFraming]) => {
         const p = window.__pose
-        return !!p && p.goal === null && p.fit && p.fit.measured === true
+        if (!p || !p.fit || p.fit.measured !== true || p.goal !== null) return false
+        if (window.__hGarment !== wantGarment || window.__hFraming !== wantFraming) return false
+        if (p.fit.framing !== wantFraming) return false
+        return Math.abs(p.fit.applied - p.fit.wanted) <= 0.5
       },
-      null,
+      [garment, framing],
       { timeout: 300000, polling: 250 },
     )
     await page.waitForTimeout(1500)
@@ -181,18 +238,25 @@ try {
     return Buffer.from(url.split(',')[1], 'base64')
   }
 
+  const nameFor = (garment, colour, size, ink, view) =>
+    `${garment}-${colour.toLowerCase()}-${size.toLowerCase()}-${ink}-${view}.png`
+
+  const shots = []
   for (const spec of SPECS) {
     const [garment, colour, size] = spec.split(':')
     if (!garment || !colour || !size) throw new Error(`bad spec "${spec}" (want garment:colour:size)`)
-    for (const view of VIEWS) {
-      const png = await shoot(garment, `#${colour.toUpperCase()}`, size, view)
-      const name = `${garment}-${colour.toLowerCase()}-${size.toLowerCase()}-${view}.png`
-      const hash = createHash('sha256').update(png).digest('hex')
-      writeFileSync(`${OUT}/${name}`, png)
-      hashes.set(name.replace(/\.png$/, ''), hash)
-      written++
-      console.log(`  ${name.padEnd(34)} ${(png.length / 1024).toFixed(0)} kB  ${hash.slice(0, 12)}`)
-    }
+    for (const ink of INKS)
+      for (const v of VIEWS) shots.push({ garment, colour, size, ink, v })
+  }
+
+  for (const { garment, colour, size, ink, v } of shots) {
+    const png = await shoot(garment, `#${colour.toUpperCase()}`, size, v.view, v.framing, ink.decals)
+    const name = nameFor(garment, colour, size, ink.id, v.id)
+    const hash = createHash('sha256').update(png).digest('hex')
+    writeFileSync(`${OUT}/${name}`, png)
+    hashes.set(name.replace(/\.png$/, ''), hash)
+    written++
+    console.log(`  ${name.padEnd(40)} ${(png.length / 1024).toFixed(0)} kB  ${hash.slice(0, 12)}`)
   }
 
   if (written === 0) {
@@ -200,24 +264,74 @@ try {
     done(2)
   }
 
-  // THE DETERMINISM GATE. A mockup that cannot be produced twice cannot be
-  // "generated once and reused": nothing downstream could ever tell a stale
-  // image from a changed one.
-  const [g0, c0, s0] = SPECS[0].split(':')
-  const again = await shoot(g0, `#${c0.toUpperCase()}`, s0, VIEWS[0])
-  const first = hashes.get(`${g0}-${c0.toLowerCase()}-${s0.toLowerCase()}-${VIEWS[0]}`)
-  const second = createHash('sha256').update(again).digest('hex')
-  if (first !== second) {
-    console.log(`  ✗ the same mockup rendered twice is not the same image (${first.slice(0, 12)} vs ${second.slice(0, 12)})`)
+  /*
+   * THE DETERMINISM GATE, on both axes it actually has.
+   *
+   * A mockup that cannot be produced twice cannot be "generated once and
+   * reused": nothing downstream could ever tell a stale image from a changed
+   * one. Two different claims live under that sentence and only the first was
+   * ever tested here:
+   *
+   *   RE-REQUEST  the same case again in the same page, after the whole sweep
+   *               has run. This is the one that catches state accumulating in
+   *               the WebGL context between shots.
+   *   REGENERATE  the same case in a FRESH page. This is the one "generate once
+   *               and reuse" really needs, because a regeneration months later
+   *               is a new browser, and it is the axis that was not covered.
+   *
+   * Every shot is re-requested, not only the first: with four views x two ink
+   * states the first case is no longer representative, and the detail framing
+   * in particular has its own settle path.
+   */
+  console.log('')
+  /*
+   * ONE RE-REQUEST PER VIEW, not one per shot, and the cap is PRINTED.
+   *
+   * Re-requesting all sixteen would double a run that already takes an hour and
+   * a half. One per view covers every distinct settle path there is (the three
+   * camera angles plus the detail lens, which is the one with its own fit
+   * target), which is where a non-deterministic capture would come from. What
+   * it does NOT cover is a colourway-specific or ink-specific difference, and
+   * saying so here is the difference between a bounded check and a check that
+   * reads as if it covered everything.
+   */
+  const perView = new Map()
+  for (const sh of shots) if (!perView.has(sh.v.id)) perView.set(sh.v.id, sh)
+  console.log(`  (re-requesting ${perView.size} of ${shots.length} shots: one per view)`)
+  for (const { garment, colour, size, ink, v } of perView.values()) {
+    const again = await shoot(garment, `#${colour.toUpperCase()}`, size, v.view, v.framing, ink.decals)
+    const key = nameFor(garment, colour, size, ink.id, v.id).replace(/\.png$/, '')
+    const first = hashes.get(key)
+    const second = createHash('sha256').update(again).digest('hex')
+    if (first !== second) {
+      console.log(`  x ${key}: re-requested, not the same image (${first.slice(0, 12)} vs ${second.slice(0, 12)})`)
+      verdict = 'FAIL'
+    } else {
+      console.log(`  ok ${key}: re-requested, byte-identical (${first.slice(0, 12)})`)
+    }
+  }
+
+  // REGENERATE: a new page, a new context, the same design.
+  const r = shots[0]
+  await page.reload({ waitUntil: 'load', timeout: 300000 })
+  await page.waitForFunction(() => document.body.innerText.includes('ready'), null, { timeout: 300000 })
+  await page.waitForFunction(() => !!window.__h, null, { timeout: 60000 })
+  await page.evaluate(() => document.fonts.ready)
+  const reborn = await shoot(r.garment, `#${r.colour.toUpperCase()}`, r.size, r.v.view, r.v.framing, r.ink.decals)
+  const rkey = nameFor(r.garment, r.colour, r.size, r.ink.id, r.v.id).replace(/\.png$/, '')
+  const rfirst = hashes.get(rkey)
+  const rsecond = createHash('sha256').update(reborn).digest('hex')
+  if (rfirst !== rsecond) {
+    console.log(`  x ${rkey}: regenerated in a fresh page, not the same image (${rfirst.slice(0, 12)} vs ${rsecond.slice(0, 12)})`)
     verdict = 'FAIL'
   } else {
-    console.log(`  ✓ the same mockup rendered twice is byte-identical (${first.slice(0, 12)})`)
+    console.log(`  ok ${rkey}: regenerated in a fresh page, byte-identical (${rfirst.slice(0, 12)})`)
   }
 
   console.log(`\n${written} mockups in ${OUT}`)
   console.log('verdict:', verdict)
   done(verdict === 'FAIL' ? 3 : 0)
 } catch (e) {
-  console.error('❌', e?.stack || e?.message || e)
+  console.error('FAILED', e?.stack || e?.message || e)
   done(1)
 }

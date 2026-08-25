@@ -90,8 +90,9 @@ try {
   browser = await chromium.launch({
     args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader', '--disable-gpu-sandbox'],
   })
-  // reducedMotion kills the <Float> sway in the 3D stage — otherwise the garment
-  // is captured at an arbitrary yaw phase and its projected WIDTH is noise.
+  // reducedMotion makes the view snap land analytically instead of damping over
+  // an unknown number of frames, so a capture is taken at the pose that was
+  // asked for. It also used to kill a <Float> idle sway, which is gone now.
   const ctx = await browser.newContext({ viewport: { width: 900, height: 1000 }, deviceScaleFactor: 1, reducedMotion: 'reduce' })
   await ctx.addInitScript(() => { try { localStorage.setItem('tshop:prefs', JSON.stringify({ theme: 'dark', lang: 'en', scene: 'studio', showGuides: false })) } catch {} })
   const page = await ctx.newPage()

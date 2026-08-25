@@ -68,9 +68,39 @@ export interface MeasuredExtent {
   widthIn: number
   fitHeightIn: number
   fitWidthIn: number
+  /**
+   * The PRINT AREA, in the same world inches, for the front panel at the
+   * previewed size and grading factor. This is what a detail shot frames.
+   *
+   * It is reported by the garment rather than recomputed here, and the garment
+   * reads it from `printCentreYIn` and `GARMENTS[...].printAreasIn` - the same
+   * two sources that place and size the ink itself. A close-up that framed a
+   * separately derived rectangle would be a second implementation of where the
+   * print is, and the day the two drifted the detail image would show a crop
+   * that is not the crop the customer bought.
+   */
+  printHeightIn: number
+  printWidthIn: number
+  printCentreYIn: number
+  /**
+   * False when the mounted garment has no print area we can name.
+   *
+   * A ship-your-own garment is a photograph, not a chart entry: its printable
+   * rectangle is a property of that photograph and this rig is not told it. The
+   * flag exists so the detail framing can REFUSE rather than compose on
+   * whatever the previous garment left in the box, which is what it did when
+   * this was a plain number: switching from a hoodie to an uploaded garment
+   * framed the uploaded one on the hoodie's 12 x 12 chest panel. A close-up of
+   * a rectangle nobody measured is a fabricated print size, and this project
+   * does not ship those.
+   */
+  printMeasured: boolean
   /** False until a garment has reported. The seed is a placeholder, not a fact. */
   measured: boolean
 }
+
+/** What the camera is composing on. `print` is the detail framing. */
+export type Framing = 'garment' | 'print'
 
 /** Placeholder until the first garment reports: a mid-size tee, roughly. */
 export const SEED_EXTENT: MeasuredExtent = {
@@ -78,6 +108,10 @@ export const SEED_EXTENT: MeasuredExtent = {
   widthIn: 24,
   fitHeightIn: 28,
   fitWidthIn: 24,
+  printHeightIn: 16,
+  printWidthIn: 12,
+  printCentreYIn: 3,
+  printMeasured: false,
   measured: false,
 }
 
@@ -214,6 +248,26 @@ function groundAlphaTexture(): THREE.CanvasTexture {
 }
 
 /**
+ * Where the floor is, in world inches, for a garment of these extents.
+ *
+ * ONE definition, because there were four: the ground disc's per-frame update,
+ * its mount position, the contact-shadow rig's per-frame update and the rig's
+ * mount position each carried their own copy of `-(heightIn / 2) - 1.1`. They
+ * agreed by coincidence. The day one of them drifts the shadow detaches from
+ * the floor it is drawn on, which is the whole point of having a floor.
+ *
+ * The 1.1 in is hem clearance: the measured extent is the garment, and a
+ * garment on a stand does not touch the ground at its lowest vertex.
+ */
+export const groundYIn = (heightIn: number): number => -(heightIn / 2) - 1.1
+/**
+ * How far the shadow rig sits ABOVE the floor. Coplanar surfaces z-fight; two
+ * hundredths of an inch is under the depth buffer's resolution at these
+ * distances and over the rasteriser's.
+ */
+const SHADOW_LIFT_IN = 0.02
+
+/**
  * The floor. See GroundSpec in src/scenes for why there was none and what that
  * cost: a contact shadow drawn onto a transparent canvas over a #0c0f13 page is
  * black on black, which is why not one render in this repository contained a
@@ -223,10 +277,20 @@ export function Ground({
   spec,
   theme,
   extent,
+  fixed,
 }: {
   spec: GroundSpec
   theme: 'dark' | 'light'
-  extent: RefObject<MeasuredExtent>
+  /** The garment to follow, when there is one garment. */
+  extent?: RefObject<MeasuredExtent>
+  /**
+   * A floor that does not follow anything, for callers whose subject is not a
+   * single measured garment: the basket board stands a WHOLE ROW on one floor,
+   * so its y and radius come from the row's own layout and never change per
+   * frame. Same disc, same ramp, same material, because a second copy of this
+   * material is how the two views stop being two photographs of one shop.
+   */
+  fixed?: { y: number; radius: number }
 }) {
   const mesh = useRef<THREE.Mesh>(null)
   const alphaMap = useMemo(groundAlphaTexture, [])
@@ -234,20 +298,22 @@ export function Ground({
   const color = (theme === 'light' && spec.colorLight) || spec.color
   useFrame(() => {
     const m = mesh.current
-    if (!m) return
+    if (!m || !extent) return
     const e = extent.current
-    const y = -(e.heightIn / 2) - 1.1
+    const y = groundYIn(e.heightIn)
     const r = Math.max(1e-3, e.widthIn * spec.radiusFactor)
     if (m.position.y !== y) m.position.y = y
     if (m.scale.x !== r) m.scale.set(r, r, 1)
   })
+  const seedY = fixed ? fixed.y : groundYIn(SEED_EXTENT.heightIn)
+  const seedR = fixed ? fixed.radius : SEED_EXTENT.widthIn * spec.radiusFactor
   return (
     <mesh
       ref={mesh}
       rotation-x={-Math.PI / 2}
       userData={{ role: 'ground' }}
-      position={[0, SEED_EXTENT.heightIn / -2 - 1.1, 0]}
-      scale={[SEED_EXTENT.widthIn * spec.radiusFactor, SEED_EXTENT.widthIn * spec.radiusFactor, 1]}
+      position={[0, seedY, 0]}
+      scale={[seedR, seedR, 1]}
       receiveShadow
       renderOrder={-1}
     >
@@ -278,8 +344,14 @@ export function Ground({
  *
  * WHAT IS LEFT, so nobody reads this as "fixed": `color` is still a dependency
  * and the six scenes carry six shadow tints, so flipping through the scene
- * picker still orphans a pair of render targets per switch. That is bounded by
- * six. The unbounded one, which grew with every size click, is gone.
+ * picker orphans a pair of render targets PER SWITCH. That is not bounded by
+ * six: there are six distinct tints but no reuse, so a customer who flips back
+ * and forth pays for every flip. It is bounded only by how long the tab is
+ * open, which is exactly what the earlier sentence here claimed it was not.
+ * Closing it properly means taking `color` out of the dependency list (set the
+ * tint on the material after mount) or mounting one rig per scene and toggling
+ * `.visible`; both change what the shadow looks like, so both need a render
+ * pass behind them. The unbounded-per-size-click one is genuinely gone.
  */
 const CONTACT_FAR_LOCAL = 0.3
 
@@ -301,7 +373,7 @@ export function Floor({
     const e = extent.current
     const scale = Math.max(1e-3, e.widthIn * 2.7)
     // A hair above the ground plane, which now sits at exactly this height.
-    const floorY = -(e.heightIn / 2) - 1.1 + 0.02
+    const floorY = groundYIn(e.heightIn) + SHADOW_LIFT_IN
     if (g.position.y !== floorY) g.position.y = floorY
     if (g.scale.x !== scale) g.scale.setScalar(scale)
   })
@@ -322,7 +394,12 @@ export function Floor({
   // scale to keep the shadow camera's reach at the same world depth. `blur`
   // works in the render target's pixel space and is scale-invariant.
   return (
-    <group ref={group} userData={{ role: 'shadow' }} position={[0, SEED_EXTENT.heightIn / -2 - 1.1 + 0.02, 0]} scale={SEED_EXTENT.widthIn * 2.7}>
+    <group
+      ref={group}
+      userData={{ role: 'shadow' }}
+      position={[0, groundYIn(SEED_EXTENT.heightIn) + SHADOW_LIFT_IN, 0]}
+      scale={SEED_EXTENT.widthIn * 2.7}
+    >
       <ContactShadows
         opacity={shadowOpacity}
         scale={1}
@@ -548,6 +625,14 @@ export interface CameraRigProps {
   /** The measured garment, shared as a box (see MeasuredExtent). */
   extent: RefObject<MeasuredExtent>
   garment: GarmentId
+  /**
+   * What to compose on. `print` is the product-page DETAIL shot: same rig, same
+   * light, same garment, the camera moved in until the print area fills the
+   * frame. It is a framing and not a `ViewSnap` on purpose - the customer's
+   * three view buttons are a place to stand, this is a lens, and adding it to
+   * the view enum would put a fourth button in the studio that nobody asked for.
+   */
+  framing?: Framing
 }
 
 export function CameraRig({
@@ -556,6 +641,7 @@ export function CameraRig({
   reducedMotion,
   extent,
   garment,
+  framing = 'garment',
 }: CameraRigProps) {
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((s) => s.camera)
@@ -567,6 +653,7 @@ export function CameraRig({
   // has orbited or zoomed, their distance is theirs and we stop touching it.
   const userTook = useRef(false)
   const fitted = useRef(0)
+  const lastFraming = useRef<Framing>(framing)
 
   // The framing depends on the canvas shape, so it must re-run when the canvas
   // is reshaped. R3F's initial camera aspect is 1 until its resize observer
@@ -577,6 +664,32 @@ export function CameraRig({
   const perspective = camera as THREE.PerspectiveCamera
   const radiusFor = (h: number, w: number) =>
     fitRadius(h, perspective.fov ?? 26, perspective.aspect ?? 1, w, torsoWidthIn(garment, w))
+  /**
+   * What the camera is fitting to, and where it looks.
+   *
+   * A print area has no sleeves, so the torso-versus-span split that keeps an
+   * A-pose hoodie from being pushed into the distance does not apply: its whole
+   * width is body. And it is not centred on the garment, so a detail shot aims
+   * at the print rather than below the garment's middle - the ground room that
+   * makes a full-length shot stand on something would just crop the artwork.
+   */
+  const framedTarget = () => {
+    const e = extent.current
+    // No print rectangle for this garment: frame the garment. See printMeasured.
+    if (framing === 'print' && e.printMeasured)
+      return {
+        radius: fitRadius(
+          e.printHeightIn,
+          perspective.fov ?? 26,
+          perspective.aspect ?? 1,
+          e.printWidthIn,
+          e.printWidthIn,
+        ),
+        aim: e.printCentreYIn,
+      }
+    const radius = radiusFor(e.fitHeightIn, e.fitWidthIn)
+    return { radius, aim: aimY(radius, e.fitHeightIn) }
+  }
   /**
    * The framed distance AT RENDER TIME, which is only ever the seed's.
    *
@@ -656,7 +769,7 @@ export function CameraRig({
     // into the polar limit and stays there for the session.
     const from = DIR.copy(camera.position).sub(controls ? controls.target : ORIGIN_V)
     const dir = from.lengthSq() > 1e-6 ? from.normalize() : from.set(0, 0, 1)
-    const y = aimY(radius, extent.current.fitHeightIn)
+    const y = framedTarget().aim
     camera.position.copy(dir).multiplyScalar(radius).add(AIM.set(0, y, 0))
     if (controls) {
       controls.target.set(0, y, 0)
@@ -678,6 +791,13 @@ export function CameraRig({
   const recompose = () => {
     const controls = controlsRef.current
     if (!controls || userTook.current) return
+    // NOT UNDER THE DETAIL LENS. This centres the GARMENT's silhouette, and in
+    // a close-up the garment runs off all four sides of the pane: the visible
+    // extremes are then whichever vertices happen to be in frame, so it would
+    // slide the print off centre to balance a shoulder nobody can see. The
+    // subject of a detail shot is the print, and the print is already centred
+    // by construction (the camera is aimed at printCentreYIn on x = 0).
+    if (framing === 'print') return
     const dx = projectedCentreOffset()
     if (Math.abs(dx) < 1e-3) return
     const right = RIGHT.setFromMatrixColumn(camera.matrixWorld, 0).normalize().multiplyScalar(dx)
@@ -701,8 +821,12 @@ export function CameraRig({
   void size
   useFrame(() => {
     if (userTook.current || !extent.current.measured) return
-    const radius = radiusFor(extent.current.fitHeightIn, extent.current.fitWidthIn)
-    if (Math.abs(radius - fitted.current) < 0.5) return
+    const { radius } = framedTarget()
+    // The framing has to force a refit even when the two distances happen to
+    // agree: a detail shot and a full-length shot of a small garment can land
+    // within half an inch of each other, and only the AIM would have changed.
+    if (framing === lastFraming.current && Math.abs(radius - fitted.current) < 0.5) return
+    lastFraming.current = framing
     applyFit(radius)
   })
 
@@ -800,8 +924,15 @@ export function CameraRig({
           heightIn: extent.current.fitHeightIn,
           widthIn: extent.current.fitWidthIn,
           measured: extent.current.measured,
-          wanted:
-            Math.round(radiusFor(extent.current.fitHeightIn, extent.current.fitWidthIn) * 100) / 100,
+          // The CURRENT framing's wanted radius, not the garment framing's: the
+          // capture scripts settle on `applied === wanted`, and a detail shot
+          // would otherwise wait for a distance it is deliberately not at.
+          wanted: Math.round(framedTarget().radius * 100) / 100,
+          framing,
+          printHeightIn: extent.current.printHeightIn,
+          printWidthIn: extent.current.printWidthIn,
+          printCentreYIn: Math.round(extent.current.printCentreYIn * 100) / 100,
+          printMeasured: extent.current.printMeasured,
           applied: Math.round(fitted.current * 100) / 100,
           userTook: userTook.current,
           aspect: Math.round((perspective.aspect ?? 0) * 1000) / 1000,

@@ -199,11 +199,28 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
   // distance. Garments are scaled to real inches, so a fixed distance would crop.
   const extent = useRef<MeasuredExtent>({ ...SEED_EXTENT })
   const onMeasured = useCallback(
-    (heightIn: number, widthIn?: number, fitIn?: { heightIn: number; widthIn: number }) => {
+    (
+      heightIn: number,
+      widthIn?: number,
+      fitIn?: { heightIn: number; widthIn: number },
+      printIn?: { heightIn: number; widthIn: number; centreYIn: number },
+    ) => {
       extent.current.heightIn = heightIn
       extent.current.widthIn = widthIn ?? heightIn * 0.9
       extent.current.fitHeightIn = fitIn?.heightIn ?? heightIn
       extent.current.fitWidthIn = fitIn?.widthIn ?? widthIn ?? heightIn * 0.9
+      // An uploaded garment reports no print frame: its printable rectangle is
+      // a property of the customer's photograph and this rig is not told it. So
+      // the flag is CLEARED rather than the old numbers left standing, and the
+      // detail framing falls back to framing the whole garment. Leaving them
+      // standing is what made a custom garment compose on the previously
+      // mounted hoodie's chest panel.
+      extent.current.printMeasured = !!printIn
+      if (printIn) {
+        extent.current.printHeightIn = printIn.heightIn
+        extent.current.printWidthIn = printIn.widthIn
+        extent.current.printCentreYIn = printIn.centreYIn
+      }
       extent.current.measured = true
     },
     [],
@@ -288,6 +305,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
           reducedMotion={reducedMotion}
           extent={extent}
           garment={garment}
+          framing={props.framing}
         />
         <Suspense fallback={null}>
           {garment === 'custom' ? (

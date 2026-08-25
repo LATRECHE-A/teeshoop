@@ -51,7 +51,16 @@ const OUT = process.argv[2] || '.qa/frame-bench.json'
  * sample size is printed beside every figure so nobody quotes it as more.
  */
 const FRAMES = 14
-const WARMUP = 4
+/**
+ * Ticks discarded before timing starts.
+ *
+ * 4 was not enough: the shader programs compile lazily on first draw under
+ * swiftshader, and one 45-second sample landed inside the timed window. 12 is
+ * past every compile observed here, and the stall filter in `stat` is the
+ * belt to this braces - if a stall still gets through it is reported, not
+ * averaged away.
+ */
+const WARMUP = 12
 
 const PROFILES = [
   {
@@ -101,11 +110,42 @@ const TIME_FRAMES = ({ frames, warmup }) =>
     requestAnimationFrame(tick)
   })
 
+/**
+ * Percentiles, with the stalls counted rather than averaged in.
+ *
+ * The first run of this bench produced a desktop/tee row of p50 18,1 ms with a
+ * p95 of 2 877 ms and a max of 44 976 ms - a single sample two and a half
+ * thousand times the median - while desktop/hoodie, with 3,46x the triangles,
+ * peaked at 27,9 ms. That is not a frame, it is shader compilation and first
+ * texture upload landing inside the timed window because four warm-up ticks
+ * were not enough under a software rasteriser. A p95 computed over fourteen
+ * samples two of which are stalls describes the stall, and the row was quoted
+ * as if it described the renderer.
+ *
+ * So: samples above 8x the median are STALLS. They are excluded from the
+ * percentiles and REPORTED, both in the console line and in the JSON, because
+ * "one frame in fourteen took 45 seconds" is itself a finding about a cold
+ * start and hiding it would be worse than the outlier was. 8x is far enough
+ * above real frame-to-frame variance (the clean rows here spread about 1,6x
+ * between p50 and max) that nothing legitimate is discarded.
+ */
+const STALL_FACTOR = 8
 const stat = (a) => {
   if (!a.length) return null
-  const s = Float64Array.from(a).sort()
+  const all = Float64Array.from(a).sort()
+  const med = all[Math.floor(all.length / 2)]
+  const kept = Array.from(all).filter((v) => v <= med * STALL_FACTOR)
+  const stalls = Array.from(all).filter((v) => v > med * STALL_FACTOR)
+  const s = Float64Array.from(kept.length ? kept : Array.from(all)).sort()
   const q = (p) => s[Math.min(s.length - 1, Math.max(0, Math.round(p * (s.length - 1))))]
-  return { n: s.length, p50: q(0.5), p95: q(0.95), max: s[s.length - 1] }
+  return {
+    n: s.length,
+    p50: q(0.5),
+    p95: q(0.95),
+    max: s[s.length - 1],
+    stalls: stalls.length,
+    worstStall: stalls.length ? stalls[stalls.length - 1] : null,
+  }
 }
 
 const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
@@ -137,14 +177,54 @@ try {
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.throttle })
       await page.goto(`${BASE}/dev/three.html?g=${garment}&c=191C20`, { waitUntil: 'load', timeout: 300000 })
       await page.waitForFunction(() => document.body.innerText.includes('ready'), null, { timeout: 300000 })
+      /*
+       * THE HARNESS'S SIDEBAR IS 268 CSS PX WIDE AND FIXED, and that made the
+       * phone rows measure the wrong thing.
+       *
+       * `src/dev/threeHarness.tsx` is `aside w-[268px] shrink-0` beside
+       * `main flex-1`. At the desktop viewport the stage still gets 1 012 px.
+       * At the Pixel 8a's 393 it gets 125, so the "phone" profile was drawing a
+       * 125 x 851 CSS canvas - about a seventh of the pixels a phone actually
+       * asks for - and the desktop-to-phone ratio taken from it described the
+       * CPU throttle and almost nothing else. Hiding the panel gives the stage
+       * the whole viewport, which is what the studio gives it on a phone.
+       *
+       * The canvas size that was really drawn is recorded in every row, so this
+       * can be checked rather than believed.
+       */
+      await page.evaluate(() => {
+        const aside = document.querySelector('aside')
+        if (aside) aside.style.display = 'none'
+      })
       await page.waitForTimeout(2500)
 
       const deltas = await page.evaluate(TIME_FRAMES, { frames: FRAMES, warmup: WARMUP })
       const info = await page.evaluate(() => window.__renderInfo ?? null)
-      const row = { profile: profile.id, garment, frame: stat(deltas), info }
+      // The four knobs PROFILE actually turns, read back off the live context
+      // rather than assumed from the media query.
+      const surface = await page.evaluate(() => {
+        const c = document.querySelector('main canvas')
+        if (!c) return null
+        const r = c.getBoundingClientRect()
+        const gl = c.getContext('webgl2') || c.getContext('webgl')
+        const a = gl?.getContextAttributes?.() ?? {}
+        return {
+          cssW: Math.round(r.width),
+          cssH: Math.round(r.height),
+          bufferW: c.width,
+          bufferH: c.height,
+          dpr: r.width ? Math.round((c.width / r.width) * 100) / 100 : null,
+          antialias: a.antialias ?? null,
+        }
+      })
+      const row = { profile: profile.id, garment, frame: stat(deltas), info, surface }
       rows.push(row)
       console.log(
         `${profile.id.padEnd(8)} ${garment.padEnd(7)} frame p50 ${row.frame.p50.toFixed(1)} ms · p95 ${row.frame.p95.toFixed(1)} ms` +
+          (row.frame.stalls
+            ? ` · ${row.frame.stalls} stall(s) excluded, worst ${(row.frame.worstStall / 1000).toFixed(1)} s`
+            : '') +
+          (surface ? ` · ${surface.bufferW}x${surface.bufferH} px (dpr ${surface.dpr}, msaa ${surface.antialias})` : '') +
           (info
             ? `  ·  ${info.calls} draw calls · ${info.triangles.toLocaleString('fr-FR')} triangles · ${info.programs} programs` +
               ` · ${info.textures} textures · ${info.geometries} geometries · shadow map ${info.shadowMapSize}`
@@ -180,6 +260,6 @@ try {
   console.log(`\nwritten to ${OUT}`)
   done(0)
 } catch (e) {
-  console.error('❌', e?.stack || e?.message || e)
+  console.error('FAILED', e?.stack || e?.message || e)
   done(1)
 }

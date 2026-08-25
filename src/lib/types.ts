@@ -306,6 +306,14 @@ export interface Garment3DProps {
   autoRotate: boolean
   /** Camera snap request; apply when nonce changes. */
   viewRequest: { view: ViewSnap; nonce: number } | null
+  /**
+   * What the camera composes on. `print` moves in until the print area fills
+   * the frame, which is the DETAIL image a product page needs beside the front
+   * and the back. Not a `ViewSnap`: the three views are places to stand and the
+   * studio gives the customer a button for each, this is a lens and it has no
+   * button. Defaults to `garment`.
+   */
+  framing?: 'garment' | 'print'
   onReady?: () => void
 }
 

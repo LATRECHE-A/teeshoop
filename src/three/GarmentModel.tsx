@@ -20,6 +20,7 @@ import * as THREE from 'three'
 import { Decal, useGLTF } from '@react-three/drei'
 import type { CatalogGarmentId, DecalSource, Side, SizeId } from '@/lib/types'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
+import { GARMENTS } from '@/garments'
 import { CALIBRATION, MAX_BAKED_NORMAL_SCALE } from './calibration'
 import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
 import { buildFabricOverlay, fabricPrintMaterial, projectedPrintMaterial } from './decalGeom'
@@ -393,7 +394,12 @@ export interface GarmentModelProps {
    * PREVIEWED size; the camera frames `fitIn` (the chart's biggest size) so
    * changing size visibly changes the garment instead of the camera.
    */
-  onMeasured?: (heightIn: number, widthIn?: number, fitIn?: { heightIn: number; widthIn: number }) => void
+  onMeasured?: (
+    heightIn: number,
+    widthIn?: number,
+    fitIn?: { heightIn: number; widthIn: number },
+    printIn?: { heightIn: number; widthIn: number; centreYIn: number },
+  ) => void
 }
 
 export function GarmentModel({
@@ -433,9 +439,26 @@ export function GarmentModel({
     material.needsUpdate = true
   }, [material, garment, envIntensity])
 
+  /**
+   * Where the front print sits, for the detail framing (Stage.MeasuredExtent).
+   *
+   * Read from the two places the ink itself is read from: `printAreasIn` for
+   * the rectangle and `printCentreYIn` for the height, both graded by the same
+   * `printK`. Nothing here derives a position of its own, so a close-up cannot
+   * drift away from what is printed.
+   */
+  const printFrame = useMemo(() => {
+    const area = GARMENTS[garment].printAreasIn.front
+    return {
+      widthIn: area.wIn * printK,
+      heightIn: area.hIn * printK,
+      centreYIn: printCentreYIn(garment, 'front', normalized, printK),
+    }
+  }, [garment, printK, normalized])
+
   useEffect(() => {
-    onMeasured?.(heightIn, widthIn, { heightIn: fitHeightIn, widthIn: fitWidthIn })
-  }, [heightIn, widthIn, fitHeightIn, fitWidthIn, onMeasured])
+    onMeasured?.(heightIn, widthIn, { heightIn: fitHeightIn, widthIn: fitWidthIn }, printFrame)
+  }, [heightIn, widthIn, fitHeightIn, fitWidthIn, printFrame, onMeasured])
 
   const panel = (side: Exclude<Side, 'sleeve'>, source: DecalSource) =>
     table.usable ? (

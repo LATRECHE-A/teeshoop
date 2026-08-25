@@ -198,21 +198,33 @@ function inkShaderChunks(shader: { vertexShader: string; fragmentShader: string 
       'attribute float printReject;\nvarying float vReject;\n' +
       shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvReject = printReject;')
   }
-  // fwidth BEFORE the discard. `discard` is non-uniform control flow, and a
-  // screen-space derivative taken after it is undefined for the whole quad; the
-  // feather's entire job is the rect boundary, which is precisely where the
-  // discarded neighbours are. vMapUv is a varying, so its derivative is
-  // available before any branch.
-  const preGuard = clip ? '\tvec2 inkFw = max( fwidth( vMapUv ), vec2( 1e-6 ) );\n' : ''
+  // EVERY DERIVATIVE INPUT IS COMPUTED BEFORE THE DISCARD. `discard` is
+  // non-uniform control flow, and a screen-space derivative taken after it is
+  // undefined for the whole quad; the feather's entire job is the rect
+  // boundary, which is precisely where the discarded neighbours are.
+  //
+  // `fwidth( vMapUv )` was already hoisted here. `vInkAlpha` was not, and it is
+  // the input to the SECOND derivative pair, the one that lifts the film's
+  // edge (see the dFdx block below). It used to be assigned inside the
+  // map_fragment block, after the guard, so on a quad straddling the rect edge
+  // the surviving fragment read its discarded neighbour's uninitialised
+  // value: undefined behaviour on the exact pixels the effect exists for, in a
+  // shader whose own comment four lines up says that is the hazard.
+  //
+  // Assigned here it is defined everywhere, and it is defined CORRECTLY:
+  // outside the rect `min( uv, 1 - uv )` is negative, so the feather clamps to
+  // zero and a discarded neighbour contributes an alpha of 0, which is the
+  // true slope of a transfer's shoulder at its own edge.
+  const preGuard = clip
+    ? '\tvec2 inkFw = max( fwidth( vMapUv ), vec2( 1e-6 ) );\n' +
+      '\tvec2 inkEdge = min( vMapUv, 1.0 - vMapUv ) / inkFw;\n' +
+      '\tfloat inkFeather = clamp( min( inkEdge.x, inkEdge.y ), 0.0, 1.0 );\n' +
+      '\tvInkAlpha = diffuseColor.a * texture2D( map, vMapUv ).a * inkFeather;\n'
+    : ''
   const guard = clip
     ? '\tif ( vReject > 1.0 || vMapUv.x < 0.0 || vMapUv.x > 1.0 || vMapUv.y < 0.0 || vMapUv.y > 1.0 ) discard;\n'
     : ''
-  const feather = clip
-    ? '\t{\n' +
-      '\t\tvec2 dEdge = min( vMapUv, 1.0 - vMapUv ) / inkFw;\n' +
-      '\t\tdiffuseColor.a *= clamp( min( dEdge.x, dEdge.y ), 0.0, 1.0 );\n' +
-      '\t}\n'
-    : ''
+  const feather = clip ? '\tdiffuseColor.a *= inkFeather;\n' : ''
   shader.fragmentShader =
     (clip ? 'varying float vReject;\n' : '') +
     'float vInkAlpha;\n' +
@@ -230,7 +242,9 @@ function inkShaderChunks(shader: { vertexShader: string; fragmentShader: string 
           '\tif ( diffuseColor.a > 0.0031 ) diffuseColor.rgb /= diffuseColor.a;\n' +
           '\tdiffuseColor = sRGBTransferEOTF( diffuseColor );\n' +
           feather +
-          '\tvInkAlpha = diffuseColor.a;\n',
+          // Only the unclipped material assigns it here: there is no discard on
+          // that path, so after the map read is both safe and exact.
+          (clip ? '' : '\tvInkAlpha = diffuseColor.a;\n'),
       )
       .replace(
         '#include <normal_fragment_maps>',

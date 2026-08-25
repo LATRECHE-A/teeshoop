@@ -27,7 +27,7 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { ContactShadows, OrbitControls, useGLTF } from '@react-three/drei'
 import type { CardSource, CatalogGarmentId, DecalSource, GarmentId, SizeId } from '@/lib/types'
 import { layoutBoard, type BoardItemSize } from '@/state/board'
-import { getScene, type SceneId } from '@/scenes'
+import { getScene, type GroundSpec, type SceneId } from '@/scenes'
 import { CALIBRATION } from './calibration'
 import {
   boardGarmentFrame,
@@ -37,7 +37,7 @@ import {
 } from './garmentCache'
 import { BoardGarment } from './BoardGarment'
 import { CustomCard } from './CustomCard'
-import { ReadyPing, SceneEnvironment, fitRadius } from './Stage'
+import { Ground, ReadyPing, SceneEnvironment, fitRadius, groundYIn } from './Stage'
 import { useSourceTexture } from './textures'
 
 /** Gutter between products on the wall, inches. */
@@ -67,6 +67,8 @@ export interface BoardProduct {
 export interface Board3DProps {
   products: BoardProduct[]
   scene: SceneId
+  /** Only `studio` follows it, but the floor's colour is picked from it. */
+  theme: 'dark' | 'light'
   onFocus(id: string): void
   onReady?: () => void
 }
@@ -246,11 +248,15 @@ function BoardScene({
   products,
   envIntensity,
   shadow,
+  ground,
+  theme,
   onFocus,
 }: {
   products: BoardProduct[]
   envIntensity: number
   shadow: { shadowColor: string; shadowOpacity: number }
+  ground: GroundSpec | undefined
+  theme: 'dark' | 'light'
   onFocus(id: string): void
 }) {
   const aspect = useThree((s) => s.viewport.aspect)
@@ -365,18 +371,37 @@ function BoardScene({
         </group>
       ))}
       {/* One row = a rail standing on a floor, and the shadow sells it. More
-          rows are a wall, where a single ground plane is meaningless. */}
+          rows are a wall, where a single ground plane is meaningless.
+
+          AND THE FLOOR HAS TO BE THERE FOR THE SHADOW TO LAND ON. This rig has
+          been mounted here the whole time and has never produced a visible
+          pixel, for exactly the reason the single-garment stage had none: a
+          contact shadow darkens what is under it, and under it was a
+          transparent canvas over the page. The basket is one of the three
+          places the preview is looked at, so it gets the same floor. */}
       {placed.grid.rows === 1 && placed.grid.height > 0 && (
-        <ContactShadows
-          frames={1}
-          position={[0, -placed.grid.height / 2 - 1.1, 0]}
-          scale={placed.grid.width * 1.15}
-          blur={2.1}
-          far={placed.grid.height * 0.55}
-          resolution={512}
-          color={shadow.shadowColor}
-          opacity={shadow.shadowOpacity}
-        />
+        <>
+          {ground && (
+            <Ground
+              spec={ground}
+              theme={theme}
+              fixed={{
+                y: groundYIn(placed.grid.height),
+                radius: (placed.grid.width * 1.15 * ground.radiusFactor) / 2,
+              }}
+            />
+          )}
+          <ContactShadows
+            frames={1}
+            position={[0, groundYIn(placed.grid.height) + 0.02, 0]}
+            scale={placed.grid.width * 1.15}
+            blur={2.1}
+            far={placed.grid.height * 0.55}
+            resolution={512}
+            color={shadow.shadowColor}
+            opacity={shadow.shadowOpacity}
+          />
+        </>
       )}
       <Pump signal={placed} />
     </>
@@ -385,7 +410,7 @@ function BoardScene({
 
 // --- canvas ---------------------------------------------------------------
 
-export default function Board3D({ products, scene, onFocus, onReady }: Board3DProps) {
+export default function Board3D({ products, scene, theme, onFocus, onReady }: Board3DProps) {
   const cfg = getScene(scene).three
   const [contextLost, setContextLost] = useState(false)
   const [canvasKey, setCanvasKey] = useState(0)
@@ -463,11 +488,31 @@ export default function Board3D({ products, scene, onFocus, onReady }: Board3DPr
           args={[cfg.hemisphere.sky, cfg.hemisphere.ground, cfg.hemisphere.intensity]}
         />
       )}
+      {/* THE SEPARATION LIGHTS, for the same reason the single-garment stage
+          has them: a black tee against this backdrop measured a silhouette step
+          of 0,2 sRGB levels, which is no outline at all, and the basket is
+          where a customer compares one line against another. No shadow map, so
+          a directional light's position here is only a bearing and none of the
+          stage's extent plumbing is needed. This scene also inherited the night
+          exposure lift, which was calibrated in the preview WITH these two
+          carrying part of it, so leaving them out left board night both
+          brighter and flatter than the thing it is a picture of. */}
+      {cfg.rims?.map((r, i) => (
+        <directionalLight
+          key={i}
+          position={r.direction}
+          intensity={r.intensity}
+          color={r.color}
+          castShadow={false}
+        />
+      ))}
       <Suspense fallback={null}>
         <BoardScene
           products={products}
           envIntensity={cfg.envIntensity}
           shadow={{ shadowColor: cfg.shadowColor, shadowOpacity: cfg.shadowOpacity }}
+          ground={cfg.ground}
+          theme={theme}
           onFocus={(id) => {
             if (!moved.current) onFocus(id)
           }}
