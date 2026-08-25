@@ -499,7 +499,7 @@ export default function Board3D({ products, scene, theme, onFocus, onReady }: Bo
         })
       }}
     >
-      <SceneEnvironment key={scene} config={cfg} resolution={mobile ? 256 : 512} />
+      <SceneEnvironment config={cfg} resolution={mobile ? 256 : 512} />
       {cfg.hemisphere && (
         <hemisphereLight
           args={[cfg.hemisphere.sky, cfg.hemisphere.ground, cfg.hemisphere.intensity]}

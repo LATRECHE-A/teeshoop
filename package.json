@@ -48,7 +48,8 @@
     "verify:couleurs": "node scripts/couleurs-guard.mjs",
     "verify:render": "node scripts/render-verify.mjs",
     "verify:mockups": "node scripts/mockup-shots.mjs",
-    "bench:frame": "node scripts/frame-bench.mjs"
+    "bench:frame": "node scripts/frame-bench.mjs",
+    "verify:leak": "node scripts/leak-verify.mjs"
   },
   "keywords": [],
   "type": "module",

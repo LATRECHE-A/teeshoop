@@ -326,7 +326,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
         }}
       >
         {/* Re-key on scene id so the env map re-bakes when the scene changes. */}
-        <SceneEnvironment key={scene} config={cfg} resolution={PROFILE.envResolution} />
+        <SceneEnvironment config={cfg} resolution={PROFILE.envResolution} />
         {cfg.hemisphere && (
           <hemisphereLight
             args={[cfg.hemisphere.sky, cfg.hemisphere.ground, cfg.hemisphere.intensity]}

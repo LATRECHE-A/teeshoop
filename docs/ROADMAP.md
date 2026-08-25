@@ -758,6 +758,51 @@ pixels selon la scène), le contour se lit partout à au moins 12 niveaux de mé
 garde ses nuances (59 niveaux du 5e au 99e centile sur un noir, 88 sur un blanc), un blanc
 lit blanc et neutre, et une teinte neutre reste neutre.
 
+### Le sélecteur de scènes fuyait de la mémoire graphique à chaque clic
+
+Trouvé en cherchant autre chose : la sonde écrite pour savoir quel état survivait d'un cas de
+`render-verify` au suivant a démenti l'hypothèse qu'elle devait tester (changer de vêtement
+ne laisse rien derrière, les compteurs reviennent au chiffre près) et en a trouvé une autre.
+
+**Mesuré sur 18 changements de scène, avant correction** : le graphe de scène ATTEIGNABLE ne
+bouge jamais (5 géométries, 5 matériaux, 6 textures) pendant que l'allocation du moteur de
+rendu monte de **13 à 67 textures, exactement +3 par changement, sans plafond**. Un client
+qui parcourt le sélecteur paie cela à chaque clic, sur son téléphone, et aucune capture d'une
+image isolée ne peut le voir.
+
+Deux causes, toutes deux fermées.
+
+1. `<SceneEnvironment key={scene}>` remontait le `<Environment>` de drei. three r185 n'attache
+   son écouteur `onPMREMDispose` que sur l'une des deux branches de `WebGLCubeUVMaps`, et un
+   environnement `frames={1}` a déjà rendu dans sa cible cube à ce moment-là : il prend
+   l'autre branche, aucun écouteur n'est posé, drei appelle `fbo.dispose()` correctement et
+   personne n'écoute. La clé est retirée et les softbox sont mémoïsées sur `config`, qui est
+   la constante `SCENES[id].three` : drei recuit dans la MÊME cible et three régénère le PMREM
+   sur place, ce pour quoi ce chemin existe.
+2. `<ContactShadows>` de drei mémoïse deux cibles de rendu, une géométrie et trois matériaux
+   sur `[resolution, width, height, scale, color]` et n'en libère aucun. Notre teinte d'ombre
+   par scène était dans cette liste. C'était le dernier terme variable, et la note laissée par
+   la séance précédente nommait déjà le remède : sortir `color` de la liste et teinter après
+   le montage. C'est exactement équivalent et pas approximativement : drei écrit
+   `ucolor * z * 2` dans la cible, le maillage visible est un `meshBasicMaterial` dont le rgb
+   vaut `map.rgb * color`, donc épingler `ucolor` en blanc et poser la teinte sur le matériau
+   donne le même pixel, pour une allocation au lieu d'une par clic.
+
+**Après** : 13 textures, plates sur 18 changements, et l'identifiant de la texture
+d'environnement ne bouge plus.
+
+Le nouveau contrôle `npm run verify:leak` garde les deux, **et il garde aussi le contraire**.
+Une correction qui aurait arrêté la croissance en gelant l'environnement serait pire que la
+fuite : chaque scène rendrait avec la lumière de la première et tous les autres contrôles
+passeraient quand même. Il exige donc que les six scènes éclairent différemment et que
+chacune revienne à la même image à chaque visite. Mesuré : nuit 35,4/46,6/78,4 ·
+studio 50,3/53,8/61,3 · coucher 97,1/42,4/35,3 · plage 147,6/136,1/110,5 ·
+forêt 39,9/52,5/28,2 · ville 68,1/75,6/86,0, identiques aux trois passages.
+
+Sa sortie d'échec a été prouvée atteignable : arbre cassé exprès (les deux causes remises),
+`rc=3` et le message reproduit la mesure d'origine (16 -> 67, +3,0 par changement) ; arbre
+corrigé, `rc=0`.
+
 **Ce que coûte une image, mesuré.** `scripts/frame-bench.mjs` ne prétend pas mesurer un
 téléphone et le dit dans son propre en-tête : il n'y a pas de carte graphique de téléphone
 sur cette machine, chromium passe par un rastériseur logiciel, et une milliseconde mesurée

@@ -42,6 +42,7 @@ un temps (voir 3.2).
 | `scripts/parity-verify.mjs` | **PASS** | le placement d'impression concorde entre 2D, 3D et AR à 0,0-0,5 % près sur les trois tailles |
 | `scripts/grading-verify.mjs` | **PASS** | la déclinaison par taille tient à 0,27 %, et le raster du transfert colle à la zone au pixel |
 | `scripts/board-verify.mjs` | **PASS** | sans le moindre avertissement, alors qu'il sortait en WARN avant la séance |
+| `npm run verify:leak` | **PASS** | nouveau : parcourir les scènes n'alloue plus rien (13 textures, plates sur 18 changements, contre 13 -> 67 avant), les six scènes éclairent toujours différemment, et la sortie d'échec est prouvée (`rc=3` sur l'arbre cassé exprès) |
 | `scripts/3d-shots.mjs` | 14 images sur 14 **distinctes** | contre 10 sur 14 avant la correction de la demande de vue |
 | `scripts/frame-bench.mjs` | mesuré | voir `.qa/frame-bench-after2.json` et l'en-tête de `src/three/index.tsx` |
 

@@ -17,9 +17,47 @@ import type { GroundSpec, KeyLightSpec, RimLightSpec, Scene3DConfig } from '@/sc
  * garment picks up that environment's key, fills, rims and colour. Positions
  * are in the environment's own virtual scene (not garment inches).
  *
- * Mount this with `key={sceneId}` so switching scenes re-bakes the map.
+ * DO NOT MOUNT THIS WITH `key={sceneId}`. It used to be, to force a re-bake, and
+ * every remount leaked three GPU textures and a geometry that nothing could
+ * reach and nothing disposed. Measured with `window.__stage.census()` over 18
+ * scene changes on one garment: the reachable scene graph never moved (5
+ * geometries, 5 materials, 6 textures) while the renderer's allocation climbed
+ * 13 -> 67 textures, exactly +3 per change, with no ceiling. A customer flipping
+ * through the scene picker pays that on every click, on a phone.
+ *
+ * The cause is a sharp edge in three r185. `WebGLCubeUVMaps` attaches its
+ * `onPMREMDispose` listener ONLY on the branch that builds a PMREM for a texture
+ * with no cached target and no version bump. A drei `<Environment frames={1}>`
+ * has already rendered into its cube target by then, so `pmremVersion` is
+ * non-zero, the other branch is taken, and no dispose listener is ever
+ * registered. drei does call `fbo.dispose()` on unmount, correctly, and nothing
+ * is listening.
+ *
+ * So we stop unmounting. The children are memoised on `config`, which is the
+ * module-level `SCENES[id].three` and therefore changes identity exactly when
+ * the scene does and never on an unrelated re-render of the studio. drei's own
+ * layout effect watches `children` and re-bakes into the SAME target, and three
+ * regenerates the PMREM in place through `fromCubemap(texture, renderTarget)`
+ * once `pmremVersion` moves. That path exists for precisely this case. One cube
+ * target and one PMREM for the life of the canvas, one re-bake per scene change,
+ * which is what `key` was bought for in the first place.
  */
 export function SceneEnvironment({ config, resolution = 512 }: { config: Scene3DConfig; resolution?: number }) {
+  const softboxes = useMemo(
+    () =>
+      config.lightformers.map((lf, i) => (
+        <Lightformer
+          key={i}
+          form={lf.form ?? 'rect'}
+          intensity={lf.intensity}
+          color={lf.color}
+          position={lf.position}
+          scale={lf.scale}
+          target={lf.target ?? [0, 0, 0]}
+        />
+      )),
+    [config],
+  )
   return (
     // 512, up from 256: the sheen lobe integrates the env map at grazing
     // angles, and at 256 the softbox edges band visibly across a smooth
@@ -35,17 +73,7 @@ export function SceneEnvironment({ config, resolution = 512 }: { config: Scene3D
     // mount that takes 58-66 s under swiftshader, so it failed as a coin flip
     // on BOTH the changed and the unchanged tree. Fixed in e2e-verify.mjs.
     <Environment resolution={resolution} frames={1}>
-      {config.lightformers.map((lf, i) => (
-        <Lightformer
-          key={i}
-          form={lf.form ?? 'rect'}
-          intensity={lf.intensity}
-          color={lf.color}
-          position={lf.position}
-          scale={lf.scale}
-          target={lf.target ?? [0, 0, 0]}
-        />
-      ))}
+      {softboxes}
     </Environment>
   )
 }
@@ -371,18 +399,29 @@ export function Ground({
  * covers both garments (0,30 local ≈ 20 in on a tee, 32 in on a hoodie, the whole
  * lower body of each) takes the measurement out of that dependency list.
  *
- * WHAT IS LEFT, so nobody reads this as "fixed": `color` is still a dependency
- * and the six scenes carry six shadow tints, so flipping through the scene
- * picker orphans a pair of render targets PER SWITCH. That is not bounded by
- * six: there are six distinct tints but no reuse, so a customer who flips back
- * and forth pays for every flip. It is bounded only by how long the tab is
- * open, which is exactly what the earlier sentence here claimed it was not.
- * Closing it properly means taking `color` out of the dependency list (set the
- * tint on the material after mount) or mounting one rig per scene and toggling
- * `.visible`; both change what the shadow looks like, so both need a render
- * pass behind them. The unbounded-per-size-click one is genuinely gone.
+ * The `color` half of it is now closed too, and this is what that took. `color`
+ * was the last varying entry in that dependency list, so flipping through the
+ * scene picker orphaned a pair of render targets PER SWITCH: not bounded by the
+ * six tints, because `useMemo` keeps only the latest, so going studio to night
+ * and back pays twice. Measured before the fix with `window.__stage.census()`
+ * over 18 scene changes: allocated textures 13 -> 67 while the reachable scene
+ * graph never left 6.
+ *
+ * The fix is the one the previous note named: take `color` out of the list and
+ * tint after mount. It is exactly equivalent rather than approximately so.
+ * drei bakes the tint into a `ucolor` uniform and writes `ucolor * z * 2` into
+ * the target with alpha `1 - z`; the visible mesh is a `meshBasicMaterial` whose
+ * rgb is `map.rgb * color`, and its `color` is left at white. Pin `ucolor` white
+ * and set the mesh's `color` to the scene tint and the pixel is `C * z * 2`
+ * either way, for one allocation instead of one per switch.
  */
 const CONTACT_FAR_LOCAL = 0.3
+
+/**
+ * Pinned so drei's seven-object memo never re-runs. The scene's tint is applied
+ * to the visible material instead (see Floor), which is the same arithmetic.
+ */
+const CONTACT_TINT_BASE = '#ffffff'
 
 export function Floor({
   extent,
@@ -394,6 +433,8 @@ export function Floor({
   shadowOpacity?: number
 }) {
   const group = useRef<THREE.Group>(null)
+  const tinted = useRef<string | null>(null)
+  const missed = useRef(0)
   // Follow the measurement per frame rather than per render: the writer is the
   // garment, inside this same root, and there is no scheduler between us.
   useFrame(() => {
@@ -405,6 +446,28 @@ export function Floor({
     const floorY = groundYIn(e.heightIn) + SHADOW_LIFT_IN
     if (g.position.y !== floorY) g.position.y = floorY
     if (g.scale.x !== scale) g.scale.setScalar(scale)
+    // The scene's shadow tint, applied to the material rather than passed to
+    // drei, because passing it reallocates the whole rig and frees nothing.
+    // Searched rather than indexed: this is another library's subtree, and
+    // `children[0].children[0]` would go wrong silently the day drei adds a
+    // wrapper. It retries until the subtree exists, because on the first frames
+    // it does not yet.
+    if (tinted.current !== shadowColor) {
+      let hit = false
+      g.traverse((o) => {
+        const m = o as THREE.Mesh
+        const mat = m.material as THREE.MeshBasicMaterial | undefined
+        if (!m.isMesh || !mat?.isMeshBasicMaterial || !mat.map) return
+        mat.color.set(shadowColor)
+        hit = true
+      })
+      if (hit) {
+        tinted.current = shadowColor
+        missed.current = 0
+      } else if (import.meta.env.DEV && ++missed.current === 120) {
+        console.error('Floor: no contact-shadow material to tint after 120 frames')
+      }
+    }
   })
   // drei's ContactShadows memoises two WebGLRenderTargets, a PlaneGeometry and
   // three materials on [resolution, width, height, scale, color] — and disposes
@@ -435,7 +498,7 @@ export function Floor({
         blur={2.1}
         far={CONTACT_FAR_LOCAL}
         resolution={512}
-        color={shadowColor}
+        color={CONTACT_TINT_BASE}
       />
     </group>
   )
@@ -536,6 +599,44 @@ export function ReadyPing({ onReady }: { onReady?: () => void }) {
             }
           })
           return n
+        },
+        /*
+         * WHAT THE SCENE STILL POINTS AT, beside what the renderer still holds.
+         *
+         * `gl.info.memory` counts GPU objects that are allocated; it cannot say
+         * whether anything still refers to them. The difference between the two
+         * IS the leak: a resource nobody can reach and nobody disposed. Without
+         * both halves the numbers are unreadable, which is why the first pass at
+         * this measured only `info.memory`, saw it climb, and could not tell a
+         * leak from a scene that had honestly grown.
+         */
+        census: () => {
+          const geo = new Set<string>()
+          const mat = new Set<string>()
+          const tex = new Set<string>()
+          const noteTex = (t: unknown) => {
+            const u = (t as THREE.Texture | null)?.uuid
+            if (u) tex.add(u)
+          }
+          scene.traverse((o) => {
+            const m = o as THREE.Mesh
+            if (!m.isMesh) return
+            if (m.geometry?.uuid) geo.add(m.geometry.uuid)
+            for (const one of Array.isArray(m.material) ? m.material : [m.material]) {
+              if (!one) continue
+              mat.add(one.uuid)
+              for (const v of Object.values(one as unknown as Record<string, unknown>))
+                if (v && (v as THREE.Texture).isTexture) noteTex(v)
+            }
+          })
+          noteTex(scene.environment)
+          noteTex(scene.background)
+          return {
+            reachable: { geometries: geo.size, materials: mat.size, textures: tex.size },
+            allocated: { geometries: gl.info.memory.geometries, textures: gl.info.memory.textures },
+            programs: gl.info.programs?.length ?? 0,
+            environmentUuid: scene.environment?.uuid ?? null,
+          }
         },
       }
     }
