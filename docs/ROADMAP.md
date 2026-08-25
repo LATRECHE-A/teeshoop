@@ -789,9 +789,10 @@ haut. La mission parlait de trois endroits où l'aperçu est regardé et le pani
 Il a maintenant les mêmes lumières et le même sol, et son encre reçoit le même relief de
 tissu que l'aperçu, ce que le message de commit affirmait déjà et que le code ne faisait pas.
 
-**Ce que la séance 10 n'a pas fait, et qui reste ouvert.** La ligne du tableau ci-dessous
-dit « faite » pour la partie mesurée et gardée : l'aperçu 3D d'un vêtement du catalogue.
-Le reste de la liste du brief est ouvert et vaut la peine d'être écrit plutôt que classé.
+**Ce que la séance 10 n'a pas fait, et qui reste ouvert.** La ligne du tableau plus bas ne
+dit plus « faite » : ce qui est fait, mesuré et gardé, c'est l'aperçu 3D d'un vêtement du
+catalogue. Le reste de la liste du brief est ouvert et vaut la peine d'être écrit plutôt que
+classé.
 
 - **La vue « détail » existe maintenant, la vue « porté » non, et c'est un refus motivé.**
   Le brief demandait quatre images par vêtement : avant, dos, détail, et porté « si nous
@@ -815,8 +816,37 @@ Le reste de la liste du brief est ouvert et vaut la peine d'être écrit plutôt
   ajouté : l'item 4 a été lu comme « améliorer les six scènes existantes ». Si un préréglage
   au sens propre est voulu (une scène plus un cadrage, enregistrés ensemble), c'est du
   produit et cela se décide.
+- **Deux assertions de `render-verify` restent rouges, et c'est toujours la même mesure**
+  (l'écart de 2 % d'une image prise tard dans un balayage, décrit plus haut). Le contrôle
+  emporte maintenant `RENDER_DOUBLE=1`, qui relit la MÊME image deux fois de suite sans rien
+  toucher entre les deux : si les deux lectures diffèrent, le défaut est dans la relecture du
+  tampon de dessin, qui n'est pas conservé et court après le compositeur ; si elles sont
+  identiques, c'est de l'état qui s'accumule dans le contexte WebGL d'un cas à l'autre. Les
+  deux réparations n'ont rien à voir, et c'est cette question-là qui part en séance 13.
+- **Le liseré d'encre n'est toujours pas sous contrôle chiffré.** La correction
+  (prémultiplication, division, décodage) est de l'arithmétique démontrable, mais la mire de
+  calibrage cerne ses propres lettres d'un trait noir, donc le compteur de liseré compte ce
+  trait autant que le défaut. Il est imprimé et pas gardé, ce qui est honnête et insuffisant :
+  ce qu'il faut est une mire à bords francs sans noir à elle.
+- **Sur un vêtement envoyé par le client, l'encre ne peut PAS avoir de tranche de film**, et
+  c'est inhérent : son visuel est composé en 2D dans la photo du vêtement avant d'arriver en
+  3D (`renderMockup`), donc il n'existe pas comme couche séparée à éclairer. Pour la même
+  raison le liseré d'alpha droit ne l'atteint pas non plus : à l'intérieur du vêtement la
+  photo est opaque. Ce n'est pas un drapeau oublié, c'est la conséquence du chemin, et cela
+  vaut d'être écrit avant que quelqu'un « corrige » les quatre appels concernés.
+- **Le sélecteur de scène est un `listbox` en ARIA et pas en comportement** : pas de flèches,
+  pas de `tabindex` glissant, le focus n'entre pas dans la liste et ne revient pas au bouton.
+  C'est de la dette d'avant la séance et elle appartient à la séance 12 (accessibilité).
 - **Le balayage `render-verify` reste lent et hors CI** (quelques minutes par cas sous
   rendu logiciel), donc il ne protège rien automatiquement : il faut le lancer.
+- **Les planches de contrôle légendaient des images prises en cours de mouvement.**
+  `scripts/3d-shots.mjs` attendait 2 500 ms après « ready » puis capturait ; sous rendu
+  logiciel l'amortissement du pivot n'est pas arrivé dans ce délai. Mesuré :
+  `tee-white-front.png` était un trois-quarts à demi tourné, et pour le sweat comme pour le
+  vêtement envoyé la vue « avant » et la vue « trois-quarts » sortaient **identiques à
+  l'octet près**. Le script demande maintenant au rig s'il est arrivé au lieu de regarder
+  l'horloge. C'est le même défaut que les quatre corrigés dans le contrôle de rendu : attendre
+  une durée au lieu d'attendre un signal.
 
 ---
 

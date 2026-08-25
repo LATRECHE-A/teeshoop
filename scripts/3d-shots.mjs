@@ -105,7 +105,31 @@ try {
   // ------------- /dev/three.html at fixed views -------------
   // Fresh page per shot: re-navigating a live WebGL page under swiftshader
   // can hang the renderer process indefinitely.
-  const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: 1 })
+  /*
+   * reducedMotion, and it is not a nicety: it is what makes a shot be the shot
+   * its filename says.
+   *
+   * The view snap damps exponentially toward the requested side. This script
+   * used to wait 2 500 ms and grab, and under software rendering that is not
+   * enough frames for the damp to arrive: measured on this tree,
+   * `tee-white-front.png` came out as a partly swung three-quarter with the
+   * print grid visibly foreshortened, and for the hoodie and the custom card the
+   * swing had not started at all, so `hoodie-black-34.png` and
+   * `hoodie-black-front.png` were BYTE-IDENTICAL. A proof sheet whose captions
+   * do not describe its images is worse than no proof sheet, because it is the
+   * thing a person looks at to decide whether the render is right.
+   *
+   * `reducedMotion: 'reduce'` takes the analytic branch in CameraRig, so the
+   * camera is placed at the requested pose in the effect rather than walked
+   * there over an unknown number of frames. That branch exists on the
+   * pre-session tree as well, which is what lets the same script produce a
+   * comparable BEFORE from a worktree.
+   */
+  const ctx = await browser.newContext({
+    viewport: { width: 1100, height: 900 },
+    deviceScaleFactor: 1,
+    reducedMotion: 'reduce',
+  })
   const harnessShot = async (name, params) => {
     if (!wanted(name)) return
     const page = await ctx.newPage()
@@ -113,7 +137,16 @@ try {
     try {
       await page.goto(`${BASE}/dev/three.html?${params}`, { waitUntil: 'load', timeout: 180000 })
       await page.waitForFunction(() => document.body.innerText.includes('ready'), { timeout: 180000 })
-      await page.waitForTimeout(2500) // let the view-snap damp settle
+      // Ask the rig, not the clock. `goal === null` means the snap has arrived;
+      // with reducedMotion it is true immediately, and on a tree without the
+      // probe the catch below falls back to the old timer rather than failing.
+      await page
+        .waitForFunction(() => {
+          const p = window.__pose
+          return !!p && p.goal === null
+        }, { timeout: 120000, polling: 250 })
+        .catch(() => {})
+      await page.waitForTimeout(2500)
       save(name, await page.evaluate(READBACK, { selector: 'main canvas', bg: DARK_BG }))
     } catch (e) {
       console.error('FAILED', name, String(e).split('\n')[0])
@@ -135,7 +168,7 @@ try {
   // ------------- studio app (sample design) -------------
   const shoot = async (theme, shots) => {
     try {
-    const c2 = await browser.newContext({ viewport: { width: 1600, height: 980 }, deviceScaleFactor: 1 })
+    const c2 = await browser.newContext({ viewport: { width: 1600, height: 980 }, deviceScaleFactor: 1, reducedMotion: 'reduce' })
     await c2.addInitScript((t) => {
       try { localStorage.setItem('tshop:prefs', JSON.stringify({ theme: t, lang: 'en', scene: 'studio', showGuides: false })) } catch {}
     }, theme)
@@ -165,7 +198,7 @@ try {
   // ------------- inflated shell harness -------------
   if (wanted('inflate'))
   try {
-    const c3 = await browser.newContext({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: 1 })
+    const c3 = await browser.newContext({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: 1, reducedMotion: 'reduce' })
     const p3 = await c3.newPage()
     p3.on('pageerror', (e) => console.error('[pageerror]', e.message))
     // The inflate harness is the heaviest dev page (bg-removal worker + shell

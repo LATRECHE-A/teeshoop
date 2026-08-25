@@ -26,6 +26,18 @@
  *   3. The raw frame time under this rasteriser, printed as an index and
  *      labelled as such.
  *
+ * A WORKED EXAMPLE OF WHY THE MILLISECONDS DO NOT TRAVEL, from this bench's own
+ * output: the tee costs MORE per frame than the hoodie (desktop 16,9 against
+ * 16,5 ms, phone 45,1 against 31,2) while carrying 3,46x FEWER triangles. It is
+ * fill rate, not geometry. The camera frames the chart's biggest size and an
+ * A-pose hoodie's arm span sets the distance, so the tee covers 38,8 % of the
+ * pane and the hoodie 21,0 % (areaFrac in .qa/render-final/render-verify.json):
+ * 1,85x the shaded pixels. A software rasteriser is fragment-bound and loses
+ * that trade; a real GPU, with fixed-function triangle setup and a wide
+ * fragment array, would very likely win it and put the hoodie back on top.
+ * Which is the whole argument for budgeting against the draw calls and the
+ * triangle counts below, and not against these milliseconds.
+ *
  * The phone profile is emulated the only way it can be: the viewport and device
  * pixel ratio of a Pixel 8a (393 x 851 at 2.75), touch input, and a 4x CPU
  * throttle. That reproduces which BRANCH the app takes, which is the thing under

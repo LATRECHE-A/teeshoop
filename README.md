@@ -157,10 +157,11 @@ round-trip via `wrangler dev`). Regenerate the README screenshots with
 **`npm run verify:render` is the only gate that looks at a rendered frame.** Every
 other 3D harness measures geometry, and that is exactly where this module's defects
 were not: it asserts the properties a garment PHOTOGRAPH has, on the real bundle in
-a real browser. Is the garment cropped, is it centred, does it fill the pane, does
-it throw a shadow onto anything, can its outline be told from the backdrop, does its
-shadow side keep detail, does white cloth read white and neutral, and is the same
-capture repeatable. It classifies pixels by capturing the stage in three layers
+a real browser, over all six scenes a customer can flip to, on both catalogue meshes
+and on an uploaded garment (a different renderer entirely). Is the garment cropped, is
+it centred, does it fill the pane, does it throw a shadow onto anything, can its outline
+be told from the backdrop, does its shadow side keep detail, does white cloth read white
+and neutral, and is the same capture repeatable. It classifies pixels by capturing the stage in three layers
 (garment alone, empty stage, both) rather than by guessing what cloth looks like,
 and it composites the CSS backdrop through an SVG foreignObject because the frame a
 customer sees exists in no single buffer. It runs under `prefers-reduced-motion`,
