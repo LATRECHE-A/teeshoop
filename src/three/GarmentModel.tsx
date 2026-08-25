@@ -22,10 +22,11 @@ import type { CatalogGarmentId, DecalSource, Side, SizeId } from '@/lib/types'
 import { DEFAULT_SIZE } from '@/content/sizeChart'
 import { GARMENTS } from '@/garments'
 import { CALIBRATION, MAX_BAKED_NORMAL_SCALE } from './calibration'
-import { applyWeaveBump, WEAVE_DEFAULTS } from './clothShading'
+import { applyWeaveBump, inkWeaveOptions, WEAVE_DEFAULTS } from './clothShading'
 import { buildFabricOverlay, fabricPrintMaterial, projectedPrintMaterial } from './decalGeom'
 import { armProfile, buildGarmentFrame, fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
 import { useSourceTexture } from './textures'
+import { shellRadiusAt } from './fabricUnwrap'
 
 useGLTF.preload('/models/tee.glb', false, false)
 useGLTF.preload('/models/hoodie.glb', false, false)
@@ -167,23 +168,11 @@ function PrintOverlay({ frame, garment, side, source, k, envIntensity }: PrintOv
   const material = useMemo(
     () =>
       texture
-        ? fabricPrintMaterial(texture, cavity, {
-            ...WEAVE_DEFAULTS,
-            // Ink bridges the THREADS: it takes the cloth's grain at roughly a
-            // third of its depth. It does NOT bridge a fold — a transfer bends
-            // with the cloth it is fused to — so the drape octave is passed
-            // through at full strength and with the same slack ramp. Zeroing it
-            // (the old value) left a flat, corrugation-free patch lying over
-            // relieved cloth: the one thing that makes a print read as a vinyl
-            // sticker stuck on afterwards.
-            strength: WEAVE_DEFAULTS.strength * 0.35,
-            foldStrength: CALIBRATION[garment].cloth.foldStrength,
-            foldHalfHeightIn: frame.heightIn / 2,
-            // …and a third of the roughening the cloth gets when its grain goes
-            // sub-pixel: the ink film is smoother than the knit, so it keeps a
-            // tighter highlight as the camera pulls back.
-            roughGain: 0.04,
-          })
+        ? fabricPrintMaterial(
+            texture,
+            cavity,
+            inkWeaveOptions(CALIBRATION[garment].cloth.foldStrength, frame.heightIn / 2),
+          )
         : null,
     [texture, cavity, garment, frame.heightIn],
   )
@@ -221,19 +210,10 @@ function useProjectedInk(
   const material = useMemo(
     () =>
       texture
-        ? projectedPrintMaterial(texture, {
-            ...WEAVE_DEFAULTS,
-            strength: WEAVE_DEFAULTS.strength * 0.35,
-            foldStrength: CALIBRATION[garment].cloth.foldStrength,
-            // THE SAME SLACK RAMP THE CLOTH UNDER IT TAKES. The ramp is a
-            // function of object-space Y over the whole garment, so a sleeve is
-            // inside its domain like everything else; switching it off here
-            // would give the ink a fold field at full amplitude sitting on cloth
-            // whose own folds are damped to 0,28 up there, which is two
-            // contradicting sets of wrinkles on one surface.
-            foldHalfHeightIn,
-            roughGain: 0.04,
-          })
+        ? projectedPrintMaterial(
+            texture,
+            inkWeaveOptions(CALIBRATION[garment].cloth.foldStrength, foldHalfHeightIn),
+          )
         : null,
     [texture, garment, foldHalfHeightIn],
   )
@@ -398,7 +378,14 @@ export interface GarmentModelProps {
     heightIn: number,
     widthIn?: number,
     fitIn?: { heightIn: number; widthIn: number },
-    printIn?: { heightIn: number; widthIn: number; centreYIn: number },
+    printIn?: {
+      heightIn: number
+      widthIn: number
+      centreYIn: number
+      centreZIn: number
+      topZIn: number
+      bottomZIn: number
+    },
   ) => void
 }
 
@@ -449,10 +436,38 @@ export function GarmentModel({
    */
   const printFrame = useMemo(() => {
     const area = GARMENTS[garment].printAreasIn.front
+    const centreYIn = printCentreYIn(garment, 'front', normalized, printK)
+    /**
+     * How far the printed cloth stands off the rotation axis, at that height.
+     *
+     * From the SAME arc table the ink is mapped through, at theta = 0, which is
+     * the centre-front line: `shellRadiusAt` in raw units, scaled by the girth
+     * scale. A camera placed at the distance the print rectangle asks for is
+     * that much closer to the ink than to the axis it orbits, and on a tee that
+     * is 5,8 in out of 38,8, which crops the print. When the table is not usable
+     * (an ingested mesh we could not describe) the bbox half-depth is the
+     * conservative stand-in: it is never smaller than the true offset, so the
+     * close-up errs wide rather than cropping.
+     */
+    const centreZIn = normalized.table.usable
+      ? shellRadiusAt(normalized.table, centreYIn / normalized.yScale, 0) * normalized.xzScale
+      : normalized.depthIn / 2
+    // The same reading at the rect's own top and bottom edges, because that is
+    // where a close-up crops and the shell is not a cylinder: on the tee the
+    // surface stands 5,79 in proud at the print centre and 6,04 at the bottom
+    // edge, and it is the far edge that decides whether the area fits.
+    const hIn = area.hIn * printK
+    const zAt = (y: number) =>
+      normalized.table.usable
+        ? shellRadiusAt(normalized.table, y / normalized.yScale, 0) * normalized.xzScale
+        : normalized.depthIn / 2
     return {
       widthIn: area.wIn * printK,
-      heightIn: area.hIn * printK,
-      centreYIn: printCentreYIn(garment, 'front', normalized, printK),
+      heightIn: hIn,
+      centreYIn,
+      centreZIn,
+      topZIn: zAt(centreYIn + hIn / 2),
+      bottomZIn: zAt(centreYIn - hIn / 2),
     }
   }, [garment, printK, normalized])
 

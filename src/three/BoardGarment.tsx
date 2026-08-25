@@ -27,7 +27,7 @@ import type { CatalogGarmentId, DecalSource, Side } from '@/lib/types'
 import { buildFabricDecal, makeCurvedDecal, projectedPrintMaterial } from './decalGeom'
 import { fabricFrameFor, printCentreYIn, type GarmentFrame } from './garmentFrame'
 import { useSourceTexture } from './textures'
-import { WEAVE_DEFAULTS } from './clothShading'
+import { inkWeaveOptions } from './clothShading'
 import { CALIBRATION } from './calibration'
 
 /**
@@ -61,19 +61,16 @@ function BoardPrint({ frame, garment, side, source, k }: BoardPrintProps) {
   // not do. `projectedPrintMaterial` takes the relief as an optional argument
   // and it was being left out, so the board's ink was the only ink in the app
   // sitting on a surface with no cloth under it: flat where the preview's is
-  // broken up by the same thread and drape field as the garment. Same options
-  // the preview passes (GarmentModel.useProjectedInk), read from the same
-  // calibration and the same frame, so the two cannot drift apart.
+  // broken up by the same thread and drape field as the garment. It is the
+  // SAME FUNCTION the preview calls now, not the same literal written out
+  // again, which is what "cannot drift apart" has to mean.
   const material = useMemo(
     () =>
       texture
-        ? projectedPrintMaterial(texture, {
-            ...WEAVE_DEFAULTS,
-            strength: WEAVE_DEFAULTS.strength * 0.35,
-            foldStrength: CALIBRATION[garment].cloth.foldStrength,
-            foldHalfHeightIn: frame.heightIn / 2,
-            roughGain: 0.04,
-          })
+        ? projectedPrintMaterial(
+            texture,
+            inkWeaveOptions(CALIBRATION[garment].cloth.foldStrength, frame.heightIn / 2),
+          )
         : null,
     [texture, garment, frame.heightIn],
   )

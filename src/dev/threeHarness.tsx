@@ -23,14 +23,27 @@ import Garment3D, { isWebGLAvailable } from '@/three'
 import { removeBackground } from '@/lib/bgremove'
 import { isSceneId, SCENE_IDS, stageBackground, type SceneId } from '@/scenes'
 import { isSizeId, SIZE_IDS, type SizeId } from '@/content/sizeChart'
+import { GARMENTS } from '@/garments'
 import type { CardSource, DecalSource, GarmentId, Side, ViewSnap } from '@/lib/types'
 
 const PPI = 40 // texture pixels per inch
 
 const GARMENT_WIDTH_IN: Record<GarmentId, number> = { tee: 21.5, hoodie: 23, custom: 20 }
+/**
+ * The print areas, READ FROM THE CATALOGUE rather than copied beside it.
+ *
+ * These four rectangles used to be written out here as literals, a third copy
+ * of `printAreasIn` after src/garments/*.ts and the pixel rects the 2D art
+ * carries. The detail framing made that dangerous rather than merely untidy: the
+ * camera derives its close-up from GARMENTS[...].printAreasIn while the pixels
+ * it photographs came from this table, so changing a print area in the
+ * catalogue would have framed the new rectangle around ink still drawn at the
+ * old size, with the determinism gate green because both renders agree with
+ * each other.
+ */
 const PRINT_SIZES: Record<'tee' | 'hoodie', Record<Side, { wIn: number; hIn: number }>> = {
-  tee: { front: { wIn: 12, hIn: 16 }, back: { wIn: 12, hIn: 16 }, sleeve: { wIn: 4, hIn: 4 } },
-  hoodie: { front: { wIn: 12, hIn: 12 }, back: { wIn: 12, hIn: 14 }, sleeve: { wIn: 4, hIn: 4 } },
+  tee: GARMENTS.tee.printAreasIn,
+  hoodie: GARMENTS.hoodie.printAreasIn,
 }
 const COLORS = ['#FFFFFF', '#191C20', '#C0272D', '#1F2A44']
 

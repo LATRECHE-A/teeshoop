@@ -66,18 +66,29 @@ export function isWebGLAvailable(): boolean {
  * nothing about a Mali or an Adreno. `scripts/frame-bench.mjs` measures what IS
  * portable and says so itself in its own header.
  *
- * WHAT IT MEASURED on this tree, 14 frames per case, software rasterisation:
+ * WHAT IT MEASURED on this tree, 14 frames per case, software rasterisation,
+ * stalls excluded and counted (.qa/frame-bench-after2.json):
  *
- *   desktop  tee     18,1 ms  ·  21 draw calls · 234 594 triangles · 11 programs
- *   desktop  hoodie  20,8 ms  ·  21 draw calls · 811 698 triangles · 11 programs
- *   phone    tee     47,8 ms  ·  same geometry · shadow map 1024 instead of 2048
- *   phone    hoodie  42,1 ms  ·  same geometry · shadow map 1024 instead of 2048
+ *   desktop  tee     16,9 ms  ·  21 draw calls · 234 594 triangles · 1280x900 px
+ *   desktop  hoodie  16,5 ms  ·  21 draw calls · 811 698 triangles · 1280x900 px
+ *   phone    tee     45,1 ms  ·  same geometry  · 491x1063 px, shadow map 1024
+ *   phone    hoodie  31,2 ms  ·  same geometry  · 491x1063 px, shadow map 1024
  *
- * The phone rows run under a 4x CPU throttle at 2,75x device pixels and cost
- * 2,4x and 2,0x the desktop rows, so the cuts below are carrying roughly half
- * the load the throttle adds. The draw-call and triangle counts are the numbers
- * that travel; anyone tightening these constants should move those, not a
- * millisecond figure quoted as if it were a phone.
+ * The four numbers that stood here before were from a run this repository has
+ * since declared invalid, and they are recorded as replaced rather than quietly
+ * swapped: the desktop tee row carried a p95 of 2 877 ms and a max of 44 976 ms,
+ * which is a shader compiling inside the timed window and not a frame; and the
+ * phone rows were drawn on a 125 px-wide canvas, because the harness's fixed
+ * 268 px sidebar took two thirds of a Pixel 8a's 393. Both are fixed in
+ * scripts/frame-bench.mjs, which now records the canvas it really drew.
+ *
+ * READ THE TEE AGAINST THE HOODIE BEFORE TIGHTENING ANYTHING. The tee costs
+ * MORE per frame while carrying 3,46x FEWER triangles, because the camera frames
+ * the chart's biggest size and an A-pose hoodie's arm span sets the distance: the
+ * tee covers 38,8 % of the pane and the hoodie 21,0 %. A software rasteriser is
+ * fragment-bound and loses that trade; a real GPU would probably win it. Which is
+ * the whole reason the draw-call and triangle counts are the numbers that travel,
+ * and a millisecond figure here must never be quoted as if it were a phone.
  */
 const MOBILE = typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767.98px)').matches
 
@@ -203,7 +214,14 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
       heightIn: number,
       widthIn?: number,
       fitIn?: { heightIn: number; widthIn: number },
-      printIn?: { heightIn: number; widthIn: number; centreYIn: number },
+      printIn?: {
+        heightIn: number
+        widthIn: number
+        centreYIn: number
+        centreZIn: number
+        topZIn: number
+        bottomZIn: number
+      },
     ) => {
       extent.current.heightIn = heightIn
       extent.current.widthIn = widthIn ?? heightIn * 0.9
@@ -220,6 +238,9 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
         extent.current.printHeightIn = printIn.heightIn
         extent.current.printWidthIn = printIn.widthIn
         extent.current.printCentreYIn = printIn.centreYIn
+        extent.current.printCentreZIn = printIn.centreZIn
+        extent.current.printTopZIn = printIn.topZIn
+        extent.current.printBottomZIn = printIn.bottomZIn
       }
       extent.current.measured = true
     },

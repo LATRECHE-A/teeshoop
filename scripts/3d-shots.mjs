@@ -137,14 +137,32 @@ try {
     try {
       await page.goto(`${BASE}/dev/three.html?${params}`, { waitUntil: 'load', timeout: 180000 })
       await page.waitForFunction(() => document.body.innerText.includes('ready'), { timeout: 180000 })
-      // Ask the rig, not the clock. `goal === null` means the snap has arrived;
-      // with reducedMotion it is true immediately, and on a tree without the
-      // probe the catch below falls back to the old timer rather than failing.
+      /*
+       * ASK THE RIG, NOT THE CLOCK, and ask it the right question.
+       *
+       * "ready" is the canvas's first frame, which happens BEFORE the Suspense
+       * boundary has resolved the garment: measured on this tree, four seconds
+       * after "ready" the pose probe still reported `applied = 0` and a wanted
+       * radius of 67,92 in, which is the placeholder's, meaning the garment had
+       * not reported its extents and the auto-fit had never run once. Anything
+       * captured there is framed on a placeholder, and any `?v=` snap issued
+       * there swings at the placeholder's distance.
+       *
+       * So: wait for the garment to have MEASURED itself and for the camera to
+       * be at the radius that measurement asks for, then for the snap to have
+       * landed. `.catch` keeps the old timer as the fallback for a tree without
+       * the probe rather than failing the shot outright.
+       */
       await page
-        .waitForFunction(() => {
-          const p = window.__pose
-          return !!p && p.goal === null
-        }, { timeout: 120000, polling: 250 })
+        .waitForFunction(
+          () => {
+            const p = window.__pose
+            if (!p || !p.fit || p.fit.measured !== true) return false
+            if (p.goal !== null) return false
+            return Math.abs(p.fit.applied - p.fit.wanted) <= 0.5
+          },
+          { timeout: 180000, polling: 250 },
+        )
         .catch(() => {})
       await page.waitForTimeout(2500)
       save(name, await page.evaluate(READBACK, { selector: 'main canvas', bg: DARK_BG }))

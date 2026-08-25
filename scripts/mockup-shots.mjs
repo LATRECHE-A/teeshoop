@@ -76,6 +76,21 @@ const VIEWS = [
   { id: 'back', view: 'back', framing: 'garment' },
   { id: 'detail', view: 'front', framing: 'print' },
 ]
+/*
+ * THE DETAIL LENS IS FRONT-ONLY, and this is a hard refusal rather than a
+ * convention, because the table above reads as though view and framing were
+ * independent and they are not. MeasuredExtent carries ONE print rectangle and
+ * the garment reports the FRONT panel's (Stage.tsx, GarmentModel.tsx), while the
+ * two panels genuinely differ: a hoodie's back area is 12 x 14 in against the
+ * front's 12 x 12, and printCentreYIn subtracts collarSeamDropIn per side
+ * because a neckline scoops deeper at the front. Adding { view: 'back',
+ * framing: 'print' } would swing the camera behind the garment and compose a
+ * window built for the front rectangle over a different one. Making the lens
+ * side-aware is a real change and belongs with whoever needs a back detail.
+ */
+for (const v of VIEWS)
+  if (v.framing === 'print' && v.view !== 'front')
+    throw new Error(`the detail lens frames the FRONT print area only; "${v.id}" asks for ${v.view}`)
 /**
  * Printed and bare, both.
  *
@@ -185,7 +200,7 @@ try {
     deviceScaleFactor: 1,
     reducedMotion: 'reduce',
   })
-  const page = await ctx.newPage()
+  let page = await ctx.newPage()
   page.on('pageerror', (e) => console.error('[pageerror]', e.message))
   await page.goto(`${BASE}/dev/three.html?g=tee&c=FFFFFF`, { waitUntil: 'load', timeout: 300000 })
   await page.waitForFunction(() => document.body.innerText.includes('ready'), null, { timeout: 300000 })
@@ -227,12 +242,45 @@ try {
         if (!p || !p.fit || p.fit.measured !== true || p.goal !== null) return false
         if (window.__hGarment !== wantGarment || window.__hFraming !== wantFraming) return false
         if (p.fit.framing !== wantFraming) return false
+        // A REFUSED LENS IS NOT AN APPLIED LENS. `fit.framing` is the prop, and
+        // it reads 'print' whether the rig framed the print or fell back to the
+        // whole garment because no print rectangle was reported. Without this
+        // the refusal is silent and a file called ...-detail.png is the front
+        // shot again, byte-identical, and the determinism gate says so with a
+        // tick.
+        if (wantFraming === 'print' && p.fit.printMeasured !== true) return false
         return Math.abs(p.fit.applied - p.fit.wanted) <= 0.5
       },
       [garment, framing],
       { timeout: 300000, polling: 250 },
     )
     await page.waitForTimeout(1500)
+    /*
+     * THE DETAIL SHOT MUST CONTAIN ITS OWN SUBJECT, and until this line nothing
+     * checked it. render-verify never sets the print framing, so none of its
+     * composition gates ever see the lens, and the only thing asserted about a
+     * detail PNG was that rendering it twice gives the same bytes: an image
+     * cropped the same way twice passes that perfectly.
+     *
+     * The probe projects the print area's top and bottom edges into the frame
+     * (Stage.tsx, printEdgesNdc), on the CLOTH rather than on the rotation axis.
+     * 0,98 rather than 1,0 because a printable area whose edge is exactly on the
+     * pane border is not a photograph of that area either. This is the assertion
+     * that caught the camera being fitted to the axis: the tee's bottom edge was
+     * landing at -1,11, i.e. 6 % of a 12 x 16 in print area outside the pane, in
+     * a file named for the detail of that area.
+     */
+    if (framing === 'print') {
+      const edges = await page.evaluate(() => window.__pose?.fit?.printEdgesNdc ?? null)
+      if (!edges) throw new Error(`${garment}/${size}/detail: the rig reported no print rectangle`)
+      const worst = Math.max(Math.abs(edges.top), Math.abs(edges.bottom))
+      if (worst > 0.98)
+        throw new Error(
+          `${garment}/${size}/detail: the print area does not fit the frame ` +
+            `(top ${edges.top}, bottom ${edges.bottom}, must be within +-0,98)`,
+        )
+      console.log(`     detail framing ok: print edges at ${edges.top} / ${edges.bottom} NDC`)
+    }
     const url = await page.evaluate(COMPOSE, box)
     if (!url) throw new Error(`${garment}/${colour}/${size}/${view}: no frame`)
     return Buffer.from(url.split(',')[1], 'base64')
@@ -279,9 +327,8 @@ try {
    *               and reuse" really needs, because a regeneration months later
    *               is a new browser, and it is the axis that was not covered.
    *
-   * Every shot is re-requested, not only the first: with four views x two ink
-   * states the first case is no longer representative, and the detail framing
-   * in particular has its own settle path.
+   * The re-request is capped at one shot per view and the cap is printed; see
+   * the note above the loop for what that covers and what it does not.
    */
   console.log('')
   /*
@@ -311,13 +358,34 @@ try {
     }
   }
 
-  // REGENERATE: a new page, a new context, the same design.
+  /*
+   * REGENERATE in a genuinely new BrowserContext, not a reload.
+   *
+   * The first version of this called page.reload() under a comment that said "a
+   * new page, a new context". A reload keeps the browser process, the ANGLE
+   * process, the shader program cache and the HTTP cache, so it exercises a new
+   * document and a new WebGL context and nothing else. A fresh context is the
+   * closest this harness gets to "someone regenerates this months from now",
+   * which is the claim the reuse of these images rests on. It still shares the
+   * chromium process and the warm vite module graph, and saying that is cheaper
+   * than pretending otherwise.
+   */
   const r = shots[0]
-  await page.reload({ waitUntil: 'load', timeout: 300000 })
-  await page.waitForFunction(() => document.body.innerText.includes('ready'), null, { timeout: 300000 })
-  await page.waitForFunction(() => !!window.__h, null, { timeout: 60000 })
-  await page.evaluate(() => document.fonts.ready)
+  const ctx2 = await browser.newContext({
+    viewport: { width: PANE.width + 268, height: PANE.height },
+    deviceScaleFactor: 1,
+    reducedMotion: 'reduce',
+  })
+  const fresh = await ctx2.newPage()
+  fresh.on('pageerror', (e) => console.error('[pageerror]', e.message))
+  await fresh.goto(`${BASE}/dev/three.html?g=tee&c=FFFFFF`, { waitUntil: 'load', timeout: 300000 })
+  await fresh.waitForFunction(() => document.body.innerText.includes('ready'), null, { timeout: 300000 })
+  await fresh.waitForFunction(() => !!window.__h, null, { timeout: 60000 })
+  await fresh.evaluate(() => document.fonts.ready)
+  const prev = page
+  page = fresh
   const reborn = await shoot(r.garment, `#${r.colour.toUpperCase()}`, r.size, r.v.view, r.v.framing, r.ink.decals)
+  page = prev
   const rkey = nameFor(r.garment, r.colour, r.size, r.ink.id, r.v.id).replace(/\.png$/, '')
   const rfirst = hashes.get(rkey)
   const rsecond = createHash('sha256').update(reborn).digest('hex')

@@ -145,7 +145,14 @@ const STALL_FACTOR = 8
 const stat = (a) => {
   if (!a.length) return null
   const all = Float64Array.from(a).sort()
-  const med = all[Math.floor(all.length / 2)]
+  // THE THRESHOLD IS TAKEN FROM THE LOWER QUARTILE, not the median, because the
+  // median is a number the stalls themselves move. With six stalls in fourteen
+  // samples the median still sits among the good frames and all six are cut;
+  // with seven it lands among the stalls, the threshold jumps by two orders of
+  // magnitude and nothing is cut at all, so the same tree reports p50 20 ms or
+  // p50 5 000 ms depending on one sample. The lower quartile of fourteen frames
+  // cannot be moved by anything slower than it.
+  const med = all[Math.floor(all.length / 4)]
   const kept = Array.from(all).filter((v) => v <= med * STALL_FACTOR)
   const stalls = Array.from(all).filter((v) => v > med * STALL_FACTOR)
   const s = Float64Array.from(kept.length ? kept : Array.from(all)).sort()
@@ -204,10 +211,13 @@ try {
        * The canvas size that was really drawn is recorded in every row, so this
        * can be checked rather than believed.
        */
-      await page.evaluate(() => {
+      const hid = await page.evaluate(() => {
         const aside = document.querySelector('aside')
-        if (aside) aside.style.display = 'none'
+        if (!aside) return false
+        aside.style.display = 'none'
+        return true
       })
+      if (!hid) throw new Error('the harness sidebar could not be found: the phone rows would time a 125 px canvas')
       await page.waitForTimeout(2500)
 
       const deltas = await page.evaluate(TIME_FRAMES, { frames: FRAMES, warmup: WARMUP })

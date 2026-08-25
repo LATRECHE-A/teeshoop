@@ -496,6 +496,14 @@ const CASES = [
   // procedural field, and it is the garment whose sheen was mis-set by a
   // calibration done on the tee: the one case where "the ink sits in the cloth"
   // could be true of one mesh and false of the other.
+  //
+  // BE HONEST ABOUT WHAT IT GATES. `ink` turns the interior-range gate off (the
+  // artwork is not the cloth) and turns the fringe count on, and the fringe
+  // count is reported and NOT gated because the calibration pattern outlines its
+  // own letters in black. So what this row asserts automatically is composition,
+  // ground shadow and outline. Its real value is the PNG beside the others: the
+  // sheen mis-set on this mesh was found by looking, not by a number, and this
+  // is the case that puts fleece with ink on it in front of a person.
   { id: 'hoodie-black-print', g: 'hoodie', c: '#191C20', sc: 'studio', v: 'threequarter', ink: true },
   // THE UPLOADED GARMENT. A different renderer end to end (ExtrudedGarment /
   // CustomCard: an alpha-cut photograph on an inflated shell, no fabric UVs, no
@@ -505,7 +513,18 @@ const CASES = [
   // meshes only. The harness's synthetic card is not a customer's photograph,
   // but it is the same code path, and `scripts/stage-shots.mjs` drives a real
   // supplier flat-lay through it for the eye.
-  { id: 'custom-34', g: 'custom', c: '#FFFFFF', sc: 'studio', v: 'threequarter' },
+  //
+  // `ink: true` on a case with no print looks wrong and is not: the flag means
+  // "this garment's surface carries artwork, so do not judge the cloth's shading
+  // by it". The harness's custom card is drawn by drawBlobCard with its design
+  // ON, unconditionally and regardless of setDecals, because a ship-your-own
+  // garment IS a photograph with the artwork already composited into it. Left
+  // without the flag, the interior-range gate would pass on every run off the
+  // card's own yellow star and white wordmark and could never fail on lighting,
+  // which is a gate that cannot fail. What this case does assert is the whole
+  // composition half: not cropped, centred, standing on something, an outline
+  // that reads, and tellable from the page.
+  { id: 'custom-34', g: 'custom', c: '#FFFFFF', sc: 'studio', v: 'threequarter', ink: true },
 ]
 
 // ---------------------------------------------------------------------------
@@ -699,7 +718,12 @@ try {
      * here would only mean the SECOND candidate, and that one has no fix yet.
      */
     if (process.env.RENDER_DOUBLE) {
-      const twiceOver = await layer([])
+      // page.evaluate(READBACK) DIRECTLY, not layer([]). layer() runs drawn()
+      // before and after, so the "second read of the same frame" was really the
+      // fourth frame after the first, and any per-frame variation at all would
+      // have been read as a readback race. The whole point is to hold the frame
+      // still and vary only the copy.
+      const twiceOver = await page.evaluate(READBACK)
       console.log(
         `  double-readback ${kase.id}: ${
           twiceOver === canvasUrl ? 'identical' : `DIFFER (${canvasUrl.length} vs ${twiceOver.length} chars)`

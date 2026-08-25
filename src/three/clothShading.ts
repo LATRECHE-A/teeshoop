@@ -441,6 +441,40 @@ export const WEAVE_DEFAULTS: WeaveOptions = {
 }
 
 /**
+ * The weave options the INK takes, wherever ink is drawn.
+ *
+ * One definition, because there were three: the fabric overlay, the projected
+ * decal and the basket board each wrote out the same five-field literal, under
+ * a comment claiming they could not drift apart. What they shared was the
+ * CALIBRATION lookup, not the object, and these five fields are the uniforms the
+ * weave shader reads, which is to say they are what the ink looks like. Retune
+ * roughGain in one of three places and the same print is two materials
+ * depending on whether the customer is looking at their garment or at their
+ * basket.
+ *
+ * `strength` at 0,35 of the cloth's: a print does take the weave under it, but
+ * at full strength the ink read as corrugated card. Zero was worse, and is what
+ * the first version shipped: a flat patch lying over relieved cloth is the one
+ * thing that makes a print read as a vinyl sticker stuck on afterwards.
+ * `roughGain` at a third of the cloth's, because a cured ink film is smoother
+ * than a knit and keeps a tighter highlight as the camera pulls back.
+ * `foldHalfHeightIn` is the SAME slack ramp the cloth under it takes: the ramp
+ * is a function of object-space Y over the whole garment, so switching it off
+ * here would give the ink a fold field at full amplitude sitting on cloth whose
+ * own folds are damped, which is two contradicting sets of wrinkles on one
+ * surface.
+ */
+export function inkWeaveOptions(foldStrength: number, foldHalfHeightIn: number): WeaveOptions {
+  return {
+    ...WEAVE_DEFAULTS,
+    strength: WEAVE_DEFAULTS.strength * 0.35,
+    foldStrength,
+    foldHalfHeightIn,
+    roughGain: 0.04,
+  }
+}
+
+/**
  * GLSL for the bump. Two octaves:
  *
  *  - WEAVE, at thread pitch. Two crossed sine ranks plus a diagonal term, which

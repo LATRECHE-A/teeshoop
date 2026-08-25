@@ -37,7 +37,7 @@ import {
 } from './garmentCache'
 import { BoardGarment } from './BoardGarment'
 import { CustomCard } from './CustomCard'
-import { Ground, ReadyPing, SceneEnvironment, fitRadius, groundYIn } from './Stage'
+import { Ground, ReadyPing, SHADOW_LIFT_IN, SceneEnvironment, fitRadius, groundYIn } from './Stage'
 import { useSourceTexture } from './textures'
 
 /** Gutter between products on the wall, inches. */
@@ -244,6 +244,23 @@ function Pump({ signal }: { signal: unknown }) {
 
 // --- the wall -------------------------------------------------------------
 
+/**
+ * Where the board's floor is, and why it is not groundYIn(grid.height).
+ *
+ * `grid.height` is rows x cellH, and cellH is the TALLEST GARMENT PLUS
+ * GAP_H_IN of air (state/board.ts). The items are bottom-aligned in their cell,
+ * so on a single row the tallest garment is centred at y = 0 with its hem at
+ * -maxH/2, while -grid.height/2 - 1.1 sits at -maxH/2 - 4,6: half a gap plus the
+ * hem clearance. The single-garment stage gives 1,1 in of clearance and this
+ * gave 4,6. That was invisible while the thing it positioned was a shadow drawn
+ * on a transparent canvas, which is to say invisible; the moment the floor
+ * became something you can see, the garments were standing well above it.
+ * Taking the gap back out makes the argument a GARMENT height, which is what
+ * groundYIn documents itself to take.
+ */
+const boardFloorY = (placed: { grid: { cellH: number } }): number =>
+  groundYIn(Math.max(1, placed.grid.cellH - GAP_H_IN))
+
 function BoardScene({
   products,
   envIntensity,
@@ -386,14 +403,14 @@ function BoardScene({
               spec={ground}
               theme={theme}
               fixed={{
-                y: groundYIn(placed.grid.height),
+                y: boardFloorY(placed),
                 radius: (placed.grid.width * 1.15 * ground.radiusFactor) / 2,
               }}
             />
           )}
           <ContactShadows
             frames={1}
-            position={[0, groundYIn(placed.grid.height) + 0.02, 0]}
+            position={[0, boardFloorY(placed) + SHADOW_LIFT_IN, 0]}
             scale={placed.grid.width * 1.15}
             blur={2.1}
             far={placed.grid.height * 0.55}

@@ -83,6 +83,21 @@ export interface MeasuredExtent {
   printWidthIn: number
   printCentreYIn: number
   /**
+   * How far the printed CLOTH stands off the rotation axis at that centre,
+   * world inches, read from the same arc table the ink is mapped through.
+   *
+   * Without it the close-up is 15 % too tight and crops its own subject. The
+   * camera orbits the axis, but the ink is not on the axis: measured off
+   * tee.glb, the printable shell at the centre-front line is about 5,8 in
+   * proud of it, so a camera placed at the 38,81 in the print rectangle asks
+   * for is really 33,0 in from the ink. The fit reserves 12 % of head-room and
+   * a 15 % magnification eats all of it and then the bottom of the print area.
+   */
+  printCentreZIn: number
+  /** The same reading at the rect's top and bottom edges: where a close-up crops. */
+  printTopZIn: number
+  printBottomZIn: number
+  /**
    * False when the mounted garment has no print area we can name.
    *
    * A ship-your-own garment is a photograph, not a chart entry: its printable
@@ -111,6 +126,9 @@ export const SEED_EXTENT: MeasuredExtent = {
   printHeightIn: 16,
   printWidthIn: 12,
   printCentreYIn: 3,
+  printCentreZIn: 5,
+  printTopZIn: 5,
+  printBottomZIn: 5,
   printMeasured: false,
   measured: false,
 }
@@ -265,7 +283,7 @@ export const groundYIn = (heightIn: number): number => -(heightIn / 2) - 1.1
  * hundredths of an inch is under the depth buffer's resolution at these
  * distances and over the rasteriser's.
  */
-const SHADOW_LIFT_IN = 0.02
+export const SHADOW_LIFT_IN = 0.02
 
 /**
  * The floor. See GroundSpec in src/scenes for why there was none and what that
@@ -281,7 +299,12 @@ export function Ground({
 }: {
   spec: GroundSpec
   theme: 'dark' | 'light'
-  /** The garment to follow, when there is one garment. */
+  /**
+   * The garment to follow, when there is one garment. EXACTLY ONE of `extent`
+   * and `fixed` is required: with neither, this used to type-check and render
+   * the seed tee's floor at whatever y and radius the placeholder implies,
+   * silently, under any subject at all.
+   */
   extent?: RefObject<MeasuredExtent>
   /**
    * A floor that does not follow anything, for callers whose subject is not a
@@ -296,6 +319,12 @@ export function Ground({
   const alphaMap = useMemo(groundAlphaTexture, [])
   useEffect(() => () => alphaMap.dispose(), [alphaMap])
   const color = (theme === 'light' && spec.colorLight) || spec.color
+  // Loud in development, and drawing nothing is the right production answer:
+  // an invented floor under the wrong subject is worse than no floor.
+  if (!extent && !fixed) {
+    if (import.meta.env.DEV) console.error('Ground: one of `extent` or `fixed` is required')
+    return null
+  }
   useFrame(() => {
     const m = mesh.current
     if (!m || !extent) return
@@ -653,6 +682,17 @@ export function CameraRig({
   // has orbited or zoomed, their distance is theirs and we stop touching it.
   const userTook = useRef(false)
   const fitted = useRef(0)
+  /**
+   * The aim `applyFit` last wrote.
+   *
+   * Watching only the radius was safe while the aim was a FUNCTION of it
+   * (aimY(radius, fitHeightIn)). Under the print lens it is not: the aim is the
+   * print centre, which moves with the garment's body length, while the radius
+   * moves with the print rectangle, which at printK = 1 does not move at all.
+   * Set a size under the lens and the guard would return on an unchanged radius
+   * while the print had slid out from under the camera.
+   */
+  const fittedAim = useRef(Number.NaN)
   const lastFraming = useRef<Framing>(framing)
 
   // The framing depends on the canvas shape, so it must re-run when the canvas
@@ -678,13 +718,21 @@ export function CameraRig({
     // No print rectangle for this garment: frame the garment. See printMeasured.
     if (framing === 'print' && e.printMeasured)
       return {
-        radius: fitRadius(
-          e.printHeightIn,
-          perspective.fov ?? 26,
-          perspective.aspect ?? 1,
-          e.printWidthIn,
-          e.printWidthIn,
-        ),
+        // + the DEEPEST of the rect's three sampled depths, because the fit
+        // answers "how far from the SUBJECT" and the camera is positioned
+        // relative to the AXIS. The subject stands proud of the axis by the
+        // thickness of the wearer, and it is the nearest point of it that
+        // decides the magnification: on a tee the shell is 5,79 in out at the
+        // print centre and 6,04 at the bottom edge, and the bottom edge is the
+        // one that was leaving the frame.
+        radius:
+          fitRadius(
+            e.printHeightIn,
+            perspective.fov ?? 26,
+            perspective.aspect ?? 1,
+            e.printWidthIn,
+            e.printWidthIn,
+          ) + Math.max(e.printCentreZIn, e.printTopZIn, e.printBottomZIn),
         aim: e.printCentreYIn,
       }
     const radius = radiusFor(e.fitHeightIn, e.fitWidthIn)
@@ -770,6 +818,7 @@ export function CameraRig({
     const from = DIR.copy(camera.position).sub(controls ? controls.target : ORIGIN_V)
     const dir = from.lengthSq() > 1e-6 ? from.normalize() : from.set(0, 0, 1)
     const y = framedTarget().aim
+    fittedAim.current = y
     camera.position.copy(dir).multiplyScalar(radius).add(AIM.set(0, y, 0))
     if (controls) {
       controls.target.set(0, y, 0)
@@ -821,11 +870,16 @@ export function CameraRig({
   void size
   useFrame(() => {
     if (userTook.current || !extent.current.measured) return
-    const { radius } = framedTarget()
+    const { radius, aim } = framedTarget()
     // The framing has to force a refit even when the two distances happen to
     // agree: a detail shot and a full-length shot of a small garment can land
     // within half an inch of each other, and only the AIM would have changed.
-    if (framing === lastFraming.current && Math.abs(radius - fitted.current) < 0.5) return
+    if (
+      framing === lastFraming.current &&
+      Math.abs(radius - fitted.current) < 0.5 &&
+      Math.abs(aim - fittedAim.current) < 0.25
+    )
+      return
     lastFraming.current = framing
     applyFit(radius)
   })
@@ -846,7 +900,14 @@ export function CameraRig({
     if (reducedMotion) {
       camera.position.setFromSpherical(target)
       const controls = controlsRef.current
-      const y = aimY(radius, extent.current.fitHeightIn)
+      // THE CURRENT LENS'S AIM, not the garment's. A snap issued while the
+      // detail lens is applied used to write aimY(), which at a close radius
+      // has no slack to spend and returns exactly 0, so the camera re-aimed at
+      // the garment's middle and the print left the centre of the frame. The
+      // per-frame fit only put it back when the framing had ALSO changed, which
+      // it does not between two detail shots.
+      const y = framedTarget().aim
+      fittedAim.current = y
       camera.position.y += y
       if (controls) {
         controls.target.set(0, y, 0)
@@ -869,7 +930,7 @@ export function CameraRig({
     // slightly below the garment so its contact shadow has room (GROUND_ROOM_FRAC);
     // measuring the orbit from the origin would have the damp quietly drag the
     // camera back down onto it, and the ground would leave the frame again.
-    const aim = AIM.set(0, aimY(goal.current.radius, extent.current.fitHeightIn), 0)
+    const aim = AIM.set(0, framedTarget().aim, 0)
     const current = SPHERICAL.setFromVector3(OFFSET.copy(camera.position).sub(controls.target))
     const wrap = (a: number) => THREE.MathUtils.euclideanModulo(a + Math.PI, Math.PI * 2) - Math.PI
     const dTheta = wrap(goal.current.theta - current.theta)
@@ -929,10 +990,35 @@ export function CameraRig({
           // would otherwise wait for a distance it is deliberately not at.
           wanted: Math.round(framedTarget().radius * 100) / 100,
           framing,
-          printHeightIn: extent.current.printHeightIn,
-          printWidthIn: extent.current.printWidthIn,
-          printCentreYIn: Math.round(extent.current.printCentreYIn * 100) / 100,
+          // NULL when no garment has reported one. The seed carries a tee's
+          // rectangle so the type has a value, and publishing that for a hoodie
+          // or an uploaded garment would be stating a print size nobody measured.
+          printHeightIn: extent.current.printMeasured ? extent.current.printHeightIn : null,
+          printWidthIn: extent.current.printMeasured ? extent.current.printWidthIn : null,
+          printCentreYIn: extent.current.printMeasured
+            ? Math.round(extent.current.printCentreYIn * 100) / 100
+            : null,
           printMeasured: extent.current.printMeasured,
+          /**
+           * WHERE THE PRINT AREA'S TOP AND BOTTOM EDGES LAND IN THE FRAME, in
+           * normalised device coordinates, so a capture script can assert that
+           * the close-up contains its own subject.
+           *
+           * Without this the detail lens was measured by nothing at all: no case
+           * in render-verify sets the print framing, and mockup-shots asserts
+           * only that two renders are byte-identical, which an image cropped the
+           * same way twice passes perfectly. This is the number that made the
+           * axis-versus-surface error visible: the bottom edge sat at -1,11.
+           */
+          printEdgesNdc: extent.current.printMeasured
+            ? (() => {
+                const e = extent.current
+                const top = NDC.set(0, e.printCentreYIn + e.printHeightIn / 2, e.printTopZIn).project(camera)
+                const t = Math.round(top.y * 1000) / 1000
+                const bottom = NDC.set(0, e.printCentreYIn - e.printHeightIn / 2, e.printBottomZIn).project(camera)
+                return { top: t, bottom: Math.round(bottom.y * 1000) / 1000 }
+              })()
+            : null,
           applied: Math.round(fitted.current * 100) / 100,
           userTook: userTook.current,
           aspect: Math.round((perspective.aspect ?? 0) * 1000) / 1000,
@@ -966,6 +1052,7 @@ export function CameraRig({
 const SPHERICAL = new THREE.Spherical()
 const OFFSET = new THREE.Vector3()
 const AIM = new THREE.Vector3()
+const NDC = new THREE.Vector3()
 const RIGHT = new THREE.Vector3()
 const V = new THREE.Vector3()
 const ORIGIN_V = new THREE.Vector3(0, 0, 0)

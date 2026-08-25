@@ -168,13 +168,17 @@ export default function Garment3D(props: Garment3DProps): JSX.Element
   (cylindrical bend ~12°, double-sided pair front/back, alphaTest cutout,
   slight thickness illusion). Missing back → render front silhouette in
   neutral `#242A33` with the same alpha (looks like the blank reverse).
-- Stage: fully procedural studio lighting — drei `<Environment resolution={256}>`
-  with `<Lightformer>` softboxes (NO preset/network HDR), key+rim, ACES tone
-  mapping, `<ContactShadows>` over a lit ground disc, dark backdrop consistent
+- Stage: fully procedural studio lighting, drei `<Environment resolution={512}>`
+  (256 on a phone) with `<Lightformer>` softboxes (NO preset/network HDR), a
+  shadow-casting key, TWO opposed shadowless rims per scene and an optional
+  hemisphere fill, **Neutral (KHR PBR neutral) tone mapping, not ACES** (ACES
+  pulls saturated colour toward the white point, so a red garment previewed here
+  came out a different red from the one the customer picked and the one the press
+  will print), `<ContactShadows>` over a lit ground disc, dark backdrop consistent
   with bg0, NO idle sway (a `<Float>` with a random phase used to hang the
   garment here; it made two renders of one design incomparable and is gone),
-  OrbitControls
-  (rotate/zoom/pan, damped, min/max distance + polar clamp), `dpr [1, 1.75]`.
+  OrbitControls (rotate/zoom/pan, damped, min/max distance + polar clamp),
+  `dpr [1, 1.75]` on desktop and `[1, 1.25]` on a phone.
   `viewRequest` animates camera to front/back/¾ when nonce changes.
   `autoRotate` prop toggles slow turntable. Call `onReady` after first frame.
 - WebGL-context-lost → branded error card with "Reload 3D" button.
