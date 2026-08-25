@@ -789,6 +789,11 @@ haut. La mission parlait de trois endroits où l'aperçu est regardé et le pani
 Il a maintenant les mêmes lumières et le même sol, et son encre reçoit le même relief de
 tissu que l'aperçu, ce que le message de commit affirmait déjà et que le code ne faisait pas.
 
+**L'état d'avancement des mesures vit dans `docs/seance-10-a-reprendre.md`** : ce qui est
+vert, ce qui n'a pas été lancé, pourquoi, et la commande exacte pour finir. La machine a
+été arrêtée en cours de balayage le 25/08 (la rastérisation logicielle avait poussé le
+swap à 1,6 Gio sur 2,0 et faisait tomber les autres sessions en SIGSEGV).
+
 **Ce que la séance 10 n'a pas fait, et qui reste ouvert.** La ligne du tableau plus bas ne
 dit plus « faite » : ce qui est fait, mesuré et gardé, c'est l'aperçu 3D d'un vêtement du
 catalogue. Le reste de la liste du brief est ouvert et vaut la peine d'être écrit plutôt que
