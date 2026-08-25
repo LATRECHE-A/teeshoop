@@ -703,6 +703,24 @@ deux images comparables, et aucun mockup ne pouvait être produit deux fois. Ret
 demandent (avant, trois-quarts, dos, à 1 200 × 1 500), puis rend la première une seconde fois
 et compare les octets.
 
+**Deux assertions restent rouges, et c'est la même mesure.** `npm run verify:render`
+passe 53 de ses 55 contrôles. Les deux qui échouent disent la même chose : une image prise
+TARD dans un balayage rend environ 2 % plus sombre que le même cas rendu seul. Le t-shirt
+noir en scène `night` mesure 27 de luminance médiane quand son cas tourne seul et 24 dans le
+balayage, ce qui le fait passer sous les 8 niveaux d'écart exigés avec la page ; et le
+t-shirt blanc, capturé une seconde fois à la fin du balayage, rend 212 contre 216 la
+première fois, cadrage identique au pixel près. La cause n'est pas trouvée : ce n'est ni la
+cuisson de la carte d'environnement (le contrôle attend maintenant huit images dessinées),
+ni la pose (les deux boîtes englobantes sont identiques). Le seuil n'a pas été baissé pour
+faire verdir : un contrôle vert auquel on ne croit pas vaut moins qu'un rouge qu'on sait
+expliquer. À reprendre en séance 13.
+
+Ce que le contrôle affirme, et qui passe : aucun vêtement n'est coupé ni collé à un bord,
+tous sont centrés à 0,1 % près, chacun pose une ombre sur quelque chose (9 400 à 38 500
+pixels selon la scène), le contour se lit partout à au moins 12 niveaux de médiane, la maille
+garde ses nuances (59 niveaux du 5e au 99e centile sur un noir, 88 sur un blanc), un blanc
+lit blanc et neutre, et une teinte neutre reste neutre.
+
 **Ce que coûte une image, mesuré.** `scripts/frame-bench.mjs` ne prétend pas mesurer un
 téléphone et le dit dans son propre en-tête : il n'y a pas de carte graphique de téléphone
 sur cette machine, chromium passe par un rastériseur logiciel, et une milliseconde mesurée

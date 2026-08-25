@@ -32,6 +32,17 @@
  * the garment or what it throws: no threshold on "looks like cloth", no
  * background reference guessed per row.
  *
+ * KNOWN, MEASURED, UNEXPLAINED, and deliberately not papered over: an image
+ * captured LATE in a sweep renders about 2 % darker than the same case captured
+ * alone. The black tee in `night` measures median luminance 27 on its own and 24
+ * here, which drops it under the page-separation gate; the white tee captured a
+ * second time at the end of the sweep reads 212 against 216 the first time, with
+ * a bounding box identical to the pixel. It is not the environment bake (the
+ * capture waits eight DRAWN frames) and it is not the pose. The thresholds have
+ * not been moved to make it green: a tick nobody believes is worth less than a
+ * cross that can be explained. `scripts/mockup-shots.mjs`, which renders one
+ * case twice with nothing in between, is byte-identical.
+ *
  * Exit: 0 every gate passed · 2 nothing was scanned · 3 a gate failed.
  */
 import { chromium } from 'playwright'
