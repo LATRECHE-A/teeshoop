@@ -58,9 +58,17 @@ total JS                          2 469,28 -> 2 475,91 kB  (+6,63, entièrement 
 
 ## 3. Ce qui n'est PAS mesuré, et pourquoi
 
-### 3.1 `npm run verify:render`, les 14 cas
+### 3.1 `npm run verify:render` : LANCÉ, 73 verts et 1 rouge
 
-**Jamais lancé en entier sur cet arbre.** Le dernier balayage complet date de deux commits
+**Balayage complet du 26/08/2026, `.qa/render-s2`, 15 prises, 2 h 20, sortie 3.** Le
+déterminisme est réglé (216,07 contre 216,07, écart 0,00, contre 216 puis 212). Il reste un
+rouge, `tee-black-night`, qui se détache de son fond de 7,7 niveaux pour 8 exigés ; seul il
+en fait 10,8, et les deux valeurs sont stables à la décimale à travers deux séances. Le récit
+est dans `docs/ROADMAP.md`.
+
+Ce qui suit décrivait l'état d'avant.
+
+**N'avait jamais été lancé en entier sur cet arbre.** Le dernier balayage complet date de deux commits
 avant la correction du duvet du sweat, de la sonde de vue et du hissage de `vInkAlpha`.
 
 Huit des quatorze cas portent une information que rien n'a mesurée depuis :

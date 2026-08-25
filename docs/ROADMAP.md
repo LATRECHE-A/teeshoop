@@ -735,7 +735,33 @@ première fois, cadrage identique au pixel près. Ce n'est ni la cuisson de la c
 contrôle attend maintenant huit images dessinées), ni la pose (les deux boîtes englobantes
 sont identiques).
 
-**Et depuis le 25/08/2026 ce n'est pas non plus la relecture du tampon de dessin.**
+**RÉSOLU À MOITIÉ, ET L'AUTRE MOITIÉ N'ÉTAIT PAS UNE DÉRIVE.** Balayage complet du
+26/08/2026 (`.qa/render-s2`, 15 prises, 2 h 20) : **73 contrôles verts, 1 rouge**.
+
+Le contrôle de déterminisme lit maintenant **216,07 contre 216,07, écart 0,00**, là où il
+lisait 216 puis 212. C'était la fuite du sélecteur de scènes (voir plus bas) : elle est
+fermée, et cette moitié-là est réglée.
+
+L'autre moitié n'a jamais été une dérive. Comparé au balayage de la séance précédente,
+**chaque cas rend le même chiffre à la décimale près**, y compris `tee-black-night` (23,68 de
+médiane, 23 821 pixels d'ombre, 22,4 de marche de contour, identique des deux côtés). Le seul
+cas qui a bougé est `hoodie-black-34`, et il a bougé exactement de ce que la séance lui a
+fait : le duvet ramené de 0,7 / 0,84 à 0,45 / 0,95, médiane 46,9 -> 37,9 et contour
+36,4 -> 22,3 niveaux, toujours au-dessus des 12 exigés.
+
+Donc `tee-black-night` ne dérive pas : il rend **23,68 dans un balayage et 26,82 seul**, de
+façon stable et reproductible, à travers deux séances et un changement de code. Ce n'est pas
+de l'état qui s'accumule au hasard, c'est une dépendance déterministe à ce qui a tourné
+avant. Et l'appeler « 2 % » était faux : 23,68 contre 26,82 fait 12 %. Les 2 %, c'étaient les
+216 contre 212, et ceux-là sont réglés.
+
+Ce qui reste rouge se lit aussi comme une observation produit, pas seulement de harnais : un
+t-shirt noir dans la scène `night` se détache de son fond de **7,7 niveaux** (23,68 contre
+16,02) là où le contrôle en demande 8. Seul, il en fait 10,8. Dans les deux cas c'est peu :
+un vêtement sombre sur un fond sombre est difficile à voir, et la réponse est peut-être
+d'éclairer la scène ou de poser un contre-jour, pas de bouger le seuil.
+
+**Et le 25/08/2026 on a d'abord éliminé la relecture du tampon de dessin.**
 `RENDER_DOUBLE=1` a enfin tourné, sur `tee-white-34` et `tee-black-night`. Trois relectures
 de trois images que personne n'avait touchées entre les deux sont revenues **identiques**.
 Sur ce balayage court le contrôle de déterminisme mesure un écart de **0,00**, là où le

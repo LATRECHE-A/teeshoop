@@ -3156,7 +3156,7 @@
 			],
 			"derives": [
 				"Le pas de luminance mesuré à travers la silhouette : 0,2 niveau sur 255 avant, gardé au-dessus de 12 par scripts/render-verify.mjs.",
-				"Les pixels d'ombre au sol : 0 avant, 10 034 sur le t-shirt noir après, avec 23 niveaux de profondeur.",
+				"Les pixels d'ombre au sol : 0 avant, 9 676 sur le t-shirt noir après, avec 24,6 niveaux de profondeur (balayage complet du 26/08/2026, .qa/render-s2).",
 				"Le fait qu'un mockup soit reproductible à l'octet près (scripts/mockup-shots.mjs), puisque le fond en fait partie."
 			],
 			"sessions": [

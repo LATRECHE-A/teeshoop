@@ -203,8 +203,13 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // one broad hard highlight down each sleeve and across the hood, which
     // reads as coated vinyl rather than brushed fleece. Fleece is the roughest
     // cloth in the catalogue and its lobe has to be the widest, not the
-    // tightest. Back to 0.45 / 0.95, which is where it was, with the outline
-    // re-measured rather than assumed (see docs/ROADMAP.md, session 10).
+    // tightest. Back to 0.45 / 0.95, which is where it was.
+    // MEASURED AFTER THE REVERT, because "it already had an outline" is the kind
+    // of claim this file exists to stop: hoodie-black-34 reads a median edge step
+    // of 22,3 levels against the 12 the gate asks for, where the raised sheen
+    // read 36,4. So the revert cost 14 levels of separation and kept 10 in hand,
+    // and it is the only case in the sweep whose numbers moved this session
+    // (every other case matched the previous sweep to the decimal).
     cloth: { foldStrength: 0.01, cavityGain: 0.44, bakedAoIntensity: 1, sheen: 0.45, sheenRoughness: 0.95 },
     // 5 world in at the pre-fix yScale of 25.909.
     sleeve: { yRaw: 0.193, rotZ: 0.21 },
