@@ -252,7 +252,11 @@ try {
         return Math.abs(p.fit.applied - p.fit.wanted) <= 0.5
       },
       [garment, framing],
-      { timeout: 300000, polling: 250 },
+      // 900 s, not 300. This is how long the harness waits for the rig to
+      // reach a pose, not how tight any assertion is: on a machine with no
+      // GPU one hoodie shot rasterises in 8 to 9 minutes, and 300 s gave up
+      // at shot 13 of 16 with nothing wrong. Raising it relaxes no check.
+      { timeout: 900000, polling: 250 },
     )
     await page.waitForTimeout(1500)
     /*

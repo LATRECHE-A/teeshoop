@@ -6,12 +6,16 @@
  *   node scripts/worn-qa.mjs
  */
 import { spawn } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 const PORT = 5194
 const BASE = `http://localhost:${PORT}`
-const OUT = process.env.WORN_OUT || '/tmp/claude-1000/-home-LTH-tshop/5533409e-08ac-431c-8fbf-5bf3f7a42cf0/scratchpad'
+// Defaulted under .qa/ like every other harness: the old default was an
+// absolute path into one session's scratchpad, so the script died in ENOENT
+// for anyone who ran it later, which is to say always.
+const OUT = process.env.WORN_OUT || '.qa/worn'
+mkdirSync(OUT, { recursive: true })
 
 const waitFor = (url, ms = 30000) =>
   new Promise((res, rej) => {
