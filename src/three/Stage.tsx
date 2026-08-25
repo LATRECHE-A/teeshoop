@@ -354,7 +354,15 @@ export function ReadyPing({ onReady }: { onReady?: () => void }) {
     // 6,5 second frame. Turning it off and resetting here makes the numbers the
     // totals for exactly one frame.
     gl.info.autoReset = false
-    ;(window as unknown as { __renderInfo?: unknown }).__renderInfo = {
+    // A FRAME COUNTER, so a headless probe can wait for a change to have been
+    // DRAWN rather than for a timer. Under software rendering one frame can take
+    // seconds: scripts/render-verify.mjs hid the floor, waited 350 ms and read
+    // back a frame in which the floor was still there, so its "garment only"
+    // layer was the floor and every measurement taken off that mask was about
+    // the wrong object.
+    const w = window as unknown as { __frames?: number; __renderInfo?: unknown }
+    w.__frames = (w.__frames ?? 0) + 1
+    w.__renderInfo = {
       calls: gl.info.render.calls,
       triangles: gl.info.render.triangles,
       programs: gl.info.programs?.length ?? 0,
@@ -569,7 +577,19 @@ export function CameraRig({
   const perspective = camera as THREE.PerspectiveCamera
   const radiusFor = (h: number, w: number) =>
     fitRadius(h, perspective.fov ?? 26, perspective.aspect ?? 1, w, torsoWidthIn(garment, w))
-  const framed = radiusFor(extent.current.fitHeightIn, extent.current.fitWidthIn)
+  /**
+   * The framed distance AT RENDER TIME, which is only ever the seed's.
+   *
+   * The extents are a box now, so this component does not re-render when the
+   * measurement lands: read here, it is whatever the last render saw. It
+   * survives as the SEED for the orbit ceiling below; the live value is set in
+   * `applyFit`, and the pose probe recomputes it per frame rather than
+   * publishing this one. That distinction is not cosmetic: the first version
+   * published the stale number, and the capture harness, which waits for "the
+   * applied radius equals the wanted one", sat for five minutes comparing a
+   * tee's 77,03 against a hoodie's 123,03 left over from the previous case.
+   */
+  const framedSeed = radiusFor(extent.current.fitHeightIn, extent.current.fitWidthIn)
 
   /** Where the camera looks: below the garment's centre by the clamped slack. */
   const aimY = (radius: number, fitHeightIn: number) => {
@@ -780,7 +800,8 @@ export function CameraRig({
           heightIn: extent.current.fitHeightIn,
           widthIn: extent.current.fitWidthIn,
           measured: extent.current.measured,
-          wanted: Math.round(framed * 100) / 100,
+          wanted:
+            Math.round(radiusFor(extent.current.fitHeightIn, extent.current.fitWidthIn) * 100) / 100,
           applied: Math.round(fitted.current * 100) / 100,
           userTook: userTook.current,
           aspect: Math.round((perspective.aspect ?? 0) * 1000) / 1000,
@@ -802,7 +823,7 @@ export function CameraRig({
       // the auto-fit just set, so a fixed ceiling would silently crop the very
       // case the fit exists for (a 3XL hoodie, ~52 in across, in a tall narrow
       // pane needs ~280 already).
-      maxDistance={Math.max(280, framed * 1.6)}
+      maxDistance={Math.max(280, framedSeed * 1.6)}
       minPolarAngle={0.35}
       maxPolarAngle={1.62}
       autoRotate={autoRotate}

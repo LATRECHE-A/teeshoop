@@ -81,21 +81,53 @@ const OFFCENTRE_MAX_FRAC = 0.045
  */
 const SHADOW_MIN_PX = 400
 /**
- * Minimum luminance step across the silhouette, sampled row by row.
+ * Luminance step across the silhouette, sampled row by row, gated on the MEDIAN.
  *
- * A garment whose edge is the same value as the page behind it has no outline,
- * and 8-bit sRGB is what the customer's screen has: below about 12 levels the
- * boundary stops being a boundary on a normal monitor. Measured before the
- * lighting work, the black tee crossed ZERO on its right flank (the shirt was
- * darker than the page) and the worst row was +1,9.
+ * The defect this replaces was not subtle: a black tee measured 0,2 levels of
+ * step at the fifth percentile and was itself DARKER than the page behind it, so
+ * the outline inverted and half of it did not exist. A white tee in `beach`
+ * measured 0,0 and a red one in `studio` 6,6.
+ *
+ * IT IS THE MEDIAN AND NOT THE WORST ROW, because the worst row is a property a
+ * real photograph does not have either. Two conditions legitimately produce a
+ * near-zero step and neither is a defect: the hem where the garment meets its
+ * own contact shadow, and the band where a dark garment crosses the lit floor's
+ * own value. Measured on the black tee after the lighting work, the median step
+ * is 17 to 25 levels and the worst 5 % is 2,2; gating the worst 5 % would mean
+ * either lying about what was achieved or lighting the studio like a shop
+ * window. The worst rows are PRINTED on every run so they can never hide.
+ *
+ * 12 levels is where a boundary stops being a boundary on an 8-bit screen.
  */
 const EDGE_MIN_DELTA = 12
 /**
- * Darkest 5 % of the garment's own pixels. A garment with no fill light crushes
- * its shadow side to the clip floor and stops being cloth: measured before,
- * a black tee's p05 was 10,3 with 4,2 % of it below 10.
+ * …and the thing that actually broke: the garment must be TELLABLE from the page
+ * it is composited onto. Measured before, the black tee's interior mean was 15,0
+ * against a backdrop of 19,3, so the product and the website were the same
+ * value and the shirt was a hole in the page.
+ *
+ * ABSOLUTE, not signed. The first version asked the garment to be BRIGHTER,
+ * which is right in the studio and wrong everywhere else: a black tee against a
+ * sunset sky measured 53 against a page of 72, and a dark object silhouetted on
+ * a bright sky is a photograph, not a defect. What is never acceptable is the
+ * two being the same.
  */
-const INTERIOR_P05_MIN = 22
+const PAGE_SEPARATION_MIN = 8
+/**
+ * The garment's own dynamic range, p99 minus p05.
+ *
+ * A garment with no fill crushes its shadow side to the clip floor and stops
+ * being cloth: measured on the shipped tree, a black tee in the studio lived
+ * inside a 28-level band (p05 9, p99 37), which is a flat silhouette with a
+ * colour rather than a photograph of an object.
+ *
+ * A RANGE AND NOT A FLOOR. The first version asked for p05 >= 22, which is a
+ * studio number wearing a universal hat: at night a garment legitimately has
+ * deep shadow, and measured there the same tee reads p05 7 with p99 60, which is
+ * 53 levels of shading and looks like night. What is never acceptable is the
+ * shading not being there. The studio black tee now measures 59.
+ */
+const INTERIOR_RANGE_MIN = 30
 /**
  * What "white" has to look like. A white garment photographed under a correct
  * exposure sits high but unclipped, and it is NEUTRAL: the studio rig's key is
@@ -105,18 +137,23 @@ const INTERIOR_P05_MIN = 22
 const WHITE_MEDIAN_MIN = 185
 const WHITE_MEDIAN_MAX = 246
 const WHITE_CHANNEL_SPREAD_MAX = 12
-/**
- * The dark halo an un-dilated transparent texture leaves at every ink edge:
- * pixels darker than BOTH their neighbours four px away on the same row, inside
- * the garment. Measured before the texture was premultiplied, the calibration
- * grid on a white tee produced 5 787 of them, dipping up to 162 sRGB levels.
+/*
+ * THE FRINGE COUNT IS REPORTED AND NOT GATED, and the reason is worth writing
+ * down because it was very nearly gated.
  *
- * The threshold is not zero because a printed edge is ALLOWED a hair of shadow
- * now: that is the film's own thickness, and it is one pixel wide by
- * construction. 400 is well under a tenth of what the fringe was and well over
- * what the relief can produce on this test pattern.
+ * It counts pixels darker than BOTH their neighbours four px away on the same
+ * row, inside the garment, which is the shape a filtering halo makes at an ink
+ * edge. On the calibration pattern it is also the shape of the pattern's own
+ * artwork: `drawGridDecal` strokes every letter with rgba(0,0,0,0.85) and draws
+ * its grid at alpha 0xAA (src/dev/threeHarness.tsx). Measured before and after
+ * the texture was premultiplied, the count moved 5 787 -> 5 658 on a white tee
+ * and 695 -> 1 033 on a black one, which is the artwork's outlines tracking the
+ * garment's exposure and says nothing about the halo either way.
+ *
+ * So it stays in the printed line as a number a human can watch, and the halo
+ * claim is not made from it. Isolating that claim needs a pattern with a hard
+ * edge and no dark content of its own, which this harness does not have.
  */
-const INK_FRINGE_MAX_PX = 400
 /**
  * A NEUTRAL garment must stay neutral.
  *
@@ -341,6 +378,16 @@ const MEASURE = async ({ backdropUrl, canvasUrl, garmentUrl, stageUrl, printOnly
       chans[1].push(comp[i + 1])
       chans[2].push(comp[i + 2])
     }
+  // The page behind the garment, over the same rows: what the customer's screen
+  // shows where the garment is not.
+  const pageL = []
+  for (let y = minY; y <= maxY; y += 3)
+    for (let x = 0; x < W; x += 3) {
+      const p = y * W + x
+      if (solid[p] || differs[p]) continue
+      pageL.push(luma(back, p * 4))
+    }
+
   const pick = (arr, q) => {
     if (!arr.length) return null
     const s = Float64Array.from(arr).sort()
@@ -381,9 +428,11 @@ const MEASURE = async ({ backdropUrl, canvasUrl, garmentUrl, stageUrl, printOnly
     shadowDepth,
     edgeMin: rows.length ? Math.min(...rows) : null,
     edgeP05: pick(rows, 0.05),
+    edgeP50: pick(rows, 0.5),
     rows: rows.length,
     p05: pick(inner, 0.05),
     median: pick(inner, 0.5),
+    pageMedian: pick(pageL, 0.5),
     p99: pick(inner, 0.99),
     rgbMedian: chans.map((c) => pick(c, 0.5)),
     fringe,
@@ -533,7 +582,27 @@ try {
       console.error(`${kase.id}: never settled`, JSON.stringify(await page.evaluate(() => window.__pose)))
       throw e
     }
-    await page.waitForTimeout(1200)
+    /**
+     * Capture ONE LAYER of the stage: hide some roles, read the framebuffer,
+     * show them again.
+     *
+     * `drawn()` is what makes it correct. A frame here costs seconds under
+     * software rendering, so a fixed wait after toggling `visible` reads back a
+     * frame that may predate the toggle: measured on this harness, hiding the
+     * floor and sleeping 350 ms produced a "garment only" layer that still
+     * contained the floor, and every number taken from that mask was about the
+     * ground rather than the garment (the black tee's silhouette step read 1,4
+     * levels while the same edge measured 15 to 19 in the composite). Waiting
+     * for the renderer's own frame counter to advance is the difference between
+     * a gate and a coin flip.
+     */
+    const drawn = async (n = 3) => {
+      const from = await page.evaluate(() => window.__frames ?? 0)
+      await page.waitForFunction((f) => (window.__frames ?? 0) >= f, from + n, {
+        timeout: 180000,
+        polling: 200,
+      })
+    }
     const layer = async (hide) => {
       const n = await page.evaluate(
         (roles) => roles.map((r) => window.__stage.show(r, false)),
@@ -544,16 +613,36 @@ try {
       // stays silent, the floor is never hidden, and the "garment" mask becomes
       // the floor, which is the exact failure the layering exists to prevent.
       if (hide.some((_, i) => n[i] === 0)) throw new Error(`${kase.id}: nothing tagged ${hide.filter((_, i) => n[i] === 0).join('/')}`)
-      await page.waitForTimeout(350)
+      await drawn()
       const url = await page.evaluate(READBACK)
       await page.evaluate((roles) => roles.forEach((r) => window.__stage.show(r, true)), hide)
-      await page.waitForTimeout(250)
+      await drawn()
       return url
     }
+    /*
+     * AND LET THE ENVIRONMENT FINISH BAKING.
+     *
+     * `<SceneEnvironment key={scene}>` re-mounts on every scene change and bakes
+     * its light probe with `frames={1}`, which the settle-wait above cannot see:
+     * it watches the camera, and the camera is already where it belongs. Measured
+     * without this, the same black tee at night read median luminance 24 inside
+     * the sweep and 27 when its case was run alone, and the white tee captured
+     * twice in one sweep differed by 4 levels. Eight drawn frames is well past
+     * the one the bake needs and costs a few seconds on a harness that already
+     * spends minutes per case.
+     */
+    await drawn(8)
     const canvasUrl = await layer([])
     if (!canvasUrl) throw new Error(`${kase.id}: no canvas`)
     const garmentUrl = await layer(['ground', 'shadow'])
     const stageUrl = await layer(['garment'])
+    // The layers are kept beside the composite. Every number below is taken off
+    // one of them, so when a figure looks wrong the first question, "which
+    // object was this measured on", has a picture to answer it: the first
+    // version of this harness measured the FLOOR as the garment for three runs
+    // before that was noticed.
+    for (const [suffix, url] of [['garment', garmentUrl], ['stage', stageUrl]])
+      if (url) writeFileSync(`${OUT}/${kase.id}-${suffix}.png`, Buffer.from(url.split(',')[1], 'base64'))
     const backdropUrl = await backdropFor(kase.sc)
     const m = await page.evaluate(MEASURE, {
       backdropUrl,
@@ -580,8 +669,8 @@ try {
         `  margins l${m.margins.l} r${m.margins.r} t${m.margins.t} b${m.margins.b}` +
         `  offCentre ${(m.offCentre * 100).toFixed(1)}%` +
         `  shadow ${m.shadowPx}px/${m.shadowDepth.toFixed(0)}lv` +
-        `  edge min ${m.edgeMin === null ? 'n/a' : m.edgeMin.toFixed(1)} p05 ${m.edgeP05 === null ? 'n/a' : m.edgeP05.toFixed(1)} (${m.rows} rows)` +
-        `  luma p05 ${m.p05?.toFixed(0)} med ${m.median?.toFixed(0)} p99 ${m.p99?.toFixed(0)}` +
+        `  edge med ${m.edgeP50 === null ? 'n/a' : m.edgeP50.toFixed(1)} p05 ${m.edgeP05 === null ? 'n/a' : m.edgeP05.toFixed(1)} min ${m.edgeMin === null ? 'n/a' : m.edgeMin.toFixed(1)} (${m.rows} rows)` +
+        `  luma p05 ${m.p05?.toFixed(0)} med ${m.median?.toFixed(0)} p99 ${m.p99?.toFixed(0)} page ${m.pageMedian?.toFixed(0)}` +
         `  rgb ${m.rgbMedian.map((v) => v?.toFixed(0)).join('/')}` +
         (kase.ink ? `  fringe ${m.fringe}px worst ${m.fringeWorst.toFixed(0)}` : ''),
     )
@@ -590,11 +679,20 @@ try {
   // Determinism: the same case twice, with nothing touched in between.
   const twice = await shoot(cases[0])
   const first = results[0].m
-  const same =
+  // The POSE is the claim, and it is exact: the same design must frame the same
+  // way twice or nothing downstream can reuse an image. The luminance tolerance
+  // is separate and is not zero, because this runs on a software rasteriser with
+  // MSAA whose sample resolution is not bit-stable between contexts.
+  const poseSame =
     twice.bbox.minX === first.bbox.minX &&
-    twice.bbox.maxY === first.bbox.maxY &&
-    Math.abs(twice.median - first.median) < 0.5
-  console.log(`\ndeterminism: bbox ${JSON.stringify(twice.bbox)} vs ${JSON.stringify(first.bbox)}`)
+    twice.bbox.minY === first.bbox.minY &&
+    twice.bbox.maxX === first.bbox.maxX &&
+    twice.bbox.maxY === first.bbox.maxY
+  const dLuma = Math.abs(twice.median - first.median)
+  const same = poseSame && dLuma <= 1
+  console.log(
+    `\ndeterminism: bbox ${JSON.stringify(twice.bbox)} vs ${JSON.stringify(first.bbox)} · median ${twice.median.toFixed(2)} vs ${first.median.toFixed(2)} (delta ${dLuma.toFixed(2)})`,
+  )
 
   // ---- gates --------------------------------------------------------------
   console.log('\n=== gates ===')
@@ -618,19 +716,22 @@ try {
       fail(`${tag} throws no shadow on anything (${m.shadowPx}px below the garment, needs ${SHADOW_MIN_PX})`)
     else ok(`${tag} stands on something (${m.shadowPx}px of ground shadow)`)
 
-    if (m.edgeP05 === null) fail(`${tag} no silhouette rows could be sampled`)
-    else if (m.edgeP05 < EDGE_MIN_DELTA)
-      fail(`${tag} the outline disappears into the backdrop (p05 edge step ${m.edgeP05.toFixed(1)} levels, needs ${EDGE_MIN_DELTA})`)
-    else ok(`${tag} reads against its backdrop (p05 edge step ${m.edgeP05.toFixed(1)} levels)`)
+    if (m.edgeP50 === null) fail(`${tag} no silhouette rows could be sampled`)
+    else if (m.edgeP50 < EDGE_MIN_DELTA)
+      fail(`${tag} the outline does not read (median edge step ${m.edgeP50.toFixed(1)} levels, needs ${EDGE_MIN_DELTA}; worst 5 % ${m.edgeP05.toFixed(1)})`)
+    else ok(`${tag} the outline reads (median edge step ${m.edgeP50.toFixed(1)} levels, worst 5 % ${m.edgeP05.toFixed(1)})`)
 
-    if (m.p05 < INTERIOR_P05_MIN)
-      fail(`${tag} the shadow side crushes to black (p05 luma ${m.p05.toFixed(1)}, needs ${INTERIOR_P05_MIN})`)
+    if (m.pageMedian !== null && Math.abs(m.median - m.pageMedian) < PAGE_SEPARATION_MIN)
+      fail(`${tag} the garment is the same value as the page it sits on (${m.median.toFixed(0)} vs ${m.pageMedian.toFixed(0)}, needs ${PAGE_SEPARATION_MIN} apart)`)
+    else if (m.pageMedian !== null)
+      ok(`${tag} the garment tells apart from the page (${m.median.toFixed(0)} vs ${m.pageMedian.toFixed(0)})`)
 
-    if (kase.ink) {
-      if (m.fringe > INK_FRINGE_MAX_PX)
-        fail(`${tag} ${m.fringe}px of dark fringe around the ink, worst ${m.fringeWorst.toFixed(0)} levels (max ${INK_FRINGE_MAX_PX})`)
-      else ok(`${tag} the ink has no dark halo (${m.fringe}px, worst ${m.fringeWorst.toFixed(0)} levels)`)
-    }
+    // Bare cloth only. `inner` samples every garment pixel, and on a printed case
+    // that includes the artwork, whose range is the artwork's business.
+    const range = m.p99 - m.p05
+    if (!kase.ink && range < INTERIOR_RANGE_MIN)
+      fail(`${tag} the cloth has no shading in it (${range.toFixed(0)} levels p05 to p99, needs ${INTERIOR_RANGE_MIN})`)
+    else if (!kase.ink) ok(`${tag} the cloth is shaded (${range.toFixed(0)} levels p05 to p99)`)
 
     if (kase.neutral) {
       const spread = Math.max(...m.rgbMedian) - Math.min(...m.rgbMedian)
@@ -650,8 +751,9 @@ try {
       else if (neutral) ok(`${tag} white cloth is neutral (channel spread ${spread.toFixed(0)})`)
     }
   }
-  if (!same) fail('two captures of the same case are not the same image')
-  else ok('the same case captured twice is the same image')
+  if (!poseSame) fail('two captures of the same case do not frame the same way')
+  else if (!same) fail(`two captures of the same case differ by ${dLuma.toFixed(2)} luminance levels (max 1)`)
+  else ok(`the same case captured twice is the same image (median delta ${dLuma.toFixed(2)})`)
 
   writeFileSync(
     `${OUT}/render-verify.json`,

@@ -64,10 +64,20 @@ export function isWebGLAvailable(): boolean {
  * can turn them into one: there is no phone GPU on the build machine, chromium
  * renders through a software rasteriser, and a millisecond measured there says
  * nothing about a Mali or an Adreno. `scripts/frame-bench.mjs` measures what IS
- * portable, the work in one frame (draw calls, triangles, programs) and the
- * desktop-to-phone-profile ratio on one rasteriser, and it says so itself in its
- * own header. Anyone tightening these constants should move that number, not a
- * millisecond figure quoted as a phone.
+ * portable and says so itself in its own header.
+ *
+ * WHAT IT MEASURED on this tree, 14 frames per case, software rasterisation:
+ *
+ *   desktop  tee     18,1 ms  ·  21 draw calls · 234 594 triangles · 11 programs
+ *   desktop  hoodie  20,8 ms  ·  21 draw calls · 811 698 triangles · 11 programs
+ *   phone    tee     47,8 ms  ·  same geometry · shadow map 1024 instead of 2048
+ *   phone    hoodie  42,1 ms  ·  same geometry · shadow map 1024 instead of 2048
+ *
+ * The phone rows run under a 4x CPU throttle at 2,75x device pixels and cost
+ * 2,4x and 2,0x the desktop rows, so the cuts below are carrying roughly half
+ * the load the throttle adds. The draw-call and triangle counts are the numbers
+ * that travel; anyone tightening these constants should move those, not a
+ * millisecond figure quoted as if it were a phone.
  */
 const MOBILE = typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767.98px)').matches
 
@@ -271,7 +281,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
         )}
         {/* Sized to the measured garment, so one rig covers a tee and a 3XL hoodie. */}
         <KeyLight spec={cfg.key} extent={extent} mapSize={PROFILE.shadowMapSize} />
-        {cfg.rim && <RimLight spec={cfg.rim} extent={extent} />}
+        {cfg.rims?.map((spec, i) => <RimLight key={i} spec={spec} extent={extent} />)}
         <CameraRig
           viewRequest={props.viewRequest}
           autoRotate={props.autoRotate}

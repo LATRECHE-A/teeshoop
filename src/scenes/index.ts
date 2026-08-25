@@ -102,7 +102,15 @@ export interface Scene3DConfig {
   /** Base fill so sides facing away never crush to pure black. */
   hemisphere?: { sky: string; ground: string; intensity: number }
   key: KeyLightSpec
-  rim?: RimLightSpec
+  /**
+   * The separation lights. A LIST, because one is not enough: a single kicker
+   * only reaches the half of the silhouette whose normals face it, and measured
+   * on the black tee the other half sat within 1,5 sRGB levels of the lit floor
+   * over the worst 5 % of its rows while the median read 17. Two opposed
+   * kickers is what a product photographer puts on a dark garment, and it is
+   * the same reason.
+   */
+  rims?: RimLightSpec[]
   ground?: GroundSpec
 }
 
@@ -152,7 +160,10 @@ const STUDIO: SceneDef = {
     key: { direction: [-5.5, 6.5, 6], intensity: 1.25, color: '#fffdfa', softness: 5 },
     // Behind and opposite: the cold kicker a product photographer puts on the
     // far side of the subject so it leaves the background.
-    rim: { direction: [7, 3.5, -7], intensity: 3.4, color: '#dce9ff' },
+    rims: [
+      { direction: [7, 3.5, -7], intensity: 3.4, color: '#dce9ff' },
+      { direction: [-7, 2.5, -6.5], intensity: 2.4, color: '#cfe0ff' },
+    ],
     ground: { color: '#181c23', colorLight: '#dedad0', roughness: 0.96, radiusFactor: 7 },
   },
 }
@@ -182,7 +193,10 @@ const BEACH: SceneDef = {
     key: { direction: [-6, 7, 5], intensity: 2.1, color: '#fff2d6', softness: 2 },
     // Sky and sea behind: cool, and the reason a white tee stops dissolving
     // into a bright sky (measured p05 edge step 0,0 before this existed).
-    rim: { direction: [6, 3, -7], intensity: 2.2, color: '#bfe0ff' },
+    rims: [
+      { direction: [6, 3, -7], intensity: 2.2, color: '#bfe0ff' },
+      { direction: [-6, 2.5, -6.5], intensity: 1.5, color: '#cfe8ff' },
+    ],
     ground: { color: '#cbb489', roughness: 0.95, radiusFactor: 7 },
   },
 }
@@ -210,7 +224,10 @@ const FOREST: SceneDef = {
     ],
     // Sun through leaves — bright but broken up, so a wide penumbra.
     key: { direction: [-5, 8, 5], intensity: 1.15, color: '#eaf6d8', softness: 8 },
-    rim: { direction: [6, 3, -7], intensity: 1.9, color: '#cfe3b8' },
+    rims: [
+      { direction: [6, 3, -7], intensity: 1.9, color: '#cfe3b8' },
+      { direction: [-6, 2.5, -6.5], intensity: 1.3, color: '#bcd3a4' },
+    ],
     ground: { color: '#33402a', roughness: 0.97, radiusFactor: 7 },
   },
 }
@@ -239,7 +256,10 @@ const CITY: SceneDef = {
     ],
     // Overcast: the sky IS the light source, so barely any shadow direction.
     key: { direction: [-5.5, 6.5, 6], intensity: 0.85, color: '#eef3fb', softness: 10 },
-    rim: { direction: [7, 3, -7], intensity: 2.1, color: '#d6e4f5' },
+    rims: [
+      { direction: [7, 3, -7], intensity: 2.1, color: '#d6e4f5' },
+      { direction: [-7, 2.5, -6.5], intensity: 1.5, color: '#cddbee' },
+    ],
     ground: { color: '#59626d', roughness: 0.9, radiusFactor: 7 },
   },
 }
@@ -267,7 +287,10 @@ const SUNSET: SceneDef = {
     ],
     // Low golden sun: long, warm, fairly crisp.
     key: { direction: [-7, 2.5, 5], intensity: 1.9, color: '#ffb86b', softness: 3.5 },
-    rim: { direction: [7, 4, -6], intensity: 2.4, color: '#ff8fb8' },
+    rims: [
+      { direction: [7, 4, -6], intensity: 2.4, color: '#ff8fb8' },
+      { direction: [-7, 2.5, -6], intensity: 1.6, color: '#ffb27a' },
+    ],
     ground: { color: '#6b4b46', roughness: 0.93, radiusFactor: 7 },
   },
 }
@@ -280,23 +303,31 @@ const NIGHT: SceneDef = {
   backdrop: () =>
     'radial-gradient(64% 52% at 50% 30%, #1b2b52 0%, #0b1327 56%, #070b16 100%)',
   three: {
-    envIntensity: 1.0,
+    envIntensity: 1.35,
     shadowColor: '#05070f',
     shadowOpacity: 0.62,
-    hemisphere: { sky: '#43558a', ground: '#0b1020', intensity: 0.6 },
+    hemisphere: { sky: '#6076b4', ground: '#101636', intensity: 1.35 },
     lightformers: [
-      { form: 'rect', intensity: 2.6, color: '#b9c9ff', position: [-6, 7, 4], scale: [5, 5, 1] },
-      { form: 'rect', intensity: 0.9, color: '#3a4e7a', position: [5, 2, 7], scale: [9, 7, 1] },
-      { form: 'circle', intensity: 2.2, color: '#ffb877', position: [7, 1, 3], scale: 2.2 },
-      { form: 'circle', intensity: 1.4, color: '#ffcf94', position: [-6, -1, 4], scale: 1.6 },
-      { form: 'rect', intensity: 1.8, color: '#35c7ff', position: [8, 3, -6], scale: [2.5, 7, 1] },
-      { form: 'rect', intensity: 1.0, color: '#2b3d6b', position: [-3, 4, -8], scale: [7, 5, 1] },
+      { form: 'rect', intensity: 4.7, color: '#b9c9ff', position: [-6, 7, 4], scale: [5, 5, 1] },
+      { form: 'rect', intensity: 1.6, color: '#3a4e7a', position: [5, 2, 7], scale: [9, 7, 1] },
+      { form: 'circle', intensity: 4.0, color: '#ffb877', position: [7, 1, 3], scale: 2.2 },
+      { form: 'circle', intensity: 2.5, color: '#ffcf94', position: [-6, -1, 4], scale: 1.6 },
+      { form: 'rect', intensity: 3.2, color: '#35c7ff', position: [8, 3, -6], scale: [2.5, 7, 1] },
+      { form: 'rect', intensity: 1.8, color: '#2b3d6b', position: [-3, 4, -8], scale: [7, 5, 1] },
     ],
     // Moon plus a warm practical to camera-right; dim and quite hard.
-    key: { direction: [-6, 7, 4], intensity: 1.25, color: '#b9c9ff', softness: 4 },
-    // The hardest case in the set: a dark garment on a dark stage. The rim IS
-    // the picture here, so it carries more of the exposure than anywhere else.
-    rim: { direction: [7, 3, -6], intensity: 4.2, color: '#9fb6ff' },
+    key: { direction: [-6, 7, 4], intensity: 1.9, color: '#b9c9ff', softness: 4 },
+    // THE HARDEST CASE IN THE SET: a dark garment on a dark stage. Measured on
+    // the first lift, a #191C20 tee still came out at median luminance 15
+    // against a page of 16, which is not a mood, it is a product the customer
+    // cannot see. Night reads as night through its COLOUR, blue with two warm
+    // practicals, not through darkness; the whole rig is roughly a stop and a
+    // half up from where it shipped, and the rim carries more of the exposure
+    // here than anywhere else.
+    rims: [
+      { direction: [7, 3, -6], intensity: 5.0, color: '#9fb6ff' },
+      { direction: [-7, 2.5, -6], intensity: 3.2, color: '#8fa6ef' },
+    ],
     ground: { color: '#10162a', roughness: 0.9, radiusFactor: 7 },
   },
 }

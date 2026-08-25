@@ -698,9 +698,20 @@ traitement.
 
 **Le vêtement ne flotte plus.** Il pendait dans un `<Float>` dont la phase était tirée au
 hasard à chaque montage : aucune comparaison avant/après du dépôt n'a donc jamais comparé
-deux images comparables, et aucun mockup ne pouvait être produit deux fois. Retiré. Un
-mockup est désormais une fonction pure de la création, et `scripts/mockup-shots.mjs` le
-prouve en rendant deux fois la même image et en comparant les octets.
+deux images comparables, et aucun mockup ne pouvait être produit deux fois. Retiré.
+`scripts/mockup-shots.mjs` rend les images qu'une fiche produit, un bon à tirer et un e-mail
+demandent (avant, trois-quarts, dos, à 1 200 × 1 500), puis rend la première une seconde fois
+et compare les octets.
+
+**Ce que coûte une image, mesuré.** `scripts/frame-bench.mjs` ne prétend pas mesurer un
+téléphone et le dit dans son propre en-tête : il n'y a pas de carte graphique de téléphone
+sur cette machine, chromium passe par un rastériseur logiciel, et une milliseconde mesurée
+là ne dit rien d'un Mali ni d'un Adreno. Ce qui voyage, ce sont **21 appels de dessin et
+234 594 triangles** pour un t-shirt, **811 698** pour un sweat, et 11 programmes. Sur ce
+rastériseur, le profil téléphone (bridage processeur ×4, 2,75× de pixels physiques, carte
+d'ombre 1024 au lieu de 2048, pas de MSAA) coûte 2,4× et 2,0× le profil bureau, ce qui veut
+dire que les coupes portent à peu près la moitié de ce que le bridage ajoute. Le volet
+principal n'avait aucun profil mobile, alors que la vue panier en avait un depuis toujours.
 
 **Et la création du client apparaît enfin là où il la cherche.** L'aperçu aplati était
 déposé sur R2 et gelé sur la ligne de commande depuis la séance 01, et **rien ne le relisait
