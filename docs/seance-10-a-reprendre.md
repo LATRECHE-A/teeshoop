@@ -77,17 +77,18 @@ npm run wp:up
 ```
 
 Deux assertions étaient rouges au dernier balayage complet et le sont probablement encore :
-l'écart de 2 % d'une image prise tard dans un balayage. `RENDER_DOUBLE=1` a été ajouté pour
-trancher entre les deux causes qui restent (voir `docs/ROADMAP.md`), et **n'a pas encore été
-lancé une seule fois** :
+l'écart de 2 % d'une image prise tard dans un balayage.
 
-```
-RENDER_DOUBLE=1 node scripts/render-verify.mjs .qa/render-double
-```
+**`RENDER_DOUBLE=1` a tourné le 25/08/2026 et a tranché.** Sur `tee-white-34` et
+`tee-black-night`, 31 minutes, trois prises : les trois relectures d'une image inchangée sont
+**identiques**, l'écart de déterminisme est **0,00** (contre 216 puis 212 sur le balayage
+complet) et `tee-black-night` lit **27**, sa valeur « seul ». Verdict PASS, sortie 0.
 
-Si les deux relectures d'une même image diffèrent, le défaut est dans la relecture du tampon
-de dessin. Si elles sont identiques, c'est de l'état qui s'accumule dans le contexte WebGL
-d'un cas à l'autre. Les deux réparations n'ont rien à voir.
+Donc le tampon de dessin n'est pas en cause : c'est de l'état qui survit d'un cas au suivant.
+Reste à savoir lequel. Les trois prises du balayage court montaient le même vêtement ; tous
+les cas qui ont dérivé avaient un autre GLB monté entre-temps. **Sonde suivante, quelques
+secondes** : relever `renderer.info.memory` et `renderer.info.render` de part et d'autre d'un
+`setGarment`, et voir si les compteurs montent.
 
 ### 3.2 `scripts/inflate-verify.mjs`
 

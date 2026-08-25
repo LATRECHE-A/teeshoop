@@ -32,16 +32,34 @@
  * the garment or what it throws: no threshold on "looks like cloth", no
  * background reference guessed per row.
  *
- * KNOWN, MEASURED, UNEXPLAINED, and deliberately not papered over: an image
- * captured LATE in a sweep renders about 2 % darker than the same case captured
- * alone. The black tee in `night` measures median luminance 27 on its own and 24
- * here, which drops it under the page-separation gate; the white tee captured a
- * second time at the end of the sweep reads 212 against 216 the first time, with
- * a bounding box identical to the pixel. It is not the environment bake (the
- * capture waits eight DRAWN frames) and it is not the pose. The thresholds have
- * not been moved to make it green: a tick nobody believes is worth less than a
- * cross that can be explained. `scripts/mockup-shots.mjs`, which renders one
- * case twice with nothing in between, is byte-identical.
+ * MEASURED AND NARROWED, not papered over: an image captured LATE in a sweep
+ * renders about 2 % darker than the same case captured alone. The black tee in
+ * `night` measures median luminance 27 on its own and 24 inside the full sweep,
+ * which drops it under the page-separation gate; the white tee captured a second
+ * time at the end reads 212 against 216 the first time, with a bounding box
+ * identical to the pixel. It is not the environment bake (the capture waits
+ * eight DRAWN frames) and it is not the pose.
+ *
+ * RENDER_DOUBLE=1 was built to split the two remaining candidates and has now
+ * been run (25/08/2026, RENDER_ONLY=tee-white-34,tee-black-night):
+ *
+ *   · three readbacks of three unchanged frames came back IDENTICAL, so the
+ *     drawing buffer is not racing the compositor and the copy path is sound;
+ *   · over that two-case sweep the determinism gate read a delta of 0.00, where
+ *     the fourteen-case sweep reads 216 then 212;
+ *   · `tee-black-night` read 27 there, which is its run-alone value, not the 24
+ *     it reads at index 4 of the full sweep.
+ *
+ * So the defect is state surviving from one case into the next. WHICH state is
+ * not yet measured, and the next probe is cheap: every case in that two-case run
+ * mounted the SAME garment, while every case that has ever drifted had a
+ * different GLB mounted and unmounted in between (hoodie-black-34 sits directly
+ * before tee-black-night). Count `renderer.info.memory` across a swap before
+ * assuming anything: that takes seconds, where a sweep takes two hours.
+ *
+ * The thresholds have not been moved to make it green: a tick nobody believes is
+ * worth less than a cross that can be explained. `scripts/mockup-shots.mjs`,
+ * which renders one case twice with nothing in between, is byte-identical.
  *
  * Exit: 0 every gate passed · 2 nothing was scanned · 3 a gate failed.
  */
@@ -716,6 +734,11 @@ try {
      *
      * Diagnostic, not a gate: it prints and never fails, because a negative
      * here would only mean the SECOND candidate, and that one has no fix yet.
+     *
+     * ANSWERED 25/08/2026: identical, three times out of three. The readback is
+     * sound and the second candidate is the live one. Kept because it is the
+     * only thing that can tell the two apart, and the next person to see a
+     * drift will want to re-ask rather than trust this note.
      */
     if (process.env.RENDER_DOUBLE) {
       // page.evaluate(READBACK) DIRECTLY, not layer([]). layer() runs drawn()

@@ -731,11 +731,26 @@ TARD dans un balayage rend environ 2 % plus sombre que le même cas rendu seul. 
 noir en scène `night` mesure 27 de luminance médiane quand son cas tourne seul et 24 dans le
 balayage, ce qui le fait passer sous les 8 niveaux d'écart exigés avec la page ; et le
 t-shirt blanc, capturé une seconde fois à la fin du balayage, rend 212 contre 216 la
-première fois, cadrage identique au pixel près. La cause n'est pas trouvée : ce n'est ni la
-cuisson de la carte d'environnement (le contrôle attend maintenant huit images dessinées),
-ni la pose (les deux boîtes englobantes sont identiques). Le seuil n'a pas été baissé pour
-faire verdir : un contrôle vert auquel on ne croit pas vaut moins qu'un rouge qu'on sait
-expliquer. À reprendre en séance 13.
+première fois, cadrage identique au pixel près. Ce n'est ni la cuisson de la carte d'environnement (le
+contrôle attend maintenant huit images dessinées), ni la pose (les deux boîtes englobantes
+sont identiques).
+
+**Et depuis le 25/08/2026 ce n'est pas non plus la relecture du tampon de dessin.**
+`RENDER_DOUBLE=1` a enfin tourné, sur `tee-white-34` et `tee-black-night`. Trois relectures
+de trois images que personne n'avait touchées entre les deux sont revenues **identiques**.
+Sur ce balayage court le contrôle de déterminisme mesure un écart de **0,00**, là où le
+balayage complet lit 216 puis 212 ; et `tee-black-night` y lit **27**, sa valeur « seul »,
+pas le 24 qu'il lit en cinquième position du balayage complet.
+
+Le défaut est donc de l'état qui survit d'un cas au suivant. **Lequel n'est pas encore
+mesuré**, mais la piste s'est resserrée toute seule : les trois prises du balayage court
+montaient le MÊME vêtement, alors que tous les cas qui ont dérivé avaient un autre GLB monté
+puis démonté entre-temps (`hoodie-black-34` est juste avant `tee-black-night`). La prochaine
+sonde est de compter `renderer.info.memory` de part et d'autre d'un changement de vêtement,
+ce qui prend des secondes quand un balayage prend deux heures.
+
+Le seuil n'a pas été baissé pour faire verdir : un contrôle vert auquel on ne croit pas vaut
+moins qu'un rouge qu'on sait expliquer.
 
 Ce que le contrôle affirme, et qui passe : aucun vêtement n'est coupé ni collé à un bord,
 tous sont centrés à 0,1 % près, chacun pose une ombre sur quelque chose (9 400 à 38 500
@@ -822,12 +837,11 @@ classé.
   au sens propre est voulu (une scène plus un cadrage, enregistrés ensemble), c'est du
   produit et cela se décide.
 - **Deux assertions de `render-verify` restent rouges, et c'est toujours la même mesure**
-  (l'écart de 2 % d'une image prise tard dans un balayage, décrit plus haut). Le contrôle
-  emporte maintenant `RENDER_DOUBLE=1`, qui relit la MÊME image deux fois de suite sans rien
-  toucher entre les deux : si les deux lectures diffèrent, le défaut est dans la relecture du
-  tampon de dessin, qui n'est pas conservé et court après le compositeur ; si elles sont
-  identiques, c'est de l'état qui s'accumule dans le contexte WebGL d'un cas à l'autre. Les
-  deux réparations n'ont rien à voir, et c'est cette question-là qui part en séance 13.
+  (l'écart de 2 % d'une image prise tard dans un balayage, décrit plus haut). `RENDER_DOUBLE=1`
+  a tranché le 25/08/2026 : les relectures sont identiques, donc le tampon de dessin n'est pas
+  en cause et c'est de l'état qui survit d'un cas au suivant. Ce qui part en séance 13 n'est
+  plus « laquelle des deux causes », c'est « quel état », avec une piste chiffrable et une
+  sonde qui coûte des secondes (voir plus haut).
 - **Le liseré d'encre n'est toujours pas sous contrôle chiffré.** La correction
   (prémultiplication, division, décodage) est de l'arithmétique démontrable, mais la mire de
   calibrage cerne ses propres lettres d'un trait noir, donc le compteur de liseré compte ce
