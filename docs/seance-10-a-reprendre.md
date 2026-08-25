@@ -90,9 +90,23 @@ les cas qui ont dérivé avaient un autre GLB monté entre-temps. **Sonde suivan
 secondes** : relever `renderer.info.memory` et `renderer.info.render` de part et d'autre d'un
 `setGarment`, et voir si les compteurs montent.
 
-### 3.2 `scripts/inflate-verify.mjs`
+### 3.2 `scripts/inflate-verify.mjs` : RÉSOLU, c'était la machine
 
-**Échoue sur une assertion de temps, deux fois, et la machine était chargée les deux fois.**
+**Relancé au calme le 25/08/2026 : PASS, sortie 0, 19 minutes.** Le contrôle le plus lent
+construit sa coque en **748 ms** pour un budget de 900, et la construction à froid la plus
+lente tient en 979 ms. Rien à corriger, et le budget n'a pas bougé d'une milliseconde.
+
+Les deux mesures côte à côte, qui sont tout l'intérêt de l'exercice :
+
+| charge moyenne | cas au-dessus de 900 ms | pire temps |
+|---|---|---|
+| 10,8 (balayage + agents) | 7 | 2 136 ms |
+| ~10 au départ, 6,6 à l'arrivée, rien d'autre que le terminal | **0** | **748 ms** |
+
+Ce qui suit décrit l'état d'avant et se garde parce que c'est la raison pour laquelle on
+n'a pas touché au budget.
+
+**Échouait sur une assertion de temps, deux fois, et la machine était chargée les deux fois.**
 
 - 1 cas au-dessus du budget de 900 ms (1 358 ms) pendant que huit agents de lecture
   tournaient ;
@@ -104,7 +118,7 @@ qu'il mesure (`src/lib/ingest`) n'a pas été touché de la séance. Tout le res
 (invariants du creux, déterminisme, portail vêtement / pas-vêtement) passe.
 
 **Ne pas remonter le budget.** Un budget qui bouge pour s'adapter à la machine n'est plus un
-budget. La marche à suivre est de mesurer au calme :
+budget. La marche à suivre était de mesurer au calme, et c'est ce qui a été fait :
 
 ```
 npm run wp:down
