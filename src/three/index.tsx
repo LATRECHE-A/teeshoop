@@ -23,6 +23,7 @@ import {
   fitRadius,
   homeCameraPosition,
   type MeasuredExtent,
+  type ViewRequest,
 } from './Stage'
 import { GarmentModel } from './GarmentModel'
 import { CustomGarment } from './ExtrudedGarment'
@@ -209,6 +210,20 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
   // switching S↔3XL changes the garment on screen rather than the viewing
   // distance. Garments are scaled to real inches, so a fixed distance would crop.
   const extent = useRef<MeasuredExtent>({ ...SEED_EXTENT })
+  /**
+   * The view request, in a box, written during THIS render.
+   *
+   * Same seam as `extent` above and the same repair, in the opposite direction:
+   * that one carries a measurement out of the react-three-fiber root, this one
+   * carries a request in. Measured before the change, one request in three
+   * arrived (see CameraRigProps.viewRequest), which meant the studio's own view
+   * buttons sometimes did nothing and two of the proof sheet's "front" images
+   * were byte-identical to its "three-quarter" ones. Writing during render is
+   * safe here for the reason it is safe there: the value is derived from a prop,
+   * so writing it twice writes the same thing.
+   */
+  const viewRequestBox = useRef<ViewRequest | null>(props.viewRequest ?? null)
+  viewRequestBox.current = props.viewRequest ?? null
   const onMeasured = useCallback(
     (
       heightIn: number,
@@ -321,7 +336,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
         <KeyLight spec={cfg.key} extent={extent} mapSize={PROFILE.shadowMapSize} />
         {cfg.rims?.map((spec, i) => <RimLight key={i} spec={spec} extent={extent} />)}
         <CameraRig
-          viewRequest={props.viewRequest}
+          viewRequest={viewRequestBox}
           autoRotate={props.autoRotate}
           reducedMotion={reducedMotion}
           extent={extent}

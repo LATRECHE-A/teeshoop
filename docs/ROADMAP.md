@@ -839,6 +839,17 @@ classé.
   C'est de la dette d'avant la séance et elle appartient à la séance 12 (accessibilité).
 - **Le balayage `render-verify` reste lent et hors CI** (quelques minutes par cas sous
   rendu logiciel), donc il ne protège rien automatiquement : il faut le lancer.
+- **Un bouton de vue sur trois ne faisait rien, et personne ne l'avait vu.** Mesuré avec la
+  sonde de pose : en chargeant `/dev/three.html?g=tee&v=front` et en attendant que le
+  cadrage soit posé, la caméra restait à l'azimut -0,638, c'est-à-dire au trois-quarts de
+  départ, le vêtement mesuré et l'ajustement appliqué ; un premier appel scripté à
+  `setView('front')` la mettait bien à 0 ; et le SUIVANT, trois secondes plus tard, ne la
+  bougeait plus du tout. Une demande sur trois arrivait. C'est la même couture que le défaut
+  de cadrage corrigé plus haut, dans l'autre sens : la demande est un état de la racine React
+  du DOM et le rig vit dans celle de react-three-fiber, et une mise à jour qui traverse
+  dépend de deux ordonnanceurs. Même réparation : une boîte écrite au rendu, relue à chaque
+  image. Mesuré après : `?v=front` donne 0, et `setView('back')` donne -3,142. Cela touchait
+  le client directement, les trois boutons de vue du studio passent par là.
 - **Les planches de contrôle légendaient des images prises en cours de mouvement.**
   `scripts/3d-shots.mjs` attendait 2 500 ms après « ready » puis capturait ; sous rendu
   logiciel l'amortissement du pivot n'est pas arrivé dans ce délai. Mesuré :

@@ -647,8 +647,36 @@ function torsoWidthIn(garment: GarmentId, fallbackIn: number): number {
  */
 const GROUND_ROOM_FRAC = 0.1
 
+/** A request to swing the camera to a side. Nonce so a repeat is a new request. */
+export interface ViewRequest {
+  view: ViewSnap
+  nonce: number
+}
+
 export interface CameraRigProps {
-  viewRequest: { view: ViewSnap; nonce: number } | null
+  /**
+   * THE VIEW REQUEST, AS A BOX, for the same reason the measured extents are one.
+   *
+   * This used to be a plain prop read in an effect, and it did not arrive
+   * reliably. Measured on the shipped tree with the pose probe: loading
+   * `/dev/three.html?g=tee&v=front` and waiting for the fit to settle left the
+   * camera at azimuth -0,638, which is the three-quarter it starts at, with the
+   * garment measured and the fit applied; the first scripted `__h.setView` then
+   * moved it to 0, and the SECOND, three seconds later, did not move it at all.
+   * One request in three landed. That is why `hoodie-black-front.png` and
+   * `hoodie-black-34.png` came out byte-identical, and it is a customer-facing
+   * defect too, because the studio's own three view buttons go through here.
+   *
+   * The cause is the seam this component already documents in the other
+   * direction: the request is state in the DOM root and this component lives in
+   * the react-three-fiber root, and an update crossing that boundary is at the
+   * mercy of two schedulers. The measurement crossing the other way was fixed by
+   * putting it in a mutable box polled per frame (see MeasuredExtent); this is
+   * the same repair for the same seam. The box is written during the parent's
+   * render and read in `useFrame`, so there is no scheduler between them, and
+   * the nonce makes the read idempotent.
+   */
+  viewRequest: RefObject<ViewRequest | null>
   autoRotate: boolean
   reducedMotion: boolean
   /** The measured garment, shared as a box (see MeasuredExtent). */
@@ -677,7 +705,7 @@ export function CameraRig({
   const goal = useRef<THREE.Spherical | null>(null)
   // Seed with the CURRENT nonce so an old request doesn't replay (and snap
   // the camera uninvited) every time the user re-enters 3D mode.
-  const lastNonce = useRef<number | null>(viewRequest?.nonce ?? null)
+  const lastNonce = useRef<number | null>(viewRequest.current?.nonce ?? null)
   // The auto-fit is a first-impression convenience, not a leash: once the user
   // has orbited or zoomed, their distance is theirs and we stop touching it.
   const userTook = useRef(false)
@@ -884,9 +912,10 @@ export function CameraRig({
     applyFit(radius)
   })
 
-  useEffect(() => {
-    if (!viewRequest || viewRequest.nonce === lastNonce.current) return
-    lastNonce.current = viewRequest.nonce
+  useFrame(() => {
+    const req = viewRequest.current
+    if (!req || req.nonce === lastNonce.current) return
+    lastNonce.current = req.nonce
     // Swing around to the requested side at the FRAMED distance while the fit
     // still owns the camera. Reading `camera.position.length()` instead was a
     // race with the measurement: a snap issued before the garment reported
@@ -896,7 +925,7 @@ export function CameraRig({
     const radius = userTook.current
       ? THREE.MathUtils.clamp(camera.position.length(), fit * 0.6, fit * 1.6)
       : fit
-    const target = new THREE.Spherical(radius, VIEW_POLAR[viewRequest.view], VIEW_AZIMUTH[viewRequest.view])
+    const target = new THREE.Spherical(radius, VIEW_POLAR[req.view], VIEW_AZIMUTH[req.view])
     if (reducedMotion) {
       camera.position.setFromSpherical(target)
       const controls = controlsRef.current
@@ -917,8 +946,7 @@ export function CameraRig({
     } else {
       goal.current = target
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewRequest, camera, reducedMotion])
+  })
 
   // Smooth exponential damp toward the requested view — in SPHERICAL space,
   // so the camera arcs around the garment instead of cutting straight
