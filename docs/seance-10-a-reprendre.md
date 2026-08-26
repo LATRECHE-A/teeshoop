@@ -43,7 +43,7 @@ un temps (voir 3.2).
 | `scripts/grading-verify.mjs` | **PASS** | la déclinaison par taille tient à 0,27 %, et le raster du transfert colle à la zone au pixel |
 | `scripts/board-verify.mjs` | **PASS** | sans le moindre avertissement, alors qu'il sortait en WARN avant la séance |
 | `npm run verify:leak` | **PASS** | nouveau : parcourir les scènes n'alloue plus rien (13 textures, plates sur 18 changements, contre 13 -> 67 avant), les six scènes éclairent toujours différemment, et la sortie d'échec est prouvée (`rc=3` sur l'arbre cassé exprès) |
-| `scripts/3d-shots.mjs` | 14 images sur 14 **distinctes** | contre 10 sur 14 avant la correction de la demande de vue |
+| `scripts/3d-shots.mjs` | 14 images sur 14 **distinctes** | et 14 sur 14 sur l'arbre d'AVANT la séance aussi, une fois le script corrigé : les doublons venaient de l'instrument, pas du studio (voir 3.5) |
 | `scripts/frame-bench.mjs` | mesuré | voir `.qa/frame-bench-after2.json` et l'en-tête de `src/three/index.tsx` |
 
 Construction, contre l'arbre d'avant la séance (`1935798~1`, worktree) :
@@ -182,9 +182,32 @@ sur l'avatar contre **0,005** en 2D et en 3D, c'est-à-dire qu'il ne se décline
 est écrit dans `scripts/mockup-shots.mjs` et la question produit est la **Q52** de
 `QUESTIONS-ASSOCIE.md`. L'image ne changerait pas la décision, elle l'illustrerait.
 
-### 3.5 L'avant/après à instrument identique
+### 3.5 L'avant/après à instrument identique : FAIT, et il corrige une attribution
 
-Le worktree de l'arbre d'avant la séance est prêt et le script corrigé y est déjà copié :
+**Les deux moitiés ont tourné le 26/08/2026**, même script, même machine, même heure :
+`.qa/before-3d-fixed` sur l'arbre `4767e40` (avant la séance) et `.qa/after-3d-now` sur
+l'arbre courant. Sortie 0 des deux côtés, 14 images chacune.
+
+**Ce qu'il corrige.** Ce tableau disait « 14 sur 14 distinctes, contre 10 sur 14 avant la
+correction de la demande de vue ». C'est faux, ou du moins non démontré : le script ET le
+studio ont été corrigés dans la même séance, et à instrument constant l'arbre d'AVANT donne
+lui aussi **14 images distinctes sur 14**. Les doublons de la planche venaient donc des
+captures prises en cours d'amortissement, pas du studio. Le défaut du studio est réel, mais
+il est prouvé par la mesure directe de l'azimut (`?v=front` laissait -0,638 au lieu de 0, et
+le deuxième `setView` ne faisait rien), pas par cette planche.
+
+**Ce qu'il montre.** Douze des quatorze prises changent sur 70 à 84 % de leurs pixels, et
+toutes dans le même sens : plus clair. Un t-shirt noir de face passe d'une moyenne de
+16,1/17,5/20,7 à 32,2/36,4/43,4, le sweat sombre en studio de 19,8/21,5/24,8 à
+38,5/43,1/50,9. C'est ce que la séance a fait de délibéré : le duvet du t-shirt monté de 0,32
+à 0,62, la carte d'occlusion cuite du t-shirt mise à zéro parce que son île arrière est une
+tache noire, la cavité mesurée qui reprend toute la charge, et les contre-jours ajoutés.
+
+**Les deux prises `inflate-*` sont identiques à l'octet.** C'est le vêtement téléversé, et
+c'est exactement le piège que la consigne de séance nommait : améliorer le vêtement de
+catalogue ne doit pas toucher celui que le client envoie. Mesuré, il n'y a pas touché.
+
+Pour refaire la moitié « avant » :
 
 ```
 git worktree add --detach /tmp/pre10 1935798~1     # s'il a disparu
