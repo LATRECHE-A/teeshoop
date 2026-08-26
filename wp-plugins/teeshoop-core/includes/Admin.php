@@ -84,12 +84,21 @@ final class Admin {
 		/*
 		 * ONLY THE KEYS THIS FORM OWNS, merged over what is stored.
 		 *
-		 * The option holds more than `Legal::fields()`: `cgv_version` lives
-		 * there too and no field on this screen sets it. Rebuilding the array
-		 * from the form alone deleted it on every save, silently, and the first
-		 * symptom would have been a customer's recorded acknowledgement losing
-		 * the version of the terms it was given against. This is the same trap
-		 * the shipping block below records, found the same way.
+		 * The option holds more than `Legal::fields()`: the host block and the
+		 * publication contact live there too, written by the loop below, and a
+		 * future screen may add more. Rebuilding the array from one form alone
+		 * deletes whatever the other owns, silently. This is the same trap the
+		 * shipping block further down records, found the same way.
+		 *
+		 * IT USED TO SAY `cgv_version`, AND THAT IS NOW WRONG. That key was the
+		 * original reason for this shape: it was in the option, no field set it,
+		 * and rebuilding deleted it. Session 12 found it had no writer AT ALL, so
+		 * every order recorded an empty version, and moved the answer into
+		 * `Terms`, which derives it from the dated files on disk. Nothing reads
+		 * the key any more. A stale `cgv_version` left in the option by an old
+		 * install is now inert rather than authoritative, which is the right way
+		 * round: one place decides which text is in force, and it is the one that
+		 * can produce it.
 		 */
 		$stored = get_option( OPTION_LEGAL, array() );
 		$legal  = is_array( $stored ) ? $stored : array();

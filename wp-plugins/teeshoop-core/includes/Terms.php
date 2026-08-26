@@ -62,9 +62,6 @@ require_once __DIR__ . '/Money.php';
 
 final class Terms {
 
-	/** What a version that no lawyer has read says about itself. */
-	public const DRAFT = 'PROJET';
-
 	/** The value keys a version may pin, and how each is written in French. */
 	public const FORMATS = array(
 		'minimum_pieces'           => 'int',
