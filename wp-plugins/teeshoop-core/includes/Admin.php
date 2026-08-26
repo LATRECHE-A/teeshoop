@@ -97,6 +97,21 @@ final class Admin {
 			$legal[ $key ] = sanitize_text_field( wp_unslash( (string) ( $_POST['legal'][ $key ] ?? '' ) ) );
 		}
 		$legal['siret'] = Legal::siret( $legal['siret'] ) ?: $legal['siret'];
+
+		/*
+		 * The host block and the publication contact, written the same way and
+		 * for the same reason. `Host` owns them, they live in the same option
+		 * because they are typed on the same screen, and the loop above must not
+		 * be widened to cover them: `Legal::fields()` is what an invoice
+		 * REFUSES over, and a missing telephone number is not that.
+		 */
+		foreach ( array_keys( Host::fields() + Host::contact_fields() ) as $key ) {
+			$legal[ $key ] = sanitize_text_field( wp_unslash( (string) ( $_POST['legal'][ $key ] ?? '' ) ) );
+		}
+		if ( '' !== $legal['contact_email'] ) {
+			$legal['contact_email'] = sanitize_email( $legal['contact_email'] );
+		}
+
 		update_option( OPTION_LEGAL, $legal );
 
 		update_option(
@@ -334,6 +349,39 @@ final class Admin {
 				esc_html( $label ),
 				esc_attr( (string) ( $identity[ $key ] ?? '' ) ),
 				$missing ? ' <span class="description">' . esc_html__( 'manquant', 'teeshoop' ) . '</span>' : ''
+			);
+		}
+		echo '</tbody></table>';
+
+		self::render_publisher();
+	}
+
+	/**
+	 * The two blocks the mentions légales need and no invoice does.
+	 *
+	 * SEPARATE FROM THE TABLE ABOVE, with its own heading, because the screen has
+	 * to make the consequence legible: the fields above refuse an invoice, these
+	 * leave a public page incomplete. An operator who cannot tell them apart will
+	 * treat all thirteen as equally urgent, or none of them.
+	 */
+	private static function render_publisher(): void {
+		$all = Host::all();
+
+		echo '<h2>' . esc_html__( 'Le site : hébergeur et directeur de la publication', 'teeshoop' ) . '</h2>';
+		echo '<p class="description" style="max-width:46em">' . esc_html__(
+			'Obligatoire sur le site lui-même (article 6 III de la loi pour la confiance dans l’économie numérique), et non sur les factures. Le nom et l’adresse de l’hébergeur se recopient du contrat d’hébergement : ce n’est pas une information à reconstituer, c’est une information à lire.',
+			'teeshoop'
+		) . '</p>';
+
+		echo '<table class="form-table" role="presentation"><tbody>';
+		foreach ( Host::fields() + Host::contact_fields() as $key => $label ) {
+			printf(
+				'<tr><th scope="row"><label for="legal-%1$s">%2$s</label></th><td>'
+					. '<input type="text" id="legal-%1$s" name="legal[%1$s]" value="%3$s" class="regular-text">%4$s</td></tr>',
+				esc_attr( $key ),
+				esc_html( $label ),
+				esc_attr( (string) ( $all[ $key ] ?? '' ) ),
+				'' === ( $all[ $key ] ?? '' ) ? ' <span class="description">' . esc_html__( 'manquant', 'teeshoop' ) . '</span>' : ''
 			);
 		}
 		echo '</tbody></table>';

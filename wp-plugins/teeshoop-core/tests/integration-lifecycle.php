@@ -42,6 +42,7 @@ if ( 'cli' !== PHP_SAPI ) {
 use Teeshoop\Core\Bat;
 use Teeshoop\Core\Claim;
 use Teeshoop\Core\Invoice;
+use Teeshoop\Core\Legal;
 use Teeshoop\Core\Ledger;
 use Teeshoop\Core\Lifecycle;
 use Teeshoop\Core\Mail;
@@ -967,9 +968,30 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		ts_eq( $record['ip'], '198.51.100.9', 'adresse' );
 		ts_eq( $record['text'], Waiver::text(), 'ce ne sont pas les mots affichés' );
 		ts_assert( '' !== (string) $record['at'], 'aucune date' );
-		// Empty until session 12 writes the terms, and recorded as empty rather
-		// than as a plausible "v1" nobody could produce.
-		ts_eq( $record['cgv'], '', 'la version des CGV est inventée' );
+
+		/*
+		 * BOTH READINGS, KEPT SIDE BY SIDE, which is what `CLAUDE.md` asks for
+		 * when a value that was deliberately empty stops being empty.
+		 *
+		 * This assertion used to be `ts_eq( $record['cgv'], '' )`, with a comment
+		 * saying the version was recorded as empty rather than as a plausible
+		 * "v1" nobody could produce. That was right while no conditions of sale
+		 * existed. Session 12 wrote them, so the correct assertion is no longer
+		 * "empty" and it is not "non-empty" either: it is that the version
+		 * recorded on the order is the one that was in force AND that we can
+		 * still produce the document it names. A version string we cannot resolve
+		 * would be exactly the plausible "v1" the old comment refused.
+		 */
+		$version = Legal::cgv_version();
+		ts_eq( $record['cgv'], $version, 'la version enregistrée n’est pas celle en vigueur' );
+		if ( '' === $version ) {
+			ts_assert( true, 'aucune version publiée : rien à produire, et rien d’inventé' );
+		} else {
+			ts_assert(
+				null !== \Teeshoop\Core\Terms::document( $version ),
+				'la version enregistrée sur la commande ne correspond à aucun texte que nous puissions produire'
+			);
+		}
 		$order->delete( true );
 	} );
 

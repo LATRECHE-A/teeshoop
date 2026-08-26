@@ -138,33 +138,28 @@ $ts_min      = minimum();
 
 		<?php
 		/*
-		 * A column with a heading and nothing under it is worse than no column.
-		 * These four pages are session 12's, and none of them exists yet: the
-		 * terms of sale need a lawyer (question 18) and the privacy policy needs
-		 * a named data controller (question 19). The heading appears the day a
-		 * page does.
+		 * A column with a heading and nothing under it is worse than no column,
+		 * so the heading appears the day a page does.
+		 *
+		 * THE LIST IS NOT TYPED HERE ANY MORE. It used to be four slugs written
+		 * into this template, and session 12 added a fifth page that the footer
+		 * therefore did not link to: `accessibilite` was published, reachable and
+		 * invisible. `Pages::live()` is the one place that knows which legal
+		 * pages exist and which are published, and `Consent`, the CLI command
+		 * that creates them and this template all read it.
+		 *
+		 * The theme degrades on its own if the plugin is not there: no plugin,
+		 * no legal pages, no column, which is the same outcome as before.
 		 */
-		$ts_links = array();
-		foreach (
-			array(
-				'contact'          => __( 'Nous contacter', 'teeshoop' ),
-				'mentions-legales' => __( 'Mentions légales', 'teeshoop' ),
-				'cgv'              => __( 'Conditions générales de vente', 'teeshoop' ),
-				'confidentialite'  => __( 'Données personnelles', 'teeshoop' ),
-			) as $ts_slug => $ts_label
-		) {
-			$ts_url = page_url( $ts_slug );
-			if ( '' !== $ts_url ) {
-				$ts_links[ $ts_url ] = $ts_label;
-			}
-		}
+		$ts_links = class_exists( '\Teeshoop\Core\Pages' ) ? \Teeshoop\Core\Pages::live() : array();
+		$ts_titles = class_exists( '\Teeshoop\Core\Pages' ) ? \Teeshoop\Core\Pages::all() : array();
 		?>
 		<?php if ( ! empty( $ts_links ) ) : ?>
 			<section class="ts-foot__col">
-				<h2 class="ts-foot__title"><?php esc_html_e( 'Nous écrire', 'teeshoop' ); ?></h2>
-				<ul class="ts-foot__list">
-					<?php foreach ( $ts_links as $ts_url => $ts_label ) : ?>
-						<li><a href="<?php echo esc_url( $ts_url ); ?>"><?php echo esc_html( $ts_label ); ?></a></li>
+				<h2 class="ts-foot__title"><?php esc_html_e( 'Informations légales', 'teeshoop' ); ?></h2>
+				<ul class="ts-foot__list ts-foot__list--legal">
+					<?php foreach ( $ts_links as $ts_slug => $ts_url ) : ?>
+						<li><a href="<?php echo esc_url( $ts_url ); ?>"><?php echo esc_html( $ts_titles[ $ts_slug ] ?? $ts_slug ); ?></a></li>
 					<?php endforeach; ?>
 				</ul>
 			</section>

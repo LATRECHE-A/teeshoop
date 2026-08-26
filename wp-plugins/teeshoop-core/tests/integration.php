@@ -680,6 +680,15 @@ ts_production_suite( $product_id );
 require_once __DIR__ . '/integration-purchase.php';
 ts_purchase_suite( $product_id );
 
+/*
+ * And the fifth: what an erasure request actually reaches. It runs after the
+ * lifecycle suite because it needs that suite's helpers (`ts_ck_fill`,
+ * `ts_lc_sides`) and a shop configured to take an order, and it answers the
+ * Worker itself through `pre_http_request`, so it never touches R2.
+ */
+require_once __DIR__ . '/integration-rgpd.php';
+ts_rgpd_suite( $product_id );
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 

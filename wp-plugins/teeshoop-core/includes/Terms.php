@@ -310,11 +310,18 @@ final class Terms {
 	 * @return array<string,int|float>
 	 */
 	public static function live_values(): array {
-		$pricing    = Pricing::config();
+		/*
+		 * EACH THROUGH ITS OWN LIVE READER, and they are not all called the same
+		 * thing. `Settings::pricing()` also folds the VAT timeline over the price
+		 * config, which is what the shop really charges; `Ledger::config()` is
+		 * where the deposit rule is read. Calling `Pricing::config()` here, which
+		 * does not exist, was a guess that a fatal caught.
+		 */
+		$pricing    = Settings::pricing();
 		$production = Production::config();
 		$shipping   = Shipping::config();
 		$bat        = Bat::config();
-		$settlement = Settlement::config();
+		$settlement = Ledger::config();
 
 		return array(
 			'minimum_pieces'           => (int) $pricing['min_qty'],

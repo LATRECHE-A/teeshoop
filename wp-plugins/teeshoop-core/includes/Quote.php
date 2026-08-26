@@ -149,7 +149,10 @@ final class Quote {
 		$stale = get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
-				'post_status'    => array_keys( self::STATUSES ),
+				// The bin included: see `by_email()`. A request somebody binned
+				// is still a request we hold about a person, and it was escaping
+				// this sweep as well as the eraser.
+				'post_status'    => array_merge( array_keys( self::STATUSES ), array( 'trash' ) ),
 				'posts_per_page' => 200,
 				'fields'         => 'ids',
 				'date_query'     => array(
@@ -184,12 +187,24 @@ final class Quote {
 		return $erasers;
 	}
 
-	/** @return array<string,mixed> */
+	/**
+	 * The requests belonging to one address.
+	 *
+	 * THE BIN COUNTS, AND IT USED NOT TO. This filtered on `STATUSES` alone, and
+	 * `trash` is not one of them. The post type has `show_ui`, so a shop manager
+	 * moving a request to the bin is one click, and from that click the row was
+	 * invisible to the exporter, to the eraser AND to `purge()` at the same time:
+	 * thirteen meta rows about a named person, kept for ever, past the three
+	 * years the form promises them. A subject access request would have answered
+	 * « nous n'avons rien ».
+	 *
+	 * @return array<string,mixed>
+	 */
 	private static function by_email( string $email, int $page ): array {
 		return get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
-				'post_status'    => array_keys( self::STATUSES ),
+				'post_status'    => array_merge( array_keys( self::STATUSES ), array( 'trash' ) ),
 				'posts_per_page' => 20,
 				'paged'          => max( 1, $page ),
 				'fields'         => 'ids',
@@ -224,6 +239,24 @@ final class Quote {
 			'_ts_src_page'  => __( 'Page d’arrivée sur le site', 'teeshoop' ),
 			'_ts_src_ref'   => __( 'Site référent', 'teeshoop' ),
 			'_ts_src_camp'  => __( 'Campagne', 'teeshoop' ),
+
+			/*
+			 * AND SO IS WHAT THEY ASKED FOR, which this list was missing.
+			 *
+			 * Seven fields were written by `submit()` and exported by nothing:
+			 * the article, the quantity, the faces, the size grid, the estimate
+			 * we computed and why, and the identifier of the creation they
+			 * composed. Article 15 asks for a copy of ALL the personal data
+			 * undergoing processing, and « la demande » without what was demanded
+			 * is the half we were comfortable showing.
+			 */
+			'_ts_product_id'   => __( 'Article concerné', 'teeshoop' ),
+			'_ts_qty'          => __( 'Quantité demandée', 'teeshoop' ),
+			'_ts_faces'        => __( 'Faces à imprimer', 'teeshoop' ),
+			'_ts_tailles'      => __( 'Répartition des tailles', 'teeshoop' ),
+			'_ts_estimate_ht'  => __( 'Estimation communiquée, hors taxes', 'teeshoop' ),
+			'_ts_estimate_why' => __( 'Comment cette estimation a été obtenue', 'teeshoop' ),
+			'_ts_design_id'    => __( 'Création jointe', 'teeshoop' ),
 		);
 
 		$ids  = self::by_email( $email, $page );
@@ -240,6 +273,31 @@ final class Quote {
 					);
 				}
 			}
+			/*
+			 * EVERY DEVIS ISSUED TO THIS PERSON, which is the substantive part.
+			 * `_ts_versions` holds each document we sent them: its number, its
+			 * date and its lines. A person asking what we hold about them is
+			 * asking for those, not only for the form they filled in.
+			 */
+			$versions = get_post_meta( (int) $id, '_ts_versions', true );
+			if ( is_array( $versions ) ) {
+				foreach ( $versions as $i => $version ) {
+					if ( ! is_array( $version ) ) {
+						continue;
+					}
+					$rows[] = array(
+						'name'  => sprintf(
+							/* translators: %d: the index of the quote document, from 1. */
+							__( 'Devis émis n°%d', 'teeshoop' ),
+							(int) $i + 1
+						),
+						'value' => trim(
+							(string) ( $version['numero'] ?? '' ) . ' ' . (string) ( $version['date'] ?? '' )
+						),
+					);
+				}
+			}
+
 			$data[] = array(
 				'group_id'    => 'teeshoop-devis',
 				'group_label' => __( 'Demandes de devis', 'teeshoop' ),
@@ -254,18 +312,61 @@ final class Quote {
 		);
 	}
 
+	/**
+	 * Delete the requests of one address.
+	 *
+	 * PAGE 1 EVERY TIME, WHATEVER WORDPRESS ASKS FOR, and that is a fix.
+	 *
+	 * WordPress calls an eraser with page 1, then page 2, until `done`. This read
+	 * `by_email( $email, $page )`, which is an OFFSET: page 1 deleted the first
+	 * twenty, and page 2 then offset twenty rows into a set from which those
+	 * twenty had already gone. Items 21 to 40 were skipped for ever, and the run
+	 * reported `done` as soon as a page came back short. It bites exactly the
+	 * person most likely to ask: a repeat business prospect with more than twenty
+	 * quote requests.
+	 *
+	 * The exporter's identical pagination is CORRECT and is deliberately left
+	 * alone: it mutates nothing, so its offset walks a stable set. Sharing the
+	 * pagination between the two would have been the obvious tidy-up and would
+	 * have been wrong.
+	 */
 	public static function erase_personal_data( string $email, int $page = 1 ): array {
-		$ids = self::by_email( $email, $page );
+		$ids      = self::by_email( $email, 1 );
+		$messages = array();
+		$removed  = 0;
+
 		foreach ( $ids as $id ) {
+			/*
+			 * THE CREATION FIRST, because it is the only part that lives on
+			 * somebody else's machine and the only part that can fail. The post
+			 * meta IS the index: delete the post and then discover the Worker is
+			 * unreachable, and nothing can ever find that artwork again.
+			 */
+			$design = (string) get_post_meta( (int) $id, '_ts_design_id', true );
+			if ( '' !== $design ) {
+				$r = Privacy::delete_design( $design );
+				if ( ! $r['ok'] ) {
+					$messages[] = sprintf(
+						/* translators: 1: design identifier, 2: the reason it failed. */
+						__( 'La création %1$s jointe à une demande de devis n’a pas pu être supprimée de son hébergement (%2$s). La demande reste ouverte.', 'teeshoop' ),
+						$design,
+						$r['reason']
+					);
+					continue;
+				}
+			}
+
 			// Deleted outright, not anonymised. A quote request that never became
 			// an order carries no fiscal obligation to keep it, so there is
 			// nothing to weigh against the erasure.
 			wp_delete_post( (int) $id, true );
+			++$removed;
 		}
+
 		return array(
-			'items_removed'  => count( $ids ) > 0,
-			'items_retained' => false,
-			'messages'       => array(),
+			'items_removed'  => $removed > 0,
+			'items_retained' => count( $messages ) > 0,
+			'messages'       => $messages,
 			'done'           => count( $ids ) < 20,
 		);
 	}

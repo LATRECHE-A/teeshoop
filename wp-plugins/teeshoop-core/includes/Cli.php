@@ -44,6 +44,7 @@ final class Cli {
 		\WP_CLI::add_command( 'teeshoop couleurs etat', array( self::class, 'colours_state' ) );
 		\WP_CLI::add_command( 'teeshoop couleurs reclasser', array( self::class, 'colours_reclassify' ) );
 		\WP_CLI::add_command( 'teeshoop couleurs oublier', array( self::class, 'colours_forget' ) );
+		\WP_CLI::add_command( 'teeshoop juridique', array( self::class, 'legal_pages' ) );
 	}
 
 	/**
@@ -1347,6 +1348,148 @@ final class Cli {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Create the four legal pages and point WordPress at them.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--dry-run]
+	 * : Say what would be created and change nothing.
+	 *
+	 * WHY IT IS NOT PART OF `teeshoop provisionner`. That command sets the
+	 * shop's currency, its country, its tax calculation and its weight unit, and
+	 * it creates a demonstration product. It refuses to run outside localhost
+	 * without `--forcer`, and rightly. But the mentions légales and the
+	 * conditions of sale have to exist ON THE REAL SHOP, and the only way to get
+	 * them there must not be a command that also rewrites the tax settings. So
+	 * this one does four things and nothing else, and it is safe to run in
+	 * production.
+	 *
+	 * IT PUBLISHES UNDER ANY THEME, unlike `ensure_site_pages`. Those pages are
+	 * empty shells whose content comes from theme templates, so under another
+	 * theme they would be blank. These four are rendered by the PLUGIN, through
+	 * `the_content`, precisely so that a theme change cannot leave a French shop
+	 * without mentions légales.
+	 *
+	 * IT NEVER TOUCHES AN EXISTING PAGE, including a draft somebody unpublished
+	 * on purpose. Same rule as `ensure_site_pages` and for the same reason: the
+	 * decision to take a page down is not this command's to reverse.
+	 *
+	 * @param array $args       positional, unused.
+	 * @param array $assoc_args --dry-run.
+	 */
+	public static function legal_pages( array $args, array $assoc_args = array() ): void {
+		$dry     = isset( $assoc_args['dry-run'] );
+		$changed = array();
+
+		foreach ( Pages::all() as $slug => $title ) {
+			$existing = get_page_by_path( $slug );
+			if ( $existing instanceof \WP_Post ) {
+				\WP_CLI::log(
+					sprintf(
+						'page %s : déjà là (%s), rien touché',
+						$slug,
+						$existing->post_status
+					)
+				);
+				continue;
+			}
+			if ( $dry ) {
+				$changed[] = 'page ' . $slug . ' (à créer)';
+				continue;
+			}
+			$id = wp_insert_post(
+				array(
+					'post_type'      => 'page',
+					'post_status'    => 'publish',
+					'post_title'     => $title,
+					'post_name'      => $slug,
+					'post_content'   => '',
+					'comment_status' => 'closed',
+					'ping_status'    => 'closed',
+				),
+				true
+			);
+			if ( is_wp_error( $id ) ) {
+				\WP_CLI::warning( sprintf( 'Page « %s » non créée : %s', $slug, $id->get_error_message() ) );
+				continue;
+			}
+			$changed[] = 'page ' . $slug;
+		}
+
+		/*
+		 * THE THREE POINTERS THAT WERE ANSWERING DIFFERENTLY.
+		 *
+		 * Measured on the mirror before this command existed:
+		 * `wp_page_for_privacy_policy` was 3, WordPress's own English DRAFT
+		 * « Privacy Policy », while the theme footer and the consent panel both
+		 * looked up the slug `confidentialite`, which did not exist. And
+		 * `woocommerce_terms_page_id` was empty, so WooCommerce's own terms
+		 * checkbox could not be shown at all. Three mechanisms looking for two
+		 * documents in three places. They are set together, here, or they drift
+		 * again.
+		 */
+		$privacy = get_page_by_path( Pages::CONFIDENTIALITE );
+		$terms   = get_page_by_path( Pages::CGV );
+
+		if ( $privacy instanceof \WP_Post && (int) get_option( 'wp_page_for_privacy_policy' ) !== $privacy->ID ) {
+			if ( ! $dry ) {
+				update_option( 'wp_page_for_privacy_policy', $privacy->ID );
+			}
+			$changed[] = 'wp_page_for_privacy_policy -> ' . $privacy->ID;
+		}
+		if ( $terms instanceof \WP_Post && (int) get_option( 'woocommerce_terms_page_id' ) !== $terms->ID ) {
+			if ( ! $dry ) {
+				update_option( 'woocommerce_terms_page_id', $terms->ID );
+			}
+			$changed[] = 'woocommerce_terms_page_id -> ' . $terms->ID;
+		}
+
+		/*
+		 * WordPress and WooCommerce both ship an English draft that nobody
+		 * asked for: « Privacy Policy » and « Refund and Returns Policy ». They
+		 * are sample legal text, in the wrong language, on a shop that sells only
+		 * in France, one click from being published by mistake. Binned rather
+		 * than deleted: a bin is reversible and a delete is not.
+		 */
+		foreach ( array( 'privacy-policy', 'refund_returns' ) as $slug ) {
+			$post = get_page_by_path( $slug );
+			if ( ! $post instanceof \WP_Post || 'trash' === $post->post_status ) {
+				continue;
+			}
+			if ( $privacy instanceof \WP_Post && $post->ID === $privacy->ID ) {
+				continue;
+			}
+			if ( ! $dry ) {
+				wp_trash_post( $post->ID );
+			}
+			$changed[] = 'corbeille : ' . $slug . ' (gabarit anglais livré par défaut)';
+		}
+
+		if ( empty( $changed ) ) {
+			\WP_CLI::success( 'Rien à faire : les quatre pages juridiques sont en place.' );
+			return;
+		}
+		foreach ( $changed as $line ) {
+			\WP_CLI::log( ( $dry ? 'À FAIRE : ' : 'fait : ' ) . $line );
+		}
+
+		$missing = array_merge(
+			Legal::missing( Legal::identity(), '' ),
+			Host::missing()
+		);
+		if ( ! empty( $missing ) ) {
+			\WP_CLI::warning(
+				sprintf(
+					'Les pages existent mais elles sont incomplètes : %d mention(s) obligatoire(s) ne sont pas renseignées. Elles se saisissent dans WooCommerce > Facturation, et tant qu’elles manquent la page des mentions légales le dit à ses lecteurs.',
+					count( $missing )
+				)
+			);
+		}
+
+		\WP_CLI::success( $dry ? 'Simulation terminée.' : 'Pages juridiques en place.' );
 	}
 
 	/** Studio origin and Worker URL, only when the caller supplied them. */
