@@ -179,18 +179,37 @@ final class LegalPage {
 
 		if ( ! empty( $verdict['missing'] ) ) {
 			/*
-			 * THE PAGE CANNOT REFUSE, SO IT ACCUSES. The same list the invoice
-			 * would refuse over, in the largest type on the page, for whoever can
-			 * fix it and for whoever is reading it as a customer.
+			 * THE PAGE CANNOT REFUSE, SO IT ACCUSES, AND IT SAYS WHAT IS ACTUALLY
+			 * TRUE HERE.
+			 *
+			 * This branched on `missing` and claimed « la validation d'une
+			 * commande est refusée » wherever a mention was absent. `Legal` does
+			 * not work that way: an incomplete identity REFUSES only in
+			 * production and merely STAMPS everywhere else, so on the
+			 * preproduction, which the compose file sets to `staging`, the page
+			 * told every visitor that orders were being refused while the
+			 * checkout accepted them. Measured: verdict[staging] action=stamp,
+			 * `Checkout::selling_problems()` returned zero problems, and the page
+			 * said otherwise.
+			 *
+			 * One verdict, one `action`, and the sentence follows it.
 			 */
-			$out .= '<div class="ts-legal__stop" role="alert"><p><strong>'
-				. esc_html__( 'Mentions obligatoires manquantes, la boutique n’est pas ouverte à la vente.', 'teeshoop' )
+			$refuses = Legal::REFUSE === $verdict['action'];
+			$out    .= '<div class="ts-legal__stop" role="alert"><p><strong>'
+				. esc_html(
+					$refuses
+						? __( 'Mentions obligatoires manquantes, la boutique n’est pas ouverte à la vente.', 'teeshoop' )
+						: __( 'Mentions obligatoires manquantes.', 'teeshoop' )
+				)
 				. '</strong> '
 				. esc_html(
 					sprintf(
-						/* translators: %s: comma-separated French labels of the missing fields. */
-						__( 'Il manque : %s. Tant que ces informations ne sont pas publiées, aucune facture conforme ne peut être émise et la validation d’une commande est refusée.', 'teeshoop' ),
-						implode( ', ', array_map( 'mb_strtolower', $verdict['labels'] ) )
+						/* translators: 1: comma-separated French labels of the missing fields, 2: what follows from it here. */
+						__( 'Il manque : %1$s. %2$s', 'teeshoop' ),
+						implode( ', ', array_map( 'mb_strtolower', $verdict['labels'] ) ),
+						$refuses
+							? __( 'Tant que ces informations ne sont pas publiées, aucune facture conforme ne peut être émise et la validation d’une commande est refusée.', 'teeshoop' )
+							: __( 'Ces mentions sont obligatoires sur un site marchand français. Cet environnement n’est pas la boutique en ligne : les commandes y sont acceptées pour permettre le travail, ce qui ne serait pas le cas en production.', 'teeshoop' )
 					)
 				)
 				. '</p></div>';
@@ -249,7 +268,38 @@ final class LegalPage {
 
 		$out = '';
 
-		if ( $want !== $force ) {
+		/*
+		 * THREE STATES AND NOT TWO, because a version dated in the FUTURE is
+		 * neither in force nor superseded.
+		 *
+		 * `Terms::in_force()` takes today as a parameter precisely so a version
+		 * can be committed and reviewed before it applies, which its own docblock
+		 * advertises. This branched on `$want !== $force` alone and therefore told
+		 * a reader that a text which has never applied « n'est plus celle en
+		 * vigueur », then printed « Version en vigueur depuis le 1 septembre »
+		 * about it, and listed it under « Versions précédentes ». Three false
+		 * statements about a contract, from one missing comparison.
+		 */
+		$future = '' === $force || strcmp( $want, $force ) > 0;
+
+		if ( $future ) {
+			$out .= '<div class="ts-legal__note" role="note"><p>'
+				. esc_html(
+					'' === $force
+						? sprintf(
+							/* translators: %s: the date this version takes effect. */
+							__( 'Cette version prend effet le %s. Aucune version n’est en vigueur à ce jour.', 'teeshoop' ),
+							self::human_date( $want )
+						)
+						: sprintf(
+							/* translators: 1: the date this version takes effect, 2: the version in force. */
+							__( 'Cette version prend effet le %1$s et ne s’applique pas encore. Celle qui s’applique aujourd’hui est la version du %2$s.', 'teeshoop' ),
+							self::human_date( $want ),
+							self::human_date( $force )
+						)
+				)
+				. '</p></div>';
+		} elseif ( $want !== $force ) {
 			$out .= '<div class="ts-legal__note" role="note"><p>'
 				. esc_html(
 					sprintf(
@@ -263,11 +313,17 @@ final class LegalPage {
 		}
 
 		$out .= self::p(
-			sprintf(
-				/* translators: %s: the date this version took effect. */
-				__( 'Version en vigueur depuis le %s.', 'teeshoop' ),
-				self::human_date( $want )
-			)
+			$future
+				? sprintf(
+					/* translators: %s: the date this version takes effect. */
+					__( 'Version datée du %s, à effet à cette date.', 'teeshoop' ),
+					self::human_date( $want )
+				)
+				: sprintf(
+					/* translators: %s: the date this version took effect. */
+					__( 'Version en vigueur depuis le %s.', 'teeshoop' ),
+					self::human_date( $want )
+				)
 		);
 
 		foreach ( (array) $doc['articles'] as $article ) {
@@ -278,15 +334,39 @@ final class LegalPage {
 			$out .= self::ul( array_map( 'strval', (array) ( $article['liste'] ?? array() ) ) );
 		}
 
-		$versions = Terms::versions();
-		if ( count( $versions ) > 1 ) {
-			$out .= self::h2( __( 'Versions précédentes', 'teeshoop' ) );
+		/*
+		 * « Précédentes » MEANS PRECEDING, so a version whose date has not
+		 * arrived is not in this list. It is listed separately, saying what it
+		 * is, because a text under review is a legitimate thing to publish and
+		 * a misleading thing to file under history.
+		 */
+		$before = array();
+		$after  = array();
+		foreach ( Terms::versions() as $v ) {
+			if ( '' !== $force && strcmp( $v, $force ) <= 0 ) {
+				$before[] = $v;
+			} else {
+				$after[] = $v;
+			}
+		}
+
+		$list = static function ( array $versions ): string {
 			$links = array();
 			foreach ( array_reverse( $versions ) as $v ) {
 				$links[] = '<li><a href="' . esc_url( Terms::url( $v ) ) . '">'
 					. esc_html( self::human_date( $v ) ) . '</a></li>';
 			}
-			$out .= '<ul class="ts-legal__list">' . implode( '', $links ) . '</ul>';
+			return '<ul class="ts-legal__list">' . implode( '', $links ) . '</ul>';
+		};
+
+		if ( count( $before ) > 1 ) {
+			$out .= self::h2( __( 'Versions précédentes', 'teeshoop' ) );
+			$out .= $list( $before );
+		}
+		if ( ! empty( $after ) ) {
+			$out .= self::h2( __( 'Versions à venir', 'teeshoop' ) );
+			$out .= self::p( __( 'Ces textes sont datés et ne s’appliqueront qu’à partir de leur date d’effet. Une commande reste régie par la version en vigueur au jour où elle a été passée.', 'teeshoop' ) );
+			$out .= $list( $after );
 		}
 
 		return $out;
@@ -307,7 +387,11 @@ final class LegalPage {
 					(string) $identity['raison_sociale']
 				)
 			)
-			: '<p class="ts-legal__gap">' . esc_html__( 'Le responsable du traitement n’est pas encore désigné : l’identité légale de l’exploitant n’a pas été publiée. Tant qu’elle ne l’est pas, cette page ne peut pas être considérée comme complète et la boutique n’est pas ouverte à la vente.', 'teeshoop' ) . '</p>';
+			: '<p class="ts-legal__gap">' . esc_html(
+				Legal::REFUSE === self::verdict()['action']
+					? __( 'Le responsable du traitement n’est pas encore désigné : l’identité légale de l’exploitant n’a pas été publiée. Tant qu’elle ne l’est pas, cette page ne peut pas être considérée comme complète et la boutique n’est pas ouverte à la vente.', 'teeshoop' )
+					: __( 'Le responsable du traitement n’est pas encore désigné : l’identité légale de l’exploitant n’a pas été publiée. Tant qu’elle ne l’est pas, cette page ne peut pas être considérée comme complète.', 'teeshoop' )
+			) . '</p>';
 
 		$out .= self::h2( __( 'Ce que nous enregistrons, et pourquoi', 'teeshoop' ) );
 		foreach ( Privacy::register() as $row ) {
@@ -355,7 +439,7 @@ final class LegalPage {
 
 		$out .= self::h2( __( 'Vos droits', 'teeshoop' ) );
 		$out .= self::p( __( 'Vous pouvez demander l’accès à vos données, leur rectification, leur effacement, leur portabilité, la limitation de leur traitement, et vous opposer à un traitement fondé sur notre intérêt légitime. Écrivez-nous à l’adresse indiquée dans les mentions légales : nous répondons sous un mois.', 'teeshoop' ) );
-		$out .= self::p( __( 'Deux limites, dites franchement. Une facture est conservée dix ans, parce que le code de commerce l’impose ; un effacement vide la commande et laisse la facture. Et une création composée dans l’outil de personnalisation mais jamais commandée n’est rattachée à aucune identité : nous ne pouvons pas la retrouver à partir de votre nom, et elle est supprimée par un balayage périodique.', 'teeshoop' ) );
+		$out .= self::p( __( 'Deux limites, dites franchement. Une facture est conservée dix ans, parce que le code de commerce l’impose ; un effacement vide la commande et laisse la facture. Et une création composée dans l’outil de personnalisation mais jamais envoyée avec une commande ou une demande de devis n’est rattachée à aucune identité : nous ne pouvons pas la retrouver à partir de votre nom, et aucune durée de suppression automatique n’est encore fixée pour ces fichiers-là.', 'teeshoop' ) );
 		$out .= self::p( __( 'Si notre réponse ne vous convient pas, vous pouvez saisir la Commission nationale de l’informatique et des libertés, 3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07.', 'teeshoop' ) );
 
 		return $out;

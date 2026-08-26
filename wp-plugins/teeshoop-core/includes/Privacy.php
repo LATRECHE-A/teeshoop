@@ -69,8 +69,14 @@ final class Privacy {
 	/** Order meta: the day the artwork behind this order was erased. */
 	public const META_ERASED = '_teeshoop_creations_effacees';
 
-	/** How many orders one page of an export or an erasure handles. */
-	private const PAGE = 20;
+	/**
+	 * How many records one page of an export or an erasure handles.
+	 *
+	 * PUBLIC, because `more_to_do()` decides termination against it and
+	 * `Quote::by_email()` paginates by it. Two page sizes and one rule about when
+	 * the page is full is a rule that is wrong for one of its two callers.
+	 */
+	public const PAGE = 20;
 
 	/**
 	 * How long the outbox keeps a row.
@@ -173,8 +179,26 @@ final class Privacy {
 					'Les aperçus rendus à partir de ces éléments',
 				),
 				'destinataires' => array( 'cloudflare' ),
-				'duree'         => 'Le temps de la relation commerciale, effacé sur demande. Une création composée mais jamais commandée n’est rattachée à personne et ne peut être retrouvée à partir d’une identité ; elle est supprimée par un balayage périodique.',
-				'mecanisme'     => 'Effacement à la demande par appel au service qui les héberge, et balayage des créations orphelines.',
+				/*
+				 * THIS SENTENCE SAID SOMETHING FALSE AND IT WAS SAID TO THE
+				 * PERSON IT IS ABOUT.
+				 *
+				 * It read « elle est supprimée par un balayage périodique », in
+				 * the present indicative, on a page a visitor is sent to from the
+				 * consent panel. `POST /api/design/reap` exists and NOTHING calls
+				 * it: no cron, no WP-CLI subcommand, no scheduled event, and R2's
+				 * only lifecycle rule covers the `ar/` prefix. So an abandoned
+				 * basket's upload, which can be a photograph of a person, is kept
+				 * for ever while the page says it is swept.
+				 *
+				 * The duration is question 33's and nobody has answered it, so the
+				 * honest text is the one below: the tool exists, the period is not
+				 * set, and until it is nothing expires. `H-Q33-CONSERVATION-CREATIONS`
+				 * records the same fact in the register as a REFUSAL rather than
+				 * as an assumption.
+				 */
+				'duree'         => 'Le temps de la relation commerciale, effacé sur demande. Une création composée mais jamais commandée n’est rattachée à personne et ne peut pas être retrouvée à partir d’une identité : aucune durée de conservation n’est encore fixée pour celles-là, et elles ne sont donc pas supprimées automatiquement.',
+				'mecanisme'     => 'Effacement à la demande par appel au service qui les héberge. Aucun balayage périodique n’est en service : l’outil existe, la durée reste à décider.',
 			),
 			array(
 				'cle'           => 'devis',
@@ -414,7 +438,19 @@ final class Privacy {
 				'orderby'  => 'ID',
 				'order'    => 'ASC',
 				'customer' => $email,
-				'status'   => array_keys( wc_get_order_statuses() ),
+				/*
+				 * THE BIN COUNTS, AND LEAVING IT OUT WAS THE SAME DEFECT THIS
+				 * COMMIT FIXED FOR QUOTE REQUESTS AND NOT FOR ORDERS.
+				 *
+				 * `wc_get_order_statuses()` never contains `trash`. A shop
+				 * manager binning an order is one click on the orders list, and
+				 * HPOS keeps the whole `wp_wc_order_addresses` row when it does:
+				 * measured on the mirror, a trashed order still held first name,
+				 * last name, company, street, city, postcode, e-mail and
+				 * telephone after an erasure that reported success and printed
+				 * « les coordonnées ont été effacées ».
+				 */
+				'status'   => array_merge( array_keys( wc_get_order_statuses() ), array( 'trash' ) ),
 			)
 		);
 		return is_array( $orders ) ? $orders : array();
@@ -460,6 +496,67 @@ final class Privacy {
 				);
 			}
 
+			/*
+			 * THE BON À TIRER, THE CLAIMS AND THE OUTBOX, WHICH THE FIRST VERSION
+			 * OF THIS EXPORTER LEFT OUT.
+			 *
+			 * Article 15 asks for a copy of ALL the personal data undergoing
+			 * processing, and the register on the same page tells the person we
+			 * hold these three. Measured on the mirror: the proof carried a
+			 * second copy of their name, company and e-mail plus the IP and
+			 * browser of the moment they approved, the claims carried their own
+			 * description, and neither appeared in the export. Reporting the
+			 * order number and the invoice list and stopping was answering with
+			 * the part we were comfortable showing.
+			 */
+			$bat = $order->get_meta( '_teeshoop_bat', true );
+			if ( '' !== (string) $bat ) {
+				$doc = json_decode( (string) $bat, true );
+				if ( is_array( $doc ) ) {
+					$rows[] = array(
+						'name'  => __( 'Bon à tirer : ce qu’il porte de vous', 'teeshoop' ),
+						'value' => (string) wp_json_encode(
+							array_intersect_key(
+								(array) ( $doc['customer'] ?? array() ),
+								array_flip( array( 'name', 'nom', 'company', 'societe', 'email' ) )
+							)
+						),
+					);
+					foreach ( array( 'approval', 'changes' ) as $part ) {
+						if ( ! empty( $doc[ $part ] ) ) {
+							$rows[] = array(
+								'name'  => 'approval' === $part
+									? __( 'Bon à tirer : votre validation', 'teeshoop' )
+									: __( 'Bon à tirer : vos demandes de modification', 'teeshoop' ),
+								'value' => (string) wp_json_encode( $doc[ $part ] ),
+							);
+						}
+					}
+				}
+			}
+
+			$claims = json_decode( (string) $order->get_meta( '_teeshoop_reclamations', true ), true );
+			if ( is_array( $claims ) ) {
+				foreach ( $claims as $n => $claim ) {
+					if ( ! is_array( $claim ) ) {
+						continue;
+					}
+					$rows[] = array(
+						'name'  => sprintf(
+							/* translators: %d: the index of the claim, from 1. */
+							__( 'Réclamation n°%d', 'teeshoop' ),
+							(int) $n + 1
+						),
+						'value' => (string) wp_json_encode(
+							array_intersect_key(
+								$claim,
+								array_flip( array( 'motif', 'cause', 'quantite', 'description', 'decision', 'opened_at', 'closed_at' ) )
+							)
+						),
+					);
+				}
+			}
+
 			$invoices = $order->get_meta( '_teeshoop_factures', true );
 			if ( is_array( $invoices ) && ! empty( $invoices ) ) {
 				$rows[] = array(
@@ -476,10 +573,59 @@ final class Privacy {
 			);
 		}
 
+		/*
+		 * THE OUTBOX, ONCE, ON THE FIRST PAGE. It is keyed on an address and not
+		 * on an order, so it belongs to the person rather than to any one of
+		 * their orders, and repeating it per order would report the same rows
+		 * twenty times.
+		 */
+		if ( 1 === max( 1, $page ) ) {
+			foreach ( self::messages_to( $email ) as $row ) {
+				$data[] = array(
+					'group_id'    => 'teeshoop-messages',
+					'group_label' => __( 'Messages que nous vous avons envoyés', 'teeshoop' ),
+					'item_id'     => 'message-' . (int) $row->id,
+					'data'        => array(
+						array(
+							'name'  => __( 'Date', 'teeshoop' ),
+							'value' => (string) $row->created_at,
+						),
+						array(
+							'name'  => __( 'Objet', 'teeshoop' ),
+							'value' => (string) $row->subject,
+						),
+						array(
+							'name'  => __( 'État de l’envoi', 'teeshoop' ),
+							'value' => (string) $row->status,
+						),
+					),
+				);
+			}
+		}
+
 		return array(
 			'data' => $data,
 			'done' => count( $orders ) < self::PAGE,
 		);
+	}
+
+	/**
+	 * The outbox rows for one address.
+	 *
+	 * @return object[]
+	 */
+	private static function messages_to( string $email ): array {
+		global $wpdb;
+		if ( '' === $email || ! isset( $wpdb ) ) {
+			return array();
+		}
+		$table = $wpdb->prefix . 'teeshoop_mail';
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rows = $wpdb->get_results(
+			$wpdb->prepare( "SELECT id, created_at, subject, status FROM {$table} WHERE recipient = %s ORDER BY id ASC LIMIT 200", $email )
+		);
+		// phpcs:enable
+		return is_array( $rows ) ? $rows : array();
 	}
 
 	/**
@@ -558,6 +704,8 @@ final class Privacy {
 	 */
 	public static function erase_order( \WC_Order $order ): array {
 		$messages = array();
+		// Read before anything is emptied: the outbox is keyed on this address.
+		$email = (string) $order->get_billing_email();
 
 		if ( '' !== (string) $order->get_meta( self::META_ERASED, true ) ) {
 			return array(
@@ -645,14 +793,28 @@ final class Privacy {
 			}
 			$item->delete_meta_data( '_teeshoop_design_id' );
 			$item->delete_meta_data( '_teeshoop_files' );
-			$item->delete_meta_data( 'Creation' );
+			/*
+			 * THE KEY IS ACCENTED, AND DELETING THE UNACCENTED SPELLING DELETED
+			 * NOTHING. `Cart::persist_to_order` writes it as `__( 'Création' )`,
+			 * with no leading underscore, so WooCommerce prints it on the admin
+			 * order screen, on the order-received page, in the account area and
+			 * in every order e-mail. Measured byte for byte on the mirror: the
+			 * key is 4372C3A96174696F6E and the line still read
+			 * « Création : 2vExPKI0AbxNs6VYHQBWEqe2 » after an erasure that
+			 * reported the creations had been erased.
+			 *
+			 * It reads the same string the writer wrote rather than a copy of it,
+			 * so a translation cannot separate them.
+			 */
+			$item->delete_meta_data( __( 'Création', 'teeshoop' ) );
 			$item->save();
 		}
 
 		$order->update_meta_data( self::META_ERASED, gmdate( 'c' ) );
 		$order->save();
 
-		self::forget_recipient( $order->get_billing_email() );
+		self::forget_notes( $order );
+		self::forget_recipient( $email );
 
 		$messages[] = __( 'Les coordonnées, le bon à tirer, la réclamation éventuelle et les créations de cette commande ont été effacés.', 'teeshoop' );
 		$messages[] = sprintf(
@@ -666,6 +828,67 @@ final class Privacy {
 			'retained' => true,
 			'messages' => $messages,
 		);
+	}
+
+	/**
+	 * The order notes this shop wrote that carry a customer's own words.
+	 *
+	 * WHY NOT ALL OF THEM, which is what WooCommerce's eraser does. This file's
+	 * header refuses that eraser precisely because it deletes every note, and on
+	 * this shop the notes are where the claims history lives. Deleting the lot
+	 * would destroy the operational record of an order whose invoice we are
+	 * required to keep.
+	 *
+	 * WHY ANY OF THEM. `Claim::open` writes the customer's free description into
+	 * the JSON blob AND into an order note, verbatim. `scrub_claims` empties the
+	 * blob and the note kept the text: measured on the mirror, a description
+	 * carrying a name, a street and a telephone number survived an erasure that
+	 * reported success. Free text on a claim is exactly where a person writes
+	 * those.
+	 *
+	 * So the note is rewritten rather than deleted: it keeps saying that a claim
+	 * was opened and under which motif, which is what an operator needs, and
+	 * loses the sentence the customer wrote. The two notes this plugin writes are
+	 * matched on the prefix they are built from, so a note somebody typed by hand
+	 * is never touched.
+	 *
+	 * @return int how many notes were rewritten
+	 */
+	public static function forget_notes( \WC_Order $order ): int {
+		$notes = function_exists( 'wc_get_order_notes' )
+			? wc_get_order_notes( array( 'order_id' => $order->get_id() ) )
+			: array();
+		if ( ! is_array( $notes ) ) {
+			return 0;
+		}
+
+		$prefixes = array(
+			__( 'Réclamation ouverte', 'teeshoop' ),
+			__( 'Réclamation tranchée', 'teeshoop' ),
+		);
+
+		$done = 0;
+		foreach ( $notes as $note ) {
+			$content = (string) ( $note->content ?? '' );
+			foreach ( $prefixes as $prefix ) {
+				if ( ! str_starts_with( $content, $prefix ) ) {
+					continue;
+				}
+				/*
+				 * `wp_update_comment` and not a delete, so the note keeps its
+				 * date and its author and the history stays readable.
+				 */
+				wp_update_comment(
+					array(
+						'comment_ID'      => (int) $note->id,
+						'comment_content' => $prefix . ' ' . __( '(texte effacé à la demande du client)', 'teeshoop' ),
+					)
+				);
+				++$done;
+				break;
+			}
+		}
+		return $done;
 	}
 
 	/** The WooCommerce order properties that carry an identity. */
@@ -706,6 +929,20 @@ final class Privacy {
 	private static function identity_meta(): array {
 		return array(
 			'_billing_siret',
+			/*
+			 * AND THE TWO THE BLOCK CHECKOUT WRITES UNDER ITS OWN NAMESPACE.
+			 *
+			 * `Checkout` registers `teeshoop/siret` as an additional field and
+			 * copies it to `_billing_siret` so the invoice reads one key, but
+			 * WooCommerce keeps its own copies at `_wc_billing/teeshoop/siret`
+			 * and `_wc_shipping/teeshoop/siret`. Deleting only ours left both:
+			 * measured on the mirror. A sole trader's SIRET resolves to their
+			 * name and their registered address in the public SIRENE register,
+			 * so it is personal data about a natural person, not a company
+			 * reference.
+			 */
+			'_wc_billing/teeshoop/siret',
+			'_wc_shipping/teeshoop/siret',
 			'_teeshoop_suivi',
 			'_teeshoop_transporteur',
 		);

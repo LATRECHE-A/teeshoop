@@ -36,9 +36,12 @@
  * publish a NEW dated version, which is exactly what the law wants anyway.
  *
  * `checked()` is pure and takes the resolved values as an argument, so the same
- * rule serves `tests/test-terms.php` (against the shipped defaults, in
- * `npm run ci`) and the shop (against the live configuration, where an operator
- * who changed a setting is told the published terms no longer match).
+ * rule serves two callers. `tests/test-terms.php` runs it against the SHIPPED
+ * DEFAULTS, inside `npm run ci`, which catches a repository that has drifted from
+ * itself. `Admin::render_terms()` runs it against the LIVE configuration, on the
+ * screen where every one of those figures is changed, which catches the operator
+ * who has just made a published contract wrong. The second was missing for a day
+ * and this docblock claimed it existed.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHAT THIS FILE IS NOT
@@ -59,6 +62,14 @@ namespace Teeshoop\Core;
 defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 require_once __DIR__ . '/Money.php';
+/*
+ * `live_values()` reads the late-payment rate from here, because the conditions
+ * promise there is not one and that promise has to be checked against the value
+ * an operator can type. Declared rather than left to the plugin bootstrap: a
+ * dependency that resolves only because something else loaded first breaks the
+ * day somebody reorders the list.
+ */
+require_once __DIR__ . '/Invoice.php';
 
 final class Terms {
 
@@ -80,6 +91,17 @@ final class Terms {
 		'acompte_ht'               => 'eur',
 		'acompte_taux'             => 'pct',
 		'conservation_devis_jours' => 'int',
+		/*
+		 * A VALUE THE TERMS PROMISE IS ABSENT, which is a different claim from a
+		 * value they state. Article 14 says « Aucun taux contractuel plus bas
+		 * n'est prévu », so the invoice must cite the statutory rate. The billing
+		 * screen has a « Taux des pénalités de retard » field whose own help text
+		 * invites a number, and one typed there makes `Invoice::mentions()` print
+		 * « au taux de 12 % l'an » on a document the same buyer receives, beside
+		 * conditions saying there is no such rate. Two of our own documents
+		 * contradicting each other about the same debt.
+		 */
+		'penalites_contractuelles' => 'vide',
 	);
 
 	/** Where the versions live, relative to the plugin root. */
@@ -229,7 +251,33 @@ final class Terms {
 
 			$expected = self::french( $values[ $key ], self::FORMATS[ $key ] );
 
-			if ( '' === $said || ! str_contains( $said, $expected ) ) {
+			/*
+			 * A `vide` value is a promise that there is nothing to state. The
+			 * fragment must be in the text, and the value must be empty; a value
+			 * that has been filled in is the divergence, not a mismatched number.
+			 */
+			if ( 'vide' === self::FORMATS[ $key ] ) {
+				if ( '' !== $expected ) {
+					$out[] = array(
+						'cle'     => $key,
+						'attendu' => $expected,
+						'texte'   => $said,
+						'raison'  => 'le texte publié annonce qu’aucune valeur n’est fixée, et la boutique en applique une',
+					);
+					continue;
+				}
+				if ( ! str_contains( $text, $said ) ) {
+					$out[] = array(
+						'cle'     => $key,
+						'attendu' => '',
+						'texte'   => $said,
+						'raison'  => 'ce fragment n’est écrit nulle part dans le texte de cette version',
+					);
+				}
+				continue;
+			}
+
+			if ( '' === $said || ! self::states( $said, $expected ) ) {
 				$out[] = array(
 					'cle'     => $key,
 					'attendu' => $expected,
@@ -265,6 +313,34 @@ final class Terms {
 	}
 
 	/**
+	 * Whether a fragment really states a value, rather than merely containing it.
+	 *
+	 * `str_contains` WAS WRONG AND THE CONSEQUENCE WAS MONEY.
+	 *
+	 * « 0,00 EUR » is a substring of « 300,00 EUR ». So an operator who cleared
+	 * the « livraison offerte à partir de » field, which `Shipping` then reads as
+	 * no franco at all, left the published conditions promising free delivery
+	 * above three hundred euros while every basket was charged carriage, and this
+	 * check reported nothing. « 0 % » is a substring of « 20 % », so the day the
+	 * shop moves to the franchise en base the terms would keep publishing a
+	 * twenty per cent rate while the invoice printed « TVA non applicable ».
+	 * Both measured by running `Terms::checked()` over the real classes.
+	 *
+	 * A DIGIT MAY NOT TOUCH THE MATCH. The value has to sit on a boundary at both
+	 * ends: nothing that is part of the same number may be adjacent to it. That
+	 * is what separates « 300,00 EUR » from the « 0,00 EUR » inside it, and it
+	 * costs one regular expression rather than a second way of writing numbers.
+	 */
+	public static function states( string $fragment, string $value ): bool {
+		if ( '' === $value ) {
+			return false;
+		}
+		$digit = '\d\x{202F}\x{00A0},.';
+		$re    = '/(?<![' . $digit . '])' . preg_quote( $value, '/' ) . '(?![' . $digit . '])/u';
+		return 1 === preg_match( $re, $fragment );
+	}
+
+	/**
 	 * A value, written the way the terms write it.
 	 *
 	 * The three shapes the shop actually publishes. `eur` takes integer cents,
@@ -273,6 +349,8 @@ final class Terms {
 	 */
 	public static function french( $value, string $as ): string {
 		switch ( $as ) {
+			case 'vide':
+				return trim( (string) $value );
 			case 'eur':
 				return Money::format( (int) $value );
 			case 'pct':
@@ -337,6 +415,7 @@ final class Terms {
 			'acompte_ht'               => (int) $settlement['deposit_from_ht'],
 			'acompte_taux'             => (float) $settlement['deposit_rate'],
 			'conservation_devis_jours' => Quote::KEEP_DAYS,
+			'penalites_contractuelles' => (string) ( Invoice::config()['penalty_rate'] ?? '' ),
 		);
 	}
 

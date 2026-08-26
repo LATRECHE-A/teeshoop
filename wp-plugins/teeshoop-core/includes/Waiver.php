@@ -147,7 +147,25 @@ final class Waiver {
 		}
 	}
 
+	/**
+	 * The classic checkout's half.
+	 *
+	 * `applies()` IS ASKED HERE TOO, and it was not. `classic_field()` and
+	 * `classic_validate()` both ask `needed()` of the CART, which is right for
+	 * deciding whether to show the box and whether to refuse without it. This
+	 * hook decides whether to WRITE EVIDENCE, and evidence is about the order.
+	 *
+	 * The two can disagree: a basket that held a personalised item when the page
+	 * rendered, emptied of it in another tab before the POST, still carries the
+	 * ticked field. `needed()` is then false so nothing objects, and this wrote a
+	 * waiver saying the customer gave up a right they in fact kept, with their IP
+	 * and the exact sentence, on an order of blank garments. The block path got
+	 * this guard in the same session; the classic one had not.
+	 */
 	public static function freeze_classic( \WC_Order $order ): void {
+		if ( ! self::applies( $order ) ) {
+			return;
+		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WooCommerce has already verified the checkout nonce before this hook.
 		if ( ! empty( $_POST[ self::FIELD ] ) ) {
 			self::freeze( $order );
@@ -260,6 +278,22 @@ final class Waiver {
 		 * its first save-point.
 		 */
 		if ( ! self::applies( $order ) ) {
+			/*
+			 * AND AN EXISTING RECORD GOES WITH IT, which is not the same thing as
+			 * not writing one.
+			 *
+			 * The Store API keeps ONE checkout-draft order in the session and
+			 * mutates it on every cart and checkout call; its own docblock says a
+			 * pending or failed order from a previous payment attempt is reused.
+			 * So: personalised line, box ticked, record frozen. Payment fails.
+			 * The customer goes back, replaces the item with a blank garment and
+			 * pays. `freeze()` is idempotent on its sentinel, so the record from
+			 * the first attempt survived on an order that no longer has anything
+			 * personalised in it, invisible to `invoice_line()` because
+			 * `applies()` is false, and reported to the customer by the article 15
+			 * export as a right they gave up. Measured on the mirror.
+			 */
+			$order->delete_meta_data( self::META );
 			return;
 		}
 

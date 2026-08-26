@@ -376,6 +376,29 @@ final class Checkout {
 		}
 
 		/*
+		 * AND NO CONDITIONS OF SALE MEANS NO EVIDENCE, WHICH IS THE WHOLE POINT.
+		 *
+		 * `Waiver::freeze` stamps `Legal::cgv_version()` onto every personalised
+		 * order, because the exclusion of the fourteen-day withdrawal right only
+		 * holds if we can show WHICH terms the customer was told. When no version
+		 * is in force that value is the empty string, silently, which is exactly
+		 * the four-session defect session 12 removed: an order that can say when
+		 * the customer accepted and not what they accepted.
+		 *
+		 * Two ordinary ways to reach it: the plugin deployed without its `data/`
+		 * directory, and the review workflow `Terms::in_force()` advertises, where
+		 * the only file on disk is dated in the future. Neither is exotic and
+		 * neither announces itself.
+		 *
+		 * ONLY WHEN THE BASKET IS PERSONALISED, like everything else about the
+		 * waiver: a blank garment keeps the ordinary withdrawal right and needs no
+		 * version recorded against it.
+		 */
+		if ( '' === Terms::current() && Waiver::needed( $cart ) ) {
+			$problems[] = __( 'Aucune version des conditions générales n’est en vigueur : la renonciation au droit de rétractation s’enregistrerait sans dire à quel texte elle se rapporte, donc elle ne prouverait rien.', 'teeshoop' );
+		}
+
+		/*
 		 * GARMENTS THAT COST NOTHING ARE NOT GARMENTS THAT ARE FREE.
 		 *
 		 * A pricing config zeroed by a bad edit does not fail loudly: it prints

@@ -271,6 +271,158 @@ function ts_rgpd_suite( int $product_id ): void {
 	);
 
 	ts_it(
+		'reaches an order somebody put in the bin',
+		function () use ( $product_id ) {
+			/*
+			 * `wc_get_order_statuses()` never contains `trash`, and binning an
+			 * order is one click on the orders list. An erasure that did not look
+			 * there answered « les coordonnées ont été effacées » over an order it
+			 * had never opened, and the same defect was fixed for quote requests
+			 * in this session and not for orders.
+			 *
+			 * WHAT IS ASSERTED IS THAT IT WAS REACHED, and not what WooCommerce
+			 * does with the address row of a trashed order: measured on this
+			 * mirror, `$order->delete(false)` removes that row itself, which is
+			 * WooCommerce's business and could change. The sentinel this file
+			 * writes is ours.
+			 */
+			ts_rgpd_worker( 200 );
+			$order = ts_rgpd_order( $product_id, 'corbeille@example.test' );
+			$id    = $order->get_id();
+			$order->delete( false );
+
+			$r = Privacy::erase_orders( 'corbeille@example.test' );
+			ts_assert( true === $r['items_removed'], 'la commande à la corbeille n’a pas été vue' );
+
+			global $wpdb;
+			$stamp = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT meta_value FROM {$wpdb->prefix}wc_orders_meta WHERE order_id = %d AND meta_key = %s",
+					$id,
+					Privacy::META_ERASED
+				)
+			);
+			ts_assert( '' !== (string) $stamp, 'la commande à la corbeille n’a pas été effacée' );
+		}
+	);
+
+	ts_it(
+		'removes the SIRET under every key the two checkouts write it to',
+		function () use ( $product_id ) {
+			ts_rgpd_worker( 200 );
+			$order = ts_rgpd_order( $product_id, 'siret@example.test' );
+			$order->update_meta_data( '_wc_billing/teeshoop/siret', '99988877700099' );
+			$order->update_meta_data( '_wc_shipping/teeshoop/siret', '99988877700099' );
+			$order->save();
+
+			Privacy::erase_order( wc_get_order( $order->get_id() ) );
+
+			$after = wc_get_order( $order->get_id() );
+			foreach ( array( '_billing_siret', '_wc_billing/teeshoop/siret', '_wc_shipping/teeshoop/siret' ) as $key ) {
+				ts_eq( (string) $after->get_meta( $key, true ), '', 'le SIRET est resté sous ' . $key );
+			}
+		}
+	);
+
+	ts_it(
+		'takes the customer’s own words out of the order note as well as out of the blob',
+		function () use ( $product_id ) {
+			/*
+			 * `Claim::open` writes the description twice: into the JSON and into
+			 * an order note, verbatim. Free text on a claim is where a person
+			 * writes their name, their address and their telephone number. The
+			 * scrub emptied the JSON and the note kept the sentence.
+			 */
+			ts_rgpd_worker( 200 );
+			$order = ts_rgpd_order( $product_id, 'note@example.test' );
+			$mark  = 'REPERECLAMATION Camille Durand 12 avenue Jean Jaures';
+			\Teeshoop\Core\Claim::open( wc_get_order( $order->get_id() ), 'position', $mark, 3 );
+
+			$before = wc_get_order_notes( array( 'order_id' => $order->get_id() ) );
+			$seen   = false;
+			foreach ( $before as $note ) {
+				$seen = $seen || str_contains( (string) $note->content, $mark );
+			}
+			ts_assert( $seen, 'la note de test n’a pas été écrite, le cas ne prouve rien' );
+
+			Privacy::erase_order( wc_get_order( $order->get_id() ) );
+
+			$after = wc_get_order_notes( array( 'order_id' => $order->get_id() ) );
+			$left  = false;
+			$kept  = false;
+			foreach ( $after as $note ) {
+				$left = $left || str_contains( (string) $note->content, $mark );
+				$kept = $kept || str_starts_with( (string) $note->content, 'Réclamation ouverte' );
+			}
+			ts_assert( ! $left, 'les mots du client sont restés dans une note de commande' );
+			ts_assert( $kept, 'la note a été supprimée au lieu d’être vidée, l’historique du SAV est perdu' );
+		}
+	);
+
+	ts_it(
+		'removes the design line meta a customer can see, whose key is accented',
+		function () use ( $product_id ) {
+			ts_rgpd_worker( 200 );
+			$order = ts_rgpd_order( $product_id, 'accent@example.test' );
+
+			$visible = false;
+			foreach ( $order->get_items() as $item ) {
+				$visible = $visible || '' !== (string) $item->get_meta( 'Création', true );
+			}
+			ts_assert( $visible, 'la ligne ne porte pas la clé visible, le cas ne prouve rien' );
+
+			Privacy::erase_order( wc_get_order( $order->get_id() ) );
+
+			foreach ( wc_get_order( $order->get_id() )->get_items() as $item ) {
+				ts_eq(
+					(string) $item->get_meta( 'Création', true ),
+					'',
+					'la création reste affichée sur la ligne, sur l’écran de commande et dans les courriels'
+				);
+			}
+		}
+	);
+
+	ts_it(
+		'drops a waiver frozen on a draft whose personalised line has since gone',
+		function () use ( $product_id ) {
+			/*
+			 * The Store API keeps one checkout-draft order per session and reuses
+			 * it: personalised line, box ticked, record frozen, payment fails, the
+			 * customer replaces the item with a blank garment and pays. `freeze()`
+			 * is idempotent on its sentinel, so the record survived on an order
+			 * with nothing personalised in it, invisible to the invoice and
+			 * reported to the customer by the article 15 export as a right they
+			 * gave up.
+			 */
+			$order = ts_rgpd_order( $product_id, 'brouillon@example.test' );
+			$_POST['teeshoop_renonciation'] = '1';
+			Waiver::freeze( $order );
+			$order->save();
+			unset( $_POST['teeshoop_renonciation'] );
+			ts_assert( null !== Waiver::record( wc_get_order( $order->get_id() ) ), 'la renonciation de test n’a pas été écrite' );
+
+			// The personalised line goes, as a basket edit would remove it.
+			$fresh = wc_get_order( $order->get_id() );
+			foreach ( $fresh->get_items() as $item ) {
+				$item->delete_meta_data( '_teeshoop_design_id' );
+				$item->save();
+			}
+			$fresh = wc_get_order( $order->get_id() );
+			ts_assert( ! Waiver::applies( $fresh ), 'la commande porte encore une ligne personnalisée' );
+
+			Waiver::freeze_block( $fresh );
+			$fresh->save();
+
+			ts_eq(
+				Waiver::record( wc_get_order( $order->get_id() ) ),
+				null,
+				'une renonciation survit sur une commande qui ne contient rien de personnalisé'
+			);
+		}
+	);
+
+	ts_it(
 		'ends the request rather than looping when nothing can be erased',
 		function () use ( $product_id ) {
 			/*

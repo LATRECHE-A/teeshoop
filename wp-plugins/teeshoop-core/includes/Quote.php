@@ -205,7 +205,9 @@ final class Quote {
 			array(
 				'post_type'      => self::POST_TYPE,
 				'post_status'    => array_merge( array_keys( self::STATUSES ), array( 'trash' ) ),
-				'posts_per_page' => 20,
+				// The same page size `Privacy::more_to_do()` measures « a full
+				// page » against; two numbers here would make that rule wrong.
+				'posts_per_page' => Privacy::PAGE,
 				'paged'          => max( 1, $page ),
 				'fields'         => 'ids',
 				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- a privacy request, run by hand, not on a page load.
@@ -308,7 +310,7 @@ final class Quote {
 
 		return array(
 			'data' => $data,
-			'done' => count( $ids ) < 20,
+			'done' => count( $ids ) < Privacy::PAGE,
 		);
 	}
 
@@ -363,11 +365,25 @@ final class Quote {
 			++$removed;
 		}
 
+		/*
+		 * AND IT STOPS WHEN IT STOPS MAKING PROGRESS, which `count($ids) < 20`
+		 * did not. This eraser re-reads page 1 every time (see above), so the
+		 * window only shrinks when something is actually deleted. A prospect with
+		 * twenty or more requests, each carrying a design the Worker cannot
+		 * remove, made every pass return the same twenty with `done` false, and
+		 * WordPress's own privacy-tools.js calls the next page with no cap and no
+		 * back-off. Measured on the mirror with twenty-one seeded requests: four
+		 * consecutive calls, items_removed false, done false, for ever.
+		 *
+		 * `Privacy::more_to_do` is that rule, and it is called rather than
+		 * copied: two erasers deciding when to stop in two slightly different
+		 * ways is how one of them keeps the bug the other lost.
+		 */
 		return array(
 			'items_removed'  => $removed > 0,
 			'items_retained' => count( $messages ) > 0,
 			'messages'       => $messages,
-			'done'           => count( $ids ) < 20,
+			'done'           => ! Privacy::more_to_do( $removed > 0, count( $ids ) ),
 		);
 	}
 

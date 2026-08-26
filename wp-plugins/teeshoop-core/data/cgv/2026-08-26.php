@@ -251,5 +251,6 @@ return array(
 		array( 'cle' => 'acompte_ht',               'texte' => 'À partir de 3 000,00 € hors taxes de commande' ),
 		array( 'cle' => 'acompte_taux',             'texte' => 'représente alors 50 % du montant' ),
 		array( 'cle' => 'conservation_devis_jours', 'texte' => 'conservée 1 095 jours après le dernier échange' ),
+		array( 'cle' => 'penalites_contractuelles',  'texte' => 'Aucun taux contractuel plus bas n’est prévu.' ),
 	),
 );

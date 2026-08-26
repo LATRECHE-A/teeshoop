@@ -213,6 +213,7 @@ final class Admin {
 		wp_nonce_field( self::ACTION );
 
 		self::render_periods( $periods );
+		self::render_terms();
 		self::render_identity( $identity, $verdict );
 		self::render_invoice( $invoice );
 		self::render_shipping( $shipping );
@@ -339,6 +340,67 @@ final class Admin {
 			echo '</tr>';
 		}
 		echo '</tbody></table></div>';
+	}
+
+	/**
+	 * Whether the published conditions of sale still say what the shop does.
+	 *
+	 * THIS SCREEN IS WHERE THE DIVERGENCE IS CREATED, which is why the check is
+	 * here and nowhere else. Every figure the conditions state is set from this
+	 * page or from one beside it: the order minimum, the quote thresholds, the
+	 * free-delivery threshold, the proof corrections and their price, the deposit
+	 * rule, the VAT timeline. An operator who changes one of them has just made a
+	 * published contract wrong, and nothing told them.
+	 *
+	 * `Terms::checked()` WAS CALLED BY NO SHIPPED CODE AT ALL until this. Its own
+	 * docblock claimed the shop ran it against the live configuration, and only
+	 * the pure test suite did, against the SHIPPED DEFAULTS, which no operator
+	 * can change. The comment described a mechanism that did not exist, which is
+	 * the exact class of thing this session spent its day removing.
+	 *
+	 * IT DOES NOT OFFER TO FIX ANYTHING. The answer to a divergence is never to
+	 * edit the version in force: a customer who accepted it is owed the text they
+	 * accepted. It is to publish a new dated file. The notice says that.
+	 */
+	private static function render_terms(): void {
+		$version = Terms::current();
+
+		if ( '' === $version ) {
+			echo '<div class="notice notice-error inline" style="padding:12px 14px"><p><strong>'
+				. esc_html__( 'Aucune version des conditions générales n’est en vigueur.', 'teeshoop' )
+				. '</strong> '
+				. esc_html__( 'Chaque commande enregistre la version que le client a acceptée, et elle s’enregistrera vide. Une version est un fichier daté dans data/cgv/ de l’extension.', 'teeshoop' )
+				. '</p></div>';
+			return;
+		}
+
+		$doc = Terms::document( $version );
+		$bad = null === $doc ? array() : Terms::checked( $doc, Terms::live_values() );
+
+		if ( empty( $bad ) && null !== $doc ) {
+			return;
+		}
+
+		echo '<div class="notice notice-warning inline" style="padding:12px 14px"><p><strong>'
+			. esc_html__( 'Les conditions générales publiées ne disent plus ce que la boutique applique.', 'teeshoop' )
+			. '</strong></p><ul style="margin:0 0 8px 18px;list-style:disc">';
+		foreach ( $bad as $row ) {
+			printf(
+				'<li>%s</li>',
+				esc_html(
+					sprintf(
+						/* translators: 1: the value key, 2: what the shop applies, 3: what the published text says. */
+						__( '%1$s : la boutique applique « %2$s », le texte publié annonce « %3$s ».', 'teeshoop' ),
+						(string) $row['cle'],
+						(string) $row['attendu'],
+						(string) $row['texte']
+					)
+				)
+			);
+		}
+		echo '</ul><p>'
+			. esc_html__( 'Ne corrigez pas la version en vigueur : un client l’a peut-être déjà acceptée, et son accord porte sur ce texte-là. Déposez un nouveau fichier daté du jour où le changement prend effet.', 'teeshoop' )
+			. '</p></div>';
 	}
 
 	private static function render_identity( array $identity, array $verdict ): void {

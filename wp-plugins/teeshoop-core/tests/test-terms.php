@@ -32,6 +32,7 @@ require_once __DIR__ . '/../includes/Shipping.php';
 require_once __DIR__ . '/../includes/Bat.php';
 require_once __DIR__ . '/../includes/Settlement.php';
 require_once __DIR__ . '/../includes/Quote.php';
+require_once __DIR__ . '/../includes/Invoice.php';
 
 use Teeshoop\Core\Terms;
 use Teeshoop\Core\Pricing;
@@ -73,6 +74,7 @@ function ts_terms_defaults(): array {
 		'acompte_ht'               => (int) $settlement['deposit_from_ht'],
 		'acompte_taux'             => (float) $settlement['deposit_rate'],
 		'conservation_devis_jours' => Quote::KEEP_DAYS,
+		'penalites_contractuelles' => (string) ( \Teeshoop\Core\Invoice::default_config()['penalty_rate'] ?? '' ),
 	);
 }
 
@@ -192,6 +194,56 @@ describe(
 		);
 
 		it(
+			'REPORTS the free-delivery threshold being cleared, which the substring test missed',
+			function () {
+				/*
+				 * THE ONE THAT COST MONEY, END TO END. An operator clears
+				 * « livraison offerte à partir de », `Shipping` reads the zero as
+				 * no franco at all and charges carriage on every basket, and the
+				 * published conditions still promise it free. `str_contains` said
+				 * nothing because the zero amount is a substring of the real one.
+				 */
+				$doc    = Terms::document( Terms::versions()[0] );
+				$values = ts_terms_defaults();
+				$values['franco_ht'] = 0;
+				$bad = Terms::checked( $doc, $values );
+				truthy( count( $bad ) > 0, 'un franco effacé n’a pas été signalé' );
+				eq( $bad[0]['cle'], 'franco_ht', 'la mauvaise valeur a été signalée' );
+			}
+		);
+
+		it(
+			'REPORTS the shop moving to the franchise en base while the terms publish a VAT rate',
+			function () {
+				$doc    = Terms::document( Terms::versions()[0] );
+				$values = ts_terms_defaults();
+				$values['tva'] = 0.0;
+				$bad = Terms::checked( $doc, $values );
+				truthy( count( $bad ) > 0, 'un taux tombé à zéro n’a pas été signalé' );
+				eq( $bad[0]['cle'], 'tva', 'la mauvaise valeur a été signalée' );
+			}
+		);
+
+		it(
+			'REPORTS a late-payment rate being set, which the terms say does not exist',
+			function () {
+				/*
+				 * The billing screen offers « Taux des pénalités de retard » and
+				 * its help text invites a number. Article 14 of the conditions
+				 * says « Aucun taux contractuel plus bas n'est prévu », so a rate
+				 * typed there makes the invoice and the accepted conditions state
+				 * two different rules about the same debt.
+				 */
+				$doc    = Terms::document( Terms::versions()[0] );
+				$values = ts_terms_defaults();
+				$values['penalites_contractuelles'] = '12';
+				$bad = Terms::checked( $doc, $values );
+				truthy( count( $bad ) > 0, 'un taux contractuel posé n’a pas été signalé' );
+				eq( $bad[0]['cle'], 'penalites_contractuelles', 'la mauvaise valeur a été signalée' );
+			}
+		);
+
+		it(
 			'REPORTS a fragment that has been edited out of the text',
 			function () {
 				$doc = Terms::document( Terms::versions()[0] );
@@ -226,6 +278,65 @@ describe(
 				$bad  = Terms::checked( $doc, $values );
 				$keys = array_column( $bad, 'cle' );
 				truthy( in_array( 'tva', $keys, true ), '« on n’a pas pu regarder » est passé pour « rien à signaler »' );
+			}
+		);
+	}
+);
+
+describe(
+	'Terms: a fragment must state the value, not merely contain it',
+	function () {
+		it(
+			'REFUSES a value that is only the tail of a bigger number',
+			function () {
+				/*
+				 * THE ONE THAT COST MONEY. « 0,00 EUR » is a substring of
+				 * « 300,00 EUR ». An operator who cleared the free-delivery
+				 * threshold made `Shipping` charge carriage on every basket while
+				 * the published conditions still promised it free above the
+				 * threshold, and `str_contains` reported nothing at all.
+				 *
+				 * The amounts here are NOT the shop's own: an example that is
+				 * also a threshold is a second copy of a value with a home, and
+				 * the register says so. The property is what matters, and it
+				 * holds for any amount whose rendering ends in another's.
+				 */
+				$fragment = 'offerte à partir de ' . Terms::french( 77700, 'eur' ) . ' hors taxes';
+				truthy( Terms::states( $fragment, Terms::french( 77700, 'eur' ) ), 'la vraie valeur n’est pas reconnue' );
+				truthy( ! Terms::states( $fragment, Terms::french( 70000, 'eur' ) ), 'la fin du montant passe pour le montant' );
+				truthy( ! Terms::states( $fragment, Terms::french( 0, 'eur' ) ), 'zéro passe pour le seuil' );
+			}
+		);
+
+		it(
+			'REFUSES a rate that is only the tail of another rate',
+			function () {
+				/*
+				 * And the one that would have made the conditions publish a VAT
+				 * rate the invoice contradicts: « 0 % » is the tail of « 20 % »,
+				 * and a franchise en base period sets the live rate to exactly
+				 * zero.
+				 */
+				$fragment = 'appliqué est de ' . Terms::french( 0.2, 'pct' );
+				truthy( Terms::states( $fragment, Terms::french( 0.2, 'pct' ) ), 'le vrai taux n’est pas reconnu' );
+				truthy( ! Terms::states( $fragment, Terms::french( 0.0, 'pct' ) ), 'zéro pour cent passe pour vingt' );
+			}
+		);
+
+		it(
+			'reads a grouped number as one value and not as its parts',
+			function () {
+				$fragment = 'conservée ' . Terms::french( 6789, 'int' ) . ' jours';
+				truthy( Terms::states( $fragment, Terms::french( 6789, 'int' ) ), 'la vraie durée n’est pas reconnue' );
+				truthy( ! Terms::states( $fragment, Terms::french( 789, 'int' ) ), 'la fin du nombre passe pour le nombre' );
+				truthy( ! Terms::states( $fragment, Terms::french( 6, 'int' ) ), 'le début du nombre passe pour le nombre' );
+			}
+		);
+
+		it(
+			'has no opinion about an empty value',
+			function () {
+				truthy( ! Terms::states( 'quoi que ce soit', '' ), 'la chaîne vide se trouve partout' );
 			}
 		);
 	}

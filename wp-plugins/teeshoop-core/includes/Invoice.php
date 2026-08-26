@@ -55,7 +55,18 @@ declare( strict_types = 1 );
 
 namespace Teeshoop\Core;
 
-defined( 'ABSPATH' ) || exit;
+/*
+ * THE TEST ESCAPE. `Invoice::default_config()` holds the late-payment rate,
+ * which the conditions of sale promise is NOT set, and `tests/test-terms.php`
+ * has to read it to check that promise. Nothing here touches WordPress at load
+ * time: the hypotheses guard already `require_once`s every file in this
+ * directory in a bare PHP process, which is the proof.
+ *
+ * Without it, a pure test requiring this file hits `exit` at load, the runner
+ * ends with no summary, and only the shutdown sentinel added this session tells
+ * anybody that half the suite did not run.
+ */
+defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 final class Invoice {
 
