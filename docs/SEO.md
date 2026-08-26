@@ -104,6 +104,11 @@ Le problème, en chiffres : 458 références publiées, 24 par page, dix facette
 de tri, deux espaces de pagination. Sans règle, cela fait des dizaines de milliers d'URL
 quasi identiques.
 
+*Corrigé le 26 août :* la première version de ce document et le premier commentaire du code
+disaient que le plan de site omettait « T-shirts et Polos ». Il n'en omettait qu'un,
+`t-shirts`, dont le compte brut est à zéro ; `polos` porte 2 et 2 est au-dessus de zéro. Le
+défaut et sa gravité ne changent pas, la phrase si.
+
 ### Indexable, et canonique vers elle-même
 
 | Motif | Note |
@@ -280,6 +285,19 @@ Ce que la boutique connaît toujours, sans permission : le **chemin** de la page
 le formulaire a été envoyé, jamais sa chaîne de requête. C'est ce qui répond à la question
 qu'une page d'atterrissage existe pour poser.
 
+**L'origine est saisie au moment du consentement, et pas après.** C'est la passe adverse qui
+l'a trouvé : lue à la requête suivante, comme c'était le cas d'abord, le site référent est
+déjà le nôtre et les arguments de campagne ont disparu, donc les deux champs pour lesquels on
+demandait l'autorisation étaient structurellement toujours vides. Le bandeau s'affiche sur la
+page d'arrivée, il porte donc le référent et la campagne de cette page-là.
+
+**Ce qui manque encore, et qui appartient à la séance 12.** Le bandeau recueille un
+consentement sans nommer le responsable de traitement et sans pouvoir ouvrir une notice : ni
+mentions légales, ni politique de confidentialité n'existent, parce qu'elles demandent
+l'identité légale (question 17) et un responsable désigné (question 19). Le mécanisme est
+prêt et il pointe déjà vers `/confidentialite/` dès que cette page existe. **Rien ne doit être
+mis en ligne avant.**
+
 ---
 
 ## 7. Comment nous saurons que cela a marché
@@ -287,10 +305,12 @@ qu'une page d'atterrissage existe pour poser.
 Trois niveaux, du plus rapide au plus lent.
 
 **Semaine 1, technique, et c'est un contrôle et non un chiffre.** `npm run verify:seo` doit
-rester vert : chaque type de page indexable ou non selon la politique, canonique vers
-elle-même, sans canonical quand elle est en `noindex`, avec sa description, sans emplacement
-non résolu, sans avis, et le plan de site sans compte utilisateur, sans fixture et avec les
-trois familles.
+rester vert : **438 assertions**, chaque type de page indexable ou non selon la politique,
+canonique vers elle-même, sans canonical quand elle est en `noindex`, avec sa description,
+sans emplacement non résolu, sans avis, avec au moins 500 mots sur chaque page de secteur et
+sans aucune des huit formules que la boutique ne peut pas tenir ; le plan de site sans compte
+utilisateur, sans produit masqué et avec les trois familles ; et le consentement qui refuse
+une acceptation forgée depuis un autre domaine.
 
 **Semaines 4 à 12, indexation.** Search Console, rapport « Pages » : le nombre d'URL indexées
 doit tendre vers le nombre d'URL du plan de site, et pas au-delà. Une indexation supérieure
@@ -421,3 +441,35 @@ Dans cet ordre, et rien de tout cela n'est du développement.
    glissants.
 5. Relire `docs/CONCURRENTS.md` et ce document : les deux sont datés, et les deux
    concurrents bougent.
+
+---
+
+## 12. Ce que la passe adverse a corrigé, pour mémoire
+
+Cinq lentilles sur le diff de la séance, avant la mise à jour de la branche. Dix-neuf
+constats, dont ceux-ci, chacun mesuré :
+
+- **Le consentement était falsifiable depuis n'importe quel domaine.** Le jeton WordPress est
+  identique pour tous les visiteurs déconnectés et imprimé dans chaque page. C'est l'origine
+  qui refuse maintenant, et une requête sans origine est refusée aussi.
+- **238 des 456 références publiaient une composition amputée d'une fibre**, la coupe se
+  faisant à la première virgule. Règlement (UE) 1007/2011, article 16.
+- **L'écran Tunnel comptait brut** : le total entier d'une commande remboursée, et les
+  brouillons du tunnel de paiement comme des commandes.
+- **`/page/1/` pouvait se rediriger vers lui-même** indéfiniment, sur une URL forgée.
+- **Le nombre de références se contredisait dans sa propre phrase** : 458 annoncés, 456 dans
+  le détail imprimé à côté, parce que « Uncategorized » entrait dans la somme.
+- **274 fils d'Ariane nommaient une catégorie que le même fichier met en `noindex`.**
+- **Le lien du pied de page donnait à chaque URL du site un jumeau explorable** via
+  `?cookies=1`.
+- **`/entreprises/` et `/product-category/t-shirts/` publiaient le même `<title>`**, c'est-à-
+  dire la cannibalisation manuelle de la requête la plus disputée du site.
+- **Zéro se résolvait comme un chiffre** : un minimum effacé publiait « Nous imprimons à
+  partir de 0 pièces ».
+- **Un `data/copy.php` manquant était une erreur fatale** sur chaque page, et non quelques
+  paragraphes en moins.
+
+Deux affirmations du code ont aussi été corrigées parce qu'elles étaient fausses : le retrait
+du consentement n'efface pas les copies déjà portées par une demande de devis (elle a sa
+propre conservation et sa propre voie d'effacement), et la catégorie « attribution » décrit
+maintenant les trois chaînes réellement écrites plutôt que « un identifiant ».

@@ -938,10 +938,16 @@ final class Seo {
 	 * column as a count of products attached DIRECTLY to the term, and this
 	 * catalogue's imports attach almost everything to the leaf: measured on the
 	 * mirror, `t-shirts` has a raw count of 0 while its child `manches-courtes`
-	 * has 139, and `polos` has 2 against its children's 102. So the two most
-	 * valuable category pages on the shop, the ones the whole session is about
-	 * ranking, were the ones missing from the sitemap, and only `sweats` was in
-	 * it, because it happens to carry its products directly.
+	 * has 139. So the largest category on the shop, 184 references and the one
+	 * the whole session is about ranking, was the one page missing from the
+	 * sitemap.
+	 *
+	 * PRECISELY ONE, and the first version of this comment said two. `polos`
+	 * carries a raw count of 2 against its children's 102, and 2 is above zero,
+	 * so it was in the sitemap all along. The fix is unchanged and the severity
+	 * is unchanged; the sentence was wrong and a wrong reason is what gets read
+	 * in eighteen months. Verified by re-reading the sitemap served before the
+	 * change: six URLs, `polos` among them, `t-shirts` not.
 	 *
 	 * `inc/filters.php` already documents that column as untrustworthy and works
 	 * around it for the facets. The sitemap still trusted it.

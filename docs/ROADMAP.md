@@ -972,14 +972,19 @@ classé.
 recherche. Quatre défauts ont été trouvés en interrogeant le miroir plutôt qu'en relisant le
 code, et deux sont graves.
 
-**Le plan de site omettait T-shirts et Polos**, c'est-à-dire les deux pages que toute la
-séance existe pour classer. Le fournisseur de plan de site de WordPress filtre sur
-`hide_empty`, donc sur la colonne brute `wp_term_taxonomy.count`, et WooCommerce y compte les
-produits rattachés **directement** au terme. Notre import rattache presque tout à la feuille :
-`t-shirts` porte 0 en brut contre 139 chez son enfant, `polos` porte 2 contre 102. Le plan de
-site publiait donc `uncategorized` et trois enfants quasi identiques à leur parent, et pas les
-trois familles. `inc/filters.php` documentait déjà cette colonne comme non fiable et la
-contournait pour les facettes ; le plan de site, lui, lui faisait confiance.
+**Le plan de site omettait T-shirts**, c'est-à-dire la plus grosse catégorie de la boutique,
+184 références, et la page que toute la séance existe pour classer. Le fournisseur de plan de
+site de WordPress filtre sur `hide_empty`, donc sur la colonne brute `wp_term_taxonomy.count`,
+et WooCommerce y compte les produits rattachés **directement** au terme. Notre import rattache
+presque tout à la feuille : `t-shirts` porte 0 en brut contre 139 chez son enfant. Le plan de
+site publiait en revanche `uncategorized` et trois enfants quasi identiques à leur parent.
+`inc/filters.php` documentait déjà cette colonne comme non fiable et la contournait pour les
+facettes ; le plan de site, lui, lui faisait confiance.
+
+*Corrigé le 26 août, après la passe adverse :* le premier message de commit et le premier
+commentaire disaient « T-shirts **et Polos** ». C'est faux, `polos` porte 2 en brut et 2 est
+au-dessus de zéro, donc il était au plan de site. Le défaut et sa gravité ne changent pas ;
+la phrase, si.
 
 **460 des 463 fiches produit n'émettaient aucune donnée structurée.**
 `WC_Structured_Data::generate_product_data()` se termine par
@@ -1027,6 +1032,26 @@ cookies : une première visite ne dépose rien, « Tout refuser » enregistre le
 le traceur dans la même réponse, et le traceur n'est écrit qu'à la requête suivant une
 acceptation. Les deux boutons sont une seule règle CSS employée deux fois, donc ils ne peuvent
 pas diverger, et « refuser » est écrit en premier.
+
+**Et la passe adverse a trouvé dix-neuf choses sur cette séance, dont six qui comptent.** Le
+formulaire de consentement acceptait au nom de n'importe quel visiteur : le jeton WordPress
+est le même pour tous les anonymes et il est imprimé dans le pied de chaque page, donc un
+formulaire auto-soumis depuis n'importe quel domaine suffisait. C'est l'origine qui refuse
+désormais, comparée entière, et une requête sans origine est refusée aussi. **238 des 456
+références publiaient une composition amputée d'une fibre** (« 50% polyester, 25% coton, 25%
+viscose » devenait « 50% polyester ») parce que la coupe se faisait à la première virgule.
+L'écran Tunnel comptait le total brut d'une commande remboursée et comptait comme commandes
+les brouillons que le tunnel de paiement crée quand un visiteur touche le formulaire.
+`/page/1/` pouvait se rediriger vers lui-même à l'infini. Le nombre de références publié
+additionnait « Uncategorized » et se contredisait dans la phrase qui le détaillait. Et
+**l'attribution ne fonctionnait pas** : elle était lue à la requête suivant le consentement,
+quand le référent est déjà le nôtre.
+
+**Deux lectures d'un même délai, et c'est à l'associé de trancher.** Le site publie 12 jours
+ouvrés jusqu'à l'expédition, plus 2 jours d'acheminement, soit 14 annoncés. Le calendrier de
+l'atelier (`Production::feasibility()`) retire les 2 jours des 12 et planifie pour que le
+colis soit remis au douzième jour. Les deux vont dans le sens prudent, ce ne sont pas la même
+promesse, et c'est la question 14.
 
 **Le tunnel se compte sur des enregistrements et non sur un traceur** : une demande de devis
 est un article avec un statut, une commande est une commande avec un total. Aucune permission
