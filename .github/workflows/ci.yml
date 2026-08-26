@@ -5,6 +5,14 @@ name: CI
 # need a human to look at a screenshot, and scripts/fr-verify.mjs talks to the
 # live Falk&Ross account. Same rule for the plugin's WooCommerce integration
 # test: it needs a real WordPress and a database, so it runs against wp-local/.
+#
+# WHAT THAT LEAVES OUTSIDE, said here so nobody reads a green tick as more than
+# it is. These five need the running mirror and must be run by hand before a
+# release: verify:seo (what a crawler is served), verify:consent (what a real
+# browser writes to a visitor's machine before they have chosen), verify:a11y
+# (WCAG 2.2 AA over the buying path and the legal pages), verify:site (the
+# screenshots) and test:wp (the plugin against a real WooCommerce). Between them
+# they hold the whole of session 12's compliance work, and none of it is on push.
 on:
   push:
   pull_request:
@@ -68,6 +76,24 @@ jobs:
 
       - name: The hypotheses guard can still fail
         run: node scripts/hypotheses-guard.mjs --self-test
+
+      # THE TWO THIS FILE HAD BEEN MISSING SINCE THEY WERE WRITTEN.
+      #
+      # `npm run ci` and this workflow are two hand-kept lists of the same thing,
+      # and they had drifted: verify:palette and verify:couleurs were in the first
+      # and in no CI job at all, so a colour that stopped agreeing with its home
+      # went red on a developer's machine and green on push. Session 12 found it
+      # while wiring its own gates in and is fixing it rather than adding a third
+      # divergence.
+      #
+      # They are not folded into one `npm run ci` step because this job also runs
+      # things that one does not (the build, the bundle guard and the self-test),
+      # and because a named step is what makes a red run legible from the summary.
+      - name: The palette is one palette
+        run: npm run verify:palette
+
+      - name: The measured colours agree with what the shop publishes
+        run: npm run verify:couleurs
 
   # The WordPress plugin. Its pure classes (Money, Pricing, Margin) call no
   # WordPress function on purpose, so they need PHP and nothing else — the
