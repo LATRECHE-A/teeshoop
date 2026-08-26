@@ -469,7 +469,25 @@ final class Privacy {
 	}
 
 	public static function hold_open( $response, $index = 0, $email = '', $page = 1, $request_id = 0 ) {
-		if ( ! self::$unfinished ) {
+		/*
+		 * READ ONCE AND CLEARED, because this filter runs once per eraser per
+		 * page and the answer belongs to the pass that just ran.
+		 *
+		 * Without the reset the flag was a static that nothing ever lowered: the
+		 * first order that failed held every later pass in the same process open,
+		 * including ones that erased everything they were asked to. In a web
+		 * request that is one ajax call, so it was nearly invisible; under WP-CLI
+		 * and in the integration suite it is one long process, and the test wrote
+		 * for the opposite direction is what found it.
+		 *
+		 * Lowering it does NOT put the notification back. Once a pass has failed,
+		 * the removal stands for the rest of the request, which is right: a later
+		 * eraser succeeding does not undo the one that could not.
+		 */
+		$unfinished       = self::$unfinished;
+		self::$unfinished = false;
+
+		if ( ! $unfinished ) {
 			return $response;
 		}
 
