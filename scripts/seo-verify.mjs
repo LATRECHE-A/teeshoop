@@ -155,13 +155,13 @@ const SCHEMA = {
 const PAGES = [
   { name: 'accueil', path: '/', index: true, ld: ['Organization', 'WebSite'] },
   { name: 'boutique', path: '/shop/', index: true, ld: ['BreadcrumbList', 'Organization'] },
-  { name: 'categorie', path: '/product-category/t-shirts/', index: true, ld: ['BreadcrumbList', 'Organization'] },
-  { name: 'categorie polos', path: '/product-category/polos/', index: true, ld: ['BreadcrumbList', 'Organization'] },
-  { name: 'categorie sweats', path: '/product-category/sweats/', index: true, ld: ['BreadcrumbList', 'Organization'] },
-  { name: 'sous-categorie', path: '/product-category/t-shirts/manches-courtes/', index: false },
-  { name: 'categorie page 2', path: '/product-category/t-shirts/page/2/', index: true },
-  { name: 'categorie filtree', path: '/product-category/t-shirts/?f_couleur%5B%5D=blanc', index: false },
-  { name: 'categorie triee', path: '/product-category/t-shirts/?orderby=price', index: false },
+  { name: 'categorie', path: '/categorie/t-shirts/', index: true, ld: ['BreadcrumbList', 'Organization'] },
+  { name: 'categorie polos', path: '/categorie/polos/', index: true, ld: ['BreadcrumbList', 'Organization'] },
+  { name: 'categorie sweats', path: '/categorie/sweats/', index: true, ld: ['BreadcrumbList', 'Organization'] },
+  { name: 'sous-categorie', path: '/categorie/t-shirts/manches-courtes/', index: false },
+  { name: 'categorie page 2', path: '/categorie/t-shirts/page/2/', index: true },
+  { name: 'categorie filtree', path: '/categorie/t-shirts/?f_couleur%5B%5D=blanc', index: false },
+  { name: 'categorie triee', path: '/categorie/t-shirts/?orderby=price', index: false },
   { name: 'recherche', path: '/?s=polo', index: false },
   { name: 'devis', path: '/devis/', index: true, ld: ['BreadcrumbList', 'Organization'] },
   { name: 'entreprises', path: '/entreprises/', index: true, ld: ['BreadcrumbList', 'Organization'] },
@@ -203,6 +203,21 @@ const pageList = [...PAGES]
 if (productPaths.length > 0) {
   pageList.push({ name: 'fiche produit', path: productPaths[0], index: true, ld: ['BreadcrumbList', 'Organization'] })
   pageList.push({ name: 'fiche produit, studio ouvert', path: `${productPaths[0]}?personnaliser=1`, index: false })
+  /*
+   * A VARIATION URL, which the session brief names as the single most common way
+   * a WooCommerce shop tanks its own SEO. 463 references times their colours and
+   * sizes is 26 392 combinations, and every one of them is addressable as
+   * `?attribute_pa_couleur=…`. The policy is: indexable, and canonical to the
+   * CLEAN product URL, which is what `index: true` asserts here since the check
+   * compares against the path with its query string removed. NOT noindex: that
+   * would contradict the canonical, which is the mistake this whole file exists
+   * to catch.
+   */
+  pageList.push({
+    name: 'fiche produit, une déclinaison',
+    path: `${productPaths[0]}?attribute_pa_couleur=black&attribute_pa_taille=m`,
+    index: true,
+  })
 }
 
 const fetched = new Map()
@@ -381,12 +396,12 @@ for (const page of pageList) {
 /* ------------------------------------------------------------- pagination */
 
 {
-  const first = await get('/product-category/t-shirts/page/1/')
+  const first = await get('/categorie/t-shirts/page/1/')
   ok('/page/1/ redirige vers la catégorie', first.status === 301, `${first.status} -> ${first.location}`)
 
   const two = fetched.get('categorie page 2')
   if (two) {
-    ok('la page 2 annonce sa précédente', rel(two.body, 'prev') === `${BASE}/product-category/t-shirts/`, rel(two.body, 'prev') || '(aucune)')
+    ok('la page 2 annonce sa précédente', rel(two.body, 'prev') === `${BASE}/categorie/t-shirts/`, rel(two.body, 'prev') || '(aucune)')
     ok('la page 2 annonce sa suivante', (rel(two.body, 'next') || '').includes('/page/3/'), rel(two.body, 'next') || '(aucune)')
     ok('le titre de la page 2 la distingue de la première', /page 2/i.test(title(two.body) || ''), title(two.body) || '')
   }
@@ -506,7 +521,7 @@ for (const page of pageList) {
 
     if (choice) {
       const jar = choice.split(';')[0]
-      const after = await fetch(`${BASE}/product-category/t-shirts/`, { headers: { cookie: jar }, redirect: 'manual' })
+      const after = await fetch(`${BASE}/categorie/t-shirts/`, { headers: { cookie: jar }, redirect: 'manual' })
       const written = (after.headers.getSetCookie ? after.headers.getSetCookie() : [after.headers.get('set-cookie') || '']).join(' ')
       ok('et c\'est seulement après cela que le traceur est écrit', /teeshoop_src=/.test(written), written.slice(0, 100))
     }

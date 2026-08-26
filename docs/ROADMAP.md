@@ -1047,6 +1047,24 @@ additionnait « Uncategorized » et se contredisait dans la phrase qui le détai
 **l'attribution ne fonctionnait pas** : elle était lue à la requête suivant le consentement,
 quand le référent est déjà le nôtre.
 
+**Les adresses sont passées en français, et c'était maintenant ou jamais.** WooCommerce
+servait `/product-category/t-shirts/` et `/product/{slug}/` sur une boutique qui ne vend
+qu'en France ; ce sont désormais `/categorie/` et `/produit/`, posées par
+`wp teeshoop provisionner`. Ces adresses ne désignent aujourd'hui que les 44 produits de
+démonstration que la question 20 demande de supprimer, aucune URL du vrai catalogue n'existe
+en production, et après la mise en ligne le même changement coûterait 463 redirections. Les
+anciennes bases répondent 301, chaîne de requête comprise, et seulement sur une 404 :
+WordPress redirige la base produit tout seul, il ne redirige pas la base catégorie, et
+`/product-category/tout/` est justement la seule catégorie que le site en ligne sert.
+
+Le **slug de la page boutique** ne bouge toujours pas, et c'est la même règle lue à l'envers :
+`wp_old_slug_redirect()` ne redirige jamais une PAGE renommée, elle 404.
+
+**Et les 26 392 déclinaisons, qui sont le vrai piège d'un WooCommerce.** Chaque référence
+s'adresse aussi par ses attributs. La politique est : indexable, et canonique vers l'URL
+propre du produit, jamais `noindex`, qui contredirait le canonical. Le noyau le fait déjà ;
+c'est désormais asserté sur une vraie déclinaison plutôt que supposé.
+
 **Deux lectures d'un même délai, et c'est à l'associé de trancher.** Le site publie 12 jours
 ouvrés jusqu'à l'expédition, plus 2 jours d'acheminement, soit 14 annoncés. Le calendrier de
 l'atelier (`Production::feasibility()`) retire les 2 jours des 12 et planifie pour que le

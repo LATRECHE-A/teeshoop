@@ -30,7 +30,7 @@
 import { execFileSync } from 'node:child_process'
 
 const ARGS = process.argv.slice(2)
-const URL_ = ARGS.find((a) => a.startsWith('http')) || 'http://localhost:8080/product-category/t-shirts/'
+const URL_ = ARGS.find((a) => a.startsWith('http')) || 'http://localhost:8080/categorie/t-shirts/'
 const BUDGET_MS = 1000
 const RUNS = 15
 const WARMUP = 3

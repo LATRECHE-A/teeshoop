@@ -38,9 +38,9 @@ const WIDTHS = [375, 768, 1440]
 const PAGES = [
   ['accueil', '/'],
   ['catalogue', '/shop/'],
-  ['categorie', '/product-category/t-shirts/'],
-  ['produit', '/product/teeshoop-demo-tee/'],
-  ['studio', '/product/teeshoop-demo-tee/?personnaliser=1'],
+  ['categorie', '/categorie/t-shirts/'],
+  ['produit', '/produit/teeshoop-demo-tee/'],
+  ['studio', '/produit/teeshoop-demo-tee/?personnaliser=1'],
   ['devis', '/devis/'],
   ['entreprises', '/entreprises/'],
   /*
@@ -242,7 +242,7 @@ for (const [name, path] of PAGES) {
    * Read the number beside the first checkbox of the brand facet, tick it,
    * submit, and count what the listing shows. They have to be the same number.
    */
-  await page.goto(BASE + '/product-category/t-shirts/', { waitUntil: 'networkidle' })
+  await page.goto(BASE + '/categorie/t-shirts/', { waitUntil: 'networkidle' })
   const chip = page.locator('.ts-facet:has(legend:text-is("Marque")) .ts-chip').first()
   const claimed = Number((await chip.locator('.ts-chip__n').innerText()).replace(/\D/g, ''))
   await chip.click()
@@ -483,7 +483,7 @@ for (const [name, path] of PAGES) {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR' })
   await decided(context)
   const page = await context.newPage()
-  await page.goto(BASE + '/product-category/t-shirts/', { waitUntil: 'networkidle' })
+  await page.goto(BASE + '/categorie/t-shirts/', { waitUntil: 'networkidle' })
 
   await page.keyboard.press('Tab')
   const first = await page.evaluate(() => {
@@ -566,7 +566,7 @@ for (const [name, path] of PAGES) {
   })
   await decided(context)
   const page = await context.newPage()
-  await page.goto(BASE + '/product-category/t-shirts/', { waitUntil: 'domcontentloaded' })
+  await page.goto(BASE + '/categorie/t-shirts/', { waitUntil: 'domcontentloaded' })
 
   const navVisible = await page.locator('#ts-nav a').first().isVisible()
   ok('the navigation is reachable with no script', navVisible)

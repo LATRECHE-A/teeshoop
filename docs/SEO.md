@@ -109,14 +109,43 @@ disaient que le plan de site omettait « T-shirts et Polos ». Il n'en omettait 
 `t-shirts`, dont le compte brut est à zéro ; `polos` porte 2 et 2 est au-dessus de zéro. Le
 défaut et sa gravité ne changent pas, la phrase si.
 
+### Les adresses, en français
+
+WooCommerce adressait le catalogue en anglais : `/categorie/t-shirts/` et
+`/product/{slug}/`, sur une boutique qui ne vend qu'en France. Le chapitre 04 demande
+« URL courte » et `product-category` est la plus longue base que WooCommerce livre.
+
+**C'est fait, et le moment compte plus que le choix.** Les bases sont désormais `produit` et
+`categorie`, posées par `wp teeshoop provisionner`. Le raisonnement est écrit dans
+`Cli::ensure_french_bases()` : ces adresses ne désignent aujourd'hui que les 44 produits de
+démonstration que la question 20 demande de supprimer, aucune URL du vrai catalogue n'existe
+en production, et après la mise en ligne le même changement coûterait 463 redirections.
+
+Le **slug de la page boutique**, lui, ne bouge pas, et c'est la même règle lue dans l'autre
+sens : `Cli::ensure_french_shop_pages()` documente que `wp_old_slug_redirect()` ne redirige
+jamais une PAGE renommée (elle est appariée sur `pagename`, la fonction commence par
+`if ( is_404() && '' !== get_query_var( 'name' ) )`), et teeshoop.com vend depuis 2024.
+
+Les anciennes bases anglaises répondent **301** vers les nouvelles, chaîne de requête
+comprise, et seulement sur une 404 : `Seo::english_base()`. WordPress redirige la base
+produit tout seul, il ne redirige pas la base catégorie, et `/product-category/tout/` est
+justement la seule catégorie que le site en ligne sert aujourd'hui.
+
+Les slugs des pages de secteur sont courts (`/associations/`, `/clubs-sportifs/`) plutôt
+qu'exacts (`/t-shirt-personnalise-association/`). Les deux formes existent sur le marché :
+vetement-publicitaire.com a 31 pages en slug exact, mistertee.fr range les siennes sous
+`/professionnels/{secteur}`. Les mots d'une URL pèsent très peu au classement et un slug
+coûte cher à changer dès que quelque chose y pointe, donc ce sont les courts. La requête vit
+dans la balise title et dans le `h1`, là où elle gagne le clic.
+
 ### Indexable, et canonique vers elle-même
 
 | Motif | Note |
 |---|---|
 | `/` | |
 | `/shop/` et `/shop/page/N/` | canonique vers **elle-même, numéro de page compris** |
-| `/product-category/{famille}/` et `/page/N/` | idem, avec `rel=prev` et `rel=next` |
-| `/product/{slug}/` | |
+| `/categorie/{famille}/` et `/page/N/` | idem, avec `rel=prev` et `rel=next` |
+| `/produit/{slug}/` | |
 | les pages de secteur, les guides, `/devis/`, `/entreprises/` | |
 
 **La pagination reste indexable, et c'est une rupture délibérée avec les deux concurrents.**
@@ -125,6 +154,19 @@ mistertee sert `noindex,follow` sur `/t-shirts?page=1` et suivantes. C'est juste
 8 pages et Sweats 7, donc la recette cacherait **87 %** du catalogue. Ce que nous leur
 prenons, c'est la moitié qu'ils font bien : la page 2 se canonicalise sur elle-même et
 jamais sur la page 1.
+
+### Les 26 392 déclinaisons, qui sont le vrai piège
+
+Chaque référence variable s'adresse aussi par ses attributs :
+`/produit/{slug}/?attribute_pa_couleur=black&attribute_pa_taille=m`. 463 références par leurs
+coloris et leurs tailles font **26 392 combinaisons**, toutes joignables par URL. C'est la
+façon la plus courante pour une boutique WooCommerce de se saborder toute seule.
+
+La politique : **indexable, et canonique vers l'URL propre du produit.** Pas `noindex`, parce
+que cela contredirait le canonical, ce qui est précisément l'erreur décrite plus bas. Le
+noyau s'en charge (`wp_get_canonical_url()` retire la chaîne de requête sur une page
+singulière) et `Seo` la reprend telle quelle. Vérifié, et désormais asserté par
+`npm run verify:seo` sur une vraie déclinaison plutôt que supposé.
 
 ### `noindex, follow`, et délibérément **aucun** canonical
 
@@ -462,7 +504,7 @@ constats, dont ceux-ci, chacun mesuré :
 - **274 fils d'Ariane nommaient une catégorie que le même fichier met en `noindex`.**
 - **Le lien du pied de page donnait à chaque URL du site un jumeau explorable** via
   `?cookies=1`.
-- **`/entreprises/` et `/product-category/t-shirts/` publiaient le même `<title>`**, c'est-à-
+- **`/entreprises/` et `/categorie/t-shirts/` publiaient le même `<title>`**, c'est-à-
   dire la cannibalisation manuelle de la requête la plus disputée du site.
 - **Zéro se résolvait comme un chiffre** : un minimum effacé publiait « Nous imprimons à
   partir de 0 pièces ».

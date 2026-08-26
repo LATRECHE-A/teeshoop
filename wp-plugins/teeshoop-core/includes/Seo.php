@@ -98,6 +98,7 @@ final class Seo {
 		add_action( 'wp_head', array( self::class, 'head' ), 2 );
 
 		add_action( 'template_redirect', array( self::class, 'first_page' ), 5 );
+		add_action( 'template_redirect', array( self::class, 'english_base' ), 6 );
 
 		add_filter( 'wp_robots', array( self::class, 'robots' ), 20 );
 		add_filter( 'wp_robots', array( self::class, 'observe' ), PHP_INT_MAX );
@@ -169,6 +170,64 @@ final class Seo {
 
 		wp_safe_redirect( $target, 301 );
 		exit;
+	}
+
+	/**
+	 * The English bases WooCommerce used to serve, sent to the French ones.
+	 *
+	 * `Cli::ensure_french_bases()` moves `/product/` to `/produit/` and
+	 * `/product-category/` to `/categorie/`, which is what a shop selling only in
+	 * France should have addressed its catalogue with from the start. WordPress
+	 * happens to redirect the PRODUCT base by itself, through
+	 * `redirect_canonical()` matching on the post name; it does NOT redirect the
+	 * category one, and `/product-category/tout/`, which is the single category
+	 * teeshoop.com serves today, would simply have started answering 404.
+	 *
+	 * ONLY ON A 404, so a normal request never reaches this. And only when the
+	 * shop is actually on the French base, read from the option rather than
+	 * assumed: an operator who kept the English one must not be redirected off
+	 * their own URLs.
+	 *
+	 * The target is not checked for existence. A prefix swap that lands on
+	 * nothing gives a 404 one hop later, which is the same answer, and probing
+	 * the target here would mean a second query on every missing page.
+	 */
+	public static function english_base(): void {
+		if ( ! is_404() ) {
+			return;
+		}
+
+		$bases = get_option( 'woocommerce_permalinks', array() );
+		$bases = is_array( $bases ) ? $bases : array();
+
+		$moves = array(
+			'product-category' => trim( (string) ( $bases['category_base'] ?? '' ), '/' ),
+			'product-tag'      => trim( (string) ( $bases['tag_base'] ?? '' ), '/' ),
+			'product'          => trim( (string) ( $bases['product_base'] ?? '' ), '/' ),
+		);
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading the path of a request that already 404s.
+		$uri  = (string) ( $_SERVER['REQUEST_URI'] ?? '' );
+		$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+
+		foreach ( $moves as $english => $ours ) {
+			if ( '' === $ours || $ours === $english ) {
+				continue;
+			}
+			$prefix = '/' . $english . '/';
+			if ( ! str_starts_with( $path, $prefix ) ) {
+				continue;
+			}
+
+			$target = home_url( '/' . $ours . '/' . substr( $path, strlen( $prefix ) ) );
+			$query  = (string) wp_parse_url( $uri, PHP_URL_QUERY );
+			if ( '' !== $query ) {
+				$target .= '?' . $query;
+			}
+
+			wp_safe_redirect( $target, 301 );
+			exit;
+		}
 	}
 
 	// -----------------------------------------------------------------------

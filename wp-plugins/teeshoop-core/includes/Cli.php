@@ -1030,12 +1030,67 @@ final class Cli {
 	 * production, where o2switch serves pretty permalinks.
 	 */
 	private static function ensure_permalinks( array &$changed ): void {
-		if ( '' !== (string) get_option( 'permalink_structure' ) ) {
+		if ( '' === (string) get_option( 'permalink_structure' ) ) {
+			update_option( 'permalink_structure', '/%postname%/' );
+			$changed[] = 'permaliens';
+		}
+
+		self::ensure_french_bases( $changed );
+	}
+
+	/**
+	 * The two words WooCommerce puts in front of every product URL, in French.
+	 *
+	 * A shop that sells only in France (question 35) served
+	 * `teeshoop.com/product-category/t-shirts/` and `teeshoop.com/product/…`.
+	 * Chapter 04's SEO section asks for « URL courte » and the session brief asks
+	 * for clean French URLs; neither word is French and `product-category` is the
+	 * longest base WooCommerce ships.
+	 *
+	 * WHY IT IS SAFE TO CHANGE NOW AND NOT LATER, which is the whole argument.
+	 * `Cli::ensure_french_shop_pages()` refuses to rename the SHOP PAGE for a
+	 * documented reason: `wp_old_slug_redirect()` begins `if ( is_404() && '' !==
+	 * get_query_var( 'name' ) )` and a PAGE is matched on `pagename`, so an old
+	 * page slug 404s rather than redirecting, and teeshoop.com has been selling
+	 * since 2024. That objection does not apply here. These bases address the
+	 * 44 furniture demonstration products that question 20 asks us to delete, and
+	 * a URL for a chair we do not sell is a URL we want to stop answering. Every
+	 * catalogue URL that matters is created by an import that has never run on
+	 * production. After launch the same change costs 463 redirects.
+	 *
+	 * A BASE SOMEBODY HAS ALREADY CHOSEN IS LEFT ALONE. Only WooCommerce's own
+	 * English defaults are replaced, so an operator who picked something else
+	 * keeps it, and running this twice changes nothing.
+	 */
+	private static function ensure_french_bases( array &$changed ): void {
+		$stored = get_option( 'woocommerce_permalinks', array() );
+		$stored = is_array( $stored ) ? $stored : array();
+
+		$french = array(
+			'product_base'  => array( 'product', 'produit' ),
+			'category_base' => array( 'product-category', 'categorie' ),
+			'tag_base'      => array( 'product-tag', 'etiquette' ),
+		);
+
+		$moved = false;
+		foreach ( $french as $key => $pair ) {
+			list( $english, $ours ) = $pair;
+			$current = trim( (string) ( $stored[ $key ] ?? '' ), '/' );
+			// Empty counts as the default: WooCommerce falls back to the English
+			// word when the option has never been written.
+			if ( '' !== $current && $english !== $current ) {
+				continue;
+			}
+			$stored[ $key ] = $ours;
+			$moved          = true;
+		}
+
+		if ( ! $moved ) {
 			return;
 		}
 
-		update_option( 'permalink_structure', '/%postname%/' );
-		$changed[] = 'permaliens';
+		update_option( 'woocommerce_permalinks', $stored );
+		$changed[] = 'bases d’URL en français';
 	}
 
 	/**
