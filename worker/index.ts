@@ -17,6 +17,12 @@
  *   POST /api/design        store the design document + its rasters → { id }
  *   GET  /api/design/{id}   the manifest — what the plugin verifies against
  *   GET  /r2/design/{id}/…  the bytes; preview open, document/rasters admin-only
+ *   DELETE /api/design/{id} erase every object under the id (RGPD article 17)
+ *   POST /api/design/reap   delete designs older than a date, minus a keep list
+ *
+ * The last two are ADMIN-ONLY and are the only deletions this Worker performs.
+ * R2's lifecycle rule covers `ar/` and cannot cover `design/`, because only the
+ * shop knows which artwork is still owed against an order.
  *
  * SUPPLIER — `/api/fr/*`, the live Falk&Ross webservice (worker/falkross.ts).
  * It lives server-side because the credentials must not ship to a browser, the
@@ -40,7 +46,14 @@
  */
 import { handleFalkRoss, type FalkRossEnv } from './falkross'
 import { requireAdmin } from './auth'
-import { createDesign, getDesign, serveDesignFile, type DesignEnv } from './design'
+import {
+  createDesign,
+  deleteDesign,
+  getDesign,
+  reapDesigns,
+  serveDesignFile,
+  type DesignEnv,
+} from './design'
 import { nestOrder } from './nest'
 
 interface Env extends FalkRossEnv, DesignEnv {
@@ -71,6 +84,21 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
   })
+}
+
+/**
+ * A path segment, decoded, or null when it cannot be.
+ *
+ * `decodeURIComponent` THROWS on a malformed escape (`%zz`), and an uncaught
+ * throw in this handler is a 500 on input anyone can send. Null is answered as
+ * a 404 by every caller: a segment we cannot read names nothing we store.
+ */
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return null
+  }
 }
 
 async function uploadAr(request: Request, env: Env): Promise<Response> {
@@ -214,13 +242,27 @@ export default {
     if (path === '/api/design' && request.method === 'POST') {
       return createDesign(request, env)
     }
+    /*
+     * Retention (worker/design.ts). ADMIN-ONLY, and matched before the `{id}`
+     * routes below so `reap` can never be read as a design id. Nothing else in
+     * this Worker deletes anything.
+     */
+    if (path === '/api/design/reap' && request.method === 'POST') {
+      return reapDesigns(request, env)
+    }
     const design = /^\/api\/design\/([^/]+)$/.exec(path)
-    if (design && (request.method === 'GET' || request.method === 'HEAD')) {
-      return getDesign(env, decodeURIComponent(design[1]))
+    if (design) {
+      const id = decodeSegment(design[1])
+      if (id === null) return json({ error: 'not found' }, 404)
+      if (request.method === 'GET' || request.method === 'HEAD') return getDesign(env, id)
+      // The R2 half of an RGPD erasure request; the shop calls it. ADMIN-ONLY.
+      if (request.method === 'DELETE') return deleteDesign(request, env, id)
     }
     const designFile = /^\/r2\/design\/([^/]+)\/(.+)$/.exec(path)
     if (designFile && (request.method === 'GET' || request.method === 'HEAD')) {
-      return serveDesignFile(request, env, designFile[1], decodeURIComponent(designFile[2]))
+      const rest = decodeSegment(designFile[2])
+      if (rest === null) return new Response('not found', { status: 404 })
+      return serveDesignFile(request, env, designFile[1], rest)
     }
 
     /*

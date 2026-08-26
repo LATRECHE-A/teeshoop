@@ -75,6 +75,13 @@ const ID_LEN = 24
 const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 const ID_RE = /^[A-Za-z0-9_-]{16,64}$/
 
+/**
+ * The `design/` half of the bucket. `ar/` shares the bucket under its own prefix
+ * and its own 30-day lifecycle rule, so no key outside this string may ever be
+ * passed to `delete`; `deleteKeys` is the single place that enforces it.
+ */
+const DESIGN_PREFIX = 'design/'
+
 const MAX_FILE_BYTES = 12 * 1024 * 1024
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024
 const MAX_DOC_BYTES = 2 * 1024 * 1024
@@ -135,7 +142,7 @@ export interface DesignManifest {
   print_file: string
 }
 
-const key = (id: string, name: string) => `design/${id}/${name}`
+const key = (id: string, name: string) => `${DESIGN_PREFIX}${id}/${name}`
 
 /**
  * `POST /api/design` — multipart/form-data:
@@ -351,4 +358,533 @@ export async function serveDesignFile(
   // shared cache on the way back.
   headers.set('cache-control', isPreview ? 'public, max-age=31536000, immutable' : 'private, no-store')
   return new Response(obj.body, { status: 200, headers })
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * ERASURE AND REAPING
+ *
+ * WHY THIS EXISTS. Two things were true until now: there was no `.delete()`
+ * anywhere in this Worker, and the bucket's only lifecycle rule expires the
+ * `ar/` prefix after 30 days. So every design ever uploaded was kept forever,
+ * with no way to remove one. Both halves are problems, and they are different
+ * problems:
+ *
+ *   An RGPD erasure request (article 17) has to reach the artwork. A customer's
+ *   uploaded raster IS personal data: it is theirs, it can be a photograph of
+ *   them, and deleting their WooCommerce order while the file stays in R2 is
+ *   not erasure. `DELETE /api/design/{id}` is what the shop calls for that.
+ *
+ *   Most designs never become an order. Add-to-cart writes one, and a cart that
+ *   is abandoned leaves it behind with nothing pointing at it. Keeping those
+ *   forever is both a storage bill and a retention-limitation breach (article
+ *   5(1)(e)): personal data kept longer than the purpose needs it. A blanket
+ *   lifecycle rule on `design/` cannot do this job, because it cannot tell an
+ *   orphan from the artwork of a two-year-old order the shop still owes a
+ *   reprint on. Only the shop knows that, so `POST /api/design/reap` takes the
+ *   list of ids it still holds and deletes the rest.
+ *
+ * BOTH ARE ADMIN-ONLY, through the same gate as everything else here
+ * (worker/auth.ts, `ADMIN_TOKEN`, unset means deny all). A delete route that
+ * could be reached with the id alone would turn the capability URL that lets a
+ * customer see their own proof into a capability to destroy the order.
+ *
+ * WHAT IS ENUMERATED IS THE BUCKET, NOT THE MANIFEST. The manifest lists the
+ * assets it knew about when it was written, and the whole point of an erasure
+ * is that it must work on a design whose manifest is already gone, was never
+ * finished (the manifest is written last, on purpose), or lists a raster whose
+ * name changed. `list()` over `design/{id}/` is the only account of what is
+ * actually stored.
+ */
+
+/**
+ * The destructive routes take the Bearer encoding of `ADMIN_TOKEN` and nothing
+ * else. This is a CSRF gate, not a second authentication.
+ *
+ * worker/auth.ts deliberately accepts a SECOND encoding, `Basic
+ * base64(anything:token)`, because a bearer challenge shows no login box and
+ * `/admin.html` is a plain browser navigation. The side effect that module
+ * documents as useful is the problem here: once an operator has answered that
+ * prompt, the browser attaches those credentials to this origin by itself, and
+ * HTTP Basic has no SameSite. So a page the operator merely visits can submit a
+ * cross-site form POST to `/api/design/reap` (a form body can be shaped into
+ * valid JSON with `enctype="text/plain"`), the browser decorates that top-level
+ * navigation with the admin credentials, and 500 customers' artwork is gone.
+ *
+ * A form cannot set a header, and a cross-origin `fetch` that sets
+ * `Authorization` is preflighted, which this Worker answers with no CORS
+ * headers at all. Requiring the Bearer form is therefore what makes these two
+ * routes unreachable from another site. The caller that matters is the
+ * WordPress server and it sends Bearer; a browser tool that wants them has to
+ * send the token explicitly rather than lean on the ambient credential, which
+ * for an irreversible delete is the right amount of friction.
+ */
+async function requireBearerAdmin(request: Request, env: DesignEnv): Promise<Response | null> {
+  const denied = await requireAdmin(request, env, 'api')
+  if (denied) return denied
+  if (!/^Bearer\s/i.test(request.headers.get('authorization') ?? '')) {
+    return json(
+      {
+        error: 'admin_auth',
+        message: 'This route takes the Authorization: Bearer form of the admin token.',
+      },
+      401,
+    )
+  }
+  return null
+}
+
+/** R2 accepts at most 1000 keys in one `delete` call. */
+const DELETE_BATCH = 1000
+
+/*
+ * WORK CAPS, AND WHERE THE NUMBERS COME FROM.
+ *
+ * This Worker is on the Cloudflare FREE plan, which allows 50 subrequests per
+ * invocation, and an R2 binding call is a subrequest. That ceiling has already
+ * taken this project down in production once (see the budget section in
+ * worker/falkross.ts), and it aborts the invocation rather than returning an
+ * error you can act on, which for a delete route means stopping in the middle
+ * of an erasure. So the work one call may do is reserved before it is started:
+ *
+ *   4000 keys      at most 4  `delete` calls  (4000 / DELETE_BATCH)
+ *   40 list pages  at most 40 `list`   calls
+ *   6 spare                             = 50
+ *
+ * 4000 keys is comfortably more than 500 designs: a design is 3 objects (the
+ * document, the cart preview, the manifest) plus one per referenced raster and
+ * one per printed side, so 5 to 8 in practice and 43 at the document gate's
+ * maximum (MAX_ASSETS 32, MAX_SIDES 8).
+ *
+ * 40 pages is the same 4000 objects, because ASKING FOR METADATA SHRINKS THE
+ * PAGE. Measured against a real workerd R2 (miniflare) over 1500 objects: a
+ * plain `list` returns 1000 per page, and `list` with
+ * `include: ['customMetadata']` returns 100, even when `limit: 1000` is passed
+ * explicitly. The reap needs the `created` stamp, so it pays the 100. Also
+ * measured there, because it decided which of the two pagination mechanisms
+ * this uses: walking with `startAfter` costs the same as walking with the
+ * opaque `cursor` (322 ms against 362 ms for the same 15 pages), and
+ * `startAfter` is the one that can name an id boundary.
+ *
+ * Hitting a cap is NOT an error and must never be reported as a completed job.
+ * Reap answers with `truncated: true` and the cursor to resume from, which is
+ * the same shape `/api/fr/styles` already uses for the same reason.
+ */
+const MAX_KEYS_PER_CALL = 4000
+const MAX_LIST_PAGES = 40
+
+/**
+ * Designs one reap call may take. The cap is the blast radius: an operator can
+ * read what a dry run proposes, and a wrong `keep` list costs 500 designs and
+ * not the whole bucket.
+ */
+const MAX_REAP_IDS = 500
+
+/**
+ * How far ahead of our clock a `before` cut-off may sit. WordPress and the
+ * Worker are two different hosts, so a cut-off of "now" computed in the shop
+ * can land slightly ahead of now here. Anything further ahead is not a
+ * retention cut-off, it is "delete everything not in keep", and that is exactly
+ * the shape a mis-computed cut-off takes: an off-by-one on a month, a
+ * timezone read as UTC, a clock that never synced.
+ */
+const CLOCK_SKEW_MS = 5 * 60 * 1000
+
+/**
+ * The design id a key belongs to, or null when the key is not `design/{id}/…`
+ * with an id of the shape this Worker writes.
+ *
+ * Null is deliberately unreapable. A key we cannot attribute to a design is
+ * left alone rather than guessed at, which is the same "no" versus "could not
+ * look" rule the rest of this module follows.
+ */
+function designIdOf(key: string): string | null {
+  if (!key.startsWith(DESIGN_PREFIX)) return null
+  const rest = key.slice(DESIGN_PREFIX.length)
+  const slash = rest.indexOf('/')
+  if (slash <= 0) return null
+  const id = rest.slice(0, slash)
+  return ID_RE.test(id) ? id : null
+}
+
+/**
+ * When an object was written, in epoch milliseconds, or null when that cannot
+ * be read.
+ *
+ * `created` is the stamp every put in this module writes; `uploaded` is R2's
+ * own record and covers anything written before the stamp existed. A stamp that
+ * is present but unreadable returns null rather than falling back, because a
+ * design whose provenance we cannot read is one to keep: null is never old, so
+ * it is never reaped.
+ */
+function objectTime(o: { customMetadata?: Record<string, string>; uploaded: Date }): number | null {
+  const stamped = o.customMetadata?.created
+  if (typeof stamped === 'string' && stamped !== '') {
+    const t = Date.parse(stamped)
+    return Number.isNaN(t) ? null : t
+  }
+  const t = o.uploaded instanceof Date ? o.uploaded.getTime() : Number.NaN
+  return Number.isNaN(t) ? null : t
+}
+
+/**
+ * The only call to `R2Bucket.delete` in this Worker.
+ *
+ * Every key is checked against `prefix` BEFORE the first batch goes out, so a
+ * list that answered with something outside `design/` deletes nothing at all
+ * rather than half an erasure plus somebody's AR model. That case cannot arise
+ * from correct code, which is why it throws instead of being filtered: silently
+ * dropping the odd key would hide the bug that produced it.
+ *
+ * A batch that fails stops the run and reports how many keys are confirmed
+ * gone. Keys are deleted in the order given, so a caller that grouped them by
+ * design can tell exactly which designs are erased and which are not.
+ */
+async function deleteKeys(
+  bucket: R2Bucket,
+  keys: string[],
+  prefix: string,
+): Promise<{ deleted: number; failed: boolean }> {
+  for (const k of keys) {
+    if (!k.startsWith(prefix)) throw new Error('key outside the prefix')
+  }
+  let deleted = 0
+  for (let i = 0; i < keys.length; i += DELETE_BATCH) {
+    const batch = keys.slice(i, i + DELETE_BATCH)
+    try {
+      await bucket.delete(batch)
+    } catch {
+      return { deleted, failed: true }
+    }
+    deleted += batch.length
+  }
+  return { deleted, failed: false }
+}
+
+/**
+ * Every key under `prefix`, following R2's pagination.
+ *
+ * `startAfter` rather than `cursor`: one mechanism reads the same whether it is
+ * continuing a page inside this call or resuming a reap in the next one, and it
+ * is a key we can reason about instead of an opaque token.
+ *
+ * `complete` false means a cap stopped the walk, so the answer is a prefix of
+ * what is there and must not be reported as the whole of it.
+ */
+async function listPrefix(
+  bucket: R2Bucket,
+  prefix: string,
+): Promise<{ keys: string[]; complete: boolean }> {
+  const keys: string[] = []
+  let after: string | undefined
+  for (let page = 0; page < MAX_LIST_PAGES; page++) {
+    const res = await bucket.list({ prefix, startAfter: after })
+    for (const o of res.objects) keys.push(o.key)
+    // An empty page cannot advance `after`, so stop here rather than loop.
+    if (res.objects.length === 0) return { keys, complete: !res.truncated }
+    if (!res.truncated) return { keys, complete: true }
+    after = res.objects[res.objects.length - 1].key
+    if (keys.length >= MAX_KEYS_PER_CALL) return { keys, complete: false }
+  }
+  return { keys, complete: false }
+}
+
+/**
+ * `DELETE /api/design/{id}`, the R2 half of an RGPD erasure request. Removes
+ * the document, the manifest, every preview and every asset stored under the
+ * id, whatever the manifest says or fails to say.
+ *
+ * IDEMPOTENT BY DESIGN. An id that is already gone answers 200 with
+ * `deleted: 0`. An erasure request gets re-run: by a retry, by an operator who
+ * is not sure the first one worked, by a WordPress job replaying its queue.
+ * Answering 404 the second time would turn a completed erasure into an alarm,
+ * and the state the caller asked for ("nothing of this id is in R2") is exactly
+ * the state it is in.
+ *
+ * Answers `{ id, deleted, keys }`, the keys being what was actually removed, so
+ * the shop can record what it erased. A run that could not finish answers 502
+ * with the partial count instead of a 200 that reads as done.
+ *
+ * WHAT THIS DOES NOT REACH, and the erasure record must say so: the CDN. A
+ * preview is served `public, max-age=31536000, immutable` because a bon a tirer
+ * e-mail and a cart thumbnail load it repeatedly, so a copy can sit in
+ * Cloudflare's edge cache after the R2 object is gone. Emptying that needs a
+ * zone purge through the Cloudflare API, which is a credential this Worker does
+ * not hold. What limits the exposure meanwhile is that the URL is the only way
+ * in and it carries about 143 bits: nobody who was not sent it can construct
+ * it. See the note in the session report.
+ */
+export async function deleteDesign(request: Request, env: DesignEnv, id: string): Promise<Response> {
+  const denied = await requireBearerAdmin(request, env)
+  if (denied) return denied
+
+  /*
+   * 400 rather than a listing built from whatever arrived. ID_RE is the one
+   * definition of a design id in this module (`getDesign` and `serveDesignFile`
+   * read the same one, and it is the plugin's `Design::valid_id` shape); it
+   * admits no `/` and no `.`, so no prefix built from an id that passes it can
+   * name anything outside `design/{id}/`.
+   */
+  if (!ID_RE.test(id)) return json({ error: 'not a design id' }, 400)
+
+  const prefix = `${DESIGN_PREFIX}${id}/`
+  let listed: { keys: string[]; complete: boolean }
+  try {
+    listed = await listPrefix(env.AR_BUCKET, prefix)
+  } catch {
+    return json({ error: 'storage list failed', id, deleted: 0 }, 502)
+  }
+  if (listed.keys.length === 0 && listed.complete) return json({ id, deleted: 0, keys: [] })
+
+  let res: { deleted: number; failed: boolean }
+  try {
+    res = await deleteKeys(env.AR_BUCKET, listed.keys, prefix)
+  } catch {
+    return json({ error: 'refused a key outside the design prefix', id, deleted: 0 }, 500)
+  }
+  if (res.failed || !listed.complete) {
+    return json(
+      { error: 'erasure did not finish, run it again', id, deleted: res.deleted, keys: listed.keys.slice(0, res.deleted) },
+      502,
+    )
+  }
+  return json({ id, deleted: res.deleted, keys: listed.keys })
+}
+
+/** One design's objects, as the reap walk accumulates them. */
+interface ReapGroup {
+  id: string
+  keys: string[]
+  /** Every object seen so far is older than the cut-off. */
+  old: boolean
+}
+
+/**
+ * `POST /api/design/reap`, retention. Body:
+ *
+ *   { "before": "2026-02-01T00:00:00Z", "keep": ["<id>", …], "dryRun": true }
+ *
+ * Deletes every design whose objects are ALL older than `before` and whose id
+ * is not in `keep`. All, not any: a design is one unit, and an old document
+ * beside a raster re-uploaded last week is a design still in use.
+ *
+ * `keep` IS REQUIRED AND ABSENT IS NOT EMPTY. It is the shop's list of the ids
+ * it still holds against an order or a devis, so an absent one is a caller that
+ * did not compute it, and acting on that would delete live orders' artwork. An
+ * explicitly empty list is a different statement ("I hold none") and is
+ * honoured. `dryRun` is required for the same reason: on a bulk delete, a
+ * missing field must not be read as consent.
+ *
+ * `before` must be in the past. A cut-off ahead of now is not a retention rule,
+ * it is "delete everything not in keep", and it is the shape a mis-computed
+ * cut-off takes. It is also what protects the design being written right now:
+ * every object carries a `created` stamp of its upload time, so an upload in
+ * flight during a reap is never old enough to be swept, and the manifest being
+ * written last cannot orphan the assets that preceded it.
+ *
+ * `keep` IS A SNAPSHOT, and the cut-off is what covers the gap. Between the
+ * shop listing the ids it holds and this walk reading the bucket, a customer
+ * can add to cart and create a design that is in neither. It survives because
+ * every object carries the `created` stamp of its own upload and is therefore
+ * newer than any cut-off worth the name. That protection is only as wide as the
+ * gap between `before` and now, so the shop must choose a `before` older than a
+ * cart can hold a design (WooCommerce sessions run 48 hours by default) rather
+ * than "a moment ago", and must compute `keep` after choosing it.
+ *
+ * Answers `{ candidates, deleted, ids, dryRun, truncated, cursor }`. `truncated`
+ * true means a cap stopped the walk before the end of the prefix and `cursor`
+ * is where to resume; the caller loops until it is false. Under `dryRun` the
+ * same call repeats rather than advancing unless the cursor is passed back,
+ * which is what the cursor is for: a dry run is a preview of the next real
+ * call.
+ */
+export async function reapDesigns(request: Request, env: DesignEnv): Promise<Response> {
+  const denied = await requireBearerAdmin(request, env)
+  if (denied) return denied
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'body is not json' }, 400)
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body))
+    return json({ error: 'body is not an object' }, 400)
+  const b = body as Record<string, unknown>
+
+  if (typeof b.before !== 'string') return json({ error: 'before is required, ISO 8601' }, 400)
+  const beforeMs = Date.parse(b.before)
+  if (Number.isNaN(beforeMs)) return json({ error: 'before is not a date' }, 400)
+  if (beforeMs > Date.now() + CLOCK_SKEW_MS)
+    return json({ error: 'before is in the future, which is not a retention cut-off' }, 400)
+
+  if (!Array.isArray(b.keep))
+    return json({ error: 'keep is required: send [] to state that you hold none' }, 400)
+  /*
+   * No cap on how many ids `keep` may carry, on purpose. A truncated keep list
+   * is indistinguishable from a shorter one, and acting on it deletes the
+   * artwork of the orders that fell off the end. The route is admin-only and
+   * the platform bounds the request body; a keep list that is too big to send
+   * is a refusal we can see, which a silent trim is not.
+   */
+  const keep = new Set<string>()
+  for (const k of b.keep) {
+    if (typeof k !== 'string') return json({ error: 'keep must be a list of design ids' }, 400)
+    keep.add(k)
+  }
+
+  if (typeof b.dryRun !== 'boolean') return json({ error: 'dryRun is required, true or false' }, 400)
+  const dryRun = b.dryRun
+
+  let after: string | undefined
+  if (b.cursor !== undefined && b.cursor !== null) {
+    if (typeof b.cursor !== 'string' || !b.cursor.startsWith(DESIGN_PREFIX))
+      return json({ error: 'cursor is not one this route issued' }, 400)
+    after = b.cursor
+  }
+  const startedAt = after
+
+  /*
+   * THE WALK. R2 lists in key order, and every key of one design shares the
+   * prefix `design/{id}/`, so a design's objects are contiguous: any key
+   * sorting between two keys of the same prefix has that prefix too. That is
+   * what lets this judge a design as a whole while streaming, and it is why
+   * `resume` only ever advances past a design whose LAST object has been seen.
+   * Stopping in the middle of one and resuming after it would judge the tail on
+   * its own and delete a design whose newest object was on the previous page.
+   */
+  const ready: ReapGroup[] = []
+  let current: ReapGroup | null = null
+  let keyCount = 0
+  let truncated = false
+  let resume = after
+
+  const finish = () => {
+    if (!current) return
+    if (current.old && !keep.has(current.id)) ready.push(current)
+    resume = current.keys[current.keys.length - 1]
+    current = null
+  }
+
+  try {
+    let pages = 0
+    for (;;) {
+      if (pages >= MAX_LIST_PAGES) {
+        truncated = true
+        break
+      }
+      const res = await env.AR_BUCKET.list({
+        prefix: DESIGN_PREFIX,
+        startAfter: after,
+        include: ['customMetadata'],
+      })
+      pages++
+      let capped = false
+      for (const o of res.objects) {
+        const id = designIdOf(o.key)
+        if (id === null) continue
+        if (current && current.id !== id) finish()
+        if (!current) {
+          if (ready.length >= MAX_REAP_IDS || keyCount >= MAX_KEYS_PER_CALL) {
+            capped = true
+            break
+          }
+          current = { id, keys: [], old: true }
+        }
+        current.keys.push(o.key)
+        keyCount++
+        const t = objectTime(o)
+        if (t === null || t >= beforeMs) current.old = false
+      }
+      if (capped) {
+        truncated = true
+        break
+      }
+      if (!res.truncated) {
+        finish()
+        break
+      }
+      // A truncated page with nothing on it cannot advance `after`; stop rather
+      // than spin.
+      if (res.objects.length === 0) {
+        truncated = true
+        break
+      }
+      after = res.objects[res.objects.length - 1].key
+      if (ready.length >= MAX_REAP_IDS || keyCount >= MAX_KEYS_PER_CALL) {
+        truncated = true
+        break
+      }
+    }
+  } catch {
+    return json({ error: 'storage list failed' }, 502)
+  }
+
+  /*
+   * A truncated walk that finished no design would hand back the cursor it was
+   * given, and a caller looping on it would loop forever. It takes a single id
+   * holding more objects than a whole call may read, which the document gate
+   * makes impossible, so say so loudly instead of answering with a job that
+   * cannot progress.
+   */
+  if (truncated && resume === startedAt)
+    return json({ error: 'reap made no progress, look at the design/ prefix' }, 500)
+
+  const ids = ready.map((g) => g.id)
+  if (dryRun || ready.length === 0) {
+    return json({
+      candidates: ids.length,
+      deleted: 0,
+      ids,
+      dryRun,
+      truncated,
+      cursor: truncated ? (resume ?? null) : null,
+    })
+  }
+
+  let out: { deleted: number; failed: boolean }
+  try {
+    out = await deleteKeys(env.AR_BUCKET, ready.flatMap((g) => g.keys), DESIGN_PREFIX)
+  } catch {
+    return json({ error: 'refused a key outside the design prefix' }, 500)
+  }
+
+  // Keys go out grouped by design and in order, so the designs actually erased
+  // are the ones entirely inside the keys confirmed gone. Counting the rest
+  // would be the "stopped half way and said done" failure this route exists to
+  // avoid.
+  let covered = 0
+  let deleted = 0
+  for (const g of ready) {
+    if (covered + g.keys.length > out.deleted) break
+    covered += g.keys.length
+    deleted++
+  }
+
+  if (out.failed) {
+    // Resume from the last design that IS gone, so the ones that are not are
+    // seen again by the next call.
+    const back = deleted > 0 ? ready[deleted - 1].keys[ready[deleted - 1].keys.length - 1] : startedAt
+    return json(
+      {
+        error: 'reap did not finish, run it again',
+        candidates: ids.length,
+        deleted,
+        ids: ids.slice(0, deleted),
+        dryRun,
+        truncated: true,
+        cursor: back ?? null,
+      },
+      502,
+    )
+  }
+
+  return json({
+    candidates: ids.length,
+    deleted,
+    ids,
+    dryRun,
+    truncated,
+    cursor: truncated ? (resume ?? null) : null,
+  })
 }
