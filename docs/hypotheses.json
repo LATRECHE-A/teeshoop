@@ -3155,9 +3155,12 @@
 				"customer"
 			],
 			"derives": [
-				"Le pas de luminance mesuré à travers la silhouette : 0,2 niveau sur 255 avant, gardé au-dessus de 12 par scripts/render-verify.mjs.",
+				"Le pas de luminance mesuré à travers la silhouette. ATTENTION, deux statistiques : avant, le script ne produisait qu'un 5e centile et il valait 0,21 niveau sur 255 (.qa/render-before, tee-black-34) ; le garde porte sur la MÉDIANE et exige 12, et elle vaut 26,14 aujourd'hui (.qa/render-s2). Redériver le 0,21 sur l'arbre courant donne 2,23, qui est le 5e centile et non ce que le garde lit.",
 				"Les pixels d'ombre au sol : 0 avant, 9 676 sur le t-shirt noir après, avec 24,6 niveaux de profondeur (balayage complet du 26/08/2026, .qa/render-s2).",
-				"Le fait qu'un mockup soit reproductible à l'octet près (scripts/mockup-shots.mjs), puisque le fond en fait partie."
+				"Le fait qu'un mockup soit reproductible à l'octet près (scripts/mockup-shots.mjs), puisque le fond en fait partie.",
+				"L'équilibre des blancs du studio : la médiane RVB d'un t-shirt blanc passe de 205/198/192 à 215/216/219, soit un écart entre canaux de 13 à 4 pour un maximum de 12 (WHITE_CHANNEL_SPREAD_MAX, scripts/render-verify.mjs).",
+				"La séparation vêtement / page, que scripts/render-verify.mjs mesure contre ce fond : c'est elle qui rend tee-black-night rouge à 7,66 niveaux pour 8 exigés.",
+				"Les six scènes se distinguent les unes des autres, ce que npm run verify:leak vérifie en comparant leurs images : un fond commun est ce contre quoi cette différence se lit."
 			],
 			"sessions": [
 				"10"
@@ -3165,6 +3168,32 @@
 			"cost_if_late": "reglage",
 			"label_fr": "Studio",
 			"shipped_matches_default": "Oui. La question 31 dit « on partira sur les teintes bleu et noir du site » ; le studio 3D est déjà peint dans le noir du site (--color-bg0 #0c0f13) et le sol en est dérivé, assez sombre pour qu'un vêtement noir garde un contour contre lui. Une réponse change ce hex et rien d'autre."
+		},
+		{
+			"id": "H-Q10-JEU-DE-LANCEMENT",
+			"question": "Q10",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-26",
+			"statement_fr": "Le jeu d'images de lancement couvre deux vêtements en taille M, un t-shirt blanc et un sweat à capuche noir, parce que ce sont les deux extrêmes que l'éclairage doit tenir (le tissu le plus clair et le plus sombre, jersey et molleton) ; aucune autre taille n'est rendue.",
+			"home": "anchor:scripts/mockup-shots.mjs#'tee:FFFFFF:M,hoodie:191C20:M'",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "C'est une valeur par défaut d'argument de script, pas une valeur qui vit dans le produit : elle n'existe qu'à cet endroit et se remplace en passant argv[3]. Rien d'autre dans le dépôt ne doit la porter.",
+			"reaches": [
+				"internal"
+			],
+			"derives": [
+				"Les seize images de .qa/mockups sont identiques à l'octet entre deux passages complets indépendants (scripts/mockup-shots.mjs, 26/08/2026).",
+				"Les deux gardes de cadrage du gros plan sont mesurés sur ces deux vêtements et sur aucun autre : t-shirt 0,799 / -0,952, sweat 0,606 / -0,801 en coordonnées normalisées.",
+				"L'affirmation que l'éclairage tient sur toute la gamme de valeurs repose sur ces deux extrêmes ; elle n'est pas mesurée sur une couleur intermédiaire.",
+				"La portée du rendu, qui est ce que la séance 11 hérite : le studio ne connaît que deux vêtements en 3D (src/garments/index.ts) sur les 462 produits publiés (docs/CATALOGUE.md), donc 459 fiches produit sur 462 montreront les photographies du fournisseur quoi qu'il arrive aux mockups."
+			],
+			"sessions": [
+				"10"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Partiellement, et il faut le dire. La question 10 porte sur les vêtements et les tailles à rendre AU LANCEMENT, ce qui est une décision de boutique. Ce que la séance 10 a tranché est plus étroit : quels vêtements le jeu d'images de contrôle couvre, et le motif est le temps machine (une prise coûte six à sept minutes en rastérisation logicielle, et le jeu fait huit prises par vêtement). Aucune image n'est aujourd'hui montrée à un client : rien ne relit .qa/mockups, le panier et le bon à tirer affichent toujours l'aperçu plat de renderMockup. Le jour où ces images seront branchées, `reaches` devient customer et cette ligne demande un label_fr."
 		}
 	],
 	"not_applicable": [

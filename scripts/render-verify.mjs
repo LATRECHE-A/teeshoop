@@ -32,30 +32,34 @@
  * the garment or what it throws: no threshold on "looks like cloth", no
  * background reference guessed per row.
  *
- * MEASURED AND NARROWED, not papered over: an image captured LATE in a sweep
- * renders about 2 % darker than the same case captured alone. The black tee in
- * `night` measures median luminance 27 on its own and 24 inside the full sweep,
- * which drops it under the page-separation gate; the white tee captured a second
- * time at the end reads 212 against 216 the first time, with a bounding box
- * identical to the pixel. It is not the environment bake (the capture waits
- * eight DRAWN frames) and it is not the pose.
+ * WHAT LOOKED LIKE ONE DRIFT WAS TWO THINGS, AND ONE OF THEM WAS NEVER A DRIFT.
+ * This header used to say that an image captured LATE in a sweep renders about
+ * 2 % darker than the same case captured alone. Both halves of that sentence
+ * have now been measured and it was wrong about both.
  *
- * RENDER_DOUBLE=1 was built to split the two remaining candidates and has now
- * been run (25/08/2026, RENDER_ONLY=tee-white-34,tee-black-night):
+ *   · THE DETERMINISM HALF WAS REAL AND IS FIXED. The white tee re-shot at the
+ *     end read 212 against 216. That was the scene picker leaking GPU textures
+ *     on every change (see src/three/Stage.tsx and scripts/leak-verify.mjs).
+ *     With the leak closed the gate reads 216.07 against 216.07, delta 0.00.
+ *   · THE OTHER HALF IS NOT A DRIFT. `tee-black-night` reads 23.68 inside a
+ *     sweep and 26.82 run alone, and BOTH are stable to the decimal across two
+ *     sessions and a code change (compare .qa/render-final and .qa/render-s2:
+ *     every case matches to the decimal except hoodie-black-34, which moved by
+ *     exactly the sheen revert that was made on purpose). A number that
+ *     reproduces is a dependency, not a drift. And "2 %" was the wrong size:
+ *     23.68 against 26.82 is 12 %.
  *
- *   · three readbacks of three unchanged frames came back IDENTICAL, so the
- *     drawing buffer is not racing the compositor and the copy path is sound;
- *   · over that two-case sweep the determinism gate read a delta of 0.00, where
- *     the fourteen-case sweep reads 216 then 212;
- *   · `tee-black-night` read 27 there, which is its run-alone value, not the 24
- *     it reads at index 4 of the full sweep.
+ * Ruled out along the way, so nobody re-runs them: the drawing buffer racing the
+ * compositor (RENDER_DOUBLE=1, 25/08/2026, three readbacks of three unchanged
+ * frames came back IDENTICAL), the environment bake (the capture waits eight
+ * DRAWN frames), the pose (bounding boxes identical to the pixel), and the
+ * garment swap, which was the hypothesis the leak probe was written to test and
+ * which it falsified: mounting another GLB and coming back returns every counter
+ * to its exact starting value.
  *
- * So the defect is state surviving from one case into the next. WHICH state is
- * not yet measured, and the next probe is cheap: every case in that two-case run
- * mounted the SAME garment, while every case that has ever drifted had a
- * different GLB mounted and unmounted in between (hoodie-black-34 sits directly
- * before tee-black-night). Count `renderer.info.memory` across a swap before
- * assuming anything: that takes seconds, where a sweep takes two hours.
+ * WHAT IS STILL OPEN is therefore narrow: one case, in one scene, depends on
+ * what ran before it in a way nothing else in the sweep does. It is not the
+ * leak, because closing the leak did not move it.
  *
  * The thresholds have not been moved to make it green: a tick nobody believes is
  * worth less than a cross that can be explained. `scripts/mockup-shots.mjs`,
@@ -562,8 +566,8 @@ const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { 
 let browser
 const results = []
 let verdict = 'PASS'
-const fail = (m) => { console.log('  ✗ ' + m); verdict = 'FAIL' }
-const ok = (m) => console.log('  ✓ ' + m)
+const fail = (m) => { console.log('  FAIL ' + m); verdict = 'FAIL' }
+const ok = (m) => console.log('  ok   ' + m)
 const done = (code) => {
   try { browser?.close() } catch {}
   try { server.kill('SIGTERM') } catch {}
@@ -709,13 +713,12 @@ try {
      * drawn frames is well past the one the bake needs and costs a few seconds
      * on a harness that already spends minutes per case.
      *
-     * IT DID NOT FIX THE 2 % DRIFT, and this comment used to read as if it had.
-     * The black tee at night measured 24 inside the sweep and 27 alone BEFORE
-     * this wait was added, and it measures the same two numbers after. The wait
-     * stays because it is correct on its own terms - a capture taken during a
-     * bake would be wrong whatever else is true - but the drift has another
-     * cause and the header says so. Run with RENDER_DOUBLE=1 to separate the
-     * two candidates that remain.
+     * IT DID NOT FIX THE SWEEP-ORDER GAP, and this comment used to read as if it
+     * had. The black tee at night measured 24 inside the sweep and 27 alone
+     * BEFORE this wait was added, and it measures the same two numbers after.
+     * The wait stays because it is correct on its own terms - a capture taken
+     * during a bake would be wrong whatever else is true - but the gap has
+     * another cause and the header says which candidates are now eliminated.
      */
     await drawn(8)
     const canvasUrl = await layer([])
@@ -723,7 +726,8 @@ try {
     /*
      * RENDER_DOUBLE=1: read the SAME unchanged frame back a second time.
      *
-     * The unexplained 2 % has exactly two shapes left, and this separates them.
+     * The gap had exactly two shapes when this was written, and it separates
+     * them. Kept for the next person who sees one, not because it is unanswered.
      * If two consecutive readbacks of a scene nobody touched differ, the defect
      * is in the readback: the drawing buffer is not preserved
      * (`preserveDrawingBuffer: false`), so `drawImage(gl, ...)` races the
@@ -736,9 +740,11 @@ try {
      * here would only mean the SECOND candidate, and that one has no fix yet.
      *
      * ANSWERED 25/08/2026: identical, three times out of three. The readback is
-     * sound and the second candidate is the live one. Kept because it is the
-     * only thing that can tell the two apart, and the next person to see a
-     * drift will want to re-ask rather than trust this note.
+     * sound, so the live candidate was state carried across cases. Half of that
+     * turned out to be the scene-picker leak and is fixed; the header says what
+     * survived. Kept because it is the only thing that can tell the two apart,
+     * and the next person to see one will want to re-ask rather than trust a
+     * note.
      */
     if (process.env.RENDER_DOUBLE) {
       // page.evaluate(READBACK) DIRECTLY, not layer([]). layer() runs drawn()

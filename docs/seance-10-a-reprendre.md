@@ -54,6 +54,19 @@ morceau 3D paresseux three-*.js  1 133,25 -> 1 132,57 kB   (-0,68)
 total JS                          2 469,28 -> 2 475,91 kB  (+6,63, entièrement en morceaux paresseux)
 ```
 
+**Re-mesuré sur `d0a8835`, c'est-à-dire après la correction de la fuite**, parce que ces
+nombres-là dataient de `0193a92` et que `src/three/` a bougé deux fois depuis :
+
+```
+première peinture   App-*.js       170,93 kB    identique
+morceau 3D paresseux three-*.js  1 132,58 kB    identique
+total JS                          2 476,80 kB   +0,89 contre 2 475,91
+```
+
+Les 0,89 kB sont dans `Stage-*.js`, qui est paresseux : la fuite se corrige sans rien coûter
+à la première peinture. Le recensement `window.__stage.census()` n'y est pas, il est derrière
+`import.meta.env.DEV`.
+
 ---
 
 ## 3. Ce qui n'est PAS mesuré, et pourquoi
@@ -182,11 +195,23 @@ sur l'avatar contre **0,005** en 2D et en 3D, c'est-à-dire qu'il ne se décline
 est écrit dans `scripts/mockup-shots.mjs` et la question produit est la **Q52** de
 `QUESTIONS-ASSOCIE.md`. L'image ne changerait pas la décision, elle l'illustrerait.
 
-### 3.5 L'avant/après à instrument identique : FAIT, et il corrige une attribution
+### 3.5 L'avant/après : FAIT, et il corrige une attribution
 
-**Les deux moitiés ont tourné le 26/08/2026**, même script, même machine, même heure :
-`.qa/before-3d-fixed` sur l'arbre `4767e40` (avant la séance) et `.qa/after-3d-now` sur
-l'arbre courant. Sortie 0 des deux côtés, 14 images chacune.
+**Les deux moitiés ont tourné le 26/08/2026**, même fichier de script, même machine, même
+heure : `.qa/before-3d-fixed` sur l'arbre `4767e40` (avant la séance) et `.qa/after-3d-now`
+sur l'arbre courant. Sortie 0 des deux côtés, 14 images chacune.
+
+**Ne pas écrire « à instrument constant », ce serait faux**, et c'est exactement l'erreur que
+cette section corrige par ailleurs. Le fichier est le même, le chemin exécuté ne l'est pas :
+la sonde d'immobilisation attend `window.__pose.fit.measured`, or l'arbre d'avant expose un
+`__pose` qui ne porte que `{cam, tgt, goal}` (`git show 4767e40:src/three/Stage.tsx`, la
+sonde y est en bas du composant et n'a pas de champ `fit`). La moitié « avant » ne pouvait
+donc pas satisfaire ce prédicat et est retombée sur le `.catch` et son délai, ce que le
+script prévoit explicitement pour un arbre sans la sonde.
+
+Cela ne retire rien à la conclusion : elle ne demande que des images posées des deux côtés, et
+douze des quatorze paires diffèrent sur 70 à 84 % de leurs pixels, ce qui n'est pas un écart
+d'amortissement. Cela retire la formule.
 
 **Ce qu'il corrige.** Ce tableau disait « 14 sur 14 distinctes, contre 10 sur 14 avant la
 correction de la demande de vue ». C'est faux, ou du moins non démontré : le script ET le
@@ -203,17 +228,31 @@ toutes dans le même sens : plus clair. Un t-shirt noir de face passe d'une moye
 à 0,62, la carte d'occlusion cuite du t-shirt mise à zéro parce que son île arrière est une
 tache noire, la cavité mesurée qui reprend toute la charge, et les contre-jours ajoutés.
 
-**Les deux prises `inflate-*` sont identiques à l'octet.** C'est le vêtement téléversé, et
-c'est exactement le piège que la consigne de séance nommait : améliorer le vêtement de
-catalogue ne doit pas toucher celui que le client envoie. Mesuré, il n'y a pas touché.
+**Les deux prises `inflate-*` sont identiques à l'octet.** C'est le piège que la consigne de
+séance nommait : améliorer le vêtement de catalogue ne doit pas toucher celui que le client
+envoie.
 
-Pour refaire la moitié « avant » :
+Il faut dire exactement ce que cela mesure, sans quoi on lui fait dire plus. `inflate-*` est
+la coque gonflée telle que le harnais d'ingestion la construit, et elle n'a pas bougé d'un
+octet. Le vêtement téléversé tel qu'il apparaît DANS LE STUDIO, lui, a bien changé, et
+délibérément : il lit la même configuration de scène que les autres, donc il a reçu les mêmes
+lumières. Les prises qui le montrent sous cette forme sont `custom-34` et `custom-card-*`.
+La phrase juste est donc : le chemin d'ingestion n'a pas été touché, et le rendu du résultat
+a changé comme celui de tout le reste.
+
+Pour refaire la moitié « avant ». **Pas sous `/tmp`** : `/tmp` est un tmpfs sur cette
+machine, donc l'arbre de travail y occupe 109 Mio de RAM sur les 7,7 disponibles, et il
+disparaît au redémarrage en laissant `git worktree list` désigner un chemin qui n'existe
+plus. Le lien vers `node_modules` est nécessaire pour que vite démarre, et il a un effet de
+bord qu'il faut connaître : tout ce qui tourne dans l'arbre détaché écrit son cache dans le
+`node_modules/.vite` du dépôt vivant.
 
 ```
-git worktree add --detach /tmp/pre10 1935798~1     # s'il a disparu
-ln -s /home/LTH/tshop/node_modules /tmp/pre10/node_modules
-cp scripts/3d-shots.mjs /tmp/pre10/scripts/3d-shots.mjs
-cd /tmp/pre10 && SHOT_PORT=5285 node scripts/3d-shots.mjs /home/LTH/tshop/.qa/before-3d-fixed
+git worktree add --detach ~/.cache/teeshoop/pre10 1935798~1
+ln -s /home/LTH/tshop/node_modules ~/.cache/teeshoop/pre10/node_modules
+cp scripts/3d-shots.mjs ~/.cache/teeshoop/pre10/scripts/3d-shots.mjs
+cd ~/.cache/teeshoop/pre10 && SHOT_PORT=5285 node scripts/3d-shots.mjs /home/LTH/tshop/.qa/before-3d-fixed
+git worktree remove ~/.cache/teeshoop/pre10        # quand c'est fini, pas plus tard
 ```
 
 L'« après » existe déjà dans `.qa/after-3d` (14 images, 14 poses distinctes). Le « avant »

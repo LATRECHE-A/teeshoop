@@ -32,6 +32,9 @@
  * the same frame when it comes round again.
  *
  * Exit: 0 all gates passed · 2 nothing was scanned · 3 a gate failed.
+ *
+ * LEAK_CYCLES and LEAK_SCENES cut the walk down. They exist for the
+ * nothing-scanned guard, not for tuning: a short walk cannot prove absence.
  */
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
@@ -42,15 +45,22 @@ const BASE = `http://localhost:${PORT}`
 // of them is a pixel measurement, and software rasterisation is fill-rate bound:
 // at 1200x1500 this same walk takes half an hour and says exactly the same thing.
 const PANE = { width: 320, height: 320 }
-const SCENES = ['night', 'studio', 'sunset', 'beach', 'forest', 'city']
+/*
+ * The walk's extent is overridable so that the nothing-scanned guard below can
+ * actually fire. With both of these fixed at their defaults the guard compared a
+ * counter against the loop bounds that had just incremented it, so it could
+ * never be false: protection on the page and none in the process.
+ */
+const SCENES = (process.env.LEAK_SCENES || 'night,studio,sunset,beach,forest,city')
+  .split(',').map((x) => x.trim()).filter(Boolean)
 const GARMENTS = ['hoodie', 'tee', 'custom', 'tee']
-const CYCLES = 3
+const CYCLES = Number(process.env.LEAK_CYCLES ?? 3)
 
 let failed = 0
-const ok = (m) => console.log(`  ✓ ${m}`)
+const ok = (m) => console.log(`  ok   ${m}`)
 const fail = (m) => {
   failed++
-  console.error(`  ✗ ${m}`)
+  console.error(`  FAIL ${m}`)
 }
 
 const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' })
@@ -141,9 +151,15 @@ try {
   steps++
 
   console.log('\n=== gates ===')
-  // A check that scanned nothing is not a check that found nothing.
-  if (steps < CYCLES * SCENES.length) {
-    console.error(`nothing was scanned (${steps} steps)`)
+  /*
+   * A check that scanned nothing is not a check that found nothing, and this
+   * guard has to be able to say so. It asserts what the gates below actually
+   * consume: subtracting a growth needs two allocation samples, and comparing
+   * scenes needs two scenes. Both go short when the walk is cut down
+   * (LEAK_CYCLES=0), which is how this branch was proven to fire.
+   */
+  if (allocations.length < 2 || byScene.size < 2) {
+    console.error(`nothing was scanned (${allocations.length} samples over ${byScene.size} scenes, ${steps} steps)`)
     done(2)
   }
 

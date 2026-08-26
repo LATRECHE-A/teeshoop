@@ -768,12 +768,14 @@ Sur ce balayage court le contrôle de déterminisme mesure un écart de **0,00**
 balayage complet lit 216 puis 212 ; et `tee-black-night` y lit **27**, sa valeur « seul »,
 pas le 24 qu'il lit en cinquième position du balayage complet.
 
-Le défaut est donc de l'état qui survit d'un cas au suivant. **Lequel n'est pas encore
-mesuré**, mais la piste s'est resserrée toute seule : les trois prises du balayage court
-montaient le MÊME vêtement, alors que tous les cas qui ont dérivé avaient un autre GLB monté
-puis démonté entre-temps (`hoodie-black-34` est juste avant `tee-black-night`). La prochaine
-sonde est de compter `renderer.info.memory` de part et d'autre d'un changement de vêtement,
-ce qui prend des secondes quand un balayage prend deux heures.
+Le défaut est donc de l'état qui survit d'un cas au suivant. **La sonde a été écrite et
+elle a démenti l'hypothèse qu'elle devait tester.** L'idée était que le coupable était le
+changement de vêtement (`hoodie-black-34` est juste avant `tee-black-night`, et les trois
+prises du balayage court montaient le MÊME vêtement). Mesuré : un changement de vêtement
+rend au contraire chaque compteur exactement à sa valeur de départ. Ce qui fuyait était le
+changement de SCÈNE, décrit dans la section suivante ; le corriger a réglé la moitié
+« déterminisme » et n'a pas bougé `tee-black-night` d'une décimale. Il reste donc une
+dépendance à l'ordre du balayage sur ce seul cas, et sa cause n'est pas identifiée.
 
 Le seuil n'a pas été baissé pour faire verdir : un contrôle vert auquel on ne croit pas vaut
 moins qu'un rouge qu'on sait expliquer.
@@ -880,6 +882,13 @@ vert, ce qui n'a pas été lancé, pourquoi, et la commande exacte pour finir. L
 été arrêtée en cours de balayage le 25/08 (la rastérisation logicielle avait poussé le
 swap à 1,6 Gio sur 2,0 et faisait tomber les autres sessions en SIGSEGV).
 
+**À quelle distance de la photo, et ce que coûte le reste : `docs/realisme-3d-etat.md`.**
+Le brief demandait cette réponse en toutes lettres et elle a sa propre page plutôt qu'un
+paragraphe ici, parce qu'elle est la seule chose de cette séance qui sert à décider quelque
+chose : elle chiffre ce que contient le « retarget de maillage sur patron déplié », et elle
+tranche la question que le brief posait, à savoir si c'est la seule vraie correction (non
+pour vendre, oui pour la photo).
+
 **Ce que la séance 10 n'a pas fait, et qui reste ouvert.** La ligne du tableau plus bas ne
 dit plus « faite » : ce qui est fait, mesuré et gardé, c'est l'aperçu 3D d'un vêtement du
 catalogue. Le reste de la liste du brief est ouvert et vaut la peine d'être écrit plutôt que
@@ -907,12 +916,14 @@ classé.
   ajouté : l'item 4 a été lu comme « améliorer les six scènes existantes ». Si un préréglage
   au sens propre est voulu (une scène plus un cadrage, enregistrés ensemble), c'est du
   produit et cela se décide.
-- **Deux assertions de `render-verify` restent rouges, et c'est toujours la même mesure**
-  (l'écart de 2 % d'une image prise tard dans un balayage, décrit plus haut). `RENDER_DOUBLE=1`
-  a tranché le 25/08/2026 : les relectures sont identiques, donc le tampon de dessin n'est pas
-  en cause et c'est de l'état qui survit d'un cas au suivant. Ce qui part en séance 13 n'est
-  plus « laquelle des deux causes », c'est « quel état », avec une piste chiffrable et une
-  sonde qui coûte des secondes (voir plus haut).
+- **Une assertion de `render-verify` reste rouge, et ce n'est pas la dérive.** Le balayage
+  complet du 26/08/2026 donne 73 verts et 1 rouge. Le rouge est `tee-black-night` : le
+  t-shirt lit 23,68 de médiane contre 16,02 pour la page, soit 7,66 niveaux d'écart là où le
+  contrôle en demande 8. Il est stable à la décimale à travers deux séances et un changement
+  de code, donc reproductible et non dérivant. Les deux rouges d'avant étaient celui-là plus
+  le déterminisme (216 puis 212), et le déterminisme est réglé : c'était la fuite du
+  sélecteur de scènes, il lit maintenant 0,00. Ce qui reste à décider est un arbitrage
+  produit et il est posé à l'associé (Q53).
 - **Le liseré d'encre n'est toujours pas sous contrôle chiffré.** La correction
   (prémultiplication, division, décodage) est de l'arithmétique démontrable, mais la mire de
   calibrage cerne ses propres lettres d'un trait noir, donc le compteur de liseré compte ce

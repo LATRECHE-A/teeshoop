@@ -19,10 +19,10 @@ nous-mêmes (liste à la fin).
 
 | Niveau | Sens |
 |---|---|
-| 🔴 **Bloquant** | On ne peut pas avancer sur ce sujet tant qu'on n'a pas la réponse |
-| 🟠 **Important** | On peut commencer, mais on devra refaire une partie si la réponse change |
-| 🟡 **Utile** | Ça affine le résultat |
-| ⚪ **Secondaire** | À voir plus tard |
+| **Bloquant** | On ne peut pas avancer sur ce sujet tant qu'on n'a pas la réponse |
+| **Important** | On peut commencer, mais on devra refaire une partie si la réponse change |
+| **Utile** | Ça affine le résultat |
+| **Secondaire** | À voir plus tard |
 
 Chaque question indique aussi **l'hypothèse par défaut** : ce qu'on fera si vous ne
 répondez pas. Si l'hypothèse vous convient, vous pouvez simplement écrire « OK ».
@@ -200,7 +200,7 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 
 ### 1. Acceptez-vous les commandes de particuliers, ou le site est-il réservé aux professionnels ? Et le minimum de 5 pièces / 50 EUR s'applique-t-il vraiment à tout (toutes techniques, tous produits), ou avez-vous des exceptions ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Cela décide si on bloque le panier sous le minimum, si on demande le SIRET à l'inscription, si les prix s'affichent hors taxes ou toutes taxes comprises par défaut, et s'il faut construire un parcours d'achat grand public. Ces choix touchent le panier, la fiche produit et le moteur de prix : les changer après coup coûte plusieurs jours.
 
@@ -234,7 +234,7 @@ opérateur ne l'a pas choisi, et une règle qui sélectionne sur un type ne s'ap
 
 ### 2. Voulez-vous qu'un client puisse voir un prix complet et payer seul en ligne dès le lancement, ou bien toute commande doit-elle passer par un devis que vous validez ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Ce sont deux chantiers différents et on ne peut pas livrer les deux en même temps : soit on développe d'abord le prix public et le paiement en autonomie, soit on développe d'abord l'outil de devis interne pour vos commerciaux. Tout le calendrier de développement dépend de cette réponse.
 
@@ -249,7 +249,7 @@ opérateur ne l'a pas choisi, et une règle qui sélectionne sur un type ne s'ap
 
 ### 3. Pouvez-vous nous transmettre vos grilles d'achat textiles réelles (Falk & Ross, Imbretex), avec vos remises négociées, les frais de port fournisseur et le montant à partir duquel le port est offert ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Le calcul du prix de vente, de la marge et du prix plancher part du prix d'achat réel. Aujourd'hui le logiciel contient des prix de démonstration en dollars, sans aucun lien avec vos achats : aucun prix affiché ne peut être considéré comme fiable tant que ces grilles ne sont pas connues.
 
@@ -272,7 +272,7 @@ votre grille.
 
 ### 4. Quels sont vos tarifs DTF réellement négociés en France et en Espagne : prix au mètre linéaire, largeur exacte du rouleau, commande minimum, frais de livraison et délai réellement tenu ? Les 17 EUR et 9 EUR sont-ils confirmés par un fournisseur nommé ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Le coût du marquage et le choix automatique entre la France (urgence) et l'Espagne (standard) reposent entièrement sur ces chiffres. C'est aussi ce qui permet de mesurer l'économie réelle de notre optimisation de placement des visuels sur le film.
 
@@ -323,7 +323,7 @@ laisser sans réponse.
 
 ### 5. Quel taux horaire interne devons-nous compter pour la main-d'œuvre, même quand c'est vous ou vos frères qui produisez ? Et pouvez-vous chronométrer une vraie série (préparation, pressage, pelage, seconde presse, contrôle, pliage, emballage) ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Sans coût horaire, le prix plancher est faux et toutes les petites commandes paraissent rentables alors qu'elles ne le sont pas. Ce chiffre décide aussi si l'atelier a intérêt à poser deux transferts séparés pour économiser du film, ou un seul.
 
@@ -355,7 +355,7 @@ nulle part, donc ils valent zéro eux aussi.
 
 ### 6. Quel taux de marge visez-vous par famille de produits (t-shirt, polo, sweat, vêtement de travail), et quelle marge minimum acceptez-vous en dessous de laquelle une vente doit être refusée, même par un commercial ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Le moteur calcule le prix conseillé à partir du coût et du taux de marge, puis un prix plancher que le système refusera de franchir. Sans ces deux nombres, aucun prix ne peut être affiché ni aucune remise autorisée.
 
@@ -423,7 +423,7 @@ d'autre ne bouge à l'écran.
 
 ### 7. Combien coûte réellement un emballage (sachet, carton, étiquette) par commande, et quels tarifs transporteurs avez-vous négociés par tranche de poids et destination ? Offrez-vous la livraison au-dessus d'un certain montant ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* La livraison et l'emballage sont des coûts directs qui entrent dans le prix plancher, et le panier doit afficher un vrai prix d'expédition au client. Sans grille, on affiche un montant inventé qui sera soit dissuasif, soit à perte.
 
@@ -462,7 +462,7 @@ un réglage : envoyez-nous la grille.
 
 ### 8. Acceptez-vous que la grille de prix par quantité soit visible publiquement sur chaque fiche produit, comme le fait votre principal concurrent ? Et voulez-vous facturer le marquage à la surface réellement imprimée plutôt qu'un forfait par face ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Votre concurrent facture le même prix pour un petit logo de 8 cm et pour un visuel A3, ce qui rend les petits logos d'entreprise très chers chez lui. Facturer à la surface est votre principal avantage, mais cela change la formule de prix, l'affichage de la fiche produit et le discours commercial : il faut trancher avant de coder.
 
@@ -477,7 +477,7 @@ un réglage : envoyez-nous la grille.
 
 ### 9. Combien de références voulez-vous réellement publier au lancement : 200, 500, 2 000 ? Et quel fournisseur est prioritaire, Falk & Ross ou Imbretex ? Pouvez-vous nous donner la liste des familles et des marques à mettre en ligne en premier ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Importer tout le catalogue Falk & Ross représenterait environ 2 350 produits et 240 000 variantes : votre hébergement ne le supporterait pas et le site deviendrait très lent. Il faut donc une sélection choisie par vous, sinon nous la choisissons à votre place.
 
@@ -489,7 +489,7 @@ un réglage : envoyez-nous la grille.
 
 ### 10. Devez-vous vendre dès le lancement, avec personnalisation en ligne, les tailles XS, 4XL et 5XL, les produits enfant et les articles sans taille (casquettes, sacs, tabliers, bonnets) ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* L'outil de personnalisation ne gère aujourd'hui que les tailles S à 3XL sur des vêtements de type haut du corps. Chaque famille supplémentaire (casquette, sac, enfant) demande de nouveaux gabarits, de nouvelles zones d'impression et de nouveaux essais : c'est du travail à chiffrer séparément.
 
@@ -501,7 +501,7 @@ un réglage : envoyez-nous la grille.
 
 ### 11. Voulez-vous afficher au client le stock fournisseur en temps réel, ou seulement une mention « disponible / sur commande » ? Et que fait-on si une taille manque au moment de commander : remplacement par une couleur proche, attente, ou remboursement partiel ?
 
-🟡 **Utile**
+**Utile**
 
 *Pourquoi on a besoin de la réponse :* Afficher un stock chiffré engage votre promesse et impose une synchronisation fréquente. La règle de rupture décide aussi de ce que le site fait automatiquement quand une commande déjà payée ne peut plus être servie.
 
@@ -516,7 +516,7 @@ un réglage : envoyez-nous la grille.
 
 ### 12. Quelles techniques ouvrez-vous au lancement (DTF, flocage, vinyle, sublimation, broderie) ? Pour chacune : quantité minimum, taille maximale de marquage, emplacements possibles (cœur, dos, manche, capuche, étiquette de col) et supplément éventuel.
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Chaque technique et chaque emplacement doit être décrit dans l'outil de personnalisation (zone, taille maximale, contrôles de fichier) et dans le prix. Tant que la liste n'est pas fermée, on ne peut pas finaliser les fiches produits ni les contrôles automatiques de fichiers.
 
@@ -546,7 +546,7 @@ n'ont pas le même modèle de coût.
 
 ### 13. La broderie est-elle produite en interne sur votre machine 15 aiguilles ou sous-traitée ? Quel est le prix de la numérisation d'un logo, et le facturez-vous au client, une seule fois ou à chaque commande ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* La numérisation est une ligne de facture à part et un délai supplémentaire. Selon interne ou sous-traitance, le délai promis et le coût changent, et le site doit ou non proposer la broderie en autonomie.
 
@@ -561,7 +561,7 @@ n'ont pas le même modèle de coût.
 
 ### 14. Quel délai vous engagez-vous à tenir à partir de la validation du bon à tirer, pour le standard, l'express et l'urgence ? Avec quels transporteurs avez-vous un compte ouvert, et proposez-vous le retrait à Bobigny ou la livraison en main propre en Île-de-France ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Le site doit afficher une date de livraison, pas un vague délai : c'est ce qui fait la différence face aux concurrents. Cette date est calculée à partir de vos délais réels, du choix du fournisseur DTF et du transporteur. Sans engagement de votre part, on ne peut afficher aucune date.
 
@@ -645,7 +645,7 @@ les 6 jours, soit rallonger les promesses.
 
 ### 15. Confirmez-vous Revolut Pay, ou préférez-vous Stripe ? Avez-vous déjà un compte marchand ouvert quelque part ? Acceptez-vous aussi le virement, le mandat administratif (mairies, écoles, hôpitaux) et le paiement en plusieurs fois ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* C'est une intégration complète à développer et à tester : on ne peut pas en faire deux. Le mandat administratif, en particulier, ouvre la clientèle publique que vos concurrents traitent déjà et demande un traitement séparé (bon de commande, facturation dématérialisée).
 
@@ -677,7 +677,7 @@ Si vous avez négocié un autre tarif, c'est un réglage sur l'écran « Coûts 
 
 ### 16. À partir de quel montant acceptez-vous un acompte plutôt qu'un paiement à 100 % avant production ? Et accordez-vous un paiement à 30 jours à certains clients (grands comptes, collectivités) ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Cela décide des règles de déblocage de la production : une commande payée à 50 % peut-elle partir en fabrication ? Sans règle, le système bloquera toute commande non payée intégralement, ce qui peut faire perdre des gros dossiers.
 
@@ -750,7 +750,7 @@ par défaut, et il n'est jamais automatique. Quatre choses à savoir.
 
 ### 17. Pouvez-vous nous donner les informations légales exactes à faire figurer sur le site et les factures (raison sociale, forme juridique, adresse, SIRET, numéro de TVA intracommunautaire, capital) ? Tout est-il bien soumis à la TVA à 20 % ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Les mentions légales et les factures ne peuvent pas être publiées sans ces informations, et elles sont obligatoires. La TVA conditionne aussi tout l'affichage des prix et les objectifs de chiffre d'affaires (vos objectifs sont exprimés toutes taxes comprises, vos coûts hors taxes).
 
@@ -782,7 +782,7 @@ recopier depuis un Kbis.
 
 ### 18. Qui rédige et valide vos conditions générales de vente (professionnels et particuliers), vos mentions légales et votre politique de confidentialité ? Avez-vous un avocat ? Confirmez-vous que l'on inscrive la perte du droit de rétractation pour les articles personnalisés ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* La loi française exclut le droit de rétractation pour les biens personnalisés, mais seulement si c'est correctement écrit et si le client le reconnaît explicitement. Nous devons enregistrer cette reconnaissance au moment de la validation du bon à tirer : il nous faut le texte exact validé par un juriste.
 
@@ -821,7 +821,7 @@ demanderait.
 
 ### 19. D'où vient exactement la base de 150 000 entreprises : achetée à qui, collectée comment, avec quelle preuve ? Acceptez-vous que les e-mails ne partent qu'aux adresses génériques du type contact@ ou info@ ? Et qui est responsable des données personnelles chez Teeshoop ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Nous ne pouvons pas importer une base sans connaître son origine : la loi impose d'indiquer la source, la date et de permettre l'opposition. Cela décide aussi de ce que nous enregistrons à l'import et de ce que les prospectrices ont le droit d'envoyer.
 
@@ -836,7 +836,7 @@ demanderait.
 
 ### 20. Pouvons-nous supprimer les 47 produits de démonstration présents sur le site (tapis d'acupression, meubles) et refaire entièrement la page d'accueil ? Et voulez-vous garder l'outil de personnalisation déjà acheté (Fancy Product Designer) ou le remplacer par le nôtre ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Deux outils de personnalisation installés en même temps se disputent le panier et créent des commandes incohérentes. Par ailleurs, l'outil déjà installé n'est plus développé par son éditeur, exporte en basse qualité sans option payante, et ne sait pas optimiser le film DTF, ce que notre outil fait déjà.
 
@@ -851,7 +851,7 @@ demanderait.
 
 ### 21. Qui possède le nom de domaine teeshoop.com, l'hébergement o2switch, le compte administrateur WordPress, les licences achetées (thème Woodmart, Fancy Product Designer), les comptes fournisseurs et le compte Cloudflare ? Pouvez-vous nous fournir les accès, y compris l'accès technique au serveur ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Sans accès au serveur, rien ne peut être installé ni mis en ligne : aujourd'hui l'accès par mot de passe applicatif est désactivé sur le site. Il faut aussi vérifier que tous les comptes sont bien au nom de la société, et non d'un prestataire précédent.
 
@@ -866,7 +866,7 @@ demanderait.
 
 ### 22. Votre compte Falk & Ross est-il aujourd'hui en mode test ou en mode réel ? Acceptez-vous que le système passe automatiquement les commandes fournisseurs, ou voulez-vous valider chaque commande à la main ? Avez-vous déjà un compte Imbretex et Mid Ocean avec accès aux tarifs ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* La fonction de commande fournisseur existe déjà dans notre système et n'est protégée par aucun mot de passe : si le compte est en mode réel, une vraie commande pourrait partir par erreur. Nous devons sécuriser cette partie en priorité, et savoir si l'achat est automatique ou validé par vous.
 
@@ -881,7 +881,7 @@ demanderait.
 
 ### 23. Combien de pièces pouvez-vous réellement produire par jour aujourd'hui, et avec combien de personnes ? Au-delà de quelle quantité une commande doit-elle être refusée, étalée ou sous-traitée ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Le site calcule une date de livraison en fonction de la charge de l'atelier. Sans capacité réelle, il promettra des dates intenables sur les grosses commandes, ce qui provoque des litiges et des remboursements.
 
@@ -911,7 +911,7 @@ chapitre 5 le demande lui-même.
 
 ### 24. Les devis et factures officiels sont-ils émis depuis Qonto, ou voulez-vous qu'ils soient générés par le site avec votre propre numérotation ? Qui est votre comptable et a-t-il des exigences particulières (numérotation, mentions, format d'export) ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* C'est soit une intégration avec Qonto, soit la création complète d'un générateur de documents : deux chantiers très différents. Il faut aussi savoir qui détient la numérotation légale des factures pour éviter les doublons entre deux systèmes.
 
@@ -926,7 +926,7 @@ chapitre 5 le demande lui-même.
 
 ### 25. Que comprend exactement l'aide graphique gratuite (nettoyage du fichier, détourage, mise en place du logo) et à partir de quel moment facturez-vous ? Quel prix pour une vectorisation, une retouche, une création de logo ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* L'outil de personnalisation doit dire clairement au client ce qui est inclus, et ajouter automatiquement une ligne payante au-delà. Sans règle, votre temps graphique est offert sans limite : c'est le risque que votre propre document identifie comme destructeur de marge.
 
@@ -941,7 +941,7 @@ chapitre 5 le demande lui-même.
 
 ### 26. Combien d'allers-retours de bon à tirer sont inclus avant que vous ne facturiez un supplément, et à quel prix ? Une production peut-elle démarrer sans bon à tirer signé en cas d'urgence, et sous quelle forme d'accord du client ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Le système compte les cycles de correction et bloque la production tant que le bon à tirer n'est pas validé. Il faut la règle chiffrée et, pour l'urgence, le texte exact d'accord que le client signera, sinon le blocage sera soit trop rigide, soit inexistant.
 
@@ -986,7 +986,7 @@ dit, et c'est la différence entre une preuve et une habitude.
 
 ### 27. Quelle est votre politique en cas de problème sur du personnalisé : remplacement, remboursement, ou geste commercial ? À partir de quel pourcentage de pièces non conformes ? Et acceptez-vous d'inscrire des tolérances écrites (écart de position de quelques millimètres, différence de couleur entre l'écran et le tissu, écart de quantité) ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Ces tolérances doivent figurer dans les conditions générales et dans le texte affiché au moment où le client valide son bon à tirer. Sans elles, chaque écart normal de production devient un litige que vous perdez.
 
@@ -1026,7 +1026,7 @@ sens ni dans l'autre.
 
 ### 28. Les deux prospectrices à Madagascar sont-elles salariées, indépendantes, ou passent-elles par une agence ? Existe-t-il un contrat encadrant leur accès aux données de vos clients depuis l'extérieur de l'Union européenne ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Un accès à des données personnelles depuis hors Union européenne exige un contrat écrit et des droits limités dans l'outil. Cela décide de ce que nous leur donnons à voir : entreprises attribuées seulement, sans coordonnées bancaires ni marges.
 
@@ -1041,7 +1041,7 @@ sens ni dans l'autre.
 
 ### 29. Confirmez-vous 40 % de la marge sur la première commande, puis 20 à 30 % sur une nouvelle commande et 10 à 15 % sur un réassort ? Pendant combien de temps un commercial reste-t-il propriétaire de son client, et que se passe-t-il si ce client commande ensuite tout seul sur le site ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Le calcul de commission est automatique et s'affiche en direct au commercial pendant qu'il négocie. Il faut les taux exacts, la durée d'attribution d'un client et les cas de reprise, sinon les commissions seront contestées dès les premières ventes.
 
@@ -1069,7 +1069,7 @@ première qui est codée.
 
 ### 30. Les commerciaux indépendants ont-ils un contrat signé mentionnant le mode de calcul de la commission, les cas de reprise et l'interdiction de descendre sous le prix plancher ? Qui valide une demande de prix exceptionnel : vous seul ?
 
-🟡 **Utile**
+**Utile**
 
 *Pourquoi on a besoin de la réponse :* Le système bloquera automatiquement toute vente sous le prix plancher et enverra une demande de dérogation. Il faut savoir à qui elle part et qui a le droit de dire oui, sinon les demandes resteront sans réponse et les devis seront bloqués.
 
@@ -1084,7 +1084,7 @@ première qui est codée.
 
 ### 31. Pouvez-vous nous fournir votre logo en fichier vectoriel, vos couleurs, vos polices de caractères, et nous dire le ton souhaité (vouvoiement, style sérieux ou proche) ? Gardez-vous la phrase « Vous vous occupez de votre entreprise, Teeshoop s'occupe de votre image » comme accroche principale ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Tout doit être habillé à votre marque : le site, l'outil de personnalisation, mais aussi les devis, les factures, les bons à tirer et les fiches d'atelier. Le site actuel utilise encore l'habillage de démonstration du thème acheté.
 
@@ -1120,7 +1120,7 @@ américain, ce que la CNIL a déjà sanctionné.
 
 ### 32. Acceptez-vous que l'atelier pose deux ou trois transferts séparés sur un même vêtement (par exemple un logo au cœur et un texte en bas de dos) pour économiser du film, ou préférez-vous une seule pose même si elle coûte plus cher en film ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* C'est exactement le défaut connu de notre outil : aujourd'hui un visuel client est acheté comme un seul bloc, avec tout le vide autour. Sur un panier réaliste, découper les éléments fait passer la facture de film de 280 EUR à 126 EUR, mais ajoute des poses en atelier. Le réglage par défaut dépend de ce que votre atelier accepte de faire.
 
@@ -1135,7 +1135,7 @@ américain, ce que la CNIL a déjà sanctionné.
 
 ### 33. Combien de temps conservez-vous les fichiers et les bons à tirer des clients pour permettre un réassort à l'identique ? Et le client doit-il obligatoirement créer un compte pour retrouver ses créations ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Aujourd'hui tout est enregistré dans le navigateur du visiteur uniquement : s'il change d'ordinateur, tout est perdu, et vous ne voyez rien de votre côté. Conserver les créations sur le serveur est un chantier à part entière, à planifier tôt car le réassort est un de vos leviers de marge.
 
@@ -1150,7 +1150,7 @@ américain, ce que la CNIL a déjà sanctionné.
 
 ### 34. Dans quel ordre voulez-vous que nous livrions : (1) catalogue, prix et paiement en autonomie, (2) devis et bon à tirer, (3) production et service après-vente, (4) CRM et prospection ? Quelle date de mise en ligne visez-vous, et quel budget mensuel est disponible pour les outils (hébergement, moteur de recherche, e-mail, téléphonie) ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* La Bible décrit douze modules ; ils ne peuvent pas être livrés en même temps. Sans ordre de priorité venant de vous, nous choisissons le nôtre, et vous risquez de ne pas avoir en premier ce dont votre équipe commerciale a besoin. Certains outils (recherche rapide sur un gros catalogue, envoi d'e-mails) sont payants tous les mois.
 
@@ -1165,7 +1165,7 @@ américain, ce que la CNIL a déjà sanctionné.
 
 ### 35. Le site doit-il être uniquement en français et livrer uniquement en France métropolitaine au lancement, ou faut-il prévoir dès maintenant la Belgique, la Suisse, le Luxembourg et une version anglaise ?
 
-🟡 **Utile**
+**Utile**
 
 *Pourquoi on a besoin de la réponse :* Vendre hors de France change la TVA, les frais de port, les mentions légales et double le travail de traduction. Le prévoir dès le départ coûte du temps ; le rajouter après coûte davantage : il faut décider maintenant.
 
@@ -1180,7 +1180,7 @@ américain, ce que la CNIL a déjà sanctionné.
 
 ### 36. Pouvez-vous publier les réalisations de vos clients (photos des vêtements, logos) sur le site et les réseaux sociaux ? Faut-il prévoir une autorisation à cocher dans le devis ?
 
-⚪ **Secondaire**
+**Secondaire**
 
 *Pourquoi on a besoin de la réponse :* Une page « réalisations » est prévue et c'est un argument de vente fort, mais publier le logo d'un client sans accord écrit est un risque. Cela ajoute une case dans le devis et une clause dans les conditions générales.
 
@@ -1195,7 +1195,7 @@ américain, ce que la CNIL a déjà sanctionné.
 
 ### 37. Un même visuel imprimé sur un S et sur un 3XL n'a pas la même surface. Facturez-vous les deux au même prix, ou la plus grande taille coûte-t-elle plus cher en marquage ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Le studio agrandit le visuel avec le vêtement, pour qu'un 3XL ne porte pas un logo qui paraît minuscule. Cela consomme réellement plus de film : sur une commande de six tailles, c'est six transferts différents au lieu d'un seul. Aujourd'hui le prix est calculé sur la surface mesurée à la taille M, la même pour toutes les tailles de la ligne.
 
@@ -1230,7 +1230,7 @@ la séance 07.
 
 ### 38. Combien de temps un devis Teeshoop reste-t-il valable, et que se passe-t-il quand ce délai est dépassé ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* En France, un devis est une offre ferme pendant toute la durée qu'il annonce : si le prix du textile monte entre-temps, c'est vous qui absorbez la différence. Le chapitre 2 de la Bible impose la « validité » parmi les mentions obligatoires du devis, mais ne donne aucune durée, et aucun des huit documents n'en donne une. Nous ne pouvons pas l'inventer : c'est un engagement commercial, pas un réglage technique.
 
@@ -1245,7 +1245,7 @@ Le sujet est réel : vos prix d'achat textile bougent, et le tarif DTF que nous 
 
 ### 39. Le devis envoyé au client doit-il mentionner le commercial qui l'a préparé, et sa commission ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* Le chapitre 2 de la Bible liste « commercial et commission estimée » parmi les informations **obligatoires** du devis. Pris au pied de la lettre, cela imprime votre marge sur un document que le client reçoit : il lit ce que vous gagnez, et il négocie à partir de là. Nous supposons qu'il s'agit d'une information interne, affichée à vous et au commercial, jamais au client, et le code est écrit ainsi (un garde-fou automatique empêche qu'un prix d'achat ou un taux de commission puisse atteindre une page client).
 
@@ -1260,7 +1260,7 @@ Le nom du commercial, en revanche, a du sens sur le document : le client sait à
 
 ### 40. Combien de temps conservons-nous une demande de devis qui n'aboutit à aucune commande ?
 
-🟡 **À confirmer**
+**À confirmer**
 
 *Pourquoi on a besoin de la réponse :* Le formulaire de demande de devis recueille un nom, une société, un e-mail et un téléphone. Ce sont des données personnelles, et le RGPD impose d'annoncer une durée de conservation au moment où on les collecte. La recommandation de la CNIL pour des données de prospection est de trois ans après le dernier contact, c'est ce qui est écrit aujourd'hui sous le formulaire.
 
@@ -1279,7 +1279,7 @@ Ce n'est pas la même question que la 33, qui porte sur les fichiers de producti
 
 ### 41. Vendons-nous des textiles nus, sans marquage, ou le catalogue n'existe-t-il que pour choisir le vêtement à personnaliser ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Le catalogue fournisseur est maintenant dans la boutique : 463 références, 26 399 articles avec leurs coloris, leurs tailles, leur grammage, leur composition et leur stock. La question est de savoir ce qu'un visiteur peut en faire. Deux réponses possibles, et elles ne demandent pas le même travail.
 
@@ -1296,7 +1296,7 @@ Si le catalogue ne sert qu'à choisir le vêtement à personnaliser, alors le bo
 
 ### 42. Quel taux de marge appliquons-nous à un textile nu revendu ?
 
-🔴 **Bloquant** (si la réponse à la 41 est « oui, on vend des textiles nus »)
+**Bloquant** (si la réponse à la 41 est « oui, on vend des textiles nus »)
 
 *Pourquoi on a besoin de la réponse :* Le chapitre 1 de la Bible donne la formule (prix conseillé HT = coût / (1 − taux de marge cible)) et range « fixer les premiers taux de marge » parmi les choses qui restent à décider. Nous avons le coût réel de chaque article, fourni par le fournisseur et rafraîchi toutes les nuits. Il ne manque que le taux.
 
@@ -1319,7 +1319,7 @@ Un seul taux pour tout le catalogue, ou un taux par famille (t-shirts, polos, sw
 
 ### 43. Le fournisseur donne trois nombres de stock par article et n'en nomme aucun. Savez-vous ce qu'ils sont ?
 
-🟡 **À confirmer**
+**À confirmer**
 
 *Pourquoi on a besoin de la réponse :* Chaque article revient avec trois quantités. Mesuré sur les 26 300 lignes du catalogue : la première totalise 4,7 millions de pièces, la deuxième 7 935, la troisième 32,4 millions. Un stock trente fois supérieur à la disponibilité annoncée ressemble à un réapprovisionnement prévu, pas à une étagère.
 
@@ -1334,7 +1334,7 @@ Nous ne traitons donc que **la première** comme du stock vendable. Si c'est le 
 
 ### 44. Faut-il traduire les noms de coloris en français ?
 
-🟡 **À confirmer**
+**À confirmer**
 
 *Pourquoi on a besoin de la réponse :* Le catalogue compte 442 noms de coloris distincts, et ce sont les noms du fabricant : « Heather Grey », « Bottle Green », « Fan Deep Royal ». Ce sont aussi ceux qui figurent sur l'étiquette du vêtement et dans les catalogues papier que vos clients professionnels connaissent, donc les traduire n'est pas gratuit : un acheteur qui cherche « Sport Grey » ne trouverait plus rien.
 
@@ -1351,7 +1351,7 @@ Traduire les vingt les plus courants (Black, White, Navy, Red, Royal…) couvrir
 
 ### 45. Quel taux de pénalité de retard voulez-vous faire figurer sur vos factures, et quel est votre numéro RCS avec la ville du greffe ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* ce sont des mentions obligatoires sur une facture
 entre professionnels (articles L. 441-9 et R. 123-237 du code de commerce), et deux d'entre
@@ -1401,7 +1401,7 @@ développement, et on vous informera simplement du résultat.
 
 ### 46. Combien de temps s'écoule réellement entre votre bon de commande textile et la réception des vêtements à l'atelier ?
 
-🔴 **Bloquant**
+**Bloquant**
 
 *Pourquoi on a besoin de la réponse :* La séance 07 a mesuré qu'entre un bon à tirer validé et un colis il y a 6 jours ouvrés de travail incompressible, dans une promesse d'urgence de 4. Ce calcul ne compte **pas** le temps d'acheminement des vêtements nus, parce que ce chiffre n'existe nulle part : ni dans la Bible, qui ne donne aucun délai textile dans ses huit chapitres, ni chez le fournisseur, dont l'interface ne publie pas de délai, ni chez nous, qui n'avons jamais passé de commande fournisseur.
 
@@ -1418,7 +1418,7 @@ Ce qu'il nous faut est une durée en jours ouvrés, mesurée une fois : commande
 
 ### 47. Que faisons-nous quand le prix d'achat d'un textile augmente entre le devis et l'achat ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Le chapitre 4 de la Bible demande de resynchroniser les prix d'achat « quotidien ou selon changement », le chapitre 2 interdit de modifier un devis envoyé, et le chapitre 1 rend une commission reprenable quand « la marge réelle est inférieure à la marge estimée ». Mis bout à bout, cela veut dire que Teeshoop absorbe silencieusement toute hausse du fournisseur, et que le commercial perd une partie de sa commission pour une hausse qu'il n'a pas causée. Aucun chapitre ne dit ce qu'il faut faire.
 
@@ -1460,7 +1460,7 @@ ne coûte le projet entier.
 
 ### 48. Le chapitre 4 demande d'afficher le stock par variante sur la fiche produit. Le chapitre 5, la question 11 et ce que nous avons livré disent l'inverse. Lequel tranchez-vous ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* Ce n'est pas une nuance de rédaction, c'est une
 contradiction interne à votre document, trouvée en construisant le catalogue de la séance 09.
@@ -1496,7 +1496,7 @@ date du relevé, parce que l'atelier en a besoin pour acheter.
 
 ### 49. Le fournisseur donne 442 noms de coloris et aucune valeur de couleur. En avez-vous une source, et les onze familles ci-dessous sont-elles les bons mots ?
 
-🟡 **À confirmer**
+**À confirmer**
 
 *Pourquoi on a besoin de la réponse :* un filtre de 442 noms en colonne n'est pas un filtre,
 c'est un dictionnaire, et la couleur est la première chose sur laquelle un acheteur
@@ -1563,7 +1563,7 @@ aucune pastille là où la mesure n'a pas abouti.
 
 ### 50. Sur un sweat à capuche, une impression poitrine doit-elle s'arrêter au-dessus de la poche kangourou, et à quelle hauteur exactement ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* la zone d'impression avant que nous publions pour le
 sweat fait 30,5 cm de large sur 30,5 cm de haut, accrochée sous la couture de col. Le dessin
@@ -1592,7 +1592,7 @@ corrigeons le maillage.
 
 ### 51. Vos transferts DTF sont-ils imprimés avec une sous-couche blanche systématique ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* dans l'aperçu, un visuel semi-transparent (un dégradé,
 une ombre portée, un bord adouci) laisse voir la couleur du vêtement à travers. Sur un
@@ -1613,7 +1613,7 @@ jamais. Et si elle est systématique, est-elle facturée à part.
 
 ### 52. Voulez-vous une photo « porté » sur les fiches produit au lancement, et si oui, sur qui ?
 
-🟠 **Important**
+**Important**
 
 *Pourquoi on a besoin de la réponse :* les fiches produit ont besoin d'images, et nous savons
 en produire trois automatiquement à partir du studio (avant, dos, détail sur le visuel), à
@@ -1634,6 +1634,36 @@ références (le plus crédible, et le plus cher : une demi-journée de studio p
 **Décliner le mannequin par taille**, ce qui veut dire un maillage où le corps et le vêtement
 sont séparés (travail de 3D, pas de code, et le résultat reste un mannequin gris). Ou
 **s'en passer** au lancement et ne publier que les trois vues rendues.
+
+**Votre réponse :**
+
+> 
+
+### 53. Dans la scène « nuit » du studio, un vêtement noir se voit à peine. On l'éclaire, ou on la retire ?
+
+**Important**
+
+*Pourquoi on a besoin de la réponse :* le client peut faire tourner l'aperçu 3D dans six
+ambiances, et l'une d'elles est une scène de nuit. Sur cette scène, et seulement sur
+celle-là, un t-shirt noir ne se détache de son fond que de 7,7 niveaux de luminance sur 255,
+là où notre contrôle en exige 8. Mesuré, pas estimé. Autrement dit le vêtement est visible,
+mais tout juste, et c'est le seul cas de quatorze qui ne passe pas.
+
+*Pourquoi nous ne l'avons pas simplement corrigé :* nous avons déjà remonté toute cette
+scène d'environ un diaphragme et demi, et elle porte deux contre-jours, plus que n'importe
+quelle autre. La remonter encore la ferait cesser de ressembler à la nuit. À l'inverse,
+baisser le seuil du contrôle pour le faire verdir serait se mentir : un contrôle vert auquel
+on ne croit pas vaut moins qu'un rouge qu'on sait expliquer. Le choix qui reste est un
+arbitrage entre l'ambiance et la lisibilité du produit, et c'est un choix de boutique.
+
+*Ce que nous avons fait en attendant :* la scène est livrée telle quelle, le contrôle reste
+rouge et la mesure est écrite (`docs/ROADMAP.md`, `docs/realisme-3d-etat.md`). Rien n'a été
+ajusté pour masquer le nombre.
+
+*Ce qu'il nous faut :* l'une des trois. **Éclairer davantage**, en acceptant que la scène
+lise « soir » plutôt que « nuit ». **Poser un fond plus clair** derrière le vêtement, ce qui
+garde la nuit mais change le décor. Ou **retirer la scène nuit** du sélecteur, ce qui ne
+coûte rien puisque les cinq autres passent.
 
 **Votre réponse :**
 
