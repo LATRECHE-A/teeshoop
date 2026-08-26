@@ -100,6 +100,30 @@ const ok = (name, pass, extra = '') => {
   return pass
 }
 
+/*
+ * A VISITOR WHO HAS ALREADY DECIDED, for every pass that CLICKS something.
+ *
+ * The consent strip is pinned to the bottom of the viewport until a choice is
+ * made, which is exactly what it is for, and it therefore sits over whatever is
+ * at the bottom of the page. Playwright found it honestly: clicking a facet chip
+ * timed out with « ts-consent subtree intercepts pointer events ». A real buyer
+ * meets that strip once and then never again, so the interaction passes below
+ * drive the shop as that buyer, with a recorded refusal. The SCREENSHOT pass
+ * deliberately does not, because the banner is part of what the page looks like
+ * on a first visit and has to be photographed.
+ *
+ * The cookie is the shipped format, `v<version>:<date>:<granted>`, with nothing
+ * granted. `npm run verify:seo` is what checks the mechanism itself.
+ */
+const decided = (context) =>
+  context.addCookies([
+    {
+      name: 'teeshoop_choix',
+      value: `v1:${new Date().toISOString().slice(0, 10)}:`,
+      url: BASE,
+    },
+  ])
+
 const browser = await chromium.launch()
 
 /* ------------------------------------------------------- the six pages -- */
@@ -166,6 +190,7 @@ for (const [name, path] of PAGES) {
 
 {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'fr-FR' })
+  await decided(context)
   const page = await context.newPage()
 
   /*
@@ -263,6 +288,7 @@ for (const [name, path] of PAGES) {
  */
 {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  await decided(context)
   const page = await context.newPage()
   await page.goto(BASE + '/shop/', { waitUntil: 'networkidle' })
 
@@ -455,6 +481,7 @@ for (const [name, path] of PAGES) {
  */
 {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: 'fr-FR' })
+  await decided(context)
   const page = await context.newPage()
   await page.goto(BASE + '/product-category/t-shirts/', { waitUntil: 'networkidle' })
 
@@ -537,6 +564,7 @@ for (const [name, path] of PAGES) {
     locale: 'fr-FR',
     javaScriptEnabled: false,
   })
+  await decided(context)
   const page = await context.newPage()
   await page.goto(BASE + '/product-category/t-shirts/', { waitUntil: 'domcontentloaded' })
 

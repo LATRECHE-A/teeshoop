@@ -780,7 +780,7 @@ return array(
 			'level' => 'bloquant',
 			'status' => 'assumption',
 			'since' => '2026-08-19',
-			'statement_fr' => 'Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et la remise du colis, et c\'est le seul des trois délais que le site publie.',
+			'statement_fr' => 'Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et l\'expédition, et c\'est le seul des trois délais que le site publie.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#lead_days.standard',
 			'reaches' => array(
 				'customer',
@@ -843,6 +843,7 @@ return array(
 			'cost_if_late' => 'reglage et remesure',
 			'sessions' => array(
 				'07',
+				'11',
 			),
 		),
 		array(

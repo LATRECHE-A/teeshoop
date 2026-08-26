@@ -216,7 +216,16 @@ $ts_min      = minimum();
 			$ts_decided = \Teeshoop\Core\Consent::decided_on();
 			?>
 			<p class="ts-foot__consent">
-				<a href="<?php echo esc_url( \Teeshoop\Core\Consent::reopen_url() ); ?>">
+				<?php
+				/*
+				 * `rel="nofollow"`, because this link is on EVERY page and adds
+				 * `?cookies=1` to the URL it is on: followed, it would offer a
+				 * crawler a twin of the whole site from the one control that is
+				 * guaranteed to be everywhere. `Seo::robots()` marks that flag
+				 * noindex as well, so a twin that is fetched anyway drops out.
+				 */
+				?>
+				<a rel="nofollow" href="<?php echo esc_url( \Teeshoop\Core\Consent::reopen_url() ); ?>">
 					<?php esc_html_e( 'Traceurs et mesure d’audience', 'teeshoop' ); ?>
 				</a>
 				<?php if ( '' !== $ts_decided ) : ?>

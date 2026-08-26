@@ -589,13 +589,21 @@ final class Quote {
 			/*
 			 * WHERE THE REQUEST CAME FROM, in two layers with two legal bases.
 			 *
-			 * `_ts_page` is the PATH of the page the form was on. It is read
-			 * from the request that is being handled, nothing is stored on the
-			 * visitor's machine to obtain it, and it answers the question a
-			 * landing page exists to answer: did anyone fill the form on it. The
-			 * path only, never the query string, because `/?s=commande pour
-			 * dupont sarl` copied onto a prospect record is personal data
-			 * nobody meant to collect.
+			 * `_ts_page` is the PATH of the page the form was posted from, and
+			 * it needs no permission because nothing is stored on the visitor's
+			 * machine to obtain it. It answers the question a landing page
+			 * exists to answer: did anyone fill the form on it. The path only,
+			 * never the query string, because `/?s=commande pour dupont sarl`
+			 * copied onto a prospect record is personal data nobody meant to
+			 * collect.
+			 *
+			 * IT IS UNTRUSTED, AND THIS COMMENT USED TO SAY OTHERWISE. It comes
+			 * from `$back`, which comes from `$_POST`, whose own docblock says
+			 * so. A single anonymous request put a 4 016-character path on a
+			 * record and therefore a 4 016-character row on the screen where the
+			 * associate decides which pages to fund. Bounded like every other
+			 * posted field on this form. It is escaped where it is printed, so
+			 * this is a legibility bound rather than an injection one.
 			 *
 			 * The other three come from `Consent::source()`, which returns three
 			 * empty strings unless the visitor allowed attribution. Carrying a
@@ -605,7 +613,7 @@ final class Quote {
 			 * always know, and reports the rest as « non renseigné » rather than
 			 * pretending the visit had no origin.
 			 */
-			'_ts_page'        => (string) wp_parse_url( $back, PHP_URL_PATH ),
+			'_ts_page'        => mb_substr( (string) wp_parse_url( $back, PHP_URL_PATH ), 0, 120 ),
 			'_ts_src_page'    => $source['page'],
 			'_ts_src_ref'     => $source['referent'],
 			'_ts_src_camp'    => $source['campagne'],

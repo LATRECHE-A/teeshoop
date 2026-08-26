@@ -484,8 +484,8 @@ return array(
 	),
 
 	'page:entreprises' => array(
-		'title'       => 'T-shirt personnalisé entreprise, imprimé en France',
-		'description' => 'T-shirts, polos et sweats personnalisés pour entreprise, imprimés en France. Prix en ligne, minimum {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} HT.',
+		'title'       => 'Vêtements personnalisés pour entreprise : devis et facture',
+		'description' => 'T-shirts, polos et sweats à votre logo pour équiper vos équipes : facture à votre raison sociale, réassort à l’identique, imprimé en France.',
 		'h1'          => 'Vêtements personnalisés pour entreprise : t-shirts, polos, sweats',
 		'intro'       => array(
 			'Trois familles au catalogue : t-shirts, polos et sweats, soit {NB_REFERENCES} références déclinées en coloris et en tailles.',
@@ -644,7 +644,7 @@ return array(
 				'list'       => array(
 					'la validation du bon à tirer, qui dépend de la réponse de votre bureau ;',
 					'{DELAI_STANDARD} jours ouvrés de production, jusqu’à l’expédition ;',
-					'l’acheminement Colissimo en France métropolitaine, que nous ne chiffrons pas.',
+					'l’acheminement Colissimo, que La Poste annonce à {DELAI_TRANSPORT} jours ouvrés en France métropolitaine.',
 				),
 				'after'      => array(
 					'La durée qui glisse n’est pas la production, c’est l’aller-retour du bon à tirer : fixez la date de validation avant les inscriptions.',
@@ -697,7 +697,7 @@ return array(
 			),
 			array(
 				'q' => 'Combien de temps faut-il prévoir avant notre événement ?',
-				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l’expédition, puis l’acheminement Colissimo en France métropolitaine, que nous ne chiffrons pas. Nous ne publions pas de délai plus court, parce que nous ne le tiendrions pas.',
+				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l’expédition, puis {DELAI_TRANSPORT} jours ouvrés d’acheminement Colissimo en France métropolitaine, soit {DELAI_TOTAL} jours ouvrés en tout. Nous ne publions pas de délai plus court, parce que nous ne le tiendrions pas.',
 			),
 			array(
 				'q' => 'Notre logo a été fait par un bénévole, comment savoir ce qu’il donnera sur le vêtement ?',
@@ -853,7 +853,7 @@ return array(
 				),
 				'list'       => array(
 					'Le jour où vous voulez les vêtements en main. Ce n\'est pas le jour de l\'événement : un carton qui arrive le matin même ne laisse aucune reprise possible.',
-					'Le transport. Nous expédions en Colissimo, France métropolitaine, et nous ne publions aucun délai de livraison : une fois le colis remis au transporteur, la date ne dépend plus de nous. Prenez celui que le transporteur annonce pour votre adresse.',
+					'Le transport. Nous expédions en Colissimo, France métropolitaine, et La Poste annonce {DELAI_TRANSPORT} jours ouvrés. C\'est son chiffre et non le nôtre : une fois le colis remis, la date ne dépend plus de nous.',
 					'{DELAI_STANDARD} jours ouvrés d\'atelier. Ouvrés veut dire du lundi au vendredi, hors jours fériés : un jour férié dans l\'intervalle décale l\'expédition d\'autant.',
 					'Le temps du bon à tirer : le vôtre pour le relire, et celui de la personne qui doit l\'approuver si ce n\'est pas vous.',
 					'Ce qu\'il reste est votre date limite de commande. Si elle est derrière vous, la réponse est non.',
@@ -1024,7 +1024,7 @@ return array(
 				'h2'         => 'Le bon à tirer, puis {DELAI_STANDARD} jours ouvrés',
 				'paragraphs' => array(
 					'Le bon à tirer se valide en ligne, sans créer de compte. Tant qu\'il n\'est pas validé, rien n\'est imprimé.',
-					'À partir de cette validation, comptez {DELAI_STANDARD} jours ouvrés avant l\'expédition. Le colis part ensuite en Colissimo : l\'acheminement s\'ajoute à ce délai, et nous ne le chiffrons pas ici.',
+					'À partir de cette validation, comptez {DELAI_STANDARD} jours ouvrés avant l\'expédition, puis {DELAI_TRANSPORT} jours ouvrés d\'acheminement Colissimo, soit {DELAI_TOTAL} jours ouvrés en tout. Les {DELAI_TRANSPORT} jours sont ceux que La Poste annonce pour la France métropolitaine, et c\'est la seule partie du calendrier qui ne dépend ni de vous ni de nous.',
 					'Il n\'y a ni express ni urgence sur ce site. Si vous avez une date à tenir, remontez le calendrier à partir d\'elle : {DELAI_STANDARD} jours ouvrés après la validation du bon à tirer, plus l\'acheminement, plus le temps qu\'il vous faudra pour valider. Nous n\'affichons pas de délai plus court contre supplément, parce que nous ne le tiendrions pas.',
 				),
 			),
@@ -1054,7 +1054,7 @@ return array(
 			),
 			array(
 				'q' => 'Sous quel délai la commande est-elle expédiée ?',
-				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l\'expédition, puis l\'acheminement Colissimo, qui s\'ajoute à ce délai et que nous ne chiffrons pas. Le compte à rebours part de votre validation du bon à tirer, pas de la commande. Il n\'y a ni express ni urgence, donc une ouverture se prépare en remontant le calendrier.',
+				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l\'expédition, puis {DELAI_TRANSPORT} jours ouvrés d\'acheminement Colissimo : {DELAI_TOTAL} jours ouvrés en tout. Le compte à rebours part de votre validation du bon à tirer, pas de la commande. Il n\'y a ni express ni urgence, donc une ouverture se prépare en remontant le calendrier.',
 			),
 			array(
 				'q' => 'Pourrons-nous recommander exactement le même polo à la saison suivante ?',

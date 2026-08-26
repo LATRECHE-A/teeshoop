@@ -133,7 +133,13 @@ final class Consent {
 		return array(
 			'attribution' => array(
 				'label'   => __( 'Savoir par quelle page vous êtes arrivé', 'teeshoop' ),
-				'detail'  => __( 'Un identifiant est enregistré sur votre appareil pour rattacher votre demande de devis à la page qui vous a amené ici. Cela nous dit quelles pages servent à quelque chose. Refuser n’enlève rien au site.', 'teeshoop' ),
+				/*
+				 * IT DESCRIBES WHAT IS ACTUALLY WRITTEN, and it used to say
+				 * « un identifiant ». There is no identifier: the cookie holds
+				 * three strings, and a data subject who is told something vaguer
+				 * than the truth has not been informed.
+				 */
+				'detail'  => __( 'Nous enregistrons sur votre appareil, pendant treize mois, la page par laquelle vous êtes arrivé, le site qui vous a envoyé et le nom de la campagne s’il y en a une. Si vous demandez un devis, ces trois informations sont recopiées sur votre demande. Elles nous disent quelles pages servent à quelque chose. Refuser n’enlève rien au site.', 'teeshoop' ),
 				'offered' => true,
 			),
 			'publicite'   => array(
@@ -196,8 +202,21 @@ final class Consent {
 		return is_array( $choice ) && in_array( $key, $choice, true );
 	}
 
-	/** The date the current choice was made, or '' when there is none. */
+	/**
+	 * The date the current choice was made, or '' when there is none.
+	 *
+	 * IT ASKS `choice()` FIRST, and that is a fix. This read the cookie with a
+	 * second regular expression that did not check the version, so the day
+	 * `VERSION` is bumped, which is exactly the manoeuvre this file documents
+	 * for when the purposes change, every visitor would have met the banner
+	 * saying nothing is decided and the footer saying they chose on such a date.
+	 * Two consent controls contradicting each other on one page. Reproducible
+	 * today with a `v2:` cookie. One cookie, one parser.
+	 */
 	public static function decided_on(): string {
+		if ( null === self::choice() ) {
+			return '';
+		}
 		$raw = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 		return preg_match( '/^v\d+:(\d{4}-\d{2}-\d{2}):/', $raw, $m ) ? $m[1] : '';
 	}
@@ -215,10 +234,53 @@ final class Consent {
 	 * phishing hop, and `wp_safe_redirect` is what refuses one.
 	 */
 	public static function record(): void {
-		check_admin_referer( self::ACTION );
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- the two checks below are the verification.
+		$back = isset( $_POST['retour'] ) ? esc_url_raw( wp_unslash( $_POST['retour'] ) ) : '';
+
+		/*
+		 * THE ORIGIN IS THE DEFENCE, NOT THE NONCE.
+		 *
+		 * This was `check_admin_referer()` alone and that is not a CSRF defence
+		 * for a logged-out visitor. WordPress computes a nonce for user 0 with an
+		 * empty session token, so EVERY anonymous visitor of the shop is served
+		 * the same string, and it is printed in the footer of every public page.
+		 * Measured: three cookie-less GETs of `/`, `/entreprises/` and `/shop/`
+		 * returned one identical `_wpnonce`. Harvest it with one request, put a
+		 * self-submitting form on any site, and a visitor who clicked nothing
+		 * leaves with `teeshoop_choix=…:attribution` written on their machine,
+		 * the banner gone, and the footer telling them they chose today. The
+		 * attacker's own Referer then lands in the attribution cookie, so they
+		 * pick the campaign too. A consent a third party can cause is not a
+		 * consent, which makes this the one defect in this file that matters.
+		 *
+		 * `===`, never `startsWith`: the rule is section 4 of the brief and the
+		 * reason is `teeshoop.com.evil.tld`. Absent, we fall back to the referring
+		 * host, and absent that we REFUSE: "we could not tell" is not "it is us".
+		 */
+		if ( ! self::same_origin() ) {
+			wp_safe_redirect( self::back_to( $back, true ), 303 );
+			exit;
+		}
+
+		/*
+		 * The nonce still runs, and its failure is now RECOVERABLE.
+		 *
+		 * `check_admin_referer()` ends in `wp_die()`, so a visitor who left a tab
+		 * open overnight met a WordPress error page on the refuse button and
+		 * their refusal was not recorded: the banner then asked again on every
+		 * page. Measured: 403, « Le lien suivi est expiré. », no Set-Cookie. A
+		 * refusal that depends on a token with a twelve-hour life is a refusal
+		 * that expires, and this file's own header says that is the direction it
+		 * must never fail in. So a stale nonce sends them back to the panel with
+		 * a fresh one instead of to an error page.
+		 */
+		$nonce = isset( $_POST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, self::ACTION ) ) {
+			wp_safe_redirect( self::back_to( $back, true ), 303 );
+			exit;
+		}
 
 		$granted = array();
-		// phpcs:disable WordPress.Security.NonceVerification.Missing -- checked above.
 		if ( isset( $_POST['tout'] ) ) {
 			$granted = self::offered();
 		} elseif ( ! isset( $_POST['rien'] ) ) {
@@ -227,24 +289,97 @@ final class Consent {
 				: array();
 			$granted = array_values( array_intersect( $raw, self::offered() ) );
 		}
-		$back = isset( $_POST['retour'] ) ? esc_url_raw( wp_unslash( $_POST['retour'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		self::write( $granted );
 
 		/*
-		 * WITHDRAWING A PERMISSION DELETES WHAT IT ALLOWED.
+		 * THE ORIGIN IS CAPTURED HERE, AT THE MOMENT OF CONSENT, and that is a
+		 * correction rather than an optimisation.
 		 *
-		 * A visitor who turns attribution off and keeps the identifier we wrote
-		 * while it was on has not withdrawn anything. The cookie goes in the
-		 * same response as the new choice.
+		 * `remember_source()` runs on `init` of the NEXT request, by which time
+		 * the referring site is us and the campaign arguments are gone: the two
+		 * fields the attribution category exists to fill were therefore
+		 * structurally always empty, and the banner was asking permission for
+		 * something that never worked. The banner is rendered on the page the
+		 * visitor ARRIVED on, so it carries that page's referring host and
+		 * campaign as hidden fields, and they are read once, here.
+		 *
+		 * They come from the client and are therefore untrusted, exactly as the
+		 * `Referer` header they were read from already was. They are bounded and
+		 * sanitised on the way in, they are only ever aggregated, and they are
+		 * escaped where they are printed.
+		 */
+		if ( in_array( 'attribution', $granted, true ) ) {
+			// phpcs:disable WordPress.Security.NonceVerification.Missing -- verified above.
+			$ref  = isset( $_POST['src_ref'] ) ? sanitize_text_field( wp_unslash( $_POST['src_ref'] ) ) : '';
+			$camp = isset( $_POST['src_camp'] ) ? sanitize_text_field( wp_unslash( $_POST['src_camp'] ) ) : '';
+			// phpcs:enable WordPress.Security.NonceVerification.Missing
+			self::write_source( (string) wp_parse_url( $back, PHP_URL_PATH ), $ref, $camp );
+		}
+
+		/*
+		 * WITHDRAWING STOPS THE COLLECTION AND ERASES THE COOKIE, and that is
+		 * exactly what it does, no more.
+		 *
+		 * This comment used to claim withdrawal "deletes what it allowed". It
+		 * does not: a visitor who consented, submitted a quote request, then
+		 * withdrew leaves the three fields copied onto that request. That is not
+		 * a bug to fix here, because the request is a document they asked us to
+		 * act on and it has its own three-year retention and its own erasure
+		 * route through WordPress's privacy tools, which `Quote` registers and
+		 * which now exports and erases those three fields too. But the code may
+		 * not say one thing and do another, so it says this instead.
 		 */
 		if ( ! in_array( 'attribution', $granted, true ) ) {
 			self::forget_source();
 		}
 
-		wp_safe_redirect( '' !== $back ? $back : home_url( '/' ), 303 );
+		wp_safe_redirect( self::back_to( $back, false ), 303 );
 		exit;
+	}
+
+	/**
+	 * Whether this POST was sent from a page of this shop.
+	 *
+	 * @return bool False when we cannot tell, which is a refusal.
+	 */
+	private static function same_origin(): bool {
+		$ours = (string) wp_parse_url( home_url(), PHP_URL_SCHEME ) . '://'
+			. (string) wp_parse_url( home_url(), PHP_URL_HOST );
+		$port = wp_parse_url( home_url(), PHP_URL_PORT );
+		if ( $port ) {
+			$ours .= ':' . (int) $port;
+		}
+
+		$origin = isset( $_SERVER['HTTP_ORIGIN'] ) ? esc_url_raw( wp_unslash( $_SERVER['HTTP_ORIGIN'] ) ) : '';
+		if ( '' !== $origin ) {
+			return untrailingslashit( $origin ) === untrailingslashit( $ours );
+		}
+
+		/*
+		 * No `Origin`. A handful of browsers still omit it on a same-origin form
+		 * POST, so the referring HOST is the fallback, compared whole. Not the
+		 * whole Referer, because a path can be anything; the host is the claim.
+		 */
+		$referer = isset( $_SERVER['HTTP_REFERER'] ) ? esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) : '';
+		if ( '' !== $referer ) {
+			return (string) wp_parse_url( $referer, PHP_URL_HOST ) === (string) wp_parse_url( home_url(), PHP_URL_HOST );
+		}
+
+		return false;
+	}
+
+	/**
+	 * Where to send the visitor back to, on this site.
+	 *
+	 * `$reopen` reopens the panel, which is what a refused submission needs: the
+	 * visitor pressed a button and something has to happen, and dropping them on
+	 * a page with the banner already dismissed would look like it worked.
+	 */
+	private static function back_to( string $back, bool $reopen ): string {
+		$url = '' !== $back ? $back : home_url( '/' );
+		return $reopen ? add_query_arg( 'cookies', '1', $url ) . '#ts-consent' : $url;
 	}
 
 	/** @param string[] $granted */
@@ -291,13 +426,40 @@ final class Consent {
 	 * data nobody meant to collect.
 	 */
 	public static function remember_source(): void {
+		/*
+		 * A REST CALL IS NOT AN ARRIVAL. The block cart talks to
+		 * `/wp-json/wc/store/v1/cart` on `init` like everything else, and that
+		 * path was being frozen as "the page you arrived on" and then copied onto
+		 * a prospect record. Measured: a quote request carrying
+		 * `_ts_src_page = /wp-json/wc/store/v1/cart`, which tells the associate
+		 * nothing and tells the prospect something odd if they ask for their data.
+		 */
 		if ( is_admin() || wp_doing_ajax() || wp_doing_cron() ) {
+			return;
+		}
+		if ( ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || ( function_exists( 'wp_is_json_request' ) && wp_is_json_request() ) ) {
 			return;
 		}
 		if ( ! self::granted( 'attribution' ) || isset( $_COOKIE[ self::SOURCE_COOKIE ] ) ) {
 			return;
 		}
 
+		$here = self::here();
+		self::write_source( $here['page'], $here['referent'], $here['campagne'] );
+	}
+
+	/**
+	 * What this request says about where the visitor came from.
+	 *
+	 * Read from the request being handled, so it stores nothing to obtain it.
+	 * Two callers: `remember_source()` writes it when attribution is already
+	 * allowed, and `render()` carries it on the banner so that a consent given
+	 * on the LANDING page records the arrival rather than the page the visitor
+	 * happened to be on afterwards.
+	 *
+	 * @return array{page:string,referent:string,campagne:string}
+	 */
+	private static function here(): array {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- reading the shape of a public request.
 		$path = (string) wp_parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '/' ), PHP_URL_PATH );
 		$ref  = (string) wp_parse_url( (string) ( $_SERVER['HTTP_REFERER'] ?? '' ), PHP_URL_HOST );
@@ -316,12 +478,32 @@ final class Consent {
 			$ref = '';
 		}
 
+		return array(
+			'page'     => $path,
+			'referent' => $ref,
+			'campagne' => $campaign,
+		);
+	}
+
+	/**
+	 * Store the three fields, bounded, once.
+	 *
+	 * Shared by `record()`, which captures them at the moment of consent from
+	 * the page the banner was rendered on, and by `remember_source()`, which
+	 * fills the gap on a later visit whose cookie has expired. Two callers, one
+	 * writer, because a cookie written two ways is a cookie read wrong once.
+	 */
+	private static function write_source( string $path, string $ref, string $campaign ): void {
+		if ( isset( $_COOKIE[ self::SOURCE_COOKIE ] ) ) {
+			return;
+		}
+
 		$value = implode(
 			'|',
 			array(
 				substr( sanitize_text_field( $path ), 0, 120 ),
 				substr( sanitize_text_field( $ref ), 0, 80 ),
-				substr( $campaign, 0, 120 ),
+				substr( sanitize_text_field( $campaign ), 0, 120 ),
 			)
 		);
 
@@ -412,6 +594,17 @@ final class Consent {
 			<form class="ts-consent__box" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION ); ?>">
 				<input type="hidden" name="retour" value="<?php echo esc_attr( $back ); ?>">
+				<?php
+				/*
+				 * The referring host and the campaign of THIS page load, carried
+				 * so that a consent given on the landing page records where the
+				 * visit came from. Read only when attribution is granted; see
+				 * `record()` for why they cannot be read on the next request.
+				 */
+				$ts_here = self::here();
+				?>
+				<input type="hidden" name="src_ref" value="<?php echo esc_attr( $ts_here['referent'] ); ?>">
+				<input type="hidden" name="src_camp" value="<?php echo esc_attr( $ts_here['campagne'] ); ?>">
 				<?php wp_nonce_field( self::ACTION ); ?>
 
 				<h2 class="ts-consent__title" id="ts-consent-title">
@@ -494,10 +687,30 @@ final class Consent {
 		return ! empty( $_GET['cookies'] );
 	}
 
-	/** This page's own URL, on this site, with no query string carried over. */
+	/**
+	 * This page's own URL, on this site, QUERY STRING INCLUDED.
+	 *
+	 * IT USED TO DROP THE QUERY STRING and that broke a payment. This value is
+	 * the banner's return field and the footer control's target, both rendered
+	 * on every page including `/checkout/order-pay/{id}/?key=wc_order_…`. A
+	 * customer who opened the pay link from their email and pressed « Tout
+	 * refuser » was returned to the same path without the key, and WooCommerce
+	 * answered « Désolé, cette commande est invalide et ne peut être finalisée ».
+	 * The link only existed in their inbox. Measured on order 112920 of the
+	 * mirror. The same loss threw away ten facets and the sort on a listing.
+	 *
+	 * The reasoning that produced the bug is written in `remember_source()` and
+	 * it is correct THERE: `/?s=commande pour dupont sarl` must not be copied
+	 * onto a prospect record. Nothing is stored here. This is where the visitor
+	 * was, and sending them back to a different page is the failure.
+	 */
 	private static function current_url(): string {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading the request path.
-		$path = (string) wp_parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '/' ), PHP_URL_PATH );
-		return home_url( '' === $path ? '/' : $path );
+		$uri  = (string) ( $_SERVER['REQUEST_URI'] ?? '/' );
+		$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+		$args = (string) wp_parse_url( $uri, PHP_URL_QUERY );
+
+		$url = home_url( '' === $path ? '/' : $path );
+		return '' === $args ? $url : $url . '?' . $args;
 	}
 }

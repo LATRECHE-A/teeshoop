@@ -2686,7 +2686,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-19",
-			"statement_fr": "Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et la remise du colis, et c'est le seul des trois délais que le site publie.",
+			"statement_fr": "Une commande standard vise 12 jours ouvrés entre la validation du bon à tirer et l'expédition, et c'est le seul des trois délais que le site publie.",
 			"home": "php:Teeshoop\\Core\\Production::default_config()#lead_days.standard",
 			"mirrors": [],
 			"literals": [],
@@ -2700,7 +2700,8 @@
 				"Les six jours ouvrés de marge que ce délai laisse en achetant le film en France, et les trois en l'achetant en Espagne (tests/test-production.php).",
 				"Le fait que le standard soit le seul des trois délais où l'origine espagnole tienne.",
 				"La ligne « Fabrication : 12 jours ouvrés, à partir de votre bon à tirer validé » sur l'accueil, dans le pied de page, sur la page devis et sur la page entreprises (séance 09).",
-				"C'est le SEUL délai publié sur le site, et la séance 11 le répète sur chaque page de secteur, avec la phrase qui l'accompagne : « nous ne publions pas de délai plus court, parce que nous ne le tiendrions pas ». La page événementiel est construite entièrement autour de ce nombre, en compte à rebours depuis la date du client."
+				"C'est le SEUL délai publié sur le site, et la séance 11 le répète sur chaque page de secteur, avec la phrase qui l'accompagne : « nous ne publions pas de délai plus court, parce que nous ne le tiendrions pas ». La page événementiel est construite entièrement autour de ce nombre, en compte à rebours depuis la date du client.",
+				"L'endpoint de ces 12 jours n'est pas tranché et les deux lectures coexistent dans le dépôt. La copie de la séance 11 et le pied de page de la séance 09 disent « jusqu'à l'expédition », puis ajoutent l'acheminement Colissimo, soit 14 jours ouvrés annoncés au client. `Production::feasibility()` lit l'inverse : il soustrait `ship_days` des 12, donc il planifie pour que le COLIS SOIT REMIS au douzième jour, ce qui est deux jours plus strict que ce qui est publié. Les deux vont dans le sens prudent (l'atelier vise plus tôt que la promesse), mais c'est un écart et il appartient à l'associé : question 14."
 			],
 			"sessions": [
 				"07",
@@ -2800,10 +2801,12 @@
 				"operator"
 			],
 			"derives": [
-				"La date limite de commande du film de chaque commande, donc l'origine retenue."
+				"La date limite de commande du film de chaque commande, donc l'origine retenue.",
+				"Publié au client depuis la séance 11 : les pages de secteur annoncent « 2 jours ouvrés d'acheminement Colissimo » et le total de 14 jours ouvrés, en attribuant le chiffre à La Poste. Avant, elles écrivaient « nous ne chiffrons pas l'acheminement » alors que la boutique le chiffre, ce que l'article L.111-1 3° du code de la consommation demande justement d'annoncer avant le contrat."
 			],
 			"sessions": [
-				"07"
+				"07",
+				"11"
 			],
 			"cost_if_late": "reglage et remesure",
 			"shipped_matches_default": "Partiellement. La question 14 nomme Colissimo et ne donne aucun temps de transit ; deux jours ouvrés est ce que Colissimo publie pour la métropole, et personne ne nous y a engagés.",

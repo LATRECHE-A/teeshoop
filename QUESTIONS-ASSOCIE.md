@@ -584,6 +584,21 @@ sur quel rouleau la commande a été imprimée, parce qu'une case n'est pas une 
 du tout, puisque le site n'annonce aucune date de livraison. Le supplément et le délai se
 répondent, et c'est la même réponse qui débloque les deux.
 
+*Ce que la séance 11 a trouvé le 26 août, et qui n'est toujours pas tranché :* **12 jours
+ouvrés jusqu'à quoi ?** Le dépôt porte les deux lectures et personne ne les a confrontées.
+
+- Ce que le site **publie** aujourd'hui, en 43 phrases : 12 jours ouvrés entre votre
+  validation du bon à tirer et **l'expédition**, puis 2 jours ouvrés d'acheminement
+  Colissimo, soit **14 jours ouvrés** annoncés au client.
+- Ce que l'atelier **planifie** : `Production::feasibility()` retire les 2 jours de transport
+  des 12, donc il achète le film pour que le **colis soit remis** au douzième jour.
+
+Les deux vont dans le sens prudent : l'atelier vise deux jours plus tôt que ce que le client
+lit. Mais ce sont deux promesses différentes, et c'est vous qui décidez laquelle vous tenez.
+Si c'est « réception en 12 jours ouvrés », la copie du site est à corriger et vous vous
+engagez sur un transporteur que vous ne contrôlez pas. Si c'est « expédition en 12 jours
+ouvrés », c'est le calendrier de l'atelier qui gagne deux jours de marge.
+
 *Ce que la séance 07 a mesuré, le 19 août :* **deux des trois délais ci-dessus ne peuvent
 pas être tenus, et c'est de l'arithmétique, pas une question d'organisation.**
 

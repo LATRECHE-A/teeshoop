@@ -106,8 +106,19 @@ final class Content {
 			if ( empty( $paragraphs ) && empty( $list ) && empty( $after ) ) {
 				continue;
 			}
+			/*
+			 * AND A SECTION WITH NO HEADING IS NOT A SECTION. A heading carrying
+			 * a slot that will not resolve rendered as an empty `<h2>` with its
+			 * paragraphs orphaned under it, which reads as a broken page rather
+			 * than as one sentence fewer.
+			 */
+			$heading = self::fill( (string) ( $section['h2'] ?? '' ) );
+			if ( '' === $heading ) {
+				continue;
+			}
+
 			$sections[] = array(
-				'h2'         => self::fill( (string) ( $section['h2'] ?? '' ) ),
+				'h2'         => $heading,
 				'paragraphs' => $paragraphs,
 				'list'       => $list,
 				// A sentence that comments on the list rather than introducing
@@ -266,11 +277,21 @@ final class Content {
 
 		$slots = array();
 
+		/*
+		 * ZERO IS NOT A VALUE, IT IS AN ABSENCE, and the whole slot mechanism
+		 * turned on that distinction and then got it wrong. `Money::number( 0 )`
+		 * is the non-empty string "0", so a shop whose minimum had been cleared
+		 * published « Nous imprimons à partir de 0 pièces, et le panier refuse en
+		 * dessous » on the petites-series page, which is both false and absurd.
+		 * The footer already learned this in August: a deactivated plugin
+		 * advertised « Commande minimum : 0 pièces » on every page. A count that
+		 * is zero removes its sentence, exactly like a count that is missing.
+		 */
 		$pricing = Settings::pricing();
-		if ( isset( $pricing['min_qty'] ) ) {
+		if ( (int) ( $pricing['min_qty'] ?? 0 ) > 0 ) {
 			$slots['MINIMUM_PIECES'] = Money::number( (float) $pricing['min_qty'] );
 		}
-		if ( isset( $pricing['min_ht'] ) ) {
+		if ( (int) ( $pricing['min_ht'] ?? 0 ) > 0 ) {
 			$slots['MINIMUM_MONTANT'] = Money::format( (int) $pricing['min_ht'] );
 		}
 		/*
@@ -286,10 +307,12 @@ final class Content {
 		 * caught the first version of THIS COMMENT for naming one of them in
 		 * prose. A number in a comment is a second copy that nothing updates.
 		 */
-		if ( isset( $pricing['quote_from_qty'] ) ) {
+		// Zero disables that half of the rule (`Pricing::needs_quote`), so it is
+		// an absence here too and its sentence goes with it.
+		if ( (int) ( $pricing['quote_from_qty'] ?? 0 ) > 0 ) {
 			$slots['SEUIL_DEVIS'] = Money::number( (float) $pricing['quote_from_qty'] );
 		}
-		if ( isset( $pricing['quote_from_ht'] ) ) {
+		if ( (int) ( $pricing['quote_from_ht'] ?? 0 ) > 0 ) {
 			$slots['SEUIL_DEVIS_MONTANT'] = Money::format( (int) $pricing['quote_from_ht'] );
 		}
 
@@ -385,6 +408,19 @@ final class Content {
 			return $counts;
 		}
 
+		/*
+		 * WORDPRESS'S OWN DEFAULT CATEGORY IS NOT A FAMILY, and leaving it in the
+		 * sum made a published sentence contradict itself: the restauration page
+		 * printed « Au catalogue : 458 références, dont 104 polos, 184 t-shirts
+		 * et 168 sweats », and the three named numbers add up to 456. The two
+		 * missing ones are the shop's own fixtures, which land in
+		 * « Uncategorized » because nothing else claims them. A buyer who adds
+		 * the detail finds the gap. `Theme\top_categories()` already excludes it
+		 * and `Seo::indexable_term()` refuses to index it; this is the third
+		 * place that has to agree, and now does.
+		 */
+		$default = (int) get_option( 'default_product_cat', 0 );
+
 		$total = 0;
 		$by    = array(
 			't-shirts' => 'NB_TSHIRTS',
@@ -392,7 +428,7 @@ final class Content {
 			'sweats'   => 'NB_SWEATS',
 		);
 		foreach ( $terms as $term ) {
-			if ( ! $term instanceof \WP_Term ) {
+			if ( ! $term instanceof \WP_Term || (int) $term->term_id === $default ) {
 				continue;
 			}
 			$total += (int) $term->count;
@@ -459,10 +495,16 @@ final class Content {
 	 * size run are facts we hold per reference, they differ from one reference
 	 * to the next, and they are the four things a professional buyer compares.
 	 *
-	 * `Importer::excerpt()` already assembles the first three into the one line
-	 * the listing prints. This adds the size run and the one commercial fact
-	 * that applies to THIS reference: a price it can reach, or that it is
-	 * quoted. Nothing is invented and nothing is repeated between two products.
+	 * THE OVERLAP WITH `Importer::excerpt()` IS REAL AND IT IS NOT A SECOND
+	 * IMPLEMENTATION OF ONE RULE, which is worth stating because it looks like
+	 * one. That function assembles matière, grammage and coloris into the short
+	 * description stored ON the product at import time, which is what a listing
+	 * card prints. This one reads the same three metas back out and composes a
+	 * different artefact under a different constraint: 160 characters, leading
+	 * with the reference, ending on what a buyer can do about it. They are two
+	 * renderings of the same facts rather than two sources of them, and the facts
+	 * have one home, the meta keys. If a third caller appears, that is the moment
+	 * to extract a formatter; two is not.
 	 */
 	public static function product_description( int $product_id ): string {
 		$product = wc_get_product( $product_id );
@@ -483,12 +525,29 @@ final class Content {
 		 */
 		$facts = array();
 
+		/*
+		 * THE FIBRES, ALL OF THEM, AND NOTHING ELSE.
+		 *
+		 * This cut the supplier's string at the first bracket OR COMMA, to lose
+		 * the spinning process and the certifications behind it. The comma also
+		 * separates fibres: measured on the mirror, 238 of the 456 references
+		 * carrying a composition lost a percentage. « 50% polyester, 25% coton,
+		 * 25% viscose » was published as « 50% polyester », and
+		 * « 65% polyester, 35% coton ringspun piqué » as « 65% polyester », in
+		 * the meta description AND in the Product node of the JSON-LD.
+		 *
+		 * A polycotton announced as polyester is not a shortened description, it
+		 * is a false one: règlement (UE) 1007/2011 article 16 requires the full
+		 * composition in a distance-selling description, and L.121-2 of the code
+		 * de la consommation calls a wrong essential characteristic a misleading
+		 * practice. So every « NN % fibre » fragment is KEPT and everything that
+		 * is not one is dropped, and a string with no percentage in it publishes
+		 * nothing rather than half of itself.
+		 */
 		$material = trim( (string) $product->get_meta( Garments::META_MATERIAL, true ) );
-		// Everything before the first bracket or comma: "100% coton", not the
-		// spinning process and the three certifications behind it.
-		$material = trim( (string) preg_replace( '/\s*[(,].*$/us', '', $material ) );
-		if ( '' !== $material ) {
-			$facts[] = $material;
+		preg_match_all( '/\d+\s*%\s*\p{L}[\p{L}\x{2019}\'\-]*/u', $material, $fibres );
+		if ( ! empty( $fibres[0] ) ) {
+			$facts[] = implode( ', ', $fibres[0] );
 		}
 
 		$gsm = (int) $product->get_meta( Garments::META_WEIGHT, true );
@@ -530,13 +589,27 @@ final class Content {
 				implode( ', ', $facts )
 			);
 
+		/*
+		 * « IMPRESSION COMPRISE » NEEDS A PRINT, not merely a price.
+		 *
+		 * This asked `is_purchasable()`, which is true of any product a shop
+		 * manager has priced, including a blank sold as a blank. The sentence
+		 * would then have promised printing in a price that buys none, in a
+		 * search result, which in France is an announced offer. The condition is
+		 * the one the rest of the plugin uses to decide that a product is
+		 * personalisable at all: it declares a studio garment.
+		 */
 		$slots = self::slots();
-		if ( $product->is_purchasable() && isset( $slots['MINIMUM_PIECES'] ) ) {
+		$prints = class_exists( '\\Teeshoop\\Core\\Product' ) && '' !== Product::garment_of( $product_id );
+
+		if ( $prints && $product->is_purchasable() && isset( $slots['MINIMUM_PIECES'] ) ) {
 			$bits[] = sprintf(
 				/* translators: %s: the minimum number of pieces. */
 				__( 'Impression comprise, à partir de %s pièces.', 'teeshoop' ),
 				$slots['MINIMUM_PIECES']
 			);
+		} elseif ( $product->is_purchasable() ) {
+			$bits[] = __( 'Textile nu, sans marquage.', 'teeshoop' );
 		} else {
 			$bits[] = __( 'Tarif sur devis pour votre quantité et vos tailles.', 'teeshoop' );
 		}
@@ -590,8 +663,11 @@ final class Content {
 	 * only for somebody who can edit, on the screen where they are editing.
 	 */
 	public static function notice(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( ! $screen instanceof \WP_Screen || ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! $screen instanceof \WP_Screen ) {
 			return;
 		}
 
@@ -608,6 +684,25 @@ final class Content {
 			if ( $post instanceof \WP_Post && self::has( 'page:' . $post->post_name ) ) {
 				$key = 'page:' . $post->post_name;
 			}
+		}
+
+		/*
+		 * AND SAY WHICH FIGURES WENT MISSING, if any did.
+		 *
+		 * `$unresolved` was written by `fill()` and read by nothing, so the one
+		 * signal that a sentence had been silently removed did not exist. A
+		 * paragraph that vanishes without a word is the failure mode this whole
+		 * mechanism was built to avoid, and the person who can fix the setting is
+		 * the person looking at this screen.
+		 */
+		if ( ! empty( self::$unresolved ) ) {
+			echo '<div class="notice notice-warning"><p>';
+			printf(
+				/* translators: %s: comma-separated names of the figures that could not be resolved. */
+				esc_html__( 'Des phrases ont été retirées de cette page parce que le chiffre qu’elles annoncent n’est réglé nulle part : %s. Renseignez-le dans les réglages, et les phrases réapparaissent.', 'teeshoop' ),
+				esc_html( implode( ', ', array_keys( self::$unresolved ) ) )
+			);
+			echo '</p></div>';
 		}
 
 		if ( '' === $key ) {
@@ -644,7 +739,26 @@ final class Content {
 		if ( null !== $pages ) {
 			return $pages;
 		}
-		$pages = require __DIR__ . '/../data/copy.php';
-		return is_array( $pages ) ? $pages : array();
+		/*
+		 * A MISSING OR BROKEN COPY FILE COSTS THE COPY, NOT THE SHOP.
+		 *
+		 * `require` on an absent file is a fatal, and this runs on `wp_head` of
+		 * every page: a deploy that copied `includes/` and not `data/` would have
+		 * taken the whole storefront down rather than dropped some paragraphs.
+		 * `Hypotheses::rows()` already had this shape and for the same reason.
+		 */
+		$path = __DIR__ . '/../data/copy.php';
+		if ( ! is_readable( $path ) ) {
+			$pages = array();
+			return $pages;
+		}
+		try {
+			$pages = require $path;
+		} catch ( \Throwable $e ) {
+			$pages = array();
+			return $pages;
+		}
+		$pages = is_array( $pages ) ? $pages : array();
+		return $pages;
 	}
 }

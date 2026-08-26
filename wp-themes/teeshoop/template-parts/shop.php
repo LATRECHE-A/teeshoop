@@ -38,7 +38,15 @@ $ts_chips = applied_chips();
  * the reading part behind.
  */
 $ts_key   = $ts_term instanceof \WP_Term ? 'categorie:' . $ts_term->slug : ( is_shop() ? 'boutique' : '' );
-$ts_first = ! has_filters() && ! is_paged();
+/*
+ * A SORTED LISTING IS ONE OF THOSE VIEWS TOO, and it was missing from this
+ * test. `?orderby=price` is `noindex` like a filtered one, so rendering the
+ * category's 1 700 words under it costs the server the work and buys nothing.
+ * The condition is « is this the canonical view of the category », and the
+ * three ways of leaving it are a facet, a page number and a sort.
+ */
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading the URL shape of a public listing.
+$ts_first = ! has_filters() && ! is_paged() && ! isset( $_GET['orderby'] );
 $ts_copy  = '' !== $ts_key && $ts_first ? editorial( $ts_key ) : editorial( '' );
 ?>
 <div class="ts-shop ts-wrap">

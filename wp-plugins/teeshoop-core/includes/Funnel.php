@@ -120,13 +120,30 @@ final class Funnel {
 			)
 		);
 
+		/*
+		 * AND HOW MANY CARRY NO ESTIMATE, because zero has three meanings here.
+		 *
+		 * `Quote::submit()` stores `_ts_estimate_ht = 0` when the request names
+		 * no garment (the standalone /devis/ page posts product_id 0), when the
+		 * quantity is past the public grid, and when the quote threw. It records
+		 * which in `_ts_estimate_why`. Summing the meta blindly and printing the
+		 * total under « Demandes reçues : N » invites the obvious division, and
+		 * the average it gives is wrong by the ratio of priced to unpriced
+		 * requests. The origins block three tables lower already says its own
+		 * blind spot out loud; this one now does too.
+		 */
 		$estimated = 0;
+		$unpriced  = 0;
 		foreach ( $ids as $id ) {
 			$status = (string) get_post_status( (int) $id );
 			if ( isset( $by_status[ $status ] ) ) {
 				++$by_status[ $status ];
 			}
-			$estimated += (int) get_post_meta( (int) $id, '_ts_estimate_ht', true );
+			$cents      = (int) get_post_meta( (int) $id, '_ts_estimate_ht', true );
+			$estimated += $cents;
+			if ( $cents <= 0 ) {
+				++$unpriced;
+			}
 		}
 
 		$total    = count( $ids );
@@ -144,6 +161,7 @@ final class Funnel {
 			 */
 			'taux_accepte'  => $total > 0 ? $accepted / $total : null,
 			'estimation_ht' => $estimated,
+			'sans_estimation' => $unpriced,
 		);
 	}
 
@@ -166,18 +184,33 @@ final class Funnel {
 			);
 		}
 
+		/*
+		 * THE STATUSES ARE NAMED, not taken from whatever the registry holds.
+		 *
+		 * `wc_get_order_statuses()` is filtered, and the block checkout adds
+		 * `wc-checkout-draft` to it: WooCommerce's Store API creates one of those
+		 * rows as soon as a visitor touches the form, and its own comment calls
+		 * them "orphaned rows from form interactions that never complete". Taking
+		 * the registry wholesale therefore counted a browser who typed a postcode
+		 * and left as a « commande passée », in the denominator of the devis to
+		 * order ratio the associate reads. Worse, a daily cron deletes expired
+		 * drafts, so a closed month kept shrinking every time the report was run.
+		 */
+		$statuses = array_values( array_diff( array_keys( wc_get_order_statuses() ), array( 'wc-checkout-draft' ) ) );
+
 		$orders = wc_get_orders(
 			array(
 				'limit'        => -1,
 				'type'         => 'shop_order',
-				'status'       => array_keys( wc_get_order_statuses() ),
+				'status'       => $statuses,
 				'date_created' => $from . '...' . $to,
 				'return'       => 'objects',
 			)
 		);
 
-		$paid  = 0;
-		$total = 0;
+		$paid     = 0;
+		$invoiced = 0;
+		$refunded = 0;
 		foreach ( $orders as $order ) {
 			if ( ! $order instanceof \WC_Order ) {
 				continue;
@@ -187,15 +220,28 @@ final class Funnel {
 				// Integer cents, like every other amount in this plugin. A float
 				// total summed over a month is how a report and an invoice stop
 				// agreeing in the third decimal.
-				$total += Money::from_eur( (string) $order->get_total() );
+				$invoiced += Money::from_eur( (string) $order->get_total() );
+
+				/*
+				 * AND WHAT WENT BACK OUT. `get_total()` is the gross and does not
+				 * net a refund; `get_date_paid()` survives one, so a fully
+				 * refunded order counted as paid AND booked its whole total.
+				 * Measured on order 64867 of the mirror: 750,00 EUR, refunded in
+				 * two halves, status `wc-refunded`, and the screen read 750,00
+				 * EUR of cash. A refund is its own row rather than folded in, so
+				 * the two facts stay separable.
+				 */
+				$refunded += Money::from_eur( (string) $order->get_total_refunded() );
 			}
 		}
 
 		return array(
-			'total'   => count( $orders ),
-			'payees'  => $paid,
-			'ca_ttc'  => $total,
-			'lisible' => true,
+			'total'    => count( $orders ),
+			'payees'   => $paid,
+			'facture'  => $invoiced,
+			'rembourse' => $refunded,
+			'ca_ttc'   => $invoiced - $refunded,
+			'lisible'  => true,
 		);
 	}
 
@@ -330,8 +376,10 @@ final class Funnel {
 					? esc_html__( 'sans objet', 'teeshoop' )
 					: Money::number( $devis['taux_accepte'] * 100, 1 ) . "\u{00A0}%"
 			);
-			self::row( __( 'Estimation cumulée des demandes', 'teeshoop' ), Money::format( (int) $devis['estimation_ht'] ) );
+			self::row( __( 'Estimation cumulée des demandes, hors taxes', 'teeshoop' ), Money::format( (int) $devis['estimation_ht'] ) );
+			self::row( __( 'Dont demandes sans estimation', 'teeshoop' ), (string) (int) $devis['sans_estimation'] );
 			echo '</tbody></table>';
+			echo '<p class="description">' . esc_html__( 'Une demande sans estimation ne vaut pas zéro : elle ne nomme aucun article, ou sa quantité dépasse la grille publique. Diviser l’estimation cumulée par le nombre de demandes donne donc une moyenne fausse tant que cette ligne n’est pas nulle.', 'teeshoop' ) . '</p>';
 
 			self::render_origins( (array) $report['par_origine'], (int) $devis['total'] );
 		}
@@ -343,8 +391,11 @@ final class Funnel {
 			echo '<table class="widefat striped" style="max-width:48rem"><tbody>';
 			self::row( __( 'Commandes passées', 'teeshoop' ), (string) (int) $orders['total'] );
 			self::row( __( 'Dont payées', 'teeshoop' ), (string) (int) $orders['payees'] );
-			self::row( __( 'Encaissé, toutes taxes comprises', 'teeshoop' ), Money::format( (int) $orders['ca_ttc'] ) );
+			self::row( __( 'Facturé, toutes taxes comprises', 'teeshoop' ), Money::format( (int) $orders['facture'] ) );
+			self::row( __( 'Remboursé', 'teeshoop' ), Money::format( (int) $orders['rembourse'] ) );
+			self::row( __( 'Net, toutes taxes comprises', 'teeshoop' ), Money::format( (int) $orders['ca_ttc'] ) );
 			echo '</tbody></table>';
+			echo '<p class="description">' . esc_html__( 'Les brouillons que le tunnel de commande crée quand un visiteur touche le formulaire sans jamais payer ne sont pas comptés. Une commande remboursée reste comptée comme payée, et son remboursement figure sur sa propre ligne : « payée » et « encaissée » ne sont pas la même chose.', 'teeshoop' ) . '</p>';
 		}
 	}
 

@@ -128,8 +128,21 @@ final class Seo {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading the path of a public listing.
-		$path = (string) ( $_SERVER['REQUEST_URI'] ?? '' );
-		if ( ! preg_match( '#/page/1/?(\?|$)#', $path ) ) {
+		$uri = (string) ( $_SERVER['REQUEST_URI'] ?? '' );
+
+		/*
+		 * THE PATH ONLY, never the whole request line.
+		 *
+		 * Tested against the full URI, `?paged=1&z=/page/1` matched: the query
+		 * argument sets `paged` to 1 and the literal `/page/1` at the end of the
+		 * string satisfied the pattern, so the rebuilt target was the requested
+		 * URL and the shop answered 301 to itself forever. Measured with
+		 * `curl -L --max-redirs 8`: eight hops, unchanged URL. Browsers cache a
+		 * 301, so one such link in a backlink or a Search Console inspection is a
+		 * permanent loop on the domain.
+		 */
+		$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+		if ( ! preg_match( '#/page/1/?$#', $path ) ) {
 			return;
 		}
 
@@ -140,9 +153,18 @@ final class Seo {
 
 		// Query arguments survive: a sorted or filtered first page is still that
 		// request, and dropping them here would answer a question nobody asked.
-		$query = (string) wp_parse_url( $path, PHP_URL_QUERY );
+		$query = (string) wp_parse_url( $uri, PHP_URL_QUERY );
 		if ( '' !== $query ) {
 			$target .= ( str_contains( $target, '?' ) ? '&' : '?' ) . $query;
+		}
+
+		/*
+		 * AND A REDIRECT TO ONESELF IS NOT A REDIRECT. The belt to the pattern's
+		 * braces: whatever else changes above, this function may never answer
+		 * with the URL it was asked for.
+		 */
+		if ( untrailingslashit( $target ) === untrailingslashit( home_url( $uri ) ) ) {
+			return;
 		}
 
 		wp_safe_redirect( $target, 301 );
@@ -191,6 +213,19 @@ final class Seo {
 		 */
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading the URL shape of a public listing; nothing is written.
 		if ( isset( $_GET['orderby'] ) || isset( $_GET['product_orderby'] ) ) {
+			$noindex = true;
+		}
+
+		/*
+		 * THE CONSENT PANEL'S OWN FLAG, which is on a link in the footer of every
+		 * page. `?cookies=1` renders the same document with the panel open, so
+		 * without this every URL on the site had a crawlable twin, published from
+		 * the one link that is guaranteed to be on every page. `Consent` needs the
+		 * flag to be a plain link so that withdrawal works with no JavaScript;
+		 * this is the other half of that decision.
+		 */
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading a navigation flag.
+		if ( isset( $_GET['cookies'] ) ) {
 			$noindex = true;
 		}
 
@@ -703,8 +738,19 @@ final class Seo {
 			}
 			$trail[] = array( __( 'Accueil', 'teeshoop' ), home_url( '/' ) );
 
+			/*
+			 * THE TRAIL MAY ONLY NAME PAGES WE ASK TO BE INDEXED.
+			 *
+			 * `deepest()` picked the leaf, and the leaf is exactly what
+			 * `robots()` above marks `noindex` for being a near-duplicate of its
+			 * parent: 274 of the mirror's product pages published a breadcrumb
+			 * whose middle step was a URL the same file tells Google to drop.
+			 * Filtering first means the trail ends on the family, which is the
+			 * page we actually want the crawl to reach.
+			 */
 			$terms = get_the_terms( $product->get_id(), 'product_cat' );
 			$term  = is_array( $terms ) ? self::deepest( $terms ) : null;
+			$term  = $term instanceof \WP_Term ? self::nearest_indexable( $term ) : null;
 			if ( $term instanceof \WP_Term ) {
 				foreach ( array_reverse( get_ancestors( $term->term_id, 'product_cat' ) ) as $ancestor ) {
 					$parent = get_term( (int) $ancestor, 'product_cat' );
@@ -744,6 +790,31 @@ final class Seo {
 			'@id'             => self::canonical() . '#fil',
 			'itemListElement' => $items,
 		);
+	}
+
+	/**
+	 * The deepest step of a trail that we are asking to have indexed.
+	 *
+	 * A reference is filed on the LEAF, and the leaf is what `robots()` marks
+	 * `noindex` for being a near-duplicate of its parent: 274 of the mirror's
+	 * product pages published a breadcrumb whose middle step was a URL the same
+	 * file tells Google to drop. Filtering the assigned terms was the first
+	 * attempt and it removed the trail altogether, because the family the
+	 * product belongs to is an ANCESTOR and not one of its own terms. So this
+	 * climbs instead: the same category, one step up at a time, until it reaches
+	 * a page we actually want the crawl to land on.
+	 */
+	private static function nearest_indexable( \WP_Term $term ): ?\WP_Term {
+		if ( self::indexable_term( $term ) ) {
+			return $term;
+		}
+		foreach ( array_reverse( get_ancestors( $term->term_id, 'product_cat' ) ) as $id ) {
+			$parent = get_term( (int) $id, 'product_cat' );
+			if ( $parent instanceof \WP_Term && self::indexable_term( $parent ) ) {
+				return $parent;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -899,7 +970,16 @@ final class Seo {
 				'pad_counts' => true,
 			)
 		);
+		/*
+		 * AN ERROR PUBLISHES NOTHING, not the default. Returning `$args`
+		 * untouched restores core's `hide_empty` behaviour, which is precisely
+		 * the list this function exists to correct: the two families we most want
+		 * indexed are the two it drops. "We could not look" is not "here is the
+		 * answer", and an empty sitemap section is the honest failure.
+		 */
 		if ( is_wp_error( $terms ) || ! is_array( $terms ) ) {
+			$args['include']    = array( 0 );
+			$args['hide_empty'] = false;
 			return $args;
 		}
 

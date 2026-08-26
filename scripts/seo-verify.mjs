@@ -166,6 +166,19 @@ const PAGES = [
   { name: 'devis', path: '/devis/', index: true, ld: ['BreadcrumbList', 'Organization'] },
   { name: 'entreprises', path: '/entreprises/', index: true, ld: ['BreadcrumbList', 'Organization'] },
   { name: 'panier', path: '/cart/', index: false },
+  /*
+   * THE SIX SECTOR PAGES AND THE GUIDE, which carry most of the words this
+   * session wrote and which the first version of this file never fetched: a
+   * gate that checks the plumbing and skips the pages is a gate that reports
+   * green over five thousand unchecked words.
+   */
+  { name: 'associations', path: '/associations/', index: true, ld: ['BreadcrumbList', 'Organization'], copy: true },
+  { name: 'clubs sportifs', path: '/clubs-sportifs/', index: true, ld: ['BreadcrumbList', 'Organization'], copy: true },
+  { name: 'evenementiel', path: '/evenementiel/', index: true, ld: ['BreadcrumbList', 'Organization'], copy: true },
+  { name: 'restauration', path: '/restauration/', index: true, ld: ['BreadcrumbList', 'Organization'], copy: true },
+  { name: 'petites series', path: '/petites-series/', index: true, ld: ['BreadcrumbList', 'Organization'], copy: true },
+  { name: 'guide fichiers', path: '/fichiers-impression/', index: true, ld: ['BreadcrumbList', 'Organization'], copy: true },
+  { name: 'panneau de consentement', path: '/?cookies=1', index: false },
 ]
 
 /* ------------------------------------------------------------------- run */
@@ -268,6 +281,37 @@ for (const page of pageList) {
     const positions = (crumbs.itemListElement || []).map((i) => i.position)
     const contiguous = positions.every((p, i) => p === i + 1)
     ok(`${page.name} : le fil d'Ariane est numéroté 1..n`, contiguous && positions.length > 1, positions.join(','))
+  }
+
+  if (page.copy) {
+    const words = wordsAfter(html, 'ts-edito')
+    ok(`${page.name} porte une vraie page et pas un gabarit vide`, words >= 500, `${words} mots`)
+    /*
+     * THE CLAIMS WE MAY NOT MAKE, checked on the page rather than trusted to the
+     * writing. Every one of these is a sentence somebody would reasonably want
+     * to write and that this shop cannot back today: a delivery we do not hold,
+     * a minimum we do not honour, a garment we do not sell, an address we have
+     * not been given.
+     */
+    const banned = [
+      /\bà l['\u2019]unité\b/i,
+      /\bdès 1 pièce\b/i,
+      /\bsans minimum\b/i,
+      /\blivraison (express|rapide)\b/i,
+      /\bsous 24\s*h\b/i,
+      /\bBobigny\b/,
+    ]
+    /*
+     * A GARMENT WE DO NOT SELL IS NOT ON THIS LIST, and that is the lesson from
+     * the first run: it flagged « veste de cuisine » on the restauration page,
+     * where the sentence is « Pas au catalogue : veste de cuisine, tablier,
+     * toque ». Naming what we do not make is exactly what those pages are
+     * supposed to do, and a check that forbids the word forbids the honesty. A
+     * regular expression cannot tell a claim from its denial, so this list holds
+     * only phrases that are a promise in any sentence they appear in.
+     */
+    const said = banned.filter((re) => re.test(html)).map((re) => String(re))
+    ok(`${page.name} ne promet rien que la boutique ne tienne`, said.length === 0, said.join(' '))
   }
 
   ok(`${page.name} n'a rien à dire à un crawler sur une autre langue`, !/hreflang/.test(html), '')
@@ -373,7 +417,15 @@ for (const page of pageList) {
   const functional = pageUrls.filter((u) => /\/(cart|checkout|my-account|panier|commander|mon-compte)\//.test(u))
   ok('le plan de site ne propose pas des pages qui se déclarent noindex', functional.length === 0, functional.join(' '))
 
-  ok('aucune fixture de test au plan de site', !productPaths.some((p) => /e2e|repro-tee|marge-demo|achat-demo|bat-tee/.test(p)), productPaths.filter((p) => /e2e|repro/.test(p)).join(' '))
+  /*
+   * NAMED FOR WHAT IT ACTUALLY LOOKS AT. It used to be called "no test fixture
+   * in the sitemap" while reading one two lines above: `t-shirt-personnalisable`
+   * and `teeshoop-demo-tee` ARE in there and are meant to be, because they carry
+   * no `exclude-from-catalog` term and are the only purchasable products on the
+   * mirror. What this checks is the five that were deliberately hidden from the
+   * catalogue and were being handed to Google anyway.
+   */
+  ok('aucun produit masqué du catalogue au plan de site', !productPaths.some((p) => /e2e|repro-tee|marge-demo|achat-demo|bat-tee/.test(p)), productPaths.filter((p) => /e2e|repro/.test(p)).join(' '))
 
   /*
    * A URL WE INVITE GOOGLE TO CRAWL MUST NOT THEN REFUSE TO BE INDEXED.
@@ -419,11 +471,30 @@ for (const page of pageList) {
   ok('le formulaire de choix porte un jeton', Boolean(nonce), '')
 
   if (nonce) {
-    const post = async (field) => {
+    /*
+     * THE ORIGIN HEADER IS SENT, because a browser sends it and the shop now
+     * requires it. `fetch` in Node does not add one, so a check written without
+     * it would be testing the refusal path and reporting it as the happy one.
+     */
+    const post = async (field, origin = BASE) => {
       const body = new URLSearchParams({ action: 'teeshoop_consentement', _wpnonce: nonce, retour: `${BASE}/`, [field]: '1' })
-      const res = await fetch(`${BASE}/wp-admin/admin-post.php`, { method: 'POST', body, redirect: 'manual' })
+      const headers = origin ? { origin } : {}
+      const res = await fetch(`${BASE}/wp-admin/admin-post.php`, { method: 'POST', body, headers, redirect: 'manual' })
       return { status: res.status, cookies: res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie') || ''] }
     }
+
+    /*
+     * A CONSENT A THIRD PARTY CAN CAUSE IS NOT A CONSENT, and this is the check
+     * for it. WordPress computes one nonce for ALL logged-out visitors and
+     * prints it in every public page, so the nonce alone lets any site
+     * auto-submit a form that makes our visitor "accept everything". The origin
+     * is what refuses it, and a missing origin is refused too: "we could not
+     * tell" is not "it is us".
+     */
+    const forged = await post('tout', 'https://evil.tld')
+    ok('un site tiers ne peut pas accepter à la place du visiteur', !forged.cookies.some((c) => c.startsWith('teeshoop_choix=')), forged.cookies.join(' ').slice(0, 80))
+    const headless = await post('tout', '')
+    ok('une requête sans origine est refusée plutôt que crue', !headless.cookies.some((c) => c.startsWith('teeshoop_choix=')), headless.cookies.join(' ').slice(0, 80))
 
     const refused = await post('rien')
     ok('refuser enregistre le refus', refused.status === 303 && refused.cookies.some((c) => /teeshoop_choix=v1[^;]*%3A(;|$)/.test(c)), refused.cookies.join(' | ').slice(0, 120))

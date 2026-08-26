@@ -260,8 +260,18 @@
  * underneath.
  */
 .ts-consent {
-	position: fixed;
-	inset: auto 0 0 0;
+	/*
+	 * STICKY AND NOT FIXED, so nothing on the page is permanently unreachable.
+	 *
+	 * Fixed, the strip sat over the bottom of every page for as long as the
+	 * visitor had not chosen. `npm run verify:site` found it by trying to click
+	 * a facet chip and timing out: « ts-consent subtree intercepts pointer
+	 * events ». Sticky keeps it pinned to the bottom of the viewport while there
+	 * is page left below it, and lets it settle into the flow at the end of the
+	 * document, so scrolling to the end always frees whatever it was covering.
+	 */
+	position: sticky;
+	bottom: 0;
 	z-index: 60;
 	padding: var(--ts-space-3);
 	background: var(--ts-paper);

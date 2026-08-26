@@ -701,6 +701,7 @@ final class Cli {
 		self::ensure_shipping_zone( $changed );
 		self::ensure_permalinks( $changed );
 		self::ensure_classic_theme( $changed );
+		self::ensure_no_demo_content( $changed );
 		self::ensure_french_shop_pages( $changed );
 		self::ensure_site_pages( $changed );
 		self::ensure_settings( $assoc_args, $changed );
@@ -1173,6 +1174,41 @@ final class Cli {
 				)
 			);
 			$changed[] = 'titre de la page ' . $page->post_name;
+		}
+	}
+
+	/**
+	 * WordPress's own two demonstration items, to the bin.
+	 *
+	 * « Sample Page » and « Hello world! » are published on every fresh install,
+	 * they are linked from nothing, and they are in the sitemap: the shop was
+	 * inviting Google to index a page whose content is "This is an example page"
+	 * and a post whose content is "Welcome to WordPress". They also keep the
+	 * `post` post type and the `category` taxonomy alive in the sitemap index,
+	 * which is why two empty sections were being published.
+	 *
+	 * TRASHED, NOT DELETED, and only when they are still WordPress's own: the
+	 * slug has to match AND the item has to be untouched since it was created.
+	 * Somebody who wrote real content over the sample page keeps it.
+	 */
+	private static function ensure_no_demo_content( array &$changed ): void {
+		foreach ( array( 'sample-page' => 'page', 'hello-world' => 'post' ) as $slug => $type ) {
+			$post = get_page_by_path( $slug, OBJECT, $type );
+			if ( ! $post instanceof \WP_Post || 'publish' !== $post->post_status ) {
+				continue;
+			}
+			if ( $post->post_modified_gmt !== $post->post_date_gmt ) {
+				\WP_CLI::warning(
+					sprintf(
+						/* translators: %s: the slug of a WordPress demonstration item somebody has edited. */
+						__( '« %s » a été modifié depuis sa création : laissé en place. Supprimez-le à la main si ce n’est pas du contenu.', 'teeshoop' ),
+						$slug
+					)
+				);
+				continue;
+			}
+			wp_trash_post( $post->ID );
+			$changed[] = 'corbeille : ' . $slug;
 		}
 	}
 
