@@ -117,7 +117,7 @@ return array(
 			'level' => 'important',
 			'status' => 'assumption',
 			'since' => '2026-08-12',
-			'statement_fr' => 'Les remises de quantité sont de 15 % à partir de 10 pièces, 25 % à partir de 25 et 35 % à partir de 50, appliquées au prix unitaire complet.',
+			'statement_fr' => 'Les remises de quantité sont de 15 % à partir de 10 pièces, 25 % à partir de 25 et 35 % à partir de 50, appliquées au prix unitaire complet, et le palier se calcule sur la quantité d\'une seule ligne de panier et non sur le panier entier.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#qty_breaks',
 			'reaches' => array(
 				'customer',
@@ -126,6 +126,7 @@ return array(
 			'cost_if_late' => 'reglage et remesure',
 			'sessions' => array(
 				'05',
+				'11',
 			),
 		),
 		array(
@@ -161,6 +162,7 @@ return array(
 			'sessions' => array(
 				'04',
 				'05',
+				'11',
 			),
 		),
 		array(
@@ -340,6 +342,7 @@ return array(
 			'sessions' => array(
 				'09',
 				'10',
+				'11',
 			),
 		),
 		array(
@@ -429,6 +432,7 @@ return array(
 			'sessions' => array(
 				'04',
 				'05',
+				'11',
 			),
 		),
 		array(
@@ -447,6 +451,7 @@ return array(
 			'sessions' => array(
 				'04',
 				'05',
+				'11',
 			),
 		),
 		array(
@@ -573,6 +578,7 @@ return array(
 			'sessions' => array(
 				'04',
 				'09',
+				'11',
 			),
 		),
 		array(
@@ -785,6 +791,7 @@ return array(
 			'sessions' => array(
 				'07',
 				'09',
+				'11',
 			),
 		),
 		array(

@@ -43,6 +43,19 @@ const PAGES = [
   ['studio', '/product/teeshoop-demo-tee/?personnaliser=1'],
   ['devis', '/devis/'],
   ['entreprises', '/entreprises/'],
+  /*
+   * The pages session 11 added. They are here rather than in a suite of their
+   * own because every assertion below applies to them and to nothing else in
+   * this file: one h1, no sideways scroll at 375 px, an alt on every image, no
+   * placeholder text. A landing page is where placeholder text survives longest,
+   * because nobody opens it twice.
+   */
+  ['associations', '/associations/'],
+  ['clubs', '/clubs-sportifs/'],
+  ['evenementiel', '/evenementiel/'],
+  ['restauration', '/restauration/'],
+  ['petites-series', '/petites-series/'],
+  ['fichiers', '/fichiers-impression/'],
 ]
 
 /* Words that must never survive into a shipped page. */

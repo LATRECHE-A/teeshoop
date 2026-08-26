@@ -36,7 +36,22 @@ français et `templates/teeshoop/product-price-grid.php` la reprend telle quelle
 panier est la surprise classique. Notre grille dit « impression comprise » à chaque ligne.
 
 **La dégressivité porte sur le panier entier, pas sur la ligne** (mistertee). Commercialement
-juste et clairement expliqué chez eux ; c'est aussi ce que fait `Pricing`.
+juste et clairement expliqué chez eux.
+
+*Corrigé le 26 août 2026, et ce n'est pas un détail de rédaction.* Cette ligne se terminait
+par « c'est aussi ce que fait `Pricing` ». C'est faux. `Cart::recalculate()` appelle
+`Pricing::quote()` une fois par ligne de panier, avec `'qty' => (int) $item['quantity']`,
+et `Pricing::qty_discount()` lit ce nombre-là. **Le palier de quantité se calcule donc sur
+une seule référence, jamais sur le panier.** Vingt t-shirts et dix polos dans le même panier
+ne déclenchent pas le palier de trente : ils déclenchent celui de vingt et celui de dix.
+
+Le **minimum de commande**, lui, porte bien sur le panier entier
+(`Checkout::check_minimum()` compte `get_cart_contents_count()`). Les deux règles ne se
+calculent donc pas sur la même base, et un acheteur rencontre les deux dans le même panier.
+
+Trouvé en relisant une phrase de la copie de la séance 11 qui reprenait cette affirmation
+telle quelle, ce qui l'aurait publiée à un client. La copie dit maintenant ce que le code
+fait. Le choix commercial, lui, appartient à l'associé : c'est la **question 54**.
 
 **Un bandeau de réassurance qui affirme des choses vérifiables** (mistertee) : « Imprimé en
 France, dans nos ateliers au Mans », « Visuels vérifiés manuellement par nos graphistes ».

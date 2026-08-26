@@ -1606,6 +1606,14 @@ celui qui montre au client le moins flatteur des deux, jamais mieux que ce qu'il
 *Ce qu'il nous faut :* sous-couche blanche systématique, seulement sur textile foncé, ou
 jamais. Et si elle est systématique, est-elle facturée à part.
 
+*Ce que la séance 11 a failli publier, le 26 août 2026 :* le guide « Quel fichier envoyer »
+expliquait au client qu'« une sous-couche blanche est déposée sous les couleurs, donc un
+visuel clair reste clair sur un vêtement foncé ». C'est probablement vrai, personne ne l'a
+confirmé, et c'était écrit deux fois sur une page publique. La phrase a été remplacée par ce
+que nous savons : l'aperçu montre le rendu le plus prudent des deux, et le client ne recevra
+jamais moins bon que ce qu'il a vu. Le jour de votre réponse, c'est un argument de vente en
+plus ou une phrase à ne jamais écrire.
+
 **Votre réponse :**
 
 > 
@@ -1664,6 +1672,80 @@ ajusté pour masquer le nombre.
 lise « soir » plutôt que « nuit ». **Poser un fond plus clair** derrière le vêtement, ce qui
 garde la nuit mais change le décor. Ou **retirer la scène nuit** du sélecteur, ce qui ne
 coûte rien puisque les cinq autres passent.
+
+**Votre réponse :**
+
+> 
+
+### 54. La remise par quantité se calcule-t-elle sur une seule référence ou sur le panier entier ?
+
+**Important**
+
+*Pourquoi on a besoin de la réponse :* aujourd'hui, le site ne fait pas la même chose des
+deux côtés du même panier, et un client rencontre les deux règles en même temps.
+
+- Le **minimum de commande** porte sur le panier entier : cinq pièces au total, quelles que
+  soient les références.
+- La **remise par quantité** porte sur une seule ligne : `Cart::recalculate()` demande un
+  prix à `Pricing::quote()` référence par référence, avec la quantité de cette ligne.
+
+Concrètement : vingt t-shirts et dix polos dans le même panier n'atteignent pas le palier
+de trente pièces. Ils atteignent celui de vingt et celui de dix, et le client paie plus cher
+que s'il avait commandé trente t-shirts. C'est précisément le cas d'une association qui
+habille ses bénévoles en t-shirt et son bureau en polo, ou d'un restaurant qui prend des
+polos pour la salle et des t-shirts pour la plonge : notre client type mélange les
+références, et c'est là que la règle mord.
+
+Votre concurrent direct, mistertee.fr, applique la dégressivité au panier entier et
+l'explique clairement sur sa page d'aide.
+
+*Comment nous l'avons trouvé, parce que cela dit ce qu'il faut en penser :* en relisant une
+phrase de la copie du site qui affirmait que la remise portait sur le panier. Elle venait de
+notre propre document de veille concurrentielle (`docs/CONCURRENTS.md`), qui écrivait « c'est
+aussi ce que fait `Pricing` ». C'était faux, et personne ne l'avait vérifié dans le code.
+Nous l'avons corrigé dans le document et dans la copie.
+
+*Si vous ne répondez pas, on partira sur :* la règle actuelle, la remise par référence, et
+la copie du site le dit en toutes lettres plutôt que de laisser croire l'inverse. Nous ne
+changeons pas un calcul de prix sans votre accord.
+
+*Ce que coûte chaque réponse :* garder la règle actuelle ne coûte rien. Passer au panier
+entier est un développement réel, pas un réglage : il faut recalculer toutes les lignes
+quand une seule bouge, et refaire les tests du panier, du devis et de la facture. Comptez
+une journée, et une remesure de tous les montants que nous avons publiés.
+
+**Votre réponse :**
+
+> 
+
+### 55. Voulez-vous une fiche Google Business Profile, et à quelle adresse ?
+
+**Important**
+
+*Pourquoi on a besoin de la réponse :* c'est la seule façon d'apparaître sur
+« t-shirt personnalisé entreprise Paris » et sur « flocage textile Île-de-France ». Nous
+avons regardé qui se classe réellement sur ces deux requêtes le 26 août 2026 : en première
+position, un annuaire (pagesjaunes.fr), puis des ateliers franciliens qui ont chacun une
+page de ville et une fiche Google. Aucun de nos deux concurrents cités en exemple n'a de
+page de ville : mistertee.fr n'en a aucune sur ses 968 adresses.
+
+Une fiche Google Business Profile demande une adresse vérifiable (Google envoie un code par
+courrier ou demande une vidéo des locaux) et un numéro de téléphone. Nous n'avons ni l'un ni
+l'autre : la question 17 sur l'identité légale n'a pas de réponse, et le site n'affiche
+donc aujourd'hui aucune ville et aucun téléphone.
+
+*Ce que nous n'avons pas construit, et pourquoi :* une page « Textile personnalisé en
+Île-de-France » qui ne peut donner ni adresse, ni téléphone, ni horaires. Google appelle ce
+genre de page une *doorway page* et c'est une infraction à ses règles, pas une astuce. Nous
+préférons ne pas la faire plutôt que la faire à moitié.
+
+*Si vous ne répondez pas, on partira sur :* pas de fiche Google, pas de page de ville,
+aucune mention géographique sur le site en dehors de « imprimé en France ». Le site ne
+cherche pas à se classer sur une requête locale.
+
+*Ce qu'il nous faut :* l'adresse exacte de l'atelier, un numéro de téléphone que quelqu'un
+décroche, et vos horaires d'ouverture. C'est une démarche d'une heure chez vous, et elle
+débloque le seul canal de recherche où un nouveau site peut se classer vite.
 
 **Votre réponse :**
 

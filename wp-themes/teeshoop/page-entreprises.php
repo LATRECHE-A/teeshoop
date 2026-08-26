@@ -29,7 +29,18 @@ $ts_bases = price_bases();
 ?>
 <div class="ts-wrap ts-prose">
 	<p class="ts-eyebrow"><?php esc_html_e( 'Entreprises, associations, collectivités', 'teeshoop' ); ?></p>
-	<h1 class="ts-prose__title"><?php the_title(); ?></h1>
+	<?php
+	/*
+	 * The heading a buyer reads is not the title an operator sees in the list of
+	 * pages. « Entreprises et associations » names the page in the admin; the h1
+	 * carries the words people actually type. `Content` holds it, and the page
+	 * falls back to its own title when there is none.
+	 */
+	$ts_copy = editorial( 'page:entreprises' );
+	?>
+	<h1 class="ts-prose__title">
+		<?php echo esc_html( '' !== $ts_copy['h1'] ? $ts_copy['h1'] : get_the_title() ); ?>
+	</h1>
 
 	<p class="ts-lead">
 		<?php esc_html_e( 'Vous vous occupez de votre entreprise. Teeshoop s’occupe de votre image textile, de la création à la livraison.', 'teeshoop' ); ?>
@@ -192,5 +203,15 @@ if ( '' !== $ts_garment && class_exists( '\\Teeshoop\\Core\\Pricing' ) && define
 <?php endif; ?>
 
 <?php
+/*
+ * The editorial copy, under everything the page computes.
+ *
+ * Same rule as a category listing and for the same measured reason: five French
+ * competitors out of five put their long copy below the thing the visitor came
+ * for. Here that thing is the sector blocks, the administrative answers and the
+ * price grid, all of which are drawn from the code above.
+ */
+editorial_body( $ts_copy, 'ts-edito-entreprises' );
+
 advice_block();
 get_footer();

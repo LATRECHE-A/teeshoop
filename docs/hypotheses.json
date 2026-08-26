@@ -358,7 +358,7 @@
 			"level": "important",
 			"status": "assumption",
 			"since": "2026-08-12",
-			"statement_fr": "Les remises de quantité sont de 15 % à partir de 10 pièces, 25 % à partir de 25 et 35 % à partir de 50, appliquées au prix unitaire complet.",
+			"statement_fr": "Les remises de quantité sont de 15 % à partir de 10 pièces, 25 % à partir de 25 et 35 % à partir de 50, appliquées au prix unitaire complet, et le palier se calcule sur la quantité d'une seule ligne de panier et non sur le panier entier.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#qty_breaks",
 			"mirrors": [
 				{
@@ -377,10 +377,12 @@
 				"operator"
 			],
 			"derives": [
-				"Les colonnes de la grille publique (1, 10, 25, 50, 100) sont déduites de ces paliers : changer les paliers change la grille, et l'hypothèse par défaut de la question 08 en annonce six et non cinq."
+				"Les colonnes de la grille publique (1, 10, 25, 50, 100) sont déduites de ces paliers : changer les paliers change la grille, et l'hypothèse par défaut de la question 08 en annonce six et non cinq.",
+				"La copie des pages de secteur et de catégorie (séance 11) explique au client que le palier porte sur une seule référence, jamais sur le panier. C'est la question 54 : si l'associé bascule sur le panier entier, ces phrases deviennent fausses le jour même."
 			],
 			"sessions": [
-				"05"
+				"05",
+				"11"
 			],
 			"cost_if_late": "reglage et remesure",
 			"label_fr": "Le prix par quantité",
@@ -508,10 +510,13 @@
 				"customer",
 				"operator"
 			],
-			"derives": [],
+			"derives": [
+				"Publié par la copie de la séance 11 comme la frontière entre le panier et le devis. Il est dit avec son jumeau en euros, parce que `Pricing::needs_quote()` déclenche sur l'un OU sur l'autre."
+			],
 			"sessions": [
 				"04",
-				"05"
+				"05",
+				"11"
 			],
 			"cost_if_late": "on refait",
 			"label_fr": "la commande est chiffrée à la main",
@@ -983,10 +988,13 @@
 				"customer",
 				"printer"
 			],
-			"derives": [],
+			"derives": [
+				"Toute la copie de la séance 11 repose dessus : « le DTF est la seule technique commandable en ligne, la broderie, le flocage et la sublimation passent par un devis », et « la broderie est sous-traitée, nous n'annonçons pas de délai pour elle ». Treize pages le disent. Si l'associé ouvre une deuxième technique en autonomie, c'est de la réécriture et pas un réglage."
+			],
 			"sessions": [
 				"09",
-				"10"
+				"10",
+				"11"
 			],
 			"cost_if_late": "on refait",
 			"label_fr": "Zones d’impression",
@@ -1174,11 +1182,13 @@
 				"operator"
 			],
 			"derives": [
-				"La première colonne de la grille publique, qui commence désormais au minimum et non à 1 pièce."
+				"La première colonne de la grille publique, qui commence désormais au minimum et non à 1 pièce.",
+				"Les treize pages de copie de la séance 11 publient ce seuil en toutes lettres, dans une intro, une FAQ et souvent un conseil d'achat. Il est écrit comme un emplacement et non comme un chiffre, donc il suit, mais les phrases qui l'entourent (« nous ne vendons pas à l'unité », « le réassort repasse par le même minimum ») deviennent fausses si l'associé descend le minimum."
 			],
 			"sessions": [
 				"04",
-				"05"
+				"05",
+				"11"
 			],
 			"cost_if_late": "on refait",
 			"label_fr": "Nous produisons à partir de",
@@ -1218,10 +1228,13 @@
 				"customer",
 				"operator"
 			],
-			"derives": [],
+			"derives": [
+				"Publié à côté du nombre de pièces sur les treize pages de la séance 11, parce qu'annoncer une seule des deux conditions envoie l'acheteur se faire refuser au panier sur l'autre."
+			],
 			"sessions": [
 				"04",
-				"05"
+				"05",
+				"11"
 			],
 			"cost_if_late": "on refait",
 			"label_fr": "hors taxes pour atteindre le minimum",
@@ -1516,11 +1529,13 @@
 				"operator"
 			],
 			"derives": [
-				"Le taux de TVA applicable : la Guadeloupe et La Réunion sont à 8,5 % et la Guyane et Mayotte hors champ, aucune n'est sur cette grille."
+				"Le taux de TVA applicable : la Guadeloupe et La Réunion sont à 8,5 % et la Guyane et Mayotte hors champ, aucune n'est sur cette grille.",
+				"La séance 11 en déduit qu'aucune balise hreflang n'est émise et que le site ne déclare qu'une langue. La copie annonce la livraison Colissimo en France métropolitaine sur chaque page de secteur."
 			],
 			"sessions": [
 				"04",
-				"09"
+				"09",
+				"11"
 			],
 			"cost_if_late": "on refait",
 			"label_fr": "Nous livrons aujourd’hui en France métropolitaine",
@@ -2684,11 +2699,13 @@
 			"derives": [
 				"Les six jours ouvrés de marge que ce délai laisse en achetant le film en France, et les trois en l'achetant en Espagne (tests/test-production.php).",
 				"Le fait que le standard soit le seul des trois délais où l'origine espagnole tienne.",
-				"La ligne « Fabrication : 12 jours ouvrés, à partir de votre bon à tirer validé » sur l'accueil, dans le pied de page, sur la page devis et sur la page entreprises (séance 09)."
+				"La ligne « Fabrication : 12 jours ouvrés, à partir de votre bon à tirer validé » sur l'accueil, dans le pied de page, sur la page devis et sur la page entreprises (séance 09).",
+				"C'est le SEUL délai publié sur le site, et la séance 11 le répète sur chaque page de secteur, avec la phrase qui l'accompagne : « nous ne publions pas de délai plus court, parce que nous ne le tiendrions pas ». La page événementiel est construite entièrement autour de ce nombre, en compte à rebours depuis la date du client."
 			],
 			"sessions": [
 				"07",
-				"09"
+				"09",
+				"11"
 			],
 			"cost_if_late": "reglage et remesure",
 			"shipped_matches_default": "Oui, c'est l'hypothèse par défaut de la question 14 reprise telle quelle. Ce que la séance 07 y ajoute est qu'elle est désormais exécutable : elle décide la date à laquelle le film doit être commandé et donc l'origine. La séance 09 le PUBLIE, et publie celui-là seul. L'express (7 jours) et l'urgence (4 jours) restent internes parce que la séance 07 a mesuré 6 jours ouvrés de travail incompressible entre un bon à tirer validé et un colis : l'urgence est en retard de deux jours au moment où le client valide, et l'express tient à un jour près. Publier une promesse qu'on a soi-même mesurée comme intenable est une pratique commerciale trompeuse, donc les deux sont traitées au cas par cas, sur devis. Le chiffre publié est aussi cadré : « à partir de la validation du bon à tirer », jamais « livré le ».",
@@ -3040,9 +3057,12 @@
 			"reaches": [
 				"customer"
 			],
-			"derives": [],
+			"derives": [
+				"La séance 11 écrit quatorze mille mots dans ce registre, sur treize pages. Le ton n'est pas un réglage : le changer veut dire réécrire."
+			],
 			"sessions": [
-				"09"
+				"09",
+				"11"
 			],
 			"cost_if_late": "reglage",
 			"label_fr": "Vous vous occupez de votre entreprise",
@@ -3062,9 +3082,12 @@
 			"reaches": [
 				"customer"
 			],
-			"derives": [],
+			"derives": [
+				"« Imprimé en France » est publié sur les treize pages de la séance 11 et c'est le seul argument géographique du site, faute d'adresse. Si l'atelier sous-traite hors de France, ces treize pages deviennent fausses le jour même."
+			],
 			"sessions": [
-				"09"
+				"09",
+				"11"
 			],
 			"cost_if_late": "reglage",
 			"label_fr": "imprimé en France",

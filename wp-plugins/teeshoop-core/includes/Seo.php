@@ -941,6 +941,20 @@ final class Seo {
 		if ( '' === $name || ! function_exists( 'wp_sitemaps_get_server' ) ) {
 			return;
 		}
+		/*
+		 * `index` IS NOT A PROVIDER, and it is the sitemap index itself.
+		 *
+		 * Core sets `sitemap=index` for `/wp-sitemap.xml` and renders it from
+		 * `WP_Sitemaps::$index` rather than from the registry, so looking it up
+		 * there returns nothing. Without this line the index answered 404 with
+		 * the correct XML inside it: `template_redirect` at priority 1 sent the
+		 * status, core rendered the body at priority 10, and every crawler read
+		 * a 404 on the one URL robots.txt points at. Found by
+		 * `npm run verify:seo` on its first run.
+		 */
+		if ( 'index' === $name ) {
+			return;
+		}
 		if ( wp_sitemaps_get_server()->registry->get_provider( $name ) ) {
 			return;
 		}

@@ -49,7 +49,8 @@
     "verify:render": "node scripts/render-verify.mjs",
     "verify:mockups": "node scripts/mockup-shots.mjs",
     "bench:frame": "node scripts/frame-bench.mjs",
-    "verify:leak": "node scripts/leak-verify.mjs"
+    "verify:leak": "node scripts/leak-verify.mjs",
+    "verify:seo": "node scripts/seo-verify.mjs"
   },
   "keywords": [],
   "type": "module",

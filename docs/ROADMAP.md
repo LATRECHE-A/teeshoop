@@ -968,6 +968,71 @@ classé.
   l'horloge. C'est le même défaut que les quatre corrigés dans le contrôle de rendu : attendre
   une durée au lieu d'attendre un signal.
 
+**Se faire trouver (séance 11).** Le site existait et ne disait rien à un moteur de
+recherche. Quatre défauts ont été trouvés en interrogeant le miroir plutôt qu'en relisant le
+code, et deux sont graves.
+
+**Le plan de site omettait T-shirts et Polos**, c'est-à-dire les deux pages que toute la
+séance existe pour classer. Le fournisseur de plan de site de WordPress filtre sur
+`hide_empty`, donc sur la colonne brute `wp_term_taxonomy.count`, et WooCommerce y compte les
+produits rattachés **directement** au terme. Notre import rattache presque tout à la feuille :
+`t-shirts` porte 0 en brut contre 139 chez son enfant, `polos` porte 2 contre 102. Le plan de
+site publiait donc `uncategorized` et trois enfants quasi identiques à leur parent, et pas les
+trois familles. `inc/filters.php` documentait déjà cette colonne comme non fiable et la
+contournait pour les facettes ; le plan de site, lui, lui faisait confiance.
+
+**460 des 463 fiches produit n'émettaient aucune donnée structurée.**
+`WC_Structured_Data::generate_product_data()` se termine par
+`if ( empty( aggregateRating ) && empty( offers ) && empty( review ) ) return;`. Une référence
+importée n'a ni prix publié (questions 41 et 42), ni note, ni avis : WooCommerce sortait avant
+d'émettre quoi que ce soit, et avant d'appliquer le filtre que `ProductPage` enregistre
+justement pour que le prix lu par une machine soit le prix lu par un humain. Nous émettons
+désormais le nœud `Product` nous-mêmes, **sans clé `offers`**, parce qu'il n'y a pas de prix à
+annoncer et qu'un prix annoncé est une offre de vente en France.
+
+**Aucune archive ne portait de canonical.** `rel_canonical()` de WordPress ne se déclenche que
+sur `is_singular()`, donc `?orderby=price`, `?paged=2`, `?utm_source=x` et `/page/1/` étaient
+quatre copies indexables de chaque liste. `/page/1/` servait les mêmes 28 produits que la
+racine de la catégorie, à l'octet près, et la flèche « précédent » de la page 2 pointait
+dessus.
+
+**Et la règle qu'il est facile de prendre à l'envers : une page en `noindex` n'imprime aucun
+canonical.** Les deux consignes se contredisent et le `noindex` peut voyager le long du
+canonical. Chaque liste filtrée est en `noindex` et aurait pointé vers sa catégorie, donc les
+filtres auraient pu désindexer les pages qu'ils desservent. Ce n'est pas théorique :
+mistertee.fr sert aujourd'hui les deux consignes ensemble sur ses URL de facette. `Seo` ne
+décide pas qui est en `noindex`, il **observe** le tableau `wp_robots` final à `PHP_INT_MAX`.
+
+**Les pages qui se classent ne sont presque jamais des pages catégorie**, et c'est mesuré :
+sur douze requêtes relevées, la page d'atterrissage construite pour l'intention en gagne sept,
+la catégorie trois, l'éditorial deux. Six pages de secteur et un guide ont donc été écrits,
+avec la copie de catégorie, **sous** la grille produits parce que cinq concurrents sur cinq y
+mettent la leur (0 à 145 mots au-dessus, 809 à 3 239 en dessous).
+
+**Aucun chiffre de cette copie n'est écrit dans la copie.** Chaque montant, chaque délai et
+chaque dimension est un emplacement que `Content::fill()` résout depuis l'autorité de prix, le
+calendrier de l'atelier et la géométrie du studio, et **une phrase dont l'emplacement ne se
+résout pas est supprimée** plutôt que rendue à zéro.
+
+**Et l'écriture de cette copie a trouvé une erreur dans notre propre documentation.** Un
+brouillon affirmait que la remise par quantité porte sur le panier entier, en reprenant
+`docs/CONCURRENTS.md`, qui écrivait « c'est aussi ce que fait `Pricing` ». C'est faux :
+`Cart::recalculate()` demande un prix référence par référence, avec la quantité de cette
+ligne. Vingt t-shirts et dix polos n'atteignent pas le palier de trente. Le minimum, lui,
+porte bien sur le panier entier. Le document est corrigé, la copie dit ce que le code fait, et
+c'est la **question 54**.
+
+**Le consentement est un formulaire, sans une ligne de JavaScript.** Mesuré au bocal à
+cookies : une première visite ne dépose rien, « Tout refuser » enregistre le refus et supprime
+le traceur dans la même réponse, et le traceur n'est écrit qu'à la requête suivant une
+acceptation. Les deux boutons sont une seule règle CSS employée deux fois, donc ils ne peuvent
+pas diverger, et « refuser » est écrit en premier.
+
+**Le tunnel se compte sur des enregistrements et non sur un traceur** : une demande de devis
+est un article avec un statut, une commande est une commande avec un total. Aucune permission
+n'est nécessaire pour les compter, et cela coûte une requête par rapport plutôt qu'une
+écriture par page vue.
+
 ---
 
 ## Ce qu'il reste : quinze séances
@@ -988,7 +1053,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~08~~ | ~~Commande fournisseur et stock~~ **faite** | - |
 | ~~09~~ | ~~Le site : accueil, navigation, système de design~~ **faite** | - |
 | 10 | Le studio en vitrine : 3D et mockups. **L'aperçu 3D d'un vêtement du catalogue est fait, mesuré et gardé** ; la vue portée est refusée par écrit, et les mockups ne sont relus par personne (voir « Ce que la séance 10 n'a pas fait » ci-dessus) | 09 |
-| 11 | Référencement, contenu, données structurées | 09 |
+| ~~11~~ | ~~Référencement, contenu, données structurées~~ **faite**. Une page manque et le refus est écrit : la page Île-de-France, qui a besoin d'une adresse (questions 17 et 55) | - |
 | 12 | Juridique, RGPD, accessibilité | 09 |
 | 13 | Performance, sécurité, supervision | 09, 10 |
 | 13b | Les réponses de l'associé, et redire la vérité | 13 |

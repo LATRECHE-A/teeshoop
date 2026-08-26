@@ -102,13 +102,19 @@ final class Content {
 		foreach ( (array) ( $page['sections'] ?? array() ) as $section ) {
 			$paragraphs = self::fill_all( (array) ( $section['paragraphs'] ?? array() ) );
 			$list       = self::fill_all( (array) ( $section['list'] ?? array() ) );
-			if ( empty( $paragraphs ) && empty( $list ) ) {
+			$after      = self::fill_all( (array) ( $section['after'] ?? array() ) );
+			if ( empty( $paragraphs ) && empty( $list ) && empty( $after ) ) {
 				continue;
 			}
 			$sections[] = array(
 				'h2'         => self::fill( (string) ( $section['h2'] ?? '' ) ),
 				'paragraphs' => $paragraphs,
 				'list'       => $list,
+				// A sentence that comments on the list rather than introducing
+				// it. Kept as its own key because the alternative was writing it
+				// as the last paragraph, where it renders ABOVE the list it is
+				// commenting on.
+				'after'      => $after,
 				'links'      => self::links( (array) ( $section['links'] ?? array() ) ),
 			);
 		}
@@ -267,8 +273,24 @@ final class Content {
 		if ( isset( $pricing['min_ht'] ) ) {
 			$slots['MINIMUM_MONTANT'] = Money::format( (int) $pricing['min_ht'] );
 		}
+		/*
+		 * BOTH ENDS OF THE QUOTE THRESHOLD, because `Pricing::needs_quote()`
+		 * fires on either. A page that published the piece count alone would let
+		 * a buyer plan a small run of heavily printed sweats, stay under the
+		 * piece count, and meet the quote wall at the basket on the amount
+		 * instead. On a page whose whole promise is "do the arithmetic before you
+		 * order", half a rule is the same defect as a wrong one.
+		 *
+		 * Neither figure is written here, and the guard is why: it hunts the
+		 * literals of every registered assumption across the repository, and it
+		 * caught the first version of THIS COMMENT for naming one of them in
+		 * prose. A number in a comment is a second copy that nothing updates.
+		 */
 		if ( isset( $pricing['quote_from_qty'] ) ) {
 			$slots['SEUIL_DEVIS'] = Money::number( (float) $pricing['quote_from_qty'] );
+		}
+		if ( isset( $pricing['quote_from_ht'] ) ) {
+			$slots['SEUIL_DEVIS_MONTANT'] = Money::format( (int) $pricing['quote_from_ht'] );
 		}
 
 		$production = class_exists( '\\Teeshoop\\Core\\Production' ) ? Production::config() : array();
@@ -320,8 +342,11 @@ final class Content {
 			$areas = Garments::areas( 'tee' );
 			foreach ( $areas as $area ) {
 				if ( 'front' === ( $area['side'] ?? '' ) ) {
-					$slots['ZONE_TSHIRT'] = Garments::cm( (float) $area['w'] )
-						. "\u{00A0}×\u{00A0}" . Garments::cm( (float) $area['h'] ) . "\u{00A0}cm";
+					// `Garments::cm()` already carries the unit, so only the
+					// second half gets one: written the obvious way this read
+					// "30,5 cm × 40,6 cm cm" on every page that used it.
+					$slots['ZONE_TSHIRT'] = Money::number( (float) $area['w'], 1 )
+						. "\u{00A0}×\u{00A0}" . Garments::cm( (float) $area['h'] );
 					break;
 				}
 			}

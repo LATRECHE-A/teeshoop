@@ -1197,6 +1197,31 @@ final class Cli {
 			// heading itself, and the page would open on the same six words twice.
 			'devis'       => __( 'Un devis pour votre projet', 'teeshoop' ),
 			'entreprises' => __( 'Entreprises et associations', 'teeshoop' ),
+
+			/*
+			 * THE SECTOR PAGES, and the title here is not the heading.
+			 *
+			 * What WordPress stores is what an operator reads in a list of
+			 * pages, so it is short. The `h1` a buyer and a crawler read comes
+			 * from `Content::page()` and carries the words people actually
+			 * search, which is a different string on purpose: « Associations »
+			 * in the admin, « Des t-shirts et des sweats personnalisés pour
+			 * votre association » on the page.
+			 *
+			 * THE SLUGS ARE SHORT RATHER THAN EXACT-MATCH. Both shapes are on
+			 * the market: vetement-publicitaire.com runs 31 landing pages at
+			 * `/t-shirt-personnalise/`-style slugs and mistertee.fr runs its
+			 * sectors at `/professionnels/btp`. Words in a URL are a very small
+			 * ranking factor and a slug is expensive to change once anything
+			 * links to it, so these are the short ones. The query lives in the
+			 * title and the heading, where it earns the click.
+			 */
+			'associations'        => __( 'Associations', 'teeshoop' ),
+			'clubs-sportifs'      => __( 'Clubs sportifs', 'teeshoop' ),
+			'evenementiel'        => __( 'Événementiel', 'teeshoop' ),
+			'restauration'        => __( 'Restauration', 'teeshoop' ),
+			'petites-series'      => __( 'Petites séries', 'teeshoop' ),
+			'fichiers-impression' => __( 'Quel fichier envoyer', 'teeshoop' ),
 		);
 
 		foreach ( $pages as $slug => $title ) {

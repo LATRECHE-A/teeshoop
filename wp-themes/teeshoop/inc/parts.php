@@ -419,6 +419,9 @@ function editorial_body( array $page, string $id = 'ts-edito' ): void {
 						<?php endforeach; ?>
 					</ul>
 				<?php endif; ?>
+				<?php foreach ( (array) ( $ts_section['after'] ?? array() ) as $ts_p ) : ?>
+					<p><?php echo esc_html( (string) $ts_p ); ?></p>
+				<?php endforeach; ?>
 				<?php if ( ! empty( $ts_section['links'] ) ) : ?>
 					<p class="ts-edito__links">
 						<?php foreach ( (array) $ts_section['links'] as $ts_link ) : ?>
