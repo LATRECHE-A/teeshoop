@@ -818,6 +818,42 @@ try {
       )
 
       /*
+       * THE RENONCIATION, WHICH THIS HARNESS HAS BEEN TICKING SINCE SESSION 06
+       * AND NEVER ASSERTED ON.
+       *
+       * The mirror runs the BLOCK checkout, so `Waiver::freeze_block` is the
+       * live half, and it was the untested one: the classic path had four
+       * integration cases and this one had none. It is the shop's only defence
+       * against a fourteen-day withdrawal on a printed garment, and a defence
+       * whose only evidence is that somebody clicked a checkbox in a browser is
+       * not one.
+       *
+       * The version matters as much as the date. It was recorded as the empty
+       * string for four sessions because `Legal::cgv_version()` read an option
+       * with no writer, so an order could say WHEN the customer accepted and
+       * not WHICH terms they accepted.
+       */
+      const waiver = placed.renonciation ?? {}
+      ok('the order really carries a personalised line to waive over', waiver.applies === true)
+      ok('the renonciation was recorded at all', (waiver.at ?? '') !== '', waiver.at ?? 'rien')
+      ok(
+        'it holds the exact sentence the customer was shown, not a note that a box existed',
+        waiver.text === waiver.expected_text,
+        (waiver.text ?? '').slice(0, 60),
+      )
+      ok(
+        'it names the version of the conditions in force, and that version is one we can produce',
+        (waiver.cgv ?? '') !== '' && waiver.cgv === waiver.expected_cgv,
+        `${waiver.cgv} vs ${waiver.expected_cgv}`,
+      )
+      ok(
+        'and it was taken no later than the order it belongs to',
+        Date.parse(waiver.at ?? '') <= Date.parse(waiver.created ?? '') + 2000,
+        `${waiver.at} <= ${waiver.created}`,
+      )
+      ok('it does not carry a forwarded address', (waiver.ip ?? '') !== '', waiver.ip ?? 'rien')
+
+      /*
        * AND A GET MAY NOT NUMBER AN INVOICE. This route used to issue one when
        * there was none, so anyone holding the order key, which the customer has
        * in their order-received URL and in every e-mail, could spend a number

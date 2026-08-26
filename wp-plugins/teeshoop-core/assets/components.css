@@ -277,6 +277,96 @@
 	background: var(--ts-paper);
 	border-top: 2px solid var(--ts-ink);
 	box-shadow: var(--ts-elev-2);
+
+	/*
+	 * AND CAPPED, BECAUSE STICKY WAS NOT ENOUGH.
+	 *
+	 * Measured in Chromium on 26/08/2026: the strip was 601 px of an 812 px
+	 * viewport at 375 px wide, 74 % of the screen, and it still intercepted
+	 * pointer events over everything under it. `npm run verify:wp-e2e` had been
+	 * red since session 11 for exactly that reason and nobody had run it: the
+	 * studio's own bottom navigation sat under the strip and Playwright timed
+	 * out clicking « Imports » with « ts-consent subtree intercepts pointer
+	 * events », which is the same sentence the comment above records from the
+	 * previous round. Sticky frees what it covers only when you reach the end of
+	 * the document, and inside a full-height iframe there is no end to reach.
+	 *
+	 * So the height is bounded and the SAME bound is reserved at the foot of the
+	 * document (see `--ts-consent-h` below). Nothing is ever permanently under
+	 * it, `scroll-padding` tells the browser where the floor really is when it
+	 * scrolls a focused control into view, and WCAG 2.2's 2.4.11 Focus Not
+	 * Obscured stops being failed by a panel the visitor never opened.
+	 */
+	max-block-size: var(--ts-consent-h);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+/*
+ * The floor the strip may occupy, and the space the page keeps free for it.
+ *
+ * One number, used three times: the strip's own ceiling, the padding under the
+ * document and the scroll padding. Three copies of it would be three chances
+ * for the reserve to stop matching the thing it reserves for.
+ */
+:root {
+	/*
+	 * 26rem, MEASURED AND NOT CHOSEN. At 24rem the panel's own content came to
+	 * 410 px against 382 px of room at 375 px wide, so the link to the privacy
+	 * notice fell below an internal scroll: a control that is there and that
+	 * nobody would find. The three buttons were above it and reachable, but a
+	 * panel that has to be scrolled to be read whole is a panel somebody will
+	 * shorten by moving a button. 26rem is 416 px, six more than the content
+	 * needs at the narrowest width the shop supports.
+	 */
+	--ts-consent-h: 26rem;
+}
+
+/*
+ * ONLY WHILE THE STRIP IS THERE. `:has()` is what lets this be CSS rather than
+ * a body class set by a script: the panel has to work with JavaScript off, so
+ * everything about it must.
+ */
+html:has(.ts-consent) {
+	scroll-padding-block-end: var(--ts-consent-h);
+}
+
+body:has(.ts-consent) {
+	padding-block-end: var(--ts-consent-h);
+}
+
+/*
+ * AND ON THE EDITOR, IT DOES NOT FLOAT AT ALL.
+ *
+ * The personalisation view is a tool that fills the window: the frame is
+ * `min(85dvh, 900px)` and its own navigation is pinned to ITS bottom. Reserving
+ * space under the document does not help there, because there is no scroll
+ * position that puts a viewport-tall tool's floor above a viewport-anchored
+ * strip. Measured: `npm run verify:wp-e2e` timed out clicking « Imports » with
+ * « ts-consent subtree intercepts pointer events », twice, before and after the
+ * cap.
+ *
+ * So wherever a studio frame is on the page, whether it was reached by pressing
+ * « Personnaliser » or embedded in the product page itself, the panel sits in
+ * the flow at the end of the page and floats over nothing. The condition is the
+ * FRAME's own container and not the view wrapper, because the e2e product
+ * embeds the editor inline and the first version of this rule matched only the
+ * view: right reasoning, wrong selector, and the harness said so. That costs nothing in law: this view is reached by pressing
+ * « Personnaliser », so the visitor has expressly asked for the tool, and the
+ * shop still writes nothing to their machine before they choose. The permanent
+ * control in the footer is unchanged, and so is the banner on every other page.
+ *
+ * `:has()` rather than a body class, because the panel has to work with
+ * JavaScript off and so must everything about it.
+ */
+body:has(.teeshoop-studio) .ts-consent {
+	position: static;
+	max-block-size: none;
+	overflow: visible;
+}
+
+body:has(.teeshoop-studio) {
+	padding-block-end: 0;
 }
 
 .ts-consent__box {
@@ -320,6 +410,29 @@
 	max-width: var(--ts-measure);
 	font-size: var(--ts-text-sm);
 	color: var(--ts-muted);
+}
+
+/*
+ * THE DETAIL IS FOLDED AND THE CHOICE IS NOT.
+ *
+ * What the CNIL asks to be immediate is the DECISION: one click to refuse, one
+ * to accept, at the same level. What it asks to be clear is the PURPOSE, and the
+ * purpose is the label beside the checkbox, which stays visible. Ninety words
+ * explaining which three strings are written and for how long is information the
+ * visitor is entitled to and does not need in order to decide, and it was two
+ * hundred of the six hundred pixels this panel took on a phone.
+ *
+ * A `<details>` and not a script, like everything else here.
+ */
+.ts-consent__why > summary {
+	margin: 0.25rem 0 0 1.65rem;
+	font-size: var(--ts-text-sm);
+	color: var(--ts-muted);
+	cursor: pointer;
+}
+
+.ts-consent__why[open] > summary {
+	margin-bottom: 0.25rem;
 }
 
 .ts-consent__acts {

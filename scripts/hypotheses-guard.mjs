@@ -121,6 +121,12 @@ const STRING_TABLE_ROOTS = [
   // Added in session 09. The theme is where most of what a customer READS now
   // lives, so a `label_fr` that only exists there has to count as said out loud.
   'wp-themes/teeshoop',
+  // Added in session 12. `data/copy.php` is the editorial copy of thirteen pages
+  // and `data/cgv/*.php` are the dated conditions of sale: both are shipped
+  // French a customer reads, and a clause of a contract is about as said out
+  // loud as a sentence gets. The directory was outside this list only because
+  // nothing had needed it yet.
+  'wp-plugins/teeshoop-core/data',
 ]
 const STRING_TABLE_EXT = new Set(['.ts', '.tsx', '.php'])
 

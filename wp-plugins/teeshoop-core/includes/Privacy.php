@@ -54,6 +54,7 @@ namespace Teeshoop\Core;
 defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 require_once __DIR__ . '/Design.php';
+require_once __DIR__ . '/Money.php';
 
 final class Privacy {
 
@@ -179,7 +180,18 @@ final class Privacy {
 					'La page d’arrivée, le site référent et la campagne, lorsque le visiteur les a autorisés',
 				),
 				'destinataires' => array( 'o2switch' ),
-				'duree'         => 'Trois ans après le dernier échange.',
+				/*
+				 * THE NUMBER COMES FROM ITS HOME, not from this sentence. It is
+				 * announced under the quote form, written into the conditions of
+				 * sale and printed here; three copies of a retention period is
+				 * how one of them ends up describing a sweep that deletes on a
+				 * different day. `Quote::KEEP_DAYS` is the one that the cron
+				 * actually reads.
+				 */
+				'duree'         => sprintf(
+					'Conservée %s jours après le dernier échange, soit trois ans, puis supprimée automatiquement.',
+					Money::number( (float) Quote::KEEP_DAYS )
+				),
 				'mecanisme'     => 'Suppression automatique quotidienne (Quote::purge).',
 			),
 			array(
@@ -207,7 +219,10 @@ final class Privacy {
 					'Le corps du message n’est pas conservé.',
 				),
 				'destinataires' => array( 'brevo', 'o2switch' ),
-				'duree'         => 'Deux ans, alignés sur la garantie légale de conformité.',
+				'duree'         => sprintf(
+					'Conservée %s jours, soit deux ans, alignés sur la garantie légale de conformité.',
+					Money::number( (float) self::OUTBOX_KEEP_DAYS )
+				),
 				'mecanisme'     => 'Suppression automatique quotidienne (Privacy::purge_outbox).',
 			),
 			array(

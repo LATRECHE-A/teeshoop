@@ -502,7 +502,13 @@
 			"since": "2026-08-14",
 			"statement_fr": "Au-delà de 250 pièces sur une ligne, la commande passe obligatoirement par un devis au lieu d'être payée en autonomie.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#quote_from_qty",
-			"mirrors": [],
+			"mirrors": [
+				{
+					"ref": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-08-26.php#Au-delà de 250 pièces",
+					"relation": "equal",
+					"why": "les conditions générales annoncent le seuil en toutes lettres, et une version publiée ne se modifie plus : le chiffre y est GELÉ délibérément, et c'est `Terms::checked()` qui refuse la divergence en exigeant qu'une nouvelle version datée soit publiée plutôt qu'un texte corrigé sur place. L'ancre est là pour que la seconde copie soit déclarée et non tolérée."
+				}
+			],
 			"literals": [
 				"250"
 			],
@@ -511,7 +517,8 @@
 				"operator"
 			],
 			"derives": [
-				"Publié par la copie de la séance 11 comme la frontière entre le panier et le devis. Il est dit avec son jumeau en euros, parce que `Pricing::needs_quote()` déclenche sur l'un OU sur l'autre."
+				"Publié par la copie de la séance 11 comme la frontière entre le panier et le devis. Il est dit avec son jumeau en euros, parce que `Pricing::needs_quote()` déclenche sur l'un OU sur l'autre.",
+				"La phrase des conditions générales de vente « Au-delà de 250 pièces ou de 2 000,00 EUR hors taxes sur une même ligne, la commande passe par un devis », gelée dans la version du 26/08/2026 et vérifiée par Terms::checked()."
 			],
 			"sessions": [
 				"04",

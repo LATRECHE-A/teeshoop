@@ -183,43 +183,95 @@ final class Waiver {
 						'location' => 'order',
 						'type'     => 'checkbox',
 						/*
-						 * REQUIRED, which the block enforces itself. The classic
-						 * checkout needs its own validator above because a
-						 * `required` attribute is a browser hint and nothing
-						 * more: a POST built by hand carries no checkbox and no
-						 * browser refused it.
+						 * OPTIONAL HERE, AND REFUSED IN `freeze_block` INSTEAD.
 						 *
-						 * AND IT IS REQUIRED ON EVERY BASKET, WHICH IS WRONG AND
-						 * IS WRITTEN DOWN RATHER THAN PAPERED OVER. The Store
-						 * API validates a registered field's `required` flag on
-						 * every checkout POST, with no way to make it depend on
-						 * the cart, so a basket carrying nothing personalised is
-						 * asked to waive a right it keeps. The classic checkout
-						 * does not have that fault (`classic_field` and
-						 * `classic_validate` both ask `needed()` first).
+						 * This was `true`, with a comment saying the fault it
+						 * caused could not bite because the catalogue is
+						 * browsable and not purchasable. THAT CLAIM WAS FALSE
+						 * when it was checked: on the mirror, product 10
+						 * « T-shirt personnalisable » is published, visible,
+						 * priced, `is_purchasable()` true, carries no
+						 * `_teeshoop_*` meta, and
+						 * `woocommerce_add_to_cart_validation` lets it through.
+						 * So `?add-to-cart=10` reaches the block checkout with a
+						 * basket carrying nothing personalised, and the customer
+						 * is made to waive a right they keep before they can pay,
+						 * which is an unfair term.
 						 *
-						 * It cannot bite today: `H-Q41-CATALOGUE-CONSULTABLE`
-						 * and `H-Q42-MARGE-TEXTILE-NU` mean the catalogue is
-						 * browsable and not purchasable, so every basket that
-						 * reaches a checkout contains a personalised line. It
-						 * bites the day a blank garment can be bought, which is
-						 * session 09's business, and the fix is to register the
-						 * field as optional and refuse in
-						 * `woocommerce_store_api_checkout_update_order_from_request`
-						 * instead. Doing that now would trade a fault nothing
-						 * can reach for a change nothing here can test.
+						 * The register itself said so: H-Q42-MARGE-TEXTILE-NU's
+						 * own `derives` field reads « la phrase devient fausse le
+						 * jour où le taux est posé ». A safety property that
+						 * depends on nobody having left a priced product
+						 * published is not a safety property.
+						 *
+						 * WooCommerce 11.0.1 does offer a conditional `required`
+						 * (an array of rules instead of `true`), and it is NOT
+						 * usable here: the rules are only evaluated when the
+						 * `experimental-blocks` feature is on, which it is not,
+						 * and its DocumentObject exposes item counts and totals
+						 * rather than per-item design meta. Registered optional,
+						 * it would simply never enforce anything.
+						 *
+						 * So the refusal is server side, on the order, where the
+						 * lines are, and it throws a `RouteException` that
+						 * WooCommerce turns into a 400. The order stays a
+						 * `checkout-draft` and is never paid.
 						 */
-						'required' => true,
+						'required' => false,
 					)
 				);
 			}
 		);
 	}
 
+	/**
+	 * The block checkout's half: refuse, or record.
+	 *
+	 * `'1' === …` AND NOT `'' !== …`, WHICH IS THE HIGHEST-SEVERITY FIX IN THIS
+	 * FILE. WooCommerce stores an unticked additional-field checkbox as the
+	 * STRING '0', not as an empty value: « Convert boolean values to strings
+	 * because Data Stores will skip false values » (CheckoutFields.php), and its
+	 * own reader casts it back with `'1' === $value`. Ours asked whether the meta
+	 * was non-empty, and '0' is not empty. While the field was `required` the
+	 * schema pinned it to `enum [true]` and nothing could reach the bug; the
+	 * moment the field became optional, which is the change above and the change
+	 * the previous comment in this file recommended, an unticked box would have
+	 * frozen a record asserting that the customer accepted, with the exact
+	 * sentence and their IP address. Fabricated evidence, written by us, in the
+	 * one record whose whole purpose is to be believed.
+	 *
+	 * @throws \Automattic\WooCommerce\StoreApi\Exceptions\RouteException When a
+	 *         personalised basket has not been acknowledged.
+	 */
 	public static function freeze_block( \WC_Order $order ): void {
-		if ( '' !== (string) $order->get_meta( self::BLOCK_KEY, true ) ) {
-			self::freeze( $order );
+		$ticked = '1' === (string) $order->get_meta( self::BLOCK_KEY, true );
+
+		/*
+		 * NOTHING PERSONALISED, NOTHING TO WAIVE, AND NO RECORD EITHER. This used
+		 * to write a waiver on any basket whose field was non-empty, including
+		 * one carrying only blank garments: `invoice_line()` then printed nothing
+		 * because `applies()` is false, so the row sat in the order meta,
+		 * invisible to everyone, asserting that a customer had given up a right
+		 * they in fact kept.
+		 *
+		 * `applies()` reads the ORDER's line items rather than the cart, and they
+		 * exist by now: WooCommerce's own docblock on this hook says it is
+		 * « called only with a real, persisted order », created from the cart at
+		 * its first save-point.
+		 */
+		if ( ! self::applies( $order ) ) {
+			return;
 		}
+
+		if ( ! $ticked ) {
+			throw new \Automattic\WooCommerce\StoreApi\Exceptions\RouteException(
+				'teeshoop_renonciation_requise',
+				esc_html__( 'Cochez la case sur les articles personnalisés : sans elle, nous ne pouvons pas lancer la fabrication.', 'teeshoop' ),
+				400
+			);
+		}
+
+		self::freeze( $order );
 	}
 
 	/**

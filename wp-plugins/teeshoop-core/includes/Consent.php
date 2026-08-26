@@ -809,7 +809,10 @@ final class Consent {
 								>
 								<span class="ts-consent__name"><?php echo esc_html( $ts_cat['label'] ); ?></span>
 							</label>
-							<p class="ts-consent__detail"><?php echo esc_html( $ts_cat['detail'] ); ?></p>
+							<details class="ts-consent__why">
+								<summary><?php esc_html_e( 'Ce que cela veut dire exactement', 'teeshoop' ); ?></summary>
+								<p class="ts-consent__detail"><?php echo esc_html( $ts_cat['detail'] ); ?></p>
+							</details>
 						</li>
 					<?php endforeach; ?>
 				</ul>

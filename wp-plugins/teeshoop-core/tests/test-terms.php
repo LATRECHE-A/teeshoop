@@ -237,7 +237,16 @@ describe(
 		it(
 			'writes money the way the rest of the shop writes it',
 			function () {
-				eq( Terms::french( 5000, 'eur' ), \Teeshoop\Core\Money::format( 5000 ), 'deux façons d’écrire un montant' );
+				/*
+				 * AN EXAMPLE MUST NOT BE A THRESHOLD. The first version of this
+				 * case used the order minimum as its sample amount, and the
+				 * register caught it: that figure has a home, and a second bare
+				 * copy of it anywhere else is exactly what `checkNoSecondCopy`
+				 * exists to find. It caught the second version too, because the
+				 * digits were still written in this comment. The scan reads the
+				 * whole file, comments included, and it is right to.
+				 */
+				eq( Terms::french( 123456, 'eur' ), \Teeshoop\Core\Money::format( 123456 ), 'deux façons d’écrire un montant' );
 			}
 		);
 
@@ -252,7 +261,7 @@ describe(
 		it(
 			'groups a large count the French way',
 			function () {
-				eq( Terms::french( 10000, 'int' ), '10' . "\u{202F}" . '000', 'un nombre mal groupé' );
+				eq( Terms::french( 12345, 'int' ), '12' . "\u{202F}" . '345', 'un nombre mal groupé' );
 			}
 		);
 	}

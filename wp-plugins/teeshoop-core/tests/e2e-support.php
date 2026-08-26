@@ -422,6 +422,29 @@ function ts_e2e_order( int $order_id, bool $confirm ) {
 				'version' => (string) $order->get_meta( \Teeshoop\Core\Checkout::META_VERSION, true ),
 				'config'  => '' !== (string) $order->get_meta( \Teeshoop\Core\Checkout::META_CONFIG, true ),
 			),
+			/*
+			 * THE ONE RECORD THE HARNESS TICKED AND NEVER LOOKED AT.
+			 *
+			 * `wp-e2e-verify.mjs` has ticked « J'accepte de perdre le droit de
+			 * rétractation » on every run since session 06 and asserted nothing
+			 * about it, and this payload had no field it could have asserted on.
+			 * The block checkout is the one the mirror uses, so `freeze_block`
+			 * was the only unexercised half of the shop's only defence against a
+			 * fourteen-day withdrawal on a printed garment.
+			 */
+			'renonciation'   => ( static function () use ( $order ): array {
+				$record = \Teeshoop\Core\Waiver::record( $order );
+				return array(
+					'applies' => \Teeshoop\Core\Waiver::applies( $order ),
+					'at'      => null === $record ? '' : (string) ( $record['at'] ?? '' ),
+					'ip'      => null === $record ? '' : (string) ( $record['ip'] ?? '' ),
+					'cgv'     => null === $record ? '' : (string) ( $record['cgv'] ?? '' ),
+					'text'    => null === $record ? '' : (string) ( $record['text'] ?? '' ),
+					'expected_text' => \Teeshoop\Core\Waiver::text(),
+					'expected_cgv'  => \Teeshoop\Core\Legal::cgv_version(),
+					'created'       => $order->get_date_created() ? $order->get_date_created()->date( 'c' ) : '',
+				);
+			} )(),
 			'invoice'        => array(
 				'number'   => null === $doc ? '' : (string) $doc['number'],
 				'total'    => null === $doc ? 0 : (int) $doc['total_ttc'],
