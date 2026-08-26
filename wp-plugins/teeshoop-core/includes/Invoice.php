@@ -677,6 +677,32 @@ final class Invoice {
 			);
 		}
 
+		/*
+		 * AN ERASED ORDER CAN NEVER BE INVOICED, AND THIS IS THE ONLY PLACE THAT
+		 * CAN STOP IT.
+		 *
+		 * The sequence between an erasure and a payment is ordinary and it was
+		 * measured: an order sits `on-hold` waiting for a transfer, so it is
+		 * unpaid and carries no invoice, and there is therefore nothing fiscal to
+		 * weigh against an erasure request. `Privacy::erase_order` empties the
+		 * buyer, correctly. The transfer then arrives, an operator moves the order
+		 * to `processing`, `on_status` fires, `is_paid()` is now true, and
+		 * `buyer()` reads the fields that were emptied. Measured on the mirror:
+		 * ESSAI2026-16260 issued with an empty company, an empty name and an empty
+		 * address, on a document an accountant keeps for ten years, having
+		 * consumed a number out of a sequence that is gapless by construction and
+		 * cannot give it back.
+		 *
+		 * Every other guard in this function looks at the SELLER or at the
+		 * regime. None of them looks at whether the buyer still exists.
+		 */
+		if ( '' !== (string) $order->get_meta( Privacy::META_ERASED, true ) ) {
+			return new \WP_Error(
+				'teeshoop_order_erased',
+				__( 'Les données de cette commande ont été effacées à la demande du client : aucune facture ne peut plus en être tirée, parce qu’elle ne porterait aucun acheteur. Si une facture était due, elle devait être émise avant l’effacement.', 'teeshoop' )
+			);
+		}
+
 		$identity = Legal::identity();
 		$verdict  = Legal::verdict( $identity, $regime, $environment );
 		if ( Legal::REFUSE === $verdict['action'] ) {

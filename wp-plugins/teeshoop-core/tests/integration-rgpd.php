@@ -423,6 +423,63 @@ function ts_rgpd_suite( int $product_id ): void {
 	);
 
 	ts_it(
+		'never issues an invoice for an order whose buyer has been erased',
+		function () use ( $product_id ) {
+			/*
+			 * THE ORDER OF EVENTS THAT PRODUCES A FACTURE WITH NO BUYER, and it is
+			 * an ordinary one. An order waits on-hold for a transfer, so it is
+			 * unpaid and has no invoice, so there is nothing fiscal to weigh
+			 * against an erasure. The customer asks; we empty the buyer. The
+			 * transfer then arrives, an operator moves the order to processing,
+			 * and the invoice hook fires on an order whose name and address are
+			 * blank, consuming a number out of a sequence that cannot give it
+			 * back.
+			 */
+			ts_rgpd_worker( 200 );
+
+			// Built without payment_complete: this case needs an order that has
+			// no invoice yet, which is what an unpaid one is.
+			ts_ck_fill( $product_id, 6, ts_lc_sides() );
+			$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+			$order->set_billing_email( 'facture-apres@example.test' );
+			$order->set_billing_first_name( 'Camille' );
+			$order->set_billing_last_name( 'Roux' );
+			$order->set_billing_address_1( '12 rue des Lilas' );
+			$order->set_status( 'on-hold' );
+			$order->save();
+
+			$fresh = wc_get_order( $order->get_id() );
+			ts_assert( ! $fresh->is_paid(), 'la commande de test est déjà payée, le cas ne prouve rien' );
+			ts_assert( count( Privacy::design_ids_of_order( $fresh ) ) > 0, 'la commande de test ne porte aucune création' );
+
+			Privacy::erase_order( $fresh );
+
+			$after = wc_get_order( $order->get_id() );
+			ts_eq( $after->get_billing_last_name(), '', 'l’effacement n’a rien fait, le cas ne prouve rien' );
+
+			/*
+			 * THE PAYMENT IS WHAT MAKES IT DANGEROUS, so the payment is what is
+			 * exercised. While the order is unpaid `Invoice::issue` already
+			 * refuses, for its own older reason; the moment the transfer is
+			 * confirmed that guard opens and `on_status` fires by itself.
+			 */
+			$after->payment_complete( 'ts-rgpd-apres-' . $after->get_id() );
+
+			$paid = wc_get_order( $order->get_id() );
+			ts_assert( $paid->is_paid(), 'la commande n’est pas passée au payé, le cas ne prouve rien' );
+			ts_eq(
+				(string) $paid->get_meta( \Teeshoop\Core\Invoice::META_NUMBER, true ),
+				'',
+				'le passage au paiement a numéroté une facture sans acheteur, et le numéro ne se rend pas'
+			);
+
+			$doc = \Teeshoop\Core\Invoice::issue( $paid );
+			ts_assert( is_wp_error( $doc ), 'une facture a été émise pour une commande sans acheteur' );
+			ts_eq( $doc->get_error_code(), 'teeshoop_order_erased', 'le refus n’est pas celui attendu' );
+		}
+	);
+
+	ts_it(
 		'ends the request rather than looping when nothing can be erased',
 		function () use ( $product_id ) {
 			/*
