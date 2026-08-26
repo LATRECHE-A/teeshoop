@@ -37,10 +37,47 @@
  * audience-measurement doctrine, so it is opt-in, and it is the thing this gate
  * gates.
  *
- * THE ADVERTISING CATEGORY IS DECLARED AND NOT OFFERED. No Google Ads or Meta
- * tag id is configured, so asking a visitor to consent to a tag that does not
- * exist would be collecting a permission for nothing. It appears in the panel
- * the day an id is stored, and `scripts/seo-verify.mjs` checks both states.
+ * AND THE OTHER THING THAT NEEDED IT WAS ALREADY RUNNING. WooCommerce 11's
+ * « Origine de la commande » enqueues sourcebuster on every front-end page and
+ * writes SEVEN first-party cookies from JavaScript before a visitor has been
+ * asked anything: `sbjs_first`, `sbjs_current`, their two `_add` twins, a
+ * `sbjs_session` page counter, `sbjs_migrations`, and `sbjs_udata`, which
+ * carries the full User-Agent string. Measured in Chromium on 26/08/2026 on a
+ * first, cookie-less arrival at `/?utm_source=google&utm_medium=cpc`:
+ *
+ *   sbjs_udata   = vst=1|||uip=(none)|||uag=Mozilla/5.0 (X11; Linux x86_64) …
+ *   sbjs_first   = typ=utm|||src=google|||mdm=cpc|||cmp=test|||…
+ *   sbjs_session = pgs=1|||cpg=http://localhost:8080/?utm_source=google&…
+ *
+ * Pressing « Tout refuser » changed nothing: on the next page `pgs` read 3.
+ * That is more than this file's own attribution cookie ever collected (a path
+ * with no query string, a referring host and a campaign), it is written before
+ * the choice rather than after it, and it lands on the ORDER as
+ * `_wc_order_attribution_user_agent` and `_wc_order_attribution_session_entry`
+ * beside a named, paying customer. It is the failure the CNIL fines by name.
+ *
+ * IT WAS INVISIBLE TO THE GATE THAT EXISTS. `scripts/seo-verify.mjs` asserts
+ * « une première visite ne dépose aucun traceur » by listing `Set-Cookie`
+ * headers on a raw fetch. A cookie written by `document.cookie` has no such
+ * header, so the assertion could not see it and the gate was green for four
+ * sessions. `scripts/consent-verify.mjs` drives a real browser for exactly this
+ * reason, and asserts on storage rather than on headers.
+ *
+ * SO THE SCRIPTS ARE NOT ENQUEUED AT ALL until the visitor allows it, which is
+ * rule 1 above taken literally, and any `sbjs_` cookie already on the machine is
+ * expired server side on the first request after a refusal. WooCommerce's own
+ * `wc_order_attribution_allow_tracking` filter is answered too, so that a code
+ * path which enqueues them some other way still finds tracking switched off.
+ * Both, because one of them is a belt.
+ *
+ * THE ADVERTISING CATEGORY IS GONE. It used to be declared here and offered the
+ * day an advertising tag id was stored in an option. Nothing in this repository
+ * loads an advertising tag, and `granted( 'publicite' )` had no reader anywhere,
+ * so storing an id would have made the banner ask a visitor for a permission
+ * that gated nothing while an operator believed the tag was under control. A
+ * permission nobody reads is worse than no permission. The day a tag is
+ * installed, the code that installs it declares the category and reads the
+ * gate, in one place, and `scripts/consent-verify.mjs` gains the assertion.
  *
  * IT WORKS WITHOUT JAVASCRIPT, and there is no JavaScript at all. The banner is
  * a form, the choice is a POST, the cookie is set by PHP on the redirect. This
@@ -79,8 +116,16 @@ final class Consent {
 	 * and reading an old consent as covering it is the exact thing consent is
 	 * supposed to prevent, so an older version is treated as no choice at all
 	 * and the visitor is asked again.
+	 *
+	 * 1 to 2 ON 26/08/2026, and this is the manoeuvre the paragraph above
+	 * describes rather than a tidy-up. « Savoir par quelle page vous êtes
+	 * arrivé » used to mean one cookie holding three strings. It now also
+	 * governs WooCommerce's own sourcebuster, which writes seven and one of them
+	 * holds the User-Agent. A visitor who allowed the first was never asked
+	 * about the second, so their consent does not cover it and they are asked
+	 * again.
 	 */
-	private const VERSION = 1;
+	private const VERSION = 2;
 
 	/** How long a choice is kept, seconds. The CNIL's ceiling is 13 months. */
 	private const KEEP = 13 * 30 * DAY_IN_SECONDS;
@@ -88,8 +133,15 @@ final class Consent {
 	/** The form action, and the only way a choice is recorded. */
 	public const ACTION = 'teeshoop_consentement';
 
-	/** Option holding the advertising tag id, when there is one. */
-	public const OPTION_TAGS = 'teeshoop_tags';
+	/**
+	 * The cookies WooCommerce's order attribution writes, by prefix.
+	 *
+	 * Named here because two things need it: the gate that stops them being
+	 * written, and the sweep that removes the ones a visitor already carries.
+	 * A prefix rather than a list, because sourcebuster's own migration key
+	 * (`sbjs_migrations`) is versioned and would be missed by a fixed list.
+	 */
+	private const WOO_PREFIX = 'sbjs_';
 
 	/** Parsed once per request: the granted categories, or null for no choice. */
 	private static ?array $choice = null;
@@ -109,7 +161,109 @@ final class Consent {
 		 */
 		add_action( 'init', array( self::class, 'remember_source' ) );
 
+		/*
+		 * The same instant, and for the same reason: a `Set-Cookie` that expires
+		 * somebody's stale sourcebuster cookies cannot be sent once the page has
+		 * begun streaming. Priority 11 so it runs after `remember_source`, which
+		 * is the writer; this one is only ever a remover.
+		 */
+		add_action( 'init', array( self::class, 'forget_woocommerce_attribution' ), 11 );
+
+		/*
+		 * AND OUR OWN, ON THE SAME TERMS, WHICH IS A FIX.
+		 *
+		 * `choice()` treats a cookie written under an older `VERSION` as no
+		 * choice at all, which is right. But `remember_source()` returns early
+		 * when `teeshoop_src` is already set, and `forget_source()` was reachable
+		 * only from a fresh submission. So a visitor who had consented under
+		 * version 1 kept an attribution cookie that nothing read, that they could
+		 * not clear from any control we offer, and that outlived the consent it
+		 * came from by up to thirteen months. Bumping `VERSION` to 2 today is
+		 * exactly the manoeuvre that would have caused it on every visitor at
+		 * once.
+		 */
+		add_action( 'init', array( self::class, 'forget_stale_source' ), 11 );
+
+		/*
+		 * BOTH HALVES OF THE SAME REFUSAL. The filter is WooCommerce's own
+		 * switch and it makes the script, if it ever loads, delete what it wrote.
+		 * The dequeue is the rule the CNIL actually states: not loaded. Priority
+		 * 99 on `wp_enqueue_scripts` because `OrderAttributionController` enqueues
+		 * at the default 10 and a dequeue before an enqueue removes nothing.
+		 */
+		add_filter( 'wc_order_attribution_allow_tracking', array( self::class, 'woocommerce_may_track' ) );
+		add_action( 'wp_enqueue_scripts', array( self::class, 'dequeue_woocommerce_attribution' ), 99 );
+
 		add_action( 'wp_footer', array( self::class, 'render' ), 20 );
+	}
+
+	// -----------------------------------------------------------------------
+	// WooCommerce's own tracker
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Whether WooCommerce may run its order-attribution tracking.
+	 *
+	 * @param mixed $allowed WooCommerce's own default, which is `true`.
+	 */
+	public static function woocommerce_may_track( $allowed = true ): bool {
+		return (bool) $allowed && self::granted( 'attribution' );
+	}
+
+	/**
+	 * Take sourcebuster off the page when the visitor has not allowed it.
+	 *
+	 * `wc-order-attribution` depends on `sourcebuster-js`, so dropping the
+	 * dependency alone would leave the dependent enqueued and WordPress would
+	 * print it with a missing dependency. Both go, and in that order.
+	 */
+	public static function dequeue_woocommerce_attribution(): void {
+		if ( self::granted( 'attribution' ) ) {
+			return;
+		}
+		wp_dequeue_script( 'wc-order-attribution' );
+		wp_deregister_script( 'wc-order-attribution' );
+		wp_dequeue_script( 'sourcebuster-js' );
+		wp_deregister_script( 'sourcebuster-js' );
+	}
+
+	/**
+	 * Expire any sourcebuster cookie the visitor is already carrying.
+	 *
+	 * WHY THIS IS SERVER SIDE. WooCommerce removes its own cookies from
+	 * JavaScript, in `order-attribution.js`, when `allowTracking` is false. We
+	 * do not load that script at all, so nothing would run. And its removal
+	 * writes `domain=.{hostname}` while sourcebuster wrote them host-only, which
+	 * on a real domain are two different cookies: on `localhost` Chromium
+	 * removed them anyway, but that is a property of localhost and not something
+	 * to ship a compliance claim on.
+	 *
+	 * SO IT IS DONE HERE, host-only and path `/`, matching exactly how they were
+	 * written, and only when there is something to remove: a `Set-Cookie` per
+	 * request for cookies nobody has is noise in every response of the shop.
+	 */
+	public static function forget_woocommerce_attribution(): void {
+		if ( is_admin() || wp_doing_cron() || self::granted( 'attribution' ) ) {
+			return;
+		}
+		if ( headers_sent() ) {
+			return;
+		}
+		foreach ( array_keys( $_COOKIE ) as $name ) {
+			$name = (string) $name;
+			if ( ! str_starts_with( $name, self::WOO_PREFIX ) ) {
+				continue;
+			}
+			setcookie(
+				$name,
+				'',
+				array(
+					'expires' => time() - YEAR_IN_SECONDS,
+					'path'    => '/',
+				)
+			);
+			unset( $_COOKIE[ $name ] );
+		}
 	}
 
 	// -----------------------------------------------------------------------
@@ -120,32 +274,32 @@ final class Consent {
 	 * What we would like to do, in the visitor's terms, and whether we can.
 	 *
 	 * `offered` is false for a purpose that has nothing behind it today. A
-	 * checkbox for an advertising tag that is not installed asks somebody to
-	 * decide about a thing that does not exist, and the permission would sit
-	 * there waiting for a tag nobody reviewed.
+	 * checkbox for a tag that is not installed asks somebody to decide about a
+	 * thing that does not exist, and the permission would sit there waiting for
+	 * a tag nobody reviewed. Today every declared category is offered; the shape
+	 * is kept because the day a purpose is added it arrives switched off.
 	 *
 	 * @return array<string,array{label:string,detail:string,offered:bool}>
 	 */
 	public static function categories(): array {
-		$tags = get_option( self::OPTION_TAGS, array() );
-		$tags = is_array( $tags ) ? array_filter( $tags, static fn( $v ): bool => '' !== trim( (string) $v ) ) : array();
-
 		return array(
 			'attribution' => array(
 				'label'   => __( 'Savoir par quelle page vous êtes arrivé', 'teeshoop' ),
 				/*
 				 * IT DESCRIBES WHAT IS ACTUALLY WRITTEN, and it used to say
-				 * « un identifiant ». There is no identifier: the cookie holds
-				 * three strings, and a data subject who is told something vaguer
-				 * than the truth has not been informed.
+				 * « un identifiant ». There is no identifier: our own cookie
+				 * holds three strings, and a data subject who is told something
+				 * vaguer than the truth has not been informed.
+				 *
+				 * AND IT NOW DESCRIBES BOTH WRITERS. This category used to name
+				 * only our cookie while WooCommerce's sourcebuster wrote seven
+				 * more, ungated, one of them carrying the User-Agent. Gating them
+				 * without saying so would have been the same failure the other
+				 * way round: a description that understates what is written is
+				 * not information, whichever direction it errs in.
 				 */
-				'detail'  => __( 'Nous enregistrons sur votre appareil, pendant treize mois, la page par laquelle vous êtes arrivé, le site qui vous a envoyé et le nom de la campagne s’il y en a une. Si vous demandez un devis, ces trois informations sont recopiées sur votre demande. Elles nous disent quelles pages servent à quelque chose. Refuser n’enlève rien au site.', 'teeshoop' ),
+				'detail'  => __( 'Nous enregistrons sur votre appareil la page par laquelle vous êtes arrivé, le site qui vous a envoyé et le nom de la campagne s’il y en a une, pendant treize mois. La boutique y ajoute, pour la durée de votre visite seulement, un compteur de pages et le nom de votre navigateur, qui servent à rattacher une commande à la page qui l’a amenée. Si vous demandez un devis, les trois premières informations sont recopiées sur votre demande. Refuser n’enlève rien au site.', 'teeshoop' ),
 				'offered' => true,
-			),
-			'publicite'   => array(
-				'label'   => __( 'Mesurer nos campagnes publicitaires', 'teeshoop' ),
-				'detail'  => __( 'Un marqueur fourni par une régie publicitaire, chargé uniquement si vous l’acceptez.', 'teeshoop' ),
-				'offered' => ! empty( $tags ),
 			),
 		);
 	}
@@ -522,6 +676,24 @@ final class Consent {
 		$_COOKIE[ self::SOURCE_COOKIE ] = $value;
 	}
 
+	/**
+	 * Drop `teeshoop_src` when nothing is entitled to read it.
+	 *
+	 * Public because it is a hook. The condition is deliberately `! granted()`
+	 * and not `version mismatch`: an expired choice cookie, a refusal, a
+	 * hand-edited cookie and a version bump all leave the same state, which is a
+	 * source cookie no code may read, and the answer to all four is the same.
+	 */
+	public static function forget_stale_source(): void {
+		if ( is_admin() || wp_doing_cron() || headers_sent() ) {
+			return;
+		}
+		if ( ! isset( $_COOKIE[ self::SOURCE_COOKIE ] ) || self::granted( 'attribution' ) ) {
+			return;
+		}
+		self::forget_source();
+	}
+
 	private static function forget_source(): void {
 		setcookie(
 			self::SOURCE_COOKIE,
@@ -612,7 +784,17 @@ final class Consent {
 				</h2>
 
 				<p class="ts-consent__lead">
-					<?php esc_html_e( 'Le site fonctionne à l’identique quelle que soit votre réponse. Rien n’est enregistré sur votre appareil tant que vous n’avez pas choisi, en dehors de ce qui fait marcher le panier.', 'teeshoop' ); ?>
+					<?php
+					/*
+					 * THIS SENTENCE HAS TO BE TRUE, AND FOR FOUR SESSIONS IT WAS
+					 * NOT. It promised that nothing was written before a choice
+					 * while WooCommerce's sourcebuster was writing seven cookies
+					 * on the same page load. The gate above now makes the promise
+					 * true; `scripts/consent-verify.mjs` is what keeps it true,
+					 * because a sentence is not a mechanism.
+					 */
+					esc_html_e( 'Le site fonctionne à l’identique quelle que soit votre réponse. Rien n’est enregistré sur votre appareil tant que vous n’avez pas choisi, en dehors de ce qui fait marcher le panier.', 'teeshoop' );
+					?>
 				</p>
 
 				<ul class="ts-consent__list">

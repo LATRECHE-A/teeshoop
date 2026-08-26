@@ -50,7 +50,8 @@
     "verify:mockups": "node scripts/mockup-shots.mjs",
     "bench:frame": "node scripts/frame-bench.mjs",
     "verify:leak": "node scripts/leak-verify.mjs",
-    "verify:seo": "node scripts/seo-verify.mjs"
+    "verify:seo": "node scripts/seo-verify.mjs",
+    "verify:consent": "node scripts/consent-verify.mjs"
   },
   "keywords": [],
   "type": "module",

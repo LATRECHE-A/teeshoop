@@ -231,6 +231,63 @@ function assets(): void {
  */
 add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\assets', 20 );
 
+/**
+ * Take WordPress's emoji script off the front end.
+ *
+ * IT IS HERE FOR TWO REASONS AND EITHER WOULD BE ENOUGH.
+ *
+ * Article 82 of the loi Informatique et Libertés covers anything written to a
+ * visitor's terminal, and `wp-emoji-release.min.js` writes
+ * `sessionStorage['wpEmojiSettingsSupports']` on the first page load, before any
+ * choice. Measured in Chromium on 26/08/2026: it was the only storage key on the
+ * home page besides the trackers session 12 gated. It is a browser-capability
+ * cache and a regulator would very probably read it as exempt, but the consent
+ * banner two metres away says « Rien n'est enregistré sur votre appareil tant
+ * que vous n'avez pas choisi », and a sentence that needs a footnote to stay
+ * true is a sentence to stop needing.
+ *
+ * The settings blob it prints also names `https://s.w.org/images/core/emoji/…`
+ * as its fallback host, so a browser that fell back would send this visitor's
+ * IP address to wordpress.org from a page of a French shop, for a glyph.
+ *
+ * And the brief bans emoji outright in code, in the interface and in copy. A
+ * shop that never prints one has nothing for this script to fix.
+ */
+function drop_emoji(): void {
+	remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
+	remove_action( 'wp_print_styles', 'print_emoji_styles' );
+	remove_action( 'admin_print_scripts', 'print_emoji_detection_script' );
+	remove_action( 'admin_print_styles', 'print_emoji_styles' );
+	remove_filter( 'the_content_feed', 'wp_staticize_emoji' );
+	remove_filter( 'comment_text_rss', 'wp_staticize_emoji' );
+	remove_filter( 'wp_mail', 'wp_staticize_emoji_for_email' );
+	// The TinyMCE plugin list is filtered rather than removed: an editor that
+	// loses the whole list loses every other plugin with it.
+	add_filter(
+		'tiny_mce_plugins',
+		static fn( $plugins ): array => is_array( $plugins ) ? array_diff( $plugins, array( 'wpemoji' ) ) : array()
+	);
+	// The DNS hint survives the script removal and would otherwise still tell
+	// the browser to resolve s.w.org.
+	add_filter(
+		'wp_resource_hints',
+		static function ( $hints, $relation ) {
+			if ( 'dns-prefetch' !== $relation || ! is_array( $hints ) ) {
+				return $hints;
+			}
+			return array_values(
+				array_filter(
+					$hints,
+					static fn( $h ): bool => ! is_string( $h ) || ! str_contains( $h, 's.w.org' )
+				)
+			);
+		},
+		10,
+		2
+	);
+}
+add_action( 'init', __NAMESPACE__ . '\\drop_emoji' );
+
 /** Preload the text weight; the browser cannot find it inside a stylesheet in time. */
 function preload_font(): void {
 	printf(

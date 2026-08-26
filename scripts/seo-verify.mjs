@@ -512,7 +512,16 @@ for (const page of pageList) {
     ok('une requête sans origine est refusée plutôt que crue', !headless.cookies.some((c) => c.startsWith('teeshoop_choix=')), headless.cookies.join(' ').slice(0, 80))
 
     const refused = await post('rien')
-    ok('refuser enregistre le refus', refused.status === 303 && refused.cookies.some((c) => /teeshoop_choix=v1[^;]*%3A(;|$)/.test(c)), refused.cookies.join(' | ').slice(0, 120))
+    /*
+     * THE VERSION IS NOT PINNED, AND IT USED TO BE `v1`. `Consent::VERSION` is
+     * meant to be bumped whenever a category changes meaning, and session 12
+     * bumped it to 2 the day WooCommerce's own tracker joined the attribution
+     * category. A gate that hard-codes the number goes red on the manoeuvre the
+     * mechanism exists to support, which teaches whoever meets it to edit the
+     * gate rather than to read it. What matters is the SHAPE: a version, a date,
+     * and nothing granted after the colon.
+     */
+    ok('refuser enregistre le refus', refused.status === 303 && refused.cookies.some((c) => /teeshoop_choix=v\d+[^;]*%3A(;|$)/.test(c)), refused.cookies.join(' | ').slice(0, 120))
     ok('refuser ne dépose aucun traceur', !refused.cookies.some((c) => /^teeshoop_src=[^;]+;/.test(c) && !/^teeshoop_src=deleted/.test(c)), '')
 
     const accepted = await post('tout')
