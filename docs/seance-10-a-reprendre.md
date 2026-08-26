@@ -140,7 +140,22 @@ npm run wp:up
 Si à charge basse il passe, il n'y a rien à corriger. S'il échoue encore, le budget est
 vraiment trop serré pour cette machine et cela se dit avec les deux mesures côte à côte.
 
-### 3.3 `npm run verify:mockups`
+### 3.3 `npm run verify:mockups` : VERT, 16 prises sur 16
+
+**Premier passage complet du contrôle, le 26/08/2026 : PASS, sortie 0**, `.qa/mockups4`.
+Les deux gardes de cadrage du gros plan passent (t-shirt 0,799 / -0,952, sweat
+0,606 / -0,801), les quatre re-demandes sont identiques à l'octet, et la régénération dans un
+contexte de navigateur neuf l'est aussi. Les 16 images sont identiques à l'octet entre deux
+passages complets indépendants.
+
+Il a fallu deux corrections, pas une. La première était le délai d'immobilisation de 300 s
+(voir plus bas). La seconde n'a été visible qu'une fois la première levée : le contrôle
+gardait le PREMIER contexte ouvert en ouvrant le neuf, donc deux contextes WebGL et deux
+copies de la scène vivaient en même temps sans carte graphique, et le montage « neuf »
+concurrençait la scène qu'il devait remplacer. Il est fermé avant, ce qui est la vraie
+correction ; les budgets restants sont passés à 900 s par cohérence.
+
+Ce qui suit décrivait l'état d'avant.
 
 **12 prises sur 16**, puis expiration de l'attente d'immobilisation (300 s) sur la treizième,
 le sweat vierge. Ce n'est pas un contrôle qui échoue, c'est le harnais qui renonce : les

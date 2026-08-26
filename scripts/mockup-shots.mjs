@@ -375,6 +375,18 @@ try {
    * than pretending otherwise.
    */
   const r = shots[0]
+  /*
+   * CLOSE THE FIRST CONTEXT FIRST. Nothing below reads it: `page` is pointed at
+   * the fresh page for the one re-shoot and the run ends straight after.
+   *
+   * This is not tidiness, it is the reason the check used to time out. Leaving
+   * it open meant two full WebGL contexts, two copies of the scene and two
+   * shader caches alive at once on a machine with no GPU, so the "fresh" mount
+   * was competing with the very scene it was supposed to replace: a mount
+   * measured at 58 to 66 s under swiftshader took longer than the 300 s budget
+   * and the whole 16-shot run was thrown away at the last step, twice.
+   */
+  await ctx.close()
   const ctx2 = await browser.newContext({
     viewport: { width: PANE.width + 268, height: PANE.height },
     deviceScaleFactor: 1,
@@ -382,14 +394,12 @@ try {
   })
   const fresh = await ctx2.newPage()
   fresh.on('pageerror', (e) => console.error('[pageerror]', e.message))
-  await fresh.goto(`${BASE}/dev/three.html?g=tee&c=FFFFFF`, { waitUntil: 'load', timeout: 300000 })
-  await fresh.waitForFunction(() => document.body.innerText.includes('ready'), null, { timeout: 300000 })
+  await fresh.goto(`${BASE}/dev/three.html?g=tee&c=FFFFFF`, { waitUntil: 'load', timeout: 900000 })
+  await fresh.waitForFunction(() => document.body.innerText.includes('ready'), null, { timeout: 900000 })
   await fresh.waitForFunction(() => !!window.__h, null, { timeout: 60000 })
   await fresh.evaluate(() => document.fonts.ready)
-  const prev = page
   page = fresh
   const reborn = await shoot(r.garment, `#${r.colour.toUpperCase()}`, r.size, r.v.view, r.v.framing, r.ink.decals)
-  page = prev
   const rkey = nameFor(r.garment, r.colour, r.size, r.ink.id, r.v.id).replace(/\.png$/, '')
   const rfirst = hashes.get(rkey)
   const rsecond = createHash('sha256').update(reborn).digest('hex')
