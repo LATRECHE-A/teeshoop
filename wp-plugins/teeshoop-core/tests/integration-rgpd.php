@@ -271,6 +271,57 @@ function ts_rgpd_suite( int $product_id ): void {
 	);
 
 	ts_it(
+		'ends the request rather than looping when nothing can be erased',
+		function () use ( $product_id ) {
+			/*
+			 * WordPress calls an eraser page after page until `done`, and this
+			 * one re-reads page 1 every time because erasing is what advances the
+			 * window. When nothing CAN be erased, the window never moves: with
+			 * `count < 20` as the only test, the admin screen would go round the
+			 * same orders for ever and an operator would see a request that never
+			 * finishes instead of a reason.
+			 */
+			ts_rgpd_worker( 0 );
+			ts_rgpd_order( $product_id, 'boucle@example.test' );
+
+			$r = Privacy::erase_orders( 'boucle@example.test' );
+			ts_assert( false === $r['items_removed'], 'quelque chose a été effacé alors que le service refuse' );
+			ts_assert( true === $r['done'], 'la demande se rappellerait indéfiniment sur les mêmes commandes' );
+			ts_assert( count( $r['messages'] ) > 0, 'la demande s’arrête sans dire pourquoi' );
+		}
+	);
+
+	ts_it(
+		'stops matching the address once the order is erased, which is what ends the loop',
+		function () use ( $product_id ) {
+			ts_rgpd_worker( 200 );
+			ts_rgpd_order( $product_id, 'plusla@example.test' );
+
+			$avant = wc_get_orders(
+				array(
+					'limit'    => 5,
+					'customer' => 'plusla@example.test',
+					'status'   => array_keys( wc_get_order_statuses() ),
+				)
+			);
+			ts_eq( count( $avant ), 1, 'la commande de test est introuvable, le cas ne prouve rien' );
+
+			$r = Privacy::erase_orders( 'plusla@example.test' );
+			ts_assert( true === $r['items_removed'], 'rien n’a été effacé' );
+			ts_assert( true === $r['done'], 'une seule commande et la demande se croit incomplète' );
+
+			$apres = wc_get_orders(
+				array(
+					'limit'    => 5,
+					'customer' => 'plusla@example.test',
+					'status'   => array_keys( wc_get_order_statuses() ),
+				)
+			);
+			ts_eq( count( $apres ), 0, 'la commande répond encore à son ancienne adresse' );
+		}
+	);
+
+	ts_it(
 		'blanks an address in the outbox without losing the row',
 		function () {
 			global $wpdb;

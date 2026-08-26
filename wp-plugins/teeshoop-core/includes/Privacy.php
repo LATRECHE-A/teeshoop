@@ -55,6 +55,14 @@ defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 require_once __DIR__ . '/Design.php';
 require_once __DIR__ . '/Money.php';
+/*
+ * `register()` reads `Quote::KEEP_DAYS` rather than writing three years a
+ * second time, so this file depends on that one. Named here rather than left
+ * to the plugin bootstrap: the pure test suite loads this file alone, and a
+ * dependency that only resolves because something else happened to be loaded
+ * first is a dependency that breaks the day the order changes.
+ */
+require_once __DIR__ . '/Quote.php';
 
 final class Privacy {
 
@@ -499,12 +507,48 @@ final class Privacy {
 			$messages = array_merge( $messages, $result['messages'] );
 		}
 
+		/*
+		 * A PASS THAT ERASED NOTHING IS THE LAST PASS, AND SAYING OTHERWISE IS AN
+		 * INFINITE LOOP.
+		 *
+		 * WordPress calls an eraser with page 1, then page 2, until `done`, and
+		 * this one deliberately re-reads page 1 every time because erasing is
+		 * what advances the window (see the note above). That is only safe while
+		 * the window actually shrinks. Two states where it does not: a customer
+		 * whose orders are ALL already erased (each returns removed:false and
+		 * still matches the address, because a billing e-mail that has been
+		 * emptied no longer matches but an already-erased order was found by
+		 * something else), and the one that matters, R2 unreachable, where every
+		 * order refuses and stays exactly as it was. With `count($orders) < PAGE`
+		 * as the only test, a customer with twenty such orders sends the admin
+		 * screen round the same twenty for ever, and the operator sees a request
+		 * that never finishes rather than a reason.
+		 *
+		 * So progress decides. Nothing removed means there is nothing more this
+		 * pass can do, the request ends, and the messages say why: an erasure
+		 * that could not reach the artwork has already put its reason in there.
+		 */
 		return array(
 			'items_removed'  => $removed,
 			'items_retained' => $retained,
 			'messages'       => array_values( array_unique( $messages ) ),
-			'done'           => count( $orders ) < self::PAGE,
+			'done'           => ! self::more_to_do( $removed, count( $orders ) ),
 		);
+	}
+
+	/**
+	 * Whether another pass could do anything, given what this one did.
+	 *
+	 * PURE, AND SEPARATE, because the loop it decides cannot be exercised without
+	 * twenty orders and a broken Worker at the same time. `tests/test-privacy.php`
+	 * covers all four states in microseconds; the integration suite proves the
+	 * end of the chain.
+	 *
+	 * @param bool $removed whether this pass erased anything at all.
+	 * @param int  $found   how many orders the pass was handed.
+	 */
+	public static function more_to_do( bool $removed, int $found ): bool {
+		return $removed && $found >= self::PAGE;
 	}
 
 	/**
