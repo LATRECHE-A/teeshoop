@@ -466,7 +466,15 @@ final class LegalPage {
 		$out .= self::p( __( 'Ce qui est accessible dans cet outil : le choix du vêtement, de la couleur et de la taille, l’envoi d’un fichier, le placement dans une zone nommée (poitrine, dos, manche) et le passage au panier. Ce qui ne l’est pas : le positionnement libre et le redimensionnement d’un visuel.', 'teeshoop' ) );
 
 		$out .= self::h2( __( 'La voie sans éditeur', 'teeshoop' ) );
-		$out .= self::p( __( 'Vous pouvez commander sans jamais ouvrir l’éditeur. Le formulaire de devis accepte votre fichier, la quantité, les tailles et l’emplacement souhaité, en texte. Nous plaçons le visuel pour vous, nous vous envoyons un bon à tirer avec les cotes en centimètres, et rien n’est imprimé avant votre accord.', 'teeshoop' ) );
+		$out .= self::p( __( 'Vous pouvez commander sans jamais ouvrir l’éditeur. Le formulaire de devis prend la quantité, les tailles, l’emplacement souhaité et votre description, en texte. Nous vous répondons par courrier électronique, vous nous envoyez votre fichier en réponse, nous plaçons le visuel pour vous, puis nous vous adressons un bon à tirer avec les cotes en centimètres. Rien n’est imprimé avant votre accord.', 'teeshoop' ) );
+		/*
+		 * IT SAID « le formulaire de devis accepte votre fichier » AND IT DOES
+		 * NOT. There is no file input on that form: checked in the template and
+		 * in the rendered page. A declaration of accessibility that promises a
+		 * route which does not exist is the one kind of false statement this page
+		 * cannot afford, because the reader it is written for is the reader with
+		 * no alternative. The exchange described above is what actually happens.
+		 */
 		$out .= self::p( __( 'Ce chemin n’est pas une solution de repli au rabais : c’est le même atelier, le même prix et le même bon à tirer.', 'teeshoop' ) );
 
 		$out .= self::h2( __( 'Nous signaler un obstacle', 'teeshoop' ) );

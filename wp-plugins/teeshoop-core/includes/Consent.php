@@ -842,11 +842,17 @@ final class Consent {
 				</div>
 
 				<?php
-				$ts_policy = get_page_by_path( 'confidentialite' );
-				if ( $ts_policy instanceof \WP_Post && 'publish' === $ts_policy->post_status ) :
+				/*
+				 * THE SLUG COMES FROM `Pages`, WHICH OWNS IT. It was typed here,
+				 * and typed again in the theme footer, and a third answer lived in
+				 * WordPress's own privacy-page option: three mechanisms looking
+				 * for one document in three places is how they come to disagree.
+				 */
+				$ts_policy = class_exists( '\Teeshoop\Core\Pages' ) ? ( Pages::live()[ Pages::CONFIDENTIALITE ] ?? '' ) : '';
+				if ( '' !== $ts_policy ) :
 					?>
 					<p class="ts-consent__more">
-						<a href="<?php echo esc_url( (string) get_permalink( $ts_policy ) ); ?>">
+						<a href="<?php echo esc_url( $ts_policy ); ?>">
 							<?php esc_html_e( 'Ce que nous enregistrons, en détail', 'teeshoop' ); ?>
 						</a>
 					</p>

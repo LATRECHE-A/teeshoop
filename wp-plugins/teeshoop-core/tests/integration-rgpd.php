@@ -480,6 +480,42 @@ function ts_rgpd_suite( int $product_id ): void {
 	);
 
 	ts_it(
+		'reaches an order placed from an account whose billing address is somebody else’s',
+		function () use ( $product_id ) {
+			/*
+			 * `wc_get_orders(['customer' => 'a@b'])` matches the BILLING e-mail
+			 * alone. A customer who typed a work address at checkout, or who
+			 * ordered for a colleague, has orders their own account e-mail does
+			 * not find. WooCommerce's own exporter appends the user id; ours did
+			 * not, so WooCommerce answered with the order and we answered with
+			 * nothing about the same person.
+			 */
+			ts_rgpd_worker( 200 );
+			$uid = wp_insert_user(
+				array(
+					'user_login' => 'ts-rgpd-compte',
+					'user_email' => 'compte@example.test',
+					'user_pass'  => wp_generate_password(),
+				)
+			);
+			ts_assert( ! is_wp_error( $uid ), 'le compte de test n’a pas été créé' );
+
+			$order = ts_rgpd_order( $product_id, 'facturation-autre@example.test' );
+			$order->set_customer_id( (int) $uid );
+			$order->save();
+
+			$r = Privacy::erase_orders( 'compte@example.test' );
+			ts_assert( true === $r['items_removed'], 'la commande du compte n’a pas été trouvée par son adresse de compte' );
+
+			$after = wc_get_order( $order->get_id() );
+			ts_eq( $after->get_billing_email(), '', 'l’adresse de facturation est restée' );
+			ts_eq( (int) $after->get_customer_id(), 0, 'la commande pointe encore vers le compte' );
+
+			wp_delete_user( (int) $uid );
+		}
+	);
+
+	ts_it(
 		'ends the request rather than looping when nothing can be erased',
 		function () use ( $product_id ) {
 			/*

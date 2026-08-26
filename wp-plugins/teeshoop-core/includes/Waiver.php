@@ -196,10 +196,35 @@ final class Waiver {
 			static function (): void {
 				woocommerce_register_additional_checkout_field(
 					array(
-						'id'       => 'teeshoop/renonciation',
-						'label'    => self::label(),
-						'location' => 'order',
-						'type'     => 'checkbox',
+						'id'            => 'teeshoop/renonciation',
+						/*
+						 * THE WHOLE SENTENCE, BECAUSE THE WHOLE SENTENCE IS WHAT
+						 * GETS FROZEN.
+						 *
+						 * `freeze()` records `text()` as « the exact sentence that
+						 * was on the screen », and on the block checkout it was
+						 * not: the block renders a field's `label` and nothing
+						 * else, so the customer read the short label while the
+						 * evidence claimed forty words they had never seen. The
+						 * classic checkout prints the label AND the sentence,
+						 * which is where the claim came from. One sentence, shown
+						 * and recorded, on both.
+						 *
+						 * AND `optionalLabel`, WHICH IS NOT DECORATION.
+						 * WooCommerce appends « (facultatif) » to the label of any
+						 * field whose `required` is false, and this one's is false
+						 * because the requirement depends on the basket and is
+						 * enforced in `freeze_block` instead. Measured on the
+						 * mirror: the box read « … sur les articles personnalisés
+						 * (facultatif) » while the server refused the order
+						 * without it. Telling a consumer that giving up a right is
+						 * optional and then refusing their order is worse than
+						 * either half.
+						 */
+						'label'         => self::text(),
+						'optionalLabel' => self::text(),
+						'location'      => 'order',
+						'type'          => 'checkbox',
 						/*
 						 * OPTIONAL HERE, AND REFUSED IN `freeze_block` INSTEAD.
 						 *

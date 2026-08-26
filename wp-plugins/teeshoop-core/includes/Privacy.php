@@ -431,13 +431,28 @@ final class Privacy {
 		if ( ! function_exists( 'wc_get_orders' ) || '' === $email ) {
 			return array();
 		}
+		/*
+		 * THE ACCOUNT AS WELL AS THE ADDRESS, and this was one of them.
+		 *
+		 * `wc_get_orders( ['customer' => 'a@b'] )` matches the BILLING e-mail
+		 * only. WooCommerce's own exporter appends the user id
+		 * (`class-wc-privacy-exporters.php`), so an order placed from an account
+		 * whose billing address carries a different e-mail was exported by
+		 * WooCommerce and invisible to ours: measured on the mirror, WooCommerce
+		 * returned one group and this returned none, and the erasure reported
+		 * nothing removed. Someone who has ever typed a work address at checkout
+		 * is exactly that case.
+		 */
+		$user = get_user_by( 'email', $email );
+		$who  = $user instanceof \WP_User ? array( $email, (int) $user->ID ) : $email;
+
 		$orders = wc_get_orders(
 			array(
 				'limit'    => self::PAGE,
 				'page'     => max( 1, $page ),
 				'orderby'  => 'ID',
 				'order'    => 'ASC',
-				'customer' => $email,
+				'customer' => $who,
 				/*
 				 * THE BIN COUNTS, AND LEAVING IT OUT WAS THE SAME DEFECT THIS
 				 * COMMIT FIXED FOR QUOTE REQUESTS AND NOT FOR ORDERS.

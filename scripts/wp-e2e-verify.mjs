@@ -851,7 +851,14 @@ try {
         Date.parse(waiver.at ?? '') <= Date.parse(waiver.created ?? '') + 2000,
         `${waiver.at} <= ${waiver.created}`,
       )
-      ok('it does not carry a forwarded address', (waiver.ip ?? '') !== '', waiver.ip ?? 'rien')
+      /*
+       * NAMED FOR WHAT IT TESTS. It said « it does not carry a forwarded
+       * address » and only checked the field was non-empty, which is true of a
+       * forwarded one too. What can be asserted from out here is that an address
+       * was recorded at all; that it is REMOTE_ADDR and never a header is a
+       * property of `Waiver::freeze` and is stated there.
+       */
+      ok('an address was recorded with it', (waiver.ip ?? '') !== '', waiver.ip ?? 'rien')
 
       /*
        * AND A GET MAY NOT NUMBER AN INVOICE. This route used to issue one when

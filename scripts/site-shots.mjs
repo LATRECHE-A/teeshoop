@@ -112,19 +112,43 @@ const ok = (name, pass, extra = '') => {
  * deliberately does not, because the banner is part of what the page looks like
  * on a first visit and has to be photographed.
  *
- * The cookie is the shipped format, `v<version>:<date>:<granted>`, with nothing
- * granted. `npm run verify:seo` is what checks the mechanism itself.
+ * THE COOKIE IS EARNED AND NOT TYPED, and that is a fix. It used to be written
+ * here as `v1:<date>:`, a hand-built copy of a format `Consent` owns. Session 12
+ * bumped `Consent::VERSION` to 2, which is the manoeuvre that file documents for
+ * when a purpose changes meaning, and from that moment the cookie was rejected as
+ * no choice at all: every interaction below drove a page with the banner still
+ * up, and the assertions that pass while it is there stopped meaning what their
+ * names say. Nothing went red, which is the whole problem with a fixture that
+ * copies a format.
+ *
+ * So the refusal is made once, by pressing the button a visitor presses, and the
+ * cookie the shop wrote is reused. It cannot drift, and if the button ever stops
+ * producing a cookie this harness stops rather than photographing a lie.
  */
-const decided = (context) =>
-  context.addCookies([
-    {
-      name: 'teeshoop_choix',
-      value: `v1:${new Date().toISOString().slice(0, 10)}:`,
-      url: BASE,
-    },
-  ])
+let refusalCookie = null
+
+const earnRefusal = async (browser) => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  await page.goto(BASE + '/', { waitUntil: 'load' })
+  await page.waitForFunction(() => document.readyState === 'complete')
+  await page.click('#ts-consent button[name="rien"]')
+  await page.waitForLoadState('load')
+  const found = (await context.cookies()).find((c) => c.name === 'teeshoop_choix')
+  await context.close()
+  return found ? { name: found.name, value: found.value, url: BASE } : null
+}
+
+const decided = (context) => (refusalCookie ? context.addCookies([refusalCookie]) : Promise.resolve())
 
 const browser = await chromium.launch()
+
+refusalCookie = await earnRefusal(browser)
+if (!refusalCookie) {
+  process.stdout.write('site-shots: « Tout refuser » n\'a produit aucun cookie de choix, les passes « visiteur décidé » seraient fausses.\n')
+  await browser.close()
+  process.exit(2)
+}
 
 /* ------------------------------------------------------- the six pages -- */
 
