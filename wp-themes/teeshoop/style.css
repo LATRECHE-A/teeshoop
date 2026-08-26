@@ -83,15 +83,37 @@ video {
  * retrofitting focus is the one thing that cannot be done cheaply later.
  */
 :focus-visible {
-	outline: var(--ts-focus-width) solid var(--ts-accent);
+	/*
+	 * TWO TONES, AND THAT IS THE FIX RATHER THAN A DECORATION.
+	 *
+	 * One accent-coloured ring cannot pass 1.4.11 everywhere, and measurement
+	 * said so: #1f4fd8 is 6,63:1 on white and 2,71:1 on the ink footer, where the
+	 * skip link, which is the FIRST tab stop on every page of the shop, lives. It
+	 * was 2,26:1 on our own accent buttons and 1,81:1 on WooCommerce's dark
+	 * add-to-cart in the block cart. Twelve assertions of
+	 * `npm run verify:a11y` were red on it.
+	 *
+	 * No single colour fixes that. A ring must clear 3:1 against white, against
+	 * #14171a and against whatever WooCommerce paints, and the band of relative
+	 * luminance that clears all three is narrow enough that the colour ends up
+	 * a washed grey nobody would notice.
+	 *
+	 * So the ring is an ink line with a paper halo around it, which is the
+	 * technique WCAG's own understanding document describes: on a light ground the
+	 * ink is the visible part, on a dark one the halo is, and the two are 17,99:1
+	 * apart from each other, so ONE of them always clears 3:1 whatever is behind.
+	 * `scripts/a11y-verify.mjs` measures both and takes the better, which is what
+	 * the criterion asks and not a relaxation of it.
+	 *
+	 * `box-shadow` and not a second outline because an element may have only one,
+	 * and the halo has to sit OUTSIDE the ink line: `outline-offset` puts the ink
+	 * two pixels off the box, and the shadow's spread starts at the box, so the
+	 * orders match.
+	 */
+	outline: var(--ts-focus-width) solid var(--ts-ink);
 	outline-offset: var(--ts-focus-offset);
+	box-shadow: 0 0 0 calc(var(--ts-focus-width) + var(--ts-focus-offset) + 2px) var(--ts-paper);
 	border-radius: 1px;
-}
-
-/* The one exception: on the accent itself, the ink ring is what is visible. */
-.ts-btn:focus-visible,
-.ts-cta:focus-visible {
-	outline-color: var(--ts-ink);
 }
 
 a {
@@ -641,6 +663,149 @@ ul.products li.product a:hover .woocommerce-loop-product__title {
 	text-decoration-color: var(--ts-accent);
 }
 
+/*
+ * THE PRICE ON A PRODUCT PAGE, WHICH IS THE ONE FIGURE A BUYER READS.
+ *
+ * WooCommerce's own stylesheet paints it #958e09 on white at 18,75 px weight
+ * 400. Measured: 3,41:1, against the 4,5:1 that size and weight require, so the
+ * number the customer pays was the only text on the buying path below AA. The
+ * theme keeps Woo's stylesheets deliberately (see the note above the enqueue),
+ * and it already overrides the LOOP price below and had never overridden this
+ * one. `--ts-ink` on paper is 17,99:1.
+ */
+.woocommerce:where(body:not(.woocommerce-uses-block-theme)) div.product p.price,
+.woocommerce:where(body:not(.woocommerce-uses-block-theme)) div.product span.price,
+div.product p.price,
+div.product span.price {
+	color: var(--ts-ink);
+}
+
+/* ──────────────────────────────────────────────── the legal pages ── */
+
+/*
+ * The four documents the plugin renders through `the_content`.
+ *
+ * They are the only pages on this site that are mostly prose with a definition
+ * list in the middle, and they arrive with no styling of their own: the theme
+ * constrains `p` to `--ts-measure` and stops. A `dl` then renders with the
+ * browser's own indent, which reads as a page nobody finished, on the one page
+ * whose whole job is to look like it was written on purpose.
+ */
+.ts-legal__h {
+	margin: var(--ts-space-5) 0 var(--ts-space-2);
+	font-size: var(--ts-text-lg);
+}
+
+.ts-legal__h3 {
+	margin: var(--ts-space-4) 0 var(--ts-space-1);
+	font-size: var(--ts-text);
+	font-weight: 600;
+}
+
+.ts-legal__list {
+	margin: 0 0 var(--ts-space-3);
+	padding-inline-start: 1.25em;
+	max-width: var(--ts-measure);
+}
+
+.ts-legal__list li {
+	margin: 0 0 var(--ts-space-1);
+}
+
+/*
+ * A label and its value on one row, and the label carries the weight because a
+ * reader looking for the SIRET is looking for the word first.
+ */
+.ts-legal__dl {
+	display: grid;
+	grid-template-columns: minmax(9rem, auto) 1fr;
+	gap: var(--ts-space-1) var(--ts-space-3);
+	margin: 0 0 var(--ts-space-4);
+	max-width: var(--ts-measure);
+}
+
+.ts-legal__dl dt {
+	font-weight: 600;
+}
+
+.ts-legal__dl dd {
+	margin: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A missing mention is not styled like an absent one: it is named, in the
+ * warning colour, because the page is the place whoever can fill it in will
+ * read it. `--ts-warn` is measured at 5,05:1 on paper.
+ */
+.ts-legal__gap {
+	color: var(--ts-warn);
+}
+
+.ts-legal__draft,
+.ts-legal__note,
+.ts-legal__stop {
+	margin: 0 0 var(--ts-space-4);
+	padding: var(--ts-space-3);
+	border-inline-start: 3px solid var(--ts-line-strong);
+	background: var(--ts-surface);
+	max-width: var(--ts-measure);
+}
+
+.ts-legal__draft p,
+.ts-legal__note p,
+.ts-legal__stop p {
+	margin: 0;
+}
+
+.ts-legal__stop {
+	border-inline-start-color: var(--ts-bad);
+	background: var(--ts-bad-wash);
+	color: var(--ts-bad-ink);
+}
+
+.ts-legal__note {
+	border-inline-start-color: var(--ts-accent);
+}
+
+/*
+ * The sort control. It replaces WooCommerce's `.woocommerce-ordering`, which was
+ * a bare select that navigated on change; see `sort_control()` in functions.php.
+ */
+.ts-sort {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2);
+	align-items: center;
+	margin: 0 0 var(--ts-space-3);
+	font-size: var(--ts-text-sm);
+}
+
+.ts-sort__label {
+	color: var(--ts-muted);
+}
+
+.ts-sort__select,
+.ts-sort__go {
+	min-block-size: 40px;
+	padding: 0 var(--ts-space-3);
+	border: 1px solid var(--ts-line-strong);
+	border-radius: var(--ts-radius);
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font: inherit;
+}
+
+.ts-sort__go {
+	border-color: var(--ts-ink);
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.ts-sort__go:hover {
+	background: var(--ts-surface);
+}
+
 .woocommerce ul.products li.product .price,
 ul.products li.product .price {
 	display: block;
@@ -867,6 +1032,19 @@ ul.products li.product .price {
  * visually replaced by the chip, never removed from the accessibility tree.
  */
 .ts-chip {
+	/*
+	 * POSITIONED, SO THE HIDDEN CHECKBOX BELONGS TO IT.
+	 *
+	 * `.ts-chip input` is `position: absolute` and clipped, and with no
+	 * positioned ancestor here its containing block was the whole filter FORM.
+	 * The checkbox therefore escaped `.ts-facet__list`'s `overflow-y: auto`, so
+	 * the browser had nothing to scroll when focus landed on it: measured at
+	 * 1440 px, the list stayed at scrollTop 0 through a 500 px facet with 174 px
+	 * of room, and the chip the keyboard was on sat clipped out of sight with its
+	 * focus ring drawn on it. 90 of 255 tab stops on the catalogue and 75 of 227
+	 * on a category were in that state, invisible to anybody using a mouse.
+	 */
+	position: relative;
 	display: inline-flex;
 	align-items: center;
 	gap: var(--ts-space-2);
@@ -1269,6 +1447,23 @@ a.ts-chip:hover {
 	list-style: none;
 	font-size: var(--ts-text-sm);
 	line-height: var(--ts-leading-loose);
+}
+
+/*
+ * 2.5.8 TARGET SIZE, WHICH IS NEW IN WCAG 2.2 AND WHICH THESE LINKS FAILED.
+ *
+ * Measured at 375 px: « Polos » was 35 x 17 with 6,1 px between it and the link
+ * below, so 23,1 px between the two centres, under the 24 px circle the spacing
+ * exception draws. Three links per page, on the navigation a phone buyer uses.
+ *
+ * The link becomes a block with vertical padding rather than the list gaining a
+ * gap, because the padding also makes the TARGET bigger and not only the
+ * distance: a 17 px link 24 px from its neighbour still asks for a 17 px tap.
+ */
+.ts-foot__list a {
+	display: inline-block;
+	padding-block: 0.25rem;
+	min-block-size: 24px;
 }
 
 .ts-foot__list .ts-num {

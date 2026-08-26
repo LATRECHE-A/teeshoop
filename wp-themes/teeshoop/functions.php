@@ -727,14 +727,91 @@ function default_nav(): void {
  *
  * Not restyled, removed: two headings saying the same thing is what makes a
  * shop page look assembled rather than designed. The ORDERING dropdown stays
- * where WooCommerce puts it, because it belongs beside the results and not in
- * the filter column.
+ * beside the results and not in the filter column, but it is OURS now: see
+ * `sort_control()` below.
  */
 function shop_loop_chrome(): void {
 	add_filter( 'woocommerce_show_page_title', '__return_false' );
 	remove_action( 'woocommerce_before_shop_loop', 'woocommerce_result_count', 20 );
+	remove_action( 'woocommerce_before_shop_loop', 'woocommerce_catalog_ordering', 30 );
+	add_action( 'woocommerce_before_shop_loop', __NAMESPACE__ . '\\sort_control', 30 );
 }
 add_action( 'wp', __NAMESPACE__ . '\\shop_loop_chrome' );
+
+/**
+ * The sort control, with a button, because a select that navigates on change
+ * fails 3.2.2.
+ *
+ * WooCommerce's own `orderby` form submits itself from a `change` event and
+ * carries no submit control at all: measured, zero buttons in that form, and
+ * the page navigates the moment the value moves. WCAG 2.2's 3.2.2 On Input
+ * forbids a change of context on a selection unless the user was warned first,
+ * and « the page you were reading is replaced » is a change of context. It is
+ * also simply hostile with a keyboard, where arrowing through a select changes
+ * the value at every step: five options, four navigations, and a reader who
+ * wanted the fifth never gets there.
+ *
+ * IT ALSO WORKS WITH NO SCRIPT AT ALL, which Woo's did not: the filter form two
+ * columns over already made that promise (`template-parts/filters.php`) and this
+ * is the same shape. The button is not hidden when JavaScript is present: a
+ * control that appears only for some visitors is a control the rest cannot be
+ * told about.
+ *
+ * The hidden fields carry the rest of the query, so sorting a filtered listing
+ * keeps the filters. Woo's own form did that too and it is the part worth
+ * copying.
+ */
+function sort_control(): void {
+	if ( ! function_exists( 'woocommerce_catalog_ordering' ) ) {
+		return;
+	}
+	$options = apply_filters(
+		'woocommerce_catalog_orderby',
+		array(
+			'menu_order' => __( 'Tri par défaut', 'teeshoop' ),
+			'popularity' => __( 'Les plus commandés', 'teeshoop' ),
+			'date'       => __( 'Les plus récents', 'teeshoop' ),
+			'price'      => __( 'Prix croissant', 'teeshoop' ),
+			'price-desc' => __( 'Prix décroissant', 'teeshoop' ),
+		)
+	);
+	if ( ! is_array( $options ) || count( $options ) < 2 ) {
+		return;
+	}
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading which sort a public listing was asked for.
+	$current = isset( $_GET['orderby'] ) ? sanitize_text_field( wp_unslash( $_GET['orderby'] ) ) : '';
+	if ( ! isset( $options[ $current ] ) ) {
+		$current = (string) get_option( 'woocommerce_default_catalog_orderby', 'menu_order' );
+	}
+
+	echo '<form class="ts-sort" method="get">';
+	printf(
+		'<label class="ts-sort__label" for="ts-sort">%s</label>',
+		esc_html__( 'Trier les articles', 'teeshoop' )
+	);
+	echo '<select class="ts-sort__select" name="orderby" id="ts-sort">';
+	foreach ( $options as $value => $label ) {
+		printf(
+			'<option value="%s"%s>%s</option>',
+			esc_attr( (string) $value ),
+			selected( $current, (string) $value, false ),
+			esc_html( (string) $label )
+		);
+	}
+	echo '</select>';
+	printf(
+		'<button class="ts-sort__go" type="submit">%s</button>',
+		esc_html__( 'Trier', 'teeshoop' )
+	);
+	/*
+	 * Everything else that was in the URL, minus what this form owns and minus
+	 * the page number: a new sort starts at page one, because page four of the
+	 * old order is not page four of the new one.
+	 */
+	wc_query_string_form_fields( null, array( 'orderby', 'submit', 'paged', 'product-page' ) );
+	echo '</form>';
+}
 
 /**
  * A product with no photograph says so, instead of showing a picture frame.

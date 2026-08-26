@@ -312,9 +312,167 @@ final class Compat {
 
 	public static function init(): void {
 		add_action( 'admin_notices', array( self::class, 'notice' ) );
+
+		/*
+		 * WooCommerce's own French, where it is missing or where it is wrong for
+		 * a shop rather than for a catalogue.
+		 *
+		 * These are not translations we merely prefer: they are strings a French
+		 * buyer meets in English on the buying path, measured by
+		 * `npm run verify:a11y` (3.1.2, language of parts) in a document that
+		 * declares `lang="fr-FR"` and carries no `lang="en"` anywhere.
+		 */
+		add_filter( 'gettext', array( self::class, 'translate' ), 20, 3 );
+		/*
+		 * AND THE SAME LIST AGAIN ON THE CONTENT, WHICH IS NOT A DUPLICATE.
+		 *
+		 * WooCommerce's installer BAKES the block cart's default markup into the
+		 * page's `post_content` when it creates it, so the empty-cart heading is
+		 * not a `gettext` call at render time: it is stored English in the
+		 * database, and the filter above cannot see it. Measured with
+		 * `wp post get 6 --field=post_content`.
+		 *
+		 * One map, two readers. The alternative was to rewrite the page's content
+		 * in the database, which would put a translation somewhere no future
+		 * reader would look for one, and would be undone by the next time
+		 * WooCommerce touches that page.
+		 */
+		add_filter( 'the_content', array( self::class, 'translate_content' ), 5 );
+		add_filter( 'woocommerce_breadcrumb_defaults', array( self::class, 'breadcrumb' ) );
+		add_filter( 'woocommerce_product_add_to_cart_text', array( self::class, 'add_to_cart_text' ), 10, 2 );
+		add_filter( 'woocommerce_catalog_orderby', array( self::class, 'orderby_labels' ) );
 	}
 
 	/** Say it where the person who can fix it will read it. */
+	/**
+	 * The strings WooCommerce ships in English on this shop's own pages.
+	 *
+	 * A `gettext` filter and not a translation file, because a .po in the plugin
+	 * would be a second place to look for a string and would be lost on the next
+	 * `wp language plugin update`. Keyed on the ENGLISH source, so a WooCommerce
+	 * release that changes the wording stops matching and the string reverts to
+	 * English, which is visible, rather than to something that no longer means
+	 * what the control does.
+	 *
+	 * @param string $translated what WordPress resolved.
+	 * @param string $text       the original English.
+	 * @param string $domain     which package asked.
+	 */
+	public static function translate( $translated, $text, $domain ) {
+		if ( 'woocommerce' !== $domain ) {
+			return $translated;
+		}
+		return self::english_strings()[ $text ] ?? $translated;
+	}
+
+	/**
+	 * The English WooCommerce puts on this shop's own pages, and its French.
+	 *
+	 * @return array<string,string> the exact English source to the French
+	 */
+	private static function english_strings(): array {
+		return array(
+			// The block cart's empty state, measured in the served HTML of
+			// /cart/. It also carried an exclamation mark, which this project
+			// does not put in customer copy.
+			'Your cart is currently empty!' => 'Votre panier est vide',
+			'New in store'                  => 'Nouveautés',
+			// Woo's own name for the sort control resolves to « Commande » in
+			// French, which on a shop reads as a purchase order and sits three
+			// inches from a « Panier » link. It is that select's accessible name.
+			'Shop order'                    => 'Trier les articles',
+		);
+	}
+
+	/**
+	 * The same strings again, where they are stored content rather than a call.
+	 *
+	 * Scoped to the two pages WooCommerce generated, so nothing an editor wrote
+	 * anywhere else is touched, and exact-match so a partial word cannot be
+	 * rewritten inside another.
+	 *
+	 * @param string $content the page's own markup.
+	 */
+	public static function translate_content( $content ) {
+		if ( ! is_string( $content ) || '' === $content ) {
+			return $content;
+		}
+		if ( ! function_exists( 'is_cart' ) || ! ( is_cart() || is_checkout() ) ) {
+			return $content;
+		}
+		foreach ( self::english_strings() as $english => $french ) {
+			$content = str_replace( $english, $french, $content );
+		}
+		return $content;
+	}
+
+	/**
+	 * The breadcrumb landmark's name, which was announced as « Breadcrumb ».
+	 *
+	 * @param array $defaults WooCommerce's own.
+	 */
+	public static function breadcrumb( $defaults ) {
+		if ( is_array( $defaults ) ) {
+			$defaults['wrap_before'] = str_replace(
+				'aria-label="Breadcrumb"',
+				'aria-label="' . esc_attr__( 'Fil d’Ariane', 'teeshoop' ) . '"',
+				(string) ( $defaults['wrap_before'] ?? '' )
+			);
+		}
+		return $defaults;
+	}
+
+	/**
+	 * What a variable product's button says, so that its name contains it.
+	 *
+	 * WCAG 2.2's 2.5.3 asks that a control's accessible name contain its visible
+	 * text, so that somebody driving the page by voice can operate what they can
+	 * see. WooCommerce renders « Lire la suite » with
+	 * `aria-label="Sélectionner les options pour “X”"`: twenty-four mismatches
+	 * per listing page, and « clique sur Lire la suite » operates nothing.
+	 *
+	 * The VISIBLE text is changed rather than the label, because the label is the
+	 * more informative of the two and because « Lire la suite » was telling a
+	 * buyer they were about to read an article.
+	 *
+	 * @param string $text    WooCommerce's own.
+	 * @param mixed  $product the product being rendered.
+	 */
+	public static function add_to_cart_text( $text, $product = null ) {
+		if ( $product instanceof \WC_Product && $product->is_type( 'variable' ) ) {
+			return __( 'Sélectionner les options', 'teeshoop' );
+		}
+		return $text;
+	}
+
+	/**
+	 * The sort control's options, in the words a buyer uses.
+	 *
+	 * `rating` is removed rather than renamed: this shop publishes no reviews, so
+	 * sorting by a rating nobody has left orders the catalogue by nothing.
+	 *
+	 * @param array $options WooCommerce's own.
+	 */
+	public static function orderby_labels( $options ) {
+		if ( ! is_array( $options ) ) {
+			return $options;
+		}
+		$ours = array(
+			'menu_order' => __( 'Tri par défaut', 'teeshoop' ),
+			'popularity' => __( 'Les plus commandés', 'teeshoop' ),
+			'date'       => __( 'Les plus récents', 'teeshoop' ),
+			'price'      => __( 'Prix croissant', 'teeshoop' ),
+			'price-desc' => __( 'Prix décroissant', 'teeshoop' ),
+		);
+		foreach ( $ours as $key => $label ) {
+			if ( isset( $options[ $key ] ) ) {
+				$options[ $key ] = $label;
+			}
+		}
+		unset( $options['rating'] );
+		return $options;
+	}
+
 	public static function notice(): void {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return;

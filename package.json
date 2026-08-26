@@ -51,7 +51,8 @@
     "bench:frame": "node scripts/frame-bench.mjs",
     "verify:leak": "node scripts/leak-verify.mjs",
     "verify:seo": "node scripts/seo-verify.mjs",
-    "verify:consent": "node scripts/consent-verify.mjs"
+    "verify:consent": "node scripts/consent-verify.mjs",
+    "verify:a11y": "node scripts/a11y-verify.mjs"
   },
   "keywords": [],
   "type": "module",
