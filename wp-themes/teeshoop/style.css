@@ -249,6 +249,26 @@ p {
 	border-bottom: 1px solid var(--ts-line);
 }
 
+/*
+ * WHATEVER IS SCROLLED TO STOPS UNDER THE MASTHEAD, AND THAT IS NOT COSMETIC.
+ *
+ * The block checkout answers a refused submission by scrolling its error notice
+ * into view. The browser puts the top of that notice at the top of the VIEWPORT,
+ * and the masthead is pinned there, so the customer is refused and reads nothing
+ * that tells them why. Session 12 made the withdrawal-right acknowledgement
+ * refusable server side, which is the one refusal a customer meets while trying
+ * to pay us.
+ *
+ * `scroll-padding` is the one line that fixes it for every anchor, every
+ * `scrollIntoView` and every focus the browser brings into view, rather than for
+ * the one case somebody noticed. The value is the bar's own `min-height` plus
+ * its border, so the two cannot drift apart without the number being wrong in
+ * both places at once.
+ */
+html {
+	scroll-padding-block-start: calc(3.5rem + 1px + var(--ts-space-2));
+}
+
 .ts-mast__bar {
 	display: flex;
 	align-items: center;

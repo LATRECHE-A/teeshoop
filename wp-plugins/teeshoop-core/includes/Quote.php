@@ -348,6 +348,10 @@ final class Quote {
 			if ( '' !== $design ) {
 				$r = Privacy::delete_design( $design );
 				if ( ! $r['ok'] ) {
+					// Same reason as `Privacy::erase_order`: the request is held
+					// open rather than closed as done, so nobody is told their
+					// data was erased while a file of theirs is still online.
+					Privacy::hold_request_open();
 					$messages[] = sprintf(
 						/* translators: 1: design identifier, 2: the reason it failed. */
 						__( 'La création %1$s jointe à une demande de devis n’a pas pu être supprimée de son hébergement (%2$s). La demande reste ouverte.', 'teeshoop' ),

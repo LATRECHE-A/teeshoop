@@ -70,7 +70,17 @@ final class LegalPage {
 		if ( '' === self::current() ) {
 			return $robots;
 		}
-		if ( Legal::REFUSE === self::verdict()['action'] ) {
+		/*
+		 * THE HOST'S IDENTITY COUNTS TOO, and reading `Legal` alone missed it.
+		 * `Legal::verdict` answers about the SELLER, which is what an invoice
+		 * refuses over. A mentions légales page whose seller block is complete
+		 * and whose HOST block is empty is still a page that fails article 6 III
+		 * of the LCEN, and it was staying indexable.
+		 */
+		$incomplete = Legal::REFUSE === self::verdict()['action']
+			|| ( Pages::MENTIONS === self::current() && ! empty( Host::missing() ) );
+
+		if ( $incomplete ) {
 			$robots['noindex']  = true;
 			$robots['nofollow'] = true;
 		}

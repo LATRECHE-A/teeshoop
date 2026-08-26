@@ -11,9 +11,15 @@
  * describes the shop from memory: it is the thing the privacy page renders, so a
  * treatment that is not in it is a treatment the visitor is not told about, and a
  * row that describes something the code no longer does is a false statement made
- * to a data subject. `scripts/legal-verify.mjs` checks the two halves that CAN be
- * checked mechanically: that every store the register names still exists, and
- * that every retention it states is the one a mechanism enforces.
+ * to a data subject.
+ *
+ * WHAT CHECKS IT, NAMED HONESTLY. `tests/test-privacy.php` asserts that every
+ * recipient a treatment names exists in `processors()` and that no row is
+ * missing a field, and `tests/integration-rgpd.php` runs the erasure against a
+ * real WooCommerce and reads back what survived. An earlier draft of this
+ * paragraph named a `scripts/legal-verify.mjs` that was never written, in the
+ * file whose whole thesis is that a register nobody enforces drifts. It was
+ * caught by an adversarial pass and not by a gate, which is the point.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * ERASURE IS THE HARD ONE AND IT IS THE ONE THAT GETS FAKED
@@ -68,6 +74,14 @@ final class Privacy {
 
 	/** Order meta: the day the artwork behind this order was erased. */
 	public const META_ERASED = '_teeshoop_creations_effacees';
+
+	/**
+	 * Whether this request left something it could not do.
+	 *
+	 * Per-process, because WordPress serves one eraser page per HTTP request and
+	 * the decision below is made in the same one.
+	 */
+	private static bool $unfinished = false;
 
 	/**
 	 * How many records one page of an export or an erasure handles.
@@ -394,6 +408,25 @@ final class Privacy {
 		add_filter( 'wp_privacy_personal_data_exporters', array( self::class, 'register_exporters' ) );
 		add_filter( 'wp_privacy_personal_data_erasers', array( self::class, 'register_erasers' ) );
 
+		/*
+		 * A REQUEST THAT COULD NOT BE DONE MUST NOT BE CLOSED AS DONE.
+		 *
+		 * Read from WordPress's own code: `wp_privacy_process_personal_data_erasure_page`
+		 * calls `_wp_privacy_completed_request()` and fires
+		 * `wp_privacy_personal_data_erased` as soon as the LAST eraser reports
+		 * `done`, and `_wp_privacy_send_erasure_fulfillment_notification` is
+		 * hooked to that. So the customer receives « Your request to erase your
+		 * personal data has been completed ».
+		 *
+		 * `done` cannot simply stay false: this eraser re-reads page 1 every time,
+		 * so a failure that repeats would send the admin screen round the same
+		 * orders for ever. The loop and the false confirmation are the same lever
+		 * pulled two ways, and the answer is to end the pass and REOPEN the
+		 * request, which leaves it on the screen with its reason instead of
+		 * telling a person something untrue.
+		 */
+		add_filter( 'wp_privacy_personal_data_erasure_page', array( self::class, 'hold_open' ), 999, 5 );
+
 		if ( ! wp_next_scheduled( self::CRON ) ) {
 			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', self::CRON );
 		}
@@ -420,6 +453,48 @@ final class Privacy {
 			'callback'             => array( self::class, 'erase_outbox' ),
 		);
 		return $erasers;
+	}
+
+	/**
+	 * Keep an unfinished erasure request open, and say nothing to the customer.
+	 *
+	 * @param array  $response   what the eraser answered.
+	 * @param int    $index      which eraser, 1-based.
+	 * @param string $email      the subject's address.
+	 * @param int    $page       which page.
+	 * @param int    $request_id the privacy request post.
+	 */
+	public static function hold_request_open(): void {
+		self::$unfinished = true;
+	}
+
+	public static function hold_open( $response, $index = 0, $email = '', $page = 1, $request_id = 0 ) {
+		if ( ! self::$unfinished ) {
+			return $response;
+		}
+
+		remove_action( 'wp_privacy_personal_data_erased', '_wp_privacy_send_erasure_fulfillment_notification' );
+
+		add_action(
+			'wp_privacy_personal_data_erased',
+			static function ( $id ): void {
+				/*
+				 * Back to « confirmée » and not to « complétée ». The operator's
+				 * screen keeps the request, keeps our messages under it, and the
+				 * one thing that has to be true is that nobody was told their data
+				 * was erased while it was not.
+				 */
+				wp_update_post(
+					array(
+						'ID'          => (int) $id,
+						'post_status' => 'request-confirmed',
+					)
+				);
+			},
+			1
+		);
+
+		return $response;
 	}
 
 	/**
@@ -647,9 +722,12 @@ final class Privacy {
 	 * Article 17, honestly.
 	 *
 	 * PAGE 1 EVERY TIME, and that is a fix rather than an oversight.
-	 * `Quote::erase_personal_data` paginates with an OFFSET while deleting, so
-	 * page 2 skips the twenty rows page 1 removed, and a prospect with more than
-	 * twenty requests keeps most of them for ever. Here the work of erasing an
+	 * `Quote::erase_personal_data` USED TO paginate with an OFFSET while
+	 * deleting, so page 2 skipped the twenty rows page 1 had removed and a
+	 * prospect with more than twenty requests kept most of them for ever. The
+	 * same commit that wrote this function fixed that one, so the sentence
+	 * describing it in the present tense was already false when it shipped. Here
+	 * the work of erasing an
 	 * order is what advances the window, so the window must not advance too: an
 	 * order this pass anonymised no longer matches the address, so the next page
 	 * of the same query is the next twenty that still do. `done` is therefore
@@ -755,8 +833,10 @@ final class Privacy {
 			/*
 			 * FAIL CLOSED ON A CLAIM. Nothing else is touched, because a partly
 			 * erased order whose index has been wiped is worse than an untouched
-			 * one: nobody can finish the job afterwards.
+			 * one: nobody can finish the job afterwards. And the request is held
+			 * open, so nobody is told it was done: see `hold_open()`.
 			 */
+			self::hold_request_open();
 			return array(
 				'removed'  => false,
 				'retained' => true,
