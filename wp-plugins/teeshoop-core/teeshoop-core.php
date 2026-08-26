@@ -150,6 +150,8 @@ require_once __DIR__ . '/includes/Bat.php';
 require_once __DIR__ . '/includes/BatPage.php';
 require_once __DIR__ . '/includes/Claim.php';
 require_once __DIR__ . '/includes/Quote.php';
+require_once __DIR__ . '/includes/Content.php';
+require_once __DIR__ . '/includes/Seo.php';
 require_once __DIR__ . '/includes/Admin.php';
 require_once __DIR__ . '/includes/CostAdmin.php';
 require_once __DIR__ . '/includes/Cli.php';
@@ -192,6 +194,8 @@ function boot(): void {
 	Bat::init();
 	Claim::init();
 	Quote::init();
+	Content::init();
+	Seo::init();
 	Production::init();
 	ProductionPage::init();
 	Purchase::init();

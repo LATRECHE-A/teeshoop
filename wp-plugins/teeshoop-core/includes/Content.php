@@ -1,0 +1,625 @@
+<?php
+/**
+ * The shop's editorial copy, and the numbers it is not allowed to contain.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY THE WORDS ARE IN THE REPOSITORY AND NOT IN THE DATABASE
+ *
+ * The obvious home for a category's text is `wp_term_taxonomy.description`, and
+ * for a landing page it is the post content. Both put a thousand words of
+ * commercial promise somewhere no diff can review and no gate can check, which
+ * is the same objection this project made to a block theme and to an SEO plugin.
+ * The copy on these pages states a minimum order, a lead time, a print size and
+ * what we can and cannot print. Every one of those is a promise some other file
+ * has to keep, and the day one of them changes, a paragraph in a database is the
+ * last place anybody looks.
+ *
+ * SO IT IS HERE, and the templates render it. Anything the associate types into
+ * the WordPress editor still appears, above what the template draws, so the
+ * admin screen is not a dead end; `Content::notice()` says so on screen to
+ * whoever has the capability to be confused by it.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NOT ONE NUMBER IN THIS FILE IS A NUMBER
+ *
+ * Every figure is a SLOT: `{MINIMUM_PIECES}`, `{DELAI_STANDARD}`,
+ * `{ZONE_TSHIRT}`. `fill()` resolves them at render time from the same
+ * authorities the basket, the workshop calendar and the studio read, so a
+ * landing page cannot promise five pieces while `Cart` refuses under eight, and
+ * cannot print 30,5 cm while the press is set to something else. This is the
+ * rule `front-page.php` already states for the homepage, applied to a body of
+ * text large enough that nobody would notice it drifting.
+ *
+ * A SLOT THAT CANNOT BE RESOLVED REMOVES ITS SENTENCE. Not "renders as zero",
+ * not "renders as `{DELAI_STANDARD}`". The shop already learned this when a
+ * deactivated plugin made every page of the site advertise « Commande minimum :
+ * 0 pièces » in the footer: a missing number is an omitted line.
+ *
+ * @package Teeshoop\Core
+ */
+
+declare( strict_types = 1 );
+
+namespace Teeshoop\Core;
+
+defined( 'ABSPATH' ) || exit;
+
+final class Content {
+
+	/** Resolved slot values for this request, or null before the first look. */
+	private static ?array $slots = null;
+
+	/** Which slots were asked for and had no value. Read by `notice()`. */
+	private static array $unresolved = array();
+
+	public static function init(): void {
+		add_action( 'admin_notices', array( self::class, 'notice' ) );
+	}
+
+	// -----------------------------------------------------------------------
+	// Lookup
+	// -----------------------------------------------------------------------
+
+	/** Whether this page has copy of its own. */
+	public static function has( string $key ): bool {
+		return isset( self::pages()[ $key ] );
+	}
+
+	/**
+	 * The title and description for a page, with the slots resolved.
+	 *
+	 * @return array{title:string,description:string}
+	 */
+	public static function meta( string $key ): array {
+		$page = self::pages()[ $key ] ?? array();
+		return array(
+			'title'       => self::fill( (string) ( $page['title'] ?? '' ) ),
+			'description' => self::fill( (string) ( $page['description'] ?? '' ) ),
+		);
+	}
+
+	/**
+	 * Everything a template draws for a page, slots resolved, gaps removed.
+	 *
+	 * A section whose every paragraph lost its slot disappears with them: a
+	 * heading with nothing under it is worse than no heading, and this file's
+	 * whole point is that the page degrades honestly rather than loudly.
+	 *
+	 * @return array{h1:string,intro:string[],sections:array,faq:array}
+	 */
+	public static function page( string $key ): array {
+		$page = self::pages()[ $key ] ?? array();
+		if ( empty( $page ) ) {
+			return array(
+				'h1'       => '',
+				'intro'    => array(),
+				'sections' => array(),
+				'faq'      => array(),
+			);
+		}
+
+		$sections = array();
+		foreach ( (array) ( $page['sections'] ?? array() ) as $section ) {
+			$paragraphs = self::fill_all( (array) ( $section['paragraphs'] ?? array() ) );
+			$list       = self::fill_all( (array) ( $section['list'] ?? array() ) );
+			if ( empty( $paragraphs ) && empty( $list ) ) {
+				continue;
+			}
+			$sections[] = array(
+				'h2'         => self::fill( (string) ( $section['h2'] ?? '' ) ),
+				'paragraphs' => $paragraphs,
+				'list'       => $list,
+				'links'      => self::links( (array) ( $section['links'] ?? array() ) ),
+			);
+		}
+
+		$faq = array();
+		foreach ( (array) ( $page['faq'] ?? array() ) as $item ) {
+			$question = self::fill( (string) ( $item['q'] ?? '' ) );
+			$answer   = self::fill( (string) ( $item['a'] ?? '' ) );
+			if ( '' !== $question && '' !== $answer ) {
+				$faq[] = array(
+					'q' => $question,
+					'a' => $answer,
+				);
+			}
+		}
+
+		return array(
+			'h1'       => self::fill( (string) ( $page['h1'] ?? '' ) ),
+			'intro'    => self::fill_all( (array) ( $page['intro'] ?? array() ) ),
+			'sections' => $sections,
+			'faq'      => $faq,
+		);
+	}
+
+	/**
+	 * The internal links a section offers, minus the ones leading nowhere.
+	 *
+	 * Internal linking is most of what a body of category copy is FOR: the
+	 * competitor whose category text ranks best carries 49 links out of one
+	 * block. But a link is written here as a KEY, never as a URL, so a page that
+	 * has not been created yet simply does not appear, exactly as
+	 * `Theme\page_url()` already does for the masthead. A live link into a 404
+	 * is worse than one fewer link.
+	 *
+	 * @param array<int,array<string,string>> $links
+	 * @return array<int,array{label:string,url:string}>
+	 */
+	private static function links( array $links ): array {
+		$out = array();
+		foreach ( $links as $link ) {
+			$url = self::url_for( (string) ( $link['key'] ?? '' ) );
+			if ( '' === $url ) {
+				continue;
+			}
+			$out[] = array(
+				'label' => self::fill( (string) ( $link['label'] ?? '' ) ),
+				'url'   => $url,
+			);
+		}
+		return $out;
+	}
+
+	/** Where a content key lives on this site, or '' when it does not exist. */
+	public static function url_for( string $key ): string {
+		if ( str_starts_with( $key, 'categorie:' ) ) {
+			$term = get_term_by( 'slug', substr( $key, 10 ), 'product_cat' );
+			if ( ! $term instanceof \WP_Term ) {
+				return '';
+			}
+			$link = get_term_link( $term );
+			return is_string( $link ) ? $link : '';
+		}
+
+		if ( str_starts_with( $key, 'page:' ) ) {
+			$page = get_page_by_path( substr( $key, 5 ) );
+			// Published only. A draft page linked from every category is a 404
+			// for every visitor and a working link for the editor looking at it.
+			if ( ! $page instanceof \WP_Post || 'publish' !== $page->post_status ) {
+				return '';
+			}
+			return (string) get_permalink( $page );
+		}
+
+		if ( 'boutique' === $key ) {
+			return function_exists( 'wc_get_page_permalink' ) ? (string) wc_get_page_permalink( 'shop' ) : '';
+		}
+		if ( 'accueil' === $key ) {
+			return home_url( '/' );
+		}
+
+		return '';
+	}
+
+	// -----------------------------------------------------------------------
+	// Slots
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Resolve `{SLOT}` occurrences, or refuse the string.
+	 *
+	 * Returns the empty string when any slot in it has no value, which is what
+	 * makes the caller drop the sentence.
+	 */
+	public static function fill( string $text ): string {
+		if ( '' === $text || ! str_contains( $text, '{' ) ) {
+			return $text;
+		}
+
+		$slots = self::slots();
+		$ok    = true;
+
+		$filled = (string) preg_replace_callback(
+			'/\{([A-Z0-9_]+)\}/',
+			static function ( array $m ) use ( $slots, &$ok ): string {
+				$name = $m[1];
+				if ( ! isset( $slots[ $name ] ) || '' === $slots[ $name ] ) {
+					$ok                      = false;
+					self::$unresolved[ $name ] = true;
+					return '';
+				}
+				return $slots[ $name ];
+			},
+			$text
+		);
+
+		return $ok ? $filled : '';
+	}
+
+	/**
+	 * @param string[] $lines
+	 * @return string[]
+	 */
+	private static function fill_all( array $lines ): array {
+		$out = array();
+		foreach ( $lines as $line ) {
+			$filled = self::fill( (string) $line );
+			if ( '' !== $filled ) {
+				$out[] = $filled;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Every figure the copy is allowed to state, read from its one authority.
+	 *
+	 * Resolved once per request and only when a page asks for one. The counts
+	 * are the expensive ones and they come from the SAME place the listing's own
+	 * heading counts them, WooCommerce's maintained term counts, because a
+	 * category page claiming 184 references over a grid that shows 181 is a
+	 * page that reads as broken.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function slots(): array {
+		if ( null !== self::$slots ) {
+			return self::$slots;
+		}
+
+		$slots = array();
+
+		$pricing = Settings::pricing();
+		if ( isset( $pricing['min_qty'] ) ) {
+			$slots['MINIMUM_PIECES'] = Money::number( (float) $pricing['min_qty'] );
+		}
+		if ( isset( $pricing['min_ht'] ) ) {
+			$slots['MINIMUM_MONTANT'] = Money::format( (int) $pricing['min_ht'] );
+		}
+		if ( isset( $pricing['quote_from_qty'] ) ) {
+			$slots['SEUIL_DEVIS'] = Money::number( (float) $pricing['quote_from_qty'] );
+		}
+
+		$production = class_exists( '\\Teeshoop\\Core\\Production' ) ? Production::config() : array();
+		$lead       = (int) ( $production['lead_days']['standard'] ?? 0 );
+		if ( $lead > 0 ) {
+			$slots['DELAI_STANDARD'] = Money::number( (float) $lead );
+		}
+		$ship = (int) ( $production['ship_days'] ?? 0 );
+		if ( $ship > 0 ) {
+			$slots['DELAI_TRANSPORT'] = Money::number( (float) $ship );
+		}
+		if ( $lead > 0 && $ship > 0 ) {
+			$slots['DELAI_TOTAL'] = Money::number( (float) ( $lead + $ship ) );
+		}
+
+		foreach ( self::family_counts() as $name => $count ) {
+			if ( $count > 0 ) {
+				$slots[ $name ] = Money::number( (float) $count );
+			}
+		}
+
+		$colours = wp_count_terms(
+			array(
+				'taxonomy'   => 'pa_couleur',
+				'hide_empty' => false,
+			)
+		);
+		if ( ! is_wp_error( $colours ) && (int) $colours > 0 ) {
+			$slots['NB_COLORIS'] = Money::number( (float) (int) $colours );
+		}
+
+		if ( class_exists( '\\Teeshoop\\Core\\Swatch' ) ) {
+			$families = Swatch::families();
+			if ( ! empty( $families ) ) {
+				$slots['NB_FAMILLES_COULEUR'] = Money::number( (float) count( $families ) );
+			}
+		}
+
+		/*
+		 * The print zone, from the studio's own definitions.
+		 *
+		 * `Garments::areas()` is generated by `scripts/gen-garment-data.mjs` and
+		 * gated by `npm run verify:garments`, so the centimetres a landing page
+		 * publishes are the centimetres the press is set to. This is the one
+		 * figure neither competitor publishes at all, so it is also the one the
+		 * copy leans on hardest, which makes it the one that must not be typed.
+		 */
+		if ( class_exists( '\\Teeshoop\\Core\\Garments' ) ) {
+			$areas = Garments::areas( 'tee' );
+			foreach ( $areas as $area ) {
+				if ( 'front' === ( $area['side'] ?? '' ) ) {
+					$slots['ZONE_TSHIRT'] = Garments::cm( (float) $area['w'] )
+						. "\u{00A0}×\u{00A0}" . Garments::cm( (float) $area['h'] ) . "\u{00A0}cm";
+					break;
+				}
+			}
+			$slots['TAILLE_MESUREE'] = Garments::priced_size( 'tee' );
+		}
+
+		self::$slots = array_filter( $slots, static fn( $v ): bool => '' !== (string) $v );
+		return self::$slots;
+	}
+
+	/**
+	 * How many references each published family holds.
+	 *
+	 * Counted from the top-level product categories, which is what the listing's
+	 * own heading counts and what `Theme\catalogue_stats()` sums. A reference
+	 * filed under two families is counted in both, deliberately: the number has
+	 * to agree with the list a buyer checks it against.
+	 *
+	 * @return array<string,int>
+	 */
+	private static function family_counts(): array {
+		static $counts = null;
+		if ( null !== $counts ) {
+			return $counts;
+		}
+
+		$counts = array();
+		$terms  = get_terms(
+			array(
+				'taxonomy'   => 'product_cat',
+				'parent'     => 0,
+				'hide_empty' => true,
+			)
+		);
+		if ( is_wp_error( $terms ) || ! is_array( $terms ) ) {
+			return $counts;
+		}
+
+		$total = 0;
+		$by    = array(
+			't-shirts' => 'NB_TSHIRTS',
+			'polos'    => 'NB_POLOS',
+			'sweats'   => 'NB_SWEATS',
+		);
+		foreach ( $terms as $term ) {
+			if ( ! $term instanceof \WP_Term ) {
+				continue;
+			}
+			$total += (int) $term->count;
+			if ( isset( $by[ $term->slug ] ) ) {
+				$counts[ $by[ $term->slug ] ] = (int) $term->count;
+			}
+		}
+		$counts['NB_REFERENCES'] = $total;
+
+		return $counts;
+	}
+
+	// -----------------------------------------------------------------------
+	// Derived, per product
+	// -----------------------------------------------------------------------
+
+	/**
+	 * What this reference is, in the words a buyer types.
+	 *
+	 * From the family the import recorded, then from the product's top-level
+	 * category, then nothing. Never from the product's own name: "Tee Jays
+	 * Luxury Stretch Shirt" is a polo, and a title built by pattern-matching the
+	 * word "shirt" would have said t-shirt on 88 references.
+	 */
+	public static function family_noun( int $product_id ): string {
+		$family = (string) get_post_meta( $product_id, Catalogue::META_FAMILY, true );
+
+		$nouns = array(
+			'tee'   => __( 't-shirt personnalisé', 'teeshoop' ),
+			'polo'  => __( 'polo personnalisé', 'teeshoop' ),
+			'sweat' => __( 'sweat personnalisé', 'teeshoop' ),
+		);
+		if ( isset( $nouns[ $family ] ) ) {
+			return $nouns[ $family ];
+		}
+
+		$terms = get_the_terms( $product_id, 'product_cat' );
+		if ( is_array( $terms ) ) {
+			$slugs = array(
+				't-shirts' => $nouns['tee'],
+				'polos'    => $nouns['polo'],
+				'sweats'   => $nouns['sweat'],
+			);
+			foreach ( $terms as $term ) {
+				if ( $term instanceof \WP_Term && isset( $slugs[ $term->slug ] ) ) {
+					return $slugs[ $term->slug ];
+				}
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * A description of one reference that no other reseller can publish.
+	 *
+	 * THE PROBLEM THIS SOLVES is the one chapter 04 names in its own SEO
+	 * section: « Les descriptions fournisseurs identiques à des centaines de
+	 * revendeurs sont faibles en différenciation ». The supplier's bullet list
+	 * arrives verbatim on 459 references and is word for word what every other
+	 * European reseller of the same B&C style publishes. Sorting that out with
+	 * hand-written prose on 459 pages is not going to happen, so the difference
+	 * has to be DERIVED: the material, the grammage, the colour count and the
+	 * size run are facts we hold per reference, they differ from one reference
+	 * to the next, and they are the four things a professional buyer compares.
+	 *
+	 * `Importer::excerpt()` already assembles the first three into the one line
+	 * the listing prints. This adds the size run and the one commercial fact
+	 * that applies to THIS reference: a price it can reach, or that it is
+	 * quoted. Nothing is invented and nothing is repeated between two products.
+	 */
+	public static function product_description( int $product_id ): string {
+		$product = wc_get_product( $product_id );
+		if ( ! $product instanceof \WC_Product ) {
+			return '';
+		}
+
+		/*
+		 * ASSEMBLED FROM THE STORED FIELDS, NOT FROM THE SUPPLIER'S SENTENCE.
+		 *
+		 * The first shape of this reused `Importer::excerpt()` verbatim, and
+		 * that string leads with the full composition, which on the B&C E150 is
+		 * "100% coton (peigné et ringspun, certifié biologique ou biologique en
+		 * conversion)": 78 characters before the first fact a buyer compares. A
+		 * 160-character description was therefore spent on the parenthesis and
+		 * cut mid-phrase at "· 21". Reading the same fields separately puts the
+		 * grammage, the colour count and the size run in the space available.
+		 */
+		$facts = array();
+
+		$material = trim( (string) $product->get_meta( Garments::META_MATERIAL, true ) );
+		// Everything before the first bracket or comma: "100% coton", not the
+		// spinning process and the three certifications behind it.
+		$material = trim( (string) preg_replace( '/\s*[(,].*$/us', '', $material ) );
+		if ( '' !== $material ) {
+			$facts[] = $material;
+		}
+
+		$gsm = (int) $product->get_meta( Garments::META_WEIGHT, true );
+		if ( $gsm > 0 ) {
+			$facts[] = Money::number( (float) $gsm ) . "\u{00A0}g/m²";
+		}
+
+		$colours = get_the_terms( $product_id, 'pa_couleur' );
+		if ( is_array( $colours ) && count( $colours ) > 1 ) {
+			$facts[] = sprintf(
+				/* translators: %s: how many colourways the reference is made in. */
+				__( '%s coloris', 'teeshoop' ),
+				Money::number( (float) count( $colours ) )
+			);
+		}
+
+		$sizes = self::size_run( $product );
+		if ( '' !== $sizes ) {
+			$facts[] = $sizes;
+		}
+
+		$noun = self::family_noun( $product_id );
+		$head = '' !== $noun
+			? sprintf(
+				/* translators: 1: what it is, e.g. "polo personnalisé", 2: the reference's own name. */
+				__( '%1$s %2$s', 'teeshoop' ),
+				ucfirst( $noun ),
+				$product->get_name()
+			)
+			: $product->get_name();
+
+		$bits = array();
+		$bits[] = empty( $facts )
+			? $head . '.'
+			: sprintf(
+				/* translators: 1: the garment and its reference, 2: a comma-separated list of its characteristics. */
+				__( '%1$s : %2$s.', 'teeshoop' ),
+				$head,
+				implode( ', ', $facts )
+			);
+
+		$slots = self::slots();
+		if ( $product->is_purchasable() && isset( $slots['MINIMUM_PIECES'] ) ) {
+			$bits[] = sprintf(
+				/* translators: %s: the minimum number of pieces. */
+				__( 'Impression comprise, à partir de %s pièces.', 'teeshoop' ),
+				$slots['MINIMUM_PIECES']
+			);
+		} else {
+			$bits[] = __( 'Tarif sur devis pour votre quantité et vos tailles.', 'teeshoop' );
+		}
+
+		return implode( ' ', $bits );
+	}
+
+	/**
+	 * "Du XS au 5XL", when the attribute says so.
+	 *
+	 * From the size attribute's terms in their MENU ORDER, which `Taxonomy` sets
+	 * from `Catalogue::size_rank()` for exactly this reason: alphabetically, 2XL
+	 * comes before S and the sentence would read "du 2XL au XS".
+	 */
+	private static function size_run( \WC_Product $product ): string {
+		$terms = get_the_terms( $product->get_id(), 'pa_taille' );
+		if ( ! is_array( $terms ) || count( $terms ) < 2 ) {
+			return '';
+		}
+
+		usort(
+			$terms,
+			static fn( \WP_Term $a, \WP_Term $b ): int =>
+				(int) get_term_meta( $a->term_id, 'order', true ) <=> (int) get_term_meta( $b->term_id, 'order', true )
+		);
+
+		$first = reset( $terms );
+		$last  = end( $terms );
+		if ( ! $first instanceof \WP_Term || ! $last instanceof \WP_Term || $first->name === $last->name ) {
+			return '';
+		}
+
+		return sprintf(
+			/* translators: 1: the smallest size offered, 2: the largest. */
+			__( 'du %1$s au %2$s', 'teeshoop' ),
+			$first->name,
+			$last->name
+		);
+	}
+
+	// -----------------------------------------------------------------------
+	// Saying it to the person who can be confused by it
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Tell an editor where the text they are looking at actually comes from.
+	 *
+	 * Somebody WILL open the T-shirts category in the admin, type a paragraph
+	 * into the description field, save, look at the page and see nothing change.
+	 * Silence there costs an afternoon and a certain amount of trust. Rendered
+	 * only for somebody who can edit, on the screen where they are editing.
+	 */
+	public static function notice(): void {
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! $screen instanceof \WP_Screen || ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
+
+		$key = '';
+		if ( 'edit-product_cat' === $screen->id || 'term' === $screen->base ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading which term is on screen.
+			$term_id = isset( $_GET['tag_ID'] ) ? absint( wp_unslash( $_GET['tag_ID'] ) ) : 0;
+			$term    = $term_id > 0 ? get_term( $term_id, 'product_cat' ) : null;
+			if ( $term instanceof \WP_Term && self::has( 'categorie:' . $term->slug ) ) {
+				$key = 'categorie:' . $term->slug;
+			}
+		} elseif ( 'page' === $screen->id && 'post' === $screen->base ) {
+			$post = get_post();
+			if ( $post instanceof \WP_Post && self::has( 'page:' . $post->post_name ) ) {
+				$key = 'page:' . $post->post_name;
+			}
+		}
+
+		if ( '' === $key ) {
+			return;
+		}
+
+		echo '<div class="notice notice-info"><p>';
+		printf(
+			/* translators: %s: the identifier of the page's copy in the repository. */
+			esc_html__( 'Le texte de cette page est écrit dans le dépôt (Content.php, entrée « %s ») et non ici : il doit rester d’accord avec le prix, le délai et les dimensions que le code calcule. Ce que vous saisirez dans cet écran s’affichera au-dessus, sans le remplacer.', 'teeshoop' ),
+			esc_html( $key )
+		);
+		echo '</p></div>';
+	}
+
+	// -----------------------------------------------------------------------
+	// The copy
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Every page that carries copy of its own.
+	 *
+	 * THE KEYS ARE THE SITE'S VOCABULARY, resolved by `Seo::content_key()`:
+	 * `accueil`, `boutique`, `categorie:{slug}`, `page:{slug}`. A key with no
+	 * entry is a page with no copy, which is a decision the indexing policy
+	 * reads: `Seo` leaves a child category out of the index until somebody has
+	 * written something for it, so a thin page never enters the index by
+	 * default.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	public static function pages(): array {
+		static $pages = null;
+		if ( null !== $pages ) {
+			return $pages;
+		}
+		$pages = require __DIR__ . '/../data/copy.php';
+		return is_array( $pages ) ? $pages : array();
+	}
+}

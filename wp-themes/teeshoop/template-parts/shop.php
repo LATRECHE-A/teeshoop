@@ -22,15 +22,53 @@ defined( 'ABSPATH' ) || exit;
 $ts_term  = is_product_taxonomy() ? get_queried_object() : null;
 $ts_total = (int) wc_get_loop_prop( 'total' );
 $ts_chips = applied_chips();
+
+/*
+ * THE CATEGORY'S OWN COPY, and it is split in two on purpose.
+ *
+ * The intro is one to three sentences and sits above the grid; the rest sits
+ * under it, which is what five competitors out of five do, measured. See
+ * `editorial_body()` for the numbers.
+ *
+ * It is suppressed on a filtered or paginated view: the text describes the
+ * category, and repeating a thousand words of it under eight pages of the same
+ * listing is how a shop builds its own near-duplicates. Those views are
+ * `noindex` anyway, and a buyer who has narrowed to three references has left
+ * the reading part behind.
+ */
+$ts_key   = $ts_term instanceof \WP_Term ? 'categorie:' . $ts_term->slug : ( is_shop() ? 'boutique' : '' );
+$ts_first = ! has_filters() && ! is_paged();
+$ts_copy  = '' !== $ts_key && $ts_first ? editorial( $ts_key ) : editorial( '' );
 ?>
 <div class="ts-shop ts-wrap">
 
 	<header class="ts-shop__head">
 		<?php woocommerce_breadcrumb(); ?>
 
-		<h1 class="ts-shop__title"><?php woocommerce_page_title(); ?></h1>
+		<h1 class="ts-shop__title">
+			<?php
+			if ( '' !== $ts_copy['h1'] ) {
+				echo esc_html( $ts_copy['h1'] );
+			} else {
+				woocommerce_page_title();
+			}
+			?>
+		</h1>
+
+		<?php if ( ! empty( $ts_copy['intro'] ) ) : ?>
+			<div class="ts-shop__intro">
+				<?php foreach ( $ts_copy['intro'] as $ts_line ) : ?>
+					<p><?php echo esc_html( $ts_line ); ?></p>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
 
 		<?php
+		/*
+		 * And whatever an operator typed into the term description, still, under
+		 * ours. `Content::notice()` tells them on the editing screen which of
+		 * the two they are looking at.
+		 */
 		if ( $ts_term instanceof \WP_Term && '' !== trim( (string) $ts_term->description ) ) {
 			printf( '<div class="ts-shop__intro">%s</div>', wp_kses_post( wpautop( $ts_term->description ) ) );
 		}
@@ -106,3 +144,5 @@ $ts_chips = applied_chips();
 		<?php endif; ?>
 	</div>
 </div>
+
+<?php editorial_body( $ts_copy, 'ts-edito-categorie' ); ?>

@@ -354,3 +354,105 @@ function advice_block(): void {
 	</aside>
 	<?php
 }
+
+/* ─────────────────────────────────────────────────────────── editorial ── */
+
+/**
+ * The copy a page carries, or nothing at all.
+ *
+ * The words live in `Teeshoop\Core\Content`, in the repository, with every
+ * figure in them written as a slot the plugin resolves from the price
+ * authority, the workshop calendar and the studio's print geometry. This
+ * function only draws them, so it decides no value, like everything else in
+ * this file.
+ *
+ * @return array{h1:string,intro:string[],sections:array,faq:array}
+ */
+function editorial( string $key ): array {
+	if ( ! class_exists( '\Teeshoop\Core\Content' ) || ! \Teeshoop\Core\Content::has( $key ) ) {
+		return array(
+			'h1'       => '',
+			'intro'    => array(),
+			'sections' => array(),
+			'faq'      => array(),
+		);
+	}
+	return \Teeshoop\Core\Content::page( $key );
+}
+
+/**
+ * The long copy, and it goes UNDER the products.
+ *
+ * MEASURED ON FIVE COMPETITORS on 26 August 2026, counting words of running
+ * text before the first product link against after it: laboutiquedupro 0 / 809,
+ * tissus-print 25 / 1 764, vetement-publicitaire 42 / 1 049, label-blouse
+ * 68 / 859, la-manufacture 145 / 3 239. Mistertee.fr publishes 2 822 words under
+ * its /t-shirts grid and exactly 24 words above it, all of which are the filter
+ * controls. Five out of five put the grid first. A buyer who arrived to compare
+ * garments should meet garments; a buyer who arrived to understand what we do
+ * scrolls, and so does a crawler.
+ *
+ * The intro is the exception and it is deliberately short: one to three
+ * sentences above the grid, which is what says whose page this is.
+ *
+ * @param array $page The result of `editorial()`.
+ */
+function editorial_body( array $page, string $id = 'ts-edito' ): void {
+	$sections = (array) ( $page['sections'] ?? array() );
+	$faq      = (array) ( $page['faq'] ?? array() );
+	if ( empty( $sections ) && empty( $faq ) ) {
+		return;
+	}
+	?>
+	<div class="ts-edito ts-wrap" id="<?php echo esc_attr( $id ); ?>">
+		<?php foreach ( $sections as $i => $ts_section ) : ?>
+			<?php $ts_head = $id . '-' . (int) $i; ?>
+			<section class="ts-edito__section" aria-labelledby="<?php echo esc_attr( $ts_head ); ?>">
+				<h2 class="ts-edito__title" id="<?php echo esc_attr( $ts_head ); ?>"><?php echo esc_html( (string) $ts_section['h2'] ); ?></h2>
+				<?php foreach ( (array) $ts_section['paragraphs'] as $ts_p ) : ?>
+					<p><?php echo esc_html( (string) $ts_p ); ?></p>
+				<?php endforeach; ?>
+				<?php if ( ! empty( $ts_section['list'] ) ) : ?>
+					<ul class="ts-edito__list">
+						<?php foreach ( (array) $ts_section['list'] as $ts_item ) : ?>
+							<li><?php echo esc_html( (string) $ts_item ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
+				<?php if ( ! empty( $ts_section['links'] ) ) : ?>
+					<p class="ts-edito__links">
+						<?php foreach ( (array) $ts_section['links'] as $ts_link ) : ?>
+							<a href="<?php echo esc_url( (string) $ts_link['url'] ); ?>"><?php echo esc_html( (string) $ts_link['label'] ); ?></a>
+						<?php endforeach; ?>
+					</p>
+				<?php endif; ?>
+			</section>
+		<?php endforeach; ?>
+
+		<?php if ( ! empty( $faq ) ) : ?>
+			<?php
+			/*
+			 * THE QUESTIONS ARE CONTENT, NOT MARKUP.
+			 *
+			 * There is no `FAQPage` JSON-LD under this block, and that is a
+			 * decision rather than an omission: in August 2023 Google restricted
+			 * FAQ rich results to well-known government and health sites, so on
+			 * a merchant site the markup produces nothing at all. Publishing
+			 * structured data that no consumer acts on is bytes on every page
+			 * for a checklist tick. The answers still earn their place by being
+			 * the six things a buyer actually asks before ordering.
+			 */
+			?>
+			<section class="ts-edito__section ts-faq" aria-labelledby="<?php echo esc_attr( $id ); ?>-faq">
+				<h2 class="ts-edito__title" id="<?php echo esc_attr( $id ); ?>-faq"><?php esc_html_e( 'Questions fréquentes', 'teeshoop' ); ?></h2>
+				<dl class="ts-faq__list">
+					<?php foreach ( $faq as $ts_item ) : ?>
+						<dt class="ts-faq__q"><?php echo esc_html( (string) $ts_item['q'] ); ?></dt>
+						<dd class="ts-faq__a"><?php echo esc_html( (string) $ts_item['a'] ); ?></dd>
+					<?php endforeach; ?>
+				</dl>
+			</section>
+		<?php endif; ?>
+	</div>
+	<?php
+}
