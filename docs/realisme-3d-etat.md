@@ -54,7 +54,7 @@ existaient à peine et existent maintenant.
 
 ## Ce qui manque pour que ce soit une photo
 
-Cinq choses, de la plus visible à la moins.
+Six choses, de la plus visible à la moins.
 
 ### 1. Le vêtement est une coque, pas un patron cousu
 
@@ -140,7 +140,27 @@ Mesuré : la dérive du placement d'impression entre tailles est de **0,111 sur 
 Sur une boutique où la taille d'impression est un engagement facturé et imprimé, une image
 qui ment sur le produit vaut moins que pas d'image. La question produit est la **Q52**.
 
-### 4. Le liseré d'encre est imprimé et pas gardé
+### 4. L'impression prend la lumière du tissu, mais on ne sait pas encore dire combien
+
+À noter parce que c'est le défaut que la consigne de séance nomme comme le plus visible de
+tous (« une impression qui flotte sur la surface »), et parce que le premier examen s'est
+trompé.
+
+La planche `scripts/stage-shots.mjs` a été tirée le 26/08/2026 (`.qa/stage`, quatre images :
+un t-shirt et un sweat fournisseur, de face et de trois quarts, avec l'impression d'essai).
+À l'œil, l'étoile jaune semblait plate, posée sur le vêtement plutôt que dedans. **Mesuré,
+c'est faux** : l'impression varie de 21 à 30 niveaux de luminance selon le cas, elle prend
+donc bien la lumière.
+
+Ce qui n'est PAS mesuré, et qu'il ne faut pas prétendre : de combien elle devrait varier. La
+comparaison évidente, « l'impression contre le tissu à côté d'elle », donne un rapport qui va
+de 14 % à 72 % selon la prise, et cet écart vient de l'instrument, pas du rendu : prélever le
+tissu à 30 pixels du bord de l'impression tombe tantôt sur un pli, tantôt sur le bord du
+vêtement, tantôt sur le fond. Une mesure honnête demande un masque du vêtement, pas un
+décalage fixe. C'est une demi-journée d'instrument, pas de rendu, et cela vaudrait la peine :
+c'est le seul chiffre qui dirait si l'encre est assez dans le tissu.
+
+### 5. Le liseré d'encre est imprimé et pas gardé
 
 La correction (prémultiplication, division, décodage) est de l'arithmétique démontrable, mais
 la mire de calibrage cerne ses propres lettres d'un trait noir, donc le compteur de liseré
@@ -149,7 +169,7 @@ opposable à personne.
 
 **Ce que coûte de le combler** : une mire à bords francs sans noir à elle. C'est petit.
 
-### 5. Un vêtement sombre dans la scène `night` est à la limite
+### 6. Un vêtement sombre dans la scène `night` est à la limite
 
 Le seul contrôle rouge des soixante-quatorze. Détaillé dans `docs/ROADMAP.md` ; c'est le
 sujet qui reste ouvert et il est chiffré.

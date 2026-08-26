@@ -42,9 +42,12 @@ un temps (voir 3.2).
 | `scripts/parity-verify.mjs` | **PASS** | le placement d'impression concorde entre 2D, 3D et AR à 0,0-0,5 % près sur les trois tailles |
 | `scripts/grading-verify.mjs` | **PASS** | la déclinaison par taille tient à 0,27 %, et le raster du transfert colle à la zone au pixel |
 | `scripts/board-verify.mjs` | **PASS** | sans le moindre avertissement, alors qu'il sortait en WARN avant la séance |
-| `npm run verify:leak` | **PASS** | nouveau : parcourir les scènes n'alloue plus rien (13 textures, plates sur 18 changements, contre 13 -> 67 avant), les six scènes éclairent toujours différemment, et la sortie d'échec est prouvée (`rc=3` sur l'arbre cassé exprès) |
+| `npm run verify:leak` | **PASS** | nouveau : parcourir les scènes n'alloue plus rien (13 textures, plates sur 18 changements, contre 13 -> 67 avant), les six scènes éclairent toujours différemment, et les deux sorties d'échec sont prouvées : `rc=3` sur l'arbre cassé exprès, et `rc=2` (« rien n'a été balayé ») avec `LEAK_CYCLES=0`, une branche qui était auparavant inatteignable. Relancé vert sur `8a6c6a5` |
 | `scripts/3d-shots.mjs` | 14 images sur 14 **distinctes** | et 14 sur 14 sur l'arbre d'AVANT la séance aussi, une fois le script corrigé : les doublons venaient de l'instrument, pas du studio (voir 3.5) |
 | `scripts/frame-bench.mjs` | mesuré | voir `.qa/frame-bench-after2.json` et l'en-tête de `src/three/index.tsx` |
+| `npm run test:wp` | **vert** | 189 tests d'intégration sur un vrai WooCommerce, relancés sur `8a6c6a5` : la séance a touché `Cart.php` et `Design.php`, et l'article 2 de CLAUDE.md exige un test contre un vrai Woo pour tout ce qui touche au panier. La ligne manquait au tableau, pas le test |
+| `npm run verify:wp-e2e` | **vert** | 87 assertions, du studio au panier au paiement à la facture, relancées sur `8a6c6a5` |
+| `scripts/stage-shots.mjs` | 4 images sur 4 | le seul script de la consigne qui n'avait jamais tourné : une vraie photo fournisseur sous la vraie scène, `.qa/stage`. Il échoue quand le miroir docker tourne (le navigateur meurt entre deux prises) et passe machine libre, comme `inflate-verify` |
 
 Construction, contre l'arbre d'avant la séance (`1935798~1`, worktree) :
 
