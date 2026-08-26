@@ -36,6 +36,7 @@ namespace Teeshoop\Core;
 defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 require_once __DIR__ . '/Vat.php';
+require_once __DIR__ . '/Terms.php';
 
 final class Legal {
 
@@ -205,19 +206,27 @@ final class Legal {
 	/**
 	 * Which version of the terms is in force, or ''.
 	 *
-	 * EMPTY UNTIL SOMEBODY WRITES THEM, exactly like every field above and for
-	 * the same reason: a plausible "v1" recorded against a customer's
-	 * acknowledgement would say we can produce the document they agreed to, and
-	 * we cannot. Session 12 writes the CGV and sets this; `Waiver` records
-	 * whatever it says, including nothing.
+	 * IT WAS AN OPTION AND IT HAD NO WRITER. This read
+	 * `get_option( OPTION_LEGAL )['cgv_version']` for four sessions, and a
+	 * repo-wide grep found exactly one reader, one accessor and one comment
+	 * explaining that the save handler must not delete it: no admin field, no
+	 * command, no migration ever set it. So every order `Waiver` froze recorded
+	 * `cgv: ""`, and the eight on the mirror still do. An operator could not have
+	 * fixed it from any screen.
 	 *
-	 * A DATE AND NOT A NUMBER, when it is set: two revisions in one year both
-	 * called "v2" is the whole failure mode of versioning a legal document, and
-	 * `2026-09-01` cannot collide with itself.
+	 * IT IS DERIVED NOW, from the versions that exist on disk and today's date.
+	 * That deletes the setting rather than filling it, which is the right
+	 * direction: a version in force is not an opinion an administrator holds, it
+	 * is which dated text has taken effect, and two places holding that answer is
+	 * how they come to disagree.
+	 *
+	 * A DATE AND NOT A NUMBER: two revisions in one year both called "v2" is the
+	 * whole failure mode of versioning a legal document, and `2026-08-26` cannot
+	 * collide with itself. `Terms` enforces the shape by refusing a file whose
+	 * name is not a real calendar day.
 	 */
 	public static function cgv_version(): string {
-		$stored = get_option( OPTION_LEGAL, array() );
-		return is_array( $stored ) ? trim( (string) ( $stored['cgv_version'] ?? '' ) ) : '';
+		return Terms::current();
 	}
 
 	// ── WordPress side ───────────────────────────────────────────────────────

@@ -113,6 +113,37 @@ if ( empty( $files ) ) {
 	exit( 2 );
 }
 
+/*
+ * A RUN THAT STOPS HALF WAY MAY NOT EXIT 0.
+ *
+ * Every file in includes/ guards itself with `defined('ABSPATH') || exit`, and
+ * one of them was missing the TEESHOOP_TEST escape. A test that required it hit
+ * that `exit` at load: PHP unwound, this file's remaining lines never ran, no
+ * summary was printed, and the process ended with status 0. Sixty assertions had
+ * passed, eight files had not been opened at all, and `npm run ci` went green.
+ * That is the same failure the brief already records ("nine green ticks under
+ * 0 passed"), arriving from the other direction.
+ *
+ * The sentinel makes it impossible: reaching the end of this file is now a fact
+ * the shutdown handler can read, and anything else is exit 2, which is this
+ * project's code for "the scan is not trustworthy".
+ */
+$GLOBALS['ts_reached_end'] = false;
+register_shutdown_function(
+	static function (): void {
+		if ( true === ( $GLOBALS['ts_reached_end'] ?? false ) ) {
+			return;
+		}
+		$done = ( $GLOBALS['ts_pass'] ?? 0 ) + ( $GLOBALS['ts_fail'] ?? 0 );
+		fwrite(
+			STDERR,
+			RED . "\n  The run stopped before the end: {$done} assertion(s) ran and no summary was printed.\n"
+			. "  A file required by a test called exit(), or PHP died. Do not read this as a pass.\n" . OFF
+		);
+		exit( 2 );
+	}
+);
+
 foreach ( $files as $file ) {
 	require $file;
 }
@@ -125,8 +156,10 @@ foreach ( $GLOBALS['ts_failures'] as $failure ) {
 $total = $GLOBALS['ts_pass'] + $GLOBALS['ts_fail'];
 if ( $GLOBALS['ts_fail'] > 0 ) {
 	echo RED . "  {$GLOBALS['ts_fail']} failed" . OFF . ", {$GLOBALS['ts_pass']} passed ({$total} total)\n";
+	$GLOBALS['ts_reached_end'] = true;
 	exit( 1 );
 }
 
 echo GREEN . "  {$GLOBALS['ts_pass']} passed" . OFF . " ({$total} total)\n";
+$GLOBALS['ts_reached_end'] = true;
 exit( 0 );

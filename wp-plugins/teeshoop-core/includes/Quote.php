@@ -43,7 +43,16 @@ declare( strict_types = 1 );
 
 namespace Teeshoop\Core;
 
-defined( 'ABSPATH' ) || exit;
+/*
+ * THE TEST ESCAPE, LIKE EVERY OTHER FILE IN THIS DIRECTORY. It was missing
+ * here alone, and the consequence was not a missing test: a pure test that
+ * required this file called `exit` at load, PHP ran the shutdown handlers, and
+ * `tests/run.php` ended with NO summary line and status 0. A green run that had
+ * silently stopped a third of the way through. Nothing in this file touches
+ * WordPress at load time, which is why the guard can carry it: the hypotheses
+ * guard already `require_once`s every file here in a bare PHP process.
+ */
+defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 final class Quote {
 
@@ -80,8 +89,16 @@ final class Quote {
 	 * data subject that is not true, which is the part that matters.
 	 *
 	 * Question 40 of QUESTIONS-ASSOCIE.md asks the associate to confirm it.
+	 *
+	 * PUBLIC SINCE SESSION 12, because the conditions of sale and the privacy
+	 * policy both state this duration to the person it is about, and a number a
+	 * customer reads must not be typed a second time in the document that reads
+	 * it. `Terms::live_values()` and `Privacy::register()` take it from here.
+	 * It was private, and the register's own guard reached it by reflection,
+	 * which is a sign that the visibility was wrong rather than that the reader
+	 * was clever.
 	 */
-	private const KEEP_DAYS = 1095;
+	public const KEEP_DAYS = 1095;
 
 	/** The daily purge. */
 	private const CRON = 'teeshoop_purge_devis';
