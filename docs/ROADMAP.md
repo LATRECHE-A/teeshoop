@@ -946,6 +946,10 @@ classé.
 - **Le sélecteur de scène est un `listbox` en ARIA et pas en comportement** : pas de flèches,
   pas de `tabindex` glissant, le focus n'entre pas dans la liste et ne revient pas au bouton.
   C'est de la dette d'avant la séance et elle appartient à la séance 12 (accessibilité).
+  **La séance 12 ne l'a pas prise** : elle a traité le parcours d'achat, où l'argent
+  change de main, et le sélecteur de scène est dans le studio. Il passe à la
+  séance 13 avec la `Modal` du studio, qui pose `aria-modal="true"` sans piège de
+  focus. Voir `docs/seance-12-a-reprendre.md` §6.
 - **Le balayage `render-verify` reste lent et hors CI** (quelques minutes par cas sous
   rendu logiciel), donc il ne protège rien automatiquement : il faut le lancer.
 - **Un bouton de vue sur trois ne faisait rien, et personne ne l'avait vu.** Mesuré avec la
@@ -1097,7 +1101,7 @@ instructions de travail, elles changent plus vite que le code).
 | ~~09~~ | ~~Le site : accueil, navigation, système de design~~ **faite** | - |
 | 10 | Le studio en vitrine : 3D et mockups. **L'aperçu 3D d'un vêtement du catalogue est fait, mesuré et gardé** ; la vue portée est refusée par écrit, et les mockups ne sont relus par personne (voir « Ce que la séance 10 n'a pas fait » ci-dessus) | 09 |
 | ~~11~~ | ~~Référencement, contenu, données structurées~~ **faite**. Une page manque et le refus est écrit : la page Île-de-France, qui a besoin d'une adresse (questions 17 et 55) | - |
-| 12 | Juridique, RGPD, accessibilité | 09 |
+| ~~12~~ | ~~Juridique, RGPD, accessibilité~~ **faite**. Les quatre pages existent et se déclarent comme des projets non relus par un avocat, les CGV sont des versions datées dont les chiffres sont contrôlés contre le code, l'effacement suit la donnée jusqu'à R2 et refuse plutôt que de finir à moitié, et le parcours d'achat passe WCAG 2.2 AA. Sept points bloquent encore la vente et aucun n'est du code : voir `docs/seance-12-a-reprendre.md` §2 |
 | 13 | Performance, sécurité, supervision | 09, 10 |
 | 13b | Les réponses de l'associé, et redire la vérité | 13 |
 | 14 | Déploiement : préproduction, pipeline, purge de la démo | 13b |
