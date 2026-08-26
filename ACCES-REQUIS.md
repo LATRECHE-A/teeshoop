@@ -614,6 +614,35 @@ démarche à engager chez le comptable ou la banque, et l'échéance est dans de
 
 ---
 
+## 6 quater. Trois informations juridiques, et aucune n'est un accès (séance 12)
+
+Ce ne sont pas des mots de passe. Ce sont trois faits qu'il faut aller LIRE quelque
+part, et que la séance 12 a délibérément laissés vides plutôt que de les
+reconstituer, parce qu'une information plausible sur une page de mentions légales
+est une information qui part en production.
+
+| Quoi | Où le trouver | Qui |
+|---|---|---|
+| L'identité légale de l'hébergeur : raison sociale, adresse postale, téléphone | Le contrat o2switch, ou les mentions légales publiées par o2switch sur son propre site | Le développeur, en cinq minutes |
+| L'avenant de traitement des données (RGPD article 28) de Cloudflare, Stripe et o2switch | L'espace client de chacun. Chez les trois, c'est une case à cocher ou un document à télécharger | Le développeur, un après-midi |
+| Le compte Brevo, et son avenant de traitement | Le compte n'existe pas encore (§7 le classe en R4). Il faudra le créer AVANT la mise en ligne, parce que Brevo reçoit le corps des messages, ce qui inclut le lien de validation d'un bon à tirer | À arbitrer |
+
+**Pourquoi l'hébergeur est ici et pas dans `QUESTIONS-ASSOCIE.md`.** Le nom et
+l'adresse de l'hébergeur sont imposés par l'article 6 III de la loi pour la
+confiance dans l'économie numérique, ils sont publics, et ils ne dépendent
+d'aucune décision de l'associé. Ce dépôt connaît le SERVEUR
+(`ascaphus.o2switch.net`, 109.234.166.12, compte `dawe4500`) et un nom de serveur
+n'est ni une raison sociale ni une adresse postale. Le champ est vide dans
+WooCommerce > Facturation, la page `/mentions-legales/` affiche « non communiqué »
+en face, et cela restera ainsi jusqu'à ce que quelqu'un ouvre le contrat.
+
+**Ce qui manque et qui n'est PAS ici**, parce que ce sont des décisions et non des
+lectures : le directeur de la publication et les coordonnées de contact
+(question 56), le médiateur de la consommation (question 57), l'avocat qui relit
+les textes (question 58), et qui signe les avenants (question 59).
+
+---
+
 ## 7. Plus tard — inutile de les créer maintenant
 
 Ces accès ne servent qu'à partir de R1/R2. Les créer trop tôt, c'est multiplier les

@@ -3227,18 +3227,225 @@
 			],
 			"cost_if_late": "reglage et remesure",
 			"shipped_matches_default": "Partiellement, et il faut le dire. La question 10 porte sur les vêtements et les tailles à rendre AU LANCEMENT, ce qui est une décision de boutique. Ce que la séance 10 a tranché est plus étroit : quels vêtements le jeu d'images de contrôle couvre, et le motif est le temps machine (une prise coûte six à sept minutes en rastérisation logicielle, et le jeu fait huit prises par vêtement). Aucune image n'est aujourd'hui montrée à un client : rien ne relit .qa/mockups, le panier et le bon à tirer affichent toujours l'aperçu plat de renderMockup. Le jour où ces images seront branchées, `reaches` devient customer et cette ligne demande un label_fr."
+		},
+		{
+			"id": "H-Q18-TEXTES-PROJET",
+			"question": "Q18",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-26",
+			"statement_fr": "Les mentions légales, les conditions générales de vente, la politique de confidentialité et la déclaration d'accessibilité sont des projets rédigés en interne à partir du fonctionnement réel de la boutique, publiés en portant l'état « projet » et un avertissement de relecture, et aucun avocat ne les a lus.",
+			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-08-26.php#'etat'   => 'projet',",
+			"mirrors": [
+				{
+					"ref": "anchor:wp-plugins/teeshoop-core/includes/LegalPage.php#Projet, non validé par un juriste.",
+					"relation": "equal",
+					"why": "le bandeau que les quatre pages affichent ; l'état déclaré dans la version et la phrase montrée au lecteur doivent tomber ensemble, sinon un texte validé continuerait de s'annoncer comme un brouillon ou l'inverse."
+				}
+			],
+			"literals": [],
+			"literals_why": "La valeur est le mot « projet » et la présence d'un avertissement. Chercher ces caractères comme littéral trouverait des dizaines de phrases françaises ordinaires.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [
+				"Les quatre pages publiées portent le bandeau « Projet, non validé par un juriste ». Le jour où un avocat les valide, ce bandeau doit disparaître des quatre en même temps, et une NOUVELLE version datée des conditions générales doit être publiée : une version déjà acceptée par un client ne se corrige pas sur place.",
+				"La séance 13b doit reposer la question de chaque clause au regard de la réponse de l'associé, en particulier l'article 16 (publication des réalisations) et l'article 18 (médiateur de la consommation, qui n'est pas désigné)."
+			],
+			"sessions": [
+				"12"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Projet, non validé par un juriste.",
+			"shipped_matches_default": "Oui : l'hypothèse écrite de la question 18 dit « Nous préparons des textes de base à faire relire par un avocat ». Un écart assumé sur l'autre moitié de cette hypothèse : elle place la renonciation « à la validation du bon à tirer », ce qui est après la conclusion du contrat. La séance 06 l'a refusée et l'a placée au paiement ; voir H-Q18-RENONCIATION-TEXTE."
+		},
+		{
+			"id": "H-Q18-RENONCIATION-TEXTE",
+			"question": "Q18",
+			"level": "bloquant",
+			"status": "assumption",
+			"since": "2026-08-19",
+			"statement_fr": "La phrase par laquelle un client renonce au droit de rétractation sur les articles personnalisés est rédigée par nous, affichée avant le paiement et non à la validation du bon à tirer, et figée sur la commande avec la version des conditions générales en vigueur.",
+			"home": "php:Teeshoop\\Core\\Waiver::text()",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est une phrase française. Le contrôle des secondes copies cherche des chiffres, et cette phrase n'en contient aucun.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [
+				"Ce que la facture imprime sous « Articles personnalisés : droit de rétractation exclu ».",
+				"Les six assertions de scripts/wp-e2e-verify.mjs qui relisent la renonciation sur la commande placée : la phrase enregistrée doit être exactement celle-ci, et la version des CGV doit être une version que Terms::document() sait produire."
+			],
+			"sessions": [
+				"06",
+				"12"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Je commande des articles personnalisés à ma demande.",
+			"shipped_matches_default": "Non, et c'est délibéré. L'hypothèse écrite de la question 18 horodate la renonciation « à la validation du bon à tirer », donc après le paiement et après la conclusion du contrat. Les articles L221-5 et R221-2 veulent l'information AVANT. Les deux actes existent : celui-ci au paiement, l'approbation du bon à tirer là où elle se produit."
+		},
+		{
+			"id": "H-Q33-CONSERVATION-MESSAGES",
+			"question": "Q33",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-08-26",
+			"statement_fr": "Une trace d'envoi de message est conservée 730 jours, soit deux ans, alignés sur la garantie légale de conformité, puis supprimée automatiquement.",
+			"home": "phpconst:Teeshoop\\Core\\Privacy::OUTBOX_KEEP_DAYS",
+			"mirrors": [],
+			"literals": [
+				"730"
+			],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [
+				"La ligne « Messages envoyés » de la page /confidentialite/, qui annonce cette durée à la personne concernée. Une durée annoncée que rien n'applique est une déclaration fausse faite à un data subject."
+			],
+			"sessions": [
+				"12"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "alignés sur la garantie légale de conformité",
+			"shipped_matches_default": "Il n'y a pas d'hypothèse par défaut : la question 33 parle des fichiers et des aperçus des clients, pas du journal d'envoi, qui n'existait pas quand elle a été écrite. Deux ans est dérivé de ce à quoi ce journal sert : prouver qu'un client a été prévenu, question qui se pose tant que la garantie légale de conformité court.",
+			"statement_amounts": [
+				{
+					"from": "",
+					"as": "int",
+					"text": "730",
+					"in": "conservée 730 jours"
+				}
+			],
+			"literal_scope": [
+				"wp-plugins/"
+			],
+			"literal_scope_why": "730 est une coordonnée de tracé dans src/garments/hoodie.ts et un nombre ordinaire ailleurs. Une durée de conservation ne peut s'écrire que dans l'extension, où la tâche qui l'applique vit."
+		},
+		{
+			"id": "H-Q33-CONSERVATION-CREATIONS",
+			"question": "Q33",
+			"level": "important",
+			"status": "refused",
+			"since": "2026-08-26",
+			"statement_fr": "Aucune durée de conservation n'est fixée pour les créations des clients : l'outil qui les supprime existe, aucune tâche ne l'appelle, et rien n'expire.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Privacy.php#un balayage périodique",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est l'absence d'une durée. Il n'y a pas de chiffre à chercher, et c'est précisément ce que cette ligne enregistre.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [],
+			"sessions": [
+				"12"
+			],
+			"cost_if_late": "reglage et remesure",
+			"shipped_matches_default": "Non. L'hypothèse écrite de la question 33 dit trois ans pour les fichiers de production et un an pour les aperçus. Ce sont deux durées et deux formes de clés dans R2, donc deux règles, et aucune n'a été posée : la règle de cycle de vie R2 couvre le préfixe ar/ à 30 jours et ne couvre pas design/, parce que seule la boutique sait quelle création est encore due contre une commande. POST /api/design/reap est construit et attend une décision et un ordonnanceur."
+		},
+		{
+			"id": "H-Q28-MADAGASCAR",
+			"question": "Q28",
+			"level": "important",
+			"status": "refused",
+			"since": "2026-08-26",
+			"statement_fr": "Aucun accès aux données clients depuis l'extérieur de l'Union européenne n'est construit : pas de compte, pas de rôle, pas de journal de consultation, et rien à restreindre.",
+			"home": "doc:docs/RGPD.md#Madagascar",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est un refus. Rien n'est écrit dans le code, donc il n'y a aucun littéral à protéger, et c'est le fait que cette ligne enregistre.",
+			"reaches": [
+				"internal"
+			],
+			"derives": [],
+			"sessions": [
+				"12"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "L'hypothèse écrite de la question 28 décrit un accès restreint aux entreprises attribuées, sans coûts ni marges ni données de paiement, avec journal des consultations et contrat de sous-traitance avant la mise en ligne. Rien de tout cela n'est construit, et construire un accès hors UE avant que le contrat existe serait bâtir la chose que la question demande d'encadrer."
+		},
+		{
+			"id": "H-Q36-AUTORISATION-REALISATIONS",
+			"question": "Q36",
+			"level": "secondaire",
+			"status": "assumption",
+			"since": "2026-08-26",
+			"statement_fr": "L'autorisation de publier les réalisations d'un client est une clause des conditions générales de vente, refusable à tout moment par simple demande écrite, avec retrait des publications déjà en ligne.",
+			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-08-26.php#Publication des réalisations",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est une clause. Il n'y a aucun chiffre dedans.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [
+				"Le jour où une page « réalisations » existe, elle ne peut publier que des commandes dont le client n'a pas écrit son refus, et rien dans le code ne tient encore la liste de ces refus : la clause promet un mécanisme qui n'est pas construit."
+			],
+			"sessions": [
+				"12"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Publication des réalisations",
+			"shipped_matches_default": "Oui, c'est l'hypothèse par défaut de la question 36 mot pour mot. Un ajout : la clause dit aussi qu'aucune photographie de personne identifiable n'est publiée sans un accord distinct, ce que la question ne prévoyait pas et qui relève du droit à l'image et non des conditions de vente."
+		},
+		{
+			"id": "H-Q56-EDITEUR-SITE",
+			"question": "Q56",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-26",
+			"statement_fr": "Le directeur de la publication, l'adresse de contact, le téléphone et l'identité de l'hébergeur restent vides, et la page des mentions légales publie la liste de ce qui manque plutôt qu'un exemple crédible.",
+			"home": "anchor:wp-plugins/teeshoop-core/includes/Host.php#'directeur_publication' => 'Directeur de la publication',",
+			"mirrors": [
+				{
+					"ref": "anchor:wp-plugins/teeshoop-core/includes/LegalPage.php#Mentions obligatoires manquantes, la boutique n’est pas ouverte à la vente.",
+					"relation": "equal",
+					"why": "ce que le visiteur lit quand ces champs sont vides ; le champ vide et la phrase qui l'annonce doivent aller ensemble, sinon la page se tairait sur une mention obligatoire absente."
+				}
+			],
+			"literals": [],
+			"literals_why": "La valeur est la chaîne vide, quatre fois. Il n'y a aucun littéral à protéger, et c'est le fait que cette ligne enregistre.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [],
+			"sessions": [
+				"12"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Il n'y a pas d'hypothèse par défaut : la question 56 est née de cette séance. Le refus reprend celui que Legal.php applique déjà à l'identité du vendeur, et pour la même raison : un exemple crédible est une chose qui part en production. L'identité de l'hébergeur est le seul de ces quatre champs qui ne soit pas une question pour l'associé, c'est une ligne à recopier du contrat o2switch, et elle est demandée dans ACCES-REQUIS.md."
+		},
+		{
+			"id": "H-Q57-MEDIATEUR",
+			"question": "Q57",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-08-26",
+			"statement_fr": "Aucun médiateur de la consommation n'est désigné, et les conditions générales de vente disent en toutes lettres que cette obligation n'est pas satisfaite plutôt que de laisser la ligne vide.",
+			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-08-26.php#Le médiateur retenu par Teeshoop et ses coordonnées seront indiqués ici dès sa désignation.",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est l'absence d'un nom et d'une adresse. Il n'y a rien à chercher.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [],
+			"sessions": [
+				"12"
+			],
+			"cost_if_late": "reglage",
+			"shipped_matches_default": "Il n'y a pas d'hypothèse par défaut : la question 57 est née de cette séance. Un nom de médiateur inventé serait une fausse information sur un recours légal, ce qui est pire que l'absence, donc la clause dit ce qui manque. L'article L612-1 du code de la consommation en fait une obligation pour tout professionnel qui vend à des consommateurs."
 		}
 	],
 	"not_applicable": [
 		{
-			"question": "Q18",
-			"level": "bloquant",
-			"why": "Aucune condition générale, aucune mention légale et aucune politique de confidentialité n'est rédigée. La décision écrite est de préparer le mécanisme et de laisser le fait vide plutôt que de le remplir d'exemples crédibles. C'est la séance 12."
-		},
-		{
 			"question": "Q19",
 			"level": "bloquant",
-			"why": "Le fichier de prospection n'est ni importé, ni lu, ni référencé nulle part, et il ne le sera pas tant que son origine n'est pas documentée. C'est un refus assumé et non une hypothèse."
+			"why": "Le fichier de prospection n'est ni importé, ni lu, ni référencé nulle part, et il ne le sera pas tant que son origine n'est pas documentée. C'est un refus assumé et non une hypothèse. La séance 12 a rencontré la seconde moitié de cette question, « qui est responsable des données personnelles chez Teeshoop » : la politique de confidentialité est publiée et ne nomme personne, elle dit à la place que le responsable n'est pas encore désigné et que la boutique n'est donc pas ouverte à la vente. Inventer un nom aurait été faire à la question 19 ce que Legal.php refuse de faire à la question 17."
 		},
 		{
 			"question": "Q20",

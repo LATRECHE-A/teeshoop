@@ -1766,6 +1766,157 @@ débloque le seul canal de recherche où un nouveau site peut se classer vite.
 
 > 
 
+## Juridique : l'identité du site
+
+### 56. Qui est le directeur de la publication du site, et quelles coordonnées publions-nous pour vous joindre ?
+
+**Bloquant**
+
+*Pourquoi on a besoin de la réponse :* L'article 6 III de la loi pour la confiance
+dans l'économie numérique impose de publier, sur le site lui-même, le nom du
+directeur de la publication, une adresse de contact et le nom et l'adresse de
+l'hébergeur. Ce n'est pas la même liste que celle des factures (question 17) :
+une facture n'a pas besoin d'un directeur de la publication, et un site n'a pas
+besoin d'un capital social.
+
+*Ce que la séance 12 a construit, le 26 août :* la page `/mentions-legales/`
+existe, elle est rendue par l'extension, et elle **publie la liste de ce qui
+manque** plutôt qu'un exemple crédible : treize mentions y sont aujourd'hui
+marquées « non communiqué », en toutes lettres, pour tout visiteur. Les champs se
+saisissent dans WooCommerce > Facturation. Tant que l'identité de la question 17
+est vide, la validation d'une commande est refusée et aucune facture conforme
+n'est émise.
+
+*Ce qu'il nous faut :* le nom de la personne qui est directeur de la publication
+(par défaut le représentant légal), une adresse électronique de contact que
+quelqu'un relève, et un numéro de téléphone. Pour l'hébergeur, ce n'est pas une
+question pour vous : c'est à recopier du contrat o2switch, et c'est noté dans
+`ACCES-REQUIS.md`.
+
+**Votre réponse :**
+
+> 
+
+---
+
+### 57. Quel médiateur de la consommation avez-vous désigné ?
+
+**Bloquant**
+
+*Pourquoi on a besoin de la réponse :* L'article L612-1 du code de la consommation
+oblige tout professionnel qui vend à des consommateurs à adhérer à un dispositif
+de médiation et à en publier les coordonnées sur son site et dans ses conditions
+générales. Ce n'est pas facultatif et cela ne se remplace pas par une adresse de
+service client. L'adhésion coûte de l'ordre de quelques dizaines d'euros par an
+chez les médiateurs référencés par la Commission d'évaluation et de contrôle de
+la médiation de la consommation.
+
+*Ce que la séance 12 a construit, le 26 août :* l'article 18 des conditions
+générales dit exactement où en est cette obligation : « Le médiateur retenu par
+Teeshoop et ses coordonnées seront indiqués ici dès sa désignation. Tant qu'ils ne
+le sont pas, cette obligation n'est pas satisfaite, et la boutique ne peut pas
+vendre à des consommateurs. » Nous préférons l'écrire que le laisser découvrir.
+
+*Si vous ne répondez pas, on partira sur :* rien. Il n'y a pas d'hypothèse
+possible ici : un nom de médiateur inventé serait une fausse information sur un
+recours légal, ce qui est pire que l'absence.
+
+*Ce qu'il nous faut :* le nom du médiateur, son adresse postale et l'adresse de sa
+page de saisine.
+
+**Votre réponse :**
+
+> 
+
+---
+
+### 58. Qui relit les quatre textes juridiques, et quand ?
+
+**Important**
+
+*Pourquoi on a besoin de la réponse :* Les mentions légales, les conditions
+générales de vente, la politique de confidentialité et la déclaration
+d'accessibilité sont en ligne, et chacune porte en tête « Projet, non validé par
+un juriste ». Ce bandeau n'est pas une précaution de style : les textes ont été
+rédigés à partir du code par les gens qui ont écrit le code, ils décrivent
+fidèlement ce que la boutique fait, et personne dont c'est le métier ne les a lus.
+
+*Ce que la séance 12 a construit, le 26 août :* les conditions générales sont des
+**versions datées** et non une page que l'on modifie. La version du 26 août 2026
+est en vigueur, elle reste consultable à son adresse propre indéfiniment, et le
+nom de la version acceptée est enregistré sur chaque commande avec la phrase
+exacte que le client a lue. Le jour où un avocat corrige une clause, la réponse
+n'est jamais de retoucher cette version : c'est d'en publier une nouvelle, datée
+du jour où elle prend effet. Les commandes déjà passées gardent la leur.
+
+*Ce qu'il nous faut :* le nom du cabinet ou de l'avocat, et une date. Trois points
+méritent son attention en priorité : l'article 10 (l'exclusion du droit de
+rétractation, qui est le fondement du modèle), l'article 11 (les tolérances de
+fabrication, question 27) et l'article 16 (la publication des réalisations,
+question 36).
+
+**Votre réponse :**
+
+> 
+
+---
+
+## RGPD : les contrats
+
+### 59. Qui signe les avenants de traitement des données, et quand ?
+
+**Important**
+
+*Pourquoi on a besoin de la réponse :* L'article 28 du RGPD impose un contrat écrit
+avec chaque sous-traitant qui traite des données pour votre compte. Aujourd'hui il
+n'y en a aucun. La liste est courte et elle est tirée du code, pas d'un catalogue
+de fournisseurs : o2switch (l'hébergement et la base), Cloudflare (l'outil de
+personnalisation et les créations des clients), Stripe (le paiement), Brevo (les
+courriels), Colissimo (le transport) et votre cabinet comptable (les factures).
+
+Trois d'entre eux se règlent en cochant une case dans un espace client, un
+après-midi. Le cabinet comptable n'est pas désigné, et le transporteur non plus.
+
+*Pour mémoire, les fournisseurs textiles ne sont PAS sur cette liste, et c'est
+vérifié :* le bon de commande fournisseur ne porte que des références d'articles
+et une clé interne, jamais le nom ni l'adresse d'un client, et les colis arrivent
+à l'atelier. Nous l'écrivons parce que « nous avons vérifié » et « nous n'y avons
+pas pensé » ne doivent pas se lire pareil.
+
+*Ce qu'il nous faut :* qui s'en charge, et une date avant la mise en ligne.
+
+**Votre réponse :**
+
+> 
+
+---
+
+### 60. Que devient une commande anonymisée au bout de dix ans ?
+
+**Utile**
+
+*Pourquoi on a besoin de la réponse :* Quand un client demande l'effacement de ses
+données, la boutique vide sa commande et **garde sa facture**, parce que l'article
+L123-22 du code de commerce impose dix ans de conservation des pièces comptables.
+La personne en est informée par écrit. Ce qui n'est pas décidé, c'est ce qui se
+passe au bout de ces dix ans : la facture est-elle supprimée automatiquement, ou
+archivée ailleurs et retirée du site ?
+
+*Si vous ne répondez pas, on partira sur :* rien de construit. Il n'existe aucune
+commande de dix ans sur laquelle éprouver un balayage, et une tâche automatique
+que rien ne peut tester est plus dangereuse qu'une ligne dans un document. C'est
+écrit dans `docs/RGPD.md` pour que la séance qui aura des commandes assez vieilles
+le trouve.
+
+*Ce qu'il nous faut :* ce que votre comptable préfère, et où il veut que les
+factures des exercices clos finissent.
+
+**Votre réponse :**
+
+> 
+
+---
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site
