@@ -241,3 +241,154 @@
 	background: var(--ts-bad-wash);
 	color: var(--ts-bad-ink);
 }
+
+/* ------------------------------------------------------------- consent */
+
+/*
+ * THE TWO BUTTONS ARE THE SAME BUTTON.
+ *
+ * `.ts-consent__btn` is one rule used twice, so « Tout refuser » and « Tout
+ * accepter » cannot drift apart in size, weight or colour. That is not a style
+ * preference: the CNIL's grievance against the sites it has fined is that
+ * refusing read as the lesser option, and two selectors would eventually let it.
+ * Refuse is written first in the markup, so it is also first under the finger on
+ * a phone and first in the tab order.
+ *
+ * The panel is a strip at the bottom of the page and not a modal: access to a
+ * French site may not be conditioned on accepting trackers for this purpose, so
+ * nothing here traps focus, dims the page or blocks a click on the catalogue
+ * underneath.
+ */
+.ts-consent {
+	position: fixed;
+	inset: auto 0 0 0;
+	z-index: 60;
+	padding: var(--ts-space-3);
+	background: var(--ts-paper);
+	border-top: 2px solid var(--ts-ink);
+	box-shadow: var(--ts-elev-2);
+}
+
+.ts-consent__box {
+	max-width: 62rem;
+	margin: 0 auto;
+	display: grid;
+	gap: var(--ts-space-3);
+}
+
+.ts-consent__title {
+	margin: 0;
+	font-size: var(--ts-text-lg);
+	line-height: var(--ts-leading-tight);
+}
+
+.ts-consent__lead {
+	margin: 0;
+	max-width: var(--ts-measure);
+	font-size: var(--ts-text-sm);
+	color: var(--ts-muted);
+}
+
+.ts-consent__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: grid;
+	gap: var(--ts-space-2);
+}
+
+.ts-consent__label {
+	display: flex;
+	gap: var(--ts-space-2);
+	align-items: baseline;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.ts-consent__detail {
+	margin: 0.25rem 0 0 1.65rem;
+	max-width: var(--ts-measure);
+	font-size: var(--ts-text-sm);
+	color: var(--ts-muted);
+}
+
+.ts-consent__acts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2);
+	align-items: center;
+}
+
+.ts-consent__btn {
+	flex: 1 1 12rem;
+	padding: 0.75rem 1rem;
+	border: 1px solid var(--ts-accent);
+	border-radius: 3px;
+	background: var(--ts-accent);
+	color: var(--ts-accent-ink);
+	font: inherit;
+	font-size: 1rem;
+	font-weight: 600;
+	text-align: center;
+	cursor: pointer;
+}
+
+.ts-consent__btn:hover,
+.ts-consent__btn:focus {
+	background: var(--ts-accent-dark);
+	border-color: var(--ts-accent-dark);
+}
+
+.ts-consent__save {
+	padding: 0.75rem 1rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: 3px;
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font: inherit;
+	font-size: 1rem;
+	cursor: pointer;
+}
+
+.ts-consent__save:hover,
+.ts-consent__save:focus {
+	background: var(--ts-surface);
+	border-color: var(--ts-ink);
+}
+
+.ts-consent__btn:focus-visible,
+.ts-consent__save:focus-visible {
+	outline: var(--ts-focus-width) solid var(--ts-ink);
+	outline-offset: var(--ts-focus-offset);
+}
+
+.ts-consent__more {
+	margin: 0;
+	font-size: var(--ts-text-sm);
+}
+
+@media (min-width: 48rem) {
+	.ts-consent__box {
+		grid-template-columns: 1fr auto;
+		align-items: start;
+	}
+
+	.ts-consent__title,
+	.ts-consent__lead,
+	.ts-consent__list,
+	.ts-consent__more {
+		grid-column: 1;
+	}
+
+	.ts-consent__acts {
+		grid-column: 2;
+		grid-row: 1 / span 3;
+		flex-direction: column;
+		align-items: stretch;
+		min-width: 15rem;
+	}
+
+	.ts-consent__btn {
+		flex: 0 0 auto;
+	}
+}

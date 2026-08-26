@@ -455,11 +455,19 @@ noms** (`--accent` et non `--ts-accent`), ce qui est exactement la façon dont u
 se cache. `npm run verify:palette` les compare rôle par rôle et a été cassé exprès pour
 prouver qu'il tire.
 
-**Le catalogue se comporte comme un moteur de recherche, ce que le chapitre 4 exige en
-première phrase.** Dix facettes, contre cinq chez mistertee.fr, dont la couleur ne rend
-aucune option, et zéro chez tostadora.fr. Le **grammage** en fait partie, que le chapitre
-place en troisième position : « le client type est un professionnel qui compare des
-grammages, pas un particulier qui achète un motif ».
+**Le catalogue se comporte comme un moteur de recherche, ce que le chapitre 4 pose comme
+condition.** Il écrit, mot pour mot : « à condition que l'architecture du catalogue soit
+pensée comme un moteur de recherche spécialisé et non comme une succession de centaines de
+pages difficiles à parcourir ». Dix facettes, contre cinq chez mistertee.fr, dont la
+couleur ne rend aucune option, et zéro chez tostadora.fr. Le **grammage** en fait partie,
+et c'est le premier critère que le chapitre nomme quand il dit ce qu'un professionnel
+compare : « comparer grammages, matières, coupes, tailles, couleurs et techniques ».
+
+*Corrigé le 26 août 2026.* Ce paragraphe citait entre guillemets une phrase qui n'est
+écrite nulle part dans la Bible (« le client type est un professionnel qui compare des
+grammages, pas un particulier qui achète un motif ») et annonçait la première comme la
+première phrase du chapitre, alors qu'elle en est le neuvième paragraphe. Le raisonnement
+tenait ; la citation, non. Une paraphrase entre guillemets est une citation fausse.
 
 Les facettes sont **un formulaire GET**, pas la navigation à facettes de WooCommerce, et
 c'est une contrainte et non un goût : `WC_Query::get_layered_nav_chosen_attributes()` lit

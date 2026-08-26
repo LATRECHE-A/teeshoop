@@ -3,10 +3,11 @@
  * The listing: the shop root and every product category.
  *
  * THE LAYOUT IS A FILTER COLUMN AND A GRID, and the column is sticky from
- * 900 px. That is the answer to the sentence chapter 04 opens on: « le catalogue
- * doit se comporter comme un moteur de recherche spécialisé, pas comme une
- * succession de centaines de pages ». A buyer narrowing 462 references should
- * not have to scroll back up to the top of the page to add a second colour.
+ * 900 px. That is the answer to chapter 04, « Catalogue et fiches produits »,
+ * verbatim: « à condition que l'architecture du catalogue soit pensée comme un
+ * moteur de recherche spécialisé et non comme une succession de centaines de
+ * pages difficiles à parcourir ». A buyer narrowing 462 references should not
+ * have to scroll back up to the top of the page to add a second colour.
  *
  * On a phone the same panel is one button. That is not a downgrade: it is the
  * only place the panel can go on 375 px without pushing the products off the

@@ -1343,6 +1343,31 @@ a.ts-chip:hover {
 	font-variant-numeric: tabular-nums;
 }
 
+.ts-foot__base {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2) var(--ts-space-4);
+	align-items: baseline;
+	justify-content: space-between;
+}
+
+.ts-foot__consent {
+	margin: 0;
+	font-size: var(--ts-text-xs);
+}
+
+.ts-foot__consent a {
+	color: var(--ts-paper);
+}
+
+.ts-foot__consent-date {
+	color: var(--ts-on-ink-muted);
+}
+
+.ts-foot__consent-date::before {
+	content: ', ';
+}
+
 /* ───────────────────────────────────────── WooCommerce, brought into line ── */
 
 .woocommerce-breadcrumb {
@@ -2206,5 +2231,79 @@ a.ts-chip:hover {
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
 		scroll-behavior: auto !important;
+	}
+}
+
+/* ----------------------------------------------------------- editorial */
+
+/*
+ * The category and landing-page copy, which sits UNDER the products.
+ *
+ * Measured across five French competitors on 26 August 2026: none puts more
+ * than 145 words above the grid and all put between 809 and 3 239 below it.
+ * The width is the reading measure and not the page width, because a thousand
+ * words set across 1 440 px is a thousand words nobody reads.
+ */
+.ts-edito {
+	padding-block: var(--ts-space-7);
+	display: grid;
+	gap: var(--ts-space-6);
+	border-top: 1px solid var(--ts-line);
+}
+
+.ts-edito__section {
+	max-width: var(--ts-measure);
+}
+
+.ts-edito__title {
+	margin: 0 0 var(--ts-space-2);
+	font-size: var(--ts-display-xs);
+	line-height: var(--ts-leading-tight);
+}
+
+.ts-edito__section p {
+	margin: 0 0 var(--ts-space-2);
+	line-height: var(--ts-leading-loose);
+}
+
+.ts-edito__list {
+	margin: 0 0 var(--ts-space-2);
+	padding-left: 1.1rem;
+	line-height: var(--ts-leading-loose);
+}
+
+.ts-edito__list li {
+	margin-bottom: 0.35rem;
+}
+
+.ts-edito__links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-1) var(--ts-space-3);
+}
+
+.ts-faq__list {
+	margin: 0;
+}
+
+.ts-faq__q {
+	margin-top: var(--ts-space-3);
+	font-weight: 600;
+}
+
+.ts-faq__q:first-child {
+	margin-top: 0;
+}
+
+.ts-faq__a {
+	margin: 0.25rem 0 0;
+	line-height: var(--ts-leading-loose);
+	color: var(--ts-text);
+}
+
+@media (min-width: 60rem) {
+	.ts-edito {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		column-gap: var(--ts-space-7);
 	}
 }

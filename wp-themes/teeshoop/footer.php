@@ -200,6 +200,38 @@ $ts_min      = minimum();
 			);
 			?>
 		</p>
+
+		<?php
+		/*
+		 * THE WAY BACK TO THE CHOICE, ON EVERY PAGE.
+		 *
+		 * Withdrawing a consent has to be as available as giving it, and the
+		 * CNIL is explicit that it must be reachable at any time. It is a plain
+		 * link that reloads the page with the panel open, so it works with no
+		 * script, exactly like the panel itself. The date is printed beside it
+		 * because a visitor who cannot see what they chose, or when, has no
+		 * reason to believe the control does anything.
+		 */
+		if ( class_exists( '\Teeshoop\Core\Consent' ) && ! empty( \Teeshoop\Core\Consent::offered() ) ) :
+			$ts_decided = \Teeshoop\Core\Consent::decided_on();
+			?>
+			<p class="ts-foot__consent">
+				<a href="<?php echo esc_url( \Teeshoop\Core\Consent::reopen_url() ); ?>">
+					<?php esc_html_e( 'Traceurs et mesure d’audience', 'teeshoop' ); ?>
+				</a>
+				<?php if ( '' !== $ts_decided ) : ?>
+					<span class="ts-foot__consent-date">
+						<?php
+						printf(
+							/* translators: %s: the date the visitor last recorded a choice. */
+							esc_html__( 'votre choix du %s', 'teeshoop' ),
+							esc_html( wp_date( 'j F Y', (int) strtotime( $ts_decided ) ) )
+						);
+						?>
+					</span>
+				<?php endif; ?>
+			</p>
+		<?php endif; ?>
 	</div>
 </footer>
 

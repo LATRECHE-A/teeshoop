@@ -196,6 +196,17 @@ final class Quote {
 			'_ts_siret'     => __( 'SIRET', 'teeshoop' ),
 			'_ts_message'   => __( 'Message', 'teeshoop' ),
 			'_ts_echeance'  => __( 'Échéance souhaitée', 'teeshoop' ),
+			/*
+			 * THE ATTRIBUTION IS PERSONAL DATA TOO, and the export is where
+			 * that gets forgotten. It was collected with this person's consent,
+			 * it is attached to their name and their email, and a subject
+			 * access request that answered with the form fields alone would be
+			 * a report of only the part we were comfortable showing.
+			 */
+			'_ts_page'      => __( 'Page depuis laquelle la demande a été envoyée', 'teeshoop' ),
+			'_ts_src_page'  => __( 'Page d’arrivée sur le site', 'teeshoop' ),
+			'_ts_src_ref'   => __( 'Site référent', 'teeshoop' ),
+			'_ts_src_camp'  => __( 'Campagne', 'teeshoop' ),
 		);
 
 		$ids  = self::by_email( $email, $page );
@@ -528,6 +539,14 @@ final class Quote {
 			}
 		}
 
+		$source = class_exists( '\\Teeshoop\\Core\\Consent' )
+			? Consent::source()
+			: array(
+				'page'     => '',
+				'referent' => '',
+				'campagne' => '',
+			);
+
 		$post_id = wp_insert_post(
 			array(
 				'post_type'   => self::POST_TYPE,
@@ -566,6 +585,30 @@ final class Quote {
 			 */
 			'_ts_estimate_why' => $estimate_ht > 0 ? '' : ( '' === $garment ? 'sans_article' : 'hors_grille' ),
 			'_ts_design_id'   => Design::valid_id( (string) ( $post['design_id'] ?? '' ) ) ? (string) $post['design_id'] : '',
+
+			/*
+			 * WHERE THE REQUEST CAME FROM, in two layers with two legal bases.
+			 *
+			 * `_ts_page` is the PATH of the page the form was on. It is read
+			 * from the request that is being handled, nothing is stored on the
+			 * visitor's machine to obtain it, and it answers the question a
+			 * landing page exists to answer: did anyone fill the form on it. The
+			 * path only, never the query string, because `/?s=commande pour
+			 * dupont sarl` copied onto a prospect record is personal data
+			 * nobody meant to collect.
+			 *
+			 * The other three come from `Consent::source()`, which returns three
+			 * empty strings unless the visitor allowed attribution. Carrying a
+			 * first landing page across several pages means writing an
+			 * identifier on a terminal, and article 82 covers that whether it is
+			 * a cookie or anything else. So the funnel reports what it can
+			 * always know, and reports the rest as « non renseigné » rather than
+			 * pretending the visit had no origin.
+			 */
+			'_ts_page'        => (string) wp_parse_url( $back, PHP_URL_PATH ),
+			'_ts_src_page'    => $source['page'],
+			'_ts_src_ref'     => $source['referent'],
+			'_ts_src_camp'    => $source['campagne'],
 		);
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( $post_id, $key, $value );
