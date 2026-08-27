@@ -118,6 +118,30 @@ wc_load_cart();
  * 2606 and can never resolve, so `Design::verify` falls to the development
  * allowance and `Nest::configured()` is still true.
  */
+/*
+ * THE WATERMARK, so a run cleans up after itself.
+ *
+ * Every sub-suite here creates orders and print lots and none of them removed
+ * any, so the mirror accumulated: measured on 27/08/2026, 754 orders and 788
+ * lots, 104 and 94 of them from one afternoon. Past roughly fifteen runs
+ * `Production::queue()` returns more than the assertion « lets a draft be undone »
+ * expects and THREE assertions in the production suite go red for a reason that
+ * is not the code. Session 12 measured that, wrote it down
+ * (docs/seance-12-a-reprendre.md section 4.1) and left it; session 13 hit it on
+ * its sixth run of the day and is fixing it, because a gate that goes red for a
+ * reason that is not the code is a gate nobody reads.
+ *
+ * A WATERMARK RATHER THAN A LIST PER SUITE. Asking each sub-suite to delete what
+ * it creates is the tidier design and it is also the one that misses something:
+ * six files, several of them creating orders through WooCommerce indirectly, and
+ * `concurrency.php` creating more from CHILD PROCESSES. Ids only ever go up, so
+ * "everything above where we started" is the one description that cannot have a
+ * hole in it.
+ */
+global $wpdb;
+$ts_high_order = (int) $wpdb->get_var( "SELECT COALESCE(MAX(id), 0) FROM {$wpdb->prefix}wc_orders" );
+$ts_high_post  = (int) $wpdb->get_var( "SELECT COALESCE(MAX(ID), 0) FROM {$wpdb->posts}" );
+
 $ts_settings_before = get_option( 'teeshoop_settings', array() );
 update_option( 'teeshoop_settings', array_merge( (array) $ts_settings_before, array( 'worker_url' => 'https://worker.invalid' ) ) );
 
@@ -708,6 +732,42 @@ foreach ( array( $product_id, $hoodie_id, $bare_id ) as $id ) {
 	wp_delete_post( $id, true );
 }
 update_option( 'teeshoop_settings', $ts_settings_before );
+
+/*
+ * And everything created above the watermark. See the comment where it is taken.
+ * Orders go through `wc_get_order()->delete( true )` rather than SQL, because an
+ * order under HPOS lives in four tables and the invoice, the waiver and the
+ * design meta hang off it; deleting the row would leave the rest.
+ */
+$ts_removed = array( 'orders' => 0, 'posts' => 0 );
+foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}wc_orders WHERE id > %d", $ts_high_order ) ) as $ts_id ) {
+	$ts_order = wc_get_order( (int) $ts_id );
+	if ( $ts_order ) {
+		$ts_order->delete( true );
+		++$ts_removed['orders'];
+	}
+}
+foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE ID > %d AND post_type IN ( 'ts_lot', 'shop_order_placehold' )", $ts_high_post ) ) as $ts_id ) {
+	wp_delete_post( (int) $ts_id, true );
+	++$ts_removed['posts'];
+}
+
+/*
+ * AND THE SWEEP IS ITSELF CHECKED. A cleanup nobody verifies is how the residue
+ * came back the first time: it is the only line here whose failure is silent,
+ * because everything it protects is in the NEXT run.
+ */
+ts_it(
+	'leaves the mirror as it found it',
+	function () use ( $ts_high_order, $ts_high_post, $ts_removed ) {
+		global $wpdb;
+		$left_orders = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}wc_orders WHERE id > %d", $ts_high_order ) );
+		$left_lots   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE ID > %d AND post_type = 'ts_lot'", $ts_high_post ) );
+		ts_eq( $left_orders, 0, "orders left behind (removed {$ts_removed['orders']})" );
+		ts_eq( $left_lots, 0, "print lots left behind (removed {$ts_removed['posts']})" );
+		ts_assert( $ts_removed['orders'] > 0, 'the suite created no order at all, so this sweep proves nothing' );
+	}
+);
 
 echo "\n";
 
