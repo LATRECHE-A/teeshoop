@@ -104,7 +104,13 @@ final class Listing {
 	private static ?bool $usable = null;
 
 	public static function init(): void {
-		require_once __DIR__ . '/VariableProduct.php';
+		/*
+		 * From `includes/listing/`, one directory below the rest, because the class
+		 * extends `WC_Product_Variable` and the register guard requires every file
+		 * in `includes/` with no WordPress loaded. Same arrangement, same reason, as
+		 * `includes/shipping/colissimo.php`.
+		 */
+		require_once __DIR__ . '/listing/variable-product.php';
 		add_filter( 'woocommerce_product_class', array( self::class, 'product_class' ), 10, 4 );
 	}
 

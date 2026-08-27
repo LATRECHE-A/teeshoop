@@ -11,10 +11,18 @@
  * parent's answer is fixed in advance: a reference on which no variation carries
  * a price. Anything else, including any doubt, calls the parent.
  *
+ * KEPT OUT OF `includes/`, one directory below the rest, for exactly the reason
+ * `includes/shipping/colissimo.php` is: it extends a class that does not exist
+ * until WooCommerce has loaded, and `scripts/hypotheses-guard.mjs` requires
+ * every file in `includes/` in a bare PHP process with no WordPress at all. A
+ * class extending a missing parent is a fatal there, and the register check
+ * would stop saying "the values agree" and start saying "php could not read the
+ * plugin". The guard's glob is not recursive, so one directory down is enough.
+ *
  * Loaded by `Listing::init()`, which runs only inside `Teeshoop\Core\boot()`,
  * which runs only when WooCommerce is loaded. It must not be required from the
- * top of the plugin file: `WC_Product_Variable` would not exist yet and the
- * shop would be a white page.
+ * top of the plugin file either: `WC_Product_Variable` would not exist yet and
+ * the shop would be a white page.
  *
  * @package Teeshoop\Core
  */
