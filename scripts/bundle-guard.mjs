@@ -35,7 +35,8 @@
  * Exit: 0 clean · 1 forbidden markers · 2 self-test failed (the scan is lying)
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, basename } from 'node:path'
+import { join, relative, basename, sep } from 'node:path'
+import { ADMIN_ASSET_DIR } from './admin-boundary.mjs'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -135,6 +136,44 @@ function reachableFrom(htmlPath, allFiles) {
     return null // entry missing — the caller decides whether that is fatal
   }
   const byBase = new Map(allFiles.map((f) => [basename(f), f]))
+  /*
+   * WHAT COUNTS AS A MENTION, and this is a correction with a measured cost.
+   *
+   * The rule used to be `txt.includes(basename(f))` for every emitted file. That
+   * is safe for a hashed chunk, whose basename is unique by construction, and
+   * unsafe for anything else: `dist/.vite/manifest.json` has the basename
+   * `manifest.json`, and `DtfModal-<hash>.js` contains that literal because it
+   * reads a DESIGN manifest out of R2. So the Vite manifest was pulled into the
+   * ADMIN closure by an accidental substring, and because it lists the name of
+   * every emitted file, everything else followed it in.
+   *
+   * Measured on 27/08/2026, before the manifest stopped being emitted: 39 files,
+   * 28 customer, 11 ADMIN, 0 orphan. The 11 were 9 real admin files, the
+   * manifest, and the AR viewer's entry chunk. An ADMIN file is EXCUSED from the
+   * forbidden-marker scan below, so for as long as that held, a genuinely
+   * orphaned chunk carrying a purchase price would have been classified ADMIN
+   * and never read. The guard was green and half blind.
+   *
+   * A hashed name is matched as a substring, because that is how it appears
+   * inside a chunk. Everything else is matched on its dist-relative PATH, which
+   * is how the code that fetches it actually writes it.
+   */
+  const HASHED = /-[A-Za-z0-9_-]{6,}\.(?:js|mjs|css)$/
+  /*
+   * An unhashed file is matched on its dist-relative path OR on its directory,
+   * because a URL is often assembled rather than written whole:
+   * `src/lib/ingest/imbretex.ts:175` holds `IMBRETEX_ROOT = '/catalog/imbretex/'`
+   * and appends `products.json` to it, so the full path is in no chunk and the
+   * snapshot read as an orphan. A directory is still specific enough to mean
+   * something; a bare basename was not, which is the mistake above.
+   */
+  const mentions = (txt, f) => {
+    const b = basename(f)
+    if (HASHED.test(b)) return txt.includes(b)
+    const rel = relative(DIST, f).split(sep).join('/')
+    const dir = rel.slice(0, rel.lastIndexOf('/') + 1)
+    return txt.includes(rel) || (dir !== '' && txt.includes(dir) && txt.includes(b))
+  }
   const seen = new Set()
   const queue = []
 
@@ -153,8 +192,8 @@ function reachableFrom(htmlPath, allFiles) {
     } catch {
       continue
     }
-    for (const [base, path] of byBase) {
-      if (!seen.has(path) && txt.includes(base)) queue.push(path)
+    for (const path of allFiles) {
+      if (!seen.has(path) && mentions(txt, path)) queue.push(path)
     }
   }
   return seen
@@ -188,6 +227,14 @@ for (const [needle, hint] of CANARY) {
 
 const customer = reachableFrom(join(DIST, 'index.html'), files)
 const admin = reachableFrom(join(DIST, 'admin.html'), files)
+/*
+ * AND THE AR VIEWER, which is a third entry and is PUBLIC: it is the page a QR
+ * code opens on a customer's phone, served by the Worker with no gate at all.
+ * It was missing from this walk, so its entry chunk was an ORPHAN by
+ * construction, and before the manifest stopped being emitted it was swept into
+ * ADMIN instead, which excused it from the marker scan.
+ */
+const viewer = reachableFrom(join(DIST, 'v.html'), files)
 
 if (!customer) {
   console.error('\nBUNDLE GUARD SELF-TEST FAILED — dist/index.html is missing.\n')
@@ -202,13 +249,50 @@ if (!admin && !ALLOW_NO_ADMIN) {
   process.exit(1)
 }
 
+if (!viewer) {
+  console.error(
+    '\nBUNDLE GUARD FAILED — dist/v.html is missing.\n' +
+      'It is the page /v/{id} serves to a scanned QR code. Without it the Worker\n' +
+      'falls through to the SPA and a customer opening their own AR link gets the\n' +
+      'studio instead.\n',
+  )
+  process.exit(1)
+}
+
 const adminSet = admin ?? new Set()
-const classify = (f) => (customer.has(f) ? 'CUSTOMER' : adminSet.has(f) ? 'ADMIN' : 'ORPHAN')
+/*
+ * CUSTOMER and VIEWER are both public and are treated identically everywhere
+ * below; they are counted apart only so the summary line says which entry pulled
+ * what.
+ */
+const classify = (f) =>
+  customer.has(f) ? 'CUSTOMER' : viewer.has(f) ? 'VIEWER' : adminSet.has(f) ? 'ADMIN' : 'ORPHAN'
+
+/*
+ * The one kind of ADMIN file that must NOT move, with the reason.
+ *
+ * `public/catalog/imbretex/products.json` is a committed snapshot of a supplier's
+ * PUBLISHED catalogue. Its price field is `rrpEur`, the recommended retail price
+ * the supplier prints in its own brochure, and the file says so in its own text:
+ * "(prix conseillé de revente), not buying prices". It carries no purchase price
+ * and no margin. It is classified ADMIN only because the ingest tools are the
+ * only thing that reads it, and its URL is baked into that code and into the
+ * committed HTML, so moving it would break a fetch to protect nothing.
+ *
+ * The exemption is from the LAYOUT rule only. Everything on this list is put
+ * BACK into the marker scan below, which every other ADMIN file is excused from:
+ * a file that may stay in the open must be the one file we check hardest.
+ */
+const PUBLIC_ADMIN = new Set(['catalog/imbretex/products.json'])
+const relOf = (f) => relative(DIST, f).split(sep).join('/')
+
 
 const violations = []
 for (const f of files) {
   const zone = classify(f)
-  if (zone === 'ADMIN') continue // markers belong here
+  // Markers belong in an ADMIN file, which is gated. The exception is a file
+  // excused from the layout rule: it stays in the open, so it gets scanned.
+  if (zone === 'ADMIN' && !PUBLIC_ADMIN.has(relOf(f))) continue
   const txt = readFileSync(f, 'utf8')
   for (const n of FORBIDDEN) {
     let i = txt.indexOf(n.s)
@@ -248,10 +332,74 @@ if (violations.length) {
   process.exit(1)
 }
 
-const counts = { CUSTOMER: 0, ADMIN: 0, ORPHAN: 0 }
+/*
+ * AND THE LAYOUT, which is the half the marker scan cannot express.
+ *
+ * The scan above ALLOWS shop-internal markers in a file classified ADMIN, on the
+ * grounds that only the workshop loads it. That was true of the page and false
+ * of its JavaScript: measured on 27/08/2026 against a real Worker,
+ * `GET /admin.html` answered 401 and `GET /assets/DtfModal-<hash>.js` answered
+ * 200 with the whole film cost model, to a request with no credentials. The
+ * content hash is not a secret either: `GET /.vite/manifest.json` answered 200
+ * and named every chunk.
+ *
+ * So an ADMIN file must now live where the Worker gates it, and this is what
+ * says so. Both directions matter: an admin chunk left in `assets/` is the leak,
+ * and a customer chunk that lands in `admin-assets/` is a studio that 401s for
+ * every visitor. The HTML entries are exempt, they are gated by path.
+ */
+const misplaced = []
+for (const f of files) {
+  const rel = relOf(f)
+  const zone = classify(f)
+  const gated = rel.startsWith(ADMIN_ASSET_DIR + '/')
+  if (zone === 'ADMIN' && !gated && !PUBLIC_ADMIN.has(rel)) misplaced.push({ rel, zone, want: 'admin-assets/' })
+  if (zone !== 'ADMIN' && gated) misplaced.push({ rel, zone, want: 'assets/' })
+}
+if (misplaced.length) {
+  console.error('\nBUNDLE GUARD FAILED — an emitted file is in the wrong directory for its zone.\n')
+  for (const m of misplaced) console.error(`  ${m.rel}  [${m.zone}]  should be under ${m.want}`)
+  console.error(
+    '\nADMIN files must be under admin-assets/, which worker/index.ts refuses without\n' +
+      'the admin credentials; everything else must not be, or the customer studio 401s.\n' +
+      'The split is decided in vite.config.ts from the source graph in\n' +
+      'scripts/admin-boundary.mjs.\n',
+  )
+  process.exit(1)
+}
+
+/*
+ * NOTHING GATED IS NOT A PASS EITHER. If the admin entry ever stops producing
+ * admin-only chunks the check above becomes vacuously true, and this repository
+ * has already shipped one gate whose failure branch was unreachable.
+ */
+if (admin && ![...files].some((f) => relative(DIST, f).split(sep).join('/').startsWith(ADMIN_ASSET_DIR + '/'))) {
+  console.error(
+    '\nBUNDLE GUARD FAILED — nothing was emitted into admin-assets/.\n' +
+      'The admin entry exists, so at least its own chunk must be there. An empty\n' +
+      'gated directory means the split in vite.config.ts stopped working and every\n' +
+      'admin chunk is being served openly again.\n',
+  )
+  process.exit(1)
+}
+
+const counts = { CUSTOMER: 0, VIEWER: 0, ADMIN: 0, ORPHAN: 0 }
 for (const f of files) counts[classify(f)]++
+
+/*
+ * ORPHANS ARE NAMED, not just counted. An orphan is a file no entry asks for and
+ * that is uploaded and fetchable anyway; the number alone has never once been
+ * enough to know whether that is fine. Printing them costs one line and is what
+ * makes the count reviewable.
+ */
+const orphans = files.filter((f) => classify(f) === 'ORPHAN').map(relOf)
+if (orphans.length) {
+  console.log(`bundle-guard: ${orphans.length} orphan file(s), reachable from no entry and served anyway:`)
+  for (const o of orphans) console.log(`  ${o}`)
+}
 console.log(
   `bundle-guard: ${files.length} files scanned ` +
-    `(${counts.CUSTOMER} customer / ${counts.ADMIN} admin / ${counts.ORPHAN} orphan), ` +
-    `0 forbidden markers across ${FORBIDDEN.length} needles.`,
+    `(${counts.CUSTOMER} customer / ${counts.VIEWER} viewer / ${counts.ADMIN} admin / ${counts.ORPHAN} orphan), ` +
+    `0 forbidden markers across ${FORBIDDEN.length} needles, ` +
+    `every admin file under ${ADMIN_ASSET_DIR}/.`,
 )

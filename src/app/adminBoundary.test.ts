@@ -25,50 +25,17 @@
  * re-export.
  */
 import { describe, expect, it } from 'vitest'
+// ADMIN_ONLY and MUST_REACH moved to scripts/admin-boundary.mjs when session 13
+// gave them a second and a third reader (the bundler, which now emits admin-only
+// chunks into a directory the Worker gates, and bundle-guard.mjs, which proves
+// it did). Three copies of a security boundary is two too many.
+import { ADMIN_ONLY, MUST_REACH } from '../../scripts/admin-boundary.mjs'
 import { readFileSync, existsSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))
 const REPO = resolve(SRC, '..')
-
-/** Modules that must never be reachable from the customer entry. */
-const ADMIN_ONLY = [
-  'src/admin/',
-  'src/app/modals/CatalogModal.tsx',
-  'src/app/modals/DtfModal.tsx',
-  'src/app/modals/AdminIngestModal.tsx',
-  'src/app/modals/catalogI18n.ts',
-  'src/app/modals/dtfI18n.ts',
-  'src/lib/dtf/',
-  'src/lib/ingest/store.ts',
-  'src/lib/ingest/apply.ts',
-  'src/lib/ingest/imbretex.ts',
-  'src/lib/ingest/falkross.ts',
-  'src/lib/ingest/woo.ts',
-  'src/lib/ingest/frCache.ts',
-]
-
-/**
- * Modules that MUST stay reachable. Without these, an over-zealous cleanup
- * could "fix" a boundary violation by deleting a real customer feature and the
- * test above would still pass.
- */
-const MUST_REACH = [
-  'src/lib/ingest/pipeline.ts', // ship-your-own garment photo normalisation
-  'src/state/basket.ts', // the customer's multi-product order
-  'src/app/modals/BasketModal.tsx',
-  'src/app/modals/CustomSetupModal.tsx',
-  'src/app/backOriginI18n.ts',
-  // The route from a design to a WooCommerce basket. Nothing here is
-  // shop-internal, and all of it must ship to the customer or the studio cannot
-  // sell anything.
-  'src/lib/teeshoop/bridge.ts',
-  'src/lib/teeshoop/upload.ts',
-  'src/lib/teeshoop/designDoc.ts',
-  'src/app/modals/CartModal.tsx',
-  'src/app/modals/cartI18n.ts',
-]
 
 const EXTS = ['.ts', '.tsx', '.d.ts']
 

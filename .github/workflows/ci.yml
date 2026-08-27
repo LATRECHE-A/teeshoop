@@ -7,12 +7,15 @@ name: CI
 # test: it needs a real WordPress and a database, so it runs against wp-local/.
 #
 # WHAT THAT LEAVES OUTSIDE, said here so nobody reads a green tick as more than
-# it is. These five need the running mirror and must be run by hand before a
-# release: verify:seo (what a crawler is served), verify:consent (what a real
-# browser writes to a visitor's machine before they have chosen), verify:a11y
-# (WCAG 2.2 AA over the buying path and the legal pages), verify:site (the
-# screenshots) and test:wp (the plugin against a real WooCommerce). Between them
-# they hold the whole of session 12's compliance work, and none of it is on push.
+# it is. These six need a running mirror or a running Worker and must be run by
+# hand before a release: verify:seo (what a crawler is served), verify:consent
+# (what a real browser writes to a visitor's machine before they have chosen),
+# verify:a11y (WCAG 2.2 AA over the buying path and the legal pages),
+# verify:site (the screenshots), test:wp (the plugin against a real WooCommerce)
+# and verify:admin-gate (that no admin JavaScript is served without credentials,
+# and that the admin studio still loads WITH them, in a real browser). Between
+# them they hold the whole of session 12's compliance work and session 13's
+# bundle gate, and none of it is on push.
 on:
   push:
   pull_request:

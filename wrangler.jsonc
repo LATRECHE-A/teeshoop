@@ -42,6 +42,11 @@
 			// these two, the asset layer would serve admin.html to anyone.
 			"/admin",
 			"/admin.html",
+			// And its JavaScript, which the asset layer served to anyone until
+			// 27/08/2026: gating the page gated the page. vite.config.ts emits
+			// every chunk only the admin entry reaches into this directory, and
+			// worker/index.ts refuses it without the same credentials.
+			"/admin-assets/*",
 			// Cache keys are minted on an unservable host (worker/falkross.ts
 			// CACHE_ORIGIN), so nothing should ever arrive here — this routes any
 			// stray request to the Worker's explicit 404 instead of the SPA fallback.

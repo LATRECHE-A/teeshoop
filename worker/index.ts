@@ -289,6 +289,32 @@ export default {
       })
     }
 
+    /*
+     * THE ADMIN STUDIO'S OWN JAVASCRIPT.
+     *
+     * Gating `/admin.html` gated the PAGE and nothing it loads. `dist/` is
+     * served wholesale, so until 27/08/2026 `GET /admin.html` answered 401 while
+     * `GET /assets/DtfModal-<hash>.js` answered 200 with 137 ko of the film cost
+     * model to a request carrying no credentials at all. Both gates that exist
+     * for this were green and neither was wrong: `adminBoundary.test.ts` proves
+     * the customer entry cannot REACH those modules, and `bundle-guard.mjs`
+     * expects shop-internal markers in a file classified ADMIN. Neither asserted
+     * that an ADMIN file is not simply downloadable, and the hash in the name is
+     * not a secret: `GET /.vite/manifest.json` listed every one of them.
+     *
+     * `vite.config.ts` now emits those chunks into `admin-assets/`, decided from
+     * the real source graph, and this is the gate on it. `page` rather than
+     * `api` so a browser that arrives here without having answered the prompt on
+     * /admin.html gets one; a browser that HAS answered it attaches the same
+     * credentials to these same-origin subresource requests on its own, which is
+     * what makes the studio load at all.
+     */
+    if (path.startsWith('/admin-assets/')) {
+      const denied = await requireAdmin(request, env, 'page')
+      if (denied) return denied
+      return env.ASSETS.fetch(request)
+    }
+
     // The Falk&Ross module memoises derived payloads (INCLUDING PURCHASE
     // PRICES) in caches.default under keys minted as `/__fr-cache/…` URLs on
     // this origin. They are cache keys, never routes: refuse them explicitly
