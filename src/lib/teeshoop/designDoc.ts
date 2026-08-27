@@ -55,6 +55,35 @@ export const MAX_SIDE_SQ_CM = 10000
 export const MAX_SIDE_PIECES = 32
 export const MAX_PIECE_CM = 200
 
+/**
+ * The two lengths `src/lib/ink.ts` puts between a visual's ink and the rectangle
+ * it is printed as, in CENTIMETRES.
+ *
+ * RESTATED HERE AND NOT IMPORTED, because this file has no imports at all and
+ * must not gain any: it is type-checked twice, once under the app's tsconfig and
+ * once under the Worker's, and `ink.ts` reaches a canvas. The copy is held to
+ * the original by a test (`designDoc.test.ts`), which is the same arrangement
+ * `Margin.php` uses for the Bible's formula.
+ *
+ *   TRIM_BLEED_IN = 0,02 in, added on all four sides by `clampInkToArea`.
+ *   MIN_EXTENT_IN = 0,08 in, the floor a hairline is GROWN to by `atLeastMin`.
+ */
+const PIECE_BLEED_CM = 0.0508
+const PIECE_MIN_EXTENT_CM = 0.2032
+
+/**
+ * The step `sidePiecesCm` rounds every dimension to, centimetres.
+ *
+ * It is subtracted as well, and that is not caution: rounding a transfer's
+ * width UP by half a step makes the ink behind it look wider than it is, and a
+ * bound that can be pushed past the truth by rounding is not a bound. Written
+ * off both the threshold and the subtraction, the floor is sound for any
+ * rounding of this size. On a real chest print it costs 0,01 cm of a 28,5 cm
+ * rectangle, which is nothing; on a hairline it is the difference between a
+ * derived floor and a wrong refusal.
+ */
+const PIECE_ROUND_CM = 0.01
+
 export const MAX_LAYERS = 200
 export const MAX_ASSETS = 32
 export const MAX_GARMENT_ID_LEN = 40
@@ -185,6 +214,23 @@ export function readDesignDoc(raw: unknown): DesignDocSummary | null {
     if (!Number.isFinite(area) || area <= 0) continue
     const capped = Math.min(area, MAX_SIDE_SQ_CM)
     const read = readPieces(side.pieces, capped)
+    /*
+     * AND THE OTHER DIRECTION, which was the open half of this gate.
+     *
+     * `readPieces` refuses rectangles too SMALL to hold the ink they claim,
+     * because that understates the film. Nothing refused an ink area too small
+     * for the rectangles, and that understates THE PRICE, which is worse: the
+     * area tier is what a printed side is charged at (`Pricing::area_tier`), so
+     * a document carrying the real full-coverage geometry with
+     * `area_sq_cm: 1` bought a full front at the cheapest tier. The route is
+     * open and takes no credentials, so the only thing between that document
+     * and the till is this line.
+     *
+     * The bound is derived, not chosen. See `smallestInkSqCm`.
+     */
+    if (read.minInkSqCm !== undefined && capped < Math.min(read.minInkSqCm, MAX_SIDE_SQ_CM) * 0.99) {
+      return null
+    }
     sides.push({ id, area_sq_cm: capped, ...readPlacement(side, read.pieces) })
     if (sides.length >= MAX_SIDES) break
   }
@@ -221,11 +267,12 @@ export function readDesignDoc(raw: unknown): DesignDocSummary | null {
  * authorises a sale that destroys value. A side whose pieces cannot all be read
  * has no pieces, and the shop reports its film cost as unknown.
  */
-function readPieces(raw: unknown, areaSqCm: number): { pieces?: DesignDocPiece[] } {
+function readPieces(raw: unknown, areaSqCm: number): { pieces?: DesignDocPiece[]; minInkSqCm?: number } {
   if (!Array.isArray(raw)) return {}
   if (raw.length === 0 || raw.length > MAX_SIDE_PIECES) return {}
   const pieces: DesignDocPiece[] = []
   let boxed = 0
+  let minInk = 0
   for (const p of raw) {
     if (!p || typeof p !== 'object') return {}
     const piece = p as Record<string, unknown>
@@ -234,6 +281,7 @@ function readPieces(raw: unknown, areaSqCm: number): { pieces?: DesignDocPiece[]
     if (!Number.isFinite(w) || !Number.isFinite(h)) return {}
     if (w <= 0 || h <= 0 || w > MAX_PIECE_CM || h > MAX_PIECE_CM) return {}
     boxed += w * h
+    minInk = Math.max(minInk, smallestInkSqCm(w, h))
     // Carried through unvalidated; `readPlacement` is what decides whether they
     // are kept, because the check is per SIDE and this loop sees one rectangle.
     const kept: DesignDocPiece = { w_cm: w, h_cm: h }
@@ -265,9 +313,46 @@ function readPieces(raw: unknown, areaSqCm: number): { pieces?: DesignDocPiece[]
    * else. Failing it drops the geometry rather than the order: the buyer still
    * buys, and the shop reports the film as unknown instead of as cheap.
    */
-  if (boxed < areaSqCm * 0.99) return {}
+  if (boxed < areaSqCm * 0.99) return { minInkSqCm: minInk }
 
-  return { pieces }
+  return { pieces, minInkSqCm: minInk }
+}
+
+/**
+ * The least ink a transfer of these dimensions can be carrying, cm2.
+ *
+ * WHY THIS IS A DERIVED BOUND AND NOT A TOLERANCE. A transfer is one cluster's
+ * ink box grown by `TRIM_BLEED_IN` on all four sides and then clamped to the
+ * print area (`clampInkToArea` in src/lib/ink.ts). Clamping only ever makes it
+ * smaller, so in every case
+ *
+ *     cluster box side >= transfer side - 2 x bleed
+ *
+ * and the ink area the shop is handed is the UNION of those cluster boxes,
+ * which is at least the largest single one. So the largest rectangle in the
+ * list, shrunk by the bleed, is a floor under the declared area that no
+ * honest document can fall below.
+ *
+ * THE UNION IS WHY IT IS THE LARGEST AND NOT THE SUM. Cluster hulls may overlap
+ * (an L-shaped lockup with a mark tucked in its corner is two visuals whose
+ * boxes cross) and `sideArtworkSqCm` counts that overlap once, deliberately, so
+ * a buyer is not charged twice for the same square centimetres. Summing here
+ * would therefore refuse a legitimate design. The largest piece is the strongest
+ * bound that survives the overlap.
+ *
+ * A DIMENSION AT THE MINIMUM EXTENT CONTRIBUTES NOTHING. `atLeastMin` GROWS a
+ * span thinner than `MIN_EXTENT_IN` up to it, so a 0,4 mm hairline arrives as a
+ * 2 mm transfer and the subtraction above would claim ink that is not there.
+ * Such a dimension is treated as unknown rather than as evidence, which is the
+ * conservative direction: it can only ever fail to catch a forgery, never refuse
+ * a real design.
+ */
+function smallestInkSqCm(wCm: number, hCm: number): number {
+  const shrink = (v: number) =>
+    v > PIECE_MIN_EXTENT_CM + PIECE_ROUND_CM
+      ? Math.max(0, v - 2 * PIECE_BLEED_CM - PIECE_ROUND_CM)
+      : 0
+  return shrink(wCm) * shrink(hCm)
 }
 
 /**

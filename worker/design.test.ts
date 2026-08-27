@@ -209,7 +209,10 @@ describe('readDesignDoc — the gate on what may be stored', () => {
       sides: [
         {
           id: 'front',
-          area_sq_cm: 250,
+          // 257,7 and not a round 250: an 18 x 14,5 cm transfer is an ink box of
+          // (18 - 2 x 0,0508) x (14,5 - 2 x 0,0508), and a document that pairs this
+          // rectangle with less ink than that is one readDesignDoc now refuses.
+          area_sq_cm: 257.7,
           area_w_cm: 30.5,
           area_h_cm: 40.6,
           drop_cm: 22.4,
@@ -232,7 +235,10 @@ describe('readDesignDoc — the gate on what may be stored', () => {
       sides: [
         {
           id: 'front',
-          area_sq_cm: 250,
+          // 257,7 and not a round 250: an 18 x 14,5 cm transfer is an ink box of
+          // (18 - 2 x 0,0508) x (14,5 - 2 x 0,0508), and a document that pairs this
+          // rectangle with less ink than that is one readDesignDoc now refuses.
+          area_sq_cm: 257.7,
           area_w_cm: 30.5,
           area_h_cm: 40.6,
           pieces: [{ w_cm: 18, h_cm: 14.5, top_cm: 30, center_dx_cm: 0 }],
@@ -283,7 +289,10 @@ describe('readDesignDoc — the gate on what may be stored', () => {
       sides: [
         {
           id: 'front',
-          area_sq_cm: 250,
+          // 257,7 and not a round 250: an 18 x 14,5 cm transfer is an ink box of
+          // (18 - 2 x 0,0508) x (14,5 - 2 x 0,0508), and a document that pairs this
+          // rectangle with less ink than that is one readDesignDoc now refuses.
+          area_sq_cm: 257.7,
           area_w_cm: 30.5,
           area_h_cm: 40.6,
           drop_cm: 4000,
