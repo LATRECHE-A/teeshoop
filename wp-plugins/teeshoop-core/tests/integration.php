@@ -689,6 +689,15 @@ ts_purchase_suite( $product_id );
 require_once __DIR__ . '/integration-rgpd.php';
 ts_rgpd_suite( $product_id );
 
+/*
+ * The listing shortcut, against a real variable product with real variations.
+ * It owns and deletes its own two products: the suite is about what WooCommerce
+ * answers for a reference with no price, and the shop's fixtures are simple
+ * products with one.
+ */
+require_once __DIR__ . '/integration-listing.php';
+ts_listing_suite();
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 
