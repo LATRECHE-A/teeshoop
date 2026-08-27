@@ -1,0 +1,256 @@
+{
+  "label": "avant",
+  "shop": "http://localhost:8080",
+  "runs_per_page": 5,
+  "instrument": {
+    "viewport": {
+      "width": 375,
+      "height": 812
+    },
+    "dpr": 3,
+    "network": "slow 4G 1.6/0.75 Mbit/s 150 ms",
+    "cpu": "4x",
+    "cache": "froid"
+  },
+  "measured_at": "2026-08-27T13:06:30.287Z",
+  "pages": [
+    {
+      "key": "accueil",
+      "label": "Accueil",
+      "url": "http://localhost:8080/",
+      "runs": 5,
+      "status": 200,
+      "ttfb": 1060.800000011921,
+      "fcp": 1936,
+      "lcp": 1936,
+      "cls": 0,
+      "tbt": 26,
+      "load": 1970.5,
+      "requests": 18,
+      "total_bytes": 217820,
+      "bytes": {
+        "document": 11350,
+        "script": 111716,
+        "css": 46038,
+        "image": 0,
+        "font": 48716,
+        "fetch": 0,
+        "other": 0
+      },
+      "counts": {
+        "document": 1,
+        "script": 7,
+        "css": 8,
+        "image": 0,
+        "font": 2,
+        "fetch": 0,
+        "other": 0
+      },
+      "failures": []
+    },
+    {
+      "key": "categorie",
+      "label": "Catégorie (139 références)",
+      "url": "http://localhost:8080/categorie/manches-courtes/",
+      "runs": 5,
+      "status": 200,
+      "ttfb": 14044.899999976158,
+      "fcp": 15744,
+      "lcp": 15896,
+      "cls": 0,
+      "tbt": 129,
+      "load": 16317,
+      "requests": 40,
+      "total_bytes": 674543,
+      "bytes": {
+        "document": 22453,
+        "script": 111716,
+        "css": 46038,
+        "image": 445624,
+        "font": 48716,
+        "fetch": 0,
+        "other": 0
+      },
+      "counts": {
+        "document": 1,
+        "script": 7,
+        "css": 8,
+        "image": 22,
+        "font": 2,
+        "fetch": 0,
+        "other": 0
+      },
+      "failures": []
+    },
+    {
+      "key": "categorie-filtree",
+      "label": "Catégorie, deux facettes",
+      "url": "http://localhost:8080/categorie/manches-courtes/?f_couleur[]=white&f_taille[]=m",
+      "runs": 4,
+      "status": 200,
+      "ttfb": 13492.200000017881,
+      "fcp": 14054,
+      "lcp": 14376,
+      "cls": 0,
+      "tbt": 350.5,
+      "load": 14506.20000000298,
+      "requests": 24,
+      "total_bytes": 335006,
+      "bytes": {
+        "document": 22127,
+        "script": 111716,
+        "css": 46038,
+        "image": 106408,
+        "font": 48716,
+        "fetch": 0,
+        "other": 0
+      },
+      "counts": {
+        "document": 1,
+        "script": 7,
+        "css": 8,
+        "image": 6,
+        "font": 2,
+        "fetch": 0,
+        "other": 0
+      },
+      "failures": []
+    },
+    {
+      "key": "produit",
+      "label": "Fiche produit (catalogue)",
+      "url": "http://localhost:8080/produit/bc-e150-women-t-shirt/",
+      "runs": 5,
+      "status": 200,
+      "ttfb": 3373.300000011921,
+      "fcp": 4088,
+      "lcp": 4280,
+      "cls": 0,
+      "tbt": 73,
+      "load": 4273.700000017881,
+      "requests": 28,
+      "total_bytes": 595342,
+      "bytes": {
+        "document": 12660,
+        "script": 128909,
+        "css": 46038,
+        "image": 366491,
+        "font": 48716,
+        "fetch": 0,
+        "other": 0
+      },
+      "counts": {
+        "document": 1,
+        "script": 9,
+        "css": 8,
+        "image": 8,
+        "font": 2,
+        "fetch": 0,
+        "other": 0
+      },
+      "failures": []
+    },
+    {
+      "key": "produit-studio",
+      "label": "Fiche produit avec le studio",
+      "url": "http://localhost:8080/produit/teeshoop-e2e-tee/",
+      "runs": 5,
+      "status": 200,
+      "ttfb": 445.19999998807907,
+      "fcp": 1068,
+      "lcp": 1068,
+      "cls": 0,
+      "tbt": 740,
+      "load": 1684.800000011921,
+      "requests": 25,
+      "total_bytes": 252795,
+      "bytes": {
+        "document": 16107,
+        "script": 137474,
+        "css": 50496,
+        "image": 0,
+        "font": 48716,
+        "fetch": 0,
+        "other": 0
+      },
+      "counts": {
+        "document": 1,
+        "script": 11,
+        "css": 10,
+        "image": 0,
+        "font": 2,
+        "fetch": 0,
+        "other": 1
+      },
+      "failures": []
+    },
+    {
+      "key": "panier",
+      "label": "Panier, une ligne",
+      "url": "http://localhost:8080/cart/",
+      "runs": 5,
+      "status": 200,
+      "ttfb": 1067.4000000059605,
+      "fcp": 1856,
+      "lcp": 4468,
+      "cls": 0.0455,
+      "tbt": 1265,
+      "load": 4359.0999999940395,
+      "requests": 84,
+      "total_bytes": 1730869,
+      "bytes": {
+        "document": 75564,
+        "script": 1447847,
+        "css": 67760,
+        "image": 89224,
+        "font": 48716,
+        "fetch": 1761,
+        "other": 0
+      },
+      "counts": {
+        "document": 1,
+        "script": 64,
+        "css": 12,
+        "image": 4,
+        "font": 2,
+        "fetch": 1,
+        "other": 0
+      },
+      "failures": []
+    },
+    {
+      "key": "commande",
+      "label": "Commander, une ligne",
+      "url": "http://localhost:8080/checkout/",
+      "runs": 5,
+      "status": 200,
+      "ttfb": 1819.5,
+      "fcp": 2884,
+      "lcp": 6900,
+      "cls": 0.0455,
+      "tbt": 2378,
+      "load": 6807.5,
+      "requests": 84,
+      "total_bytes": 1730868,
+      "bytes": {
+        "document": 75563,
+        "script": 1447847,
+        "css": 67760,
+        "image": 89224,
+        "font": 48716,
+        "fetch": 1761,
+        "other": 0
+      },
+      "counts": {
+        "document": 1,
+        "script": 64,
+        "css": 12,
+        "image": 4,
+        "font": 2,
+        "fetch": 1,
+        "other": 0
+      },
+      "failures": []
+    }
+  ]
+}

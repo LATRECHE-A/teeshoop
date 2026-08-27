@@ -42,6 +42,7 @@
     "verify:site": "node scripts/site-shots.mjs",
     "bench:theme": "node scripts/theme-bench.mjs",
     "bench:shop": "node scripts/shop-bench.mjs",
+    "bench:cwv": "node scripts/cwv-bench.mjs",
     "couleurs:mesurer": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs mesurer",
     "couleurs:reclasser": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs reclasser",
     "couleurs:relever": "docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop couleurs etat --releve > docs/couleurs.json",
