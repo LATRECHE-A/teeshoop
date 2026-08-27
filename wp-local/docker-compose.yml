@@ -49,11 +49,43 @@ services:
       interval: 5s
       retries: 20
 
+  # THE OBJECT CACHE PRODUCTION ALREADY HAS.
+  #
+  # o2switch runs Redis 8 on the account, restarted every minute by the account's
+  # own crontab, with its socket at ~/.cpanel/redis/redis.sock, and `php -m`
+  # there lists redis, memcached and igbinary. None of that existed in this
+  # mirror, so an object-cache drop-in was a thing that could be written and
+  # deployed and never once exercised. It can now be exercised here.
+  #
+  # TCP here and a UNIX SOCKET in production, which is the one difference and is
+  # deliberate: a socket shared between two containers works but adds a volume
+  # and a permissions problem to a mirror, and the drop-in's code path is the
+  # same client either way. wp-config.php in the mirror sets WP_REDIS_HOST; on
+  # o2switch it sets WP_REDIS_PATH. See docs/PERFORMANCE.md.
+  #
+  # `--save ''` because nothing in here is worth writing to disk: it is a cache,
+  # and a mirror that survives a restart with a stale cache is a mirror that
+  # lies. Bounded at 64 Mo with the same eviction policy an object cache wants,
+  # so a runaway does not take the machine with it.
+  redis:
+    image: redis:8-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no', '--maxmemory', '64mb', '--maxmemory-policy', 'allkeys-lru']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      retries: 10
+
   wp:
-    # Pinned to production's WordPress. See the header before changing it.
-    image: wordpress:7.0.4-php8.3-apache
+    # Pinned to production's WordPress, plus the two PHP extensions o2switch has
+    # and the official image does not. See wp-local/Dockerfile.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: teeshoop/wp-local:7.0.4-php8.3
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - '8080:80'
@@ -107,6 +139,27 @@ services:
       #   npm run wp:cli language core install fr_FR --activate
       #   npm run wp:cli language plugin install woocommerce fr_FR
       #
+      # AND THE OBJECT CACHE IS NOT AUTOMATIC EITHER. The redis SERVICE and the
+      # php extension are in the image (see wp-local/Dockerfile); the drop-in is
+      # a plugin and a wp-config constant, so on a volume created before this
+      # existed, once:
+      #
+      #   npm run wp:cli plugin install redis-cache --activate
+      #   npm run wp:cli config set WP_REDIS_HOST redis --type=constant
+      #   npm run wp:cli config set WP_REDIS_PORT 6379 --raw --type=constant
+      #   npm run wp:cli config set WP_REDIS_PREFIX teeshoop_mirror --type=constant
+      #   npm run wp:cli redis enable
+      #
+      # THE PREFIX IS NOT DECORATION. o2switch gives the ACCOUNT one Redis, not
+      # the site. Two WordPress installs on one account with no prefix share a
+      # keyspace, and the second one's `alloptions` overwrites the first's: two
+      # shops answering with each other's settings. `npm run verify:cache`
+      # asserts a prefix is set, for that reason and not for tidiness.
+      #
+      # In production the same three constants exist but WP_REDIS_PATH replaces
+      # host and port, because o2switch's Redis listens on a unix socket at
+      # ~/.cpanel/redis/redis.sock. See docs/PERFORMANCE.md.
+      #
       # AND NO SECRET IS DEFINED HERE, which is a correction and not a style
       # choice. This block used to carry
       #
@@ -143,9 +196,18 @@ services:
 
   # One-shot WP-CLI, same filesystem and network as the site.
   wpcli:
-    image: wordpress:cli-php8.3
+    # Built from the same Dockerfile as `wp`, for one reason: `wp redis status`
+    # and every WP-CLI call that goes through the object cache need the redis
+    # extension too. On the stock cli image they report the cache as unavailable
+    # while the web request uses it, and the two would disagree about whether the
+    # shop has an object cache at all.
+    build:
+      context: .
+      dockerfile: Dockerfile.cli
+    image: teeshoop/wp-cli-local:php8.3
     depends_on:
       - wp
+      - redis
     user: '33:33'
     environment:
       WORDPRESS_DB_HOST: db
