@@ -167,8 +167,14 @@ function scan(extraFile) {
       if (evidence) continue
       /*
        * A line may hold a placeholder AND prose. Strip every placeholder literal
-       * first, then look again: that way `worst: '—', label: 'a — b'` is still
-       * caught on its second half.
+       * first, then look again, so a line that sets one field to the
+       * absent-value glyph and another to a sentence is still caught on the
+       * sentence.
+       *
+       * The example that used to sit here spelled both cases out with the real
+       * character, and the guard's first run refused its own comment. That is
+       * the check working, and the fix is to describe the case rather than to
+       * exempt the file.
        */
       let rest = lines[i]
       while (PLACEHOLDER.test(rest)) rest = rest.replace(PLACEHOLDER, '""')
