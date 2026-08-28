@@ -2,7 +2,7 @@
  * Module Web Worker entry for background removal.
  *
  * Jobs are processed strictly one at a time (`queue` chain) so concurrent
- * removeBackground() calls from the page are safe — the second simply waits.
+ * removeBackground() calls from the page are safe: the second simply waits.
  * Model-download progress is broadcast to every enqueued job, so a job
  * waiting behind the first-ever run still surfaces download percentage.
  */
@@ -21,7 +21,7 @@ const scope = self as unknown as {
 
 const post = (msg: WorkerToClient): void => scope.postMessage(msg)
 
-/** Jobs enqueued and not yet finished — model progress fans out to all. */
+/** Jobs enqueued and not yet finished. Model progress fans out to all. */
 const activeIds = new Set<number>()
 setModelProgressBroadcast((pct) => {
   for (const id of activeIds) post({ kind: 'progress', id, stage: 'model', pct })

@@ -1,5 +1,5 @@
 /**
- * Dev harness for the custom-garment shell — the 3-tier depth ladder, on real
+ * Dev harness for the custom-garment shell: the 3-tier depth ladder, on real
  * garments.
  *
  * Case 0 is a synthetic laid-flat tee (deterministic, no network, no model):
@@ -7,17 +7,17 @@
  * Cases 1..n are REAL supplier flat-lays from public/catalog/imbretex, put
  * through the SAME background removal the app uses (u2netp, src/lib/bgremove)
  * and composited with a print, so what is measured here is what a customer
- * gets — not a hand-drawn stand-in that happens to suit the algorithm.
+ * gets, not a hand-drawn stand-in that happens to suit the algorithm.
  *
  * Every case can be built twice: `template` (tier 1, a real garment's depth
  * field graded onto the photo) and `poisson` (tier 2, the balloon that shipped
- * before). That A/B is the whole point of the harness — the verifier renders
+ * before). That A/B is the whole point of the harness: the verifier renders
  * both and prints the shape statistics side by side.
  *
  * Rendering is a RAW three.js scene with preserveDrawingBuffer so the
  * framebuffer can be read back headlessly (swiftshader-safe), mirroring
- * ExtrudedGarment's materials exactly. Default view: a 2×2 grid — front,
- * three-quarter, top-down-into-the-neck, grazing-light — the four angles the
+ * ExtrudedGarment's materials exactly. Default view: a 2×2 grid (front,
+ * three-quarter, top-down-into-the-neck, grazing-light), the four angles the
  * hollow read must survive. Exposes window.__inflate.
  *
  * NOTE for the driver: this page spawns the bg-removal Worker, so it never goes
@@ -49,7 +49,7 @@ import { fabricNormalTexture } from '@/three/fabric'
 const WIN = 20
 const HIN = 24
 const PPI = 54
-/** Long edge of the working composite — matches the app's renderMockup scale. */
+/** Long edge of the working composite: matches the app's renderMockup scale. */
 const PHOTO_EDGE = 1000
 
 interface Case {
@@ -61,9 +61,9 @@ interface Case {
   widthIn: number
   /**
    * What this case is FOR.
-   *  garment     — must reach tier 1 with the expected donor.
-   *  negative    — not a garment: must be refused and land on the balloon.
-   *  untraceable — a real upload the outline tracer must refuse OUTRIGHT, so
+   *  garment:      must reach tier 1 with the expected donor.
+   *  negative:     not a garment. Must be refused and land on the balloon.
+   *  untraceable:  a real upload the outline tracer must refuse OUTRIGHT, so
    *                the app shows the tier-3 card. Without one of these the
    *                bottom rung of the ladder is never exercised at all.
    */
@@ -71,12 +71,12 @@ interface Case {
   /**
    * How the supplier photo is prepared, for the cases whose whole point is that
    * the customer's upload is not a clean flat-lay.
-   *  'hanger'  — the garment still on its hanger, the hook protruding above the
+   *  'hanger':   the garment still on its hanger, the hook protruding above the
    *              collar as a small DISCONNECTED component (a hook passes through
    *              the collar opening, so it touches no cloth).
-   *  'bigprint'— a large dark chest graphic, i.e. artwork that the de-lighting's
+   *  'bigprint': a large dark chest graphic, i.e. artwork that the de-lighting's
    *              low-frequency shading estimate can mistake for a shadow.
-   *  'raw'     — NO background removal: the JPEG as it came off the supplier,
+   *  'raw':      NO background removal: the JPEG as it came off the supplier,
    *              opaque corner to corner.
    */
   prep?: 'hanger' | 'bigprint' | 'raw'
@@ -92,7 +92,7 @@ interface Case {
  * The negatives are the other four things a customer can plausibly upload to a
  * print shop. They are synthetic on purpose: a tote, a mug, a poster and a cap
  * drawn from primitives are unarguable about what they are, they need no
- * network and no cutout model, and they are deterministic — which is what lets
+ * network and no cutout model, and they are deterministic, which is what lets
  * the verifier assert a SEPARATION rather than a single hand-picked refusal.
  */
 const CASES: Case[] = [
@@ -154,7 +154,7 @@ type Rim = 'on' | 'off'
 // --------------------------------------------------------------- test garments
 
 /** A crew-neck tee silhouette (transparent bg) with an enclosed collar hole,
- * soft photo folds and a printed chest design — enough to exercise silhouette
+ * soft photo folds and a printed chest design, enough to exercise silhouette
  * + holes + decal + the photo-derived wrinkle bands. */
 function drawShirt(canvas: HTMLCanvasElement) {
   canvas.width = Math.round(WIN * PPI)
@@ -192,7 +192,7 @@ function drawShirt(canvas: HTMLCanvasElement) {
   ctx.fill()
 
   // Soft photographic folds (deterministic): the wrinkle normal map and the
-  // mid-frequency Z band read these — a flat gradient would give them nothing.
+  // mid-frequency Z band read these. A flat gradient would give them nothing.
   // source-atop keeps the blurred strokes inside the garment alpha.
   ctx.save()
   ctx.globalCompositeOperation = 'source-atop'
@@ -217,7 +217,7 @@ function drawShirt(canvas: HTMLCanvasElement) {
   }
   ctx.restore()
 
-  // enclosed crew collar hole (punch transparent) — punched AFTER the folds so
+  // enclosed crew collar hole (punch transparent), punched AFTER the folds so
   // nothing bleeds into the opening.
   ctx.save()
   ctx.globalCompositeOperation = 'destination-out'
@@ -231,7 +231,7 @@ function drawShirt(canvas: HTMLCanvasElement) {
 
 /**
  * NEGATIVE CONTROL: a tote bag. Printable, plausible as an upload, and not a
- * garment either donor mesh describes — a straight-sided box with two handle
+ * garment either donor mesh describes: a straight-sided box with two handle
  * loops where a collar and shoulders should be. It exists to put a number on
  * the other side of the IoU gate: a threshold justified only by the garments it
  * accepts is half a calibration.
@@ -261,7 +261,7 @@ function drawTote(canvas: HTMLCanvasElement) {
 
 /**
  * NEGATIVE: a mug. Straight sides, a flat lid and a flat base, and a C handle
- * on ONE side — the only case in the set that is strongly asymmetric, and the
+ * on ONE side, the only case in the set that is strongly asymmetric, and the
  * one whose handle encloses a hole that is neither an armhole nor a collar.
  */
 function drawMug(canvas: HTMLCanvasElement) {
@@ -284,7 +284,7 @@ function drawMug(canvas: HTMLCanvasElement) {
 }
 
 /**
- * NEGATIVE: a flat poster. The degenerate case — a rectangle, no openings, no
+ * NEGATIVE: a flat poster. The degenerate case: a rectangle, no openings, no
  * taper, nothing above the "shoulders" because there are none. If any gate ever
  * lets a garment template onto this, the gate is not a gate.
  */
@@ -296,7 +296,7 @@ function drawPoster(canvas: HTMLCanvasElement) {
   const h = canvas.height
   ctx.clearRect(0, 0, w, h)
   ctx.fillStyle = '#e7e2d6'
-  // Inset, i.e. photographed and cut out rather than filling the frame — a
+  // Inset, i.e. photographed and cut out rather than filling the frame. A
   // full-bleed rectangle is refused one gate earlier (no cutout at all), which
   // would make this a test of `canvasToSilhouette` instead of the shape gate.
   ctx.fillRect(w * 0.06, h * 0.04, w * 0.88, h * 0.92)
@@ -306,7 +306,7 @@ function drawPoster(canvas: HTMLCanvasElement) {
 /**
  * NEGATIVE: a five-panel cap, front on. A dome over a brim: widest at the very
  * bottom like a long sleeve is, but with no neck, no shoulder line and no
- * torso — the case that proves the tells are read together and not one at a
+ * torso: the case that proves the tells are read together and not one at a
  * time.
  */
 function drawCap(canvas: HTMLCanvasElement) {
@@ -331,12 +331,12 @@ function drawCap(canvas: HTMLCanvasElement) {
 /**
  * NEGATIVE: a person, standing, arms at their sides.
  *
- * The case the other four cannot make, and the likeliest wrong upload there is —
+ * The case the other four cannot make, and the likeliest wrong upload there is:
  * a customer photographs a friend WEARING the shirt. A tote, a mug, a poster and
  * a cap are each refused because they lack a collar, cloth at the top, or a
  * shoulder line; a person has all three (a head is narrower than the shoulders
  * it sits on, it is solid, and the shoulders arrive high), so every structural
- * tell reads "garment" on it. If anything refuses it, it is the template FIT —
+ * tell reads "garment" on it. If anything refuses it, it is the template FIT,
  * and if nothing does, the customer gets a t-shirt's depth field wrapped around
  * a body, which is why this case is in the set whatever the answer turns out to
  * be.
@@ -399,11 +399,11 @@ function drawPerson(canvas: HTMLCanvasElement) {
 
 /**
  * The garment still on its HANGER: the hook drawn above the collar as its own
- * component, because that is what a cutout of that photo really contains — a
+ * component, because that is what a cutout of that photo really contains: a
  * hook passes through the collar OPENING and so touches no cloth at all. It
  * therefore lands in `canvasToSilhouette`'s "small foreign loop" bucket and is
  * ignored for tracing, while still being part of the alpha bbox the row profile
- * is measured over — which is exactly the trap: every structural tell is a
+ * is measured over, which is exactly the trap: every structural tell is a
  * fraction of the garment's own height, and the hook makes that height bigger.
  */
 function withHanger(src: HTMLCanvasElement): HTMLCanvasElement {
@@ -426,7 +426,7 @@ function withHanger(src: HTMLCanvasElement): HTMLCanvasElement {
 }
 
 /**
- * A LARGE, DARK chest graphic — the artwork most likely to be mistaken for
+ * A LARGE, DARK chest graphic, the artwork most likely to be mistaken for
  * shading. De-lighting estimates the photo's lighting with a wide blur
  * (photoLight.shadeRadius = 8.5 % of the long edge), and a print this size is
  * wider than that blur, so it enters the estimate as if it were a shadow: the
@@ -477,7 +477,7 @@ function drawPrint(ctx: CanvasRenderingContext2D, w: number, h: number, atY: num
 }
 
 /** Fetch a supplier flat-lay, cut it out with the app's own u2netp pipeline,
- *  and composite the print — i.e. exactly what renderMockup produces.
+ *  and composite the print, i.e. exactly what renderMockup produces.
  *  `raw` skips the cutout entirely: an opaque JPEG, which is what a customer
  *  uploads when background removal is unsupported or was switched off. */
 async function loadSupplierGarment(id: string, raw = false): Promise<HTMLCanvasElement> {
@@ -568,19 +568,19 @@ interface ShapeStats {
    * This is not a nicety, it is the thing that decides whether a transplanted
    * garment reads as cloth. Normals are computed FROM this field, so a step
    * between two vertically adjacent rows becomes a crease with a hard black
-   * shadow in it — and the depth field of a real garment mesh has no such
+   * shadow in it, and the depth field of a real garment mesh has no such
    * steps, which is why the donor's own numbers are printed as the reference
    * every shell is measured against.
    *
    * `maxSlope` is the steepest |dz/dy| and `rmsCurv` the RMS |d²z/dy²|, both in
    * units of (peak depth) per (garment height) so a 96-row template and a
-   * 130-row shell are directly comparable — a raw per-row difference would just
+   * 130-row shell are directly comparable: a raw per-row difference would just
    * measure the grid.
    *
    * MEASURED OVER THE GARMENT'S BODY, NOT ITS RIM. Requiring only that the
    * vertical neighbours be inside the mask is not enough: at the silhouette the
    * depth ramps from zero to full over a couple of rows, and that ramp is the
-   * outline rather than an artefact — a real garment's shoulder is still thick
+   * outline rather than an artefact: a real garment's shoulder is still thick
    * at its seam, so a transplanted field is SUPPOSED to rise there faster than
    * a balloon whose solution vanishes quadratically at the boundary. Reading it
    * anyway put the rim ramp on top of every number and buried the thing being
@@ -618,7 +618,7 @@ function shapeStats(z: Float32Array, inside: Uint8Array, gx: number, gy: number,
   }
   const peakFromTop = den > 0 ? num / den / Math.max(1, gy - 1) : 0
   // Chest row: the widest row in the upper-middle third, i.e. below the
-  // shoulders and above the hem taper — where a garment is fullest.
+  // shoulders and above the hem taper, where a garment is fullest.
   let chestRow = Math.round(gy * 0.42)
   let best = -1
   for (let j = Math.round(gy * 0.3); j <= Math.round(gy * 0.6); j++) {
@@ -678,7 +678,7 @@ function shapeStats(z: Float32Array, inside: Uint8Array, gx: number, gy: number,
   }
 }
 
-/** The same statistics read straight off a baked template — the reference the
+/** The same statistics read straight off a baked template: the reference the
  *  shell is trying to reproduce, decoded here so the harness never depends on
  *  templateDepth.ts's internals. */
 function templateStats(id: TemplateId): ShapeStats {
@@ -704,7 +704,7 @@ function templateStats(id: TemplateId): ShapeStats {
  * Thresholds in garmentShape.ts are the one part of this pipeline that is pure
  * calibration, and calibrating them against imagined silhouettes is how a
  * classifier ends up believing every supplier photo is a flat-lay. This dumps
- * the real thing — per row, normalised to the garment's own box, so a photo and
+ * the real thing, per row, normalised to the garment's own box, so a photo and
  * a template are directly comparable.
  */
 interface ProfileDump {
@@ -715,7 +715,7 @@ interface ProfileDump {
   outer: number[]
   /** Body-run width per row (b1 − b0), in cells. */
   body: number[]
-  /** Cells of cloth per row — outer extent minus the air between runs. */
+  /** Cells of cloth per row: outer extent minus the air between runs. */
   area: number[]
   /** Runs per row. */
   runs: number[]
@@ -825,8 +825,8 @@ const photoCache = new Map<string, HTMLCanvasElement>()
 
 /**
  * Zero every 4-connected component of `a` (cells ≥ T) smaller than a tenth of
- * the largest — MIN_COMPONENT, the rule `buildMask` applies before it measures
- * anything at all.
+ * the largest (MIN_COMPONENT, the rule `buildMask` applies before it measures
+ * anything at all).
  *
  * The caller keeps the RAW alpha wherever the question is "where do the
  * materials cut", because the sheets are alpha-tested against the raw composite
@@ -870,7 +870,7 @@ function eraseIslands(a: Float32Array, w: number, h: number, T: number): Float32
 }
 
 /**
- * The composite's alpha content bbox in ITS OWN pixels — the rectangle the
+ * The composite's alpha content bbox in ITS OWN pixels, the rectangle the
  * shell's sheets span. Measured the way silhouette.ts measures it (a 200 px
  * working copy, alpha ≥ 128, detached islands erased first) so the two agree to
  * within a working pixel, which is a fraction of one grid cell.
@@ -879,8 +879,8 @@ function eraseIslands(a: Float32Array, w: number, h: number, T: number): Float32
  * drops components under 10 % of the largest and re-derives its bbox from what
  * survived, so on the hanger case the sheets span the GARMENT and stop below the
  * hook. Measuring the raw alpha instead adds the hook's 11 % of height to the
- * top of every grid this harness builds, and everything downstream — the
- * coverage mask the shape statistics use, the isoline the rim gate cuts — is
+ * top of every grid this harness builds, and everything downstream (the
+ * coverage mask the shape statistics use, the isoline the rim gate cuts) is
  * then a row-map out of register with the depth it is describing. It showed up
  * as 1.94 in of "unclosed seam" on geometry that had closed correctly.
  */
@@ -889,7 +889,7 @@ function alphaBBox(src: HTMLCanvasElement): {
   y: number
   w: number
   h: number
-  /** Source pixels per working pixel — what turns the bbox back into the
+  /** Source pixels per working pixel, what turns the bbox back into the
    *  working-grid cell size the sheet's vertex spacing is derived from. */
   sx: number
   sy: number
@@ -952,7 +952,7 @@ function clearScene() {
  * see cloth.
  *
  * THE SUB-RECT IS THE POINT. The sheets span the alpha CONTENT BBOX, not the
- * canvas — a cutout leaves transparent margins on every supplier photo — so
+ * canvas (a cutout leaves transparent margins on every supplier photo), so
  * scaling the whole canvas into the grid puts the mask a margin's width out of
  * register with the depth it is supposed to be masking. Every "interior" test
  * downstream then picks up rim and off-garment vertices, and the roughness
@@ -976,7 +976,7 @@ function coverageGrid(garment: HTMLCanvasElement, gx: number, gy: number): Uint8
 function statsFor(shell: InflatedShell, garment: HTMLCanvasElement): ShapeStats | null {
   const pos = shell.front.attributes.position as THREE.BufferAttribute
   // The sheet is a row-major regular grid with Y constant along a row, so the
-  // row length is where Y first changes — no need to know GX.
+  // row length is where Y first changes, no need to know GX.
   const total = pos.count
   const y0 = pos.getY(0)
   let gx = 1
@@ -988,7 +988,7 @@ function statsFor(shell: InflatedShell, garment: HTMLCanvasElement): ShapeStats 
   return shapeStats(z, coverageGrid(garment, gx, gy), gx, gy)
 }
 
-/** The composite a case is built from — the synthetic drawing, or the supplier
+/** The composite a case is built from: the synthetic drawing, or the supplier
  *  photo through the app's own cutout. Cached per page load. */
 async function garmentCanvas(spec: Case): Promise<HTMLCanvasElement> {
   let garment = photoCache.get(spec.id)
@@ -1029,7 +1029,7 @@ async function measure(caseId: string) {
 }
 
 /**
- * Build one shell without mounting it — for the invariant and determinism
+ * Build one shell without mounting it, for the invariant and determinism
  * probes, which need two shells side by side and no scene state.
  */
 async function rawShell(spec: Case, mode: Mode, rim: Rim = 'on'): Promise<InflatedShell | null> {
@@ -1063,14 +1063,14 @@ function dropShell(s: InflatedShell | null) {
  * depth field is allowed to move Z and nothing else: the sheets' X/Y vertex
  * positions and their UVs are what make a print land on the right square inch,
  * and they are frozen in the photo's own frame. Comparing the two modes of the
- * SAME photo is the direct measurement of that claim — no tolerance, no epsilon,
+ * SAME photo is the direct measurement of that claim: no tolerance, no epsilon,
  * float for float. Run with the same mode twice it measures determinism instead,
  * where every component including Z must match.
  *
  * Run with the same mode and `rimA/rimB` set to 'on'/'off' it measures the third
  * form of the same claim: that ADDING cloth thickness moved Z and nothing else.
  * The rim geometries then exist on one side only, which the caller sees as
- * `other` — the sheets and linings are what the comparison is about.
+ * `other`. The sheets and linings are what the comparison is about.
  */
 async function diffModes(caseId: string, a: Mode, b: Mode, rimA: Rim = 'on', rimB: Rim = rimA) {
   const spec = CASES.find((c) => c.id === caseId) ?? CASES[0]
@@ -1080,7 +1080,7 @@ async function diffModes(caseId: string, a: Mode, b: Mode, rimA: Rim = 'on', rim
   if (sa && sb) {
     // The rim is in this list because the SAME claim covers it: its isoline is
     // cut from the alpha and nothing else, so its X/Y and UVs must be identical
-    // across tiers (and its vertex COUNT must be too — the closed/open branch is
+    // across tiers (and its vertex COUNT must be too: the closed/open branch is
     // topological, so a numeric branch that flipped between tiers would show up
     // here as `other`).
     const sheets: Array<[keyof InflatedShell, string]> = [
@@ -1145,7 +1145,7 @@ async function build(caseId: string, mode: Mode, shape?: GarmentShape, rim: Rim 
   // measurement of whatever else the machine was doing: the same photo timed
   // 371 ms in one run of scripts/inflate-verify.mjs and 1443 ms in the next,
   // under a headless swiftshader renderer that was also encoding PNGs. The
-  // minimum of a few passes is the standard answer — the fastest pass is the
+  // minimum of a few passes is the standard answer: the fastest pass is the
   // one with the least foreign interference in it, and no amount of noise can
   // make a pass faster than the work actually takes.
   let buildMs = Infinity
@@ -1245,7 +1245,7 @@ function mount(shell: InflatedShell, garment: HTMLCanvasElement, wIn: number, hI
 
   // Cloth thickness: the sheets' own textures, minus the normal map (a 3-px
   // band does not need a wrinkle map) and minus the ALPHA TEST (the rim is the
-  // cut, not a surface with a cut in it) — exactly as ExtrudedGarment mounts it.
+  // cut, not a surface with a cut in it), exactly as ExtrudedGarment mounts it.
   if (shell.rimFront)
     addPart(
       'rimFront',
@@ -1284,7 +1284,7 @@ function mount(shell: InflatedShell, garment: HTMLCanvasElement, wIn: number, hI
   const liningMat = (map: THREE.Texture) =>
     new THREE.MeshStandardMaterial({
       map,
-      color: '#adadad', // ≈0.42 linear — matches ExtrudedGarment LINING_TINT
+      color: '#adadad', // ≈0.42 linear, matches ExtrudedGarment LINING_TINT
       vertexColors: true,
       normalMap: fabricN,
       normalScale: new THREE.Vector2(0.3, 0.3),
@@ -1325,9 +1325,9 @@ function mount(shell: InflatedShell, garment: HTMLCanvasElement, wIn: number, hI
  * not a tautology. The alignment matters more than it looks: a bbox-aligned
  * downsample (what `coverageGrid` above does, correctly, for a different job)
  * puts cell centres half a cell off the vertices, which biases the whole
- * isoline by ~0.06 in — the same size as the cloth thickness under test.
+ * isoline by ~0.06 in, the same size as the cloth thickness under test.
  *
- * The alpha here is RAW — islands and all — because this is the alpha the
+ * The alpha here is RAW, islands and all, because this is the alpha the
  * SHEETS are cut by, and the isoline read off it has to be the same curve the
  * rim was welded to. What must not be raw is the bounding box (`alphaBBox`
  * erases islands, so the grid lines up with the sheets) and the exterior flood
@@ -1356,7 +1356,7 @@ function vertexAlphaGrid(src: HTMLCanvasElement, cols: number, rows: number): Fl
 /**
  * Which below-isovalue cells are OUTSIDE the garment, by flood fill from a
  * transparent ring padded around the grid. An enclosed hole (collar, armhole)
- * is unreachable and therefore reads as not-exterior — the same topological
+ * is unreachable and therefore reads as not-exterior, the same topological
  * distinction silhouette.ts makes, reached by a different route (grid alpha vs
  * the eroded working mask), so the two agreeing means something.
  *
@@ -1410,7 +1410,7 @@ interface RimStats {
   ok: boolean
   mode: Mode
   rim: Rim
-  /** Isoline crossings whose outboard cell is EXTERIOR — the closed outer
+  /** Isoline crossings whose outboard cell is EXTERIOR: the closed outer
    *  contour, where a laid-flat garment's two panels MUST meet. Gap in inches. */
   seamP50: number
   seamP90: number
@@ -1422,7 +1422,7 @@ interface RimStats {
   sideP50: number
   sideP99: number
   sideN: number
-  /** Crossings whose outboard cell is NOT exterior — collar / armhole / cuff.
+  /** Crossings whose outboard cell is NOT exterior: collar / armhole / cuff.
    *  These must STAY OPEN: the median gap is reported as a fraction of the
    *  garment's own depth. */
   cutP50: number
@@ -1436,7 +1436,7 @@ interface RimStats {
    *  account: Scene Viewer culls those, and the slot reopens in AR while the
    *  preview looks fine. Must be zero. */
   badWinding: number
-  /** Triangles the alpha cannot judge because both sides of them are cloth —
+  /** Triangles the alpha cannot judge because both sides of them are cloth:
    *  inside a one-cell notch. Reported rather than asserted, because that is a
    *  limit of the probe and not of the rim. */
   outwardMiss: number
@@ -1446,7 +1446,7 @@ interface RimStats {
    *  construction); reported, never asserted. */
   normalDisagree: number
   degenerate: number
-  /** Ends of the rim ribbon — places where the strip simply STOPS. Zero on a
+  /** Ends of the rim ribbon: places where the strip simply STOPS. Zero on a
    *  garment whose whole outline carries cloth thickness. */
   rimOpenEnds: number
   /** …and how much outline that leaves bare, inches. */
@@ -1454,7 +1454,7 @@ interface RimStats {
 }
 
 /**
- * Where the two sheets actually END — measured on the sheets, at the alpha cut,
+ * Where the two sheets actually END, measured on the sheets, at the alpha cut,
  * with no renderer involved.
  *
  * This is the cheap gate that runs on every case: the serration the rim exists
@@ -1528,8 +1528,8 @@ async function rimStats(caseId: string, mode: Mode, rim: Rim): Promise<RimStats 
     // wound the wrong way reopens the slot in AR while looking perfect in a
     // DoubleSide-tolerant preview. The claim is therefore stated the way the
     // cull states it: the face normal must point at the side of the cut where
-    // there is NO CLOTH, and that is asked of the ALPHA — the same alpha the
-    // materials cut on — rather than of the strip's own authored normals.
+    // there is NO CLOTH, and that is asked of the ALPHA (the same alpha the
+    // materials cut on) rather than of the strip's own authored normals.
     //
     // The first version of this gate compared the face normal against the
     // vertex normal instead, and it was wrong: that normal is AVERAGED over the
@@ -1538,7 +1538,7 @@ async function rimStats(caseId: string, mode: Mode, rim: Rim): Promise<RimStats 
     // sides of a one-cell notch) the average points somewhere between two
     // segments and disagrees with each of them. It reported 353 "inverted"
     // triangles on the mug and 28 on the synthetic tee while the alpha said
-    // every one of them faced out — a property of the reference, not of the
+    // every one of them faced out, a property of the reference, not of the
     // geometry. That comparison is still computed, as `normalDisagree`, because
     // a shading normal fighting its own face is worth seeing; it just is not
     // what decides whether AR shows a hole.
@@ -1632,13 +1632,13 @@ async function rimStats(caseId: string, mode: Mode, rim: Rim): Promise<RimStats 
       }
     }
 
-    // RIBBON CLOSURE — the one thing nothing else here can see.
+    // RIBBON CLOSURE: the one thing nothing else here can see.
     //
     // The strip is cut from a marching-squares isoline, and an isoline can only
     // be CLIPPED by the grid it lives on. That grid spans the alpha's own
     // bounding box, so it clips exactly where a laid-flat garment is flattest:
-    // wherever the cut RUNS ALONG the bbox — the hem across the bottom of every
-    // flat-lay, the outer edge of a sleeve at its widest — the boundary cell is
+    // wherever the cut RUNS ALONG the bbox (the hem across the bottom of every
+    // flat-lay, the outer edge of a sleeve at its widest), the boundary cell is
     // half cloth and no edge of it crosses. Every other gate here is blind to
     // it: the seam gap is measured on the SHEETS, which converge everywhere with
     // or without a strip, and the rendered probe localises the seam at grazing
@@ -1731,7 +1731,7 @@ async function rimStats(caseId: string, mode: Mode, rim: Rim): Promise<RimStats 
  *
  * Both extremes are fixed points of every transfer function three can put in
  * the way, so the identity survives colour management byte-exactly whatever the
- * renderer decides to do — which is the whole point of an ID pass. The two
+ * renderer decides to do, which is the whole point of an ID pass. The two
  * interior catch planes share one identity because nothing below distinguishes
  * them: they are "something that is not cloth", and that is all the seam test
  * asks.
@@ -1772,7 +1772,7 @@ const ID_FILL = 0.86
 let idRenderer: THREE.WebGLRenderer | null = null
 let idTarget: THREE.WebGLRenderTarget | null = null
 
-/** Alpha of the composite carried in the GREEN channel — the one texture every
+/** Alpha of the composite carried in the GREEN channel: the one texture every
  *  ID material alpha-tests through (`alphaMap` reads green), so the cut is the
  *  production cut and the identity is a plain material colour. */
 function alphaAsGreen(src: HTMLCanvasElement): HTMLCanvasElement {
@@ -1803,13 +1803,13 @@ interface AzimuthStats {
   /** Scanlines carrying a measurable front↔back boundary. Zero at moderate
    *  azimuths, where the back panel is entirely back-facing and never drawn. */
   rows: number
-  /** Projected width of that boundary, inches — THE SLOT. On a closed shell it
+  /** Projected width of that boundary, inches: THE SLOT. On a closed shell it
    *  is the rim's own 0.06 in of cloth seen edge-on; before the fix it is the
    *  0.25–0.55 in of nothing the two sheets left between them. */
   wP50: number
   wP90: number
   wP99: number
-  /** Fraction of those scanlines where the slot shows LINING or INTERIOR — i.e.
+  /** Fraction of those scanlines where the slot shows LINING or INTERIOR, i.e.
    *  you are looking THROUGH the garment's edge into its own cavity, which is
    *  the defect stated exactly. */
   openFrac: number
@@ -1836,14 +1836,14 @@ interface AzimuthStats {
  * from its apex (u = −sin θ·zApex, the far left) to its +X seam, while that half
  * of the back sheet runs from the same seam out to its own apex on the far
  * right. The two regions therefore meet AT the seam at every azimuth, and each
- * apex projects to the opposite end of its own region — it can never overtake
+ * apex projects to the opposite end of its own region. It can never overtake
  * the boundary being measured.
  *
  * What does break down is the other end: below ~70° the back sheet's normals
  * never tilt far enough to face the camera at all and it is simply not drawn, so
  * there is no boundary and `rows` reports 0 (measured: 0–134 rows at ±60°
  * against 466–877 at ±75° and ±85°). Those azimuths are dropped by the caller's
- * row threshold, and their silhouette roughness — which needs no boundary — is
+ * row threshold, and their silhouette roughness (which needs no boundary) is
  * what speaks for the moderate angles.
  */
 async function rimProbe(
@@ -1855,7 +1855,7 @@ async function rimProbe(
   pxPerIn: number
   azimuths: AzimuthStats[]
   /** Pixels whose identity flips under a ⅓-px camera jitter and that are not
-   *  within 1 px of an identity boundary — i.e. coplanar surfaces resolving per
+   *  within 1 px of an identity boundary, i.e. coplanar surfaces resolving per
    *  pixel, which is what z-fighting looks like in an ID pass. */
   flips: number
   covered: number
@@ -1930,7 +1930,7 @@ async function rimProbe(
    * 0.01 … 4000 in resolves 0.061 in per unit and the rim's 0.007 in lead over
    * the lining it is supposed to occlude falls inside a single one. The probe
    * then reported the lining filling the seam on 79–100 % of the scanlines of a
-   * shell whose geometry puts the rim in front of it everywhere — a defect in
+   * shell whose geometry puts the rim in front of it everywhere: a defect in
    * the instrument, read as a defect in the garment. Wrapped tightly around the
    * object (±0.75 of its own size, which clears the interior catch planes at
    * ±1.5 in with room to spare) the same 16 bits resolve 0.0005 in.
@@ -2073,13 +2073,13 @@ async function rimProbe(
 
   // Grazing on both sides. Below ~55° the back panel is entirely back-facing
   // (its slope never reaches tan θ) and is simply not drawn, so there is no
-  // boundary to measure and `rows` reports 0 — the silhouette roughness is
+  // boundary to measure and `rows` reports 0. The silhouette roughness is
   // still measured there, and is the number that speaks for the moderate
   // angles.
   const azimuths = [-85, -75, -60, 60, 75, 85].map(measure)
 
   // Sub-pixel jitter: pixels whose identity flips WITHOUT being near a boundary
-  // are coplanar surfaces resolving per pixel — the signature of the rim
+  // are coplanar surfaces resolving per pixel, the signature of the rim
   // z-fighting the sheet it is welded to.
   shoot(60)
   const a = ids.slice()
@@ -2141,7 +2141,7 @@ const camera = new THREE.PerspectiveCamera(30, PANEL_W / PANEL_H, 0.1, 500)
  * The five named views are the ones every case is judged on and their framing is
  * fixed on purpose. Cloth thickness, though, is an effect that only exists near
  * the grazing end, so the screenshots that argue for it have to be taken at
- * stated angles rather than at "side" — this is the knob that lets a capture
+ * stated angles rather than at "side": this is the knob that lets a capture
  * script name one. Nothing asserted reads it.
  */
 let azimuthDeg: number | null = null
@@ -2214,7 +2214,7 @@ const label = (text: string, left: number, top: number) => {
 }
 label('front', 8, 8)
 label('three-quarter', PANEL_W + 8, 8)
-label('top — into the neck', 8, PANEL_H + 8)
+label('top, into the neck', 8, PANEL_H + 8)
 label('grazing light', PANEL_W + 8, PANEL_H + 8)
 const info = label('', 8, CANVAS_H - 44)
 info.style.color = '#EEF1F5'

@@ -1,5 +1,5 @@
 /**
- * The board's own chrome — mounted for the whole board session, focused or not,
+ * The board's own chrome, mounted for the whole board session, focused or not,
  * which is what makes it the right place for three things:
  *
  *  - the single way back out (leave the board / leave the focused product), so

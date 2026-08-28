@@ -14,7 +14,7 @@ import { t, useT } from '@/i18n'
 const loadGarment3D = () => lazy(() => import('@/three'))
 
 /**
- * React.lazy caches a failed chunk load forever — without this boundary one
+ * React.lazy caches a failed chunk load forever. Without this boundary one
  * flaky request would blank the 3D stage until a full page reload.
  */
 class Retry3DBoundary extends Component<
@@ -99,9 +99,9 @@ function useDesignTextures(design: Design, size: SizeId): Sources | null {
           // in 2D, 3D and the extruded back cap.
           // Each side twice: the composite the customer sees, and the BARE
           // garment the 3D shell measures its light and its folds from (see
-          // CardSource.photo). The second pass is nearly free — the decoded
+          // CardSource.photo). The second pass is nearly free: the decoded
           // image and its alpha bbox are already cached (lib/custom.ts), so it
-          // costs one drawImage — and it is the difference between a print
+          // costs one drawImage. It is the difference between a print
           // sitting ON the cloth and a print embossed INTO it.
           const rendered: { side: Side; canvas: HTMLCanvasElement; photo: HTMLCanvasElement }[] = []
           for (const side of ['front', 'back'] as const) {
@@ -115,7 +115,7 @@ function useDesignTextures(design: Design, size: SizeId): Sources | null {
           const hIns = rendered.map((r) => (widthIn * r.canvas.height) / r.canvas.width)
           let unifiedHIn = hIns.length ? Math.max(...hIns) : 0
           const minH = hIns.length ? Math.min(...hIns) : 0
-          // Framings too different (bad crop/zoom) — don't force a runaway pad.
+          // Framings too different (bad crop/zoom): don't force a runaway pad.
           if (unifiedHIn > 0 && minH > 0 && unifiedHIn / minH > 1.7) unifiedHIn = 0
           // The pad has to be applied to BOTH canvases or they stop being the
           // same picture: every photometric field is sampled in normalised
@@ -205,7 +205,7 @@ export default function Scene3D() {
   const [Garment3D, setGarment3D] = useState<ComponentType<Garment3DProps>>(loadGarment3D)
   const gl = useMemo(webglOk, [])
   const sources = useDesignTextures(design, previewSize)
-  // Print grading factor for the previewed size — 1 in `fixed` mode.
+  // Print grading factor for the previewed size (1 in `fixed` mode).
   const k = printScaleK(design, previewSize)
 
   if (!gl) {

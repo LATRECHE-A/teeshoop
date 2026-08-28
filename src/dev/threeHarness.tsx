@@ -1,5 +1,5 @@
 /**
- * A3 dev harness — exercises Garment3D with a generated, dimensionally
+ * A3 dev harness: exercises Garment3D with a generated, dimensionally
  * labeled grid decal (1-inch cells) plus a fake custom-garment card.
  *
  * URL params (for scripted screenshots):
@@ -10,7 +10,7 @@
  * `cp` swaps the fake blob card for a REAL supplier photo, cut out with the
  * app's own u2netp pipeline and composited with a print exactly as
  * renderDesign.renderMockup does. This is the only place a real garment can be
- * seen under the REAL stage — /dev/inflate.html lights its shells with three
+ * seen under the REAL stage. /dev/inflate.html lights its shells with three
  * bare directional lamps and ACES, so it exaggerates every normal and shows
  * nothing about sheen or the environment bake. Judge shading here, geometry
  * there. `cpk=0` drops the print, which is what isolates "the photo shaded
@@ -124,7 +124,7 @@ function drawGridDecal(canvas: HTMLCanvasElement, wIn: number, hIn: number, acce
   outlinedText(ctx, `${label} ${wIn}″ × ${hIn}″`, w / 2, h * 0.45, '700 30px "JetBrains Mono"', accent, 'rgba(0,0,0,0.85)', 5)
 }
 
-/** Random accent splat — proves texture.version updates propagate. */
+/** Random accent splat: proves texture.version updates propagate. */
 function splat(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -504,7 +504,7 @@ function Harness() {
 
   // RE-ISSUE `?v=`. CameraRig deliberately seeds its "already handled" nonce
   // with whatever it is mounted with, so a stale request cannot snap the camera
-  // uninvited when the user re-enters 3D — which also means the request this
+  // uninvited when the user re-enters 3D, which also means the request this
   // harness mounts WITH is swallowed, and every scripted screenshot came out at
   // the default camera whatever `?v=` said. Bumping the nonce after mount is
   // what makes the parameter mean anything; re-running once the garment exists

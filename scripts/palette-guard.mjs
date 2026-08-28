@@ -59,7 +59,7 @@ const SOURCES = [
   {
     file: 'wp-plugins/teeshoop-core/includes/Notify.php',
     what: 'the e-mails',
-    // `$ink   = '#14171a';` — five roles; the others are not painted there.
+    // `$ink   = '#14171a';` (five roles; the others are not painted there).
     holds: ['ink', 'muted', 'line', 'surface', 'accent'],
     read: (text, role) => {
       const name = { ink: 'ink', muted: 'soft', line: 'line', surface: 'wash', accent: 'blue' }[role]

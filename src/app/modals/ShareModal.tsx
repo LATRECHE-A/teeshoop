@@ -115,7 +115,7 @@ export default function ShareModal() {
             ) : (
               <div className="flex flex-col gap-2">
                 {sides.map((sd) => {
-                  // Graded to the previewed size — this listing describes the
+                  // Graded to the previewed size: this listing describes the
                   // file the printer receives, so it must match renderPrintArea.
                   const area = getAreaSizeIn(design, sd, previewSize)
                   const warn = lowResLayers(sd)
@@ -140,7 +140,7 @@ export default function ShareModal() {
                           run(`print-${sd}`, async () => {
                             const c = await renderPrintArea(design, sd, PRINT_DPI, previewSize)
                             if (!c) return
-                            // Grading makes the physical size size-dependent —
+                            // Grading makes the physical size size-dependent:
                             // name the file after the size it was graded to, or
                             // two sizes of the same design are indistinguishable
                             // on the printer's desk.

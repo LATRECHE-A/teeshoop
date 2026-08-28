@@ -68,7 +68,7 @@ export function SceneEnvironment({ config, resolution = 512 }: { config: Scene3D
     // rendering. That was a false lead, and the measurements are recorded here
     // so it is not "fixed" the same way again: a controlled A/B of the 3D
     // mount (3 runs each, same box) came out 29.3/17.3/14.9 s at 256 against
-    // 28.4/13.5/13.9 s at 512 — i.e. no cost at all, the spread is machine
+    // 28.4/13.5/13.9 s at 512, i.e. no cost at all, the spread is machine
     // load. The real cause was that the suite's own 60 s gate straddled a
     // mount that takes 58-66 s under swiftshader, so it failed as a coin flip
     // on BOTH the changed and the unchanged tree. Fixed in e2e-verify.mjs.
@@ -164,7 +164,7 @@ export const SEED_EXTENT: MeasuredExtent = {
 /**
  * The scene's one shadow-casting light, sized to the garment.
  *
- * The environment map is still doing almost all of the shading — this is
+ * The environment map is still doing almost all of the shading. This is
  * deliberately a modest key on top of it. Its job is not brightness, it is the
  * OCCLUSION the env map structurally cannot produce: the shadow a sleeve throws
  * on the ribs, the dark inside a hood, the line where a kangaroo pocket lifts
@@ -177,7 +177,7 @@ export const SEED_EXTENT: MeasuredExtent = {
  * and one loose enough for the hoodie spends most of the tee's texels on empty
  * space and turns its shadows into stairs.
  *
- * `normalBias` is in WORLD units, which here are inches — 0.06 in is a hair
+ * `normalBias` is in WORLD units, which here are inches: 0.06 in is a hair
  * over the fabric and comfortably kills the acne a doubleSided cloth surface
  * produces where it nearly faces the light.
  */
@@ -470,14 +470,14 @@ export function Floor({
     }
   })
   // drei's ContactShadows memoises two WebGLRenderTargets, a PlaneGeometry and
-  // three materials on [resolution, width, height, scale, color] — and disposes
+  // three materials on [resolution, width, height, scale, color], and disposes
   // NONE of them (there is not one `dispose` call in the module). Passing a
   // size-derived `scale` therefore orphaned two render targets on every garment
   // or size change, unbounded, for the life of the tab.
   //
   // So the shadow rig is built ONCE at unit scale and sized by its PARENT
   // instead: a uniform parent scale transforms the depth camera and its plane
-  // together, which is exactly what the `scale` prop does internally — but it
+  // together, which is exactly what the `scale` prop does internally, but it
   // never touches a memo dependency, so nothing is ever rebuilt or orphaned.
   // Quantising `scale` was not enough: a tee and a hoodie land in different
   // buckets, so alternating garments still leaked on every swap.
@@ -673,7 +673,7 @@ export function homeCameraPosition(radius: number): [number, number, number] {
  * preview usually shows a smaller one, so a generous margin here is air around
  * air: it was leaving an M hoodie sitting in the middle of the pane like a
  * thumbnail. Trimming the constant is the only lever that helps without
- * touching the framed target itself — making the distance follow the previewed
+ * touching the framed target itself. Making the distance follow the previewed
  * size would erase the size difference the selector exists to show, which
  * scripts/board-verify.mjs asserts (it caught exactly that attempt).
  */
@@ -683,7 +683,7 @@ const FIT_MARGIN = 1.12
  * cropped" bound, not something that deserves air around it. A measured 3XL
  * hoodie is 52.5 in wide but only 26 in through the body, so giving the arm
  * tips the same margin as the body pushes the camera 20% further back than it
- * has to be — which is exactly how a hoodie ended up reading SMALLER on screen
+ * has to be, which is exactly how a hoodie ended up reading SMALLER on screen
  * than a tee it dwarfs in real life.
  */
 const EDGE_MARGIN = 1.0
@@ -691,7 +691,7 @@ const EDGE_MARGIN = 1.0
 /**
  * Viewing distance that frames a garment of these inches. Garments are scaled to
  * REAL inches, so a fixed distance either crops the big ones or strands the
- * small ones — the rig re-fits whenever the measured mesh changes, until the
+ * small ones. The rig re-fits whenever the measured mesh changes, until the
  * user takes the controls.
  *
  * `torsoWidthIn` is what the framing is ABOUT: the body a customer is looking
@@ -1049,7 +1049,7 @@ export function CameraRig({
     }
   })
 
-  // Smooth exponential damp toward the requested view — in SPHERICAL space,
+  // Smooth exponential damp toward the requested view, in SPHERICAL space,
   // so the camera arcs around the garment instead of cutting straight
   // through it (and never jump-cuts).
   useFrame((_, delta) => {
@@ -1072,7 +1072,7 @@ export function CameraRig({
     controls.target.lerp(aim, k)
     camera.position.setFromSpherical(current).add(controls.target)
     // Re-aim immediately: OrbitControls only re-orients on ITS update pass,
-    // which may run before this write — without this, slow frames render one
+    // which may run before this write. Without this, slow frames render one
     // step with a stale orientation and the garment "vanishes" mid-snap.
     camera.lookAt(controls.target)
     if (Math.abs(dTheta) < 0.02 && Math.abs(dPhi) < 0.02 && Math.abs(dRadius) < 0.5) {

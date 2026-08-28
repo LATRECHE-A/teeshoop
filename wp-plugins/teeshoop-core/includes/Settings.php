@@ -286,7 +286,7 @@ final class Settings {
 	 * The studio's origin, normalised to scheme://host[:port] and nothing else.
 	 *
 	 * A trailing path or slash here silently breaks every origin comparison in
-	 * bridge.js — `event.origin` never carries one — and a broken comparison
+	 * bridge.js (`event.origin` never carries one), and a broken comparison
 	 * fails OPEN if it is written as a `startsWith`. So it is normalised once,
 	 * here, and compared with `===` there.
 	 */
@@ -329,7 +329,7 @@ final class Settings {
 	 * that its files exist.
 	 *
 	 * FALSE by default, on purpose. An unverified design id produces an order the
-	 * workshop cannot print — the customer has paid and there is nothing to press.
+	 * workshop cannot print: the customer has paid and there is nothing to press.
 	 * Local development sets the constant in wp-config.php; production must not.
 	 */
 	public static function allow_unverified_designs(): bool {

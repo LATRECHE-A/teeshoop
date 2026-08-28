@@ -1,5 +1,5 @@
 /**
- * Arc text engine — measures and draws a single line of text along a
+ * Arc text engine: measures and draws a single line of text along a
  * circular arc on a 2D canvas. The exact same layout code runs in the live
  * editor, the 3D texture renders and the 300-DPI print export, so measure
  * and draw are deterministic and always agree.
@@ -7,13 +7,13 @@
  * Semantics (canonical for the whole app):
  * - `curve` ∈ -100..100. |curve| < 2 → straight single line.
  * - curve > 0 = ARCH (classic collegiate print): the middle of the text
- *   RISES and the ends drop — the baseline sits on TOP of a circle whose
+ *   RISES and the ends drop. The baseline sits on TOP of a circle whose
  *   center is BELOW the text.
- * - curve < 0 = VALLEY: the middle dips — the text sits INSIDE the bottom
+ * - curve < 0 = VALLEY: the middle dips. The text sits INSIDE the bottom
  *   of a circle whose center is ABOVE the text.
  * - Total sweep angle = curve × 1.8° (capped at 180°). Baseline radius
  *   r = totalArcLength / sweepRadians, where totalArcLength =
- *   Σ glyph advances + letterSpacingPx × (n − 1) — i.e. letter spacing is
+ *   Σ glyph advances + letterSpacingPx × (n − 1), i.e. letter spacing is
  *   measured ALONG the arc.
  * - Each glyph is anchored at the angle of its advance-midpoint on the arc
  *   and rotated tangent to it (feet stay on the baseline circle).
@@ -57,7 +57,7 @@ interface GlyphPlace {
    * Ink box in glyph-local coordinates (anchor at the advance midpoint on
    * the baseline, +y down), stroke coverage included. `bands` are raster-
    * refined horizontal ink slices (SHARED cache arrays, anchored at the
-   * glyph origin — shift by `-adv/2` when using) for a tighter union under
+   * glyph origin: shift by `-adv/2` when using) for a tighter union under
    * rotation. Null = paints nothing (whitespace).
    */
   ink: { l: number; t: number; r: number; b: number; bands: readonly InkBox[] | null } | null
@@ -128,9 +128,9 @@ interface RasterInk {
  * scan the painted pixels, and cache the true ink geometry, keyed by
  * font + stroke width + glyph. Needed because (a) color-emoji bitmaps only
  * nominally match the TextMetrics box, and (b) on a curve a single rotated
- * rectangle overbounds round glyph shapes — thin horizontal bands keep the
+ * rectangle overbounds round glyph shapes: thin horizontal bands keep the
  * rotated bbox union tight. Returns null when rasterization is
- * unavailable, paints nothing, or the glyph is too large — callers then
+ * unavailable, paints nothing, or the glyph is too large. Callers then
  * keep the reported metrics.
  */
 const rasterCache = new Map<string, RasterInk | null>()
@@ -315,7 +315,7 @@ function layoutArcText(
     // Refine against the real raster (cached per font+stroke+glyph) when
     // it matters: color-emoji bitmaps misreport their metrics even
     // upright, and on a curve a single rotated rectangle overbounds round
-    // glyph shapes — banded ink keeps the rotated union tight. Straight
+    // glyph shapes: banded ink keeps the rotated union tight. Straight
     // vector text keeps the zero-cost TextMetrics path.
     let bands: readonly InkBox[] | null = null
     let refined = false
@@ -344,7 +344,7 @@ function layoutArcText(
       t: top - inkPad,
       r: right - half + inkPad,
       b: bottom + inkPad,
-      bands, // raw raster bands — shift by -adv/2 when unioning
+      bands, // raw raster bands: shift by -adv/2 when unioning
     }
   }
 

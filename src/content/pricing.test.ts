@@ -3,7 +3,7 @@
  * bugs live: an off-by-one at a quantity break or an area tier is a real
  * margin error on a real invoice, and nothing on screen would look wrong.
  *
- * NOTE FOR R2: these lock in the CURRENT behaviour of a placeholder engine —
+ * NOTE FOR R2: these lock in the CURRENT behaviour of a placeholder engine:
  * the numbers are demo values in USD with no VAT concept. When the real
  * cost/margin/floor engine lands (in PHP, server-side), this file documents
  * exactly which boundary semantics have to be reproduced.
@@ -46,7 +46,7 @@ describe('quantity breaks', () => {
 })
 
 describe('area tiers', () => {
-  it('A4 and under is the standard price — at the boundary exactly, in cm²', () => {
+  it('A4 and under is the standard price, at the boundary exactly, in cm²', () => {
     expect(areaTier('tee', 624.99)?.addUsd).toBe(0)
     expect(areaTier('tee', 625)?.addUsd).toBe(0)
     expect(areaTier('tee', 625.01)?.addUsd).toBe(4)
@@ -56,8 +56,8 @@ describe('area tiers', () => {
 
   /**
    * The studio is a preview; `Pricing::area_tier` in wp-plugins/teeshoop-core is
-   * what the customer is charged by. These held 97 in² and 193 in² — 625,81 and
-   * 1245,16 cm² — so a print of 625,4 cm² was quoted "standard, +$0" here and
+   * what the customer is charged by. These held 97 in² and 193 in² (625,81 and
+   * 1245,16 cm²), so a print of 625,4 cm² was quoted "standard, +$0" here and
    * invoiced +4,00 € there, and one of 1247 cm² was quoted +$9 and invoiced +4 €.
    * Two silent disagreement bands, live the day the bridge is wired.
    */

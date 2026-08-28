@@ -4,14 +4,14 @@
  *
  * WHY THIS IS NOT THE EDITOR
  * --------------------------
- * EditorEngine is single-design by construction — one layout, one garment node,
+ * EditorEngine is single-design by construction: one layout, one garment node,
  * one clip rect, one flat node map that drag-snapping iterates globally. Making
  * it hold N designs is a rewrite of the file that owns every mutation gesture in
  * the product, and the board needs none of what that buys: it never selects,
  * drags, snaps or transforms. So the board is a plain DOM layer of pre-
  * rasterised mockups inside ONE transformed wrapper. Pan and zoom are then a
- * single composited transform — zero JS per frame, which is what makes it smooth
- * on a phone — and hit-testing, focus rings and keyboard navigation come free
+ * single composited transform (zero JS per frame, which is what makes it smooth
+ * on a phone), and hit-testing, focus rings and keyboard navigation come free
  * from using real buttons.
  *
  * BOARD SPACE
@@ -21,7 +21,7 @@
  *
  * The gestures deliberately mirror EditorEngine's: wheel zooms about the
  * pointer, drag pans, two fingers pinch about their centroid, and the zoom
- * clamp is the same 0.4×…9× of fit — the board must not feel like a different
+ * clamp is the same 0.4×…9× of fit: the board must not feel like a different
  * application.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
@@ -41,7 +41,7 @@ import { useBoardT } from './boardI18n'
 
 /** Board px per real inch at scale 1. */
 const BOARD_PPI = 26
-/** Gutter between products, inches — a hand's width at true scale. */
+/** Gutter between products, inches (a hand's width at true scale). */
 const GAP_IN = 3.2
 /** Zoom-to-focus flight, ms. Short: it is a transition, not a show. */
 const FLY_MS = 260
@@ -56,7 +56,7 @@ const TAP_SLOP_PX = 4
 /**
  * Which tile the board was zoomed into when the user left for the editor, so
  * coming back can start there and pull out instead of cutting. Module-level
- * because it is neither app state nor component state — it is a scrap of
+ * because it is neither app state nor component state: it is a scrap of
  * continuity between two mounts of the same view.
  */
 let returningFrom: string | null = null
@@ -255,7 +255,7 @@ export default function BoardStage2D() {
   }, [])
 
   // Re-fit whenever the board or the viewport changes shape. Coming back from a
-  // focused product, start on that product and pull out — the reverse of the
+  // focused product, start on that product and pull out, the reverse of the
   // flight in, so the two transitions read as one movement.
   useEffect(() => {
     if (size.w < 10 || size.h < 10 || tiles.length === 0) return
@@ -348,7 +348,7 @@ export default function BoardStage2D() {
       if (pointers.size === 0) {
         moved.current = false
         anchor = local(e)
-        // Filters and shadows are the classic mobile pan killers — CSS drops
+        // Filters and shadows are the classic mobile pan killers. CSS drops
         // them while this attribute is present.
         world.setAttribute('data-panning', '')
         window.addEventListener('pointermove', onMove)

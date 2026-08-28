@@ -1,5 +1,5 @@
 /**
- * Custom garment ("customer ships their own") — the CardSource composites are
+ * Custom garment ("customer ships their own"): the CardSource composites are
  * shown as a gently curved card pair: front face, blank/back face and a dark
  * silhouette "rim" sandwiched between them for an extruded-thickness
  * illusion. 1 world unit = 1 inch; the card is wIn inches wide (measured
@@ -18,7 +18,7 @@ const BEND = (12 * Math.PI) / 180
  * Last-resort colour for the blank reverse, used only when the front photo
  * cannot be sampled at all (a tainted or zero-sized canvas). The real blank
  * back is flooded with the GARMENT'S OWN colour measured off the front, exactly
- * as the inflated shell and the AR bake do — this is the TIER-3 card, the thing
+ * as the inflated shell and the AR bake do. This is the TIER-3 card, the thing
  * a customer sees when their upload could not be traced, and there is no reason
  * for the one rung of the ladder that already looks the least like a garment to
  * also be the only one that gets the colour wrong.
@@ -63,10 +63,10 @@ export interface CustomCardProps {
 export function CustomCard({ front, back: suppliedBack, envIntensity = 1, onMeasured }: CustomCardProps) {
   // The two faces used to be two independently sized planes, both centred on
   // y = 0, so a reverse photograph framed differently from the front sat at a
-  // different height AND a different size — the back visibly peeking out above
+  // different height AND a different size, the back visibly peeking out above
   // the front's shoulder on the basket board. Registering it into the front's
   // frame makes the pair one garment: same plane size, shoulders aligned.
-  // Same registration as the shell and the AR bake, with no options — a
+  // Same registration as the shell and the AR bake, with no options: a
   // π-rotated plane IS `uv.x = 1 − u` in world terms (PlaneGeometry puts u = 0
   // at local −X, and the rotation maps that to world +X while the front's u = 0
   // stays at world −X), so the reverse wants exactly the pre-mirrored layout the
@@ -84,12 +84,12 @@ export function CustomCard({ front, back: suppliedBack, envIntensity = 1, onMeas
     suppliedBack && registered
       ? { ...suppliedBack, canvas: registered.canvas, photo: registered.photo ?? undefined, wIn: front!.wIn, hIn: front!.hIn }
       : suppliedBack && front
-        ? null // framings too far apart to be one garment — blank tinted reverse
+        ? null // framings too far apart to be one garment: blank tinted reverse
         : suppliedBack
   const primary = front ?? back
   const frontTex = useSourceTexture(front)
   // Note: the back face is a π-rotated plane, and that rotation alone makes
-  // its texture read correctly from behind (no u-flip needed — verified with
+  // its texture read correctly from behind (no u-flip needed, verified with
   // the harness "BACK" wordmark).
   const backTex = useSourceTexture(back)
   // Missing back → the front's alpha silhouette flooded with THIS GARMENT'S
@@ -116,7 +116,7 @@ export function CustomCard({ front, back: suppliedBack, envIntensity = 1, onMeas
   const clothify = useCallback(
     (m: THREE.MeshPhysicalMaterial | null) => {
       if (!m) return
-      // The card has NO geometric relief at all — it is a bent plane — so the
+      // The card has NO geometric relief at all (it is a bent plane), so the
       // drape octave is the only thing standing between it and paper, and it
       // gets the largest share any surface here is allowed (see the ≤6° macro
       // budget in clothShading.WEAVE_DEFAULTS).
@@ -135,7 +135,7 @@ export function CustomCard({ front, back: suppliedBack, envIntensity = 1, onMeas
   // by sagIn, so the slab must be a bit thicker than twice that.
   const thickness = Math.max(1.1, 2.3 * Math.max(frontCard.sagIn, backCard.sagIn))
 
-  // Width as well as height — see the note in ExtrudedGarment: the key light's
+  // Width as well as height. See the note in ExtrudedGarment: the key light's
   // shadow frustum is sized from the largest reported extent, and these cards
   // now cast into it.
   useEffect(() => {

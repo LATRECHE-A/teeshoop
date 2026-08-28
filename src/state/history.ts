@@ -1,13 +1,13 @@
 /**
- * Parked undo stacks — one document's history kept aside while another is live.
+ * Parked undo stacks: one document's history kept aside while another is live.
  *
  * WHY THIS EXISTS
  * ---------------
  * The studio has exactly ONE live document (`store.design`) and one zundo
  * history over it. Board mode swaps a basket line into that slot and parks the
  * user's own draft (src/state/board.ts). History is per DOCUMENT, so the swap
- * has to move the stacks with the document. The previous answer — clearing them
- * — kept undo from walking across documents but threw the draft's history away
+ * has to move the stacks with the document. The previous answer (clearing them)
+ * kept undo from walking across documents but threw the draft's history away
  * as collateral: after coming back from the board, Ctrl+Z did nothing.
  *
  * INVARIANTS
@@ -19,7 +19,7 @@
  *    document, forgotten when board mode ends. A stack outliving a board session
  *    could only reattach to a line that was since edited elsewhere or deleted.
  *  - Bounded by construction: HISTORY_SLOTS documents × zundo's `limit` of 100
- *    snapshots (which bounds past+future TOGETHER — `_handleSet` empties
+ *    snapshots (which bounds past+future TOGETHER: `_handleSet` empties
  *    futureStates on every record, and undo only moves entries between the two).
  *
  * A FACTORY, not a module singleton: under vite HMR a test that imports this
@@ -33,7 +33,7 @@ import type { Design } from '@/lib/types'
 /** One zundo entry: the store partialises history down to `{ design }`. */
 export type DesignSnapshot = Partial<{ design: Design }>
 
-/** A document's undo/redo stacks, oldest first — zundo's own ordering. */
+/** A document's undo/redo stacks, oldest first (zundo's own ordering). */
 export interface HistoryStacks {
   past: DesignSnapshot[]
   future: DesignSnapshot[]
@@ -49,7 +49,7 @@ export function isEmptyHistory(h: HistoryStacks): boolean {
  * 8 = BOARD_MAX_3D_DESKTOP, the number of products a person actually works with
  * at once. A `{ design }` snapshot structurally shares every unmutated layer, so
  * it costs 0.15–1.2 kB measured (617 B for a drag commit on a 4-layer design;
- * 1236 B for the worst shape, adding a layer every step) — 8 full slots of 100
+ * 1236 B for the worst shape, adding a layer every step): 8 full slots of 100
  * snapshots is ≈0.9 MB worst case, about what ONE 384×512 board tile texture
  * costs (boardTextureTargetPx / textureBytes in board.ts, against a board budget
  * of 16–24 MiB). That is the trade this cap is chosen against. No snapshot can
@@ -63,7 +63,7 @@ export interface HistoryRegistry {
   save(key: string, stacks: HistoryStacks): void
   /** Hand back (and forget) the stacks parked under `key`. */
   take(key: string): HistoryStacks | null
-  /** The document is gone — so is its history. */
+  /** The document is gone, so is its history. */
   drop(key: string): void
   /** The board session ended: forget everything. */
   reset(): void

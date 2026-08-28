@@ -1,5 +1,5 @@
 /**
- * The filled admin slots — the ONLY module in the repo that imports the
+ * The filled admin slots: the ONLY module in the repo that imports the
  * supplier catalogue, the DTF gang-sheet builder and the product ingest tool.
  *
  * Everything reachable from here is shop-internal: our purchase cost per SKU,
@@ -9,7 +9,7 @@
  * proves that by walking the real import graph, and scripts/bundle-guard.mjs
  * proves it again against the built output.
  *
- * If you need one of these tools from customer code, the answer is no — extract
+ * If you need one of these tools from customer code, the answer is no. Extract
  * the part that is genuinely customer-facing instead.
  */
 import { lazy, useState } from 'react'

@@ -1,5 +1,5 @@
 /**
- * Garment anatomy — deterministic measurements read off a garment PHOTO.
+ * Garment anatomy: deterministic measurements read off a garment PHOTO.
  *
  * WHY THIS EXISTS
  * ---------------
@@ -15,19 +15,19 @@
  * We recover them from the photo's ALPHA MASK (the background-removal cutout),
  * never from colour: colour is prints, logos, folds and shadows; alpha is the
  * garment's actual outline. When there is no usable alpha (photo shot on white
- * without removal, or bg-removal unsupported) the mask is one solid rectangle —
+ * without removal, or bg-removal unsupported) the mask is one solid rectangle.
  * `opaque` says so and every consumer must fall back to proportional guides.
  *
  * COORDINATES
  * -----------
- * Everything is INCHES relative to the alpha bounding box top-left — exactly
+ * Everything is INCHES relative to the alpha bounding box top-left, exactly
  * the space `CustomSideSetup.printArea` lives in (see getCustomSideInfo in
  * src/lib/custom.ts), where the bbox WIDTH equals the garment's laid-flat
  * width. Anatomy is DERIVED, never persisted: the stored data shape stays
  * `RectIn` and re-analysing a photo can only improve the guides, never
  * invalidate a saved design.
  *
- * DETERMINISM: a pure function of the pixels — no Math.random, no Date.now,
+ * DETERMINISM: a pure function of the pixels, no Math.random, no Date.now,
  * no reliance on iteration order. Same photo ⇒ same numbers, always.
  *
  * MEMOISATION: the scan is cached per (assetId, variant) in UNIT space
@@ -57,18 +57,18 @@ export interface GarmentAnatomy {
   shoulderYIn: number
   /** Hem: bottom of the alpha content. */
   hemYIn: number
-  /** Torso side edges at mid-body, excluding sleeves — inches from the bbox left. */
+  /** Torso side edges at mid-body, excluding sleeves (inches from the bbox left). */
   torsoLeftXIn: number
   torsoRightXIn: number
-  /** Per-row width profile (inches), sampled on the analysis grid — lets the UI draw a body outline. */
+  /** Per-row width profile (inches), sampled on the analysis grid. Lets the UI draw a body outline. */
   rowWidthIn: Float32Array
-  /** true when the mask is essentially a full rectangle (no cutout was done) — the UI must then fall back to proportional guides. */
+  /** true when the mask is essentially a full rectangle (no cutout was done). The UI must then fall back to proportional guides. */
   opaque: boolean
 }
 
 /** Long edge of the analysis grid. */
 const SCAN = 256
-/** Alpha threshold — the same one `scanAlphaBBox` uses, so the mask this
+/** Alpha threshold, the same one `scanAlphaBBox` uses, so the mask this
  *  module measures is exactly the mask that defined the bbox. */
 const ALPHA_T = 16
 /** Mirror search half-window, as a fraction of the garment width. */
@@ -87,7 +87,7 @@ const COLLAR_BAND = 0.35
 const COLLAR_MIN_DEPTH = 0.04
 /** …and its bottom sits at least this far below the garment's top edge.
  *  (Measured: a real flat-lay tee lands near 14%; the decoy gaps that fooled
- *  earlier tuning — a tank's strap notch, a polo's collar-wing V — sit at 5%.) */
+ *  earlier tuning, a tank's strap notch or a polo's collar-wing V, sit at 5%.) */
 const COLLAR_MIN_DROP = 0.06
 /** …and a collar deeper than this is a scan artefact, not a neckline. */
 const COLLAR_MAX_DROP = 0.3
@@ -168,7 +168,7 @@ function buildMask(
  *
  * Confidence compares the winner against a deliberately WRONG axis (shifted
  * 15% of the width): on a symmetric garment the wrong axis scores far worse,
- * on a shapeless blob both score the same and confidence collapses to 0 — the
+ * on a shapeless blob both score the same and confidence collapses to 0. The
  * UI then shows the axis as a faint hint instead of snapping to it.
  */
 function findAxis(m: Mask): { axisPx: number; confidence: number } {
@@ -213,7 +213,7 @@ function findAxis(m: Mask): { axisPx: number; confidence: number } {
 
   // Sub-pixel: fit a parabola through the winner and its two neighbours. The
   // mask is quantised to ~256 columns, so half a pixel of the garment width is
-  // ~0.04 in on a 20 in tee — worth recovering for a centred print.
+  // ~0.04 in on a 20 in tee, worth recovering for a centred print.
   const sm = at(Math.max(0, best - 1))
   const s0 = bestScore
   const sp = at(Math.min(m.w - 1, best + 1))
@@ -232,7 +232,7 @@ function findAxis(m: Mask): { axisPx: number; confidence: number } {
 }
 
 /**
- * Neck opening, attempt 1 — the hole.
+ * Neck opening, attempt 1: the hole.
  *
  * On a properly cut-out flat-lay the neck is a HOLE inside the silhouette (the
  * background shows through it), so rows crossing it split into ≥2 runs with a
@@ -241,8 +241,8 @@ function findAxis(m: Mask): { axisPx: number; confidence: number } {
  *
  * The hole is taken as the TALLEST run of such rows, not the first one found.
  * Measured on real supplier photos, the top of a garment routinely produces a
- * 2–4 row decoy gap — the notch between a polo's collar wings, a hood's fold,
- * a hanging label — and anchoring 7 cm below THAT would print a chest logo up
+ * 2–4 row decoy gap (the notch between a polo's collar wings, a hood's fold,
+ * a hanging label), and anchoring 7 cm below THAT would print a chest logo up
  * on the shoulders. A real neck opening is a tall hole (≥ COLLAR_MIN_DEPTH of
  * the garment height) that ends well below the garment's top edge; anything
  * else is refused so the UI falls back to honest proportional guides.
@@ -306,7 +306,7 @@ function collarFromHole(m: Mask, axisPx: number): { yPx: number; wPx: number } |
 }
 
 /**
- * Neck opening, attempt 2 — the top-edge concavity.
+ * Neck opening, attempt 2: the top-edge concavity.
  *
  * With no hole (opaque rib, or a photo whose neckline merges with the body)
  * the neckline still shows as a DIP in the garment's top boundary: the
@@ -358,7 +358,7 @@ function median(values: number[]): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Proportional anatomy — the honest "we could not measure this" answer.
+ * Proportional anatomy: the honest "we could not measure this" answer.
  * Numbers are the conservative fractions the placer used before measurement
  * existed, so the UI behaves exactly as it always did on unusable photos.
  */
@@ -414,7 +414,7 @@ function analyzeUnit(
   const heightIn = m.h * inPerPx
   const out = proportionalAnatomy(1, heightIn)
 
-  // Row width profile (outer extent per row — a neck hole must not shrink the
+  // Row width profile (outer extent per row: a neck hole must not shrink the
   // shoulder line, and the profile is what the UI draws as a body outline).
   const rowWidthIn = new Float32Array(m.h)
   let maxRowPx = 0
@@ -429,13 +429,13 @@ function analyzeUnit(
   if (lastRow >= 0) out.hemYIn = (lastRow + 1) * inPerPx
 
   // No cutout was done: the "mask" is the photo's rectangle. Everything below
-  // would measure the FRAME, not the garment — bail to proportional guides.
+  // would measure the FRAME, not the garment. Bail to proportional guides.
   if (m.coverage > OPAQUE_COVERAGE) {
     out.opaque = true
     return out
   }
   // A mask that never reaches half the bbox width is not a laid-flat garment
-  // (bad matte, a hanger shot, a fragment) — same conservative answer. The row
+  // (bad matte, a hanger shot, a fragment), same conservative answer. The row
   // profile goes with it: the UI mirrors it on the axis, and mirroring a real
   // profile on a GUESSED axis draws a confident outline of something that is
   // not the garment.
@@ -451,8 +451,8 @@ function analyzeUnit(
   // Shared plausibility window for BOTH detectors: a neckline you can anchor
   // "7 cm below" sits well under the garment's top edge (measured: ~14% of the
   // height on a flat-lay tee) and nowhere near the chest. Outside that window
-  // the detection is a decoy — a strap notch, a collar-wing V, a scan artefact
-  // — and null (proportional guides) is the honest answer.
+  // the detection is a decoy (a strap notch, a collar-wing V, a scan artefact),
+  // and null (proportional guides) is the honest answer.
   const collar = collarFromHole(m, axisPx) ?? collarFromDip(m, axisPx)
   const collarY = collar ? collar.yPx * inPerPx : 0
   if (collar && collarY >= heightIn * COLLAR_MIN_DROP && collarY <= heightIn * COLLAR_MAX_DROP) {
@@ -507,7 +507,7 @@ export function analyzeGarment(
 const cache = new Map<string, GarmentAnatomy>()
 
 /**
- * Memoised anatomy for one side of a custom garment — mirrors
+ * Memoised anatomy for one side of a custom garment: mirrors
  * `getCustomSideInfo`, and shares its image + bbox caches.
  */
 export async function getGarmentAnatomy(
@@ -527,7 +527,7 @@ export async function getGarmentAnatomy(
   return scaleAnatomy(unit, w)
 }
 
-/** Drop cached anatomy for an asset (call wherever `invalidateCustomBBox` is —
+/** Drop cached anatomy for an asset (call wherever `invalidateCustomBBox` is:
  *  a new cutout is a new garment outline). */
 export function invalidateGarmentAnatomy(assetId: string) {
   cache.delete(`${assetId}:original`)

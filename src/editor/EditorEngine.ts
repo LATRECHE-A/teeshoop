@@ -104,7 +104,7 @@ export class EditorEngine {
   private draggingNode: Konva.Shape | null = null
   private lastTransient = 0
   private destroyed = false
-  /** An external (HTML5) drag is over the canvas — show upload targets. */
+  /** An external (HTML5) drag is over the canvas: show upload targets. */
   private dropActive = false
   private dropHoverId: string | null = null
   private uploadRects = new Map<string, Konva.Rect>()
@@ -259,7 +259,7 @@ export class EditorEngine {
 
   setPanMode(on: boolean): void {
     this.panMode = on
-    // In pan mode the design layers must not swallow pointer events —
+    // In pan mode the design layers must not swallow pointer events,
     // otherwise dragging over a layer moves the layer instead of the canvas.
     this.designGroup.listening(!on)
     this.stage.container().style.cursor = on ? 'grab' : 'default'
@@ -356,7 +356,7 @@ export class EditorEngine {
    *
    * GRADING: layer geometry is stored in BASE-size inches, so both the area rect
    * and `ppi` are multiplied by the grading factor k. They cancel on write-back
-   * — `px / (ppi·k)` yields base inches — which is why every drag/resize handler
+   * (`px / (ppi·k)` yields base inches), which is why every drag/resize handler
    * below needs no knowledge of grading at all. `ppi` therefore means "canvas px
    * per BASE inch"; physical readouts multiply by k separately.
    */
@@ -414,8 +414,8 @@ export class EditorEngine {
         withSvgSize(art.sides[side].body.replaceAll('__COLOR__', hex), px, px),
       )
       if (seq !== this.syncSeq || this.destroyed) return
-      // Scale the garment art about its collar anchor for the preview size —
-      // the print area (and every layer) stays at true physical scale.
+      // Scale the garment art about its collar anchor for the preview size.
+      // The print area (and every layer) stays at true physical scale.
       const tf = garmentDrawTransform(
         design.garmentId,
         side,
@@ -580,7 +580,7 @@ export class EditorEngine {
       )
     }
 
-    // Only the affordable-standard paper format here — the semantic placement
+    // Only the affordable-standard paper format here: the semantic placement
     // spots are interactive upload zones drawn by drawUploadZones().
     for (const z of this.zoneRectsPx()) {
       if (!z.standard) continue
@@ -809,7 +809,7 @@ export class EditorEngine {
     try {
       await this.updateGarmentVisual(design, side, seq)
     } catch {
-      // A garment raster that fails to decode must not blank the editor —
+      // A garment raster that fails to decode must not blank the editor:
       // keep the previous visual and still render layers + outline.
     }
     if (seq !== this.syncSeq || this.destroyed) return

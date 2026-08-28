@@ -11,7 +11,7 @@ import ScenePicker from './ScenePicker'
 /**
  * The stage routes on two axes: 2D/3D, and board/single. A focused board line
  * IS the live design, so the focused case falls straight through to the normal
- * editor and the normal 3D preview — that is the whole reason board mode needs
+ * editor and the normal 3D preview. That is the whole reason board mode needs
  * no second editor.
  */
 export default function CenterStage() {
@@ -39,12 +39,12 @@ export default function CenterStage() {
           <Scene3D />
         )}
 
-        {/* Scene / environment picker — available in every preview mode. */}
+        {/* Scene / environment picker, available in every preview mode. */}
         <div className="absolute left-3 top-3 z-10">
           <ScenePicker />
         </div>
 
-        {/* Side switch: bottom-left on phones (2D only — the 3D view buttons
+        {/* Side switch: bottom-left on phones (2D only: the 3D view buttons
             already cover front/back), bottom-centre on desktop. Meaningless on
             the board, where every product shows its own printed side. */}
         {!showingBoard && (

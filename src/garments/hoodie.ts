@@ -1,5 +1,5 @@
 /**
- * Pullover hoodie — hand-authored flat product illustration.
+ * Pullover hoodie: hand-authored flat product illustration.
  *
  * viewBox 0 0 800 800 · 25 px/inch · chest width 23″ (575 px) · length ≈29″.
  * Front and back share ONE outer silhouette (body + steep hanging sleeves +
@@ -14,7 +14,7 @@ import type { GarmentArt } from '@/lib/types'
 import { blob, grainDefs, grainRect, soft, softDefs } from './soft'
 import { SLEEVE_ART, SLEEVE_AREA_IN } from './sleeve'
 
-/** Outer silhouette — identical for front/back. Bounds x 34..766, y 40..762. */
+/** Outer silhouette: identical for front/back. Bounds x 34..766, y 40..762. */
 const SIL =
   'M246 102C258 62 320 40 400 40C480 40 542 62 554 102' +
   'C592 112 648 132 674 150C722 180 744 248 752 340C757 440 751 550 742 640' +
@@ -37,7 +37,7 @@ const POCKET =
   'M262 578C350 581 450 581 538 578C556 618 573 658 588 694C470 700 330 700 212 694C227 658 244 618 262 578Z'
 const LINING =
   'M306 88C336 70 464 70 494 88C478 140 446 172 410 196L400 202L390 196C354 172 322 140 306 88Z'
-/** Hood hanging over the back — bottom edge sweep. */
+/** Hood hanging over the back, bottom edge sweep. */
 const HOOD_BACK =
   'M246 102C242 152 256 198 290 226C326 251 362 248 400 248C438 248 474 251 510 226C544 198 558 152 554 102'
 

@@ -10,14 +10,14 @@
  *
  * `/quote` and `/grid` are public because the product page and the studio both
  * need a price before anyone has logged in or accepted a cookie. They return
- * SELLING prices — what the shop charges — and never a purchase cost, a supplier
+ * SELLING prices (what the shop charges) and never a purchase cost, a supplier
  * name or a film rate. That distinction is the whole reason the admin bundle was
  * split out of the customer one; it holds here too.
  *
  * `/cart` requires the WordPress REST nonce. The studio itself cannot send one:
  * it runs cross-origin in an iframe and has no access to the cookie. It posts a
- * message to the parent page instead, and the parent page — same origin, holding
- * the nonce — makes this call. See assets/bridge.js.
+ * message to the parent page instead, and the parent page (same origin, holding
+ * the nonce) makes this call. See assets/bridge.js.
  *
  * @package Teeshoop\Core
  */
@@ -110,7 +110,7 @@ final class Rest {
 	 *
 	 * WordPress verifies `X-WP-Nonce` itself and sets the current user from the
 	 * cookie; what it does NOT do is refuse an anonymous caller with no nonce at
-	 * all — `rest_cookie_check_errors` only complains when a cookie is present.
+	 * all: `rest_cookie_check_errors` only complains when a cookie is present.
 	 * So we require the nonce explicitly. Without it, any site on the internet
 	 * could POST a line into a visitor's basket through their browser.
 	 */
@@ -126,7 +126,7 @@ final class Rest {
 		return true;
 	}
 
-	/** GET /quote — the price, and the breakdown behind it. */
+	/** GET /quote: the price, and the breakdown behind it. */
 	public static function quote( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
 		$garment = (string) $request->get_param( 'garment' );
 		$sides   = Design::normalise_sides( $request->get_param( 'sides' ) );
@@ -158,7 +158,7 @@ final class Rest {
 		return new \WP_REST_Response( self::as_euros( $quote ) );
 	}
 
-	/** GET /grid — faces × quantity, the table shown before the editor opens. */
+	/** GET /grid: faces × quantity, the table shown before the editor opens. */
 	public static function grid( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
 		$config  = Settings::pricing();
 		$garment = (string) $request->get_param( 'garment' );
@@ -207,7 +207,7 @@ final class Rest {
 	}
 
 	/**
-	 * POST /cart — add a personalised line.
+	 * POST /cart: add a personalised line.
 	 *
 	 * Note what is NOT read from the request: any price. The body carries what
 	 * the customer chose; the server decides what it costs.

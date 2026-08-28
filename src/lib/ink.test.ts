@@ -1,7 +1,7 @@
 /**
  * The ink measurement, pinned.
  *
- * Everything here is the PURE half of `ink.ts` — the arithmetic that turns a
+ * Everything here is the PURE half of `ink.ts`: the arithmetic that turns a
  * probe into a box and boxes into visuals. The probe itself needs a canvas and
  * is exercised by `scripts/dtf-bench.mjs` against the real bundle; what these
  * cases defend is the part where a mistake is silent: a box that comes out
@@ -53,7 +53,7 @@ const boxNear = (a: InkBox, b: InkBox, eps = 1e-9) => {
   near(a.y1, b.y1, eps)
 }
 
-describe('alphaUnitRect — reading a probe', () => {
+describe('alphaUnitRect: reading a probe', () => {
   it('returns null for a source with no ink at all', () => {
     expect(unit(grid(8, 8, []), 8, 8)).toBeNull()
   })
@@ -66,7 +66,7 @@ describe('alphaUnitRect — reading a probe', () => {
   it('finds a centred mark, pads by a cell, and snaps outward', () => {
     // 10×10 probe, one inked cell at (5,5). Tight bounds are 0.5..0.6; one cell
     // of padding widens that to 0.4..0.7; the 1/256 snap then rounds each edge
-    // AWAY from the ink — 0.3984375 and 0.703125 — never towards it.
+    // AWAY from the ink (0.3984375 and 0.703125), never towards it.
     const r = unit(grid(10, 10, [[5, 5]]), 10, 10)!
     near(r.x0, 102 / 256)
     near(r.x1, 180 / 256)
@@ -81,7 +81,7 @@ describe('alphaUnitRect — reading a probe', () => {
     // pixel that resamples to alpha 0 on one and 1 on the other moves the raw
     // bound by a probe cell, which at 1024 px is a quarter of a snap step and
     // therefore usually invisible. What is GUARANTEED, and what this pins, is
-    // that snapping only ever grows the rect — never trims it towards the ink.
+    // that snapping only ever grows the rect, never trims it towards the ink.
     for (const [x, y] of [[0, 0], [37, 11], [511, 733], [1023, 1023]] as [number, number][]) {
       const r = unit(grid(1024, 1024, [[x, y]]), 1024, 1024)!
       for (const v of [r.x0, r.x1, r.y0, r.y1]) expect(v * 256).toBeCloseTo(Math.round(v * 256), 9)
@@ -93,8 +93,8 @@ describe('alphaUnitRect — reading a probe', () => {
   })
 
   it('never reports a box that excludes an inked cell', () => {
-    // Every inked cell must fall inside the returned rect, at every position —
-    // this is the property whose failure clips a customer's artwork.
+    // Every inked cell must fall inside the returned rect, at every position.
+    // This is the property whose failure clips a customer's artwork.
     const w = 9
     const h = 7
     for (let y = 0; y < h; y++)
@@ -116,7 +116,7 @@ describe('alphaUnitRect — reading a probe', () => {
   it('ignores alpha below the floor and keeps everything at or above it', () => {
     const g = new Uint8Array(4 * 4)
     g[0] = 0
-    g[5] = 1 // exactly the floor — ink
+    g[5] = 1 // exactly the floor: ink
     expect(unit(g, 4, 4)).not.toBeNull()
     const faint = new Uint8Array(4 * 4)
     faint[5] = 4
@@ -132,7 +132,7 @@ describe('alphaUnitRect — reading a probe', () => {
   })
 })
 
-describe('placedInkBox — a measurement becomes a footprint', () => {
+describe('placedInkBox: a measurement becomes a footprint', () => {
   const at = { xIn: 1.5, yIn: -2, rotation: 0 }
 
   it('reproduces the previous half-extent box exactly, at every angle', () => {
@@ -152,7 +152,7 @@ describe('placedInkBox — a measurement becomes a footprint', () => {
   })
 
   it('an off-centre trim moves the footprint off the layer origin', () => {
-    // Ink hugging the left edge — the case a 2000px PNG with the mark at one
+    // Ink hugging the left edge, the case a 2000px PNG with the mark at one
     // side produces, and the one the old centred formula could not express.
     const left: UnitRect = { x0: 0, y0: 0.25, x1: 0.25, y1: 0.75 }
     const b = placedInkBox(at, 8, 4, left)
@@ -202,7 +202,7 @@ describe('placedInkBox — a measurement becomes a footprint', () => {
   })
 })
 
-describe('clusterBoxes — what counts as one visual', () => {
+describe('clusterBoxes: what counts as one visual', () => {
   const box = (x0: number, y0: number, x1: number, y1: number): InkBox => ({ x0, x1, y0, y1 })
 
   it('splits two marks whose gap exceeds the clearance', () => {
@@ -225,7 +225,7 @@ describe('clusterBoxes — what counts as one visual', () => {
     expect(clusterBoxes([box(0, 0, 2, 2), box(1, 1, 3, 3)], 0).length).toBe(1)
   })
 
-  it('chains transitively — a bridge between two distant marks joins them', () => {
+  it('chains transitively: a bridge between two distant marks joins them', () => {
     const groups = clusterBoxes(
       [box(0, 0, 1, 1), box(0, 1.1, 1, 2), box(0, 2.1, 1, 3)],
       0.2,
@@ -256,7 +256,7 @@ describe('clusterBoxes — what counts as one visual', () => {
   })
 })
 
-describe('unionArea — the priced area, counted once', () => {
+describe('unionArea: the priced area, counted once', () => {
   const box = (x0: number, y0: number, x1: number, y1: number): InkBox => ({ x0, x1, y0, y1 })
 
   it('is zero for nothing and the plain area for one', () => {
@@ -270,7 +270,7 @@ describe('unionArea — the priced area, counted once', () => {
 
   /**
    * `pieces.ts` states outright that two clusters' boxes can legitimately
-   * overlap — an L-shaped lockup with a small mark tucked into its corner.
+   * overlap, an L-shaped lockup with a small mark tucked into its corner.
    * Summing them charges the customer twice for the same square centimetres.
    */
   it('counts an overlap once, not twice', () => {

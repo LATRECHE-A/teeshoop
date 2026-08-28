@@ -4,9 +4,9 @@
  * WHY THIS EXISTS
  * ---------------
  * A supplier or customer garment photo was shot in a lightbox: it already
- * carries a full lighting solution baked into its pixels — a bright top-centre,
+ * carries a full lighting solution baked into its pixels: a bright top-centre,
  * darker flanks, shadowed folds. The 3D preview then lights it AGAIN. The two
- * multiply, so the flanks go twice as dark as they should, and — far worse — the
+ * multiply, so the flanks go twice as dark as they should, and, far worse, the
  * baked highlight does not MOVE when the camera orbits. A highlight that stays
  * put while the surface turns is the single strongest cue the brain has that it
  * is looking at a printed picture rather than an object, and it is a large part
@@ -15,7 +15,7 @@
  *
  * So before the photo becomes an albedo map we divide out its low-frequency
  * shading and let the scene's lights be the only lights. This is the classical
- * Retinex split — shading is low-frequency, albedo is high-frequency — and it is
+ * Retinex split (shading is low-frequency, albedo is high-frequency), and it is
  * deliberately PARTIAL (γ < 1, gain clamped): a garment photo's midtone gradient
  * also encodes real form, and removing all of it flattens a black garment into a
  * grey rectangle. What remains is handed to the geometry and the normal map,
@@ -24,13 +24,13 @@
  * two already compute, so the whole correction costs one extra pass.
  *
  * AND THEN HALF OF IT IS GIVEN BACK. Dividing shading out is only right if the
- * geometry can put it back, and the inflated shell cannot — see
+ * geometry can put it back, and the inflated shell cannot: see
  * `DelightResult.occlusion`, which is the shadow half of the very same field,
  * returned as an occlusion map so it lands on the view-independent light and
  * nowhere else. The removal and the restoration are two halves of one decision
  * and live in one function on purpose.
  *
- * THE PRINT IS DE-LIT TOO, AND THAT IS CORRECT — but it is never MEASURED. The
+ * THE PRINT IS DE-LIT TOO, AND THAT IS CORRECT, but it is never MEASURED. The
  * canvas that arrives here is the composite: garment photo with the customer's
  * artwork already drawn on it. The artwork is physically ON that cloth and was,
  * in the mockup, lit by the same lightbox, so re-lighting it with the fabric is
@@ -39,7 +39,7 @@
  * silhouette.buildDelitMaps / buildInflatedShell's `opts.photo`) and the
  * composite as `source`. The 2D mockup, the poster and every DTF/print output
  * are produced by a different path (renderDesign / dtf) and are NOT touched by
- * any of this — no colour a customer receives on cloth is changed here.
+ * any of this: no colour a customer receives on cloth is changed here.
  *
  * DETERMINISM: box blurs and per-pixel arithmetic on the input pixels only.
  */
@@ -52,7 +52,7 @@ export interface LumField {
   H: number
   lum: Float32Array // 0..255
   a: Float32Array // 0..1
-  /** Source RGBA at the working resolution — kept so de-lighting can reuse it. */
+  /** Source RGBA at the working resolution, kept so de-lighting can reuse it. */
   rgba: Uint8ClampedArray
 }
 
@@ -114,7 +114,7 @@ export function boxBlur(src: Float32Array, W: number, H: number, r: number): Flo
   return out
 }
 
-/** Alpha-weighted (normalised) box blur — transparent surroundings don't darken
+/** Alpha-weighted (normalised) box blur: transparent surroundings don't darken
  *  the garment edge the way a plain blur would. */
 export function blurNorm(f: LumField, r: number): Float32Array {
   const { W, H, lum, a } = f
@@ -139,7 +139,7 @@ export function blurNorm(f: LumField, r: number): Float32Array {
 const GAMMA = 0.8
 /**
  * Gain clamps. A lightbox gradient lives inside roughly ±25 %, so [0.72, 1.42]
- * passes every real correction untouched and only bites on pathological input —
+ * passes every real correction untouched and only bites on pathological input:
  * a photo shot half in shadow, where an unclamped gain would blow the lit half
  * to white while lifting the dark half to grey mud.
  */
@@ -148,7 +148,7 @@ const G_MAX = 1.42
 /**
  * Folds lose saturation because a shadow adds a neutral; restoring a fraction of
  * the chroma alongside the luminance keeps a de-lit navy from drifting grey.
- * Deliberately small — over-restoring turns fold shadows blue.
+ * Deliberately small: over-restoring turns fold shadows blue.
  */
 const CHROMA_RESTORE = 0.15
 /**
@@ -190,7 +190,7 @@ export interface DelightResult {
    * inflation cannot: it has no hood to shadow its own shoulder, no sleeve
    * rolling under an armhole, no pocket. Measured on the shipped 201270 hoodie
    * the source photo's form spans 0.72…1.0 of its own mean and the shell
-   * returned a near-uniform white — every one of those cues gone and nothing
+   * returned a near-uniform white, every one of those cues gone and nothing
    * replacing them.
    *
    * So the correction is SPLIT BY WHAT MOVES. Baked shading is a shadow term
@@ -200,7 +200,7 @@ export interface DelightResult {
    * go: occlusion is view-independent, so the photograph's is as valid at 45°
    * as it was head-on, and it is the only record of the garment's true form we
    * have. Handing it back as an aoMap puts it exactly where three multiplies
-   * view-independent light — indirect diffuse, sheen and env specular — and
+   * view-independent light (indirect diffuse, sheen and env specular) and
    * nowhere near the direct key.
    *
    * An occlusion map may darken and never brighten, which is why this is
@@ -208,7 +208,7 @@ export interface DelightResult {
    * is 1 and the correction stands.
    */
   occlusion: HTMLCanvasElement | null
-  /** Relative std-dev of the shading field over the garment — how lit the photo was.
+  /** Relative std-dev of the shading field over the garment, how lit the photo was.
    *  Reported even when no correction was applied, so "we skipped it" is a
    *  measurement rather than a silent null: below FLAT_SPREAD the photo is
    *  genuinely flat (a white garment on a white sweep) and dividing its own
@@ -223,14 +223,14 @@ export interface DelightResult {
 /**
  * Divide the photo's own low-frequency shading out of a garment composite.
  *
- * `shading` is `blurNorm(f, bigRadius)` — the same field silhouette.ts already
+ * `shading` is `blurNorm(f, bigRadius)`, the same field silhouette.ts already
  * builds for its mid-frequency wrinkle band, passed in so it is computed once.
  * The gain is estimated at the analysis resolution (it is low-frequency by
  * construction, so nothing is lost) and applied at the SOURCE resolution, which
  * is what keeps the customer's artwork as crisp as it was.
  *
  * Returns null when the photo cannot be measured at all, and a result with a
- * null `canvas` when it can but needs no correction — callers then keep the
+ * null `canvas` when it can but needs no correction: callers then keep the
  * original canvas, which is always a valid albedo.
  */
 export function delight(
@@ -278,7 +278,7 @@ export function delight(
   // The occlusion half, at ANALYSIS resolution: this field is a blur of radius
   // 8.5 % of the long edge, so 768 px carries it with room to spare and there
   // is nothing to gain from the source's megapixels. Outside the garment it is
-  // forced to 1 — the alpha cut removes those texels on the sheets, but the rim
+  // forced to 1: the alpha cut removes those texels on the sheets, but the rim
   // strip samples at a UV inset and bilinear taps reach across the edge.
   let occlusion: HTMLCanvasElement | null = null
   const occ = document.createElement('canvas')

@@ -2,7 +2,7 @@
  * Ambient types for the three.js addons we use (exporters + GLTFLoader). three
  * ships these under examples/jsm as plain `.js` with no bundled `.d.ts` (same
  * gap we patched for RoomEnvironment), so under `strict` they must be declared
- * here. Minimal surface — only what arExport.ts + the viewer use.
+ * here. Minimal surface: only what arExport.ts + the viewer use.
  */
 declare module 'three/examples/jsm/exporters/GLTFExporter.js' {
   import type { Object3D } from 'three'

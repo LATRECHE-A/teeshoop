@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * 3D-SHOTS — render-QA stills of every 3D garment path, for eyeballing.
+ * 3D-SHOTS: render-QA stills of every 3D garment path, for eyeballing.
  *
  * Captures, via WebGL framebuffer readback (OS screenshots don't composite
- * WebGL under swiftshader — same pattern as readme-shots.mjs):
+ * WebGL under swiftshader, same pattern as readme-shots.mjs):
  *   - /dev/three.html   tee / hoodie / custom(synthetic card) at fixed views
  *   - the studio app    sample design on tee + hoodie (dark), tee (light)
  *   - /dev/inflate.html the inflated-shell harness probe
  *
  *   node scripts/3d-shots.mjs [outDir]        (default: .qa/3d-shots)
  *
- * No validation here — this is the proof sheet a human (or a reviewing agent)
+ * No validation here: this is the proof sheet a human (or a reviewing agent)
  * looks at. Verification lives in the *-verify.mjs suites.
  */
 import { chromium } from 'playwright'
@@ -47,7 +47,7 @@ const waitServer = (url, ms = 150000) =>
 // Read the main WebGL canvas, composited over a background. The drawing
 // buffer is cleared after compositing (preserveDrawingBuffer:false), so a
 // single rAF readback races the R3F render loop and sometimes grabs an empty
-// frame — retry until the grab actually contains pixels.
+// frame. Retry until the grab actually contains pixels.
 const READBACK = ({ selector, bg }) =>
   new Promise((resolve) => {
     const gl = document.querySelector(selector)
@@ -220,7 +220,7 @@ try {
     const p3 = await c3.newPage()
     p3.on('pageerror', (e) => console.error('[pageerror]', e.message))
     // The inflate harness is the heaviest dev page (bg-removal worker + shell
-    // builds for its whole case set) — under machine load its boot needs the
+    // builds for its whole case set). Under machine load its boot needs the
     // longest leash of any shot.
     await p3.goto(BASE + '/dev/inflate.html', { waitUntil: 'load', timeout: 240000 })
     await p3.waitForFunction(() => !!window.__inflate && window.__inflate.ok, { timeout: 240000 })

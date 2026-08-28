@@ -1,5 +1,5 @@
 /**
- * Scene registry — environments the garment can be previewed in (TODO: "add
+ * Scene registry: environments the garment can be previewed in (TODO: "add
  * different scenes with different lighting in 2D and 3D").
  *
  * ONE backdrop drives BOTH views: the Konva 2D stage and the R3F 3D canvas are
@@ -38,7 +38,7 @@ export interface LightformerSpec {
  *
  * `direction` is where the light comes FROM, in the same virtual-scene
  * magnitudes as the lightformers (it is normalised before use, so only the
- * bearing matters) — keep it pointing at roughly the scene's brightest
+ * bearing matters). Keep it pointing at roughly the scene's brightest
  * lightformer or the shading and the shadows will disagree.
  */
 export interface KeyLightSpec {
@@ -222,7 +222,7 @@ const FOREST: SceneDef = {
       { form: 'rect', intensity: 1.6, color: '#a9c6d8', position: [7, 3, -6], scale: [3, 7, 1] },
       { form: 'rect', intensity: 1.2, color: '#86a878', position: [-3, 4, -8], scale: [7, 5, 1] },
     ],
-    // Sun through leaves — bright but broken up, so a wide penumbra.
+    // Sun through leaves: bright but broken up, so a wide penumbra.
     key: { direction: [-5, 8, 5], intensity: 1.15, color: '#eaf6d8', softness: 8 },
     rims: [
       { direction: [6, 3, -7], intensity: 1.9, color: '#cfe3b8' },

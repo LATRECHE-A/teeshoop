@@ -4,12 +4,12 @@
  *
  * A `<canvas>` is opaque to assistive technology, so the same products are also
  * rendered as a visually-hidden list of real buttons driving the same
- * `focusLine`. That is not a consolation prize — it is the only way the 3D board
+ * `focusLine`. That is not a consolation prize: it is the only way the 3D board
  * is operable at all without a pointer, and it costs a dozen DOM nodes.
  *
  * There is deliberately no "view in AR" here: AR shows one garment on one body,
  * which is meaningless for a board. The button is hidden rather than disabled
- * for the same reason it exists elsewhere — it would be an offer we cannot keep.
+ * for the same reason it exists elsewhere: it would be an offer we cannot keep.
  */
 import { Component, lazy, Suspense, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react'
 import { useStore } from '@/state/store'
@@ -27,7 +27,7 @@ import {
 
 const loadBoard3D = () => lazy(() => import('@/three/Board3D'))
 
-/** React.lazy caches a failed chunk load forever — one flaky request would
+/** React.lazy caches a failed chunk load forever: one flaky request would
  *  otherwise blank the board until a full reload. */
 class RetryBoundary extends Component<
   { children: ReactNode; onRetry: () => void; label: string },
@@ -87,7 +87,7 @@ export default function Board3DStage() {
   const targetPx = boardTextureTargetPx(solid, isMobile)
   const products = useBoardProducts(lines, cap, targetPx)
 
-  // Paired keep/clear: see useBoardTextures — StrictMode's cleanup must not
+  // Paired keep/clear: see useBoardTextures. StrictMode's cleanup must not
   // zero a canvas the re-mounted textures still reference.
   useEffect(() => {
     keepBoardTextures()

@@ -116,7 +116,7 @@ describe( 'Money', function () {
 	} );
 } );
 
-describe( 'Pricing — the blank and the marking are separate', function () {
+describe( 'Pricing: the blank and the marking are separate', function () {
 	it( 'prices a blank garment as the blank alone', function () {
 		$q = Pricing::quote(
 			array(
@@ -180,7 +180,7 @@ describe( 'Pricing — the blank and the marking are separate', function () {
 	} );
 } );
 
-describe( 'Pricing — area tiers', function () {
+describe( 'Pricing: area tiers', function () {
 	it( 'places an area on the tier boundary in the CHEAPER tier', function () {
 		$config = ts_config();
 		eq( Pricing::area_tier( 625.0, $config )['label'], 'std' );
@@ -232,7 +232,7 @@ describe( 'Pricing — area tiers', function () {
 	} );
 } );
 
-describe( 'Pricing — quantity breaks', function () {
+describe( 'Pricing: quantity breaks', function () {
 	it( 'applies the break exactly at its threshold, not one unit later', function () {
 		$config = ts_config();
 		eq( Pricing::qty_discount( 9, $config ), 0.0 );
@@ -266,7 +266,7 @@ describe( 'Pricing — quantity breaks', function () {
 	} );
 } );
 
-describe( 'Pricing — totals and VAT', function () {
+describe( 'Pricing: totals and VAT', function () {
 	it( 'bills the total as the unit price times the quantity', function () {
 		$q = Pricing::quote(
 			array(
@@ -326,7 +326,7 @@ describe( 'Pricing — totals and VAT', function () {
 	} );
 } );
 
-describe( 'Pricing — refuses rather than mangles', function () {
+describe( 'Pricing: refuses rather than mangles', function () {
 	it( 'throws on an unknown garment instead of pricing it free', function () {
 		throws(
 			function () {
@@ -405,7 +405,7 @@ describe( 'Money: a number a French customer reads', function () {
 	} );
 } );
 
-describe( 'Pricing — the product-page grid', function () {
+describe( 'Pricing: the product-page grid', function () {
 	it( 'agrees cell for cell with the quote the cart will use', function () {
 		$config = ts_config();
 		$grid   = Pricing::grid( 'tee', array( 1, 10, 25 ), array( 1, 2 ), $config );
@@ -443,9 +443,9 @@ describe( 'Pricing — the product-page grid', function () {
 	} );
 } );
 
-describe( 'Pricing — the SHIPPED defaults, not just the frozen fixture', function () {
+describe( 'Pricing: the SHIPPED defaults, not just the frozen fixture', function () {
 	// The fixture above proves the model works. This block proves the numbers we
-	// actually ship agree with it — the first version of default_config() folded
+	// actually ship agree with it: the first version of default_config() folded
 	// the first side's marking into the base, which is exactly the flaw the model
 	// was written to remove, and nothing caught it.
 	it( 'prices a blank strictly below the same garment printed', function () {
@@ -497,7 +497,7 @@ describe( 'Pricing — the SHIPPED defaults, not just the frozen fixture', funct
 	} );
 } );
 
-describe( 'Pricing — config merge', function () {
+describe( 'Pricing: config merge', function () {
 	it( 'lets one key be overridden without restating the rest', function () {
 		$merged = Pricing::merge_config( array( 'vat_rate' => 0.055 ) );
 		near( $merged['vat_rate'], 0.055 );
@@ -510,7 +510,7 @@ describe( 'Pricing — config merge', function () {
 	} );
 } );
 
-describe( 'Pricing — the minimum order', function () {
+describe( 'Pricing: the minimum order', function () {
 	it( 'refuses a basket short on pieces and says which rule bit', function () {
 		$config  = Pricing::default_config();
 		$verdict = Pricing::below_minimum( 4, 100000, $config );
@@ -575,7 +575,7 @@ describe( 'Pricing — the minimum order', function () {
 	} );
 } );
 
-describe( 'Money — a field nobody could read is not a field holding zero', function () {
+describe( 'Money: a field nobody could read is not a field holding zero', function () {
 	it( 'reads what a French admin actually types', function () {
 		eq( Money::parse_eur( '14,50' ), 1450 );
 		eq( Money::parse_eur( '14.50' ), 1450 );

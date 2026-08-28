@@ -1,17 +1,17 @@
 /**
- * INGEST — product auto-ingest type contracts.
+ * INGEST: product auto-ingest type contracts.
  *
  * A ProductDef is an admin-authored garment: two photos (front required, back
- * `real | generated | missing` — see BackSource) + a per-size cm table. It
+ * `real | generated | missing`, see BackSource) + a per-size cm table. It
  * converts into the studio's
  * existing CustomGarment (src/lib/types.ts) via src/lib/ingest/apply.ts, so
  * ingested products ride the whole 2D/3D/AR custom-garment pipeline with
  * real dimensions.
  *
- * Dimensional model (identical to CustomSideSetup — see src/lib/types.ts):
+ * Dimensional model (identical to CustomSideSetup, see src/lib/types.ts):
  * `printArea` is in INCHES, relative to the photo's alpha-bounding-box
  * top-left, where the bbox WIDTH equals the garment's laid-flat width
- * (halfChestCm of the size the area was authored at — always `defaultSize`).
+ * (halfChestCm of the size the area was authored at, always `defaultSize`).
  * apply.ts re-centers horizontally for other sizes; vertical placement is
  * collar-relative and size-invariant (same convention as sizeChart.ts).
  *
@@ -19,10 +19,10 @@
  *  - Printful catalog (GET /products/{id}/sizes): `size_tables[].measurements`
  *    rows "Chest width"→halfChestCm (halve if the table is full-chest
  *    circumference), "Length"→bodyLengthCm, "Sleeve length"→sleeveLengthCm;
- *    `type: 'measure_yourself'` tables are body measurements — skip those and
+ *    `type: 'measure_yourself'` tables are body measurements: skip those and
  *    use the `product_measure` table. Sizes S..3XL → SizeId 1:1 ("XXL"→'2XL').
  *  - Stanley/Stella Sizes API: `halfChest`, `bodyLength`, `sleeveLength`
- *    fields are already flat cm — direct 1:1 mapping; `styleCode` → brandRef.
+ *    fields are already flat cm, direct 1:1 mapping; `styleCode` → brandRef.
  *  - WooCommerce (src/lib/ingest/woo.ts): images[].src → photos through the
  *    pipeline; name/attributes → name/notes; cm tables are entered/pasted by
  *    the admin (Woo has no canonical size-table field).
@@ -34,7 +34,7 @@ import type { RectIn } from '@/lib/types'
 /**
  * Where a side's image came from. `'generated'` means it was RECONSTRUCTED
  * from the other side (src/lib/ingest/pipeline.ts) because no real photo
- * exists — a preview, never a contractual representation of the product.
+ * exists: a preview, never a contractual representation of the product.
  *
  * The field is OPTIONAL and absent means `'photo'`: every side stored before
  * provenance existed was a real supplier/customer photo, so no persisted
@@ -42,12 +42,12 @@ import type { RectIn } from '@/lib/types'
  */
 export type SidePhotoOrigin = 'photo' | 'generated'
 
-/** Provenance of a generated side — kept for QA, support and the UI badge. */
+/** Provenance of a generated side, kept for QA, support and the UI badge. */
 export interface GeneratedSideInfo {
   method: 'front-mirror-flood'
   /**
    * 1 = mirrored silhouette + low-pass shading. 2 = the same, plus centred-
-   * placket suppression (a polo back must not show a button placket — see
+   * placket suppression (a polo back must not show a button placket, see
    * pipeline.ts). Records stamped 1 stay 1 and stay TRUE: the added pass is a
    * no-op on any garment without a contrast band down the centre, so their
    * pixels are already what 2 produces.
@@ -62,7 +62,7 @@ export interface GeneratedSideInfo {
    * Mirror-symmetry of the source SILHOUETTE (IoU against its own mirror),
    * 1 = perfectly symmetric. Below ~0.93 the outline is asymmetric and the
    * mirror puts a detail on the wrong side, so the admin UI escalates from
-   * "generated" to "generated — review this". It says nothing about features
+   * "generated" to "generated, review this". It says nothing about features
    * inside the outline (a chest pocket): see the blind-spot note in
    * pipeline.ts, which is why the visible marking is not optional.
    */
@@ -100,14 +100,14 @@ export interface ProductSideDef {
 export type BackSource = 'real' | 'generated' | 'missing'
 
 /**
- * Where the cm size table came from — the same provenance discipline
+ * Where the cm size table came from: the same provenance discipline
  * `SidePhotoOrigin` applies to photos, applied to measurements.
  *
  *  - `'supplier'`  the manufacturer's own published flat measurements.
  *  - `'reference-chart'` ESTIMATED from the studio's reference blanks
  *    (src/content/sizeChart.ts) because the supplier publishes none. Falk&Ross
  *    is the case that forced this: their webservice carries size LABELS
- *    (`sku_size_name`/`sku_size_order`) and nothing else — no chest, no length,
+ *    (`sku_size_name`/`sku_size_order`) and nothing else: no chest, no length,
  *    no sleeve, anywhere in the API. An estimate is useful (a tee is a tee) but
  *    it is not a measurement of THIS garment, and print placement is computed
  *    from it, so it must never be displayed as if the supplier said it.
@@ -133,7 +133,7 @@ export interface ProductDef {
   brandRef: string
   createdAt: number
   /**
-   * Flat cm measurements per size — reuses the catalog SizeSpecCm shape
+   * Flat cm measurements per size, reuses the catalog SizeSpecCm shape
    * (src/content/sizeChart.ts). At least ONE size must be present; keys are
    * canonical SizeIds.
    */
@@ -223,7 +223,7 @@ export function isProductDef(v: unknown): v is ProductDef {
     !isSizeId(p.defaultSize) ||
     !isSideDef(p.front) ||
     (p.back !== null && !isSideDef(p.back)) ||
-    // Absent is the legacy (and correct) value — see SizeSource. A hand-edited
+    // Absent is the legacy (and correct) value, see SizeSource. A hand-edited
     // file must not be able to smuggle in a provenance the UI cannot badge,
     // which for measurements would mean an estimate passing as a supplier spec.
     (p.sizeSource !== undefined &&
@@ -240,7 +240,7 @@ export function isProductDef(v: unknown): v is ProductDef {
 }
 
 /**
- * Drop non-canonical / malformed size rows — isProductDef only requires ONE
+ * Drop non-canonical / malformed size rows: isProductDef only requires ONE
  * valid row, and an entry with a 0 or missing halfChestCm would still be
  * selectable as the reference size and collapse the print area (NaN ppi).
  */

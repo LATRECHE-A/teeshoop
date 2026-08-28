@@ -1,17 +1,17 @@
 /**
- * Headless FABRIC-MAPPING verification — the proof behind src/three/fabricUnwrap.ts.
+ * Headless FABRIC-MAPPING verification: the proof behind src/three/fabricUnwrap.ts.
  *
  * The 3D print is no longer a projected decal: the garment mesh is unwrapped
  * into inches of cloth from its centre-front line and the print rect is laid on
  * THAT. Every claim the mapping makes is pure geometry, so every claim is
- * checkable without rendering a single pixel — which is what this script does,
+ * checkable without rendering a single pixel, which is what this script does,
  * against two independent ground truths:
  *
  *   1. tee.glb ships an artist-made UV atlas that is itself an isometric flat
  *      sewing pattern. The computed arc table must reproduce it (up to one
  *      global scale + offset, which is all "is an unwrap" can mean).
  *   2. hoodie.glb ships NO UVs, so it is checked against arc walked directly
- *      along its own cross-section LOOPS — chained by triangle connectivity,
+ *      along its own cross-section LOOPS, chained by triangle connectivity,
  *      not by the radial heuristic the table uses, so the two cannot agree by
  *      sharing a bug.
  *
@@ -20,7 +20,7 @@
  *   B  physical size: the scaled mesh's chest arc == the size chart's half-chest
  *   C  arc truth: a 10 cm logo covers 10 cm of real cloth, anywhere on the panel
  *   D  tee atlas cross-check (the independent oracle)
- *   E  coverage: every print zone is 100 % on fabric — nothing clipped
+ *   E  coverage: every print zone is 100 % on fabric, nothing clipped
  *   F  no bleed: no front ink lands behind z = 0, and no seam-wrap smear
  *   G  AR parity: the exported grid sits on the same surface at the same arc
  *
@@ -79,7 +79,7 @@ async function inPage(sizes) {
     layers: [], stashedLayers: [], printScale: { mode: 'scaled', baseSize: 'L' }, updatedAt: 0,
   })
 
-  /** Raw cross-section segments at a height — the input to the radial walk. */
+  /** Raw cross-section segments at a height, the input to the radial walk. */
   function sectionSegs(pos, idx, y) {
     const segs = []
     for (let t = 0; t + 2 < idx.length; t += 3) {
@@ -102,7 +102,7 @@ async function inPage(sizes) {
    * SECOND, independent ground truth: walk the cloth radially at 0.25° (four
    * times the table's own sampling), taking at each step the mesh crossing
    * nearest the tracked shell. It shares no machinery with the connectivity
-   * loop walk — different traversal, different failure modes — which is what
+   * loop walk (different traversal, different failure modes), which is what
    * makes their AGREEMENT meaningful and, more importantly, what makes their
    * DISAGREEMENT a usable signal: where two honest measurements of the same
    * span differ, the mesh has no single answer there and neither does any
@@ -142,7 +142,7 @@ async function inPage(sizes) {
   // ---- independent ground truth: chained cross-section loops ---------------
   // Slice the mesh at a height, weld the resulting segments end-to-end into
   // closed polylines, and keep the loop that encloses the axis. This uses
-  // CONNECTIVITY only — the arc table uses outward radial marching — so an
+  // CONNECTIVITY only (the arc table uses outward radial marching), so an
   // agreement between them is real evidence, not a shared assumption.
   function sliceLoops(pos, idx, y) {
     const segs = []
@@ -168,8 +168,8 @@ async function inPage(sizes) {
     // Chain the segments end to end. Two rules make this survive a mesh with
     // T-junctions and surfaces that touch (a hood resting on a back): match
     // endpoints through a GRID (not a hash key, which splits neighbours that
-    // straddle a cell edge), and at a junction continue with the SMALLEST TURN
-    // — the cloth carries on, it does not fold back onto whatever is nearby.
+    // straddle a cell edge), and at a junction continue with the SMALLEST TURN:
+    // the cloth carries on, it does not fold back onto whatever is nearby.
     const weld = Math.max(1e-9, scale * 1e-3)
     const cell = weld * 2
     const grid = new Map()
@@ -232,7 +232,7 @@ async function inPage(sizes) {
 
   /**
    * The torso loop at a height: the axis-enclosing loop with the largest area,
-   * rejected outright if the chain wandered — a cross-section that is 3× longer
+   * rejected outright if the chain wandered: a cross-section that is 3× longer
    * than a circle through its own farthest point is not a garment section, and
    * a bad measurement is worse than a missing one.
    */
@@ -252,7 +252,7 @@ async function inPage(sizes) {
 
   /**
    * Where the ray at angle θ crosses the loop. `want` picks WHICH surface when
-   * a garment has two at one angle — a hood draped over a back, a pocket over a
+   * a garment has two at one angle: a hood draped over a back, a pocket over a
    * hem. Choosing the surface is not the same as measuring along it: the arc is
    * still walked vertex by vertex on the raw mesh. Without `want` the outermost
    * crossing wins, which on a hoodie measures the hood instead of the back.
@@ -602,7 +602,7 @@ try {
           ` frontArcRaw=${t.frontArcRaw.toFixed(4)} rawY[${t.yLoRaw.toFixed(3)},${t.yHiRaw.toFixed(3)}] ${t.verts}v/${t.tris}t` +
           ` shell@0/45/90/135°=${t.r.map((x) => x.toFixed(3)).join('/')}`,
       )
-      if (!t.usable) fail(`${gm} ${sz}: table unusable — prints fall back to the projected decal`)
+      if (!t.usable) fail(`${gm} ${sz}: table unusable. Prints fall back to the projected decal`)
     }
   }
 
@@ -629,13 +629,13 @@ try {
         }
         // Rows another panel lies on. Reported, never gated at fabric precision:
         // where a hood or a pocket overlaps the print rect there are two sheets
-        // and no defined answer — measured, the two independent ground truths
+        // and no defined answer: measured, the two independent ground truths
         // this script can build disagree with EACH OTHER by ~17mm there. What
         // does matter is that it stays a local effect at the rect's edge.
         const la = sd.arc.lappedSweep, ll = sd.arc.lappedLogo
         if (la && ll) {
-          console.log(`    ↳ ${sd.arc.lappedRows} undecidable row(s) (the two ground truths disagree — hood / pocket on the panel): sweep max ${(la.max * 25.4).toFixed(1)}mm · 10cm logo max ${(ll.max * 25.4).toFixed(1)}mm — indicative only`)
-          if (ll.max * 25.4 > 25) warn(`${gm} ${sz} ${side}: overlapped rows are ${(ll.max * 25.4).toFixed(0)}mm out — the shell may be tracking the wrong panel`)
+          console.log(`    ↳ ${sd.arc.lappedRows} undecidable row(s) (the two ground truths disagree, hood / pocket on the panel): sweep max ${(la.max * 25.4).toFixed(1)}mm · 10cm logo max ${(ll.max * 25.4).toFixed(1)}mm, indicative only`)
+          if (ll.max * 25.4 > 25) warn(`${gm} ${sz} ${side}: overlapped rows are ${(ll.max * 25.4).toFixed(0)}mm out (the shell may be tracking the wrong panel)`)
         }
       }
     }

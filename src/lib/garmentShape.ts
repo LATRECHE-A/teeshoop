@@ -8,7 +8,7 @@
  * bulge" and the wrong answer to "make this look like a garment": a Poisson
  * solution peaks on the medial axis and is dome-symmetric, so it can only ever
  * produce a pillow. A real tee is fullest just under the shoulders, rolls off
- * over them, dips at the collar and tapers down two sleeve tubes — a shape that
+ * over them, dips at the collar and tapers down two sleeve tubes, a shape that
  * is not derivable from the outline at all. It has to come from a garment.
  *
  * We own two garments: public/models/{tee,hoodie}.glb, the meshes the catalog
@@ -19,7 +19,7 @@
  * ONE PROFILE FUNCTION, TWO CALLERS. `profileMask` runs on the uploaded photo's
  * alpha mask and on the template's own rasterised coverage, and everything
  * downstream is expressed as a correspondence between two of its outputs. That
- * is not a convenience — it is the correctness argument. Any landmark defined
+ * is not a convenience. It is the correctness argument. Any landmark defined
  * by a different rule on the two sides would align things that are not the same
  * thing, and no amount of tuning recovers from that.
  *
@@ -53,7 +53,7 @@ export const GARMENT_SHAPES: readonly GarmentShape[] = [
 
 /**
  * Which template mesh lends its depth to which family. The hoodie mesh is the
- * long-sleeve donor as well as the hooded one — its sleeves reach the hem,
+ * long-sleeve donor as well as the hooded one: its sleeves reach the hem,
  * which is what a long-sleeve photo needs and what the tee mesh (sleeves
  * ending at 43 % of its height) cannot supply.
  */
@@ -85,7 +85,7 @@ export interface MaskProfile {
   r1: Float32Array
   /** Runs per row (0 for empty rows). */
   runs: Uint8Array
-  /** Cells per row, UNSMOOTHED — how much cloth a row really carries, which is
+  /** Cells per row, UNSMOOTHED: how much cloth a row really carries, which is
    *  not its outer extent whenever the row is a strap, a handle or two sleeves
    *  with air between them. */
   rowArea: Float32Array
@@ -301,7 +301,7 @@ export function profileMask(
  * question, and it is worth being precise about why rather than just raising the
  * threshold. The template is graded onto the photo by a map that is free to
  * rescale the torso span and the sleeve span independently (templateDepth.ts,
- * Stage A) — that freedom is exactly what lets one tee mesh dress a slim polo
+ * Stage A). That freedom is exactly what lets one tee mesh dress a slim polo
  * and an oversize tee, and it is also what lets it squash the same mesh into a
  * tote bag. A measured tote scored IoU 0.935 against the tee template, HIGHER
  * than five of the seven real garments. There is no threshold that separates
@@ -309,29 +309,29 @@ export function profileMask(
  *
  * So ask about STRUCTURE instead, on the photo alone, before any template is
  * involved. Four tells, each a thing every garment physically has and the
- * other printable objects do not, and ALL FOUR are required — a majority vote
+ * other printable objects do not, and ALL FOUR are required. A majority vote
  * over weak tells is how a mug gets called a tank.
  *
- *  COLLAR — the outline WIDENS from its own top edge. A garment starts at a
+ *  COLLAR:  the outline WIDENS from its own top edge. A garment starts at a
  *           neck opening, which is narrower than the shoulders by construction:
  *           it has to be, or the garment would fall off. A poster, a banner, a
  *           tea towel and the body of a mug all start at full width.
- *  CLOTH  — the top band is solid cloth, not thin loops. A tote's handles and a
+ *  CLOTH:   the top band is solid cloth, not thin loops. A tote's handles and a
  *           vest's straps are both openings high and off the centre line, and
  *           an opening cannot tell you how much material is around it; what
  *           separates them is that a handle carries almost none. Measured on the
  *           UN-FILLED mask, because hole-filling is precisely what turns those
  *           handles into shoulder lobes and makes a tote outline-match a tank.
- *  SHOULDER — full width arrives near the TOP. A garment is widest across the
+ *  SHOULDER: full width arrives near the TOP. A garment is widest across the
  *           shoulders, the sleeves or the chest; a cap, a funnel, a lampshade
  *           flare toward the bottom.
- *  NECK   — on its way to full width the outline never gives width BACK. This
+ *  NECK:    on its way to full width the outline never gives width BACK. This
  *           one is not about objects at all: it is about a PERSON. A photo of
  *           someone wearing the garment passes the other three (a head is
  *           narrower than the shoulders it sits on, it is solid, and the
  *           shoulders arrive high) and it is far and away the likeliest wrong
  *           upload. What a body has and a garment has not is the pinch between
- *           the two — head, neck, shoulders.
+ *           the two: head, neck, shoulders.
  *
  * MEASURED SEPARATION (scripts/inflate-verify.mjs prints all four per case on
  * every run; the populations are every garment family the catalogue sells, plus
@@ -347,10 +347,10 @@ export function profileMask(
  * one hand-picked case fails is not a gate, and the verifier asserts it (all
  * four must be exercised). The worst case on the garment side is the synthetic
  * flat-lay tee, whose punched collar hole is huge relative to its shoulder span
- * (solidity 0.669) — a real ghost-mannequin photo sits at 0.98–1.00.
+ * (solidity 0.669). A real ghost-mannequin photo sits at 0.98–1.00.
  *
  * WHICH WAY TO BE WRONG. A false accept gives the customer a garment shaped
- * like something they did not upload — visible, and worse than what shipped
+ * like something they did not upload: visible, and worse than what shipped
  * before. A false refusal gives them the Poisson balloon, which IS what shipped
  * before. So every threshold above is set on the refusing side of the midpoint,
  * and the customer can always overrule the whole test by naming the garment in
@@ -379,7 +379,7 @@ const FULL_WIDTH_AT = 0.45
 /** NECK: how much width the outline may give BACK on its way to full width,
  *  as a fraction of the widest row. */
 const NECK_DIP = 0.12
-/** "Full width" for the shoulder tell — 0.92 rather than 1 so a single ragged
+/** "Full width" for the shoulder tell: 0.92 rather than 1 so a single ragged
  *  cutout row at the hem cannot define where the garment got wide. */
 const FULL_WIDTH = 0.92
 /** The top band, as a fraction of the garment's own height. */
@@ -389,7 +389,7 @@ const TOP_BAND_H = 0.14
  * Measure the three structural tells.
  *
  * `filled` is the hole-filled profile (the domain the depth field lives on) and
- * `raw` the same mask before filling — not redundant, see CLOTH above. Returns
+ * `raw` the same mask before filling. Not redundant, see CLOTH above. Returns
  * the scores alongside the verdict so the dev harness, and the setup modal, can
  * show WHY rather than just refusing.
  */
@@ -398,7 +398,7 @@ export function garmentStructure(filled: MaskProfile, raw: MaskProfile): Garment
   const rows = p.bottom - p.top + 1
   const maxW = Math.max(1, p.maxW)
 
-  // COLLAR — the top band's own rise. Reading a band rather than "top row vs
+  // COLLAR: the top band's own rise. Reading a band rather than "top row vs
   // shoulder row" is what lets a hood (narrow at the crown, widening late) and
   // a crew collar (widening at once) both register as the same thing.
   const yBand = p.top + Math.round(TOP_BAND_H * (rows - 1))
@@ -411,7 +411,7 @@ export function garmentStructure(filled: MaskProfile, raw: MaskProfile): Garment
   }
   const collar = Number.isFinite(wMin) ? (wMax - wMin) / maxW / COLLAR_RISE : 0
 
-  // CLOTH — solidity of the top band on the UN-FILLED mask: cells of cloth over
+  // CLOTH: solidity of the top band on the UN-FILLED mask: cells of cloth over
   // outer span. A row of two thin handles spans wide and carries nothing.
   const rRows = raw.bottom - raw.top + 1
   const rBand = raw.top + Math.max(0, Math.round(TOP_BAND_H * rRows) - 1)
@@ -423,7 +423,7 @@ export function garmentStructure(filled: MaskProfile, raw: MaskProfile): Garment
   }
   const cloth = span$ > 0 ? cloth$ / span$ / TOP_SOLID : 0
 
-  // SHOULDER — where full width FIRST arrives. First, not "where the widest row
+  // SHOULDER: where full width FIRST arrives. First, not "where the widest row
   // is": a vest that keeps flaring gently to its hem is widest at 90 % of its
   // height and is still a garment, because it was already near full width at
   // the armhole.
@@ -435,13 +435,13 @@ export function garmentStructure(filled: MaskProfile, raw: MaskProfile): Garment
   // by zero, and "infinitely shouldered" is not a number worth printing.
   const shoulder = Math.min(99, FULL_WIDTH_AT / Math.max(1e-4, fullAt))
 
-  // NECK — on its way to full width a garment's outline only WIDENS. It starts
+  // NECK: on its way to full width a garment's outline only WIDENS. It starts
   // at a neck opening and ends at the shoulders, and there is nothing in
   // between for it to give width back to. A BODY gives it back: the outline
   // rises to the head, pinches at the neck, and rises again to the shoulders.
   //
   // That pinch is the whole reason this fourth tell exists. The other three are
-  // each a thing a garment has and a mug, a poster, a tote or a cap does not —
+  // each a thing a garment has and a mug, a poster, a tote or a cap does not,
   // and a photograph of a person WEARING the garment has all three of them: a
   // head is narrower than the shoulders it sits on (COLLAR), it is solid
   // (CLOTH), and the shoulders arrive high (SHOULDER). Measured, a person
@@ -471,7 +471,7 @@ export function garmentStructure(filled: MaskProfile, raw: MaskProfile): Garment
 
 export interface ShapeGuess {
   shape: GarmentShape
-  /** Distance from the deciding threshold, normalised — 0 means "a coin flip". */
+  /** Distance from the deciding threshold, normalised: 0 means "a coin flip". */
   margin: number
   /** The raw features, for the harness and for reporting. */
   hemRatio: number
@@ -483,7 +483,7 @@ export interface ShapeGuess {
 
 /**
  * THE THRESHOLDS ARE MEASURED, NOT GUESSED. Every number below was read off the
- * real supplier catalogue through the app's own cutout — the profile dump in
+ * real supplier catalogue through the app's own cutout. The profile dump in
  * scripts/inflate-verify.mjs prints all four features per garment, and the
  * separations quoted here are what it printed. That mattered: the first version
  * of this classifier was calibrated against imagined LAID-FLAT silhouettes and
@@ -497,12 +497,12 @@ export interface ShapeGuess {
  * SLEEVE LENGTH. Width at the hem relative to the widest row. A short sleeve
  * ends around mid-torso, so the hem is torso-only and much narrower than the
  * shoulder-and-sleeve span; a long sleeve puts a cuff beside the hem, so the two
- * are the same width. Measured: 0.64 / 0.66 / 0.72 short, 0.98…1.00 long — the
+ * are the same width. Measured: 0.64 / 0.66 / 0.72 short, 0.98…1.00 long, the
  * widest gap in the whole feature set, so this carries the decision that
  * actually matters (which of the two donor meshes lends its depth).
  */
 const HEM_SHORT = 0.85
-/** Rows counted as "the hem" — above the roll/rib, below the last taper. */
+/** Rows counted as "the hem": above the roll/rib, below the last taper. */
 const HEM_BAND = [0.8, 0.94] as const
 /**
  * HOOD. How far down the garment has to go before it reaches (near) full width.
@@ -510,7 +510,7 @@ const HEM_BAND = [0.8, 0.94] as const
  * a crew collar is a notch in an otherwise full-width shoulder line. Measured
  * among long-sleeved garments: 0.083 / 0.092 crew, 0.152 / 0.184 hooded.
  * NOT applied to short-sleeved garments, whose sleeve flare puts the widest row
- * far below the shoulders and pushes this feature into the hooded range — and
+ * far below the shoulders and pushes this feature into the hooded range, and
  * which need no hood test anyway, since tee, polo and tank share one donor.
  */
 const HOOD_DROP = 0.12
@@ -521,7 +521,7 @@ const HOOD_FULL = 0.8
  * fills that band; an armhole scoops it out. Measured 0.761 on the vest against
  * 0.850…0.961 for every sleeved garment. Paired with `topRatio` (a strap spans
  * nearly the whole body width, a collar or a hood does not) so that two
- * independent measurements of "there is no sleeve here" have to agree — the
+ * independent measurements of "there is no sleeve here" have to agree: the
  * deep-hood case is the one that can push `shoulderNarrow` alone down.
  */
 const TANK_SHOULDER = 0.81
@@ -549,8 +549,8 @@ function bandWidths(p: MaskProfile, a: number, b: number): number[] {
  *
  * Order matters and is not arbitrary: sleeveless first (an armhole is a hard
  * structural tell that survives any pose), then sleeve LENGTH (the one decision
- * that changes which mesh donates its depth), then — only within the long-sleeve
- * family, where it is unambiguous — the hood.
+ * that changes which mesh donates its depth), then (only within the long-sleeve
+ * family, where it is unambiguous) the hood.
  *
  * Two labels are never produced automatically and exist only as customer
  * overrides: 'polo' (a collar and a placket are a few tenths of an inch of
@@ -593,7 +593,7 @@ export function classifyShape(p: MaskProfile, armholes: number): ShapeGuess {
  * The customer's explicit choice, when they made one.
  *
  * ONE SLOT, ON PURPOSE. A design carries exactly one custom garment, and the
- * setup modal is the only place one is ever defined — so a single stored value
+ * setup modal is the only place one is ever defined, so a single stored value
  * is enough, and it is the only design that keeps the 3D preview and the AR
  * bake in lockstep. The preview is handed a composited canvas and nothing else
  * (no asset id reaches it), so any per-asset keying would be readable by the AR
@@ -634,7 +634,7 @@ export function setShapeOverride(shape: GarmentShape | null): void {
   }
 }
 
-/** Last automatic classification — a UI hint and a harness probe, never logic. */
+/** Last automatic classification, a UI hint and a harness probe, never logic. */
 let lastGuess: ShapeGuess | null = null
 export function getDetectedShape(): GarmentShape | null {
   return lastGuess?.shape ?? null

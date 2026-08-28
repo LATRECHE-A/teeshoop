@@ -17,7 +17,7 @@ export default function TopBar() {
   const renameDesign = useStore((s) => s.renameDesign)
   const openModal = useStore((s) => s.openModal)
   const toast = useStore((s) => s.toast)
-  // Garments in the basket (quantity-weighted) — the badge count.
+  // Garments in the basket (quantity-weighted), the badge count.
   const basketCount = useStore((s) => s.basket.reduce((n, l) => n + l.qty, 0))
   const { canUndo, canRedo } = useHistoryDepth()
   const boardOn = useStore((s) => s.board.on)
@@ -104,7 +104,7 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-1.5">
-        {/* Workshop tools (DTF gang sheets, product ingest) — admin build only.
+        {/* Workshop tools (DTF gang sheets, product ingest), admin build only.
             They expose supplier costs and film economics, so the menu and the
             code behind it are absent from the customer bundle entirely. */}
         {admin.tools}

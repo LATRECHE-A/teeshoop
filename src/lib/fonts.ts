@@ -2,7 +2,7 @@
  * Font registry + loader for Tshop Studio print fonts.
  *
  * All families are self-hosted via @fontsource packages (Google Fonts
- * builds, OFL / Apache-2.0 — see docs/credits/A4.md); the side-effect CSS
+ * builds, OFL / Apache-2.0, see docs/credits/A4.md); the side-effect CSS
  * imports below register the @font-face rules, so there are no runtime
  * network calls beyond the site's own assets.
  */
@@ -68,7 +68,7 @@ function loadFamily(family: string): Promise<void> {
 
 /**
  * Ensure a family is ready for canvas use. Resolves once loaded, after a
- * 3s timeout, or immediately for unknown families — it never rejects.
+ * 3s timeout, or immediately for unknown families: it never rejects.
  * Promises are cached, so repeat calls are free.
  */
 export function ensureFont(family: string): Promise<void> {

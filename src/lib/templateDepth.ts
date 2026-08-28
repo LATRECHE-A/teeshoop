@@ -1,5 +1,5 @@
 /**
- * TEMPLATE DEPTH TRANSPLANT — give an uploaded garment photo the depth field of
+ * TEMPLATE DEPTH TRANSPLANT: give an uploaded garment photo the depth field of
  * a real garment instead of a balloon.
  *
  * WHY, IN ONE PARAGRAPH
@@ -8,7 +8,7 @@
  * is the principled answer to "inflate this curve" (Baran & Lehtinen 2009) and
  * it is provably the wrong shape for cloth: its solution peaks on the medial
  * axis and is dome-symmetric, so a t-shirt comes out as a pillow with a crease
- * down the middle — fullest at the navel, thickest where the fabric is loosest,
+ * down the middle: fullest at the navel, thickest where the fabric is loosest,
  * no shoulder roll, no collar dip, no sleeve tubes. No tuning of a Poisson
  * field fixes that, because the information simply is not in the outline. It IS
  * in the two garment meshes this app already ships, so we take it from them:
@@ -18,7 +18,7 @@
  * WHAT IS AND IS NOT DEFORMED
  * ---------------------------
  * Only Z. The sheets' X/Y vertex positions and UVs are untouched, exactly as
- * silhouette.ts's header promises — so print inch accuracy and decal crispness
+ * silhouette.ts's header promises, so print inch accuracy and decal crispness
  * are preserved BY CONSTRUCTION and need no re-proving. Replacing the mesh with
  * the warped template would buy a true grazing-angle silhouette and a hood you
  * can see behind, and would put that guarantee back in play; it is the right
@@ -26,30 +26,30 @@
  *
  * THE WARP, IN TWO STAGES
  * -----------------------
- * Stage A — GRADING. A separable, monotone global map: rows are matched by
+ * Stage A: GRADING. A separable, monotone global map: rows are matched by
  * CUMULATIVE AREA QUANTILE (the template's 40 %-of-cloth row lands on the
  * photo's 40 %-of-cloth row) and columns through five knots built from the
  * torso width and the widest row. Landmark-free by design: every "find the
  * shoulder line" rule we tried worked on a flat-lay photo and broke on the
  * A-pose mesh, whose shoulders merge into its arms. Area quantile has no such
- * failure mode — it is monotone by construction and reads the same thing on
+ * failure mode: it is monotone by construction and reads the same thing on
  * both sides. This stage is what the IoU gate measures, because it is the stage
  * that can be WRONG: it asks "once graded, is this photo shaped like this class
  * of garment at all?".
  *
- * Stage B — STRUCTURAL SNAP. Per row, the photo's (leftmost run, body run,
+ * Stage B: STRUCTURAL SNAP. Per row, the photo's (leftmost run, body run,
  * rightmost run) spans are mapped onto the template's. This is what makes an
  * A-pose donor legal: torso maps to torso and sleeve to sleeve regardless of
  * arm angle. Where the photo's arm touches its body and the template's does not,
  * the map JUMPS across the template's arm/body gap. The jump is invisible
  * because both of its endpoints are template silhouette rims, where the depth
- * field is ~0 — the value is continuous even though the map is not.
+ * field is ~0: the value is continuous even though the map is not.
  *
  * Stage B matches the outline exactly per row, so it cannot supply an honest
  * confidence; that is precisely why the gate lives on Stage A.
  *
  * DETERMINISM: base64 decode, prefix sums, piecewise-linear maps and bilinear
- * sampling. No randomness, no time, no async — this runs inside the synchronous
+ * sampling. No randomness, no time, no async: this runs inside the synchronous
  * shell build that the AR bake and the 3D preview both call, which is what makes
  * those two produce byte-identical geometry.
  */
@@ -74,7 +74,7 @@ export interface DepthField {
  * Stage-A IoU below which we do not believe the template.
  *
  * THIS IS NOT THE "IS IT A GARMENT" TEST, and trying to make it one is how the
- * first version of this gate let a tote bag through at 0.935 — a better score
+ * first version of this gate let a tote bag through at 0.935, a better score
  * than five of the seven garments then under test. The grading map is free to
  * rescale the torso span and the sleeve span independently, which is exactly
  * what lets one tee mesh dress a slim polo and an oversize tee, and equally
@@ -84,8 +84,8 @@ export interface DepthField {
  *
  * What is left for this number is the narrower question it can actually answer:
  * given that the upload IS a garment, could this donor be graded onto it? The
- * measured distribution over 17 real supplier garments — every family the
- * catalogue sells, printed by scripts/inflate-verify.mjs on every run — is
+ * measured distribution over 17 real supplier garments (every family the
+ * catalogue sells, printed by scripts/inflate-verify.mjs on every run) is
  * 0.840 … 0.970, the low end being a racerback vest whose armholes the tee mesh
  * has no counterpart for. 0.78 therefore clears every garment we have seen by
  * ×1.08 and still refuses a donor that simply cannot be made to cover the
@@ -109,9 +109,9 @@ const FILL_PASSES = 14
  * WHY THE WARP NEEDS FILTERING AND THE TEMPLATE DOES NOT. The baked field is a
  * rasterised mesh: smooth by construction. Everything rough in the warped copy
  * was put there by the warp, and there are two sources. The donor's own OUTLINE
- * steps — the tee mesh sheds a fifth of its width in five of its 107 rows where
+ * steps (the tee mesh sheds a fifth of its width in five of its 107 rows where
  * its sleeves hem out, the hoodie mesh's body run loses 19 of 96 columns in ONE
- * row where its arms leave the torso — and Stage B, which matches the outline
+ * row where its arms leave the torso), and Stage B, which matches the outline
  * per row, faithfully transplants those steps onto a photo whose own silhouette
  * does not step at the matched row. The row map can also compress locally.
  *
@@ -120,10 +120,10 @@ const FILL_PASSES = 14
  * across the chest, which is worse than the balloon it replaced. Measured
  * (scripts/inflate-verify.mjs prints maxSlope per case) the unfiltered
  * transplant ran 3–10× rougher than the Poisson shell of the SAME photo, which
- * carries the same folds and wrinkles — so the excess was all warp.
+ * carries the same folds and wrinkles, so the excess was all warp.
  *
  * 1.8 % of the garment's height over three box passes is ≈ a Gaussian of σ ≈
- * 2.5 % — an order of magnitude finer than the features the transplant exists
+ * 2.5 %, an order of magnitude finer than the features the transplant exists
  * for (the collar dip and the shoulder roll each span 10–20 % of the height),
  * and wide enough that a one-row cliff arrives as a fold instead of a gash.
  * Y ONLY: the artefact is row-to-row, and the per-row map is already as smooth
@@ -134,7 +134,7 @@ const SMOOTH_PASSES = 3
 
 /**
  * Why the last fit was accepted or refused. A diagnostic for the dev harness
- * and scripts/inflate-verify.mjs — never read by rendering code, because a
+ * and scripts/inflate-verify.mjs, never read by rendering code, because a
  * module-level mutable would then make two identical inputs disagree.
  */
 export interface TemplateFit {
@@ -174,7 +174,7 @@ function b64ToBytes(s: string): Uint8Array {
  * Spread the depth field outward over uncovered cells so a sample that lands in
  * the template's collar hole or in an A-pose arm/body gap reads the neighbouring
  * cloth rather than zero (which would punch a crater into the shell). Runs once
- * per template, on 96 columns — a few tenths of a millisecond.
+ * per template, on 96 columns: a few tenths of a millisecond.
  */
 function fillOutward(field: Float32Array, cov: Uint8Array, w: number, h: number): void {
   const known = Uint8Array.from(cov)
@@ -358,10 +358,10 @@ function globalKnots(p: MaskProfile, out: Float32Array): void {
  * is an implementation detail of "how deep is this garment", not a claim about
  * what the customer uploaded, so when the preferred one fails its gates a
  * garment-shaped depth from the other mesh still beats a balloon. When the
- * preference fits — which is the normal case — the alternate is never evaluated
+ * preference fits, which is the normal case, the alternate is never evaluated
  * and costs nothing.
  *
- * `mask` must be the HOLE-FILLED photo mask — the same domain the Poisson solve
+ * `mask` must be the HOLE-FILLED photo mask, the same domain the Poisson solve
  * runs on, and the same topology the template's own coverage has (a rasterised
  * mesh has no collar hole). The texture's alpha cuts the real openings later.
  *
@@ -484,13 +484,13 @@ function fitTemplate(
     // `profileMask` reports l0 = l1 = b0 and b1 = r0 = r1: one column wearing
     // three names. The donor can still have three runs at the matched row (the
     // hoodie mesh's arms are clear of its torso for eighteen of its sixty
-    // rows), so the collapse has to pick a template column — and Stage B's
+    // rows), so the collapse has to pick a template column, and Stage B's
     // contract is that the OUTLINE maps to the outline. Keeping whichever knot
     // came first in index order, which is what a plain dedup does, keeps st[0]
     // on the left (the donor's sleeve tip, right) and st[4] on the right (the
     // donor's TORSO edge, wrong): the photo's right half is then squeezed onto
     // the middle of the donor while its left half is not. On the hoodie mesh at
-    // row 48 that is x ≤ 63 of 96 — a third of the garment's width of pure
+    // row 48 that is x ≤ 63 of 96, a third of the garment's width of pure
     // asymmetry, which shades as a dark band down one side only. So a collapsed
     // group keeps its OUTERMOST template knot, on both sides.
     let n = 0
@@ -516,8 +516,8 @@ function fitTemplate(
 
   // Filter the warped field in Y (see SMOOTH_Y_FRAC) before anything reads it.
   // The window is exactly the garment's own rows, so the zeros above and below
-  // it — which are outside the garment and would pull the hem and the shoulder
-  // line down — never enter the average.
+  // it, which are outside the garment and would pull the hem and the shoulder
+  // line down, never enter the average.
   const rBlur = Math.max(1, Math.round(SMOOTH_Y_FRAC * (photo.bottom - photo.top + 1)))
   blurY(front, W2, photo.top + 1, photo.bottom + 1, 1, W, rBlur)
   blurY(back, W2, photo.top + 1, photo.bottom + 1, 1, W, rBlur)

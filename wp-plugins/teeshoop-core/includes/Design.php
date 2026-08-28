@@ -2,8 +2,8 @@
 /**
  * The design hand-off.
  *
- * An order line carries an IDENTIFIER. The artwork itself — the customer's
- * upload, the flattened preview, the 300 DPI print file — lives in R2, put there
+ * An order line carries an IDENTIFIER. The artwork itself (the customer's
+ * upload, the flattened preview, the 300 DPI print file) lives in R2, put there
  * by the studio through the Worker before the add-to-cart call is ever made.
  *
  * Two reasons it is not in the WordPress media library:
@@ -55,7 +55,7 @@ final class Design {
 	 *
 	 * A network failure is NOT treated as a pass. If the Worker cannot be reached
 	 * we do not know whether the files exist, and "we do not know" must not add a
-	 * paid line to a cart — unless the shop has explicitly opted out via
+	 * paid line to a cart, unless the shop has explicitly opted out via
 	 * Settings::allow_unverified_designs(), which is for local development.
 	 */
 	public static function verify( string $id ): array {
@@ -212,7 +212,7 @@ final class Design {
 	 * Normalise the per-side payload that arrives with an add-to-cart.
 	 *
 	 * Only the fields the price depends on survive. Everything else the studio
-	 * might send — layer trees, fonts, undo history — is deliberately dropped:
+	 * might send (layer trees, fonts, undo history) is deliberately dropped:
 	 * it belongs in the design file, not in a cart session that gets serialised
 	 * into the database on every page load.
 	 *

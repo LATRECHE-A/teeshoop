@@ -1,9 +1,9 @@
 /**
- * Color palettes — module A5.
+ * Color palettes, module A5.
  *
  * GARMENT_COLORS: the stocked garment dye colors (ids are stable and are what
  * `Design.colorId` stores). INK_COLORS: the print-ink swatches offered for
- * text/graphic fills — a screen-print-shop style deck: white/black/grays,
+ * text/graphic fills, a screen-print-shop style deck: white/black/grays,
  * metallic-ish gold + silver approximations, and CMYK-leaning brights.
  */
 

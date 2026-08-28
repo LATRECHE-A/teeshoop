@@ -1,5 +1,5 @@
 /**
- * Preflight — the checks that stop a file the supplier would silently crop,
+ * Preflight: the checks that stop a file the supplier would silently crop,
  * and the silence that stops the operator learning to ignore warnings.
  *
  * The process is a literal here, not DEFAULT_SUPPLIERS: the boundaries under
@@ -57,7 +57,7 @@ describe('film width', () => {
     expect(codes(rotatable)).not.toContain('too-wide')
   })
 
-  it('too long is a DIFFERENT error — it tells the operator to do something else', () => {
+  it('too long is a DIFFERENT error: it tells the operator to do something else', () => {
     const long = preflight([piece({ wCm: 30, hCm: 500 })], roll())
     expect(codes(long)).toContain('too-long')
     expect(codes(long)).not.toContain('too-wide')
@@ -100,7 +100,7 @@ describe('resolution and line weight', () => {
     expect(codes(preflight([piece({ minLineMm: 0.6 })], roll()))).not.toContain('line-thin')
   })
 
-  it('small text is a WARNING, never an error — it is legible-ish, not unprintable', () => {
+  it('small text is a WARNING, never an error: it is legible-ish, not unprintable', () => {
     const issues = preflight([piece({ minTextPt: 3 })], roll())
     const text = issues.filter((i) => i.code === 'text-small')
     expect(text.length).toBe(1)
@@ -123,13 +123,13 @@ describe('fixed-format billing', () => {
     expect(codes(preflight([piece({ wCm: 25, hCm: 25 })], fixed))).toContain('no-format')
   })
 
-  it('a 10×10 piece does NOT fit a 10×10 format — the margin is real', () => {
+  it('a 10×10 piece does NOT fit a 10×10 format: the margin is real', () => {
     // Usable area of the 10×10 sheet is 8×8 after the 1 cm margin. This looks
     // like an off-by-one and is not; do not "fix" it.
     //
     // Tested against a SINGLE-format catalogue on purpose: the fit test is
     // `boxes.some(...)`, so with the 21×28 format also present a 10×10 piece
-    // fits perfectly well — just not on the sheet you would expect.
+    // fits perfectly well, just not on the sheet you would expect.
     const only10 = roll({
       billing: 'fixed',
       formats: [{ id: 'a', label: '10×10', wCm: 10, hCm: 10, priceEur: 2 }],
@@ -138,7 +138,7 @@ describe('fixed-format billing', () => {
     expect(codes(preflight([piece({ wCm: 10, hCm: 10 })], only10))).toContain('no-format')
     expect(codes(preflight([piece({ wCm: 8, hCm: 8 })], only10))).not.toContain('no-format')
 
-    // And the multi-format catalogue does place it — on the larger sheet.
+    // And the multi-format catalogue does place it, on the larger sheet.
     expect(codes(preflight([piece({ wCm: 10, hCm: 10 })], fixed))).not.toContain('no-format')
   })
 })

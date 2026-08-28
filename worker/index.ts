@@ -1,21 +1,21 @@
 /**
- * Tshop Cloudflare Worker — the small backend behind the AR try-on and the
+ * Tshop Cloudflare Worker: the small backend behind the AR try-on and the
  * Falk&Ross supplier catalogue.
  *
  * The site is otherwise pure static assets; this Worker adds the dynamic routes
  * the browser cannot serve itself.
  *
- * AR — so a design's 3D model can travel cross-device from a scanned QR to
+ * AR, so a design's 3D model can travel cross-device from a scanned QR to
  * native mobile AR:
  *   POST /api/ar            store {glb, usdz, poster} → returns a short { id }
  *   GET  /r2/ar/{id}.{ext}  stream a stored blob with the correct MIME type
  *   GET  /v/{id}            serve the viewer page (v.html) for the QR short URL
  *
- * DESIGN — the hand-off to WordPress (worker/design.ts). An order line carries
+ * DESIGN: the hand-off to WordPress (worker/design.ts). An order line carries
  * an id; this is what the id points at, and until it existed a customer's
  * artwork lived only in their own browser:
  *   POST /api/design        store the design document + its rasters → { id }
- *   GET  /api/design/{id}   the manifest — what the plugin verifies against
+ *   GET  /api/design/{id}   the manifest, what the plugin verifies against
  *   GET  /r2/design/{id}/…  the bytes; preview open, document/rasters admin-only
  *   DELETE /api/design/{id} erase every object under the id (RGPD article 17)
  *   POST /api/design/reap   delete designs older than a date, minus a keep list
@@ -24,7 +24,7 @@
  * R2's lifecycle rule covers `ar/` and cannot cover `design/`, because only the
  * shop knows which artwork is still owed against an order.
  *
- * SUPPLIER — `/api/fr/*`, the live Falk&Ross webservice (worker/falkross.ts).
+ * SUPPLIER: `/api/fr/*`, the live Falk&Ross webservice (worker/falkross.ts).
  * It lives server-side because the credentials must not ship to a browser, the
  * supplier sends no CORS headers, and the ingest pipeline needs untainted
  * canvas pixels from the photos. See that module's header for the full story.
@@ -180,8 +180,8 @@ function parseRange(header: string, size: number): { offset: number; length: num
 }
 
 /**
- * Serve a stored blob. Full HTTP semantics — Content-Length, Accept-Ranges, and
- * real 206 Range responses — because Android Scene Viewer's model downloader
+ * Serve a stored blob. Full HTTP semantics (Content-Length, Accept-Ranges, and
+ * real 206 Range responses) because Android Scene Viewer's model downloader
  * uses Range requests and rejects the object ("couldn't load") if the server
  * ignores them.
  */
@@ -253,8 +253,8 @@ export default {
     }
 
     // The design hand-off (worker/design.ts). The upload is open for the same
-    // reason `POST /api/ar` is — the customer is the author and cannot
-    // authenticate — and the read is what the WordPress plugin calls before it
+    // reason `POST /api/ar` is (the customer is the author and cannot
+    // authenticate), and the read is what the WordPress plugin calls before it
     // will put a personalised line in a cart.
     if (path === '/api/design' && request.method === 'POST') {
       const tooMany = await rateLimited(env.DESIGN_UPLOAD_LIMIT, request, 'POST /api/design')
@@ -345,7 +345,7 @@ export default {
     // rather than letting them fall through to the SPA asset fallback.
     if (path.startsWith('/__fr-cache/')) return new Response('not found', { status: 404 })
 
-    // Supplier catalogue — ADMIN-ONLY behind a bearer gate (worker/auth.ts).
+    // Supplier catalogue: ADMIN-ONLY behind a bearer gate (worker/auth.ts).
     // Returns null for anything outside /api/fr/*, so the AR routes and the
     // static assets below are untouched.
     const supplier = await handleFalkRoss(request, env, ctx)
@@ -359,7 +359,7 @@ export default {
     // Viewer page for the QR short link (id travels as ?id=…; a /v/{id} path
     // also works). IMPORTANT: env.ASSETS.fetch applies html_handling, so asking
     // for the literal '/v.html' returns a 307 -> /v (extension dropped) and the
-    // binding RELAYS that redirect instead of the HTML — which strips the id and
+    // binding RELAYS that redirect instead of the HTML, which strips the id and
     // is the exact AR bug. So fetch /v.html, follow the single html_handling
     // redirect to the canonical asset, and return the HTML with a 200 so the
     // browser stays on the original URL (keeping ?id / the /v/{id} segment).

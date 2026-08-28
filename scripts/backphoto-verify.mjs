@@ -3,23 +3,23 @@
  *
  * Two suites, because the guarantee has two halves:
  *
- *  A. SNAPSHOT (pure Node, no browser) — the supplier catalogue committed under
+ *  A. SNAPSHOT (pure Node, no browser): the supplier catalogue committed under
  *     public/catalog/imbretex carries both views for EVERY product: a front and
  *     a back file on disk, each a decodable bitmap, front ≠ back by content
  *     hash, no orphan images. The four references upstream publishes no back
- *     for carry a RECONSTRUCTION, and that is asserted as such — file present,
+ *     for carry a RECONSTRUCTION, and that is asserted as such: file present,
  *     `origin: 'generated'`, full `generatedFrom` provenance, and its id on the
  *     allow-list below. Every other product's back must be a real photograph
  *     with NO origin field, so a reconstruction can never be relabelled as one
  *     and a new back-less product FAILS instead of quietly shipping.
  *
- *  B. GENERATOR (Vite dev + real bundle) — the reconstruction is deterministic,
+ *  B. GENERATOR (Vite dev + real bundle): the reconstruction is deterministic,
  *     mirrors the silhouette exactly, is provably free of the front's artwork
  *     (no high-frequency edge survives the low-pass), carries no centred
  *     placket, has no alpha-bleed halo, and reports a symmetry number that
  *     actually discriminates a symmetric garment from one with a chest pocket.
- *     Run on a synthetic tee AND on the real 143100 front — a white vest on a
- *     white backdrop, the worst case for halo — whose real back is then used as
+ *     Run on a synthetic tee AND on the real 143100 front (a white vest on a
+ *     white backdrop, the worst case for halo), whose real back is then used as
  *     ground truth for the colour and luminance the reconstruction claims, plus
  *     the four committed backs themselves.
  *
@@ -37,12 +37,12 @@ const ROOT = 'public/catalog/imbretex'
 const OUT = process.env.BACK_OUT_DIR
 
 /**
- * Products the supplier publishes NO back view for, in any colourway — probed
+ * Products the supplier publishes NO back view for, in any colourway, probed
  * live on 2026-07-27, every colourway carrying a visuals endpoint (13, 13, 2, 2
  * of them), each answering exactly one shot whose origin ends in `_front`.
  *
  * Adding an id here is a deliberate statement that the gap is upstream's, not
- * the scraper's — never a way to silence the check. It no longer means "may
+ * the scraper's, never a way to silence the check. It no longer means "may
  * have no back": these MUST have a reconstructed back on disk, correctly
  * tagged. It is the list of products allowed to have a generated one, and
  * nothing else may.
@@ -52,7 +52,7 @@ const NO_UPSTREAM_BACK = ['202358', '202359', '191135', '191137']
 const results = []
 const ok = (name, pass, extra = '') => {
   results.push({ name, pass })
-  console.log(`${pass ? 'PASS' : 'FAIL'} ${name}${extra ? ` — ${extra}` : ''}`)
+  console.log(`${pass ? 'PASS' : 'FAIL'} ${name}${extra ? `: ${extra}` : ''}`)
 }
 const near = (a, b, tol) => Math.abs(a - b) <= tol
 
@@ -66,7 +66,7 @@ const md5 = (f) => createHash('md5').update(readFileSync(`${ROOT}/img/${f}`)).di
 /**
  * Decodable bitmap, not "ends in .jpg": the supplier's resize endpoint answers
  * PNG for a handful of references (191052, 191054, 75196) even on a .jpg URL.
- * Browsers sniff the content, so the app never noticed — a check that assumed
+ * Browsers sniff the content, so the app never noticed. A check that assumed
  * JPEG would have failed on perfectly good photos.
  */
 const isImage = (f) => {
@@ -85,7 +85,7 @@ const badFile = []
 const dupPair = []
 /** Ids whose back carries origin 'generated' (a committed reconstruction). */
 const generated = []
-/** Ids whose back is a supplier photograph (no origin field — absent ⇒ photo). */
+/** Ids whose back is a supplier photograph (no origin field: absent ⇒ photo). */
 const real = []
 /** Generated backs whose provenance record is incomplete or wrong. */
 const badProvenance = []
@@ -134,11 +134,11 @@ ok(
 const declared = [...(snap.backMissing ?? [])].sort()
 ok('snapshot.backMissing-declared', Array.isArray(snap.backMissing))
 // `backMissing` is a statement about the SUPPLIER, so it must name exactly the
-// products whose back we had to reconstruct — no more, no less.
+// products whose back we had to reconstruct, no more, no less.
 ok(
   'snapshot.backMissing-matches-reconstructions',
   JSON.stringify(declared) === JSON.stringify([...generated].sort()),
-  `declared ${declared.join(',') || '—'} · generated on disk ${generated.join(',') || '—'}`,
+  `declared ${declared.join(',') || '(none)'} · generated on disk ${generated.join(',') || '(none)'}`,
 )
 const unexpected = generated.filter((id) => !NO_UPSTREAM_BACK.includes(id))
 ok(
@@ -161,14 +161,14 @@ ok(
   badProvenance.length === 0,
   badProvenance.length ? `bad/missing generatedFrom: ${badProvenance.join(', ')}` : 'method+v+colour+placket+symmetry+at',
 )
-// `backProbe` post-dates this snapshot, so its ABSENCE is not a failure — the
+// `backProbe` post-dates this snapshot, so its ABSENCE is not a failure. The
 // allow-list comment carries the live-probe evidence for these four instead.
 // When a re-scrape does write it, an under-probed product may not claim to be
 // an upstream gap: that is the scraper bug this check exists to make loud.
 // Mirrors `exhaustive` in scripts/scrape-imbretex.mjs, including its two
 // degenerate readings: a probe of ZERO colourways, and a probe whose scrape
 // aborted (recorded as probed: 0), are both "we did not look", not "we looked
-// at all of them" — `0 >= 0` used to say the latter.
+// at all of them". `0 >= 0` used to say the latter.
 const underProbed = generated
   .map((id) => snap.products.find((p) => p.id === id))
   .filter(
@@ -183,7 +183,7 @@ ok(
     ? underProbed.map((p) => `${p.id}: only ${p.backProbe.probed}/${p.backProbe.colourways} colourways probed`).join(', ')
     : generated.every((id) => snap.products.find((p) => p.id === id)?.backProbe)
       ? 'every colourway probed on all four'
-      : 'no backProbe recorded (pre-dates the field) — see NO_UPSTREAM_BACK',
+      : 'no backProbe recorded (pre-dates the field), see NO_UPSTREAM_BACK',
 )
 const orphans = [...files].filter((f) => {
   const [id, view] = f.replace(/\.(jpg|png)$/, '').split('-')
@@ -299,10 +299,10 @@ try {
 
     /**
      * Laid-flat tee with a saturated chest print. `variant`:
-     *   'pocket' — a patch pocket INSIDE the silhouette (the outline is
-     *              untouched, so this is the metric's documented blind spot)
-     *   'hem'    — an asymmetric outline (one side cut away), which the
-     *              silhouette IoU must catch.
+     *   'pocket': a patch pocket INSIDE the silhouette (the outline is
+     *             untouched, so this is the metric's documented blind spot)
+     *   'hem':    an asymmetric outline (one side cut away), which the
+     *             silhouette IoU must catch.
      */
     function syntheticTee(variant) {
       const c = document.createElement('canvas')
@@ -383,7 +383,7 @@ try {
     out.alphaMismatchFrac = alphaMismatch / (fb.w * fb.h)
 
     // Every output pixel is `flood colour × one scalar shade`, quantised to 256
-    // steps — so the whole image can hold at most 256 distinct colours, all on
+    // steps, so the whole image can hold at most 256 distinct colours, all on
     // one ramp. A surviving pink print would need colours off that ramp.
     const palette = new Set()
     let maxStep = 0
@@ -571,9 +571,9 @@ try {
       r.png = im.canvas.toDataURL('image/png')
       return r
     }
-    // White vest on a white backdrop — worst case for halo and for the cutout.
+    // White vest on a white backdrop: worst case for halo and for the cutout.
     out.white = await realCheck('143100', [255, 255, 255])
-    // Black polo — the opposite bleed direction, a centred placket, and a
+    // Black polo: the opposite bleed direction, a centred placket, and a
     // silhouette the naive test cutout can actually resolve cleanly.
     out.black = await realCheck('202357', [0, 0, 0])
 
@@ -595,13 +595,13 @@ try {
   //
   // Suite A proves the four files are tagged; this proves they are what they
   // claim to be. Each one is re-derived from its front through the real ingest
-  // path (U²-Net cutout included, unlike the flood-fill above — these are the
+  // path (U²-Net cutout included, unlike the flood-fill above: these are the
   // shipped artefacts and deserve the shipped code) and must come out byte
   // identical, which forbids a hand-painted or hand-edited "reconstruction".
   //
   // Then the thing a generic mirror gets wrong: a polo front has a button
   // placket down the centre and a polo back does not. `centred` is the mean
-  // column-residual over the chest band at the centre line, in luminance —
+  // column-residual over the chest band at the centre line, in luminance,
   // the number a stripe down the middle of the back would move.
   // -------------------------------------------------------------------------
   const committed = await page.evaluate(async (ids) => {
@@ -648,7 +648,7 @@ try {
     /**
      * Mean |luminance − local mean| at the centre column over the chest band.
      * The local mean is a ±10 %-of-width window, so only a feature NARROWER
-     * than the garment registers — exactly what a placket, a zip or a row of
+     * than the garment registers: exactly what a placket, a zip or a row of
      * buttons is, and exactly what body shading is not.
      */
     const centredFeature = (im) => {
@@ -737,8 +737,8 @@ try {
       })
 
       // Control, on the first product only: paint a navy strip 6 % of the
-      // garment's width down the centre — the contrast placket the low-pass
-      // alone does NOT erase (0.0367 measured) — and check the suppressor both
+      // garment's width down the centre, the contrast placket the low-pass
+      // alone does NOT erase (0.0367 measured), and check the suppressor both
       // fires and brings it back under the ceiling. Without this the ceiling
       // above could be passing because the metric sees nothing at all.
       if (out.length === 1) {
@@ -784,7 +784,7 @@ try {
       ok(
         'committed.control.contrast-placket-is-caught',
         // `centredFeature` returns null when it found no fully covered row to
-        // measure, and `null <= x` is true in JS — so a metric that measured
+        // measure, and `null <= x` is true in JS, so a metric that measured
         // NOTHING would have passed this and the ceiling below silently.
         c.placket.suppressed === true &&
           c.centredBack !== null &&
@@ -862,14 +862,14 @@ try {
   // Pins the DOCUMENTED blind spot rather than hiding it: a patch pocket does
   // not touch the silhouette, so this number cannot see it. If someone ever
   // makes the metric structural, this check fails and they must revisit the
-  // admin warning's wording — and check it against a real dark garment first.
+  // admin warning's wording, and check it against a real dark garment first.
   ok(
     'gen.symmetry-blind-to-internal-features',
     probe.symmetryPocket >= 0.99,
-    `${probe.symmetryPocket.toFixed(4)} for a tee with a patch pocket — badge + baked mark cover this case, not the number`,
+    `${probe.symmetryPocket.toFixed(4)} for a tee with a patch pocket: badge + baked mark cover this case, not the number`,
   )
   // The floor is the point of this check, not the ceiling. The sample garment is
-  // #b7bcc2 — a mid grey, which is where a polarity chosen by "is this light?"
+  // #b7bcc2, a mid grey, which is where a polarity chosen by "is this light?"
   // collapses the mark to ~0.023 (measured) because it lands on the weaker side
   // of the crossover. 0.04 is below what either polarity gives on white or black
   // and above what the wrong one gives here, so it fails on exactly that bug.
@@ -895,7 +895,7 @@ try {
     ok(
       `real.${label}.no-alpha-halo`,
       r.haloRatio <= 0.06,
-      `${(r.haloRatio * 100).toFixed(2)}% edge-band deviation — ${id}`,
+      `${(r.haloRatio * 100).toFixed(2)}% edge-band deviation (${id})`,
     )
     ok(
       `real.${label}.luminance-matches-supplier-back`,
@@ -906,7 +906,7 @@ try {
   // Only the black polo carries the symmetry assertion: on the white-on-white
   // sample this script's own naive flood-fill cutout leaks through the strap,
   // and the resulting ragged outline is the TEST's artefact, not the
-  // generator's — the app cuts out with U²-Net. Reported either way.
+  // generator's. The app cuts out with U²-Net. Reported either way.
   ok(
     'real.black.symmetry-not-false-flagged',
     probe.black.symmetry >= 0.93,
@@ -915,7 +915,7 @@ try {
   // The supplier swatch is a flat catalogue chip: ARCTIC WHITE is #ffffff while
   // the photograph of that garment is #d9d9d9. Flooding the chip would make the
   // back brighter than the front the customer is looking at, so the guard hands
-  // over to the measured colour — and the luminance checks above prove it right.
+  // over to the measured colour, and the luminance checks above prove it right.
   ok(
     'real.colour-tracks-the-photo-not-the-swatch',
     probe.white.colorSource === 'sampled' && probe.black.colorSource === 'sampled',

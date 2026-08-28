@@ -1,11 +1,11 @@
 /**
- * Board mode — looking at several basket products at once.
+ * Board mode: looking at several basket products at once.
  *
  * THE FLOW (and why it is shaped this way)
  * ----------------------------------------
  * The board is a READ-ONLY presentation of basket lines. Editing happens by
  * FOCUSING one line, which swaps that line's design snapshot into the single
- * live `store.design` the whole app is already built around — every panel,
+ * live `store.design` the whole app is already built around. Every panel,
  * shortcut, engine and renderer keeps working untouched. Un-focusing writes the
  * edits back into the basket and restores the user's own document.
  *
@@ -22,7 +22,7 @@
  *  - `board` is never part of the undo document (zundo partialises on `design`).
  *  - Every render path for a line renders at `line.size`, never at the global
  *    `previewSize`. Grading (src/lib/printScale.ts) is a chest ratio, so a wrong
- *    size is a wrong physical print — subtle on screen, expensive on film.
+ *    size is a wrong physical print: subtle on screen, expensive on film.
  *  - History is per DOCUMENT and travels WITH it: the draft's stacks park in
  *    BoardStash below, a focused line's in the session registry
  *    (src/state/history.ts). Neither is ever persisted.
@@ -49,7 +49,7 @@ export const BOARD_OFF: BoardState = { on: false, selectedIds: [], focusedId: nu
  * Hard caps. Beyond them the board DEGRADES rather than refuses: 2D tiles past
  * the cap are dropped from the board (the basket modal still lists them), and
  * 3D products past the cap render as billboards reusing the already-rasterised
- * 2D mockup — one quad, zero extra texture work, still orbitable.
+ * 2D mockup: one quad, zero extra texture work, still orbitable.
  */
 export const BOARD_MAX_2D = 40
 export const BOARD_MAX_3D_DESKTOP = 8
@@ -123,7 +123,7 @@ export function boardColumns(
 /**
  * Place items on a uniform grid, each centred in its cell, origin at the
  * top-left and +y DOWN. The cell is sized from the BIGGEST item so a 3XL hoodie
- * beside an S tee keeps its real proportions — showing that difference is the
+ * beside an S tee keeps its real proportions. Showing that difference is the
  * whole point of putting the order on one board.
  *
  * Returned coordinates carry the unit of the inputs; the 2D board multiplies by
@@ -162,7 +162,7 @@ export function layoutBoard(
  *
  * A print texture costs `px² · 4 B · 4/3` on the GPU (RGBA8 + mipmaps), per
  * side, per product. The single-garment preview uses 2048 px, which is 16 MiB
- * for one 3:4 panel — eight products × two sides at that target would ask for
+ * for one 3:4 panel. Eight products × two sides at that target would ask for
  * 256 MiB of decal texture alone and drop a phone's WebGL context. The table
  * below keeps the whole board inside ~16-24 MiB, which is what makes it viable
  * at all; shipped as a table rather than the closed form because these are the

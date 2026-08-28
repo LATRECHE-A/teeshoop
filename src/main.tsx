@@ -17,12 +17,12 @@ startShopBridge()
 
 if (import.meta.env.DEV) {
   ;(window as unknown as { __tshop: typeof useStore }).__tshop = useStore
-  // Headless AR-export probe (scripts/ar-verify.mjs) — lazily pulls the same
+  // Headless AR-export probe (scripts/ar-verify.mjs): lazily pulls the same
   // module the AR modal uses so the export can be validated without a backend.
   ;(window as unknown as { __arExport?: () => Promise<typeof import('@/lib/arExport')> }).__arExport = () =>
     import('@/lib/arExport')
   // Lets ar-verify parse an exported GLB back with GLTFLoader (the loader the AR
-  // viewer uses) — a stronger check than magic bytes.
+  // viewer uses), a stronger check than magic bytes.
   ;(window as unknown as { __gltf?: () => Promise<typeof import('three/examples/jsm/loaders/GLTFLoader.js')> }).__gltf = () =>
     import('three/examples/jsm/loaders/GLTFLoader.js')
   ;(window as unknown as { __three?: () => Promise<typeof import('three')> }).__three = () => import('three')
@@ -39,7 +39,7 @@ if (import.meta.env.DEV) {
   ;(window as unknown as { __sizes?: () => Promise<typeof import('@/content/sizeChart')> }).__sizes = () =>
     import('@/content/sizeChart')
   // Lets scripts/fabric-verify.mjs measure the arc-length unwrap and the fabric
-  // mapping built on it — against the tee's own isometric UV atlas and against
+  // mapping built on it, against the tee's own isometric UV atlas and against
   // arc walked directly on the mesh cross-sections. The 3D print placement is
   // pure geometry, so it is provable without a single rendered pixel.
   ;(

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * STAGE-SHOTS — real supplier garments, under the REAL stage.
+ * STAGE-SHOTS: real supplier garments, under the REAL stage.
  *
  * The gap this fills: /dev/inflate.html is the shell's geometry harness and
  * lights it with three bare directional lamps under ACES, so it exaggerates
  * every normal and says nothing about sheen, the environment bake or the tone
- * map the app actually ships. /dev/three.html mounts the real `Garment3D` —
- * same Environment, same VSM shadows, same NeutralToneMapping — but only ever
+ * map the app actually ships. /dev/three.html mounts the real `Garment3D`
+ * (same Environment, same VSM shadows, same NeutralToneMapping) but only ever
  * had a synthetic blob card to put in it. `?cp=<id>` (src/dev/threeHarness.tsx)
  * feeds it a real supplier photo through the app's own u2netp cutout, and this
  * script drives that.
@@ -16,7 +16,7 @@
  *
  * `print` = 0 renders the BARE garment. Shooting a pair (…:1 and …:0) is how
  * you tell "the photo is shaded badly" apart from "the customer's artwork is
- * being read as cloth" — two failures that look alike and have nothing to do
+ * being read as cloth", two failures that look alike and have nothing to do
  * with each other.
  *
  * No assertions. This is the proof sheet a human (or a reviewing agent) looks
@@ -37,7 +37,7 @@ const DARK_BG = { grad: [[0, '#0e1116'], [1, '#0a0d11']] }
 
 // Read the WebGL canvas over an opaque backdrop. The drawing buffer is cleared
 // after compositing (preserveDrawingBuffer:false), so a single rAF readback
-// races the R3F loop — retry until the grab actually contains a garment.
+// races the R3F loop: retry until the grab actually contains a garment.
 const READBACK = ({ selector, bg }) =>
   new Promise((resolve) => {
     const gl = document.querySelector(selector)

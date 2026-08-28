@@ -6,7 +6,7 @@
  * our film cost model, or the WooCommerce credential form.
  *
  * WHY A GRAPH WALK AND NOT A LINT RULE. The thing that must not happen is an
- * admin module being REACHABLE, however indirectly — through an i18n side-file,
+ * admin module being REACHABLE, however indirectly: through an i18n side-file,
  * a barrel, a helper. That is a property of the whole graph, not of any one
  * file, so only a graph walk can state it.
  *
@@ -60,7 +60,7 @@ function specifiersOf(src: string): string[] {
   }
   // bare side-effect import
   for (const m of src.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)) out.push(m[1])
-  // dynamic import() — an edge, see the header
+  // dynamic import(): an edge, see the header
   for (const m of src.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)) out.push(m[1])
   return out
 }

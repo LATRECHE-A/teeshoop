@@ -1,7 +1,7 @@
 /**
  * Procedural display mannequin for the AR try-on (module: AR).
  *
- * A stylised, matte retail-dummy figure — deliberately NOT a photoreal human
+ * A stylised, matte retail-dummy figure, deliberately NOT a photoreal human
  * (no faces, no skin tone) so it reads as a neutral display body and sidesteps
  * representation/uncanny-valley issues. Male / female are distinguished purely
  * by silhouette (shoulder width, waist, hips, bust, height).
@@ -10,7 +10,7 @@
  * inches lands on the chest at life size. The torso is the "shirt": its front
  * is a smooth elliptical surface the design decal wraps onto (see arExport.ts).
  *
- * Built from a handful of meshes grouped by material (shirt vs. body) — no
+ * Built from a handful of meshes grouped by material (shirt vs. body): no
  * geometry merge, so recolouring the shirt is one `material.color.set`. All
  * meshes use MeshStandardMaterial so the figure exports cleanly to GLB + USDZ.
  */

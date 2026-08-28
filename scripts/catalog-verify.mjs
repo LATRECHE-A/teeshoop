@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * CATALOG-VERIFY — the Falk&Ross catalogue must never be a dead end.
+ * CATALOG-VERIFY: the Falk&Ross catalogue must never be a dead end.
  *
  * The live path needs two processes (Worker + Vite) and one supplier all up at
  * once; this suite pins the two degraded modes that used to render the modal
  * useless:
  *
- *   1. BACKEND DOWN, NOTHING CACHED — the error must say the *backend* is not
+ *   1. BACKEND DOWN, NOTHING CACHED: the error must say the *backend* is not
  *      running and how to start it (dev builds diagnose the Vite-proxy
  *      ECONNREFUSED as "backend", not "supplier"), and must offer a retry.
- *   2. BACKEND DOWN, SNAPSHOT PRESENT — the modal must replay the last-good
+ *   2. BACKEND DOWN, SNAPSHOT PRESENT: the modal must replay the last-good
  *      catalogue (grid, detail, ws-mode badge) with an explicit "cached from…"
  *      banner, because stale-and-labelled beats dead.
  *
  * The live path itself is exercised against a STUB backend on :8787 (the vite
- * proxy's default target) serving canned /api/fr/* fixtures — no credentials,
+ * proxy's default target) serving canned /api/fr/* fixtures: no credentials,
  * no network, CI-safe. fr-verify.mjs owns the real-supplier contract; this
  * suite owns the modal's failure behaviour.
  *
@@ -29,10 +29,10 @@ const BASE = `http://localhost:${PORT}`
 const API_PORT = 8787
 
 let failures = 0
-const ok = (label, detail) => console.log(`  \x1b[32mok\x1b[0m   ${label}${detail ? ' — ' + detail : ''}`)
+const ok = (label, detail) => console.log(`  \x1b[32mok\x1b[0m   ${label}${detail ? ': ' + detail : ''}`)
 const bad = (label, detail) => {
   failures++
-  console.error(`  \x1b[31mBAD\x1b[0m  ${label}${detail ? ' — ' + detail : ''}`)
+  console.error(`  \x1b[31mBAD\x1b[0m  ${label}${detail ? ': ' + detail : ''}`)
 }
 const section = (s) => console.log(`\n\x1b[1m${s}\x1b[0m`)
 
@@ -197,12 +197,12 @@ try {
   })
     // ANY response means something is listening. Not `r.ok`: /api/fr/* is now
     // admin-gated, so a real wrangler answers 401 and would slip past an
-    // ok-only check — straight back into the EADDRINUSE this preflight exists
+    // ok-only check: straight back into the EADDRINUSE this preflight exists
     // to prevent.
     .then(() => true)
     .catch(() => false)
   if (squatter) {
-    console.error(`\nport ${API_PORT} is already serving /api/fr/* — stop wrangler (or unset TSHOP_WORKER) first.`)
+    console.error(`\nport ${API_PORT} is already serving /api/fr/*. Stop wrangler (or unset TSHOP_WORKER) first.`)
     process.exit(1)
   }
 
@@ -210,7 +210,7 @@ try {
   browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
 
   // ---- 1. backend down, nothing cached ----
-  section('1. Backend down, empty cache — actionable error')
+  section('1. Backend down, empty cache: actionable error')
   {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
     await ctx.addInitScript(englishPrefs)
@@ -237,7 +237,7 @@ try {
   }
 
   // ---- 2. live browse via stub, then offline replay from the snapshot ----
-  section('2. Stub backend live, then killed — snapshot replay')
+  section('2. Stub backend live, then killed: snapshot replay')
   {
     stub = await stubApi()
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
@@ -251,13 +251,13 @@ try {
 
     // NEGATIVE CONTROL, and the most important check in the file. frCache's
     // whole promise is that the snapshot is WRITE-ONLY while the backend
-    // answers — a cache-first regression (replay first, fetch later) would
+    // answers. A cache-first regression (replay first, fetch later) would
     // satisfy every other assertion here byte-for-byte, because the fixture
     // and the replayed data are the same object, and would silently put a user
     // in front of yesterday's catalogue. The absence of the banner is the only
     // thing that can tell the two apart.
     if (await bodyLacks(page, 'cached catalogue from'))
-      ok('live data is served live — no cache banner while the backend is up')
+      ok('live data is served live, no cache banner while the backend is up')
     else bad('cache banner shown while the backend is up', 'the snapshot is shadowing a working backend')
 
     // Open the detail (this writes the style snapshot).
@@ -266,14 +266,14 @@ try {
       ok('style detail renders from the stub')
     else bad('style detail renders from the stub')
     if (await bodyLacks(page, 'from the cache'))
-      ok('live detail is served live — no cache line while the backend is up')
+      ok('live detail is served live, no cache line while the backend is up')
     else bad('cache line shown on a live detail')
 
     if (await snapshotStored(page, 'printable')) ok('browse snapshot persisted to IndexedDB')
-    else bad('browse snapshot persisted', 'nothing under tshop:fr:browse:* — replay cannot be meaningful')
+    else bad('browse snapshot persisted', 'nothing under tshop:fr:browse:*. Replay cannot be meaningful')
 
     // Kill the backend. server.close() only stops NEW connections, and Vite's
-    // proxy agent holds a keep-alive socket — so without this route abort a
+    // proxy agent holds a keep-alive socket, so without this route abort a
     // "replay" assertion could still be reading live data and pass vacuously.
     stub.close()
     stub = null
@@ -285,7 +285,7 @@ try {
     if (await bodyHas(page, 'cached catalogue from', 5000))
       ok('grid staleness is labelled (cached-from banner)')
     else bad('grid staleness is labelled', 'no “cached catalogue from …” banner')
-    // The DATE is the point of the banner — "cached" without a when forces the
+    // The DATE is the point of the banner: "cached" without a when forces the
     // user to guess how much to trust it. Matching only the constant prefix
     // let 'Invalid Date' (or a literal '{date}') through.
     const bannerDate = await page.evaluate(() => {
@@ -306,7 +306,7 @@ try {
     if (detailLabel) ok('detail staleness is labelled')
     else bad('detail staleness is labelled', 'no “from the cache” line in the detail')
 
-    // ---- 3. backend BACK up, snapshot present — live must win ----
+    // ---- 3. backend BACK up, snapshot present: live must win ----
     // The strongest control in the file, and the only one positioned to catch
     // a cache-first regression: unlike the live phase above (which starts on a
     // fresh IndexedDB and so has nothing to serve stale), here a populated
@@ -316,12 +316,12 @@ try {
     // KNOWN LIMIT, stated so nobody reads more into a green run than is there:
     // this catches PERSISTENT shadowing, not a transient one. A cache-first
     // implementation that paints the snapshot and then replaces it when the
-    // fetch lands self-corrects inside the settle window and passes — verified
+    // fetch lands self-corrects inside the settle window and passes, verified
     // by mutation. Catching that would mean sampling a race, which would buy a
     // flaky suite for a much smaller harm than the one guarded here.
     // (Mutation-tested the other way too: disabling frCache's reads turns the
     // section-2 replay checks red, so they are not vacuous.)
-    section('3. Backend restored with a snapshot present — live wins')
+    section('3. Backend restored with a snapshot present: live wins')
     await page.unroute('**/api/fr/**')
     stub = await stubApi()
     await openCatalog(page)

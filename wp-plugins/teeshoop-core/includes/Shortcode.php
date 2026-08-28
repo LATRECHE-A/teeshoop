@@ -1,13 +1,13 @@
 <?php
 /**
- * [teeshoop_studio] — the editor, embedded.
+ * [teeshoop_studio]: the editor, embedded.
  *
  *   [teeshoop_studio product_id="123" garment="tee" height="min(85dvh, 900px)"]
  *
  * The studio is served cross-origin by the Cloudflare Worker and framed here.
  * That is a deliberate architectural choice, not a shortcut: rendering it
  * directly inside a WordPress page would mean re-solving six problems that the
- * frame boundary solves for free — Tailwind v4's unprefixed reset rewriting the
+ * frame boundary solves for free: Tailwind v4's unprefixed reset rewriting the
  * theme's own `a`, `h1`–`h6`, `button` and `img`; `body{overflow:hidden}` and
  * `100dvh` killing the site's scroll; ~53 MB of assets referenced at absolute
  * paths; `position:fixed` modals colliding with Elementor; three global keyboard
@@ -81,7 +81,7 @@ final class Shortcode {
 
 		if ( '' === $studio_url ) {
 			// Never render a frame pointing nowhere, and never render one whose
-			// origin we cannot verify — the bridge would have nothing to compare
+			// origin we cannot verify: the bridge would have nothing to compare
 			// incoming messages against. Say so to whoever can fix it.
 			if ( current_user_can( 'manage_options' ) ) {
 				return '<p class="teeshoop-error">' .
@@ -196,7 +196,7 @@ final class Shortcode {
 		);
 
 		/*
-		 * The nonce is what lets the parent page — and only the parent page —
+		 * The nonce is what lets the parent page (and only the parent page)
 		 * POST into this visitor's cart. It is intentionally NOT forwarded to the
 		 * studio: the frame never needs it, and a secret that crosses an origin
 		 * boundary is a secret that can leak across it.

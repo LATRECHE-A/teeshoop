@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
 import { ADMIN_ASSET_DIR, adminOnlyModules } from './scripts/admin-boundary.mjs'
 
-// onnxruntime-web's wasm runtime is committed at public/ort/ (see README) —
+// onnxruntime-web's wasm runtime is committed at public/ort/ (see README):
 // only the plain single-thread+simd build; the jsep/asyncify variants are
 // >25 MiB, which Cloudflare's per-file asset limit rejects.
 /*
@@ -47,10 +47,10 @@ export default defineConfig({
   },
   server: {
     /**
-     * `npm run dev` serves static assets only — the Worker is what holds the
+     * `npm run dev` serves static assets only: the Worker is what holds the
      * Falk&Ross credentials, so `/api/*` does not exist here and the supplier
      * catalogue would answer a Vite 404 (an HTML page, which the client then
-     * fails to parse as JSON — a confusing way to learn the backend is not
+     * fails to parse as JSON, a confusing way to learn the backend is not
      * running). Forward it to `npx wrangler dev` instead, whose default port
      * this is; with wrangler down the proxy fails loudly with ECONNREFUSED,
      * which at least says what is wrong.
@@ -112,7 +112,7 @@ export default defineConfig({
     rollupOptions: {
       // Multi-page, THREE entries:
       //   index.html  the CUSTOMER studio
-      //   admin.html  the ADMIN studio — same tree, plus the workshop tools
+      //   admin.html  the ADMIN studio, same tree, plus the workshop tools
       //   v.html      the lean AR viewer the Worker serves for /v/{id} QR links
       //
       // The customer/admin split is the security boundary, and it is a boundary
@@ -163,13 +163,13 @@ export default defineConfig({
           // React FIRST, and in its own chunk. Without this it lands inside the
           // `three` chunk (via @react-three/fiber's dependency on it), and
           // because React is needed for first paint the whole 1.1 MB of
-          // three.js becomes eager — for a 3D view most visitors never open.
+          // three.js becomes eager, for a 3D view most visitors never open.
           // Measured 2026-08-12: splitting it moved 311 KB gzip off first paint.
           // Match exact package roots so react-reconciler (a fiber-only dep)
           // stays with three rather than being dragged forward.
           // Also zustand/zundo: @react-three/fiber depends on zustand, so
-          // without this they land in the `three` chunk too, and the app store
-          // — needed at first paint — drags three.js back in through them.
+          // without this they land in the `three` chunk too, and the app store,
+          // needed at first paint, drags three.js back in through them.
           if (
             /node_modules\/react\//.test(id) ||
             /node_modules\/react-dom\//.test(id) ||

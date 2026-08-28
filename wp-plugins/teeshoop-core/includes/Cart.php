@@ -3,8 +3,8 @@
  * WooCommerce cart integration.
  *
  * The rule this file exists to enforce: A PRICE THAT ARRIVES FROM A BROWSER IS
- * NEVER CHARGED. What the cart stores is the *inputs* — garment, printed sides
- * and their areas, design id — and the price is recomputed from them, from the
+ * NEVER CHARGED. What the cart stores is the *inputs* (garment, printed sides
+ * and their areas, design id), and the price is recomputed from them, from the
  * server's own config, on every single totals pass. So a tampered session, a
  * replayed request, or a price that was correct last week and is not correct
  * today all resolve to today's correct number rather than to whatever was
@@ -442,7 +442,7 @@ final class Cart {
 	 * Give every personalised line its own cart row.
 	 *
 	 * Without this, WooCommerce merges two lines of the same product by bumping
-	 * the quantity — so a customer who designed two different fronts would end up
+	 * the quantity, so a customer who designed two different fronts would end up
 	 * with two of whichever they made first. The design id alone is not enough to
 	 * key on: the same design ordered in two different size grids is two lines.
 	 */
@@ -457,7 +457,7 @@ final class Cart {
 	 * Recompute every personalised line's price, from its inputs.
 	 *
 	 * Runs on `woocommerce_before_calculate_totals`, which fires on the cart page,
-	 * at checkout, and again when the order is created — so there is no window in
+	 * at checkout, and again when the order is created, so there is no window in
 	 * which a stale price could be taken.
 	 *
 	 * The `is_admin() && ! wp_doing_ajax()` guard is the standard Woo one: without
@@ -473,14 +473,14 @@ final class Cart {
 		 * There is deliberately NO `did_action(...) > 1` guard here.
 		 *
 		 * That guard is the standard snippet for this hook, and it is wrong for
-		 * this plugin. It exists to stop RELATIVE price changes — `set_price(
-		 * get_price() * 0.9 )` — from compounding when Woo recalculates twice in
+		 * this plugin. It exists to stop RELATIVE price changes (`set_price(
+		 * get_price() * 0.9 )`) from compounding when Woo recalculates twice in
 		 * one request. What we do is absolute: the price is derived from the
 		 * line's stored inputs and the server's config, so running it ten times
 		 * gives the same answer as running it once.
 		 *
 		 * With the guard in place, only the FIRST calculate_totals of a request
-		 * took effect — so a customer who changed the quantity on the cart page
+		 * took effect, so a customer who changed the quantity on the cart page
 		 * crossed a discount threshold and kept the old unit price. Measured
 		 * 2026-08-12: qty 9 → 50 all stayed at the qty-30 rate.
 		 */
@@ -535,7 +535,7 @@ final class Cart {
 			}
 
 			// Woo wants a unit price in the store's currency, excl. tax when the
-			// store is configured to enter prices excl. tax — which is the setting
+			// store is configured to enter prices excl. tax, which is the setting
 			// this shop uses, because its customers are businesses.
 			$unit = (string) Money::to_eur( $quote['unit_ht'] );
 
@@ -677,7 +677,7 @@ final class Cart {
 	 *
 	 * The design id and the printed sides are what the workshop works from, so
 	 * they are stored as visible meta. The R2 paths are stored with a leading
-	 * underscore — hidden from the customer's order view, present for the
+	 * underscore: hidden from the customer's order view, present for the
 	 * production screen.
 	 */
 	public static function persist_to_order( \WC_Order_Item_Product $line, string $cart_item_key, array $values, \WC_Order $order ): void {
@@ -792,7 +792,7 @@ final class Cart {
 	 * A size grid: uppercase size keys to positive whole counts.
 	 *
 	 * "10 M, 15 L, 5 XL on one line" is the thing neither Mistertee nor Tostadora
-	 * does — both make the customer re-enter the editor per size. It is worth
+	 * does. Both make the customer re-enter the editor per size. It is worth
 	 * getting the validation right rather than trusting the field.
 	 */
 	private static function normalise_size_grid( mixed $raw ): array {

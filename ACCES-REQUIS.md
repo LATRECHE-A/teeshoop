@@ -1,8 +1,8 @@
-# Accès et secrets — la liste complète
+# Accès et secrets : la liste complète
 
 > Objectif de ce document : que je ne sois **jamais bloqué** faute d'un accès.
 > Il est ordonné par ce qui bloque le plus tôt. Chaque ligne dit *pourquoi* l'accès
-> est nécessaire — si la raison ne tient pas, l'accès ne doit pas être donné.
+> est nécessaire. Si la raison ne tient pas, l'accès ne doit pas être donné.
 >
 > Dernière mise à jour : 18 août 2026 · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
 
@@ -152,10 +152,10 @@ toucher la base, faire un dump avant chaque opération risquée. L'API REST de
 WordPress ne permet aucune de ces quatre choses.
 
 **Ce qu'il me faut :** l'hôte, l'utilisateur cPanel, et le port (22 en général chez
-o2switch, parfois autre chose — à lire sur la fiche du compte).
+o2switch, parfois autre chose, à lire sur la fiche du compte).
 
 **Aucun mot de passe ne doit circuler.** J'ai généré une paire de clés dédiée à ce
-projet. Voici la clé **publique** — elle est faite pour être partagée :
+projet. Voici la clé **publique** (elle est faite pour être partagée) :
 
 ```
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID/XXmPOhi3dyb67sK1mUPM7zQZYf0q797WtIsR0x1ZD teeshoop-deploy-20260812
@@ -643,7 +643,7 @@ les textes (question 58), et qui signe les avenants (question 59).
 
 ---
 
-## 7. Plus tard — inutile de les créer maintenant
+## 7. Plus tard : inutile de les créer maintenant
 
 Ces accès ne servent qu'à partir de R1/R2. Les créer trop tôt, c'est multiplier les
 identifiants sur une boutique qui ne vend pas encore.
@@ -653,19 +653,19 @@ identifiants sur une boutique qui ne vend pas encore.
 | Brevo | R4 | E-mails transactionnels puis marketing |
 | Qonto | R4 | Rapprochement bancaire |
 | Ringover | R4 | Téléphonie liée au CRM |
-| Un CRM du marché | R4 | **À acheter, pas à construire** — voir le plan |
+| Un CRM du marché | R4 | **À acheter, pas à construire**, voir le plan |
 
 ---
 
 ## 8. Comment transmettre tout ça
 
-**Ne collez jamais un mot de passe ou une clé dans une conversation** — avec moi ou
+**Ne collez jamais un mot de passe ou une clé dans une conversation**, avec moi ou
 avec qui que ce soit. Tout ce qui y est écrit est transmis et conservé, et le
 supprimer ensuite ne le retire pas des journaux.
 
 Par ordre de préférence :
 
-1. **Rien à transmettre** — c'est le cas de SSH : vous installez ma clé publique,
+1. **Rien à transmettre**, c'est le cas de SSH : vous installez ma clé publique,
    aucun secret ne circule dans aucun sens. C'est pour ça que SSH passe en premier.
 2. **Lien à usage unique et autodestructeur** pour ce qui ne peut pas éviter d'être
    transmis (clés Woo, mot de passe cPanel). Le lien s'ouvre une fois puis meurt.
@@ -681,7 +681,7 @@ canal. Une clé qui a transité par un message est une clé publique.
 ## 9. Ce qu'il ne faut **pas** activer
 
 - **Les mots de passe d'application WordPress.** Ils sont désactivés aujourd'hui
-  (`/wp-json/` renvoie `"authentication": []`) — très probablement par Wordfence.
+  (`/wp-json/` renvoie `"authentication": []`), très probablement par Wordfence.
   Laissez-les désactivés. Ils n'apportent rien que SSH ne fasse déjà, et ils
   ajoutent un identifiant équivalent à un mot de passe sur une boutique qui va
   encaisser des paiements.
@@ -705,7 +705,7 @@ Pour situer ce qui est réellement bloqué et ce qui ne l'est pas :
 | Studio (2D, 3D, AR, DTF, panier) | non |
 | Worker Cloudflare, R2, proxy fournisseur | non |
 | Tests, CI, garde-fous de bundle | non |
-| **Plugin `teeshoop-core` en PHP** | non — développé et testé sur WordPress local |
+| **Plugin `teeshoop-core` en PHP** | non, développé et testé sur WordPress local |
 | Moteur de prix PHP + ses tests | non |
 | Pont `postMessage` studio ↔ WooCommerce | non |
 | Déployer sur teeshoop.com | non (SSH) |

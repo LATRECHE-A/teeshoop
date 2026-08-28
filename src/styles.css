@@ -33,7 +33,7 @@
 }
 
 /*
- * Light theme — a warm "studio paper" palette, not an inversion. Overrides the
+ * Light theme: a warm "studio paper" palette, not an inversion. Overrides the
  * @theme token values (higher specificity than :root), so every `bg-*`,
  * `text-*`, `border-*` utility recolours without touching a single class.
  * Accents are deepened where they double as text/borders on light surfaces.
@@ -157,7 +157,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Transparency checker behind uploaded thumbnails — theme-aware. */
+/* Transparency checker behind uploaded thumbnails, theme-aware. */
 @utility checkerboard {
   background-image: repeating-conic-gradient(
     var(--color-bg3) 0% 25%,
@@ -211,7 +211,7 @@
   }
 
   /* Action rows that reveal on hover on desktop but must ALWAYS show on touch
-     (no hover) — otherwise per-asset / per-layer actions are unreachable. */
+     (no hover), otherwise per-asset / per-layer actions are unreachable. */
   .touch-reveal {
     opacity: 0;
     transition: opacity 0.15s ease;
@@ -318,7 +318,7 @@ input[type='range']::-webkit-slider-thumb {
 }
 
 /* ---------------------------------------------------------------------------
- * Board mode — several basket products at once (src/app/board).
+ * Board mode: several basket products at once (src/app/board).
  *
  * The whole board pans and zooms through ONE transform on `.board-world`, which
  * the stage writes imperatively. That is the reason it is smooth: the browser
@@ -382,7 +382,7 @@ input[type='range']::-webkit-slider-thumb {
   background: color-mix(in srgb, var(--color-tx3) 14%, transparent);
 }
 /* The mockup could not be produced at all (a purged upload). A tile that stays
-   a skeleton forever reads as "still loading" and hides a real data problem —
+   a skeleton forever reads as "still loading" and hides a real data problem.
    this one says so, and the badge above it names the cause. */
 .board-tile-broken {
   position: absolute;

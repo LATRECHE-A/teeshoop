@@ -5,7 +5,7 @@
  * space. Two separate controls on purpose: the button focuses the product
  * (Enter), the checkbox adds/removes it from the board (Space). Overloading one
  * control with both meanings is the kind of mode ambiguity that makes a board
- * unusable with a keyboard — and the separation costs nothing visually.
+ * unusable with a keyboard, and the separation costs nothing visually.
  *
  * The mockup canvas is ADOPTED into the DOM rather than copied through a data
  * url, so a tile costs one draw of an already-rasterised bitmap.
@@ -25,7 +25,7 @@ export interface BoardTileProps {
   rect: { x: number; y: number; w: number; h: number }
   /** Raster density for this tile's canvas. */
   widthPx: number
-  /** The roving-tabindex holder — exactly one tile at a time carries it. */
+  /** The roving-tabindex holder: exactly one tile at a time carries it. */
   active: boolean
   selected: boolean
   /** Another tile is being focused: fade this one out of the way. */
@@ -37,9 +37,9 @@ export interface BoardTileProps {
   onOpen(): void
   /** Add or remove it from the board (the checkbox / Space). */
   onToggle(): void
-  /** This tile took DOM focus — it now holds the roving tabindex. */
+  /** This tile took DOM focus: it now holds the roving tabindex. */
   onRove(): void
-  /** The rendered mockup's real h/w — the board re-lays-out on it. */
+  /** The rendered mockup's real h/w: the board re-lays-out on it. */
   onMeasured(lineId: string, aspect: number): void
 }
 
@@ -79,7 +79,7 @@ export default function BoardTile({
       setCanvas(c)
       // A null canvas means the render threw (a ship-your-own line whose photo
       // was purged) or was superseded. Either way, stop pretending it is still
-      // loading — a skeleton that never resolves is the worst of both.
+      // loading: a skeleton that never resolves is the worst of both.
       if (!c) setUnavailable(true)
     })
     return () => {

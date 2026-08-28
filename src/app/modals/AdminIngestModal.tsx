@@ -1,5 +1,5 @@
 /**
- * INGEST — admin modal: turn two garment photos + a per-size cm table into a
+ * INGEST (admin modal): turn two garment photos + a per-size cm table into a
  * studio-ready product (ProductDef), manage the product library, optionally
  * pull photos from a WooCommerce store, and apply a product to the studio
  * through the existing custom-garment pipeline.
@@ -8,7 +8,7 @@
  * area placer); measurements are cm-first in mono type.
  *
  * BACK PHOTO: this is the seam where a back-less product would otherwise enter
- * the catalogue unnoticed, so it is where the decision is forced — upload,
+ * the catalogue unnoticed, so it is where the decision is forced: upload,
  * reconstruct from the front, or say out loud that there is no back. A
  * reconstructed back is badged here and stays badged everywhere downstream
  * (ProductSideDef.origin → CustomSideSetup.origin).
@@ -86,7 +86,7 @@ type PhotoStage = 'store' | 'cutout' | 'measure' | 'generate'
 type PhotoSide = 'front' | 'back'
 
 /**
- * Saving a back-less product is a DECISION, not an oversight — so it costs an
+ * Saving a back-less product is a DECISION, not an oversight, so it costs an
  * explicit click instead of happening by default. The gate is not a hard block:
  * ship-your-own uploads legitimately have one photo, and a real product with no
  * back is a real thing. It just can no longer slip through silently.
@@ -118,7 +118,7 @@ const copySizes = (
 
 function newDraft(): Draft {
   // Prefilled with the tee chart so the placer has real dimensions from the
-  // first second — admins overwrite the numbers (or paste their own table).
+  // first second. Admins overwrite the numbers (or paste their own table).
   return {
     id: nanoid(10),
     name: '',
@@ -263,7 +263,7 @@ function PhotoTile({
 }
 
 /**
- * Back-coverage chip for a library row. `real` gets NO chip on purpose — it is
+ * Back-coverage chip for a library row. `real` gets NO chip on purpose: it is
  * the norm, and badging it would turn the two states that need attention into
  * noise. Absent (a row written before the index carried the field) reads as
  * real too, which is what it was.
@@ -622,7 +622,7 @@ export default function AdminIngestModal({
 
   // The gate is an answer to "you just asked to save THIS product"; it must not
   // outlive the draft that raised it. Left standing it re-appears unprompted on
-  // the next back-less product opened — and "continue without a back" would
+  // the next back-less product opened, and "continue without a back" would
   // then commit an intent the admin expressed about a different garment.
   useEffect(() => setGate(null), [draft?.id])
 
@@ -688,7 +688,7 @@ export default function AdminIngestModal({
   }
 
   const upload = (side: PhotoSide) => (file: File) =>
-    void ingestBlob(side, file, `${t('side.' + side)} — ${file.name}`)
+    void ingestBlob(side, file, `${t('side.' + side)}, ${file.name}`)
 
   /**
    * Reconstruct the back from the front. Explicit, never automatic here: an
@@ -704,7 +704,7 @@ export default function AdminIngestModal({
     setProc((p) => ({ ...p, back: 'generate' }))
     try {
       const back = await generateBackSide(front, halfChestCm, {
-        name: `${label} — ${t('side.back')}`,
+        name: `${label}, ${t('side.back')}`,
         at: Date.now(),
       })
       setAssets(await listAssets())
@@ -743,7 +743,7 @@ export default function AdminIngestModal({
       const sides: PhotoSide[] = ['front', 'back']
       for (let i = 0; i < Math.min(2, cand.images.length); i++) {
         const blob = await fetchWooImage(cand.images[i])
-        await ingestBlob(sides[i], blob, `${cand.name} — ${t('side.' + sides[i])}`)
+        await ingestBlob(sides[i], blob, `${cand.name}, ${t('side.' + sides[i])}`)
       }
       setDraft((prev) =>
         prev && prev.id === draftId && !prev.name.trim()

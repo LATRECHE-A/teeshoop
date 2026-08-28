@@ -24,8 +24,8 @@ import { useBackOriginT } from '@/app/backOriginI18n'
 
 export default function SideSwitcher() {
   const t = useT()
-  // "Dos reconstitué" is the catalogue's own label for this fact — one wording
-  // for one concept — but it lives customer-side, because importing the
+  // "Dos reconstitué" is the catalogue's own label for this fact (one wording
+  // for one concept), but it lives customer-side, because importing the
   // catalogue's side-file would drag our purchase-price strings in here.
   const ct = useBackOriginT()
   const side = useStore((s) => s.activeSide)
@@ -36,7 +36,7 @@ export default function SideSwitcher() {
 
   const has = (sd: Side) => layers.some((l) => l.side === sd)
   const isCustom = garmentId === 'custom'
-  // Locked only when there is genuinely no back image — a generated one IS a
+  // Locked only when there is genuinely no back image: a generated one IS a
   // back, and the badge beside it says where it came from.
   const backDisabled = isCustom && !custom?.back
   const backGenerated = isCustom && custom?.back?.origin === 'generated'
@@ -49,7 +49,7 @@ export default function SideSwitcher() {
         onClick={() => setSide(sd)}
         disabled={disabled}
         aria-pressed={side === sd}
-        aria-label={generated ? `${label} — ${ct('catalog.card.back_generated')}` : undefined}
+        aria-label={generated ? `${label}, ${ct('catalog.card.back_generated')}` : undefined}
         title={
           disabled
             ? t('side.back_locked')

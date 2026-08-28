@@ -34,7 +34,7 @@ export default function ArModal() {
     setQr(null)
     ;(async () => {
       try {
-        // Lazy — keeps the three exporters + avatar out of the studio's initial
+        // Lazy: keeps the three exporters + avatar out of the studio's initial
         // bundle until someone actually opens the AR modal.
         const { buildArModel, uploadArModel } = await import('@/lib/arExport')
         const blobs = await buildArModel(design, gender, previewSize)

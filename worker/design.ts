@@ -1,5 +1,5 @@
 /**
- * The design hand-off — the first server-side object in this project.
+ * The design hand-off: the first server-side object in this project.
  *
  * Until now a customer's artwork existed in exactly one place: their own
  * browser. The design document lives in zustand, the uploads live in that
@@ -11,7 +11,7 @@
  * So an order line carries an ID, and this is what the ID points at.
  *
  * WHAT IS STORED IS THE SOURCE, NOT THE OUTPUT. A design is its document plus
- * the rasters it references — never the nested gang sheets. Two reasons, and
+ * the rasters it references, never the nested gang sheets. Two reasons, and
  * the second is the one that matters:
  *
  *   The transfers are derived. Nesting depends on the supplier, the roll width,
@@ -29,7 +29,7 @@
  * is what says which orders were quoted under the old one.
  *
  * WHY NOT wp-content/uploads: it is served by URL with no access control, and
- * `robots.txt` is not a permission. Here the split is explicit — the preview is
+ * `robots.txt` is not a permission. Here the split is explicit: the preview is
  * reachable with the id (the customer has to see their own proof), and the
  * document and the source rasters are ADMIN-ONLY, because the only thing that
  * needs them is the workshop.
@@ -65,7 +65,7 @@ export { readDesignDoc } from '../src/lib/teeshoop/designDoc'
 
 export interface DesignEnv extends AdminEnv {
   AR_BUCKET: R2Bucket
-  /** Stamped on every manifest — see the header. Set via `vars` in wrangler.jsonc. */
+  /** Stamped on every manifest (see the header). Set via `vars` in wrangler.jsonc. */
   APP_VERSION?: string
 }
 
@@ -153,7 +153,7 @@ export interface DesignManifest {
 const key = (id: string, name: string) => `${DESIGN_PREFIX}${id}/${name}`
 
 /**
- * `POST /api/design` — multipart/form-data:
+ * `POST /api/design`, multipart/form-data:
  *   design   the design document, JSON
  *   preview  a flattened mockup, PNG
  *   asset:<assetId>  every raster the document references, PNG or JPEG
@@ -293,7 +293,7 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
     ])
     // The manifest is written LAST and on its own. It is what `GET
     // /api/design/{id}` answers from, so until it exists the design does not
-    // exist — a half-written upload can never verify as complete and become a
+    // exist: a half-written upload can never verify as complete and become a
     // paid order line the workshop cannot fill.
     await env.AR_BUCKET.put(key(id, 'manifest.json'), JSON.stringify(manifest), {
       httpMetadata: { contentType: 'application/json; charset=utf-8' },
@@ -307,13 +307,13 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
 }
 
 /**
- * `GET /api/design/{id}` — what the WordPress plugin asks before it will put a
+ * `GET /api/design/{id}`, what the WordPress plugin asks before it will put a
  * personalised line in a cart (`Design::verify`). 200 with the manifest means
  * the artwork is on the server; 404 means it is not, and the plugin refuses the
  * add-to-cart rather than taking money for an order nobody can print.
  *
  * Open on the id alone. The id carries ~143 bits of entropy and the body names
- * no customer and no order — and the plugin, which is the caller that matters,
+ * no customer and no order, and the plugin, which is the caller that matters,
  * is a server with no session to attach a token to.
  */
 export async function getDesign(env: DesignEnv, id: string): Promise<Response> {
@@ -327,11 +327,11 @@ export async function getDesign(env: DesignEnv, id: string): Promise<Response> {
 }
 
 /**
- * `GET /r2/design/{id}/{path}` — the stored bytes.
+ * `GET /r2/design/{id}/{path}`: the stored bytes.
  *
  * `preview.png` is reachable with the id: it is the customer's own proof, it is
  * what a BAT email and a cart thumbnail show, and neither can carry a token.
- * EVERYTHING ELSE IS ADMIN-ONLY — the design document and the source rasters are
+ * EVERYTHING ELSE IS ADMIN-ONLY: the design document and the source rasters are
  * the customer's original artwork, and the only thing that needs them is the
  * workshop.
  */
@@ -361,7 +361,7 @@ export async function serveDesignFile(
   obj.writeHttpMetadata(headers)
   headers.set('etag', obj.httpEtag)
   headers.set('content-length', String(obj.size))
-  // The bytes under one id never change — a re-uploaded design is a new id —
+  // The bytes under one id never change (a re-uploaded design is a new id),
   // but the DOCUMENT and the rasters are private, so they must not be held by a
   // shared cache on the way back.
   headers.set('cache-control', isPreview ? 'public, max-age=31536000, immutable' : 'private, no-store')

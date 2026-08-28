@@ -1,5 +1,5 @@
 /**
- * Text layer rendering — the ONE code path used by the live editor,
+ * Text layer rendering: the ONE code path used by the live editor,
  * 3D decal textures, and 300-DPI print export.
  *
  * Draws centered at the origin; callers translate/rotate/alpha first.
@@ -50,14 +50,14 @@ export function measureTextLayer(
  * The ink inside `measureTextLayer`'s box: its size, and where its centre sits
  * relative to the layer origin. Both in px at `ppi`.
  *
- * A SINGLE line is already exactly its own ink — `measureArcText` reports glyph
- * ink and `drawArcText` centres that box on the origin — so this returns the
+ * A SINGLE line is already exactly its own ink (`measureArcText` reports glyph
+ * ink and `drawArcText` centres that box on the origin), so this returns the
  * measured box unchanged, centred.
  *
  * A MULTI-LINE stack is not. Its declared height is `fontSize × 1.18 × lines`,
  * a leading-based em stack, while the ink is the union of each line's own ink
  * box placed exactly where `drawTextLayer` places it. On a three-line slogan
- * that is about 9 % of the priced and printed area — bought film, on every
+ * that is about 9 % of the priced and printed area: bought film, on every
  * garment in the run, for the leading above the first line and below the last.
  *
  * Composed from the same `measureArcText` and the same dx/dy arithmetic the

@@ -9,14 +9,14 @@
  *  - Prints are coarse fabric grids (src/three/BoardGarment.tsx), never the
  *    full-mesh overlay and never `<Decal>`.
  *  - `frameloop="demand"`: nothing renders unless the camera moved or a texture
- *    landed. There is no sway and no turntable here — both would pin the GPU at
+ *    landed. There is no sway and no turntable here: both would pin the GPU at
  *    60 fps for a view the user is reading, not watching.
  *  - Past the product cap, extra products render as BILLBOARDS textured with the
  *    2D board's already-rasterised mockup: one quad, no new texture work, still
  *    positioned in the grid and still orbitable. Degrading beats refusing.
  *
  * Layout is a wall in X-Y at z = 0 with every garment facing +Z, so orbiting
- * walks the viewer around the rack and shows the backs — which is the thing a
+ * walks the viewer around the rack and shows the backs, which is the thing a
  * multi-product 3D view exists to do. Garments are BOTTOM-aligned in their
  * cells: hems on a line is how a rail reads, and it is what makes an S tee
  * beside a 3XL hoodie legible as a size difference rather than a layout bug.
@@ -56,7 +56,7 @@ export interface BoardProduct {
   front: DecalSource | null
   back: DecalSource | null
   custom: { front: CardSource | null; back: CardSource | null }
-  /** Flat 2D mockup — the degradation path past the 3D cap. */
+  /** Flat 2D mockup, the degradation path past the 3D cap. */
   flat: CardSource | null
   /** Real extents for anything we cannot measure from a mesh. */
   extentIn: BoardItemSize
@@ -285,7 +285,7 @@ function BoardScene({
     for (const p of products)
       if (p.solid && p.garment !== 'custom') wanted.add(CALIBRATION[p.garment].url)
     // useGLTF cannot be called conditionally, and an empty list is not a valid
-    // request — a custom-only board still asks for the tee (already preloaded).
+    // request: a custom-only board still asks for the tee (already preloaded).
     return wanted.size > 0 ? [...wanted] : [CALIBRATION.tee.url]
   }, [products])
   const gltfs = useGLTF(urls)
@@ -301,7 +301,7 @@ function BoardScene({
 
   // Paired keep/dispose: see garmentCache.ts. An immediate dispose here would
   // free the geometry StrictMode is about to re-mount, and cancelling only on
-  // acquire would not help — the re-mount does not re-render.
+  // acquire would not help: the re-mount does not re-render.
   useEffect(() => {
     keepBoardGarments()
     return () => scheduleDisposeBoardGarments()
@@ -474,7 +474,7 @@ export default function Board3D({ products, scene, theme, onFocus, onReady }: Bo
       gl={{
         alpha: true,
         antialias: !mobile,
-        // Neutral (KHR_PBR_neutral), matching the studio canvas — see the note
+        // Neutral (KHR_PBR_neutral), matching the studio canvas, see the note
         // in src/three/index.tsx. ACES is a FILM look: it pulls saturated colour
         // toward the white point and lifts blacks, so the SAME red tee came out
         // one red in the studio, another on this board and a third in the AR

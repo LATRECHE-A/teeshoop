@@ -3,7 +3,7 @@ import { useStore } from '@/state/store'
 import { LANGS, LANG_LABEL, LANG_SHORT } from '@/i18n/lang'
 import { useT } from '@/i18n'
 
-/** FR / EN language selector — a compact segmented pill. */
+/** FR / EN language selector: a compact segmented pill. */
 export default function LangToggle() {
   const lang = useStore((s) => s.lang)
   const setLang = useStore((s) => s.setLang)

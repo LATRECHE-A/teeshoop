@@ -1,5 +1,5 @@
 /**
- * DTF dev harness — mounts the admin DtfModal against the real store (the
+ * DTF dev harness: mounts the admin DtfModal against the real store (the
  * sample design provides printed sides) and exposes the pure nesting engine
  * on window.__dtf for scripts/dtf-verify.mjs, which runs its geometry
  * assertions in-page and screenshots the modal.
@@ -18,7 +18,7 @@ import {
 } from '@/lib/dtf/trueshape'
 import { createNestClient } from '@/lib/dtf/nestClient'
 
-/** The harness's own nesting channel — it also mounts DtfModal, which owns one
+/** The harness's own nesting channel. It also mounts DtfModal, which owns one
  *  of its own; sharing would make each cancel the other's job. */
 const harnessNester = createNestClient()
 import {
@@ -45,20 +45,20 @@ declare global {
   interface Window {
     __dtf: {
       nest: (pieces: DtfPiece[], options: NestOptions) => NestResult
-      /** The true-shape packer, synchronous — same code path the Worker runs. */
+      /** The true-shape packer, synchronous: same code path the Worker runs. */
       shape: (job: NestJob) => NestResult
       /** The Worker path, so verification can prove the two agree byte for byte. */
       shapeAsync: (job: NestJob) => Promise<NestResult>
       interlockMax: number
-      /** The rungs the slider offers — the set monotonicity is claimed over. */
+      /** The rungs the slider offers, the set monotonicity is claimed over. */
       interlockStops: readonly number[]
       suppliers: () => ReturnType<typeof loadSuppliers>
       estimate: (supplierId: string, lm: number) => CostEstimate | null
       /**
        * Render the sample design's sides through the real pipeline + masks.
        *
-       * `merged: true` reproduces the pre-split behaviour — one transfer per
-       * side, empty space included — which is what the bench measures the
+       * `merged: true` reproduces the pre-split behaviour (one transfer per
+       * side, empty space included), which is what the bench measures the
        * split against. `row` is the ORDER LINE a piece came from (design side ×
        * size): quantities belong to the line, not to the transfer, so a bench
        * comparing split vs merged has to give every part of a line the same
@@ -75,7 +75,7 @@ declare global {
           parts: number
           wCm: number
           hCm: number
-          /** Placement inside the (graded) print area, cm — the provenance. */
+          /** Placement inside the (graded) print area, cm: the provenance. */
           topCm: number
           centerDxCm: number
           mask: PieceMask | null
@@ -225,7 +225,7 @@ declare global {
           mask: PieceMask | null
         }[]
       >
-      /** The padded order as nest pieces, either geometry — same shape as `samplePieces`. */
+      /** The padded order as nest pieces, either geometry: same shape as `samplePieces`. */
       paddedPieces: (
         dpi: number,
         opts?: { measureFrom?: 'ink' | 'box' },
@@ -245,7 +245,7 @@ declare global {
  * legitimately overlap there, so the AABB assertions that verify the shelf
  * packer would fire on a perfectly good sheet.
  *
- * `radiusCm` bounds the search — the caller passes the required clearance, and
+ * `radiusCm` bounds the search: the caller passes the required clearance, and
  * "nothing found inside that radius" IS the property under test. Cost is
  * O(inked cells × radius²), which stays in the tens of milliseconds at the
  * 4–8 px/cm the verification runs at.
@@ -275,7 +275,7 @@ async function collisionCheck(
       missing++
       continue
     }
-    // Render into a canvas the size of the PLACED footprint only — a full
+    // Render into a canvas the size of the PLACED footprint only. A full
     // sheet readback per piece would be a gigabyte of getImageData.
     const pw = Math.max(1, Math.ceil(p.wCm * pxPerCm))
     const ph = Math.max(1, Math.ceil(p.hCm * pxPerCm))
@@ -542,7 +542,7 @@ async function sampleOrderZip(
   const process = supplier.processes.find((p) => p.id === 'dtf') ?? supplier.processes[0]
   const all = window.__dtfSources ?? new Map<string, RenderedPiece>()
   // `dropFirstSource` simulates an artwork render that failed after the layout
-  // was computed — the export must refuse, not ship a sheet with a hole in it.
+  // was computed. The export must refuse, not ship a sheet with a hole in it.
   const sources = new Map(all)
   if (opts.dropFirstSource) {
     const victim = [...sources.keys()][0]
@@ -608,7 +608,7 @@ async function sampleOrderZip(
  * The claim splitting makes is narrow and checkable: the SAME ink, in less
  * bounding-box area, with every transfer told where it goes. So this renders
  * each side both ways through the shipped pipeline and counts inked pixels on
- * each — pixels, not boxes, because the whole failure mode worth fearing is a
+ * each: pixels, not boxes, because the whole failure mode worth fearing is a
  * cluster crop that silently drops or duplicates artwork. Anything the split
  * loses shows up here as missing ink; anything it double-prints (a neighbour's
  * mark landing in two crops) shows up as extra.
@@ -671,14 +671,14 @@ async function splitProbe(dpi = 48) {
  * no roll length at all.
  *
  * What the shop actually prints is customer uploads, and a customer's PNG is
- * padded — exported from Illustrator on a square artboard, cut out of a photo
+ * padded: exported from Illustrator on a square artboard, cut out of a photo
  * by the background remover, dropped in with room around the mark. So the trim
  * has to be measured against THAT, and the fixture is built here rather than
  * shipped as a file so the padding is an exact, stated number instead of
  * whatever a checked-in asset happens to contain.
  *
  * Two of the three uploads are placed so their DECLARED boxes overlap while
- * their ink sits inches apart — the false merge, which costs a whole extra
+ * their ink sits inches apart: the false merge, which costs a whole extra
  * transfer's worth of empty film and is invisible in the preview.
  */
 const UPLOADS = [
@@ -776,7 +776,7 @@ function inkPx(p: RenderedPiece): number {
  * The claim the trim makes is exactly as narrow as the split's: the SAME ink,
  * in less bounding box. So this counts inked pixels on both arms. Anything the
  * trim clips shows up here immediately as missing ink, and a trim that clips is
- * a reprint — the one failure worth building a harness for.
+ * a reprint, the one failure worth building a harness for.
  */
 async function trimProbe(dpi = 48) {
   const design = await makePaddedDesign()
@@ -795,7 +795,7 @@ async function trimProbe(dpi = 48) {
       sizesTrimmed: trimmed.map((p) => [r1(p.wCm), r1(p.hCm)] as [number, number]),
       sizesDeclared: declared.map((p) => [r1(p.wCm), r1(p.hCm)] as [number, number]),
       // Where each transfer goes must still land inside the print area, and it
-      // must have MOVED — a trim that shrinks the box without moving the press
+      // must have MOVED: a trim that shrinks the box without moving the press
       // instruction is a transfer pressed off-centre by the discarded margin.
       placements: trimmed.map((p) => {
         const pl = piecePlacementCm(p)
@@ -875,7 +875,7 @@ async function weekPieces(
 }
 
 /**
- * The padded order, as nest pieces — the same shape `samplePieces` returns so
+ * The padded order, as nest pieces: the same shape `samplePieces` returns so
  * the bench can run both arms through the identical packing code.
  */
 async function paddedPieces(dpi: number, opts: { measureFrom?: 'ink' | 'box' } = {}) {
@@ -930,7 +930,7 @@ function legendProbe() {
   }
   // Concave alpha masks, or the true-shape packer never beats the shelf one
   // and every case below would come back tagged `shelf`, making the check
-  // vacuous. Built arithmetically — no canvas, so this stays pure.
+  // vacuous. Built arithmetically: no canvas, so this stays pure.
   const mask = (
     wCm: number,
     hCm: number,

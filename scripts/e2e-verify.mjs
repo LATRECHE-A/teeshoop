@@ -38,7 +38,7 @@ const browser = await chromium.launch({
  * The first 3D mount is a software-rasterised WebGL scene plus a GLB parse and
  * an environment bake; measured across archived runs on this box it takes
  * 58-66 s. The gate here used to be 60 s, i.e. inside that spread, so the suite
- * failed as a COIN FLIP — and, because the failure surfaced at whichever step
+ * failed as a COIN FLIP, and, because the failure surfaced at whichever step
  * happened to be waiting, it read like a different app bug each run and got
  * mis-attributed to a shading change. On real GPU hardware this is ~1 s; the
  * budget exists for the harness, so it is generous on purpose.
@@ -75,7 +75,7 @@ try {
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)))
   page.on('crash', () => errors.push('PAGE CRASH'))
-  // Screenshots are evidence, never assertions — hence the swallowed error.
+  // Screenshots are evidence, never assertions, hence the swallowed error.
   // The budget is deliberately SHORT: once the 3D stage has run,
   // page.screenshot can hang indefinitely waiting for a compositor frame
   // (it gets past "fonts loaded" and never returns), and a 30 s hang here used
@@ -166,7 +166,7 @@ try {
     )
     if (durl) fs.writeFileSync(out('e2-3d-tee'), Buffer.from(durl.split(',')[1], 'base64'))
     // camera snap + hoodie in 3D. 8 s used to be the budget here, on a page
-    // that is rendering ~2.5 s frames — the click could not resolve in time and
+    // that is rendering ~2.5 s frames: the click could not resolve in time and
     // the suite blamed a missing garment card that the previous screenshot
     // proves was on screen.
     await page.getByText('Pullover Hoodie').click({ timeout: GL_TIMEOUT })
@@ -196,7 +196,7 @@ try {
   // 6. order modal quote math.
   // GL_TIMEOUT, not the 30 s default: everything after the 3D phase runs on a
   // page whose compositor is still catching up, and Playwright's actionability
-  // check needs several of its slow frames. Diagnosed rather than guessed —
+  // check needs several of its slow frames. Diagnosed rather than guessed:
   // at this point `evaluate` answers in 4 ms and this very button resolves via
   // getByRole in 33 ms, so the page is healthy; it is only *clicking* and
   // *screenshotting* that are slow here.

@@ -1,6 +1,6 @@
 # Tshop Studio
 
-A one-page custom apparel design studio for **Tshop** — customers design tees,
+A one-page custom apparel design studio for **Tshop**: customers design tees,
 hoodies, or their own shipped-in garments; preview the result in 2D, true 3D,
 and **augmented reality**; and hand over print-ready artwork with a quote
 request. It works fully on phones and stays exact to real inches from the screen
@@ -10,7 +10,7 @@ to the press.
 | --- | --- | --- |
 | ![2D editor](docs/screens/editor.png) | ![3D preview](docs/screens/3d-tee.png) | ![AR try-on](docs/screens/ar.png) |
 
-The studio is a static browser app — designs, uploads, and AI background removal
+The studio is a static browser app: designs, uploads, and AI background removal
 all run and stay in the visitor's browser. The **only** server-side piece is a
 tiny Cloudflare Worker + R2 bucket that briefly hosts a design's 3D model so a
 scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reality-try-on)).
@@ -28,11 +28,11 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
   on the press. Print areas match industry sizes (tee 12×16″, hoodie 12×12″
   front / 12×14″ back, sleeve 4×4″)
 
-**Placement guides** — put artwork exactly where it belongs
+**Placement guides**: put artwork exactly where it belongs
 - Toggle a **1-inch grid** and **named print areas** (A4, chest, left-chest,
   upper/centre back) drawn right on the garment; A4 is highlighted as the
   affordable standard
-- Every area — plus A5 and the full print area — is a one-tap **"Place in area"**
+- Every area (plus A5 and the full print area) is a one-tap **"Place in area"**
   chip that centres and fits the selected layer; artwork also **snaps to zone
   edges & centres** as you drag
 
@@ -42,7 +42,7 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
 - Classic tee + pullover hoodie in 18 colors, with **front, back and sleeve**
   print sides
 - **Bring-your-own garment**: customers photograph the garment they'll ship in,
-  place the print area on the photo, and design on it — in 2D, 3D, and AR
+  place the print area on the photo, and design on it (in 2D, 3D, and AR)
 
 | Sleeve print side | Placement chips |
 | --- | --- |
@@ -53,24 +53,24 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
   studio: real garment meshes with a **cloth sheen**, canvas-texture decals of
   the live design, procedural studio lighting + soft contact shadows, orbit
   controls, camera snaps, turntable, and six environment scenes
-- Custom garments render as a **real, volumetric garment** — the uploaded photo
+- Custom garments render as a **real, volumetric garment**: the uploaded photo
   is inflated into a torso-centred body with a **seamed** cross-section (front
   and back panels meet at a garment seam, not a sealed pillow), **chest-full**
   depth that tapers over the shoulders and hem, per-row medial thickness (deep
   body, shallow sleeves), baked ambient occlusion, a woven-cloth normal grain,
-  and a hollow neck — so it reads as a garment with volume, not a balloon
+  and a hollow neck, so it reads as a garment with volume, not a balloon
 
 | Custom garment (3D) | Hoodie (3D) |
 | --- | --- |
 | ![Volumetric custom garment](docs/screens/3d-custom.png) | ![Hoodie](docs/screens/hoodie.png) |
 
 **Augmented reality try-on**
-- **"View in AR"** — in **both** the 2D editor and the 3D preview — bakes the
+- **"View in AR"** (in **both** the 2D editor and the 3D preview) bakes the
   design onto a **realistic, life-size figure wearing the garment**: a neutral
   matte-gray display mannequin, **male or female** (switch in the modal), the
   garment **recoloured to your chosen colour** and the print placed on the chest,
   back and sleeves at the **same positions as the 2D/3D editor**. Ship-your-own
-  **custom garments are WORN on the same male/female avatar** — the customer's
+  **custom garments are WORN on the same male/female avatar**: the customer's
   ACTUAL uploaded garment (photo + design) is draped onto the body as a
   surface-conforming layer over a neutral undershirt, so it reads as a person
   wearing exactly that garment (not a stand-in tee, and no longer a bare
@@ -78,15 +78,15 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
   **glTF (GLB) + USDZ**, uploads to the blob store, and shows a **QR of a short
   link** (each gender bakes its own model, so its QR/link is distinct)
 - Because the model lives server-side, the QR is small (so it scans reliably) and
-  works **cross-device** — any phone
+  works **cross-device**: any phone
 - Scanning opens a lightweight viewer page with a spinning 3D preview and a
-  **"View in your space"** button that launches the phone's **native AR** —
-  Scene Viewer on Android, Quick Look on iOS — planting the life-size figure (or
+  **"View in your space"** button that launches the phone's **native AR**
+  (Scene Viewer on Android, Quick Look on iOS), planting the life-size figure (or
   your custom garment) on your real floor, with the OS's own screenshot & share
 - The exported GLB is engineered to pass Android **Scene Viewer's** strict import
   checks (single opaque textured mesh, alpha-cutout prints so there are **0
-  transparent materials**, power-of-two textures, correct inches→metres scale) —
-  the export test (`scripts/ar-verify.mjs`) enforces all of it plus the Khronos
+  transparent materials**, power-of-two textures, correct inches→metres scale).
+  The export test (`scripts/ar-verify.mjs`) enforces all of it plus the Khronos
   glTF-Validator on every build
 
 ![AR QR code](docs/screens/ar-qr.png)
@@ -96,7 +96,7 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
   tool sheets, safe-area (notch / home-indicator) handling, and touch-sized
   controls
 - Tapping a layer shows a slim **selection bar** (edit · duplicate · delete) that
-  never covers the artwork — so you can drag it freely — and **"Edit"** expands
+  never covers the artwork (so you can drag it freely) and **"Edit"** expands
   the full properties sheet only when you want it
 
 | Mobile canvas | Editing on mobile |
@@ -114,7 +114,7 @@ scanned QR opens it in AR on any phone (see [Augmented reality](#augmented-reali
   low-resolution warnings
 - Quote request flow with size grid, quantity discounts, and email handoff.
   Pricing is flat per side by default, with **optional area-aware tiers** wired
-  in (A4-and-under is the standard price; larger prints step up) — see
+  in (A4-and-under is the standard price; larger prints step up). See
   [Configuration](#configuration)
 
 ## Stack
@@ -130,7 +130,7 @@ idb-keyval · lz-string · Cloudflare Worker + R2 (AR model store)
 ```sh
 npm install
 npm run dev        # BOTH: wrangler dev on :8787 (API) + vite on :5173 (studio)
-npm run dev:web    # vite only — no /api/*: the Falk&Ross catalogue and AR
+npm run dev:web    # vite only, no /api/*: the Falk&Ross catalogue and AR
                    # upload/QR flows are down, everything else works
 npm run dev:api    # wrangler dev only (the Worker, on :8787)
 npm run build      # typecheck (app + worker) + production build into dist/
@@ -148,7 +148,7 @@ Dev-only visual harnesses (not part of the build): `/dev/garments.html`,
 `/dev/three.html`, `/dev/inflate.html`, `/dev/text.html`, `/dev/bgremove.html`.
 
 Headless checks (Playwright): the full flow `node scripts/e2e-verify.mjs <url>`,
-plus focused ones for the WebGL/AR features that OS screenshots can't capture —
+plus focused ones for the WebGL/AR features that OS screenshots can't capture:
 `node scripts/inflate-verify.mjs` (3D volume), `node scripts/ar-verify.mjs`
 (GLB/USDZ export), and `node scripts/ar-worker-verify.mjs` (the Worker + R2
 round-trip via `wrangler dev`). Regenerate the README screenshots with
@@ -194,13 +194,13 @@ inside the timed window is a finding about a cold start, not a frame time.
 ## Deploy to Cloudflare Workers
 
 The repo is configured (`wrangler.jsonc`) as a Worker that serves `dist/` as
-static assets (SPA fallback) **plus** dynamic routes for AR — `POST /api/ar`
+static assets (SPA fallback) **plus** dynamic routes for AR, `POST /api/ar`
 (store a model), `GET /r2/ar/{id}.{ext}` (serve it with the right MIME) and
-`GET /v/{id}` (the viewer page) — and for the **Falk&Ross supplier catalogue**
+`GET /v/{id}` (the viewer page), and for the **Falk&Ross supplier catalogue**
 (`/api/fr/*`, see below). Camera + native AR require HTTPS, which Cloudflare
 provides.
 
-**One-time setup — create the R2 bucket + an expiry rule** (models are private
+**One-time setup: create the R2 bucket + an expiry rule** (models are private
 per-design and should not accumulate forever):
 
 ```sh
@@ -210,12 +210,12 @@ npx wrangler r2 bucket create tshop-ar
 npx wrangler r2 bucket lifecycle add tshop-ar expire-ar ar/ --expire-days 30 -y
 ```
 
-**One-time setup — Falk&Ross webservice credentials.** The supplier catalogue
+**One-time setup: Falk&Ross webservice credentials.** The supplier catalogue
 calls an authenticated API, so the credentials live as Worker secrets and are
 never committed or shipped to the browser:
 
 ```sh
-npx wrangler secret put ADMIN_TOKEN     # gate on /api/fr/* + /admin — UNSET MEANS DENY ALL
+npx wrangler secret put ADMIN_TOKEN     # gate on /api/fr/* + /admin: UNSET MEANS DENY ALL
                                         # generate one: openssl rand -base64 32
 npx wrangler secret put FR_WS_USER      # webservice account (NOT the webshop login)
 npx wrangler secret put FR_WS_PASS
@@ -231,22 +231,22 @@ the UI says so. The AR routes are unaffected by either.
 it). The equivalent by hand, if you prefer separate terminals:
 
 ```sh
-npm run dev:api       # terminal 1 — the API, on :8787
-npm run dev:web       # terminal 2 — the studio, proxying /api to :8787
+npm run dev:api       # terminal 1: the API, on :8787
+npm run dev:web       # terminal 2: the studio, proxying /api to :8787
 ```
 
 (Set `TSHOP_WORKER` if wrangler is on another port. With wrangler down the
-proxy fails with ECONNREFUSED rather than quietly serving the SPA's HTML — and
+proxy fails with ECONNREFUSED rather than quietly serving the SPA's HTML, and
 the catalogue modal explains itself and falls back to its last-good snapshot,
 `node scripts/catalog-verify.mjs` being the executable spec of that behaviour.)
 
-### Option A — one-off from your machine
+### Option A: one-off from your machine
 
 ```sh
 npm run deploy         # builds + uploads; prints https://tshop.<subdomain>.workers.dev
 ```
 
-### Option B — auto-deploy from GitHub (recommended)
+### Option B: auto-deploy from GitHub (recommended)
 
 1. Cloudflare dashboard → **Compute (Workers) → Workers & Pages → Create**
 2. Pick **Import a repository**, connect GitHub, choose the private `tshop` repo
@@ -256,7 +256,7 @@ npm run deploy         # builds + uploads; prints https://tshop.<subdomain>.work
 4. Deploy. Every push to `main` now builds and deploys automatically.
 
 To test the Worker + R2 locally before deploying: `npx wrangler dev` (uses a
-simulated local R2 bucket — no cloud account needed).
+simulated local R2 bucket, no cloud account needed).
 
 Custom domain later: Worker → **Settings → Domains & Routes → Add → Custom
 domain** (e.g. `studio.tshop.com`).
@@ -267,12 +267,12 @@ Two sources feed the **Catalogue fournisseur** modal; both map onto the same
 `ProductDef` and ride the same ingest pipeline (cutout + auto print-area +
 generated back) as an admin upload.
 
-**Falk&Ross — live API (default).** `src/lib/ingest/falkross.ts` talks only to
+**Falk&Ross: live API (default).** `src/lib/ingest/falkross.ts` talks only to
 our own Worker (`worker/falkross.ts`), because the supplier needs HTTP Basic
 credentials, sends no CORS headers, and serves photos that would otherwise taint
 the ingest canvas. Worker routes, all returning compact JSON:
 
-**Every route below except the photo proxy requires admin authentication** — they
+**Every route below except the photo proxy requires admin authentication**: they
 return our purchase cost and our supplier stock, so they are not a customer
 surface. Unauthenticated callers get `401 {"error":"admin_auth"}`, and with
 `ADMIN_TOKEN` unset the gate denies **everything**: it fails closed on purpose.
@@ -280,7 +280,7 @@ See [Admin access](#admin-access).
 
 | Route | What it does |
 | --- | --- |
-| `GET /api/fr/state` | webservice mode — `test` (simulated) vs `live` (real orders) |
+| `GET /api/fr/state` | webservice mode: `test` (simulated) vs `live` (real orders) |
 | `GET /api/fr/styles?q&kind&offset&limit` | paged, server-side-filtered style cards |
 | `GET /api/fr/style/{styleNr}` | one style: colourways, sizes, SKUs, photos |
 | `GET /api/fr/price/{styleNr}` | **our purchase cost** per SKU (`your_price`) |
@@ -296,24 +296,24 @@ Everything derived is memoised in the Cache API (styles 24 h, prices 1 h, stock
 
 > **The browse budget is shaped by the Workers FREE plan, and it is the tightest
 > constraint in the backend.** Cloudflare caps one Worker invocation at **50
-> subrequests** (1000 on Paid), and a subrequest is not only `fetch` — every
+> subrequests** (1000 on Paid), and a subrequest is not only `fetch`: every
 > `caches.default.match` and `.put` counts, including puts inside
 > `ctx.waitUntil`. So grid cards are cached in **aligned blocks of 12 styles**
 > under one key: a warm block costs 1 subrequest for 12 styles instead of 12,
 > and a cold block costs 14 (match + 12 fetches + write-back). One request
 > therefore covers ~500 warm styles or ~36 cold ones, then hands back
-> `nextOffset`. Running out of budget is not an error — it returns a short page,
+> `nextOffset`. Running out of budget is not an error: it returns a short page,
 > which is already this endpoint's contract.
 >
 > This bit us in production on 2026-08-08: the previous budget assumed cache
 > reads were free and allowed ~240 subrequests, so any cold region of the
 > catalogue threw `Too many subrequests by single Worker invocation`. The
 > catch-all reported it as `{"error":"upstream"}`, which looked exactly like bad
-> Falk&Ross credentials — the credentials were fine. If `/api/fr/styles` ever
+> Falk&Ross credentials. The credentials were fine. If `/api/fr/styles` ever
 > 502s again, check `npx wrangler tail` before suspecting the secrets.
 >
 > **Better design, once the host allows more subrequests** (Workers Paid, or
-> anywhere without a ~50 cap) — see the `TODO` in `worker/falkross.ts`:
+> anywhere without a ~50 cap). See the `TODO` in `worker/falkross.ts`:
 > raise `SUBREQUEST_LIMIT` to the real ceiling, and preferably **drop blocks
 > entirely and precompute the whole card index** with a scheduled Cron Worker
 > into a single KV/R2 document. Browse then becomes one read, search gets exact
@@ -321,25 +321,25 @@ Everything derived is memoised in the Cache API (styles 24 h, prices 1 h, stock
 > is hit ~2316 times a day instead of once per cold user scroll. Block caching
 > exists only to survive the free tier.
 
-**Falk&Ross publishes no garment measurements** — only size labels. The studio
+**Falk&Ross publishes no garment measurements**, only size labels. The studio
 needs real cm per size (print placement, 3D, DTF all derive from `halfChestCm`),
 so its tables are estimated from the reference blanks in
 `src/content/sizeChart.ts`, picked by the supplier's category and sleeve groups,
 and stamped `sizeSource: 'reference-chart'` on the product. The catalogue shows
 the estimate before import, links the manufacturer's own size-spec PDF, and lets
-an admin override the table — which re-stamps it `'manual'`. Absence of
+an admin override the table, which re-stamps it `'manual'`. Absence of
 `sizeSource` means `'supplier'`, so every previously saved product stays valid.
 
 **Ordering was removed from the public surface on 2026-08-12.** `POST
 /api/fr/order` existed, unauthenticated, and could place a real purchase order on
 our Falk&Ross account. The route is gone and the client-side helper with it. The
 supplier order contract survives, unrouted, in the order section of
-`worker/falkross.ts` — it encodes two response envelopes verified live against
+`worker/falkross.ts`: it encodes two response envelopes verified live against
 the real account, one of which contradicts the supplier's PDF. Re-wiring it needs
 an authenticated admin route **and** an explicit human confirmation step, not
 just a caller.
 
-**Imbretex — offline snapshot (secondary).** The committed scrape under
+**Imbretex: offline snapshot (secondary).** The committed scrape under
 `public/catalog/imbretex/` (`src/lib/ingest/imbretex.ts`). No live prices or
 stock, but it carries the supplier's own published A/B measurements, so it stays
 reachable as the fallback and as the only source with measured size tables.
@@ -361,7 +361,7 @@ The studio builds as **two pages from one component tree**:
 
 This is a **build-time** split (`src/app/adminSlots.tsx`), not a role flag, and the
 distinction matters: a runtime `if (isAdmin)` hides buttons but still ships the
-code — and the data baked into it — to every visitor, who can read it straight
+code (and the data baked into it) to every visitor, who can read it straight
 out of the bundle. Before the split, the customer's *first-paint* chunk contained
 `FR_WS_USER`, `FR_WS_PASS` and the string "les prix affichés sont NOS PRIX
 D'ACHAT"; the DTF chunk carried every film supplier's €/linear-metre ladder.
@@ -370,7 +370,7 @@ Two independent checks keep it that way, and both must pass in CI:
 
 - `npm test` → `src/app/adminBoundary.test.ts` walks the real import graph from
   `src/main.tsx` and fails if it can reach any admin module. **Dynamic imports
-  count as edges** — a `lazy()` chunk still ships and is still fetchable by URL.
+  count as edges**: a `lazy()` chunk still ships and is still fetchable by URL.
 - `npm run verify:bundle` → `scripts/bundle-guard.mjs` scans the built output for
   string literals that survive minification, and fails on any hit in a
   customer-reachable *or* orphaned file. Prove it is not vacuous by pointing it
@@ -380,10 +380,10 @@ Two independent checks keep it that way, and both must pass in CI:
 Splitting the bundle hides the code, not the URL, so the Worker gates the page
 too. One secret, `ADMIN_TOKEN`, in two encodings:
 
-- **Basic** — what a browser sends. Navigating to `/admin` triggers the login
+- **Basic**: what a browser sends. Navigating to `/admin` triggers the login
   box; the browser then attaches the same credentials to the API calls on its
   own, so nobody has to paste a token anywhere.
-- **Bearer** — what `fetch` sends, from `src/lib/admin/token.ts`
+- **Bearer**: what `fetch` sends, from `src/lib/admin/token.ts`
   (`sessionStorage`, this tab only, never `localStorage`). A `401` clears it so
   the UI re-prompts.
 
@@ -394,7 +394,7 @@ no code change.
 ## Tests
 
 ```sh
-npm test           # vitest, headless, ~2 s — no browser, no network, no secrets
+npm test           # vitest, headless, ~2 s, no browser, no network, no secrets
 npm run ci         # typecheck (app + worker) + tests, what CI runs
 npm run verify:bundle   # the admin/customer leak gate (needs a build first)
 npm run verify:nest     # the film metrage the shop costs on (boots wrangler dev + php)
@@ -431,21 +431,21 @@ a floor price too low, and a sale nobody would have authorised.
 
 ## Configuration
 
-- `src/config.ts` — business name, tagline, and **the quote-request email**
+- `src/config.ts`: business name, tagline, and **the quote-request email**
   (replace `orders@tshop.example` before going live)
-- `src/content/pricing.ts` — base prices, per-side surcharge, quantity breaks,
+- `src/content/pricing.ts`: base prices, per-side surcharge, quantity breaks,
   and the **area tiers** (`areaTiers`). Prints up to A4 are the standard price;
   A3 and oversize step up. Remove `areaTiers` from a garment's rule to make it
-  flat again — no other change needed. Zone inch-sizes come from
+  flat again, no other change needed. Zone inch-sizes come from
   `src/content/zones.ts`
-- `src/content/palettes.ts` — garment colors and ink swatches
+- `src/content/palettes.ts`: garment colors and ink swatches
 
 ## Asset credits
 
 - T-shirt 3D model: "shirt_baked" (pmndrs market, CC0)
 - Hoodie 3D model + license: see `docs/credits/A3.md`
 - AR try-on avatar: AI-generated matte-gray display mannequins, male + female
-  (Higgsfield image→3D) — `public/models/avatar-{tee,hoodie}{,-female}.glb`; a
+  (Higgsfield image→3D): `public/models/avatar-{tee,hoodie}{,-female}.glb`; a
   procedural mannequin (`src/three/mannequin.ts`) is the fallback. Custom garments
   are worn on the same avatar (recoloured to a neutral undershirt) with the
   uploaded garment conformed onto the body. Flat sleeve art: procedural

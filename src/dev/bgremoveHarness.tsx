@@ -1,5 +1,5 @@
 /**
- * Dev harness for module A2 — in-browser background removal.
+ * Dev harness for module A2: in-browser background removal.
  * Served at /dev/bgremove.html (dev only, excluded from the prod build).
  */
 import { useEffect, useRef, useState } from 'react'
@@ -371,7 +371,7 @@ function App(): React.ReactElement {
       const ms = Math.round(performance.now() - t0)
       setConc({
         state: 'ok',
-        text: `ok — 2 jobs queued + resolved in ${ms} ms (${Math.round(a.size / 1024)} KiB / ${Math.round(b.size / 1024)} KiB)`,
+        text: `ok, 2 jobs queued + resolved in ${ms} ms (${Math.round(a.size / 1024)} KiB / ${Math.round(b.size / 1024)} KiB)`,
       })
     } catch (err) {
       setConc({

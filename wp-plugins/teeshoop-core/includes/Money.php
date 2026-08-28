@@ -4,7 +4,7 @@
  *
  * Floats are not allowed to hold a price anywhere in this plugin. `0.1 + 0.2`
  * is not `0.3`, and a boutique that adds a per-side surcharge to a discounted
- * unit price and multiplies by 47 will drift by a cent or two — which then
+ * unit price and multiplies by 47 will drift by a cent or two, which then
  * disagrees with WooCommerce's own total, with the invoice, and with the
  * payment processor. Cents are exact, and the only rounding is the one we ask
  * for, where we ask for it.
@@ -27,7 +27,7 @@ final class Money {
 	 * Round to whole cents, half away from zero.
 	 *
 	 * PHP's round() already does half-away-from-zero, but going through this
-	 * function means every rounding site in the plugin is greppable — and the
+	 * function means every rounding site in the plugin is greppable, and the
 	 * day someone needs banker's rounding for an accountant, there is exactly
 	 * one place to change.
 	 */
@@ -79,7 +79,7 @@ final class Money {
 		return self::parse_eur( $eur ) ?? 0;
 	}
 
-	/** Cents to a float of euros — for JSON output and WooCommerce, never for arithmetic. */
+	/** Cents to a float of euros, for JSON output and WooCommerce, never for arithmetic. */
 	public static function to_eur( int $cents ): float {
 		return $cents / 100;
 	}

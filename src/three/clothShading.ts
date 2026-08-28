@@ -1,5 +1,5 @@
 /**
- * CLOTH SHADING — the two things that separate a 3D balloon from a photograph
+ * CLOTH SHADING: the two things that separate a 3D balloon from a photograph
  * of a cotton garment, both derived from the mesh we already ship. No new art
  * assets, no new dependencies, no change to geometry, UVs or inch accuracy.
  *
@@ -19,8 +19,8 @@
  *    Why not a real AO bake: hemisphere ray casting over 36 k vertices needs an
  *    acceleration structure this project does not carry, and would cost seconds
  *    on the main thread at load. Cavity is O(V · iterations), runs in ~100 ms,
- *    is cached per model, and captures the term that actually reads — contact
- *    darkening — while missing only distant occlusion, which soft studio light
+ *    is cached per model, and captures the term that actually reads (contact
+ *    darkening) while missing only distant occlusion, which soft studio light
  *    barely produces anyway.
  *
  * 2. WEAVE BUMP (`clothShaderChunks`, injected into the material)
@@ -29,13 +29,13 @@
  *    normal map on its own UVs, but the hoodie GLB has NO UV set at all, so a
  *    texture-based detail map cannot cover both. Instead the relief is
  *    evaluated procedurally from the OBJECT-SPACE position, triplanar-blended,
- *    with an analytic gradient — seamless on any mesh, UV-free, correct on
+ *    with an analytic gradient: seamless on any mesh, UV-free, correct on
  *    sleeves and hood, and physically scaled because 1 world unit is 1 inch.
  *
  *    A 1 mm thread pitch is SMALLER THAN A SCREEN PIXEL at every framing the
  *    app actually uses (the garment is ~30 px/in in the studio pane, a thread
  *    is 0.045 in ⇒ 1.3 px per period), so the Nyquist fade below correctly
- *    takes the bump to zero — and for a long time that meant the octave whose
+ *    takes the bump to zero, and for a long time that meant the octave whose
  *    whole job is "this is cotton, not vinyl" contributed literally nothing
  *    except when zoomed to the dolly limit. Sub-pixel relief does not vanish in
  *    the real world, it becomes ROUGHNESS: a surface too fine to resolve
@@ -44,7 +44,7 @@
  *    Toksvig/LEAN idea in its cheapest useful form). That is what keeps the
  *    cloth reading the same from across the room and from an inch away.
  *
- * 3. DRAPE OCTAVE — the SECOND, hand-span-scale field, and the one that has to
+ * 3. DRAPE OCTAVE: the SECOND, hand-span-scale field, and the one that has to
  *    be handled with the most suspicion, because it is the one term here with
  *    no geometry behind it. It used to be `sin(2π·x/λ + 1.7·sin(2.1·y/λ))`: a
  *    function of x alone plus a y-warp identical for every stripe, i.e. eight
@@ -57,7 +57,7 @@
  *    because cloth hangs, and scaled by a SLACK ramp: a worn tee is taut across
  *    the chest and pools at the hem, so a constant-amplitude fold field is
  *    wrong everywhere. Measured over the same domain the old field had mean
- *    |∇| 4.30 of a 7.23 peak — "on" over the entire garment; the noise field
+ *    |∇| 4.30 of a 7.23 peak, "on" over the entire garment; the noise field
  *    has mean 1.17 of a 5.39 peak, so the cloth is mostly quiet and folds where
  *    a fold is.
  *
@@ -81,7 +81,7 @@ export interface CavityOptions {
   broad: number
   /** How hard a hollow darkens. */
   gain: number
-  /** How much a crest brightens — small; cloth does not gain energy. */
+  /** How much a crest brightens: small; cloth does not gain energy. */
   lift: number
   /** Darkest a vertex may get, so nothing ever crushes to black. */
   floor: number
@@ -91,8 +91,8 @@ export interface CavityOptions {
  * `gain` and `lift` are FRACTIONS OF FULL DARKENING (0–1), because the raw
  * displacement is normalised against the mesh's own crease-depth distribution
  * (see `CAVITY_SIGMAS`) rather than against an absolute length. Measured
- * against the bounding diagonal instead — the obvious choice, and the one this
- * shipped with for an afternoon — a crease is a rounding error next to a whole
+ * against the bounding diagonal instead (the obvious choice, and the one this
+ * shipped with for an afternoon), a crease is a rounding error next to a whole
  * garment: the multiplier came out spanning 0.944…1.016 on the hoodie, a 5 %
  * wobble doing none of the work it exists for. Normalising per mesh also means
  * one constant reads the same on a 10 k-vertex tee and a 36 k-vertex hoodie.
@@ -125,7 +125,7 @@ interface Weld {
 /**
  * Merge vertices that share a position. The GLBs split vertices along UV and
  * shading seams, and an adjacency graph built from raw indices is therefore
- * CUT at exactly those seams — which would stamp the seam pattern into the
+ * CUT at exactly those seams, which would stamp the seam pattern into the
  * occlusion as bright piping down the shoulders. Welding on position restores
  * the surface the smoothing has to run on.
  *
@@ -215,7 +215,7 @@ function smoothOnce(src: Float32Array, dst: Float32Array, adj: { start: Int32Arr
 
 /**
  * Per-vertex diffuse multiplier in [floor, 1 + a hair], one entry per vertex of
- * `geometry` (NOT per welded vertex — the caller feeds it straight into a
+ * `geometry` (NOT per welded vertex: the caller feeds it straight into a
  * `color` attribute).
  *
  * `weight` (0..1 per vertex, optional) marks how much of the mesh is CLOTH THIS
@@ -231,7 +231,7 @@ function smoothOnce(src: Float32Array, dst: Float32Array, adj: { start: Int32Arr
  *  - it scales the measured depth per vertex, so a caller can fade the term out
  *    across a feature it does not want measured (the shell's seam roll is a
  *    concavity running the whole length of the outline, and unfaded it draws a
- *    dark ring with a bright halo — piping around the garment).
+ *    dark ring with a bright halo, piping around the garment).
  *
  * Returns null when the geometry cannot support the measurement (no index, no
  * normals); the caller then simply ships un-occluded cloth, which is what the
@@ -311,7 +311,7 @@ export function computeCavity(
   // picks up the same positive drift on top of its real cavity signal. Left in,
   // it would just dim the whole garment by a constant. Removing the mean turns
   // the measurement back into what it is meant to be: relative depth. Dividing
-  // by the spread then turns it into a scale-free one — see CAVITY_DEFAULTS.
+  // by the spread then turns it into a scale-free one (see CAVITY_DEFAULTS).
   const standardise = (d: Float32Array) => {
     let sum = 0
     let wsum = 0
@@ -368,7 +368,7 @@ export function getCavity(key: string, geometry: THREE.BufferGeometry, opts?: Ca
 
 /**
  * Write a cavity buffer onto a geometry as a grey `color` attribute, which
- * three multiplies into `diffuseColor` — so it darkens both the direct and the
+ * three multiplies into `diffuseColor`, so it darkens both the direct and the
  * image-based diffuse response, and rides along for free onto anything built
  * from a copy of this geometry (the print overlay does exactly that).
  *
@@ -409,8 +409,8 @@ export interface WeaveOptions {
   /**
    * How much of the way to fully rough the sub-Nyquist weave takes this surface
    * (see WEAVE_ROUGH_GAIN). Cloth wants the default whether its grain comes from
-   * this shader or from a tiled normal map, because both mip away; INK does not
-   * — a cured transfer is a smoother film than the knit under it, and that
+   * this shader or from a tiled normal map, because both mip away; INK does not:
+   * a cured transfer is a smoother film than the knit under it, and that
    * difference is most of what makes a print read as printed.
    */
   roughGain?: number
@@ -429,7 +429,7 @@ export interface WeaveOptions {
  *     geometry under it: it cannot occlude, it cannot break the silhouette, and
  *     it does not move with the camera. Past that it stops reading as a fold
  *     and starts reading as embossed metal. The 0.045 the tee shipped with was
- *     18° — 3× over — and it is the whole of complaint "ugly bumps".
+ *     18° (3× over), and it is the whole of complaint "ugly bumps".
  */
 export const WEAVE_DEFAULTS: WeaveOptions = {
   pitchIn: 0.045,
@@ -488,8 +488,8 @@ export function inkWeaveOptions(foldStrength: number, foldHalfHeightIn: number):
  *    are real geometry, so it asks for much less (see CLOTH per garment in
  *    calibration.ts).
  *
- * Both are evaluated triplanar — three planar fields blended by the squared
- * face normal — so there is no UV set to need, no seam and no stretching where
+ * Both are evaluated triplanar (three planar fields blended by the squared
+ * face normal), so there is no UV set to need, no seam and no stretching where
  * a sleeve turns away from the body.
  *
  * The gradient is ANALYTIC in both. A finite-difference bump would need three
@@ -513,7 +513,7 @@ varying vec3 vClothNZ;
 const float TAU = 6.28318530718;
 /** Folds run down the garment, so the noise is stretched ~3:1 in y. */
 const float FOLD_ANISO = 0.34;
-/** Brings the two-octave field's peak |grad| to 5.39 — the number the
+/** Brings the two-octave field's peak |grad| to 5.39, the number the
  *  foldStrength constants are quoted against (see WEAVE_DEFAULTS). */
 const float FOLD_NORM = 1.9;
 
@@ -588,7 +588,7 @@ vec3 clothBump( vec3 viewNormal ) {
   vec3 p = vClothPos;
 
   // A thread pitch approaches one pixel as the camera pulls back, and a bump
-  // field sampled below Nyquist does not fade — it crawls. Fade the weave out
+  // field sampled below Nyquist does not fade. It crawls. Fade the weave out
   // once a period stops covering a couple of pixels; the drape octave is two
   // orders of magnitude coarser and never gets there. What the fade removes is
   // returned as roughness by the caller: sub-pixel relief IS a wider lobe.
@@ -622,7 +622,7 @@ vec3 clothBump( vec3 viewNormal ) {
   // flipped viewNormal for a backface on a double-sided material, but
   // vClothNrm is the raw object normal, so the perturbation would arrive with
   // the wrong sign and every crest would read as a trough. Inert until a
-  // garment is double-sided — which the catalogue meshes now are, because both
+  // garment is double-sided, which the catalogue meshes now are, because both
   // GLBs declare it and dropping it was showing the backdrop through the collar.
   vec3 gView = vClothNX * g.x + vClothNY * g.y + vClothNZ * g.z;
   return normalize( viewNormal - gView * ( gl_FrontFacing ? 1.0 : -1.0 ) );
@@ -632,7 +632,7 @@ vec3 clothBump( vec3 viewNormal ) {
 /**
  * The roughness half of the weave, injected separately because three resolves
  * `roughnessFactor` BEFORE it resolves the normal. Recomputing the footprint
- * here costs two `fwidth`s and keeps the two injections independent — the
+ * here costs two `fwidth`s and keeps the two injections independent: the
  * alternative, hoisting a varying out of the normal stage, would only work if
  * the stages were ordered the other way round.
  *
@@ -660,8 +660,8 @@ export function applyWeaveBump(
   opts: WeaveOptions = WEAVE_DEFAULTS,
   cacheKey = 'tshop-cloth',
 ): { [k: string]: THREE.IUniform } {
-  // IDEMPOTENT. The injection may only happen once per material — chaining
-  // onBeforeCompile twice would install the chunk twice — but the VALUES have
+  // IDEMPOTENT. The injection may only happen once per material (chaining
+  // onBeforeCompile twice would install the chunk twice), but the VALUES have
   // to stay live: a caller re-attaching with a different garment height or a
   // different weave strength (the shell swaps between a photo-wrinkle surface
   // and a fabric-texture one, and a card's height changes with the upload) must

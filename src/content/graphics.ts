@@ -1,9 +1,9 @@
 /**
- * Graphics registry — module A5.
+ * Graphics registry: module A5.
  *
  * Two kinds of graphics live here:
  *
- * 1. `badges` — hand-authored, FILL-based screen-print shapes (solid clipart,
+ * 1. `badges`: hand-authored, FILL-based screen-print shapes (solid clipart,
  *    tight viewBoxes, geometry generated numerically). These lead the list.
  * 2. Curated stroke icons from the `lucide` package (ISC, see
  *    docs/credits/A5.md), serialized from lucide's IconNode data into

@@ -4,14 +4,14 @@
  *
  * WHY here and not only at import time: the studio already reconstructs a back
  * on the fly (src/lib/ingest/imbretex.ts), but until it does, the catalogue
- * itself is half a product — the grid shows a gap, the detail view has no
+ * itself is half a product: the grid shows a gap, the detail view has no
  * reverse to show, and every customer pays the U²-Net + reconstruction cost
  * again for an image that is deterministic anyway. Generating once, committing
  * the PNG, and letting the normal ingest path adopt it makes the four
  * references whole while keeping exactly one reconstruction algorithm.
  *
  * WHY a browser: generateBackFromFront (src/lib/ingest/pipeline.ts) is canvas
- * code by design — it is the SAME function that runs in the app, so what ships
+ * code by design: it is the SAME function that runs in the app, so what ships
  * in the snapshot cannot drift from what the app would have produced. It runs
  * against a real Vite bundle under Playwright, the way scripts/backphoto-
  * verify.mjs suite B does, and the cutout comes from the real U²-Net pass, not
@@ -25,7 +25,7 @@
  * the diff is four entries wide and no photograph is ever relabelled.
  *
  * DETERMINISM: same photo in, byte-identical PNG out (asserted by
- * backphoto-verify), so a re-run rewrites nothing — `at` is carried over from
+ * backphoto-verify), so a re-run rewrites nothing: `at` is carried over from
  * the existing record rather than re-stamped, and files are only written when
  * their bytes actually change.
  *
@@ -47,7 +47,7 @@ const before = JSON.stringify(snapshot, null, 1)
 
 /**
  * The snapshot's own description of itself. This script is the LAST writer of
- * products.json (scrape, then generate), so it owns the field — the scraper's
+ * products.json (scrape, then generate), so it owns the field: the scraper's
  * wording describes the intermediate state, before any back was reconstructed,
  * and would be a lie once one has been. Every clause here is something the file
  * or a recorded probe can back up; nothing is claimed on the algorithm's behalf.
@@ -55,17 +55,17 @@ const before = JSON.stringify(snapshot, null, 1)
 const NOTE =
   'Temporary snapshot standing in for the Imbretex API. Prices are RRP (tarif conseillé de revente), not buying prices. ' +
   'Front AND back views are captured whenever the supplier publishes them. The ids in `backMissing` publish no back view in ANY ' +
-  'colourway — every colourway carrying a visuals endpoint was probed (2026-07-27: 13, 13, 2 and 2 of them, each answering a single ' +
+  'colourway: every colourway carrying a visuals endpoint was probed (2026-07-27: 13, 13, 2 and 2 of them, each answering a single ' +
   '`_front` shot), and scrapes from now on record that count per product in `backProbe`. Their `views.back` is NOT a photograph: it is ' +
   'a reconstruction built from the front by scripts/generate-missing-backs.mjs, flagged `origin: "generated"` with its provenance in ' +
   '`views.back.generatedFrom`, carrying an "APERÇU · PREVIEW" mark in the pixels, and it never enters a print file.'
 
-/** A generated back is written as PNG: alpha is the whole point — it takes the
+/** A generated back is written as PNG: alpha is the whole point. It takes the
  *  pre-cut fast path at ingest (no second U²-Net pass) and JPEG would both
  *  lose the silhouette and re-compress a synthesised image. */
 const backFile = (id) => `img/${id}-back.png`
 
-/** Reconstruct for every product with no supplier back — including the ones
+/** Reconstruct for every product with no supplier back, including the ones
  *  already carrying a reconstruction, so a re-run re-verifies rather than
  *  trusting what is on disk. */
 const targets = snapshot.products.filter(
@@ -154,7 +154,7 @@ try {
         // Reference half chest: the size the studio would author the photos at,
         // and for a run the studio cannot carry at all (kids' 5/6…13/14) the
         // middle published size. It only scales the print-area mask used to
-        // keep artwork out of the colour median — the pixels are the front's.
+        // keep artwork out of the colour median: the pixels are the front's.
         const sizes = imbretex.imbretexSizes(p)
         const covered = imbretex.imbretexSizeIds(p)
         const halfChestCm = covered.length
@@ -164,7 +164,7 @@ try {
 
         // Exactly the app's ingest path: real cutout, real print-area guess.
         const blob = await (await fetch(imbretex.imbretexPhotoUrl(p, 'front'))).blob()
-        const photo = await normalizeGarmentPhoto(blob, { name: `${p.name} — face` })
+        const photo = await normalizeGarmentPhoto(blob, { name: `${p.name}, face` })
         const probe = { assetId: photo.assetId, useCutout: photo.hasCutout }
         const info = await getCustomSideInfo(
           { ...probe, printArea: { xIn: 0, yIn: 0, wIn: 1, hIn: 1 } },
@@ -237,7 +237,7 @@ try {
       },
     }
     console.log(
-      `  ✓ ${g.id} ${product.name} — ${g.colorHex} (${g.colorSource}), symmetry ${g.symmetry.toFixed(3)}` +
+      `  ✓ ${g.id} ${product.name}: ${g.colorHex} (${g.colorSource}), symmetry ${g.symmetry.toFixed(3)}` +
         `, placket ${g.placket.suppressed ? `suppressed (${(g.placket.widthFrac * 100).toFixed(1)} % wide)` : `none (contrast ${g.placket.contrast.toFixed(2)}, ${(g.placket.rowsFrac * 100).toFixed(0)} % of rows)`}`,
     )
   }
@@ -257,12 +257,12 @@ try {
   if (CHECK) {
     console.log(
       changed.length
-        ? `\n❌ not a no-op — would change: ${changed.join(', ')}`
+        ? `\n❌ not a no-op, would change: ${changed.join(', ')}`
         : '\n✅ no-op: the committed snapshot already matches a fresh reconstruction',
     )
     done(changed.length ? 1 : 0)
   }
-  console.log(changed.length ? `\n✅ wrote ${changed.join(', ')}` : '\n✅ nothing to do — already up to date')
+  console.log(changed.length ? `\n✅ wrote ${changed.join(', ')}` : '\n✅ nothing to do, already up to date')
 } catch (err) {
   console.error('❌', err)
   done(1)

@@ -17,7 +17,7 @@ const BASE = `http://127.0.0.1:${PORT}`
 const DIR = 'docs/screens'
 
 if (!existsSync('dist/v.html')) {
-  console.error('❌ dist not built — run `npm run build:only` first')
+  console.error('❌ dist not built: run `npm run build:only` first')
   process.exit(1)
 }
 
@@ -70,7 +70,7 @@ try {
   await page.goto(BASE + '/', { waitUntil: 'networkidle', timeout: 45000 })
 
   // Open the AR modal from the 2D Share panel. Staying in 2D keeps the export
-  // fast — a running 3D scene would starve the CPU-side GLB/USDZ export under
+  // fast: a running 3D scene would starve the CPU-side GLB/USDZ export under
   // swiftshader. The modal bakes the design, uploads to R2 and shows the QR.
   await page.getByRole('button', { name: /Share/i }).first().click({ timeout: 20000 })
   await page.locator('[role="dialog"]').first().waitFor({ state: 'visible', timeout: 10000 })

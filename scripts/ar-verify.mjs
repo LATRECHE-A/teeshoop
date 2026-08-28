@@ -99,7 +99,7 @@ try {
   await page.waitForFunction(() => !!window.__tshop && !!window.__arExport, { timeout: 20000 })
 
   // Seed a multi-layer design across front, back AND sleeve (exercises every
-  // decal path — the sleeve is what pushed the old exporter over the 2-alpha cap).
+  // decal path: the sleeve is what pushed the old exporter over the 2-alpha cap).
   await page.evaluate(() => {
     const s = window.__tshop.getState()
     s.setGarment('tee')
@@ -115,9 +115,9 @@ try {
   await page.waitForTimeout(300)
 
   // Seed a REAL ship-your-own garment (alpha-silhouette photo + matching cutout)
-  // so the custom cases carry the customer's ACTUAL garment — the conformed
+  // so the custom cases carry the customer's ACTUAL garment, the conformed
   // decal on the avatar, and (with the avatar blocked) buildCustomFigure's
-  // inflated shell — instead of the mannequin fallback they hit before.
+  // inflated shell, instead of the mannequin fallback they hit before.
   const customAssetId = await page.evaluate(async () => {
     const assets = await window.__assets()
     const W = 600, H = 760
@@ -182,17 +182,17 @@ try {
   // Male + female avatars for both catalog garments, plus the real custom shell.
   //
   // The last three block the avatar GLB. That matters: the avatar is the PRIMARY
-  // path, so buildCatalogFigure — the fabric-space decal grid laid on the
-  // catalog MESH (src/three/decalGeom.buildFabricDecal) — is only ever reached
+  // path, so buildCatalogFigure, the fabric-space decal grid laid on the
+  // catalog MESH (src/three/decalGeom.buildFabricDecal), is only ever reached
   // when the avatar fails to load, and would otherwise ship to Scene Viewer
   // having never been through the validator once.
   //
   // custom/no-avatar is there for the SAME reason and was missing: plain
   // 'custom' reaches buildCustomAvatarFigure (a conformed decal on the avatar,
-  // 3 primitives / 3 materials), NOT buildCustomFigure, so the inflated shell —
+  // 3 primitives / 3 materials), NOT buildCustomFigure, so the inflated shell,
   // four alpha-cut sheets, two interior planes and the two CLOTH-THICKNESS rim
   // strips (silhouette.buildInflatedShell's rimFront/rimBack, the only OPAQUE
-  // materials this exporter emits) — had never been validated at all. Blocking
+  // materials this exporter emits), had never been validated at all. Blocking
   // the avatar is what puts it through: 6 primitives / 6 materials, 0 BLEND.
   const cases = [
     ['tee', 'male'], ['tee', 'female'], ['hoodie', 'male'], ['hoodie', 'female'], ['custom', 'male'],
@@ -215,22 +215,22 @@ try {
     if (r.pngMagic[0] !== 137 || r.pngMagic[1] !== 80) fail(`${gid}: poster not a PNG`)
     if (r.posterSize < 1000) fail(`${gid}: poster too small`)
 
-    // 2) Khronos validator — 0 errors
+    // 2) Khronos validator: 0 errors
     const iss = await validate(buf, `${gid}.glb`)
-    if (iss.numErrors > 0) fail(`${gid}: glTF-Validator ${iss.numErrors} errors — ${iss.messages.filter((m) => m.severity === 0).slice(0, 3).map((m) => m.code).join(', ')}`)
+    if (iss.numErrors > 0) fail(`${gid}: glTF-Validator ${iss.numErrors} errors: ${iss.messages.filter((m) => m.severity === 0).slice(0, 3).map((m) => m.code).join(', ')}`)
 
     // 3) size ceiling
     if (buf.byteLength >= 15 * 1024 * 1024) fail(`${gid}: GLB ${(buf.byteLength / 1e6).toFixed(1)}MB ≥ 15MB Scene Viewer cap`)
 
-    // 4) NO DecalGeometry — it emits NON-INDEXED projected primitives, which is
+    // 4) NO DecalGeometry: it emits NON-INDEXED projected primitives, which is
     //    the reject risk. Every primitive (avatar body, garment, plane decals)
     //    must be indexed. 0 BLEND materials (we use MASK, exempt from the 2-alpha cap).
     let blendCount = 0
     ;(json.materials || []).forEach((m) => { if (m.alphaMode === 'BLEND') blendCount++ })
-    if (blendCount > 0) fail(`${gid}: ${blendCount} BLEND material(s) — must be 0 (MASK), the 2-alpha cap is what rejected catalog`)
+    if (blendCount > 0) fail(`${gid}: ${blendCount} BLEND material(s): must be 0 (MASK), the 2-alpha cap is what rejected catalog`)
     json.meshes.forEach((mesh, mi) =>
       mesh.primitives.forEach((p) => {
-        if (p.indices == null) fail(`${gid}: mesh${mi} is NON-INDEXED (DecalGeometry-style) — Scene Viewer reject risk`)
+        if (p.indices == null) fail(`${gid}: mesh${mi} is NON-INDEXED (DecalGeometry-style), Scene Viewer reject risk`)
       }),
     )
 
@@ -255,15 +255,15 @@ try {
       }),
     )
     const heightM = (maxY - minY) * 0.0254
-    if (heightM > 2.2) fail(`${gid}: figure ${heightM.toFixed(2)}m tall — inches-as-metres scale bug`)
+    if (heightM > 2.2) fail(`${gid}: figure ${heightM.toFixed(2)}m tall, inches-as-metres scale bug`)
 
     console.log(
-      `✅ ${gid}/${gender}${mode ? "/" + mode : ""} — glb=${(buf.byteLength / 1024).toFixed(0)}KB usdz=${(r.usdzSize / 1024).toFixed(0)}KB ` +
+      `✅ ${gid}/${gender}${mode ? "/" + mode : ""}: glb=${(buf.byteLength / 1024).toFixed(0)}KB usdz=${(r.usdzSize / 1024).toFixed(0)}KB ` +
       `val:${iss.numErrors}E/${iss.numWarnings}W blend:${blendCount} h≈${heightM.toFixed(2)}m`,
     )
   }
 
-  console.log('✅ AR verify PASS — GLB/USDZ/poster valid + Scene-Viewer-safe (no DecalGeometry, 0 BLEND, POT, metres) for tee/hoodie/custom')
+  console.log('✅ AR verify PASS: GLB/USDZ/poster valid + Scene-Viewer-safe (no DecalGeometry, 0 BLEND, POT, metres) for tee/hoodie/custom')
   done(0)
 } catch (e) {
   fail(e?.message || String(e))

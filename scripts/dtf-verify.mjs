@@ -4,19 +4,19 @@
  * Boots Vite dev, loads dev/dtf.html and runs five suites in-page against the
  * real bundle, then screenshots the admin modal:
  *
- *  1. SHELF PACKER — determinism, gap-aware non-overlap, width bounds, straight
+ *  1. SHELF PACKER: determinism, gap-aware non-overlap, width bounds, straight
  *     full-width corridors, qty expansion, rotation rules, max-length split.
- *  2. PER-VISUAL SPLIT — the same ink in smaller boxes, unique part keys in
+ *  2. PER-VISUAL SPLIT: the same ink in smaller boxes, unique part keys in
  *     reading order, and a placement for every transfer.
- *  3. INK TRIM — the same, one level down: a visual's box is its ink and not the
- *     rectangle it was dropped into. Measured on a PADDED-UPLOAD fixture the
- *     harness builds, because the sample design has nothing to trim.
- *  4. TRUE-SHAPE PACKER — determinism across three consecutive runs AND across
+ *  3. INK TRIM: the same, one level down. A visual's box is its ink and not
+ *     the rectangle it was dropped into. Measured on a PADDED-UPLOAD fixture
+ *     the harness builds, because the sample design has nothing to trim.
+ *  4. TRUE-SHAPE PACKER: determinism across three consecutive runs AND across
  *     Worker vs inline, "never worse than the shelf packer", sheet-edge and
  *     billing-step bounds, bbox non-overlap at interlock 0, and an INK-LEVEL
  *     collision audit on real rendered artwork (bounding boxes legitimately
  *     overlap once pieces interlock, so only rasterised ink can prove clearance).
- *  5. ZIP EXPORT — the archive is cracked open HERE, in Node, with a
+ *  5. ZIP EXPORT: the archive is cracked open HERE, in Node, with a
  *     hand-rolled reader: every member's CRC-32 is recomputed from its stored
  *     bytes, and every PNG's IHDR width/height is checked against the pixel
  *     size its sheet's cm geometry and DPI imply.
@@ -37,7 +37,7 @@ const BASE = `http://localhost:${PORT}`
 const OUT = process.env.DTF_OUT_DIR
 
 // ---------------------------------------------------------------------------
-// ZIP reader — deliberately hand-rolled and independent of src/lib/zip.ts
+// ZIP reader: deliberately hand-rolled and independent of src/lib/zip.ts
 // ---------------------------------------------------------------------------
 // Verifying a writer with its own reader proves only that it is
 // self-consistent. This one parses the archive the way `unzip` does: find the
@@ -68,7 +68,7 @@ function readZip(buf) {
       eocd = i
       break
     }
-  if (eocd < 0) throw new Error('no end-of-central-directory record — archive is truncated')
+  if (eocd < 0) throw new Error('no end-of-central-directory record: archive is truncated')
   const count = buf.readUInt16LE(eocd + 10)
   let off = buf.readUInt32LE(eocd + 16)
   const out = new Map()
@@ -94,7 +94,7 @@ function readZip(buf) {
   return out
 }
 
-/** PNG IHDR — signature check plus the declared pixel dimensions. */
+/** PNG IHDR: signature check plus the declared pixel dimensions. */
 function pngSize(buf) {
   const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
   for (let i = 0; i < 8; i++) if (buf[i] !== sig[i]) return null
@@ -130,7 +130,7 @@ function checkZip(buf, result, info) {
     if (!entries.has(`${folder}/${req}`)) fails.push(`missing ${req}`)
 
   // Every sheet must contribute one print PNG and one cutting plan, each at the
-  // exact pixel size its cm geometry and DPI imply — this is the check that
+  // exact pixel size its cm geometry and DPI imply. This is the check that
   // catches a sheet silently rendered at the wrong scale.
   for (let i = 0; i < result.sheets.length; i++) {
     const s = result.sheets[i]
@@ -177,7 +177,7 @@ function checkZip(buf, result, info) {
         fails.push('manifest does not record the flip permission')
       // A side printed as several transfers is only pressable if the archive
       // says where each one goes. The manifest is the traceability record, so
-      // that is the file it has to be in — not only on screen.
+      // that is the file it has to be in, not only on screen.
       for (const p of m.pieces ?? []) {
         const pl = p.placement
         if (
@@ -399,7 +399,7 @@ try {
   }
 
   // ------------------------------------------------------------------
-  // Per-visual splitting — same ink, smaller boxes, every piece placed
+  // Per-visual splitting: same ink, smaller boxes, every piece placed
   // ------------------------------------------------------------------
   // Runs BEFORE the true-shape suite on purpose: `samplePieces` publishes
   // window.__dtfSources, which the ZIP suite later reads, and the true-shape
@@ -410,9 +410,9 @@ try {
     const probe = await splitProbe(48)
 
     // If nothing splits, every assertion below is vacuous and the feature is
-    // untested — say so rather than passing quietly.
+    // untested. Say so rather than passing quietly.
     if (!probe.some((s) => s.parts > 1))
-      fails.push('no side of the sample design splits — the split suite is vacuous')
+      fails.push('no side of the sample design splits: the split suite is vacuous')
 
     const seen = new Set()
     for (const s of probe) {
@@ -456,7 +456,7 @@ try {
     }
 
     // Quantity semantics: an order line for N garments needs N copies of EVERY
-    // transfer that line's side prints as — not N of the first and one of the
+    // transfer that line's side prints as, not N of the first and one of the
     // rest. The quantity belongs to the row, so it is assigned per row here.
     const rendered = await samplePieces(48)
     const rowQty = new Map()
@@ -517,7 +517,7 @@ try {
   }
 
   // ------------------------------------------------------------------
-  // Ink trim — same ink, tighter boxes, on artwork that HAS padding
+  // Ink trim: same ink, tighter boxes, on artwork that HAS padding
   // ------------------------------------------------------------------
   // Measured against the padded-upload fixture, not the sample design: the
   // sample's text is measured from glyph ink and its graphics have tight
@@ -529,27 +529,27 @@ try {
     const probe = await trimProbe(48)
 
     if (!probe.some((s) => s.boxDeclaredCm2 > s.boxTrimmedCm2 * 1.5))
-      fails.push('the padded fixture has nothing to trim — the trim suite is vacuous')
+      fails.push('the padded fixture has nothing to trim: the trim suite is vacuous')
 
     for (const s of probe) {
       // THE SAFETY PROPERTY. Cropping to the ink may not remove ink. A tolerance
       // is needed because the two arms rasterise into differently sized canvases
-      // and an anti-aliased edge lands on different pixels — but it is one-sided
+      // and an anti-aliased edge lands on different pixels, but it is one-sided
       // in spirit: what must never happen is the trimmed arm losing artwork.
       const drift = s.inkDeclared > 0 ? (s.inkTrimmed - s.inkDeclared) / s.inkDeclared : 0
       if (drift < -0.01)
         fails.push(
-          `${s.side}: trimming LOST ink — ${s.inkTrimmed} px vs ${s.inkDeclared} (${(drift * 100).toFixed(2)} %)`,
+          `${s.side}: trimming LOST ink, ${s.inkTrimmed} px vs ${s.inkDeclared} (${(drift * 100).toFixed(2)} %)`,
         )
       if (drift > 0.05)
         fails.push(
-          `${s.side}: trimming gained ${(drift * 100).toFixed(1)} % ink — a crop is swallowing a neighbour`,
+          `${s.side}: trimming gained ${(drift * 100).toFixed(1)} % ink, a crop is swallowing a neighbour`,
         )
       // …and it must actually save something, or it is complexity for nothing.
       if (s.boxTrimmedCm2 > s.boxDeclaredCm2 + 1e-6)
         fails.push(`${s.side}: trimmed boxes ${s.boxTrimmedCm2} cm² > declared ${s.boxDeclaredCm2} cm²`)
       // Every transfer still has to know where it goes, and "where" moves with
-      // the crop — a box trimmed without moving its placement is pressed off by
+      // the crop: a box trimmed without moving its placement is pressed off by
       // exactly the margin that was discarded.
       for (const pl of s.placements) {
         if (!pl.insideArea)
@@ -624,7 +624,7 @@ try {
     const TOL = 1e-3
 
     // Real artwork through the real pipeline: rendered pieces + alpha masks.
-    // Nothing synthetic — a mask bug that only bites the studio's own output
+    // Nothing synthetic: a mask bug that only bites the studio's own output
     // has to be able to fail here.
     const rendered = await samplePieces(64)
     if (rendered.length === 0) fails.push('samplePieces produced nothing to nest')
@@ -693,7 +693,7 @@ try {
       if (placed + res.unplaceable.length * 0 !== res.totalPieces)
         fails.push(`${tag}: totalPieces ${res.totalPieces} ≠ ${placed} placements`)
       if (placed !== totalQty)
-        fails.push(`${tag}: placed ${placed} of ${totalQty} copies — pieces went missing`)
+        fails.push(`${tag}: placed ${placed} of ${totalQty} copies, pieces went missing`)
     }
 
     // --- determinism: three consecutive runs, byte for byte ---------------
@@ -714,7 +714,7 @@ try {
     // --- determinism WITH pieces that cannot be placed ---------------------
     // `unplaceable` reaches the manifest and the README. Gathered in input
     // order it made two exports of the same order differ purely because the
-    // operator had reordered the queue — invisible to a suite where every
+    // operator had reordered the queue, invisible to a suite where every
     // piece fits, which is why this case is spelled out.
     {
       const dud = [
@@ -894,8 +894,8 @@ try {
       }
       if (fx.totalPieces !== totalQty)
         fails.push(`fixed: placed ${fx.totalPieces} of ${totalQty}`)
-      // The bill must beat every "just buy one format over and over" plan —
-      // cheapest-€-per-piece-per-sheet is myopic and used to lose to exactly
+      // The bill must beat every "just buy one format over and over" plan.
+      // Cheapest-€-per-piece-per-sheet is myopic and used to lose to exactly
       // those. This is the assertion that keeps the wrapper honest.
       const bill = (r) =>
         r.sheets.reduce(
@@ -956,14 +956,14 @@ try {
   }
 
   // ------------------------------------------------------------------
-  // ZIP export suite — the archive is opened here, in Node
+  // ZIP export suite: the archive is opened here, in Node
   // ------------------------------------------------------------------
   const zipInfo = await page.evaluate(
     (result) => window.__dtf.sampleOrderZip(result, 200),
     shapeSuite.result,
   )
   // An export whose artwork is missing must FAIL LOUDLY. renderSheet skips a
-  // placement it has no pixels for — right for a live preview, catastrophic
+  // placement it has no pixels for, right for a live preview, catastrophic
   // for an export, because the archive still looks complete (right sheet
   // count, plausible manifest) while one transfer is simply not on the film.
   const partial = await page.evaluate(
@@ -991,7 +991,7 @@ try {
   console.log('plan legends:', legends.map((l) => `${l.tag}=${l.drawsVerticals ? 'shelf' : 'free'}`).join(' '))
 
   // ------------------------------------------------------------------
-  // SUITE 6 — POOLING: several orders on one film
+  // SUITE 6, POOLING: several orders on one film
   // ------------------------------------------------------------------
   //
   // Three things, and each has a euro or a garment behind it.
@@ -1138,7 +1138,7 @@ try {
     done(1)
   }
   console.log(
-    `zip: ${zipInfo.fileName} — ${(Buffer.from(zipInfo.base64, 'base64').length / 1024).toFixed(0)} KiB, ` +
+    `zip: ${zipInfo.fileName}, ${(Buffer.from(zipInfo.base64, 'base64').length / 1024).toFixed(0)} KiB, ` +
       `${shapeSuite.result.sheets.length} sheet(s), every PNG at the exact implied pixel size`,
   )
 
@@ -1152,7 +1152,7 @@ try {
     )
 
   // The suites above drove `shapeAsync`, and the nesting client is a singleton
-  // that TERMINATES a superseded job — so they stole the modal's worker. Change
+  // that TERMINATES a superseded job, so they stole the modal's worker. Change
   // a real nesting input to make it ask again, which is also the only way these
   // screenshots show an optimised layout rather than the shelf fallback.
   await page.selectOption('select[data-dtf="restarts"]', '6')
@@ -1163,7 +1163,7 @@ try {
     await page.screenshot({ path: `${OUT}/dtf-modal-1.png` })
   }
 
-  // Round 2: express supplier + guides off — preview must re-nest live.
+  // Round 2: express supplier + guides off. Preview must re-nest live.
   await page.selectOption('select[data-dtf="supplier-select"]', 'royaldtf')
   await page.click('input[data-dtf="guides-toggle"]')
   await settled()
@@ -1201,13 +1201,13 @@ try {
   await page.waitForTimeout(300)
   if (OUT) await page.screenshot({ path: `${OUT}/dtf-modal-3.png` })
 
-  // Round 4: FIXED-format supplier — a different billing model, a different
+  // Round 4: FIXED-format supplier, a different billing model, a different
   // cutting plan, and the branch where the packer is scored per sheet bought.
   await page.click('[data-dtf="zip-cancel"]')
   await page.selectOption('select[data-dtf="supplier-select"]', 'ohmydtf')
   // The cost panel must never quote catalogue billing against roll sheets, so
   // the per-format lines are the signal that the fixed result is really on
-  // screen — waiting on the spinner alone would sample the transition.
+  // screen. Waiting on the spinner alone would sample the transition.
   await page.waitForSelector('[data-dtf="format-lines"]', { timeout: 60000 })
   await settled()
   await page.waitForTimeout(400)
@@ -1238,7 +1238,7 @@ try {
   }
 
   console.log(
-    `✅ dtf verify PASS — sheets=${suite.stats.sheets} totalLm=${suite.stats.totalLm} utilization=${suite.stats.utilization}` +
+    `✅ dtf verify PASS: sheets=${suite.stats.sheets} totalLm=${suite.stats.totalLm} utilization=${suite.stats.utilization}` +
       (OUT ? ` (screenshots in ${OUT})` : ''),
   )
   code = 0

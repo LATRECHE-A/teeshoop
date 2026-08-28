@@ -63,7 +63,7 @@ describe('ordering', () => {
 })
 
 describe('derivations', () => {
-  it('the nominal size is exactly unscaled — the art is authored there', () => {
+  it('the nominal size is exactly unscaled: the art is authored there', () => {
     for (const g of GARMENTS) {
       const scale = sizeScale(g, SIZE_CHARTS[g].nominal)
       expect(scale.sx).toBe(1)

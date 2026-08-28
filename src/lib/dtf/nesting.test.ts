@@ -33,7 +33,7 @@ const MIXED: DtfPiece[] = [
   piece('f', 9, 9, 6),
 ]
 
-/** Fixed-seed shuffle — Math.random would make a failure unreproducible. */
+/** Fixed-seed shuffle: Math.random would make a failure unreproducible. */
 function shuffled<T>(arr: T[], seed = 12345): T[] {
   let s = seed
   const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
@@ -108,7 +108,7 @@ describe('nestRoll billing', () => {
 })
 
 describe('nestRoll bookkeeping', () => {
-  it('places every copy or reports it — nothing is silently dropped', () => {
+  it('places every copy or reports it: nothing is silently dropped', () => {
     const r = nestRoll(MIXED, OPTS)
     const placed = new Map<string, number>()
     for (const sheet of r.sheets)
@@ -124,7 +124,7 @@ describe('nestRoll bookkeeping', () => {
     }
   })
 
-  it('placement ids are globally unique — the ZIP and the manifest depend on it', () => {
+  it('placement ids are globally unique: the ZIP and the manifest depend on it', () => {
     const r = nestRoll(MIXED, OPTS)
     const ids = r.sheets.flatMap((s) => s.placements.map((p) => p.id))
     expect(new Set(ids).size).toBe(ids.length)

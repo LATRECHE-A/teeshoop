@@ -1,5 +1,5 @@
 /**
- * DTF gang-sheet strip packer — pure, DOM-free, 100 % deterministic.
+ * DTF gang-sheet strip packer: pure, DOM-free, 100 % deterministic.
  *
  * Shelf/FFDH variant specialised for transfer rolls: fixed printable width,
  * minimise total length. Every shelf boundary is a full-width straight
@@ -8,11 +8,11 @@
  * straight strips, then into pieces with straight vertical cuts.
  *
  * Two billing models share that one packer (see `nest`):
- *  - `roll`  — one open-ended sheet split at the supplier's max file length,
- *              billed per linear metre (`nestRoll`, unchanged);
- *  - `fixed` — pieces binned into catalogue sheet formats, billed per sheet
- *              (`nestFixed`, which drives the same shelf packer once per
- *              candidate format).
+ *  - `roll`: one open-ended sheet split at the supplier's max file length,
+ *            billed per linear metre (`nestRoll`, unchanged);
+ *  - `fixed`: pieces binned into catalogue sheet formats, billed per sheet
+ *             (`nestFixed`, which drives the same shelf packer once per
+ *             candidate format).
  *
  * Geometry model
  * - All values in **cm** (DTF suppliers quote cm/linear metres; the studio's
@@ -39,7 +39,7 @@ import type { BillingModel, DtfProcess, SheetFormat } from './supplierTypes'
 
 export interface DtfPiece {
   id: string
-  /** Artwork identity — placements copy it so renderers can find the pixels. */
+  /** Artwork identity: placements copy it so renderers can find the pixels. */
   sourceKey: string
   wCm: number
   hCm: number
@@ -124,7 +124,7 @@ export function echoOptions(r: ResolvedNestOptions): NestOptions {
 }
 
 export interface DtfPlacement {
-  /** `<piece.id>#<n>` — nth copy (0-based) of the input piece. */
+  /** `<piece.id>#<n>`: nth copy (0-based) of the input piece. */
   id: string
   sourceKey: string
   /** Artwork top-left, cm from the sheet's top-left corner. */
@@ -137,7 +137,7 @@ export interface DtfPlacement {
   rotated: boolean
   /**
    * Clockwise rotation applied to the source canvas, degrees. Absent means
-   * `rotated ? 90 : 0` — the only two values the shelf packer can produce.
+   * `rotated ? 90 : 0`, the only two values the shelf packer can produce.
    * The true-shape packer can also emit 180/270 when the artwork declares it
    * has no "up", and renderers must honour this field when it is present.
    */
@@ -153,12 +153,12 @@ export interface DtfSheet {
   formatId: string | null
   placements: DtfPlacement[]
   /**
-   * Top edge (cm) of each shelf's artwork row. EMPTY on a true-shape result —
+   * Top edge (cm) of each shelf's artwork row. EMPTY on a true-shape result:
    * there are no shelves there, and the cutting plan derives its chop lines
    * from the placements instead.
    */
   shelfYsCm: number[]
-  /** Artwork height (cm) of each shelf — parallel to `shelfYsCm`. */
+  /** Artwork height (cm) of each shelf, parallel to `shelfYsCm`. */
   shelfHsCm: number[]
   /** Exact extent: last artwork bottom + edge margin. */
   rawLengthCm: number
@@ -169,13 +169,13 @@ export interface DtfSheet {
    *
    * May legitimately exceed 1 on a true-shape sheet: interlocked pieces have
    * OVERLAPPING bounding boxes (that is the entire point), so the sum of the
-   * boxes can be larger than the film. That is information, not a bug — it
-   * says how much the boxes overlap — but `inkUtilization` is the honest
+   * boxes can be larger than the film. That is information, not a bug (it
+   * says how much the boxes overlap), but `inkUtilization` is the honest
    * "how much of the film is printed" number whenever it is present.
    */
   utilization: number
   /**
-   * Σ placed INK area ÷ (printableWidth × billed length) — only the true-shape
+   * Σ placed INK area ÷ (printableWidth × billed length). Only the true-shape
    * packer can measure it. This is the honest number: `utilization` counts the
    * transparent corners of every bounding box as if they were printed.
    */
@@ -186,7 +186,7 @@ export interface NestResult {
   sheets: DtfSheet[]
   /** Which billing model produced this result. */
   billing: BillingModel
-  /** Which packer produced it — the cutting plan legend states this. */
+  /** Which packer produced it. The cutting plan legend states this. */
   packer: 'shelf' | 'trueshape'
   /** How far a piece was allowed to tuck under its neighbours (cm). */
   interlockCm: number
@@ -247,13 +247,13 @@ function compareInstances(a: Instance, b: Instance): number {
 
 function rawLengthOf(totalInflH: number, gap: number, margin: number): number {
   // Σ inflated shelf heights carries gap/2 above the first row and gap/2
-  // below the last — both replaced by the edge margin.
+  // below the last, both replaced by the edge margin.
   return totalInflH - gap + 2 * margin
 }
 
 /**
- * Nest pieces onto ROLL gang sheets. Pure function of its inputs — zero
- * randomness, zero Date/Math.random — identical inputs give identical output
+ * Nest pieces onto ROLL gang sheets. Pure function of its inputs: zero
+ * randomness, zero Date/Math.random. Identical inputs give identical output
  * (including input order: instances are re-sorted with a total order).
  */
 export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
@@ -461,7 +461,7 @@ export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
 /**
  * De-duplicate and sort a list of piece ids. `unplaceable` reaches the manifest
  * and the README, so gathering it in INPUT order would make two exports of the
- * same order differ purely because the operator reordered the queue — which is
+ * same order differ purely because the operator reordered the queue, which is
  * exactly the determinism the module claims. Sorting also makes the two packers
  * agree on how they present the same set.
  */
@@ -475,7 +475,7 @@ const stableIds = (ids: string[]): string[] => [...new Set(ids)].sort()
  * Bin pieces into a supplier's catalogue sheet formats (OhMyDTF-style: you buy
  * a whole A4/A3/1 m sheet, not a metré).
  *
- * STRATEGY — greedy, one sheet at a time, deterministic and explainable:
+ * STRATEGY (greedy, one sheet at a time, deterministic and explainable):
  *   1. for every candidate format, run the SAME shelf packer on everything
  *      that is still unplaced, with the format as the sheet (width = wCm,
  *      max length = hCm) and keep only its first sheet;
@@ -489,7 +489,7 @@ const stableIds = (ids: string[]): string[] => [...new Set(ids)].sort()
  * half empty. Rotation still obeys `allowRotate`; a piece that fits no format
  * at all comes back in `unplaceable` rather than being silently dropped. NOTE:
  * the edge margin applies to every format, so a 1 cm margin leaves only 8 × 8
- * cm usable on a 10 × 10 cm sheet — small formats need a smaller margin to be
+ * cm usable on a 10 × 10 cm sheet. Small formats need a smaller margin to be
  * reachable.
  *
  * The inner packer is a PARAMETER (`packRoll`) so the true-shape packer can
@@ -543,8 +543,8 @@ function greedyFixed(
   const guard = specs.reduce((a, s) => a + s.left, 0)
 
   for (let iter = 0; iter < guard && cands.length > 0; iter++) {
-    // Synthetic ids (`f<specIndex>`) keep the mapping back to specs exact —
-    // user piece ids may contain any character, including '#'.
+    // Synthetic ids (`f<specIndex>`) keep the mapping back to specs exact.
+    // User piece ids may contain any character, including '#'.
     const remaining: DtfPiece[] = []
     for (let i = 0; i < specs.length; i++) {
       if (specs[i].left <= 0) continue
@@ -668,7 +668,7 @@ function priceOf(res: NestResult, formats: SheetFormat[]): number {
  * money: measured on a real order of 19 small back prints (≈ 4 × 4 cm) and 19
  * chest prints (≈ 21 × 23 cm) at OhMyDTF, the greedy buys five 10 × 10 "cœur"
  * sheets at €0,63/pièce for the small ones and then still has to buy a 2 m
- * sheet for the big ones — €44,50, when the 2 m sheet alone holds the entire
+ * sheet for the big ones: €44,50, when the 2 m sheet alone holds the entire
  * order for €32. Cheapest-per-piece is not cheapest.
  *
  * The fix is not a search, it is a handful of RESTRICTED CATALOGUES, each one a
@@ -676,18 +676,18 @@ function priceOf(res: NestResult, formats: SheetFormat[]): number {
  * scored on the bill:
  *   - the whole catalogue (always a candidate, so this can never be worse than
  *     the plain greedy);
- *   - each format ON ITS OWN — the "just buy the 2 m sheet" answer above;
- *   - "nothing smaller than F", for each F — the "stop buying cœur sheets"
+ *   - each format ON ITS OWN, the "just buy the 2 m sheet" answer above;
+ *   - "nothing smaller than F", for each F: the "stop buying cœur sheets"
  *     answer. It is a distinct family, not a rounding of the previous one: the
  *     greedy above ends up buying THREE 1 m sheets (€51) where one 2 m plus one
  *     1 m holds the same order for €49, and only a plan that still has both big
- *     formats available but no small ones finds that. The doc's own rule —
- *     "never route gang sheets through A4/A3/cœur, 2–11× the €/m² of a metre" —
+ *     formats available but no small ones finds that. The doc's own rule,
+ *     "never route gang sheets through A4/A3/cœur, 2–11× the €/m² of a metre",
  *     is exactly this lever.
  * Cost is ≤ 2F+1 passes with F ≈ 6, and duplicated catalogues are dropped.
  *
- * Ranking is lexicographic and total — fewer pieces left behind, then cheaper,
- * then fewer sheets, then the format sequence as a string — so two runs on the
+ * Ranking is lexicographic and total (fewer pieces left behind, then cheaper,
+ * then fewer sheets, then the format sequence as a string), so two runs on the
  * same input always buy the same thing.
  */
 export function nestFixedWith(
@@ -768,7 +768,7 @@ export function nest(
 }
 
 /**
- * `nest`, with the roll packer as a parameter — the seam the true-shape packer
+ * `nest`, with the roll packer as a parameter: the seam the true-shape packer
  * plugs into so BOTH billing models get the better nesting without duplicating
  * the process-geometry override or the fixed-format selection loop.
  */

@@ -1,17 +1,17 @@
 /**
- * Unisex heavy-cotton tee — hand-authored flat product illustration.
+ * Unisex heavy-cotton tee, hand-authored flat product illustration.
  *
  * viewBox 0 0 800 800 · 25 px/inch · chest width 21.5″ (537.5 px) · length ≈28.6″.
  * Front and back share ONE outer silhouette path so side-switching is stable.
  * All shading is paired (dark ≈14% + light ≈8%) so it reads on white AND black
  * bodies, and everything except the base fill is clipped to the silhouette.
- * No feGaussianBlur in body art (see soft.ts) — cheap on software rasterizers.
+ * No feGaussianBlur in body art (see soft.ts), cheap on software rasterizers.
  */
 import type { GarmentArt } from '@/lib/types'
 import { blob, grainDefs, grainRect, soft, softDefs } from './soft'
 import { SLEEVE_ART, SLEEVE_AREA_IN } from './sleeve'
 
-/** Outer silhouette — identical for front/back. Bounds x ≈37..763, y ≈44..760. */
+/** Outer silhouette, identical for front/back. Bounds x ≈37..763, y ≈44..760. */
 const SIL =
   'M318 52C350 42 450 42 482 52C536 62 600 80 644 100C688 120 728 152 760 190' +
   'C752 240 728 294 696 338C681 330 672 314 668 298C661 400 658 600 657 748' +
@@ -66,7 +66,7 @@ ${soft('M482 54C540 62 604 80 640 98', 0.04, 6, true)}
 ${collar}`
 }
 
-/** Drape wrinkles — dark stroke paired with a light echo. */
+/** Drape wrinkles: dark stroke paired with a light echo. */
 function wrinkles(front: boolean): string {
   const chest = front
     ? `${soft('M384 398C404 406 430 406 452 399', 0.04, 4)}

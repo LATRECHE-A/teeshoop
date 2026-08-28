@@ -1,7 +1,7 @@
 /**
- * Share-link codec — pure, store-free serialization of a design into (and out
+ * Share-link codec: pure, store-free serialization of a design into (and out
  * of) a URL hash. Kept in `lib/` (no store/persistence imports) so lean entry
- * points — notably the standalone AR page (src/ar) — can reconstruct a shared
+ * points, notably the standalone AR page (src/ar), can reconstruct a shared
  * design without pulling in the whole editor/Zustand bundle.
  *
  * A link carries the vector document only: image layers and customer-supplied
@@ -22,7 +22,7 @@ export function canShareAsLink(design: Design): boolean {
 }
 
 /** `#d=<lz-string>` hash carrying the vector design (custom + the inactive
- *  layer bucket stripped — a link only reconstructs the active design). */
+ *  layer bucket stripped: a link only reconstructs the active design). */
 export function designToShareHash(design: Design): string {
   const payload = { v: 1, design: { ...design, custom: null, stashedLayers: [] } }
   return `#d=${compressToEncodedURIComponent(JSON.stringify(payload))}`

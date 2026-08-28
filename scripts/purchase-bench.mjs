@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PURCHASE-BENCH — what a realistic week of orders costs to buy, in blanks.
+ * PURCHASE-BENCH: what a realistic week of orders costs to buy, in blanks.
  *
  *   FR_WS_USER=… FR_WS_PASS=… node scripts/purchase-bench.mjs [styleNr]
  *

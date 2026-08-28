@@ -1,7 +1,7 @@
 /**
  * Per-model calibration for the 3D preview and the AR bake (module A3).
  *
- * World space convention: 1 world unit = 1 inch, and the inches are PHYSICAL —
+ * World space convention: 1 world unit = 1 inch, and the inches are PHYSICAL:
  * the mesh is scaled so its own front panel measures the size chart's laid-flat
  * half-chest, and its own body measures the chart's body length:
  *
@@ -13,13 +13,13 @@
  * bounding box includes the sleeves and says nothing about how much cloth is
  * wrapped around the torso. This replaces the old `widthFraction` × `wornFactor`
  * pair, which mapped the sleeve-inclusive bbox to the half-chest and then shrank
- * it again — leaving the mesh's front panel carrying only ~63 % of the garment's
+ * it again, leaving the mesh's front panel carrying only ~63 % of the garment's
  * real fabric, so a true-inch print was physically wider than the visible torso.
  *
  * VERTICAL ANCHORING is collar-relative, not centre-relative. Professional print
  * placement is measured in cm below the collar seam, the 2D art encodes exactly
  * that (GarmentSideArt.collarPx → printAreaPx), and the mesh exposes its own
- * collar seam — so the print is hung from the seam on both, and the two agree
+ * collar seam, so the print is hung from the seam on both, and the two agree
  * without a fudge factor. The old `decalNudgeYIn` constant absorbed the drift of
  * a centre-relative anchor on a mesh whose height was 83 % of the real garment's;
  * with the length now physical there is nothing left for it to absorb. It also
@@ -56,7 +56,7 @@ export interface ModelCalibration {
    */
   bodyTopBelowTopRaw: number
   /**
-   * Raw-unit depth of the FRONT collar seam below the bbox top — the mesh
+   * Raw-unit depth of the FRONT collar seam below the bbox top, the mesh
    * landmark prints hang from. Only the front is measured: on the hoodie the
    * hood covers the back seam entirely, and the 2D art already knows the
    * front-to-back seam offset (collarPx per side), so one landmark plus the
@@ -73,24 +73,24 @@ export interface ModelCalibration {
    * folds are real geometry. The same settings flatter one and ruin the other.
    */
   cloth: {
-    /** Drape-octave bump strength — carries the tee, redundant on the hoodie. */
+    /** Drape-octave bump strength: carries the tee, redundant on the hoodie. */
     foldStrength: number
     /** Cavity-occlusion depth, 0-1; lower where the GLB ships a USABLE baked AO
-     *  map (see bakedAoIntensity — the tee's is not). */
+     *  map (see bakedAoIntensity, the tee's is not). */
     cavityGain: number
     /**
      * How much of the GLB's own `occlusionTexture` to believe, 0 = ignore it.
      *
      * Not a taste knob: a baked AO map is only worth having if the bake is
      * correct, and the tee's is not. Its 1024² occlusion atlas has a clean front
-     * island (mean 0.892) and a RUINED back one — mean 0.655 with 37 % of its
+     * island (mean 0.892) and a RUINED back one: mean 0.655 with 37 % of its
      * texels below 0.5 and a near-black region across rows 120-420, which maps
      * to 13-59 % down the back panel: the shoulder blades. The studio is
      * environment-dominated and `aoMap` attenuates exactly that indirect
      * diffuse, so at full intensity the flagship tee wears a large dark stain
      * across its upper back and nothing across its front. The cavity term
      * (clothShading.computeCavity) is measured off the mesh itself, has no bake
-     * artefacts, and carries the same seams — so where the bake is bad the right
+     * artefacts, and carries the same seams, so where the bake is bad the right
      * answer is to ignore it and let the measurement do the whole job.
      */
     bakedAoIntensity: number
@@ -98,7 +98,7 @@ export interface ModelCalibration {
     sheenRoughness: number
   }
   /**
-   * Sleeve decal placement — an X-axis flank projection onto the arm (front/back
+   * Sleeve decal placement: an X-axis flank projection onto the arm (front/back
    * map through the fabric unwrap instead). `yRaw` is the decal-centre height in
    * raw units above the bbox centre, so it follows the mesh at every size
    * instead of drifting as a fixed world inch; `rotZ` is the per-flank tilt
@@ -112,7 +112,7 @@ export interface ModelCalibration {
  *
  * The tee's normalTexture asks for 2.81 over an 8×-tiled 1024 px JPEG. At the
  * framing the studio actually uses, that map mips down about tenfold, so what
- * survives is its low-frequency mottling — and 2.81 amplifies THAT, not the
+ * survives is its low-frequency mottling, and 2.81 amplifies THAT, not the
  * thread detail the number was authored for. The procedural weave
  * (clothShading.ts) is the micro-relief authority now that its sub-pixel energy
  * comes back as roughness instead of being discarded.
@@ -123,7 +123,7 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
   tee: {
     // pmndrs market "shirt_baked" (CC0). Single mesh "Mesh" (node
     // T_Shirt_male), 19.5k tris, lambert1 material with normal + AO maps and
-    // no basecolor texture — recolors cleanly through material.color.
+    // no basecolor texture: recolors cleanly through material.color.
     // Raw bbox 0.550w x 0.613h x 0.269d; faces +Z already.
     url: '/models/tee.glb',
     rotateY: 0,
@@ -137,15 +137,15 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     roughness: 0.94,
     envMapIntensity: 1.0,
     // The mesh is a smooth shell, so the drape octave is doing the work of the
-    // folds nobody modelled — which is exactly why it must stay inside the ≤6°
+    // folds nobody modelled, which is exactly why it must stay inside the ≤6°
     // budget in WEAVE_DEFAULTS: a macro octave with no geometry under it reads
     // as embossing the moment it gets loud. 0.045 against the OLD ruled-sine
     // field was 18° everywhere at a fixed 2.6 in pitch, i.e. the washboard.
     // 0.026 against the noise field is 8° at the crest of a fold and ~1.7° over
-    // quiet cloth — a little above the general budget because this is the one
+    // quiet cloth, a little above the general budget because this is the one
     // mesh with no modelled drape at all to fall back on.
     // The cavity gain used to be held back because this GLB ships a baked
-    // occlusion map that "already darkens the seams". It does — on the FRONT.
+    // occlusion map that "already darkens the seams". It does, on the FRONT.
     // See bakedAoIntensity: the back island of that bake is a black smear, so
     // the map is off and the measured cavity carries the full load, at the same
     // gain as the hoodie, which never had a bake to defer to.
@@ -160,7 +160,7 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // 0.93 -> 0.82 narrows the lobe toward grazing angles, which is where a rim
     // light lives and where the fibre fuzz really does scatter.
     cloth: { foldStrength: 0.026, cavityGain: 0.44, bakedAoIntensity: 0, sheen: 0.62, sheenRoughness: 0.82 },
-    // 6.5 world in at the pre-fix yScale of 38.295 — the same physical band.
+    // 6.5 world in at the pre-fix yScale of 38.295, the same physical band.
     sleeve: { yRaw: 0.1697, rotZ: 0 },
   },
   hoodie: {
@@ -168,12 +168,12 @@ export const CALIBRATION: Record<CatalogGarmentId, ModelCalibration> = {
     // Designer garment, simplified 375k -> 67.6k tris and re-packed (see
     // docs/credits/A3.md). Single joined mesh, untextured grey PBR material
     // (recolors via material.color), NO UV set at all. Raw bbox
-    // 1.277w x 0.796h x 0.441d — the sleeves stand away from the body and the
+    // 1.277w x 0.796h x 0.441d: the sleeves stand away from the body and the
     // hood stands above it, which is why neither dimension is used for scale.
     url: '/models/hoodie.glb',
     rotateY: 0,
     // The armholes clear at fromTop 0.47 and the kangaroo pocket starts adding
-    // girth by 0.64. Front arc over this window: 0.6318, spread 6.0 % — larger
+    // girth by 0.64. Front arc over this window: 0.6318, spread 6.0 %, larger
     // than the tee's 3.6 % because this is a draped Marvelous Designer garment
     // whose folds are real geometry, and comfortably inside the table's 20 %
     // usability gate (scripts/fabric-verify.mjs check A prints both).

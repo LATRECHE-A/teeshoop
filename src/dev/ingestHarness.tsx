@@ -1,5 +1,5 @@
 /**
- * INGEST dev harness (port 5185) — exercises the REAL pipeline end-to-end
+ * INGEST dev harness (port 5185). Exercises the REAL pipeline end-to-end
  * without the onnx model: a synthetic pre-cut (alpha) tee PNG runs through
  * normalizeGarmentPhoto's pre-cut fast path, autoPrintArea's collar-dip
  * detection, and saveProduct; the modal then opens on the result.
@@ -73,7 +73,7 @@ function syntheticTee(): Promise<Blob> {
 async function seed(): Promise<void> {
   const halfChestCm = SIZE_CHARTS.tee.sizes.M.halfChestCm
   const photo = await normalizeGarmentPhoto(await syntheticTee(), {
-    name: 'Harness tee — front',
+    name: 'Harness tee, front',
   })
   const side = { assetId: photo.assetId, useCutout: photo.hasCutout }
   const info = await getCustomSideInfo(

@@ -1,8 +1,8 @@
 /**
- * Gang-sheet rendering — nested sheet → canvas at exact physical scale.
+ * Gang-sheet rendering: nested sheet → canvas at exact physical scale.
  *
  * Two render modes off one code path (parity by construction):
- *  - PRINT file: transparent background, artwork only (guides OFF) — this is
+ *  - PRINT file: transparent background, artwork only (guides OFF). This is
  *    the PNG uploaded to the DTF supplier.
  *  - CUTTING PLAN: the same geometry with the cut-guide layer ON, on a light
  *    paper-friendly background.
@@ -10,7 +10,7 @@
  * THE CUTTING PLAN DEPENDS ON THE PACKER, and pretending otherwise is how you
  * hand an operator a plan whose lines cut through artwork. The shelf packer
  * produces genuine full-width corridors, so its plan draws them plus the
- * vertical trims between neighbours — one long chop, then verticals. The
+ * vertical trims between neighbours: one long chop, then verticals. The
  * true-shape packer produces no rows at all, so its plan draws (a) the maximal
  * EMPTY BANDS, which are the full-width chops that do exist, and (b) the
  * per-piece outline at bbox + clearance, which is what you actually cut
@@ -18,7 +18,7 @@
  * plans look similar and are cut very differently.
  *
  * DPI is auto-clamped so one canvas stays under ~140 M px, but never below
- * the supplier's minimum DPI — the effective value is surfaced to the UI.
+ * the supplier's minimum DPI. The effective value is surfaced to the UI.
  */
 import type { DtfSheet, NestOptions, NestResult } from './nesting'
 import type { RenderedPiece } from './pieces'
@@ -34,12 +34,12 @@ import type {
 import { CM_PER_IN } from '@/lib/units'
 
 export const SHEET_TARGET_DPI = 300
-/** Soft canvas-area budget (px) — keeps toBlob/encode reliable. */
+/** Soft canvas-area budget (px): keeps toBlob/encode reliable. */
 export const MAX_SHEET_PX = 140_000_000
 
 /**
  * Largest DPI ≤ `targetDpi` that keeps `widthCm × lengthCm` under the pixel
- * budget — floored at `minDpi` (supplier requirement wins over the budget;
+ * budget, floored at `minDpi` (supplier requirement wins over the budget;
  * callers surface the effective value so the admin sees what happened).
  */
 export function clampSheetDpi(
@@ -58,7 +58,7 @@ export function clampSheetDpi(
 export interface SheetRenderOpts {
   /** Pixel density (px per inch). Use clampSheetDpi for export sizes. */
   dpi: number
-  /** Draw the cut-guide layer (cutting plan) — OFF for the print file. */
+  /** Draw the cut-guide layer (cutting plan), OFF for the print file. */
   guides?: boolean
   /** Opaque background fill; omit/null for transparent (print file). */
   background?: string | null
@@ -87,7 +87,7 @@ const GUIDE_TEXT = '#3E434A'
  * `sources` (keyed by placement.sourceKey); missing sources are skipped so a
  * partial preview never throws.
  *
- * The canvas is `sheet.widthCm × sheet.lengthCm` — on fixed billing that is
+ * The canvas is `sheet.widthCm × sheet.lengthCm`: on fixed billing that is
  * the EXACT catalogue format (the whole sheet is bought and delivered), on
  * roll billing the printable width × the billed length.
  */
@@ -143,7 +143,7 @@ export function renderSheet(
 const MIN_BAND_CM = 1
 
 /**
- * Rows of the sheet that NO piece occupies, clearance included — the
+ * Rows of the sheet that NO piece occupies, clearance included: the
  * full-width chops that genuinely exist. On a shelf-packed sheet these are
  * exactly the inter-shelf corridors; on a true-shape sheet there are usually
  * only two or three, and drawing the shelf corridors there would slice through
@@ -252,7 +252,7 @@ function drawGuides(
     }
   }
 
-  // Per-piece rounded outline at bbox + gap/2 — on an interlocked sheet this
+  // Per-piece rounded outline at bbox + gap/2: on an interlocked sheet this
   // is THE cut line, so it is drawn last and stays opaque.
   ctx.strokeStyle = GUIDE_BOX
   ctx.setLineDash([])
@@ -268,7 +268,7 @@ function drawGuides(
     ctx.stroke()
   }
 
-  // Labels (cutting plan only readable on paper — small mono text).
+  // Labels (cutting plan only readable on paper, small mono text).
   if (labels) {
     ctx.globalAlpha = 1
     ctx.fillStyle = GUIDE_TEXT
@@ -340,7 +340,7 @@ export interface ManifestPiece {
    * WHERE IT GOES on the garment: the transfer's box inside that side's
    * (graded) print area, cm. A split side hands the press several transfers
    * that used to be one file, and without these numbers there is nothing in the
-   * archive saying which goes where — the manifest is the traceability record,
+   * archive saying which goes where: the manifest is the traceability record,
    * so it carries them even though nesting never reads them.
    *
    * `topCm` is the drop from the top edge of the print area (itself a fixed
@@ -370,14 +370,14 @@ export interface DtfManifest {
    */
   run?: RunArchive
   tool: 'tshop-dtf'
-  /** App build the archive came from — the first thing to check on a dispute. */
+  /** App build the archive came from, the first thing to check on a dispute. */
   appVersion: string
   /** Operator's order / basket name; the archive is named from it. */
   orderName: string
   /**
    * How the layout was produced. Reproducing a manifest requires ALL of these:
-   * same packer, same interlock, same restart count, same flip permission —
-   * change any one and the placements move.
+   * same packer, same interlock, same restart count, same flip permission.
+   * Change any one and the placements move.
    */
   nesting: {
     packer: 'shelf' | 'trueshape'
@@ -442,8 +442,8 @@ export interface DtfManifest {
 /**
  * Assemble the order-tracking manifest (JSON-serializable).
  *
- * `generatedAt` is a PARAMETER, not a `Date.now()` read: the whole export —
- * archive name, ZIP member timestamps, README and manifest — must agree on one
+ * `generatedAt` is a PARAMETER, not a `Date.now()` read: the whole export
+ * (archive name, ZIP member timestamps, README and manifest) must agree on one
  * instant, and a function that reads the clock cannot be re-run to reproduce
  * a delivered archive.
  */

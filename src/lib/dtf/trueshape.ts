@@ -1,5 +1,5 @@
 /**
- * True-shape DTF nesting — pure, DOM-free, 100 % deterministic, Worker-safe.
+ * True-shape DTF nesting: pure, DOM-free, 100 % deterministic, Worker-safe.
  *
  * WHY THIS EXISTS
  * ---------------
@@ -9,15 +9,15 @@
  * corners. Measured on this repo's own instances, packing the ALPHA MASK
  * instead cuts 14–45 % off the billed roll length, while swapping the shelf
  * packer for a better RECTANGLE packer (MAXRECTS, skyline) is worth ~5 % and is
- * not even monotone — it loses outright on some real orders. Hence: keep the
+ * not even monotone: it loses outright on some real orders. Hence: keep the
  * shelf packer, and beat it on shape.
  *
- * THE ALGORITHM — semi-discrete bottom-left-fill on a column profile
+ * THE ALGORITHM: semi-discrete bottom-left-fill on a column profile
  * -----------------------------------------------------------------
  * Everything is rasterised onto a square cell grid of ~2,5 mm (see
  * `chooseRes`). For each piece and each allowed orientation we store ONE
  * `[bottom, top)` interval per column: the first and last inked cell of that
- * column. Placement is a skyline drop — for every candidate x the piece falls
+ * column. Placement is a skyline drop: for every candidate x the piece falls
  * until some column touches, then the score picks the lowest resulting top.
  *
  * Treating a column's ink as one solid span is deliberately CONSERVATIVE (a
@@ -27,19 +27,19 @@
  * full run-lists and buys almost nothing on apparel artwork.
  *
  * WHY NOT NFP / SVGnest / jagua-rs: those need robust polygon booleans and a
- * vectorisation step (marching squares + RDP) that our input — a raster with
- * alpha — does not have and would only add error to. Their one advantage over
+ * vectorisation step (marching squares + RDP) that our input, a raster with
+ * alpha, does not have and would only add error to. Their one advantage over
  * raster BLF is sub-cell precision, which a 2,5 mm grid behind a 5 mm
  * clearance makes irrelevant. The published state of the art reaches 87–93 %
  * on garment-shaped instances after 20 CPU-MINUTES; nobody is getting 98 %.
  *
  * THE TWO KNOBS
  * -------------
- * `maxInterlockCm` — a CEILING on how far a piece may tuck below the highest
+ * `maxInterlockCm`: a CEILING on how far a piece may tuck below the highest
  *   material in the columns it spans. It only ever clamps y UPWARD; it can
  *   never reject a placement, so it cannot fail. At 0 the packer switches to
  *   bounding-box profiles as well, which makes every piece sit entirely below
- *   everything sharing its columns — no piece overhangs another, so every one
+ *   everything sharing its columns: no piece overhangs another, so every one
  *   comes free with straight cuts. Raising it trades cutting comfort for fill.
  *
  *   Greedy placement is NOT monotone in that ceiling: more freedom walks into
@@ -50,16 +50,16 @@
  *   packer SWEEPS every rung of `INTERLOCK_STOPS_CM` at or below the ceiling
  *   and keeps the best. Because the rung set only grows with the ceiling and
  *   the orderings do not depend on it, the candidate set at a higher stop is a
- *   strict superset of the one at every lower stop — monotonicity is then a
+ *   strict superset of the one at every lower stop. Monotonicity is then a
  *   property of the search space, not a hope. Every rung swept is ≤ what the
  *   operator allowed, so nothing exceeds the cutting comfort they asked for.
- * `restarts` — a COUNT of insertion orderings tried, never a time budget. A
+ * `restarts`: a COUNT of insertion orderings tried, never a time budget. A
  *   wall-clock budget would produce different layouts on different machines,
  *   and the manifest is an order-tracking artefact: "the re-export moved
  *   everything" is a support nightmare. Restart #0 is ALWAYS the existing
  *   shelf packer, so the chosen result is provably never worse than today's.
  *   Total work is `restarts × rungs`, i.e. the max-fill end of the slider
- *   genuinely costs more search than the straight-strip end — measured 21 ms
+ *   genuinely costs more search than the straight-strip end: measured 21 ms
  *   per pack for 240 transfers on a 58 × 250 roll.
  *
  * DETERMINISM. No Math.random (the ordering perturbation is a fixed-seed LCG),
@@ -110,7 +110,7 @@ export interface ShapePiece extends DtfPiece {
 export interface ShapeNestOptions extends NestOptions {
   /**
    * CEILING on how deep a piece may sink below its neighbours' skyline, cm.
-   * 0 = straight rows. Use `INTERLOCK_MAX_CM` for "maximum fill" — NOT
+   * 0 = straight rows. Use `INTERLOCK_MAX_CM` for "maximum fill", NOT
    * Infinity, which JSON.stringify silently turns into null and which would
    * therefore corrupt the manifest.
    */
@@ -134,25 +134,25 @@ export interface ShapeNestOptions extends NestOptions {
 export const INTERLOCK_MAX_CM = 1000
 
 /**
- * The interlock ladder, cm — and the ONLY values the UI slider may offer.
+ * The interlock ladder, cm, and the ONLY values the UI slider may offer.
  *
  * These are rungs, not a continuous range: the difference between 2,0 and
  * 2,4 cm of tuck is invisible to a pair of scissors, and a discrete stop is
  * something an operator can say out loud ("on a imprimé en jeu 5 cm"). More
  * importantly the monotonicity guarantee above is stated over exactly this
- * set — a ceiling that is one of these values is provably never beaten by a
+ * set: a ceiling that is one of these values is provably never beaten by a
  * smaller one. Keep the list short: every extra rung multiplies the search.
  */
 export const INTERLOCK_STOPS_CM: readonly number[] = [0, 1, 2, 5, 12, INTERLOCK_MAX_CM]
 
-/** Ranks a candidate solution — lower is better. Default: billed cm. */
+/** Ranks a candidate solution. Lower is better. Default: billed cm. */
 export type SheetScore = (sheets: DtfSheet[]) => number
 
 // ---------------------------------------------------------------------------
 // Grid
 // ---------------------------------------------------------------------------
 
-/** Cell size we aim for: 2,5 mm. Measured sweet spot — 1 mm buys nothing. */
+/** Cell size we aim for: 2,5 mm. Measured sweet spot (1 mm buys nothing). */
 const TARGET_CELL_CM = 0.25
 const MIN_CELL_CM = 0.15
 const MAX_CELL_CM = 0.4
@@ -165,7 +165,7 @@ const r4 = (v: number) => Math.round(v * 10000) / 10000
 /**
  * Pick a cell size such that HALF the requested gap is an exact whole number
  * of cells. Dilating both neighbours by that many cells then yields exactly
- * `gapCm` of artwork-to-artwork clearance — the same half-gap convention the
+ * `gapCm` of artwork-to-artwork clearance, the same half-gap convention the
  * shelf packer documents, so nothing downstream changes meaning.
  *
  * When the gap is too fine to land in the usable cell band the clearance is
@@ -188,8 +188,8 @@ export function chooseRes(gapCm: number): { res: number; half: number } {
 
 /**
  * Resample a binary mask onto a `dw × dh` grid. Every source cell paints the
- * WHOLE destination range it touches, so ink is never lost in either direction
- * — the mask may only ever grow, which is the safe way to be wrong.
+ * WHOLE destination range it touches, so ink is never lost in either
+ * direction: the mask may only ever grow, which is the safe way to be wrong.
  */
 function resampleOr(
   src: Uint8Array,
@@ -216,7 +216,7 @@ function resampleOr(
   return out
 }
 
-/** Clockwise quarter turns. Exact on a grid — no resampling, no error. */
+/** Clockwise quarter turns. Exact on a grid: no resampling, no error. */
 function rotateMask(
   m: Uint8Array,
   w: number,
@@ -324,7 +324,7 @@ function profileOf(
   return { rot, w, h, bottom, top, wCm, hCm }
 }
 
-/** Profile of a solid rectangle — the dilation of a box is a bigger box. */
+/** Profile of a solid rectangle: the dilation of a box is a bigger box. */
 function rectProfile(w: number, h: number, rot: RotCw, wCm: number, hCm: number): Profile {
   return {
     rot,
@@ -339,7 +339,7 @@ function rectProfile(w: number, h: number, rot: RotCw, wCm: number, hCm: number)
 
 interface Built {
   profiles: Profile[]
-  /** Real ink area, cm² — the honest utilisation numerator. */
+  /** Real ink area, cm²: the honest utilisation numerator. */
   inkAreaCm2: number
 }
 
@@ -359,7 +359,7 @@ function buildProfiles(
     for (let i = 0; i < m.length; i++) ink += m[i]
     // An all-but-solid mask is a rectangle: the true-shape path would cost
     // work and buy nothing. An EMPTY mask means the caller measured nothing
-    // usable, and nesting "no ink" would let pieces overlap — fall back too.
+    // usable, and nesting "no ink" would let pieces overlap: fall back too.
     if (ink > 0 && ink < RECT_FILL * m.length) base = m
   }
 
@@ -406,7 +406,7 @@ function buildProfiles(
 // ---------------------------------------------------------------------------
 
 interface Item {
-  /** `<piece.id>#<n>` — same identity convention as the shelf packer. */
+  /** `<piece.id>#<n>`: same identity convention as the shelf packer. */
   id: string
   sourceKey: string
   profiles: Profile[]
@@ -436,7 +436,7 @@ function prepare(
   // sides. Every profile is dilated by `half` on all four sides so that two
   // cell-disjoint profiles are `gapCm` apart; but the outermost pieces have no
   // neighbour past the sheet edge, so that outer half-gap must be swallowed by
-  // the margin — exactly what the shelf packer's `usableW = width - 2·side +
+  // the margin, exactly what the shelf packer's `usableW = width - 2·side +
   // gap` does. Without the `+ 2·half` the true-shape packer would be gapCm
   // narrower AND gapCm shorter per sheet than the shelf packer, and a piece
   // exactly the printable width could never be placed at all.
@@ -486,7 +486,7 @@ function prepare(
   return { res, half, cols, barrier, items, unplaceable: unplaceable.sort() }
 }
 
-/** No clamp at all — larger than any skyline a 32-bit cell grid can hold. */
+/** No clamp at all, larger than any skyline a 32-bit cell grid can hold. */
 const UNLIMITED_DIP = 1 << 30
 
 /**
@@ -495,7 +495,7 @@ const UNLIMITED_DIP = 1 << 30
  * of them (an API caller asking for 8 cm must really get 8 cm of tuck).
  *
  * Nested by construction over `INTERLOCK_STOPS_CM`, which is what makes the
- * result monotone across the slider — see the module header.
+ * result monotone across the slider: see the module header.
  */
 function dipLadder(interlockCm: number, res: number): number[] {
   const cells = (cm: number) =>
@@ -506,7 +506,7 @@ function dipLadder(interlockCm: number, res: number): number[] {
   return [...out].sort((a, b) => b - a)
 }
 
-/** Fixed-seed LCG — variety without randomness, so results reproduce exactly. */
+/** Fixed-seed LCG: variety without randomness, so results reproduce exactly. */
 function lcg(seed: number): () => number {
   let s = seed >>> 0
   return () => {
@@ -522,7 +522,7 @@ const byId = (a: Item, b: Item) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
  * (they disagree about what "big" means, which is exactly the point); the rest
  * are seeded partial shuffles of the best-known one. Measured: pure restarts
  * took one realistic instance from 356,6 to 266,6 cm, −25 %, with no search
- * machinery at all — which is why there is no simulated annealing here.
+ * machinery at all, which is why there is no simulated annealing here.
  */
 function orderings(items: Item[], n: number): Item[][] {
   const sorters: ((a: Item, b: Item) => number)[] = [
@@ -655,7 +655,7 @@ function packOnce(order: Item[], P: Prepared, maxDip: number): Placed[] {
 /**
  * Cut the open-ended strip into billed sheets at the barrier. No placement
  * crosses a barrier by construction (step (c) above), so this is a pure
- * regrouping — but the invariant is worth restating, because a piece that
+ * regrouping, but the invariant is worth restating, because a piece that
  * straddled a cut would be discovered at the print shop.
  */
 function toSheets(placed: Placed[], P: Prepared, R: ResolvedNestOptions): DtfSheet[] {
@@ -736,7 +736,7 @@ function toSheets(placed: Placed[], P: Prepared, R: ResolvedNestOptions): DtfShe
 /**
  * Ranking key, lexicographic and total:
  *   1. MORE pieces placed (never trade a dropped transfer for shorter film),
- *   2. the caller's objective — € for a roll order, cm by default,
+ *   2. the caller's objective: € for a roll order, cm by default,
  *   3. billed length,
  *   4. a canonical placement signature, so exact ties still resolve the same
  *      way on every machine.
@@ -780,7 +780,7 @@ function better(a: Key, b: Key): boolean {
 /**
  * Nest onto an open-ended ROLL, true-shape, multi-restart.
  *
- * Restart #0 is `nestRoll` — the shelf packer — scored with the same
+ * Restart #0 is `nestRoll` (the shelf packer), scored with the same
  * objective, so this function can never return a worse solution than the one
  * shipped before it existed. That guarantee is not decorative: on one of the
  * five benchmark instances the shelf packer genuinely beats a good rectangle
@@ -813,7 +813,7 @@ export function nestShapeRoll(
 
   // Rung 0 packs BOUNDING BOXES, not true shapes. With true-shape profiles a
   // zero dip only puts a piece above the INK in the columns it spans, so a
-  // neighbour whose ink stops early can still be overhung — and "straight
+  // neighbour whose ink stops early can still be overhung, and "straight
   // rows" has to mean straight rows. That makes the two profile sets genuinely
   // different searches, so a ceiling above 0 has to run BOTH or it would not
   // contain the ceiling-0 candidate set: measured, a logo order packs into
@@ -827,7 +827,7 @@ export function nestShapeRoll(
   }
 
   // Same comparators over the same keys (ink area is measured from the mask in
-  // both), so the two prepared sets yield the SAME permutation — the rung-0
+  // both), so the two prepared sets yield the SAME permutation: the rung-0
   // candidates really are the ceiling-0 candidates.
   const n = restarts - 1
   const plans: { P: Prepared; orders: Item[][]; dip: number }[] = []
@@ -888,7 +888,7 @@ function assemble(
 // ---------------------------------------------------------------------------
 
 /**
- * Everything a nesting run needs, structured-clone safe — this crosses the
+ * Everything a nesting run needs, structured-clone safe: this crosses the
  * Worker boundary verbatim, `Uint8Array` masks included.
  */
 export interface NestJob {
@@ -909,7 +909,7 @@ export interface NestJob {
  * which buys the format minimising `price ÷ pieces placed on that ONE sheet`
  * and then re-packs whatever is left. All the inner packer controls is that
  * numerator's denominator, so it is scored by how full the FIRST sheet comes
- * out — minimising total length there would happily move pieces off the sheet
+ * out. Minimising total length there would happily move pieces off the sheet
  * being priced onto a sheet that is about to be discarded and re-packed.
  */
 export function runNestJob(

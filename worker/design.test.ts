@@ -4,9 +4,9 @@
  * The bucket is a Map here, not a mock of the routes: every case posts an actual
  * multipart body through `createDesign` and reads it back through `getDesign` and
  * `serveDesignFile`, so what is asserted is the behaviour a browser and the
- * WordPress plugin will see. What matters most is the pair of refusals — a design
+ * WordPress plugin will see. What matters most is the pair of refusals (a design
  * whose artwork did not arrive, and an upload of artwork the design never
- * mentions — because the first is an order the workshop cannot fill and the
+ * mentions), because the first is an order the workshop cannot fill and the
  * second is R2 as a dead drop.
  */
 import { describe, expect, it } from 'vitest'
@@ -170,7 +170,7 @@ function post(parts: Record<string, Blob | string>): Request {
 const png = () => new Blob([PNG], { type: 'image/png' })
 const doc = (o: unknown = DOC) => new Blob([JSON.stringify(o)], { type: 'application/json' })
 
-describe('readDesignDoc — the gate on what may be stored', () => {
+describe('readDesignDoc: the gate on what may be stored', () => {
   it('accepts a design and reports the assets it references', () => {
     const r = readDesignDoc(DOC)!
     expect(r.garment).toBe('tee')
@@ -350,7 +350,7 @@ describe('readDesignDoc — the gate on what may be stored', () => {
     expect(r.sides).toEqual([{ id: 'back', area_sq_cm: 12 }])
   })
 
-  it('caps a side area at a square metre — past that it is a data error', () => {
+  it('caps a side area at a square metre: past that it is a data error', () => {
     const r = readDesignDoc({ ...DOC, sides: [{ id: 'front', area_sq_cm: 9e9 }] })!
     expect(r.sides[0].area_sq_cm).toBe(10000)
   })
@@ -480,7 +480,7 @@ describe('POST /api/design', () => {
   })
 })
 
-describe('GET /api/design/{id} — what the WordPress plugin verifies against', () => {
+describe('GET /api/design/{id}: what the WordPress plugin verifies against', () => {
   it('answers 200 with the fields Design::verify reads', async () => {
     const e = env()
     const { id } = (await (
@@ -497,7 +497,7 @@ describe('GET /api/design/{id} — what the WordPress plugin verifies against', 
     expect(res.headers.get('cache-control')).toBe('no-store')
   })
 
-  it('404s an id that was never stored — the plugin then refuses the cart line', async () => {
+  it('404s an id that was never stored: the plugin then refuses the cart line', async () => {
     expect((await getDesign(env(), 'aaaaaaaaaaaaaaaaaaaaaaaa')).status).toBe(404)
   })
 
@@ -508,7 +508,7 @@ describe('GET /api/design/{id} — what the WordPress plugin verifies against', 
   })
 })
 
-describe('GET /r2/design/{id}/… — who may read what', () => {
+describe('GET /r2/design/{id}/…: who may read what', () => {
   const admin = (token?: string) =>
     new Request('https://x/', token ? { headers: { authorization: `Bearer ${token}` } } : undefined)
 
@@ -520,7 +520,7 @@ describe('GET /r2/design/{id}/… — who may read what', () => {
     return { e, id }
   }
 
-  it('serves the preview on the id alone — a BAT email carries no token', async () => {
+  it('serves the preview on the id alone: a BAT email carries no token', async () => {
     const { e, id } = await stored()
     const res = await serveDesignFile(admin(), e, id, 'preview.png')
     expect(res.status).toBe(200)

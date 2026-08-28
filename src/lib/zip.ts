@@ -1,10 +1,10 @@
 /**
- * Minimal, dependency-free ZIP writer — the DTF export bundles a whole order
+ * Minimal, dependency-free ZIP writer: the DTF export bundles a whole order
  * (N print sheets + N cutting plans + the manifest + a human-readable summary)
  * into ONE download instead of firing N `downloadBlob` calls that browsers
  * throttle, reorder and silently drop.
  *
- * SHAPE — why it looks like this
+ * SHAPE: why it looks like this
  * -----------------------------
  * • STORE only (compression method 0). The payload is almost entirely PNG,
  *   which is already DEFLATEd; re-compressing it costs seconds of main-thread
@@ -20,7 +20,7 @@
  *   0xFFFFFFFF offset ceiling for real, and a truncated archive is a silent
  *   data-loss bug that only shows up at the print shop.
  * • Filenames are written UTF-8 with general-purpose bit 11 (EFS) set, because
- *   French order names ("Commande Été — Résidence") are the normal case here.
+ *   French order names ("Commande Été, Résidence") are the normal case here.
  *
  * Deterministic given its inputs: the only clock reading is the caller-supplied
  * `date` (the modal passes ONE timestamp for the whole archive), never
@@ -31,7 +31,7 @@
 export interface ZipEntry {
   /**
    * Path inside the archive, `/`-separated. Sanitised on write (backslashes,
-   * leading slashes, `..` segments and control characters are removed) — a
+   * leading slashes, `..` segments and control characters are removed). A
    * relative, forward-slashed path is the only portable form.
    */
   name: string
@@ -43,7 +43,7 @@ export interface ZipEntry {
 export interface ZipOptions {
   /** Timestamp for members that carry no `date` of their own. */
   date?: Date
-  /** Archive comment (EOCD). Kept short — many tools truncate it. */
+  /** Archive comment (EOCD). Kept short: many tools truncate it. */
   comment?: string
 }
 
@@ -105,7 +105,7 @@ class ByteWriter {
   }
 
   /**
-   * 64-bit little-endian. Written from a JS number, which is exact to 2^53 —
+   * 64-bit little-endian. Written from a JS number, which is exact to 2^53,
    * three orders of magnitude past any archive a browser can build, so the
    * BigInt ceremony would buy nothing.
    */
@@ -157,8 +157,8 @@ export function sanitizeZipName(name: string): string {
 
 /**
  * Filesystem-safe file/folder name for the archive itself and for members
- * built from user input (order names). Keeps accents — every OS this ships to
- * handles UTF-8 filenames — and drops only what is genuinely illegal.
+ * built from user input (order names). Keeps accents (every OS this ships to
+ * handles UTF-8 filenames) and drops only what is genuinely illegal.
  */
 export function safeFileName(s: string, fallback = 'export'): string {
   const cleaned = s
@@ -172,7 +172,7 @@ export function safeFileName(s: string, fallback = 'export'): string {
   return cleaned || fallback
 }
 
-/** `YYYY-MM-DD` in LOCAL time — the operator's date, not UTC's. */
+/** `YYYY-MM-DD` in LOCAL time, the operator's date, not UTC's. */
 export function isoDate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
@@ -242,7 +242,7 @@ export async function createZip(entries: ZipEntry[], opts: ZipOptions = {}): Pro
     const crc = await crc32OfBlob(entry.blob)
     const size = entry.blob.size
     const { time, date } = dosDateTime(entry.date ?? fallbackDate)
-    // ZIP64 in the LOCAL header is decided by the member's SIZE alone — a
+    // ZIP64 in the LOCAL header is decided by the member's SIZE alone. A
     // local header has no offset field, so promoting it because the archive
     // grew past 4 GiB would write 0xFFFFFFFF sizes the central record then
     // contradicts. The 64-bit relative offset is a central-directory concern.

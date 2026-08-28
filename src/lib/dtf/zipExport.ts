@@ -1,10 +1,10 @@
 /**
- * DTF order export — the WHOLE job as one .zip.
+ * DTF order export: the WHOLE job as one .zip.
  *
  * WHY ONE ARCHIVE. The old flow fired one `downloadBlob` per sheet, per
  * cutting plan and for the manifest. Browsers throttle, reorder and silently
  * DROP bursts of programmatic downloads, so a 12-sheet order regularly arrived
- * incomplete — and nothing told the operator which planche was missing. One
+ * incomplete, and nothing told the operator which planche was missing. One
  * archive is one user gesture, one atomic artefact, and it carries its own
  * name, date and inventory.
  *
@@ -12,11 +12,11 @@
  * store. This module therefore renders ONE sheet canvas at a time and releases
  * it (`width = height = 1`) the instant the PNG blob exists; `createZip` only
  * ever holds the resulting Blobs, which the browser is free to keep on disk.
- * The high-resolution piece sources are the caller's concern — they are shared
+ * The high-resolution piece sources are the caller's concern: they are shared
  * across sheets, so re-rendering them per sheet would trade memory for minutes.
  *
- * DETERMINISM. `date` is a parameter. Every timestamp in the archive — its
- * filename, each member's DOS date, the README, the manifest — comes from that
+ * DETERMINISM. `date` is a parameter. Every timestamp in the archive (its
+ * filename, each member's DOS date, the README, the manifest) comes from that
  * single instant, so re-exporting the same order twice differs only by the
  * clock reading the caller chose to pass.
  */
@@ -95,18 +95,18 @@ const T = {
     readme: 'LISEZ-MOI.txt',
     manifest: 'manifeste.json',
     sheet: 'planche',
-    stepPrint: 'Planche {n}/{t} — fichier d’impression',
-    stepPlan: 'Planche {n}/{t} — plan de découpe',
+    stepPrint: 'Planche {n}/{t} : fichier d’impression',
+    stepPlan: 'Planche {n}/{t} : plan de découpe',
     stepZip: 'Assemblage de l’archive',
-    legendShelf: 'Découpe en bandes droites — couper les lignes bleues, puis les verticales',
+    legendShelf: 'Découpe en bandes droites : couper les lignes bleues, puis les verticales',
     legendRows:
-      'Rangées droites — aucune pièce n’en chevauche une autre : couper au ras des cadres roses',
+      'Rangées droites, aucune pièce n’en chevauche une autre : couper au ras des cadres roses',
     legendInterlock:
-      'Imbrication libre (jusqu’à {i} cm) — suivre le contour rose de chaque pièce',
+      'Imbrication libre (jusqu’à {i} cm) : suivre le contour rose de chaque pièce',
     legendInterlockMax:
-      'Imbrication maximale — suivre le contour rose de chaque pièce, pas de bande droite',
+      'Imbrication maximale : suivre le contour rose de chaque pièce, pas de bande droite',
     noArt:
-      'Visuel manquant pour {n} pièce(s) : {keys}. Archive annulée — un dossier ' +
+      'Visuel manquant pour {n} pièce(s) : {keys}. Archive annulée. Un dossier ' +
       'incomplet envoyé au fournisseur imprime des planches trouées.',
   },
   en: {
@@ -115,16 +115,16 @@ const T = {
     readme: 'READ-ME.txt',
     manifest: 'manifest.json',
     sheet: 'sheet',
-    stepPrint: 'Sheet {n}/{t} — print file',
-    stepPlan: 'Sheet {n}/{t} — cutting plan',
+    stepPrint: 'Sheet {n}/{t}: print file',
+    stepPlan: 'Sheet {n}/{t}: cutting plan',
     stepZip: 'Assembling the archive',
-    legendShelf: 'Straight-strip cutting — cut the blue lines, then the verticals',
-    legendRows: 'Straight rows — no piece overhangs another: cut along the pink frames',
-    legendInterlock: 'Free interlock (up to {i} cm) — follow each piece’s pink outline',
+    legendShelf: 'Straight-strip cutting: cut the blue lines, then the verticals',
+    legendRows: 'Straight rows, no piece overhangs another: cut along the pink frames',
+    legendInterlock: 'Free interlock (up to {i} cm): follow each piece’s pink outline',
     legendInterlockMax:
-      'Maximum interlock — follow each piece’s pink outline, no straight strips',
+      'Maximum interlock: follow each piece’s pink outline, no straight strips',
     noArt:
-      'Missing artwork for {n} piece(s): {keys}. Archive aborted — an incomplete ' +
+      'Missing artwork for {n} piece(s): {keys}. Archive aborted. An incomplete ' +
       'package sent to the supplier prints sheets with holes in them.',
   },
 } as const
@@ -148,15 +148,15 @@ const fill = (box: number, ink: number | undefined, fr: boolean): string =>
     : `${fr ? 'encre ' : 'ink '}${pct(ink)} · ${fr ? 'boîtes ' : 'boxes '}${pct(box)}`
 
 /**
- * The cutting plan's legend — states the mode, because the plans look alike and
+ * The cutting plan's legend: states the mode, because the plans look alike and
  * are cut very differently.
  *
  * The three cases are NOT interchangeable and getting them wrong hands someone
  * lines that do not exist. Only the SHELF packer produces genuine full-width
  * corridors plus vertical trims, and only its plan draws them (`drawGuides`
  * keys off `shelfYsCm`). The true-shape packer at interlock 0 guarantees
- * something weaker but still straight-cuttable — no piece overhangs another in
- * the columns it spans — and its plan draws only the empty bands that really
+ * something weaker but still straight-cuttable (no piece overhangs another in
+ * the columns it spans) and its plan draws only the empty bands that really
  * exist, so promising "puis les verticales" there was a lie.
  *
  * `INTERLOCK_MAX_CM` is a sentinel, not a measurement: printing "jusqu'à
@@ -183,7 +183,7 @@ export async function buildOrderZip(
   const { result, date } = input
   const sheets = result.sheets
   // REFUSE rather than ship a hole. `renderSheet` skips a placement whose
-  // sourceKey is absent from the map — which is right for a live preview and
+  // sourceKey is absent from the map, which is right for a live preview and
   // catastrophic for an export: the archive still looks complete (right sheet
   // count, right file names, a plausible manifest) while one transfer is
   // simply not on the film, and nobody finds out until the press. A caller's
@@ -296,7 +296,7 @@ async function release(canvas: HTMLCanvasElement): Promise<Blob> {
  * the drop from the TOP EDGE of the print area (a fixed distance below the
  * collar, so it is the same on every size of a fixed design) and the offset
  * from the CENTRE LINE (the garment's fold). "Centré" is spelled out rather
- * than printed as 0,0 cm — the overwhelmingly common case should not read like
+ * than printed as 0,0 cm: the overwhelmingly common case should not read like
  * a measurement to double-check.
  */
 function placementLine(p: ManifestPiece, fr: boolean): string {
@@ -325,8 +325,8 @@ function placementLine(p: ManifestPiece, fr: boolean): string {
 }
 
 /**
- * The plain-text order summary. It exists so a human — the operator, or
- * whoever opens the archive in three months — can answer "what is this, what
+ * The plain-text order summary. It exists so a human (the operator, or
+ * whoever opens the archive in three months) can answer "what is this, what
  * did it cost, what has to be pressed" without a JSON viewer.
  */
 function readmeText(i: OrderZipInput, m: DtfManifest): string {
@@ -340,7 +340,7 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
   const vat = i.supplier.vatBasis === 'HT' ? (fr ? 'HT' : 'excl. VAT') : fr ? 'TTC' : 'incl. VAT'
 
   L.push(
-    (fr ? 'DOSSIER D’IMPRESSION DTF — ' : 'DTF PRINT PACKAGE — ') + i.orderName,
+    (fr ? 'DOSSIER D’IMPRESSION DTF : ' : 'DTF PRINT PACKAGE: ') + i.orderName,
     '='.repeat(60),
     (fr ? 'Généré le ' : 'Generated ') +
       i.date.toLocaleString(fr ? 'fr-FR' : 'en-GB') +
@@ -411,8 +411,8 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
         ? '  ! Des visuels peuvent être imprimés à 180° ou 270°. La flèche du plan de'
         : '  ! Some designs may be printed at 180° or 270°. The arrow on the cutting',
       fr
-        ? '    découpe donne le haut de chaque pièce — vérifier avant de presser.'
-        : '    plan gives each piece’s up — check it before pressing.',
+        ? '    découpe donne le haut de chaque pièce. Vérifier avant de presser.'
+        : '    plan gives each piece’s up. Check it before pressing.',
     )
 
   /*
@@ -504,7 +504,7 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
 
   rule(fr ? 'Visuels' : 'Artwork')
   // A side is printed as one transfer PER INDEPENDENT VISUAL, which is what
-  // keeps the film full — and what makes the position line below mandatory
+  // keeps the film full, and what makes the position line below mandatory
   // rather than nice to have: the press gets several transfers where it used to
   // get one file, and only these numbers say which goes where.
   if (i.pieces.some((p) => (p.parts ?? 1) > 1))
@@ -516,8 +516,8 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
         ? '  indépendant, n/total ci-dessous). Poser chacun à la position indiquée,'
         : '  n/total below). Press each one at the position given, measured from',
       fr
-        ? '  mesurée depuis la zone d’impression — sinon le vêtement est perdu.'
-        : '  the print area — otherwise the garment is ruined.',
+        ? '  mesurée depuis la zone d’impression, sinon le vêtement est perdu.'
+        : '  the print area. Otherwise the garment is ruined.',
       '',
     )
   for (const p of i.pieces) {
@@ -536,8 +536,8 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
   if (i.preflight.length === 0)
     L.push(
       fr
-        ? '  Rien de détectable. Le contrôle ne voit que ce qui est mesurable —'
-        : '  Nothing detectable. The check only sees what is measurable —',
+        ? '  Rien de détectable. Le contrôle ne voit que ce qui est mesurable :'
+        : '  Nothing detectable. The check only sees what is measurable:',
       fr ? '  ce n’est pas une garantie de qualité.' : '  it is not a quality guarantee.',
     )
   else
@@ -545,7 +545,7 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
       L.push(
         `  ${p.level === 'error' ? '[ERREUR]' : '[avert.]'} ${
           i.labels.get(p.pieceKey) ?? p.pieceKey
-        } — ${p.message}`,
+        } · ${p.message}`,
       )
 
   rule(fr ? 'Contenu de l’archive' : 'Archive contents')

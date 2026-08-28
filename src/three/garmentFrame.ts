@@ -61,7 +61,7 @@ export function buildGarmentFrame(
   const center = box.getCenter(new THREE.Vector3())
   geometry.translate(-center.x, -center.y, -center.z)
 
-  // The arc table is in RAW units and therefore size-independent — build it on
+  // The arc table is in RAW units and therefore size-independent: build it on
   // the centred, unscaled geometry and cache it per model for the app's life.
   const table = getArcTable(calib.url, geometry, calib.chestBandFromTop)
 
@@ -77,14 +77,14 @@ export function buildGarmentFrame(
   // serves every size: the girth and length scales differ by a few per cent,
   // which moves no crease anywhere a viewer could see. Doing it here (rather
   // than after `scale`) is also what lets it be cached per model like the arc
-  // table beside it — it is the expensive part of loading a garment.
+  // table beside it. It is the expensive part of loading a garment.
   const cavity = getCavity(calib.url, geometry, { ...CAVITY_DEFAULTS, gain: calib.cloth.cavityGain })
 
   geometry.scale(xzScale, yScale, xzScale)
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
   // After the scale, so the attribute rides the geometry the meshes actually
-  // use — `scale` does not reorder vertices, so the buffers stay aligned.
+  // use: `scale` does not reorder vertices, so the buffers stay aligned.
   if (cavity) applyCavity(geometry, cavity)
 
   const biggest = SIZE_IDS[SIZE_IDS.length - 1]
@@ -125,7 +125,7 @@ function probeSurfaceX(
 export interface ArmProfile {
   /** Half the arm tube's depth at this height, inches. */
   radiusIn: number
-  /** Signed X of the arm's CROWN — its outermost point, which is not at z = 0. */
+  /** Signed X of the arm's CROWN, its outermost point, which is not at z = 0. */
   crownX: number
   /** Z of the arm's own centre. Also not 0: an A-pose arm hangs forward of the
    *  garment's mid-plane. */
@@ -136,8 +136,8 @@ export interface ArmProfile {
  * Where the sleeve actually is, measured off the mesh.
  *
  * A ray fired inward along ∓X at sleeve height hits the ARM where the arm is and
- * the TORSO everywhere else, so "how far does the surface extend in z" — the
- * question the old `armRadiusIn` asked — is answered by the torso and comes back
+ * the TORSO everywhere else, so "how far does the surface extend in z" (the
+ * question the old `armRadiusIn` asked) is answered by the torso and comes back
  * as the garment's own half-depth. Measured on the shipped meshes it returned
  * 5.45 in on the tee where the arm is 1.91, and 6.15 on the hoodie where it is
  * 2.39. Since the caller turns that radius into a projector depth through a
@@ -146,7 +146,7 @@ export interface ArmProfile {
  * The outboard part of the artwork fell outside the box and was clipped.
  *
  * So separate the two: the arm is a hump standing proud of the torso plateau, and
- * the plateau is the MEDIAN of the sweep (it can never be the minority — the
+ * the plateau is the MEDIAN of the sweep (it can never be the minority: the
  * sweep spans the garment's whole depth and an arm is a few inches across). Take
  * the contiguous run around the crown that stays above the half-way line between
  * crown and plateau. That yields the tube's own z-run, its centre, and its crown.
@@ -175,7 +175,7 @@ export function armProfile(
     hits.push(out[i])
     if (peak < 0 || out[i] > out[peak]) peak = i
   }
-  /** Nothing recognisable — degrade to the pre-measurement behaviour rather than
+  /** Nothing recognisable: degrade to the pre-measurement behaviour rather than
    *  to something new and unexamined. */
   const unknown: ArmProfile = { radiusIn: reachIn / 2, crownX: sign * reachIn, centreZ: 0 }
   if (peak < 0) return unknown

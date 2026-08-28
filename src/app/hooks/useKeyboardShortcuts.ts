@@ -33,7 +33,7 @@ export function useKeyboardShortcuts(): void {
       if (openModal || inField(e)) return
 
       // Browsing the board, `design` is the user's OWN document while the
-      // screen shows somebody else's products — so every design-mutating
+      // screen shows somebody else's products, so every design-mutating
       // shortcut is off, and only navigation survives.
       if (s.board.on && !s.board.focusedId) {
         const zoom = (detail: string) =>

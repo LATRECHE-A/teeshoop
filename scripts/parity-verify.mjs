@@ -1,10 +1,10 @@
 /**
  * Headless PRINT-PARITY verification: does the print area occupy the same
  * size + vertical position relative to the garment in the 2D mockup, the 3D
- * preview and the baked AR figure — at EVERY garment size?
+ * preview and the baked AR figure, at EVERY garment size?
  *
- * Seeds a calibration design — a KELLY-GREEN tee with a MAGENTA rectangle that
- * fills the front print area exactly — then, for each swept size, measures in
+ * Seeds a calibration design (a KELLY-GREEN tee with a MAGENTA rectangle that
+ * fills the front print area exactly), then, for each swept size, measures in
  * all three renderers the magenta bbox (the print) against the green bbox (the
  * garment):
  *   - ratioW   = printWidth / garmentWidth   (how big the print reads)
@@ -13,7 +13,7 @@
  * figure is measured against the GARMENT, not the whole body.
  *
  * The size sweep is the point: art scales about the collar while print areas
- * never scale, so ratioW/vFrac legitimately MOVE with size — but they must move
+ * never scale, so ratioW/vFrac legitimately MOVE with size, but they must move
  * IDENTICALLY in 2D, 3D and AR. A per-size table catches an absolute mismatch;
  * the drift table catches the subtler bug where one renderer scales length by
  * the chest ratio instead of the body-length ratio.
@@ -128,7 +128,7 @@ try {
     return Object.fromEntries(sizes.map((s) => [s, sizeScale('tee', s)]))
   }, SIZES)
 
-  // ---- 2D (renderMockup — the shared 2D truth) ----
+  // ---- 2D (renderMockup, the shared 2D truth) ----
   for (const size of SIZES) {
     rows[size].twoD = await page.evaluate(async (sizeId) => {
       const { renderMockup } = await window.__render()
@@ -151,7 +151,7 @@ try {
     await page.evaluate(() => window.__tshop.getState().requestView('front'))
     await page.waitForTimeout(2500)
     // WebGL readback must happen INSIDE rAF (the drawing buffer is cleared after
-    // the frame otherwise — same pattern as scripts/readme-shots.mjs).
+    // the frame otherwise, same pattern as scripts/readme-shots.mjs).
     rows[size].threeD = await page.evaluate(() => new Promise((resolve) => {
       const gl = document.querySelector('main canvas')
       if (!gl) return resolve({ ok: false })
@@ -209,7 +209,7 @@ try {
     ? `  ${name.padEnd(4)} ratioW=${m.ratioW.toFixed(3)}  ratioH=${m.ratioH.toFixed(3)}  vFrac=${m.vFrac.toFixed(3)}  [garment ${m.garment.w}x${m.garment.h}px, print ${m.print.w}x${m.print.h}px]`
     : `  ${name.padEnd(4)} MEASURE FAILED (garment=${JSON.stringify(m?.garment)} print=${JSON.stringify(m?.print)})`
 
-  console.log('\n— PRINT PARITY (front, tee, 12×16 print) —')
+  console.log('\n=== PRINT PARITY (front, tee, 12×16 print) ===')
   let ok = true
   let verdict = 'PASS'
   const drift = {}
@@ -227,11 +227,11 @@ try {
   // ---- does the rendered garment actually obey the cm chart? ----
   // The projection-free test: measure the garment silhouette itself against the
   // chart's chest (sx) and body-length (sy) ratios. This is what catches a
-  // renderer that scales length by the chest ratio — unlike the print-relative
+  // renderer that scales length by the chest ratio. Unlike the print-relative
   // numbers below, it is immune to perspective and surface curvature.
   const ref = SIZES.find((s) => rows[s].twoD?.ok && rows[s].threeD?.ok)
   if (ref) {
-    console.log(`\n— garment silhouette vs cm chart (ratios relative to ${ref}) —`)
+    console.log(`\n=== garment silhouette vs cm chart (ratios relative to ${ref}) ===`)
     for (const view of ['twoD', 'threeD']) {
       for (const size of SIZES) {
         const m = rows[size][view], r = rows[ref][view]
@@ -255,11 +255,11 @@ try {
   // ratio passes every per-size check above but fails here.
   const sizesOk = SIZES.filter((s) => drift[s])
   if (sizesOk.length > 1) {
-    console.log('\n— cross-size drift (2D minus other view) —')
+    console.log('\n=== cross-size drift (2D minus other view) ===')
     // Vertical drift (v3/va) is the guarantee areaOffsetYIn makes across the
     // three renderers. rW3 is flat only because print GRADING is on: the print
     // and the garment scale together, so the size term cancels and all that is
-    // left is the constant flat-2D-vs-curved-3D projection offset — which makes
+    // left is the constant flat-2D-vs-curved-3D projection offset, which makes
     // it the regression test for grading reaching 3D at all.
     //
     // rWa is deliberately NOT enforced. The AR figure is an AVATAR: a fixed
@@ -270,9 +270,9 @@ try {
     for (const k of ['v3', 'va', 'rW3', 'rWa']) {
       const vals = sizesOk.map((s) => drift[s][k])
       const spread = Math.max(...vals) - Math.min(...vals)
-      const note = k === 'rWa' ? '  (avatar does not grade — diagnostic only)' : ''
+      const note = k === 'rWa' ? '  (avatar does not grade, diagnostic only)' : ''
       console.log(`  ${k.padEnd(4)} ${sizesOk.map((s, i) => `${s}=${vals[i].toFixed(3)}`).join('  ')}   spread=${spread.toFixed(3)}${note}`)
-      if (k !== 'rWa' && spread > 0.05) verdict = `WARN: ${k} drift varies with size (spread ${spread.toFixed(3)}) — grading may not be reaching this view`
+      if (k !== 'rWa' && spread > 0.05) verdict = `WARN: ${k} drift varies with size (spread ${spread.toFixed(3)}): grading may not be reaching this view`
     }
 
     // AR grading, measured the one way the avatar path allows. The body is a
@@ -281,7 +281,7 @@ try {
     // foreshortened by an amount that itself grows with the print.
     const ref = sizesOk[0]
     const kOf = (s) => chart[s].sx / chart[ref].sx
-    console.log('\n— AR print grading (print height vs the fixed avatar body) —')
+    console.log('\n=== AR print grading (print height vs the fixed avatar body) ===')
     for (const s of sizesOk) {
       const got = rows[s].ar.ratioH / rows[ref].ar.ratioH
       const e = Math.abs(got / kOf(s) - 1)

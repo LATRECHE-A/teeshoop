@@ -36,7 +36,7 @@ function SceneSwatch({ id, theme }: { id: SceneId; theme: 'dark' | 'light' }) {
 }
 
 /**
- * Environment picker — swaps the backdrop (2D + 3D) and the 3D lighting rig.
+ * Environment picker: swaps the backdrop (2D + 3D) and the 3D lighting rig.
  * Floats over the stage in both preview modes.
  */
 export default function ScenePicker() {

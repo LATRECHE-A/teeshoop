@@ -11,19 +11,19 @@
  * ------------------------------------
  * A side used to emit ONE transfer spanning every layer on it. A chest logo
  * with a separate hem line then became a single tall transfer that is mostly
- * empty film, and the nester — true-shape or not — could only interlock that
+ * empty film, and the nester (true-shape or not) could only interlock that
  * one blob.
  *
  * Measured on the sample basket (58 cm roll, 5 mm gap, 8 order lines = 60
  * garments, shipped 2 cm interlock): the same order drops from 270 cm of roll
- * to 130 cm, 1,57 m² of film to 0,75 m² — 52 % less. At straight strips it is
+ * to 130 cm, 1,57 m² of film to 0,75 m², 52 % less. At straight strips it is
  * 340 → 140 cm, at maximum fill 240 → 130 cm; the sample front alone goes from
  * a 444,8 cm² box to three boxes totalling 181,2 cm² for exactly the same ink.
  * `scripts/dtf-bench.mjs` re-measures it on every run (`basket` vs
  * `basketMerged`), and `scripts/dtf-verify.mjs` asserts the ink is identical.
  *
  * THE PRICE, stated because it is real: that order becomes 16 transfers to
- * press instead of 8 — more weeding, more handling, more chances to press one
+ * press instead of 8: more weeding, more handling, more chances to press one
  * crooked. Which is why every piece carries where it goes (below), and why the
  * modal lets the operator turn the split off for a job where handling costs
  * more than film.
@@ -35,14 +35,14 @@
  * A layer's declared `wIn × hIn` is the box the artwork was dropped into, and
  * every one of those empty millimetres was bought as film and charged to the
  * customer as printed area. The extent of a visual is now measured from its own
- * alpha (`layerInkBox`), which is also what the Bible's imposition tool asks for
- * — «largeur et hauteur de chaque VISUEL». The measurement is taken once from
+ * alpha (`layerInkBox`), which is also what the Bible's imposition tool asks
+ * for: «largeur et hauteur de chaque VISUEL». The measurement is taken once from
  * the source, in fractions of the layer's own box, so it is the same number at
  * 28 DPI in the preview and at 300 DPI in the export: the nested layout and the
  * pixels poured into it cannot drift apart.
  *
  * Two layers stay in the same piece ONLY when their INK boxes, each grown by
- * half of `clearanceIn`, intersect — union-find over the side's layers. Artwork
+ * half of `clearanceIn`, intersect: union-find over the side's layers. Artwork
  * that overlaps or touches can therefore never be cut apart; everything else
  * becomes its own transfer. Measuring the ink rather than the rectangle also
  * stops two padded uploads from merging because their empty margins happened to
@@ -52,24 +52,24 @@
  * Each piece draws ONLY ITS OWN LAYERS. Cropping a shared full-area render
  * would be cheaper by one canvas, but two clusters' union boxes can legitimately
  * overlap (an L-shaped lockup with a small mark tucked in its corner), and the
- * crop would then print the neighbour's ink onto this transfer as well — the
+ * crop would then print the neighbour's ink onto this transfer as well, the
  * same graphic pressed twice onto the garment. Drawing per piece makes that
  * impossible, and skips the resample the old crop-from-full-canvas path did.
  *
- * WHERE IT GOES — placement provenance
- * ------------------------------------
+ * WHERE IT GOES: placement provenance
+ * -----------------------------------
  * Three transfers instead of one is only safe if the press operator knows where
  * each one goes. Every piece therefore carries `areaRectIn`, its box inside the
  * (graded) print area, and `piecePlacementCm` turns that into the two numbers a
  * press is set up from: the drop from the top of the print area and the offset
  * from its centre line. That travels to the queue list, the cutting-plan labels,
- * the README and the manifest — not just to the nesting geometry.
+ * the README and the manifest, not just to the nesting geometry.
  *
  * GRADING (src/lib/printScale.ts)
  * -------------------------------
  * A piece is identified by (design, side, **size**, part). With a `size` the
  * artwork AND the print area are scaled by the design's grading factor `k`, so
- * `wCm`, `hCm` and the pixels are the transfer that garment size really needs —
+ * `wCm`, `hCm` and the pixels are the transfer that garment size really needs:
  * a graded 3XL piece is physically larger than the same design at S, and the
  * gang sheet has to carry one distinct transfer per size instead of one for the
  * whole order. Omitting `size` (or a `fixed` design) keeps k = 1. Grading is
@@ -136,7 +136,7 @@ export type PiecePart = InkPart
 
 /**
  * Split one side into the transfers it should be printed as, in part order
- * (top to bottom, then left to right — the order the suffix in `piecePartKey`
+ * (top to bottom, then left to right, the order the suffix in `piecePartKey`
  * counts in, and the order an operator reads the garment in).
  *
  * Empty when the side carries no layers, or when the garment publishes no print
@@ -145,7 +145,7 @@ export type PiecePart = InkPart
  * garment's sleeve), and inventing a transfer size there is how a dimension
  * nobody measured reaches a printer.
  *
- * Text measurement depends on loaded fonts — call after `prepareSide` (or use
+ * Text measurement depends on loaded fonts: call after `prepareSide` (or use
  * `renderPieces`, which does) for export-exact numbers.
  */
 export function artworkParts(
@@ -159,7 +159,7 @@ export function artworkParts(
 
 /**
  * Tight rotation-aware bbox of a side's WHOLE artwork, clamped to the print
- * area — top-left-origin inches within the (graded) print area. This is the
+ * area: top-left-origin inches within the (graded) print area. This is the
  * un-split box: what the side would print as if it were emitted as one transfer.
  */
 export function artworkBBoxIn(design: Design, side: Side, size?: SizeId): RectIn | null {
@@ -168,14 +168,14 @@ export function artworkBBoxIn(design: Design, side: Side, size?: SizeId): RectIn
 
 /**
  * Native resolution ceiling of ONE PIECE's artwork, in px per inch at its
- * PLACED size — the smallest ratio across its raster layers (an upload blown up
+ * PLACED size: the smallest ratio across its raster layers (an upload blown up
  * to 12 in wide caps that piece). Text and graphics are vector: they raster at
  * whatever DPI is asked for, so they impose no ceiling and are skipped; null
  * therefore means "nothing limits the resolution here".
  *
  * It scans ONLY the layers handed to it, which is the point of measuring per
  * piece: a low-res sticker at the hem no longer drags down the DPI verdict of
- * the crisp logo it happens to share a side with — they are two files now, and
+ * the crisp logo it happens to share a side with. They are two files now, and
  * preflight (which reads this through `DtfPiece.srcPxW/H`) judges them apart.
  *
  * `layers` must already be GRADED (`scaleLayers`), which makes grading exact by
@@ -184,7 +184,7 @@ export function artworkBBoxIn(design: Design, side: Side, size?: SizeId): RectIn
  *
  * Reads the decoded images out of the asset cache, so it is only meaningful
  * after `prepareSide` (renderPieces does that). This is the honest input of the
- * preflight DPI check — the rendered canvas only carries the DPI we asked for.
+ * preflight DPI check: the rendered canvas only carries the DPI we asked for.
  */
 export function artworkSourceDpi(layers: Layer[]): number | null {
   let dpi: number | null = null
@@ -207,7 +207,7 @@ export interface RenderedPiece {
   dpi: number
   /**
    * Native resolution ceiling (px/in) AT THE GRADED SIZE, for THIS piece's
-   * layers only — null when its artwork is all vector.
+   * layers only, null when its artwork is all vector.
    */
   srcDpi: number | null
   /** Garment size this transfer is graded for; undefined = base size. */
@@ -218,7 +218,7 @@ export interface RenderedPiece {
   parts: number
   /**
    * WHERE IT GOES: this transfer's box inside the (graded) print area,
-   * top-left origin, inches. Without it a split side is unpressable — the
+   * top-left origin, inches. Without it a split side is unpressable: the
    * operator has three transfers and no idea where any of them belongs.
    */
   areaRectIn: RectIn
@@ -227,7 +227,7 @@ export interface RenderedPiece {
   areaHIn: number
   wIn: number
   hIn: number
-  /** Physical (graded) artwork size — feed these to the nesting engine. */
+  /** Physical (graded) artwork size: feed these to the nesting engine. */
   wCm: number
   hCm: number
 }
@@ -247,7 +247,7 @@ export type { PiecePlacementCm } from '@/lib/ink'
 export { piecePlacementCm } from '@/lib/ink'
 
 /**
- * Render one printed side as DTF pieces at `dpi`, graded for `size` — one piece
+ * Render one printed side as DTF pieces at `dpi`, graded for `size`: one piece
  * per independent artwork item, in part order. Empty when the side has no
  * printable artwork (or no print area at all).
  *
@@ -263,7 +263,7 @@ export async function renderPieces(
   opts?: PieceSplitOptions & { baseKey?: string },
 ): Promise<RenderedPiece[]> {
   const k = printScaleK(design, size)
-  // Load fonts/assets/rasters FIRST so measurement is export-exact — for the
+  // Load fonts/assets/rasters FIRST so measurement is export-exact, for the
   // GRADED layers at the density they are drawn at, which is both the effective
   // resolution and the cache key `drawLayerContent` will look up.
   await prepareSide(design, side, dpi, scaleLayers(sideLayers(design, side), k))
@@ -273,7 +273,7 @@ export async function renderPieces(
   // with a separate 300-DPI render, `renderSheet` stretches each source to fill
   // its placement, so a layer that failed to decode on one pass and succeeded on
   // the other would print at the ratio between a padded box and a tight one.
-  // Loud and empty beats quiet and wrong — the modal shows the row as failed and
+  // Loud and empty beats quiet and wrong: the modal shows the row as failed and
   // `buildOrderZip` refuses an archive with a missing source for the same reason.
   const { unmeasured } = await ensureInkProbes(sideLayers(design, side))
   if (unmeasured.length > 0)
@@ -339,7 +339,7 @@ export async function renderPieces(
  *
  * Anti-aliased edges and soft drop shadows mean `alpha > 0` covers far more
  * area than the visible print, so thresholding at 1 would quietly turn
- * true-shape nesting back into bounding-box nesting — all of the complexity,
+ * true-shape nesting back into bounding-box nesting: all of the complexity,
  * none of the gain. 8/255 keeps a genuinely feathered edge while discarding
  * the invisible tail.
  */
@@ -353,7 +353,7 @@ export interface PieceMask {
   mask: Uint8Array
   maskW: number
   maskH: number
-  /** Inked cells ÷ total cells — how much of the box the artwork really uses. */
+  /** Inked cells ÷ total cells: how much of the box the artwork really uses. */
   fillRatio: number
 }
 
@@ -364,7 +364,7 @@ export interface PieceMask {
  * floor. That direction is the safe one: the mask may only ever be too big,
  * which costs a sliver of film, never too small, which would let two transfers
  * touch. Cells are capped at one per source pixel so every cell is backed by
- * real pixels — an upsampled mask would have holes the artwork does not have.
+ * real pixels: an upsampled mask would have holes the artwork does not have.
  *
  * Returns null when the canvas is unreadable (tainted, zero-sized) or when
  * nothing clears the floor; callers then nest the bounding box, which is what

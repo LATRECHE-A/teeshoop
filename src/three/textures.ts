@@ -83,7 +83,7 @@ export function useSourceTexture(
 /**
  * Wrap a generated tangent-space normal-map canvas (e.g. the photo-wrinkle map
  * from `buildWrinkleNormalCanvas` / `InflatedShell.normalMapCanvas`) as a
- * texture. Normal maps are raw linear data — NoColorSpace, flipY like the
+ * texture. Normal maps are raw linear data: NoColorSpace, flipY like the
  * photo it was derived from so texels stay aligned with the color map.
  */
 export function useNormalMapTexture(canvas: HTMLCanvasElement | null | undefined): THREE.CanvasTexture | null {
@@ -101,7 +101,7 @@ export function useNormalMapTexture(canvas: HTMLCanvasElement | null | undefined
 }
 
 /**
- * Wrap a generated occlusion canvas (`InflatedShell.occlusionCanvas` — the
+ * Wrap a generated occlusion canvas (`InflatedShell.occlusionCanvas`, the
  * photo's own form shading, kept back from the de-lighting) as an `aoMap`.
  *
  * NoColorSpace, like the normal map and for the same reason: three reads
@@ -128,7 +128,7 @@ export function useOcclusionTexture(canvas: HTMLCanvasElement | null | undefined
  *
  * WHY MEASURE IT RATHER THAN PICK ONE. The blank reverse of a custom garment
  * used to be flooded with a fixed dark slate, which is a fine colour for a
- * navy tee and a lie about a white polo, a yellow hoodie or a red vest — and it
+ * navy tee and a lie about a white polo, a yellow hoodie or a red vest, and it
  * is the surface a customer sees the moment they orbit past 90°. There is no
  * constant that is right here, and there is no need for one: the front photo of
  * the same physical garment is on screen, so the back's colour is a measurement.
@@ -136,7 +136,7 @@ export function useOcclusionTexture(canvas: HTMLCanvasElement | null | undefined
  * Alpha-weighted so the background never contributes, and mean rather than
  * modal because a mean of the cloth is stable under the print composited on top
  * (artwork covers a small fraction of the garment) while a histogram peak jumps
- * between the shirt and a large logo. Sampled at 64 px — the answer is one
+ * between the shirt and a large logo. Sampled at 64 px: the answer is one
  * colour, and a bigger read only costs time.
  *
  * DETERMINISM: a fixed-size downscale and a sum. Same canvas ⇒ same hex.

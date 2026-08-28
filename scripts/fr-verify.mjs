@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * FR-VERIFY — hit the live Falk&Ross webservice and print what came back.
+ * FR-VERIFY: hit the live Falk&Ross webservice and print what came back.
  *
  * A browser-free sanity check for the supplier integration: it proves the
  * credentials work, the URL shapes are still what worker/falkross.ts assumes,
@@ -10,7 +10,7 @@
  *
  *   FR_WS_USER=… FR_WS_PASS=… node scripts/fr-verify.mjs [styleNr]
  *
- * Credentials are read from the environment ONLY — never hard-coded here, and
+ * Credentials are read from the environment ONLY, never hard-coded here, and
  * never printed. If you keep them in .dev.vars (git-ignored), this picks them
  * up from there automatically.
  *
@@ -49,7 +49,7 @@ function loadDevVars() {
       if (m && !process.env[m[1]]) process.env[m[1]] = m[2]
     }
   } catch {
-    /* absent is fine — the environment may carry them already */
+    /* absent is fine: the environment may carry them already */
   }
 }
 loadDevVars()
@@ -103,10 +103,10 @@ const probeOrder = (customerNumber) =>
 // --- reporting -------------------------------------------------------------
 
 let failures = 0
-const ok = (label, detail) => console.log(`  \x1b[32mok\x1b[0m   ${label}${detail ? ' — ' + detail : ''}`)
+const ok = (label, detail) => console.log(`  \x1b[32mok\x1b[0m   ${label}${detail ? ': ' + detail : ''}`)
 const bad = (label, detail) => {
   failures++
-  console.log(`  \x1b[31mFAIL\x1b[0m ${label}${detail ? ' — ' + detail : ''}`)
+  console.log(`  \x1b[31mFAIL\x1b[0m ${label}${detail ? ': ' + detail : ''}`)
 }
 const head = (s) => console.log(`\n\x1b[1m${s}\x1b[0m`)
 
@@ -118,7 +118,7 @@ async function get(url, auth = false) {
 // --- checks ----------------------------------------------------------------
 
 async function main() {
-  console.log(`Falk&Ross webservice check — account ${USER.slice(0, 6)}…, style ${STYLE}`)
+  console.log(`Falk&Ross webservice check: account ${USER.slice(0, 6)}…, style ${STYLE}`)
 
   head('1. Webservice mode (state.pl)')
   {
@@ -129,7 +129,7 @@ async function main() {
     else if (code === '') bad('no webservice_mode_code', `HTTP ${status}`)
     else ok('credentials accepted', `mode ${code} = ${name}`)
     if (code === '0') {
-      console.log('  \x1b[33m!!  LIVE MODE — orders placed on this account are REAL.\x1b[0m')
+      console.log('  \x1b[33m!!  LIVE MODE: orders placed on this account are REAL.\x1b[0m')
     }
   }
 
@@ -157,7 +157,7 @@ async function main() {
       const shots = tagsAll(body, 'shottype').map(strip)
       const kinds = [...new Set(shots)].join(',')
       ok('shot types', kinds || '(none)')
-      // 'mb' is undocumented but real — the parser must classify it as a BACK.
+      // 'mb' is undocumented but real: the parser must classify it as a BACK.
       if (shots.includes('mb')) ok("undocumented 'mb' (model back) present", 'parser handles it')
       const skus = tagsAll(body, 'sku_artnum').length
       const colours = new Set(tagsAll(body, 'sku_color_code').map(strip)).size
@@ -172,7 +172,7 @@ async function main() {
         ok('no garment measurements published', 'reference-chart estimate stays correct')
       }
       if (tagsAll(body, 'sku_cc_list').length > 0) {
-        console.log('  note: sku_cc_list (hex/RGB) now present — swatches could use real colours')
+        console.log('  note: sku_cc_list (hex/RGB) now present, swatches could use real colours')
       } else {
         ok('no sku_cc_list', 'colour swatches remain images, not hex')
       }
@@ -220,7 +220,7 @@ async function main() {
     else ok('deliveries', `${items} announced · exported ${tag(body, 'export_data_date')}`)
   }
 
-  head('7. Order endpoint contract (REJECTED ON PURPOSE — nothing is ordered)')
+  head('7. Order endpoint contract (REJECTED ON PURPOSE, nothing is ordered)')
   {
     // No <product_list>: the gateway refuses this before creating anything.
     const probe =
@@ -273,7 +273,7 @@ async function main() {
     }
     // The probe article of check 9 must stay a number the supplier does not use.
     if (rows.some((l) => l.startsWith(`${PROBE_SKU};`))) {
-      bad('the probe article now exists upstream', `${PROBE_SKU} is a real SKU — pick another`)
+      bad('the probe article now exists upstream', `${PROBE_SKU} is a real SKU. Pick another`)
     } else {
       ok('probe article is not a real SKU', PROBE_SKU)
     }
@@ -303,7 +303,7 @@ async function main() {
     if (mode !== '1') {
       bad(
         'refusing to probe: the account is not in test mode',
-        `webservice_mode_code=${mode} — nothing was sent`,
+        `webservice_mode_code=${mode}, nothing was sent`,
       )
     } else {
       const derived = /^(\d+)-/.exec(USER)?.[1] ?? ''
@@ -345,7 +345,7 @@ async function main() {
            */
           ok(
             'inconclusive, and says so',
-            'the gateway answers a wrong customer number identically — this cannot confirm ours',
+            'the gateway answers a wrong customer number identically. This cannot confirm ours',
           )
         } else if (mine.orderId === '0' || mine.err === '30' || /artno|article/i.test(mine.msg)) {
           ok('the derived customer number is ACCEPTED', 'refused on the article, not on the account')

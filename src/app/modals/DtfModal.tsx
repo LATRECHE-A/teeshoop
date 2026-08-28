@@ -1,8 +1,8 @@
 /**
- * DTF gang-sheet automation — admin modal.
+ * DTF gang-sheet automation: admin modal.
  *
- * Queue printed sides — from the ORDER BASKET (design × side × qty, the real
- * order) or manually (current design + saved designs) — pick a supplier AND a
+ * Queue printed sides, from the ORDER BASKET (design × side × qty, the real
+ * order) or manually (current design + saved designs), pick a supplier AND a
  * process (DTF textile / UV-DTF), auto-nest onto that process's geometry
  * (open-ended roll billed per linear metre, or catalogue sheet formats billed
  * per sheet), preflight the artwork against the process guidelines, preview the
@@ -11,8 +11,8 @@
  * TWO NESTERS, ONE PREVIEW. The shelf packer (nesting.ts) runs synchronously
  * so the preview is never empty, then the true-shape packer (trueshape.ts) runs
  * in a Worker and replaces it. Because the true-shape packer keeps the shelf
- * result as its own restart #0, the displayed layout can only ever get better —
- * never worse than what the operator saw a moment ago.
+ * result as its own restart #0, the displayed layout can only ever get
+ * better, never worse than what the operator saw a moment ago.
  *
  * ONE DOWNLOAD. Browsers throttle and silently drop bursts of programmatic
  * downloads, so a 12-sheet order used to arrive incomplete. The export is now a
@@ -120,14 +120,14 @@ import { CM_PER_IN } from '@/lib/units'
 import { useDtfT } from './dtfI18n'
 import type { Design, SavedDesignMeta, Side, SizeId } from '@/lib/types'
 
-/** Preview pixel density (px/inch) — 58 cm roll ≈ 640 px wide. */
+/** Preview pixel density (px/inch): 58 cm roll ≈ 640 px wide. */
 const PREVIEW_DPI = 28
-/** Cutting-plan export density — crisp guides, small files. */
+/** Cutting-plan export density: crisp guides, small files. */
 const CUTPLAN_DPI = 64
 const DEFAULT_QTY = 10
 
 /**
- * Interlock slider stops, cm — OWNED BY THE PACKER, not by this file. The
+ * Interlock slider stops, cm: OWNED BY THE PACKER, not by this file. The
  * "a bigger setting is never worse" guarantee is stated over exactly that rung
  * set (trueshape.ts), so offering a stop it does not sweep would reintroduce
  * the anomaly where dragging to "maximum fill" buys MORE film.
@@ -156,11 +156,11 @@ const frShort = (iso: string): string => {
 const eurOf = (cents: number): string =>
   `${(cents / 100).toFixed(2).replace('.', ',')} EUR`
 
-/** Restart counts offered. A COUNT, never a time budget — see trueshape.ts. */
+/** Restart counts offered. A COUNT, never a time budget. See trueshape.ts. */
 const RESTART_CHOICES = [6, 12, 24]
 
 /**
- * Merge distance shown in the UI, cm — `PIECE_CLEARANCE_IN` in the operator's
+ * Merge distance shown in the UI, cm: `PIECE_CLEARANCE_IN` in the operator's
  * unit. Every visual on a side is its own transfer unless two of them sit
  * closer than this, which is roughly the film gap they would be nested with
  * anyway (see pieces.ts for the full argument).
@@ -169,14 +169,14 @@ const DEFAULT_MERGE_CM = Math.round(PIECE_CLEARANCE_IN * CM_PER_IN * 100) / 100
 
 interface QueueRow {
   /**
-   * Stable row identity — the render-cache key, and the BASE of every nest
+   * Stable row identity: the render-cache key, and the BASE of every nest
    * piece id the row produces. A row is an order line (design × side × size),
    * not a transfer: a side split into three visuals still queues once here and
    * emits `key`, `key~2`, `key~3` (see `piecePartKey`).
    */
   key: string
   /**
-   * The same row identity WITHOUT the size — the transfer this row would be if
+   * The same row identity WITHOUT the size: the transfer this row would be if
    * the design did not grade. Rows that share it are one single-size transfer;
    * that is what the grading trade-off is measured against.
    */
@@ -227,8 +227,8 @@ interface HoverInfo {
 
 /**
  * Queue rows for the design currently open in the studio. Manual rows carry no
- * order size, so they are base-size transfers (k = 1) whatever the grading mode
- * — there is no garment size to grade to until the design is in the basket.
+ * order size, so they are base-size transfers (k = 1) whatever the grading
+ * mode: there is no garment size to grade to until the design is in the basket.
  */
 const rowsFromDesign = (design: Design): QueueRow[] =>
   printedSides(design).map((side) => {
@@ -242,7 +242,7 @@ const rowsFromDesign = (design: Design): QueueRow[] =>
  *
  * `updatedAt` is part of the key on purpose: the studio keeps ONE design id
  * across edits, so a line added before an edit and a line added after it are
- * two different artworks — sharing `design.id:side` would print one of them
+ * two different artworks. Sharing `design.id:side` would print one of them
  * twice.
  *
  * The SIZE is part of the key only when the design grades. A `fixed` design
@@ -283,7 +283,7 @@ function rowsFromBasket(lines: BasketLine[]): QueueRow[] {
   }
   return [...acc.values()].map(({ row, sizes }) => ({
     ...row,
-    // A graded row IS one size — its chip already says which, so the size×qty
+    // A graded row IS one size. Its chip already says which, so the size×qty
     // summary is only meaningful on merged (single-transfer) rows.
     ...(row.size
       ? {}
@@ -365,7 +365,7 @@ export default function DtfModal() {
     () => bootProcess(suppliers)?.id ?? 'dtf',
   )
   const supplier = suppliers.find((s) => s.id === supplierId) ?? suppliers[0]
-  // A supplier may not offer the selected process — fall back to its first.
+  // A supplier may not offer the selected process. Fall back to its first.
   const proc = supplier
     ? (processOf(supplier, processId) ?? supplier.processes[0] ?? null)
     : null
@@ -383,7 +383,7 @@ export default function DtfModal() {
    * point: grouping a whole side into one transfer buys film for the empty
    * space between a chest logo and a hem line. Turning it OFF is the explicit
    * escape hatch for an operator who would rather press one big transfer than
-   * three small ones — it costs film, and the panel says so.
+   * three small ones: it costs film, and the panel says so.
    */
   const [splitPieces, setSplitPieces] = useState(true)
   /** Two visuals closer than this stay one transfer (cm). See pieces.ts. */
@@ -391,7 +391,7 @@ export default function DtfModal() {
   const clearanceIn = splitPieces ? mergeCm / CM_PER_IN : MERGE_WHOLE_SIDE_IN
   /**
    * 180°/270° as well as 90°. Measured worth 4,6 % of the roll on the benchmark
-   * — real money — but it is OFF by default and always will be: a transfer
+   * (real money), but it is OFF by default and always will be: a transfer
    * pressed upside down is scrap, and only the operator knows whether their
    * artwork has an "up".
    */
@@ -509,7 +509,7 @@ export default function DtfModal() {
   // --- sheet geometry -------------------------------------------------------
   // The process declares the supplier's MAXIMUM; the operator may nest onto a
   // narrower/shorter sheet (a 50 × 250 job on a 58 cm roll is legitimate), but
-  // never onto a bigger one — that file would come back rejected or cropped.
+  // never onto a bigger one: that file would come back rejected or cropped.
   const maxWCm = proc?.printableWidthCm ?? 58
   const maxLenCm = proc?.maxLengthCm ?? 250
   const effWCm = clampNum(sheetWCm ?? maxWCm, 1, maxWCm)
@@ -586,7 +586,7 @@ export default function DtfModal() {
           ...(mask ? { mask: mask.mask, maskW: mask.maskW, maskH: mask.maskH } : {}),
           // Prepress metadata for preflight: source pixels at the PLACED size,
           // measured on THIS transfer's own layers (p.srcDpi is the artwork's
-          // native ceiling, never the preview DPI — all-vector artwork reports
+          // native ceiling, never the preview DPI. All-vector artwork reports
           // null and simply skips the DPI check).
           ...(p.srcDpi !== null
             ? { srcPxW: Math.round(p.srcDpi * p.wIn), srcPxH: Math.round(p.srcDpi * p.hIn) }
@@ -609,7 +609,7 @@ export default function DtfModal() {
   const [nestBusy, setNestBusy] = useState<{ done: number; total: number } | null>(null)
   // Our OWN nesting channel. A module-shared one would let this modal's effect
   // cleanup terminate a job some other consumer started (the dev harness mounts
-  // this modal alongside its own nesting entry point) — and vice versa.
+  // this modal alongside its own nesting entry point), and vice versa.
   const nester = useMemo(() => createNestClient(), [])
   useEffect(() => () => nester.cancel(), [nester])
 
@@ -620,7 +620,7 @@ export default function DtfModal() {
     }
     let alive = true
     // Drop the previous optimised layout BEFORE asking for a new one. Keeping
-    // it would leave a layout — and the price computed from it — belonging to
+    // it would leave a layout (and the price computed from it) belonging to
     // the OLD supplier on screen: switch from a per-metre roll to a per-sheet
     // catalogue and the cost panel quotes fixed-format billing against roll
     // sheets that carry no format at all. `shelfResult` is recomputed
@@ -991,7 +991,7 @@ export default function DtfModal() {
 
   // What one TRANSFER is. The size belongs in the label because on a graded
   // order the cutting plan carries several transfers of the same design and
-  // only the size tells them apart — and so, now, does the part and its
+  // only the size tells them apart, and so, now, does the part and its
   // position: once a side prints as three transfers, the cutting plan is the
   // only place the workshop learns which is which and where each goes. Two
   // figures, no more: the label is drawn inside the piece's own width there.
@@ -1039,11 +1039,11 @@ export default function DtfModal() {
       : 0
 
   // --- grading trade-off ----------------------------------------------------
-  // A graded design needs one transfer PER SIZE — that is the real cost of
+  // A graded design needs one transfer PER SIZE: that is the real cost of
   // grading and the sheet has to state it. The counterfactual (this same order
   // printed at a single size) is exactly this piece set UN-graded: each piece's
-  // physical size divided by its own factor k — the very factor it was
-  // multiplied by, so the division is exact — then merged per design side.
+  // physical size divided by its own factor k (the very factor it was
+  // multiplied by, so the division is exact), then merged per design side.
   // Re-nesting that set with the current settings makes both figures measured;
   // nothing below is a guessed number.
   const singleSizePieces = useMemo(() => {
@@ -1209,7 +1209,7 @@ export default function DtfModal() {
     const name = orderName.trim() || defaultOrderName
     setAskName(false)
     // ONE timestamp for the archive name, the ZIP dates, the manifest and the
-    // README — a second clock reading would make them disagree.
+    // README: a second clock reading would make them disagree.
     const date = new Date()
     setBusy(t('dtf.zip.busy', { label: t('dtf.zip.step_art'), n: 0, total: 1 }))
     try {
@@ -1290,7 +1290,7 @@ export default function DtfModal() {
 
   const saveProfiles = () => {
     // saveSuppliers persists VERBATIM and loadSuppliers drops what it cannot
-    // read — refuse here so a half-typed tier can never delete a profile.
+    // read. Refuse here so a half-typed tier can never delete a profile.
     if (!suppliers.every((p) => validProfile(p))) {
       toast('error', t('dtf.settings.invalid'))
       return
@@ -1821,7 +1821,7 @@ export default function DtfModal() {
                 </div>
               )}
 
-              {/* Sheet geometry — the operator may go narrower/shorter, never bigger. */}
+              {/* Sheet geometry: the operator may go narrower/shorter, never bigger. */}
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <NumField
                   label={t('dtf.settings.sheet_w', { max: fmtCm(maxWCm) })}
@@ -2353,7 +2353,7 @@ export default function DtfModal() {
               {/* --- process geometry --- */}
               <div>
                 <div className="panel-title mb-1.5">
-                  {t('dtf.settings.geometry')} — {proc.label}
+                  {t('dtf.settings.geometry')} : {proc.label}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
                   <TxtField
@@ -2714,34 +2714,34 @@ export default function DtfModal() {
 
 // ---------------------------------------------------------------------------
 
-/** €-delta with an explicit sign — "+3.40" reads as a surcharge, "3.40" does not. */
+/** €-delta with an explicit sign: "+3.40" reads as a surcharge, "3.40" does not. */
 const signedEur = (v: number): string => (v > 0 ? '+' : '') + v.toFixed(2)
 
 /**
  * Render-cache key. A row's transfers depend on how the side is split, so the
- * clearance is part of the identity of what was rendered — not a reason to
+ * clearance is part of the identity of what was rendered, not a reason to
  * throw the whole cache away when the operator nudges the setting.
  */
 const cacheKey = (rowKey: string, clearanceIn: number): string =>
   `${rowKey}|${Math.round(clearanceIn * 1e4)}`
 
-/** Signed cm, French-style — a bare "3,2" would not say which side of the axis. */
+/** Signed cm, French-style: a bare "3,2" would not say which side of the axis. */
 const signedCm = (v: number): string =>
   (Math.abs(v) < 0.05 ? '' : v > 0 ? '+' : '−') + fmtCm(Math.abs(v))
 
-/** cm rounded to 0,1 mm — the manifest's precision for physical dimensions. */
+/** cm rounded to 0,1 mm: the manifest's precision for physical dimensions. */
 const r2 = (v: number): number => Math.round(v * 100) / 100
 
 const clampNum = (v: number, lo: number, hi: number): number =>
   Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo
 
-/** cm with at most one decimal, French-style — "58" and "0,5", never "58.0". */
+/** cm with at most one decimal, French-style: "58" and "0,5", never "58.0". */
 const fmtCm = (v: number): string =>
   (Math.round(v * 10) / 10).toString().replace('.', ',')
 
 /**
  * Fill readout. When the true-shape packer measured real ink coverage, the INK
- * figure leads and the bounding-box one is labelled as such — because once
+ * figure leads and the bounding-box one is labelled as such, because once
  * pieces interlock their boxes overlap and the box figure legitimately goes
  * past 100 %. Shown bare, "117 %" reads as a bug; shown as "encre 31 % · boîtes
  * 117 %" it reads as what it is, a sheet whose boxes overlap by 17 %.

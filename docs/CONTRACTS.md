@@ -1,4 +1,4 @@
-# Tshop Studio — Module Contracts
+# Tshop Studio: Module Contracts
 
 One-page apparel customization studio for **Tshop** (custom apparel decoration:
 heat transfer + embroidery). 2D Konva editor (default) + 3D three.js preview,
@@ -16,7 +16,7 @@ site's own assets (`/models/*`, `/ort/*`).
    any file you don't own.
 3. **Do not touch** `package.json`, `vite.config.ts`, `tsconfig.json`,
    `index.html`, `src/styles.css`, or another module's directory. All deps are
-   preinstalled — if you're missing one, report it in your return payload
+   preinstalled. If you're missing one, report it in your return payload
    instead of installing.
 4. Your module must compile: `npx tsc --noEmit` (whole project). If files
    outside your module fail, ignore those errors; yours must be clean.
@@ -67,7 +67,7 @@ Dark press-room studio. Chrome recedes, garment is the hero.
 
 ---
 
-## A1 — Garment art (`src/garments`)
+## A1: Garment art (`src/garments`)
 
 Export from `src/garments/index.ts`:
 
@@ -77,7 +77,7 @@ export const GARMENTS: Record<'tee' | 'hoodie', GarmentArt>
 ```
 
 Hand-crafted, professional flat product illustrations as SVG strings
-(CustomInk-editor grade: soft realistic shading, seams, ribbing, drape — NOT
+(CustomInk-editor grade: soft realistic shading, seams, ribbing, drape. NOT
 clipart). Front + back for: **tee** (unisex heavy cotton) and **hoodie**
 (pullover, kangaroo pocket, drawstrings, front pouch must sit BELOW the print
 area).
@@ -104,16 +104,16 @@ Rules:
   #1F2A44] on bg0, plus print-area outlines. Screenshot-iterate ≥3 rounds;
   final screenshot path in your report.
 
-## A2 — Background removal (`src/lib/bgremove`)
+## A2: Background removal (`src/lib/bgremove`)
 
 In-browser salient-object background removal. Model: **U²-Net small
-(`u2netp.onnx`, ~4.6 MB, Apache-2.0)** — download once into
+(`u2netp.onnx`, ~4.6 MB, Apache-2.0)**. Download once into
 `public/models/u2netp.onnx` (commit it) from
 `https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx`
 (mirror: huggingface `tomjackson2023/rembg`). Runtime: `onnxruntime-web`
 (preinstalled), **wasm EP, `numThreads = 1`** (no COOP/COEP), simd ok,
 `ort.env.wasm.wasmPaths = '/ort/'` (wasm files are auto-copied to `/ort/` by
-vite config — already wired, don't touch config).
+vite config, already wired, don't touch config).
 
 Export from `src/lib/bgremove/index.ts`:
 
@@ -135,7 +135,7 @@ export function alphaBoundingBox(source: Blob): Promise<{ x: number; y: number; 
 - Harness: pick-a-file input + before/after side-by-side + timing readout.
 - Report inference time for a ~1500px photo in your return payload.
 
-## A3 — 3D preview (`src/three`)
+## A3: 3D preview (`src/three`)
 
 Export from `src/three/index.tsx`:
 
@@ -190,7 +190,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element
   lighting quality, no decal bleed-through). WebGL in headless Chromium works
   via the flags already in `scripts/shot.mjs`.
 
-## A4 — Arc text, smart guides, fonts (`src/lib`)
+## A4: Arc text, smart guides, fonts (`src/lib`)
 
 `src/lib/arcText.ts`:
 
@@ -210,7 +210,7 @@ export function drawArcText(ctx2d: CanvasRenderingContext2D, cfg: ArcTextConfig)
   curve = text bends upward (ends drop), i.e. baseline on a circle below.
   |curve| < 2 falls back to straight rendering. Stroke drawn UNDER fill per
   glyph. letterSpacing measured along the arc. Must be deterministic (measure
-  + draw agree) — the same code path runs in the live editor, texture
+  + draw agree): the same code path runs in the live editor, texture
   renders, and 300-DPI export.
 
 `src/lib/smartGuides.ts` (pure math):
@@ -231,7 +231,7 @@ matched lines for drawing.
 import type { FontDef } from '@/lib/types'
 export const FONTS: FontDef[] // exactly these families, in this display order:
 // Anton, Archivo Black, Bebas Neue, Oswald, Russo One, Alfa Slab One (block)
-// Bangers, Righteous, Monoton? NO — not installed. Use: Bangers, Righteous (display)
+// Bangers, Righteous, Monoton? NO, not installed. Use: Bangers, Righteous (display)
 // Permanent Marker, Pacifico, Lobster (script), Special Elite (retro)
 export function ensureFont(family: string): Promise<void> // document.fonts.load, cached, resolves even on failure (after timeout 3s)
 export function allFontsReady(): Promise<void>
@@ -246,34 +246,34 @@ Harness: canvas drawing arc text at curves −90/−45/0/45/90 with stroke, in
 several fonts + measure-box overlays proving the bbox is tight. Screenshot to
 verify.
 
-## A5 — Content (`src/content`)
+## A5: Content (`src/content`)
 
 - `graphics.ts`: `export const GRAPHIC_CATEGORIES: { id: string; name: string }[]`
   and `export const GRAPHICS: GraphicDef[]` (see types). ~120 curated icons
-  from the **`lucide`** package (vanilla, preinstalled — build svg strings
+  from the **`lucide`** package (vanilla, preinstalled: build svg strings
   from its icon node data; stroke = color, strokeWidth 2, fill none unless the
   shape needs it) across categories: sports, music, nature, animals, tech,
   food, symbols. PLUS a `badges` category of 8–10 hand-authored FILL-based
   print shapes (circle badge, star burst, ribbon banner, shield, varsity arch
-  frame, paw, heart, lightning bolt, crown, flame) — these must look like real
+  frame, paw, heart, lightning bolt, crown, flame): these must look like real
   screen-print clipart, not icons. Every id stable + kebab-case. Verify every
   lucide import compiles.
-- `palettes.ts`: `export const GARMENT_COLORS: { id: string; name: string; hex: string }[]`
-  — exactly: white #FFFFFF, black #191C20, heather #B7BCC2, charcoal #3E434A,
+- `palettes.ts`: `export const GARMENT_COLORS: { id: string; name: string; hex: string }[]`,
+  exactly: white #FFFFFF, black #191C20, heather #B7BCC2, charcoal #3E434A,
   navy #1F2A44, royal #2454B5, red #C0272D, maroon #6E2231, forest #1E4634,
   kelly #2E8B47, sand #D9CBB2, brown #5B4636, purple #5B3B8C, pink #F3A6C0,
   sky #A8CFE8, orange #E8722A, gold #F2B32C, mint #BFE3D0.
-  Also `export const INK_COLORS: string[]` — 16 print-ink hexes for text/
+  Also `export const INK_COLORS: string[]`, 16 print-ink hexes for text/
   graphics fills (white, black, grays, CMYK-ish brights, metallic-ish gold/
   silver approximations).
 - `pricing.ts`: `export interface PricingRule { baseUsd: number; perExtraSideUsd: number }`,
   `export const PRICING: Record<'tee'|'hoodie'|'custom', PricingRule>`
-  (tee 14.5/6, hoodie 32/6, custom 12/6 — custom = customer ships garment),
+  (tee 14.5/6, hoodie 32/6, custom 12/6: custom = customer ships garment),
   `export const QTY_BREAKS: { minQty: number; discount: number }[]`
   ([10 → 0.15, 25 → 0.25, 50 → 0.35]),
   `export function quote(garment, sides: number, qty: number): { unitUsd: number; totalUsd: number; discount: number }`,
   `export const SIZES = ['S','M','L','XL','2XL','3XL'] as const`.
-- `sampleDesign.ts`: `export function makeSampleDesign(): Design` — a genuinely
+- `sampleDesign.ts`: `export function makeSampleDesign(): Design`, a genuinely
   tasteful first-load design on a **black tee**: arced "TSHOP" (Anton, white,
   curve ≈ 35, ~2.2″ tall), a badge graphic from YOUR registry between/below,
   small tracking-heavy subline (Oswald, e.g. "CUSTOM APPAREL · EST. 2019"),

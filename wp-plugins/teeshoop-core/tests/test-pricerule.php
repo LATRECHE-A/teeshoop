@@ -82,7 +82,7 @@ function ts_base( float $commission = 0.40 ): array {
 	);
 }
 
-describe( 'PriceRule — reading a rule off a form', function () {
+describe( 'PriceRule: reading a rule off a form', function () {
 	it( 'drops a row that names nothing and sets nothing', function () {
 		eq( PriceRule::normalise( array() ), null );
 		eq( PriceRule::normalise( array( 'label' => '   ' ) ), null );
@@ -129,7 +129,7 @@ describe( 'PriceRule — reading a rule off a form', function () {
 	} );
 } );
 
-describe( 'PriceRule — when a rule applies', function () {
+describe( 'PriceRule: when a rule applies', function () {
 	it( 'ignores a rule nobody switched on', function () {
 		truthy( ! PriceRule::matches( ts_rule( array( 'active' => false ) ), ts_facts(), TS_TODAY ) );
 	} );
@@ -183,7 +183,7 @@ describe( 'PriceRule — when a rule applies', function () {
 	} );
 } );
 
-describe( 'PriceRule — which of several rules wins', function () {
+describe( 'PriceRule: which of several rules wins', function () {
 	it( 'answers null when none of them applies', function () {
 		eq( PriceRule::best( array( ts_rule( array( 'famille' => 'sweat' ) ) ), ts_facts(), TS_TODAY, 0.25 ), null );
 		eq( PriceRule::best( array(), ts_facts(), TS_TODAY, 0.25 ), null );
@@ -230,7 +230,7 @@ describe( 'PriceRule — which of several rules wins', function () {
 	} );
 } );
 
-describe( 'PriceRule — what a rule may change, and what it may not', function () {
+describe( 'PriceRule: what a rule may change, and what it may not', function () {
 	it( 'leaves the rates alone when nothing matches', function () {
 		$out = PriceRule::apply( ts_base(), array( ts_rule( array( 'famille' => 'sweat', 'min_contribution_rate' => '5' ) ) ), ts_facts(), TS_TODAY );
 		eq( $out['rules'], ts_base() );
@@ -270,7 +270,7 @@ describe( 'PriceRule — what a rule may change, and what it may not', function 
 	} );
 } );
 
-describe( 'PriceRule — the combination that has no solution', function () {
+describe( 'PriceRule: the combination that has no solution', function () {
 	it( 'names the rules that cannot work against the commission the shop pays', function () {
 		$fine       = ts_rule( array( 'label' => 'raisonnable', 'min_contribution_rate' => '25' ) );
 		$impossible = ts_rule( array( 'label' => 'impossible', 'min_contribution_rate' => '70' ) );
@@ -304,7 +304,7 @@ describe( 'PriceRule — the combination that has no solution', function () {
 	} );
 } );
 
-describe( 'PriceRule — the two vocabularies, made one', function () {
+describe( 'PriceRule: the two vocabularies, made one', function () {
 	it( 'maps every studio garment onto a family a rule can name', function () {
 		/*
 		 * THE FINDING THAT KILLED THE FIRST DESIGN, and until now it was
@@ -327,7 +327,7 @@ describe( 'PriceRule — the two vocabularies, made one', function () {
 	} );
 } );
 
-describe( 'PriceRule — a rule that decides nothing must not silence one that does', function () {
+describe( 'PriceRule: a rule that decides nothing must not silence one that does', function () {
 	it( 'skips a rule with both rates blank, however specific it is', function () {
 		/*
 		 * MEASURED BEFORE THE FIX: with facts famille=tee, urgence=express,

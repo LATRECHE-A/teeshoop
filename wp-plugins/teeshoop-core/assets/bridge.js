@@ -6,14 +6,14 @@
  * job is to be paranoid on the way in and precise on the way out.
  *
  * ON THE WAY IN, every message must satisfy all three:
- *   1. event.origin === the configured studio origin — compared with ===, never
+ *   1. event.origin === the configured studio origin, compared with ===, never
  *      startsWith. A prefix test passes for "https://studio.teeshoop.com.evil.tld".
- *   2. event.source === our frame's contentWindow — otherwise any other frame or
+ *   2. event.source === our frame's contentWindow. Otherwise any other frame or
  *      opener on the page can speak in the studio's name.
  *   3. the payload is an object with a known `type`.
  *
  * ON THE WAY OUT, postMessage is always given the explicit studio origin as its
- * target. '*' would broadcast the reply — which carries cart totals — to whatever
+ * target. '*' would broadcast the reply, which carries cart totals, to whatever
  * document happens to occupy the frame at that moment.
  *
  * The nonce never crosses the boundary. The frame asks; this page acts.
@@ -101,7 +101,7 @@
 	}
 
 	/**
-	 * A price request. The answer comes from the server every time — there is no
+	 * A price request. The answer comes from the server every time. There is no
 	 * client-side price to fall back on, by design.
 	 */
 	function onQuote(data) {
@@ -228,7 +228,7 @@
 	 * Let the studio ask for a taller frame.
 	 *
 	 * Clamped: an unbounded height from the frame is a way to push the rest of the
-	 * page — including the theme's own controls — off the screen.
+	 * page, including the theme's own controls, off the screen.
 	 *
 	 * And clamped again to the BROWSER WINDOW, which only this side can see. The
 	 * studio's modals are `position: fixed`, which inside an iframe means fixed

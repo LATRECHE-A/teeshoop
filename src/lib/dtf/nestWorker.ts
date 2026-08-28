@@ -1,5 +1,5 @@
 /**
- * Nesting Web Worker — keeps a 250-piece true-shape run off the main thread.
+ * Nesting Web Worker: keeps a 250-piece true-shape run off the main thread.
  *
  * The packer itself stays a pure, synchronously-callable function in
  * trueshape.ts; this file is nothing but a message pump. That split is
@@ -7,7 +7,7 @@
  * exercise the SAME code path the UI runs, with no Worker in sight, so a
  * regression cannot hide behind postMessage.
  *
- * The protocol is one job at a time — the client terminates a superseded
+ * The protocol is one job at a time: the client terminates a superseded
  * worker rather than queueing, because a stale layout arriving after the
  * operator has already changed the gap is worse than no layout at all.
  */

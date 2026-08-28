@@ -1,29 +1,29 @@
 /**
- * Print grading — how artwork responds to garment size.
+ * Print grading: how artwork responds to garment size.
  *
  * THE MODEL
  * ---------
  * A design's layer geometry is stored ONCE, in inches, at `printScale.baseSize`.
- * Rendering it at any other size multiplies every inch-valued quantity — layer
- * offsets, widths, heights, font sizes, stroke widths AND the print area itself
- * — by one uniform factor `k`. Because the artwork and the area scale together,
+ * Rendering it at any other size multiplies every inch-valued quantity (layer
+ * offsets, widths, heights, font sizes, stroke widths AND the print area itself)
+ * by one uniform factor `k`. Because the artwork and the area scale together,
  * the design occupies exactly the same fraction of the print area on every size:
  * an S and a 3XL are visually identical, just at different physical scales.
  *
  * `k` is the CHEST ratio (halfChest(size) / halfChest(baseSize)), and it is
- * deliberately UNIFORM — grading x and y by different amounts (chest vs body
+ * deliberately UNIFORM: grading x and y by different amounts (chest vs body
  * length) would distort the artwork, which is never acceptable. Chest is the
  * right reference because prints are width-constrained.
  *
  * In `fixed` mode k is always 1: one physical print for every size, positioned a
  * size-invariant distance below the collar. That is the classic single-transfer
- * convention and it is the cheaper one — see the cost note below.
+ * convention and it is the cheaper one. See the cost note below.
  *
  * WHY THIS SHAPE
  * --------------
  * Storing one canonical geometry + a derived factor (rather than per-size
- * geometry) keeps the project's core invariant intact — geometry is inches
- * relative to the print-area centre — and means every existing editor gesture
+ * geometry) keeps the project's core invariant intact (geometry is inches
+ * relative to the print-area centre) and means every existing editor gesture
  * keeps writing base-space inches with no change: the editor scales the area
  * rect by k and its pixels-per-inch by k, so the two cancel on write-back.
  *
@@ -32,7 +32,7 @@
  * Grading is not free. In `fixed` mode an order of 6 sizes needs ONE printed
  * transfer; in `scaled` mode it needs six different ones, so the DTF gang sheet
  * carries a distinct piece per (design, side, size) and uses more film. The DTF
- * modal surfaces this — it is a real trade-off, not an implementation detail.
+ * modal surfaces this: it is a real trade-off, not an implementation detail.
  */
 import type { CustomGarment, Design, Layer, SizeIn, PrintScale, PrintScaleMode } from './types'
 import { DEFAULT_SIZE, SIZE_IDS, sizeSpecCm, type SizeId } from '@/content/sizeChart'
@@ -67,7 +67,7 @@ function halfChestCm(design: Design, size: SizeId): number | null {
 /**
  * Uniform grading factor for `size`, relative to the design's base size.
  *
- * Returns exactly 1 — no grading — when the mode is `fixed`, when no size is
+ * Returns exactly 1 (no grading) when the mode is `fixed`, when no size is
  * given, when the size IS the base size, or when the garment publishes no chart
  * for either size (an ingested product whose supplier chart we never captured).
  * Never guesses a ratio it cannot derive.

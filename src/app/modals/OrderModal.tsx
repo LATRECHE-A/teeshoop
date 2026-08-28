@@ -24,7 +24,7 @@ export default function OrderModal() {
    * The printed area is measured from the artwork's own pixels, and a layer that
    * has not been decoded yet measures as its full declared box. Reading that
    * straight out of the render body would quote the padded price and then swap
-   * it for the tight one a frame later — a +4 $ per side flip in front of the
+   * it for the tight one a frame later, a +4 $ per side flip in front of the
    * buyer, caused by nothing they did. So the probes are warmed first and the
    * quote is held until they are: `inkReady` is the gate, not a spinner.
    */
@@ -38,8 +38,8 @@ export default function OrderModal() {
     }
   }, [design])
 
-  // A side carrying layers but no printable ink — everything on it transparent,
-  // or dragged off the print area — is not a printed side. `sideArtworkSqCm`
+  // A side carrying layers but no printable ink (everything on it transparent,
+  // or dragged off the print area) is not a printed side. `sideArtworkSqCm`
   // returns 0 there, and both price engines read 0 as "nothing to press".
   const sideAreas = (['front', 'back', 'sleeve'] as Side[])
     .filter((sd) => sideLayers(design, sd).length > 0)

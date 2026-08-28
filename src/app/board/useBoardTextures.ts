@@ -1,11 +1,11 @@
 /**
- * Print textures for the 3D board — the per-line analogue of Scene3D's
+ * Print textures for the 3D board, the per-line analogue of Scene3D's
  * useDesignTextures, with two differences that are the whole point.
  *
  * 1. EVERY render passes `line.size`. The print area and the artwork inside it
  *    are both graded by the design's chest ratio (src/lib/printScale.ts), so a
- *    board rendered at the global `previewSize` would show — and eventually
- *    print — physically wrong artwork on every line but one. This is the single
+ *    board rendered at the global `previewSize` would show (and eventually
+ *    print) physically wrong artwork on every line but one. This is the single
  *    most expensive mistake available in board mode, and it is invisible on
  *    screen until someone measures a transfer.
  *
@@ -53,7 +53,7 @@ const cache = new Map<string, Entry>()
 let version = 0
 
 /**
- * Freeing is DEFERRED and PAIRED with `keepBoardTextures` on mount — StrictMode
+ * Freeing is DEFERRED and PAIRED with `keepBoardTextures` on mount: StrictMode
  * runs an effect's cleanup once before re-running it, and zeroing a canvas a
  * live CanvasTexture still points at would show a blank print.
  */
@@ -65,7 +65,7 @@ function cancelClear(): void {
   clearTimer = null
 }
 
-/** Cancel a pending clear — call from the owner's mount effect. */
+/** Cancel a pending clear (call from the owner's mount effect). */
 export function keepBoardTextures(): void {
   cancelClear()
 }
@@ -98,7 +98,7 @@ async function buildEntry(line: BasketLine, targetPx: number): Promise<Entry> {
 
   for (const side of ['front', 'back'] as const) {
     if (sideLayers(design, side).length === 0) continue
-    // GRADED area at THIS line's size — the decal's world size in inches.
+    // GRADED area at THIS line's size, the decal's world size in inches.
     const area = getAreaSizeIn(design, side, size)
     const ppi = targetPx / Math.max(area.wIn, area.hIn)
     const canvas = await renderPrintArea(design, side, ppi, size)
@@ -120,7 +120,7 @@ export function useBoardProducts(
   targetPx: number,
 ): BoardProduct[] {
   // How many lines have finished. Doubles as the signal that re-derives
-  // `products` below — the cache is a module Map, so nothing else would notice
+  // `products` below: the cache is a module Map, so nothing else would notice
   // it filling.
   const [tick, bump] = useState(0)
   const signature = lines
@@ -132,7 +132,7 @@ export function useBoardProducts(
     cancelClear()
     bump(0)
     // The billboards' pixels live in the 2D tile cache, which evicts by zeroing
-    // the canvas — pin them for as long as the 3D board is showing them, or a
+    // the canvas. Pin them for as long as the 3D board is showing them, or a
     // basket long enough to overflow that cache blanks its own flat previews.
     const flatPx = billboardPx(Math.max(0, lines.length - solidCap))
     pinMockups(
@@ -156,7 +156,7 @@ export function useBoardProducts(
             }
           }
         } else {
-          // Billboards reuse the 2D board's raster — no new texture work.
+          // Billboards reuse the 2D board's raster, no new texture work.
           const side = linePrintedSides(line.design)[0] ?? 'front'
           await requestMockup(line, side, flatPx).promise
           if (cancelled) return
@@ -165,7 +165,7 @@ export function useBoardProducts(
         await nextFrame()
       }
       // SWEEP. A billboard's pixels can go missing between the request and the
-      // render pass that reads them back — the queue's generation is bumped
+      // render pass that reads them back: the queue's generation is bumped
       // when the 2D board unmounts, and an eviction can land in the gap between
       // StrictMode's two effect runs. Nothing else would ever ask again, and the
       // product would sit on the wall as an empty slot, so ask once more for
@@ -181,8 +181,8 @@ export function useBoardProducts(
       }
     })()
     // The pin set is deliberately NOT cleared here. Each run REPLACES it, and
-    // clearing on cleanup opens a window — StrictMode's mount→cleanup→mount, or
-    // any dependency change — in which a render that lands can evict (and zero)
+    // clearing on cleanup opens a window (StrictMode's mount→cleanup→mount, or
+    // any dependency change) in which a render that lands can evict (and zero)
     // a canvas the very next run is about to pin. `clearMockupCache` drops the
     // pins when the board closes, which is the correct lifetime.
     return () => {
@@ -205,7 +205,7 @@ export function useBoardProducts(
       const flatCanvas = getCachedMockup(mockupKey(line, side, flatPx))
       return {
         id: line.id,
-        label: `${line.label} — ${line.garmentLabel} ${line.size} ×${line.qty}`,
+        label: `${line.label}, ${line.garmentLabel} ${line.size} ×${line.qty}`,
         garment: line.design.garmentId,
         colorHex: line.colorHex,
         sizeId: line.size,
@@ -253,7 +253,7 @@ export function scheduleClearBoardTextures(delayMs = 1500): void {
   }, delayMs)
 }
 
-/** Free every print canvas — called when the board closes. */
+/** Free every print canvas, called when the board closes. */
 export function clearBoardTextures(): void {
   cancelClear()
   for (const entry of cache.values())

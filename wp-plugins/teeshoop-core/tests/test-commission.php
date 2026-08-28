@@ -28,7 +28,7 @@ use Teeshoop\Core\Money;
 
 $ts_com_config = Commission::default_config();
 
-describe( 'Commission — the base the Bible requires, and the three it forbids', function () use ( $ts_com_config ) {
+describe( 'Commission: the base the Bible requires, and the three it forbids', function () use ( $ts_com_config ) {
 	it( 'pays on the contributive margin, exactly as the worked example says', function () use ( $ts_com_config ) {
 		// « Marge contributive = 625 − 250 = 375 EUR · Commission 40 % = 150 EUR »
 		$rate = Commission::rate( 'premiere', $ts_com_config );
@@ -59,7 +59,7 @@ describe( 'Commission — the base the Bible requires, and the three it forbids'
 	} );
 } );
 
-describe( 'Commission — the rate is decided, or it is undecided', function () use ( $ts_com_config ) {
+describe( 'Commission: the rate is decided, or it is undecided', function () use ( $ts_com_config ) {
 	it( 'carries question 29’s four rates', function () use ( $ts_com_config ) {
 		eq( Commission::rate( 'premiere', $ts_com_config ), 0.40 );
 		eq( Commission::rate( 'nouvelle', $ts_com_config ), 0.25 );
@@ -78,7 +78,7 @@ describe( 'Commission — the rate is decided, or it is undecided', function () 
 	} );
 } );
 
-describe( 'Commission — on money that has arrived', function () use ( $ts_com_config ) {
+describe( 'Commission: on money that has arrived', function () use ( $ts_com_config ) {
 	it( 'earns nothing before the first cent', function () {
 		$a = Commission::accrue( 37500, 0.40, 0, 75000 );
 		eq( $a['earned_ht'], 0 );
@@ -118,7 +118,7 @@ describe( 'Commission — on money that has arrived', function () use ( $ts_com_
 	} );
 } );
 
-describe( 'Commission — the four conditions of the acquisition rule', function () use ( $ts_com_config ) {
+describe( 'Commission: the four conditions of the acquisition rule', function () use ( $ts_com_config ) {
 	$settled = array(
 		'collected'      => 1.0,
 		'delivered_on'   => '2026-07-01',
@@ -170,7 +170,7 @@ describe( 'Commission — the four conditions of the acquisition rule', function
 	} );
 } );
 
-describe( 'Commission — dates and attribution', function () use ( $ts_com_config ) {
+describe( 'Commission: dates and attribution', function () use ( $ts_com_config ) {
 	it( 'tells an unreadable date from a zero-day difference', function () {
 		eq( Commission::days_between( '2026-09-30', '2026-09-30' ), 0 );
 		eq( Commission::days_between( '2026-13-01', '2026-09-30' ), null, 'there is no thirteenth month' );
@@ -185,7 +185,7 @@ describe( 'Commission — dates and attribution', function () use ( $ts_com_conf
 	} );
 } );
 
-describe( 'Commission — discounting bites the salesperson hardest', function () {
+describe( 'Commission: discounting bites the salesperson hardest', function () {
 	it( 'reproduces the Bible’s own 30 EUR against 45 EUR', function () {
 		$plan = Margin::plan(
 			25000,

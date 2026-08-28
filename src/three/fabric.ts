@@ -1,7 +1,7 @@
 /**
  * Procedural tileable fabric weave normal map, shared across custom-garment
  * caps. Purely a shading detail (perturbs the fragment normal only), so it never
- * touches geometry, UVs or inch accuracy — it just makes the soft studio light
+ * touches geometry, UVs or inch accuracy, it just makes the soft studio light
  * read as cloth grain instead of smooth plastic/paper.
  */
 import * as THREE from 'three'
@@ -25,7 +25,7 @@ function weaveCanvas(): HTMLCanvasElement {
     const fy = (y / period) * Math.PI * 2
     return Math.sin(fx) * Math.cos(fy) + 0.45 * Math.sin(fy) + 0.45 * Math.sin(fx)
   }
-  const k = 2.4 // normal steepness — higher is flatter/subtler
+  const k = 2.4 // normal steepness, higher is flatter/subtler
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       // Toroidal finite differences so the tile is seamless.

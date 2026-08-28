@@ -5,38 +5,38 @@
  * to edit it. Almost everything that can go wrong is invisible on screen, so
  * this script checks the invisible things:
  *
- *   A  layout math — pure, deterministic, no viewport needed
- *   B  the texture budget — what the board ACTUALLY allocates, in bytes
- *   C  store semantics — focus/unfocus/write-back, the autosave guard, and the
+ *   A  layout math: pure, deterministic, no viewport needed
+ *   B  the texture budget: what the board ACTUALLY allocates, in bytes
+ *   C  store semantics: focus/unfocus/write-back, the autosave guard, and the
  *      PER-DOCUMENT undo history: each document's stacks travel with it (the
  *      draft's in BoardStash, a line's in the session registry), so coming back
- *      from the board restores the user's own undo AND redo — while undo inside
+ *      from the board restores the user's own undo AND redo, while undo inside
  *      a focused line still cannot reach another document, proved by exhausting
  *      the stack. Ends with a negative control so the check cannot be vacuous.
- *   C2 cross-document corruption — two basket lines CLONED FROM ONE DESIGN
+ *   C2 cross-document corruption: two basket lines CLONED FROM ONE DESIGN
  *      share a design id and layer ids, which is the one case the undo/gesture
  *      machinery cannot tell apart by id (and the reason parked history is keyed
  *      by LINE id)
- *   C3 the parked-history registry on its own — LRU eviction, no browser needed
- *   C4 the toolbar in the DOM — the undo/redo buttons follow the swap, in
+ *   C3 the parked-history registry on its own: LRU eviction, no browser needed
+ *   C4 the toolbar in the DOM: the undo/redo buttons follow the swap, in
  *      exactly one depth change, so they never blink through a disabled frame,
  *      and stay DEAD for as long as the board is on: the restored stacks belong
  *      to a draft that is not on screen, and Ctrl+Z already refuses there
- *   D  per-line size parity — every render path uses `line.size`, so the 3D
+ *   D  per-line size parity: every render path uses `line.size`, so the 3D
  *      decal, the 2D tile and the graded print area agree to <0.01 in. Getting
  *      this wrong is a wrong physical transfer, and nothing on screen says so.
- *   G  camera framing — a garment is framed by its BODY, not by the arm span an
+ *   G  camera framing: a garment is framed by its BODY, not by the arm span an
  *      A-pose adds to its bounding box, and nothing is ever cropped
- *   E  the 2D board in the DOM — tiles, timing, pan/zoom, tap slop, a11y
- *   H  data loss — reload while focused, including the race where the focus
+ *   E  the 2D board in the DOM: tiles, timing, pan/zoom, tap slop, a11y
+ *   H  data loss: reload while focused, including the race where the focus
  *      lands inside the draft's own 700 ms autosave debounce
- *   K  write-back — the last keystroke reaches the basket AND idb on unfocus
+ *   K  write-back: the last keystroke reaches the basket AND idb on unfocus
  *   O  the board is genuinely NOT editable while unfocused
- *   N  mobile + accessibility — tap, pinch, Escape, disabled (not hidden) tools
- *   F  the 3D board — geometry sharing, decal cost, billboard degradation, and
+ *   N  mobile + accessibility: tap, pinch, Escape, disabled (not hidden) tools
+ *   F  the 3D board: geometry sharing, decal cost, billboard degradation, and
  *      both a static and a live proof that no DecalGeometry reaches the board
- *   L  picking — a pointer move must not raycast half a million triangles
- *   M  degradation — over the cap, purged uploads, an empty basket
+ *   L  picking: a pointer move must not raycast half a million triangles
+ *   M  degradation: over the cap, purged uploads, an empty basket
  *
  *   node scripts/board-verify.mjs
  */
@@ -76,13 +76,13 @@ const waitFor = (url, ms = 45000) =>
 // F (static): the board must never mount drei's <Decal>.
 //
 // <Decal> builds a DecalGeometry by CPU-clipping every triangle of the parent
-// mesh — measured at 56 ms for the tee and 613 ms for the hoodie, per decal.
+// mesh, measured at 56 ms for the tee and 613 ms for the hoodie, per decal.
 // Eight hoodies with two sides each is ~10 s of synchronous main-thread work.
 // This is the one failure mode that cannot be caught after the fact, because it
 // looks like "the board is just slow". Section L re-proves it from the LIVE
 // scene, because a static grep only covers the files it was told about.
 // ---------------------------------------------------------------------------
-/** Code only — the modules TALK about <Decal> at length, which is the point. */
+/** Code only: the modules TALK about <Decal> at length, which is the point. */
 function codeOf(path) {
   return fs
     .readFileSync(path, 'utf8')
@@ -121,9 +121,9 @@ function staticChecks() {
 
 // ---------------------------------------------------------------------------
 // Basket seeding, shared by every section that needs products. Runs IN THE PAGE.
-// `custom: true` seeds a ship-your-own garment from a 600x900 photo — a 1.5
+// `custom: true` seeds a ship-your-own garment from a 600x900 photo (a 1.5
 // aspect, deliberately far from the 1.25 the layout assumes before it has
-// measured one.
+// measured one).
 // ---------------------------------------------------------------------------
 async function seedBasket(page, seeds) {
   return page.evaluate(async (seeds) => {
@@ -197,16 +197,16 @@ const SEEDS = [
 ]
 
 // ---------------------------------------------------------------------------
-// A, B, C, C2, D, G, J — everything that can be decided from the modules.
+// A, B, C, C2, D, G, J: everything that can be decided from the modules.
 // ---------------------------------------------------------------------------
 /**
- * Import a module THE WAY THE APP DID — see `appImport` below, defined inside
+ * Import a module THE WAY THE APP DID. See `appImport` below, defined inside
  * every probe because page.evaluate ships one function at a time.
  *
  * Vite appends `?t=<hmr timestamp>` to a module it has invalidated, and a
  * plain-path `import()` from a test then gets a SECOND instance with its own
  * module state. Reading a cache through that copy reports an empty board while
- * the real one is full — which is a lie, not a finding.
+ * the real one is full, which is a lie, not a finding.
  */
 async function inPage() {
   const appImport = (path) => {
@@ -374,7 +374,7 @@ async function inPage() {
     const afterUnfocus = st()
     const unfocusDepth = depth()
 
-    // Ctrl+Z after the board walks the user's OWN edits — the reported bug.
+    // Ctrl+Z after the board walks the user's OWN edits: the reported bug.
     temporal().undo()
     const draftUndo = doc()
     temporal().redo()
@@ -389,13 +389,13 @@ async function inPage() {
     const slotsWhileBoardOn = storeMod.parkedHistorySlots()
 
     // Re-entering the board from the basket while focused must hand the
-    // document back — otherwise the line's design becomes the live draft with
+    // document back. Otherwise the line's design becomes the live draft with
     // no focusedId guarding it, and the next autosave overwrites the user.
     st().focusLine(basket[4].id)
     st().enterBoard()
     const afterReenter = st()
 
-    // Deleting the focused line must hand the document back first — and its
+    // Deleting the focused line must hand the document back first, and its
     // parked history must go with the document. Edited first: an empty stack
     // never takes a slot (src/state/history.ts), so an untouched line could
     // not show a drop at all.
@@ -421,7 +421,7 @@ async function inPage() {
     // NEGATIVE CONTROL, last, with the draft live and its stacks restored: a
     // clear() at exactly the point HEAD had one must take the measured quantity
     // to zero. Without this, `historyRestoredOnUnfocus` could be vacuously true.
-    // It destroys nothing — C2 opens with newDesign().
+    // It destroys nothing: C2 opens with newDesign().
     const controlBefore = depth().past
     temporal().clear()
     const controlAfter = depth().past
@@ -527,7 +527,7 @@ async function inPage() {
     // so a registry keyed by the DESIGN has ONE slot for both. Park A, then park
     // B by way of a THIRD document (a seeded line, whose design id differs), then
     // come back to A: line-keyed hands A back its own {1 undo, 0 redo}, while
-    // design-keyed hands it B's {0 undo, 1 redo} — the stack left by the twelve
+    // design-keyed hands it B's {0 undo, 1 redo}, the stack left by the twelve
     // undos above. Alternating A↔B alone cannot tell the two keys apart.
     const third = st().basket.find((l) => l.design.id !== sharedId)
     st().focusLine(third.id)
@@ -753,7 +753,7 @@ async function inPage() {
       const a2 = cacheMod.boardGarmentFrame('tee', 'L', scene)
       const b = cacheMod.boardGarmentFrame('tee', '3XL', scene)
       // The 4th argument is the frame's own answer to "do I carry the cavity
-      // `color` attribute" — an unbound one reads as (0,0,0) and would paint
+      // `color` attribute". An unbound one reads as (0,0,0) and would paint
       // every board garment black, so the material must be told rather than
       // assume. Pass it the way Board3D does.
       const hasCavity = a1.geometry.getAttribute('color') !== undefined
@@ -882,7 +882,7 @@ try {
 
   /**
    * Vite reloads the page whenever anything under src/ changes, and board state
-   * is deliberately session-only — so a save landing mid-run destroys the
+   * is deliberately session-only, so a save landing mid-run destroys the
    * execution context. Retry, re-establishing the board each time.
    */
   const attempt = async (label, fn) => {
@@ -897,7 +897,7 @@ try {
           // is new and has not booted yet.
           /Cannot read properties of undefined \(reading '(temporal|getState|board)'\)/.test(msg)
         if (!reloaded) throw e
-        console.log(`  … the dev server reloaded the page during "${label}" — retrying`)
+        console.log(`  … the dev server reloaded the page during "${label}", retrying`)
         await ready()
         await page.waitForTimeout(1000)
       }
@@ -940,7 +940,7 @@ try {
   await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 })
   await ready()
   // WARM-UP. Vite pre-bundles dependencies on first sight and then forces a
-  // full page reload — which would drop the board's (deliberately session-only)
+  // full page reload, which would drop the board's (deliberately session-only)
   // state mid-run. Touch every lazy corner first, then reload once on purpose.
   await page
     .evaluate(async () => {
@@ -1063,7 +1063,7 @@ try {
   check(K2.undoStayedInB && K2.undoKeptLayerCount, 'twelve undos cannot walk into the twin document')
   check(
     K2.refocusIsKeyedByLine,
-    `the parked history is keyed by LINE id — the twin cannot inherit it (${K2.aRefocus.past} undo / ${K2.aRefocus.future} redo back on line A, rewinding to "${K2.aRefocusUndo.name}")`,
+    `the parked history is keyed by LINE id: the twin cannot inherit it (${K2.aRefocus.past} undo / ${K2.aRefocus.future} redo back on line A, rewinding to "${K2.aRefocusUndo.name}")`,
   )
 
   console.log('\n=== C3 · the parked-history registry (pure, no board) ===')
@@ -1076,7 +1076,7 @@ try {
   check(RG.resetEmpties, `reset() empties the registry (${RG.sizeBeforeReset} slots → 0)`)
   check(
     RG.slots === 8,
-    `HISTORY_SLOTS is ${RG.slots} — the number the ≈0.9 MB worst-case bound was computed for`,
+    `HISTORY_SLOTS is ${RG.slots}, the number the ≈0.9 MB worst-case bound was computed for`,
   )
 
   // ---- C4 · the toolbar follows the swap ----------------------------------
@@ -1088,7 +1088,7 @@ try {
   // The stacks and the BUTTONS are measured separately on purpose, because they
   // are allowed to disagree in exactly one place: while browsing the board the
   // draft's stacks are full but no editable document is on screen, so both
-  // buttons must be dead even though the depth is not zero — the same rule
+  // buttons must be dead even though the depth is not zero, the same rule
   // useKeyboardShortcuts already applies to Ctrl+Z (section O). A restore that
   // only lights the toolbar back up after exitBoard is the honest one.
   console.log('\n=== C4 · the undo/redo buttons follow the document (DOM) ===')
@@ -1158,12 +1158,12 @@ try {
   check(B.before.found, 'the undo and redo buttons are on screen in board mode')
   check(
     B.before.past > 0 && B.before.future > 0 && !B.before.undo && !B.before.redo,
-    `browsing the board, the draft's ${B.before.past}/${B.before.future} stacks are intact but BOTH buttons are dead — the toolbar cannot offer to edit an off-screen document`,
+    `browsing the board, the draft's ${B.before.past}/${B.before.future} stacks are intact but BOTH buttons are dead: the toolbar cannot offer to edit an off-screen document`,
   )
   check(!B.focused.undo && !B.focused.redo, 'a freshly focused line offers nothing to undo')
   check(
     B.after.past === B.before.past && B.after.future === B.before.future,
-    `un-focusing restores the draft's depth (${B.after.past}/${B.after.future}) — useHistoryDepth saw it`,
+    `un-focusing restores the draft's depth (${B.after.past}/${B.after.future}): useHistoryDepth saw it`,
   )
   check(
     !B.after.undo && !B.after.redo && B.layersAfterClick === B.layersBefore,
@@ -1175,7 +1175,7 @@ try {
   )
   check(
     B.flipsOnFocus === 1 && B.flipsOnUnfocus === 1,
-    `each swap changes the depth exactly once (${B.flipsOnFocus}/${B.flipsOnUnfocus}) — no disabled frame in between`,
+    `each swap changes the depth exactly once (${B.flipsOnFocus}/${B.flipsOnUnfocus}), no disabled frame in between`,
   )
   // C4 ends off the board; every later section re-enters through ensureBoard.
 
@@ -1222,7 +1222,7 @@ try {
   const wrongSizeWouldDiffer = r.parity.some((x) => Math.abs(x.areaWIn - x.wrongSizeAreaWIn) > 0.05)
   check(
     wrongSizeWouldDiffer,
-    'using the global preview size instead of line.size WOULD change the print — the check has teeth',
+    'using the global preview size instead of line.size WOULD change the print: the check has teeth',
   )
   check(
     r.parity.some((x) => x.garment === 'custom'),
@@ -1261,15 +1261,15 @@ try {
   check(SH.sameSizeShares, 'two products of the same (garment, size) share ONE geometry')
   check(SH.differentSizeDoesNot, 'a different size gets its own, correctly rescaled geometry')
   check(SH.sameColourShares && SH.differentColourDoesNot, 'materials are shared per (garment, colour)')
-  // The board used to ignore the measured cavity occlusion entirely — the
-  // attribute was written and the material never declared vertexColors — so
+  // The board used to ignore the measured cavity occlusion entirely (the
+  // attribute was written and the material never declared vertexColors), so
   // one session showed the same tee seam-shaded in the studio and flat here.
   check(SH.cavityBound, 'the board material binds the frame\'s cavity occlusion')
   check(SH.frames === 2 && SH.materials === 2, `nothing extra was uploaded (${SH.frames}/${SH.materials})`)
   check(SH.freed, 'disposing the board frees every shared geometry')
 
   // ---- G · camera framing -------------------------------------------------
-  console.log('\n=== G · camera framing (body, not arm span — and never cropped) ===')
+  console.log('\n=== G · camera framing (body, not arm span, and never cropped) ===')
   for (const f of r.framing) {
     const cropW = f.visHalfW < f.fitWidthIn / 2 - 1e-6
     const cropH = f.visHalfH < f.fitHeightIn / 2 - 1e-6
@@ -1515,7 +1515,7 @@ try {
         railAria: locked.every((b) => b.getAttribute('aria-disabled') === 'true'),
         // FOUND is reported separately: the aria-label is the ENGLISH string
         // this run seeds into prefs, and a miss would leave the click above
-        // clicking nothing — a vacuous pass instead of a loud failure.
+        // clicking nothing, a vacuous pass instead of a loud failure.
         historyFound: ['Undo', 'Redo'].every(
           (l) => !!document.querySelector(`button[aria-label="${l}"]`),
         ),
@@ -1575,7 +1575,7 @@ try {
         lines: st.basket.map((l) => l.design.name),
         // History is session state exactly like `board`: nothing about it is
         // persisted, so a reload must land on an empty stack and an empty
-        // registry — a parked stack that outlived the tab could only reattach to
+        // registry. A parked stack that outlived the tab could only reattach to
         // a document another tab has since edited or deleted.
         past: window.__tshop.temporal.getState().pastStates.length,
         slots: storeMod.parkedHistorySlots(),
@@ -1817,7 +1817,7 @@ try {
   )
   check(
     mobile.bottomNav.visible === mobile.bottomNav.tabs,
-    'the phone tool bar stays on screen — disabled, not hidden',
+    'the phone tool bar stays on screen: disabled, not hidden',
   )
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.waitForTimeout(600)
@@ -1827,7 +1827,7 @@ try {
   const t3 = Date.now()
   // The board's own first-frame signal, not a guess. Generous, because the
   // first frame under SwiftShader is dominated by shader compilation and the
-  // env-map bake — both CPU-bound here and both free on a real GPU.
+  // env-map bake, both CPU-bound here and both free on a real GPU.
   await attempt('3D board first frame', async () => {
     await ensureBoard('3d', false)
     // `attached`, not `visible`: the product list is sr-only (a 1px clipped
@@ -1868,7 +1868,7 @@ try {
       const tex = await appImport('/src/app/board/useBoardTextures.ts')
       const mock = await appImport('/src/app/board/mockupCache.ts')
       const boardMod = await import('/src/state/board.ts')
-      // What the LIVE scene actually holds — the static grep only covers files
+      // What the LIVE scene actually holds: the static grep only covers files
       // it was told about, and GPU bytes are a property of the textures the
       // renderer uploaded, not of the cache that made them.
       const scene = window.__board3d?.scene
@@ -1990,7 +1990,7 @@ try {
   check(three.geo.decalLike === 0, 'no DecalGeometry exists in the live board scene')
   check(
     three.geo.heavy <= three.cap,
-    `only the ${three.cap} garment meshes are heavy — every print is a coarse grid (${three.geo.heavy} meshes over 1k tris)`,
+    `only the ${three.cap} garment meshes are heavy: every print is a coarse grid (${three.geo.heavy} meshes over 1k tris)`,
   )
   check(three.srList === seeded.lines, `the canvas has a screen-reader product list (${three.srList} buttons)`)
   check(three.capNote, 'the board says how many products degraded to flat previews')
@@ -2034,7 +2034,7 @@ try {
   check(picking.calls > 0, 'pointer moves really do reach the raycaster (the probe is live)')
   check(
     picking.worst <= 64,
-    `only low-poly hit proxies are raycast (heaviest ${picking.worst} tris — a hoodie would be 67,609)`,
+    `only low-poly hit proxies are raycast (heaviest ${picking.worst} tris: a hoodie would be 67,609)`,
   )
 
   // The point of frameloop="demand": once settled, an untouched board must cost
@@ -2085,7 +2085,7 @@ try {
     })
     await ensureBoard('3d', false)
     await page.waitForSelector('[data-board3d-ready]', { state: 'attached', timeout: 240000 })
-    // Billboards arrive one per frame (deliberately — see the mockup queue), so
+    // Billboards arrive one per frame (deliberately, see the mockup queue), so
     // wait for the wall to be complete rather than sampling it half-built.
     await page
       .waitForFunction(
@@ -2141,7 +2141,7 @@ try {
           return
         }
         // A product group that ended up with neither a garment nor a flat
-        // preview is an EMPTY SLOT — the failure this section exists to catch.
+        // preview is an EMPTY SLOT, the failure this section exists to catch.
         if (o.type !== 'Group' || !o.name) return
         let inner = 0
         o.traverse((c) => {
@@ -2190,7 +2190,7 @@ try {
   )
   check(
     overCap.decalGrids <= 16 && overCap.textures <= 16,
-    `${overCap.lines} lines still cost only ${overCap.decalGrids} print grids and ${overCap.textures} print canvases — the cap holds`,
+    `${overCap.lines} lines still cost only ${overCap.decalGrids} print grids and ${overCap.textures} print canvases: the cap holds`,
   )
 
   const purged = await attempt('purged upload', async () => {
@@ -2292,7 +2292,7 @@ try {
   //
   // Not board mode, but the same store: a garment switch that leaves activeSide
   // on a side the new garment does not have strands the user on a locked side
-  // with a disabled way back — and a RECONSTRUCTED back is a side that exists
+  // with a disabled way back, and a RECONSTRUCTED back is a side that exists
   // and must be marked, not one that is missing and must be locked.
   console.log('\n=== P · garment switch keeps the active side real ===')
   const sides = await attempt('side integrity', async () => {
@@ -2364,7 +2364,7 @@ try {
   )
   check(sides.noBack === 'front', 'switching to a garment with no back snaps the active side to front')
   check(sides.noSleeve === 'front', 'switching to a garment with no sleeve snaps the active side to front')
-  check(sides.withGenerated === 'back', 'a RECONSTRUCTED back is a real side — the switch keeps it')
+  check(sides.withGenerated === 'back', 'a RECONSTRUCTED back is a real side: the switch keeps it')
   check(sides.dom.found && sides.dom.disabled === false, 'the Back button is not disabled when the back was reconstructed')
   check(
     /reconstructed|reconstitué/i.test(sides.dom.label ?? ''),
@@ -2421,7 +2421,7 @@ try {
     `no uncaught page errors${errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''}`,
   )
   if (loads !== loadsBefore)
-    console.log(`  (the page reloaded ${loads - loadsBefore}× — 3 of those are this script's own)`)
+    console.log(`  (the page reloaded ${loads - loadsBefore}×: 3 of those are this script's own)`)
 
   console.log('\nverdict:', verdict)
   done(verdict === 'FAIL' ? 3 : verdict === 'WARN' ? 2 : 0)

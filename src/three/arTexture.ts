@@ -4,7 +4,7 @@
  * (src/three/wornCustom.ts).
  *
  * Both the GLB/USDZ export AND the live 3D preview go through the SAME builder,
- * so textures are authored power-of-two ≤ 2048 here — mandatory for Android
+ * so textures are authored power-of-two ≤ 2048 here, mandatory for Android
  * Scene Viewer / Filament and harmless for the WebGL2 preview.
  */
 import * as THREE from 'three'
@@ -33,7 +33,7 @@ export function potCanvas(src: HTMLCanvasElement): HTMLCanvasElement {
   return c
 }
 
-/** A POT sRGB CanvasTexture (flipY=true — correct for PlaneGeometry + the
+/** A POT sRGB CanvasTexture (flipY=true, correct for PlaneGeometry + the
  *  inflated-shell UVs, verified against the harness "TOP" marker). */
 export function canvasTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
   const tex = new THREE.CanvasTexture(potCanvas(canvas))

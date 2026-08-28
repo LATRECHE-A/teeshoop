@@ -4,7 +4,7 @@
  *
  *   npm run dev        → wrangler dev on :8787  +  vite on :5173
  *
- * `vite` alone serves static assets only — the Falk&Ross catalogue and the AR
+ * `vite` alone serves static assets only: the Falk&Ross catalogue and the AR
  * share flow live on the Worker, so without wrangler the studio's /api/* proxy
  * answers ECONNREFUSED and the catalogue reports itself unreachable. That is
  * exactly how the supplier integration "broke" once: the README said to run two
@@ -12,7 +12,7 @@
  * default one.
  *
  * If :8787 is already taken (a wrangler you started yourself), the spawned one
- * exits and the studio simply proxies to yours — that is reported, not fatal.
+ * exits and the studio simply proxies to yours. That is reported, not fatal.
  * TSHOP_NO_WORKER=1 skips the Worker on purpose (pure-frontend work).
  */
 import { spawn } from 'node:child_process'
@@ -62,7 +62,7 @@ function start(tag, color, cmd, args, { fatal }) {
     children.delete(child)
     if (shuttingDown) return
     if (fatal) {
-      process.stdout.write(`${prefix}exited (${code ?? 'signal'}) — stopping.\n`)
+      process.stdout.write(`${prefix}exited (${code ?? 'signal'}), stopping.\n`)
       shutdown(code ?? 0)
     } else {
       process.stdout.write(

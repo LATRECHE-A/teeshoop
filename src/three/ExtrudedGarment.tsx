@@ -2,13 +2,13 @@
  * Custom garment shown as a HOLLOW, realistic shell: two sheets (photo front,
  * photo/blank back) whose depth comes from a real garment's own depth field
  * graded onto the upload's silhouette (src/lib/templateDepth.ts), or from the
- * Poisson balloon when that fit is refused — Z-only displacement either way, so
+ * Poisson balloon when that fit is refused: Z-only displacement either way, so
  * inch/UV accuracy is untouched. Plus inward-facing LINING duplicates of both
  * sheets: through the neck/hem alpha openings you see the darkened inside of the
  * opposite panel with real parallax, and two single-sided interior catch planes
  * cover only the degenerate straight-through ray.
  *
- * SHADING — the other half of "why does an upload look flatter than the catalog
+ * SHADING: the other half of "why does an upload look flatter than the catalog
  * meshes". The photo arrives with a full lighting solution already baked in, so
  * the materials sample the DE-LIT albedo the shell hands back
  * (src/lib/photoLight.ts) and let the scene's lights be the only lights; what
@@ -24,13 +24,13 @@
  * when the camera does, and the scene makes a real one.
  *
  * `alphaToCoverage` resolves the alpha-tested outline against the canvas' MSAA
- * samples instead of the hard per-pixel cut alphaTest gives on its own — the
+ * samples instead of the hard per-pixel cut alphaTest gives on its own. The
  * silhouette is the one edge a viewer studies, and it is the cheapest realism
  * in the file.
  *
  * `CustomGarment` is the entry point: it tries to build the shell from the front
  * cutout (strictly gated inside `canvasToSilhouette`), otherwise it falls back
- * to the proven curved `CustomCard` — so uploads without a clean cutout keep the
+ * to the proven curved `CustomCard`, so uploads without a clean cutout keep the
  * old, safe look.
  */
 import { useCallback, useEffect, useMemo } from 'react'
@@ -61,7 +61,7 @@ import { CustomCard } from './CustomCard'
  * Last-resort colour for the blank reverse, used only when the front photo
  * cannot be sampled at all (a tainted or zero-sized canvas). The real blank
  * back is flooded with the GARMENT'S OWN colour, measured off the front
- * (`garmentTint`) — a fixed slate is right for a navy tee and a lie about a
+ * (`garmentTint`). A fixed slate is right for a navy tee and a lie about a
  * white polo or a red vest, and it is the first thing a customer sees when they
  * orbit past 90°.
  */
@@ -73,13 +73,13 @@ const BLANK_BACK_EMIT_MIX = 0.12
 /** The unprinted REVERSE of cloth reads lighter and flatter than its outside
  *  face; the lining is then multiplied by LINING_TINT on top, so without this
  *  lift a dark garment's lining is pitch black and indistinguishable from the
- *  interior catch plane — no hollow parallax read at all. */
+ *  interior catch plane: no hollow parallax read at all. */
 const BLANK_LINING_MIX = 0.55
 const INTERIOR = '#14181F'
 const INTERIOR_EMIT = '#0E1218'
 /**
  * Sheen is the fibre's own forward scatter, so its colour must be the
- * GARMENT'S, a shade lighter — the same rule GarmentModel applies to the
+ * GARMENT'S, a shade lighter. The same rule GarmentModel applies to the
  * catalog meshes, and for the same measured reason: a fixed near-white sheen
  * behaves as an additive film and renders a dark garment brown. The shell
  * already measures the garment colour off the photo (`garmentTint`) for the
@@ -95,7 +95,7 @@ const SHELL_FOLD_STRENGTH = 0.012
 /** Thread-scale grain, reduced from the catalog default (0.035): the shell
  *  already layers a photo wrinkle normal map, and at full strength the
  *  procedural grain reads as a uniform tile over it AND tilts the mean normal
- *  enough to dim the flat colour — both flagged by render review. */
+ *  enough to dim the flat colour, both flagged by render review. */
 const SHELL_WEAVE_STRENGTH = 0.022
 /**
  * How much of the photo's own form shading comes back as occlusion.
@@ -103,12 +103,12 @@ const SHELL_WEAVE_STRENGTH = 0.022
  * 1.0 replays exactly what the de-lighting removed, on the indirect light only.
  * The stage is environment-dominated, so that is most of the garment's
  * radiance and the shell recovers the hood shadow, the roll under a sleeve and
- * the pocket — none of which its geometry contains. It is deliberately not
+ * the pocket, none of which its geometry contains. It is deliberately not
  * higher: past 1 the map darkens further than the photograph ever was, and the
  * one thing this term must not do is invent occlusion.
  */
 const PHOTO_AO_INTENSITY = 1
-/** Lining multiply — the inside of a garment sits in its own shadow. #adadad
+/** Lining multiply: the inside of a garment sits in its own shadow. #adadad
  *  sRGB ≈ 0.42 LINEAR (material.color is sRGB→linear converted; #6b6b6b would
  *  be a 0.15 multiply and, stacked with the baked ×0.6 lining AO, pitch black). */
 const LINING_TINT = '#adadad'
@@ -116,7 +116,7 @@ const LINING_TINT = '#adadad'
  * ONE FABRIC FOR THE WHOLE GARMENT. The front sheet, the reverse and the two rim
  * ribbons used to carry three different roughness/sheen sets (0.86/0.55/0.85,
  * 0.9/0.4/0.9, 0.92/0.35/0.9), so orbiting past 90° changed the CLOTH and not
- * just the view — and, worse, rimFront and rimBack are welded to the SAME
+ * just the view, and, worse, rimFront and rimBack are welded to the SAME
  * isoline, which put a specular discontinuity down the one edge the rim exists
  * to make believable. Values are cotton jersey: nearly matte, with a wide fuzz
  * lobe (the fibre is a near-Lambertian retroreflector, so a tight sheen beads on
@@ -135,7 +135,7 @@ function useInflatedShell(front: CardSource | null, wIn: number, hIn: number): I
     const built = sil ? buildInflatedShell(canvas, sil, wIn, hIn, { photo }) : null
     // Explicit tangents for the wrinkle map. Without them three derives a
     // tangent frame per fragment from screen-space derivatives, which swims as
-    // the garment turns — the folds appear to crawl over the cloth. The sheets
+    // the garment turns, the folds appear to crawl over the cloth. The sheets
     // carry index + position + normal + uv, which is exactly what this needs.
     // PREVIEW ONLY: the AR bake builds its own shell and strips tangents
     // (arExport.sanitizeGarmentGeometry), so nothing here can reach a GLB.
@@ -197,7 +197,7 @@ function ExtrudedGarment({
   )
   // REGISTER THE REVERSE onto the front's frame before anything reads it. The
   // back sheet is the FRONT's silhouette sampled at `1 − u`, so a back
-  // photograph framed even slightly differently lands off its own outline —
+  // photograph framed even slightly differently lands off its own outline,
   // and because the pair is squared up by BOTTOM-PADDING the shorter canvas,
   // the whole of that difference collects at the hem, where it shows as the
   // reverse panel stopping short over a dark rim. `registerBackPanel` returns a
@@ -222,8 +222,8 @@ function ExtrudedGarment({
   //
   // A GENERATED back is EXEMPT, for the same reason arExport.ts exempts it:
   // there is no lightbox gradient in it to divide out. Its only low-frequency
-  // content IS the reconstruction — the front's drape, deliberately mirrored in
-  // — so de-lighting flattens the one thing that makes it look like cloth, and
+  // content IS the reconstruction (the front's drape, deliberately mirrored in),
+  // so de-lighting flattens the one thing that makes it look like cloth, and
   // then normalises against the baked "APERÇU · PREVIEW" mark, the only thing
   // left varying. Measured on the shipped 202358 reconstruction: the pass fires
   // (it is a no-op, `null`, on 202356's real supplier back) and moves 0.030 RMS
@@ -270,7 +270,7 @@ function ExtrudedGarment({
   //
   // A GENERATED BACK IS NOT A PHOTO AND MUST NOT BE READ AS ONE. When the
   // supplier had no back shot, ingest reconstructs one by mirroring the front's
-  // silhouette and flooding it with the garment colour — so its high-pass
+  // silhouette and flooding it with the garment colour, so its high-pass
   // carries no folds at all, only the baked "APERÇU · PREVIEW" mark, and
   // building a normal map from it would emboss that text into the cloth as
   // relief. The front's map is the right answer and not merely a safe one: the
@@ -288,7 +288,7 @@ function ExtrudedGarment({
   // The photo's own form shading, back as occlusion (see
   // photoLight.DelightResult.occlusion). This is the term that decides whether
   // an uploaded garment reads as cloth or as a cutout, so it is bound on every
-  // surface that samples the corresponding albedo — the sheet AND the lining
+  // surface that samples the corresponding albedo: the sheet AND the lining
   // behind it, which would otherwise contradict its own outside face through
   // the collar.
   const frontAO = useOcclusionTexture(shell.occlusionCanvas ?? null)
@@ -299,7 +299,7 @@ function ExtrudedGarment({
 
   // Report the WIDTH too, not just the height. The key light's shadow frustum
   // is sized from the largest reported extent (Stage.KeyLight), and a laid-flat
-  // upload is routinely wider than it is tall — sleeves spread, ~40 x 27 in on
+  // upload is routinely wider than it is tall: sleeves spread, ~40 x 27 in on
   // a hoodie flat-lay. Reporting height alone let index.tsx fall back to
   // `height * 0.9`, so the shoulders and sleeve tips fell outside the shadow
   // camera and their shadow terminated on a straight line across the cloth.
@@ -309,14 +309,14 @@ function ExtrudedGarment({
   }, [heightIn, widthIn, onMeasured])
 
   // The knit micro-relief + wandering drape octave the catalog meshes get
-  // (clothShading.ts) — triplanar and UV-free, so it composes on top of the
+  // (clothShading.ts), triplanar and UV-free, so it composes on top of the
   // photo wrinkle map and needs no tangent frame on the rims. Attached via a
   // one-shot ref: it must be installed before the material's first compile,
   // and the commit that creates the material runs before the next R3F frame.
   // (The `clothified` flag absorbs R3F calling a callback ref for both the
   // fiber and its alternate, which would otherwise chain onBeforeCompile.)
   //
-  // The shared cache key does NOT mean one program for the whole scene —
+  // The shared cache key does NOT mean one program for the whole scene:
   // three builds its key from every standard material parameter and only then
   // appends this suffix, and these materials differ (alphaTest, normalMap,
   // vertexColors) from the catalog cloth and from the rims. What the suffix
@@ -344,8 +344,8 @@ function ExtrudedGarment({
   const clothify = useMemo(() => makeClothify(SHELL_WEAVE_STRENGTH), [makeClothify])
   /**
    * ONE GRAIN PER SURFACE. Where a panel has no photo-derived wrinkle map it
-   * falls back to `fabric.ts`'s tiled plain weave — 8 px over a 128 px canvas
-   * tiled at wIn/0.9, i.e. a 0.056 in period — while the shader octave runs at
+   * falls back to `fabric.ts`'s tiled plain weave (8 px over a 128 px canvas
+   * tiled at wIn/0.9, i.e. a 0.056 in period) while the shader octave runs at
    * 0.045 in on the same material. Two axis-aligned sine grids that close
    * together beat at 1/|1/0.045 − 1/0.056| = 0.225 in: a regular quilted lattice
    * at exactly goose-pimple scale, and visible the moment a customer zooms in to
@@ -363,7 +363,7 @@ function ExtrudedGarment({
       {/* Front cap = photo, bulged. Alpha-tested opaque so the silhouette is
           crisp and front/back/lining/interior depth-sort correctly.
           castShadow/receiveShadow: the sleeve's shadow on the ribs is the cue
-          that says "solid object" — the same reason the catalog meshes cast
+          that says "solid object", the same reason the catalog meshes cast
           into the key light. Alpha-tested depth is honoured by three's shadow
           depth-material variants, so the cutout casts its silhouette, not its
           quad. */}
@@ -428,12 +428,12 @@ function ExtrudedGarment({
         )}
       </mesh>
 
-      {/* Interior LININGS — the hollow read. Same photo, multiplied down to a
+      {/* Interior LININGS: the hollow read. Same photo, multiplied down to a
           self-shadowed inside (winding already faces into the cavity, AO ×0.6
           is baked into their vertex colors). Matte: no sheen, high rough. */}
       {/* receiveShadow, but never castShadow: the linings are the surfaces the
           neck opening actually reveals, so they are what the rim skirt's
-          shadow should land on — the collar cavity read every render review
+          shadow should land on, the collar cavity read every render review
           called a flat dark blob. Casting FROM them would only add a second
           silhouette into the map from geometry nobody can see. */}
       {shell.liningFront && (
@@ -481,7 +481,7 @@ function ExtrudedGarment({
           own textures at a UV inset 0.16 in inside the cut, so it is a real
           photograph of the cloth rather than a tint.
           NO alphaTest: the rim is not a surface with a cut in it, it IS the
-          cut — welded to the isoline the sheets' alpha makes, so every fragment
+          cut, welded to the isoline the sheets' alpha makes, so every fragment
           of it is cloth. Tested against that same matte it deletes itself (all
           of a crossing's rings share one uv, so it samples at a mip where the
           edge is a texel wide), and the darkened lining showed through the seam
@@ -491,10 +491,10 @@ function ExtrudedGarment({
           with the sheet, though: the rim samples the sheet's texture at an
           inset UV, and a strip welded to the silhouette but lit differently
           from the cloth it belongs to draws a bright outline round the
-          garment — the same class of seam artefact the rim exists to remove. */}
+          garment, the same class of seam artefact the rim exists to remove. */}
       {/* The weave bump is safe here where a normal MAP is not: it is
           triplanar in object space with an analytic gradient, so it needs no
-          tangent frame — exactly the thing a 3-px band cannot supply. */}
+          tangent frame, exactly the thing a 3-px band cannot supply. */}
       {shell.rimFront && (
         <mesh geometry={shell.rimFront} castShadow receiveShadow>
           <meshPhysicalMaterial
@@ -571,8 +571,8 @@ export interface CustomGarmentProps {
 
 /**
  * The uploaded garment shown as a real, hollow 3D garment: the inflated shell
- * (silhouette.ts) wearing a shipped garment's own depth — chest full under the
- * shoulders, shoulders rolling off, a collar dip, sleeve tubes — with a visible
+ * (silhouette.ts) wearing a shipped garment's own depth (chest full under the
+ * shoulders, shoulders rolling off, a collar dip, sleeve tubes) with a visible
  * interior through the neck opening. Prominent and clear for editing; the AR
  * try-on then bakes the SAME shell, so what the customer orbits here is what
  * they see on their body. Falls back to the curved card when the upload has no
@@ -590,7 +590,7 @@ export function CustomGarment({ front, back, envIntensity = 1, onMeasured }: Cus
   // a CardSource is a canvas and a size, and widening it (or the props of
   // src/three/index.tsx) to carry one boolean would touch the shared 3D
   // contract for a fact only this component uses. Safe here because
-  // `CustomGarment` has exactly one caller — src/three/index.tsx, driven by
+  // `CustomGarment` has exactly one caller: src/three/index.tsx, driven by
   // Scene3D from this same design. The board renders its own garments
   // (BoardGarment) and never comes through here.
   const backGenerated = useStore((s) => s.design.custom?.back?.origin === 'generated')

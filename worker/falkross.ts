@@ -1,20 +1,20 @@
 /**
- * FALK&ROSS — the supplier webservice, server-side.
+ * FALK&ROSS: the supplier webservice, server-side.
  *
  * ============================================================================
  * WHY THIS LIVES IN THE WORKER AND NOT IN THE BROWSER
  * ----------------------------------------------------------------------------
  * Three independent reasons, any one of which would be enough:
  *  1. CREDENTIALS. Prices, stock and order placement are HTTP Basic. A secret
- *     shipped to a browser is a published secret, so the client never sees it —
- *     it reaches these routes, and only these routes reach Falk&Ross.
+ *     shipped to a browser is a published secret, so the client never sees it.
+ *     It reaches these routes, and only these routes reach Falk&Ross.
  *  2. CORS. Not one falk-ross.eu endpoint sends an allow-origin header, so a
  *     browser cannot read any of them, authenticated or not.
  *  3. CANVAS TAINTING. The ingest pipeline (src/lib/ingest/pipeline.ts) draws
  *     the supplier photo into a canvas and reads the pixels back for the
  *     cutout, print-area and back-reconstruction passes. A cross-origin image
  *     without CORS headers taints the canvas and `getImageData` throws, which
- *     would break ingest entirely — so photos are proxied too, same-origin,
+ *     would break ingest entirely, so photos are proxied too, same-origin,
  *     via `/api/fr/img/*`.
  * ============================================================================
  *
@@ -25,7 +25,7 @@
  *
  * CACHING: everything upstream changes at most daily, so every derived payload
  * goes through `caches.default` (see `cachedJson`). The catalogue scan is
- * budgeted — see `browseStyles` — because "search 2348 styles" cannot mean
+ * budgeted (see `browseStyles`) because "search 2348 styles" cannot mean
  * "make 2348 subrequests". READ THE SUBREQUEST BUDGET NOTE above the browse
  * constants before touching that path: Cloudflare's free-plan cap of 50
  * subrequests per invocation counts Cache API calls as well as `fetch`, and
@@ -85,13 +85,13 @@ const DOWNLOAD = 'https://download.falk-ross.eu'
 const WS = 'https://ws.falk-ross.eu'
 
 /**
- * Origin used to MINT CACHE KEYS — deliberately a host we never serve.
+ * Origin used to MINT CACHE KEYS, deliberately a host we never serve.
  *
  * `caches.default` is keyed by URL, and these entries include `price:{style}`,
  * i.e. our purchase cost. Minting them on our own origin made them look like
  * real paths: an inbound `GET /__fr-cache/price%3A18001` could collide with a
  * stored entry, and the asset layer answered such paths before the Worker ever
- * saw them (verified 2026-08-12 — it returned 200). Keying on an origin that
+ * saw them (verified 2026-08-12: it returned 200). Keying on an origin that
  * resolves to nothing removes the collision instead of routing around it.
  *
  * worker/index.ts still 404s the `/__fr-cache/` path prefix, and wrangler.jsonc
@@ -123,7 +123,7 @@ const TTL = {
   style: 24 * 3600,
   /** Prices are contractual and stable; an hour bounds a re-negotiation. */
   price: 3600,
-  /** Stock genuinely moves — this is the one number a stale cache misleads on. */
+  /** Stock genuinely moves. This is the one number a stale cache misleads on. */
   stock: 300,
   deliveries: 1800,
   /** Test-vs-live mode: short, because it gates whether an order is real. */
@@ -206,8 +206,8 @@ interface FetchOpts {
  * (src/lib/ingest/falkross.ts GET_TIMEOUT_MS / BROWSE_TIMEOUT_MS). Whoever
  * times out first decides what the user is told: the client can only say
  * "too long", while we know *what* broke and answer a typed JSON error. When
- * both sides used 20 s the client always aborted first — it starts its clock
- * earlier — so this module's truthful 502 was unreachable from the browser and
+ * both sides used 20 s the client always aborted first (it starts its clock
+ * earlier), so this module's truthful 502 was unreachable from the browser and
  * a single hung style was reported to the developer as "your backend is not
  * running". Measured healthy cold cost is ~1.2 s per 12-style batch, so 10 s
  * is ~8x headroom on a real document.
@@ -276,7 +276,7 @@ async function cachedJson<T>(
     try {
       return (await hit.json()) as T
     } catch {
-      // Corrupt entry — fall through and rebuild rather than fail the request.
+      // Corrupt entry: fall through and rebuild rather than fail the request.
     }
   }
   const value = await produce()
@@ -295,16 +295,16 @@ async function cachedJson<T>(
 // ---------------------------------------------------------------------------
 
 interface StyleListIndex {
-  /** Feed version, e.g. "R000-011" — style XML URLs are versioned by it. */
+  /** Feed version, e.g. "R000-011". Style XML URLs are versioned by it. */
   version: string
   exportedAt: string
-  /** Five-digit style numbers, ASCENDING — see `styleIndex`. */
+  /** Five-digit style numbers, ASCENDING. See `styleIndex`. */
   nrs: string[]
 }
 
 /**
  * The complete style list. VERIFIED: 2348 styles, and the per-style link is
- * `…/ws/{version}/xml/{nr}.xml` — NOT the `…/ws/xml/{nr}.xml` the PDF shows.
+ * `…/ws/{version}/xml/{nr}.xml`, NOT the `…/ws/xml/{nr}.xml` the PDF shows.
  * Both paths serve byte-identical documents today, so only the version is
  * stored (20 KB instead of a 250 KB URL table) and the unversioned path is the
  * fallback if a versioned fetch ever 404s.
@@ -319,7 +319,7 @@ async function styleIndex(origin: string, ctx: ExecutionContext): Promise<StyleL
       .filter((nr) => /^\d{4,6}$/.test(nr))
       // ASCENDING, deliberately. The feed is ordered by style number
       // DESCENDING, and that end of the catalogue is bags, beanies, towels and
-      // workwear — VERIFIED: the first 200 styles in feed order contain zero
+      // workwear. VERIFIED: the first 200 styles in feed order contain zero
       // t-shirts and zero polos, so a browser opening the catalogue would wait
       // through several scan rounds to see its first printable blank. Low style
       // numbers are where the apparel brands live (B&C 00142, Gildan 10209,
@@ -351,7 +351,7 @@ export interface FrPhoto {
 export interface FrColourway {
   code: string
   name: string
-  /** Colour chip (a JPG, not a hex — see the note on `swatch`). */
+  /** Colour chip (a JPG, not a hex). See the note on `swatch`. */
   swatch: string
   /** Per-colour laid-flat FRONT photo. VERIFIED to exist for every colourway. */
   photo: string
@@ -391,7 +391,7 @@ export interface FrStyle {
   certificates: string[]
   /**
    * The one place Falk&Ross gets near a size table: a PDF of the maker's own
-   * size spec. It is a PDF, so nothing here can read it — but a human can, and
+   * size spec. It is a PDF, so nothing here can read it, but a human can, and
    * that is exactly who needs it when checking an estimated table.
    */
   sizespecPdf: string
@@ -407,8 +407,8 @@ export interface FrStyle {
    * Colour code the back photo was shot in.
    *
    * This is load-bearing, not trivia. Falk&Ross photographs ONE colourway from
-   * behind — VERIFIED: substituting another colour code into a back filename
-   * 404s — while every colourway has its own flat FRONT via
+   * behind (VERIFIED: substituting another colour code into a back filename
+   * 404s), while every colourway has its own flat FRONT via
    * `sku_color_picture_url`. So for any other colour, the only real back on
    * offer is a photo of a DIFFERENT-COLOURED garment, and the client compares
    * these codes to decide between it and an honest reconstruction.
@@ -421,7 +421,7 @@ export interface FrStyle {
   exportedAt: string
 }
 
-/** Grid row — a projection of FrStyle small enough to scan thousands of. */
+/** Grid row, a projection of FrStyle small enough to scan thousands of. */
 export interface FrCard {
   styleNr: string
   brand: string
@@ -470,7 +470,7 @@ function classifySleeve(groups: string[]): FrSleeve {
 /**
  * Product categories that are never a printable upper-body blank. Checked only
  * AFTER the positive patterns below, because the sub-category list mixes
- * product types with cross-cutting tags — a style is routinely both "T-Shirts"
+ * product types with cross-cutting tags. A style is routinely both "T-Shirts"
  * and "Workwear", and vetoing on the latter would hide half the tees.
  */
 const CATEGORY_VETO =
@@ -480,7 +480,7 @@ const CATEGORY_VETO =
  * The same veto applied to a style NAME, for the styles whose only categories
  * are marketing tags ("NEW 2026", "TOP SELLERS") and so say nothing. Without
  * it, "UNLABELED Sweatpants" and "Hooded Softshell Jacket" both classify as
- * sweatshirts on the strength of one word — VERIFIED, both did.
+ * sweatshirts on the strength of one word. VERIFIED, both did.
  */
 const NAME_VETO =
   // Two deliberate details:
@@ -497,7 +497,7 @@ const NAME_VETO =
  *
  * The leading `\b` on the tee pattern is not decoration: without it,
  * "Swea|tshirts|" matches `t-?shirts?` and the supplier's own
- * "Sweatshirts & Hoodies" category classifies as a T-SHIRT — which would then
+ * "Sweatshirts & Hoodies" category classifies as a T-SHIRT, which would then
  * pick the tee size block for every hoodie in the catalogue.
  */
 const KIND_PATTERNS: readonly (readonly [RegExp, FrKind])[] = [
@@ -508,13 +508,13 @@ const KIND_PATTERNS: readonly (readonly [RegExp, FrKind])[] = [
 ]
 
 /**
- * What kind of blank this is — the studio only decorates upper-body garments,
+ * What kind of blank this is: the studio only decorates upper-body garments,
  * and the choice of reference size chart (tee vs hoodie) hangs off it.
  *
  * Driven by the supplier's own SUB-CATEGORIES, which are a controlled
  * vocabulary ("T-Shirts", "Polos", "Bags & Accessories"), with the style name
- * consulted only when they are uninformative. Doing it the other way round —
- * matching the name first — is what turned a fleece beanie called "Recycled
+ * consulted only when they are uninformative. Doing it the other way round,
+ * matching the name first, is what turned a fleece beanie called "Recycled
  * Fleece Hood" into a hoodie.
  *
  * NOTE: `style_category_main` is useless here; it is the literal string
@@ -532,19 +532,19 @@ function classifyKind(categories: string[], name: string): FrKind {
   return 'other'
 }
 
-/** Blanks the studio can actually print on — the catalogue's default filter. */
+/** Blanks the studio can actually print on, the catalogue's default filter. */
 export const isPrintableKind = (k: FrKind) => k === 'tee' || k === 'polo' || k === 'sweat'
 
 /**
  * Choose the front/back pair to show for a style.
  *
  * VERIFIED shot types: 'f' flat front, 'b' flat back, 'm' model front, 'mb'
- * model BACK (undocumented — the PDF lists only m/f/b), and '-' for the sleeve
+ * model BACK (undocumented: the PDF lists only m/f/b), and '-' for the sleeve
  * detail shots (_sl-/_sr-), which are never a garment side.
  *
  * The pair must be COHERENT, which the obvious "first f, first b" rule is not:
  * on style 00142 that yields a model front in colour 123 beside a flat back in
- * colour 507 — two different garments in two different registers. So a pair in
+ * colour 507, two different garments in two different registers. So a pair in
  * one colour and one register wins, and only then do we settle for less.
  */
 function pickSides(photos: FrPhoto[]): { front: FrPhoto | null; back: FrPhoto | null } {
@@ -555,7 +555,7 @@ function pickSides(photos: FrPhoto[]): { front: FrPhoto | null; back: FrPhoto | 
   const modelF = of('m')
   const modelB = of('mb')
 
-  // 1. Same register, same colourway — a real front and back of one garment.
+  // 1. Same register, same colourway: a real front and back of one garment.
   for (const [fronts, backs] of [
     [flatF, flatB],
     [modelF, modelB],
@@ -585,7 +585,7 @@ export function parseStyle(xml: string, styleNr: string): FrStyle {
   const nameEn = langText(elementInner(style, 'style_name'), LANGS_EN)
 
   // Categories: <style_category_main> is mixed content ("Products" plus nested
-  // <style_category_sub> children), so read the SUBS — they carry the real
+  // <style_category_sub> children), so read the SUBS. They carry the real
   // taxonomy and are translated.
   const catMain = elementInner(style, 'style_category_list') ?? ''
   const catBlocks = allElements(catMain, 'style_category_sub')
@@ -696,7 +696,7 @@ const toCard = (s: FrStyle): FrCard => ({
  * `fallback` retries the version-less path, which serves an identical document
  * today. It is on for the detail route (one document, correctness first) and
  * OFF for bulk block builds, where a 404 must cost a predictable ONE subrequest
- * — see the subrequest budget below.
+ * (see the subrequest budget below).
  */
 async function fetchStyleXml(version: string, nr: string, fallback: boolean): Promise<string> {
   try {
@@ -725,7 +725,7 @@ async function loadStyle(
 
 /**
  * ============================================================================
- * THE SUBREQUEST BUDGET — the constraint this whole section is shaped around.
+ * THE SUBREQUEST BUDGET, the constraint this whole section is shaped around.
  * ============================================================================
  *
  * Cloudflare caps ONE Worker invocation at 50 subrequests on the Workers FREE
@@ -733,8 +733,8 @@ async function loadStyle(
  * `caches.default.match` and every `.put` counts too, including puts handed to
  * `ctx.waitUntil`, which run inside the same invocation.
  *
- * An earlier version of this file assumed the opposite — its comment read
- * "Cache API reads are not subrequests" — and budgeted 48 upstream fetches with
+ * An earlier version of this file assumed the opposite (its comment read
+ * "Cache API reads are not subrequests") and budgeted 48 upstream fetches with
  * a 600-style warm walk. A cold style actually cost FIVE subrequests
  * (match card, match style, fetch, put card, put style), so a single browse
  * could ask for ~240 against a ceiling of 50. It threw
@@ -743,7 +743,7 @@ async function loadStyle(
  * looked like a credentials failure. VERIFIED live 2026-08-08 via
  * `wrangler tail`: page 1 worked (warm, and its first 12 styles are printable
  * so the scan stopped), while any cold region 502'd in ~0.4 s, deterministically
- * and forever — a failed request caches nothing, so retrying could never warm it.
+ * and forever: a failed request caches nothing, so retrying could never warm it.
  *
  * The fix is BLOCK CACHING plus honest accounting. Cards are cached in
  * aligned blocks of `BLOCK` styles under one key, so a warm block costs ONE
@@ -756,17 +756,17 @@ async function loadStyle(
  * before it threw), a cold scan ~36.
  *
  * ----------------------------------------------------------------------------
- * TODO — DO THIS FIRST if the site ever moves to Workers PAID (or any host
+ * TODO: DO THIS FIRST if the site ever moves to Workers PAID (or any host
  * without a ~50-subrequest cap; Paid allows 1000).
  *
  * Block caching exists ONLY to survive the free-plan ceiling, and it buys that
  * survival with real costs: a cold block is all-or-nothing (12 fetches must fit
  * at once), pagination is forced to snap to block boundaries, and a browse can
- * build at most ~3 cold blocks before it has to hand back `nextOffset` — so the
+ * build at most ~3 cold blocks before it has to hand back `nextOffset`, so the
  * FIRST pass over the 2316-style catalogue takes many round trips.
  *
  * With a 1000-subrequest budget the better design is:
- *   1. Raise `SUBREQUEST_LIMIT` to the real ceiling — that alone lets one
+ *   1. Raise `SUBREQUEST_LIMIT` to the real ceiling. That alone lets one
  *      request build ~70 cold blocks (~840 styles) instead of ~3.
  *   2. Better still, drop blocks and PRECOMPUTE the whole card index once
  *      (a scheduled Cron Worker walking all 2316 styles into a single KV or R2
@@ -812,7 +812,7 @@ class Subrequests {
 /**
  * Wall-clock ceiling for one browse request, checked between batches. Worst
  * case a batch starts just under it and over-runs by UPSTREAM_TIMEOUT_MS, so
- * the endpoint answers by ~28 s — inside the client's 35 s browse budget.
+ * the endpoint answers by ~28 s, inside the client's 35 s browse budget.
  */
 const BROWSE_BUDGET_MS = 18_000
 
@@ -837,7 +837,7 @@ export interface BrowseResult {
 /**
  * One aligned block of grid cards, the unit the catalogue is cached in.
  *
- * Returns null when the budget cannot cover the work — the caller stops and
+ * Returns null when the budget cannot cover the work. The caller stops and
  * reports `nextOffset` rather than throwing. Blocks are keyed by FEED VERSION,
  * so the morning's re-export invalidates every block without a purge.
  */
@@ -871,7 +871,7 @@ async function loadCardBlock(
       // Entries written before blocks carried `dropped` are plain arrays.
       return Array.isArray(cached) ? { cards: cached, dropped: 0 } : cached
     } catch {
-      // Corrupt entry — fall through and rebuild, budget permitting.
+      // Corrupt entry: fall through and rebuild, budget permitting.
     }
   }
 
@@ -930,7 +930,7 @@ async function browseStyles(
   const items: FrCard[] = []
   // Snap to a block boundary so a given style always lands in the same cached
   // block. `nextOffset` is itself always a boundary, so after the first request
-  // this is a no-op — and offset 0 is already aligned.
+  // this is a no-op, and offset 0 is already aligned.
   const start =
     Math.floor(Math.max(0, Math.min(opts.offset, index.nrs.length)) / BLOCK) * BLOCK
   let i = start
@@ -975,12 +975,12 @@ async function browseStyles(
     // A WALL-CLOCK budget beside the subrequest one. The budget bounds how much
     // work we ask for, but not how long the supplier takes to do it: one hung
     // document stalls its whole `Promise.all` block for UPSTREAM_TIMEOUT_MS, and
-    // several such blocks used to outlast the browser's own deadline — so the
+    // several such blocks used to outlast the browser's own deadline, so the
     // client aborted and blamed the backend.
     Date.now() < deadline
   ) {
     const block = await loadCardBlock(origin, ctx, index, i, budget)
-    if (block === null) break // out of subrequests — resume from `i`
+    if (block === null) break // out of subrequests: resume from `i`
     dropped += block.dropped
     // Every match in the block is taken, so advancing past the block cannot
     // skip one. `limit` is at least BLOCK, so this overshoots by at most 11.
@@ -1009,7 +1009,7 @@ async function browseStyles(
 /**
  * `<error><error_code>…` is how the price/stock CGIs report a bad or empty
  * query (VERIFIED: code 10 = bad `style` parameter, 100 = "no data"), and they
- * do it with HTTP 200 — so the body has to be inspected, not the status.
+ * do it with HTTP 200, so the body has to be inspected, not the status.
  */
 function throwIfErrorDoc(body: string): void {
   if (!body.startsWith('<error') && !body.includes('<error>')) return
@@ -1047,7 +1047,7 @@ export interface FrPrices {
 /**
  * Purchase prices for one style.
  *
- * `your_price` IS OUR COST — unlike the Imbretex snapshot's `rrpEur`, which is
+ * `your_price` IS OUR COST, unlike the Imbretex snapshot's `rrpEur`, which is
  * a recommended RETAIL price. The two must never be conflated: one is what we
  * pay, the other is what the supplier suggests charging. Nothing in this file
  * exposes a retail price, because Falk&Ross does not publish one.
@@ -1076,7 +1076,7 @@ async function loadPrices(
 }
 
 export interface FrStock {
-  /** Upstream timestamp — the first line of the CSV, before any SKU row. */
+  /** Upstream timestamp, the first line of the CSV, before any SKU row. */
   at: string
   /** SKU → [green, yellow, blue] quantities. */
   stock: Record<string, [number, number, number]>
@@ -1135,7 +1135,7 @@ async function loadStock(
  *
  * SUBREQUEST BUDGET: one `cache.match`, one upstream `fetch` on a miss, one
  * `cache.put` in `waitUntil`. Three, against a ceiling of fifty, whatever the
- * page asked for — the parse happens once per cache miss and every page after
+ * page asked for: the parse happens once per cache miss and every page after
  * that is a slice of memory.
  */
 async function loadStockAll(
@@ -1174,7 +1174,7 @@ async function loadStockAll(
 }
 
 export interface FrWsState {
-  /** 'test' — orders are simulated. 'live' — orders are REAL. */
+  /** 'test': orders are simulated. 'live': orders are REAL. */
   mode: 'test' | 'live' | 'unknown'
   modeCode: string
   modeName: string
@@ -1432,13 +1432,13 @@ export interface FrOrderResult {
   /**
    * FOUR OUTCOMES, BECAUSE THREE COLLAPSED TWO DIFFERENT FACTS.
    *
-   *  - `accepted` — the supplier created an order, named it, and took every line.
-   *  - `partial`  — he created it and REFUSED SOME LINES. The run is short by
+   *  - `accepted`: the supplier created an order, named it, and took every line.
+   *  - `partial`:  he created it and REFUSED SOME LINES. The run is short by
    *    exactly those articles, and the shop is about to press a job it does not
    *    have the blanks for. This used to report as `accepted` and the per-line
    *    refusals were stored and then hidden by the screen.
-   *  - `rejected` — he refused the whole thing and said why. Nothing exists.
-   *  - `unknown`  — the request left and no usable answer came back, or the
+   *  - `rejected`: he refused the whole thing and said why. Nothing exists.
+   *  - `unknown`:  the request left and no usable answer came back, or the
    *    answer names an order AND a global error, which we cannot read. It may
    *    have been created. Never retry on this; a human has to look.
    */
@@ -1448,7 +1448,7 @@ export interface FrOrderResult {
   errorCode: string
   message: string
   lines: { sku: string; errorCode: string; message: string }[]
-  /** The webservice mode this order was placed in — see `loadState`. */
+  /** The webservice mode this order was placed in. See `loadState`. */
   mode: FrWsState
   /** Echoed so the caller can pin the answer to the act without matching by time. */
   idempotencyKey: string
@@ -1456,7 +1456,7 @@ export interface FrOrderResult {
 
 /**
  * CDATA cannot nest or contain its own terminator, so a payload containing
- * `]]>` is split across two sections — the standard, and only, escape.
+ * `]]>` is split across two sections: the standard, and only, escape.
  */
 const cdata = (v: string) => `<![CDATA[${String(v).replace(/]]>/g, ']]]]><![CDATA[>')}]]>`
 
@@ -1574,7 +1574,7 @@ function validateOrder(input: FrOrderInput): void {
  *    (VERIFIED live);
  *  - an accepted-but-rejected order comes back HTTP 200 as the order echo with
  *    `<orders_id>0</orders_id>`, a top-level `<err>` code, and per-line errors
- *    nested in `<item><p_err>30</p_err><msg>Artno not found</msg></item>` —
+ *    nested in `<item><p_err>30</p_err><msg>Artno not found</msg></item>`,
  *    NOT the `<p_err>/<p_err_msg>` pair the PDF documents (VERIFIED live).
  * Both are parsed, so a caller never has to guess which one it got.
  *
@@ -1759,7 +1759,7 @@ async function placeOrder(
 /**
  * Supplier photo, same-origin. Anything outside `ws/picture/` and `ws/picto/`
  * is refused so this cannot be turned into an open proxy for the rest of the
- * internet — the path is validated, never merely concatenated.
+ * internet: the path is validated, never merely concatenated.
  */
 async function serveImage(kind: string, file: string): Promise<Response> {
   // `sizespecs` is the maker's own size table, a PDF. It joins the two photo
@@ -1800,7 +1800,7 @@ async function serveImage(kind: string, file: string): Promise<Response> {
  * allowed, which is all these TTLs were ever for. `vary: authorization` keeps a
  * rotated token from reading the previous holder's cached copy.
  *
- * This does NOT govern `serveImage` (still `public, immutable` — public
+ * This does NOT govern `serveImage` (still `public, immutable`: public
  * supplier photos) nor the server-side memoisation in `cachedJson`.
  */
 function json(body: unknown, status = 200, maxAge = 0): Response {
@@ -1856,11 +1856,11 @@ const clampInt = (v: string | null, def: number, min: number, max: number) => {
 }
 
 /**
- * `/api/fr/*` — the whole Falk&Ross surface. Returns null when the path is not
+ * `/api/fr/*`, the whole Falk&Ross surface. Returns null when the path is not
  * ours, so the caller can fall through to the rest of the Worker.
  *
  * ADMIN-ONLY. Every route below requires `Authorization: Bearer <ADMIN_TOKEN>`
- * (worker/auth.ts) — they return our purchase cost, our supplier stock and the
+ * (worker/auth.ts): they return our purchase cost, our supplier stock and the
  * supplier catalogue, none of which is a customer surface. Unauthenticated
  * callers get 401 `{error:'admin_auth'}`, and with ADMIN_TOKEN unset the gate
  * denies everything. The photo proxy is the single exemption; see the gate.
@@ -1876,7 +1876,7 @@ const clampInt = (v: string | null, def: number, min: number, max: number) => {
  *   GET  /api/fr/deliveries/{styleNr?}      announced restocks
  *   POST /api/fr/order                      place a supplier order. ADMIN_TOKEN
  *                                           **and** FR_ORDER_TOKEN (see below)
- *   GET  /api/fr/img/{picture|picto}/{file} photo proxy (ungated — see below)
+ *   GET  /api/fr/img/{picture|picto}/{file} photo proxy (ungated, see below)
  *   GET  /media/blank/{picture|picto}/{file} the same photos, supplier-neutral
  *                                           prefix, for URLs the shop stores
  */
@@ -1923,14 +1923,14 @@ export async function handleFalkRoss(
   const origin = url.origin
   const method = request.method
 
-  // AUTH — deny by default. Every /api/fr/* route is admin-only (purchase
+  // AUTH: deny by default. Every /api/fr/* route is admin-only (purchase
   // prices, stock, the catalogue itself), so the gate sits at the TOP: a route
   // added below is protected by construction, not by remembering to protect it.
   // It is also OUTSIDE the try, so the catch-all cannot remap a 401 to a 502.
   //
   // ONE exemption, and it is forced rather than chosen: the photo proxy is
   // rendered by <img src> (CatalogModal), which cannot send an Authorization
-  // header — and `serveImage` fetches those files upstream with NO credentials,
+  // header, and `serveImage` fetches those files upstream with NO credentials,
   // i.e. they are public supplier photos, not a secret.
   if (!rest.startsWith('img/')) {
     const denied = await requireAdmin(request, env)

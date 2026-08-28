@@ -8,7 +8,7 @@
  *  1. THE PRINTED FILE. `renderPrintArea` is the actual transfer. In `scaled`
  *     mode its physical size must track k = halfChest(size)/halfChest(base)
  *     exactly; in `fixed` mode it must not move at all. This is the one that
- *     costs money if it is wrong — it is what gets sent to the printer.
+ *     costs money if it is wrong: it is what gets sent to the printer.
  *
  *  2. THE VISUAL RESULT. In the 2D mockup the print's width relative to the
  *     garment's width must be CONSTANT across sizes when grading (that is what
@@ -26,7 +26,7 @@ import { chromium } from 'playwright'
 const PORT = 5197
 const BASE = `http://localhost:${PORT}`
 const SIZES = (process.env.GRADE_SIZES || 'S,M,3XL').split(',')
-const TOL = 0.02 // 2 % — pixel quantisation of the bbox measurement
+const TOL = 0.02 // 2 %, pixel quantisation of the bbox measurement
 
 const waitFor = (url, ms = 40000) =>
   new Promise((res, rej) => {
@@ -60,7 +60,7 @@ const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { 
 let browser
 let fail = 0
 const check = (name, ok, detail = '') => {
-  console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`)
+  console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ': ' + detail : ''}`)
   if (!ok) fail++
 }
 const done = (code) => { try { browser?.close() } catch {} try { server.kill('SIGTERM') } catch {} process.exit(code) }
@@ -101,7 +101,7 @@ try {
   console.log('tee half-chest cm:', JSON.stringify(chart), '· base', BASE_SIZE, '\n')
 
   for (const mode of ['fixed', 'scaled']) {
-    console.log(`— mode: ${mode} —`)
+    console.log(`-- mode: ${mode} --`)
     const rows = {}
     for (const size of SIZES) {
       rows[size] = await page.evaluate(

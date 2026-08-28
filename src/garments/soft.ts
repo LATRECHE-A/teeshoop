@@ -5,7 +5,7 @@
  * regions, so body art fakes soft shadows with (a) layered strokes of
  * decreasing opacity and (b) radial-gradient ellipses. Only the `shade`
  * overlays (small, few) keep a real blur filter. `d` may contain several
- * `M…` subpaths — merging same-style strokes keeps the SVGs small.
+ * `M…` subpaths: merging same-style strokes keeps the SVGs small.
  */
 
 function a(n: number): string {
@@ -23,7 +23,7 @@ export function soft(
   const c = light ? '#fff' : '#000'
   const line = (o: number, sw: number) =>
     `<path d="${d}" fill="none" stroke-linecap="${cap}" stroke="${c}" stroke-opacity="${a(o)}" stroke-width="${a(sw)}"/>`
-  // faint lines don't need layering — one wider stroke reads the same
+  // faint lines don't need layering: one wider stroke reads the same
   if (alpha < 0.075) return line(alpha * 0.85, w * 1.6)
   return `${line(alpha * 0.55, w)}\n${line(alpha * 0.34, w * 2.2)}`
 }
@@ -63,7 +63,7 @@ export function grainDefs(p: string, seed: number): string {
 
 /**
  * Grain overlay rect (≤3% opacity per contract). Kept OUTSIDE the main
- * clipped group (self-clipped) — a pattern inside a clipped group knocks
+ * clipped group (self-clipped): a pattern inside a clipped group knocks
  * Chromium's software rasterizer off its fast path (~5× slower).
  */
 export function grainRect(p: string): string {

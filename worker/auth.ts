@@ -9,17 +9,17 @@
  * section in falkross.ts); everything else now sits behind this gate.
  *
  * FAIL-CLOSED IS THE POINT. With `ADMIN_TOKEN` unset the gate denies every
- * request. The tempting inversion —
+ * request. The tempting inversion,
  *
  *     if (!env.ADMIN_TOKEN) return null   // "don't break local dev"
  *
- * — must never appear here: a Worker deployed before the secret is set would
+ * must never appear here: a Worker deployed before the secret is set would
  * then be wide open, which is exactly the state we are fixing. Local dev sets
  * the same key in `.dev.vars`.
  *
  * UPGRADE PATH. This is a bearer token because it needs no Cloudflare
  * dashboard access to deploy. Putting Cloudflare Access in front of the same
- * paths later is purely a dashboard change — no code here has to move.
+ * paths later is purely a dashboard change: no code here has to move.
  */
 
 export interface AdminEnv {
@@ -31,7 +31,7 @@ export interface AdminEnv {
   ADMIN_TOKEN?: string
 }
 
-/** Shorter than this is treated as unset — a 4-char "secret" is not one. */
+/** Shorter than this is treated as unset: a 4-char "secret" is not one. */
 const MIN_TOKEN_LEN = 24
 
 const enc = new TextEncoder()
@@ -55,8 +55,8 @@ async function secretEquals(a: string, b: string): Promise<boolean> {
  * The presented token, or '' when the header is absent or malformed.
  *
  * TWO encodings of the SAME secret, because two different clients need it:
- *  - `Bearer <token>` — what `fetch` from the admin studio sends.
- *  - `Basic base64(anything:<token>)` — what a BROWSER sends after being
+ *  - `Bearer <token>`, what `fetch` from the admin studio sends.
+ *  - `Basic base64(anything:<token>)`, what a BROWSER sends after being
  *    prompted. A bearer challenge shows no prompt, so a plain navigation to
  *    /admin.html could never authenticate; Basic is the only scheme browsers
  *    have a built-in login box for. The username is ignored: there is one
@@ -93,7 +93,7 @@ function presentedToken(request: Request): string {
  *     if (denied) return denied
  *
  * The response is deliberately identical for "no token configured" and "wrong
- * token" — an attacker learns nothing about whether the deployment is
+ * token": an attacker learns nothing about whether the deployment is
  * misconfigured.
  */
 export async function requireAdmin(
@@ -106,7 +106,7 @@ export async function requireAdmin(
 
   if (expected.length < MIN_TOKEN_LEN) {
     // Surfaces in `wrangler tail`; the client is told nothing extra.
-    console.warn('ADMIN_TOKEN is not configured (or is too short) — every admin request is denied.')
+    console.warn('ADMIN_TOKEN is not configured (or is too short): every admin request is denied.')
     return deny(challenge)
   }
   if (presented.length === 0) return deny(challenge)

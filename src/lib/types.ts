@@ -1,5 +1,5 @@
 /**
- * Tshop Studio — core type contracts.
+ * Tshop Studio: core type contracts.
  *
  * INVARIANT: all design geometry is stored in INCHES, positioned relative to
  * the CENTER of the active print area (+x right, +y down, rotation in degrees).
@@ -132,10 +132,10 @@ export interface CustomGarment {
 
 /**
  * How artwork responds to garment size.
- *  - `fixed`  — one physical print for every size (one film, cheapest). The
+ *  - `fixed`:  one physical print for every size (one film, cheapest). The
  *    print sits a size-invariant distance below the collar, the classic
  *    single-transfer convention.
- *  - `scaled` — artwork and print area are GRADED: both scale uniformly with
+ *  - `scaled`: artwork and print area are GRADED: both scale uniformly with
  *    the garment's chest so a 3XL carries a proportionally larger print and
  *    every size reads identically. Costs more film: each size is a distinct
  *    piece on the gang sheet.
@@ -173,7 +173,7 @@ export interface Design {
    * Print grading policy. Layer geometry above is stored ONCE, in inches, at
    * `printScale.baseSize`; every other size is derived by a single uniform
    * factor (see src/lib/printScale.ts). Absent on documents saved before
-   * grading existed — migrateDesign fills it in.
+   * grading existed: migrateDesign fills it in.
    */
   printScale?: PrintScale
   updatedAt: number
@@ -202,7 +202,7 @@ export interface AssetMeta {
 }
 
 // ---------------------------------------------------------------------------
-// 2D garment art (src/garments — module A1)
+// 2D garment art (src/garments, module A1)
 // ---------------------------------------------------------------------------
 
 /** The 2D editor viewBox is always 0 0 800 800. */
@@ -224,7 +224,7 @@ export interface GarmentSideArt {
   /** Print area in viewBox pixels. */
   printAreaPx: RectPx
   /**
-   * Collar-seam centre (viewBox px) — the fixed point the art scales about
+   * Collar-seam centre (viewBox px), the fixed point the art scales about
    * when rendering non-nominal sizes (professional print placement is
    * measured from the collar and is size-invariant). For the sleeve side this
    * is the print-area top centre (cap seam proxy).
@@ -245,7 +245,7 @@ export interface GarmentArt {
 }
 
 // ---------------------------------------------------------------------------
-// 3D (src/three — module A3)
+// 3D (src/three, module A3)
 // ---------------------------------------------------------------------------
 
 export interface DecalSource {
@@ -264,7 +264,7 @@ export interface CardSource {
   wIn: number
   hIn: number
   /**
-   * The same garment WITHOUT the design — same pixel dimensions, same alpha.
+   * The same garment WITHOUT the design: same pixel dimensions, same alpha.
    * `canvas` is what you SEE; this is what the 3D shell MEASURES (the photo's
    * baked lighting, its folds, its colour). A print is none of those, and the
    * shell reading it as all three is what embossed a customer's wordmark into
@@ -295,7 +295,7 @@ export interface Garment3DProps {
    * anchor needs it. 1 in `fixed` mode. Catalog garments only.
    */
   printK?: number
-  /** Garment real width — used for stage/floor layout and custom garments. */
+  /** Garment real width, used for stage/floor layout and custom garments. */
   garmentWidthIn: number
   /**
    * Previewed chart size. Catalog garments are scaled from the official cm
@@ -318,7 +318,7 @@ export interface Garment3DProps {
 }
 
 // ---------------------------------------------------------------------------
-// Graphics registry (src/content — module A5)
+// Graphics registry (src/content, module A5)
 // ---------------------------------------------------------------------------
 
 export interface GraphicDef {
@@ -332,7 +332,7 @@ export interface GraphicDef {
 }
 
 // ---------------------------------------------------------------------------
-// Fonts registry (src/lib/fonts.ts — module A4)
+// Fonts registry (src/lib/fonts.ts, module A4)
 // ---------------------------------------------------------------------------
 
 export interface FontDef {

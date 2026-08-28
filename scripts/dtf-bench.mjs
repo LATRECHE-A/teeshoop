@@ -1,5 +1,5 @@
 /**
- * DTF nesting benchmark — shelf packer vs the true-shape packer.
+ * DTF nesting benchmark: shelf packer vs the true-shape packer.
  *
  * Runs the REAL bundle in a headless browser (same pattern as dtf-verify.mjs)
  * so the numbers come from the shipped code, not a transcription of it. Four
@@ -224,7 +224,7 @@ try {
     // TWO instances of the SAME order: `basketMerged` is the pre-split
     // behaviour (one transfer per side, empty space and all), `basket` is one
     // transfer per independent visual. The pair is the whole point of this
-    // bench — the difference between the two rows is the film the split saves.
+    // bench: the difference between the two rows is the film the split saves.
     //
     // Quantity is per ORDER LINE, never per transfer: N garments need N copies
     // of every visual on the side. Assigning it per piece instead would give
@@ -252,7 +252,7 @@ try {
     instances.basketMerged = toPieces(await samplePieces(48, { merged: true }))
     instances.basket = toPieces(await samplePieces(48))
 
-    // 58 cm printable width, 5 mm gap, 0 margins — the researched defaults.
+    // 58 cm printable width, 5 mm gap, 0 margins: the researched defaults.
     const base = {
       printableWidthCm: 58,
       maxLengthCm: 250,
@@ -431,21 +431,21 @@ try {
   console.log('-'.repeat(80))
   for (const r of out)
     console.log(
-      `${r.instance.padEnd(10)} shelf ${fmt(r.shelf.util).padStart(5)} / —      ` +
+      `${r.instance.padEnd(10)} shelf ${fmt(r.shelf.util).padStart(5)} / (n/a) ` +
         `maxfill ${fmt(r.maxFill.util).padStart(5)} / ${fmt(r.maxFill.ink).padStart(5)}   ` +
         `${String(r.maxFill.ms).padStart(5)} ms (12 restarts) · ` +
         `${String(r.restarts24.ms).padStart(5)} ms (24)`,
     )
 
   // The split, measured on the real basket: same order, same settings, same
-  // packer — the only difference is whether a side is emitted as one transfer
+  // packer: the only difference is whether a side is emitted as one transfer
   // or one per independent visual.
   const split = out.find((r) => r.instance === 'basket')
   const mergedRow = out.find((r) => r.instance === 'basketMerged')
   if (split && mergedRow) {
     const ROLL_W_CM = 58
     const m2 = (cm) => (cm * ROLL_W_CM) / 10000
-    console.log('\nUN TRANSFERT PAR VISUEL vs UN PAR CÔTÉ — panier réel')
+    console.log('\nUN TRANSFERT PAR VISUEL vs UN PAR CÔTÉ, panier réel')
     console.log('-'.repeat(80))
     const line = (tag, a, b) =>
       console.log(

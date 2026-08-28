@@ -1,5 +1,5 @@
 /**
- * First-load sample design — module A5.
+ * First-load sample design: module A5.
  *
  * A print-shop-credible starter on the black tee: a classic collegiate lockup
  * (arched wordmark over a gold starburst seal with a tracking-heavy subline)
@@ -36,7 +36,7 @@ export function makeSampleDesign(): Design {
     stroke: null,
     strokeWidthIn: 0,
     letterSpacingEm: 0.08,
-    curve: 35, // classic collegiate arch — middle raised, ends dropped
+    curve: 35, // classic collegiate arch: middle raised, ends dropped
     align: 'center',
   }
 
@@ -99,7 +99,7 @@ export function makeSampleDesign(): Design {
     colorId: 'black',
     custom: null,
     layers: [seal, arch, subline, napeBadge],
-    // Custom (ship-your-own) garment starts blank — design it fresh on the
+    // Custom (ship-your-own) garment starts blank. Design it fresh on the
     // uploaded garment; the catalog design above is never forced onto it.
     stashedLayers: [],
     updatedAt: Date.now(),

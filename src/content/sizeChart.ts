@@ -1,5 +1,5 @@
 /**
- * Real garment dimensions per size — the single dimensional source of truth
+ * Real garment dimensions per size, the single dimensional source of truth
  * that makes the 2D editor, 3D preview, AR and admin print automation agree.
  *
  * Values are OFFICIAL manufacturer flat measurements in CENTIMETRES:
@@ -25,7 +25,7 @@ export type { SizeId }
 
 export const SIZE_IDS = ['S', 'M', 'L', 'XL', '2XL', '3XL'] as const satisfies readonly SizeId[]
 
-/** Default preview size — M is the most-ordered adult size. */
+/** Default preview size: M is the most-ordered adult size. */
 export const DEFAULT_SIZE: SizeId = 'M'
 
 export function isSizeId(v: unknown): v is SizeId {

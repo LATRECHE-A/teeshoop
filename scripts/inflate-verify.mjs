@@ -3,27 +3,28 @@
  *
  * Boots Vite dev, loads dev/inflate.html and:
  *   1. asserts the hollow invariants on the synthetic tee in BOTH modes
- *      (template = tier 1, poisson = tier 2 — the fallback must stay healthy);
+ *      (template = tier 1, poisson = tier 2: the fallback must stay healthy);
  *   2. asserts the HARD INVARIANT numerically: swapping the balloon for a
- *      template's depth field moves Z and NOTHING else — X/Y and UVs are float
- *      for float identical — and that the same input twice is bit-identical;
+ *      template's depth field moves Z and NOTHING else (X/Y and UVs are float
+ *      for float identical), and that the same input twice is bit-identical;
  *   3. runs the garment / not-a-garment gate over both populations: every real
- *      supplier flat-lay must reach tier 1 with the expected donor mesh — INCLUDING
- *      the awkward ones a customer really uploads, a garment still on its hanger
- *      and a garment under a print big enough to be mistaken for shading — and
- *      every non-garment (tote, mug, poster, cap, and a PERSON wearing the thing)
- *      must be REFUSED and land on the shape-agnostic Poisson shell, with the
- *      separation printed so the threshold can be read rather than believed;
+ *      supplier flat-lay must reach tier 1 with the expected donor mesh
+ *      (INCLUDING the awkward ones a customer really uploads, a garment still on
+ *      its hanger and a garment under a print big enough to be mistaken for
+ *      shading), and every non-garment (tote, mug, poster, cap, and a PERSON
+ *      wearing the thing) must be REFUSED and land on the shape-agnostic Poisson
+ *      shell, with the separation printed so the threshold can be read rather
+ *      than believed;
  *   4. exercises TIER 3: an upload with no background removal at all must be
  *      refused by the tracer outright, which is what puts the app on the card;
  *   5. checks that the resulting depth field is measurably closer to a real
  *      garment's than the balloon is, and no ROUGHER in y than the donor mesh it
- *      came from — normals are computed from that field, so a step between two
+ *      came from: normals are computed from that field, so a step between two
  *      rows ships as a black crease across the chest;
- *   6. measures CLOTH THICKNESS at the alpha cut — the front↔back separation at
+ *   6. measures CLOTH THICKNESS at the alpha cut (the front↔back separation at
  *      the sheets' own isovalue on every case, whether the rim ribbon CLOSES on
  *      the whole outline or simply stops somewhere, and an ID-render of the seam
- *      on a four-case subset — and runs every one of those assertions a SECOND
+ *      on a four-case subset), and runs every one of those assertions a SECOND
  *      time against `rim:'off'` (the pre-thickness geometry), failing if they pass;
  *   7. dumps before/after PNGs (set INFLATE_OUT_DIR, RIM_OUT_DIR).
  *
@@ -51,7 +52,7 @@ const SEAM_MAX_IN = 0.1
  * How much of the outline may be left with no rim ribbon on it at all, inches.
  *
  * A marching-squares isoline can be CLIPPED by its own grid, and this one's grid
- * spans the alpha's bounding box — so it was clipped exactly where a laid-flat
+ * spans the alpha's bounding box, so it was clipped exactly where a laid-flat
  * garment is flattest (the hem, a sleeve at its widest), which no other gate
  * here can see. Measured unpadded: 3.5–20.7 in bare on all 18 supplier photos,
  * worst 20.7 of a 46.5 in outline. Padded: 0 on fifteen of them, 0.12–0.15 in on
@@ -60,8 +61,8 @@ const SEAM_MAX_IN = 0.1
  */
 const RIM_GAP_MAX_IN = 0.6
 /**
- * How much of the seam may still show the garment's own cavity — its lining or
- * a catch plane — ON THE BEST GRAZING VIEW. This is the defect in the words a
+ * How much of the seam may still show the garment's own cavity (its lining or
+ * a catch plane) ON THE BEST GRAZING VIEW. This is the defect in the words a
  * viewer would use ("you can see through the edge of the shirt"), and it is
  * asked of the best view for the same reason `rimMax` is: the scanline window
  * localises the seam only where the row is monotone, and on a sleeved garment
@@ -126,7 +127,7 @@ const SHOT = new Set([
  * THIS is the claim under test, and it is deliberately not "the depth moved
  * up". The first version of this script asserted that, on the theory that a
  * Poisson balloon peaks on the medial axis while a garment carries its volume
- * at the chest — which is true of a LAID-FLAT garment and false of the supplier
+ * at the chest, which is true of a LAID-FLAT garment and false of the supplier
  * catalogue, whose ghost-mannequin photos are widest at the shoulders, so the
  * balloon peaks high all by itself. Comparing each shell against the mesh whose
  * depth it is supposed to be reproducing has no such pose dependence: it asks
@@ -185,11 +186,11 @@ try {
   // 'load' + a readiness probe: a page that owns a Worker never goes idle.
   // The first visit makes Vite discover onnxruntime (the bg-removal engine) and
   // full-reload once it has pre-bundled it, which would destroy any execution
-  // context we were holding — so visit twice and only then talk to the page.
+  // context we were holding, so visit twice and only then talk to the page.
   await page.goto(BASE + '/dev/inflate.html', { waitUntil: 'load', timeout: 45000 })
   await page.waitForFunction(() => !!window.__inflate, { timeout: 20000 })
   // Vite discovers the ONNX runtime only when the bg-removal worker first
-  // pulls it in, then full-reloads the page once it has pre-bundled it — which
+  // pulls it in, then full-reloads the page once it has pre-bundled it, which
   // destroys whatever execution context we were holding. So run the heaviest
   // path repeatedly until one full real-photo build completes with no
   // navigation; from then on the bundle (and the model) are settled.
@@ -265,13 +266,13 @@ try {
   }
 
   /**
-   * Build a case and probe it — TWICE, keeping the faster build.
+   * Build a case and probe it: TWICE, keeping the faster build.
    *
    * `buildMs` is asserted against a budget that exists to describe the CODE, and
    * a single sample on a machine shared with anything else describes the
    * machine. Measured on this one: 190402 builds in 216 ms with the rim off and
    * 255 ms with it on (best of five, nothing else running), and the very same
-   * case has been timed at 1251 ms with three other processes competing — five
+   * case has been timed at 1251 ms with three other processes competing, five
    * times the signal being measured. Two samples do not make it a benchmark,
    * but they cost 25 s over the whole case list and they remove the single
    * scheduling hiccup, which is the failure mode that actually happens.
@@ -346,7 +347,7 @@ try {
   // else: a print occupying inches [x0,x1]×[y0,y1] of the photo must occupy
   // exactly that footprint on the sheet whichever tier built it. Measured as an
   // exact float comparison between the two modes of the same photo, over every
-  // sheet and lining vertex — not a tolerance, because there is no reason for a
+  // sheet and lining vertex, not a tolerance, because there is no reason for a
   // single ulp to move.
   console.log('\nhard invariant (template vs poisson, same photo) + determinism:')
   for (const id of ['synthetic', '190402', '180712']) {
@@ -357,12 +358,12 @@ try {
         `Z differ ${d.z} (max ${f3(d.maxDz)} in) · rebuild differs ${rep.xy + rep.uv + rep.z}`,
     )
     if (!d.ok) fail.push(`${id}: could not build both modes for the invariant check`)
-    if (d.xy !== 0) fail.push(`${id}: ${d.xy} vertices moved in X/Y — the transplant must displace Z ONLY`)
-    if (d.uv !== 0) fail.push(`${id}: ${d.uv} UVs changed — decal/print mapping is not preserved`)
+    if (d.xy !== 0) fail.push(`${id}: ${d.xy} vertices moved in X/Y. The transplant must displace Z ONLY`)
+    if (d.uv !== 0) fail.push(`${id}: ${d.uv} UVs changed. Decal/print mapping is not preserved`)
     if (d.other !== 0) fail.push(`${id}: the two tiers produced different sheet sets`)
-    if (d.z === 0) fail.push(`${id}: the two tiers produced the SAME Z — the transplant did nothing`)
+    if (d.z === 0) fail.push(`${id}: the two tiers produced the SAME Z. The transplant did nothing`)
     if (rep.xy + rep.uv + rep.z !== 0)
-      fail.push(`${id}: not deterministic — ${rep.xy + rep.uv + rep.z} floats differ between two identical builds`)
+      fail.push(`${id}: not deterministic. ${rep.xy + rep.uv + rep.z} floats differ between two identical builds`)
   }
 
   // The SAME invariant, asked of the cloth thickness rather than of the tier.
@@ -381,9 +382,9 @@ try {
         `Z differ ${d.z} (max ${f3(d.maxDz)} in)`,
     )
     if (!d.ok) fail.push(`${id}: could not build both rim states for the invariant check`)
-    if (d.xy !== 0) fail.push(`${id}: ${d.xy} vertices moved in X/Y when the seam closed — it must displace Z ONLY`)
-    if (d.uv !== 0) fail.push(`${id}: ${d.uv} UVs changed when the seam closed — print mapping is not preserved`)
-    if (d.z === 0) fail.push(`${id}: rim:'on' and rim:'off' produced the same Z — the convergence did nothing`)
+    if (d.xy !== 0) fail.push(`${id}: ${d.xy} vertices moved in X/Y when the seam closed. It must displace Z ONLY`)
+    if (d.uv !== 0) fail.push(`${id}: ${d.uv} UVs changed when the seam closed. Print mapping is not preserved`)
+    if (d.z === 0) fail.push(`${id}: rim:'on' and rim:'off' produced the same Z. The convergence did nothing`)
   }
 
   // ---- 2. every case, both tiers -------------------------------------------
@@ -414,14 +415,14 @@ try {
   // An upload the tracer refuses outright must produce NO shell, so the app
   // shows the curved CustomCard. Without a case here the ladder's last rung is
   // never exercised, and "it falls back safely" is a claim about code nobody
-  // ran — the failure mode it guards against (an opaque JPEG, i.e. every upload
+  // ran. The failure mode it guards against (an opaque JPEG, i.e. every upload
   // made on a browser where background removal is unavailable) is the single
   // most common awkward input there is.
   for (const { c, t, p } of untraceable) {
     console.log(`\ntier 3 · ${c.label}: shell=${t.ok ? 'BUILT' : 'none'} reject=${t.reject ?? '—'}`)
-    if (t.ok) fail.push(`${c.id}: the tracer accepted an un-cut-out photo — no tier-3 fallback happened`)
+    if (t.ok) fail.push(`${c.id}: the tracer accepted an un-cut-out photo. No tier-3 fallback happened`)
     if (!t.reject) fail.push(`${c.id}: refused without saying why (getLastSilhouetteReject is silent)`)
-    if (p.ok) fail.push(`${c.id}: forced-poisson built a shell the template path refused — tiers disagree`)
+    if (p.ok) fail.push(`${c.id}: forced-poisson built a shell the template path refused. The tiers disagree`)
   }
 
   const shotFail = []
@@ -453,7 +454,7 @@ try {
   // so ≥ 1 means it passed (src/lib/garmentShape.ts documents what each one is
   // and why). Printing both populations is the point: a threshold justified
   // only by the garments it accepts is half a calibration, and outline overlap
-  // alone provably cannot do this job — a tote once scored IoU 0.935 against
+  // alone provably cannot do this job: a tote once scored IoU 0.935 against
   // the tee template, better than five of the seven garments then under test.
   console.log('\nis-it-a-garment gate (score = measurement / threshold; ALL three must be ≥ 1):')
   console.log('case        kind      collar   cloth  shoulder    neck  verdict   tier      iou    trace')
@@ -462,12 +463,12 @@ try {
   // How close the CLOSEST non-garment came to being accepted. A negative needs
   // only one tell below 1, so its distance from the gate is the SMALLEST score
   // it scored, and the gate's real margin is the largest of those over the
-  // population — printing the largest score per tell instead (which is what an
+  // population. Printing the largest score per tell instead (which is what an
   // earlier version of this line did) reports how well a refused object did on
   // the tells that were never going to refuse it, which is not a margin at all.
   let closestNeg = { score: 0, id: '—', tell: '—' }
   for (const { c, t } of rows) {
-    if (c.kind === 'untraceable') continue // no mask to measure — asserted above
+    if (c.kind === 'untraceable') continue // no mask to measure, asserted above
     const s = t.structure ?? {}
     console.log(
       `${c.id.padEnd(11)} ${c.kind.padEnd(9)} ${f3(s.collar).padStart(6)} ${f3(s.cloth).padStart(7)} ` +
@@ -476,7 +477,7 @@ try {
     )
     if (!t.structure) {
       fail.push(
-        `${c.id}: no shell at all — the outline tracer refused it (${t.reject ?? 'unknown'}), ` +
+        `${c.id}: no shell at all. The outline tracer refused it (${t.reject ?? 'unknown'}), ` +
           'so nothing downstream was exercised',
       )
       continue
@@ -487,21 +488,21 @@ try {
     } else {
       if (s.isGarment) fail.push(`${c.id}: NOT a garment but the structure gate accepted it (${JSON.stringify(s)})`)
       if (t.depthSource === 'template')
-        fail.push(`${c.id}: a non-garment took a garment template (iou ${f3(t.iou)}) — the gate is too loose`)
+        fail.push(`${c.id}: a non-garment took a garment template (iou ${f3(t.iou)}). The gate is too loose`)
       if (!t.ok) fail.push(`${c.id}: no shell at all (the Poisson fallback must still build one)`)
       let worst = { score: Infinity, tell: '—' }
       for (const k of TELLS) if (s[k] < worst.score) worst = { score: s[k], tell: k }
       if (worst.score > closestNeg.score) closestNeg = { ...worst, id: c.id }
     }
   }
-  if (negatives.length < 4) fail.push(`only ${negatives.length} negative controls — need at least four`)
-  if (garments.length < 12) fail.push(`only ${garments.length} real garments — the positive set is too thin`)
+  if (negatives.length < 4) fail.push(`only ${negatives.length} negative controls: need at least four`)
+  if (garments.length < 12) fail.push(`only ${garments.length} real garments: the positive set is too thin`)
   console.log(
     `  tightest garment margin: ${TELLS.map((k) => `${k} ×${f2(margin[k])}`).join(' ')}` +
       `   ·   closest non-garment: ${closestNeg.id} refused on ${closestNeg.tell} at ` +
       `${f3(closestNeg.score)} (margin ×${f2(1 / Math.max(1e-6, closestNeg.score))})`,
   )
-  // Each negative must be refused by a DIFFERENT tell — otherwise three tells
+  // Each negative must be refused by a DIFFERENT tell. Otherwise three tells
   // are one tell with two passengers, and the next non-garment walks through.
   const refusedBy = new Set()
   for (const { t } of negatives) {
@@ -509,7 +510,7 @@ try {
     for (const k of TELLS) if (s[k] < 1) refusedBy.add(k)
   }
   if (refusedBy.size < TELLS.length)
-    fail.push(`the negatives only exercise ${[...refusedBy].join('+') || 'no'} of the ${TELLS.length} tells — the rest are unproven`)
+    fail.push(`the negatives only exercise ${[...refusedBy].join('+') || 'no'} of the ${TELLS.length} tells: the rest are unproven`)
 
   console.log('\nsilhouette features (what the classifier decides on):')
   console.log('case        shape        hemRatio hoodDrop shldNarrow topRatio armholes')
@@ -562,14 +563,14 @@ try {
     // from, so a step between two rows ships as a hard black crease across the
     // cloth. The control is the BALLOON BUILT FROM THE SAME PHOTO: it carries
     // the identical hem folds and the identical photo-derived wrinkle band, and
-    // its own field is the solution of a smoothing PDE — so anything rougher on
+    // its own field is the solution of a smoothing PDE, so anything rougher on
     // the transplanted shell was put there by the warp and by nothing else.
     // Comparing per photo rather than against a fixed number also means the
     // threshold cannot drift with the garment or the grid.
     //
     // ×2.5 is the budget, and it is read off the two populations rather than
     // picked: with templateDepth's y-filter in, the ratio over the twenty cases
-    // runs 0.49 … 1.99 (median 0.83 — the transplant is usually SMOOTHER than
+    // runs 0.49 … 1.99 (median 0.83: the transplant is usually SMOOTHER than
     // the balloon); with the filter alone removed and nothing else changed, the
     // same twenty run 2.2 … 6.6 (median 3.9). So the line sits above every
     // healthy case by ×1.26 and still fails eighteen of the twenty regressions
@@ -577,8 +578,8 @@ try {
     if (t.stats && p.stats && t.stats.maxSlope > 2.5 * Math.max(4, p.stats.maxSlope))
       fail.push(
         `${c.id}: transplanted depth is ${f2(t.stats.maxSlope / Math.max(1e-6, p.stats.maxSlope))}× rougher in y ` +
-          `than the balloon of the same photo (${f2(t.stats.maxSlope)} vs ${f2(p.stats.maxSlope)}) — ` +
-          'the warp invented that, and it ships as a black crease',
+          `than the balloon of the same photo (${f2(t.stats.maxSlope)} vs ${f2(p.stats.maxSlope)}). ` +
+          'The warp invented that, and it ships as a black crease',
       )
     if (t.stats && p.stats && t.stats.maxSlope > slopeWorst.v)
       slopeWorst = { v: t.stats.maxSlope, id: c.id, poisson: p.stats.maxSlope }
@@ -604,7 +605,7 @@ try {
     // budget has to be about the code. 900 ms leaves ~2× headroom over the
     // slowest garment in the set and stays well inside the 1.5 s the feature
     // promises end to end.
-    if (t.buildMs > 900) fail.push(`${c.id}: shell build ${Math.round(t.buildMs)}ms — over the headless budget`)
+    if (t.buildMs > 900) fail.push(`${c.id}: shell build ${Math.round(t.buildMs)}ms, over the headless budget`)
     if (dT < dP) closer++
     else console.warn(`⚠ ${c.id}: no closer to the ${t.donor} mesh than the balloon (${f3(dT)} vs ${f3(dP)})`)
   }
@@ -621,8 +622,8 @@ try {
   // Seen at a grazing angle that slot is the serrated edge: two independent cut
   // curves with the darkened linings stacked between them.
   //
-  // EVERY ASSERTION BELOW RUNS TWICE — once on the shipped geometry and once
-  // with `rim:'off'`, which reproduces the pre-thickness shell byte for byte —
+  // EVERY ASSERTION BELOW RUNS TWICE (once on the shipped geometry and once
+  // with `rim:'off'`, which reproduces the pre-thickness shell byte for byte),
   // and the run FAILS IF THE 'off' PASS PASSES. A metric nobody has watched fail
   // is a metric nobody has tested.
   const rimStat = (id, mode, rim) =>
@@ -634,26 +635,26 @@ try {
    */
   const geoGates = (r, isGarment) => {
     const bad = []
-    // A1 — the outer silhouette must close. FABRIC_IN + one coarse grid cell of
+    // A1: the outer silhouette must close. FABRIC_IN + one coarse grid cell of
     // interpolation slack; the shell targets exactly FABRIC_IN.
     if (r.seamP99 > SEAM_MAX_IN) bad.push(`seam p99 ${f3(r.seamP99)} in (> ${SEAM_MAX_IN})`)
     if (r.rimVerts === 0) bad.push('no rim geometry')
-    // A3 — budget. The strip is a 1-D thing on a 2-D grid, so its share of the
+    // A3: budget. The strip is a 1-D thing on a 2-D grid, so its share of the
     // sheet is a perimeter-to-area ratio and a COMPACT silhouette pays more of
     // it: measured worst 16.4 % of the front sheet's vertices and 8.9 % of its
     // triangles over every garment, against 21.9 % / 12.4 % on the mug and
-    // 21.7 % / 12.2 % on the tote — neither of which is a garment, both of which
+    // 21.7 % / 12.2 % on the tote, neither of which is a garment, both of which
     // are refused, and both of which are a fifth the perimeter of a shirt in
     // absolute terms (≈3 k vertices). 23 %/13 % bounds the real cost without
     // pretending a mug is a hoodie.
     if (r.rimVerts > 0.23 * r.frontVerts) bad.push(`rim ${r.rimVerts} verts (> 23 % of ${r.frontVerts})`)
     if (r.rimTris > 0.13 * r.frontTris) bad.push(`rim ${r.rimTris} tris (> 13 % of ${r.frontTris})`)
-    // A4 — winding, asked of the alpha the materials themselves cut on. Scene
+    // A4: winding, asked of the alpha the materials themselves cut on. Scene
     // Viewer culls back faces aggressively: an inverted segment reopens the slot
     // in AR while looking fine in a DoubleSide-tolerant preview.
     if (r.badWinding > 0) bad.push(`${r.badWinding} rim triangles face into the cloth`)
     if (r.degenerate > 0) bad.push(`${r.degenerate} degenerate rim triangles`)
-    // A5 — the ribbon must CLOSE. Everything above measures the SHEETS or a
+    // A5: the ribbon must CLOSE. Everything above measures the SHEETS or a
     // sample of the strip; none of it can see the strip simply stopping, and it
     // did stop, on every garment, wherever the alpha cut ran along the content
     // bbox (see rimOpenEnds in the harness): 4–14 open ends and 3.5–20.7 in of a
@@ -661,8 +662,8 @@ try {
     // padded every garment is 0.00–0.17 in.
     //
     // Asserted on GARMENTS, printed for everything, because on a silhouette
-    // whose outline IS the content bbox on all four sides — the poster, and
-    // nothing else in either population — every crossing clamps onto the sheet's
+    // whose outline IS the content bbox on all four sides (the poster, and
+    // nothing else in either population), every crossing clamps onto the sheet's
     // own extent, the corners land on top of each other, the zero-area segments
     // between them are dropped, and the end-pairing then measures the rectangle
     // rather than a break. That is a limit of the probe on a shape the app
@@ -684,7 +685,7 @@ try {
   let worstOffSeam = { v: 0, id: '—' }
   let worstGap = { v: 0, id: '—', ends: 0 }
   for (const c of meta.cases) {
-    if (c.kind === 'untraceable') continue // no shell at all — asserted above
+    if (c.kind === 'untraceable') continue // no shell at all, asserted above
     for (const mode of ['template', 'poisson']) {
       const on = await rimStat(c.id, mode, 'on')
       const off = await rimStat(c.id, mode, 'off')
@@ -715,29 +716,29 @@ try {
         worstGap = { v: on.rimGapIn, id: `${c.id}/${mode}`, ends: on.rimOpenEnds }
       if (on.seamP99 > worstSeam.v) worstSeam = { v: on.seamP99, id: `${c.id}/${mode}` }
       if (off.seamP99 > worstOffSeam.v) worstOffSeam = { v: off.seamP99, id: `${c.id}/${mode}` }
-      // A2 — THE OPENINGS MUST STAY OPEN. Only the synthetic tee (and the tote /
+      // A2: THE OPENINGS MUST STAY OPEN. Only the synthetic tee (and the tote /
       // mug) have an enclosed hole at all: every ghost-mannequin supplier photo
       // has none, which is why this cannot be asserted on the real cases. The
-      // claim is exact and ungameable — the seam convergence must not have
+      // claim is exact and ungameable: the seam convergence must not have
       // touched the opening AT ALL, so the gap there must still be what it was
       // before the convergence existed.
       if (on.cutN > 0) {
         if (on.cutP50 < 0.98 * off.cutP50)
           fail.push(
-            `${c.id}/${mode}: the seam convergence leaked into an opening — median gap across the ` +
+            `${c.id}/${mode}: the seam convergence leaked into an opening. Median gap across the ` +
               `collar/armhole is ${f3(on.cutP50)} in, was ${f3(off.cutP50)} in without it`,
           )
         if (on.cutP50 < 0.3 * on.depthIn)
           fail.push(
-            `${c.id}/${mode}: openings are only ${f3(on.cutP50 / on.depthIn)} of the garment's own depth — ` +
-              'the hollow read is delivered THROUGH them',
+            `${c.id}/${mode}: openings are only ${f3(on.cutP50 / on.depthIn)} of the garment's own depth. ` +
+              'The hollow read is delivered THROUGH them',
           )
       }
     }
   }
   if (controlSilent.length)
     fail.push(
-      `the cloth-thickness gates do not discriminate — they PASS with rim:'off' on ` +
+      `the cloth-thickness gates do not discriminate: they PASS with rim:'off' on ` +
         `${controlSilent.slice(0, 4).join(', ')}, i.e. on the geometry they were written to reject`,
     )
 
@@ -771,7 +772,7 @@ try {
           try {
             writeFileSync(`${RIM_OUT}/rim-${id}-${mode}-${rim}-85.png`, Buffer.from(r.dataUrl.split(',')[1], 'base64'))
           } catch (e) {
-            console.warn('⚠ rim evidence not written —', e?.message ?? e)
+            console.warn('⚠ rim evidence not written:', e?.message ?? e)
           }
         const usable = r.azimuths.filter((a) => a.rows >= RIM_MIN_ROWS)
         const mean = (f) => (usable.length ? usable.reduce((s, a) => s + f(a), 0) / usable.length : 0)
@@ -801,7 +802,7 @@ try {
     }
   }
   /**
-   * B1/B2 — the rim must BE the thing in the seam.
+   * B1/B2: the rim must BE the thing in the seam.
    *
    * `max` is the load-bearing half: on at least one grazing azimuth the 0.06 in
    * of cloth must resolve on essentially every scanline. The `mean` is looser on
@@ -818,7 +819,7 @@ try {
     if (r.usable < 2) bad.push(`only ${r.usable} usable azimuths`)
     if (r.rimMax < 0.95) bad.push(`rim covers at most ${f3(r.rimMax)} of the seam's scanlines (< 0.95)`)
     if (r.rimMean < 0.5) bad.push(`rim covers ${f3(r.rimMean)} of them on average (< 0.50)`)
-    // B2b — and what the rim replaced must be GONE. A rim that merely joined the
+    // B2b, and what the rim replaced must be GONE. A rim that merely joined the
     // party would satisfy the coverage test above while the lining still showed
     // beside it; this is the defect in the viewer's own words.
     if (r.openMin > SEAM_OPEN_MAX)
@@ -836,9 +837,9 @@ try {
   }
   if (renderSilent.length)
     fail.push(
-      `the rendered seam gate does not discriminate — it passes with rim:'off' on ${renderSilent.join(', ')}`,
+      `the rendered seam gate does not discriminate: it passes with rim:'off' on ${renderSilent.join(', ')}`,
     )
-  // B3 — THE STAIRCASE. The outer silhouette's RMS second difference, on/off,
+  // B3: THE STAIRCASE. The outer silhouette's RMS second difference, on/off,
   // same photo, same tier, same six azimuths: the fix must not roughen the one
   // edge a viewer studies, and where the slot used to gape it should smooth it.
   // A ratio against the same shell without the rim is the only control that
@@ -855,30 +856,30 @@ try {
     // TRANSPLANT the open slot is the serration and closing it takes 0.09–0.12
     // px off the outline; a twentieth of a pixel of slack covers the one case
     // whose slot was small to begin with (the vest, +0.027 px). On the BALLOON
-    // there was never a slot to close — it already meets its own rim to
-    // 0.02–0.05 in — so the rim is new geometry on a clean edge and may cost up
+    // there was never a slot to close (it already meets its own rim to
+    // 0.02–0.05 in), so the rim is new geometry on a clean edge and may cost up
     // to a tenth of a pixel, which is what the synthetic tee costs.
     const limit = off.rough + (on.mode === 'template' ? 0.05 : 0.1)
     if (on.rough > limit)
       fail.push(
         `${on.id}/${on.mode}: the silhouette is ${f2(ratio)}× rougher WITH the rim ` +
-          `(${f3(on.rough)} vs ${f3(off.rough)} px RMS) — the strip is supposed to remove that edge, not add to it`,
+          `(${f3(on.rough)} vs ${f3(off.rough)} px RMS). The strip is supposed to remove that edge, not add to it`,
       )
-    // B4 — sub-pixel jitter. Pixels whose identity flips a ⅓-px camera move away
+    // B4: sub-pixel jitter. Pixels whose identity flips a ⅓-px camera move away
     // from any identity boundary are coplanar surfaces resolving per pixel, i.e.
     // the rim z-fighting the sheet it is welded to. Comparative, because the
     // absolute number has no published baseline.
     if (on.flips > Math.max(off.flips, 0.0005 * on.covered))
       fail.push(
-        `${on.id}/${on.mode}: ${on.flips} identity flips under a ⅓-px jitter (rim off: ${off.flips}) — ` +
-          'the rim is z-fighting its own sheet',
+        `${on.id}/${on.mode}: ${on.flips} identity flips under a ⅓-px jitter (rim off: ${off.flips}). ` +
+          'The rim is z-fighting its own sheet',
       )
   }
 
   if (errors.length) fail.push('page errors: ' + errors.slice(0, 5).join(' | '))
   if (OUT) {
     console.log(`\nwrote ${shots * 2} PNGs to ${OUT}`)
-    for (const m of shotFail) console.warn('⚠ screenshot skipped —', m)
+    for (const m of shotFail) console.warn('⚠ screenshot skipped:', m)
   }
 
   if (fail.length) {
@@ -886,7 +887,7 @@ try {
     done(1)
   }
   console.log(
-    `\n✅ inflate verify PASS — ${gated}/${garments.length} real garments on tier 1 with the expected donor mesh ` +
+    `\n✅ inflate verify PASS: ${gated}/${garments.length} real garments on tier 1 with the expected donor mesh ` +
       `(closer to that mesh's own depth profile than the balloon on ${closer}/${garments.length}); ` +
       `${negatives.length}/${negatives.length} non-garments refused and safely on the balloon; ` +
       `${untraceable.length}/${untraceable.length} un-cut-out uploads refused down to the tier-3 card; ` +

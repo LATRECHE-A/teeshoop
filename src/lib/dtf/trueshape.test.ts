@@ -28,7 +28,7 @@ const shapeOpts = (over: Partial<ShapeNestOptions> = {}): ShapeNestOptions => ({
   ...over,
 })
 
-/** Solid rectangle — should degenerate to the plain rectangle path. */
+/** Solid rectangle: should degenerate to the plain rectangle path. */
 function rectMask(w: number, h: number): Uint8Array {
   return new Uint8Array(w * h).fill(1)
 }
@@ -65,7 +65,7 @@ const TRIANGLES = [shape('tri', 20, 25, 12, triMask(40, 50), 40, 50)]
 const SOLIDS = [shape('rect', 20, 25, 6, rectMask(40, 50), 40, 50)]
 
 describe('nestShapeRoll', () => {
-  it('IS NEVER WORSE THAN THE SHELF PACKER — the guarantee the tool is sold on', () => {
+  it('IS NEVER WORSE THAN THE SHELF PACKER: the guarantee the tool is sold on', () => {
     for (const pieces of [TRIANGLES, SOLIDS]) {
       const shaped = nestShapeRoll(pieces, shapeOpts({ restarts: 8, maxInterlockCm: 5 }))
       const shelf = nestRoll(pieces, BASE)
@@ -76,16 +76,16 @@ describe('nestShapeRoll', () => {
   it('actually beats boxes on a concave instance', () => {
     // MEASURED on this instance (12 triangles, 20×25 cm, 58 cm roll), shelf =
     // 130 cm:
-    //   allowFlip false — 130 at every interlock rung up to 12; only unlimited
-    //                     interlock reaches 110.
-    //   allowFlip true  — 120 at rung 2, 110 at rung 12, 90 unlimited.
+    //   allowFlip false: 130 at every interlock rung up to 12; only unlimited
+    //                    interlock reaches 110.
+    //   allowFlip true:  120 at rung 2, 110 at rung 12, 90 unlimited.
     // Two same-facing triangles cannot tuck into each other's hypotenuse
     // without a 180° turn, so WITHOUT flip there is simply little to win here.
     // That is a real property of the packer, not a shortfall: `allowFlip`
     // defaults to false because a heat transfer pressed upside-down is scrap.
     //
     // An instance-level regression guard, NOT a theorem. If a future packer
-    // change flips this, look at it — do not reflexively relax the assertion.
+    // change flips this, look at it: do not reflexively relax the assertion.
     const flippable = TRIANGLES.map((p) => ({ ...p, allowFlip: true }))
     const shaped = nestShapeRoll(flippable, shapeOpts({ restarts: 12, maxInterlockCm: 12 }))
     const shelf = nestRoll(flippable, BASE)
@@ -110,7 +110,7 @@ describe('nestShapeRoll', () => {
     }
   })
 
-  it('interlock 0 means straight rows — nothing overhangs anything', () => {
+  it('interlock 0 means straight rows: nothing overhangs anything', () => {
     const r = nestShapeRoll(TRIANGLES, shapeOpts({ maxInterlockCm: 0, restarts: 4 }))
     for (const sheet of r.sheets) {
       const p = sheet.placements
@@ -128,7 +128,7 @@ describe('nestShapeRoll', () => {
     }
   })
 
-  it('is deterministic — the manifest is an order-tracking artefact', () => {
+  it('is deterministic, the manifest is an order-tracking artefact', () => {
     const a = nestShapeRoll(TRIANGLES, shapeOpts())
     const b = nestShapeRoll(TRIANGLES, shapeOpts())
     expect(JSON.stringify(b)).toBe(JSON.stringify(a))
@@ -136,7 +136,7 @@ describe('nestShapeRoll', () => {
 })
 
 describe('chooseRes', () => {
-  it('never rounds the supplier clearance DOWN — a minimum is a floor', () => {
+  it('never rounds the supplier clearance DOWN: a minimum is a floor', () => {
     for (const gapCm of [0, 0.05, 0.1, 0.2, 0.25, 0.3, 0.5, 0.8, 1, 2, 5]) {
       const { res, half } = chooseRes(gapCm)
       expect(res * half).toBeGreaterThanOrEqual(gapCm / 2 - 1e-9)

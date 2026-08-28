@@ -1,10 +1,10 @@
 /**
- * A4 dev harness — arc text proof sheet.
+ * A4 dev harness: arc text proof sheet.
  *
  * Draws 'CHAMPIONS 2026' at curves −90/−45/0/45/90 in four registry fonts
  * (after ensureFont), plus a stroke row and a letter-spacing row, and an
  * edge-case strip. Every sample is overlaid with its measureArcText box in
- * magenta — the box must hug the ink tightly and be centered on the cell
+ * magenta. The box must hug the ink tightly and be centered on the cell
  * crosshair.
  */
 import React, { useEffect, useRef, useState } from 'react'
@@ -184,7 +184,7 @@ function drawCell(
   const cx = cellX + CELL_W / 2
   const cy = cellY + (CELL_H - LABEL_H) / 2
 
-  // Center crosshair — the ink bbox must be centered here.
+  // Center crosshair: the ink bbox must be centered here.
   ctx.strokeStyle = cellBg ? 'rgba(12, 15, 19, 0.5)' : '#39434F'
   ctx.beginPath()
   ctx.moveTo(cx - 9, cy)
@@ -289,7 +289,7 @@ function Harness(): React.ReactElement {
           A4 · arc text proof sheet
         </h1>
         <p className="text-xs text-tx2">
-          “{TEXT}” at curves −90 · −45 · 0 · 45 · 90 — magenta frame =
+          “{TEXT}” at curves −90 · −45 · 0 · 45 · 90. Magenta frame =
           measureArcText, must hug the ink and center on the crosshair.
         </p>
         <span

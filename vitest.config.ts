@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 /**
  * Deliberately NOT extending vite.config.ts. Vitest would then load the react
- * and tailwind plugins, the dev-server proxy and the multi-page build inputs —
+ * and tailwind plugins, the dev-server proxy and the multi-page build inputs,
  * none of which a test needs, all of which could break one. The `@` alias is
  * the only thing the two configs must agree on.
  *

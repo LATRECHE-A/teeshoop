@@ -1,24 +1,24 @@
 /**
- * Print-placement zones — editor guides AND click/drop upload targets (they do
+ * Print-placement zones: editor guides AND click/drop upload targets (they do
  * NOT change pricing).
  *
  * Two families:
- *  - Paper formats (A3/A4/A5) — the affordable print tiers users know.
- *  - Professional placements ("upload zones") — the industry-standard spots a
+ *  - Paper formats (A3/A4/A5), the affordable print tiers users know.
+ *  - Professional placements ("upload zones"), the industry-standard spots a
  *    print shop measures from the collar seam in CENTIMETRES: left-chest
  *    ("cœur") logo, centre chest, bottom hem, locker patch (upper back),
  *    centre back, sleeve logo. Sizes/offsets follow the pro convention tables
  *    (ScreenPrinting.com / Ninja Transfers / Printful): the offsets from the
- *    collar are size-invariant — only the garment scales.
+ *    collar are size-invariant: only the garment scales.
  *
- * Geometry is in INCHES relative to the print-area CENTRE (+x right, +y down)
- * — the exact convention layers use (LayerBase.xIn/yIn) — so a zone centre
+ * Geometry is in INCHES relative to the print-area CENTRE (+x right, +y down),
+ * the exact convention layers use (LayerBase.xIn/yIn), so a zone centre
  * maps to a layer position directly. For catalog garments the vertical
  * anchor chain is: collar seam (GarmentSideArt.collarPx) → print-area top
  * (known physical gap) → zone. Customer-shipped garments (no known collar)
  * fall back to proportional placement.
  *
- * WHICH SIDE OF THE BODY IS +x? (this was wrong for a long time — the heart
+ * WHICH SIDE OF THE BODY IS +x? (this was wrong for a long time: the heart
  * logo printed on the wearer's right.) Traced through the renderers, not
  * assumed:
  *   renderPrintArea draws a layer at canvasWidth/2 + xIn·ppi ⇒ +xIn is
@@ -48,7 +48,7 @@ export interface PrintZone {
   /** Zone centre offset from the print-area centre, inches. */
   cxIn: number
   cyIn: number
-  /** The affordable standard tier — emphasised in the UI. */
+  /** The affordable standard tier, emphasised in the UI. */
   standard?: boolean
   /** Semantic placement that acts as a click-to-upload / drop target. */
   upload?: boolean
@@ -56,7 +56,7 @@ export interface PrintZone {
 
 /**
  * ISO paper sizes, inches (portrait). Exported because the custom-garment
- * print-area placer offers the same A4/A3 chips — one table, no drift.
+ * print-area placer offers the same A4/A3 chips: one table, no drift.
  */
 export const PAPER_IN = {
   a3: { w: 11.69, h: 16.54 },
@@ -75,7 +75,7 @@ const PAPER = PAPER_IN
  * construction rather than by two hand-kept copies.
  *
  * `lockerPatch.topBelowCollar` is the convention the catalog path expresses
- * implicitly (its back print areas already START 10 cm below the collar — see
+ * implicitly (its back print areas already START 10 cm below the collar, see
  * catalogZones); the custom path has no pre-anchored area, so it needs the
  * number spelled out.
  */
@@ -114,7 +114,7 @@ function paperZones(wIn: number, hIn: number): PrintZone[] {
 
 /**
  * Sign of `cxIn` that puts a zone on the WEARER'S LEFT for a given panel.
- * See the handedness note in the module header — the front and back panels
+ * See the handedness note in the module header: the front and back panels
  * disagree, and this is the one place that knows it.
  */
 const bodySideSign = (side: Side): 1 | -1 => (side === 'back' ? -1 : 1)
@@ -137,7 +137,7 @@ function clampZone(z: PrintZone, wIn: number, hIn: number): PrintZone | null {
  * workwear routinely print BOTH (crest left, sponsor right), and a user who
  * wants the right one should not have to drag the left one across the chest.
  *
- * `leftId` is always the WEARER'S left — `bodySideSign` turns that into the
+ * `leftId` is always the WEARER'S left. `bodySideSign` turns that into the
  * panel's cx sign, so front and back mark the same shoulder.
  */
 function chestPair(
@@ -229,7 +229,7 @@ function catalogZones(garment: CatalogGarmentId, side: Side, wIn: number, hIn: n
         hIn,
       ),
     )
-    // Shoulder-blade logos — the back's mirror of the chest pair, at the locker
+    // Shoulder-blade logos: the back's mirror of the chest pair, at the locker
     // patch's height so a blade logo lines up with a locker patch beside it.
     zones.push(...chestPair(side, 'left_blade', 'right_blade', lp.topBelowCollar, topAt, wIn, hIn))
     const cb = CM.centerBack
@@ -283,12 +283,12 @@ function customZones(side: Side, wIn: number, hIn: number): PrintZone[] {
  * POSITION layers, and layer geometry is stored once in BASE-size inches (see
  * src/lib/printScale.ts). Grading a zone would write graded inches into a
  * base-space field, so the artwork would drift every time the preview size
- * changed. The zone a user picks is size-invariant by design — a left-chest
- * logo is a left-chest logo on an S and on a 3XL — and rendering re-scales it
+ * changed. The zone a user picks is size-invariant by design (a left-chest
+ * logo is a left-chest logo on an S and on a 3XL), and rendering re-scales it
  * for the previewed size on the way out.
  */
 export function zonesFor(design: Design, side: Side): PrintZone[] {
-  // Base space on purpose — see the note above. Do NOT add a size argument.
+  // Base space on purpose: see the note above. Do NOT add a size argument.
   const { wIn, hIn } = getAreaSizeIn(design, side)
   const zones: PrintZone[] = [
     { id: 'full', nameKey: 'zone.full', wIn, hIn, cxIn: 0, cyIn: 0 },

@@ -1,5 +1,5 @@
 /**
- * Pure raster math for background removal — no DOM, no canvas, no ort.
+ * Pure raster math for background removal: no DOM, no canvas, no ort.
  * Runs identically inside the Web Worker and in the main-thread fallback.
  */
 
@@ -15,7 +15,7 @@ export interface LetterboxLayout {
   /** Content top-left inside the square, px. */
   dx: number
   dy: number
-  /** Content size inside the square, px (aspect preserved — never stretched). */
+  /** Content size inside the square, px (aspect preserved, never stretched). */
   contentW: number
   contentH: number
 }
@@ -80,7 +80,7 @@ export function minMaxNormalize(mask: Float32Array, box: LetterboxLayout): void 
 
 /**
  * Map the 320×320 mask back through the letterbox onto source pixels
- * (bilinear), then smoothstep it — for rows y0..y1 (exclusive) of the source.
+ * (bilinear), then smoothstep it, for rows y0..y1 (exclusive) of the source.
  * Sample coordinates are clamped to the content region so padding never
  * bleeds into edge pixels.
  */

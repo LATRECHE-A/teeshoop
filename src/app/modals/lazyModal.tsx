@@ -1,5 +1,5 @@
 /**
- * The wrapper every lazily-loaded modal shares — extracted from Modals.tsx so
+ * The wrapper every lazily-loaded modal shares, extracted from Modals.tsx so
  * the admin slot implementation (src/admin/AdminSlots.tsx) can use it without
  * importing Modals.tsx, which would create a cycle: Modals.tsx already depends
  * on the admin slot context, and that edge must stay one-way.
@@ -12,13 +12,13 @@ import { getLang } from '@/i18n/lang'
 // The admin i18n side-files ship inside the admin chunks, so the one string
 // this file needs lives here rather than dragging them into any bundle.
 const CHUNK_FAILED: Record<'fr' | 'en', string> = {
-  fr: 'Cet outil n’a pas pu se charger — rechargez la page puis réessayez',
-  en: 'That tool could not load — reload the page and try again',
+  fr: 'Cet outil n’a pas pu se charger. Rechargez la page, puis réessayez.',
+  en: 'That tool could not load. Reload the page and try again.',
 }
 
 /**
  * React.lazy caches a failed chunk load forever (same reason Scene3D.tsx has
- * Retry3DBoundary) — and Suspense does not catch errors, so without this a
+ * Retry3DBoundary), and Suspense does not catch errors, so without this a
  * stale tab requesting a purged chunk hash would unmount the whole studio,
  * losing the in-memory design. We close the modal instead: everything else
  * survives and a reload fetches the fresh chunk.

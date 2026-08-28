@@ -2,8 +2,8 @@
  * Worker client for the true-shape packer, with an inline fallback.
  *
  * WHY A CLIENT AT ALL: the modal re-nests on every keystroke in the gap field.
- * A 250-piece run at 12 restarts is ~2 s of straight-line arithmetic — enough
- * to make the whole admin UI stutter — so it belongs off-thread. But Workers
+ * A 250-piece run at 12 restarts is ~2 s of straight-line arithmetic (enough
+ * to make the whole admin UI stutter), so it belongs off-thread. But Workers
  * are absent in some embedded webviews and in the headless harness, and a
  * feature that silently does nothing there would be worse than a slow one:
  * `nest` therefore runs the very same pure function inline when construction
@@ -20,12 +20,12 @@
  * `DtfModal` and exposes its own nesting entry point, so the modal's effect
  * cleanup terminated the harness's in-flight job and the whole DTF suite failed
  * with `nesting superseded`. That was a real design flaw and not merely a test
- * artefact — "cancel" must mean "cancel MY job", or the abstraction is a
+ * artefact: "cancel" must mean "cancel MY job", or the abstraction is a
  * booby trap for the next caller. Each consumer now owns a `NestClient`.
  *
  * A terminated job's promise is REJECTED, never left dangling. Killing the
  * worker silently means the caller's `.then` never runs and its `.catch` never
- * runs either — the modal's "Optimisation 7/33…" spinner then stays on screen
+ * runs either: the modal's "Optimisation 7/33…" spinner then stays on screen
  * for the rest of the session, because the only thing that clears it is one of
  * those two callbacks. A promise that can never settle is a leak with a UI.
  */
@@ -54,7 +54,7 @@ export interface NestAsyncOpts {
 export interface NestClient {
   /**
    * Nest `job`, off-thread when possible. Resolves with the same `NestResult`
-   * the synchronous `runNestJob` would have produced — byte-identical, since
+   * the synchronous `runNestJob` would have produced, byte-identical, since
    * the masks cross the boundary as structured-clone copies and the packer
    * reads nothing else. Supersedes this client's own previous job, and only
    * that one.
@@ -65,7 +65,7 @@ export interface NestClient {
 }
 
 /**
- * An independent nesting channel. Give each consumer its own — two components
+ * An independent nesting channel. Give each consumer its own: two components
  * sharing one client will cancel each other, which is precisely the bug this
  * shape exists to prevent.
  */
@@ -120,7 +120,7 @@ export function createNestClient(): NestClient {
       w.onerror = (e) => {
         settle()
         // A module-Worker that fails to boot (CSP, bundler edge case) must not
-        // take the feature down with it — fall back rather than surface an error.
+        // take the feature down with it: fall back rather than surface an error.
         opts.onInline?.()
         try {
           resolve(runNestJob(job, opts.onProgress))
@@ -138,7 +138,7 @@ export function createNestClient(): NestClient {
 /**
  * Shared client for one-off callers that have no lifecycle of their own.
  * Anything that mounts, unmounts, or runs alongside another consumer must call
- * `createNestClient()` instead — see the module header.
+ * `createNestClient()` instead (see the module header).
  */
 const shared = createNestClient()
 

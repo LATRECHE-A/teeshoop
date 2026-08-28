@@ -17,7 +17,7 @@
  *
  * NOTE: no `declare(strict_types=1)` here, unlike every other file in the
  * plugin. `wp eval-file` eval()s the contents, and a declare must be the very
- * first statement of a *script* — inside an eval it is a fatal error.
+ * first statement of a *script*: inside an eval it is a fatal error.
  *
  * @package Teeshoop\Core
  */
@@ -62,7 +62,7 @@ if ( ! defined( 'TEESHOOP_ALLOW_UNVERIFIED_DESIGNS' ) ) {
  * scope is really function scope: a plain `$pass = 0` here is a LOCAL, while
  * `global $pass` inside ts_it() binds the true global. They are two different
  * variables, and the harness happily printed nine green ticks under a
- * "0 passed" total — with `exit(1)` unreachable, so a genuine failure would
+ * "0 passed" total, with `exit(1)` unreachable, so a genuine failure would
  * have exited 0 and read as success in CI.
  */
 $GLOBALS['ts_pass'] = 0;
@@ -310,7 +310,7 @@ ts_it( 'reprices at every quantity, including across discount thresholds', funct
 		)
 	);
 
-	// The thresholds and the units either side of each — this is the case the
+	// The thresholds and the units either side of each: this is the case the
 	// `did_action() > 1` guard silently broke.
 	foreach ( array( 1, 9, 10, 11, 24, 25, 26, 49, 50, 51, 100 ) as $qty ) {
 		WC()->cart->set_quantity( $key, $qty, true );
@@ -771,7 +771,7 @@ ts_it(
 
 echo "\n";
 
-// Nothing ran at all must never read as success — same precaution as
+// Nothing ran at all must never read as success, same precaution as
 // scripts/bundle-guard.mjs and tests/run.php.
 if ( 0 === $GLOBALS['ts_pass'] + $GLOBALS['ts_fail'] ) {
 	echo "\033[31m  no tests ran\033[0m\n";

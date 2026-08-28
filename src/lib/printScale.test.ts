@@ -1,5 +1,5 @@
 /**
- * Print grading — the promise that a design reads the same on every size.
+ * Print grading: the promise that a design reads the same on every size.
  *
  * This is a thing the business actually sells and a customer can measure with
  * a ruler, so the invariants here are worth more than their line count.
@@ -89,7 +89,7 @@ describe('printScaleK', () => {
     for (const s of SIZE_IDS) expect(printScaleK(noChart, s)).toBe(1)
     expect(isGraded(noChart)).toBe(false)
 
-    // Only the base size known — still nothing to interpolate from.
+    // Only the base size known, still nothing to interpolate from.
     const oneSize = baseDesign({
       garmentId: 'custom',
       custom: { halfChestCmBySize: { M: 52 } } as never,
@@ -123,7 +123,7 @@ describe('grading geometry', () => {
     }
   })
 
-  it('k === 1 returns the SAME REFERENCE — render memoisation depends on it', () => {
+  it('k === 1 returns the SAME REFERENCE: render memoisation depends on it', () => {
     const layer = imageLayer()
     const layers = [layer, textLayer()]
     expect(scaleLayer(layer, 1)).toBe(layer)

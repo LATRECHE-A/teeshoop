@@ -1,12 +1,12 @@
 /**
- * Imbretex catalogue snapshot — TEMPORARY stand-in for the supplier API.
+ * Imbretex catalogue snapshot: TEMPORARY stand-in for the supplier API.
  *
  * Imbretex (imbretex.fr) is the blank-garment supplier we buy from. Their API
  * is promised but not yet available, so this pulls a SAMPLE of their public
  * catalogue into the same shape the API adapter will emit, letting the editor,
  * the cm size system, the 3D/AR preview and the DTF nester be exercised against
  * real products and real measurements today. When the API lands, only
- * src/lib/ingest/imbretex.ts changes — this script and its snapshot go away.
+ * src/lib/ingest/imbretex.ts changes. This script and its snapshot go away.
  *
  * What is public (anonymous) and therefore what we can use:
  *   - designation, brand, supplier + Imbretex reference, description
@@ -16,14 +16,14 @@
  *   - the SIZE GUIDE table: row "A" = half-chest (largeur) cm,
  *     row "B" = body length (longueur) cm, one column per size
  *   - per-COLOUR photo sets (1000x1000): front / back / side. Coverage is
- *     uneven — a given colourway may publish a front and no back — so we PROBE
+ *     uneven (a given colourway may publish a front and no back), so we PROBE
  *     colourways until one carries both (see resolveViews). A front-only
  *     snapshot leaves the studio with nothing to show on the back of the
  *     garment, which is why completeness outranks colour neutrality here, and
  *     why a product that ends up back-less records how many colourways were
  *     actually probed (`backProbe`) instead of asserting more than it checked.
  * Prices shown anonymously are "tarif conseillé de revente" (RRP), not our
- * buying price — recorded as such, never treated as cost.
+ * buying price, recorded as such, never treated as cost.
  *
  * Politeness: robots.txt (checked) disallows only password-reset paths and
  * publishes a sitemap. We identify ourselves, run 3 requests at a time with a
@@ -111,7 +111,7 @@ async function parseProduct(page, id, html) {
       const cmyk = (info.match(/CMYK\s+([\d\s]+)/i) || [])[1]
       if (!name) continue
       // The page renders each colour TWICE (selector + filter list) and the
-      // second copy carries no CMYK/Pantone — keep one entry per id, richest
+      // second copy carries no CMYK/Pantone. Keep one entry per id, richest
       // wins, or the ids stop being unique downstream.
       const id = el.getAttribute('data-color')
       const row = {
@@ -150,7 +150,7 @@ async function parseProduct(page, id, html) {
       colours: colours.slice(0, 40),
       // How many the page actually listed, BEFORE the cap above. Five products
       // in the current catalogue sit exactly on that cap, i.e. they were very
-      // likely truncated — and a colourway we never listed is one we never
+      // likely truncated, and a colourway we never listed is one we never
       // probed, so `backProbe.colourways` has to count it or "we looked at all
       // of them" becomes true by deletion (see resolveViews).
       colourTotal: colours.length,
@@ -193,7 +193,7 @@ try {
           p.category = cat
           if (!p.halfChestCm || !p.sizes) { failures.push({ id, why: 'no size table' }); continue }
           products.push(p)
-          process.stdout.write(`  ✓ ${p.brand ?? '?'} ${p.supplierRef ?? id} — ${p.name ?? ''}\n`)
+          process.stdout.write(`  ✓ ${p.brand ?? '?'} ${p.supplierRef ?? id}: ${p.name ?? ''}\n`)
         } catch (e) {
           failures.push({ id, why: String(e).slice(0, 90) })
         }
@@ -220,7 +220,7 @@ try {
   /**
    * Politeness valve, NOT a filter: it may never be the reason a colourway went
    * unlooked-at while the snapshot claims "no back in any colourway". It is set
-   * to the same 40 that caps `colours` in parseProduct — but that cap is not a
+   * to the same 40 that caps `colours` in parseProduct, but that cap is not a
    * reason to relax, it is the OTHER place a colourway can go unlooked-at, and
    * five products in the catalogue already sit exactly on it. `resolveViews`
    * therefore counts the colourways the cap dropped into its denominator, so
@@ -230,7 +230,7 @@ try {
    * It was 12 while both LUX polos carry 13 colourways: the 13th was never
    * probed, and "no back in any colourway" was asserted anyway. That happened
    * to be true (verified live, every colourway of all four answers exactly one
-   * shot, `_front`) — next catalogue it would be a silent miss.
+   * shot, `_front`). Next catalogue it would be a silent miss.
    */
   const MAX_COLOUR_PROBES = 40
 
@@ -265,8 +265,8 @@ try {
    * A colour's name is no evidence of which views it publishes, so we probe.
    * Neutral colourways go first (they are the nicest to cut out) and we stop at
    * the first one carrying BOTH front and back; a front-only colour is kept as
-   * the best-so-far in case no complete set exists at all. The previous rule —
-   * an anchored /^WHITE$/ match, else the first colour in DOM order — silently
+   * the best-so-far in case no complete set exists at all. The previous rule
+   * (an anchored /^WHITE$/ match, else the first colour in DOM order) silently
    * picked a front-only colourway for products whose backs are published under
    * another name ("WHITE / WHITE"), which is how five products ended up
    * back-less in the snapshot while the supplier published a back all along.
@@ -292,7 +292,7 @@ try {
     let probed = 0
     for (const c of candidates.slice(0, MAX_COLOUR_PROBES)) {
       const byView = await viewsFor(c)
-      if (byView === undefined) continue // asked, no answer — NOT a probe
+      if (byView === undefined) continue // asked, no answer: NOT a probe
       probed++
       if (!byView?.front) continue
       if (!best) best = { colour: c, byView }
@@ -329,7 +329,7 @@ try {
           }
           // A missing BACK is a real gap, not a detail: the studio has to
           // reconstruct one (src/lib/ingest/pipeline.ts) and say so to the
-          // customer. Record it like any other failure so it cannot go unseen —
+          // customer. Record it like any other failure so it cannot go unseen,
           // together with how hard we looked, which is the only thing that
           // makes "the supplier publishes none" a claim rather than a guess.
           if (!p.views.front) failures.push({ id: p.id, why: 'no front view' })
@@ -340,11 +340,11 @@ try {
               why:
                 probed >= candidates
                   ? `no back view (all ${candidates} colourways probed)`
-                  : `no back view — ONLY ${probed}/${candidates} colourways probed, claim withheld`,
+                  : `no back view (ONLY ${probed}/${candidates} colourways probed, claim withheld)`,
             })
           }
         } catch (e) {
-          // A throw here is usually a failed image download — which can happen
+          // A throw here is usually a failed image download, which can happen
           // AFTER we saw a back URL, so the surviving probe count is no longer
           // evidence of anything. Zero is the honest reading and keeps such a
           // product out of `backMissing`, where it would otherwise have
@@ -361,7 +361,7 @@ try {
   // are not scraper misses: they are the honest gap the studio has to cover by
   // generating a back, and the list is what lets a check assert on it.
   //
-  // Membership requires EXHAUSTIVE evidence — every colourway with a visuals
+  // Membership requires EXHAUSTIVE evidence: every colourway with a visuals
   // endpoint actually probed. A product we ran out of probes on is back-less as
   // far as the snapshot knows, but that is not the same statement, so it goes
   // in `backUnknown` and nobody gets to read it as "the supplier has none".
@@ -372,7 +372,7 @@ try {
    * promoted straight into `backMissing` exactly the products we learned
    * nothing about: the ones whose every visuals endpoint threw (resolveViews
    * returns null before it can record a probe) and the ones that fell into the
-   * catch below while downloading — including a product whose back URL we had
+   * catch below while downloading, including a product whose back URL we had
    * in hand and merely failed to fetch. That is the claim this whole field
    * exists to stop being made.
    */
@@ -383,7 +383,7 @@ try {
 
   const snapshot = {
     source: 'imbretex.fr (public catalogue)',
-    note: 'Temporary snapshot standing in for the Imbretex API. Prices are RRP (tarif conseillé de revente), not buying prices. Front AND back views are captured whenever the supplier publishes them. `backMissing` lists the ids that publish no back view in ANY colourway — every colourway with a visuals endpoint was probed, see each product’s `backProbe`; `backUnknown` lists ids whose colourways were not all probed, which is a weaker statement. Run scripts/generate-missing-backs.mjs next: it reconstructs a back for the `backMissing` ids and stamps it `origin: "generated"`.',
+    note: 'Temporary snapshot standing in for the Imbretex API. Prices are RRP (tarif conseillé de revente), not buying prices. Front AND back views are captured whenever the supplier publishes them. `backMissing` lists the ids that publish no back view in ANY colourway: every colourway with a visuals endpoint was probed, see each product’s `backProbe`; `backUnknown` lists ids whose colourways were not all probed, which is a weaker statement. Run scripts/generate-missing-backs.mjs next: it reconstructs a back for the `backMissing` ids and stamps it `origin: "generated"`.',
     scrapedAt: new Date().toISOString(),
     measurementLegend: { A: 'halfChestCm (largeur, laid flat)', B: 'bodyLengthCm (longueur)' },
     categories: CATS,
@@ -396,7 +396,7 @@ try {
   console.log(`\n✅ ${products.length} products → ${OUT}/products.json`)
   console.log(
     `   backs: ${products.length - noBack.length}/${products.length}` +
-      (backMissing.length ? ` — none published for ${backMissing.join(', ')}` : ''),
+      (backMissing.length ? ` (none published for ${backMissing.join(', ')})` : ''),
   )
   if (backUnknown.length)
     console.log(`   ⚠ under-probed (no claim made): ${backUnknown.join(', ')}`)

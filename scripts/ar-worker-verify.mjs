@@ -22,7 +22,7 @@ const PORT = 8799
 const BASE = `http://127.0.0.1:${PORT}`
 
 if (!existsSync('dist/index.html') || !existsSync('dist/v.html')) {
-  console.error('❌ dist not built — run `npm run build:only` first')
+  console.error('❌ dist not built: run `npm run build:only` first')
   process.exit(1)
 }
 
@@ -150,7 +150,7 @@ try {
     if (ct !== mime) fail(`${ext} content-type "${ct}", expected "${mime}"`)
   }
 
-  // 2b) Range / HEAD semantics — Android Scene Viewer's downloader uses HEAD +
+  // 2b) Range / HEAD semantics: Android Scene Viewer's downloader uses HEAD +
   // ranged GETs and rejects the object ("couldn't load") if they're not honored.
   const glbUrl = `${BASE}/r2/ar/${id}.glb`
   const full = await fetch(glbUrl)
@@ -165,11 +165,11 @@ try {
   const cr = rg.headers.get('content-range')
   const rbytes = (await rg.arrayBuffer()).byteLength
   console.log('Range bytes=0-9:', rg.status, cr, rbytes + 'B')
-  if (rg.status !== 206) fail(`Range GET status ${rg.status} (expected 206 — Scene Viewer needs range support)`)
+  if (rg.status !== 206) fail(`Range GET status ${rg.status} (expected 206, Scene Viewer needs range support)`)
   if (cr !== `bytes 0-9/${clen}`) fail(`Range content-range "${cr}" (expected "bytes 0-9/${clen}")`)
   if (rbytes !== 10) fail(`Range body ${rbytes} bytes (expected 10)`)
 
-  // 3) Viewer page — for BOTH /v?id=… (the QR shape) and /v/{id}. redirect:manual
+  // 3) Viewer page, for BOTH /v?id=… (the QR shape) and /v/{id}. redirect:manual
   // so we CATCH the html_handling 307 that used to strip the id (the old test
   // followed the redirect and silently passed).
   for (const p of [`/v?id=${id}`, `/v/${id}`]) {

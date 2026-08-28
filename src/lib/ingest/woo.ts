@@ -1,18 +1,18 @@
 /**
- * INGEST — WooCommerce product fetcher.
+ * INGEST: WooCommerce product fetcher.
  *
  * Talks to `{baseUrl}/wp-json/wc/v3/products` with HTTPS Basic auth
- * (consumer key : consumer secret — WooCommerce accepts Basic over HTTPS).
+ * (consumer key : consumer secret). WooCommerce accepts Basic over HTTPS.
  *
  * CORS reality check: a browser fetch to a foreign WP site only works when
  * that site sends `Access-Control-Allow-Origin` for the studio origin (via a
  * CORS plugin / server config), or once the studio ships as a WP plugin and
- * becomes same-origin. A blocked request surfaces as a bare TypeError — we
+ * becomes same-origin. A blocked request surfaces as a bare TypeError. We
  * catch it and return a typed `cors` error the UI must explain instead of a
  * generic failure.
  *
  * Credentials are NEVER hard-coded; they persist in
- * localStorage['tshop:woo:cred'] only — i.e. stored locally on this device,
+ * localStorage['tshop:woo:cred'] only, i.e. stored locally on this device,
  * and the UI says so explicitly (see ingest.woo_local_notice).
  */
 
@@ -29,13 +29,13 @@ export interface WooProductCandidate {
   sku: string
   /** Image URLs in WC order (first two feed the photo pipeline). */
   images: string[]
-  /** e.g. [{ name: 'Size', options: ['S','M','L'] }] — shown as hints. */
+  /** e.g. [{ name: 'Size', options: ['S','M','L'] }], shown as hints. */
   attributes: { name: string; options: string[] }[]
 }
 
 export type WooErrorKind =
-  | 'cors' // fetch TypeError: CORS/network — the WP site must allow this origin
-  | 'auth' // 401/403 — bad consumer key/secret
+  | 'cors' // fetch TypeError: CORS/network, the WP site must allow this origin
+  | 'auth' // 401/403: bad consumer key/secret
   | 'http' // any other non-2xx
   | 'parse' // 2xx but not the expected JSON shape
 
@@ -71,7 +71,7 @@ export function saveWooCredentials(cred: WooCredentials): void {
   try {
     localStorage.setItem(CRED_KEY, JSON.stringify(cred))
   } catch {
-    /* private mode — session-only credentials */
+    /* private mode: session-only credentials */
   }
 }
 
@@ -83,14 +83,14 @@ export function clearWooCredentials(): void {
   }
 }
 
-/** Local WordPress dev stores — Basic over loopback never leaves the machine. */
+/** Local WordPress dev stores: Basic over loopback never leaves the machine. */
 const LOOPBACK_RE = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i
 
 export function normalizeBaseUrl(url: string): string {
   let u = url.trim().replace(/\/+$/, '')
   if (!/^https?:\/\//i.test(u)) u = `https://${u}`
   // A pasted http:// store would send the consumer key/secret in cleartext
-  // (and WooCommerce refuses Basic without SSL anyway) — upgrade it.
+  // (and WooCommerce refuses Basic without SSL anyway). Upgrade it.
   if (/^http:\/\//i.test(u) && !LOOPBACK_RE.test(u)) u = u.replace(/^http:/i, 'https:')
   return u
 }
@@ -142,7 +142,7 @@ export async function fetchWooProducts(
       },
     })
   } catch {
-    // fetch rejects with TypeError on CORS/network — indistinguishable in the
+    // fetch rejects with TypeError on CORS/network, indistinguishable in the
     // browser, and CORS is by far the common cause for a foreign WP site.
     return { ok: false, error: { kind: 'cors' } }
   }
@@ -168,7 +168,7 @@ export async function fetchWooProducts(
 
 /**
  * Download a product image for the photo pipeline. Throws {kind:'cors'} /
- * {kind:'http'} WooError-shaped objects — media files need CORS headers just
+ * {kind:'http'} WooError-shaped objects: media files need CORS headers just
  * like the REST API.
  */
 export async function fetchWooImage(url: string): Promise<Blob> {

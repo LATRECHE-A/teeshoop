@@ -40,7 +40,7 @@ export interface SheetFormat {
  */
 export type SpacingSource = 'published' | 'printable-width' | 'house' | 'inferred'
 
-/** Machine-checkable prepress rules — the input of preflight.ts. */
+/** Machine-checkable prepress rules, the input of preflight.ts. */
 export interface DtfGuidelines {
   minDpi: number
   /** Thinnest printable stroke, mm (colour artwork). */
@@ -51,7 +51,7 @@ export interface DtfGuidelines {
   minTextPt: number
   /**
    * Clear space at the two LONG edges (the laize limit), cm. Legitimately 0
-   * when the supplier quotes a printable width — that width IS the safe area.
+   * when the supplier quotes a printable width: that width IS the safe area.
    */
   marginCm: number
   /**
@@ -81,12 +81,12 @@ export interface DtfProcess {
   label: string
   billing: BillingModel
   /**
-   * Width usable for artwork in one print file (cm) — the supplier's MAXIMUM.
+   * Width usable for artwork in one print file (cm), the supplier's MAXIMUM.
    * The operator may nest onto a narrower sheet, never a wider one.
    */
   printableWidthCm: number
   rollWidthCm: number
-  /** Max length of one print file / sheet (cm) — again the supplier maximum. */
+  /** Max length of one print file / sheet (cm), again the supplier maximum. */
   maxLengthCm: number
   /**
    * Billing granularity in cm. 10 = 0.1 lm, which is what most roll suppliers
@@ -94,9 +94,9 @@ export interface DtfProcess {
    * below one metre worth exactly nothing, so this is not a detail.
    */
   billingStepCm?: number
-  /** Roll billing only — sorted by minLm ascending. */
+  /** Roll billing only, sorted by minLm ascending. */
   priceTiers: PriceTier[]
-  /** Fixed billing only — the purchasable catalogue. */
+  /** Fixed billing only, the purchasable catalogue. */
   formats: SheetFormat[]
   guidelines: DtfGuidelines
   /**

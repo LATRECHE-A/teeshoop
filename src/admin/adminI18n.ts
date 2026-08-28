@@ -3,7 +3,7 @@
  * which every build loads; here they load only with admin.html.
  *
  * The catalogue entry card reads its own labels from catalogI18n, which the
- * admin build already pulls in with CatalogModal — no need to duplicate them.
+ * admin build already pulls in with CatalogModal, no need to duplicate them.
  */
 import { useStore } from '@/state/store'
 import { resolve, type TParams } from '@/i18n'

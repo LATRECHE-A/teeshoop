@@ -12,13 +12,13 @@
  *     (the same guard idiom as EditorEngine's syncSeq).
  *
  *  2. THE CANVAS IS ADOPTED INTO THE DOM, never `toDataURL`-ed. PNG-encoding a
- *     512 px tile costs ~8-20 ms and buys nothing here — the basket's own
+ *     512 px tile costs ~8-20 ms and buys nothing here: the basket's own
  *     thumbnails keep using the data-url hook because they are <img> tags.
  *
  *  3. THE KEY LEANS ON `design.updatedAt`, which touch() bumps on every design
  *     mutation, so a focused line's edits invalidate its tile the moment they
  *     are written back to the basket. Anything that mutates a design without
- *     touch() would render a stale tile — that is a store bug, not a cache bug.
+ *     touch() would render a stale tile: that is a store bug, not a cache bug.
  *
  * Evicted canvases are zeroed rather than dropped: Safari does not reclaim a
  * canvas backing store on GC promptly, and a board is where that adds up.
@@ -56,7 +56,7 @@ function customKey(design: Design, side: Side): string | null {
 }
 
 /**
- * Real size, in inches, of the canvas `renderMockup` produces for this line —
+ * Real size, in inches, of the canvas `renderMockup` produces for this line,
  * the garment INCLUDING sleeves and hem, not its chest width, because that is
  * what the tile actually shows and what makes an S tee read smaller than a 3XL
  * hoodie beside it.
@@ -64,7 +64,7 @@ function customKey(design: Design, side: Side): string | null {
  * Catalog garments are exact and synchronous: the mockup canvas is the union of
  * the 800 px viewBox and the collar-anchored size transform, both pure
  * functions of (garment, side, size). Custom garments depend on the photo's
- * alpha bbox, which is only known after a decode — they start at a nominal
+ * alpha bbox, which is only known after a decode: they start at a nominal
  * aspect and settle once their first tile has been rendered.
  */
 export function mockupExtentIn(design: Design, side: Side, size: SizeId): BoardItemSize {
@@ -85,7 +85,7 @@ export function mockupExtentIn(design: Design, side: Side, size: SizeId): BoardI
 
 /**
  * Keyed by LINE, not by design: a canvas is one DOM node and each tile adopts
- * its own, so two lines cloned from the same design (same id, same size — the
+ * its own, so two lines cloned from the same design (same id, same size, the
  * common "same shirt, more of them" case) would otherwise tear the element back
  * and forth between tiles. The expensive part is shared anyway: the garment
  * body SVG raster is cached on (garment, side, colour, px) inside rasterCache.
@@ -99,7 +99,7 @@ const cache = new Map<string, HTMLCanvasElement>()
 
 /**
  * Keys the LRU may not evict. The 3D board's billboards are textured from a
- * canvas held in THIS cache, and eviction ZEROES that canvas — so a board big
+ * canvas held in THIS cache, and eviction ZEROES that canvas, so a board big
  * enough to overflow the cache would blank the very products that degraded to
  * billboards. Pinning is the cheap fix; re-rendering them into a second cache
  * is the expensive one.
@@ -144,7 +144,7 @@ function cancelClear(): void {
   clearTimer = null
 }
 
-/** Cancel a pending clear — call from the owner's mount effect. */
+/** Cancel a pending clear: call from the owner's mount effect. */
 export function keepMockupCache(): void {
   cancelClear()
 }
@@ -193,7 +193,7 @@ async function pump(): Promise<void> {
       }
       pending.delete(job.key)
       job.resolve(job.gen === generation ? canvas : null)
-      // Yield a whole frame between renders — the point of the queue.
+      // Yield a whole frame between renders, the point of the queue.
       await new Promise<void>((r) => requestAnimationFrame(() => r()))
     }
   } finally {
@@ -228,7 +228,7 @@ export function cancelPendingMockups(): void {
   pending.clear()
 }
 
-/** Free every tile canvas — called when the board closes. */
+/** Free every tile canvas, called when the board closes. */
 export function clearMockupCache(): void {
   cancelClear()
   cancelPendingMockups()

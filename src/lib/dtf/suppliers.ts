@@ -3,13 +3,13 @@
  *
  * A supplier is a set of PROCESSES (`dtf`, `uvdtf`); each process carries its
  * own geometry, its own billing model and its own STRUCTURED guidelines (the
- * numbers preflight.ts validates against — no free text in the checked path).
+ * numbers preflight.ts validates against, no free text in the checked path).
  *
  * Two billing models:
- *  - `roll`   — billed per linear metre off a roll (price tiers).
- *  - `fixed`  — billed per printed sheet of a catalogue format (OhMyDTF).
+ *  - `roll`:  billed per linear metre off a roll (price tiers).
+ *  - `fixed`: billed per printed sheet of a catalogue format (OhMyDTF).
  *
- * Encodes the researched public specs/pricing as DATA (July 2026 — prices
+ * Encodes the researched public specs/pricing as DATA (July 2026: prices
  * move, hence the runtime-editable profiles persisted in localStorage under
  * `tshop:dtf:suppliers`). Sources + every uncertain number: docs/credits/DTF.md.
  */
@@ -36,7 +36,7 @@ export type {
 } from './supplierTypes'
 
 // ---------------------------------------------------------------------------
-// Defaults (researched — see docs/credits/DTF.md for sources + uncertainties)
+// Defaults (researched, see docs/credits/DTF.md for sources + uncertainties)
 // ---------------------------------------------------------------------------
 
 /**
@@ -50,12 +50,12 @@ export type {
  * DTF-Profis « Mindestens 4 mm » (5–10 mm pour la découpe manuelle),
  * ZebraTransfers « 1 à 2 cm », Tissus Print « 5 mm minimum de marge
  * intérieure ». 5 mm is therefore the strictest PUBLISHED minimum and 4 mm the
- * absolute floor — never go below it.
+ * absolute floor: never go below it.
  *
  * The 3 mm side margin here is a house floor for suppliers that publish
  * neither a margin nor a printable width. Where a supplier DOES quote a
  * printable width (DTF+ 58 cm, dtfaprofesionales 55 cm…), that width already
- * IS the safe area and the margin belongs at 0 — see `marginSource`. The
+ * IS the safe area and the margin belongs at 0 (see `marginSource`). The
  * previous 1,0 cm / 0,8 cm defaults were house inventions with no supplier
  * backing and cost ≈ 4 % of every roll on their own.
  */
@@ -97,15 +97,15 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
     daysToParis: '2–4 j (UPS Standard) · 1–2 j (Express 12 €)',
     notes:
       '⚠ RÉSERVÉ AUX PROS : un numéro de TVA intracommunautaire valide est OBLIGATOIRE ' +
-      'pour commander. Facturé 0 % (autoliquidation) — sans TVA intracom, ce fournisseur ' +
+      'pour commander. Facturé 0 % (autoliquidation) : sans TVA intracom, ce fournisseur ' +
       'est inaccessible. ' +
-      'Port offert à partir de 20 lm (seuil en MÈTRES, pas en euros) — et 20 lm est aussi ' +
+      'Port offert à partir de 20 lm (seuil en MÈTRES, pas en euros), et 20 lm est aussi ' +
       'le palier 6 €/lm, donc 20,0 lm coûte MOINS CHER en euros que 19,9 lm (120 € contre ' +
       '147,30 €). Ne jamais commander entre 15 et 19,9 lm. ' +
       'Coupure 10 h CET pour une expédition le jour même · presse 130 °C / 6–8 s / pression ' +
       'forte · UV-DTF : minimum 0,5 lm, séchage 24–48 h avant pose (tarifs UV-DTF à confirmer). ' +
       '⚠ MARGE BORD 0 DÉDUITE, NON PUBLIÉE : leurs spécifications ne mentionnent ni marge, ' +
-      'ni fond perdu, ni zone de sécurité — on en déduit que les 58 cm annoncés SONT la laize ' +
+      'ni fond perdu, ni zone de sécurité : on en déduit que les 58 cm annoncés SONT la laize ' +
       'imprimable. Commander une planche test de 1 lm avec une grille au bord avant de basculer ' +
       'la production dessus. L’espacement 5 mm est emprunté à DTF-Blitz (DTF+ n’en publie aucun). ' +
       '⚠ Les CGV excluent la variation colorimétrique des motifs de réclamation : le contrôle ' +
@@ -199,12 +199,12 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
     daysToParis: '72–96 h (éco) · 48 h (standard) · 24 h (express)',
     notes:
       'MEILLEUR €/m² VÉRIFIÉ (9,73 € HT/m² en éco) et, contrairement à DTF+, AUCUN numéro de ' +
-      'TVA intracommunautaire exigé — c’est ce qui en fait le choix par défaut. Production ' +
+      'TVA intracommunautaire exigé : c’est ce qui en fait le choix par défaut. Production ' +
       'française, encres OEKO-TEX, aucun minimum de commande, port offert dès 100 € HT. ' +
       '⚠ LE TARIF DÉPEND DU DÉLAI, pas de la quantité : 5,45 € HT/ml en économique 72–96 h ' +
-      '(encodé ici), 6,54 € HT/ml en standard 48 h, 8,72 € HT/ml en express 24 h — changez le ' +
+      '(encodé ici), 6,54 € HT/ml en standard 48 h, 8,72 € HT/ml en express 24 h. Changez le ' +
       'palier ci-dessous si vous commandez en urgence. ' +
-      '⚠ À CONFIRMER auprès du fournisseur : la longueur maximale par fichier (non publiée — ' +
+      '⚠ À CONFIRMER auprès du fournisseur : la longueur maximale par fichier (non publiée, ' +
       '100 cm prudent ici), le coût du port sous 100 € HT, et la quantité derrière chaque ' +
       '« à partir de ». 300 DPI minimum exigés.',
     processes: [
@@ -227,7 +227,7 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
           gapCm: 0.5,
           gapSource: 'house',
           fileFormats: ['png', 'pdf', 'ai', 'psd'],
-          colourMode: 'Non précisé — fournir en RVB ou CMJN',
+          colourMode: 'Non précisé, fournir en RVB ou CMJN',
           transparency: 'PNG à fond transparent recommandé',
           whiteUnderbase: 'Blanc automatique généré par le RIP',
           cutting: 'Découpe manuelle aux ciseaux',
@@ -251,7 +251,7 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
       'FORMATS FIXES (pas de rouleau) : on paie la feuille entière, pas le métré. ' +
       'Imprimé à 35 km de Paris · 60+ lavages à 40 °C · détail jusqu’à 0,6 mm (1,75 pt). ' +
       '⚠ BASE TVA À CONFIRMER : les fiches produit affichent « H.T. » mais les CGV annoncent ' +
-      'des prix TTC — un écart de 17 % qui change le classement fournisseurs. Demander une ' +
+      'des prix TTC, un écart de 17 % qui change le classement fournisseurs. Demander une ' +
       'facture type avant de s’engager. ' +
       '⚠ Les remises peuvent exiger le MÊME fichier répété : 5 planches différentes risquent ' +
       'de rester au tarif 1–4.',
@@ -268,7 +268,7 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
         // « A4/A3/A2 » ne sont PAS les formats ISO (A4 = 21 × 28 et non
         // 21 × 29,7). Toujours gabarier sur les cm du fournisseur, jamais sur
         // l’ISO, sinon le visuel déborde. Les grands formats font 55 cm de
-        // large (et non 56) et l'A2 fait 40 × 57 — un fichier de 56 cm posé
+        // large (et non 56) et l'A2 fait 40 × 57 : un fichier de 56 cm posé
         // sur une feuille de 55 était rogné en silence.
         formats: [
           { id: 'coeur', label: 'Cœur 10 × 10 cm', wCm: 10, hCm: 10, priceEur: 2.5 },
@@ -346,7 +346,7 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
     daysToParis: '1–2 j (DHL Express)',
     notes:
       'Feuilles 56 × 100 cm facturées au métré · commande minimum 49 €. ' +
-      '⚠ TARIFS NON REVÉRIFIÉS (relevé 2026-07 : la page tarifaire renvoie une 404) — ' +
+      '⚠ TARIFS NON REVÉRIFIÉS (relevé 2026-07 : la page tarifaire renvoie une 404). ' +
       'demander une grille à jour avant tout devis client.',
     processes: [
       {
@@ -390,7 +390,7 @@ export const DEFAULT_SUPPLIERS: SupplierProfile[] = [
     daysToParis: '2–3 j',
     notes:
       'Production française · longueur max par fichier non documentée (250 cm prudent). ' +
-      '⚠ TARIFS NON REVÉRIFIÉS (relevé 2026-07 : le site ne publie plus de grille) — ' +
+      '⚠ TARIFS NON REVÉRIFIÉS (relevé 2026-07 : le site ne publie plus de grille). ' +
       'confirmer avant de chiffrer.',
     processes: [
       {
@@ -448,7 +448,7 @@ export interface CostBreakdown {
   tierLabel: string
   /** Roll: linear metres billed (≥ min order). Fixed: Σ feuilles ÷ 100 (indicatif). */
   billedLm: number
-  /** Fixed billing only — one line per format used. */
+  /** Fixed billing only: one line per format used. */
   formatLines: FormatLine[]
   printEur: number
   shippingEur: number
@@ -459,7 +459,7 @@ export interface CostBreakdown {
   warnings: string[]
 }
 
-/** @deprecated legacy alias — use CostBreakdown. */
+/** @deprecated legacy alias: use CostBreakdown. */
 export type CostEstimate = CostBreakdown
 
 const r2 = (v: number) => Math.round(v * 100) / 100
@@ -511,7 +511,7 @@ function rollCost(
   const tip = thresholdTip(p, proc, billedLm)
   if (tip)
     out.warnings.push(
-      `Astuce : commander ${r2(tip.lm)} lm coûte ${tip.totalEur.toFixed(2)} € — ` +
+      `Astuce : commander ${r2(tip.lm)} lm coûte ${tip.totalEur.toFixed(2)} €, ` +
         `soit ${tip.savesEur.toFixed(2)} € DE MOINS que ${billedLm} lm, pour plus de film.`,
     )
   return out
@@ -552,7 +552,7 @@ function fixedCost(
   const rawPrint = lines.reduce((a, l) => a + l.totalEur, 0)
   const printEur = r2(Math.max(rawPrint, p.minOrderEur))
   if (printEur > r2(rawPrint)) out.warnings.push(`Commande minimum ${p.minOrderEur} € appliquée.`)
-  if (unknown > 0) out.warnings.push(`${unknown} feuille(s) sans format catalogue — non chiffrée(s).`)
+  if (unknown > 0) out.warnings.push(`${unknown} feuille(s) sans format catalogue, non chiffrée(s).`)
   out.formatLines = lines
   out.billedLm = r2(lengthCm / 100)
   out.tierLabel = lines.length
@@ -573,8 +573,8 @@ function finish(p: SupplierProfile, out: CostBreakdown, pieces: number): CostBre
 }
 
 /**
- * Total for a hypothetical roll order of `lm` linear metres — tier + minimums +
- * shipping — without the warnings/labels. Used by the threshold advisor.
+ * Total for a hypothetical roll order of `lm` linear metres (tier + minimums +
+ * shipping) without the warnings/labels. Used by the threshold advisor.
  */
 function rollTotalAt(p: SupplierProfile, proc: DtfProcess, lm: number): number {
   const billed = r2(Math.max(lm, proc.minOrderLm ?? p.minOrderLm))
@@ -775,7 +775,7 @@ const isLegacy = (v: unknown): v is LegacyProfile =>
 /**
  * Rebuild a v1 profile as a single-process roll supplier, keeping the admin's
  * edited numbers. Suppliers we have since restructured as FIXED format cannot
- * be mapped (roll tiers ≠ per-sheet prices) — those fall back to the shipped
+ * be mapped (roll tiers ≠ per-sheet prices). Those fall back to the shipped
  * default so the admin gets a correct catalogue instead of a wrong roll.
  */
 function migrateLegacy(l: LegacyProfile): SupplierProfile | null {
@@ -849,7 +849,7 @@ export function loadSuppliers(): SupplierProfile[] {
 
 /**
  * Persist edited profiles VERBATIM and return them.
- * Nothing is filtered here — validate with `validProfile` before calling and
+ * Nothing is filtered here: validate with `validProfile` before calling and
  * refuse in the UI (silently dropping a half-edited profile was a real bug).
  * An empty array clears the key, so the next load returns the defaults.
  */
@@ -860,7 +860,7 @@ export function saveSuppliers(profiles: SupplierProfile[]): SupplierProfile[] {
       else localStorage.setItem(SUPPLIERS_LS_KEY, JSON.stringify(profiles))
     }
   } catch {
-    /* storage full/blocked — keep the in-memory copy */
+    /* storage full/blocked: keep the in-memory copy */
   }
   return profiles
 }

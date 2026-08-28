@@ -50,20 +50,20 @@ try {
     const blob = await new Promise((r) => c.toBlob(r, 'image/png'))
     const meta = await assets.addAsset(blob, 'g'); await assets.setAssetCutout(meta.id, blob)
     S().setCustom({ widthIn: 20, front: { assetId: meta.id, useCutout: true, printArea: { xIn: 4, yIn: 5, wIn: 12, hIn: 14 } }, back: null })
-    trail.push(['custom fresh (should be 0)', count()]) // 0 — tee edits did NOT leak
+    trail.push(['custom fresh (should be 0)', count()]) // 0: tee edits did NOT leak
 
     S().addTextLayer('CUS-A')
     trail.push(['custom after 1 add', count()]) // 1
 
     S().setGarment('tee') // custom -> catalog
-    trail.push(['back to tee (should be 2)', count()]) // 2 — custom edit did NOT leak
+    trail.push(['back to tee (should be 2)', count()]) // 2: custom edit did NOT leak
     const teeIsAB = S().design.layers.every((l) => l.name.startsWith('Text')) && S().design.layers.length === 2
 
     S().addTextLayer('TEE-C')
     trail.push(['tee after 3rd add', count()]) // 3
 
     S().setGarment('custom') // catalog -> custom
-    trail.push(['back to custom (should be 1)', count()]) // 1 — tee's 3rd did NOT leak
+    trail.push(['back to custom (should be 1)', count()]) // 1: tee's 3rd did NOT leak
     const customText = S().design.layers.map((l) => l.text)
 
     return { trail, teeIsAB, customText, garment: S().design.garmentId }
@@ -74,7 +74,7 @@ try {
   if (map['custom fresh (should be 0)'] !== 0) fail('tee edits LEAKED into fresh custom garment')
   if (map['back to tee (should be 2)'] !== 2) fail('custom edits LEAKED into the tee')
   if (map['back to custom (should be 1)'] !== 1) fail('tee edits LEAKED into custom after re-switch')
-  console.log('✅ STATE PASS — custom garment layers are siloed from the catalog tee/hoodie design')
+  console.log('✅ STATE PASS: custom garment layers are siloed from the catalog tee/hoodie design')
   done(0)
 } catch (e) {
   fail(e?.message || String(e))

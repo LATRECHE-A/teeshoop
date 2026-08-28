@@ -10,7 +10,7 @@ import type { GarmentSideArt, SizeIn } from '@/lib/types'
 export const SLEEVE_AREA_IN: SizeIn = { wIn: 4, hIn: 4 }
 
 // Rounded shoulder cap (top), outer fold (right), cuff hem (bottom), underarm
-// seam (left) — a believable short sleeve laid flat, centred on the print area.
+// seam (left): a believable short sleeve laid flat, centred on the print area.
 const SIL =
   'M296 320 C296 302 312 289 338 285 C404 275 470 281 512 307 C528 317 534 333 532 351' +
   'L518 486 C516 506 500 520 480 520 L344 520 C328 520 314 510 310 494 L296 338 Z'

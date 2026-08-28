@@ -1,5 +1,5 @@
 /**
- * Visual render-QA for the WORN figures (no validation — that's ar-verify).
+ * Visual render-QA for the WORN figures (no validation, that's ar-verify).
  * Bakes buildArModel for custom (male/female) + catalog (tee/hoodie) and renders
  * a straight-on front view of each to $WORN_OUT, so the worn custom garment and
  * the corrected avatar print placement can be eyeballed.

@@ -2,14 +2,14 @@
  * The seam between the customer studio and the admin studio.
  *
  * The app ships as TWO Vite entries built from the same component tree:
- *   index.html → src/main.tsx        the CUSTOMER studio — slots are null
- *   admin.html → src/admin/main.tsx  the ADMIN studio — slots are filled
+ *   index.html → src/main.tsx        the CUSTOMER studio (slots are null)
+ *   admin.html → src/admin/main.tsx  the ADMIN studio (slots are filled)
  *
  * WHY A BUILD-TIME SEAM AND NOT A ROLE FLAG. Admin tooling carries our
  * purchase costs, our €/linear-metre film economics and a WooCommerce
  * credential form. A runtime `if (isAdmin)` hides the buttons but still ships
  * the code and the data to every visitor, where anyone can read it out of the
- * bundle. The only way to not send it is to not build it in — so the admin
+ * bundle. The only way to not send it is to not build it in, so the admin
  * modules must have exactly ONE static importer, `src/admin/**`, which only
  * admin.html reaches.
  *

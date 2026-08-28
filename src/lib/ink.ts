@@ -2,24 +2,24 @@
  * Where the ink actually is.
  *
  * Every price and every centimetre of film in this app used to be measured from
- * a layer's DECLARED rectangle — `wIn × hIn` for an image or a graphic, expanded
+ * a layer's DECLARED rectangle, `wIn × hIn` for an image or a graphic, expanded
  * by its rotation. That rectangle is the box the artwork was placed in, not the
  * artwork. A customer's logo exported with transparent margins, a
  * background-removed cutout (which is nothing BUT margins), a photo rotated 30°:
  * all three declare a box far larger than the ink inside it, and we charged for
- * the difference twice — once to the customer as printed area, once to ourselves
+ * the difference twice: once to the customer as printed area, once to ourselves
  * as film.
  *
  * The Bible is explicit that this is not a detail (chapitre 1, DTF): «Le coût ne
  * doit pas être saisi "par logo" sans calcul. Il dépend de la surface occupée
  * sur une laize de 56 cm, de l'imbrication…», and the imposition tool it
- * specifies is defined by «largeur et hauteur de chaque visuel» — of each
+ * specifies is defined by «largeur et hauteur de chaque visuel», of each
  * VISUAL, which is the ink, not the box someone dropped it into.
  *
  * WHAT IS ALREADY TIGHT, and therefore not touched here:
  *   TEXT. `measureArcText` measures glyph ink (per-glyph `actualBoundingBox*`),
  *   and `drawArcText` centres that ink box on the layer origin. A text layer's
- *   declared size IS its ink — no em-box padding, no leading, no trailing
+ *   declared size IS its ink: no em-box padding, no leading, no trailing
  *   letter-space. Probing it would cost a raster to learn what it already says.
  *
  * WHAT IS MEASURED HERE: images (uploads and cutouts) and graphics, from their
@@ -29,7 +29,7 @@
  * DPI and the export re-renders the same pieces at 300; the layout computed from
  * the first is filled with the pixels of the second, matched by `sourceKey`. If
  * a piece's box depended on the DPI it happened to be measured at, the plan and
- * the artwork would disagree — a transfer printed slightly larger than the hole
+ * the artwork would disagree: a transfer printed slightly larger than the hole
  * the nester left for it. So the ink of a layer is measured ONCE, from a
  * canonical probe of its source, in fractions of its own box, and that fraction
  * is what every DPI reuses.
@@ -39,8 +39,8 @@
  * discovered by the customer. So: the alpha floor here is 1 (any ink at all,
  * unlike `MASK_ALPHA_FLOOR` which may discard an invisible tail because it only
  * decides interlocking), the probe rounds out to whole cells, and one extra cell
- * is added on every side. When anything is unknown — image not decoded yet,
- * canvas unreadable, cross-origin taint — the answer is the full declared box,
+ * is added on every side. When anything is unknown (image not decoded yet,
+ * canvas unreadable, cross-origin taint), the answer is the full declared box,
  * i.e. exactly what this module replaced.
  */
 import type { Design, Layer, RectIn, Side, SizeIn, SizeId } from '@/lib/types'
@@ -60,7 +60,7 @@ import { CM_PER_IN, degToRad } from '@/lib/units'
  * How close two visuals must be to stay ONE transfer, inches.
  *
  * 0.2 in = 5,1 mm, and it is the film gap in disguise. Two pieces nested apart
- * end up `gapCm` from each other — 5 mm on every researched supplier — plus a
+ * end up `gapCm` from each other (5 mm on every researched supplier), plus a
  * scissor cut, so splitting artwork that already sits closer than that frees no
  * film worth having while handing the operator two transfers to align to under a
  * millimetre on the garment. Above it, the gap on the shirt is wide enough that
@@ -71,7 +71,7 @@ export const PIECE_CLEARANCE_IN = 0.2
 /**
  * Clearance sentinel meaning "never split this side": larger than any garment,
  * so every layer lands in one cluster and the side is measured as the single
- * block it was before splitting existed. Finite on purpose — Infinity survives
+ * block it was before splitting existed. Finite on purpose: Infinity survives
  * the arithmetic here but not a JSON round trip.
  */
 export const MERGE_WHOLE_SIDE_IN = 1e6
@@ -88,7 +88,7 @@ const PROBE_ALPHA_FLOOR = 1
 
 /**
  * Probe resolution cap, px on the long side. Under it the source is measured at
- * its native size and no resampling happens at all — which covers essentially
+ * its native size and no resampling happens at all, which covers essentially
  * every logo. Above it the browser's high-quality downscale is a genuine area
  * filter, so a 1-px feature in a 4000-px upload still lands around alpha 65 at
  * 1024, sixty times the floor.
@@ -104,8 +104,8 @@ const PROBE_PAD_CELLS = 1
 /**
  * The measured rect is snapped OUTWARD to this many steps across the box.
  *
- * `drawImage`'s downscale filter is implementation-defined — `imageSmoothingQuality`
- * is a hint, not a specification — so a source edge pixel resampled to a fraction
+ * `drawImage`'s downscale filter is implementation-defined (`imageSmoothingQuality`
+ * is a hint, not a specification), so a source edge pixel resampled to a fraction
  * of a percent of coverage can land at alpha 0 in one engine and 1 in another,
  * and the detected bound would move by a probe cell. Snapping to a coarse grid
  * makes that sub-cell disagreement invisible: 1/256 of a 9-inch layer is 0,9 mm,
@@ -122,7 +122,7 @@ export interface UnitRect {
   y1: number
 }
 
-/** The whole declared box — the answer whenever the ink is unknown. */
+/** The whole declared box, the answer whenever the ink is unknown. */
 export const FULL_UNIT: UnitRect = { x0: 0, y0: 0, x1: 1, y1: 1 }
 
 /** Axis-aligned extent in inches from the print-area centre. */
@@ -140,7 +140,7 @@ export interface InkBox {
 /**
  * Tight bounds of the cells at or above `floor`, in UNIT fractions of a `w × h`
  * probe, grown by `PROBE_PAD_CELLS` on every side. Null when nothing clears the
- * floor — a fully transparent source, which callers treat as "unknown", never as
+ * floor: a fully transparent source, which callers treat as "unknown", never as
  * "zero-sized".
  *
  * `alpha` is the interleaved RGBA byte array a 2D context hands back; pass
@@ -190,12 +190,12 @@ export function alphaUnitRect(
  * `flipX` mirrors that ink about the box's centre exactly as the renderer's
  * `ctx.scale(-1, 1)` does. The result is the axis-aligned hull of the ROTATED
  * ink rectangle, which for `FULL_UNIT` reduces to the half-extent formula this
- * replaced — the property `ink.test.ts` pins, because it is what makes the
- * change a strict tightening and never a shift.
+ * replaced (the property `ink.test.ts` pins, because it is what makes the
+ * change a strict tightening and never a shift).
  *
  * Exact for a rectangular ink shape at any angle. For a shape whose ink is
  * diagonal within its own box (a lightning bolt at 45°) the hull of the rotated
- * BOX is larger than the hull of the rotated shape — outward, i.e. safe. The
+ * BOX is larger than the hull of the rotated shape: outward, i.e. safe. The
  * true-shape packer recovers that difference from the alpha mask anyway.
  */
 export function placedInkBox(
@@ -232,7 +232,7 @@ export function placedInkBox(
 }
 
 /**
- * Group boxes into independent visuals — union-find over every pair.
+ * Group boxes into independent visuals: union-find over every pair.
  *
  * Each box is grown by HALF the clearance, so two of them merge exactly when the
  * empty space between them is under `clearanceIn`, the number the UI shows.
@@ -241,7 +241,7 @@ export function placedInkBox(
  *
  * Returns index groups in ascending order of their smallest member, so the
  * grouping never depends on which pair happened to be visited first. O(n²) over
- * the layers of ONE side — single digits in practice.
+ * the layers of ONE side, single digits in practice.
  */
 export function clusterBoxes(boxes: InkBox[], clearanceIn: number): number[][] {
   const n = boxes.length
@@ -279,13 +279,13 @@ export function clusterBoxes(boxes: InkBox[], clearanceIn: number): number[][] {
 }
 
 /**
- * Area covered by the union of some boxes — overlaps counted ONCE.
+ * Area covered by the union of some boxes, overlaps counted ONCE.
  *
  * Cluster hulls are not disjoint, and `pieces.ts` says so outright: an L-shaped
  * lockup with a small mark tucked into its corner is two visuals whose boxes
  * overlap. Summing them charges the customer twice for the same square
  * centimetres of shirt, and enough of it would push a design past a tier
- * boundary — or past the whole print area — on artwork that fits comfortably.
+ * boundary (or past the whole print area) on artwork that fits comfortably.
  *
  * Exact, by coordinate compression: with a handful of rects per side the O(n³)
  * is a few hundred comparisons, and an approximation here is money.
@@ -326,7 +326,7 @@ export function hullOf(boxes: InkBox[]): InkBox {
 // ---------------------------------------------------------------------------
 
 /**
- * Content identity of a layer's ink shape — deliberately NOT its placement.
+ * Content identity of a layer's ink shape, deliberately NOT its placement.
  * The same upload used twice, at two sizes, rotated differently, is probed once.
  * A graphic's `fill` is absent on purpose: recolouring an opaque shape does not
  * move its edges.
@@ -350,8 +350,8 @@ function probeKey(l: Layer): string | null {
  * What a probe concluded. THREE states, not two, and the distinction is the
  * difference between a sliver of film and a reprint: `empty` means "these pixels
  * were read and there is no ink in them", which entitles us to drop the layer.
- * `unreadable` means "we could not look" — a canvas that would not allocate, an
- * asset tainted by another origin — and must never be mistaken for the first.
+ * `unreadable` means "we could not look" (a canvas that would not allocate, an
+ * asset tainted by another origin) and must never be mistaken for the first.
  */
 type Probe =
   | { state: 'ink'; unit: UnitRect }
@@ -380,7 +380,7 @@ function probeImage(img: HTMLImageElement): Probe {
     const unit = alphaUnitRect(ctx.getImageData(0, 0, w, h).data, w, h)
     return unit ? { state: 'ink', unit } : { state: 'empty' }
   } catch {
-    // Tainted canvas — an asset that arrived from another origin.
+    // Tainted canvas: an asset that arrived from another origin.
     return { state: 'unreadable' }
   }
 }
@@ -400,14 +400,14 @@ function graphicProbeSvg(graphicId: string): string | null {
 /**
  * Warm the probe cache for these layers, and report the ones it could NOT
  * measure. Call it wherever the ink measurement has to be right rather than
- * merely safe — before rendering pieces, before quoting a price on a design
+ * merely safe: before rendering pieces, before quoting a price on a design
  * that has just loaded.
  *
  * It decodes the assets itself instead of trusting that `prepareSide` did:
  * `prepareSide` swallows a decode failure, and an image that failed to decode
  * measures as its full declared box. If that happened during the 28-DPI preview
  * and not during the 300-DPI export, the layout would reserve a padded
- * rectangle and the export would pour a tight canvas into it — `renderSheet`
+ * rectangle and the export would pour a tight canvas into it. `renderSheet`
  * stretches the source to fill its placement, so the artwork would print at the
  * wrong size. Hence the returned list, and hence `renderPieces` refusing on it.
  */
@@ -463,8 +463,8 @@ function probeOf(l: Layer): Probe | undefined {
  *
  * Synchronous by design: this sits under a price that is drawn on every
  * keystroke. Anything not yet decoded, unreadable, or empty reports the full box
- * — the same number the app used before this module existed — and tightens as
- * soon as `ensureInkProbes` has run.
+ * (the same number the app used before this module existed) and tightens as soon
+ * as `ensureInkProbes` has run.
  */
 export function layerInkUnit(l: Layer): UnitRect {
   const probe = probeOf(l)
@@ -472,7 +472,7 @@ export function layerInkUnit(l: Layer): UnitRect {
 }
 
 /**
- * False ONLY when a layer's source was read and found to contain no ink at all —
+ * False ONLY when a layer's source was read and found to contain no ink at all:
  * a blank upload, an all-transparent cutout. "Not decoded yet" and "could not be
  * read" are both TRUE, because the cost of being wrong is a customer's artwork
  * silently not printing and their side silently losing its marking charge.
@@ -516,7 +516,7 @@ export function layerInkBox(l: Layer): InkBox {
   return placedInkBox(l, wIn, hIn, layerInkUnit(l), l.flipX)
 }
 
-/** The layer's declared rectangle, rotation-expanded — what this module replaced. */
+/** The layer's declared rectangle, rotation-expanded: what this module replaced. */
 export function layerDeclaredBox(l: Layer): InkBox {
   const m = measureLayer(l, 100)
   return placedInkBox(l, m.w / 100, m.h / 100, FULL_UNIT)
@@ -526,13 +526,13 @@ export function layerDeclaredBox(l: Layer): InkBox {
 export interface InkCluster {
   box: InkBox
   layers: Layer[]
-  /** Indices into the array handed in — how a caller maps them onto graded layers. */
+  /** Indices into the array handed in, how a caller maps them onto graded layers. */
   idx: number[]
 }
 
 /**
  * `ink` measures what the layer draws. `box` measures the rectangle it was
- * dropped into — the behaviour every price and every gang sheet used before
+ * dropped into, the behaviour every price and every gang sheet used before
  * 2026-08-13, kept for exactly the reason `MERGE_WHOLE_SIDE_IN` is kept: so the
  * saving is re-measured on every bench run against the real previous code
  * instead of quoted from a commit message.
@@ -578,7 +578,7 @@ export function inkClusters(
  * splits into the same visuals at S as at 3XL. It matters: grading multiplies
  * every box by k while `clearanceIn` stays 0,2 in, so clustering the scaled
  * layers would let a gap that is 0,19 in at S become 0,22 in at 3XL and split
- * one transfer into two — different part count, different `~n` keys, and the
+ * one transfer into two: different part count, different `~n` keys, and the
  * modal's grading comparison (which matches pieces by (baseKey, part, parts))
  * silently comparing different things. `pieces.ts` states size-invariance as an
  * invariant; this is what makes it true rather than nearly true.
@@ -605,14 +605,14 @@ export function sideInkClusters(
 }
 
 /**
- * Printed area of a side, SQUARE CENTIMETRES — what area-aware pricing charges
+ * Printed area of a side, SQUARE CENTIMETRES: what area-aware pricing charges
  * for, and the number the PHP price authority is handed as `area_sq_cm`.
  *
  * cm² and not in², deliberately. The server has always worked in cm² and the
  * studio has always worked in in²; the conversion between them existed nowhere
  * in this repo, so wiring the bridge meant someone writing `area_sq_cm:
  * sideArtworkSqIn(...)` and dividing every print in the shop by 6,4516. A
- * full-front tee would have arrived as 192 cm² — a postcard — and priced flat
+ * full-front tee would have arrived as 192 cm² (a postcard) and priced flat
  * forever with nothing on screen looking wrong. There is now no conversion to
  * forget. (It is also the unit the customer reads everywhere else in the app;
  * quoting a French buyer a surcharge in square inches was its own bug.)
@@ -621,13 +621,13 @@ export function sideInkClusters(
  *
  *   THE MARGINS. It measures ink, so a logo delivered as a 2000 × 2000 PNG with
  *   the mark occupying the middle third is charged as the mark, not as the PNG.
- *   A background-removed cutout is the extreme case — its declared box is the
+ *   A background-removed cutout is the extreme case: its declared box is the
  *   photo it was cut out of.
  *
  *   THE GAP. It sums the INDEPENDENT VISUALS instead of unioning every layer on
  *   the side into one rectangle. A chest lockup with a line at the hem was
  *   charged as one box spanning both, i.e. mostly for the bare shirt between
- *   them — measured on the sample front, 59 % of the priced area was that empty
+ *   them. Measured on the sample front, 59 % of the priced area was that empty
  *   space. It is also what the film costs, because the same split is what gets
  *   nested and pressed.
  *
@@ -637,7 +637,7 @@ export function sideInkClusters(
  *   outside was charged as a printed side while the DTF module emitted nothing
  *   for it at all.
  *
- * Returns 0 for a side with nothing printable on it — which is what makes it
+ * Returns 0 for a side with nothing printable on it, which is what makes it
  * not a printed side, in both price engines.
  */
 export function sideArtworkSqCm(design: Design, side: Side, size?: SizeId): number {
@@ -671,14 +671,14 @@ export function sideArtworkSqCm(design: Design, side: Side, size?: SizeId): numb
 /**
  * Below this (inches) a transfer is too thin to be represented. It is a FLOOR,
  * not a filter: the box is grown to it. A 0,4 mm hairline rule is real artwork,
- * and dropping it — which is what the old rule did — would delete a customer's
+ * and dropping it (which is what the old rule did) would delete a customer's
  * design element with no error anywhere.
  *
  * 0,08 in = 2,0 mm, which is 2 px at `PREVIEW_DPI` (28), the lowest density
  * anything renders at. That is not a coincidence: `canvas.width` is
  * `max(2, round(wIn × dpi))`, so a rect under 2 px would be drawn into a canvas
  * bigger than itself, and `renderSheet` stretches a piece's canvas to fill its
- * placement — the cutting plan would show a hairline 40 % too fat. At this floor
+ * placement. The cutting plan would show a hairline 40 % too fat. At this floor
  * `round(wIn × dpi) ≥ 2` holds by construction at every DPI in use.
  */
 export const MIN_EXTENT_IN = 0.08
@@ -688,8 +688,8 @@ export const MIN_EXTENT_IN = 0.08
  *
  * Under declared boxes the crop always had margin to spare, so the roundings
  * downstream were free. They are not any more: the crop is tangent to the ink,
- * and `canvas.width = round(wIn × dpi)` can round DOWN half a pixel — 0,45 mm at
- * 28 DPI — straight off the outermost glyph edge. This is DPI-independent (it
+ * and `canvas.width = round(wIn × dpi)` can round DOWN half a pixel (0,45 mm at
+ * 28 DPI) straight off the outermost glyph edge. This is DPI-independent (it
  * has to be; the geometry is shared between the 28-DPI preview and the 300-DPI
  * export), it covers that half pixel five times over, and against a 5 mm nesting
  * gap it costs nothing worth measuring.
@@ -707,7 +707,7 @@ export interface PieceSplitOptions {
   clearanceIn?: number
   /**
    * `'box'` measures every visual from its declared rectangle instead of its
-   * ink — the pre-2026-08-13 geometry. Not an operator setting: it exists so
+   * ink, the pre-2026-08-13 geometry. Not an operator setting: it exists so
    * `scripts/dtf-bench.mjs` can put both against each other on the same order
    * and report what the trim is actually worth.
    */
@@ -761,13 +761,13 @@ export function clampInkToArea(b: InkBox, area: SizeIn): RectIn | null {
 export interface InkPart {
   /** Crop rect within the (graded) print area, top-left origin, inches. */
   rect: RectIn
-  /** The GRADED layers this transfer carries — nothing else is drawn into it. */
+  /** The GRADED layers this transfer carries: nothing else is drawn into it. */
   layers: Layer[]
 }
 
 /**
  * Split one side into the transfers it should be printed as, in part order
- * (top to bottom, then left to right — the order the DTF suffix counts in, and
+ * (top to bottom, then left to right: the order the DTF suffix counts in, and
  * the order an operator reads the garment in).
  *
  * Empty when the side carries no layers, or when the garment publishes no print
@@ -776,7 +776,7 @@ export interface InkPart {
  * garment's sleeve), and inventing a transfer size there is how a dimension
  * nobody measured reaches a printer.
  *
- * Text measurement depends on loaded fonts — call after the fonts and the ink
+ * Text measurement depends on loaded fonts. Call after the fonts and the ink
  * probes have settled (`renderPieces` and `measureOrder` both do) for numbers
  * that match the export.
  */

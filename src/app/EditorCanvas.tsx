@@ -30,7 +30,7 @@ export default function EditorCanvas() {
   const toggleGuides = useStore((s) => s.toggleGuides)
   const previewSize = useStore((s) => s.previewSize)
   const openModal = useStore((s) => s.openModal)
-  // AR puts ONE garment on ONE body — an offer board mode cannot keep, so the
+  // AR puts ONE garment on ONE body, an offer board mode cannot keep, so the
   // call to action is withdrawn rather than left to disappoint.
   const boardOn = useStore((s) => s.board.on)
   const bg = stageBackground(scene, theme)
@@ -65,7 +65,7 @@ export default function EditorCanvas() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return
       const t = e.target as HTMLElement
-      // Only hijack Space when nothing interactive owns the keyboard —
+      // Only hijack Space when nothing interactive owns the keyboard:
       // buttons/inputs keep their native Space behavior.
       if (t !== document.body) return
       e.preventDefault()
@@ -280,7 +280,7 @@ export default function EditorCanvas() {
         </button>
       </div>
 
-      {/* View-in-AR call to action — parity with the 3D stage. On phones it sits
+      {/* View-in-AR call to action: parity with the 3D stage. On phones it sits
           above the bottom-left SideSwitcher; on desktop it takes the bottom-left. */}
       {!boardOn && (
         <button

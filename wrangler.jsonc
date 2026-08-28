@@ -3,8 +3,8 @@
 	"name": "tshop",
 	"main": "worker/index.ts",
 	"compatibility_date": "2026-06-01",
-	// SECRETS (never in this file — it is committed):
-	//   wrangler secret put ADMIN_TOKEN     gate on /api/fr/* — UNSET MEANS DENY ALL.
+	// SECRETS (never in this file, which is committed):
+	//   wrangler secret put ADMIN_TOKEN     gate on /api/fr/*. UNSET MEANS DENY ALL.
 	//                                       Generate: openssl rand -base64 32
 	//   wrangler secret put FR_WS_USER      Falk&Ross webservice account
 	//   wrangler secret put FR_WS_PASS      … and its password
@@ -126,7 +126,7 @@
 		"SHOP_ORIGINS": ""
 	},
 	// AR model blob store. Create it once with:  wrangler r2 bucket create tshop-ar
-	// R2 has no per-object TTL — add a lifecycle rule to expire the `ar/` prefix
+	// R2 has no per-object TTL. Add a lifecycle rule to expire the `ar/` prefix
 	// (see README), e.g. 30 days, so shared models don't accumulate forever.
 	"r2_buckets": [
 		{

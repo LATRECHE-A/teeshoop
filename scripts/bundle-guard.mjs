@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * BUNDLE GUARD — proves the customer bundle carries no shop-internal material.
+ * BUNDLE GUARD: proves the customer bundle carries no shop-internal material.
  *
  * WHY. The studio ships two entries built from one tree (src/app/adminSlots.tsx):
  * index.html is the customer studio, admin.html the workshop tools. The tools
  * carry our purchase cost per SKU, our film cost per linear metre and a
  * WooCommerce credential form. Keeping them out of the customer's JavaScript is
- * a build-time property, and build-time properties rot silently — one careless
+ * a build-time property, and build-time properties rot silently: one careless
  * `import` and it is back, with nothing to notice. This script is the notice.
  *
  * WHAT IT CHECKS. Every emitted file is classified by which entry can reach it:
- *   CUSTOMER  reachable from index.html — a forbidden marker here is the bug
+ *   CUSTOMER  reachable from index.html. A forbidden marker here is the bug
  *             this script exists to catch.
- *   ADMIN     reachable only from admin.html — markers are EXPECTED here.
+ *   ADMIN     reachable only from admin.html. Markers are EXPECTED here.
  *   ORPHAN    reachable from neither, yet still uploaded and still fetchable by
  *             URL. Markers here fail too: a content-hashed name is not
  *             authentication.
@@ -20,7 +20,7 @@
  * TWO TRAPS THIS AVOIDS, both measured rather than assumed:
  *  - grep is unusable. A chunk can contain a NUL byte (esbuild emits the cache
  *    key separator from src/lib/ingest/frCache.ts as one), after which ugrep
- *    skips the file entirely and GNU grep suppresses output — a silent pass.
+ *    skips the file entirely and GNU grep suppresses output, a silent pass.
  *    So: node, readFileSync('utf8'), String.includes.
  *  - Symbol names are worthless needles. esbuild renames locals and exports and
  *    strips comments, so `your_price`, `DEFAULT_SUPPLIERS` and
@@ -51,7 +51,7 @@ const DIST = distArg >= 0 ? argv[distArg + 1] : join(ROOT, 'dist')
 const ALLOW_NO_ADMIN = argv.includes('--allow-missing-admin')
 
 /**
- * Tier A — string literals. These are reproduced byte-for-byte by the minifier.
+ * Tier A: string literals. These are reproduced byte-for-byte by the minifier.
  *
  * NOTE the two different apostrophes: catalogI18n.ts uses U+2019 (’) and
  * worker/falkross.ts uses U+0027 ('). They are DIFFERENT needles; a copy-edit
@@ -89,7 +89,7 @@ const FORBIDDEN = [
   { s: 'admin.dtf', cat: 'admin-entry' },
   { s: 'admin.products', cat: 'admin-entry' },
 
-  // Tier B — property names. These survive only because vite/esbuild does not
+  // Tier B: property names. These survive only because vite/esbuild does not
   // mangle properties (no `mangleProps` is configured). If that ever changes
   // these go quiet, which is why every sensitive module above is ALSO covered
   // by a Tier A literal.
@@ -98,10 +98,10 @@ const FORBIDDEN = [
 ]
 
 // Deliberately NOT needles, and why:
-//   `rrpEur`      — Imbretex's published RECOMMENDED RETAIL price, not our cost.
+//   `rrpEur`:       Imbretex's published RECOMMENDED RETAIL price, not our cost.
 //                   It is in the committed catalogue snapshot and is public.
-//   `wc/v3`       — subsumed by the full path above.
-//   symbol names  — renamed by the minifier (see the header).
+//   `wc/v3`:        subsumed by the full path above.
+//   symbol names:   renamed by the minifier (see the header).
 
 /** Must be PRESENT, or the scanner is not reading the real bundle. */
 const CANARY = [
@@ -133,7 +133,7 @@ function reachableFrom(htmlPath, allFiles) {
   try {
     html = readFileSync(htmlPath, 'utf8')
   } catch {
-    return null // entry missing — the caller decides whether that is fatal
+    return null // entry missing, the caller decides whether that is fatal
   }
   const byBase = new Map(allFiles.map((f) => [basename(f), f]))
   /*
@@ -206,7 +206,7 @@ const jsFiles = files.filter((f) => f.endsWith('.js') || f.endsWith('.mjs'))
 
 if (jsFiles.length < 10) {
   console.error(
-    `\nBUNDLE GUARD SELF-TEST FAILED — only ${jsFiles.length} JS file(s) under dist/.\n` +
+    `\nBUNDLE GUARD SELF-TEST FAILED: only ${jsFiles.length} JS file(s) under dist/.\n` +
       `It is not looking at a real build; a PASS here would mean nothing.\n` +
       `Did \`npm run build\` run, or did build.outDir move?\n`,
   )
@@ -217,7 +217,7 @@ for (const [needle, hint] of CANARY) {
   const found = jsFiles.some((f) => basename(f).includes(hint) && readFileSync(f, 'utf8').includes(needle))
   if (!found) {
     console.error(
-      `\nBUNDLE GUARD SELF-TEST FAILED — scanned ${jsFiles.length} JS files and could not\n` +
+      `\nBUNDLE GUARD SELF-TEST FAILED: scanned ${jsFiles.length} JS files and could not\n` +
         `find canary "${needle}" in any chunk named like "${hint}".\n` +
         `The scanner is not reading the real bundle; its PASS means nothing.\n`,
     )
@@ -237,12 +237,12 @@ const admin = reachableFrom(join(DIST, 'admin.html'), files)
 const viewer = reachableFrom(join(DIST, 'v.html'), files)
 
 if (!customer) {
-  console.error('\nBUNDLE GUARD SELF-TEST FAILED — dist/index.html is missing.\n')
+  console.error('\nBUNDLE GUARD SELF-TEST FAILED: dist/index.html is missing.\n')
   process.exit(2)
 }
 if (!admin && !ALLOW_NO_ADMIN) {
   console.error(
-    '\nBUNDLE GUARD FAILED — dist/admin.html is missing.\n' +
+    '\nBUNDLE GUARD FAILED: dist/admin.html is missing.\n' +
       'The admin entry must be built, or /admin silently falls through to the\n' +
       "SPA fallback and serves the CUSTOMER app under the admin URL.\n",
   )
@@ -251,7 +251,7 @@ if (!admin && !ALLOW_NO_ADMIN) {
 
 if (!viewer) {
   console.error(
-    '\nBUNDLE GUARD FAILED — dist/v.html is missing.\n' +
+    '\nBUNDLE GUARD FAILED: dist/v.html is missing.\n' +
       'It is the page /v/{id} serves to a scanned QR code. Without it the Worker\n' +
       'falls through to the SPA and a customer opening their own AR link gets the\n' +
       'studio instead.\n',
@@ -308,7 +308,7 @@ for (const f of files) {
 }
 
 if (violations.length) {
-  console.error('\nBUNDLE GUARD FAILED — shop-internal material is in a customer-served file.\n')
+  console.error('\nBUNDLE GUARD FAILED: shop-internal material is in a customer-served file.\n')
   const byFile = new Map()
   for (const v of violations) (byFile.get(v.file) ?? byFile.set(v.file, []).get(v.file)).push(v)
   for (const [file, vs] of byFile) {
@@ -326,7 +326,7 @@ if (violations.length) {
       'yet still uploaded: wrangler.jsonc serves all of dist/, so GET /assets/<name>.js\n' +
       'returns it to anyone. "Lazily loaded" is not protection.\n\n' +
       'The customer build must not CONTAIN this code. Move it behind the admin entry\n' +
-      '(src/admin/AdminSlots.tsx) or delete it. Values are never printed here — use the\n' +
+      '(src/admin/AdminSlots.tsx) or delete it. Values are never printed here. Use the\n' +
       'byte offset locally.\n',
   )
   process.exit(1)
@@ -357,7 +357,7 @@ for (const f of files) {
   if (zone !== 'ADMIN' && gated) misplaced.push({ rel, zone, want: 'assets/' })
 }
 if (misplaced.length) {
-  console.error('\nBUNDLE GUARD FAILED — an emitted file is in the wrong directory for its zone.\n')
+  console.error('\nBUNDLE GUARD FAILED: an emitted file is in the wrong directory for its zone.\n')
   for (const m of misplaced) console.error(`  ${m.rel}  [${m.zone}]  should be under ${m.want}`)
   console.error(
     '\nADMIN files must be under admin-assets/, which worker/index.ts refuses without\n' +
@@ -375,7 +375,7 @@ if (misplaced.length) {
  */
 if (admin && ![...files].some((f) => relative(DIST, f).split(sep).join('/').startsWith(ADMIN_ASSET_DIR + '/'))) {
   console.error(
-    '\nBUNDLE GUARD FAILED — nothing was emitted into admin-assets/.\n' +
+    '\nBUNDLE GUARD FAILED: nothing was emitted into admin-assets/.\n' +
       'The admin entry exists, so at least its own chunk must be there. An empty\n' +
       'gated directory means the split in vite.config.ts stopped working and every\n' +
       'admin chunk is being served openly again.\n',

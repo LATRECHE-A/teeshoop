@@ -57,7 +57,7 @@ function purchase_config(): array {
 	return Cost::default_config();
 }
 
-describe( 'Purchase::aggregate — traçabilité', function () {
+describe( 'Purchase::aggregate : traçabilité', function () {
 	/*
 	 * THE ASSERTION THIS FILE EXISTS FOR. Four order lines across three orders
 	 * fold into two articles, and each article has to be able to say which line
@@ -99,7 +99,7 @@ describe( 'Purchase::aggregate — traçabilité', function () {
 	} );
 } );
 
-describe( 'Purchase::aggregate — le total est la somme des lignes, calculé une fois', function () {
+describe( 'Purchase::aggregate : le total est la somme des lignes, calculé une fois', function () {
 	$basket = Purchase::aggregate(
 		array(
 			claim( '180010004', 12, 337, array() ),
@@ -119,7 +119,7 @@ describe( 'Purchase::aggregate — le total est la somme des lignes, calculé un
 	} );
 } );
 
-describe( 'Purchase::aggregate — le port suit le franco du fournisseur', function () {
+describe( 'Purchase::aggregate : le port suit le franco du fournisseur', function () {
 	$config = purchase_config();
 
 	it( 'facture le port sous le franco', function () use ( $config ) {
@@ -140,7 +140,7 @@ describe( 'Purchase::aggregate — le port suit le franco du fournisseur', funct
 	} );
 } );
 
-describe( 'Purchase::aggregate — un article sans prix ne compte pas pour zéro', function () {
+describe( 'Purchase::aggregate : un article sans prix ne compte pas pour zéro', function () {
 	$basket = Purchase::aggregate(
 		array(
 			claim( '180010004', 12, 337, array() ),
@@ -160,7 +160,7 @@ describe( 'Purchase::aggregate — un article sans prix ne compte pas pour zéro
 	} );
 } );
 
-describe( 'Purchase::aggregate — une ligne refusée bloque le panier et garde sa quantité', function () {
+describe( 'Purchase::aggregate : une ligne refusée bloque le panier et garde sa quantité', function () {
 	$basket = Purchase::aggregate(
 		array( claim( '180010004', 12, 337, array() ) ),
 		array(
@@ -186,7 +186,7 @@ describe( 'Purchase::aggregate — une ligne refusée bloque le panier et garde 
 	} );
 } );
 
-describe( 'Purchase::aggregate — un panier vide n’est pas un panier', function () {
+describe( 'Purchase::aggregate : un panier vide n’est pas un panier', function () {
 	it( 'ne se déclare ni valide ni complet', function () {
 		$basket = Purchase::aggregate( array(), array(), purchase_config() );
 		eq( $basket['ok'], false );
@@ -195,7 +195,7 @@ describe( 'Purchase::aggregate — un panier vide n’est pas un panier', functi
 	} );
 } );
 
-describe( 'Purchase::fresh — trois réponses, pas deux', function () {
+describe( 'Purchase::fresh : trois réponses, pas deux', function () {
 	// The trust window is the constant, so this test moves with it.
 	$hours = Purchase::STOCK_TRUST_HOURS;
 	$now   = '2026-05-19 12:00:00';
@@ -257,7 +257,7 @@ describe( 'Purchase::fresh — trois réponses, pas deux', function () {
 	} );
 } );
 
-describe( 'Purchase::stock_verdict — ce qui manque, et ce qu’on ne sait plus', function () {
+describe( 'Purchase::stock_verdict : ce qui manque, et ce qu’on ne sait plus', function () {
 	/*
 	 * `wp_date`-free and timezone-free: the verdict is asked with an explicit
 	 * « now », so these two are wall-clock strings on either side of the window
@@ -296,7 +296,7 @@ describe( 'Purchase::stock_verdict — ce qui manque, et ce qu’on ne sait plus
 	} );
 } );
 
-describe( 'Cost::allocate — le port groupé se répartit sans perdre ni inventer un centime', function () {
+describe( 'Cost::allocate : le port groupé se répartit sans perdre ni inventer un centime', function () {
 	/*
 	 * The same allocator the film uses, applied to one inbound carriage across
 	 * six orders. Three equal shares of 800 rounded independently make 798 or

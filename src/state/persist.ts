@@ -89,7 +89,7 @@ export function markSeen(): void {
 let hydrateStarted = false
 
 export async function hydrateStore(): Promise<void> {
-  // React StrictMode mounts effects twice in dev — hydrate exactly once.
+  // React StrictMode mounts effects twice in dev: hydrate exactly once.
   if (hydrateStarted) return
   hydrateStarted = true
   const s = useStore.getState()
@@ -102,7 +102,7 @@ export async function hydrateStore(): Promise<void> {
     s.toast('warn', t('toast.storage_unavailable'))
   }
 
-  // shared design in the URL wins — but never at the cost of the visitor's
+  // shared design in the URL wins, but never at the cost of the visitor's
   // own autosaved draft, and always as a COPY (fresh id) so saving the
   // shared design can't overwrite a library original with the same id.
   const shared = parseShareHash(location.hash)
@@ -114,7 +114,7 @@ export async function hydrateStore(): Promise<void> {
         s.toast('info', t('toast.draft_saved', { name: prev.name }))
       }
     } catch {
-      /* storage unavailable — still load the shared design */
+      /* storage unavailable: still load the shared design */
     }
     s.loadDesign({ ...shared, id: nanoid(10), updatedAt: Date.now() })
     history.replaceState(null, '', location.pathname + location.search)
@@ -166,7 +166,7 @@ export function startAutosave(): () => void {
     }
     if (autosaveTimer) clearTimeout(autosaveTimer)
     autosaveTimer = setTimeout(() => {
-      // The focus may have landed INSIDE this debounce window — re-check
+      // The focus may have landed INSIDE this debounce window: re-check
       // against live state rather than the state that scheduled the write.
       if (useStore.getState().board.focusedId) return
       set(CURRENT_KEY, useStore.getState().design).catch(() => undefined)
@@ -177,7 +177,7 @@ export function startAutosave(): () => void {
 /**
  * The focused basket line's own autosave. `unfocusLine` flushes synchronously
  * and is the authority, but a refresh or a crash mid-focus must not lose the
- * edits either — the app's standing promise is that work is never lost, and
+ * edits either: the app's standing promise is that work is never lost, and
  * this keeps a focused line on the same 700 ms cadence as everything else.
  */
 export function startBoardAutosave(): () => void {

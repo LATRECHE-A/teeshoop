@@ -1,5 +1,5 @@
 /**
- * Tshop Studio — module A3: 3D garment preview.
+ * Tshop Studio, module A3: 3D garment preview.
  *
  * Default export `Garment3D` renders the current design on a real 3D garment
  * (tee / hoodie GLB, or a curved photo-card for customer-shipped garments)
@@ -133,7 +133,7 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
-/** Print registration mark — the brand motif for empty/error states. */
+/** Print registration mark: the brand motif for empty/error states. */
 function RegMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" width={52} height={52} className={className} aria-hidden="true">
@@ -266,7 +266,7 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
     return (
       <StateCard
         title="3D preview unavailable"
-        body="This browser could not start WebGL, so the garment can't be rendered in 3D. The 2D editor has everything you need — dimensions stay exact."
+        body="This browser could not start WebGL, so the garment can't be rendered in 3D. The 2D editor has everything you need: dimensions stay exact."
       />
     )
   }
@@ -310,8 +310,8 @@ export default function Garment3D(props: Garment3DProps): JSX.Element {
           // saturated colour toward the white point and lifts blacks, so a red
           // garment previewed here came out a different red from the one the
           // customer picked and the one the press will print. Neutral is the
-          // tone map built for exactly this — product colour that survives the
-          // round trip — and it is the single biggest fidelity win in the
+          // tone map built for exactly this (product colour that survives the
+          // round trip), and it is the single biggest fidelity win in the
           // pipeline for one line.
           toneMapping: THREE.NeutralToneMapping,
           powerPreference: 'high-performance',

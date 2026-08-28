@@ -1,5 +1,5 @@
 /**
- * Pricing — module A5.
+ * Pricing: module A5.
  *
  * Per-garment base price + a flat surcharge for every printed side beyond the
  * first, with quantity discounts at the QTY_BREAKS thresholds. `custom` = the
@@ -9,7 +9,7 @@
  * affordable standard (+$0); larger prints (up to A3, then oversize) cost more.
  * Tiers only affect the quote when the caller passes per-side artwork areas AND
  * the rule defines `areaTiers`; otherwise pricing is flat. Remove `areaTiers`
- * from a rule to make that garment flat again — no other code changes needed.
+ * from a rule to make that garment flat again, no other code changes needed.
  */
 import type { GarmentId } from '@/lib/types'
 
@@ -34,7 +34,7 @@ export interface PricingRule {
  *
  * THE BOUNDS ARE THE SERVER'S, TO THE UNIT. `Pricing::area_tier` in
  * wp-plugins/teeshoop-core is the authority and works in cm²; this table used
- * to hold 97 in² and 193 in², which are 625,81 cm² and 1245,16 cm² — close
+ * to hold 97 in² and 193 in², which are 625,81 cm² and 1245,16 cm², close
  * enough to look identical and wrong enough to matter, because a design landing
  * in either gap was quoted one price here and charged another at checkout. They
  * are now the same two numbers written in the same unit, so the two engines can
@@ -77,9 +77,9 @@ export function areaTier(garment: GarmentId, sqCm: number): AreaTier | null {
  * Pass `sideAreasSqCm` (printed-artwork area per printed side, square
  * centimetres) to price by size: when it is present AND the garment defines
  * `areaTiers`, each side adds its tier surcharge and the side count comes from
- * the array. A side measuring 0 is not a printed side — there is nothing on it
+ * the array. A side measuring 0 is not a printed side: there is nothing on it
  * to press. Omit the array (or leave a rule without `areaTiers`) for the flat
- * price — byte-identical to before.
+ * price, byte-identical to before.
  */
 export function quote(
   garment: GarmentId,

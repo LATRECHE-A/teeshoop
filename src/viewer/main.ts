@@ -1,11 +1,11 @@
 /**
- * AR viewer page (v.html) — the destination of the scanned QR short URL
+ * AR viewer page (v.html), the destination of the scanned QR short URL
  * (/v/{id}). Shows an in-page auto-rotating 3D preview of the design baked onto
  * a mannequin (loaded from R2), and a button that launches NATIVE mobile AR:
  *   • iOS  → Quick Look, via an <a rel="ar" href=…usdz> anchor
  *   • Android → Scene Viewer, via an ARCore intent to the GLB
  * Fully cross-device (the model lives server-side, not on the scanning phone)
- * and dependency-light: it reuses the app's own three.js — no model-viewer, no
+ * and dependency-light: it reuses the app's own three.js. No model-viewer, no
  * CDN. The heavy native-AR rendering is done by the phone's OS.
  */
 import * as THREE from 'three'
@@ -101,7 +101,7 @@ function initPreview(canvas: HTMLCanvasElement, glbUrl: string, onReady: () => v
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
   // Neutral (KHR_PBR_neutral) at reference exposure, the same as the studio
   // canvas and the basket board. This viewer is the AR poster/fallback, i.e. the
-  // last thing a customer sees before they buy — it must not be the one surface
+  // last thing a customer sees before they buy: it must not be the one surface
   // that re-grades their colour (ACES at 1.05 lifted blacks and desaturated
   // every strong hue).
   renderer.toneMapping = THREE.NeutralToneMapping
@@ -210,7 +210,7 @@ function renderViewer(id: string) {
     b.innerHTML = `${CUBE_ICON}${T.arButton}`
     b.addEventListener('click', () => launchAndroidAr(`${location.origin}${base}.glb`, location.href))
     arbtn.appendChild(b)
-  } // desktop: no AR button — hint tells them to open on a phone.
+  } // desktop: no AR button. Hint tells them to open on a phone.
 
   const canvas = root.querySelector('#vw-canvas') as HTMLCanvasElement
   initPreview(

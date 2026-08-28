@@ -21,7 +21,7 @@ Tags: e-commerce, woocommerce, custom-logo, custom-menu, translation-ready
  * the numbers: neither mistertee.fr nor tostadora.fr states a single print
  * dimension on a product page. Our product page already does, in centimetres,
  * and bills the ink rather than the box the file was dropped into. So the site
- * is built to look like what it is — a printer's specification sheet — and not
+ * is built to look like what it is, a printer's specification sheet, and not
  * like a marketplace: hairline rules instead of cards, tabular figures wherever
  * digits sit in a column, one accent used for actions and nothing else, and
  * white space instead of decoration.
@@ -1394,7 +1394,7 @@ a.ts-chip:hover {
  * The editor is an iframe on our own product page, and it is dressed like the
  * rest of the site: our rule above it, our breadcrumb back, no browser chrome
  * of its own. A customer never sees that it is served from another origin, and
- * that is the point — the frame boundary is an engineering decision, not
+ * that is the point: the frame boundary is an engineering decision, not
  * something a buyer should have to notice.
  */
 .ts-studio {

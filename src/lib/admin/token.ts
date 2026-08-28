@@ -3,7 +3,7 @@
  *
  * THIS IS NOT A SECRET BAKED INTO THE BUNDLE, and it must never become one.
  * The same Cloudflare Worker that gates the API also serves this JavaScript,
- * so anything compiled in is published — a token in the source would be a
+ * so anything compiled in is published: a token in the source would be a
  * token on the public internet. It is typed by a human, held for the tab only,
  * and deliberately NOT written to localStorage.
  *
@@ -20,7 +20,7 @@ const KEY = 'tshop:admin:token'
  * The DEV fallback saves retyping it on every reload while working locally.
  * The `import.meta.env.DEV` test is written as a plain ternary on purpose:
  * Vite substitutes it with `false` in a production build, so Rollup folds the
- * whole branch — and the value it reads — out of the bundle. `npm run
+ * whole branch (and the value it reads) out of the bundle. `npm run
  * verify:bundle` proves that stays true.
  */
 export function getAdminToken(): string {
@@ -28,7 +28,7 @@ export function getAdminToken(): string {
     const v = sessionStorage.getItem(KEY)
     if (v) return v
   } catch {
-    // Private mode / storage disabled — fall through to the DEV fallback.
+    // Private mode / storage disabled: fall through to the DEV fallback.
   }
   return import.meta.env.DEV ? (import.meta.env.VITE_ADMIN_TOKEN ?? '') : ''
 }

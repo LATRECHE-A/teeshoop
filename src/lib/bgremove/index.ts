@@ -1,15 +1,15 @@
 /**
- * A2 — In-browser background removal (docs/CONTRACTS.md §A2).
+ * A2: In-browser background removal (docs/CONTRACTS.md §A2).
  *
  * Salient-object background removal with U²-Net small (u2netp.onnx, ~4.6 MB)
- * running on the onnxruntime-web wasm EP (single-threaded — no COOP/COEP).
+ * running on the onnxruntime-web wasm EP (single-threaded, no COOP/COEP).
  *
  * All heavy work happens in a module Web Worker; the main thread only posts
  * blobs and receives progress + the finished PNG. When OffscreenCanvas is
  * unavailable (or the worker cannot boot) the same engine runs on the main
  * thread instead, cooperatively yielding between row chunks.
  *
- * Concurrency: calls are safe to overlap — jobs are queued inside the worker
+ * Concurrency: calls are safe to overlap: jobs are queued inside the worker
  * (and behind a promise chain in the fallback), and the model/session is
  * downloaded and created exactly once, then cached for the session lifetime.
  */
@@ -226,7 +226,7 @@ export async function removeBackground(
       return png
     } catch (err) {
       if (!(err instanceof WorkerCrashedError)) throw err
-      // Worker died (e.g. module workers unsupported) — retry on main thread.
+      // Worker died (e.g. module workers unsupported). Retry on main thread.
     }
   }
   const engine = await loadEngine()
@@ -237,7 +237,7 @@ export async function removeBackground(
 
 /**
  * Decode an image blob and return the tight bounding box (source pixel
- * coordinates) of pixels with alpha > 10 — or null when the image is fully
+ * coordinates) of pixels with alpha > 10, or null when the image is fully
  * opaque (or nothing clears the threshold).
  */
 export async function alphaBoundingBox(

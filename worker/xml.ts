@@ -1,21 +1,21 @@
 /**
- * XML — a dependency-free reader, just big enough for the Falk&Ross feeds.
+ * XML: a dependency-free reader, just big enough for the Falk&Ross feeds.
  *
  * Cloudflare Workers have no `DOMParser` and pulling an XML library in for a
  * handful of feeds would be the tail wagging the dog: the F&R payloads are
  * machine-generated, attribute-free, and we only ever ask them for the text of
- * a named element. So this module offers exactly that — find an element, read
- * its text, iterate repeated children — and nothing else.
+ * a named element. So this module offers exactly that (find an element, read
+ * its text, iterate repeated children) and nothing else.
  *
  * It is NOT a general XML parser and does not pretend to be one:
  *  - no attribute access (the F&R feeds carry none), no namespaces;
- *  - no validation — a malformed document yields nulls, never an exception.
+ *  - no validation: a malformed document yields nulls, never an exception.
  *
  * What it DOES get right, because the real payloads contain all three:
  *  - `<![CDATA[…]]>` sections, whose contents are literal: a `<style_name>`
  *    inside CDATA must not be mistaken for markup, and `&amp;` inside CDATA is
  *    an ampersand followed by "amp;", not an entity;
- *  - NESTED elements of the same name — `<style_category_main>` contains
+ *  - NESTED elements of the same name: `<style_category_main>` contains
  *    `<style_category_sub>` contains `<language>`; a non-greedy regex would
  *    close the outer element on the inner element's tag. `findElement` counts
  *    depth instead;
@@ -27,9 +27,9 @@
 
 /** A located element: `inner` is the raw (still-encoded) content. */
 export interface XmlElement {
-  /** Raw inner markup — pass through `decodeXml` for text. */
+  /** Raw inner markup. Pass through `decodeXml` for text. */
   inner: string
-  /** Index just past this element's closing `>` — resume scanning here. */
+  /** Index just past this element's closing `>`. Resume scanning here. */
   after: number
 }
 
@@ -157,7 +157,7 @@ export function elementInner(xml: string, name: string, from = 0): string | null
 
 /**
  * Decoded text of the first `<name>`. Returns '' for an absent OR empty
- * element — the feeds use `<style_catalog_page></style_catalog_page>` for "no
+ * element: the feeds use `<style_catalog_page></style_catalog_page>` for "no
  * value", so the two cases are genuinely the same thing here.
  */
 export function elementText(xml: string, name: string, from = 0): string {
@@ -265,8 +265,8 @@ export function decodeXml(raw: string): string {
 /**
  * Pick a translation out of a per-language block.
  *
- * The feeds use two shapes for the same idea — `<style_name><language><fr>…`
- * for texts, and `<style_sleeve_group><fr>…` (no wrapper) for filter groups —
+ * The feeds use two shapes for the same idea: `<style_name><language><fr>…`
+ * for texts, and `<style_sleeve_group><fr>…` (no wrapper) for filter groups,
  * so the `<language>` wrapper is unwrapped when present and ignored when not.
  *
  * @param prefer ISO-2 codes in falling preference, e.g. ['fr','en','de'].

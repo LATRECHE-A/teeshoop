@@ -7,7 +7,7 @@ import clsx from 'clsx'
 const SEEN_3D = 'tshop:3d-tried'
 
 /**
- * The 2D ↔ 3D switch — deliberately the loudest control on the page.
+ * The 2D ↔ 3D switch, deliberately the loudest control on the page.
  * 2D is the default (light on the GPU); the 3D side glows to invite a try.
  */
 export default function ModeToggle() {

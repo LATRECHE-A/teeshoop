@@ -308,7 +308,7 @@ function plugin_notice(): void {
 	if ( ! current_user_can( 'manage_options' ) || class_exists( CORE ) ) {
 		return;
 	}
-	echo '<div class="notice notice-error"><p><strong>Thème Teeshoop</strong> — ';
+	echo '<div class="notice notice-error"><p><strong>Thème Teeshoop</strong> : ';
 	esc_html_e(
 		'l’extension Teeshoop Core n’est pas active. Le thème s’affiche sans sa palette, et la boutique ne peut ni calculer un prix ni accepter une personnalisation.',
 		'teeshoop'

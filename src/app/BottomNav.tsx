@@ -1,5 +1,5 @@
 /**
- * Mobile bottom tool-nav (Canva-style) — replaces the desktop LeftRail below
+ * Mobile bottom tool-nav (Canva-style), replaces the desktop LeftRail below
  * `md`. Tapping a tool opens its panel as a slide-up sheet (PanelHost). Always
  * visible on phones so tools stay in thumb reach; hidden on desktop.
  */

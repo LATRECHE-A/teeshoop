@@ -8,18 +8,18 @@ holds the three things neither of them may own.
 
 **The price.** Computed in PHP, from `Pricing.php`, on the server. The studio
 displays what it is told and never computes a price a customer can pay. Two
-implementations of the same rules always diverge in the end — on a tier
-boundary, on a rounding mode, on the VAT basis — and the day they do, the
+implementations of the same rules always diverge in the end (on a tier
+boundary, on a rounding mode, on the VAT basis), and the day they do, the
 customer sees one number and the invoice says another.
 
-There is no `price` field anywhere in the add-to-cart request. Not "ignored" —
+There is no `price` field anywhere in the add-to-cart request. Not "ignored":
 absent. The cart stores the customer's *choices* and re-derives the price from
 them on every totals pass, so a tampered session, a replayed request, or a price
 that was right last week all resolve to today's correct number.
 
 **The bridge.** The studio runs cross-origin in an iframe, so it cannot read
 WordPress cookies and cannot call the REST API itself. It posts a message to the
-parent page; the parent page — same origin, holding the nonce — makes the call.
+parent page; the parent page (same origin, holding the nonce) makes the call.
 The nonce never crosses the origin boundary.
 
 **The hand-off.** An order line stores a design *identifier*. Artwork lives in
@@ -317,7 +317,7 @@ not, and every add-to-cart answered 503. `Rest::add_to_cart` now calls
 `wc_load_cart()` itself, and the e2e asserts the mirror is on pretty permalinks
 so nobody can turn a red run green by reverting the structure.
 
-The pure tests run in CI. The integration test does not — it needs a database
+The pure tests run in CI. The integration test does not: it needs a database
 and a live WooCommerce, same reason the Playwright harnesses stay out.
 
 `verify:wp-e2e` (`scripts/wp-e2e-verify.mjs`) is the one that covers the seam
@@ -412,7 +412,7 @@ Studio → page:
 
 | `type` | Payload | Effect |
 |---|---|---|
-| `teeshoop:ready` | — | Page replies with `teeshoop:context`. |
+| `teeshoop:ready` | (none) | Page replies with `teeshoop:context`. |
 | `teeshoop:quote` | `garment`, `qty`, `sides[]`, `requestId` | Page replies `teeshoop:quote-result`. |
 | `teeshoop:add-to-cart` | `garment`, `qty`, `sides[]`, `designId`, `sizeGrid`, `requestId` | Page replies `teeshoop:cart-result`, echoing the id. |
 | `teeshoop:resize` | `height` (px) | Frame is resized, clamped to 320–4000. |
@@ -436,7 +436,7 @@ framed it and does not ask: it offers `teeshoop:ready` to every origin on its
 build-time allow-list (`VITE_TEESHOOP_SHOP_ORIGINS`), the browser delivers only
 to the one that matches, and whichever answers is locked in for the session.
 
-The area that counts is the **ink**, not the layer rectangle — sending the
+The area that counts is the **ink**, not the layer rectangle. Sending the
 rectangle is what makes a customer pay for transparent margins. `sideArtworkSqCm`
 in `src/lib/ink.ts` is the producer, and it already returns **square
 centimetres**: the studio used to work in square inches and no conversion between
@@ -447,7 +447,7 @@ in the same unit, for the same reason.
 
 Every inbound message is checked three ways before it is acted on: `event.origin`
 must equal the configured studio origin (compared with `===`, never
-`startsWith` — a prefix test passes for `https://studio.teeshoop.com.evil.tld`),
+`startsWith`: a prefix test passes for `https://studio.teeshoop.com.evil.tld`),
 `event.source` must be our own frame's `contentWindow`, and the payload must be
 an object with a known `type`. Replies always name the studio origin explicitly;
 `*` would broadcast cart totals to whatever document happens to occupy the frame.
@@ -517,7 +517,7 @@ expensive mistake in this system: the film is printed before the boxes arrive.
 | `mail_atelier` | Where the workshop's own alerts go. Falls back to the site administrator rather than to nowhere. |
 
 `teeshoop_pricing` (option) is a partial overlay on
-`Pricing::default_config()` — set `vat_rate` alone without restating the rest.
+`Pricing::default_config()`: set `vat_rate` alone without restating the rest.
 
 **⚠ The shipped prices are placeholders**, the studio's demo figures converted
 1:1 from dollars. Every one of them has a row in `docs/hypotheses.json` with the
@@ -628,7 +628,7 @@ is written on its own now, so a refusal costs the barcode and not the garment.
 ## Fail-closed
 
 A design id that the Worker has not confirmed is **refused**. An unverified id
-produces an order the workshop cannot print — discovered after the customer has
+produces an order the workshop cannot print, discovered after the customer has
 paid. A network failure to the Worker is not a pass either: "we could not ask"
 is not "it exists".
 
@@ -671,7 +671,7 @@ Built 2026-08-13 (`worker/design.ts`):
 
 | | |
 |---|---|
-| `POST /api/design` | The studio uploads the design document plus every raster it references. Open, like `POST /api/ar` — the customer is the author and cannot authenticate. Returns `{ id }`. |
+| `POST /api/design` | The studio uploads the design document plus every raster it references. Open, like `POST /api/ar`: the customer is the author and cannot authenticate. Returns `{ id }`. |
 | `GET /api/design/{id}` | The manifest. This is what `Design::verify` calls; 404 is what makes an unverifiable id refuse the cart line. |
 | `GET /r2/design/{id}/preview.png` | Open on the id (~143 bits). A BAT email and a cart thumbnail carry no token. |
 | `GET /r2/design/{id}/design.json`, `…/assets/*` | **Admin only.** The customer's original artwork; the only thing that needs it is the workshop. |
@@ -679,10 +679,10 @@ Built 2026-08-13 (`worker/design.ts`):
 What is stored is the **source**, never the nested gang sheets: a layout depends
 on the supplier, the roll, the quantity and which other orders are ganged with
 it, none of which is known at add-to-cart. The rasters, by contrast, exist
-nowhere else — lose them and the order is unprintable whatever else survives.
+nowhere else: lose them and the order is unprintable whatever else survives.
 
 An upload whose design references artwork that did not arrive is refused (422),
-and so is artwork the design never mentions — the first is an order the workshop
+and so is artwork the design never mentions: the first is an order the workshop
 cannot fill, the second is R2 as a dead drop. The manifest is written **last**,
 so a half-written upload can never verify as complete.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * REVERSE-PANEL REGISTRATION — the gate that did not exist.
+ * REVERSE-PANEL REGISTRATION: the gate that did not exist.
  *
  * The hollow shell is one piece of geometry cut from the FRONT photo's
  * silhouette; the back sheet is that same grid sampling its texture at
@@ -8,31 +8,31 @@
  * correct if the back photograph frames the garment the same way, and nothing
  * enforced it: measured over the 46 shipped supplier pairs THROUGH THE CUTOUT the
  * app uses, the two aspect ratios differ by a median 1.0 %, a p90 of 5.7 % and a
- * worst genuine 8 %. Small — and the whole complaint anyway, because the pad
+ * worst genuine 8 %. Small, and the whole complaint anyway, because the pad
  * that squares the pair up puts ALL of it at the hem: those rows are transparent,
  * alphaTest discards the sheet and its lining across them so you see through the
  * garment, and the rim (no alpha test, by design) shades them black underneath.
  *
  * inflate-verify could never catch it: every geometric gate there measures Z
  * only, against ONE alpha grid built from the front and applied to both sheets.
- * The single metric that did see it — rimMean — had its floor lowered to 0.50
+ * The single metric that did see it (rimMean) had its floor lowered to 0.50
  * with a comment naming this exact defect as the reason.
  *
  * So this file asserts the contract `src/lib/backRegister.ts` exists to provide,
  * which is deliberately stronger than "the offsets roughly agree":
  *
- *   R1  the registered reverse has the FRONT's alpha (mirrored) — EXACTLY, so
+ *   R1  the registered reverse has the FRONT's alpha (mirrored), EXACTLY, so
  *       the two sheets cut on one isoline whatever the photos did;
  *   R2  no hole: every pixel inside that alpha is opaque cloth;
  *   R3  no overflow: nothing outside it is drawn (that is what put a second,
  *       wider outline round the garment);
  *   R4  the reverse's own content lands on the front's box, mirrored, at the
- *       shoulder — for offsets and scales that broke the old path outright;
+ *       shoulder, for offsets and scales that broke the old path outright;
  *   R5  one mirror convention, no options: the shell's back sheet and the
  *       curved card's π-rotated reverse face are the same `1 − u`;
  *   R6  two photographs that cannot be one garment are REFUSED (null), so the
  *       caller can show the blank tinted reverse instead of a smear;
- *   R7  it is deterministic — the AR bake rebuilds the same panel from the same
+ *   R7  it is deterministic: the AR bake rebuilds the same panel from the same
  *       inputs, and preview ≠ AR is a shipping bug, not a rendering nicety.
  *
  * Synthetic garments, on purpose: the offsets are AUTHORED, so a failure says
@@ -238,7 +238,7 @@ try {
   console.log('\nREVERSE-PANEL REGISTRATION\n')
   console.log(`  ${pad('check', 34)} result   detail`)
   for (const c of report.checks) {
-    if (!c.pass) failed.push(`${c.name}${c.detail ? ` — ${c.detail}` : ''}`)
+    if (!c.pass) failed.push(`${c.name}${c.detail ? `: ${c.detail}` : ''}`)
     console.log(`  ${pad(c.name, 34)} ${c.pass ? ' ok  ' : 'FAIL '}   ${c.detail ?? ''}`)
   }
   console.log('\n  where the reverse landed, vs where the geometry expects it (px on a 900-px frame):')

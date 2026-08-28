@@ -1,5 +1,5 @@
 /**
- * Shared decal primitives — the ONE implementation of "put this print on this
+ * Shared decal primitives: the ONE implementation of "put this print on this
  * garment", used by the live preview (src/three/GarmentModel.tsx) and by the AR
  * bake (src/lib/arExport.ts). Two renderers drifting apart is exactly the class
  * of bug this module exists to prevent.
@@ -7,7 +7,7 @@
  * THE MAPPING
  * -----------
  * A print lives in FABRIC coordinates: inches from the print-area centre, +x to
- * the wearer's LEFT (which is viewer-right on the front panel — see
+ * the wearer's LEFT (which is viewer-right on the front panel: see
  * src/content/zones.ts for the convention and its evidence), +y up. The garment
  * surface is turned into the same coordinates by src/three/fabricUnwrap.ts, so
  *
@@ -21,7 +21,7 @@
  * Consequences that fall out and are asserted by scripts/fabric-verify.mjs:
  *   - nothing is ever clipped: there is no projector box to clip against
  *   - no front print bleeds onto the back: |s| ≤ areaW/2 < the front half-arc,
- *     so |θ| < 90°, so z > 0 — structurally, not by tuning
+ *     so |θ| < 90°, so z > 0 (structurally, not by tuning)
  *   - 2D and 3D agree by construction: 2D inches ARE fabric inches
  *
  * THE REJECT ATTRIBUTE (two guards in one float)
@@ -29,7 +29,7 @@
  * Every overlay vertex carries `printReject`, and the fragment shader discards
  * wherever the interpolated value exceeds 1. It is per-FRAGMENT on purpose: the
  * hoodie's back has triangles that span from the torso to the hood, and
- * rejecting those whole would punch holes in the print — interpolating cuts
+ * rejecting those whole would punch holes in the print. Interpolating cuts
  * them at the right place instead. Two things feed it:
  *
  *  1. SHELL. A hood, a kangaroo pocket and A-pose sleeves sit outside the torso
@@ -41,7 +41,7 @@
  *     jumps from +halfPerim to −halfPerim across the centre-BACK line (the back
  *     map jumps across the centre front). A triangle straddling that line has
  *     both its endpoints far outside the rect, but the u the rasteriser
- *     interpolates between them sweeps the whole rect — which would smear a
+ *     interpolates between them sweeps the whole rect, which would smear a
  *     replica of the front print down the wearer's spine. `u` alone cannot see
  *     this; |s| carried separately can, because it stays ≈ halfPerim right
  *     across the straddling triangle. Legitimate ink never exceeds |s| ≈ 0.3 ·
@@ -101,7 +101,7 @@ export function fabricAt(frame: FabricFrame, xIn: number, yIn: number, zIn: numb
   // The back panel is the SAME arc re-referenced to the centre back, which also
   // mirrors it for free: a viewer behind sees the wearer's right on their right.
   // Referenced to the seam this point is actually approaching (±π), not to the
-  // mean of the two — see backSeamArcAt.
+  // mean of the two, see backSeamArcAt.
   if (frame.side === 'back') sIn -= backSeamArcAt(table, yRaw, sIn >= 0) * xzScale
   const shellIn = shellRadiusAt(table, yRaw, Math.atan2(xIn, zIn)) * xzScale
   const shellDev = Math.abs(Math.hypot(xIn, zIn) - shellIn) / Math.max(SHELL_TOL_IN, SHELL_TOL_FRAC * shellIn)
@@ -116,7 +116,7 @@ export function fabricAt(frame: FabricFrame, xIn: number, yIn: number, zIn: numb
 }
 
 /**
- * A copy of the garment geometry carrying fabric UVs — the print overlay pass.
+ * A copy of the garment geometry carrying fabric UVs, the print overlay pass.
  * Positions are lifted along the vertex normal so the overlay never z-fights
  * with the fabric underneath (the same geometric trick AR uses, rather than
  * polygonOffset, which the glTF exporter drops).
@@ -282,13 +282,13 @@ export function projectedPrintMaterial(map: THREE.Texture, weave?: WeaveOptions)
 /**
  * Print material for the fabric overlay: samples the print canvas through the
  * fabric UVs and discards everything outside the rect or off the shell. The
- * discard (rather than ClampToEdge padding) is exact — a full-area print whose
+ * discard (rather than ClampToEdge padding) is exact: a full-area print whose
  * ink touches the rect edge would smear across the whole garment otherwise.
  *
  * It is a LIT material sharing the garment's cavity occlusion and weave relief,
  * because a print is not a sticker: a DTF or screen transfer sits in the cloth
  * and takes the same light. It is left a little smoother than the cotton
- * (`roughness` below the garment's ~0.93) since cured ink genuinely is — that
+ * (`roughness` below the garment's ~0.93) since cured ink genuinely is. That
  * faint sheen difference is most of what makes a print look printed.
  *
  * `vertexColors` is enabled only when the overlay geometry actually carries the
@@ -313,7 +313,7 @@ export function fabricPrintMaterial(map: THREE.Texture, cavity: boolean, weave?:
   // Without this every material instance compiles its own program.
   material.customProgramCacheKey = () => `${FABRIC_CLIP_CACHE_KEY}|${cavity ? 'c' : ''}`
   // The ink follows the weave underneath it, at a fraction of the cloth's own
-  // relief — a transfer bridges the threads rather than sinking between them.
+  // relief: a transfer bridges the threads rather than sinking between them.
   if (weave) applyWeaveBump(material, weave, 'tshop-print')
   return material
 }
@@ -322,7 +322,7 @@ export function fabricPrintMaterial(map: THREE.Texture, cavity: boolean, weave?:
  * The AR form of the same mapping: a low-poly INDEXED plane whose vertices are
  * placed on the true garment surface by inverting s → θ per band. glTF cannot
  * carry a custom shader, so instead of discarding we simply never generate
- * geometry outside the print rect — strictly better, and it keeps every
+ * geometry outside the print rect, strictly better, and it keeps every
  * Scene-Viewer rule in src/lib/arExport.ts intact (indexed, one MASK material,
  * geometric lift).
  */

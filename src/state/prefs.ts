@@ -1,5 +1,5 @@
 /**
- * UI preferences (theme, language, scene) — persisted separately from the
+ * UI preferences (theme, language, scene), persisted separately from the
  * design document. These are NOT part of the undoable `design` and never enter
  * the history; they live in localStorage under a single key and are applied
  * synchronously at boot (matched by an inline script in index.html) so there
@@ -57,7 +57,7 @@ export function savePrefs(prefs: Prefs): void {
   try {
     localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
   } catch {
-    /* private mode / storage full — prefs simply won't persist */
+    /* private mode / storage full: prefs simply won't persist */
   }
 }
 

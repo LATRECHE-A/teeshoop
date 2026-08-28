@@ -17,7 +17,7 @@ function svgToImage(svg: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Rasterize with a stable cache key. The svg itself is NOT part of the key —
+ * Rasterize with a stable cache key. The svg itself is NOT part of the key:
  * callers must build keys that change when content changes.
  */
 export function rasterize(key: string, svg: string): Promise<HTMLImageElement> {

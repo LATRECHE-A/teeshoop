@@ -12,7 +12,7 @@
  *  2. `buildInflatedShell` builds a hollow garment shell: two open sheets on a
  *     shared (GX+1)×(GY+1) grid displaced ONLY in Z.
  *
- * WHERE THE DEPTH COMES FROM — a three-tier ladder, best first:
+ * WHERE THE DEPTH COMES FROM. A three-tier ladder, best first:
  *
  *  TIER 1 · TEMPLATE TRANSPLANT (src/lib/templateDepth.ts). The photo is
  *    classified (tee / polo / tank / long sleeve / sweat / hoodie, overridable
@@ -25,7 +25,7 @@
  *    red–black SOR, then z = amp · flatten(seamRemap(√(h/hMax))). A disk
  *    inflates to a hemisphere, a strip to an elliptical cylinder. It is the
  *    right answer to "inflate this outline" and a knowingly WRONG shape for
- *    cloth — a Poisson balloon peaks on the medial axis and is dome-symmetric —
+ *    cloth (a Poisson balloon peaks on the medial axis and is dome-symmetric),
  *    so it is the fallback, taken whenever the template's fit gates refuse.
  *  TIER 3 · `CustomCard`, when the cutout is too ambiguous to trace at all.
  *
@@ -38,13 +38,13 @@
  * shoulder seam) or where the cloth is folded under (hem), but neither depth
  * source knows that: the template bake reports 0.23–0.26 of the peak depth at a
  * Z-tangency cell, so the two sheets used to end in mid-air a median 0.25–0.55 in
- * apart (max 2.79) with no surface between them, and that open slot — seen at
- * grazing angles with the darkened linings stacked inside it — is what read as a
+ * apart (max 2.79) with no surface between them, and that open slot, seen at
+ * grazing angles with the darkened linings stacked inside it, is what read as a
  * serrated outline. Both sheets are now blended onto a common seam at
  * ±FABRIC_IN/2 over a gap-adaptive band, and a RIM STRIP built on the sheet
  * grid's own alpha isoline bridges that seam and gives every cut edge (collar,
  * armhole, cuff) a real 0.06 in edge, drawn with the materials the shell already
- * has. Enclosed holes are untouched — the branch is topological, so an opening
+ * has. Enclosed holes are untouched. The branch is topological, so an opening
  * cannot be sealed by a depth field that happens to be shallow there.
  *
  * The shell is HOLLOW: each sheet gets an inward-facing LINING duplicate
@@ -57,12 +57,12 @@
  * tangent-space normal map (`normalMapCanvas`). The photo's own baked studio
  * lighting is SPLIT rather than discarded (src/lib/photoLight.ts): the
  * highlight half is divided out into `albedoCanvas` so the scene's lights are
- * the only lights, and the shadow half is kept as `occlusionCanvas` — the
+ * the only lights, and the shadow half is kept as `occlusionCanvas`, the
  * garment's real form, which no two-sheet inflation could reconstruct. All of
  * this is measured off the BARE garment (`opts.photo`) and never off the
  * customer's artwork.
  *
- * HARD INVARIANTS: X/Y vertex positions and UVs never move — displacement is
+ * HARD INVARIANTS: X/Y vertex positions and UVs never move: displacement is
  * Z-only, which is what guarantees print/decal inch accuracy and crispness, and
  * it is why the template's depth is transplanted rather than its mesh. The
  * visible outline is cut by the texture's own alpha (alphaTest downstream), not
@@ -107,11 +107,11 @@ const ALPHA_T = 128 // matte threshold (u2netp feather sits around 128)
  * cutout contains a HOOK: it passes through the collar opening, so it touches
  * no cloth and arrives as its own little island above the garment. The outline
  * tracer already ignores such islands (they are neither the outer loop nor a
- * hole inside it) — but the MASK did not, and everything measured downstream is
+ * hole inside it), but the MASK did not, and everything measured downstream is
  * a fraction of the garment's own bounding height. A hook a tenth of the
  * garment tall therefore moved every landmark: the classifier's `topRatio` fell
  * from 0.70 to 0.11, `hoodDrop` doubled, the CLOTH tell's margin dropped from
- * ×2.00 to ×1.31, and — because the hook's rows carry almost no area — the row
+ * ×2.00 to ×1.31, and, because the hook's rows carry almost no area, the row
  * map's cumulative-area quantile piled all of them onto the donor's first row,
  * which spiked the vertical-stretch gate to ×5.2 and dropped an ordinary tee
  * back to the balloon. Silently.
@@ -126,7 +126,7 @@ const MIN_COMPONENT = 0.1
 
 /**
  * Radius of the SHADING estimate, as a fraction of the GARMENT's long edge
- * inside the photo (see contentLongEdge — never the canvas's, which carries a
+ * inside the photo (see contentLongEdge, never the canvas's, which carries a
  * pad from the other side's framing). Wide
  * enough that only the lightbox gradient survives the blur (a fold is an order
  * of magnitude finer), narrow enough that the garment's own edges do not smear
@@ -140,7 +140,7 @@ const shadeRadius = (longEdge: number): number => Math.max(8, Math.round(longEdg
  *
  * Every radius derived from a photo has to be a fraction of the garment, never
  * of the canvas: the canvas gets bottom-padded when the OTHER side's photograph
- * is taller (Scene3D / arExport), and 191052 pads by a third — so a
+ * is taller (Scene3D / arExport), and 191052 pads by a third, so a
  * canvas-relative radius made the front's de-lighting depend on how the back
  * happened to be framed. It also has to be the SAME expression on both panels,
  * which is why it lives here and not inline: the front's correction is computed
@@ -169,7 +169,7 @@ function contentLongEdge(f: LumField): number {
 
 /**
  * Luminance levels of mid-band contrast, at the p99 over cloth, that count as a
- * FULLY creased garment — and below which there is nothing to displace.
+ * FULLY creased garment, and below which there is nothing to displace.
  *
  * The band is `blur(3 %) − blur(8.5 %)` of the photo's own luminance, in 0…255
  * units. A jersey fold at that separation of scales carries 10–30 levels; a
@@ -181,7 +181,7 @@ function contentLongEdge(f: LumField): number {
 const MID_REF = 14
 const MID_FLOOR = 4
 /** p99 histogram: 0.5-level bins up to 128 levels of band contrast. Nothing
- *  above that matters — the gain has saturated an order of magnitude earlier. */
+ *  above that matters: the gain has saturated an order of magnitude earlier. */
 const MID_HIST_PER_LEVEL = 2
 const MID_HIST_BINS = 256
 /** Columns across the content bbox in each sheet. Module-scope because the
@@ -239,7 +239,7 @@ function buildMask(canvas: HTMLCanvasElement): MaskData | null {
   if (maxX < 0) return null
 
   // Keep only the garment (see MIN_COMPONENT), then re-derive the bbox and the
-  // coverage from what survived — every landmark below is a fraction of them.
+  // coverage from what survived: every landmark below is a fraction of them.
   count = dropSmallComponents(inside, W2, H2)
   minX = W
   maxX = -1
@@ -284,7 +284,7 @@ export interface ContentBox {
 
 /**
  * The garment's own extent inside its canvas, measured by exactly the code the
- * sheets are cut with — same 200-px working grid, same ALPHA_T, same
+ * sheets are cut with: same 200-px working grid, same ALPHA_T, same
  * hanger-dropping component filter. Exported because REGISTERING one photo onto
  * another (src/lib/backRegister.ts) has to agree with the shell about where the
  * garment is, to the pixel: `custom.ts` has a second, looser alpha scanner
@@ -301,10 +301,10 @@ export function contentBoxOf(canvas: HTMLCanvasElement): ContentBox | null {
  * Zero every 4-connected component of a padded binary grid that is smaller than
  * `MIN_COMPONENT` of the largest one, and return the surviving cell count.
  *
- * Two passes with an explicit queue (never recursion — a 200×200 garment is one
+ * Two passes with an explicit queue (never recursion: a 200×200 garment is one
  * component of up to 40 000 cells and a depth-first walk of that overflows the
  * stack): label once to size every component, then erase the ones that lost.
- * Deterministic — raster order in, raster order out.
+ * Deterministic: raster order in, raster order out.
  */
 function dropSmallComponents(g: Uint8Array, W2: number, H2: number): number {
   const n = W2 * H2
@@ -560,7 +560,7 @@ function selfIntersects(poly: THREE.Vector2[]): boolean {
   const cross = (o: THREE.Vector2, a: THREE.Vector2, b: THREE.Vector2) =>
     (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
   // Segments AB and CD properly cross iff each segment straddles the other's
-  // supporting line — i.e. the two orientation signs differ on BOTH tests.
+  // supporting line, i.e. the two orientation signs differ on BOTH tests.
   const straddles = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2, d: THREE.Vector2) =>
     cross(c, d, a) * cross(c, d, b) < 0 && cross(a, b, c) * cross(a, b, d) < 0
   for (let i = 0; i < n; i++) {
@@ -583,7 +583,7 @@ function selfIntersects(poly: THREE.Vector2[]): boolean {
  * Which gate refused the last trace, or null when it succeeded.
  *
  * Every `return null` below drops an upload to tier 3 (the curved CustomCard),
- * and from the outside those are indistinguishable — which makes "this photo
+ * and from the outside those are indistinguishable, which makes "this photo
  * looks flat" impossible to diagnose without a debugger. A diagnostic string
  * costs nothing and is what scripts/inflate-verify.mjs prints when a real
  * supplier garment fails to trace. Never read by rendering code: a module-level
@@ -698,7 +698,7 @@ export function canvasToSilhouette(
  * Solve the discrete Poisson equation ∇²h = −4 on the inside-mask grid with
  * h = 0 outside (Dirichlet), via red–black SOR directly on the ≤200px working
  * mask. For a disk of radius R the exact solution is h = R² − r², so √h is a
- * hemisphere; a strip gives an elliptical cylinder — the principled inflation
+ * hemisphere; a strip gives an elliptical cylinder, the principled inflation
  * of Baran & Lehtinen, "Notes on Inflating Curves" (2009), §2.
  */
 function poissonInflate(m: MaskData): { h: Float32Array; hMax: number } {
@@ -706,7 +706,7 @@ function poissonInflate(m: MaskData): { h: Float32Array; hMax: number } {
   const h = new Float32Array(W2 * (m.H + 2))
   const OMEGA = 1.92 // near-optimal SOR relaxation for a ~200-cell grid
   const ITER = 340
-  // Sweep only the content bbox (mask is 0 outside it) — pure speed, no
+  // Sweep only the content bbox (mask is 0 outside it): pure speed, no
   // change in the solution.
   const yLo = m.minY + 1
   const yHi = m.maxY + 1
@@ -769,7 +769,7 @@ function exteriorFlood(m: MaskData): Uint8Array {
  * Fill ENCLOSED holes (neck/underarm cutouts) into the mask. The Poisson
  * solve must run on this filled domain: with hole cells at h = 0 the sheet
  * dives into a CRATER at the collar, and the crater's opaque descending wall
- * occludes the lining from every oblique angle (a "sealed funnel" — the
+ * occludes the lining from every oblique angle (a "sealed funnel": the
  * hollow read dies). Filled, the sheet stays a smooth dome and the texture
  * alpha cuts a true WINDOW in it, with the lining visible behind.
  */
@@ -788,7 +788,7 @@ function fillHoles(m: MaskData, ext: Uint8Array): MaskData {
  * Two-pass chamfer (1 / √2) over a padded grid, in place: `d` arrives holding 0
  * at the seeds and a large value everywhere else, and leaves holding the
  * distance in working pixels. Factored out because the hole field and the
- * exterior field below differ ONLY in their seeds — one kernel, one place to be
+ * exterior field below differ ONLY in their seeds: one kernel, one place to be
  * wrong about the diagonal weight.
  */
 function chamfer(d: Float32Array, W2: number, H2: number): void {
@@ -841,7 +841,7 @@ function holeDistanceField(m: MaskData, ext: Uint8Array): Float32Array | null {
 }
 
 /**
- * Chamfer distance (working px) to the EXTERIOR — how deep inside the OUTER
+ * Chamfer distance (working px) to the EXTERIOR: how deep inside the OUTER
  * silhouette a cell is.
  *
  * Enclosed holes are NOT seeds (they are, by definition, the empty cells the
@@ -874,7 +874,7 @@ function wrinkleNormalFrom(f: LumField): HTMLCanvasElement | null {
   // NO PROCEDURAL GRAIN OCTAVE HERE ANY MORE. This map used to add a crossed-sine
   // knit at a 0.18 in period and 0.14 amplitude, from the days when it was the
   // shell's only relief. `applyWeaveBump` (src/three/clothShading.ts) now gives
-  // the shell the same triplanar weave the catalog meshes get — physically
+  // the shell the same triplanar weave the catalog meshes get, physically
   // scaled, and faded out once a period stops covering a couple of pixels. A
   // baked sine has no such fade: at 0.18 in on a 23 in hoodie it lands near 6 px
   // on screen and rules a visible chevron lattice over the whole garment (the
@@ -955,7 +955,7 @@ export function buildWrinkleNormalCanvas(
 }
 
 /**
- * De-light a garment photo the shell was NOT built from — in practice the BACK
+ * De-light a garment photo the shell was NOT built from, in practice the BACK
  * panel, whose own lightbox gradient fights the scene's lights exactly like the
  * front's, and which would otherwise be the one surface that still carries a
  * highlight that does not move when the camera orbits.
@@ -963,12 +963,12 @@ export function buildWrinkleNormalCanvas(
  * The front's correction is computed inside `buildInflatedShell` because it can
  * share its blur with the wrinkle band; the back has no wrinkle band to share
  * with, so it pays for its own pass. Null when the photo needs no correction or
- * cannot be read — callers keep the original, which is always a valid albedo.
+ * cannot be read. Callers keep the original, which is always a valid albedo.
  *
  * Returns the OCCLUSION half alongside it: the two come out of one blur and
  * must never be taken from different passes, or the panel ends up de-lit by one
  * field and re-occluded by another. `photo` overrides which pixels the LIGHTING
- * is measured from, for the same reason `buildInflatedShell` takes one — the
+ * is measured from, for the same reason `buildInflatedShell` takes one: the
  * customer's artwork is neither light nor cloth.
  */
 export function buildDelitMaps(
@@ -989,9 +989,9 @@ export interface InflatedShell {
   /** Back sheet: back photo / blank, bulged toward −Z. */
   back: THREE.BufferGeometry
   /**
-   * Dark interior catch plane behind neck/arm holes (faces +Z — covers the
+   * Dark interior catch plane behind neck/arm holes (faces +Z: covers the
    * straight-through ray from the FRONT); null when there are no holes.
-   * Render single-sided — the preview and arExport both do.
+   * Render single-sided: the preview and arExport both do.
    */
   interior: THREE.BufferGeometry | null
   /** Twin catch plane facing −Z for BACK-side views; null when no holes. */
@@ -1008,7 +1008,7 @@ export interface InflatedShell {
    * alpha yields no isoline, or when `opts.rim === 'off'`.
    *
    * DRAW IT WITH THE FRONT SHEET'S TEXTURE AND WITHOUT AN ALPHA TEST. The rim is
-   * not a surface with a cut in it — it IS the cut, welded to the isoline the
+   * not a surface with a cut in it. It IS the cut, welded to the isoline the
    * sheets' own alpha makes, so every fragment of it is cloth by construction.
    * Testing it against the very matte it represents is how it deletes itself,
    * and measurably did: all of a crossing's rings share one uv, so the ribbon
@@ -1026,7 +1026,7 @@ export interface InflatedShell {
   /** Photo wrinkle + knit-grain tangent-space normal map (front canvas). */
   normalMapCanvas?: HTMLCanvasElement
   /**
-   * The front composite with its own baked studio lighting divided out — the
+   * The front composite with its own baked studio lighting divided out, the
    * albedo the 3D materials should sample. Absent when the photo needed no
    * correction (already flat) or could not be read; callers then use the
    * original canvas, which is always a valid albedo.
@@ -1035,7 +1035,7 @@ export interface InflatedShell {
   /**
    * The other half of that correction: the photo's own form shading, as a
    * greyscale occlusion map for the same UVs (see photoLight.DelightResult).
-   * Bind it as `aoMap` — three multiplies it into the view-INDEPENDENT light
+   * Bind it as `aoMap`: three multiplies it into the view-INDEPENDENT light
    * only, which is the half of the photograph that stays true when the camera
    * moves. Present exactly when `albedoCanvas` is.
    */
@@ -1043,7 +1043,7 @@ export interface InflatedShell {
   /**
    * How lit the photo was: the relative spread of its own shading field over
    * the garment. Reported whether or not a correction was applied, so "no
-   * albedo" can be told apart from "nothing to correct" — a white garment on a
+   * albedo" can be told apart from "nothing to correct": a white garment on a
    * white sweep really is flat, and it is the commonest supplier photo there is.
    */
   albedoSpread?: number
@@ -1055,7 +1055,7 @@ export interface InflatedShell {
   depthSource: 'template' | 'poisson'
   /** Garment family used (detected, or the customer's override). */
   shape: GarmentShape
-  /** Which mesh actually donated its depth — normally the family's own, but the
+  /** Which mesh actually donated its depth: normally the family's own, but the
    *  other one when that fit was refused. Absent on tier 2. */
   depthTemplate?: 'tee' | 'hoodie'
   /** Stage-A silhouette agreement with the graded template; 0 when tier 2. */
@@ -1063,7 +1063,7 @@ export interface InflatedShell {
   /**
    * Why the upload does or does not read as a garment. Absent only when the
    * mask could not be profiled at all. A shell whose `structure.isGarment` is
-   * false is on tier 2 BY DECISION, not by a failed fit — surfaces that explain
+   * false is on tier 2 BY DECISION, not by a failed fit: surfaces that explain
    * the 3D preview should say so, and should offer the shape picker.
    */
   structure?: GarmentStructure
@@ -1085,7 +1085,7 @@ function hash2(ix: number, iy: number, seed: number): number {
   return h / 2147483647.5 - 1
 }
 
-/** Quintic fade — C2, so the noise has no creases on its own lattice lines. */
+/** Quintic fade: C2, so the noise has no creases on its own lattice lines. */
 const fade5 = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10)
 
 /** Value noise in [−1, 1], bilinear over a quintic fade. */
@@ -1108,7 +1108,7 @@ function valueNoise2(x: number, y: number, seed: number): number {
 function drapeNoise(x: number, y: number, seed: number): number {
   // Offset the lattice off the garment's own symmetry axes. A quintic-faded
   // value noise has ZERO gradient at its lattice points, and the field is only
-  // ~3 cells wide across a garment — so with the lattice on integers of
+  // ~3 cells wide across a garment, so with the lattice on integers of
   // X/foldLx a permanently flat line would run straight down the centre front
   // and across the waist of every shell built.
   const px = x + 0.37
@@ -1125,7 +1125,7 @@ function drapeNoise(x: number, y: number, seed: number): number {
  * under twice plus the fold (~3 layers, 0.07 in); a side seam with its allowance
  * pressed to one side is 3–4 layers (0.09 in); fleece body is ~2 mm (0.08 in).
  * 0.06 in is the middle of the band a real garment shows and the smallest number
- * that still renders — the verifier frames the garment at 48–52 px/in, so 0.06 in
+ * that still renders: the verifier frames the garment at 48–52 px/in, so 0.06 in
  * is ~3 px, always at least one fully-lit pixel of roll at 90°. It is 3.8 % of
  * the SHALLOWEST garment depth in the supplier set (1.61 in on the 143100 vest),
  * so it can never read as a rubber lip. Absolute, not scaled: a hem does not
@@ -1133,14 +1133,14 @@ function drapeNoise(x: number, y: number, seed: number): number {
  * across sizes and across both depth tiers.
  */
 const FABRIC_IN = 0.06
-/** Half of it — the Z each sheet is pulled to at a closed seam. */
+/** Half of it: the Z each sheet is pulled to at a closed seam. */
 const HEM_HALF_IN = FABRIC_IN / 2
 
 /**
  * Seam blend band = SEAM_BAND_K × the local base gap, clamped.
  *
  * smoothstep's max slope is 1.5× its average, so the roll's steepest |dz/dy| is
- * 1.5 / (2·K) = 0.60 in/in INDEPENDENT of the garment, the tier and the gap —
+ * 1.5 / (2·K) = 0.60 in/in INDEPENDENT of the garment, the tier and the gap,
  * which is the whole reason the band tracks the gap instead of being a fixed
  * width. A FIXED band was tried on paper and rejected: at the 180712 hoodie's
  * hem the two sheets end 2.79 in apart, and closing that over 0.55 in is
@@ -1149,14 +1149,14 @@ const HEM_HALF_IN = FABRIC_IN / 2
  */
 const SEAM_BAND_K = 1.25
 /** Floor for the band. On the Poisson tier the rim gap is 0.02–0.17 in, so
- *  K×gap would be a band a few thousandths wide — a step, not a seam. */
+ *  K×gap would be a band a few thousandths wide: a step, not a seam. */
 const SEAM_BAND_MIN_IN = 0.45
 /**
  * Ceiling for the band, inches. THIS IS A SEAM ALLOWANCE, NOT A RESHAPING.
  *
  * The bias being corrected has a known spatial extent: the template bake's own
  * cell (0.21 in on a 20-in garment), plus `buildMask`'s one-pixel erosion
- * (0.10–0.12 in), plus half a sheet grid cell (0.06 in) — about 0.4 in, which
+ * (0.10–0.12 in), plus half a sheet grid cell (0.06 in), about 0.4 in, which
  * is why the FLOOR is 0.45. Everything wider exists only to bound the roll's
  * slope, and it must not be allowed to reach the shoulder: the template's rim
  * bias is largest at the TOP edge (front+back = 0.52 of peak, against 0.26 at
@@ -1175,7 +1175,7 @@ const SEAM_BAND_MAX_IN = 0.8
  *
  * `buildMask` erodes one working pixel and the exterior flood then treats that
  * erosion ring as outside, so the distance field reads 0 across a ring that the
- * ALPHA still calls cloth — and the sheets' own alpha cut (and therefore the rim
+ * ALPHA still calls cloth, and the sheets' own alpha cut (and therefore the rim
  * isoline) sits up to half a grid cell further out again. Without this dead zone
  * the blend has already started climbing where the rim is welded, and the
  * measured seam lands at 0.09–0.19 in instead of the 0.06 in of cloth it is
@@ -1198,8 +1198,8 @@ const RIM_RINGS = 3
  * the sampler picks its mip from the along-contour crossing spacing (~0.19 in,
  * about mip 3 on a 1000-px composite of a 24-in canvas). At that level one texel
  * IS 0.19 in and the matte's edge is smeared across it, so an inset that looks
- * generous counted in full-resolution texels is not: 0.09 in — 3.8 texels at
- * mip 0, the value the cloth-thickness design started from — lands inside the
+ * generous counted in full-resolution texels is not: 0.09 in (3.8 texels at
+ * mip 0, the value the cloth-thickness design started from) lands inside the
  * blur. 0.16 in is most of a texel at the mip actually used, and it is still
  * inside the hem band / rib / stripe that is genuinely there and comfortably
  * inside the narrowest thing on a garment (a 1 in cuff).
@@ -1210,13 +1210,13 @@ const RIM_RINGS = 3
 const RIM_UV_INSET_IN = 0.16
 /**
  * How far the rim's INNER rings stand proud of the isoline, inches outward
- * along n̂ — ZERO, so the strip is a wall standing exactly on the sheets' own
+ * along n̂: ZERO, so the strip is a wall standing exactly on the sheets' own
  * cut and nothing of it lies outside the silhouette.
  *
  * It is not zero for want of a reason to move it. The linings are alpha-cut on
  * the SAME isoline and reach it at z = ±0.009, inside the ribbon's own ±0.03
  * span, so the two surfaces meet exactly and the lining's cut edge used to win
- * the depth test on about half the scanlines — a dark 1-px stripe down the
+ * the depth test on about half the scanlines, a dark 1-px stripe down the
  * middle of the seam. An 0.01 in outward excursion was carried for a while to
  * separate them. It turned out to fix nothing the OPACITY had not already
  * fixed (see `rimFront`): with the strip no longer alpha-testing itself away
@@ -1230,7 +1230,7 @@ const RIM_PROUD_IN = 0
  * Baked AO multiplier for the innermost ring of an OPEN cut edge (collar,
  * armhole, cuff): that face looks INTO the cavity, exactly like the linings'
  * ×0.6 but less, because it is a rim and not a wall. A CLOSED seam is a convex
- * fold and gets no extra darkening at all — a fold is not occluded. Floored at
+ * fold and gets no extra darkening at all: a fold is not occluded. Floored at
  * 0.72, the same floor every other vertex in this file uses.
  */
 const RIM_CUT_AO = 0.8
@@ -1241,7 +1241,7 @@ const RIM_CUT_AO = 0.8
  * The eroded mask ends one pixel inside the alpha cut, so one pixel is not
  * enough to be sure a probe has left the cloth; two is, and the smallest opening
  * in the set (a collar) is ~20 working pixels across, so two cannot fall out the
- * far side of one. The branch is topological ON PURPOSE — a numeric test on the
+ * far side of one. The branch is topological ON PURPOSE: a numeric test on the
  * measured gap would bridge a collar the moment a future depth source made the
  * neck shallow, i.e. seal the opening.
  */
@@ -1257,13 +1257,13 @@ const RIM_MIN_RING_IN = 5e-4
  * and the terms multiply:
  *  · the opening-aware AO baked in `buildSheetData`, floored at 0.72, and
  *  · the photo's own form shading, handed back as an `aoMap`
- *    (photoLight.DelightResult.occlusion) — a real garment's contact darkening,
+ *    (photoLight.DelightResult.occlusion), a real garment's contact darkening,
  *    measured rather than modelled.
  * What is left for this term is what neither of those can see: the shape the
  * sheet took after the drape folds and the mid-band wrinkles displaced it. At
  * 0.42 gain the stack bottoms out near 0.72 × 0.58 = 0.42 of the albedo, which
  * is a bruise on a white garment. 0.24 with a 0.66 floor keeps the deepest
- * trough at ~0.75 of its ridge — about what a cotton fold measures.
+ * trough at ~0.75 of its ridge, about what a cotton fold measures.
  *
  * `fine`/`broad` are in Laplacian iterations, and the sheet is a regular grid
  * of ~0.2 in cells: 4 iterations ≈ 0.45 in (a crease), 22 ≈ 1.1 in (the hollow
@@ -1300,7 +1300,7 @@ function flipWinding(g: THREE.BufferGeometry): void {
 /**
  * Count the interior holes that look like ARMHOLES: high on the garment and
  * well off the centre line. Two of them is the one unambiguous tell for a
- * sleeveless cut — a racerback vest laid flat is as wide at the shoulder as a
+ * sleeveless cut: a racerback vest laid flat is as wide at the shoulder as a
  * tee, so the width test alone would call it a tee.
  *
  * A tote's two handles land in this bucket exactly as a vest's armholes do: an
@@ -1324,7 +1324,7 @@ function armholeCount(sil: Silhouette, contentWin: number, contentHin: number): 
  *
  * Exported so the setup modal can show the customer the detection and let them
  * correct it BEFORE any 3D preview exists. It deliberately re-runs the exact
- * measurement the shell runs — hole-filled mask → row profile → classifier — on
+ * measurement the shell runs (hole-filled mask → row profile → classifier) on
  * the same alpha, so the label in the modal cannot drift from the template the
  * shell will actually borrow from. (The print composited on top is inside the
  * garment's alpha, so a photo and its composite classify identically.)
@@ -1335,7 +1335,7 @@ function armholeCount(sil: Silhouette, contentWin: number, contentHin: number): 
 export interface ShapeDetection extends ShapeGuess {
   /** Whether the upload reads as a garment at all. When it does not, the 3D
    *  preview keeps the shape-agnostic Poisson shell whatever family is named
-   *  here — so the modal should present the family as a choice, not a fact. */
+   *  here, so the modal should present the family as a choice, not a fact. */
   structure: GarmentStructure
 }
 
@@ -1347,13 +1347,13 @@ export function detectGarmentShape(canvas: HTMLCanvasElement): ShapeDetection | 
 /**
  * Everything the shape decision is made from, measured once.
  *
- * `profile` is the HOLE-FILLED mask's row profile — the domain the depth field
+ * `profile` is the HOLE-FILLED mask's row profile, the domain the depth field
  * lives on. `raw` is the same mask before filling, and it is not redundant:
  * filling is what turns a tote's handle loops into solid shoulder lobes, so the
  * one place a handle can still be told from a strap is before it happens.
  *
  * Exported for the dev harness, which reports the whole measurement per
- * supplier photo — a classifier tuned against anything other than the profile
+ * supplier photo: a classifier tuned against anything other than the profile
  * the shell will really see is tuned against fiction.
  */
 export interface GarmentMeasure {
@@ -1412,13 +1412,13 @@ export function measureGarmentPhoto(canvas: HTMLCanvasElement): GarmentMeasure |
  * texture's own alpha (alphaTest downstream).
  *
  * `opts.shape` forces a garment family (the dev harness uses it to A/B the
- * templates); production leaves it out and the customer's stored override —
- * or the classifier — decides, identically here and in the AR bake.
+ * templates); production leaves it out and the customer's stored override
+ * (or the classifier) decides, identically here and in the AR bake.
  *
  * `opts.rim = 'off'` reproduces the pre-thickness geometry byte for byte (no
  * seam convergence, no rim strip). It exists so scripts/inflate-verify.mjs can
  * run every rim assertion against the geometry those assertions were written to
- * REJECT, and fail if they pass — a metric nobody has watched fail is a metric
+ * REJECT, and fail if they pass: a metric nobody has watched fail is a metric
  * nobody has tested.
  */
 export function buildInflatedShell(
@@ -1431,8 +1431,8 @@ export function buildInflatedShell(
     forcePoisson?: boolean
     rim?: 'on' | 'off'
     /**
-     * The same garment WITHOUT the customer's artwork. `canvas` is a composite —
-     * garment photo with the design already drawn on — and everything
+     * The same garment WITHOUT the customer's artwork. `canvas` is a composite
+     * (garment photo with the design already drawn on) and everything
      * PHOTOMETRIC below reads the garment's own light and cloth out of those
      * pixels: the shading estimate that gets divided out and handed back as
      * occlusion, the mid-frequency band that becomes real Z displacement, and
@@ -1465,23 +1465,23 @@ export function buildInflatedShell(
   // Both depth tiers run over the hole-FILLED domain (a smooth dome the alpha
   // then cuts a window in; with hole cells at h = 0 the sheet dives into a
   // crater at the collar). The template's own coverage has no collar hole
-  // either, so the two masks describe the same topology — which is what makes
+  // either, so the two masks describe the same topology, which is what makes
   // the row/run correspondence in templateDepth.ts meaningful.
   const ext = exteriorFlood(m)
   const filled = fillHoles(m, ext)
   const holeD = holeDistanceField(m, ext)
-  // Distance to the OUTLINE (never to a collar — see outerDistanceField): what
+  // Distance to the OUTLINE (never to a collar, see outerDistanceField): what
   // the seam convergence and the rim's closed/open branch are both driven by.
   const outerD = outerDistanceField(ext, m.W + 2, m.H + 2)
   const rimOn = opts?.rim !== 'off'
 
-  // TIER 1 — transplant a real garment's depth field, but only once the upload
+  // TIER 1: transplant a real garment's depth field, but only once the upload
   // has been shown to BE a garment. The structural test comes first and the
   // template fit second, in that order and not the other way round: the fit's
   // grading map is free enough to squash a tee mesh into a tote bag and report
   // a better overlap than it manages on a real polo, so a silhouette that has
   // no neck, no shoulder line and no cloth at its top must never reach it. The
-  // refusal costs nothing — tier 2 is the shape-agnostic balloon, i.e. exactly
+  // refusal costs nothing: tier 2 is the shape-agnostic balloon, i.e. exactly
   // what a non-garment used to get and still should.
   //
   // A CUSTOMER'S EXPLICIT CHOICE OVERRULES THE TEST. The structural tells are
@@ -1506,7 +1506,7 @@ export function buildInflatedShell(
       ])
     }
   }
-  // TIER 2 — the Poisson balloon, only when tier 1 declined.
+  // TIER 2: the Poisson balloon, only when tier 1 declined.
   const poisson = depth ? null : poissonInflate(filled)
   // Photometry reads the garment, never the print (see opts.photo). The mask,
   // the silhouette and the albedo all still come from `canvas`: the artwork is
@@ -1524,7 +1524,7 @@ export function buildInflatedShell(
   let occlusionCanvas: HTMLCanvasElement | undefined
   let albedoSpread: number | undefined
   if (photoField) {
-    // Both radii are fractions of the GARMENT, not of the canvas — and by the
+    // Both radii are fractions of the GARMENT, not of the canvas, and by the
     // same measurement the BACK panel uses (see contentLongEdge).
     const long = contentLongEdge(photoField)
     const bMid = blurNorm(photoField, Math.max(3, Math.round(long * 0.03)))
@@ -1534,12 +1534,12 @@ export function buildInflatedShell(
     //
     // The defect: dividing by the single most extreme pixel makes the band
     // amplitude-FREE, so a photograph with no folds in it at all (a white polo
-    // on a white sweep — the commonest supplier shot there is) has its JPEG
+    // on a white sweep, the commonest supplier shot there is) has its JPEG
     // grain divided by its own tiny maximum and arrives at exactly the same
     // ±MID_AMP as a genuinely creased garment. Real relief invented out of
     // noise.
     //
-    // The obvious fix — divide by the p99 instead — is worse, and measurably:
+    // The obvious fix (divide by the p99 instead) is worse, and measurably:
     // p99 ≤ max ALWAYS, so it scales every photo UP, and on a creased garment
     // whose band peaks 3-5× its own p99 (one armhole shadow) every ordinary
     // fold would jump to the full ±MID_AMP. That trades inventing relief on
@@ -1547,7 +1547,7 @@ export function buildInflatedShell(
     //
     // So: keep the max as the divisor, which leaves a well-lit creased photo
     // EXACTLY as it was, and multiply the whole band by a confidence factor
-    // read off the p99 — the level below which there is nothing in this
+    // read off the p99, the level below which there is nothing in this
     // photograph to displace. A flat photo scales down with the evidence; a
     // creased one is untouched.
     const hist = new Int32Array(MID_HIST_BINS)
@@ -1583,12 +1583,12 @@ export function buildInflatedShell(
       mid.fill(0)
     }
     // Filter to the SHEET's Nyquist, not the photo's. The band is built at photo
-    // resolution and then displaced onto a 112-column grid — about 4 photo
-    // pixels per cell — so anything in it that changes sign faster than two
+    // resolution and then displaced onto a 112-column grid (about 4 photo
+    // pixels per cell), so anything in it that changes sign faster than two
     // cells becomes a one-cell spike, i.e. a facet, wherever the photograph has
     // fine luminance contrast (a woven label, a heather melange, JPEG ringing
     // along a seam). The p99 normalisation above fixed the band's AMPLITUDE;
-    // this fixes its FREQUENCY, and only for the copy that moves geometry —
+    // this fixes its FREQUENCY, and only for the copy that moves geometry:
     // `bMid`/`bBig` are untouched, so the de-lighting divisor does not move.
     const cellPx = (cW * photoField.W) / m.W / SHEET_COLS
     const midR = Math.round(cellPx)
@@ -1650,7 +1650,7 @@ export function buildInflatedShell(
   const bulgeBack = bulge * 0.6
 
   // Seam remap: softens the rim's vertical √-tangent into a finite-slope
-  // garment seam (pure √ reads as a sealed air-pillow — the old failure mode).
+  // garment seam (pure √ reads as a sealed air-pillow, the old failure mode).
   const SEAM_EPS = 0.35
   const e2 = SEAM_EPS * SEAM_EPS
   const seamNorm = Math.sqrt(1 + e2) - SEAM_EPS
@@ -1688,7 +1688,7 @@ export function buildInflatedShell(
    * DRAPE. Deterministic, seeded from mask statistics so one photo always
    * builds one shell (the AR bake and the preview must agree bit for bit).
    *
-   * This was `0.62·sin(τX/3.6 + φ₁) + 0.38·sin(τX/2.6 + φ₂)` at ±0.3 in — a
+   * This was `0.62·sin(τX/3.6 + φ₁) + 0.38·sin(τX/2.6 + φ₂)` at ±0.3 in, a
    * function of X ALONE, i.e. six to nine dead-straight vertical ridges at a
    * fixed inch pitch across every garment at every size, whose steepest facet
    * measured 0.600 in/in = 31° of real surface tilt. That is a washboard, it
@@ -1702,7 +1702,7 @@ export function buildInflatedShell(
   const FOLD_AMP = 0.16
   /**
    * Tier 1 already transplanted a real garment's own depth profile, so a
-   * synthetic drape on top banks the same correction twice — exactly the
+   * synthetic drape on top banks the same correction twice, exactly the
    * argument the header makes for switching off `tuck` and `droop` there.
    * It is damped rather than removed: the donor is a smoothed 96-column
    * raster, so it carries the garment's FORM but no cloth relief at all.
@@ -1726,7 +1726,7 @@ export function buildInflatedShell(
     uv: Float32Array
     col: Float32Array
     /**
-     * 1 on open cloth, 0 at the outline and everywhere outside the alpha —
+     * 1 on open cloth, 0 at the outline and everywhere outside the alpha,
      * the same `smooth(dOut / band)` the seam roll is driven by, kept per
      * vertex so the cavity measurement can be told which of these vertices are
      * garment. Computed even when `rim === 'off'`, where it changes no
@@ -1749,7 +1749,7 @@ export function buildInflatedShell(
       const v = 1 - ny
       // Collar tuck (top ~14%) and hem tuck (bottom ~10%): a worn garment is
       // fullest at the chest and drapes flat at shoulders and hem. These two
-      // fudges — and the sleeve `droop` below — exist to fake, on a symmetric
+      // fudges (and the sleeve `droop` below) exist to fake, on a symmetric
       // balloon, exactly the shape a real garment has. The template already
       // carries it, so applying them on top would bank the same correction
       // twice: a shoulder that rolls off and then rolls off again.
@@ -1792,12 +1792,12 @@ export function buildInflatedShell(
         // panel (side seam, shoulder seam) or where the cloth is folded under
         // (hem). The transplanted depth field does not know this. The template
         // bake rasterises max-Z per cell, so at a Z-tangency cell it reports the
-        // surface a fraction of a cell INSIDE the rim rather than 0 — measured
+        // surface a fraction of a cell INSIDE the rim rather than 0. Measured
         // on the shipped blobs, front+back at the side rim is 0.264 of the peak
-        // (tee) and 0.232 (hoodie) — and buildMask's 1-px erosion then samples
+        // (tee) and 0.232 (hoodie), and buildMask's 1-px erosion then samples
         // one working pixel further in again. The two sheets therefore ended in
         // mid-air 0.25–0.55 in apart (p90 up to 2.15, max 2.79) with NOTHING
-        // between them, and that open slot — not any depth fight — is what reads
+        // between them, and that open slot (not any depth fight) is what reads
         // as a serrated edge at grazing angles: the Poisson balloon closes the
         // same rim to 0.02–0.05 in and has never serrated.
         //
@@ -1816,7 +1816,7 @@ export function buildInflatedShell(
           // A seam allowance cannot be wider than the panel it lives on. On the
           // synthetic tee the cloth between the collar hole and the shoulder
           // line is 0.5 in, and a 1.9 in band reaching across it pulled the
-          // collar's own edge down to 28 % of the garment depth — the hollow
+          // collar's own edge down to 28 % of the garment depth: the hollow
           // read is delivered THROUGH that opening, so it must not be. Capping
           // the band by the distance to the nearest opening leaves the outline
           // converging exactly as before and the hole at full depth.
@@ -1827,7 +1827,7 @@ export function buildInflatedShell(
           seamAt[j * cols + i] = seam
           // `rim: 'off'` must still reproduce the pre-thickness geometry byte
           // for byte (scripts/inflate-verify.mjs runs every rim assertion
-          // against it and fails if they pass), so only the Z write is gated —
+          // against it and fails if they pass), so only the Z write is gated:
           // the mask above is measurement, not shape.
           if (rimOn) z = sign * HEM_HALF_IN + (z - sign * HEM_HALF_IN) * seam
         }
@@ -1912,7 +1912,7 @@ export function buildInflatedShell(
   // (z·0.82 pushed 0.18in inward, clamped so it never crosses z=0 or its
   // parent) and winding flipped so faces point INTO the cavity. Through the
   // neck/hem alpha openings you see the shaded inside of the opposite panel
-  // with real parallax — the hollow-garment read.
+  // with real parallax, the hollow-garment read.
   const liningZ = (z: number, front: boolean): number =>
     front ? Math.max(z * 0.82 - 0.18, z * 0.3) : Math.min(z * 0.82 + 0.18, z * 0.3)
   const buildLining = (src: SheetData, front: boolean): SheetData => {
@@ -1936,7 +1936,7 @@ export function buildInflatedShell(
    * The vertex AO written in `buildSheetData` is a heuristic about the DEPTH
    * FIELD and the distance to the nearest hole. It knows nothing about the
    * shape the sheet actually ended up with, so the hem drape, the photo's
-   * mid-band wrinkles and the collar's roll — all of them real geometry here —
+   * mid-band wrinkles and the collar's roll (all of them real geometry here)
    * arrive completely unshaded under an environment that lights every direction
    * equally. `computeCavity` measures exactly that: how far each vertex had to
    * travel along its own normal to reach a smoothed copy of the surface.
@@ -1951,7 +1951,7 @@ export function buildInflatedShell(
    * Masked by `seam`, which is the whole reason this could not just be switched
    * on. The seam roll is a concavity that runs the entire length of the
    * outline, and the sheets are FULL RECTANGLES whose outside-the-alpha
-   * vertices sit on one flat plateau — so unmasked, the standardisation sees
+   * vertices sit on one flat plateau, so unmasked, the standardisation sees
    * thousands of zero samples, sigma collapses, and the roll saturates into a
    * dark ring with a bright halo just inside it: piping drawn around the
    * garment. With the mask the statistic is taken over cloth only and the term
@@ -1981,14 +1981,14 @@ export function buildInflatedShell(
   const liningBack = makeGeo(liningBackData.pos, liningBackData.uv, liningBackData.col, true)
 
   /**
-   * THE RIM STRIP — the cloth thickness the sheets never had.
+   * THE RIM STRIP: the cloth thickness the sheets never had.
    *
    * Everything here is cut from the 0.45 isoline of a GRID-RESOLUTION,
    * box-filtered alpha, in the sheets' own coordinates, and never from
    * `Silhouette.outer`: that polygon is up to 0.324 in inside the real alpha cut
    * (1-px erosion + a 1.2-working-px Douglas–Peucker epsilon + half-pixel
    * marching-squares quantisation) and up to 0.204 in outside it at a
-   * concavity — 15 px of fringe face-on or 10 px of crack at 90°. The isoline
+   * concavity: 15 px of fringe face-on or 10 px of crack at 90°. The isoline
    * of a box filter whose cells are centred on the sheet's own vertices is
    * unbiased to ~0.018 in, and it costs one 113×180 getImageData.
    *
@@ -1999,7 +1999,7 @@ export function buildInflatedShell(
    *    convention and the GLB gains no material.
    *  · outboard cell is NOT exterior → OPEN CUT EDGE (collar, armhole, cuff).
    *    Two independent skirts that do not meet, so the opening cannot be sealed
-   *    by construction — which is exactly why the branch is topological and not
+   *    by construction, which is exactly why the branch is topological and not
    *    a threshold on the depth.
    */
   const buildRim = (): { rimFront: THREE.BufferGeometry; rimBack: THREE.BufferGeometry } | null => {
@@ -2010,20 +2010,20 @@ export function buildInflatedShell(
      * the grid instead of being clipped by it.
      *
      * The grid spans exactly the content bbox, and the bbox is the alpha's own
-     * bounding box — so wherever the cut RUNS ALONG that box the boundary cell's
+     * bounding box, so wherever the cut RUNS ALONG that box the boundary cell's
      * box filter is half cloth, reads ≈0.5 ≥ T, and no edge of it ever crosses:
      * the contour walks off the grid and the ribbon simply ends. That is not a
-     * corner case, it is where a laid-flat garment is flattest — the hem across
+     * corner case, it is where a laid-flat garment is flattest: the hem across
      * the bottom of every flat-lay, the outer edge of a sleeve at its widest.
      * MEASURED over the 18 supplier photos before this pad existed: 4–14 open
      * ribbon ends each, longest single break 3.5–9.7 in, 3.5–20.7 in of a
-     * 39–55 in outline (8–45 %) carrying no cloth thickness at all — and every
+     * 39–55 in outline (8–45 %) carrying no cloth thickness at all, and every
      * one of those ends within 0.25 in of the bbox.
      *
      * TWO cells, not one, and the outermost ring is forced transparent. The
      * bbox is `alpha ≥ ALPHA_T` measured on the 200-px WORKING mask, while this
      * grid box-filters the full-resolution canvas, so the matte a cell beyond
-     * the bbox is not 0 — it is the far half of the feather, and one pad cell
+     * the bbox is not 0: it is the far half of the feather, and one pad cell
      * still read ≥ T often enough to leave 190608 a 7.2 in break and 191052 a
      * 5.7 in one. Two cells clear the feather; zeroing the ring makes closure a
      * property of the grid rather than of the photo, and costs nothing because
@@ -2042,12 +2042,12 @@ export function buildInflatedShell(
     // filter and starts being a bilinear tap off a short mip chain, which
     // aliases: `A` comes back nearly binary, every crossing's interpolation
     // parameter lands at 0 or 1, and the isoline the rim is welded to turns
-    // into a staircase with one step per grid cell — 0.19 in, seven screen
+    // into a staircase with one step per grid cell: 0.19 in, seven screen
     // pixels on a collar close-up, and plainly visible as a polygonal lip.
     actx.imageSmoothingQuality = 'high'
     // The destination rect is derived from the VERTEX SPACING, not from the
     // content bbox: a bbox-aligned downsample puts cell centres half a cell off
-    // the vertices they describe, which biases the whole isoline by ~0.06 in —
+    // the vertices they describe, which biases the whole isoline by ~0.06 in,
     // the same size as the thickness being added.
     actx.drawImage(
       canvas,
@@ -2064,7 +2064,7 @@ export function buildInflatedShell(
       for (let i = 0; i < aCols; i++) A[i] = A[(aRows - 1) * aCols + i] = 0
       for (let j = 0; j < aRows; j++) A[j * aCols] = A[j * aCols + aCols - 1] = 0
     }
-    const T = 0.45 // the sheets' own alphaTest — the rim must sit on THAT cut
+    const T = 0.45 // the sheets' own alphaTest: the rim must sit on THAT cut
 
     const sampleA = (gi: number, gj: number): number => {
       const x = THREE.MathUtils.clamp(gi, 0, aCols - 1)
@@ -2103,7 +2103,7 @@ export function buildInflatedShell(
     const edgeMap = new Map<number, number>()
 
     /** Sheet vertex under an ALPHA-GRID cell. A padding cell has none, so it
-     *  reads the outline vertex next to it — which the seam has already pulled
+     *  reads the outline vertex next to it, which the seam has already pulled
      *  to ±HEM_HALF_IN, exactly the depth a crossing a fraction of a cell
      *  outside it should carry. */
     const sheetOf = (gi: number, gj: number): number =>
@@ -2127,7 +2127,7 @@ export function buildInflatedShell(
       // X/Y come from the GRID, not from those two vertices: on a padding edge
       // both clamp to the same vertex and the crossing would collapse onto it.
       // Clamped back onto the sheet's own extent so the strip can never stand
-      // outside the silhouette the sheets cut — the crossing on a padding edge
+      // outside the silhouette the sheets cut: the crossing on a padding edge
       // lands at most 0.55 cell (0.10 in) out, which face-on is a fringe.
       const gx = THREE.MathUtils.clamp(gi0 + (gi1 - gi0) * t, PAD, PAD + GX)
       const gy = THREE.MathUtils.clamp(gj0 + (gj1 - gj0) * t, PAD, PAD + GY)
@@ -2214,7 +2214,7 @@ export function buildInflatedShell(
       segNy.push(ny)
     }
 
-    // Marching squares on the padded alpha grid — the same 16-case table
+    // Marching squares on the padded alpha grid, the same 16-case table
     // `traceLoops` uses, with the crossing interpolated to the exact isovalue
     // on each edge.
     for (let j = 0; j + 1 < aRows; j++) {
@@ -2338,7 +2338,7 @@ export function buildInflatedShell(
       if (cOpen[k]) {
         // OPEN CUT EDGE. Cap the roll at 40 % of the local gap so an opening in
         // a shallow part of the garment can never be sealed by its own cloth
-        // thickness — the two skirts stay gap − 2·skirt apart.
+        // thickness: the two skirts stay gap − 2·skirt apart.
         const skirt = Math.min(FABRIC_IN, Math.max(RIM_MIN_RING_IN, (zF - zB) * 0.4))
         const aoIn = Math.max(0.72, aoF * RIM_CUT_AO)
         const aoInB = Math.max(0.72, aoB * RIM_CUT_AO)
@@ -2437,7 +2437,7 @@ export function buildInflatedShell(
   // side (arExport consumes both planes single-sided too).
   // Each plane sits STRICTLY BEHIND its side's lining and inside its sheet:
   // deep enough that the parallax lining is what you see through the openings
-  // (a shallower plane would occlude the lining over the whole chest — flat
+  // (a shallower plane would occlude the lining over the whole chest, flat
   // black hole again), yet never poking through its own sheet. The nominal
   // 0.91·amp − 0.09 assumes an unperturbed sheet: folds/wrinkles lift a sheet
   // by up to FOLD_AMP + MID_AMP and its lining by 0.82× that, which overshoots

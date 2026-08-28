@@ -1,5 +1,5 @@
 /**
- * Offscreen design rendering — powers 3D decal textures, print-ready PNG
+ * Offscreen design rendering: powers 3D decal textures, print-ready PNG
  * export, mockup snapshots and saved-design thumbnails. Pure canvas 2D,
  * no Konva: the editor engine wraps the same per-layer draw calls, which is
  * what guarantees 2D/3D/print parity.
@@ -24,14 +24,14 @@ export function sideLayers(design: Design, side: Side): Layer[] {
 
 /**
  * Print-area size in inches. With a `size`, the area is GRADED by the design's
- * print-scale factor — a 3XL really does have more printable width than an S,
+ * print-scale factor: a 3XL really does have more printable width than an S,
  * and artwork stored at the base size scales into it by the same factor, so the
  * design keeps the same relative footprint on every size.
  */
 export function getAreaSizeIn(design: Design, side: Side, size?: SizeId): SizeIn {
   const k = printScaleK(design, size)
   if (design.garmentId === 'custom') {
-    // Custom (ship-your-own) garments are front/back only — no sleeve — and
+    // Custom (ship-your-own) garments are front/back only (no sleeve), and
     // only the front is mandatory, so a side can carry artwork while carrying
     // no print area of its own (drop the back photo from a design that already
     // has back layers, which the setup modal warns about but permits).
@@ -42,15 +42,15 @@ export function getAreaSizeIn(design: Design, side: Side, size?: SizeId): SizeIn
     // is exact, and it is the number a print shop would use.
     //
     // This used to fall back to a hard-coded 12 × 16, and that guess did not
-    // stop at the preview — it sized the layout, it was priced, and it was
+    // stop at the preview: it sized the layout, it was priced, and it was
     // written into a DTF transfer at a dimension nobody had ever measured. A
     // fabricated print size is worse than no print at all, so the one case with
     // nothing to derive from (a sleeve, which a ship-your-own garment does not
     // have) refuses instead: a zero area makes `renderPrintArea` return null and
     // `dtf/pieces.ts` drop the piece, so nothing reaches a printer. Artwork
-    // cannot in fact be stranded on a custom sleeve — the catalog↔custom switch
-    // stashes layers rather than carrying them across (state/store.ts
-    // switchGarment) — but zero is what the truth is if it ever were.
+    // cannot in fact be stranded on a custom sleeve (the catalog↔custom switch
+    // stashes layers rather than carrying them across, state/store.ts
+    // switchGarment), but zero is what the truth is if it ever were.
     const c = design.custom
     const area = side === 'sleeve' ? null : (c?.[side] ?? c?.front ?? c?.back)?.printArea
     return area ? scaleAreaIn({ wIn: area.wIn, hIn: area.hIn }, k) : { wIn: 0, hIn: 0 }
@@ -69,7 +69,7 @@ export function garmentColorHex(design: Design): string {
  * the garment's visual centre. Derived from GarmentSideArt.printAreaPx so the
  * 2D editor, the 3D preview and the AR export all place front vs back at the
  * SAME height (front and back sit at different heights on the body). Single
- * source of truth — 3D (Scene3D) and AR (arExport) both import this.
+ * source of truth: 3D (Scene3D) and AR (arExport) both import this.
  *
  * With a `size`, accounts for the garment scaling about its collar anchor
  * (print placement is collar-anchored, so the print-area centre shifts relative
@@ -77,7 +77,7 @@ export function garmentColorHex(design: Design): string {
  * historical nominal-size value.
  *
  * `k` is the print grading factor (src/lib/printScale.ts). At k = 1 the print
- * area keeps its authored position — a size-invariant drop below the collar. At
+ * area keeps its authored position, a size-invariant drop below the collar. At
  * k ≠ 1 the area is scaled about the SAME collar anchor the art uses, so the
  * whole composition (drop below collar and area size alike) grades together and
  * every size reads identically.
@@ -101,7 +101,7 @@ export function areaOffsetYIn(
 }
 
 /**
- * Distance (inches, +down) from a side's COLLAR SEAM to its print-area centre —
+ * Distance (inches, +down) from a side's COLLAR SEAM to its print-area centre,
  * read straight off the 2D art, which is where the number is authored.
  *
  * This is the anchor the 3D preview and the AR bake hang prints from, because
@@ -123,7 +123,7 @@ export function printDropBelowCollarIn(
 /**
  * How much LOWER this side's drawn collar seam sits than the front one, inches.
  * A neckline scoops deeper at the front than at the back, so one measured mesh
- * landmark (the front seam) plus this offset pins both panels — which matters
+ * landmark (the front seam) plus this offset pins both panels, which matters
  * on the hoodie, whose back seam is hidden under the hood.
  */
 export function collarSeamDropIn(garment: CatalogGarmentId, side: Side): number {
@@ -142,7 +142,7 @@ export interface GarmentDrawTransform {
 /**
  * Scale + offset that renders the nominal-size 800px garment art at `size`,
  * anchored at the collar seam (the point pro print placement measures from,
- * which is size-invariant). Print areas / layers stay untouched — only the
+ * which is size-invariant). Print areas / layers stay untouched: only the
  * garment body/shade art moves.
  */
 export function garmentDrawTransform(
@@ -177,7 +177,7 @@ export const graphicRasterKey = (layer: GraphicLayer, ppi: number) =>
  * PASS THE LAYERS YOU WILL DRAW, and the ppi you will draw them at. A graphic's
  * raster is cached under `sizeBucket(layer.wIn × max(ppi, 96))`, so preparing
  * the UNGRADED layers at `ppi × k` and drawing the GRADED ones at `ppi` computes
- * two different keys whenever `ppi < 96` and `k ≠ 1` — `max(ppi × k, 96)` is not
+ * two different keys whenever `ppi < 96` and `k ≠ 1`: `max(ppi × k, 96)` is not
  * `k × max(ppi, 96)`. `getRaster` then misses and `drawGraphicLayerContent`
  * returns early, i.e. the graphic is silently NOT DRAWN. That is exactly the
  * 28-DPI DTF preview of any graded design: a badge that vanishes from the
@@ -272,7 +272,7 @@ export function measureLayer(layer: Layer, ppi: number): { w: number; h: number 
  */
 
 /**
- * Render the full print area (transparent) at `ppi` — this canvas IS the
+ * Render the full print area (transparent) at `ppi`. This canvas IS the
  * physical transfer, so it is where grading has to be real rather than a
  * preview trick. With a `size`, both the area and every layer are scaled by the
  * design's grading factor, producing a genuinely larger transfer for a larger
@@ -327,7 +327,7 @@ export async function renderPrintArea(
  * area stay at true physical scale); omitted → nominal art size.
  *
  * `opts.artwork === false` renders the BARE garment at exactly the same size
- * and framing. It is not a preview of anything — it is the photometric
+ * and framing. It is not a preview of anything. It is the photometric
  * reference the 3D shell measures the garment's own light, folds and colour
  * from (see CardSource.photo). Keep the two draws sharing this one function:
  * the moment the bare pass acquires its own scaling or cropping it stops being

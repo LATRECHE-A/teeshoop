@@ -253,7 +253,7 @@ final class Product {
 			$field = self::META_BLANK_COLOURS . '[' . $id . ']';
 			echo '<tr><th scope="row" style="width:14em"><label for="' . esc_attr( $field ) . '">' . esc_html( $name ) . '</label></th><td>';
 			echo '<select name="' . esc_attr( $field ) . '" id="' . esc_attr( $field ) . '">';
-			echo '<option value="">' . esc_html__( '— non acheté —', 'teeshoop' ) . '</option>';
+			echo '<option value="">' . esc_html__( 'Non acheté', 'teeshoop' ) . '</option>';
 			foreach ( $terms as $term ) {
 				echo '<option value="' . esc_attr( $term ) . '"' . selected( $map[ $id ] ?? '', $term, false ) . '>' . esc_html( $term ) . '</option>';
 			}

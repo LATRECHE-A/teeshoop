@@ -103,20 +103,20 @@ try {
   await page.evaluate(() => { const s = window.__tshop.getState(); const l = s.design.layers.find((x) => x.side === 'sleeve'); if (l) s.removeLayer(l.id); s.setSide('front') })
   await page.waitForTimeout(400)
 
-  // 4) 3D preview — tee (cloth sheen)
+  // 4) 3D preview: tee (cloth sheen)
   await page.evaluate(() => window.__tshop.getState().setMode('3d'))
   await page.waitForFunction(() => document.body.innerText.includes('Drag to rotate'), { timeout: 60000 })
   await page.waitForTimeout(3000)
   save('3d-tee', await page.evaluate(READBACK, { selector: 'main canvas', bg: { grad: [[0, '#171b22'], [0.55, '#101318'], [1, '#0a0c10']] } }))
 
-  // 5) 3D preview — hoodie
+  // 5) 3D preview: hoodie
   await page.evaluate(() => window.__tshop.getState().setGarment('hoodie'))
   await page.waitForTimeout(9000)
   save('hoodie', await page.evaluate(READBACK, { selector: 'main canvas', bg: { grad: [[0, '#171b22'], [0.55, '#101318'], [1, '#0a0c10']] } }))
   await page.evaluate(() => { const s = window.__tshop.getState(); s.setGarment('tee'); s.setMode('2d') })
   await page.waitForTimeout(800)
 
-  // 6) AR model — bake the design onto the mannequin (the same buildArModel the
+  // 6) AR model: bake the design onto the mannequin (the same buildArModel the
   // AR modal uses), load the GLB with GLTFLoader (the loader the viewer uses),
   // and read it back over a room gradient. Avoids the slow worker+viewer flow.
   save('ar', await page.evaluate(async () => {
@@ -209,7 +209,7 @@ try {
   console.log('saved mobile-edit')
   await mctx.close()
 
-  console.log('\nProbe README screenshots (incl. ar.png) regenerated in', DIR, '— run scripts/ar-shots.mjs for ar-qr.png')
+  console.log('\nProbe README screenshots (incl. ar.png) regenerated in', DIR, '(run scripts/ar-shots.mjs for ar-qr.png)')
 } finally {
   await browser.close()
   try { server.kill('SIGTERM') } catch {}

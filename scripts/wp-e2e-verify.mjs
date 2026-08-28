@@ -763,8 +763,8 @@ try {
      * refuses to submit without it and says so in French, in red, on the page.
      *
      * So this assertion has been FAILING SINCE SESSION 06 and everything after
-     * it — the order status, the design surviving the checkout, the delivery
-     * line, the totals adding up, the frozen VAT regime, the invoice — has been
+     * it (the order status, the design surviving the checkout, the delivery
+     * line, the totals adding up, the frozen VAT regime, the invoice) has been
      * skipped for four sessions, because they are all inside `if (orderId > 0)`.
      * Nobody read the tail. Found on 2026-08-19 by running it.
      *

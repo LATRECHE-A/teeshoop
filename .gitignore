@@ -13,7 +13,7 @@ dist/
 # Render-QA proof sheets (scripts/3d-shots.mjs, scripts/stage-shots.mjs).
 .qa/
 
-# The Bible ships extracted under docs/bible/ — keep the source zip out of git.
+# The Bible ships extracted under docs/bible/, so keep the source zip out of git.
 La_Bible_de_Teeshoop*.zip
 
 # Session prompts for the WordPress build-out (prompts/README.md explains the

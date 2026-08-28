@@ -1,5 +1,5 @@
 /**
- * Fabric-space unwrap — "how many inches of real cloth is this point from the
+ * Fabric-space unwrap: "how many inches of real cloth is this point from the
  * centre-front line?".
  *
  * WHY THIS EXISTS
@@ -7,33 +7,33 @@
  * A print is a physical rectangle of ink laid on cloth. The 2D editor stores it
  * in inches from the print-area centre; the DTF sheet cuts it in centimetres.
  * For the 3D preview to agree, the garment surface needs a coordinate that is
- * ALSO measured in inches of cloth — not the chord of an orthographic
+ * ALSO measured in inches of cloth, not the chord of an orthographic
  * projection, which is what a projected decal gives (a 10 cm logo on the chest
  * lands on ~15 cm of fabric there, stretched non-uniformly across itself).
  *
  * So: slice the mesh into height bands, walk each band's cross-section, and
  * accumulate arc outward from θ = 0. `s(y, θ)` is then arc length along the
  * cloth, and a print rect in `s` is a print rect on the cloth. The garment mesh
- * becomes its own sewing pattern — which is exactly what tee.glb's artist-made
+ * becomes its own sewing pattern, which is exactly what tee.glb's artist-made
  * UV atlas already is, and validating against that atlas is how this table is
  * proven (scripts/fabric-verify.mjs: residual rms 1.5 mm over the print area).
  *
  * WHY "OUTERMOST RADIUS" IS NOT ENOUGH
  * ------------------------------------
- * The obvious rule — per angle, take the farthest surface — measures the hood,
+ * The obvious rule (per angle, take the farthest surface) measures the hood,
  * the kangaroo pocket and the A-pose sleeves as if they were the torso, and the
  * hoodie's per-band front arc then jitters ±40 %. So instead we march outward
  * from the centre front and, at every angle, take the candidate radius CLOSEST
  * to the previous angle's: continuity, not extremity.
  *
  * Continuity alone is still not enough, and the failure is instructive. A sleeve
- * is not a detached lobe — it is SEWN to the torso, so at the armhole its
+ * is not a detached lobe. It is SEWN to the torso, so at the armhole its
  * surface really is continuous with the body's, and a step-by-step march happily
  * walks up the ramp and out along the arm (measured: the hoodie's shell hit
  * r = 0.40 where the torso is 0.19). Continuity is therefore paired with a
  * budget: no band's shell may exceed RADIUS_CAP × that band's MEDIAN radius. The
- * median is a torso statistic — sleeves occupy ~10 % of the angles and cannot
- * move it — while the cap is loose enough for a real cross-section, whose
+ * median is a torso statistic (sleeves occupy ~10 % of the angles and cannot
+ * move it), while the cap is loose enough for a real cross-section, whose
  * side-to-front radius ratio is about 1.4. Measured spread afterwards: 3.6 %
  * (tee) and 6.0 % (hoodie) over the chest band, against ±40 % unguarded.
  *
@@ -43,7 +43,7 @@
  * of its back, its kangaroo pocket the bottom of its front. There, "how many
  * inches of cloth is this" has no single answer, and the honest evidence for
  * that is that the two independent ground truths scripts/fabric-verify.mjs can
- * build — a connectivity loop walk and a radial walk — disagree with EACH OTHER
+ * build (a connectivity loop walk and a radial walk) disagree with EACH OTHER
  * by up to ~17 mm on those rows while agreeing to 0.1 mm everywhere else. The
  * verifier therefore gates only the rows where they agree, and reports the rest.
  * Measured consequence: the extreme top row of a hoodie back print (which the
@@ -58,7 +58,7 @@
  */
 import type * as THREE from 'three'
 
-/** Height bands. 96 ≈ 0.3 in per band on a normalized tee — finer than any
+/** Height bands. 96 ≈ 0.3 in per band on a normalized tee, finer than any
  *  vertical detail the arc integral can resolve, coarse enough to stay cheap. */
 const BANDS = 96
 /** Angular samples over [−π, π]. 361 ⇒ exactly 1° and an exact θ = 0 sample. */
@@ -108,7 +108,7 @@ export interface ArcTable {
  * before scaling), in raw units.
  *
  * `chestBand` is the [fromTop, fromTop] window, as fractions of the raw bbox
- * height, where the garment is a clean torso — below the armholes, above the
+ * height, where the garment is a clean torso: below the armholes, above the
  * pocket. It is a per-model calibration because only the model knows where its
  * own sleeves attach (see CALIBRATION.chestBandFromTop).
  */
@@ -185,7 +185,7 @@ export function buildArcTable(
       if (Math.max(ya, yb, yc) < y || Math.min(ya, yb, yc) > y) continue
       // The plane y = const cuts a triangle in exactly two points (or in a
       // degenerate edge, which we skip: it contributes no cross-section).
-      // Unrolled — this runs ~100k times per model and must not allocate.
+      // Unrolled: this runs ~100k times per model and must not allocate.
       let n = 0
       let x0 = 0
       let z0 = 0
@@ -281,7 +281,7 @@ export function buildArcTable(
   }
 
   // Collar / hem / hood bands never receive ink, but bilinear lookups must not
-  // read zeros from them — copy the nearest real band's profile.
+  // read zeros from them. Copy the nearest real band's profile.
   let okCount = 0
   for (let b = 0; b < nb; b++) if (bandOk[b]) okCount++
   if (okCount === 0) {
@@ -306,7 +306,7 @@ export function buildArcTable(
   // A finite-difference derivative squared under a square root is biased UP by
   // sampling noise; on the hoodie's back, where r swings 4.9→7.5 in over 50°,
   // that bias reached 10 mm. The chord underestimates a smooth curve by only
-  // dθ²/24 — 1.3 × 10⁻⁵ relative at 1° — and matches, to that precision, arc
+  // dθ²/24 (1.3 × 10⁻⁵ relative at 1°) and matches, to that precision, arc
   // walked directly along the mesh's own cross-section (scripts/fabric-verify.mjs).
   for (let b = 0; b < nb; b++) {
     const base = b * na
@@ -324,7 +324,7 @@ export function buildArcTable(
   // NO vertical smoothing of s. It was tried, and it costs more than it buys:
   // lookups are already bilinear in (band, angle), so the map is continuous
   // without it, while blending bands biases the arc wherever the cross-section
-  // changes fast with height — the armhole, the hood, the hem. Measured on the
+  // changes fast with height: the armhole, the hood, the hem. Measured on the
   // hoodie's upper back, a 3-tap vertical blend added ~3 mm of placement error.
   for (let b = 0; b < nb; b++) halfPerimRaw[b] = (s[b * na + na - 1] - s[b * na]) / 2
 
@@ -354,7 +354,7 @@ export function buildArcTable(
     frontArcSpread,
     bandsOk,
     // Health gate. A mesh whose chest band still jitters, or which never closed
-    // a cross-section, gets NO fabric mapping — the caller keeps the projected
+    // a cross-section, gets NO fabric mapping: the caller keeps the projected
     // decal rather than painting ink somewhere invented.
     usable: frontArcRaw > 0 && frontArcSpread < 0.2 && bandsOk > 0.5,
   }
@@ -406,7 +406,7 @@ export function halfPerimAt(t: ArcTable, yRaw: number): number {
  * These are two different numbers on any real garment: a draped mesh is not
  * left-right symmetric, and the two half-arcs differ by a few millimetres. The
  * back panel must be referenced to the seam it is actually approaching, not to
- * their average — averaging shifts the whole back print sideways by half the
+ * their average. Averaging shifts the whole back print sideways by half the
  * difference, which measured 10 mm on the hoodie's upper back.
  */
 export function backSeamArcAt(t: ArcTable, yRaw: number, positiveSide: boolean): number {
@@ -423,14 +423,14 @@ export function backSeamArcAt(t: ArcTable, yRaw: number, positiveSide: boolean):
  * The bisection runs on the BAND-BLENDED profile, not on each band separately.
  * That is not a refinement, it is the whole point: `arcAt` is bilinear, and a
  * bilinear factorises exactly into "blend the two bands' rows, then interpolate
- * in θ" — so inverting the blended row is an EXACT inverse, while solving each
+ * in θ", so inverting the blended row is an EXACT inverse, while solving each
  * band and averaging the two angles is not an inverse at all.
  *
  * The difference is worst precisely where it hurts. Adjacent bands' half-arcs
  * can differ by inches across an armhole; there the per-band solve clamps one
  * band at ±π while the other walks tens of degrees, and the averaged angle put
  * the centre-BACK column of a print up to 25 mm off the seam it is defined to
- * sit on — a shift the 3D preview (which uses `arcAt` directly) did not share,
+ * sit on, a shift the 3D preview (which uses `arcAt` directly) did not share,
  * so preview and AR disagreed. Blending first removes the failure mode.
  *
  * s is monotone in θ within a band (chords are non-negative), so the blend of
@@ -468,7 +468,7 @@ const CACHE = new Map<string, ArcTable>()
  *
  * Positions are read through the attribute's ACCESSORS, never `.array`. Half the
  * catalog is exported by glTF-Transform, which interleaves POSITION and NORMAL
- * into one buffer — `.array` then hands back normals disguised as vertices, and
+ * into one buffer. `.array` then hands back normals disguised as vertices, and
  * the unwrap quietly measures a unit sphere. (That is not hypothetical: it is
  * exactly what hoodie.glb does.)
  */

@@ -1,10 +1,10 @@
 /**
- * DTF prepress preflight — pure, DOM-free, deterministic.
+ * DTF prepress preflight: pure, DOM-free, deterministic.
  *
  * Validates the pieces about to be nested against a PROCESS's structured
  * guidelines. Deliberately conservative: a check only runs when the piece
  * actually carries the metadata it needs (`srcPxW/H`, `hasAlpha`, `minLineMm`,
- * `whiteMinLineMm`, `minTextPt` — all optional on DtfPiece). Nothing is
+ * `whiteMinLineMm`, `minTextPt`: all optional on DtfPiece). Nothing is
  * inferred from pixels here; what cannot be measured is not reported, so a
  * clean result means "nothing detectable is wrong", never "the file is good".
  *
@@ -19,7 +19,7 @@ export interface PreflightIssue {
   level: 'error' | 'warn'
   /** `DtfPiece.id` the issue belongs to. */
   pieceKey: string
-  /** Stable machine code — safe to switch on / to map to a fix action. */
+  /** Stable machine code, safe to switch on / to map to a fix action. */
   code: string
   message: string
 }
@@ -43,8 +43,8 @@ export function preflight(pieces: DtfPiece[], proc: DtfProcess): PreflightIssue[
     out.push({ level, pieceKey, code, message })
 
   // Largest artwork box the process can physically print, margins included.
-  // The two margins are different constraints — the side one is the printer's
-  // laize limit, the end one a scissor cut — so a supplier quoting a printable
+  // The two margins are different constraints (the side one is the printer's
+  // laize limit, the end one a scissor cut), so a supplier quoting a printable
   // width (side margin 0) must not have that 0 applied to the length as well.
   const marginEnd = typeof gl.marginEndCm === 'number' ? gl.marginEndCm : gl.marginCm
   const usableWCm = Math.max(0, proc.printableWidthCm - 2 * gl.marginCm)
@@ -123,14 +123,14 @@ export function preflight(pieces: DtfPiece[], proc: DtfProcess): PreflightIssue[
           'error',
           p.id,
           'dpi-low',
-          `${Math.round(dpi)} DPI à ${fmt1(p.wCm)} × ${fmt1(p.hCm)} cm — minimum ${gl.minDpi} DPI.`,
+          `${Math.round(dpi)} DPI à ${fmt1(p.wCm)} × ${fmt1(p.hCm)} cm, minimum ${gl.minDpi} DPI.`,
         )
       else if (dpi < gl.minDpi * DPI_WARN_RATIO)
         add(
           'warn',
           p.id,
           'dpi-marginal',
-          `${Math.round(dpi)} DPI — juste au-dessus du minimum ${gl.minDpi} DPI, aucune marge.`,
+          `${Math.round(dpi)} DPI, juste au-dessus du minimum ${gl.minDpi} DPI, aucune marge.`,
         )
     }
 
@@ -140,7 +140,7 @@ export function preflight(pieces: DtfPiece[], proc: DtfProcess): PreflightIssue[
         'error',
         p.id,
         'no-transparency',
-        `Fond opaque détecté — ${gl.transparency}.`,
+        `Fond opaque détecté : ${gl.transparency}.`,
       )
 
     // --- stroke / text floors (only when the caller measured them) --------

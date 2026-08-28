@@ -20,11 +20,11 @@
  *
  *   1. THE PRICE. Computed here, in PHP, from the stored config. The studio
  *      displays what it is told. A price that arrives from a browser is a
- *      suggestion from an untrusted party, and it is discarded — see Cart.php.
+ *      suggestion from an untrusted party, and it is discarded (see Cart.php).
  *
  *   2. THE BRIDGE. The studio runs cross-origin in an iframe, so it cannot read
  *      WordPress cookies and cannot call the REST API itself. It posts a message
- *      to the parent page; the parent page — same origin, holding the nonce —
+ *      to the parent page; the parent page (same origin, holding the nonce)
  *      makes the call. assets/bridge.js checks the sender's origin on every
  *      message, and never posts back to '*'.
  *
@@ -170,14 +170,14 @@ require_once __DIR__ . '/includes/Cli.php';
  *
  * Half of this plugin manipulates the Woo cart. Loading it without Woo produces
  * a fatal on a hook that does not exist, and a white screen on a shop is worse
- * than a missing feature — so it declines, loudly, in the admin only.
+ * than a missing feature, so it declines, loudly, in the admin only.
  */
 function boot(): void {
 	if ( ! class_exists( 'WooCommerce' ) ) {
 		add_action(
 			'admin_notices',
 			static function (): void {
-				echo '<div class="notice notice-error"><p><strong>Teeshoop Core</strong> — ';
+				echo '<div class="notice notice-error"><p><strong>Teeshoop Core</strong> : ';
 				esc_html_e( 'WooCommerce n’est pas actif, le studio ne peut donc rien ajouter à un panier. L’extension est en veille.', 'teeshoop' );
 				echo '</p></div>';
 			}
@@ -301,8 +301,8 @@ register_deactivation_hook(
  * Declare compatibility with WooCommerce High-Performance Order Storage.
  *
  * Without this, Woo shows the shop owner a scary incompatibility warning and
- * refuses to let them enable HPOS. We never touch the orders table directly —
- * only order-item meta through the CRUD API — so the declaration is honest.
+ * refuses to let them enable HPOS. We never touch the orders table directly
+ * (only order-item meta through the CRUD API), so the declaration is honest.
  */
 add_action(
 	'before_woocommerce_init',

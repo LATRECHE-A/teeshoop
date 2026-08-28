@@ -107,7 +107,7 @@ function PhotoTile({
             <Wand2 size={14} className="animate-pulse" /> {t('custom.removing_bg')}
           </span>
         )}
-        {/* A reconstructed side is never allowed to pass for a photograph —
+        {/* A reconstructed side is never allowed to pass for a photograph:
             the badge sits ON the image, so it travels with every screenshot of
             this dialog exactly as the baked mark travels with the pixels. */}
         {draft?.origin === 'generated' && !draft.processing && (
@@ -145,7 +145,7 @@ function PhotoTile({
  * The 3D shell borrows a real garment mesh's depth field, and WHICH mesh is the
  * one decision in that pipeline a silhouette can genuinely get wrong (a wide
  * flat-lay tee and a cropped sweat read alike from the outline alone). The
- * classifier's answer is shown, and a dropdown beats a wrong guess — so the
+ * classifier's answer is shown, and a dropdown beats a wrong guess, so the
  * customer can overrule it in one click instead of living with a hood on a
  * t-shirt. 'auto' stores nothing and leaves detection in charge.
  */
@@ -174,7 +174,7 @@ function ShapePicker({
         <option value="auto">
           {ts('custom.shape.auto')}
           {detected && isGarment
-            ? ` — ${ts('custom.shape.auto_is', { shape: ts(shapeKey(detected)) })}`
+            ? `, ${ts('custom.shape.auto_is', { shape: ts(shapeKey(detected)) })}`
             : ''}
         </option>
         {GARMENT_SHAPES.map((s) => (
@@ -185,7 +185,7 @@ function ShapePicker({
       </select>
       {/* When the structure gate refused, say so plainly and hand the decision
           over. The 3D preview keeps the shape-agnostic shell either way, so this
-          is an offer, not an error — and naming a type here overrules the test
+          is an offer, not an error, and naming a type here overrules the test
           (src/lib/silhouette.ts), which is the right authority order. */}
       <p className={clsx('mt-1 text-[11px]', isGarment ? 'text-tx3' : 'text-yl')}>
         {isGarment ? ts('custom.shape.hint') : ts('custom.shape.unsure')}
@@ -215,7 +215,7 @@ export default function CustomSetupModal() {
   frontRef.current = front
 
   // Run the shell's own classifier on the front photo so the picker can say
-  // what it found. Keyed on the photo (not the draft object) — the print-area
+  // what it found. Keyed on the photo (not the draft object): the print-area
   // placer rewrites the draft on every drag, and re-decoding the image for
   // that would be pure waste.
   const frontAsset = front?.assetId ?? null
@@ -279,7 +279,7 @@ export default function CustomSetupModal() {
     // the previous one, so hand the decision back to the classifier.
     if (side === 'front') setShape('auto')
     try {
-      const meta = await addAsset(file, `${t('side.' + side)} — ${file.name}`)
+      const meta = await addAsset(file, `${t('side.' + side)}, ${file.name}`)
       setAssets(await listAssets())
       const gHIn = (meta.height / meta.width) * widthIn
       const base: SideDraft = {
@@ -298,7 +298,7 @@ export default function CustomSetupModal() {
         try {
           const blob = await getAssetBlob(meta.id)
           if (blob) {
-            // Never let a stuck removal wedge the wizard — fall back to the
+            // Never let a stuck removal wedge the wizard: fall back to the
             // full photo after 90s (user can retry from Uploads later).
             const cut = await Promise.race([
               removeBackground(blob),
@@ -323,7 +323,7 @@ export default function CustomSetupModal() {
   }
 
   /**
-   * Reconstruct the back from the front — the same `generateBackSide` the admin
+   * Reconstruct the back from the front, the same `generateBackSide` the admin
    * ingest flow runs, so a customer's own upload gets exactly the reconstruction
    * a catalogued product does, provenance stamp included.
    *
@@ -340,7 +340,7 @@ export default function CustomSetupModal() {
     setGenBack(true)
     try {
       const gen = await generateBackSide(front, inToCm(widthIn), {
-        name: `${t('side.back')} — ${ts('custom.back.generated')}`,
+        name: `${t('side.back')}, ${ts('custom.back.generated')}`,
         at: Date.now(),
       })
       setAssets(await listAssets())
@@ -388,7 +388,7 @@ export default function CustomSetupModal() {
         : null
     // Commit the shape BEFORE setCustom: that call rebuilds the design, which
     // is what makes the 3D preview (and the AR bake behind it) re-read the
-    // override — writing it afterwards would leave one stale frame.
+    // override. Writing it afterwards would leave one stale frame.
     setShapeOverride(shape === 'auto' ? null : shape)
     setCustom({ widthIn, front: stripped(front), back: stripped(back) })
     closeModal('customSetup')

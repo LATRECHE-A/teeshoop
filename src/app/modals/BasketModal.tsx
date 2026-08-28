@@ -1,5 +1,5 @@
 /**
- * Order basket — the several products / sizes / quantities that make up one
+ * Order basket: the several products / sizes / quantities that make up one
  * real order. Each line is a design snapshot taken at add time (see
  * src/state/basket.ts), so editing the live design never rewrites history.
  * The basket is a CUSTOMER surface: it holds no prices and no supplier data.
@@ -16,7 +16,7 @@ import { useBasketT } from './basketI18n'
 import { useBoardT } from '../board/boardI18n'
 import type { TParams } from '@/i18n'
 
-/** One order line — its own component so the mockup hook can run per line. */
+/** One order line, its own component so the mockup hook can run per line. */
 function BasketRow({
   line,
   t,
@@ -188,7 +188,7 @@ export default function BasketModal() {
           </section>
 
           <div className="mt-4 flex flex-col gap-2">
-            {/* enterBoard() closes this modal in the SAME set() — a board behind
+            {/* enterBoard() closes this modal in the SAME set(): a board behind
                 a live scrim is unreachable and takes the keyboard with it. */}
             <button className="btn h-10 justify-center" onClick={enterBoard}>
               <LayoutGrid size={15} />
@@ -196,7 +196,7 @@ export default function BasketModal() {
             </button>
             <p className="text-[11px] leading-relaxed text-tx3">{bt('board.open_hint')}</p>
             {/* The "build the DTF sheet" button used to live here. It is
-                workshop tooling — it exposes our film cost per linear metre —
+                workshop tooling (it exposes our film cost per linear metre),
                 so it now belongs to the admin build only, reachable from the
                 tools menu (which already defaults to nesting the whole basket).
                 The basket itself stays customer: it is an order, not a job. */}

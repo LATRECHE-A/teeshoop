@@ -8,8 +8,8 @@
  * keyed on exactly that collapses "eight identical L tees" to one geometry.
  *
  * The cache is SESSION-SCOPED rather than reference-counted on purpose. The key
- * space is tiny and closed — 2 catalog garments × 6 chart sizes, plus one
- * material per (garment, colour) — so the ceiling is bounded and small, while a
+ * space is tiny and closed: 2 catalog garments × 6 chart sizes, plus one
+ * material per (garment, colour). The ceiling is bounded and small, while a
  * refcount would have to survive StrictMode's double render (which invokes
  * every useMemo twice and every effect cleanup once) to avoid leaking or
  * double-disposing. `disposeBoardGarments()` on the board's unmount is exact,
@@ -28,7 +28,7 @@ const materials = new Map<string, THREE.MeshStandardMaterial>()
  * from its mount effect and `scheduleDisposeBoardGarments` from the cleanup.
  *
  * React's StrictMode runs mount → cleanup → mount, and the second mount does
- * NOT re-render (memoised), so cancelling only on acquire is not enough — the
+ * NOT re-render (memoised), so cancelling only on acquire is not enough: the
  * cleanup's timer would survive and free geometry the live meshes still point
  * at, 1.5 s after the board appeared. Cancelling from the mount effect closes
  * that exact hole, and the grace window still absorbs a real re-layout.
@@ -41,7 +41,7 @@ function cancelDisposal(): void {
   disposeTimer = null
 }
 
-/** Cancel a pending disposal — call from the owner's mount effect. */
+/** Cancel a pending disposal. Call from the owner's mount effect. */
 export function keepBoardGarments(): void {
   cancelDisposal()
 }
@@ -88,7 +88,7 @@ export function boardGarmentMaterial(
   /**
    * Does the frame this material will be drawn with carry the cavity `color`
    * attribute? It normally does (buildGarmentFrame → applyCavity), but
-   * `computeCavity` can decline — no index, no normals, a degenerate bbox — and
+   * `computeCavity` can decline (no index, no normals, a degenerate bbox), and
    * an unbound `color` attribute reads as (0, 0, 0) in GL, which would paint
    * every garment on the board SOLID BLACK. The preview asks the same question
    * of its own geometry (GarmentModel); the board must not merely assume.
@@ -113,7 +113,7 @@ export function boardGarmentMaterial(
     metalness: 0,
     envMapIntensity: calib.envMapIntensity,
     // The board's frames come from `buildGarmentFrame`, which writes the
-    // measured cavity occlusion into a `color` attribute — and without this the
+    // measured cavity occlusion into a `color` attribute, and without this the
     // GPU simply ignores it, so the SAME tee was seam-shaded in the studio and
     // flat on the board, in one session. Sheen is still deliberately skipped
     // (see the header); occlusion is not a grazing-angle nicety.
@@ -124,7 +124,7 @@ export function boardGarmentMaterial(
   })
   // Same ceiling as the preview, from the same constant: the tee's baked normal
   // map asks for 2.81 over a heavily minified lossy texture, which amplifies its
-  // compression rather than its threads. Per axis — see the note in GarmentModel.
+  // compression rather than its threads. Per axis, see the note in GarmentModel.
   if (material.normalMap && srcMat) {
     material.normalScale.set(
       THREE.MathUtils.clamp(srcMat.normalScale.x, -MAX_BAKED_NORMAL_SCALE, MAX_BAKED_NORMAL_SCALE),

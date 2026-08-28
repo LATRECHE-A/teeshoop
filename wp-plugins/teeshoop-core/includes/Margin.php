@@ -3,7 +3,7 @@
  * Cost, floor price and commission.
  *
  * This is the Bible's chapter 1 ("Moteur de prix et commissions") made
- * executable — with one formula corrected, because as written it loses money on
+ * executable, with one formula corrected, because as written it loses money on
  * every negotiation, and two more things it says that cannot be executed as
  * written at all. All three are held open against the published version in
  * tests/test-margin.php, and all three are questions in QUESTIONS-ASSOCIE.md.
@@ -27,7 +27,7 @@
  *  ⇒               P ≥ C + K / (1 − c)
  *
  * With C = 250 €, K = 100 €, c = 40 % the Bible's formula gives a floor of
- * 583,33 € where the true floor is 416,67 € — the floor sits 167 € too high, so
+ * 583,33 € where the true floor is 416,67 €: the floor sits 167 € too high, so
  * the shop refuses deals it would have made 100 € on. It errs in the safe
  * direction, but it is still wrong, and on a competitive quote "safe" means
  * "lost to Mistertee".
@@ -78,7 +78,7 @@
  * at 428,57 EUR, against 416,67 EUR for the corrected absolute form at
  * K = 100 EUR and 583,33 EUR for the published one.
  *
- * Pure — no WordPress. Tested in tests/test-margin.php.
+ * Pure: no WordPress. Tested in tests/test-margin.php.
  *
  * @package Teeshoop\Core
  */
@@ -131,8 +131,8 @@ final class Margin {
 	/**
 	 * Recommended selling price for a target margin RATE (margin ÷ price).
 	 *
-	 * A rate of 1.0 or more has no solution — you cannot keep 100 % of a price
-	 * that has to cover a cost — so it is refused rather than returned as a
+	 * A rate of 1.0 or more has no solution (you cannot keep 100 % of a price
+	 * that has to cover a cost), so it is refused rather than returned as a
 	 * division by zero.
 	 *
 	 * @throws \InvalidArgumentException when the target rate is not in [0, 1).
@@ -312,8 +312,8 @@ final class Margin {
 	 * than `price` does, so discounting costs the salesperson more than it costs
 	 * the shop.
 	 *
-	 * A price below cost yields a negative margin and a zero commission — you do
-	 * not pay someone a share of a loss — and `below_floor` is set so the UI can
+	 * A price below cost yields a negative margin and a zero commission (you do
+	 * not pay someone a share of a loss), and `below_floor` is set so the UI can
 	 * demand an exception rather than quietly booking it.
 	 */
 	public static function outcome( int $price_ht, int $cost_ht, float $commission_rate, int $floor_ht ): array {

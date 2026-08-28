@@ -1,4 +1,4 @@
-# Questions à valider — Teeshoop
+# Questions à valider : Teeshoop
 
 **Pour :** le dirigeant de Teeshoop
 **De :** l'équipe de développement
@@ -117,7 +117,7 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 
 1. **Le site en ligne vend aujourd'hui des meubles.** Sur les 47 produits présents,
    44 sont des articles de démonstration du thème acheté (chaises Eames, lampes,
-   tables — jusqu'à 3 620 €) plus 2 tapis d'acupression. Seuls **3** sont du textile.
+   tables : jusqu'à 3 620 €) plus 2 tapis d'acupression. Seuls **3** sont du textile.
    Il n'y a qu'une seule catégorie, appelée « Tout ». La page d'accueil est encore la
    page de démonstration « home-furniture2 ». Et **Google indexe tout ça en ce moment**.
 
@@ -139,7 +139,7 @@ Ce ne sont pas des reproches, ce sont des faits vérifiés qui changent le plan 
 
 4. **La Bible décrit deux entreprises différentes en même temps** : d'un côté un modèle
    B2B sur devis (minimum 5 pièces, panier 500–1 000 €, commerciaux à 40 %), de l'autre
-   un parcours d'achat en autonomie type grand public — qui est aussi ce que font les
+   un parcours d'achat en autonomie type grand public, qui est aussi ce que font les
    deux concurrents cités en exemple (mistertee.fr, tostadora.fr). Ce sont deux sites,
    deux tunnels et deux organisations. **Il faut choisir lequel est prioritaire** (voir
    les deux premières questions).
@@ -1456,8 +1456,8 @@ suite du projet autant que le reste.)*
 Les 8 documents de la Bible chiffrent précisément la rémunération de chaque
 intervenant : 500 € par mois pour les deux téléprospectrices, 40 % de la marge pour les
 commerciaux, les tarifs fournisseurs, les abonnements logiciels. La contribution du
-développeur — à ce jour environ 49 000 lignes de code, soit la partie la plus avancée du
-projet — n'est chiffrée nulle part, et le code se trouve aujourd'hui dans un dépôt
+développeur (à ce jour environ 49 000 lignes de code, soit la partie la plus avancée du
+projet) n'est chiffrée nulle part, et le code se trouve aujourd'hui dans un dépôt
 personnel.
 
 Il serait sain de mettre par écrit, sur une page, avant d'aller plus loin :

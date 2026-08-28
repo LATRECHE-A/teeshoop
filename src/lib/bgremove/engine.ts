@@ -8,7 +8,7 @@
  */
 // NOTE: the shared vite config aliases 'onnxruntime-web' →
 // 'onnxruntime-web/wasm' (wasm-EP-only build, keeps the 26 MB jsep binary out
-// of the deploy). Import the ROOT specifier — importing the /wasm subpath
+// of the deploy). Import the ROOT specifier: importing the /wasm subpath
 // directly would collide with that prefix alias.
 import * as ort from 'onnxruntime-web'
 import {
@@ -41,7 +41,7 @@ const ROW_CHUNK = 160
 /**
  * Where the ort runtime files live. With a string `wasmPaths` prefix ort
  * dynamically imports `ort-wasm-simd-threaded.mjs` (JS glue) and fetches
- * `ort-wasm-simd-threaded.wasm` from that prefix — the shared vite config
+ * `ort-wasm-simd-threaded.wasm` from that prefix. The shared vite config
  * copies exactly those two files.
  *
  * `/ort/` is the contracted flat path (the runtime is committed at
@@ -223,7 +223,7 @@ export async function removeBackgroundImpl(
   try {
     if (!decoded.width || !decoded.height) throw new Error('Empty image')
 
-    // Working copy — sources > 2048px on the long edge are downscaled first.
+    // Working copy: sources > 2048px on the long edge are downscaled first.
     const [workW, workH] = fitWithin(decoded.width, decoded.height, MAX_SOURCE_EDGE)
     const working = scaleToCanvas(decoded.source, decoded.width, decoded.height, workW, workH)
 

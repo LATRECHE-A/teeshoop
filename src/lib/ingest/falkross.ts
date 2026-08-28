@@ -1,5 +1,5 @@
 /**
- * FALK&ROSS — supplier catalogue adapter (falk-ross.eu), LIVE webservice.
+ * FALK&ROSS: supplier catalogue adapter (falk-ross.eu), LIVE webservice.
  *
  * The counterpart of src/lib/ingest/imbretex.ts, and deliberately its mirror
  * image: same shape, same typed errors, same ingest pipeline, so the catalogue
@@ -18,7 +18,7 @@
  * Since 2026-08-12 those JSON routes are ADMIN-AUTHENTICATED: every call in
  * this file carries `Authorization: Bearer <token>` from src/lib/admin/token.ts,
  * because the responses are our purchase costs and our supplier stock. The
- * photo proxy `/api/fr/img/*` is exempt — an `<img src>` cannot send a header,
+ * photo proxy `/api/fr/img/*` is exempt: an `<img src>` cannot send a header,
  * and those files are public supplier photos. A 401 arrives as
  * `FalkRossError('admin_auth')` and clears the stored token so the UI re-asks.
  * ============================================================================
@@ -27,13 +27,13 @@
  * SIZES ARE ESTIMATED, AND SAYING SO IS PART OF THE FEATURE.
  * ----------------------------------------------------------------------------
  * Falk&Ross publishes NO garment measurements. Not a partial table, not a
- * different unit — the webservice carries size LABELS (`sku_size_name`,
+ * different unit: the webservice carries size LABELS (`sku_size_name`,
  * `sku_size_order`) and nothing else. But ProductDef needs real cm per size,
  * because the print area, the 3D body and the DTF output are all computed from
  * halfChestCm.
  *
  * So the table is DERIVED from the studio's own reference blanks
- * (src/content/sizeChart.ts — Stanley/Stella Creator for tees, Cruiser for
+ * (src/content/sizeChart.ts: Stanley/Stella Creator for tees, Cruiser for
  * hoodies/sweats), picked by the supplier's category and sleeve filter groups,
  * and stamped `sizeSource: 'reference-chart'`. That is an estimate of a
  * comparable garment, NOT a measurement of this one, and:
@@ -82,7 +82,7 @@ import {
 export type FalkRossKind = 'tee' | 'polo' | 'sweat' | 'shirt' | 'other'
 export type FalkRossSleeve = 'short' | 'long' | 'sleeveless' | 'unknown'
 
-/** Grid row — what `/api/fr/styles` returns per style. */
+/** Grid row: what `/api/fr/styles` returns per style. */
 export interface FalkRossCard {
   styleNr: string
   brand: string
@@ -101,7 +101,7 @@ export interface FalkRossCard {
 export interface FalkRossColourway {
   code: string
   name: string
-  /** Colour chip URL — a JPG. This feed publishes no hex/RGB (see header). */
+  /** Colour chip URL, a JPG. This feed publishes no hex/RGB (see header). */
   swatch: string
   /** Per-colour laid-flat FRONT photo. Present for every colourway. */
   photo: string
@@ -135,13 +135,13 @@ export interface FalkRossStyle {
   neckline: string
   fabric: string[]
   certificates: string[]
-  /** Maker's size-spec PDF — the only measurements F&R publishes, unmachine-readable. */
+  /** Maker's size-spec PDF: the only measurements F&R publishes, unmachine-readable. */
   sizespecPdf: string
   front: string
   back: string
   hasBack: boolean
   frontColour: string | null
-  /** Colour the back was shot in — only ONE colourway has a back. See header. */
+  /** Colour the back was shot in: only ONE colourway has a back. See header. */
   backColour: string | null
   colourways: FalkRossColourway[]
   sizes: string[]
@@ -159,7 +159,7 @@ export interface FalkRossPage {
   exportedAt: string
 }
 
-/** SKU → { cost, list }. `cost` is OUR PURCHASE PRICE — never a retail price. */
+/** SKU → { cost, list }. `cost` is OUR PURCHASE PRICE, never a retail price. */
 export interface FalkRossPrices {
   currency: string
   prices: Record<string, { cost: number; list: number }>
@@ -205,10 +205,10 @@ export class FalkRossError extends Error {
   }
 }
 
-/** Worker error bodies are `{ error, message }` — map them onto our codes. */
+/** Worker error bodies are `{ error, message }`. Map them onto our codes. */
 function errorCodeOf(status: number, body: unknown): FalkRossErrorCode {
   const code = (body as { error?: string } | null)?.error
-  // FIRST — so no later rule can swallow it. 401 from the admin gate is not the
+  // FIRST, so no later rule can swallow it. 401 from the admin gate is not the
   // same failure as 'auth' (which means OUR credentials to Falk&Ross are bad).
   if (code === 'admin_auth') return 'admin_auth'
   if (code === 'auth') return 'auth'
@@ -225,8 +225,8 @@ function errorCodeOf(status: number, body: unknown): FalkRossErrorCode {
  * THESE MUST STAY ABOVE THE WORKER'S OWN BUDGETS (worker/falkross.ts:
  * UPSTREAM_TIMEOUT_MS and BROWSE_BUDGET_MS). Whoever times out first decides
  * the message the user reads: if the client wins the race it can only say
- * "something took too long", while the Worker knows *what* failed — bad
- * credentials, a 502 from the supplier, a missing style — and answers a typed
+ * "something took too long", while the Worker knows *what* failed (bad
+ * credentials, a 502 from the supplier, a missing style) and answers a typed
  * JSON error. Ranking the client's budget last is what lets the truthful
  * diagnosis reach the UI.
  */
@@ -241,14 +241,14 @@ const BROWSE_TIMEOUT_MS = 35_000
  * A TIMEOUT IS NOT A MISSING BACKEND. `AbortSignal.timeout` rejects with a
  * DOMException named 'TimeoutError'; a refused connection rejects with a
  * TypeError. Only the latter means the Worker is not running, and telling
- * someone to `npm run dev` a process that is already up — because one supplier
- * document hung — sends them to fix the wrong thing. That misdiagnosis is
+ * someone to `npm run dev` a process that is already up (because one supplier
+ * document hung) sends them to fix the wrong thing. That misdiagnosis is
  * exactly what this error text exists to prevent, so it must not reintroduce
  * it one layer down.
  *
  * `'backend'` vs `'unavailable'` for a genuine transport failure: in dev,
  * `/api/*` is a Vite proxy to a local `wrangler dev`, and with that down the
- * proxy answers ECONNREFUSED or a non-JSON 500 page — "your backend is not
+ * proxy answers ECONNREFUSED or a non-JSON 500 page: "your backend is not
  * started" is then the honest diagnosis. In production the same symptoms mean
  * the edge is broken, and "supplier unreachable" is the better message.
  */
@@ -260,7 +260,7 @@ function transportError(cause?: unknown): FalkRossError {
 
 async function getJson<T>(path: string, opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
   const deadline = AbortSignal.timeout(opts.timeoutMs ?? GET_TIMEOUT_MS)
-  // A caller-supplied signal (a superseded search) must cancel too — but it
+  // A caller-supplied signal (a superseded search) must cancel too, but it
   // must not be mistaken for a timeout, so the two stay distinguishable.
   const signal = opts.signal ? AbortSignal.any([opts.signal, deadline]) : deadline
   let res: Response
@@ -313,7 +313,7 @@ export interface FalkRossBrowseOptions {
  *
  * The style list is ~2350 entries and each style detail is a separate upstream
  * document, so the Worker walks the list under a budget and returns
- * `nextOffset` — treat a short page with a non-null `nextOffset` as "more to
+ * `nextOffset`. Treat a short page with a non-null `nextOffset` as "more to
  * scan", not as "no more results" (see `falkrossHasMore`).
  *
  * @throws FalkRossError('unavailable') network/Worker down · ('auth') bad or
@@ -337,7 +337,7 @@ export async function fetchFalkRossStyles(
 export const falkrossHasMore = (page: FalkRossPage | null): boolean =>
   !!page && page.nextOffset !== null
 
-/** One style in full — colourways, sizes, SKUs, photos. */
+/** One style in full: colourways, sizes, SKUs, photos. */
 export async function fetchFalkRossStyle(styleNr: string): Promise<FalkRossStyle> {
   return getJson<FalkRossStyle>(`/api/fr/style/${encodeURIComponent(styleNr)}`)
 }
@@ -364,7 +364,7 @@ export async function fetchFalkRossState(): Promise<FalkRossWsState> {
 export const falkrossSizespecPdf = (s: FalkRossStyle): string => s.sizespecPdf
 
 // ---------------------------------------------------------------------------
-// Size mapping — reference-chart estimates (see the module header)
+// Size mapping: reference-chart estimates (see the module header)
 // ---------------------------------------------------------------------------
 
 /**
@@ -392,7 +392,7 @@ export type FalkRossProfile = 'tee' | 'hoodie'
  * from a guess at the name.
  *
  * A sweat/hoodie is cut fuller and longer-sleeved than a tee, so getting this
- * wrong would put the print area on the wrong body — it is the one decision
+ * wrong would put the print area on the wrong body: it is the one decision
  * the estimate really rests on.
  */
 export function falkrossProfile(style: {
@@ -409,7 +409,7 @@ export function falkrossProfile(style: {
 export interface FalkRossSizeTable {
   sizes: Partial<Record<SizeId, SizeSpecCm>>
   profile: FalkRossProfile
-  /** Always `'reference-chart'` here — F&R publishes no measurements. */
+  /** Always `'reference-chart'` here: F&R publishes no measurements. */
   sizeSource: SizeSource
   /** Supplier labels the studio cannot carry (XS, 4XL, "One Size"…). */
   dropped: string[]
@@ -419,7 +419,7 @@ export interface FalkRossSizeTable {
  * Build the ESTIMATED cm table for a style: the reference chart for its
  * profile, restricted to the sizes the supplier actually sells.
  *
- * Restricting matters — offering 3XL on a style that stops at XL would invent
+ * Restricting matters: offering 3XL on a style that stops at XL would invent
  * a product. The numbers are an estimate; the size RUN is the supplier's fact.
  */
 export function falkrossSizes(style: {
@@ -477,7 +477,7 @@ function pickDefaultSize(
  * The front photo for a colourway.
  *
  * Every colourway carries its own laid-flat front (`sku_color_picture_url`),
- * so the front is ALWAYS colour-correct — prefer it over the style-level
+ * so the front is ALWAYS colour-correct. Prefer it over the style-level
  * picture, which is whatever colour the catalogue shoot used.
  */
 export function falkrossFrontUrl(style: FalkRossStyle, colourCode?: string): string {
@@ -491,7 +491,7 @@ export function falkrossFrontUrl(style: FalkRossStyle, colourCode?: string): str
  *
  * Falk&Ross photographs exactly one colourway from behind. For that colour the
  * back is a real photograph; for every other colour the only real back on offer
- * is a picture of a DIFFERENT-COLOURED garment — a navy tee with a white back
+ * is a picture of a DIFFERENT-COLOURED garment: a navy tee with a white back
  * is not a better answer than an honest reconstruction, it is a wrong one. So
  * anything else reconstructs from the (colour-correct) front and says so.
  */
@@ -544,7 +544,7 @@ export interface FalkRossMapOptions {
   /** Override table (admin-corrected); flips `sizeSource` to `'manual'`. */
   sizes?: Partial<Record<SizeId, SizeSpecCm>>
   sizeSource?: SizeSource
-  /** Our purchase cost for the chosen colour/size, € — recorded in the notes. */
+  /** Our purchase cost for the chosen colour/size, € (recorded in the notes). */
   costEur?: number | null
 }
 
@@ -565,12 +565,12 @@ function buildNotes(
   if (style.gender) bits.push(style.gender)
   const coo = style.skus.find((s) => s.colourCode === colour?.code)?.coo
   if (coo) bits.push(`Origine ${coo}`)
-  // OUR PURCHASE COST — see the module header; never a retail price.
+  // OUR PURCHASE COST: see the module header; never a retail price.
   if (costEur) bits.push(`Prix d'achat ${costEur.toFixed(2)} €`)
   // The measurements are the thing most likely to be trusted blindly later, so
   // the record itself carries the caveat, not just the UI that created it.
   if (sizeSource === 'reference-chart') {
-    bits.push('Mesures estimées (gabarit de référence) — non publiées par Falk&Ross')
+    bits.push('Mesures estimées (gabarit de référence), non publiées par Falk&Ross')
   } else if (sizeSource === 'manual') {
     bits.push('Mesures saisies manuellement')
   }
@@ -601,7 +601,7 @@ export function falkrossToProductDef(
     : null
   return {
     id: `falkross-${style.styleNr}${colour ? `-${colour.code}` : ''}`,
-    name: colour ? `${style.name} — ${colour.name}` : style.name,
+    name: colour ? `${style.name}, ${colour.name}` : style.name,
     brandRef: [style.brand, style.supplierRef].filter(Boolean).join(' ').trim(),
     createdAt: Date.now(),
     sizes,
@@ -628,7 +628,7 @@ export interface FalkRossIngestOptions {
   onProgress?: (stage: 'front' | 'back' | 'generate') => void
   /** Reconstruct a back when none is usable (default: yes). */
   generateBack?: boolean
-  /** Generation timestamp — a parameter so the pipeline stays clock-free. */
+  /** Generation timestamp, a parameter so the pipeline stays clock-free. */
   now?: number
 }
 
@@ -638,14 +638,14 @@ export interface FalkRossIngestOptions {
  * print-area suggestion), then `falkrossToProductDef` attaches the size table.
  *
  * BACK POLICY: a real back photo is used only when it is a photo of the colour
- * being imported (see `falkrossBackSource`). Otherwise — wrong colour, or no
- * back published at all — the back is RECONSTRUCTED from the colour-correct
+ * being imported (see `falkrossBackSource`). Otherwise (wrong colour, or no
+ * back published at all), the back is RECONSTRUCTED from the colour-correct
  * front by the shared `generateBackSide`, arriving stamped `origin:
  * 'generated'` so the studio, AR and mockups all badge it as a preview.
  *
  * The reconstruction is given no colour to flood with, on purpose: this feed
  * carries no RGB (only a swatch JPG), and the pipeline's own sampling of the
- * front photo is the better source anyway — the customer is looking at the
+ * front photo is the better source anyway: the customer is looking at the
  * photo, not at a catalogue chip.
  *
  * Only a FRONT failure aborts.
@@ -669,20 +669,20 @@ export async function ingestFalkRossProduct(
     falkrossFrontUrl(style, opts.colourCode),
     'front',
     halfChestCm,
-    `${style.name} — face`,
+    `${style.name}, face`,
   )
 
   let back: ProductSideDef | null = null
   if (falkrossBackSource(style, opts.colourCode) === 'real' && style.back) {
     opts.onProgress?.('back')
-    back = await ingestSide(style.back, 'back', halfChestCm, `${style.name} — dos`).catch(
+    back = await ingestSide(style.back, 'back', halfChestCm, `${style.name}, dos`).catch(
       () => null,
     )
   }
   if (!back && opts.generateBack !== false) {
     opts.onProgress?.('generate')
     back = await generateBackSide(front, halfChestCm, {
-      name: `${style.name} — dos (reconstitué)`,
+      name: `${style.name}, dos (reconstitué)`,
       at: opts.now ?? 0,
       colorRgb: null,
     }).catch(() => null)
@@ -699,7 +699,7 @@ export async function ingestFalkRossProduct(
 }
 
 // ---------------------------------------------------------------------------
-// Ordering — REMOVED (2026-08-12)
+// Ordering: REMOVED (2026-08-12)
 //
 // `placeFalkRossOrder` and its types lived here, exported and documented but
 // never wired to a button. They are gone because the route they called,
@@ -707,7 +707,7 @@ export async function ingestFalkRossProduct(
 // place a real purchase order on our Falk&Ross account.
 //
 // The supplier order contract itself is preserved server-side, unrouted, in
-// the order section of worker/falkross.ts — that is where the two verified
+// the order section of worker/falkross.ts. That is where the two verified
 // response envelopes are documented. Re-introducing ordering means an
 // authenticated admin route plus an explicit human confirmation step.
 // ---------------------------------------------------------------------------

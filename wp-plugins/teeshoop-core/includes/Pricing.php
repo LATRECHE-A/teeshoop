@@ -5,8 +5,8 @@
  * There is exactly ONE implementation of the selling price, it is this file,
  * and it runs on the server. The studio displays what this returns; it never
  * computes a price a customer can pay. Two implementations of the same rules
- * always diverge in the end — on a tier boundary, on a rounding mode, on the
- * VAT basis — and the day they do, the customer sees one number and the
+ * always diverge in the end (on a tier boundary, on a rounding mode, on the
+ * VAT basis), and the day they do, the customer sees one number and the
  * invoice says another.
  *
  * The studio's own src/content/pricing.ts stays where it is: it is a *preview*
@@ -42,7 +42,7 @@ final class Pricing {
 	 * VAT rate is question 17 and the self-serve thresholds are question 02.
 	 * This paragraph used to say "question 04", which is the negotiated DTF rate
 	 * per linear metre and settles none of them. The real values land in the
-	 * `teeshoop_pricing` option — which is why every one of them is configurable
+	 * `teeshoop_pricing` option, which is why every one of them is configurable
 	 * and none is hard-coded at a call site.
 	 */
 	public static function default_config(): array {
@@ -56,7 +56,7 @@ final class Pricing {
 			 * A garment is priced as: the blank + the marking of each printed
 			 * side. The studio's model folded the first side's marking into the
 			 * base, which made a BLANK garment cost exactly as much as a printed
-			 * one — fine for a demo, wrong for a shop that also resells blanks.
+			 * one, fine for a demo, wrong for a shop that also resells blanks.
 			 */
 			'garments'   => array(
 				'tee'    => array(
@@ -80,7 +80,7 @@ final class Pricing {
 
 			/*
 			 * Surcharge by printed area, per side. A4 ≈ 625 cm², A3 ≈ 1250 cm².
-			 * The area that counts is the INK, not the layer rectangle — see the
+			 * The area that counts is the INK, not the layer rectangle. See the
 			 * trim work in the DTF module. Passing the rectangle here is what
 			 * makes a customer pay for transparent margins.
 			 */
@@ -336,7 +336,7 @@ final class Pricing {
 		return $sides;
 	}
 
-	/** The discount rate for a quantity — the highest break reached, or 0. */
+	/** The discount rate for a quantity: the highest break reached, or 0. */
 	public static function qty_discount( int $qty, array $config ): float {
 		$rate = 0.0;
 		foreach ( $config['qty_breaks'] as $break ) {
@@ -365,7 +365,7 @@ final class Pricing {
 	 * cart both render. `total_ht` is authoritative; `unit_ttc` is for display
 	 * and may differ from `total_ttc / qty` by a cent.
 	 *
-	 * @throws \InvalidArgumentException on an unknown garment — never priced as free.
+	 * @throws \InvalidArgumentException on an unknown garment, never priced as free.
 	 */
 	public static function quote( array $input, array $config ): array {
 		$garment_key = (string) ( $input['garment'] ?? '' );

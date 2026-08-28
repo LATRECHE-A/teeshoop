@@ -8,7 +8,7 @@
  * (ship-your-own) garments get a procedural mannequin. The design goes on as
  * low-poly INDEXED planes (NOT three's DecalGeometry, whose non-indexed
  * projected primitives + >2 transparent materials are rejected by Android Scene
- * Viewer / Filament — see docs). Decals come from the shared renderer
+ * Viewer / Filament, see docs). Decals come from the shared renderer
  * (renderPrintArea), so vector AND photo designs work.
  *
  * Front/back prints on a torso are built by src/three/decalGeom.ts from the SAME
@@ -25,7 +25,7 @@
  *     formats (three's USDZExporter hardcodes metersPerUnit=1, so NO extra ×100).
  *   - Decals are alphaMode MASK (transparent:false + alphaTest), which is
  *     order-independent and does NOT count against the "max 2 alpha materials"
- *     budget — so front + back + both sleeves all coexist safely.
+ *     budget, so front + back + both sleeves all coexist safely.
  *   - Geometric lift (not polygonOffset, which the exporter drops) keeps decals
  *     off the fabric so they never z-fight.
  *   - Every material is MeshStandardMaterial (the only material USDZExporter
@@ -78,7 +78,7 @@ interface Disposable {
 /**
  * Print material: alphaMode MASK. transparent:false + alphaTest makes the
  * exporter emit MASK (not BLEND), which writes depth, sorts order-independently
- * and is exempt from Scene Viewer's "max 2 alpha materials" limit — the reason a
+ * and is exempt from Scene Viewer's "max 2 alpha materials" limit, the reason a
  * garment with front+back+sleeve prints previously failed to load.
  */
 function decalMaterial(tex: THREE.Texture): THREE.MeshStandardMaterial {
@@ -96,7 +96,7 @@ function decalMaterial(tex: THREE.Texture): THREE.MeshStandardMaterial {
  * Bake one side's print. AR is a physical-output path, so it always renders at
  * a SIZE: the print area and the artwork in it are graded together
  * (src/lib/printScale.ts), so the AR garment carries the same print the buyer
- * of that size receives — a 3XL's is genuinely bigger than an S's.
+ * of that size receives. A 3XL's is genuinely bigger than an S's.
  */
 async function renderSide(
   design: Design,
@@ -168,8 +168,8 @@ function sanitizeGarmentGeometry(geometry: THREE.BufferGeometry, keepUV: boolean
 
 /**
  * Build a realistic catalog garment (tee/hoodie) with the design on it.
- * Normalization and print placement come from src/three/garmentFrame.ts — the
- * SAME code the studio preview runs — so the AR garment is the preview garment
+ * Normalization and print placement come from src/three/garmentFrame.ts (the
+ * SAME code the studio preview runs), so the AR garment is the preview garment
  * at life size. Front/back prints are fabric-space grids (true arc length, no
  * projector, no clipping); the sleeve keeps the curved plane because an arm is
  * a tube on its own slanted axis, which the torso unwrap does not describe.
@@ -205,7 +205,7 @@ async function buildCatalogFigure(
   figure.add(garmentMesh)
   const disposables: Disposable[] = [geometry, material]
 
-  // Front / back prints — one grid vertex per fabric sample, on the real surface.
+  // Front / back prints: one grid vertex per fabric sample, on the real surface.
   const k = printScaleK(design, sizeId)
   const sides = ['front', 'back'] as const
   const canvases = await Promise.all(sides.map((s) => renderSide(design, s, sizeId)))
@@ -237,7 +237,7 @@ async function buildCatalogFigure(
     const tex = canvasTexture(sleeveCanvas)
     disposables.push(tex)
     for (const sign of [-1, 1] as const) {
-      // The arm, measured — the same profile the preview places its sleeve
+      // The arm, measured: the same profile the preview places its sleeve
       // projector from (src/three/garmentFrame.ts). A curved plane cannot be
       // clipped the way a projector box can, so AR never lost the outboard part
       // of the print; what it DID share is the z = 0 assumption, and an A-pose
@@ -301,7 +301,7 @@ async function buildMannequinFigure(
 
 /**
  * A realistic AI-generated figure already WEARING the garment (public/models/
- * avatar-*.glb — a single opaque textured mesh, the safest possible Scene Viewer
+ * avatar-*.glb, a single opaque textured mesh, the safest possible Scene Viewer
  * asset). The design is projected onto the chest/back with the same curved MASK
  * plane used everywhere else; the plane raycasts the actual torso so it conforms
  * to ANY body mesh. Life-size inches; grounded at y=0.
@@ -316,7 +316,7 @@ const AVATAR_URL: Record<Gender, Record<CatalogGarmentId, string>> = {
 
 const AVATAR = {
   heightIn: 68, // normalise to a life-size figure
-  // Usable flat front width as a fraction of the torso's full width — the print
+  // Usable flat front width as a fraction of the torso's full width: the print
   // is drawn at its TRUE inch size and only shrinks if it would overhang this.
   frontArcFrac: 0.9,
   sleeveFrac: 0.75, // upper-arm height for the sleeve print
@@ -330,7 +330,7 @@ const AVATAR = {
 
 /**
  * The worn garment's VISUAL centre as a fraction of body height, per gender ×
- * garment — MEASURED from each avatar GLB's garment band (chroma-key green
+ * garment: MEASURED from each avatar GLB's garment band (chroma-key green
  * vertex scan, collar/hem percentiles). Front/back prints sit at this centre ∓
  * the SHARED areaOffsetYIn, so they land at the SAME garment-relative height as
  * the 2D editor and 3D preview. Replaces the single 0.72 guess, which sat ~3in
@@ -344,8 +344,8 @@ const GARMENT_CENTER_FRAC: Record<Gender, Record<CatalogGarmentId, number>> = {
 /**
  * Recolour the chroma-key garment to the studio colour. The mannequins are
  * generated wearing a VIVID GREEN garment; the body, trousers and the atlas
- * padding are all desaturated, so a saturation threshold isolates the garment —
- * sleeves and hood included — despite the fragmented Meshy UV atlas and baked
+ * padding are all desaturated, so a saturation threshold isolates the garment
+ * (sleeves and hood included) despite the fragmented Meshy UV atlas and baked
  * shading. Each garment texel becomes the target colour scaled by its own
  * brightness, so folds and highlights survive.
  */
@@ -418,7 +418,7 @@ async function buildAvatarFigure(
   const center = box.getCenter(new THREE.Vector3())
   // centre X/Z, plant feet at y=0, uniformly scale to a life-size height.
   //
-  // KNOWN LIMIT — the avatar does NOT grade with size. The GLB bakes body and
+  // KNOWN LIMIT: the avatar does NOT grade with size. The GLB bakes body and
   // garment into a single mesh at one body size, so a bigger garment cannot be
   // shown without also resizing the person. Scaling girth (X/Z) by the chest
   // ratio was tried and rejected: it widens head, arms and legs by the same
@@ -432,7 +432,7 @@ async function buildAvatarFigure(
   geometry.scale(AVATAR.heightIn / size.y, AVATAR.heightIn / size.y, AVATAR.heightIn / size.y)
   geometry.computeBoundingBox()
 
-  sanitizeGarmentGeometry(geometry, true) // keep uv — the avatar is textured
+  sanitizeGarmentGeometry(geometry, true) // keep uv: the avatar is textured
   const srcMat = (Array.isArray(src.material) ? src.material[0] : src.material) as THREE.MeshStandardMaterial
   const baseMap = srcMat.map ? buildGarmentTexture(srcMat.map, garmentColorHex(design)) : null
   const material = new THREE.MeshStandardMaterial({ map: baseMap, color: 0xffffff, roughness: 0.92, metalness: 0 })
@@ -444,18 +444,18 @@ async function buildAvatarFigure(
   const disposables: Disposable[] = [geometry, material]
   if (baseMap) disposables.push(baseMap)
 
-  // The garment's 2D-art centre maps to this absolute height on the figure —
+  // The garment's 2D-art centre maps to this absolute height on the figure,
   // measured per (gender, garment) so the print lands mid-chest, not at the neck.
   const garmentCenterY = AVATAR.heightIn * GARMENT_CENTER_FRAC[gender][garment]
 
   // The avatar body is a garment surface too: unwrap it and place the print by
   // arc length, exactly like the catalog mesh and the studio preview. It falls
   // back to the curved plane when the body cannot be unwrapped cleanly, or when
-  // the print is so wide it would reach round to the arms (see AVATAR.wrapLimit)
-  // — the case the `fit` shrink below exists for.
+  // the print is so wide it would reach round to the arms (see
+  // AVATAR.wrapLimit), the case the `fit` shrink below exists for.
   const table = getArcTable(url, geometry, AVATAR.chestBandFromTop)
 
-  // Front / back — TRUE inch size, placed per-side at garmentCentre ∓
+  // Front / back: TRUE inch size, placed per-side at garmentCentre ∓
   // areaOffsetYIn so the worn print matches the 2D editor and the 3D preview
   // (back sits higher than front). Same math source as both.
   const k = printScaleK(design, sizeId)
@@ -490,7 +490,7 @@ async function buildAvatarFigure(
     figure.add(mesh)
   })
 
-  // Sleeve print (both arms) on the outer upper arm — parity with 2D/3D and the
+  // Sleeve print (both arms) on the outer upper arm, parity with 2D/3D and the
   // catalog fallback, which the avatar path previously dropped entirely.
   const sleeveCanvas = await renderSide(design, 'sleeve', sizeId)
   if (sleeveCanvas) {
@@ -531,13 +531,13 @@ function padCanvasToHeight(src: HTMLCanvasElement, targetH: number): HTMLCanvasE
 /**
  * Multiply a garment's own occlusion map back into its albedo.
  *
- * The 3D preview keeps the two apart — albedo in `map`, occlusion in `aoMap`,
+ * The 3D preview keeps the two apart: albedo in `map`, occlusion in `aoMap`,
  * so three applies the second only to view-independent light. An exported GLB
  * has no such luxury: Scene Viewer and Quick Look each decide for themselves
  * what to do with an occlusion texture, and the one thing both honour is base
  * colour. Baking is lossy in exactly one way (the occlusion also dims the
  * direct light, where the preview would not) and correct in the way that
- * matters — the garment arrives on the phone with the form its photograph had.
+ * matters: the garment arrives on the phone with the form its photograph had.
  *
  * Returns the source untouched when there is nothing to bake, so the caller
  * never has to branch.
@@ -566,7 +566,7 @@ function bakeOcclusion(
 
 /**
  * Silhouette-shaped back cap when the customer supplied no back photo, flooded
- * with THE GARMENT'S OWN COLOUR — measured off the front (src/three/textures.ts
+ * with THE GARMENT'S OWN COLOUR, measured off the front (src/three/textures.ts
  * `garmentTint`), not assumed.
  *
  * This used to be a fixed dark slate, which is a fine colour for a navy tee and
@@ -629,10 +629,10 @@ function buildConformedDecal(
   pos.needsUpdate = true
   if (side === 'back') {
     // The plane winds +Z, so displacing only Z leaves the (single-sided) front
-    // face pointing +Z — INTO the body — and the rear viewer sees a culled back
+    // face pointing +Z (INTO the body), and the rear viewer sees a culled back
     // face. Reverse the triangle winding so the FrontSide points −Z (toward the
     // rear), and mirror the UVs (u→1−u) so the back print reads correctly from
-    // behind — the parity the catalog/avatar decals get from rotation.y = π
+    // behind, the parity the catalog/avatar decals get from rotation.y = π
     // (which we can't use here: the geometry already carries absolute −Z depth).
     const idx = geo.index
     if (idx) {
@@ -656,8 +656,8 @@ function buildConformedDecal(
 /**
  * Central fraction of a laid-flat garment composite that is the BODY (not the
  * spread sleeves): body width (median of the lower rows = waist/hem) ÷ max width
- * (chest + sleeves). Cropping the decal to this drops the sleeves — which would
- * otherwise project as flat flaps off an arms-down body — so the avatar's own
+ * (chest + sleeves). Cropping the decal to this drops the sleeves, which would
+ * otherwise project as flat flaps off an arms-down body, so the avatar's own
  * neutral sleeves show there instead. ~1 for a sleeveless/rectangular upload.
  */
 function bodyCropFraction(canvas: HTMLCanvasElement): number {
@@ -693,7 +693,7 @@ function bodyCropFraction(canvas: HTMLCanvasElement): number {
 }
 
 /**
- * The customer's OWN uploaded garment, WORN on a realistic avatar — the primary
+ * The customer's OWN uploaded garment, WORN on a realistic avatar: the primary
  * custom AR path. The gendered avatar's own garment is recoloured to a neutral
  * undershirt tone (the "body"), and the uploaded garment (photo + design,
  * composited through the SHARED renderer) is projected onto the torso as a
@@ -753,7 +753,7 @@ async function buildCustomAvatarFigure(
 
   // Crop the sleeves once (from the forward composite) so they don't flap.
   // The composite is a physical output, so it bakes the GRADED print (the
-  // uploaded garment photo keeps its own real widthIn — only the print grades).
+  // uploaded garment photo keeps its own real widthIn: only the print grades).
   const firstCanvas = await renderMockup(design, plan[0].src, 1100, sizeId)
   const cropFrac = bodyCropFraction(firstCanvas)
   for (const { side, src: srcSide } of plan) {
@@ -782,7 +782,7 @@ async function buildCustomAvatarFigure(
 }
 
 /**
- * The customer's OWN uploaded garment on its own (no body) — the fallback when
+ * The customer's OWN uploaded garment on its own (no body), the fallback when
  * the avatar can't load. It is the SAME shell the studio 3D preview builds
  * (silhouette.ts), from the same synchronous, deterministic code: the depth
  * comes from a shipped garment mesh graded onto the upload's silhouette, and
@@ -803,14 +803,14 @@ async function buildCustomFigure(
   if (!hasFront && !hasBack) throw new Error('custom garment has no sides')
 
   // Composite each supplied side (garment photo + design) through the SHARED
-  // renderer — byte-identical to the studio 3D texture, so AR matches 3D.
+  // renderer, byte-identical to the studio 3D texture, so AR matches 3D.
   const frontSide = hasFront ? 'front' : 'back'
   let frontCanvas = await renderMockup(design, frontSide, 1100, sizeId)
   let backCanvas = hasFront && hasBack ? await renderMockup(design, 'back', 1100, sizeId) : null
   // The bare garment behind each composite. The shell measures its photometry
   // from this (CardSource.photo / buildInflatedShell's `opts.photo`) and the
-  // measurement moves GEOMETRY — the photo's mid-frequency band is real Z
-  // displacement — so AR must hand over exactly what the preview does or the
+  // measurement moves GEOMETRY (the photo's mid-frequency band is real Z
+  // displacement), so AR must hand over exactly what the preview does or the
   // two stop being the same garment.
   let frontPhoto = await renderMockup(design, frontSide, 1100, sizeId, { artwork: false })
   let backPhoto = backCanvas ? await renderMockup(design, 'back', 1100, sizeId, { artwork: false }) : null
@@ -819,7 +819,7 @@ async function buildCustomFigure(
   // to a shared height first (which is what fixes hIn, and therefore GY and
   // therefore the geometry), then the reverse panel redrawn into the front's own
   // frame. The second step is what stops a differently-framed back photo landing
-  // off its outline — see src/lib/backRegister.ts. It must happen here as well
+  // off its outline (see src/lib/backRegister.ts). It must happen here as well
   // as in the preview or the phone and the desktop show different garments.
   if (backCanvas) {
     const maxH = Math.max(frontCanvas.height, backCanvas.height)
@@ -833,7 +833,7 @@ async function buildCustomFigure(
     const registered = registerBackPanel(frontCanvas, backCanvas, backPhoto)
     // Null = the two photographs cannot be the same garment. Dropping the back
     // hands the reverse to `blankBackCanvas` below, which is the front's own
-    // silhouette flooded with the garment's colour — right shape, right colour,
+    // silhouette flooded with the garment's colour: right shape, right colour,
     // no smear.
     backCanvas = registered?.canvas ?? null
     backPhoto = registered?.photo ?? null
@@ -862,7 +862,7 @@ async function buildCustomFigure(
     // Quick Look cannot rely on one being honoured, and vertex colours are
     // stripped here anyway (sanitizeGarmentGeometry), so it is baked into the
     // base colour instead. Without this the phone shows a flat cutout of the
-    // garment the desktop shows with its own form — the same divergence, in the
+    // garment the desktop shows with its own form: the same divergence, in the
     // one place the customer is most likely to notice it.
     const frontTex = canvasTexture(bakeOcclusion(shell.albedoCanvas ?? frontCanvas, shell.occlusionCanvas))
     const frontMat = decalMaterial(frontTex)
@@ -870,12 +870,12 @@ async function buildCustomFigure(
     disposables.push(shell.front, frontTex, frontMat)
 
     // Fallback base for the reverse when the customer supplied no back shot.
-    // (Named apart from `backPhoto`, which is the BARE back — the photometric
+    // (Named apart from `backPhoto`, which is the BARE back: the photometric
     // reference, not a substitute picture.)
     const backBase = backCanvas ?? blankBackCanvas(frontCanvas)
     // A GENERATED back is a reconstruction, not a photograph: ingest mirrors the
     // front's silhouette and floods it with the garment colour, so there is no
-    // lightbox gradient to divide out — and running the correction anyway would
+    // lightbox gradient to divide out, and running the correction anyway would
     // work on the baked "APERÇU · PREVIEW" mark, the one thing in those pixels
     // that does vary. Same decision the studio preview makes.
     const backMaps =
@@ -888,7 +888,7 @@ async function buildCustomFigure(
     disposables.push(shell.back, backTex, backMat)
 
     // Interior linings (hollow read through the neck/hem in AR too): darkened
-    // copies of each panel facing inward. Same textures, tinted material —
+    // copies of each panel facing inward. Same textures, tinted material:
     // #adadad is the sRGB hex whose linear value ≈0.42 (the lining multiply).
     // alphaMode MASK keeps them exempt from Scene Viewer's alpha budget.
     const addLining = (geo: THREE.BufferGeometry | undefined, tex: THREE.Texture) => {
@@ -915,7 +915,7 @@ async function buildCustomFigure(
     // and it is indexed like every other primitive here.
     //
     // It gets its own material for one reason: IT MUST NOT BE ALPHA-TESTED. The
-    // rim is not a surface with a cut in it, it IS the cut — welded to the
+    // rim is not a surface with a cut in it, it IS the cut, welded to the
     // isoline the sheets' alpha makes, so every fragment of it is cloth by
     // construction. decalMaterial's alphaTest deletes it instead of shading it:
     // all of a crossing's rings share one uv, so the ribbon has no across-width
@@ -955,7 +955,7 @@ async function buildCustomFigure(
       disposables.push(plane, intMat)
     }
   } else {
-    // No clean cutout — a gently curved double-sided card with the composite.
+    // No clean cutout: a gently curved double-sided card with the composite.
     const frontTex = canvasTexture(frontCanvas)
     const geoF = curvedDecal(wIn, hIn, wIn * 1.4)
     const matF = decalMaterial(frontTex)
@@ -995,7 +995,7 @@ export async function buildArModel(
     // Custom (ship-your-own): the customer's ACTUAL uploaded garment WORN on a
     // realistic male/female avatar. Degrade to the bare inflated shell, then the
     // procedural mannequin, if the avatar / cutout can't be built. (Custom
-    // garments carry their own real widthIn — sizeId only grades the PRINT, and
+    // garments carry their own real widthIn: sizeId only grades the PRINT, and
     // only when the upload carries a half-chest chart.)
     try {
       built = await buildCustomAvatarFigure(design, gender, sizeId)

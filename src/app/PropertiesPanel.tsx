@@ -27,7 +27,7 @@ import { useT } from '@/i18n'
 
 /**
  * "on size X" suffix for the physical-size readout. `messages.ts` is owned by
- * the i18n integrator, so this literal lives here — French first, English
+ * the i18n integrator, so this literal lives here: French first, English
  * fallback. See the report for the key to merge.
  */
 const ON_SIZE = { fr: 'sur la taille', en: 'on size' } as const
@@ -209,7 +209,7 @@ export default function PropertiesPanel() {
   // On mobile only one bottom sheet at a time: a tool panel takes precedence.
   if (isMobile && activePanel) return null
   // While a layer is being dragged on mobile, hide the sheet entirely so the
-  // object stays visible and movable — the fix for "the panel blocks the move".
+  // object stays visible and movable, the fix for "the panel blocks the move".
   if (isMobile && dragging) return null
 
   const patch = (p: Partial<Layer>, commit = true) =>
@@ -530,7 +530,7 @@ function CommonProps({
   const lang = useStore((s) => s.lang)
   const zones = zonesFor(design, layer.side)
   // The stored geometry is base-space; what the customer receives is that
-  // geometry graded to the previewed size. Show the PHYSICAL result — the whole
+  // geometry graded to the previewed size. Show the PHYSICAL result: the whole
   // point of grading is invisible if this readout stays at the base value.
   // (Read-only: nothing here writes back, so base space is untouched.)
   const size = measureLayer(scaleLayer(layer, printScaleK(design, previewSize)), 100)

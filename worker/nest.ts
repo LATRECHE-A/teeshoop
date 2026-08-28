@@ -148,7 +148,7 @@ function readPieces(raw: unknown): { pieces: DtfPiece[] } | { error: string } {
 }
 
 /**
- * `POST /api/nest` — pack a set of transfers onto the roll and report the
+ * `POST /api/nest`: pack a set of transfers onto the roll and report the
  * length the supplier will bill.
  */
 export async function nestOrder(request: Request, env: AdminEnv): Promise<Response> {

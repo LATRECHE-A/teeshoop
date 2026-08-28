@@ -1,13 +1,13 @@
 /**
- * IMBRETEX — supplier catalogue adapter (imbretex.fr).
+ * IMBRETEX: supplier catalogue adapter (imbretex.fr).
  *
  * ============================================================================
  * ONLY `fetchImbretexCatalog` CHANGES WHEN THE OFFICIAL API LANDS.
  * ----------------------------------------------------------------------------
  * Imbretex has promised an API but has not delivered it yet, so the studio
  * reads a SNAPSHOT of their public catalogue committed under
- * `public/catalog/imbretex/` (JSON + jpg photos). Everything downstream —
- * `imbretexToProductDef`, `ingestImbretexProduct`, the modal — talks the
+ * `public/catalog/imbretex/` (JSON + jpg photos). Everything downstream
+ * (`imbretexToProductDef`, `ingestImbretexProduct`, the modal) talks the
  * `ImbretexProduct` shape below. When the API arrives, swap the body of
  * `fetchImbretexCatalog` for the real endpoint (and map its payload into
  * `ImbretexProduct`); nothing else in the app has to move.
@@ -16,10 +16,10 @@
  * Mapping notes:
  *  - Imbretex publishes exactly two flat measurements per size: A = half chest
  *    (largeur) and B = body length (longueur). There is NO published sleeve
- *    length, so `sleeveLengthCm` is DERIVED here (see SLEEVE_RATIO) — clearly
+ *    length, so `sleeveLengthCm` is DERIVED here (see SLEEVE_RATIO), clearly
  *    an estimate, never a supplier figure.
  *  - Their size runs go XXS…5XL; the studio's SizeId union only covers S…3XL
- *    (src/content/sizeChart.ts). Sizes outside it are dropped, not invented —
+ *    (src/content/sizeChart.ts). Sizes outside it are dropped, not invented:
  *    a product whose whole run falls outside (kids' 3/4/5…14) maps to zero
  *    sizes and is rejected with `unsupported_sizes`.
  *  - `rrpEur` is the supplier's RECOMMENDED RETAIL price (prix de vente
@@ -70,7 +70,7 @@ export interface ImbretexView {
   /**
    * Absent ⇒ a supplier PHOTOGRAPH (see SidePhotoOrigin). `'generated'` marks a
    * reconstruction committed by scripts/generate-missing-backs.mjs for a
-   * reference the supplier publishes no back for — a preview, never a photo of
+   * reference the supplier publishes no back for: a preview, never a photo of
    * the product, and the whole app is told so through `generatedFrom`.
    */
   origin?: SidePhotoOrigin
@@ -94,7 +94,7 @@ export interface ImbretexProduct {
   /** Decoration processes the supplier certifies, e.g. ["DTF","Broderie"]. */
   markingTypes: string[]
   labelType?: string | null
-  /** RECOMMENDED RETAIL price, € — never our cost. */
+  /** RECOMMENDED RETAIL price, €. Never our cost. */
   rrpEur: number | null
   colours: ImbretexColour[]
   /**
@@ -105,9 +105,9 @@ export interface ImbretexProduct {
   colourTotal?: number
   /** Size labels as published (XS…5XL, or kids' 3…14). */
   sizes: string[]
-  /** Measurement A — laid-flat half chest, cm, aligned with `sizes`. */
+  /** Measurement A: laid-flat half chest, cm, aligned with `sizes`. */
   halfChestCm: number[]
-  /** Measurement B — body length, cm, aligned with `sizes`. */
+  /** Measurement B: body length, cm, aligned with `sizes`. */
   bodyLengthCm: number[]
   extraMeasureC?: number[] | null
   imageUrl?: string | null
@@ -116,11 +116,11 @@ export interface ImbretexProduct {
   views: { front?: ImbretexView; back?: ImbretexView }
   /**
    * How hard the scraper looked for a back, present ONLY on products where it
-   * found none — the evidence behind `backMissing`. `probed < colourways`
+   * found none, the evidence behind `backMissing`. `probed < colourways`
    * means the claim was never made (the id goes to `backUnknown` instead), and
    * a product whose scrape ABORTED records `probed: 0` because a probe count
    * that was interrupted mid-product proves nothing. Absent on snapshots taken
-   * before the field existed — and absence is treated as no evidence, never as
+   * before the field existed, and absence is treated as no evidence, never as
    * "nothing left to probe".
    */
   backProbe?: { colourways: number; probed: number }
@@ -130,12 +130,12 @@ export interface ImbretexProduct {
 
 export interface ImbretexCatalog {
   source: string
-  /** ISO date the snapshot was taken — shown as provenance in the UI. */
+  /** ISO date the snapshot was taken, shown as provenance in the UI. */
   scrapedAt: string
   measurementLegend?: Record<string, string>
   count: number
   /**
-   * Ids for which the supplier publishes NO back view in any colourway — the
+   * Ids for which the supplier publishes NO back view in any colourway. The
    * scraper probes EVERY colourway with a visuals endpoint before saying so
    * (see each product's `backProbe`), which makes this a statement about the
    * supplier and not about the scrape. Their `views.back` is a reconstruction
@@ -168,7 +168,7 @@ export class ImbretexError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Snapshot fetch (THE seam — replace with the API call when it ships)
+// Snapshot fetch (THE seam, replace with the API call when it ships)
 // ---------------------------------------------------------------------------
 
 /** Snapshot root; photo `file` paths are relative to it. */
@@ -253,7 +253,7 @@ export async function fetchImbretexCatalog(): Promise<ImbretexProduct[]> {
       scrapedAt: json.scrapedAt ?? '',
       // An older snapshot has no list; the products with no REAL back are then
       // the only evidence available, which is the same conclusion. A generated
-      // back counts as missing here — the list is about the supplier.
+      // back counts as missing here: the list is about the supplier.
       backMissing: Array.isArray(json.backMissing)
         ? json.backMissing
         : products.filter((p) => imbretexBackSource(p) !== 'real').map((p) => p.id),
@@ -266,7 +266,7 @@ export async function fetchImbretexCatalog(): Promise<ImbretexProduct[]> {
   return pending
 }
 
-/** Snapshot provenance (source, scrape date, back gaps) — null before fetch. */
+/** Snapshot provenance (source, scrape date, back gaps), null before fetch. */
 export function imbretexSnapshotMeta(): ImbretexSnapshotMeta | null {
   return meta
 }
@@ -277,7 +277,7 @@ export function imbretexPhotoUrl(p: ImbretexProduct, side: 'front' | 'back'): st
   return file ? IMBRETEX_ROOT + file : ''
 }
 
-/** Where a catalogue entry's back view comes from — the same three states the
+/** Where a catalogue entry's back view comes from: the same three states the
  *  product library uses (src/lib/ingest/types.ts), one snapshot step earlier so
  *  the browse UI can badge a reconstruction BEFORE anyone imports it. */
 export function imbretexBackSource(p: ImbretexProduct): BackSource {
@@ -311,12 +311,12 @@ const SIZE_LABELS: Record<string, SizeId> = {
 }
 
 /**
- * Sleeve length as a fraction of body length — DERIVED, NOT PUBLISHED.
+ * Sleeve length as a fraction of body length: DERIVED, NOT PUBLISHED.
  * Imbretex ships A (half chest) and B (body length) only, while SizeSpecCm
  * wants a sleeve. The ratios are read off the reference charts in
  * src/content/sizeChart.ts (Stanley/Stella tee 20.5-24.5 cm sleeve for 69-80 cm
  * bodies ≈ 0.30; Cruiser hoodie 64-70 cm for 68-80 cm ≈ 0.90) and are only ever
- * used for display/spec — the print pipeline measures from half chest.
+ * used for display/spec. The print pipeline measures from half chest.
  */
 const SLEEVE_RATIO = { none: 0, short: 0.3, long: 0.9 } as const
 
@@ -344,7 +344,7 @@ export function imbretexSizes(p: ImbretexProduct): Partial<Record<SizeId, SizeSp
     out[id] = {
       halfChestCm,
       bodyLengthCm,
-      // Derived — see SLEEVE_RATIO.
+      // Derived: see SLEEVE_RATIO.
       sleeveLengthCm: Math.round(bodyLengthCm * ratio * 2) / 2,
     }
   })
@@ -380,7 +380,7 @@ export interface ImbretexMapOptions {
   /** Ingested front photo (from `normalizeGarmentPhoto` + `autoPrintArea`). */
   front: ProductSideDef
   back?: ProductSideDef | null
-  /** Colour chosen by the user (ImbretexColour.id) — recorded in the notes. */
+  /** Colour chosen by the user (ImbretexColour.id), recorded in the notes. */
   colourId?: string
   /** Reference size for the photos/print area; falls back to M then smallest. */
   defaultSize?: SizeId
@@ -397,7 +397,7 @@ function buildNotes(p: ImbretexProduct, colour: ImbretexColour | null): string {
     )
   if (p.photoColour && p.photoColour.id !== colour?.id)
     bits.push(`Photos ${p.photoColour.name}`)
-  // Recommended RETAIL price — not our purchase cost.
+  // Recommended RETAIL price, not our purchase cost.
   if (p.rrpEur) bits.push(`PVC conseillé ${p.rrpEur.toFixed(2)} €`)
   if (p.origin) bits.push(p.origin)
   return bits.join(' · ')
@@ -425,7 +425,7 @@ export function imbretexToProductDef(
     : null
   return {
     id: `imbretex-${p.id}${colour ? `-${colour.id}` : ''}`,
-    name: colour ? `${p.name} — ${colour.name}` : p.name,
+    name: colour ? `${p.name}, ${colour.name}` : p.name,
     brandRef: [p.brand, p.supplierRef].filter(Boolean).join(' ').trim(),
     createdAt: Date.now(),
     sizes,
@@ -479,7 +479,7 @@ export interface ImbretexIngestOptions {
    * false to keep the product honestly back-less instead.
    */
   generateBack?: boolean
-  /** Generation timestamp — a parameter so the pipeline stays clock-free. */
+  /** Generation timestamp, a parameter so the pipeline stays clock-free. */
   now?: number
 }
 
@@ -493,7 +493,7 @@ export interface ImbretexIngestOptions {
  * ANY colourway (see ImbretexCatalog.backMissing). Rather than shipping a
  * product whose 3D back is a slab and whose AR model is bare from behind, the
  * snapshot carries a RECONSTRUCTION for them, generated once by
- * scripts/generate-missing-backs.mjs from the same pipeline this would call —
+ * scripts/generate-missing-backs.mjs from the same pipeline this would call,
  * so it is adopted here, not re-derived, and arrives stamped
  * `origin: 'generated'` with the provenance the snapshot recorded.
  *
@@ -515,11 +515,11 @@ export async function ingestImbretexProduct(
   const halfChestCm = sizes[defaultSize]!.halfChestCm
 
   opts.onProgress?.('front')
-  const front = await ingestSide(p, 'front', halfChestCm, `${p.name} — face`)
+  const front = await ingestSide(p, 'front', halfChestCm, `${p.name}, face`)
 
   // A reconstruction is only adoptable WITH its provenance: an `origin:
   // 'generated'` view whose `generatedFrom` is missing (hand-edited snapshot)
-  // is deliberately not ingested as anything — it falls through to being
+  // is deliberately not ingested as anything: it falls through to being
   // rebuilt below, where the provenance is true because we made it.
   const snapBack = p.views?.back
   const provenance = snapBack?.origin === 'generated' ? snapBack.generatedFrom : undefined
@@ -527,7 +527,7 @@ export async function ingestImbretexProduct(
   let back: ProductSideDef | null = null
   if (provenance) {
     // Adopt the committed pixels AND the recorded provenance. The print area is
-    // derived from the front's, never re-detected — the collar contrast
+    // derived from the front's, never re-detected: the collar contrast
     // autoPrintArea needs is exactly what the low-pass removed (pipeline.ts).
     opts.onProgress?.('generate')
     back = await adoptGeneratedBack(
@@ -535,18 +535,18 @@ export async function ingestImbretexProduct(
       await fetchPhoto(imbretexPhotoUrl(p, 'back')),
       halfChestCm,
       provenance,
-      { name: `${p.name} — dos (reconstitué)` },
+      { name: `${p.name}, dos (reconstitué)` },
     ).catch(() => null)
   } else if (snapBack?.file && snapBack.origin !== 'generated') {
     opts.onProgress?.('back')
-    back = await ingestSide(p, 'back', halfChestCm, `${p.name} — dos`).catch(
+    back = await ingestSide(p, 'back', halfChestCm, `${p.name}, dos`).catch(
       () => null,
     )
   }
   if (!back && opts.generateBack !== false) {
     opts.onProgress?.('generate')
     back = await generateBackSide(front, halfChestCm, {
-      name: `${p.name} — dos (reconstitué)`,
+      name: `${p.name}, dos (reconstitué)`,
       at: opts.now ?? 0,
       colorRgb: p.photoColour?.rgb ?? null,
     }).catch(() => null)

@@ -1,5 +1,5 @@
 /**
- * INGEST — apply a ProductDef to the studio.
+ * INGEST: apply a ProductDef to the studio.
  *
  * The studio renders ingested products through the EXISTING custom-garment
  * pipeline (2D/3D/AR): productToCustomGarment maps a product at a chosen
@@ -8,7 +8,7 @@
  *
  * GRADING: the resulting CustomGarment also carries the product's whole
  * half-chest table (`halfChestCmBySize`), which is what lets print grading
- * (src/lib/printScale.ts) work for supplier/ship-your-own garments — without
+ * (src/lib/printScale.ts) work for supplier/ship-your-own garments. Without
  * it `printScaleK` has no chart to read and silently returns 1 for every size.
  * The garment's geometry (widthIn + retargeted print areas) is authored at ONE
  * reference size, `productBaseSize(product, size)`; that size IS the design's
@@ -26,7 +26,7 @@ export { productSizeIds }
 /**
  * The size a request for `size` actually resolves to: `size` when the product
  * covers it, else defaultSize, else the smallest covered size. This is the
- * size the built garment's inch geometry is authored at — see
+ * size the built garment's inch geometry is authored at. See
  * `productBaseSize`.
  */
 function resolveSize(product: ProductDef, size: SizeId): SizeId {
@@ -42,7 +42,7 @@ function specFor(product: ProductDef, size: SizeId) {
 
 /**
  * The reference size a `productToCustomGarment(product, size)` result is
- * authored at — `size` itself unless the product does not cover it, in which
+ * authored at: `size` itself unless the product does not cover it, in which
  * case the same defaultSize → smallest fallback the geometry took.
  *
  * The design's `printScale.baseSize` MUST be set to this value when the
@@ -58,8 +58,8 @@ export function productBaseSize(product: ProductDef, size: SizeId): SizeId {
 /**
  * Re-target a print area authored at `authoredWidthIn` onto a garment of
  * `widthIn`: physical print size and collar-relative top stay identical
- * (professional placement is measured from the collar and size-invariant —
- * see src/content/sizeChart.ts), while the horizontal centre offset is
+ * (professional placement is measured from the collar and size-invariant.
+ * See src/content/sizeChart.ts), while the horizontal centre offset is
  * preserved relative to the garment's centre line.
  */
 function retargetArea(area: RectIn, authoredWidthIn: number, widthIn: number): RectIn {
@@ -97,7 +97,7 @@ function toSide(
  * `size` is the BASE size of the result: widthIn and the print areas are that
  * size's real inches, and `halfChestCmBySize` carries the supplier's whole
  * chart so grading can derive every other size from it (a product covering a
- * single size simply never grades — `isGraded` needs two entries). Pair this
+ * single size simply never grades: `isGraded` needs two entries). Pair this
  * with `productBaseSize(product, size)` on the design's printScale.
  */
 export function productToCustomGarment(

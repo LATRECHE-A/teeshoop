@@ -17,7 +17,7 @@ import type { CatalogGarmentId, PrintScaleMode } from '@/lib/types'
 
 /**
  * Print-grading strings. `messages.ts` is owned by the i18n integrator, so
- * they live here as literals — French first, English fallback — exactly like a
+ * they live here as literals (French first, English fallback) exactly like a
  * module side-file, minus the file. See the report for the keys to merge.
  */
 const GRADE_I18N = {
@@ -26,9 +26,9 @@ const GRADE_I18N = {
     scaled: 'Proportionnelle',
     fixed: 'Identique',
     hint_scaled:
-      'L’impression grandit avec le vêtement : toutes les tailles ont le même rendu. Un film par taille — plus cher.',
+      'L’impression grandit avec le vêtement : toutes les tailles ont le même rendu. Un film par taille, donc plus cher.',
     hint_fixed:
-      'Une seule impression physique pour toutes les tailles : un seul film — moins cher, mais le motif paraît petit sur un 3XL.',
+      'Une seule impression physique pour toutes les tailles : un seul film, moins cher, mais le motif paraît petit sur un 3XL.',
     base: 'Taille de référence',
     base_note:
       'Vos dimensions sont mémorisées sur cette taille. En changer réinterprète le design : il grandit ou rétrécit sur les autres tailles.',
@@ -41,14 +41,14 @@ const GRADE_I18N = {
     scaled: 'Proportional',
     fixed: 'Same on every size',
     hint_scaled:
-      'The print grows with the garment, so every size reads the same. One film per size — costs more.',
+      'The print grows with the garment, so every size reads the same. One film per size, so it costs more.',
     hint_fixed:
-      'One physical print for every size: a single film — cheaper, but the artwork looks small on a 3XL.',
+      'One physical print for every size: a single film, cheaper, but the artwork looks small on a 3XL.',
     base: 'Reference size',
     base_note:
       'Your dimensions are stored on this size. Changing it re-interprets the design: it grows or shrinks on the other sizes.',
     unavailable:
-      'This garment has no size chart — the print stays identical on every size.',
+      'This garment has no size chart, so the print stays identical on every size.',
     for_size: 'Size',
   },
 } as const
@@ -86,7 +86,7 @@ export default function ProductPanel() {
     [],
   )
 
-  // READ path (display only) — graded, so the number tells the truth about the
+  // READ path (display only): graded, so the number tells the truth about the
   // size being previewed. Every WRITE path still uses the base-space area.
   const area = getAreaSizeIn(design, side, previewSize)
   const isCustom = design.garmentId === 'custom'
@@ -176,7 +176,7 @@ export default function ProductPanel() {
           )}
         </button>
 
-        {/* Supplier catalogue — admin only. It shows OUR purchase cost, so the
+        {/* Supplier catalogue: admin only. It shows OUR purchase cost, so the
             card and the code behind it exist in the admin build alone. */}
         {admin.productEntry}
       </section>
@@ -231,7 +231,7 @@ export default function ProductPanel() {
               </button>
             ))}
           </div>
-          {/* Physical print area for the size being previewed — under grading
+          {/* Physical print area for the size being previewed: under grading
               this changes as the chips are clicked, which is the feedback that
               makes the feature believable. */}
           <div className="mono-dim mt-2 text-[11px] text-tx2">

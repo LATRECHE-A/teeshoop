@@ -1,5 +1,5 @@
 /**
- * INGEST — product library persistence (IndexedDB via idb-keyval), following
+ * INGEST: product library persistence (IndexedDB via idb-keyval), following
  * the savedDesigns.ts idiom: a meta index under one key + one record per
  * product. Photos live in the shared asset library (src/state/assets.ts);
  * products only reference assetIds. Export/import embeds the photos as
@@ -23,7 +23,7 @@ import {
 
 const INDEX_KEY = 'tshop:products:index'
 const productKey = (id: string) => `tshop:product:${id}`
-/** Index schema version — bumped when a row gains a field (see listProducts). */
+/** Index schema version, bumped when a row gains a field (see listProducts). */
 const INDEX_V_KEY = 'tshop:products:indexV'
 const INDEX_V = 2
 
@@ -36,8 +36,8 @@ const THUMB_PX = 120
  * on every read so a machine that never re-saves still behaves correctly.
  *
  * `backSource` is RE-derived, not merely filled in: it is denormalised, and the
- * one caller that does not compute it — importProductFile, reading a file a
- * human may have edited — could otherwise hand us a record claiming a real back
+ * one caller that does not compute it (importProductFile, reading a file a
+ * human may have edited) could otherwise hand us a record claiming a real back
  * over a `generated` side. Recomputing is what makes the promise below (record
  * and index row can never disagree) true rather than aspirational; the object
  * is only cloned when the stored value is actually wrong, so reads stay cheap.
@@ -54,7 +54,7 @@ function migrateProduct(p: ProductDef): ProductDef {
 }
 
 /**
- * The index rows are denormalised, so a new field cannot be derived from them —
+ * The index rows are denormalised, so a new field cannot be derived from them:
  * it needs the records. Backfill once, guarded by a version key: at admin scale
  * (tens of products) that is a handful of small IndexedDB reads on first load.
  */
@@ -137,7 +137,7 @@ export async function saveProduct(input: ProductDef): Promise<ProductMeta[]> {
 }
 
 /**
- * Remove a product (its photos stay in the shared asset library — they may
+ * Remove a product (its photos stay in the shared asset library: they may
  * be referenced by the active design or other products).
  */
 export async function deleteProduct(id: string): Promise<ProductMeta[]> {
@@ -182,7 +182,7 @@ export async function exportProductFile(product: ProductDef): Promise<Blob> {
 
 /**
  * Import a product file: recreates the embedded photos (keeping their asset
- * ids), saves the product (same-id imports overwrite — that is what keeps a
+ * ids), saves the product (same-id imports overwrite: that is what keeps a
  * garment in sync across machines) and returns it.
  */
 export async function importProductFile(blob: Blob): Promise<ProductDef> {
@@ -192,7 +192,7 @@ export async function importProductFile(blob: Blob): Promise<ProductDef> {
   } catch {
     throw new Error('Not a Tshop product file')
   }
-  // EVERY version this app has ever written must stay importable — a file
+  // EVERY version this app has ever written must stay importable: a file
   // exported last week is the whole point of the format.
   if (
     file.app !== 'tshop-product' ||
@@ -201,7 +201,7 @@ export async function importProductFile(blob: Blob): Promise<ProductDef> {
   )
     throw new Error('Not a Tshop product file')
   // A hand-edited/foreign file may carry malformed size rows the guard only
-  // ignores — strip them here so nothing downstream can select one.
+  // ignores. Strip them here so nothing downstream can select one.
   const product: ProductDef = migrateProduct({
     ...file.product,
     sizes: sanitizeSizes(file.product.sizes),

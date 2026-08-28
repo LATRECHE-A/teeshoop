@@ -1,5 +1,5 @@
 /**
- * Asset library — user-uploaded images persisted in IndexedDB, plus a runtime
+ * Asset library: user-uploaded images persisted in IndexedDB, plus a runtime
  * HTMLImageElement cache so canvas renderers can draw synchronously after an
  * async `ensure` step.
  */
@@ -20,7 +20,7 @@ export async function listAssets(): Promise<AssetMeta[]> {
 }
 
 /**
- * Read-modify-write the shared index inside ONE idb transaction — photo
+ * Read-modify-write the shared index inside ONE idb transaction: photo
  * ingests (bg removal) and uploads run concurrently, and a plain
  * listAssets()+set() pair silently loses the slower writer's row/flag.
  */
@@ -141,7 +141,7 @@ const cacheKey = (id: string, variant: AssetVariant) => `${id}:${variant}`
  * How many times an asset's bytes have been replaced under the same id.
  *
  * Anything that DERIVES something from an asset's pixels and caches it has to
- * be able to tell "the same asset" from "the same id, different pixels" —
+ * be able to tell "the same asset" from "the same id, different pixels":
  * re-running background removal overwrites the cutout blob in place, so an id
  * alone is not an identity. Callers put this number in their own cache key
  * (see `src/lib/ink.ts`), which means every future invalidation path invalidates
@@ -201,7 +201,7 @@ export function ensureAssetImage(
   return entry.promise
 }
 
-/** Synchronous access for render loops — call ensureAssetImage first. */
+/** Synchronous access for render loops: call ensureAssetImage first. */
 export function getCachedAssetImage(
   id: string,
   variant: AssetVariant = 'original',

@@ -1,5 +1,5 @@
 /**
- * A1 dev harness — proof sheet for the garment art.
+ * A1 dev harness: proof sheet for the garment art.
  *
  * Grid: tee + hoodie × front/back × 4 body colors on bg0, print-area outlines
  * toggled on, plus a row overlaying body+shade (multiply) to prove alignment.
@@ -111,7 +111,7 @@ function App() {
     <main className="min-h-screen overflow-auto bg-bg0 px-8 py-6">
       <header className="mb-5 flex items-center gap-6">
         <h1 className="font-display text-[15px] font-bold tracking-[0.18em] text-tx2">
-          A1 · GARMENT ART — PROOF SHEET
+          A1 · GARMENT ART: PROOF SHEET
         </h1>
         <label className="mono-dim flex cursor-pointer items-center gap-2">
           <input

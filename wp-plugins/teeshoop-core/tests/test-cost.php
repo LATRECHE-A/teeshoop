@@ -32,7 +32,7 @@ use Teeshoop\Core\Money;
 
 $ts_cost_config = Cost::default_config();
 
-describe( 'Cost — components carry their provenance', function () {
+describe( 'Cost: components carry their provenance', function () {
 	it( 'refuses a component type the chapter does not name', function () {
 		throws( fn() => Cost::component( 'marketing', 1000, Cost::REAL, 'invented' ) );
 	} );
@@ -57,7 +57,7 @@ describe( 'Cost — components carry their provenance', function () {
 	} );
 } );
 
-describe( 'Cost — a total that says what it is worth', function () {
+describe( 'Cost: a total that says what it is worth', function () {
 	it( 'tells a zero apart from a failure', function () {
 		$none = Cost::total( array( Cost::component( 'sous_traite', 0, Cost::NONE, 'aucune sous-traitance' ) ) );
 		$bad  = Cost::total( array( Cost::component( 'sous_traite', 0, Cost::UNKNOWN, 'non renseigné' ) ) );
@@ -114,7 +114,7 @@ describe( 'Cost — a total that says what it is worth', function () {
 	} );
 } );
 
-describe( 'Cost — labour is temps standard x taux horaire chargé', function () use ( $ts_cost_config ) {
+describe( 'Cost: labour is temps standard x taux horaire chargé', function () use ( $ts_cost_config ) {
 	it( 'multiplies each operation by the unit the chapter names', function () use ( $ts_cost_config ) {
 		// One order, 30 garments, one transfer each. 60 s of preparation plus
 		// 30 x 45 s of pressing = 1 410 s = 0,391666… h at 20,00 EUR.
@@ -152,7 +152,7 @@ describe( 'Cost — labour is temps standard x taux horaire chargé', function (
 	} );
 } );
 
-describe( 'Cost — the film, from a measured length', function () use ( $ts_cost_config ) {
+describe( 'Cost: the film, from a measured length', function () use ( $ts_cost_config ) {
 	it( 'reproduces the chapter formula term by term', function () use ( $ts_cost_config ) {
 		// 4 m nested, France: 4 x 17,00 = 68,00 ; perte 5 % = 0,2 m = 3,40 ;
 		// livraison 15,00. Total 86,40.
@@ -190,7 +190,7 @@ describe( 'Cost — the film, from a measured length', function () use ( $ts_cos
 	} );
 } );
 
-describe( 'Cost — the prudent length is a bound, not a nesting', function () use ( $ts_cost_config ) {
+describe( 'Cost: the prudent length is a bound, not a nesting', function () use ( $ts_cost_config ) {
 	it( 'gives every copy its own row, in the flatter orientation', function () use ( $ts_cost_config ) {
 		// Two 20 x 30 pieces on a 56 cm roll: both fit flat, so each costs 20 cm
 		// of roll plus the gap. 41 cm rounds up to the 10 cm billing step, and
@@ -281,7 +281,7 @@ describe( 'Cost — the prudent length is a bound, not a nesting', function () u
 	} );
 } );
 
-describe( 'Cost — the small charges', function () use ( $ts_cost_config ) {
+describe( 'Cost: the small charges', function () use ( $ts_cost_config ) {
 	it( 'takes the card fee on what was actually charged, which is TTC', function () use ( $ts_cost_config ) {
 		// 750,00 EUR TTC at 1,5 % + 0,25 EUR = 11,50 EUR.
 		eq( Cost::payment_fee( 75000, $ts_cost_config ), 1150 );
@@ -312,7 +312,7 @@ describe( 'Cost — the small charges', function () use ( $ts_cost_config ) {
 	} );
 } );
 
-describe( 'Cost — against the Bible’s own thirty-t-shirt example', function () use ( $ts_cost_config ) {
+describe( 'Cost: against the Bible’s own thirty-t-shirt example', function () use ( $ts_cost_config ) {
 	/*
 	 * « Commande de 30 t-shirts : textile 90 ; DTF et livraison 65 ;
 	 *   main-d'oeuvre valorisée 45 ; emballage 9 ; transport fournisseur 10 ;
@@ -355,7 +355,7 @@ describe( 'Cost — against the Bible’s own thirty-t-shirt example', function 
 	} );
 } );
 
-describe( 'Cost — a form that owns some fields must not delete the others', function () {
+describe( 'Cost: a form that owns some fields must not delete the others', function () {
 	it( 'keeps the billing step when the settings screen saves the film block', function () {
 		/*
 		 * THE DEFECT THIS PINS, found by the adversarial pass and reproduced
@@ -405,7 +405,7 @@ describe( 'Cost — a form that owns some fields must not delete the others', fu
 	} );
 } );
 
-describe( 'Cost — the bound when the file limit is close to the artwork', function () {
+describe( 'Cost: the bound when the file limit is close to the artwork', function () {
 	it( 'counts the sheets from the room left after the tallest row, not from the billing step', function () {
 		/*
 		 * A 40 cm file limit and rows of 20 cm: the packer closes a sheet as

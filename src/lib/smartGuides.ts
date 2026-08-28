@@ -1,12 +1,12 @@
 /**
- * Smart guides — pure snapping math for the 2D editor.
+ * Smart guides: pure snapping math for the 2D editor.
  *
  * `computeSnap` tries to align the moving box's LEFT / CENTER / RIGHT edges
  * to the candidate vertical lines in `targets.xs`, and its TOP / MIDDLE /
  * BOTTOM edges to the horizontal lines in `targets.ys`. Per axis, the
  * candidate with the smallest |delta| within `tolerance` wins; the returned
  * `vLines` / `hLines` contain ALL target lines that align at the winning
- * delta (a box can be snapped to several lines at once — e.g. centered both
+ * delta (a box can be snapped to several lines at once, e.g. centered both
  * ways, or left AND right edges hitting two guides simultaneously).
  *
  * Pure and allocation-light: called on every mousemove.

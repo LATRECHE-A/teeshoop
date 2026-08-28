@@ -9,16 +9,16 @@
  *    unwrap at each one; `<Decal>` is far worse still, CPU-clipping every
  *    triangle of the parent mesh. Both are the right call for a single garment
  *    the user is inspecting, and both are multiplied by 2 sides × N products
- *    here. `buildFabricDecal` samples the SAME unwrap on its own coarse grid —
- *    441 vertices instead of 36,450 — so the print sits on the true surface, at
- *    the true arc length, for a fraction of the work. It is the geometry AR
+ *    here. `buildFabricDecal` samples the SAME unwrap on its own coarse grid
+ *    (441 vertices instead of 36,450), so the print sits on the true surface,
+ *    at the true arc length, for a fraction of the work. It is the geometry AR
  *    already ships, which is also why its placement is already parity-checked
  *    (scripts/fabric-verify.mjs, check G).
  *
  * 2. POINTER EVENTS GO ON AN INVISIBLE BOX, never on the garment. react-three-
  *    fiber raycasts every object that carries a handler on every pointermove;
  *    eight hoodies is half a million triangles per mouse move. The proxy is 12
- *    triangles. It must be `colorWrite: false` and NOT `visible={false}` —
+ *    triangles. It must be `colorWrite: false` and NOT `visible={false}`.
  *    Raycaster skips invisible objects entirely, which would make it useless.
  */
 import { useEffect, useMemo } from 'react'
@@ -89,7 +89,7 @@ function BoardPrint({ frame, garment, side, source, k }: BoardPrintProps) {
         rotationY: 0,
       }
     // No usable unwrap (an ingested mesh we could not describe): fall back to a
-    // cylinder hugging the bbox. Approximate by construction — it is the same
+    // cylinder hugging the bbox. Approximate by construction: it is the same
     // fallback the preview and the AR bake take, kept only so an unknown mesh
     // still shows its print rather than nothing.
     const radius = Math.max(1, frame.depthIn / 2)

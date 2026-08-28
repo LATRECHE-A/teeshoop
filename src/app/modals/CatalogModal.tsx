@@ -1,14 +1,14 @@
 /**
- * CATALOGUE FOURNISSEUR — browse supplier blanks and load one into the editor
+ * CATALOGUE FOURNISSEUR: browse supplier blanks and load one into the editor
  * with a per-size cm table.
  *
  * TWO SOURCES, ONE PIPELINE:
- *  - FALK&ROSS (default) — the live webservice, read through our Worker
+ *  - FALK&ROSS (default): the live webservice, read through our Worker
  *    (/api/fr/*, see worker/falkross.ts). Real prices, real stock, ~2350
  *    styles, and NO published measurements, so its size tables are reference-
  *    chart ESTIMATES that this UI is required to show and let you override
  *    before importing. See src/lib/ingest/falkross.ts.
- *  - IMBRETEX (secondary, offline) — the committed snapshot of their public
+ *  - IMBRETEX (secondary, offline): the committed snapshot of their public
  *    catalogue. Real published measurements, no live prices or stock. Kept
  *    reachable and clearly labelled: it is the fallback when the API is down,
  *    and the only source with supplier-measured tables.
@@ -98,7 +98,7 @@ const fmtWhen = (at: number): string =>
 
 /**
  * Compact per-size cm editor. Shown only when the admin asks to correct an
- * estimate, and every edit re-stamps the table `'manual'` — an estimate the
+ * estimate, and every edit re-stamps the table `'manual'`: an estimate the
  * user has taken responsibility for is no longer an estimate.
  */
 function SizeOverride({
@@ -133,7 +133,7 @@ function SizeOverride({
           notify('warn', t('catalog.fr.sizes.paste_empty'))
           return
         }
-        // Only rows for sizes this style actually sells — pasting a full chart
+        // Only rows for sizes this style actually sells: pasting a full chart
         // must not invent a size the supplier does not stock.
         const next = { ...sizes }
         for (const [k, spec] of Object.entries(parsed)) {
@@ -214,7 +214,7 @@ function FrCard({
   t: TFn
 }) {
   // Snapshot replay serves the GRID from IndexedDB but the thumbs are Worker
-  // URLs — with the backend down, any thumb the HTTP cache doesn't hold 404s.
+  // URLs: with the backend down, any thumb the HTTP cache doesn't hold 404s.
   // A broken-image glyph reads as a bug; the same neutral block a thumb-less
   // style gets reads as a catalogue.
   const [thumbBroken, setThumbBroken] = useState(false)
@@ -245,7 +245,7 @@ function FrCard({
           {card.name}
         </span>
         <span className="mono-dim text-[10px]">{card.supplierRef || card.styleNr}</span>
-        {/* Every F&R table is an estimate, so the badge belongs in the GRID —
+        {/* Every F&R table is an estimate, so the badge belongs in the GRID,
             not three clicks in, after someone has already chosen. */}
         <span className="w-fit rounded-full border border-yl/40 bg-yl/10 px-1.5 py-px text-[9.5px] font-medium text-yl">
           {t('catalog.fr.badge.estimated')}
@@ -350,7 +350,7 @@ function FrDetail({
             <span className="block w-full self-start sm:self-auto">
               <img
                 src={frontUrl}
-                alt={`${style.name} — face`}
+                alt={`${style.name}, face`}
                 draggable={false}
                 className="h-44 w-full rounded-lg bg-bg0 object-contain"
               />
@@ -360,7 +360,7 @@ function FrDetail({
             <span className="block w-full self-start sm:self-auto">
               <img
                 src={style.back}
-                alt={`${style.name} — dos`}
+                alt={`${style.name}, dos`}
                 draggable={false}
                 className="h-24 w-full rounded-lg bg-bg0 object-contain"
               />
@@ -410,7 +410,7 @@ function FrDetail({
                     c.code === colourCode ? 'border-cy ring-2 ring-cy/40' : 'border-black/30',
                   )}
                 >
-                  {/* This feed publishes no hex — the swatch IS an image. */}
+                  {/* This feed publishes no hex: the swatch IS an image. */}
                   {c.swatch ? (
                     <img src={c.swatch} alt="" draggable={false} className="h-full w-full object-cover" />
                   ) : null}
@@ -579,7 +579,7 @@ function FalkRossBrowser({
 
   // Guards against a stale response overwriting a newer search's results.
   const runId = useRef(0)
-  // Mirror of `items` for the snapshot writer — load() appends across rounds
+  // Mirror of `items` for the snapshot writer: load() appends across rounds
   // and must persist the ACCUMULATED grid, not one round's slice.
   const itemsRef = useRef<FalkRossCard[]>([])
   useEffect(() => {
@@ -608,14 +608,14 @@ function FalkRossBrowser({
       const id = ++runId.current
       setLoading(true)
       // Hoisted so the catch can tell "this run got nothing" from "this run
-      // was partway through and a later round failed" — see below.
+      // was partway through and a later round failed" (see below).
       const acc: FalkRossCard[] = append ? itemsRef.current.slice() : []
       let last: FalkRossPage | null = null
       try {
         let cur = offset
         let found = 0
         // A page can come back short simply because the scan budget ran out
-        // before it found 24 matches — "0 results so far" is not "no results",
+        // before it found 24 matches: "0 results so far" is not "no results",
         // so keep walking a little before showing the user an empty grid.
         //
         // Each round commits its own results rather than the loop committing
@@ -657,7 +657,7 @@ function FalkRossBrowser({
           setErr(code)
           return
         }
-        // Nothing live at all — replay the last-good snapshot for this query
+        // Nothing live at all: replay the last-good snapshot for this query
         // instead of a dead error page, and SAY it is a replay.
         const hit = await loadFrBrowse(query, kind).catch(() => null)
         if (runId.current !== id) return
@@ -682,7 +682,7 @@ function FalkRossBrowser({
     void load(0, false, AUTO_ROUNDS)
   }, [load])
 
-  // Detail: style + price + stock. Price/stock are best-effort — a catalogue
+  // Detail: style + price + stock. Price/stock are best-effort. A catalogue
   // that still browses without them beats one that fails whole. The style
   // itself falls back to its snapshot (prices/stock deliberately don't:
   // their staleness costs money, and the UI already renders without them).
@@ -753,7 +753,7 @@ function FalkRossBrowser({
   /**
    * Styles whose size run overlaps the studio's S–3XL union. Kids' and
    * one-size references map to nothing and cannot be imported at all, so they
-   * do not get a grid slot — the same rule the Imbretex browser applies, and
+   * do not get a grid slot, the same rule the Imbretex browser applies, and
    * applied here with the client's own size chart as the authority.
    */
   const usable = useMemo(
@@ -814,7 +814,7 @@ function FalkRossBrowser({
         </div>
       )}
 
-      {/* Snapshot replay — stale, and labelled as such. The date is the point:
+      {/* Snapshot replay: stale, and labelled as such. The date is the point:
           "cached" without a when forces the user to guess how much to trust it. */}
       {offlineAt !== null && !err && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-yl/40 bg-yl/10 p-2.5">
@@ -880,7 +880,7 @@ function FalkRossBrowser({
           {/* Hidden while the grid is a snapshot replay. Appending live rows
               onto cached ones would merge two different days into one list,
               clear the "offline" banner because the append succeeded, and then
-              re-stamp the whole mixture with `Date.now()` — so the next outage
+              re-stamp the whole mixture with `Date.now()`, so the next outage
               would date week-old cards as today's. The offline banner's own
               Retry (a fresh live load from offset 0) is the correct way out. */}
           {page.nextOffset !== null && offlineAt === null && (
@@ -904,7 +904,7 @@ function FalkRossBrowser({
 }
 
 // ===========================================================================
-// IMBRETEX (snapshot — unchanged behaviour, now one source among two)
+// IMBRETEX (snapshot: unchanged behaviour, now one source among two)
 // ===========================================================================
 
 /** A catalogue entry whose size run overlaps the studio's S–3XL union. */
@@ -950,7 +950,7 @@ function Card({ entry, onPick, t }: { entry: Entry; onPick: () => void; t: TFn }
           {p.weightGsm ? ` · ${t('catalog.card.gsm', { g: p.weightGsm })}` : ''}
         </span>
         {/* Whoever picks a reference to sell has to see, in the grid, that its
-            back is a reconstruction — not discover it three clicks in. */}
+            back is a reconstruction, not discover it three clicks in. */}
         {backSource !== 'real' && (
           <span className="w-fit rounded-full border border-yl/40 bg-yl/10 px-1.5 py-px text-[9.5px] font-medium text-yl">
             {t(backSource === 'generated' ? 'catalog.card.back_generated' : 'catalog.card.back_missing')}
@@ -996,7 +996,7 @@ function Detail({
 }) {
   const { p, sizes, sizeIds } = entry
   const backSource = imbretexBackSource(p)
-  // Default to the colourway the photos were shot in — that is what the user
+  // Default to the colourway the photos were shot in: that is what the user
   // actually sees in the preview.
   const [colourId, setColourId] = useState(
     () =>
@@ -1035,7 +1035,7 @@ function Detail({
             const img = (
               <img
                 src={url}
-                alt={`${p.name} — ${side}`}
+                alt={`${p.name}, ${side}`}
                 draggable={false}
                 className={clsx(
                   'w-full rounded-lg bg-bg0 object-contain',
@@ -1229,7 +1229,7 @@ function ImbretexBrowser({
   const [busy, setBusy] = useState<Busy | null>(null)
 
   // The catalogue is cached in-module, so a StrictMode double-mount costs one
-  // fetch and both passes settle — no cleanup flag stranding the work.
+  // fetch and both passes settle, no cleanup flag stranding the work.
   useEffect(() => {
     void fetchImbretexCatalog().then(setProducts, (err: unknown) =>
       setLoadErr(err instanceof ImbretexError ? err.code : 'unavailable'),
@@ -1291,7 +1291,7 @@ function ImbretexBrowser({
   // Counted over every pickable entry, NOT over `shown`: this states a fact
   // about the supplier's catalogue, so it must not shrink to zero the moment a
   // filter or a search term happens to hide the gaps. (References the studio
-  // cannot carry at all — kids' size runs — are already out of `entries`, so a
+  // cannot carry at all, kids' size runs, are already out of `entries`, so a
   // warning about something nobody can pick is still impossible.)
   const backGap = entries.filter((e) => imbretexBackSource(e.p) !== 'real').length
 
@@ -1392,7 +1392,7 @@ export default function CatalogModal() {
       setCustom(productToCustomGarment(product, product.defaultSize))
       closeModal('catalog')
       // The toast is the last moment before the customer starts designing on
-      // that back — say which of the three it is rather than a bare "loaded".
+      // that back: say which of the three it is rather than a bare "loaded".
       const key =
         product.backSource === 'generated'
           ? 'catalog.toast.applied_generated'

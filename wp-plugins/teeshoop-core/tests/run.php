@@ -4,13 +4,13 @@
  *
  *   php wp-plugins/teeshoop-core/tests/run.php
  *
- * No PHPUnit, no composer, no WordPress bootstrap — because the classes under
+ * No PHPUnit, no composer, no WordPress bootstrap, because the classes under
  * test call no WordPress function, and keeping it that way is the design rule
  * this runner enforces by construction: the day someone reaches for
  * get_option() inside Pricing, this stops working and says so.
  *
  * Exit code 0 = all green, 1 = a failure, 2 = the runner found no tests (which
- * must never read as success — see scripts/bundle-guard.mjs for the same
+ * must never read as success: see scripts/bundle-guard.mjs for the same
  * precaution).
  *
  * @package Teeshoop\Core
@@ -109,7 +109,7 @@ function throws( callable $body, string $what = '' ): void {
 
 $files = glob( __DIR__ . '/test-*.php' );
 if ( empty( $files ) ) {
-	fwrite( STDERR, RED . "No test files found — the runner scanned nothing.\n" . OFF );
+	fwrite( STDERR, RED . "No test files found: the runner scanned nothing.\n" . OFF );
 	exit( 2 );
 }
 

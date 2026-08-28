@@ -1,6 +1,6 @@
 <?php
 /**
- * Cost, floor price, commission — and the Bible formula that is wrong.
+ * Cost, floor price, commission, and the Bible formula that is wrong.
  *
  * The last describe() block is the one that matters: it holds the corrected
  * formula against the Bible's own worked example, so if anyone ever "restores"
@@ -37,7 +37,7 @@ require_once __DIR__ . '/../includes/Margin.php';
 
 use Teeshoop\Core\Margin;
 
-describe( 'Margin — cost', function () {
+describe( 'Margin: cost', function () {
 	it( 'adds the components it is given', function () {
 		$c = Margin::cost(
 			array(
@@ -74,7 +74,7 @@ describe( 'Margin — cost', function () {
 	} );
 } );
 
-describe( 'Margin — recommended price', function () {
+describe( 'Margin: recommended price', function () {
 	it( 'hits the target margin rate exactly', function () {
 		// 250 € cost at a 60 % target margin → 625 €, the Bible's own example.
 		$price = Margin::recommended_price( 25000, 0.60 );
@@ -95,7 +95,7 @@ describe( 'Margin — recommended price', function () {
 	} );
 } );
 
-describe( 'Margin — commission', function () {
+describe( 'Margin: commission', function () {
 	it( 'reproduces the Bible worked example', function () {
 		// « Marge contributive = 625 − 250 = 375 EUR · Commission 40 % = 150 EUR »
 		$out = Margin::outcome( 62500, 25000, 0.40, 0 );
@@ -126,7 +126,7 @@ describe( 'Margin — commission', function () {
 		$shop_loss = $full['teeshoop_ht'] - $discount['teeshoop_ht'];
 		$rep_loss  = $full['commission'] - $discount['commission'];
 
-		// A 75 € discount costs the shop 45 € and the salesperson 30 € — but as a
+		// A 75 € discount costs the shop 45 € and the salesperson 30 €, but as a
 		// share of what each was getting, the salesperson gives up the most.
 		truthy(
 			$rep_loss / $full['commission'] >= $shop_loss / $full['teeshoop_ht'],
@@ -135,7 +135,7 @@ describe( 'Margin — commission', function () {
 	} );
 } );
 
-describe( 'Margin — the floor price, corrected', function () {
+describe( 'Margin: the floor price, corrected', function () {
 	it( 'leaves exactly the minimum contribution after commission', function () {
 		// This is the property the floor is FOR. C = 250 €, K = 100 €, c = 40 %.
 		$floor = Margin::floor_price( 25000, 10000, 0.40 );
@@ -145,7 +145,7 @@ describe( 'Margin — the floor price, corrected', function () {
 		truthy( ! $out['below_floor'] );
 	} );
 
-	it( 'is NOT what the Bible formula gives — and the gap is the bug', function () {
+	it( 'is NOT what the Bible formula gives, and the gap is the bug', function () {
 		$cost       = 25000;
 		$min_contrib = 10000;
 		$commission = 0.40;
@@ -196,7 +196,7 @@ describe( 'Margin — the floor price, corrected', function () {
 	} );
 } );
 
-describe( 'Margin — "taux de marge" names the other ratio', function () {
+describe( 'Margin: "taux de marge" names the other ratio', function () {
 	it( 'shows how far apart the two readings of question 06 are', function () {
 		// The Bible's formula, which its own example confirms, is the taux de
 		// MARQUE: margin over selling price.
@@ -226,7 +226,7 @@ describe( 'Margin — "taux de marge" names the other ratio', function () {
 	} );
 } );
 
-describe( 'Margin — the floor when the contribution is a rate', function () {
+describe( 'Margin: the floor when the contribution is a rate', function () {
 	it( 'leaves exactly that share of the price after commission', function () {
 		$floor = Margin::floor_price_rate( 25000, 0.25, 0.40 );
 		$out   = Margin::outcome( $floor, 25000, 0.40, $floor );
@@ -277,7 +277,7 @@ describe( 'Margin — the floor when the contribution is a rate', function () {
 	} );
 } );
 
-describe( 'Margin — the plan a salesperson negotiates inside', function () {
+describe( 'Margin: the plan a salesperson negotiates inside', function () {
 	$rules = array(
 		'target_margin_rate'    => 0.55,
 		'min_contribution_rate' => 0.25,
@@ -349,7 +349,7 @@ describe( 'Margin — the plan a salesperson negotiates inside', function () {
 	} );
 } );
 
-describe( 'Margin — the boundary where an exception becomes required', function () {
+describe( 'Margin: the boundary where an exception becomes required', function () {
 	$plan = Margin::plan(
 		25000,
 		array(

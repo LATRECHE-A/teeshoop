@@ -7,8 +7,8 @@
  * src/three/garmentFrame.ts and src/three/calibration.ts).
  *
  * The front/back print is NOT a projected decal. It is a second pass over the
- * garment geometry whose UVs are FABRIC coordinates — inches of cloth from the
- * centre-front line, from src/three/fabricUnwrap.ts — so a 10 cm logo covers
+ * garment geometry whose UVs are FABRIC coordinates (inches of cloth from the
+ * centre-front line, from src/three/fabricUnwrap.ts), so a 10 cm logo covers
  * 10 cm of cloth wherever it sits, nothing is clipped by a projector box, and
  * the 2D editor's inches and the 3D surface are literally the same numbers.
  * A projected decal survives only for the sleeve (a tube on its own slanted
@@ -59,13 +59,13 @@ function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): Normal
     // Upgrade to a physical material with a cloth sheen so the tee/hoodie reads
     // as fabric (a Fresnel grazing highlight that emphasises curvature) rather
     // than plastic. The print is a separate pass, so inch accuracy is untouched.
-    // Copy source maps explicitly — Physical.copy(Standard) is unsafe because
+    // Copy source maps explicitly: Physical.copy(Standard) is unsafe because
     // the Standard source lacks the sheen fields Physical.copy reads.
     //
     // `normalScale` is copied (and capped) because dropping it was quietly
     // throwing away most of the tee's relief: that GLB asks for its normal map
     // at scale 2.81, and rebuilding the material without it left a flat, waxy
-    // surface. `aoMap` is copied only where the bake is USABLE — see
+    // surface. `aoMap` is copied only where the bake is USABLE, see
     // `bakedAoIntensity` in calibration.ts; the tee's back island is a black
     // smear and is better replaced by the measured cavity term. When it is
     // taken it needs the geometry's `uv` and rides the texture's own `channel`,
@@ -84,7 +84,7 @@ function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): Normal
       vertexColors: frame.geometry.getAttribute('color') !== undefined,
       // BOTH bundled GLBs declare `doubleSided: true`, and rebuilding the
       // material dropped it back to three's FrontSide default. A garment is an
-      // OPEN surface — the tee mesh has 411 boundary edges — so with backfaces
+      // OPEN surface (the tee mesh has 411 boundary edges), so with backfaces
       // culled you look into the collar, the hem or a cuff and see the backdrop
       // straight through the shirt, which on the default ¾ view puts a hole at
       // the neckline. VSM leaves `side` alone in the shadow pass, so there is
@@ -93,11 +93,11 @@ function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): Normal
     })
     // The tee's normalTexture asks for scale 2.81 over an 8×-tiled 1024 px JPEG.
     // At the framing the studio actually uses that map mips down about tenfold,
-    // so what survives is its low-frequency mottling — and 2.81 amplifies THAT,
+    // so what survives is its low-frequency mottling, and 2.81 amplifies THAT,
     // not the thread detail the number was authored for.
     if (srcMat.normalMap) {
       // PER AXIS, not by length: `clampLength` bounds the L2 norm, so a uniform
-      // (s, s) scale is really capped at MAX/√2 — 1.5 would have been 1.061 in
+      // (s, s) scale is really capped at MAX/√2: 1.5 would have been 1.061 in
       // effect, a different material from the one the number describes.
       material.normalScale.set(
         THREE.MathUtils.clamp(srcMat.normalScale.x, -MAX_BAKED_NORMAL_SCALE, MAX_BAKED_NORMAL_SCALE),
@@ -126,7 +126,7 @@ function useNormalizedGarment(garment: CatalogGarmentId, sizeId: SizeId): Normal
 }
 
 const PROBE_MATERIAL = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
-/** Sheen mixing target — see the colour effect in GarmentModel. */
+/** Sheen mixing target: see the colour effect in GarmentModel. */
 const WHITE = new THREE.Color(1, 1, 1)
 
 /** Z of the outermost front/back surface at (xIn, yIn), via local raycast. */
@@ -238,7 +238,7 @@ interface PrintDecalProps {
 /**
  * Fallback for a mesh the unwrap could not validate: an orthographic projector.
  * It clips artwork that curves away from the box and maps chords rather than
- * arc length, so it is deliberately the second choice — but a wrong-looking
+ * arc length, so it is deliberately the second choice, but a wrong-looking
  * print beats no print, and it is what keeps an unknown ingested mesh usable.
  */
 function PrintDecal({ geometry, side, source, centreYIn, garment, envIntensity, foldHalfHeightIn }: PrintDecalProps) {
@@ -324,7 +324,7 @@ function SleeveDecal({ frame, garment, source, sign, envIntensity }: SleeveDecal
 
   const placement = useMemo(() => {
     const y = calib.sleeve.yRaw * frame.yScale
-    // The arm, MEASURED — its own radius, its own crown and its own centre. See
+    // The arm, MEASURED: its own radius, its own crown and its own centre. See
     // garmentFrame.armProfile for why all three had to be found and what each
     // was costing the print.
     const arm = armProfile(frame.geometry, y, sign, frame.depthIn / 2)
@@ -333,8 +333,8 @@ function SleeveDecal({ frame, garment, source, sign, envIntensity }: SleeveDecal
     const halfW = Math.min(source.wIn / 2, arm.radiusIn * 0.98)
     const sagitta = arm.radiusIn - Math.sqrt(Math.max(0, arm.radiusIn * arm.radiusIn - halfW * halfW))
     const depth = Math.max(2 * sagitta + SLEEVE_BOX_SLACK_IN, 1.2)
-    // Outer face just PAST the crown. Outboard of the surface costs nothing —
-    // there is no geometry out there to clip — while a hair inboard cuts a strip
+    // Outer face just PAST the crown. Outboard of the surface costs nothing
+    // (there is no geometry out there to clip) while a hair inboard cuts a strip
     // out of the middle of the print, which is exactly what pinning it to the
     // surface at z = 0 was doing.
     const x = arm.crownX + sign * SLEEVE_BOX_MARGIN_IN - sign * depth * 0.5

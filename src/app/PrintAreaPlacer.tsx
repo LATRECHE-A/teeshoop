@@ -1,5 +1,5 @@
 /**
- * PrintAreaPlacer — the ONE surface for placing a print area on a garment
+ * PrintAreaPlacer: the ONE surface for placing a print area on a garment
  * photo (customer "ship your own" setup AND admin product ingest).
  *
  * WHY IT LOOKS LIKE THIS
@@ -11,7 +11,7 @@
  * in those measurements:
  *
  *  - guides draw the landmarks, so "the middle" is a line you can see;
- *  - dragging SNAPS to the professional placements — the very centimetres the
+ *  - dragging SNAPS to the professional placements, the very centimetres the
  *    catalog garments use (src/content/zones.ts PLACEMENT_CM), so a customer's
  *    own tee gets the same 7 cm-below-collar chest print a catalog tee does;
  *  - the margins are printed live in cm, with a symmetry badge, so "evenly
@@ -22,13 +22,13 @@
  * silhouette to measure (`anatomy.opaque`), and some necklines simply cannot
  * be found. Then the guides become proportional, presets fall back to the
  * fractions this component always used, and every chip says so through its
- * title — the tool must stay fully usable, just less clever.
+ * title. The tool must stay fully usable, just less clever.
  *
  * INVARIANTS
  *  - The persisted shape never changes: `RectIn` in INCHES relative to the
  *    photo's alpha-bbox top-left, bbox width == the garment's laid-flat width.
  *    Anatomy is derived on the fly, never stored.
- *  - Every write goes through `clampArea` (min edge, inside the garment) — the
+ *  - Every write goes through `clampArea` (min edge, inside the garment): the
  *    drag path, the snap path, the keyboard path and the numeric fields.
  *  - Pointer-event based, capture on the grabbed element, `touch-action: none`
  *    on the box: a fast drag that leaves the photo must not drop, and a touch
@@ -48,7 +48,7 @@ import {
 import type { CustomSideSetup, RectIn, Side } from '@/lib/types'
 import { clamp, cmToIn, fmtInAsCm, fmtSizeCm, inToCm } from '@/lib/units'
 
-/** Photo stage budget (CSS px) — shrunk to the container on narrow screens. */
+/** Photo stage budget (CSS px), shrunk to the container on narrow screens. */
 const MAX_STAGE_W = 430
 const MAX_STAGE_H = 280
 /** Ruler gutter, CSS px. */
@@ -63,7 +63,7 @@ const SNAP_PX = 6
 const NUDGE_CM = 0.1
 const NUDGE_SHIFT_CM = 1
 /** Margin below which left/right are "symmetric" (0.2 cm ≈ the print shop's
- *  own tolerance — tighter than any human can lay a garment). */
+ *  own tolerance, tighter than any human can lay a garment). */
 const SYMMETRY_TOL_CM = 0.2
 /** Seam allowance kept clear when fitting a print to the torso. */
 const TORSO_INSET_CM = 1.5
@@ -86,7 +86,7 @@ interface Preset {
 }
 
 // ---------------------------------------------------------------------------
-// Geometry helpers (pure — no DOM, no React)
+// Geometry helpers (pure: no DOM, no React)
 // ---------------------------------------------------------------------------
 
 function edgeValue(a: RectIn, e: SnapEdge): number {
@@ -106,7 +106,7 @@ function edgeValue(a: RectIn, e: SnapEdge): number {
 
 /**
  * Pull the dragged rect onto the nearest guide, at most one snap per axis.
- * Only the edges the gesture actually moves are candidates — snapping the
+ * Only the edges the gesture actually moves are candidates. Snapping the
  * centre while dragging a corner would fight the user's hand.
  *
  * CENTRING OUTRANKS EDGE ALIGNMENT: when both a centre-line target and a torso
@@ -166,7 +166,7 @@ function snapArea(
  * Preset placements, built from the SAME centimetres the catalog garments use
  * (PLACEMENT_CM / PAPER_IN in src/content/zones.ts) anchored on the detected
  * collar and centre line. `measured: false` means the collar was not found and
- * the rect is the historical proportional guess — surfaced in the chip title
+ * the rect is the historical proportional guess, surfaced in the chip title
  * so nobody mistakes a guess for a measurement.
  */
 function presetsFor(
@@ -190,7 +190,7 @@ function presetsFor(
     const hIn = Math.max(minIn, Math.min(cmToIn(hCm), hem - topIn - cmToIn(1), heightIn))
     return { xIn: cxIn - wIn / 2, yIn: topIn, wIn, hIn }
   }
-  /** Paper formats scale UNIFORMLY — an A4 with a squashed aspect is not A4,
+  /** Paper formats scale UNIFORMLY: an A4 with a squashed aspect is not A4,
    *  so the `minIn` floor has to move the SCALE, never one axis on its own
    *  (p.h > p.w, so clearing the floor on the width clears it on the height). */
   const paper = (p: { w: number; h: number }, cxIn: number, topIn: number): RectIn => {
@@ -208,7 +208,7 @@ function presetsFor(
   const backTop =
     collar !== null ? collar + cmToIn(P.lockerPatch.topBelowCollar) : heightIn * 0.14
   // `belowLocker` is measured from the TOP of the locker patch, not from its
-  // bottom — that is what catalogZones does (its back print area starts at the
+  // bottom. That is what catalogZones does (its back print area starts at the
   // pro 10 cm below the collar and the centre-back zone sits `belowLocker`
   // under that same line). Adding the patch height here too would drop the
   // 35.6 cm-tall centre back 10 cm lower than the identical catalog placement
@@ -269,7 +269,7 @@ function presetsFor(
   return [
     // Heart side is +x here. `box`'s cxIn is a photo-space centre with +x to the
     // image's right, and a FRONT view shows the wearer's left on the image's
-    // right — the same handedness src/content/zones.ts derives and marks with
+    // right, the same handedness src/content/zones.ts derives and marks with
     // `bodySideSign`. Sharing PLACEMENT_CM is only worth anything if the sides
     // agree too, so a "left chest" here is the same shoulder as on a catalog tee.
     {
@@ -293,7 +293,7 @@ function presetsFor(
     {
       id: 'bottom_center',
       labelKey: 'zone.bottom_center',
-      // Anchored on the hem, which is just the bottom of the alpha content —
+      // Anchored on the hem, which is just the bottom of the alpha content,
       // always known, collar or no collar. Except on an un-cut-out photo,
       // where the "hem" is the bottom of the FRAME and this is a guess like
       // any other.
@@ -378,7 +378,7 @@ function Ruler({
 export interface PrintAreaPlacerProps {
   /** Photo + current area. ProductSideDef is structurally identical on purpose. */
   setup: CustomSideSetup
-  /** Garment laid-flat width in inches — the bbox width in real units. */
+  /** Garment laid-flat width in inches, the bbox width in real units. */
   widthIn: number
   /** Front and back have different professional placements. */
   side: Side
@@ -407,7 +407,7 @@ export default function PrintAreaPlacer({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [budgetW, setBudgetW] = useState(MAX_STAGE_W)
   // `hIn` is carried explicitly and NOT recovered as h/ppi: h is rounded to a
-  // whole CSS pixel, and at phone zoom that rounding is ~2 mm of garment — a
+  // whole CSS pixel, and at phone zoom that rounding is ~2 mm of garment, a
   // silent error in the one tool whose whole promise is millimetre honesty.
   const [disp, setDisp] = useState<{ w: number; h: number; hIn: number; ppi: number } | null>(null)
   const [measured, setMeasured] = useState<GarmentAnatomy | null>(null)
@@ -442,7 +442,7 @@ export default function PrintAreaPlacer({
 
   // --- photo ---------------------------------------------------------------
   // Depends only on WHICH photo is shown (never on printArea, which changes on
-  // every drag tick — redrawing the photo per tick would stutter the drag).
+  // every drag tick: redrawing the photo per tick would stutter the drag).
   useEffect(() => {
     let on = true
     void (async () => {
@@ -500,7 +500,7 @@ export default function PrintAreaPlacer({
 
   // --- clamping ------------------------------------------------------------
   // The horizontal half never depends on the photo: the width is a prop. Only
-  // the vertical half waits for the measured height — otherwise the cm fields
+  // the vertical half waits for the measured height. Otherwise the cm fields
   // and the preset chips (which render before the canvas resolves) would have
   // a window in which they write a completely unclamped rect straight into the
   // saved design.
@@ -528,7 +528,7 @@ export default function PrintAreaPlacer({
     if (side !== 'back') {
       s.push(
         // L/R are the WEARER's, so +x (image-right on a front view) is the
-        // left/heart side — same convention as the presets above.
+        // left/heart side, same convention as the presets above.
         { id: 'chestL', edge: 'cx', valueIn: anatomy.axisXIn + cmToIn(P.leftChest.offCenter) },
         { id: 'chestR', edge: 'cx', valueIn: anatomy.axisXIn - cmToIn(P.leftChest.offCenter) },
       )
@@ -582,7 +582,7 @@ export default function PrintAreaPlacer({
           a.hIn += dyIn
         }
       }
-      // Alt suspends magnetism — the escape hatch for a deliberately odd
+      // Alt suspends magnetism, the escape hatch for a deliberately odd
       // placement that happens to pass near a guide.
       const snapped = e.altKey
         ? { area: a, ids: [] as string[] }
@@ -685,7 +685,7 @@ export default function PrintAreaPlacer({
   /**
    * Typed text is kept verbatim while a field has focus. Without it, typing
    * "25" writes 2 cm first, the clamp bounces it to the 3 in minimum, and the
-   * field rewrites itself under the caret — the value still ends up clamped,
+   * field rewrites itself under the caret. The value still ends up clamped,
    * but the user gets to finish the number first.
    */
   const numField = (key: keyof RectIn, labelKey: string, ariaKey: string) => (
@@ -744,11 +744,11 @@ export default function PrintAreaPlacer({
       />
     )
   }
-  /** Centre of the two torso edges — the snap target `equal` aims at THIS, not
+  /** Centre of the two torso edges: the snap target `equal` aims at THIS, not
    *  at the frame centre, so the guide has to be drawn at the same number. */
   const equalXIn = (anatomy.torsoLeftXIn + anatomy.torsoRightXIn) / 2
 
-  /** Detected body outline, mirrored on the axis — shows WHAT was measured. */
+  /** Detected body outline, mirrored on the axis: shows WHAT was measured. */
   const bodyPath = useMemo(() => {
     const rows = anatomy.rowWidthIn
     if (anatomy.opaque || rows.length < 8 || !disp) return null
