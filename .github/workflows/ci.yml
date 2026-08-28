@@ -101,8 +101,26 @@ jobs:
       - name: The measured colours agree with what the shop publishes
         run: npm run verify:couleurs
 
+      # THE PUNCTUATION RULE. CLAUDE.md section 6 bans em-dashes, and the rule
+      # was written after about 2 300 of them were already in the corpus.
+      # Session 13 swept them in one deliberate pass, in two commits; this is
+      # what stops them coming back one feature diff at a time.
+      #
+      # It also refuses a tracked source file that is not readable as text. That
+      # is not scope creep: two committed TypeScript files carried a raw NUL
+      # inside a string literal where the escape was meant, which made them
+      # BINARY to every text tool, so `git diff` would have shown "Binary files
+      # differ" and the sweep's own inventory had silently skipped them.
+      - name: No em-dashes, and every source file is readable text
+        run: npm run verify:style
+
+      # And it can still fail. Same reason the hypotheses guard has one: a gate
+      # nobody has seen fail is a gate nobody knows works.
+      - name: The style guard can still fail
+        run: node scripts/style-guard.mjs --self-test
+
   # The WordPress plugin. Its pure classes (Money, Pricing, Margin) call no
-  # WordPress function on purpose, so they need PHP and nothing else — the
+  # WordPress function on purpose, so they need PHP and nothing else. The
   # runner exits 2 if it finds no tests, so "scanned nothing" cannot pass.
   plugin:
     runs-on: ubuntu-latest
