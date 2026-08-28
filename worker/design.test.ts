@@ -115,9 +115,23 @@ function bucket(pageSize = 1000) {
   return { store, api, calls }
 }
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])
-const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0])
+/*
+ * These have to be WHOLE containers, not signatures. The route validates the
+ * chunk arithmetic (worker/containers.ts) after a first-bytes check was
+ * measured to accept a PNG signature glued to 300 kB of urandom, so the twelve
+ * bytes that used to stand in here would now, correctly, be refused. Both are
+ * genuine 1x1 images: a 70-byte PNG and a 160-byte baseline JPEG.
+ */
+const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
+const PNG = b64(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+)
+const JPEG = b64(
+  '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
+)
 const GIF = new TextEncoder().encode('GIF89a-nope')
+/* The measured attack, as a fixture: a valid signature with a payload behind it. */
+const PNG_WITH_RIDER = new Uint8Array([...PNG, ...new Uint8Array(4096).fill(0x41)])
 
 const DOC = {
   id: 'd1',
@@ -420,6 +434,27 @@ describe('POST /api/design', () => {
     ).toBe(200)
   })
 
+  /*
+   * The measured hole this route had until 2026-08-27, at the route level and
+   * not only in containers.test.ts. Against a real `wrangler dev` the request
+   * below returned 200 and the 300 kB of urandom behind the signature came back
+   * out of /r2/design/<id>/preview.png as image/png, immutable, for a year:
+   * free permanent hosting for arbitrary bytes on the shop's own origin.
+   */
+  it('refuses a valid signature with a payload riding behind it', async () => {
+    const e = env()
+    const rider = () => new Blob([PNG_WITH_RIDER], { type: 'image/png' })
+    expect((await createDesign(post({ design: doc(), preview: rider() }), e)).status).toBe(415)
+    expect(
+      (await createDesign(post({ design: doc(), preview: png(), 'asset:up1': rider() }), e)).status,
+    ).toBe(415)
+    expect(
+      (await createDesign(post({ design: doc(), preview: png(), 'asset:up1': png(), 'preview:front': rider() }), e))
+        .status,
+    ).toBe(415)
+    expect(e._store.size).toBe(0)
+  })
+
   it('refuses a body that is not a design at all', async () => {
     const e = env()
     expect((await createDesign(post({ preview: png() }), e)).status).toBe(400)
@@ -490,6 +525,10 @@ describe('GET /r2/design/{id}/… — who may read what', () => {
     const res = await serveDesignFile(admin(), e, id, 'preview.png')
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toContain('immutable')
+    // Held to the type we stored. No content-disposition: this is an <img> on
+    // the cart page, and attachment would turn it into a download prompt.
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(res.headers.get('content-disposition')).toBe(null)
   })
 
   it('refuses the design document and the source rasters without the admin token', async () => {

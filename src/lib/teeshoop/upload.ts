@@ -369,7 +369,16 @@ export interface UploadedDesign {
  */
 function cacheKey(doc: Record<string, unknown>, assets: { id: string; variant: AssetVariant }[]): string {
   const revs = assets.map((a) => `${a.id}:${a.variant}:${assetRevision(a.id, a.variant)}`).join('|')
-  return JSON.stringify(doc) + ' ' + revs
+  /*
+   * THE SEPARATOR IS WRITTEN AS AN ESCAPE, and that is not a style choice.
+   * It used to be a RAW NUL character between the quotes, which produces the
+   * same string at run time and makes this file BINARY to every text tool:
+   * `file` reported `data`, `grep -I` skipped it, and `git diff` would have
+   * shown `Binary files differ` instead of a reviewable change. A repository
+   * whose whole discipline is that a diff can be read cannot afford a source
+   * file that no text tool will open.
+   */
+  return JSON.stringify(doc) + '\x00' + revs
 }
 
 /**

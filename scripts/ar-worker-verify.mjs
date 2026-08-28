@@ -40,6 +40,74 @@ const waitFor = (url, ms = 60000) =>
     t()
   })
 
+/* ---- real containers, built here so the repo commits no binaries ---- */
+
+const u32le = (n) => [n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff]
+
+/** A glTF-binary of exactly `total` bytes: JSON chunk with an asset, then BIN. */
+function validGlb(total) {
+  const json = new TextEncoder().encode('{"asset":{"version":"2.0"}}')
+  const jsonChunk = new Uint8Array(Math.ceil(json.length / 4) * 4).fill(0x20)
+  jsonChunk.set(json)
+  const binLen = total - 12 - 8 - jsonChunk.length - 8
+  if (binLen < 0 || binLen % 4 !== 0) throw new Error(`bad glb size ${total}`)
+  return new Uint8Array([
+    0x67, 0x6c, 0x54, 0x46, ...u32le(2), ...u32le(total),
+    ...u32le(jsonChunk.length), 0x4a, 0x53, 0x4f, 0x4e, ...jsonChunk,
+    ...u32le(binLen), 0x42, 0x49, 0x4e, 0x00, ...new Uint8Array(binLen),
+  ])
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256)
+  for (let n = 0; n < 256; n++) {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    t[n] = c >>> 0
+  }
+  return t
+})()
+const crc32 = (b) => {
+  let c = 0xffffffff
+  for (const byte of b) c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8)
+  return (c ^ 0xffffffff) >>> 0
+}
+
+/** A one-entry STORED zip. The compression method is what USDZ requires. */
+function storedZip(name) {
+  const nb = new TextEncoder().encode(name)
+  const data = new TextEncoder().encode('not really a crate, the walk does not decode it')
+  const crc = crc32(data)
+  const local = [
+    0x50, 0x4b, 0x03, 0x04, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ...u32le(crc), ...u32le(data.length), ...u32le(data.length),
+    nb.length & 0xff, (nb.length >>> 8) & 0xff, 0, 0, ...nb, ...data,
+  ]
+  const central = [
+    0x50, 0x4b, 0x01, 0x02, 20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ...u32le(crc), ...u32le(data.length), ...u32le(data.length),
+    nb.length & 0xff, (nb.length >>> 8) & 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ...u32le(0), ...nb,
+  ]
+  const eocd = [
+    0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 1, 0, 1, 0,
+    ...u32le(central.length), ...u32le(local.length), 0, 0,
+  ]
+  return new Uint8Array([...local, ...central, ...eocd])
+}
+
+const validUsdz = () => storedZip('scene.usdc')
+const plainZip = () => storedZip('payload.txt')
+
+const PNG_1X1 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const validPng = () => Uint8Array.from(Buffer.from(PNG_1X1, 'base64'))
+const signatureOnlyPng = () => {
+  const b = new Uint8Array(300000)
+  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  return b
+}
+
 const server = spawn(
   'npx',
   ['wrangler', 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--log-level', 'error'],
@@ -54,13 +122,17 @@ const fail = (msg) => { console.error('❌ ' + msg); done(1) }
 try {
   await waitFor(BASE + '/')
 
-  // 1) Upload three dummy blobs (the Worker only stores/serves bytes).
+  /*
+   * 1) Upload three REAL containers. These used to be four magic bytes each,
+   * which is exactly the hole worker/containers.ts closed: the route now walks
+   * each format's own length arithmetic and requires it to end on the last byte
+   * of the file, so a stub no longer gets in (and neither does a payload glued
+   * behind a signature, asserted in step 4).
+   */
   const form = new FormData()
-  const glbBytes = new Uint8Array(2048) // realistic size so the Range asserts below are meaningful
-  glbBytes.set([0x67, 0x6c, 0x54, 0x46]) // glTF magic
-  form.append('glb', new Blob([glbBytes]), 'model.glb')
-  form.append('usdz', new Blob([new Uint8Array([0x50, 0x4b, 3, 4, 9, 9])]), 'model.usdz')
-  form.append('poster', new Blob([new Uint8Array([137, 80, 78, 71, 13, 10])]), 'poster.png')
+  form.append('glb', new Blob([validGlb(2048)]), 'model.glb') // 2048 so the Range asserts below are meaningful
+  form.append('usdz', new Blob([validUsdz()]), 'model.usdz')
+  form.append('poster', new Blob([validPng()]), 'poster.png')
   const up = await fetch(BASE + '/api/ar', { method: 'POST', body: form })
   const upBody = await up.json().catch(() => ({}))
   console.log('upload:', up.status, JSON.stringify(upBody))
@@ -117,7 +189,28 @@ try {
   const bad = await fetch(BASE + '/api/ar', { method: 'POST', body: new FormData() })
   if (bad.status !== 400) fail(`empty upload should 400, got ${bad.status}`)
 
-  console.log('✅ AR worker verify PASS — upload, MIME-correct serve, viewer routing, fallback + errors all OK')
+  /*
+   * The measured abuse, refused. Both of these returned 200 against this same
+   * `wrangler dev` before container validation, and the zip's payload was then
+   * readable straight off /r2/ar/{id}.usdz. R2 is not free hosting.
+   */
+  const junk = new Uint8Array(50000)
+  junk.set([0x67, 0x6c, 0x54, 0x46])
+  for (const [what, parts] of [
+    ['glTF magic + junk', { glb: junk, usdz: validUsdz(), poster: validPng() }],
+    ['a plain zip renamed .usdz', { glb: validGlb(2048), usdz: plainZip(), poster: validPng() }],
+    ['PNG signature + junk', { glb: validGlb(2048), usdz: validUsdz(), poster: signatureOnlyPng() }],
+  ]) {
+    const f = new FormData()
+    for (const [k, v] of Object.entries(parts)) f.append(k, new Blob([v]), k)
+    const r = await fetch(BASE + '/api/ar', { method: 'POST', body: f })
+    console.log(`refuse ${what}:`, r.status)
+    if (r.status !== 415) fail(`${what} should 415, got ${r.status} (R2 is free hosting again)`)
+  }
+
+  console.log(
+    '✅ AR worker verify PASS: upload, MIME-correct serve, viewer routing, fallback, errors and container refusals all OK',
+  )
   done(0)
 } catch (e) {
   fail(e?.message || String(e))

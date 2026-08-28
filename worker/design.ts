@@ -36,11 +36,14 @@
  *
  * WHY THE UPLOAD IS OPEN, like `POST /api/ar`: a customer cannot authenticate,
  * and they are the one making the design. What stops R2 becoming free file
- * hosting is the same thing that stops it there — magic bytes, per-file and
- * per-request size caps, a file count cap, and a document that has to parse as
- * the shape we expect before anything is written.
+ * hosting is the same thing that stops it there: full container validation
+ * (`containers.ts`, not a first-bytes test, which was measured to accept a PNG
+ * signature glued to 300 kB of urandom), per-file and per-request size caps, a
+ * file count cap, and a document that has to parse as the shape we expect
+ * before anything is written.
  */
 import { requireAdmin, type AdminEnv } from './auth'
+import { imageContainer } from './containers'
 import {
   ASSET_ID_RE,
   MAX_ASSETS,
@@ -86,8 +89,6 @@ const MAX_FILE_BYTES = 12 * 1024 * 1024
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024
 const MAX_DOC_BYTES = 2 * 1024 * 1024
 
-const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
-const JPEG_SIG = [0xff, 0xd8, 0xff]
 
 function shortId(): string {
   const bytes = new Uint8Array(ID_LEN)
@@ -104,14 +105,21 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
-const startsWith = (b: Uint8Array, sig: number[]): boolean => sig.every((v, i) => b[i] === v)
-
-/** PNG or JPEG, decided by the bytes rather than by what the client called it. */
+/**
+ * PNG or JPEG, decided by the WHOLE container rather than by its first bytes.
+ *
+ * This used to read eight bytes and believe them. Measured against a real
+ * `wrangler dev`: the PNG signature followed by 300 000 bytes of urandom was
+ * stored and served straight back as image/png, immutable, for a year. The
+ * signature was never the check; the check is that the chunk arithmetic closes
+ * exactly on the end of the file, which is what `containers.ts` does.
+ *
+ * The answer is still what the caller stores as the content-type, so a file
+ * that does not validate has no type and is refused rather than stored under a
+ * guess.
+ */
 async function imageType(file: File): Promise<'png' | 'jpeg' | null> {
-  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer())
-  if (startsWith(head, PNG_SIG)) return 'png'
-  if (startsWith(head, JPEG_SIG)) return 'jpeg'
-  return null
+  return imageContainer(new Uint8Array(await file.arrayBuffer()))
 }
 
 /** One printed side, as the price engine and the workshop both need it. */
@@ -357,6 +365,15 @@ export async function serveDesignFile(
   // but the DOCUMENT and the rasters are private, so they must not be held by a
   // shared cache on the way back.
   headers.set('cache-control', isPreview ? 'public, max-age=31536000, immutable' : 'private, no-store')
+  /*
+   * These bytes are customer-supplied and this origin also serves the studio,
+   * so the browser must never be allowed to talk itself into a different type
+   * than the one we stored. `nosniff` is the whole defence; there is
+   * deliberately NO `content-disposition: attachment` to go with it, because
+   * `preview.png` is an <img> on the WooCommerce cart page and in the bon a
+   * tirer email, and attachment would turn both into a download prompt.
+   */
+  headers.set('x-content-type-options', 'nosniff')
   return new Response(obj.body, { status: 200, headers })
 }
 

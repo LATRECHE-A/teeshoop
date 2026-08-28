@@ -55,6 +55,7 @@ import {
   type DesignEnv,
 } from './design'
 import { nestOrder } from './nest'
+import { isGlb, isPng, isUsdz } from './containers'
 
 interface Env extends FalkRossEnv, DesignEnv {
   ASSETS: Fetcher
@@ -118,33 +119,37 @@ async function uploadAr(request: Request, env: Env): Promise<Response> {
     return json({ error: 'file too large' }, 413)
   }
 
-  // This route is deliberately OPEN — customers export their own AR models and
-  // cannot authenticate. The magic-byte check is what stops R2 being used as
-  // generic file hosting: only the three formats the viewer can actually show
-  // are accepted. glTF-binary 'glTF' · USDZ is an uncompressed zip 'PK\x03\x04'
-  // · the 8-byte PNG signature.
-  const head = async (f: File, n: number) => new Uint8Array(await f.slice(0, n).arrayBuffer())
-  const starts = (b: Uint8Array, sig: number[]) => sig.every((v, i) => b[i] === v)
-  const [gSig, uSig, pSig] = await Promise.all([head(glb, 4), head(usdz, 4), head(poster, 8)])
-  if (
-    !starts(gSig, [0x67, 0x6c, 0x54, 0x46]) ||
-    !starts(uSig, [0x50, 0x4b, 0x03, 0x04]) ||
-    !starts(pSig, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-  ) {
+  /*
+   * This route is deliberately OPEN: customers export their own AR models and
+   * cannot authenticate. What stops R2 being used as generic file hosting is
+   * that the bytes have to BE one of the three formats the viewer can show.
+   *
+   * It used to be four bytes of 'glTF', four of 'PK\x03\x04' and the eight-byte
+   * PNG signature, and measured against a real `wrangler dev` that was no
+   * defence at all: 'glTF' plus 50 kB of urandom was accepted, and an ordinary
+   * `zip -j payload.txt` renamed .usdz came back out of /r2/ar/<id>.usdz with
+   * `unzip -l` listing the payload. A prefix cannot see what follows it, and
+   * what follows it is the entire attack. `containers.ts` walks each format's
+   * own length arithmetic and requires it to close on the last byte of the
+   * file, which is what makes a rider impossible.
+   */
+  const bytes = async (f: File) => new Uint8Array(await f.arrayBuffer())
+  const [gBuf, uBuf, pBuf] = await Promise.all([bytes(glb), bytes(usdz), bytes(poster)])
+  if (!isGlb(gBuf) || !isUsdz(uBuf) || !isPng(pBuf)) {
     return json({ error: 'not a glb/usdz/png' }, 415)
   }
 
   const id = shortId()
   const created = new Date().toISOString()
-  const put = (ext: keyof typeof MIME, file: File) =>
-    file.arrayBuffer().then((buf) =>
-      env.AR_BUCKET.put(`ar/${id}.${ext}`, buf, {
-        httpMetadata: { contentType: MIME[ext] },
-        customMetadata: { created },
-      }),
-    )
+  // The validated buffers are what gets written, not a second read of the same
+  // File: one read means the bytes that were checked are the bytes that land.
+  const put = (ext: keyof typeof MIME, buf: Uint8Array) =>
+    env.AR_BUCKET.put(`ar/${id}.${ext}`, buf, {
+      httpMetadata: { contentType: MIME[ext] },
+      customMetadata: { created },
+    })
   try {
-    await Promise.all([put('glb', glb), put('usdz', usdz), put('png', poster)])
+    await Promise.all([put('glb', gBuf), put('usdz', uBuf), put('png', pBuf)])
   } catch {
     return json({ error: 'storage write failed' }, 502)
   }
@@ -188,6 +193,14 @@ async function serveAr(request: Request, env: Env, id: string, ext: string, head
     h.set('cache-control', 'public, max-age=31536000, immutable')
     h.set('etag', o.httpEtag)
     h.set('accept-ranges', 'bytes')
+    /*
+     * Customer-supplied bytes on the origin that serves the shop, so the
+     * browser must be held to the type we stored. Deliberately NOT paired with
+     * `content-disposition: attachment`: iOS Quick Look opens the .usdz INLINE
+     * from this URL and Scene Viewer fetches the .glb the same way, so an
+     * attachment header would break AR on both platforms.
+     */
+    h.set('x-content-type-options', 'nosniff')
   }
 
   if (head) {
