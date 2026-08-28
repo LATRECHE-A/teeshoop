@@ -1,10 +1,10 @@
 /**
- * Board mode — UI strings side-file (module-owned; the integrator merges I18N
+ * Board mode: UI strings side-file (module-owned; the integrator merges I18N
  * into src/i18n/messages.ts). French is first-class, English faithful.
  *
  * `useBoardT` resolves `board.*` keys from THIS file immediately (so the module
  * works before the merge) and falls back to the global runtime for shared keys
- * (common.*, garment.*) — after the merge both paths yield identical strings.
+ * (common.*, garment.*). After the merge both paths yield identical strings.
  * Same pattern as src/app/modals/basketI18n.ts.
  */
 import { useStore } from '@/state/store'
@@ -17,11 +17,11 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'Affiche tous les produits du panier côte à côte, en 2D puis en 3D. Cliquez un produit pour le modifier.',
     'board.title': 'Tableau',
     'board.exit': 'Quitter le tableau',
-    'board.empty': 'Aucun produit sélectionné — cochez au moins une ligne du panier.',
+    'board.empty': 'Aucun produit sélectionné. Cochez au moins une ligne du panier.',
     'board.count': '{n} sur {total} produits affichés',
     'board.select_all': 'Tout sélectionner',
     'board.select_none': 'Tout désélectionner',
-    'board.tile': '{name} — {garment}, taille {size}, ×{qty}',
+    'board.tile': '{name}, {garment}, taille {size}, ×{qty}',
     'board.tile_hint': 'Cliquez pour modifier ce produit',
     'board.tile_select': 'Afficher {name} sur le tableau',
     'board.missing_asset': 'Image manquante',
@@ -51,11 +51,11 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'Shows every basket product side by side, in 2D then in 3D. Click a product to edit it.',
     'board.title': 'Board',
     'board.exit': 'Leave the board',
-    'board.empty': 'No product selected — tick at least one basket line.',
+    'board.empty': 'No product selected. Tick at least one basket line.',
     'board.count': '{n} of {total} products shown',
     'board.select_all': 'Select all',
     'board.select_none': 'Select none',
-    'board.tile': '{name} — {garment}, size {size}, ×{qty}',
+    'board.tile': '{name}, {garment}, size {size}, ×{qty}',
     'board.tile_hint': 'Click to edit this product',
     'board.tile_select': 'Show {name} on the board',
     'board.missing_asset': 'Missing image',

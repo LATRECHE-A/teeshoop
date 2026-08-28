@@ -1,10 +1,10 @@
 /**
- * Basket — UI strings side-file (module-owned; the integrator merges I18N into
+ * Basket: UI strings side-file (module-owned; the integrator merges I18N into
  * src/i18n/messages.ts). French is first-class, English faithful.
  *
  * `useBasketT` resolves `basket.*` keys from THIS file immediately (so the
  * module works before the merge) and falls back to the global runtime for
- * shared keys (common.*, garment.*) — after the merge both paths yield
+ * shared keys (common.*, garment.*). After the merge both paths yield
  * identical strings.
  */
 import { useStore } from '@/state/store'
@@ -18,7 +18,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'basket.open': 'Ouvrir le panier',
     'basket.count': '{n} article(s) au panier',
     'basket.empty':
-      'Panier vide — ajoutez le design en cours, puis changez de produit, de couleur ou de taille et ajoutez-le à nouveau.',
+      'Panier vide. Ajoutez le design en cours, puis changez de produit, de couleur ou de taille et ajoutez-le à nouveau.',
     'basket.add_current': 'Ajouter le design en cours',
     'basket.added': '« {name} » ajouté au panier ({size})',
     'basket.line_size': 'Taille {size}',
@@ -44,7 +44,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'basket.open': 'Open the basket',
     'basket.count': '{n} item(s) in the basket',
     'basket.empty':
-      'Empty basket — add the current design, then switch product, colour or size and add it again.',
+      'The basket is empty. Add the current design, then switch product, colour or size and add it again.',
     'basket.add_current': 'Add the current design',
     'basket.added': '“{name}” added to the basket ({size})',
     'basket.line_size': 'Size {size}',

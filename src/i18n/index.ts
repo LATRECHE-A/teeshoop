@@ -3,10 +3,10 @@
  * alternate. Keys are namespaced by area (e.g. `topbar.save`, `common.cancel`).
  *
  * Two entry points:
- *  - `t(key, params?)` — reads the current language from the decoupled
+ *  - `t(key, params?)`: reads the current language from the decoupled
  *    `lang` module, so it works everywhere (store actions, toasts, offscreen
  *    renderers), not only inside React.
- *  - `useT()` — a hook that subscribes to the store's `lang` so components
+ *  - `useT()`: a hook that subscribes to the store's `lang` so components
  *    re-render when the language switches.
  *
  * Interpolation: `"{n} calques"` with `t(key, { n: 3 })`.

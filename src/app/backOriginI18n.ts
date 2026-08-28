@@ -20,12 +20,12 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
   fr: {
     'catalog.card.back_generated': 'Dos reconstitué',
     'catalog.back_preview_tip':
-      'Dos reconstitué à partir de la face — un aperçu, pas une photo du produit.',
+      'Dos reconstitué à partir de la face. C’est un aperçu, pas une photo du produit.',
   },
   en: {
     'catalog.card.back_generated': 'Reconstructed back',
     'catalog.back_preview_tip':
-      'Back reconstructed from the front — a preview, not a photo of the product.',
+      'Back reconstructed from the front. A preview, not a photo of the product.',
   },
 }
 

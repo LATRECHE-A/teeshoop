@@ -1,5 +1,5 @@
 /**
- * CATALOGUE FOURNISSEUR — UI strings side-file (module-owned; the integrator
+ * CATALOGUE FOURNISSEUR: UI strings side-file (module-owned; the integrator
  * merges I18N into src/i18n/messages.ts). French is first-class, English
  * faithful.
  *
@@ -18,7 +18,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     ...BACK_ORIGIN.fr,
     'catalog.title': 'Catalogue fournisseur',
     'catalog.subtitle':
-      'Les vêtements vierges de nos fournisseurs — chargez-en un dans l’éditeur avec ses tailles.',
+      'Les vêtements vierges de nos fournisseurs. Chargez-en un dans l’éditeur avec ses tailles.',
     'catalog.entry.title': 'Catalogue fournisseur',
     'catalog.entry.cta': 'Choisir un vêtement vierge',
 
@@ -36,7 +36,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.mode.unknown': 'Mode inconnu',
     'catalog.fr.filter_printable': 'Tee-shirts, polos, sweats',
     'catalog.fr.scan_partial':
-      '{seen} références parcourues sur {total} — la recherche explore le catalogue au fur et à mesure.',
+      '{seen} références parcourues sur {total}. La recherche explore le catalogue au fur et à mesure.',
     'catalog.fr.scan_done': 'Catalogue parcouru en entier ({total} références).',
     'catalog.fr.scan_more': 'Continuer la recherche',
     'catalog.fr.badge.estimated': 'Mesures estimées',
@@ -44,7 +44,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.profile.hoodie': 'sweat / hoodie',
     'catalog.fr.sizes.title': 'Mesures estimées (gabarit {profile})',
     'catalog.fr.sizes.estimate_note':
-      'Falk&Ross ne publie aucune table de mesures. Ces valeurs proviennent de notre gabarit de référence pour ce type de vêtement : elles servent au placement de l’impression et au rendu 3D. Ce ne sont pas les mesures de ce vêtement — vérifiez-les et corrigez-les si vous les avez.',
+      'Falk&Ross ne publie aucune table de mesures. Ces valeurs proviennent de notre gabarit de référence pour ce type de vêtement : elles servent au placement de l’impression et au rendu 3D. Ce ne sont pas les mesures de ce vêtement. Vérifiez-les, et corrigez-les si vous les avez.',
     'catalog.fr.sizes.manual_note':
       'Mesures corrigées manuellement : elles seront enregistrées comme telles sur la fiche produit.',
     'catalog.fr.sizes.edit': 'Corriger les mesures',
@@ -54,7 +54,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.sizes.body': 'Longueur cm',
     'catalog.fr.sizes.sleeve': 'Manche cm',
     'catalog.fr.sizes.paste_hint':
-      'Astuce : collez ici une table de mesures (Ctrl+V) — colonnes ½ poitrine, longueur, manche.',
+      'Astuce : collez ici une table de mesures (Ctrl+V). Colonnes attendues : ½ poitrine, longueur, manche.',
     'catalog.fr.sizes.paste_empty': 'Aucune mesure reconnue dans le texte collé.',
     'catalog.fr.sizes.pasted': '{n} tailles mises à jour depuis le presse-papiers',
     'catalog.fr.sizes.reset': 'Revenir à l’estimation',
@@ -69,23 +69,23 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.cost': 'Prix d’achat',
     'catalog.fr.cost_value': '{price} € HT',
     'catalog.fr.cost_note':
-      'Prix d’achat négocié sur notre compte Falk&Ross — ce n’est pas un prix de vente.',
+      'Prix d’achat négocié sur notre compte Falk&Ross. Ce n’est pas un prix de vente.',
     'catalog.fr.stock': 'Stock',
     'catalog.fr.stock_value': '{n} pièces',
     'catalog.fr.err.unavailable':
-      'Catalogue Falk&Ross injoignable — vérifiez la connexion ou réessayez.',
+      'Catalogue Falk&Ross injoignable. Vérifiez la connexion, puis réessayez.',
     'catalog.fr.err.backend':
-      'Le backend local n’est pas lancé — démarrez-le avec « npm run dev » (il lance aussi l’API) ou « npx wrangler dev » dans un second terminal.',
+      'Le backend local n’est pas lancé. Démarrez-le avec « npm run dev » (qui lance aussi l’API), ou avec « npx wrangler dev » dans un second terminal.',
     'catalog.fr.err.timeout':
-      'Le catalogue Falk&Ross met trop de temps à répondre — le serveur tourne, mais une référence bloque. Réessayez.',
+      'Le catalogue Falk&Ross met trop de temps à répondre. Le serveur tourne, mais une référence bloque. Réessayez.',
     'catalog.fr.retry': 'Réessayer',
     'catalog.fr.offline.banner':
-      'Hors ligne — catalogue en cache du {date}. Les prix et stocks peuvent avoir changé ; réessayez pour recharger les données réelles.',
+      'Hors ligne. Catalogue en cache du {date} : les prix et les stocks peuvent avoir changé. Réessayez pour recharger les données réelles.',
     'catalog.fr.offline.style': 'Fiche affichée depuis le cache ({date}).',
     'catalog.fr.err.auth':
       'Falk&Ross a refusé les identifiants du webservice (FR_WS_USER / FR_WS_PASS).',
     'catalog.fr.err.config':
-      'Identifiants Falk&Ross non configurés sur le serveur — voir le README (wrangler secret put).',
+      'Identifiants Falk&Ross non configurés sur le serveur. Voir le README (wrangler secret put).',
     'catalog.fr.err.parse': 'Réponse Falk&Ross illisible.',
     'catalog.fr.err.not_found': 'Cette référence n’existe plus chez Falk&Ross.',
     'catalog.fr.err.unsupported_sizes':
@@ -95,9 +95,9 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.err.style': 'Impossible de charger la fiche de cette référence.',
 
     'catalog.provenance':
-      'Extrait public du catalogue Imbretex du {date} — en attendant leur API officielle. Prix affichés : PVC conseillés, pas nos tarifs d’achat.',
+      'Extrait public du catalogue Imbretex du {date}, en attendant leur API officielle. Prix affichés : PVC conseillés, pas nos tarifs d’achat.',
     'catalog.provenance_nodate':
-      'Extrait public du catalogue Imbretex — en attendant leur API officielle. Prix affichés : PVC conseillés, pas nos tarifs d’achat.',
+      'Extrait public du catalogue Imbretex, en attendant leur API officielle. Prix affichés : PVC conseillés, pas nos tarifs d’achat.',
     'catalog.search': 'Rechercher (nom, marque, référence)',
     'catalog.filter_dtf': 'Compatible DTF / transfert',
     'catalog.count': '{n} références',
@@ -105,13 +105,13 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.empty': 'Aucune référence ne correspond à cette recherche.',
     'catalog.loading': 'Chargement du catalogue…',
     'catalog.err.unavailable':
-      'Catalogue introuvable — l’extrait public n’est pas déployé sur ce serveur.',
-    'catalog.err.parse': 'Catalogue illisible — l’extrait est corrompu.',
+      'Catalogue introuvable : l’extrait public n’est pas déployé sur ce serveur.',
+    'catalog.err.parse': 'Catalogue illisible : l’extrait est corrompu.',
     'catalog.err.unsupported_sizes':
       'Aucune taille de cette référence n’entre dans les tailles du studio (S–3XL).',
     'catalog.err.photo': 'Photos du fournisseur inaccessibles pour cette référence.',
     'catalog.err.photo_rejected':
-      'La photo fournisseur n’a pas pu être préparée (détourage) — essayez une autre référence.',
+      'La photo fournisseur n’a pas pu être préparée (détourage). Essayez une autre référence.',
     'catalog.err.generic': 'Impossible de charger cette référence.',
     'catalog.card.colours': '{n} coloris',
     'catalog.card.gsm': '{g} g/m²',
@@ -126,10 +126,10 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.detail.size': 'Taille de référence',
     'catalog.detail.size_note':
       'Mesures à plat officielles : mi-poitrine {chest} · longueur {length}.',
-    'catalog.detail.sleeve_note': 'Manche {sleeve} — estimée, non publiée par Imbretex.',
+    'catalog.detail.sleeve_note': 'Manche {sleeve} : estimée, Imbretex ne la publie pas.',
     'catalog.detail.sleeve_note_generic': 'Manche {sleeve}.',
     'catalog.detail.sizes_dropped':
-      'Tailles {list} non prises en charge par le studio — ignorées.',
+      'Tailles {list} ignorées : le studio ne les prend pas en charge.',
     'catalog.detail.marking': 'Marquages certifiés',
     'catalog.detail.spec': 'Fiche technique',
     'catalog.detail.gender': 'Coupe',
@@ -138,7 +138,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.detail.weight': 'Grammage',
     'catalog.detail.ref': 'Référence',
     'catalog.detail.rrp': 'PVC conseillé',
-    'catalog.detail.rrp_note': 'Prix de vente conseillé fournisseur — ce n’est pas notre prix d’achat.',
+    'catalog.detail.rrp_note': 'Prix de vente conseillé par le fournisseur. Ce n’est pas notre prix d’achat.',
     'catalog.detail.source': 'Fiche Imbretex',
     'catalog.detail.no_back':
       'Imbretex ne publie aucune photo dos pour cette référence, quel que soit le coloris.',
@@ -146,22 +146,22 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'À l’import, le dos sera reconstitué à partir de la face (silhouette miroir, couleur du vêtement, plis conservés). C’est un aperçu, jamais une photo du produit : il est signalé dans le studio et marqué dans les exports AR et les mockups.',
     // Short form, for a tooltip on the studio's Dos tab (see SideSwitcher).
     'catalog.detail.back_reconstructed':
-      'Le dos montré ici est une reconstitution : silhouette miroir de la face, couleur du vêtement, plis conservés, boutonnage supprimé. C’est un aperçu, jamais une photo du produit — la mention « aperçu » est incrustée dans l’image elle-même, et le dos reste signalé dans le studio, en AR et dans les mockups. Il n’entre jamais dans un fichier d’impression DTF.',
+      'Le dos montré ici est une reconstitution : silhouette miroir de la face, couleur du vêtement, plis conservés, boutonnage supprimé. C’est un aperçu, jamais une photo du produit : la mention « aperçu » est incrustée dans l’image elle-même, et le dos reste signalé dans le studio, en AR et dans les mockups. Il n’entre jamais dans un fichier d’impression DTF.',
     'catalog.use': 'Utiliser dans l’éditeur',
     'catalog.busy.front': 'Import de la face…',
     'catalog.busy.back': 'Import du dos…',
     'catalog.busy.generate': 'Préparation du dos reconstitué…',
     'catalog.toast.applied': '« {name} » ({size}) chargé dans l’éditeur',
     'catalog.toast.applied_generated':
-      '« {name} » ({size}) chargé — dos reconstitué à partir de la face (aperçu)',
+      '« {name} » ({size}) chargé : dos reconstitué à partir de la face (aperçu)',
     'catalog.toast.no_back':
-      '« {name} » ({size}) chargé — sans dos : impression recto uniquement',
+      '« {name} » ({size}) chargé sans dos : impression recto uniquement',
   },
   en: {
     ...BACK_ORIGIN.en,
     'catalog.title': 'Supplier catalogue',
     'catalog.subtitle':
-      'Blanks from our suppliers — load one into the editor with its size table.',
+      'Blanks from our suppliers. Load one into the editor with its size table.',
     'catalog.entry.title': 'Supplier catalogue',
     'catalog.entry.cta': 'Pick a blank',
 
@@ -179,7 +179,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.mode.unknown': 'Unknown mode',
     'catalog.fr.filter_printable': 'T-shirts, polos, sweats',
     'catalog.fr.scan_partial':
-      '{seen} of {total} references scanned — search walks the catalogue as it goes.',
+      '{seen} of {total} references scanned. Search walks the catalogue as it goes.',
     'catalog.fr.scan_done': 'Whole catalogue scanned ({total} references).',
     'catalog.fr.scan_more': 'Keep searching',
     'catalog.fr.badge.estimated': 'Estimated sizes',
@@ -187,7 +187,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.profile.hoodie': 'sweat / hoodie',
     'catalog.fr.sizes.title': 'Estimated measurements ({profile} block)',
     'catalog.fr.sizes.estimate_note':
-      'Falk&Ross publishes no size table. These values come from our reference blank for this garment type: they drive print placement and the 3D preview. They are NOT this garment’s measurements — check them, and correct them if you have the real ones.',
+      'Falk&Ross publishes no size table. These values come from our reference blank for this garment type: they drive print placement and the 3D preview. They are NOT this garment’s measurements. Check them, and correct them if you have the real ones.',
     'catalog.fr.sizes.manual_note':
       'Measurements corrected by hand: they will be recorded as such on the product sheet.',
     'catalog.fr.sizes.edit': 'Correct the measurements',
@@ -197,7 +197,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.sizes.body': 'Length cm',
     'catalog.fr.sizes.sleeve': 'Sleeve cm',
     'catalog.fr.sizes.paste_hint':
-      'Tip: paste a size table here (Ctrl+V) — columns half chest, length, sleeve.',
+      'Tip: paste a size table here (Ctrl+V). Columns: half chest, length, sleeve.',
     'catalog.fr.sizes.paste_empty': 'No measurements recognised in the pasted text.',
     'catalog.fr.sizes.pasted': '{n} sizes updated from the clipboard',
     'catalog.fr.sizes.reset': 'Back to the estimate',
@@ -212,23 +212,23 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.cost': 'Purchase price',
     'catalog.fr.cost_value': '€{price} excl. VAT',
     'catalog.fr.cost_note':
-      'Purchase price negotiated on our Falk&Ross account — not a selling price.',
+      'Purchase price negotiated on our Falk&Ross account. Not a selling price.',
     'catalog.fr.stock': 'Stock',
     'catalog.fr.stock_value': '{n} pieces',
     'catalog.fr.err.unavailable':
-      'Falk&Ross catalogue unreachable — check the connection or try again.',
+      'Falk&Ross catalogue unreachable. Check the connection, then try again.',
     'catalog.fr.err.backend':
-      'The local backend is not running — start it with “npm run dev” (it also starts the API) or “npx wrangler dev” in a second terminal.',
+      'The local backend is not running. Start it with “npm run dev” (which also starts the API), or with “npx wrangler dev” in a second terminal.',
     'catalog.fr.err.timeout':
-      'The Falk&Ross catalogue is taking too long — the server is up, but one reference is stalling. Try again.',
+      'The Falk&Ross catalogue is taking too long. The server is up, but one reference is stalling. Try again.',
     'catalog.fr.retry': 'Retry',
     'catalog.fr.offline.banner':
-      'Offline — cached catalogue from {date}. Prices and stock may have changed; retry to reload live data.',
+      'Offline. Cached catalogue from {date}: prices and stock may have changed. Retry to reload live data.',
     'catalog.fr.offline.style': 'Detail shown from the cache ({date}).',
     'catalog.fr.err.auth':
       'Falk&Ross rejected the webservice credentials (FR_WS_USER / FR_WS_PASS).',
     'catalog.fr.err.config':
-      'Falk&Ross credentials are not configured on the server — see the README (wrangler secret put).',
+      'Falk&Ross credentials are not configured on the server. See the README (wrangler secret put).',
     'catalog.fr.err.parse': 'Unreadable Falk&Ross response.',
     'catalog.fr.err.not_found': 'This reference no longer exists at Falk&Ross.',
     'catalog.fr.err.unsupported_sizes':
@@ -238,9 +238,9 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.fr.err.style': 'Could not load this reference’s detail.',
 
     'catalog.provenance':
-      'Public snapshot of the Imbretex catalogue taken on {date} — pending their official API. Prices shown are recommended retail, not our cost.',
+      'Public snapshot of the Imbretex catalogue taken on {date}, pending their official API. Prices shown are recommended retail, not our cost.',
     'catalog.provenance_nodate':
-      'Public snapshot of the Imbretex catalogue — pending their official API. Prices shown are recommended retail, not our cost.',
+      'Public snapshot of the Imbretex catalogue, pending their official API. Prices shown are recommended retail, not our cost.',
     'catalog.search': 'Search (name, brand, reference)',
     'catalog.filter_dtf': 'DTF / transfer ready',
     'catalog.count': '{n} references',
@@ -248,13 +248,13 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.empty': 'No reference matches this search.',
     'catalog.loading': 'Loading the catalogue…',
     'catalog.err.unavailable':
-      'Catalogue not found — the public snapshot is not deployed on this server.',
-    'catalog.err.parse': 'Unreadable catalogue — the snapshot is corrupted.',
+      'Catalogue not found: the public snapshot is not deployed on this server.',
+    'catalog.err.parse': 'Unreadable catalogue: the snapshot is corrupted.',
     'catalog.err.unsupported_sizes':
       'None of this reference’s sizes fall inside the studio range (S–3XL).',
     'catalog.err.photo': 'Supplier photos are unreachable for this reference.',
     'catalog.err.photo_rejected':
-      'The supplier photo could not be prepared (cutout) — try another reference.',
+      'The supplier photo could not be prepared (cutout). Try another reference.',
     'catalog.err.generic': 'Could not load this reference.',
     'catalog.card.colours': '{n} colours',
     'catalog.card.gsm': '{g} gsm',
@@ -269,9 +269,9 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.detail.size': 'Reference size',
     'catalog.detail.size_note':
       'Official flat measurements: half chest {chest} · length {length}.',
-    'catalog.detail.sleeve_note': 'Sleeve {sleeve} — estimated, not published by Imbretex.',
+    'catalog.detail.sleeve_note': 'Sleeve {sleeve}: estimated, Imbretex does not publish it.',
     'catalog.detail.sleeve_note_generic': 'Sleeve {sleeve}.',
-    'catalog.detail.sizes_dropped': 'Sizes {list} are outside the studio range — skipped.',
+    'catalog.detail.sizes_dropped': 'Sizes {list} are outside the studio range, so they are skipped.',
     'catalog.detail.marking': 'Certified decoration',
     'catalog.detail.spec': 'Spec sheet',
     'catalog.detail.gender': 'Fit',
@@ -280,7 +280,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'catalog.detail.weight': 'Weight',
     'catalog.detail.ref': 'Reference',
     'catalog.detail.rrp': 'Recommended retail',
-    'catalog.detail.rrp_note': 'Supplier recommended retail price — not our purchase cost.',
+    'catalog.detail.rrp_note': 'Supplier recommended retail price. Not our purchase cost.',
     'catalog.detail.source': 'Imbretex page',
     'catalog.detail.no_back':
       'Imbretex publishes no back photo for this reference, in any colourway.',
@@ -288,16 +288,16 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'On import the back is reconstructed from the front (mirrored silhouette, garment colour, folds preserved). It is a preview, never a photo of the product: the studio flags it and the AR/mockup exports carry a mark.',
     // Short form, for a tooltip on the studio's Back tab (see SideSwitcher).
     'catalog.detail.back_reconstructed':
-      'The back shown here is a reconstruction: the front’s mirrored silhouette, the garment colour, its folds kept and the button placket removed. It is a preview, never a photo of the product — the word “preview” is baked into the image itself, and the back stays flagged in the studio, in AR and in mockups. It never enters a DTF print file.',
+      'The back shown here is a reconstruction: the front’s mirrored silhouette, the garment colour, its folds kept and the button placket removed. It is a preview, never a photo of the product: the word “preview” is baked into the image itself, and the back stays flagged in the studio, in AR and in mockups. It never enters a DTF print file.',
     'catalog.use': 'Use in the editor',
     'catalog.busy.front': 'Importing the front…',
     'catalog.busy.back': 'Importing the back…',
     'catalog.busy.generate': 'Preparing the reconstructed back…',
     'catalog.toast.applied': '“{name}” ({size}) loaded in the editor',
     'catalog.toast.applied_generated':
-      '“{name}” ({size}) loaded — back reconstructed from the front (preview)',
+      '“{name}” ({size}) loaded: back reconstructed from the front (preview)',
     'catalog.toast.no_back':
-      '“{name}” ({size}) loaded — no back: front printing only',
+      '“{name}” ({size}) loaded with no back: front printing only',
   },
 }
 

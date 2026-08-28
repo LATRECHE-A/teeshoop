@@ -1,10 +1,10 @@
 /**
- * DTF — UI strings side-file (module-owned; the integrator merges I18N into
+ * DTF: UI strings side-file (module-owned; the integrator merges I18N into
  * src/i18n/messages.ts). French is first-class, English faithful.
  *
  * `useDtfT` resolves `dtf.*` keys from THIS file immediately (so the module
  * works before the merge) and falls back to the global runtime for shared
- * keys (common.*, side.*, garment.*) — after the merge both paths yield
+ * keys (common.*, side.*, garment.*). After the merge both paths yield
  * identical strings.
  */
 import { useStore } from '@/state/store'
@@ -14,12 +14,12 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
   fr: {
     'dtf.title': 'Planches DTF',
     'dtf.subtitle':
-      'Imbrication automatique des visuels — rouleau au mètre ou formats fixes, fichiers fournisseur prêts à envoyer.',
+      'Imbrication automatique des visuels, en rouleau au mètre ou en formats fixes. Fichiers fournisseur prêts à envoyer.',
     'dtf.queue.title': 'File d’impression',
     'dtf.queue.add_saved': 'Ajouter un design enregistré',
     'dtf.queue.add_current': 'Ajouter le design en cours',
     'dtf.queue.empty':
-      'Aucun visuel — le design actuel n’a aucun côté imprimé. Ajoutez un design enregistré ci-dessous.',
+      'Aucun visuel : le design actuel n’a aucun côté imprimé. Ajoutez un design enregistré ci-dessous.',
     'dtf.queue.qty': 'Quantité pour {name}',
     'dtf.queue.remove': 'Retirer {name}',
     'dtf.queue.rendering': 'Rendu…',
@@ -30,9 +30,9 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.queue.src_basket': 'Panier ({n})',
     'dtf.queue.src_manual': 'Manuel',
     'dtf.queue.basket_note':
-      'Quantités et tailles issues du panier — modifiez-les dans le panier.',
+      'Quantités et tailles issues du panier. Elles se modifient là, pas ici.',
     'dtf.queue.basket_empty':
-      'Panier vide — ajoutez des articles au panier, ou basculez sur « Manuel ».',
+      'Panier vide. Ajoutez-y des articles, ou basculez sur « Manuel ».',
     'dtf.queue.open_basket': 'Ouvrir le panier',
     'dtf.queue.locked': 'Panier',
     'dtf.queue.size': 'Taille {size}',
@@ -95,7 +95,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.split.hint':
       'Chaque visuel indépendant est imprimé séparément : le film n’achète plus le vide entre un logo poitrine et une ligne de bas. La position de pose de chaque transfert est donnée ci-dessus, sur le plan de découpe et dans le manifeste.',
     'dtf.split.off_hint':
-      'Tout un côté est imprimé en un seul transfert, vide compris — une seule pose, mais du film payé pour rien.',
+      'Tout un côté est imprimé en un seul transfert, vide compris. Une seule pose, mais du film payé pour rien.',
     'dtf.split.merge': 'Fusionner en deçà de (cm)',
     'dtf.split.merge_hint':
       'Deux visuels plus proches que cette distance restent un seul transfert : en dessous, ils seraient de toute façon imbriqués à l’espacement du film, et il faudrait les aligner au millimètre sur le vêtement.',
@@ -124,11 +124,11 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.source.published':
       'Marge publiée par le fournisseur.',
     'dtf.source.printable-width':
-      'Marge 0 : les {w} cm annoncés SONT la laize imprimable — le fournisseur ne publie ni marge ni fond perdu. Faites une planche test avant de basculer la production.',
+      'Marge 0 : les {w} cm annoncés SONT la laize imprimable. Le fournisseur ne publie ni marge ni fond perdu. Faites une planche test avant de basculer la production.',
     'dtf.source.house':
       'Marge maison (3 mm) : ce fournisseur ne publie ni marge ni laize imprimable.',
     'dtf.source.inferred':
-      'Marge déduite, non publiée par le fournisseur — à confirmer avec une planche test.',
+      'Marge déduite, non publiée par le fournisseur. À confirmer avec une planche test.',
     'dtf.fill.title': 'Remplissage',
     'dtf.fill.left': 'Découpe facile',
     'dtf.fill.right': 'Remplissage max',
@@ -198,7 +198,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.settings.reset': 'Rétablir les défauts',
     'dtf.settings.saved': 'Profils fournisseurs enregistrés',
     'dtf.settings.invalid':
-      'Profil incomplet — un procédé au mètre exige au moins un palier €/lm (> 0), un procédé à la feuille au moins un format ; toutes les valeurs doivent être > 0.',
+      'Profil incomplet. Un procédé au mètre exige au moins un palier €/lm (> 0), un procédé à la feuille au moins un format, et toutes les valeurs doivent être > 0.',
     'dtf.settings.reset_done': 'Profils par défaut rétablis',
     'dtf.settings.formats': 'Formats acceptés',
     'dtf.stats.sheets': 'Planches',
@@ -225,7 +225,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.grade.tip':
       'Comparaison calculée en réimbriquant exactement les mêmes visuels ramenés à leur taille de base, avec les réglages actuels.',
     'dtf.pf.title': 'Contrôle prépresse',
-    'dtf.pf.ok': 'Rien de détectable — le contrôle ne voit que ce qui est mesurable.',
+    'dtf.pf.ok': 'Rien de détectable. Le contrôle ne voit que ce qui est mesurable.',
     'dtf.pf.summary': '{err} erreur(s) · {warn} avertissement(s)',
     'dtf.pf.blocked':
       'Exports bloqués : corrigez les erreurs, ou cochez « forcer » en connaissance de cause.',
@@ -236,9 +236,9 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.preview.sheet': 'Planche {n} · {len} cm × {w} cm',
     'dtf.preview.sheet_fixed': 'Planche {n} · {label} · {w} × {len} cm',
     'dtf.preview.empty':
-      'Rien à imbriquer — ajustez les quantités ou ajoutez des designs.',
+      'Rien à imbriquer. Ajustez les quantités ou ajoutez des designs.',
     'dtf.warn.unplaceable':
-      '{n} visuel(s) n’entrent dans aucune planche même pivotés — ils sont exclus.',
+      '{n} visuel(s) n’entrent dans aucune planche, même pivotés. Ils sont exclus.',
     'dtf.export.title': 'Exports',
     'dtf.export.print': 'PNG impression',
     'dtf.export.cutplan': 'Plan de découpe',
@@ -247,7 +247,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.export.done': 'Export terminé',
     'dtf.export.failed': 'Export impossible',
     'dtf.export.blocked': 'Corrigez les erreurs de prépresse avant d’exporter',
-    'dtf.zip.action': 'Télécharger le dossier (.zip) — {n} planche(s)',
+    'dtf.zip.action': 'Télécharger le dossier (.zip) · {n} planche(s)',
     'dtf.zip.name_label': 'Nom de la commande',
     'dtf.zip.name_hint':
       'Sert à nommer l’archive, avec la date, le fournisseur et le nombre de planches.',
@@ -265,12 +265,12 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
   en: {
     'dtf.title': 'DTF gang sheets',
     'dtf.subtitle':
-      'Auto-nest order artwork — metered roll or fixed sheet formats, supplier-ready files.',
+      'Auto-nest order artwork on metered roll or fixed sheet formats. Supplier-ready files.',
     'dtf.queue.title': 'Print queue',
     'dtf.queue.add_saved': 'Add a saved design',
     'dtf.queue.add_current': 'Add the current design',
     'dtf.queue.empty':
-      'No artwork — the current design has no printed side. Add a saved design below.',
+      'No artwork: the current design has no printed side. Add a saved design below.',
     'dtf.queue.qty': 'Quantity for {name}',
     'dtf.queue.remove': 'Remove {name}',
     'dtf.queue.rendering': 'Rendering…',
@@ -281,9 +281,9 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.queue.src_basket': 'Basket ({n})',
     'dtf.queue.src_manual': 'Manual',
     'dtf.queue.basket_note':
-      'Quantities and sizes come from the basket — change them there.',
+      'Quantities and sizes come from the basket. Change them there, not here.',
     'dtf.queue.basket_empty':
-      'Empty basket — add order lines to it, or switch to “Manual”.',
+      'The basket is empty. Add order lines to it, or switch to “Manual”.',
     'dtf.queue.open_basket': 'Open the basket',
     'dtf.queue.locked': 'Basket',
     'dtf.queue.size': 'Size {size}',
@@ -340,7 +340,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.split.hint':
       'Every independent visual prints on its own, so the film no longer buys the empty space between a chest logo and a hem line. Each transfer’s placement is given above, on the cutting plan and in the manifest.',
     'dtf.split.off_hint':
-      'A whole side prints as one transfer, empty space included — one press instead of three, but film paid for nothing.',
+      'A whole side prints as one transfer, empty space included. One press instead of three, but film paid for nothing.',
     'dtf.split.merge': 'Merge closer than (cm)',
     'dtf.split.merge_hint':
       'Two visuals closer than this stay one transfer: any closer and they would be nested at the film spacing anyway, and someone would have to align them to the millimetre on the garment.',
@@ -368,11 +368,11 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       '10 = 0.1 linear metre. A supplier billing whole metres (100) wipes out every gain under 1 m.',
     'dtf.source.published': 'Margin published by the supplier.',
     'dtf.source.printable-width':
-      'Margin 0: the quoted {w} cm ARE the printable width — this supplier publishes no margin and no bleed. Order a test sheet before switching production to it.',
+      'Margin 0: the quoted {w} cm ARE the printable width. This supplier publishes no margin and no bleed. Order a test sheet before switching production to it.',
     'dtf.source.house':
       'House margin (3 mm): this supplier publishes neither a margin nor a printable width.',
     'dtf.source.inferred':
-      'Margin inferred, not published by the supplier — confirm with a test sheet.',
+      'Margin inferred, not published by the supplier. Confirm it with a test sheet.',
     'dtf.fill.title': 'Fill',
     'dtf.fill.left': 'Easy cutting',
     'dtf.fill.right': 'Max fill',
@@ -442,7 +442,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.settings.reset': 'Restore defaults',
     'dtf.settings.saved': 'Supplier profiles saved',
     'dtf.settings.invalid':
-      'Incomplete profile — a per-metre process needs at least one €/lm tier (> 0), a per-sheet process at least one format; every value must be > 0.',
+      'Incomplete profile. A per-metre process needs at least one €/lm tier (> 0), a per-sheet process at least one format, and every value must be > 0.',
     'dtf.settings.reset_done': 'Default profiles restored',
     'dtf.settings.formats': 'Accepted formats',
     'dtf.stats.sheets': 'Sheets',
@@ -466,7 +466,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.grade.tip':
       'Computed by re-nesting the very same artwork scaled back to its base size, with the current settings.',
     'dtf.pf.title': 'Prepress check',
-    'dtf.pf.ok': 'Nothing detectable — the check only sees what is measurable.',
+    'dtf.pf.ok': 'Nothing detectable. The check only sees what is measurable.',
     'dtf.pf.summary': '{err} error(s) · {warn} warning(s)',
     'dtf.pf.blocked':
       'Exports blocked: fix the errors, or tick “force” knowing what you are doing.',
@@ -476,9 +476,9 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.preview.title': 'Nested preview',
     'dtf.preview.sheet': 'Sheet {n} · {len} cm × {w} cm',
     'dtf.preview.sheet_fixed': 'Sheet {n} · {label} · {w} × {len} cm',
-    'dtf.preview.empty': 'Nothing to nest — adjust quantities or add designs.',
+    'dtf.preview.empty': 'Nothing to nest. Adjust quantities or add designs.',
     'dtf.warn.unplaceable':
-      '{n} artwork(s) fit no sheet even rotated — excluded from the output.',
+      '{n} artwork(s) fit no sheet, even rotated. They are excluded from the output.',
     'dtf.export.title': 'Exports',
     'dtf.export.print': 'Print PNG',
     'dtf.export.cutplan': 'Cutting plan',
@@ -487,7 +487,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'dtf.export.done': 'Export finished',
     'dtf.export.failed': 'Export failed',
     'dtf.export.blocked': 'Fix the prepress errors before exporting',
-    'dtf.zip.action': 'Download the package (.zip) — {n} sheet(s)',
+    'dtf.zip.action': 'Download the package (.zip) · {n} sheet(s)',
     'dtf.zip.name_label': 'Order name',
     'dtf.zip.name_hint':
       'Used to name the archive, along with the date, the supplier and the sheet count.',

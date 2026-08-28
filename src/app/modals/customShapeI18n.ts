@@ -1,11 +1,11 @@
 /**
- * Custom-garment SHAPE picker — UI strings side-file (module-owned; the
+ * Custom-garment SHAPE picker: UI strings side-file (module-owned; the
  * integrator merges I18N into src/i18n/messages.ts). French is first-class,
  * English faithful.
  *
  * `useShapeT` resolves `custom.shape.*` keys from THIS file immediately (so the
  * module works before the merge) and falls back to the global runtime for
- * shared keys — after the merge both paths yield identical strings.
+ * shared keys. After the merge both paths yield identical strings.
  *
  * The vocabulary is deliberately the one a French print shop uses on a quote
  * (« débardeur », « sweat à capuche »), not a literal translation of the code's
@@ -29,12 +29,12 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'custom.shape.sweatshirt': 'Sweat',
     'custom.shape.hoodie': 'Sweat à capuche',
     'custom.shape.unsure':
-      "La photo n'a pas l'allure d'un vêtement (col, ligne d'épaules, tissu en haut). Le volume 3D reste neutre — choisissez le type ci-dessus pour l'appliquer quand même.",
+      "La photo n'a pas l'allure d'un vêtement (col, ligne d'épaules, tissu en haut). Le volume 3D reste neutre. Choisissez le type ci-dessus pour l'appliquer quand même.",
     'custom.back.generate': 'Générer le dos',
     'custom.back.generating': 'Génération du dos…',
     'custom.back.generated': 'Dos reconstitué',
     'custom.back.hint':
-      "Reconstitue le dos à partir de l'avant (silhouette miroir remplie de la couleur du vêtement). Pour la prévisualisation et le placement — ce n'est pas une photo de votre dos.",
+      "Reconstitue le dos à partir de l'avant (silhouette miroir remplie de la couleur du vêtement). Cela sert à la prévisualisation et au placement : ce n'est pas une photo du dos de votre vêtement.",
     'custom.back.needs_cutout': "Détourez d'abord l'avant pour pouvoir générer le dos.",
     'custom.back.err': 'Impossible de générer le dos.',
   },
@@ -51,12 +51,12 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'custom.shape.sweatshirt': 'Sweatshirt',
     'custom.shape.hoodie': 'Hoodie',
     'custom.shape.unsure':
-      'This photo does not read as a garment (no collar, shoulder line or cloth across the top). The 3D volume stays neutral — pick a type above to apply one anyway.',
+      'This photo does not read as a garment (no collar, shoulder line or cloth across the top). The 3D volume stays neutral. Pick a type above to apply one anyway.',
     'custom.back.generate': 'Generate the back',
     'custom.back.generating': 'Generating the back…',
     'custom.back.generated': 'Reconstructed back',
     'custom.back.hint':
-      'Rebuilds the back from the front (mirrored silhouette flooded with the garment colour). For preview and placement — it is not a photo of your garment’s back.',
+      'Rebuilds the back from the front (mirrored silhouette flooded with the garment colour). It is there for preview and placement, not a photo of your garment’s back.',
     'custom.back.needs_cutout': 'Cut out the front first so the back can be generated.',
     'custom.back.err': 'Could not generate the back.',
   },

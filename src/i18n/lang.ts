@@ -1,7 +1,7 @@
 /**
  * Language state, deliberately decoupled from the zustand store so that
  * `t()` can be called from non-React code (store actions, persistence,
- * offscreen renderers) without importing the store — and so the store can
+ * offscreen renderers) without importing the store, and so the store can
  * import THIS without a cycle.
  */
 export type Lang = 'fr' | 'en'
