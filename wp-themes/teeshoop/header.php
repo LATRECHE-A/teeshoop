@@ -26,7 +26,20 @@ defined( 'ABSPATH' ) || exit;
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="theme-color" content="#14171a">
 	<link rel="profile" href="https://gmpg.org/xfn/11">
-	<script>document.documentElement.className += ' has-js'</script>
+	<?php
+	/*
+	 * NONCED, because the shop sends a Content Security Policy and a browser that
+	 * sees a nonce in `script-src` ignores `'unsafe-inline'` entirely. An inline
+	 * script without one is simply not run, and the symptom here would be a
+	 * navigation that never collapses and filters that never fold, with nothing in
+	 * the console a visitor would report. `Csp::nonce()` is the same value the
+	 * header carries. The theme keeps working with the plugin inactive: the
+	 * `class_exists` guard prints the tag unattributed, which is what a site with
+	 * no policy wants anyway.
+	 */
+	$ts_nonce = class_exists( '\Teeshoop\Core\Csp' ) ? ' nonce="' . esc_attr( \Teeshoop\Core\Csp::nonce() ) . '"' : '';
+	?>
+	<script<?php echo $ts_nonce; // phpcs:ignore WordPress.Security.EscapingOutput -- escaped above. ?>>document.documentElement.className += ' has-js'</script>
 	<?php wp_head(); ?>
 </head>
 

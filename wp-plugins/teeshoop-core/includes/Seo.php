@@ -711,7 +711,13 @@ final class Seo {
 			return;
 		}
 
-		echo '<script type="application/ld+json">'
+		/*
+		 * Nonced: Chrome applies `script-src` to `application/ld+json` even though
+		 * nothing in it executes, so an un-nonced block is refused and the shop
+		 * loses its structured data silently. The only symptom is a rich result
+		 * that stops appearing weeks later.
+		 */
+		echo '<script type="application/ld+json" nonce="' . esc_attr( Csp::nonce() ) . '">'
 			. wp_json_encode(
 				array(
 					'@context' => 'https://schema.org',

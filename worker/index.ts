@@ -57,8 +57,9 @@ import {
 import { nestOrder } from './nest'
 import { isGlb, isPng, isUsdz } from './containers'
 import { rateLimited, type RateLimitEnv } from './ratelimit'
+import { cspNonce, studioPolicy, viewerPolicy, withCsp, type CspEnv } from './csp'
 
-interface Env extends FalkRossEnv, DesignEnv, RateLimitEnv {
+interface Env extends FalkRossEnv, DesignEnv, RateLimitEnv, CspEnv {
   ASSETS: Fetcher
   AR_BUCKET: R2Bucket
 }
@@ -301,10 +302,15 @@ export default {
       const denied = await requireAdmin(request, env, 'page')
       if (denied) return denied
       const res = await env.ASSETS.fetch(new URL('/admin.html', url.origin))
-      return new Response(res.body, {
-        status: 200,
-        headers: { ...Object.fromEntries(res.headers), 'cache-control': 'no-store' },
-      })
+      const nonce = cspNonce()
+      return withCsp(
+        new Response(res.body, {
+          status: 200,
+          headers: { ...Object.fromEntries(res.headers), 'cache-control': 'no-store' },
+        }),
+        studioPolicy(nonce, env),
+        nonce,
+      )
     }
 
     /*
@@ -363,9 +369,24 @@ export default {
         const loc = res.headers.get('location')
         if (loc) res = await env.ASSETS.fetch(new URL(loc, url.origin))
       }
-      return new Response(res.body, { status: 200, headers: res.headers })
+      const nonce = cspNonce()
+      return withCsp(new Response(res.body, { status: 200, headers: res.headers }), viewerPolicy(nonce), nonce)
     }
 
-    return env.ASSETS.fetch(request)
+    /*
+     * THE CUSTOMER STUDIO, which arrives here as the asset fallback rather than
+     * through a route of its own. Only DOCUMENTS get the policy: a dedicated
+     * worker loaded from an http(s) URL takes its policy from ITS OWN response
+     * headers and not from the document that started it, so putting this on
+     * every response would need `'wasm-unsafe-eval'` repeated on the background
+     * remover's own chunk or the customer clicks « enlever le fond » and gets a
+     * worker that will not start.
+     */
+    const asset = await env.ASSETS.fetch(request)
+    if ((asset.headers.get('content-type') ?? '').includes('text/html')) {
+      const nonce = cspNonce()
+      return withCsp(asset, studioPolicy(nonce, env), nonce)
+    }
+    return asset
   },
 }

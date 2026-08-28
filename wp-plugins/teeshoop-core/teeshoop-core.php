@@ -127,6 +127,7 @@ require_once __DIR__ . '/includes/Supply.php';
 require_once __DIR__ . '/includes/Taxonomy.php';
 require_once __DIR__ . '/includes/Shelf.php';
 require_once __DIR__ . '/includes/Listing.php';
+require_once __DIR__ . '/includes/Csp.php';
 require_once __DIR__ . '/includes/Swatch.php';
 require_once __DIR__ . '/includes/Colours.php';
 require_once __DIR__ . '/includes/Importer.php';
@@ -186,6 +187,7 @@ function boot(): void {
 
 	Product::init();
 	Listing::init();
+	Csp::init();
 	Importer::init();
 	Cart::init();
 	Shipping::init();

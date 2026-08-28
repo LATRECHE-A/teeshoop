@@ -33,30 +33,46 @@
 		// navigation to /v/{id} (no matching asset) hits the SPA fallback and serves
 		// the studio instead of the viewer page. Everything else stays assets-first.
 		// "/api/*" already covers the Falk&Ross catalogue at /api/fr/*.
+		// EVERY DOCUMENT GOES THROUGH THE WORKER, and the four heavy asset
+		// directories do not.
+		//
+		// This used to be a list of the dynamic routes: /api/*, /r2/*, /v, /v/*,
+		// /admin, /admin.html, /admin-assets/*, /__fr-cache/* and /media/blank/*.
+		// Every one of them still needs the Worker for the reason it was added, and
+		// `/*` covers all of them, so wrangler now REFUSES to list them alongside it
+		// as redundant. What they were for, kept here because the list was the only
+		// place it was written:
+		//
+		//   /v and /v/*        a navigation to /v/{id} matches no asset, so the SPA
+		//                      fallback served the STUDIO to a scanned QR code.
+		//   /admin, /admin.html the page is gated by worker/auth.ts; without this the
+		//                      asset layer served it to anyone.
+		//   /admin-assets/*    and so is its JavaScript, which is the whole point of
+		//                      that directory. NOT negated below.
+		//   /__fr-cache/*      cache keys minted on an unservable host; this routes a
+		//                      stray request to an explicit 404 rather than the SPA.
+		//   /media/blank/*     the supplier-neutral photo prefix, stored in the shop's
+		//                      database; without it every colour photo was the SPA
+		//                      fallback, HTML at status 200.
+		//
+		// WHY IT BECAME `/*`: the Content Security Policy. `/` is an asset, so the
+		// Worker never saw the studio's own document and it was the one page served
+		// here with no policy on it. Measured: the viewer had its header, the studio
+		// had none. The alternative was a `_headers` file, which cannot carry a
+		// per-request nonce and would force a build-time hash of the inline theme
+		// bootstrap; `dist/` is not committed and Vite copies that block through byte
+		// for byte, so the next whitespace edit would ship a policy whose hash no
+		// longer matches, with no test failing and a blank studio as the symptom.
+		//
+		// The negations are 71 Mo of hashed chunks, models, wasm and catalogue
+		// photographs. They are immutable and need no policy, and routing them
+		// through a Worker would buy an invocation per file for nothing.
 		"run_worker_first": [
-			"/api/*",
-			"/r2/*",
-			"/v",
-			"/v/*",
-			// The admin studio is gated by the Worker (worker/auth.ts). Without
-			// these two, the asset layer would serve admin.html to anyone.
-			"/admin",
-			"/admin.html",
-			// And its JavaScript, which the asset layer served to anyone until
-			// 27/08/2026: gating the page gated the page. vite.config.ts emits
-			// every chunk only the admin entry reaches into this directory, and
-			// worker/index.ts refuses it without the same credentials.
-			"/admin-assets/*",
-			// Cache keys are minted on an unservable host (worker/falkross.ts
-			// CACHE_ORIGIN), so nothing should ever arrive here — this routes any
-			// stray request to the Worker's explicit 404 instead of the SPA fallback.
-			"/__fr-cache/*",
-			// The supplier-neutral photo prefix (worker/falkross.ts PHOTO_ALIAS).
-			// These URLs are stored in the shop's database and rendered in a
-			// customer's page; without this line the asset layer answers them with
-			// the SPA fallback (HTML, status 200) and every colour photo in the
-			// catalogue is a broken image that still looks like a working request.
-			"/media/blank/*"
+			"/*",
+			"!/assets/*",
+			"!/models/*",
+			"!/ort/*",
+			"!/catalog/*"
 		]
 	},
 	// HOW OFTEN ONE ADDRESS MAY WRITE TO R2 THROUGH AN OPEN ROUTE.
@@ -93,7 +109,21 @@
 	// re-rendered later by whatever code is deployed then, so an order has to
 	// record which build it was authored under.
 	"vars": {
-		"APP_VERSION": "r1"
+		"APP_VERSION": "r1",
+		// WHO MAY FRAME THE STUDIO. Space-separated origins, normally just the
+		// shop. It becomes the `frame-ancestors` directive on the studio's own
+		// Content Security Policy (worker/csp.ts).
+		//
+		// EMPTY MEANS THE DIRECTIVE IS OMITTED, not that nobody may frame it. The
+		// fail-closed reflex would be 'none', and it would be wrong: it takes the
+		// editor off the product page, which is the shop's only way of selling,
+		// for a misconfiguration rather than for an attack. What actually stops a
+		// stranger DRIVING the studio is the bridge's exact origin comparison, and
+		// that does not move. A warning is logged so it is not silent.
+		//
+		// Filled in at deploy: the shop's origin, once studio.teeshoop.com and the
+		// shop host are decided (session 14).
+		"SHOP_ORIGINS": ""
 	},
 	// AR model blob store. Create it once with:  wrangler r2 bucket create tshop-ar
 	// R2 has no per-object TTL — add a lifecycle rule to expire the `ar/` prefix

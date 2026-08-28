@@ -26,6 +26,7 @@
     "verify:bundle": "node scripts/bundle-guard.mjs",
     "verify:admin-gate": "node scripts/admin-gate-verify.mjs",
     "verify:cache": "node scripts/cache-verify.mjs",
+    "verify:csp": "node scripts/csp-verify.mjs",
     "verify:wp-e2e": "node scripts/wp-e2e-verify.mjs",
     "verify:wp-catalogue": "node scripts/wp-catalogue-verify.mjs",
     "verify:invoice": "node scripts/invoice-verify.mjs",

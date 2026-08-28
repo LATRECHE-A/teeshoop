@@ -83,7 +83,15 @@ const h1s = (html) => all(html, /<h1[^>]*>([\s\S]*?)<\/h1>/g).map((t) => t.repla
 const isNoindex = (html) => /noindex/.test(robots(html) || '')
 
 const jsonLd = (html) => {
-  const blocks = all(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)
+  /*
+   * ATTRIBUTES ARE ALLOWED ON THE TAG, and that is a correction. This matched
+   * `<script type="application/ld+json">` and nothing else, so the day the shop
+   * started sending a Content Security Policy and the block gained a `nonce`,
+   * every structured-data assertion here went red while the page was perfectly
+   * correct. The symptom read as "the product page lost its BreadcrumbList",
+   * which is exactly the wrong thing to be told.
+   */
+  const blocks = all(html, /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)
   const nodes = []
   const broken = []
   for (const raw of blocks) {
