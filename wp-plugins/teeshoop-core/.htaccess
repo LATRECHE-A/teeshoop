@@ -1,0 +1,34 @@
+# WHAT THIS FILE IS FOR, in one sentence: `wp-content/plugins/` is served by URL,
+# and this directory holds two files that have no business being downloadable.
+#
+# Measured on the mirror on 28/08/2026, before this file existed:
+#
+#   GET /wp-content/plugins/teeshoop-core/README.md      200, 63 058 octets
+#   GET /wp-content/plugins/teeshoop-core/data/garments.json  200, 5 773 octets
+#
+# The README is the plugin's contract: every hook, every meta key, the order
+# lifecycle, the bridge protocol and the reasoning behind the money code. None
+# of it is a credential, and that is exactly why it went on being served from
+# the day the plugin was created (12/08/2026) to this one. It is a map of the
+# shop's internals handed to whoever asks, and the project's rule is that
+# anything reachable by URL is public and must be treated as one.
+#
+# garments.json is the shop's copy of the studio's print areas and size chart.
+# It is not a secret (the studio ships the same numbers to every visitor), but
+# nothing fetches it over HTTP either: `Garments.php` and the product-specs
+# template read it off the disk. A file nobody requests should not answer.
+#
+# WHAT IS DELIBERATELY NOT DENIED. `assets/` (the bridge and product CSS and JS)
+# is loaded by the browser and must stay served. The PHP files already refuse on
+# their own: every file under `includes/` exits on a missing ABSPATH, and every
+# file under `tests/` answers 404 unless PHP_SAPI is cli, both measured again on
+# 28/08/2026 (200 with an empty body, and 404 with an empty body).
+#
+# Apache 2.4 syntax, which is what both sides speak: the mirror is Apache 2.4.68
+# and o2switch is LiteSpeed, which implements 2.4 htaccess semantics. There is no
+# 2.2 fallback because neither host is 2.2, and a stanza nobody can trigger is a
+# stanza nobody maintains.
+
+<FilesMatch "\.(md|json)$">
+	Require all denied
+</FilesMatch>
