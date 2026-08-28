@@ -1917,6 +1917,46 @@ factures des exercices clos finissent.
 
 ---
 
+## Supervision
+
+### 61. Quand la boutique tombe la nuit, qui doit être prévenu, et à quelle adresse ?
+
+**Important**
+
+*Pourquoi on a besoin de la réponse :* Depuis le 28 août 2026 le serveur se
+surveille tout seul, toutes les dix minutes. Il sait dire huit choses qui coûtent
+de l'argent tant que personne ne les voit : la boutique ne répond plus, le
+personnalisateur ne répond plus, le disque se remplit, la sauvegarde a cessé de
+tourner, les erreurs serveur se répètent, un paiement a été encaissé sans
+facture, un bon à tirer n'est jamais parti, un achat fournisseur est resté en
+« envoi incertain ».
+
+Ce qu'il ne sait pas, c'est à qui le dire. **Il n'y a volontairement aucune
+adresse par défaut** : une surveillance qui croit alerter et n'alerte pas est
+pire que pas de surveillance du tout, donc elle refuse de démarrer sans
+destinataire plutôt que d'écrire dans le vide.
+
+La vraie question n'est d'ailleurs pas l'adresse, c'est la personne. Une alerte
+qui arrive dans une boîte que personne n'ouvre le dimanche soir est une alerte
+qui ne sert à rien, et une commande passée le vendredi soir sur une boutique hors
+ligne est perdue avant que quiconque ouvre son ordinateur le lundi.
+
+*Si vous ne répondez pas, on partira sur :* rien. La veille reste installée et à
+l'arrêt, et son journal s'écrit sur le serveur sans que personne le lise. C'est
+le seul point de cette liste où l'hypothèse par défaut n'est pas une valeur mais
+un silence, et c'est pour cela qu'il est ici.
+
+*Ce qu'il nous faut :* une ou deux adresses électroniques, et une phrase sur qui
+regarde en dehors des heures de bureau. Si la réponse est « personne le
+week-end », dites-le : cela se conçoit très bien, et cela change ce qu'on
+surveille (on ne réveille que sur ce qui ne peut pas attendre lundi).
+
+**Votre réponse :**
+
+> 
+
+---
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

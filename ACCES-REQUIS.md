@@ -4,7 +4,7 @@
 > Il est ordonné par ce qui bloque le plus tôt. Chaque ligne dit *pourquoi* l'accès
 > est nécessaire. Si la raison ne tient pas, l'accès ne doit pas être donné.
 >
-> Dernière mise à jour : 18 août 2026 · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
+> Dernière mise à jour : 28 août 2026 (séance 13, §6 quinquies) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
 
 ---
 
@@ -640,6 +640,44 @@ en face, et cela restera ainsi jusqu'à ce que quelqu'un ouvre le contrat.
 lectures : le directeur de la publication et les coordonnées de contact
 (question 56), le médiateur de la consommation (question 57), l'avocat qui relit
 les textes (question 58), et qui signe les avenants (question 59).
+
+---
+
+## 6 quinquies. Ce que la séance 13 laisse à poser, et rien n'est bloquant (28/08/2026)
+
+Aucune de ces lignes n'empêche une séance de développement. Toutes empêchent
+quelque chose de fonctionner **en production**, et chacune dit quoi.
+
+| À poser | Qui | Où | Sans lui |
+|---|---|---|---|
+| Une adresse de destination pour la veille | l'associé répond **où** (question 61), le développeur pose la ligne | la ligne de cron `~/veille.sh --dest=…` sur o2switch | La surveillance tourne et n'envoie rien. Elle refuse de démarrer sans destinataire plutôt que d'écrire dans le vide, donc ce n'est pas silencieux : c'est arrêté |
+| Les alertes Cloudflare sur le Worker | le développeur | tableau de bord Cloudflare, Workers > Observability | Une erreur du Worker n'est visible que dans `wrangler tail`, en direct, et personne ne regarde en direct. C'est un réglage de tableau de bord, pas du code, et il n'a pas été fait |
+| `SHOP_ORIGINS` dans `wrangler.jsonc` | le développeur, au déploiement | `wrangler.jsonc`, puis `wrangler deploy` | Le studio est servi **sans directive `frame-ancestors`**, donc n'importe quel site peut l'encadrer. Un avertissement le dit dans `wrangler tail` à chaque requête, ce qui est la bonne façon de ne pas oublier |
+| `TEESHOOP_CSP_ENFORCE` sur la boutique | le développeur, **après** un vrai paiement | `wp config set TEESHOOP_CSP_ENFORCE true` | La politique de sécurité du contenu est envoyée en Report-Only : elle rapporte et ne refuse rien. Ne pas l'appliquer avant qu'une carte soit passée de bout en bout et un défi 3-D Secure franchi : trois des quatre hôtes Stripe qu'elle autorise ne sont prouvés par rien (question 15) |
+| PHP 8.1.34 en fin de vie | le développeur | `selectorctl --set-user-current=…` en SSH, **préproduction d'abord** | La production tourne sur une version qui ne reçoit plus de correctif de sécurité. C'est un point de sécurité autant que de performance, et il se teste sur la préproduction parce que le thème Woodmart et Elementor y sont, pas chez nous |
+| Le `.htaccess` de l'extension doit arriver sur le serveur | le développeur, au déploiement | `wp-plugins/teeshoop-core/.htaccess` | Sans lui, `README.md` (63 ko de documentation interne) et `data/garments.json` répondent 200 à qui les demande. Vérifié sur le miroir (Apache 2.4) ; **à revérifier sur o2switch** (LiteSpeed), parce qu'un `.htaccess` non honoré ne se voit pas |
+
+### Et une décision, qui n'est pas un accès : R2
+
+Les créations des clients vivent chez Cloudflare et **R2 n'a pas d'instantané**.
+La sauvegarde nocturne ne les couvre pas. Une commande payée dont l'artwork a
+disparu est une commande que l'atelier ne peut pas imprimer, et il faudrait
+redemander son fichier au client, ce qui est le message qu'on ne veut pas écrire.
+
+Deux chemins, et le second est recommandé faute de mesure du volume réel :
+
+1. **Un second seau R2 avec réplication.** Propre, et cela coûte du stockage tous
+   les mois chez Cloudflare.
+2. **Une copie périodique vers le disque o2switch**, dans la sauvegarde nocturne
+   qui existe déjà. Le compte a **323 Go libres** et la sauvegarde actuelle en
+   occupe environ 2 sur sept jours (mesuré le 28/08/2026), donc la place est là.
+   Le coût est côté R2 : la sortie de données n'est pas facturée, les opérations
+   de lecture le sont. Aucun des deux n'a été chiffré ici et il ne faut pas le
+   deviner : le volume réel se lit d'abord.
+
+Ce qui manque pour trancher, et personne ne l'a mesuré : le volume réellement
+stocké dans R2 aujourd'hui. C'est une commande (`wrangler r2 bucket info`) et
+elle appartient à la séance 14, qui a le déploiement sous les yeux.
 
 ---
 

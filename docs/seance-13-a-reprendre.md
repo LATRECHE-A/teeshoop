@@ -71,6 +71,12 @@ Deux corrections portent l'essentiel :
 3. **L'identité légale du vendeur (question 17)**, toujours. Elle empêche encore
    d'émettre une facture en production, et la veille alerte dessus sans pouvoir
    la résoudre.
+4. **Le destinataire des alertes (question 61, nouvelle).** La veille est
+   installée, éprouvée, et **sans destinataire**. Elle refuse de démarrer plutôt
+   que d'écrire dans le vide, donc l'état actuel est « arrêtée » et non
+   « silencieuse », ce qui est la bonne façon d'échouer mais reste une
+   surveillance qui ne surveille personne. La question n'est pas l'adresse, c'est
+   qui regarde un dimanche soir.
 
 ---
 
@@ -172,7 +178,19 @@ cette séance n'a changé cela.
    auto-incréments), le balayage les manquerait, et l'assertion « laisse le
    miroir comme elle l'a trouvé » est ce qui le dirait.
 
-5. **`scripts/style-guard.mjs` refuse aussi un fichier source qui n'est pas du
+5. **Le sélecteur de scène et la `Modal` du studio ont un comportement clavier,
+   et il est gardé.** Les deux portaient un rôle ARIA sans la conduite qui va
+   avec, ce que la séance 12 avait nommé pour celle-ci. Trois choses ne sont pas
+   des détails d'implémentation et se casseraient sans qu'on le voie : les
+   flèches ne bouclent PAS (aucun `select` natif ne le fait), la liste n'a qu'un
+   seul arrêt de tabulation pour tout le contrôle et non un par option, et le
+   piège de focus n'est appliqué que par la dernière fenêtre ouverte, parce que
+   deux fenêtres peuvent être montées en même temps et que deux pièges qui
+   rappellent le focus chacun chez eux se le renvoient en boucle.
+   `npm run verify:focus` tient les quinze assertions et sort 2 s'il en compte
+   moins de quinze.
+
+6. **`scripts/style-guard.mjs` refuse aussi un fichier source qui n'est pas du
    texte.** Deux fichiers TypeScript versionnés portaient un caractère NUL brut
    dans une chaîne, à la place de la séquence d'échappement. Les deux
    produisaient la bonne chaîne à l'exécution et étaient BINAIRES pour tous les
@@ -196,6 +214,9 @@ cette séance n'a changé cela.
 - **Régler `SHOP_ORIGINS`** dans `wrangler.jsonc` : vide, le studio est servi sans
   directive `frame-ancestors`, et un avertissement le dit dans `wrangler tail`.
 - **Décider pour R2** (point 4.3).
-- **Le README de l'extension est servi publiquement** (`GET /wp-content/plugins/teeshoop-core/README.md`
-  répond 200 avec 63 ko de documentation). Hérité de la séance 12 §4.2 et non
-  corrigé ici : `php-guard` ne balaie pas le `.md`.
+- **Vérifier que le `.htaccess` de l'extension est bien honoré sur o2switch.** Le
+  README de l'extension (63 ko) et `data/garments.json` répondaient 200 à qui les
+  demandait ; ils répondent 403 depuis le 28/08, mesuré sur le miroir, qui est
+  Apache 2.4. o2switch est LiteSpeed, qui implémente la même syntaxe, et un
+  `.htaccess` non honoré ne se voit pas : c'est une requête à passer après le
+  déploiement, pas une hypothèse à garder.

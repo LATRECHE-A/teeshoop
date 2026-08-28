@@ -506,6 +506,11 @@ longueur de la liste. Le coût est ailleurs, dans ce que WooCommerce fait d'un c
 26 359 déclinaisons, et **nous ne l'avons pas isolé**. C'est l'entrée numéro un de la séance 13,
 avec le chiffre du jour pour repère.
 
+> **Isolé et corrigé par la séance 13**, et ce n'était pas la longueur de la liste : c'était
+> `is_on_sale()`, auquel WooCommerce répond en construisant les 159 déclinaisons de chaque
+> référence, avec un cache qui ne peut structurellement pas se déclencher sur un catalogue sans
+> prix de vente. 807 ms par fiche, à chaque requête. Voir `docs/PERFORMANCE.md`.
+
 **Les 442 coloris ont une couleur, et elle est mesurée.** C'était la seule chose du site que
 la séance ne défendait pas : quatre cent quarante-deux noms de fabricant dans une boîte qui
 défile, avec une recherche texte, alors que la couleur est le premier critère sur lequel un
@@ -947,9 +952,11 @@ classé.
   pas de `tabindex` glissant, le focus n'entre pas dans la liste et ne revient pas au bouton.
   C'est de la dette d'avant la séance et elle appartient à la séance 12 (accessibilité).
   **La séance 12 ne l'a pas prise** : elle a traité le parcours d'achat, où l'argent
-  change de main, et le sélecteur de scène est dans le studio. Il passe à la
-  séance 13 avec la `Modal` du studio, qui pose `aria-modal="true"` sans piège de
-  focus. Voir `docs/seance-12-a-reprendre.md` §6.
+  change de main, et le sélecteur de scène est dans le studio. **La séance 13 les a
+  prises toutes les deux**, lui et la `Modal` du studio qui posait `aria-modal="true"`
+  sans piège de focus. Les deux sont mesurées au clavier dans un vrai navigateur par
+  `npm run verify:focus`, 15 assertions, cassées exprès une fois pour prouver qu'elles
+  peuvent échouer.
 - **Le balayage `render-verify` reste lent et hors CI** (quelques minutes par cas sous
   rendu logiciel), donc il ne protège rien automatiquement : il faut le lancer.
 - **Un bouton de vue sur trois ne faisait rien, et personne ne l'avait vu.** Mesuré avec la
@@ -1082,6 +1089,74 @@ n'est nécessaire pour les compter, et cela coûte une requête par rapport plut
 
 ---
 
+## Séance 13 : performance, sécurité, supervision
+
+Le détail vit dans quatre documents : `docs/PERFORMANCE.md` (les mesures), `docs/SECURITE.md`
+(la passe adverse, y compris ce qui a tenu), `docs/EXPLOITATION.md` (sauvegardes et veille) et
+`docs/seance-13-a-reprendre.md` (ce qui reste ouvert, et pourquoi).
+
+**Elle a commencé par mesurer, et le premier chiffre était une panne.** Six types de page à
+375 px, en 4G lente (1,6 Mbit/s, 150 ms de latence), processeur au quart, cache froid, cinq
+chargements et la médiane. La page catégorie répondait en **15 896 ms**. L'instrument est
+enregistré dans les deux relevés (`docs/perf/cwv-avant.json` et `cwv-apres.json`) pour que deux
+lectures restent comparables ; c'est la règle que ce projet s'est déjà donnée après avoir
+publié une accélération qui était un changement d'instrument.
+
+| Page | LCP avant | LCP après | |
+|---|---:|---:|---|
+| Catégorie (139 références) | 15 896 ms | **1 620 ms** | -90 % |
+| Catégorie, deux facettes | 14 376 ms | 1 212 ms | -92 % |
+| Fiche produit | 4 280 ms | 1 036 ms | -76 % |
+| Accueil | 1 936 ms | 744 ms | -62 % |
+| Panier | 4 468 ms | 3 308 ms | -26 % |
+| Commander | 6 900 ms | 3 720 ms | -46 % |
+
+**Deux causes portaient presque tout, et les deux étaient invisibles depuis le code.** La
+boucle produits demandait à chaque référence variable si elle était en promotion, ce à quoi
+WooCommerce répond en construisant ses 159 déclinaisons, et son propre cache **ne peut
+structurellement pas** se déclencher sur un catalogue sans prix de vente : 807 ms par fiche, à
+chaque requête, pour toujours. `Listing.php` répond désormais par une seule requête SQL, sur un
+**sur-ensemble** des déclinaisons visibles, parce que la seule direction fausse serait d'oublier
+un prix. Et il n'y avait aucun cache objet : **5 698 transients** étaient lus dans `wp_options` à
+chaque requête. Les comptes de requêtes SQL, déterministes là où le TTFB d'un docker ne l'est
+pas, passent de 69 à 10 sur l'accueil, de 130 à 19 sur la catégorie et de 99 à 14 sur la fiche.
+
+**Le studio ne coûte pas ce que le document parent déclare**, et c'est une propriété des
+iframes plutôt qu'un défaut : un document ne voit pas les requêtes d'une iframe d'une autre
+origine. Compté au niveau du navigateur, l'ouverture du personnalisateur coûte 45 requêtes et
+653 ko, dont 405 dans l'iframe, là où le parent n'en rapportait que 247. Au passage, l'iframe
+n'est pas différée malgré son `loading="lazy"`.
+
+**La passe adverse publie ce qui a tenu autant que ce qui n'a pas tenu.** Six surfaces, 75
+attaques repoussées, 5 trouvailles confirmées, chacune rejouée à la main contre un vrai Worker
+avant d'être crue. Les deux qui comptent : **la surface d'encre facturée était déclarée par
+l'acheteur** (un seul nombre changé dans la requête, jusqu'à 9,00 EUR HT par face et par
+vêtement), et **les deux routes ouvertes étaient de l'hébergement de fichiers** public,
+permanent et immuable, sur l'origine qui sert aussi la boutique. Deux autres tenaient à la même
+racine : fermer la page d'administration ne fermait que la page, son JavaScript répondait 200 à
+qui le demandait, et le manifeste de build publiait la liste des morceaux.
+
+**Une sauvegarde a été prise, puis restaurée**, ce qui n'est pas la même phrase. Le compte
+o2switch n'a **aucune sauvegarde en libre-service** (mesuré : `uapi Backup list_backups` répond
+que la fonctionnalité n'est pas disponible). La sauvegarde nocturne coûte 42 s pour 293 Mo ; la
+restauration dans une base d'essai a pris 7 s et a rendu **15 commandes, exactement ce que le
+manifeste annonçait**. La veille tourne toutes les dix minutes, n'alerte que sur un changement
+d'état, envoie aussi le retour à la normale, et a été éprouvée sur un vrai problème.
+
+**Et deux dettes d'accessibilité héritées de la séance 12 sont fermées** : le sélecteur de
+scène est un `listbox` en comportement et plus seulement en ARIA, et la `Modal` du studio tient
+la promesse de son `aria-modal`. `npm run verify:focus` les tape au clavier dans un vrai
+navigateur.
+
+**Ce que la séance n'a pas pu clore, et ce n'est pas un oubli** : le cache de page (le miroir
+est sous Apache, o2switch sous LiteSpeed), l'application de la politique de sécurité du contenu
+(sans compte Stripe, le parcours de paiement n'a jamais été exercé sous elle, donc elle est
+envoyée en Report-Only côté boutique), et la limitation de débit (déclarée, mais sa liaison
+n'existe pas sous `wrangler dev`). Les trois attendent la séance 14, et R2 n'a toujours aucune
+copie des créations des clients, ce qui est le trou le plus sérieux qui reste.
+
+---
+
 ## Ce qu'il reste : quinze séances
 
 Le détail exécutable de chacune vit dans `prompts/` (non versionné : ce sont des
@@ -1102,7 +1177,7 @@ instructions de travail, elles changent plus vite que le code).
 | 10 | Le studio en vitrine : 3D et mockups. **L'aperçu 3D d'un vêtement du catalogue est fait, mesuré et gardé** ; la vue portée est refusée par écrit, et les mockups ne sont relus par personne (voir « Ce que la séance 10 n'a pas fait » ci-dessus) | 09 |
 | ~~11~~ | ~~Référencement, contenu, données structurées~~ **faite**. Une page manque et le refus est écrit : la page Île-de-France, qui a besoin d'une adresse (questions 17 et 55) | - |
 | ~~12~~ | ~~Juridique, RGPD, accessibilité~~ **faite**. Les quatre pages existent et se déclarent comme des projets non relus par un avocat, les CGV sont des versions datées dont les chiffres sont contrôlés contre le code, l'effacement suit la donnée jusqu'à R2 et refuse plutôt que de finir à moitié, et le parcours d'achat passe WCAG 2.2 AA. Sept points bloquent encore la vente et aucun n'est du code : voir `docs/seance-12-a-reprendre.md` §2 |
-| 13 | Performance, sécurité, supervision | 09, 10 |
+| ~~13~~ | ~~Performance, sécurité, supervision~~ **faite**. Les six types de page sont mesurés avant et après sur le même instrument, la passe adverse a publié ses 75 attaques repoussées autant que ses 5 trouvailles, la sauvegarde a été **restaurée** et pas seulement prise, et une alerte a été déclenchée pour de vrai. Trois choses ne peuvent pas être closes ici et sont nommées : le cache de page (il faut LiteSpeed), l'application de la politique de sécurité du contenu (il faut un paiement réel) et la limitation de débit (il faut un déploiement). Voir `docs/seance-13-a-reprendre.md` |
 | 13b | Les réponses de l'associé, et redire la vérité | 13 |
 | 14 | Déploiement : préproduction, pipeline, purge de la démo | 13b |
 | 15 | Répétition générale et mise en ligne | 14 |
@@ -1129,11 +1204,12 @@ ne peut le lever.
 | **Le délai d'urgence, qui est impossible** | associé | Question 14. Mesuré par la séance 07 : 4 jours ouvrés promis contre 6 jours de travail incompressible (transport 2, pressage 1, battement 1, transit du film 2). Toute commande urgente est en retard de deux jours dès la validation du BAT, et l'express ne tient qu'à un jour près. Le calcul est dans `tests/test-production.php`, donc la réponse déplace un test |
 | **Les cinq temps d'atelier jamais chronométrés** | associé | Question 05. Nos deux temps chiffrent la main-d'œuvre de sa propre commande d'exemple à 7,83 EUR là où elle en inscrit 45,00 : 37,17 EUR de trou, et 63,72 EUR de prix plancher. Une série chronométrée une fois referme l'écart |
 | **Le taux de marge sur un textile nu** | associé | Question 42. Les 26 399 articles du catalogue sont importés avec leur coût réel et **sans prix de vente** : consultables, non commandables, tant que le taux n'est pas fixé |
-| Clés Stripe (test puis production) | associé | Séance 04. L'extension officielle est branchée et l'alarme distingue un compte de test d'un compte réel par le préfixe de la clé, pas par la case à cocher, qui se contredit elle-même sur une configuration jamais enregistrée |
+| Clés Stripe (test puis production) | associé | Séance 04. L'extension officielle est branchée et l'alarme distingue un compte de test d'un compte réel par le préfixe de la clé, pas par la case à cocher, qui se contredit elle-même sur une configuration jamais enregistrée. **Depuis la séance 13 elles bloquent une deuxième chose** : la politique de sécurité du contenu est envoyée en Report-Only côté boutique parce qu'aucun paiement réel n'a pu être exercé sous elle, et trois des quatre hôtes Stripe qu'elle autorise ne sont prouvés par rien |
 | L'identité légale complète et le RCS | associé | Questions 17 et **45**. Rien n'est facturable sans, et rien n'est inventé à la place |
 | Une plateforme de facturation électronique | associé | Constat 7. Obligatoire **en réception au 1er septembre 2026**, quelle que soit la taille de l'entreprise. Ce n'est pas du développement, c'est une démarche |
 | Compte Brevo | associé | Séance 06 |
 | `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur ne peut partir, même confirmée : le Worker répond 503 et ne construit aucun document. Le repli qui devinait ce numéro à partir du login a été supprimé, et une sonde en mode test n'a **pas** pu le confirmer auprès du fournisseur. `wrangler secret put FR_CUSTOMER_NR` |
+| **Où sonne l'alerte, et qui la lit** | associé | Question **61**, ajoutée par la séance 13. La veille tourne toutes les dix minutes sur le serveur et n'a **aucun destinataire par défaut**, volontairement : une veille qui croit alerter et n'alerte pas est pire que pas de veille. Il manque une adresse, et surtout la réponse à la vraie question, qui est qui regarde un dimanche soir |
 | **Le délai de livraison du fournisseur textile** | associé | Question **46**, ajoutée par la séance 08. Il n'existe nulle part : ni dans la Bible, ni chez le fournisseur, ni chez nous, qui n'avons jamais passé de commande. L'atelier sait donc quand commander le film et pas quand commander les vêtements, et la séance 08 n'a rien inventé à la place |
 
 ### Ce qui a été décidé le 18/08/2026 : avancer quand même
@@ -1187,13 +1263,14 @@ Elle confronte chaque réponse au registre, applique les changements par ordre d
 que le site promet en public avec ce que l'atelier peut tenir, et installe le contrôle qui
 refuse la mise en ligne tant qu'une hypothèse bloquante atteint encore un client.
 
-`QUESTIONS-ASSOCIE.md` contient 44 questions auxquelles seul l'associé peut répondre, dont
-18 marquées bloquantes. Q06 (les taux de marge) et Q03 (les grilles d'achat réelles)
-conditionnent une grande partie de la séance 05. Trois viennent d'être
-ajoutées par la séance 02 : la durée de validité d'un devis (la Bible impose la mention et
-ne donne aucune durée, et c'est un engagement ferme en droit français), le fait que la
-commission d'un commercial figure ou non sur le document que le client reçoit, et la durée
-de conservation d'une demande de devis sans suite.
+`QUESTIONS-ASSOCIE.md` contient **61 questions** auxquelles seul l'associé peut répondre, dont
+**21 marquées bloquantes** (comptées le 28/08/2026, et le registre des hypothèses vérifie à
+chaque exécution de la chaîne que les 21 bloquantes ont toutes une ligne ou un motif écrit de
+non-applicabilité). Le chiffre inscrit ici disait encore 44 sur 18, ce qui datait de la séance
+05 : c'est corrigé, et il vaut mieux le compter que le recopier. Q06 (les taux de marge) et
+Q03 (les grilles d'achat réelles) conditionnent une grande partie de la séance 05. La dernière
+en date est la **61**, ajoutée par la séance 13 : la boutique se surveille désormais toute
+seule et n'a personne à prévenir.
 
 ---
 
