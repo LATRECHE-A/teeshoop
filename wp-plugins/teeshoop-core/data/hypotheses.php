@@ -216,6 +216,7 @@ return array(
 			'cost_if_late' => 'reglage',
 			'sessions' => array(
 				'05',
+				'13',
 			),
 		),
 		array(

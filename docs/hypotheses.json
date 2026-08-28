@@ -665,10 +665,12 @@
 				"internal"
 			],
 			"derives": [
-				"« Le catalogue est consultable et non commandable » : la phrase devient fausse le jour où le taux est posé."
+				"« Le catalogue est consultable et non commandable » : la phrase devient fausse le jour où le taux est posé.",
+				"Les deux chiffres de performance de la seance 13 sur la page categorie : les 14,0 s de TTFB mesures le 27/08 et la chute de 90 % qui a suivi. Les deux sont des proprietes d'un catalogue SANS prix de vente. Le jour ou un taux est pose, WooCommerce peut enfin ecrire son transient de prix par declinaison (validate_prices_data refuse un cache dont tous les prix sont vides, class-wc-product-variable-data-store-cpt.php:1106), la lenteur d'origine disparait d'elle-meme et la mesure « avant » de docs/perf/cwv-avant.json ne se reproduit plus. La correction, elle, reste utile : elle couvre toute reference restee sans prix."
 			],
 			"sessions": [
-				"05"
+				"05",
+				"13"
 			],
 			"cost_if_late": "reglage",
 			"shipped_matches_default": "Oui, mot pour mot : « rien. Aucun prix n'est écrit, le catalogue reste consultable et non commandable ». À signaler tout de même : l'hypothèse par défaut de la question 06 donne un taux (« marge cible 55 % ») que celle de la question 42 interdit d'écrire. Le code suit la 42."
@@ -1610,7 +1612,9 @@
 				"customer",
 				"operator"
 			],
-			"derives": [],
+			"derives": [
+				"La politique de securite du contenu de la seance 13 est envoyee en Report-Only et non appliquee, parce qu'aucun compte Stripe n'existe : le parcours de paiement n'a pas pu etre exerce sous la politique. Trois des quatre hotes Stripe qu'elle autorise (api.stripe.com, m.stripe.network, r.stripe.com) ne sont pas prouves depuis le depot, seul js.stripe.com l'est. Passer la politique en application suppose d'abord une carte payee de bout en bout avec des cles de test, un defi 3-D Secure, et la lecture des rapports."
+			],
 			"sessions": [
 				"04",
 				"13",
