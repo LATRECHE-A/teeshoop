@@ -186,6 +186,39 @@ performance.
 mesure de la fiche produit ci-dessus **ne contient pas le studio**. Voir la
 section 7.
 
+**Les images n'ont rien reçu, et la mesure dit que ce n'est pas là que ça se
+joue.** Le brief de la séance nommait quatre choses côté WordPress : cache
+objet, cache de page, discipline de requêtes, et le traitement des images. Les
+trois premières ont leur section ; la quatrième n'avait pas été regardée du
+tout, ce qui est corrigé ici par une mesure plutôt que par une correction.
+
+Relevé le 28/08/2026, à 375 px et en densité 3 :
+
+| | requêtes image | poids | formats |
+|---|---:|---:|---|
+| Catégorie | 22 | 441 ko | JPEG seulement |
+| Fiche produit | 8 | 327 ko | JPEG seulement |
+| Accueil | 0 | 0 ko | aucune image |
+
+Ce qui fonctionne déjà : `srcset` est présent sur les 24 balises, `sizes` est
+juste, et le navigateur choisit bien en fonction de la densité (la photo
+principale d'une fiche est servie en 1024 x 1304 pour une boîte de 375 px en
+densité 3, les vignettes en 450 px pour une boîte de 180). 21 des 24 balises
+portent `loading="lazy"`.
+
+Ce qui manque : **aucun format moderne**. Tout est en JPEG, sans WebP ni AVIF.
+Le gain se compte en dizaines de kilo-octets sur des images déjà différées et
+sous la ligne de flottaison, donc il ne déplacerait aucun des LCP de la section
+7. C'est une amélioration réelle et ce n'est pas une urgence, et le dire avec le
+chiffre vaut mieux que de l'installer sans.
+
+> **Le piège, pour qui remesurera.** `naturalWidth` ne rend PAS la taille du
+> fichier quand l'image a été choisie dans un `srcset` en descripteurs `w` : la
+> spécification la divise par la densité effective. La photo ci-dessus se lit
+> « 375 x 477 » dans le navigateur et fait 1024 x 1304 sur le fil, ce qui est
+> exactement l'inverse de ce que la lecture naïve donne à croire. Se fier au
+> corps de la réponse HTTP, pas à la propriété.
+
 ---
 
 ## 7. La mesure d'arrivée
