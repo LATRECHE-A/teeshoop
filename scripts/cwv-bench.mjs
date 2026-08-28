@@ -90,7 +90,14 @@ const PAGES = [
   { key: 'categorie', label: 'Catégorie (139 références)', path: '/categorie/manches-courtes/' },
   { key: 'categorie-filtree', label: 'Catégorie, deux facettes', path: '/categorie/manches-courtes/?f_couleur[]=white&f_taille[]=m' },
   { key: 'produit', label: 'Fiche produit (catalogue)', path: '/produit/bc-e150-women-t-shirt/' },
-  { key: 'produit-studio', label: 'Fiche produit avec le studio', path: null, resolve: 'studio' },
+  { key: 'produit-studio', label: 'Fiche produit avec le studio, replié', path: null, resolve: 'studio' },
+  {
+    key: 'produit-studio-ouvert',
+    label: 'Fiche produit, studio ouvert (coût combiné)',
+    path: null,
+    resolve: 'studio',
+    openStudio: true,
+  },
   { key: 'panier', label: 'Panier, une ligne', path: '/cart/', prepare: true },
   { key: 'commande', label: 'Commander, une ligne', path: '/checkout/', prepare: true },
 ]
@@ -211,7 +218,7 @@ async function throttle(page) {
  * One reading. A fresh context each time, so the browser cache is cold and the
  * number is a first visit rather than a second one.
  */
-async function measure(browser, url, storageState) {
+async function measure(browser, url, storageState, openStudio = false) {
   const context = await browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: DPR,
@@ -220,25 +227,84 @@ async function measure(browser, url, storageState) {
     userAgent: UA,
     storageState,
   })
+  /* addInitScript applies to EVERY frame in the context, which is what lets the
+   * studio inside the iframe report its own paint timings rather than the
+   * parent's. */
   await context.addInitScript(COLLECTOR)
   const page = await context.newPage()
   const failures = []
   page.on('requestfailed', (r) => failures.push(`${r.method()} ${r.url().slice(0, 120)}: ${r.failure()?.errorText}`))
+
+  /*
+   * BYTES ARE COUNTED AT THE BROWSER, NOT FROM RESOURCE TIMING.
+   *
+   * The parent document's `performance.getEntriesByType('resource')` cannot see
+   * what a cross-origin iframe fetches: they are two documents. Summing them from
+   * the response events is the only way to answer "what did the customer's phone
+   * download", which is the number this page type exists to produce. Header
+   * bytes are included because they are bytes.
+   */
+  let wireBytes = 0
+  let wireRequests = 0
+  let frameBytes = 0
+  page.on('response', async (res) => {
+    try {
+      const s = await res.request().sizes()
+      const n = (s.responseBodySize || 0) + (s.responseHeadersSize || 0)
+      wireBytes += n
+      wireRequests += 1
+      if (res.frame() !== page.mainFrame()) frameBytes += n
+    } catch {
+      /* a request that never finished has no sizes; it is already in `failures` */
+    }
+  })
+
   let status = 0
+  let studio = null
   try {
     const res = await page.goto(url, { waitUntil: 'load', timeout: 180000 })
     status = res ? res.status() : 0
-    /* Let LCP settle. An LCP read at `load` is not final: a late image or a font
-     * swap can still replace the candidate. Two seconds of quiet is what
-     * Lighthouse waits for and it is enough here. */
-    await page.waitForTimeout(2500)
+
+    if (openStudio) {
+      /*
+       * THE IFRAME IS `loading="lazy"` AND SITS BELOW THE FOLD AT 375 px, so a
+       * plain page load never pays for the studio at all. That is the right
+       * default and it is why the folded reading above is honest, but it means
+       * the folded reading is NOT the cost of using the shop. This scrolls it
+       * into view the way a thumb does, and waits for the studio to paint.
+       */
+      const frameEl = page.locator('iframe.teeshoop-studio__frame').first()
+      await frameEl.scrollIntoViewIfNeeded({ timeout: 30000 })
+      const t0 = Date.now()
+      const handle = await frameEl.elementHandle({ timeout: 30000 })
+      const frame = await handle.contentFrame()
+      if (frame) {
+        await frame.waitForLoadState('load', { timeout: 180000 }).catch(() => {})
+        await page.waitForTimeout(4000)
+        studio = await frame.evaluate(READ).catch(() => null)
+        if (studio) studio.opened_after_ms = Date.now() - t0
+      }
+    } else {
+      /* Let LCP settle. An LCP read at `load` is not final: a late image or a font
+       * swap can still replace the candidate. Two seconds of quiet is what
+       * Lighthouse waits for and it is enough here. */
+      await page.waitForTimeout(2500)
+    }
   } catch (e) {
     await context.close()
     return { error: String(e.message || e).slice(0, 200), status }
   }
   const m = await page.evaluate(READ)
   await context.close()
-  return { ...m, status, failures: failures.slice(0, 5) }
+  return {
+    ...m,
+    status,
+    failures: failures.slice(0, 5),
+    wire_bytes: wireBytes,
+    wire_requests: wireRequests,
+    iframe_bytes: frameBytes,
+    studio,
+  }
 }
 
 /** A cart with one real line, as a storage state the measured runs reuse. */
@@ -315,7 +381,7 @@ async function main() {
 
     const runs = []
     for (let i = 0; i < RUNS; i++) {
-      const r = await measure(browser, url, p.prepare ? state : undefined)
+      const r = await measure(browser, url, p.prepare ? state : undefined, p.openStudio === true)
       if (r.error) {
         console.error(`  ${p.key} run ${i + 1} : ${r.error}`)
         continue
@@ -345,6 +411,18 @@ async function main() {
       bytes: last.bytes,
       counts: last.counts,
       failures: last.failures,
+      wire_bytes: pick((r) => r.wire_bytes),
+      wire_requests: pick((r) => r.wire_requests),
+      iframe_bytes: pick((r) => r.iframe_bytes),
+      studio: last.studio
+        ? {
+            lcp: median(runs.map((r) => r.studio?.lcp).filter((v) => Number.isFinite(v))),
+            fcp: median(runs.map((r) => r.studio?.fcp).filter((v) => Number.isFinite(v))),
+            tbt: median(runs.map((r) => r.studio?.tbt).filter((v) => Number.isFinite(v))),
+            requests: last.studio.requests,
+            opened_after_ms: median(runs.map((r) => r.studio?.opened_after_ms).filter((v) => Number.isFinite(v))),
+          }
+        : null,
     })
     const r = results[results.length - 1]
     console.log(
@@ -355,6 +433,19 @@ async function main() {
         `(html ${bytes(r.bytes.document)}, js ${bytes(r.bytes.script)}, css ${bytes(r.bytes.css)}, ` +
         `images ${bytes(r.bytes.image)}, polices ${bytes(r.bytes.font)})`,
     )
+    if (r.wire_bytes) {
+      console.log(
+        `  sur le fil, toutes frames comprises : ${r.wire_requests} requêtes, ${bytes(r.wire_bytes)}` +
+          (r.iframe_bytes ? `, dont ${bytes(r.iframe_bytes)} pour l'iframe` : ''),
+      )
+    }
+    if (r.studio) {
+      console.log(
+        `  le studio lui-même : FCP ${ms(r.studio.fcp)} ms   LCP ${ms(r.studio.lcp)} ms   ` +
+          `TBT ${ms(r.studio.tbt)} ms   ${r.studio.requests} requêtes   ` +
+          `ouvert ${Math.round(r.studio.opened_after_ms)} ms après le déclenchement`,
+      )
+    }
     if (r.failures?.length) console.log(`  requêtes en échec : ${r.failures.join(' | ')}`)
   }
 

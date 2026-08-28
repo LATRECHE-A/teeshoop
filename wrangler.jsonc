@@ -59,6 +59,36 @@
 			"/media/blank/*"
 		]
 	},
+	// HOW OFTEN ONE ADDRESS MAY WRITE TO R2 THROUGH AN OPEN ROUTE.
+	//
+	// The two upload routes take no credentials on purpose: the customer is the
+	// author of their own artwork. Container validation and the size and count
+	// caps make them safe; nothing made them cheap. One request writes up to
+	// forty megabytes across forty-three objects, R2 charges for both, and the
+	// `design/` prefix has no lifecycle rule because only the shop knows which
+	// artwork is still owed against an order.
+	//
+	// Twenty a minute, not five: the key is CF-Connecting-IP, which groups
+	// everyone behind one carrier NAT or one office, and a buyer who cannot
+	// upload their design cannot buy. See worker/ratelimit.ts for why a MISSING
+	// binding allows rather than refuses, which is the opposite of the rule for
+	// ADMIN_TOKEN and for a reason.
+	//
+	// `namespace_id` is ours to choose and needs no dashboard. The binding does
+	// not exist under `wrangler dev`, so locally these routes stay uncapped and
+	// say so in the log.
+	"ratelimits": [
+		{
+			"name": "DESIGN_UPLOAD_LIMIT",
+			"namespace_id": "1301",
+			"simple": { "limit": 20, "period": 60 }
+		},
+		{
+			"name": "AR_UPLOAD_LIMIT",
+			"namespace_id": "1302",
+			"simple": { "limit": 20, "period": 60 }
+		}
+	],
 	// Stamped onto every design manifest (worker/design.ts): the artwork is
 	// re-rendered later by whatever code is deployed then, so an order has to
 	// record which build it was authored under.

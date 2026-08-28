@@ -56,8 +56,9 @@ import {
 } from './design'
 import { nestOrder } from './nest'
 import { isGlb, isPng, isUsdz } from './containers'
+import { rateLimited, type RateLimitEnv } from './ratelimit'
 
-interface Env extends FalkRossEnv, DesignEnv {
+interface Env extends FalkRossEnv, DesignEnv, RateLimitEnv {
   ASSETS: Fetcher
   AR_BUCKET: R2Bucket
 }
@@ -245,6 +246,8 @@ export default {
     const path = url.pathname
 
     if (path === '/api/ar' && request.method === 'POST') {
+      const tooMany = await rateLimited(env.AR_UPLOAD_LIMIT, request, 'POST /api/ar')
+      if (tooMany) return tooMany
       return uploadAr(request, env)
     }
 
@@ -253,6 +256,8 @@ export default {
     // authenticate — and the read is what the WordPress plugin calls before it
     // will put a personalised line in a cart.
     if (path === '/api/design' && request.method === 'POST') {
+      const tooMany = await rateLimited(env.DESIGN_UPLOAD_LIMIT, request, 'POST /api/design')
+      if (tooMany) return tooMany
       return createDesign(request, env)
     }
     /*

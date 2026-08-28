@@ -188,6 +188,75 @@ section 7.
 
 ---
 
-## 7. Le studio dans l'iframe
+## 7. La mesure d'arrivée
 
-À compléter dans cette séance.
+Même instrument, même profil, `docs/perf/cwv-apres.json`, 28/08/2026.
+
+| Page | LCP avant | LCP après | écart |
+|---|---:|---:|---:|
+| Accueil | 1 936 ms | 744 ms | -62 % |
+| **Catégorie** | **15 896 ms** | **1 620 ms** | **-90 %** |
+| Catégorie, deux facettes | 14 376 ms | 1 212 ms | -92 % |
+| Fiche produit | 4 280 ms | 1 036 ms | -76 % |
+| Fiche produit + studio | 1 068 ms | 932 ms | -13 % |
+| Panier | 4 468 ms | 3 308 ms | -26 % |
+| Commander | 6 900 ms | 3 720 ms | -46 % |
+
+Le budget est LCP sous 2,5 s. **Six pages sur huit y sont**, contre cinq sur
+sept au départ dont aucune des trois lourdes. Le panier et la page de paiement
+n'y sont pas et la raison est au point 6 : 1,38 Mo de JavaScript de blocs
+WooCommerce, que rien dans cette séance ne pouvait retirer sans décider de ne
+plus utiliser le panier en blocs.
+
+Le TBT tombe partout : 2 378 ms à 992 ms sur la page de paiement, 1 265 ms à
+896 ms sur le panier, 129 ms à 23 ms sur la catégorie. Le CLS n'a pas bougé
+(0,000 partout sauf 0,045 sur les deux pages de panier, sous le seuil de 0,1).
+
+---
+
+## 8. Le studio dans l'iframe, et ce que la mesure a démenti
+
+La séance partait de l'idée que l'iframe portant `loading="lazy"` et se trouvant
+sous la ligne de flottaison, une fiche produit ne payait pas le studio tant que
+l'acheteur ne descendait pas. **C'est faux, et c'est la mesure qui le dit.**
+
+Le compte des octets a été refait au niveau du navigateur et non à partir du
+`resource timing` du document parent, pour une raison simple : un document ne
+voit pas ce qu'une iframe d'une autre origine télécharge, ce sont deux
+documents. La mesure de départ disait 247 ko et 25 requêtes ; c'était le parent
+seul.
+
+| | parent seul | tout compris |
+|---|---:|---:|
+| requêtes | 25 | **45** |
+| poids | 247 ko | **653 ko** |
+| dont l'iframe | 0 | **405 ko** |
+
+Et les deux lectures, celle où l'on ne descend pas et celle où l'on descend
+jusqu'au studio, donnent **le même chiffre**. Le cadre se charge avec la page :
+à 375 px de large, avec une hauteur de `min(85dvh, 900px)`, il est assez près de
+la fenêtre pour que le seuil de chargement paresseux de Chrome ne le diffère
+pas. `loading="lazy"` est donc écrit et sans effet ici.
+
+Le studio lui-même, mesuré dans son propre document : **FCP 448 ms, LCP 680 ms,
+TBT 296 ms, 21 requêtes.** Le découpage de la séance R0 tient : les 1,1 Mo de
+three.js ne sont pas dans ce chiffre, ils arrivent quand la vue 3D s'ouvre.
+
+**Ce que cela veut dire.** Une fiche produit qui porte le studio coûte 653 ko au
+lieu de 247, sur une connexion mobile bridée, à un acheteur qui n'a peut-être pas
+demandé le personnalisateur. Ce n'est pas une régression, c'est un chiffre que
+personne n'avait. Trois suites possibles, et aucune n'est une décision de
+performance seule :
+
+1. Ne rendre l'iframe qu'après un geste (le bouton « Personnaliser » existe déjà,
+   `ProductPage::studio_requested`), donc ne pas la mettre dans le HTML du tout
+   tant que `?personnaliser=1` n'est pas là. Sur le catalogue réel c'est déjà le
+   cas ; c'est la fiche de démonstration qui porte le raccourci dans sa
+   description.
+2. Garder l'iframe et forcer le report avec un `IntersectionObserver`, ce qui
+   marche là où `loading="lazy"` ne suffit pas.
+3. Ne rien changer, et l'assumer : 405 ko pour un studio 3D est peu.
+
+Le premier est probablement le bon et il ne coûte rien, mais il change ce qu'un
+acheteur voit sur une fiche produit, ce qui est une décision d'interface.
+
