@@ -7,10 +7,12 @@ name: CI
 # test: it needs a real WordPress and a database, so it runs against wp-local/.
 #
 # WHAT THAT LEAVES OUTSIDE, said here so nobody reads a green tick as more than
-# it is. These eight need a running mirror or a running Worker and must be run by
-# hand before a release: verify:seo (what a crawler is served), verify:consent
-# (what a real browser writes to a visitor's machine before they have chosen),
-# verify:a11y (WCAG 2.2 AA over the buying path and the legal pages),
+# it is. These nine need a running mirror, a running Worker or a browser, and
+# must be run by hand before a release: verify:seo (what a crawler is served),
+# verify:consent (what a real browser writes to a visitor's machine before they
+# have chosen), verify:a11y (WCAG 2.2 AA over the buying path and the legal
+# pages), verify:focus (the studio's keyboard behaviour: the listbox and the
+# dialog focus trap, typed in a real browser against the real bundle),
 # verify:site (the screenshots), test:wp (the plugin against a real WooCommerce)
 # verify:admin-gate (that no admin JavaScript is served without credentials, and
 # that the admin studio still loads WITH them, in a real browser), verify:cache
