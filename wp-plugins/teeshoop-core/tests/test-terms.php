@@ -74,6 +74,7 @@ function ts_terms_defaults(): array {
 		'acompte_ht'               => (int) $settlement['deposit_from_ht'],
 		'acompte_taux'             => (float) $settlement['deposit_rate'],
 		'conservation_devis_jours' => Quote::KEEP_DAYS,
+		'devis_validite_jours'     => Quote::VALIDITY_DAYS,
 		'penalites_contractuelles' => (string) ( \Teeshoop\Core\Invoice::default_config()['penalty_rate'] ?? '' ),
 	);
 }

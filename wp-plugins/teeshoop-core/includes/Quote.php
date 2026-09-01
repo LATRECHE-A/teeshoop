@@ -100,6 +100,47 @@ final class Quote {
 	 */
 	public const KEEP_DAYS = 1095;
 
+	/**
+	 * How long a quote we have SENT stays a firm offer, CALENDAR days.
+	 *
+	 * Question 38's answer of 1 September 2026: « Un devis Teeshoop est valable
+	 * 15 jours calendaires à compter de sa date d'émission. Après 15 jours, le
+	 * devis expire. Les stocks sont revérifiés. Les prix d'achat et les coûts de
+	 * marquage sont actualisés si nécessaire. Le prix de vente et le délai de
+	 * production sont recalculés. » The written default was thirty days and
+	 * nothing was printed anywhere until he answered, because a devis is a firm
+	 * offer in France for exactly the period it states and inventing that period
+	 * commits the business.
+	 *
+	 * CALENDAR AND NOT WORKING DAYS, in his own word, which is the opposite of
+	 * every other duration in this plugin. Fifteen calendar days across a French
+	 * August is about ten working ones, and a rule that quietly used working days
+	 * would keep an offer firm for three weeks at the shop's expense: question 47
+	 * says Teeshoop absorbs a supplier's price rise for the whole of that window.
+	 */
+	public const VALIDITY_DAYS = 15;
+
+	/**
+	 * The day a quote sent on `$sent_on` stops being an offer, `Y-m-d`, or ''.
+	 *
+	 * '' when the date is unreadable, never today and never a guess: an expiry
+	 * computed from nothing would either expire a live offer or keep a dead one
+	 * alive, and both are worse than saying we do not know.
+	 */
+	public static function expires_on( string $sent_on ): string {
+		$sent = \DateTimeImmutable::createFromFormat( '!Y-m-d', trim( $sent_on ), new \DateTimeZone( 'UTC' ) );
+		if ( false === $sent || $sent->format( 'Y-m-d' ) !== trim( $sent_on ) ) {
+			return '';
+		}
+		return $sent->modify( '+' . self::VALIDITY_DAYS . ' days' )->format( 'Y-m-d' );
+	}
+
+	/** Whether a quote sent on `$sent_on` has expired by `$today`. */
+	public static function expired( string $sent_on, string $today ): bool {
+		$end = self::expires_on( $sent_on );
+		return '' !== $end && $today > $end;
+	}
+
 	/** The daily purge. */
 	private const CRON = 'teeshoop_purge_devis';
 

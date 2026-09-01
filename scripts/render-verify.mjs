@@ -68,6 +68,7 @@
  * Exit: 0 every gate passed · 2 nothing was scanned · 3 a gate failed.
  */
 import { chromium } from 'playwright'
+import { offeredScenes } from './offered-scenes.mjs'
 import { spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 
@@ -683,9 +684,24 @@ try {
      */
     const drawn = async (n = 3) => {
       const from = await page.evaluate(() => window.__frames ?? 0)
+      /*
+       * ASK FIRST, THEN WAIT. The canvas renders on demand, so a wait alone
+       * waits for ever: measured in a headless page on 1 September 2026, the
+       * counter sits at 1 and five calls to `draw()` take it to 3.
+       * `__stage.draw()` is the request; `__frames` is still the evidence that
+       * it happened, which is the property the old comment below is about.
+       *
+       * IT DOES NOT MAKE THIS HARNESS PASS. On this machine the sweep still
+       * stalls, earlier, with the garment reported as « loading… ». See
+       * docs/ROADMAP.md: the harness is blind and saying so is the point.
+       */
+      await page.evaluate((k) => {
+        const s = window.__stage
+        for (let i = 0; i < k; i++) s?.draw?.()
+      }, n + 2)
       await page.waitForFunction((f) => (window.__frames ?? 0) >= f, from + n, {
-        timeout: 180000,
-        polling: 200,
+        timeout: 60000,
+        polling: 100,
       })
     }
     const layer = async (hide) => {
@@ -783,9 +799,39 @@ try {
     return m
   }
 
+  /*
+   * ONLY THE SCENES A CUSTOMER IS OFFERED. `night` was withdrawn on 1 September
+   * 2026 (question 53) because a black tee separates from it by 7,7 levels of
+   * luminance where this check demands 8. Its row stayed in this corpus and went
+   * on failing, which would have read as an unfixed defect rather than as a
+   * scene nobody is shown. Dropped rows are PRINTED: a corpus that quietly
+   * shrinks is a sweep that looks complete and is not.
+   */
+  const offered = offeredScenes()
+  if (!offered.ok) {
+    console.error(`render-verify: ${offered.why}. Refusing to measure against a list of my own.`)
+    await browser.close()
+    stop()
+    process.exit(2)
+  }
+  const withdrawn = CASES.filter((k) => !offered.ids.includes(k.sc))
+  if (withdrawn.length > 0) {
+    console.log(
+      `\n${withdrawn.length} cas retiré(s) parce que leur scène n'est plus proposée au client : ` +
+        withdrawn.map((k) => `${k.id} (${k.sc})`).join(', '),
+    )
+  }
+  const shown = CASES.filter((k) => offered.ids.includes(k.sc))
+  if (shown.length === 0) {
+    console.error('render-verify: no case is left to measure. A sweep of nothing is not a pass.')
+    await browser.close()
+    stop()
+    process.exit(2)
+  }
+
   // RENDER_ONLY=tee-black-34,tee-white-34 restricts the sweep while tuning.
   const only = (process.env.RENDER_ONLY || '').split(',').map((x) => x.trim()).filter(Boolean)
-  const cases = only.length ? CASES.filter((k) => only.includes(k.id)) : CASES
+  const cases = only.length ? shown.filter((k) => only.includes(k.id)) : shown
   for (const kase of cases) {
     const m = await shoot(kase)
     results.push({ kase, m })

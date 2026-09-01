@@ -18,7 +18,24 @@
 export type SceneId = 'studio' | 'beach' | 'forest' | 'city' | 'sunset' | 'night'
 type ThemeName = 'dark' | 'light'
 
-export const SCENE_IDS: SceneId[] = ['studio', 'beach', 'forest', 'city', 'sunset', 'night']
+/**
+ * The scenes a customer is OFFERED, which is not the same list as the scenes
+ * this file knows how to build.
+ *
+ * `night` was withdrawn on 1 September 2026. Question 53: « Retirer la scène
+ * "nuit" au lancement. Les cinq autres environnements peuvent être conservés. La
+ * scène nuit pourra être réintroduite lorsqu'elle satisfera les tests de
+ * lisibilité. » The measurement behind the question is in
+ * `scripts/render-verify.mjs`: a black tee separates from that background by 7,7
+ * levels of luminance out of 255 where the check demands 8, the only failure of
+ * fourteen, and lifting the scene further stops it reading as night.
+ *
+ * IT IS WITHDRAWN AND NOT DELETED. `NIGHT`, `SCENES.night` and `isSceneId`
+ * still know the scene, so a stored design that names it still renders instead
+ * of silently becoming a studio shot, and reintroducing it when the contrast is
+ * fixed is one word here. What changes is only what is put in front of a buyer.
+ */
+export const SCENE_IDS: SceneId[] = ['studio', 'beach', 'forest', 'city', 'sunset']
 
 export interface LightformerSpec {
   form?: 'rect' | 'ring' | 'circle'

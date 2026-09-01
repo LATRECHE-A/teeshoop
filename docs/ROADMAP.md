@@ -1219,19 +1219,24 @@ ne peut le lever.
 
 | Blocage | Qui | Détail |
 |---|---|---|
-| **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Depuis la séance 04 les deux régimes sont construits et la bascule est une date à saisir : ce qui manque n'est plus du code, c'est la réponse. Les 15 commandes, elles, ne sont facturables par le site sous aucun régime, parce qu'aucune période ne couvre leur date |
+| **Le régime de TVA** | associé | Question 17 et constat 6. **Répondu le 01/09/2026 et toujours bloquant**, dans ses propres mots : « conserver l'hypothèse de TVA à 20 % ... sous réserve de validation comptable » est une hypothèse maintenue et non une confirmation. C'est la seule ligne que `npm run verify:lancement` refuse nommément. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées** ; elles ne sont facturables sous aucun régime, faute de période qui couvre leur date. Les deux régimes sont construits : ce qui manque est une phrase du comptable, dans un sens ou dans l'autre |
 | La vraie grille tarifaire | associé | Questions **06** (taux de marge) et **03** (grilles d'achat réelles), sa forme publique étant la **08**. Les prix actuels sont des **valeurs de démonstration**, enregistrées une par une dans `docs/hypotheses.json`. Ce tableau renvoyait à la question 04, qui porte sur les tarifs DTF fournisseur et ne tranche aucun prix de vente. **Depuis la séance 05 ce n'est plus seulement une imprécision** : mesuré, le tarif affiché passe sous son propre prix plancher à 5 pièces et n'est vendable sans validation à aucune quantité |
 | **Le sens de « taux de marge »** | associé | Question 06. Le mot et la formule de la Bible désignent deux ratios différents, et l'écart est de 125,00 EUR sur une commande de 250 EUR de coût, au taux de 50 % qu'il a donné le 01/09/2026. Sa propre formulation, « marge brute après coûts directs », est la lecture de la formule, et c'est celle qui tourne. Les deux restent affichées côte à côte sur l'écran « Coûts et marges » |
-| **Le délai d'urgence, qui est impossible** | associé | Question 14. Mesuré par la séance 07 : 4 jours ouvrés promis contre 6 jours de travail incompressible (transport 2, pressage 1, battement 1, transit du film 2). Toute commande urgente est en retard de deux jours dès la validation du BAT, et l'express ne tient qu'à un jour près. Le calcul est dans `tests/test-production.php`, donc la réponse déplace un test |
+| **Les délais, qui ont raccourci** | associé | Question 14. **Répondu le 01/09/2026 : 7 / 4 / 2 à 3 jours**, contre 12 / 7 / 4 supposés, et remesuré aussitôt. Le travail incompressible reste **6 jours ouvrés** (transport 2, pressage 1, battement 1, approvisionnement 2, le film et les blancs voyageant en parallèle). Le standard garde donc **un** jour ouvré de marge là où il en avait six, et ce jour EST le battement : un transporteur en retard le consomme. L'express manque de 2 jours, l'urgence de 3 ; ni l'un ni l'autre n'est publié. Restent deux inconnues dans sa phrase : ouvrés ou calendaires, et jusqu'à l'expédition ou jusqu'à la livraison |
 | **Les cinq temps d'atelier jamais chronométrés** | associé | Question 05. Ses deux temps chiffrent la main-d'œuvre de sa propre commande d'exemple à 2,83 EUR là où elle en inscrit 45,00 : **42,17 EUR de trou, et 72,29 EUR de prix plancher**. Le trou a GRANDI avec sa réponse du 01/09/2026, qui pose la pose à 15 s au lieu de 45. Il demande lui-même le chronométrage du cycle complet |
-| **Le taux de marge sur un textile nu** | associé | Question 42. Les 26 399 articles du catalogue sont importés avec leur coût réel et **sans prix de vente** : consultables, non commandables, tant que le taux n'est pas fixé |
-| Clés Stripe (test puis production) | associé | Séance 04. L'extension officielle est branchée et l'alarme distingue un compte de test d'un compte réel par le préfixe de la clé, pas par la case à cocher, qui se contredit elle-même sur une configuration jamais enregistrée. **Depuis la séance 13 elles bloquent une deuxième chose** : la politique de sécurité du contenu est envoyée en Report-Only côté boutique parce qu'aucun paiement réel n'a pu être exercé sous elle, et trois des quatre hôtes Stripe qu'elle autorise ne sont prouvés par rien |
-| L'identité légale complète et le RCS | associé | Questions 17 et **45**. Rien n'est facturable sans, et rien n'est inventé à la place |
+| ~~Le taux de marge sur un textile nu~~ | **tranché** | Question 42, répondue le 01/09/2026 : « non applicable au moteur e-commerce principal pour le lancement ». Ce n'est plus une attente, c'est un périmètre volontairement non ouvert. Les 26 399 articles restent consultables et non commandables, et c'est désormais le parcours voulu (question 41) et non un effet de bord |
+| Clés Stripe **réelles** | associé | Séance 04. Les clés de **test** sont arrivées le 01/09/2026 et fonctionnent : un PaymentIntent de 14,50 EUR revient `succeeded`. Ce qui manque est le mode réel, mesuré fermé (`charges_enabled` et `payouts_enabled` tous deux faux), le secret de signature des webhooks, et trois réglages qui coûtent de l'argent ou des ventes : **Cartes Bancaires inactif** (le routage CB est nettement moins cher sur les cartes françaises co-badgées), **Google Pay et le virement SEPA absents** de la configuration alors que la question 15 les demande. La politique de sécurité du contenu reste en Report-Only tant qu'un paiement n'a pas été exercé de bout en bout sous elle |
+| ~~L'identité légale complète et le RCS~~ | **fournie** | Questions 17 et **45**, répondues le 01/09/2026 : PHARAON, SAS, SIREN 930 592 985, SIRET 930 592 985 00012, FR45930592985, 100 EUR de capital, RCS Bobigny, pénalités au taux BCE + 10 points et indemnité de 40 EUR. Posée sur le miroir, ce qui a fait passer cette condition du portail de neuf refus à zéro. La production est la séance 14. **Reste l'adresse** : le siège est à Drancy et la fiche Google demandée à Bobigny, et les mentions légales n'en publient qu'une |
 | Une plateforme de facturation électronique | associé | Constat 7. Obligatoire **en réception au 1er septembre 2026**, quelle que soit la taille de l'entreprise. Ce n'est pas du développement, c'est une démarche |
 | Compte Brevo | associé | Séance 06 |
 | `FR_CUSTOMER_NR` | associé | Séance 08. Absent des secrets, donc aucune commande fournisseur ne peut partir, même confirmée : le Worker répond 503 et ne construit aucun document. Le repli qui devinait ce numéro à partir du login a été supprimé, et une sonde en mode test n'a **pas** pu le confirmer auprès du fournisseur. `wrangler secret put FR_CUSTOMER_NR` |
-| **Où sonne l'alerte, et qui la lit** | associé | Question **61**, ajoutée par la séance 13. La veille tourne toutes les dix minutes sur le serveur et n'a **aucun destinataire par défaut**, volontairement : une veille qui croit alerter et n'alerte pas est pire que pas de veille. Il manque une adresse, et surtout la réponse à la vraie question, qui est qui regarde un dimanche soir |
-| **Le délai de livraison du fournisseur textile** | associé | Question **46**, ajoutée par la séance 08. Il n'existe nulle part : ni dans la Bible, ni chez le fournisseur, ni chez nous, qui n'avons jamais passé de commande. L'atelier sait donc quand commander le film et pas quand commander les vêtements, et la séance 08 n'a rien inventé à la place |
+| ~~Où sonne l'alerte, et qui la lit~~ | **répondu** | Question **61**, répondue le 01/09/2026 : `ticket@teeshoop.com` et `dev@teeshoop.com`, avec une classification jour / nuit qui dit quoi réveiller, ce qui est mieux qu'une adresse. Le document les écrivait en `teeshoop.fr`, domaine qui n'existe pas (NXDOMAIN sur A, MX et NS, inconnu de l'AFNIC) : coquille corrigée et confirmée. Il reste à vérifier que les deux boîtes existent et sont relevées, ce qui se lit en SSH et appartient à la séance 14 |
+| ~~Le délai de livraison du fournisseur textile~~ | **répondu** | Question **46**, répondue le 01/09/2026 : environ 24 heures réelles, **2 jours ouvrés** retenus pour planifier. L'écran des achats porte désormais une date limite de commande des blancs par commande. Remesuré plutôt qu'additionné : les 6 jours ouvrés incompressibles **restent 6**, parce que le film et les blancs partent le même jour et voyagent en même temps. Additionner de tête aurait donné 8. Réserve : le délai est donné pour Imbretex et le chemin d'achat parle à l'autre fournisseur |
+| **Un accès Imbretex** | associé | Questions 3, 9, 43 et 46, toutes répondues le 01/09/2026 et toutes le nommant comme fournisseur prioritaire. Il n'existe ni compte, ni identifiants, ni grille. Le catalogue, le relevé de stock et le panier d'achat parlent au fournisseur branché. Conséquence : le délai textile de 24 h et la règle des trois valeurs de stock sont énoncés pour Imbretex et appliqués sur les chiffres de l'autre |
+| **La grille Mondial Relay** | associé | Question 07. Il le nomme transporteur principal et classe la grille dans « éléments restant à récupérer ». La boutique chiffre donc toujours sur la grille publique de La Poste et la copie dit Colissimo : nommer l'un en facturant l'autre serait la fausse promesse. Le jour où la grille arrive, un point relais n'est pas une adresse, donc c'est un mode d'expédition à construire et une vingtaine de phrases à réécrire. La **remise en main propre** en Île-de-France au-dessus de 250 EUR HT est un troisième mode et n'existe pas non plus |
+| **Ce qui refuse un particulier** | associé | Question **62**, ajoutée par la séance 13b. La réponse à la question 57 lève l'obligation de médiation de la consommation « pour le parcours B2B », et cette exemption ne tient que si la boutique refuse effectivement un consommateur. Or la question 01 dit « SIRET demandé sans nécessairement bloquer l'inscription », ce qui ne refuse personne. Prises séparément les deux lignes du registre sont des refus assumés ; ensemble elles sont une infraction à l'article L612-1, et `verify:lancement` refuse sur la PAIRE |
+| **Le juriste qui relit les quatre textes** | associé | Question **58**, répondue le 01/09/2026 par « avocat ou cabinet juridique à désigner avant le lancement officiel », ce qui est une intention. `verify:lancement` refuse maintenant une version des conditions générales qui n'enregistre ni le nom du relecteur ni la date : sa propre phrase, rendue exécutable |
+| **La facture sur la feuille A3+** | associé | Question 04. Il donne 3,00 EUR la feuille de 33 x 46 cm et laisse quatre points « à confirmer sur la facture » : HT ou TTC (un cinquième de tout le coût de marquage), les frais de livraison, le minimum et le délai. Les frais de livraison décident maintenant de **la totalité** de ce que le groupage fait gagner, remesuré à 75,00 EUR sur une semaine de six commandes : s'ils sont offerts, grouper ne rapporte plus rien |
 
 ### Ce qui a été décidé le 18/08/2026 : avancer quand même
 
@@ -1326,6 +1331,80 @@ seule et n'a personne à prévenir.
 
 ---
 
+## Étiqueter, ou ne pas livrer : ce que devient chaque hypothèse restante
+
+*Décidé le 1er septembre 2026, séance 13b, item 6. Il n'y a que deux réponses
+honnêtes à « nous n'avons pas la réponse » : **étiqueter**, pour que l'opérateur
+et le cas échéant le client voient que le nombre est provisoire, ou **ne pas
+livrer**, comme le catalogue est consultable et non commandable faute de taux de
+marge. Il n'existe pas de troisième option où un nombre inventé part en ligne
+sans rien dire.*
+
+**Et la décision n'est pas une liste, c'est une règle qui tourne.** Une liste
+dans un document se périme au premier commit ; deux contrôles automatiques
+prennent la décision ligne par ligne, à chaque exécution de la chaîne :
+
+- `scripts/hypotheses-guard.mjs`, contrôle « said-out-loud » : **toute hypothèse
+  qui atteint un client doit porter un `label_fr`**, et cette phrase française
+  doit exister dans une vraie table de chaînes livrée. Une hypothèse qu'un client
+  rencontre sans phrase autour fait échouer la chaîne. Depuis cette séance, la
+  règle vaut aussi dans l'autre sens : une ligne **confirmée** qui garde une
+  étiquette doit toujours l'avoir à l'écran, parce que confirmer 28 lignes d'un
+  coup relâchait sinon 11 phrases que plus rien ne surveillait.
+- `scripts/launch-gate.mjs` : **une hypothèse bloquante que personne n'a datée et
+  qui atteint un client, un fournisseur ou une presse refuse la mise en ligne.**
+  Étiquetée ou non.
+
+Les deux ensemble disent : une hypothèse qui atteint un client est étiquetée
+tant qu'elle vit, et si elle est bloquante elle ne va pas en ligne du tout.
+
+### Ce que cela donne aujourd'hui, en trois piles
+
+**Étiquetées et livrées** (47 lignes encore supposées, dont 22 atteignent un
+client). Chacune porte la phrase sous laquelle le client la rencontre : « Prix à
+la pièce, impression comprise », « Rupture, nous consulter », « Délai à
+confirmer », « Les coloris portent le nom du fabricant », « imprimé en France »,
+« Projet, non validé par un juriste ». Le reste n'atteint qu'un opérateur, et
+l'écran des hypothèses ou celui des coûts et marges les montre avec leur
+question, leur date et, depuis cette séance, la réponse de l'associé quand il y
+en a une.
+
+**Livrées comme un refus explicite** (14 lignes). Rien n'est construit et le
+produit le dit : aucun taux de marge sur le textile nu, donc le catalogue est
+consultable et non commandable ; aucun modèle de coût pour la broderie, le
+flocage, le vinyle et la sublimation, donc une commande qui en contiendrait n'a
+pas de plancher et le rapport le signale ; aucun supplément d'urgence ; aucun
+échéancier ; aucune provision de défaut, et le coût se déclare **incomplet**
+plutôt que d'être présenté comme total. Un refus livre une absence, et une
+absence est honnête.
+
+**Bloquées à la mise en ligne** (12 lignes, listées par `npm run
+verify:lancement`). Ce sont celles qui sont à la fois bloquantes, encore
+supposées, et tournées vers l'extérieur : les quatre tarifs de démonstration du
+studio, la TVA et sa période, le seuil de devis en pièces, les zones
+d'impression, « imprimé en France », « pour les professionnels », et les deux
+lignes des textes juridiques. Elles vivent, elles sont étiquetées, et le portail
+refuse le déploiement tant qu'elles sont là.
+
+### Les quatre choses que cette séance a délibérément NE PAS construites
+
+Elles ont une réponse de l'associé et elles ne sont pas livrées. Chacune est ici
+avec ce qui manque pour la construire, parce qu'une décision de ne pas faire qui
+n'est écrite nulle part est un oubli.
+
+| Réponse | Ce qu'elle demande | Pourquoi rien n'est livré |
+|---|---|---|
+| **Q37** | « ne jamais utiliser uniquement la surface du M pour calculer le coût réel » | Le prix client est confirmé et ne bouge pas. Le **coût** doit suivre la taille commandée, ce qui veut dire imbriquer une pièce par taille dans le chemin de coût et non plus une seule à la taille de tarification. Mesuré en séance 05 : trente pièces prennent 1,80 m en M et 2,70 m en 3XL. C'est le moteur de coût, pas un réglage, et la remesure qui suit touche tous les planchers |
+| **Q44** | le nom français suivi du nom fabricant, 442 coloris | 437 traductions à écrire et à faire valider par quelqu'un qui connaît le catalogue papier. Ce n'est pas du code. Question 73 |
+| **Q50** | la zone imprimable s'arrête 2 cm au-dessus de la couture de poche | Il faut d'abord savoir **où est la couture** sur le maillage du sweat, et `scripts/fabric-verify.mjs` déclare précisément ces rangées « indécidables » : deux épaisseurs de tissu, jusqu'à 14 mm de désaccord entre les deux mesures indépendantes qu'il sait construire. Poser 2 cm au-dessus d'une couture mesurée à 14 mm près, c'est publier une dimension imprimable fausse, et une dimension imprimable est un engagement |
+| **Q54** | la remise sur un lot de production compatible | Trois des quatre critères sont des jugements (« emplacements similaires », « même campagne ») et le prix est calculé par le serveur pendant que le client remplit son panier. Question 74 |
+
+Deux autres n'attendent pas un choix mais un accès : **Q09** (Imbretex
+prioritaire) et **Q24** (la facture légale hors du site). La première n'a ni
+compte ni identifiants. La seconde est instruite ci-dessous.
+
+---
+
 ## Les exceptions assumées
 
 Ce qui précède attend une réponse de l'associé. Ce qui suit n'attend personne : ce sont des
@@ -1360,6 +1439,8 @@ ne peut pas porter : des arbitrages d'ingénierie qui n'attendent la réponse de
 | **La facture du fournisseur n'est lue nulle part**, donc le rapprochement des coûts s'arrête au deuxième nombre sur trois | L'écran des achats compare ce que les textiles coûtent au moment de l'achat à ce que le rapport de marge avait supposé, ce qui attrape une hausse de tarif que personne ne remarquerait. Le troisième nombre, ce qu'il a réellement facturé, n'existe pas : son interface ne publie aucune facture, et l'inventer serait exactement ce que le chapitre 6 appelle « coût réel » sans en être un. L'écran le dit plutôt que de laisser croire que le rapprochement est complet | Son document, saisi ou récupéré à la réception. C'est aussi ce qui refermerait le dixième indicateur du chapitre 1, juste au-dessus | 13 |
 | **La couture pour un second fournisseur est argumentée, pas démontrée** | Chaque article importé porte le code de l'adaptateur qui l'a écrit, le panier groupe par ce code et refuse d'en mélanger deux, et seul un adaptateur ayant une voie de transmission peut être envoyé ; les autres s'exportent. C'est ce que le chapitre 6 demande et rien de plus. Mais **rien n'a jamais traversé cette couture deux fois** : il n'existe qu'un adaptateur, donc le refus de mélange n'a jamais rien refusé en production, et un test le prouve sur des données fabriquées | Un second adaptateur, ce que la feuille de route ne programme pas (c'est la phase 3 du chapitre 4) | aucune |
 | **Le rafraîchissement de stock n'est installé nulle part** | `wp teeshoop stock rafraichir` existe, tourne, et la ligne de cron est écrite dans son aide. La poser est un acte de déploiement, sur un serveur auquel seules les séances 14 et 15 touchent. En attendant, un relevé vieillit et la boutique dit « Délai à confirmer », ce qui est le bon comportement et non une panne | La ligne de cron sur o2switch | 14 |
+
+| **`scripts/render-verify.mjs` ne va plus au bout sur cette machine** | Découvert le 01/09/2026 en voulant remesurer les scènes après le retrait de la scène nuit (question 53). Deux choses, et une seule est réparée. **Réparée :** le canevas rend « à la demande » et `window.__stage.show()` changeait la visibilité d'un objet sans demander de trame, donc le compteur `__frames` que la sonde attend n'avançait jamais ; mesuré en page headless, il reste à 1 et cinq appels à `__stage.draw()` le portent à 3. `draw()` existe maintenant et la sonde le demande. **Pas réparée :** le balayage cale quand même, plus tôt, sur un vêtement que la page annonce « loading… » indéfiniment. Ce n'est pas diagnostiqué. **Conséquence à connaître : le seul contrôle du dépôt qui REGARDE une image est aveugle**, et il l'était déjà avant cette séance (sa dernière sortie datée est du 26/08/2026). Le retrait de la scène nuit est donc vérifié par le code, par la ligne « 1 cas retiré » que la sonde imprime et par une sonde directe qui montre cinq scènes dans le sélecteur, **et pas** par un balayage de contraste remesuré | Diagnostiquer le chargement du vêtement dans la page `dev/three.html`. Tant que ce n'est pas fait, aucune affirmation sur le rendu ne doit s'appuyer sur ce harnais | 14 |
 
 La rotation éventuelle de `ADMIN_TOKEN` est dans `ACCES-REQUIS.md` et n'est pas un écart :
 c'est une action à faire.

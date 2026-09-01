@@ -38,6 +38,7 @@
  */
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
+import { offeredScenes } from './offered-scenes.mjs'
 
 const PORT = Number(process.env.LEAK_PORT || 5298)
 const BASE = `http://localhost:${PORT}`
@@ -51,7 +52,19 @@ const PANE = { width: 320, height: 320 }
  * counter against the loop bounds that had just incremented it, so it could
  * never be false: protection on the page and none in the process.
  */
-const SCENES = (process.env.LEAK_SCENES || 'night,studio,sunset,beach,forest,city')
+/*
+ * The default is the studio's OWN list of offered scenes, not a copy of it. It
+ * was a copy, written out here including `night`, which question 53 withdrew on
+ * 1 September 2026: this walk went on cycling a scene the picker no longer shows
+ * and the « each scene lights the garment differently » count would have failed
+ * the day the definition followed the list.
+ */
+const OFFERED = offeredScenes()
+if (!OFFERED.ok) {
+  console.error(`leak-verify: ${OFFERED.why}. Refusing to walk a list of my own.`)
+  process.exit(2)
+}
+const SCENES = (process.env.LEAK_SCENES || OFFERED.ids.join(','))
   .split(',').map((x) => x.trim()).filter(Boolean)
 const GARMENTS = ['hoodie', 'tee', 'custom', 'tee']
 const CYCLES = Number(process.env.LEAK_CYCLES ?? 3)

@@ -93,6 +93,7 @@ return array(
 			'paragraphes' => array(
 				'Une commande est acceptée à partir de 5 pièces, toutes lignes confondues. En dessous, le panier ne peut pas être validé. Aucun montant minimum de commande n’est exigé.',
 				'Au-delà de 250 pièces ou de 2 000,00 € hors taxes sur une même ligne, la commande passe par un devis établi par Teeshoop plutôt que par un paiement en autonomie. Une ligne ne peut pas dépasser 10 000 pièces.',
+				'Un devis établi par Teeshoop est valable 15 jours calendaires à compter de sa date d’émission. Passé ce délai il expire, les disponibilités sont revérifiées et le prix comme le délai sont recalculés.',
 				'La vente est formée lorsque le paiement a été accepté et que Teeshoop en a accusé réception par courrier électronique. Jusque-là, une commande peut être annulée par l’une ou l’autre partie sans frais.',
 			),
 		),
@@ -271,6 +272,7 @@ return array(
 		array( 'cle' => 'tolerance_cm',             'texte' => 'peut varier de 1 cm' ),
 		array( 'cle' => 'acompte_ht',               'texte' => 'À partir de 1 000,00 € hors taxes de commande' ),
 		array( 'cle' => 'acompte_taux',             'texte' => 'représente alors 50 % du montant' ),
+		array( 'cle' => 'devis_validite_jours',     'texte' => 'valable 15 jours calendaires' ),
 		array( 'cle' => 'conservation_devis_jours', 'texte' => 'conservée 1 095 jours après le dernier échange' ),
 		array( 'cle' => 'penalites_contractuelles',  'texte' => 'Aucun taux contractuel plus bas n’est prévu.' ),
 	),

@@ -1139,23 +1139,40 @@
 			"id": "H-Q38-VALIDITE-DEVIS",
 			"question": "Q38",
 			"level": "important",
-			"status": "refused",
+			"status": "answered",
 			"since": "2026-08-14",
-			"statement_fr": "Aucune durée de validité n'est écrite sur un devis, ni affichée, ni appliquée.",
-			"home": "anchor:wp-plugins/teeshoop-core/includes/Quote.php#It gives no validity period for a quote",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 38 : « Un devis Teeshoop est valable 15 jours calendaires à compter de sa date d'émission. Après 15 jours, le devis expire. Les stocks sont revérifiés. Les prix d'achat et les coûts de marquage sont actualisés si nécessaire. » CALENDAIRES, dans son mot à lui, et c'est l'inverse de toutes les autres durées de cette extension.",
+			"statement_fr": "Un devis envoyé reste une offre ferme pendant 15 jours calendaires à compter de son émission, puis il expire.",
+			"home": "phpconst:Teeshoop\\Core\\Quote::VALIDITY_DAYS",
 			"mirrors": [],
-			"literals": [],
-			"literals_why": "C'est l'absence d'une durée. Le foyer est la ligne du dossier de conception qui dit pourquoi.",
-			"reaches": [
-				"operator",
-				"internal"
+			"literals": [
+				"15"
 			],
-			"derives": [],
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [
+				"Ce que Teeshoop absorbe : la question 47 dit que pendant ces 15 jours une hausse du prix d'achat fournisseur est pour nous. Allonger la validité allonge exactement ce risque."
+			],
 			"sessions": [
 				"06"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Oui pour la clause opérante : « aucune durée n'est affichée nulle part tant que vous n'avez pas tranché ». En France un devis est une offre ferme pendant la durée qu'il annonce, donc inventer 30 jours engagerait l'entreprise sur un risque de prix qu'elle porterait seule."
+			"shipped_matches_default": "Oui pour la clause opérante : « aucune durée n'est affichée nulle part tant que vous n'avez pas tranché ». En France un devis est une offre ferme pendant la durée qu'il annonce, donc inventer 30 jours engagerait l'entreprise sur un risque de prix qu'elle porterait seule.",
+			"literal_scope": [
+				"wp-plugins/teeshoop-core/includes/Quote.php"
+			],
+			"statement_amounts": [
+				{
+					"from": "",
+					"as": "int",
+					"text": "15",
+					"in": "15 jours calendaires"
+				}
+			],
+			"label_fr": "valable 15 jours calendaires"
 		},
 		{
 			"id": "H-Q40-CONSERVATION-DEVIS",
@@ -3346,7 +3363,7 @@
 			"status": "assumption",
 			"since": "2026-08-26",
 			"statement_fr": "Les mentions légales, les conditions générales de vente, la politique de confidentialité et la déclaration d'accessibilité sont des projets rédigés en interne à partir du fonctionnement réel de la boutique, publiés en portant l'état « projet » et un avertissement de relecture, et aucun avocat ne les a lus.",
-			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-08-26.php#'etat'   => 'projet',",
+			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#'etat'   => 'projet',",
 			"mirrors": [
 				{
 					"ref": "anchor:wp-plugins/teeshoop-core/includes/LegalPage.php#Projet, non validé par un juriste.",
@@ -3487,7 +3504,7 @@
 			"answered": "2026-09-01",
 			"answer_fr": "Question 36 : « autorisation prévue contractuellement et possibilité pour le client de refuser ». Confirmé, avec une exigence en plus : « prévoir cette information dans le devis/CGV afin que la gestion soit traçable », donc la trace est par commande et elle n'est pas construite.",
 			"statement_fr": "L'autorisation de publier les réalisations d'un client est une clause des conditions générales de vente, refusable à tout moment par simple demande écrite, avec retrait des publications déjà en ligne.",
-			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-08-26.php#Publication des réalisations",
+			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Publication des réalisations",
 			"mirrors": [],
 			"literals": [],
 			"literals_why": "La valeur est une clause. Il n'y a aucun chiffre dedans.",
@@ -3538,20 +3555,48 @@
 			"level": "bloquant",
 			"status": "refused",
 			"since": "2026-08-26",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 57 : « Teeshoop est conçu actuellement comme un service B2B destiné aux professionnels. La médiation de la consommation n'est pas intégrée comme condition de lancement du parcours B2B. » SOUS CONDITION, et la condition est exécutable : l'exemption ne tombe que si la boutique refuse effectivement un consommateur, ce que rien ne fait. Question 62.",
 			"statement_fr": "Aucun médiateur de la consommation n'est désigné, et les conditions générales de vente disent en toutes lettres que cette obligation n'est pas satisfaite plutôt que de laisser la ligne vide.",
-			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-08-26.php#Le médiateur retenu par Teeshoop et ses coordonnées seront indiqués ici dès sa désignation.",
+			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Le médiateur retenu par Teeshoop et ses coordonnées seront indiqués ici dès sa désignation.",
 			"mirrors": [],
 			"literals": [],
 			"literals_why": "La valeur est l'absence d'un nom et d'une adresse. Il n'y a rien à chercher.",
 			"reaches": [
 				"customer"
 			],
-			"derives": [],
+			"derives": [
+				"Cette exemption dépend entièrement de H-Q62-REFUS-PARTICULIER, qui est un refus : rien ne refuse un particulier aujourd'hui. Tant que c'est le cas, l'obligation de l'article L612-1 s'applique et les conditions générales continuent d'écrire qu'elle n'est pas satisfaite."
+			],
 			"sessions": [
 				"12"
 			],
 			"cost_if_late": "reglage",
 			"shipped_matches_default": "Il n'y a pas d'hypothèse par défaut : la question 57 est née de cette séance. Un nom de médiateur inventé serait une fausse information sur un recours légal, ce qui est pire que l'absence, donc la clause dit ce qui manque. L'article L612-1 du code de la consommation en fait une obligation pour tout professionnel qui vend à des consommateurs."
+		},
+		{
+			"id": "H-Q62-REFUS-PARTICULIER",
+			"question": "Q62",
+			"level": "bloquant",
+			"status": "refused",
+			"since": "2026-09-01",
+			"statement_fr": "Rien ne refuse un particulier : le SIRET est demandé et non exigé, aucune déclaration d'achat professionnel n'est recueillie, et les conditions de vente s'appliquent en toutes lettres à un consommateur comme à un professionnel.",
+			"home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Elles s’appliquent aussi bien à un acheteur professionnel qu’à un consommateur.",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "Il n'y a pas de valeur : c'est l'absence d'un mécanisme. Ce qui est chassable est la phrase du contrat en vigueur qui dit que la boutique vend aussi à un consommateur, et c'est elle que le `home` désigne.",
+			"reaches": [
+				"customer",
+				"operator"
+			],
+			"derives": [
+				"La réponse à la question 57 tout entière : l'obligation de médiation de la consommation (article L612-1) ne tombe que si la boutique refuse effectivement un consommateur. Tant que cette ligne est un refus, l'exemption qu'il annonce n'est pas acquise, et les conditions générales continuent d'écrire qu'elle n'est pas satisfaite.",
+				"Le vocabulaire de la boutique tout entier : la question 01 fait mener le prix hors taxes partout et l'accueil dit « pour les professionnels », ce qui s'adresse à un public sans le restreindre."
+			],
+			"sessions": [
+				"13b"
+			],
+			"cost_if_late": "on refait"
 		}
 	],
 	"not_applicable": [

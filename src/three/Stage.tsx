@@ -509,6 +509,25 @@ export function ReadyPing({ onReady }: { onReady?: () => void }) {
   const fired = useRef(false)
   const gl = useThree((s) => s.gl)
   const scene = useThree((s) => s.scene)
+  /*
+   * WHY A HEADLESS PROBE NEEDS THIS.
+   *
+   * The canvas renders on DEMAND: a frame happens when something asks for one.
+   * `__stage.show()` below flips an object's `visible` flag straight on the
+   * scene graph, which react-three-fiber cannot see, so nothing asks and nothing
+   * is drawn, while `scripts/render-verify.mjs` waits on `__frames` to advance
+   * before reading the pixels back. Measured in a headless page on 1 September
+   * 2026: the counter sits at 1 and stays there, and five calls to `draw()`
+   * take it to 3.
+   *
+   * HONESTLY STATED: this is necessary and it is not sufficient. On this machine
+   * `render-verify` still does not complete, and the reason is further along:
+   * the harness page reports the garment as « loading… » and never finishes, so
+   * the sweep stalls before any measurement. That is a separate defect, it is
+   * not diagnosed here, and it is written into docs/ROADMAP.md rather than left
+   * as a harness somebody will assume works.
+   */
+  const invalidate = useThree((s) => s.invalidate)
 
   // DEV-only per-frame cost probe, for scripts/frame-bench.mjs. Draw calls,
   // triangles and programs are the numbers that TRAVEL between machines: a
@@ -598,7 +617,20 @@ export function ReadyPing({ onReady }: { onReady?: () => void }) {
               n++
             }
           })
+          // AND ASK FOR A FRAME. Without this the flag changes and nothing is
+          // ever drawn again; see the note above ReadyPing.
+          invalidate()
           return n
+        },
+        /**
+         * Ask for a frame without changing anything.
+         *
+         * A probe that wants « draw the scene as it is now, and tell me when you
+         * have » has no other way to say it on a demand-driven canvas, and every
+         * measurement this harness takes begins with exactly that request.
+         */
+        draw: () => {
+          invalidate()
         },
         /*
          * WHAT THE SCENE STILL POINTS AT, beside what the renderer still holds.

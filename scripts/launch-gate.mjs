@@ -35,6 +35,11 @@
  *                 is a maintained assumption and not a confirmation.
  *   4. TERMS.     The conditions of sale in force are `valide` and name the
  *                 person who read them and the day they did. Asked of the shop.
+ *   6. MEDIATION. Not a row but a PAIR. No consumer mediator is designated AND
+ *                 nothing refuses a consumer. Each refusal is honest alone; the
+ *                 two together are an offence against article L612-1, because the
+ *                 exemption his answer to question 57 claims only holds if the
+ *                 consumer path is actually closed. Checked here.
  *   5. BLANKS.    No personalisable product is on sale declaring no textile nu.
  *                 A shop that sells a garment it can never buy blanks for takes
  *                 an order it cannot fill, after the customer has paid. Asked of
@@ -143,6 +148,54 @@ function vatConfirmationBlockers(ledger) {
   return []
 }
 
+/**
+ * Condition 6, and it is the one neither row can see on its own.
+ *
+ * `H-Q57-MEDIATEUR` is a refusal: no consumer mediator is designated, and the
+ * conditions of sale say in as many words that the obligation is not satisfied.
+ * `H-Q62-REFUS-PARTICULIER` is a refusal too: nothing refuses a consumer, the
+ * SIRET is asked and not required, and the contract in force applies to a
+ * consumer as much as to a professional.
+ *
+ * SEPARATELY, EACH IS HONEST. A refusal ships an absence and an absence can be
+ * read. TOGETHER THEY ARE ILLEGAL: article L612-1 of the code de la consommation
+ * obliges any professional who contracts with consumers to belong to a mediation
+ * scheme and to publish its details. His answer to question 57 removes that
+ * obligation « pour le parcours B2B », and the exemption is only true if the
+ * second row stops being a refusal.
+ *
+ * So the pair is checked and not the rows. Answering either one clears it:
+ * designate a mediator, or close the consumer path. This is the condition that a
+ * per-row rule cannot express, and it is exactly the sort of thing that goes live
+ * because two documents each looked fine.
+ */
+function mediationBlockers(ledger) {
+  const byId = new Map(ledger.entries.map((e) => [e.id, e]))
+  const mediator = byId.get('H-Q57-MEDIATEUR')
+  const refusal = byId.get('H-Q62-REFUS-PARTICULIER')
+  if (!mediator || !refusal) {
+    return [
+      {
+        cle: 'mediation',
+        pourquoi:
+          "Le registre ne porte plus les deux lignes qui décident de la médiation de la consommation (H-Q57-MEDIATEUR et H-Q62-REFUS-PARTICULIER). Ce contrôle refuse plutôt que de supposer que l'obligation est levée.",
+      },
+    ]
+  }
+  const noMediator = mediator.status === 'refused'
+  const sellsToConsumers = refusal.status === 'refused'
+  if (noMediator && sellsToConsumers) {
+    return [
+      {
+        cle: 'mediation',
+        pourquoi:
+          "Aucun médiateur de la consommation n'est désigné ET rien ne refuse un particulier. Prises une par une les deux lignes sont des refus assumés ; ensemble elles sont une infraction à l'article L612-1 du code de la consommation, parce que l'exemption annoncée en réponse à la question 57 suppose un parcours qui refuse effectivement un consommateur. Répondre à l'une des deux suffit : désigner un médiateur, ou fermer le parcours grand public (question 62).",
+      },
+    ]
+  }
+  return []
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2 to 5. The shop.
 
@@ -228,6 +281,8 @@ function gate({ ledger, shop }) {
   looked.push('registre')
   blockers.push(...vatConfirmationBlockers(ledger))
   looked.push('tva (confirmation)')
+  blockers.push(...mediationBlockers(ledger))
+  looked.push('médiation')
 
   if (shop.ok) {
     blockers.push(...shop.blockers)
@@ -310,6 +365,17 @@ if (SELF_TEST) {
       shop: () => ({ ok: true, blockers: [] }),
     },
     {
+      name: 'mediation',
+      why: 'aucun médiateur ET rien qui refuse un particulier',
+      ledger: () => {
+        const d = clone()
+        d.entries.find((x) => x.id === 'H-Q57-MEDIATEUR').status = 'refused'
+        d.entries.find((x) => x.id === 'H-Q62-REFUS-PARTICULIER').status = 'refused'
+        return d
+      },
+      shop: () => ({ ok: true, blockers: [] }),
+    },
+    {
       name: 'identite',
       why: 'une mention légale obligatoire absente',
       ledger: () => clone(),
@@ -355,6 +421,8 @@ if (SELF_TEST) {
       e.answer_fr = 'auto-test'
     }
   }
+  // A mediator designated is one of the two ways out of condition 6.
+  clean.entries.find((x) => x.id === 'H-Q57-MEDIATEUR').status = 'answered'
   const yes = gate({ ledger: clean, shop: { ok: true, blockers: [] } })
   const canPass = yes.blockers.length === 0
   console.log(`  ${canPass ? 'AUTORISE' : 'REFUSE  '}  [aucune] un dépôt et une boutique sans reproche`)

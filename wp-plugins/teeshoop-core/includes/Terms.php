@@ -91,6 +91,7 @@ final class Terms {
 		'acompte_ht'               => 'eur',
 		'acompte_taux'             => 'pct',
 		'conservation_devis_jours' => 'int',
+		'devis_validite_jours'     => 'int',
 		/*
 		 * A VALUE THE TERMS PROMISE IS ABSENT, which is a different claim from a
 		 * value they state. Article 14 says « Aucun taux contractuel plus bas
@@ -520,6 +521,7 @@ final class Terms {
 			'acompte_ht'               => (int) $settlement['deposit_from_ht'],
 			'acompte_taux'             => (float) $settlement['deposit_rate'],
 			'conservation_devis_jours' => Quote::KEEP_DAYS,
+			'devis_validite_jours'     => Quote::VALIDITY_DAYS,
 			'penalites_contractuelles' => (string) ( Invoice::config()['penalty_rate'] ?? '' ),
 		);
 	}

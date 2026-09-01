@@ -56,11 +56,26 @@ Il ne parle que des questions 37 à 61. Deux sujets sont traités par les deux d
 c'est donc le plus récent qui tranche : l'affichage du stock (questions 11 et 48) et
 l'adresse (questions 17 et 55).
 
-**Ce que cette séance n'a pas fait.** Rien n'a été appliqué au code. Le registre
-`docs/hypotheses.json` porte toujours ses valeurs supposées, et c'est la séance 13b qui
-confronte chaque réponse à sa ligne, la classe (confirmée, valeur différente, forme
-différente) et présente le tableau avant de changer quoi que ce soit. Ici, les réponses ont
-seulement été posées là où on les cherche.
+**Ce que la séance 13b en a fait, le 1er septembre 2026.** Les 61 réponses ont été
+confrontées au registre une par une. **Vingt-neuf lignes sont passées de « supposée » à
+« répondue »**, avec la date et la phrase de l'associé sous chacune : ce n'est pas une
+formalité, c'est ce qui transforme une devinette en fait, et le portail de mise en ligne
+lit cette date. **Neuf valeurs ont bougé** (le minimum en euros, le franco, l'acompte, la
+cadence, le temps de pose, la marge cible, les trois délais) et chacune a entraîné une
+**remesure** plutôt qu'une règle de trois. **Une forme a changé** : le film s'achète à la
+feuille et non au mètre. **Quatre réponses ne sont délibérément pas construites** et
+disent ici ce qui manque pour les construire (questions 37, 44, 50 et 54).
+
+Et le contrôle qui manquait existe : `npm run verify:lancement` **refuse la mise en ligne**
+tant qu'une hypothèse bloquante non répondue atteint un client, un fournisseur ou une
+presse, tant que l'identité légale est incomplète, tant que le régime de TVA n'est pas
+confirmé dans un sens ou dans l'autre, tant que les conditions de vente en vigueur n'ont
+pas de relecteur, tant qu'un produit personnalisable en vente ne déclare aucun textile nu,
+et tant qu'aucun médiateur n'est désigné sur une boutique qui ne refuse pas les
+particuliers. Mesuré le 1er septembre : **refusé, quatorze raisons.**
+
+Sous chaque question dont la réponse a laissé quelque chose ouvert, un bloc en italique dit
+exactement quoi, ce que nous faisons en attendant, et ce qu'il nous faut.
 
 ### Où regarder, en trois listes
 
@@ -488,6 +503,32 @@ posait un **rouleau** facturé au mètre linéaire, la réponse donne une **feui
 interdit de convertir l'une en l'autre de tête. Toutes les mesures en euros publiées par
 ce projet passent par ce tarif.
 
+*Ce que la séance 13b a fait de cette réponse, le 1er septembre 2026 :* le moteur
+de coût compte désormais des **feuilles** et non des mètres. Une pile de feuilles
+de 33 x 46 cm est un rouleau de 33 cm coupé tous les 46, ce que l'imbriqueur sait
+déjà faire, donc il n'y a pas eu de second imbriqueur à écrire. Le tarif au
+rouleau reste dans le moteur, sans chemin qui l'atteigne, parce que la question
+HT/TTC peut encore le déplacer d'un cinquième.
+
+**Ce que la remesure a donné, et ce n'est pas ce qu'on attendait.** Grouper une
+semaine de six commandes fait gagner **75,00 EUR** au lieu des 121,41 mesurés sous
+le rouleau, et **la totalité est maintenant vos frais de livraison**. Les deux
+autres postes ont disparu : sur une feuille de 33 x 46 cm chacune des six
+commandes occupe déjà plus d'une feuille, donc aucune ne paie de minimum (c'était
+42,84 EUR), et il ne reste pas assez de largeur pour que deux commandes partagent
+une rangée (l'imbrication rapportait 3,57 EUR ; elle rapporte zéro).
+
+**Autrement dit tout l'intérêt du groupage tient à un chiffre que vous n'avez pas
+confirmé.** Si votre fournisseur ne facture pas la livraison, grouper ne rapporte
+plus rien du tout, et l'atelier peut imprimer commande par commande.
+
+**Et la boutique refuse désormais quelque chose qu'elle acceptait :** un transfert
+de plus de 46 cm de haut ne tient sur aucune feuille. Un dos de 50 cm passait sur
+le rouleau de 56 cm.
+
+*Ce qu'il nous faut, et c'est votre propre liste :* la facture. HT ou TTC, les
+frais de livraison, le minimum de commande, le délai, et le nom du fournisseur.
+
 ### 5. Quel taux horaire interne devons-nous compter pour la main-d'œuvre, même quand c'est vous ou vos frères qui produisez ? Et pouvez-vous chronométrer une vraie série (préparation, pressage, pelage, seconde presse, contrôle, pliage, emballage) ?
 
 **Bloquant**
@@ -531,6 +572,21 @@ nulle part, donc ils valent zéro eux aussi.
 **la pose seule, pour deux faces**, et l'associé demande lui-même un chronométrage séparé
 de la préparation, du contrôle, du pliage et de l'emballage. Le taux horaire, lui, est
 confirmé au chiffre près.
+
+*Ce que la séance 13b a fait de cette réponse, et pourquoi elle vous la repose :*
+vos 30 secondes sont appliquées, à 15 secondes la pose. La main-d'œuvre est un
+coût direct, donc trois fois moins de temps fait trois fois moins de coût et un
+**prix plancher plus bas**, sur un coût qui compte toujours cinq opérations sur
+sept à zéro et aucune provision de défaut.
+
+Remesuré sur votre propre commande d'exemple de trente t-shirts : la main-d'œuvre
+passe de 7,83 EUR à **2,83 EUR** là où le chapitre 1 en inscrit 45,00. Le trou a
+donc **grandi**, de 37,17 à **42,17 EUR**, et ce que le chronométrage manquant
+vaut en prix plancher est passé de 63,72 à **72,29 EUR**.
+
+Votre réponse rend la ligne main-d'œuvre plus juste et le total moins juste. Vous
+demandez vous-même le chronométrage du cycle complet dans la même phrase : c'est
+lui qui referme l'écart, et rien d'autre.
 
 ### 6. Quel taux de marge visez-vous par famille de produits (t-shirt, polo, sweat, vêtement de travail), et quelle marge minimum acceptez-vous en dessous de laquelle une vente doit être refusée, même par un commercial ?
 
@@ -616,6 +672,25 @@ d'autre ne bouge à l'écran.
 écrite est 15 %, ce qui est livré atteint 35 %), et les taux par famille de produits. Le «
 environ 50 % » est donné comme une **base**, pas comme une valeur figée.
 
+*Ce que la séance 13b a retenu, et la lecture qu'il faut confirmer :* votre phrase
+contient les deux mots, « objectif » et « minimale », et ce sont deux réglages
+différents. Nous avons lu **la cible**, celle qui produit le prix conseillé,
+parce que « marge brute après coûts directs » rapportée au prix de vente est
+exactement ce que donne la formule prix = coût / (1 − taux), et parce que la
+contribution minimale est ce qui reste **après commission**, ce qu'une marge
+brute ne peut pas désigner. Le plancher est donc inchangé à 25 %.
+
+Si vous vouliez le plancher, il passe de 25 à 50 % et il double à peu près.
+
+Remesuré au taux que vous donnez : l'écart entre les deux lectures françaises de
+« taux de marge » sur un coût de 250,00 EUR vaut maintenant **125,00 EUR**
+(500,00 contre 375,00) et non plus 168,06.
+
+*Et la moitié que votre réponse ne touche pas :* la **remise maximale accordée en
+autonomie**. Cette question en annonce 15 % ; la grille de quantité en accorde
+35 % dès 50 pièces, sans validation de personne. Les deux règles coexistent et se
+contredisent depuis la séance 05.
+
 ### 7. Combien coûte réellement un emballage (sachet, carton, étiquette) par commande, et quels tarifs transporteurs avez-vous négociés par tranche de poids et destination ? Offrez-vous la livraison au-dessus d'un certain montant ?
 
 **Important**
@@ -670,6 +745,30 @@ document classe en « éléments restant à récupérer ». Les deux valeurs d'e
 explicitement **provisoires**, ce qui est la définition même d'une valeur à étiqueter à
 l'écran (item 6 de la séance 13b).
 
+*Ce que la séance 13b a appliqué et ce qu'elle n'a pas appliqué, le 1er septembre
+2026.* Le franco passe à **250,00 EUR HT**, dans les réglages et dans les
+conditions générales.
+
+**Le transporteur, non.** Vous nommez Mondial Relay et la grille n'est pas jointe,
+votre document la classe lui-même en « éléments restant à récupérer ». La
+boutique chiffre donc toujours sur la grille publique de La Poste et la copie du
+site dit « Colissimo » une vingtaine de fois. Nous l'avons laissé, et c'est
+délibéré : publier « Mondial Relay » en facturant les tarifs de La Poste serait
+la fausse promesse, pas l'inverse. La copie décrit ce que la boutique fait
+aujourd'hui.
+
+Le jour où la grille arrive, ce n'est pas un réglage : un point relais n'est pas
+une adresse de livraison, donc c'est un mode d'expédition à construire, une
+vingtaine de phrases à réécrire, et les deux jours d'acheminement attribués à La
+Poste à remesurer. **La remise en main propre en Île-de-France** au-dessus de
+250 EUR HT est un troisième mode, avec sa zone, son créneau et sa preuve de
+remise : elle n'existe pas non plus.
+
+*Les deux valeurs d'emballage sont appliquées et marquées provisoires*, ce que
+vous demandez vous-même. Le **poids** d'un carton reste inconnu, et c'est nous qui
+absorbons la tranche postale que nous sous-estimons : une balance de cuisine y
+suffit.
+
 ### 8. Acceptez-vous que la grille de prix par quantité soit visible publiquement sur chaque fiche produit, comme le fait votre principal concurrent ? Et voulez-vous facturer le marquage à la surface réellement imprimée plutôt qu'un forfait par face ?
 
 **Important**
@@ -719,6 +818,17 @@ trois familles, softshell activement écarté. La réponse demande Imbretex, env
 références, et remet le softshell dans le périmètre. Ce n'est pas un réglage : le
 catalogue, le stock et le panier d'achat lisent tous le webservice Falk & Ross
 aujourd'hui.
+
+*Ce que la séance 13b n'a pas pu faire, et ce n'est pas un choix :* **aucun accès
+Imbretex n'existe.** Ni compte, ni identifiants, ni grille tarifaire. Le
+catalogue, le relevé de stock et le panier d'achat parlent tous au fournisseur
+qui est branché.
+
+Conséquence à connaître, parce qu'elle touche deux autres de vos réponses : le
+délai textile de 24 heures de la question 46 et la règle des trois valeurs de
+stock de la question 43 sont énoncés **pour Imbretex** et appliqués sur les
+données de l'autre. Ce sont des règles justes appliquées aux mauvais chiffres, et
+elles le resteront tant que l'accès n'existe pas.
 
 ### 10. Devez-vous vendre dès le lancement, avec personnalisation en ligne, les tailles XS, 4XL et 5XL, les produits enfant et les articles sans taille (casquettes, sacs, tabliers, bonnets) ?
 
@@ -934,6 +1044,37 @@ question 46 donne enfin le délai textile manquant, donc l'écart se remesure au
 s'additionner de tête.
 
 
+*Ce que la séance 13b a appliqué, et les trois choses que votre phrase ne dit
+pas.* Les trois délais sont posés : **7 / 4 / 3 jours ouvrés**, l'urgence prenant
+le plus long de vos « 2 à 3 » parce qu'une promesse tenable est la plus longue
+des deux. Le standard reste le seul publié.
+
+**1. Ouvrés ou calendaires ?** Lus ouvrés, comme toutes les autres durées du site.
+Lus calendaires, sept font environ cinq jours ouvrés et le standard devient
+infaisable.
+
+**2. Jusqu'à quoi ?** Les conditions générales disent « entre la validation du bon
+à tirer et la remise du colis au transporteur », puis annoncent deux jours
+d'acheminement. L'atelier, lui, planifie pour que le **colis soit livré** au
+septième jour, ce qui est plus strict. Les deux vont dans le sens prudent, mais
+ce sont deux promesses différentes et c'est vous qui décidez laquelle vous tenez.
+
+**3. Ce que la mesure dit maintenant.** Le standard garde **un seul jour ouvré de
+marge** là où il en avait six, et ce jour **est** le battement d'atelier :
+un transporteur en retard d'un jour le consomme entièrement. L'express manque de
+**deux** jours ouvrés là où il en avait un d'avance, et l'urgence de **trois**.
+Ni l'un ni l'autre n'est publié et cela ne change pas.
+
+*Et la question 46 n'a rien ajouté, contrairement à ce qu'on attendait.* Les six
+jours ouvrés incompressibles ne comptaient pas l'arrivée des vêtements nus. Votre
+délai textile de 2 jours ouvrés ne s'additionne pas : le film et les blancs sont
+commandés le même jour et voyagent en même temps, donc l'atelier attend le plus
+tardif des deux une fois. Deux contre deux : le travail reste **six** jours
+ouvrés. Additionner de tête aurait donné huit et fait paraître chaque promesse
+deux jours pire qu'elle n'est.
+
+*Le supplément d'express et d'urgence n'est toujours chiffré nulle part.*
+
 ## Paiements
 
 *Ce que la séance 09 publie, le 19 août :* **les 12 jours ouvrés du standard, et eux
@@ -1128,6 +1269,22 @@ pas.
 viennent de Pappers et sont à confirmer sur les documents officiels avant publication. Une
 mention légale fausse est une infraction, pas une coquille.
 
+
+*Ce que la séance 13b a posé, et les deux qui restent, le 1er septembre 2026.*
+L'identité complète est enregistrée sur le miroir local et le portail de mise en
+ligne est passé de neuf refus à zéro sur ce point. La production est la séance 14.
+
+**Il reste le régime de TVA**, et c'est la seule ligne que le portail refuse
+nommément : « conserver l'hypothèse ... sous réserve de validation comptable » est
+le mot à mot d'une hypothèse maintenue. Une phrase de votre comptable suffit, dans
+un sens ou dans l'autre : les deux régimes sont construits.
+
+**Et il reste l'adresse.** Cette question donne le siège au 97 avenue de
+Castelnau, 93700 Drancy ; la question 55 donne le 8 rue Primo Lévi, 93000
+Bobigny. Un siège et un établissement peuvent parfaitement différer, mais les
+mentions légales n'en publient qu'une et la fiche Google en publierait une autre.
+C'est le siège qui est posé, parce qu'il vient d'un SIRET. Dites-nous si c'est le
+bon.
 
 ## Juridique
 
@@ -1328,6 +1485,17 @@ qui change le calcul de main-d'oeuvre de la question 5 si ce n'est pas le même.
 *Le seuil d'alerte, lui, est confirmé au chiffre près :* 500 pièces sur une même commande.
 
 
+*Ce que la séance 13b a appliqué, et la question qui reste :* 500 pièces par jour
+sont dans le calendrier de l'atelier. Remesuré : il faut désormais **2 400
+vêtements** pour qu'une commande bascule sur l'origine rapide du film, là où
+1 400 suffisaient.
+
+**Avec combien de personnes ?** L'hypothèse écrite disait 300 **avec une
+personne**. Le taux horaire de la question 05 est chargé par personne, donc si
+500 est le fait de deux, le coût de main-d'œuvre de chaque commande double et
+rien dans le calcul ne le sait. Nous avons retenu une personne, ce qui est la
+lecture la plus favorable et donc la moins prudente.
+
 ## Devis et facturation
 
 ### 24. Les devis et factures officiels sont-ils émis depuis Qonto, ou voulez-vous qu'ils soient générés par le site avec votre propre numérotation ? Qui est votre comptable et a-t-il des exigences particulières (numérotation, mentions, format d'export) ?
@@ -1358,6 +1526,22 @@ numérotation ne soit **pas** légale. C'est un changement de forme, pas de vale
 *Ce que la réponse ne tranche pas :* le nom du système externe ni celui du comptable, ni
 ses exigences de format d'export.
 
+
+*Ce que la séance 13b a instruit :* c'est l'inverse de ce qui est livré, et la
+correction retenue est de **garder le document et lui retirer sa numérotation
+légale**. Le PDF est la seule chose qui prouve ce qui a été vendu, et la règle
+des acomptes en a besoin : l'article 289 du code général des impôts impose une
+facture à **chaque** versement d'acompte, et rien d'autre dans la boutique n'en
+produit une.
+
+Ce qui change : le document cesse de s'appeler une facture et cesse de porter une
+série continue légale ; il devient un récapitulatif de commande avec sa propre
+référence, et il dit que la facture est émise par votre service comptable.
+
+*Ce que votre réponse ne dit pas :* le **nom** du système externe, celui de votre
+comptable, et son format d'export. Sans eux, personne ne peut vérifier que les
+deux numérotations ne se croisent pas, ce qui est exactement le risque que votre
+réponse veut éviter.
 
 ## Graphisme
 
@@ -1801,6 +1985,17 @@ Aujourd'hui une seule surface sert aux deux. « Ne jamais utiliser uniquement la
 M pour calculer le coût réel » est une exigence sur le moteur de coût, pas un réglage.
 
 
+*Ce que la séance 13b a fait et n'a pas fait.* Le prix client est confirmé : une
+seule surface, mesurée à la taille de tarification, quelle que soit la taille
+commandée. Rien ne bouge de ce côté.
+
+**Le coût, lui, n'a pas suivi.** « Ne jamais utiliser uniquement la surface du M
+pour calculer le coût réel » demande d'imbriquer une pièce **par taille** dans le
+chemin de coût, là où une seule surface sert aujourd'hui au prix et au coût.
+Mesuré en séance 05 : trente pièces prennent 1,80 m de film en M et 2,70 m en
+3XL, pour exactement le même dessin. C'est le moteur de coût et non un réglage,
+et la remesure qui suit touche tous les prix planchers.
+
 ---
 
 ## Devis
@@ -1828,6 +2023,16 @@ Le sujet est réel : vos prix d'achat textile bougent, et le tarif DTF que nous 
 nulle part tant que l'associé n'avait pas tranché. Elle a maintenant une valeur, et elle
 est **calendaire**, pas ouvrée.
 
+
+*Appliqué le 1er septembre 2026*, et c'était un refus : aucune durée n'était
+écrite nulle part tant que vous n'aviez pas tranché. Quinze jours **calendaires**
+sont maintenant dans le code, dans les conditions générales, et le contrôle qui
+compare les deux les tient ensemble.
+
+Calendaires, dans votre mot à vous, ce qui est l'inverse de toutes les autres
+durées de cette boutique. Quinze jours calendaires en août français font une
+dizaine de jours ouvrés, et c'est exactement la fenêtre pendant laquelle votre
+réponse à la question 47 dit que Teeshoop absorbe une hausse du fournisseur.
 
 ### 39. Le devis envoyé au client doit-il mentionner le commercial qui l'a préparé, et sa commission ?
 
@@ -2014,6 +2219,16 @@ reste à choisir. C'est une décision d'interface, pas une décision de l'associ
 quels ». La réponse demande une **traduction française** de 442 coloris, ce qui n'est pas
 un réglage : il faut la produire, et la question 49 en donne déjà huit.
 
+
+*Ce que la séance 13b n'a pas construit :* il reste **437 traductions** à écrire
+après les cinq que vous donnez. Ce n'est pas du code, c'est de la rédaction, et
+un mot mal choisi se retrouve sur des centaines d'articles : « Sport Grey » n'est
+pas « gris sport » pour un acheteur qui a le catalogue papier sous les yeux.
+
+Votre propre réponse ouvre la porte de sortie : « les noms très spécifiques sans
+traduction fiable peuvent rester uniquement sous leur appellation fabricant ».
+Dites-nous si nous traduisons les vingt les plus vendus et laissons le reste, ou
+si vous validez une liste complète que nous préparons.
 
 ## Facturation
 
@@ -2352,6 +2567,18 @@ production » est mot pour mot la règle « jamais deux implémentations d'une m
 `CLAUDE.md`, section 1.
 
 
+*Ce que la séance 13b n'a pas construit, et ce qui manque pour le faire :* il faut
+d'abord savoir **où est la couture** sur le maillage du sweat, et c'est
+précisément ce qu'aucune mesure ne sait dire. `scripts/fabric-verify.mjs` déclare
+ces rangées « indécidables » : deux épaisseurs de tissu s'y superposent et les
+deux mesures indépendantes qu'il sait construire divergent jusqu'à **14 mm**.
+
+Poser une zone imprimable à 2 cm au-dessus d'une couture connue à 14 mm près,
+c'est publier une dimension imprimable fausse, et une dimension imprimable est un
+engagement envers vous et envers le client. Votre règle est appliquée dès qu'un
+relevé fiable existe, et elle l'est alors partout à la fois, comme vous le
+demandez.
+
 ### 51. Vos transferts DTF sont-ils imprimés avec une sous-couche blanche systématique ?
 
 **Important**
@@ -2472,6 +2699,17 @@ coûte rien puisque les cinq autres passent.
 compté les textures GPU retenues par scène, donc le retrait se vérifie au lieu de se
 déclarer.
 
+*Appliqué le 1er septembre 2026.* La scène nuit est retirée du sélecteur ; les
+cinq autres restent. Sa définition n'est **pas** supprimée, pour que votre
+« pourra être réintroduite » coûte un mot et pour qu'une création enregistrée qui
+la nomme continue de s'afficher au lieu de devenir silencieusement un studio.
+
+Le contrôle de rendu a suivi, et il a fallu le corriger pour ça : il gardait sa
+propre copie de la liste des scènes et continuait de mesurer celle que vous venez
+de retirer. Il lit maintenant la liste réelle et **imprime ce qu'il a retiré**,
+parce qu'une série d'essais qui rétrécit en silence a l'air complète et ne l'est
+pas.
+
 ### 54. La remise par quantité se calcule-t-elle sur une seule référence ou sur le panier entier ?
 
 **Important**
@@ -2529,6 +2767,22 @@ se calcule aujourd'hui par référence. La réponse demande un regroupement par 
 production compatible**, avec quatre critères de compatibilité (même visuel, technique
 compatible, emplacements similaires, même campagne). Le prix est calculé par le serveur,
 donc la notion de lot doit exister côté `Pricing.php`, et elle n'existe pas.
+
+*Ce que la séance 13b n'a pas construit, et ce qu'il faudrait pour le construire.*
+La remise se calcule toujours par référence, et la copie du site le dit en toutes
+lettres plutôt que de laisser croire l'inverse.
+
+Trois de vos quatre critères sont des **jugements** et non des faits qu'un panier
+peut lire. « Emplacements similaires » : un logo cœur et le même décalé de deux
+centimètres, est-ce similaire ? « Même campagne de production » : deux commandes
+du même client à trois jours d'écart ? Le prix est calculé par le serveur, en
+direct, pendant que le client remplit son panier, et un serveur ne sait pas juger
+« similaire ».
+
+Ce n'est pas une objection à la règle, qui est commercialement juste et qui
+décrit bien ce que l'atelier économise. C'est qu'il lui faut une définition
+qu'une machine peut appliquer, ou alors un prix recalculé à la main après coup,
+ce qui n'est plus un paiement en autonomie.
 
 ### 55. Voulez-vous une fiche Google Business Profile, et à quelle adresse ?
 
@@ -2725,6 +2979,13 @@ refuse précisément une version de CGV en vigueur que personne n'a enregistrée
 *La seconde moitié est déjà construite :* les CGV sont des fichiers datés, une commande
 garde la version qu'elle a acceptée, et un contrôle redérive les chiffres figés dedans.
 
+*Ce que la séance 13b a rendu exécutable :* le portail de mise en ligne refuse
+désormais une version des conditions générales qui n'enregistre ni le nom du
+juriste qui l'a relue ni la date de sa relecture. Ce n'est pas un durcissement de
+notre part, c'est votre propre phrase (« à désigner avant le lancement
+officiel ») transformée en contrôle. Tant qu'elle n'a pas de nom et de date, la
+mise en ligne est refusée.
+
 ---
 
 ## RGPD : les contrats
@@ -2878,6 +3139,55 @@ et soient relevées. La veille refuse de démarrer sans destinataire, ce qui est
 mais elle ne peut pas savoir qu'une adresse syntaxiquement valable ne mène nulle part. Une
 alerte envoyée dans le vide est exactement ce que cette question voulait éviter, donc la
 ligne de cron se pose après le contrôle, pas avant.
+
+
+---
+
+## La condition de la réponse 57
+
+### 62. Comment la boutique refuse-t-elle effectivement un particulier ?
+
+**Bloquant**
+
+*Pourquoi on a besoin de la réponse :* c'est la condition de votre propre réponse
+à la question 57, et elle est la seule chose qui la rende vraie.
+
+L'obligation d'adhérer à un médiateur de la consommation (article L612-1 du code
+de la consommation) ne pèse que sur le professionnel qui contracte avec des
+**consommateurs**. Vous répondez que Teeshoop est un service B2B et que la
+médiation n'est donc pas une condition de lancement. Cette exemption ne tient que
+si la boutique **refuse effectivement** un particulier : ce n'est pas une
+intention, c'est un fait vérifiable sur le parcours.
+
+Or votre réponse à la question 01 dit aussi, mot pour mot, que « le SIRET peut
+être demandé lors de la création du compte, **sans nécessairement bloquer
+l'inscription** ». Un SIRET demandé et non exigé ne refuse personne. En l'état, un
+consommateur qui le souhaite peut acheter, et l'obligation de médiation
+s'applique, avec elle les mentions obligatoires qui vont avec.
+
+*Si vous ne répondez pas, on partira sur :* **rien**, et c'est un refus assumé.
+Aucun mécanisme ne refuse un particulier aujourd'hui, la ligne
+`H-Q62-REFUS-PARTICULIER` du registre le dit, et le portail de mise en ligne
+compte l'absence de médiateur comme un blocage tant que rien ne referme le
+parcours grand public. Inventer un contrôle d'accès ici reviendrait à décider
+seuls qui a le droit d'acheter chez vous.
+
+*Ce qu'il nous faut, et c'est l'une de trois :*
+
+1. **Exiger le SIRET** à la création du compte, et vérifier qu'il en est un. Le
+   parcours devient professionnel pour de bon, et vous perdez les inscriptions
+   qui n'en ont pas. Une journée de développement.
+2. **Faire déclarer l'achat professionnel** avant le paiement, en une case
+   horodatée avec la phrase exacte que le client a lue, comme la renonciation au
+   droit de rétractation. C'est plus faible qu'un SIRET vérifié et c'est
+   opposable. Une demi-journée.
+3. **Adhérer à un médiateur** référencé et publier ses coordonnées. Quelques
+   dizaines d'euros par an, et la boutique reste ouverte à tout le monde. Aucun
+   développement, une démarche.
+
+Nous ne pouvons pas choisir à votre place : la première ferme une porte
+commerciale, la troisième coûte de l'argent tous les ans.
+
 
 ---
 
