@@ -62,6 +62,27 @@ confronte chaque réponse à sa ligne, la classe (confirmée, valeur différente
 différente) et présente le tableau avant de changer quoi que ce soit. Ici, les réponses ont
 seulement été posées là où on les cherche.
 
+### Où regarder, en trois listes
+
+Comptées dans le document, pas estimées.
+
+**Les 25 réponses qui laissent une partie de leur question ouverte** (repérées sous la
+citation par « Ce que la réponse ne tranche pas ») : 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13,
+14, 16, 17, 18, 23, 24, 27, 28, 30, 31, 32, 49, 51, 58.
+
+**Les 6 réponses qui demandent autre chose que ce qui est construit**, et qui changent donc
+une forme et non un réglage (« À instruire en séance 13b ») : **4** (une feuille A3+ à
+l'unité là où le coût est bâti sur un rouleau au mètre), **9** (Imbretex au lieu de
+Falk & Ross), **24** (la facture légale sort d'un système externe, pas du site), **37** (le
+coût réel doit suivre la taille commandée), **44** (traduire 442 coloris en français),
+**54** (la remise se calcule sur un lot de production, pas par référence).
+
+**Les 5 endroits où la mise en forme est de nous** et où l'original fait foi (« Note de
+transcription ») : 10, 17, 41, 44, 49.
+
+Les 61 blocs portent la date de réception et le document d'origine sur la même ligne que
+« Votre réponse », donc aucune réponse ne se lit sans savoir d'où elle vient.
+
 ### Ce que l'associé signale lui-même comme non fourni
 
 Cinq points, en fin de son premier document, mot pour mot :
