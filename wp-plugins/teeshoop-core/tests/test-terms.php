@@ -426,3 +426,50 @@ describe(
 		);
 	}
 );
+
+describe(
+	'Le devis, et les quinze jours que les conditions générales publient',
+	function () {
+		it(
+			'counts calendar days, and the CGV figure is the one it counts',
+			function () {
+				/*
+				 * CALENDAR, not working: question 38's answer says « 15 jours
+				 * calendaires » and every other duration in this plugin is in
+				 * working days. Fifteen calendar days across a French August is
+				 * about ten working ones, so reading the wrong unit would keep a
+				 * firm offer alive for three weeks at the shop's expense while
+				 * question 47 has Teeshoop absorbing a supplier's price rise for
+				 * the whole window.
+				 */
+				eq( Quote::expires_on( '2026-09-01' ), '2026-09-16', 'quinze jours calendaires' );
+				// Across a month boundary and a weekend, which working days would move.
+				eq( Quote::expires_on( '2026-08-28' ), '2026-09-12', 'quinze jours calendaires' );
+				eq( Quote::VALIDITY_DAYS, 15, 'les CGV publient quinze jours' );
+			}
+		);
+
+		it(
+			'says nothing rather than guessing when the date is unreadable',
+			function () {
+				eq( Quote::expires_on( '' ), '', 'une date vide a produit une échéance' );
+				eq( Quote::expires_on( '2026-02-30' ), '', 'le 30 février a produit une échéance' );
+				eq( Quote::expires_on( '01/09/2026' ), '', 'une date française a produit une échéance' );
+				/*
+				 * And an unreadable date is NOT expired, because a firm offer that
+				 * cannot be dated must not be cancelled by arithmetic on nothing.
+				 * The screen says « date illisible » instead.
+				 */
+				eq( Quote::expired( '', '2099-01-01' ), false, 'une date illisible a expiré toute seule' );
+			}
+		);
+
+		it(
+			'is still firm on its last day and expired the day after',
+			function () {
+				eq( Quote::expired( '2026-09-01', '2026-09-16' ), false, 'le dernier jour, l’offre tient encore' );
+				eq( Quote::expired( '2026-09-01', '2026-09-17' ), true, 'le lendemain, l’offre a expiré' );
+			}
+		);
+	}
+);

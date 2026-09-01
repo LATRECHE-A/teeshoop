@@ -1083,25 +1083,60 @@ final class Quote {
 		if ( empty( $versions ) ) {
 			echo '<p>' . esc_html__( 'Aucune version n’a encore été établie.', 'teeshoop' ) . '</p>';
 		} else {
+			/*
+			 * THE EXPIRY IS ON THE SCREEN BECAUSE IT IS IN THE CONTRACT. Question
+			 * 38's answer put fifteen calendar days into the conditions of sale,
+			 * and until this column existed `expires_on()` and `expired()` had no
+			 * caller at all: a firm offer whose end date the shop published to
+			 * customers and showed to nobody who writes one. The devis document
+			 * itself is still written by hand outside this plugin, so this is the
+			 * one place an operator can read the date they have to put on it.
+			 *
+			 * Found by the adversarial pass over session 13b.
+			 */
+			$today = Settings::today();
 			echo '<table class="widefat striped"><thead><tr>';
 			printf(
-				'<th>%s</th><th>%s</th><th>%s</th><th>%s</th>',
+				'<th>%s</th><th>%s</th><th>%s</th><th>%s</th><th>%s</th>',
 				esc_html__( 'Version', 'teeshoop' ),
 				esc_html__( 'Numéro', 'teeshoop' ),
 				esc_html__( 'Date', 'teeshoop' ),
+				esc_html__( 'Valable jusqu’au', 'teeshoop' ),
 				esc_html__( 'Total HT', 'teeshoop' )
 			);
 			echo '</tr></thead><tbody>';
 			foreach ( array_reverse( $versions ) as $version ) {
+				$sent_on = (string) $version['date'];
+				$ends_on = self::expires_on( $sent_on );
 				printf(
-					'<tr><td>%d</td><td>%s</td><td>%s</td><td style="text-align:right">%s</td></tr>',
+					'<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td style="text-align:right">%s</td></tr>',
 					(int) $version['version'],
 					esc_html( (string) $version['number'] ),
-					esc_html( (string) $version['date'] ),
+					esc_html( $sent_on ),
+					esc_html(
+						'' === $ends_on
+							/* An unreadable date gives no expiry, and saying so beats printing today. */
+							? __( 'date illisible', 'teeshoop' )
+							: ( self::expired( $sent_on, $today )
+								? sprintf(
+									/* translators: %s: the day the offer stopped being firm. */
+									__( '%s (expiré)', 'teeshoop' ),
+									$ends_on
+								)
+								: $ends_on )
+					),
 					esc_html( Money::format( (int) $version['total_ht'] ) )
 				);
 			}
 			echo '</tbody></table>';
+
+			$latest = end( $versions );
+			if ( is_array( $latest ) && self::expired( (string) $latest['date'], $today ) ) {
+				printf(
+					'<div class="notice notice-warning inline"><p>%s</p></div>',
+					esc_html__( 'La dernière version a dépassé ses quinze jours calendaires. Les conditions générales disent qu’au-delà les stocks sont revérifiés et le prix recalculé : établissez une nouvelle version plutôt que de confirmer celle-ci.', 'teeshoop' )
+				);
+			}
 
 			$moved = self::moved( $post_id );
 			if ( '' !== $moved ) {

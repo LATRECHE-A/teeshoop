@@ -30,6 +30,14 @@ export interface ShopFilm {
   billing_step_cm: number
   days_fr: number
   days_es: number
+  /**
+   * The origins the tariff in force can actually be bought from.
+   *
+   * Question 04's answer named one supplier, so the shop refuses a lot recorded
+   * against any other, and a screen offering a choice whose second option is
+   * always refused spends a whole nesting run to be told no.
+   */
+  origins?: ('fr' | 'es')[]
 }
 
 export interface ShopQueue {

@@ -2009,6 +2009,15 @@ final class Production {
 					'billing_step_cm' => (float) ( $film['billing_step_cm'] ?? 10 ),
 					'days_fr'         => (int) ( $film['days_fr'] ?? 0 ),
 					'days_es'         => (int) ( $film['days_es'] ?? 0 ),
+					/*
+					 * WHO THE FILM CAN BE BOUGHT FROM, sent for the same reason
+					 * the geometry is. Question 04's answer named one supplier,
+					 * so `Cost::origins()` is one entry long and `create_lot`
+					 * refuses anything else. A screen that still offers a choice
+					 * whose second option is always refused is a screen that
+					 * wastes a nesting run to say no.
+					 */
+					'origins'         => Cost::origins( $film ),
 				),
 				'capacity' => array(
 					'press_per_day' => (int) $config['press_per_day'],

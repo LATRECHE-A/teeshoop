@@ -336,6 +336,12 @@ export default function DtfModal() {
   const [prodRows, setProdRows] = useState<QueueRow[]>([])
   const [prodOrders, setProdOrders] = useState<QueueOrder[]>([])
   const [origin, setOrigin] = useState<'fr' | 'es'>('fr')
+  /*
+   * WHAT THE SHOP CAN ACTUALLY BUY, read off the queue and never assumed. France
+   * alone until the shop says otherwise, which is the fail-closed direction and
+   * also the dearer one.
+   */
+  const [origins, setOrigins] = useState<('fr' | 'es')[]>(['fr'])
   const [lot, setLot] = useState<RunArchive | null>(null)
   const designsRef = useRef<Map<string, StoredDesign>>(new Map())
   useEffect(
@@ -794,6 +800,9 @@ export default function DtfModal() {
        * late, which is the other half of the same rule.
        */
       setOrigin('fr')
+      setOrigins(
+        Array.isArray(shop.film.origins) && shop.film.origins.length > 0 ? shop.film.origins : ['fr'],
+      )
     } catch (err) {
       setShopError(shopFailureFr(err))
     } finally {
@@ -1504,15 +1513,26 @@ export default function DtfModal() {
                     <div className="flex flex-col gap-2 rounded-lg border border-line bg-bg1 p-2">
                       <label className="flex items-center justify-between text-[11.5px] text-tx2">
                         {t('dtf.prod.origin')}
-                        <select
-                          className="input h-7 w-28 text-[11.5px]"
-                          value={origin}
-                          disabled={lot !== null}
-                          onChange={(e) => setOrigin(e.target.value === 'es' ? 'es' : 'fr')}
-                        >
-                          <option value="fr">{t('dtf.prod.origin_fr')}</option>
-                          <option value="es">{t('dtf.prod.origin_es')}</option>
-                        </select>
+                        {origins.length > 1 ? (
+                          <select
+                            className="input h-7 w-28 text-[11.5px]"
+                            value={origin}
+                            disabled={lot !== null}
+                            onChange={(e) => setOrigin(e.target.value === 'es' ? 'es' : 'fr')}
+                          >
+                            {origins.map((o) => (
+                              <option key={o} value={o}>
+                                {o === 'es' ? t('dtf.prod.origin_es') : t('dtf.prod.origin_fr')}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          // One supplier is a fact, not a choice: a select with a
+                          // single option reads as a decision somebody could make.
+                          <span className="text-tx1">
+                            {origins[0] === 'es' ? t('dtf.prod.origin_es') : t('dtf.prod.origin_fr')}
+                          </span>
+                        )}
                       </label>
                       {lot === null ? (
                         <button
