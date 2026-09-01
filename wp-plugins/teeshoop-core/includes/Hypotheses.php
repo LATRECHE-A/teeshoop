@@ -532,6 +532,24 @@ final class Hypotheses {
 			if ( 'refused' === ( $row['status'] ?? '' ) ) {
 				echo ' <em>' . esc_html__( 'refus assumé : rien n’a été construit', 'teeshoop' ) . '</em>';
 			}
+			/*
+			 * The answer, since session 13b. Two rows that read identically
+			 * without it are "nobody has ever confirmed this number" and "he
+			 * confirmed it on 1 September", which are opposite facts about the
+			 * same sentence, and only one of them lets the shop open.
+			 */
+			$answered = (string) ( $row['answered'] ?? '' );
+			if ( '' !== $answered ) {
+				echo '<br><span class="description">'
+					. esc_html(
+						sprintf(
+							/* translators: %s: date the associate's answer arrived, YYYY-MM-DD. */
+							__( 'Répondu le %s.', 'teeshoop' ),
+							$answered
+						)
+					)
+					. ' ' . esc_html( (string) ( $row['answer_fr'] ?? '' ) ) . '</span>';
+			}
 			if ( self::overridden_row( $row ) ) {
 				echo ' <strong>' . esc_html__( 'remplacée par un réglage enregistré', 'teeshoop' ) . '</strong>';
 			}

@@ -409,6 +409,21 @@ function validateShape(data) {
     if (!LEVELS.has(e.level)) bad.push(`${id}: level must be one of ${[...LEVELS].join(', ')}`)
     if (!STATUSES.has(e.status)) bad.push(`${id}: status must be one of ${[...STATUSES].join(', ')}`)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(e.since ?? '')) bad.push(`${id}: since must be YYYY-MM-DD`)
+    /*
+     * `answered` is about the ASSOCIATE, `status` is about the CODE, and they
+     * are not the same axis. A row he settled by asking for nothing to be built
+     * stays `refused` and carries a date (H-Q42-MARGE-TEXTILE-NU); a row we
+     * assume and he never mentioned carries no date at all. The launch gate
+     * reads the date, not the word, because "he answered" is what turns a guess
+     * into a fact and `refused` is a shape, not an answer.
+     */
+    if (e.answered !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(e.answered)) bad.push(`${id}: answered must be YYYY-MM-DD`)
+      if (!e.answer_fr) bad.push(`${id}: answered with no answer_fr saying what he decided`)
+    }
+    if (e.status === 'answered' && e.answered === undefined) {
+      bad.push(`${id}: status answered with no date; a confirmation nobody can point at is a conversation`)
+    }
     if (!e.statement_fr) bad.push(`${id}: statement_fr is empty`)
     if (!e.home) bad.push(`${id}: no home`)
     if (!Array.isArray(e.mirrors)) bad.push(`${id}: mirrors must be a list`)
@@ -756,14 +771,24 @@ function parseBlockingQuestions(text) {
   return { blocking: out, all, unreadable }
 }
 
-/** 5: an assumed value a customer meets is labelled, in French, in a real table. */
+/**
+ * 5: an assumed value a customer meets is labelled, in French, in a real table.
+ *
+ * TWO RULES, and the second was added in session 13b when twenty-seven rows
+ * flipped to `answered` at once. Requiring the label only of an `assumption`
+ * meant a confirmation silently RELEASED the label: the sentence a customer
+ * reads the number under stopped being checked the day the number stopped being
+ * a guess, and nothing would have noticed it disappearing. So a row that
+ * declares a `label_fr` must carry it on a real screen whatever its status. The
+ * requirement to HAVE one is still the assumption's alone; the requirement for
+ * the one you have to be true is everybody's.
+ */
 function checkSaidOutLoud(entries, tables) {
   const fails = []
   const texts = tables.map((abs) => textOf(abs))
   for (const entry of entries) {
-    if (entry.status !== 'assumption') continue
-    if (!entry.reaches.includes('customer')) continue
-    if (!entry.label_fr) {
+    const facesCustomer = entry.reaches.includes('customer')
+    if (entry.status === 'assumption' && facesCustomer && !entry.label_fr) {
       fails.push({
         check: 'said-out-loud',
         id: entry.id,
@@ -772,6 +797,7 @@ function checkSaidOutLoud(entries, tables) {
       })
       continue
     }
+    if (!entry.label_fr) continue
     if (!texts.some((t) => t.includes(entry.label_fr))) {
       fails.push({
         check: 'said-out-loud',
@@ -838,6 +864,13 @@ function projectForShop(data) {
       level: e.level,
       status: e.status,
       since: e.since,
+      /*
+       * The answer crosses too, since session 13b. An operator looking at this
+       * screen needs to tell "nobody has ever confirmed this" from "he confirmed
+       * it on 1 September", and those two rows read identically without a date.
+       */
+      answered: e.answered ?? null,
+      answer_fr: e.answer_fr ?? null,
       statement_fr: e.statement_fr,
       home: e.home,
       reaches: e.reaches,
@@ -1064,6 +1097,30 @@ if (SELF_TEST) {
           'that reaches a customer',
         )
         d.entries.find((e) => e.id === id).label_fr = 'ceci ne figure dans aucune table de chaînes'
+      },
+    },
+    {
+      /*
+       * The half added in session 13b. Without it, confirming a value released
+       * the sentence a customer reads it under, and this case is the only thing
+       * that says the release did not happen.
+       */
+      name: 'said-out-loud',
+      why: 'a CONFIRMED row whose label left the screen',
+      mutate: (d) => {
+        const id = first(
+          (e) => e.status !== 'assumption' && e.label_fr,
+          'confirmed or refused and carrying a label',
+        )
+        d.entries.find((e) => e.id === id).label_fr = 'ceci non plus ne figure nulle part'
+      },
+    },
+    {
+      name: 'shape',
+      why: 'a row marked answered with no date to point at',
+      mutate: (d) => {
+        const id = first((e) => e.status === 'answered', 'the associate has answered')
+        delete d.entries.find((e) => e.id === id).answered
       },
     },
   ]

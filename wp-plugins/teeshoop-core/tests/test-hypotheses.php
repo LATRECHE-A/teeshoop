@@ -69,7 +69,13 @@ describe( 'Hypotheses: the shop\'s copy of the register', function (): void {
 	 * carry at all.
 	 */
 	it( 'holds every field an admin screen renders, and no field it does not', function (): void {
-		$allowed = array( 'id', 'question', 'level', 'status', 'since', 'statement_fr', 'home', 'reaches', 'cost_if_late', 'sessions' );
+		/*
+		 * `answered` and `answer_fr` joined in session 13b. They are in
+		 * `$allowed` and not in `$needed` because they are null on every row the
+		 * associate has not settled, and `isset()` reads a null as absent: a row
+		 * with no answer is the normal case, not a defect.
+		 */
+		$allowed = array( 'id', 'question', 'level', 'status', 'since', 'answered', 'answer_fr', 'statement_fr', 'home', 'reaches', 'cost_if_late', 'sessions' );
 		$needed  = array( 'id', 'question', 'level', 'status', 'statement_fr', 'home', 'reaches', 'cost_if_late' );
 		foreach ( Hypotheses::rows() as $row ) {
 			foreach ( array_keys( $row ) as $key ) {
