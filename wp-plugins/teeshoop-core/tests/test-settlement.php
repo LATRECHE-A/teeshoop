@@ -50,20 +50,31 @@ describe( 'Settlement: when a deposit is possible at all', function () {
 	} );
 
 	/*
-	 * THE TWO ASSUMPTIONS DO NOT MEET, and that is a fact about the shop rather
-	 * than about this class. Question 02 stops self-serve at 2 000 EUR HT and
-	 * question 16 opens deposits at 3 000, so no basket a customer fills alone
-	 * can ever qualify. Asserted here so that if either figure is answered the
-	 * day this stops being true, somebody is told.
+	 * THE TWO THRESHOLDS NOW MEET, AND THEY DID NOT, which is a fact about the
+	 * shop rather than about this class. Question 02 stops self-serve at
+	 * 2 000 EUR HT; question 16 used to open deposits at 3 000, so no basket a
+	 * customer filled alone could ever qualify and a deposit was only reachable
+	 * on an order an operator had made. His answer of 1 September 2026 lowers it
+	 * to 1 000, so there is now a band, 1 000 to 2 000 EUR HT, where a customer's
+	 * own basket qualifies.
+	 *
+	 * Asserted rather than noted, because the consequence is not obvious: nothing
+	 * about a deposit is automatic (`deposit_possible` only says a deposit MAY be
+	 * offered, and `Ledger` still requires a human to grant one), but the button
+	 * now appears on orders nobody quoted.
 	 */
-	it( 'cannot be reached by any basket the site prices on its own', function () {
+	it( 'is now reachable by a basket the site prices on its own', function () {
 		require_once __DIR__ . '/../includes/Pricing.php';
 		$self_serve = (int) \Teeshoop\Core\Pricing::default_config()['quote_from_ht'];
 		$deposit    = (int) ts_settle_config()['deposit_from_ht'];
 
 		truthy(
-			$self_serve < $deposit,
-			'a self-serve order can now qualify for a deposit; question 16 assumed it could not'
+			$deposit < $self_serve,
+			'the deposit threshold is back above the self-serve ceiling, so no customer basket can reach it'
+		);
+		truthy(
+			Settlement::deposit_possible( $self_serve, ts_settle_config() ),
+			'the largest basket a customer can pay for alone does not qualify for a deposit'
 		);
 	} );
 } );

@@ -122,7 +122,7 @@ describe(
 		it(
 			'loads a version with a title, articles and a draft marker',
 			function () {
-				$doc = Terms::document( Terms::versions()[0] );
+				$doc = Terms::document( Terms::newest() );
 				truthy( is_array( $doc ), 'la première version ne se charge pas' );
 				truthy( '' !== (string) $doc['titre'], 'version sans titre' );
 				truthy( count( $doc['articles'] ) >= 10, 'moins de dix articles dans des CGV' );
@@ -137,18 +137,66 @@ describe(
 	'Terms: the text and the shop must say the same thing',
 	function () {
 		it(
-			'agrees with the shipped configuration, on every version',
+			'agrees with the shipped configuration, on the version that binds',
 			function () {
-				$values = ts_terms_defaults();
-				foreach ( Terms::versions() as $version ) {
-					$doc  = Terms::document( $version );
-					$bad  = Terms::checked( $doc, $values );
-					$why  = array_map(
-						static fn( array $r ): string => $r['cle'] . ' : ' . $r['raison'] . ' (attendu ' . $r['attendu'] . ', fragment « ' . $r['texte'] . ' »)',
-						$bad
+				/*
+				 * THE NEWEST VERSION, and no longer every version.
+				 *
+				 * This asserted « on every version » while there was exactly one,
+				 * and it stopped being possible the day there were two: the
+				 * conditions of 26 August 2026 promise a 300,00 EUR franco and a
+				 * twelve-day lead time, which is what the shop did on 26 August.
+				 * A superseded version is a contract somebody accepted, not a
+				 * description of today's shop, and demanding that history agree
+				 * with the present would mean editing history.
+				 *
+				 * What replaces the coverage is the test below: a superseded
+				 * version must be UNCHANGED, byte for byte, against a recorded
+				 * fingerprint.
+				 */
+				$version = Terms::newest();
+				truthy( '' !== $version, 'aucune version de CGV n’est publiée' );
+				$doc  = Terms::document( $version );
+				$bad  = Terms::checked( $doc, ts_terms_defaults() );
+				$why  = array_map(
+					static fn( array $r ): string => $r['cle'] . ' : ' . $r['raison'] . ' (attendu ' . $r['attendu'] . ', fragment « ' . $r['texte'] . ' »)',
+					$bad
+				);
+				eq( $bad, array(), "la version $version ne dit plus ce que la boutique fait : " . implode( ' | ', $why ) );
+			}
+		);
+
+		it(
+			'FREEZES every version that is no longer in force, byte for byte',
+			function () {
+				$frozen = Terms::frozen_fingerprints();
+				$olds   = Terms::superseded();
+				truthy( count( $olds ) > 0, 'aucune version périmée : ce contrôle ne prouve rien tant qu’il n’y en a pas' );
+				foreach ( $olds as $version ) {
+					truthy(
+						isset( $frozen[ $version ] ),
+						"la version $version n’est plus en vigueur et son empreinte n’est pas enregistrée dans data/cgv/figees.php"
 					);
-					eq( $bad, array(), "la version $version ne dit plus ce que la boutique fait : " . implode( ' | ', $why ) );
+					eq(
+						Terms::fingerprint( $version ),
+						(string) ( $frozen[ $version ] ?? '' ),
+						"la version $version a été modifiée après avoir été remplacée : une version acceptée ne se corrige pas, on en publie une nouvelle"
+					);
 				}
+			}
+		);
+
+		it(
+			'REPORTS a superseded version that has been edited',
+			function () {
+				// BREAK IT ON PURPOSE: the recorded fingerprint of a real file,
+				// against a fingerprint that is not it.
+				$olds = Terms::superseded();
+				truthy( count( $olds ) > 0 );
+				$real = Terms::fingerprint( $olds[0] );
+				truthy( 64 === strlen( $real ), 'une empreinte sha256 fait 64 caractères' );
+				truthy( $real !== str_repeat( '0', 64 ), 'une empreinte qui ne distingue rien ne gèle rien' );
+				eq( Terms::fingerprint( '2999-01-01' ), '', 'une version qui n’existe pas n’a pas d’empreinte' );
 			}
 		);
 
@@ -183,7 +231,7 @@ describe(
 				 * the published text is now a promise nobody keeps. If this
 				 * comes back empty the whole mechanism is decorative.
 				 */
-				$doc    = Terms::document( Terms::versions()[0] );
+				$doc    = Terms::document( Terms::newest() );
 				$values = ts_terms_defaults();
 				$values['delai_fabrication'] = $values['delai_fabrication'] + 2;
 
@@ -203,7 +251,7 @@ describe(
 				 * published conditions still promise it free. `str_contains` said
 				 * nothing because the zero amount is a substring of the real one.
 				 */
-				$doc    = Terms::document( Terms::versions()[0] );
+				$doc    = Terms::document( Terms::newest() );
 				$values = ts_terms_defaults();
 				$values['franco_ht'] = 0;
 				$bad = Terms::checked( $doc, $values );
@@ -215,7 +263,7 @@ describe(
 		it(
 			'REPORTS the shop moving to the franchise en base while the terms publish a VAT rate',
 			function () {
-				$doc    = Terms::document( Terms::versions()[0] );
+				$doc    = Terms::document( Terms::newest() );
 				$values = ts_terms_defaults();
 				$values['tva'] = 0.0;
 				$bad = Terms::checked( $doc, $values );
@@ -234,7 +282,7 @@ describe(
 				 * typed there makes the invoice and the accepted conditions state
 				 * two different rules about the same debt.
 				 */
-				$doc    = Terms::document( Terms::versions()[0] );
+				$doc    = Terms::document( Terms::newest() );
 				$values = ts_terms_defaults();
 				$values['penalites_contractuelles'] = '12';
 				$bad = Terms::checked( $doc, $values );
@@ -246,7 +294,7 @@ describe(
 		it(
 			'REPORTS a fragment that has been edited out of the text',
 			function () {
-				$doc = Terms::document( Terms::versions()[0] );
+				$doc = Terms::document( Terms::newest() );
 				// The article that carries the tolerance, emptied.
 				foreach ( $doc['articles'] as $i => $article ) {
 					if ( str_contains( (string) $article['titre'], 'Tolérances' ) ) {
@@ -262,7 +310,7 @@ describe(
 		it(
 			'REPORTS a version that pins nothing at all',
 			function () {
-				$doc = Terms::document( Terms::versions()[0] );
+				$doc = Terms::document( Terms::newest() );
 				$doc['accords'] = array();
 				$bad = Terms::checked( $doc, ts_terms_defaults() );
 				truthy( count( $bad ) > 0, 'une version sans aucun accord est passée pour vérifiée' );
@@ -272,7 +320,7 @@ describe(
 		it(
 			'REPORTS a value the caller could not resolve',
 			function () {
-				$doc    = Terms::document( Terms::versions()[0] );
+				$doc    = Terms::document( Terms::newest() );
 				$values = ts_terms_defaults();
 				unset( $values['tva'] );
 				$bad  = Terms::checked( $doc, $values );

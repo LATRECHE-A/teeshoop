@@ -104,9 +104,9 @@ describe( 'Production: when the film has to be bought', function () use ( $ts_pr
 		// Question 14 says « à partir de la validation du bon à tirer », and it
 		// is the only one of the two dates the workshop controls: a customer who
 		// sat on their proof for a fortnight has not eaten our lead time.
-		eq( Production::target_date( '2026-08-19', 'standard', $ts_prod_config ), '2026-09-04' );
-		eq( Production::target_date( '2026-08-19', 'express', $ts_prod_config ), '2026-08-28' );
-		eq( Production::target_date( '2026-08-19', 'urgent', $ts_prod_config ), '2026-08-25' );
+		eq( Production::target_date( '2026-08-19', 'standard', $ts_prod_config ), '2026-08-28' );
+		eq( Production::target_date( '2026-08-19', 'express', $ts_prod_config ), '2026-08-25' );
+		eq( Production::target_date( '2026-08-19', 'urgent', $ts_prod_config ), '2026-08-24' );
 	} );
 
 	it( 'reads an urgency nobody set as standard', function () use ( $ts_prod_config ) {
@@ -174,7 +174,7 @@ describe( 'Production: parameters', function () {
 	it( 'keeps the lead times a partial save did not mention', function () {
 		$c = Production::merge_config( array( 'lead_days' => array( 'urgent' => 6 ) ) );
 		eq( $c['lead_days']['urgent'], 6 );
-		eq( $c['lead_days']['standard'], 12, 'a partial save must not delete the keys it is silent about' );
+		eq( $c['lead_days']['standard'], 7, 'a partial save must not delete the keys it is silent about' );
 		eq( $c['press_per_day'], 500 );
 	} );
 
@@ -201,20 +201,37 @@ describe( 'Production: the promise that cannot be kept', function () use ( $ts_p
 	 */
 	it( 'measures two days of impossibility in the urgent promise', function () use ( $ts_prod_config, $ts_prod_film ) {
 		$f = Production::feasibility( $ts_prod_config, $ts_prod_film );
-		eq( $f['urgent']['fr'], -2, 'four days promised, six days of work' );
-		eq( $f['urgent']['es'], -5 );
+		// THREE and not two, since his answer of 01/09/2026 moved urgent from
+		// four working days to « 2 à 3 », of which the longer is taken.
+		eq( $f['urgent']['fr'], -3, 'three days promised, six days of work' );
+		eq( $f['urgent']['es'], -6 );
 	} );
 
-	it( 'leaves express one day of slack in France and none at all in Spain', function () use ( $ts_prod_config, $ts_prod_film ) {
+	it( 'leaves express two days SHORT, where it used to have one to spare', function () use ( $ts_prod_config, $ts_prod_film ) {
+		// His answer moved express from seven working days to four. It had one
+		// day of slack and it is now two days short: express was already
+		// unsellable and it is further from sellable, not nearer.
 		$f = Production::feasibility( $ts_prod_config, $ts_prod_film );
-		eq( $f['express']['fr'], 1 );
-		eq( $f['express']['es'], -2 );
+		eq( $f['express']['fr'], -2 );
+		eq( $f['express']['es'], -5 );
 	} );
 
-	it( 'leaves the standard promise real room, which is why Spain is reachable', function () use ( $ts_prod_config, $ts_prod_film ) {
+	it( 'leaves the standard promise one working day, and it is the buffer itself', function () use ( $ts_prod_config, $ts_prod_film ) {
+		/*
+		 * THE NUMBER THAT MOVED MOST, and it is the only promise the site
+		 * publishes. Twelve working days left six to spare; his seven leave ONE,
+		 * and that one is `buffer_days`, the slack between the film arriving and
+		 * the press starting. A courier a day late consumes the whole of it.
+		 *
+		 * It is still positive, which is why it is applied rather than refused:
+		 * session 09 declined to publish a promise measured as impossible, and
+		 * this one is measured as tight. The difference matters and the figure is
+		 * here so that it cannot be forgotten.
+		 */
 		$f = Production::feasibility( $ts_prod_config, $ts_prod_film );
-		eq( $f['standard']['fr'], 6 );
-		eq( $f['standard']['es'], 3 );
+		eq( $f['standard']['fr'], 1 );
+		eq( $f['standard']['fr'], (int) $ts_prod_config['buffer_days'], 'the whole margin IS the buffer' );
+		eq( $f['standard']['es'], -2, 'and the slow film origin no longer fits the standard at all' );
 	} );
 
 	/*
@@ -229,7 +246,7 @@ describe( 'Production: the promise that cannot be kept', function () use ( $ts_p
 	it( 'takes the LATER of the film and the blanks, never their sum', function () use ( $ts_prod_config, $ts_prod_film ) {
 		$f = Production::feasibility( $ts_prod_config, $ts_prod_film );
 		eq( $f['urgent']['blank_days'], 2, 'question 46 : 2 jours ouvrés retenus' );
-		eq( $f['urgent']['fr'], -2, 'still six days of work, not eight' );
+		eq( $f['urgent']['fr'], -3, 'still six days of work, not eight' );
 
 		// A textile supplier SLOWER than the film does move it, and by exactly
 		// the difference. This is the assertion that would catch a max() written
@@ -237,8 +254,8 @@ describe( 'Production: the promise that cannot be kept', function () use ( $ts_p
 		$slow = $ts_prod_config;
 		$slow['blank_days'] = 5;
 		$g = Production::feasibility( $slow, $ts_prod_film );
-		eq( $g['urgent']['fr'], -5, 'five days of blanks against two of film: the blanks decide' );
-		eq( $g['urgent']['es'], -5, 'and against five of Spanish film they tie, so nothing is added' );
+		eq( $g['urgent']['fr'], -6, 'five days of blanks against two of film: the blanks decide' );
+		eq( $g['urgent']['es'], -6, 'and against five of Spanish film they tie, so nothing is added' );
 	} );
 
 	it( 'walks the blanks back the same way it walks the film back', function () use ( $ts_prod_config ) {

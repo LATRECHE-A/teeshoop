@@ -200,21 +200,27 @@ final class Pricing {
 			 * conditions, at cart validation. These two numbers are that
 			 * sentence.
 			 *
-			 * AND THE AMOUNT ALMOST NEVER BINDS. At the shipped tee tariff five
-			 * printed pieces are 72,50 EUR HT, and at the Bible's own worked
-			 * example (20,83 EUR HT a piece) they are 104,17 EUR HT. Both are
-			 * well past 50 EUR, so the piece count is the rule that actually
-			 * refuses baskets and the amount only bites on something cheaper
-			 * than 10,00 EUR a piece, which nothing in this catalogue is. That
-			 * is worth the associate knowing before he confirms it: as written
-			 * the amount is close to dead weight. Question 01 says so now.
+			 * AND THE AMOUNT ALMOST NEVER BOUND, WHICH IS WHY IT IS GONE. At the
+			 * shipped tee tariff five printed pieces are 72,50 EUR HT, and at the
+			 * Bible's own worked example (20,83 EUR HT a piece) they are
+			 * 104,17 EUR HT. Both are well past 50 EUR, so the piece count was
+			 * the rule that actually refused baskets and the amount only bit on
+			 * something cheaper than 10,00 EUR a piece, which nothing in this
+			 * catalogue is. That was put to the associate as a reason to look at
+			 * it twice, and he removed it: question 01's answer of 1 September
+			 * 2026 is « Le minimum est de 5 pièces par commande, sans minimum
+			 * obligatoire de 50 EUR HT. »
 			 *
 			 * Either at 0 means "no minimum of that kind", the same convention
 			 * as the two thresholds above, so clearing a field opens the shop
-			 * rather than closing it.
+			 * rather than closing it. Zero is an ABSENCE and not a value all the
+			 * way out: `Content::slots()` drops the sentence that would have
+			 * published it, and `Terms::checked()` requires the conditions in
+			 * force to carry a figure-free sentence saying there is no amount
+			 * minimum.
 			 */
 			'min_qty'        => 5,
-			'min_ht'         => 5000,
+			'min_ht'         => 0,
 		);
 	}
 

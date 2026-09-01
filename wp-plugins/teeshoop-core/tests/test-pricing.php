@@ -520,17 +520,31 @@ describe( 'Pricing: the minimum order', function () {
 		truthy( ! $verdict['ht'], 'a rich basket was reported as short on money' );
 	} );
 
-	it( 'refuses a basket short on money even when the pieces are there', function () {
+	/*
+	 * THE AMOUNT MINIMUM IS GONE, AND THE MACHINERY THAT ENFORCED IT IS NOT.
+	 *
+	 * Question 01's answer of 1 September 2026 is « Le minimum est de 5 pièces par
+	 * commande, sans minimum obligatoire de 50 EUR HT », so the shipped config
+	 * carries 0 and, by the convention every threshold in this plugin follows,
+	 * that means no minimum of that kind. These two tests used to prove the
+	 * amount half REFUSES; they now prove it is switched off in the shipped
+	 * configuration and still works when a figure is put back.
+	 */
+	it( 'no longer refuses a basket on money alone, because there is no amount minimum', function () {
 		$config  = Pricing::default_config();
-		$verdict = Pricing::below_minimum( 50, 1, $config );
+		eq( (int) $config['min_ht'], 0, 'the amount minimum came back without anybody saying so' );
 
-		truthy( $verdict['below'] );
-		truthy( $verdict['ht'] );
-		truthy( ! $verdict['qty'] );
+		$verdict = Pricing::below_minimum( 50, 1, $config );
+		truthy( ! $verdict['below'], 'fifty pieces for one cent was refused on the amount' );
+		truthy( ! $verdict['ht'] );
 	} );
 
-	it( 'reports both when both are short, because both have to be fixed', function () {
-		$verdict = Pricing::below_minimum( 1, 1, Pricing::default_config() );
+	it( 'still reports both when both are set and both are short', function () {
+		// The rule is intact: put an amount back and it bites again. What changed
+		// is the shipped value, not the arithmetic.
+		$config            = Pricing::default_config();
+		$config['min_ht']  = 5000;
+		$verdict           = Pricing::below_minimum( 1, 1, $config );
 		truthy( $verdict['qty'] && $verdict['ht'] );
 	} );
 

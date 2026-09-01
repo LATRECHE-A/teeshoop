@@ -156,6 +156,68 @@ final class Terms {
 		return $best;
 	}
 
+	/**
+	 * The version that must agree with what the shop does today: the newest.
+	 *
+	 * NOT « every version », which is what `tests/test-terms.php` used to assert
+	 * and what stopped being possible the day a second version existed. A
+	 * superseded version is a contract somebody accepted; comparing it with a
+	 * shop that has legitimately moved on since is comparing two different
+	 * moments and calling the difference a defect. What must be true of a
+	 * superseded version is that it has not been TOUCHED, which is
+	 * `fingerprint()` and `frozen_fingerprints()` below.
+	 *
+	 * The newest and not the one in force, so the check is the same on any day:
+	 * a version dated in the future is the one about to bind, it is the one being
+	 * reviewed, and it is exactly the one worth comparing with the code.
+	 */
+	public static function newest(): string {
+		$all = self::versions();
+		return array() === $all ? '' : (string) end( $all );
+	}
+
+	/** Every version but the newest: accepted, superseded, and unchangeable. */
+	public static function superseded(): array {
+		$all = self::versions();
+		return count( $all ) < 2 ? array() : array_slice( $all, 0, -1 );
+	}
+
+	/**
+	 * The fingerprint of a version file, byte for byte.
+	 *
+	 * THE WHOLE FILE and not the rendered text, because a superseded version is
+	 * frozen in every respect: its articles, its pinned figures, and the comments
+	 * that explain why it says what it says. A reviewer asked eighteen months
+	 * later what a buyer agreed to reads this file, and a file whose reasoning
+	 * was quietly rewritten answers a different question.
+	 */
+	public static function fingerprint( string $version ): string {
+		if ( ! self::exists( $version ) ) {
+			return '';
+		}
+		$raw = file_get_contents( self::dir() . $version . '.php' );
+		return false === $raw ? '' : hash( 'sha256', $raw );
+	}
+
+	/**
+	 * The recorded fingerprints of the versions that are no longer in force.
+	 *
+	 * A version joins this list the day it is superseded, and the check FAILS on
+	 * a superseded version that is not in it. Fail closed: forgetting to record
+	 * one has to be louder than recording the wrong one, because a missing entry
+	 * is a contract nothing is watching.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function frozen_fingerprints(): array {
+		$path = self::dir() . 'figees.php';
+		if ( ! is_readable( $path ) ) {
+			return array();
+		}
+		$read = require $path;
+		return is_array( $read ) ? $read : array();
+	}
+
 	/** Whether a string names a version we actually hold. */
 	public static function exists( string $version ): bool {
 		return self::is_date( $version ) && in_array( $version, self::versions(), true );
@@ -252,17 +314,60 @@ final class Terms {
 			$expected = self::french( $values[ $key ], self::FORMATS[ $key ] );
 
 			/*
+			 * ZERO IS AN ABSENCE AND NOT A VALUE, and the published copy already
+			 * knew it: `Content::slots()` drops the sentence of a threshold that
+			 * has been cleared, because « Nous imprimons à partir de 0 pièces »
+			 * is both false and absurd. The terms had no such rule, so a shop
+			 * whose amount minimum was cleared would have had to publish « à
+			 * partir de 0,00 € hors taxes » in a contract to keep this check
+			 * green.
+			 *
+			 * Question 01's answer of 1 September 2026 is what needed it: « Le
+			 * minimum est de 5 pièces par commande, sans minimum obligatoire de
+			 * 50 EUR HT. » A cleared threshold is now checked the same way as
+			 * `penalites_contractuelles`: the version must carry a sentence
+			 * SAYING there is none, which is a promise a buyer can rely on, and
+			 * silence is still refused.
+			 */
+			$absent = 'vide' === self::FORMATS[ $key ]
+				|| ( is_numeric( $values[ $key ] ) && 0.0 === (float) $values[ $key ] );
+			if ( $absent ) {
+				$expected = 'vide' === self::FORMATS[ $key ] ? $expected : '';
+			}
+
+			/*
 			 * A `vide` value is a promise that there is nothing to state. The
 			 * fragment must be in the text, and the value must be empty; a value
 			 * that has been filled in is the divergence, not a mismatched number.
 			 */
-			if ( 'vide' === self::FORMATS[ $key ] ) {
+			if ( $absent ) {
 				if ( '' !== $expected ) {
 					$out[] = array(
 						'cle'     => $key,
 						'attendu' => $expected,
 						'texte'   => $said,
 						'raison'  => 'le texte publié annonce qu’aucune valeur n’est fixée, et la boutique en applique une',
+					);
+					continue;
+				}
+				/*
+				 * AND THE FRAGMENT MUST NOT STATE A FIGURE. The first version of
+				 * this rule only asked that the declared fragment be present in
+				 * the text, and the two tests below caught it within a minute: an
+				 * operator who clears the free-delivery threshold makes the shop
+				 * charge carriage on every basket, and « offerte à partir de
+				 * 300,00 € hors taxes » is still written in the contract and
+				 * still present in the text, so the check went green on the exact
+				 * defect it exists for. An absence has to be pinned by a sentence
+				 * ABOUT the absence, and a sentence about an absence carries no
+				 * digits.
+				 */
+				if ( 1 === preg_match( '/\d/', $said ) ) {
+					$out[] = array(
+						'cle'     => $key,
+						'attendu' => '',
+						'texte'   => $said,
+						'raison'  => 'la boutique n’applique plus aucune valeur ici, et le texte publié en annonce encore une',
 					);
 					continue;
 				}

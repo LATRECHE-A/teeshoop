@@ -117,13 +117,21 @@ final class Shipping {
 			/*
 			 * Free delivery above this, in cents HT of goods.
 			 *
-			 * Question 07's default: "livraison offerte au-dessus de 300 EUR hors
-			 * taxes". The Bible names no customer franco anywhere; the only
-			 * `seuil de franco` in it is the textile SUPPLIER's, which is an input
-			 * to our cost and not an offer to a buyer. 0 disables it, the same
-			 * convention as every other threshold in this plugin.
+			 * Question 07's answer of 1 September 2026: « La livraison est offerte
+			 * à partir de 250 EUR HT de commande. » The written default was 300.
+			 * The Bible names no customer franco anywhere; the only `seuil de
+			 * franco` in it is the textile SUPPLIER's, which is an input to our
+			 * cost and not an offer to a buyer. 0 disables it, the same convention
+			 * as every other threshold in this plugin.
+			 *
+			 * The same answer moves the CARRIER from Colissimo to Mondial Relay
+			 * and adds a hand delivery in Île-de-France above the same threshold.
+			 * Neither is applied here: he gives no Mondial Relay grid and classes
+			 * it in « éléments restant à récupérer », so the shop would be
+			 * quoting one carrier's name at another carrier's prices. The grid
+			 * below is still La Poste's published one and the copy still says so.
 			 */
-			'free_from_ht'       => 30000,
+			'free_from_ht'       => 25000,
 
 			/*
 			 * Where we deliver, question 35: "Français uniquement, livraison en

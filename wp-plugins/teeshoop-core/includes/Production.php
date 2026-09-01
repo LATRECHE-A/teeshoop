@@ -159,10 +159,40 @@ final class Production {
 	public static function default_config(): array {
 		return array(
 			/*
-			 * WORKING DAYS from the moment the proof is approved to the moment
-			 * the parcel is handed over. Question 14's written default, verbatim:
-			 * « Standard 12 jours ouvrés, express 7 jours, urgence 4 jours
-			 * (France uniquement) ».
+			 * WORKING DAYS from the moment the proof is approved. Question 14's
+			 * answer of 1 September 2026, verbatim: « À partir de la validation
+			 * du BAT : standard 7 jours ; express 4 jours selon disponibilité ;
+			 * urgent 2 à 3 jours selon disponibilité. » The written default was
+			 * 12 / 7 / 4, so all three got shorter and the standard lost five days.
+			 *
+			 * THREE THINGS HIS SENTENCE DOES NOT SAY, and each of them changes
+			 * the arithmetic:
+			 *
+			 *   1. OUVRÉS OR CALENDAIRES. Read as working days, which is the unit
+			 *      every other duration in this file uses and the one the site
+			 *      publishes. Read as calendar days, seven is about five working
+			 *      days and the standard becomes infeasible by one:
+			 *      `feasibility()` measures six working days of incompressible
+			 *      work. The question is back to him.
+			 *   2. WHICH END. Article 8 of the conditions in force says the
+			 *      fabrication delay runs « entre la validation du bon à tirer et
+			 *      la remise du colis au transporteur », then announces the
+			 *      carrier's own two days on top. `feasibility()` reads the
+			 *      stricter thing, that the PARCEL IS DELIVERED on the last day,
+			 *      and it is left strict on purpose: the workshop aiming two days
+			 *      earlier than the published sentence is the safe direction.
+			 *   3. « SELON DISPONIBILITÉ », twice, on the only two that are
+			 *      impossible. Express at 4 is two working days short and urgent
+			 *      at 3 is three. Neither is published and neither becomes
+			 *      sellable by being written here.
+			 *
+			 * URGENT TAKES THE LONGER END of « 2 à 3 », because this is a promise
+			 * and the longer of two promises is the one that can be kept.
+			 *
+			 * The standard now has ONE working day of slack where it had six, and
+			 * that day is the workshop buffer itself, so a courier one day late
+			 * consumes it entirely. Measured by `Production::feasibility()`, held
+			 * by `tests/test-production.php`.
 			 *
 			 * The keys are `PriceRule::URGENCES`, the vocabulary the cost screen
 			 * already uses, so an order ticked urgent there is the same order this
@@ -170,9 +200,9 @@ final class Production {
 			 * silently schedule it as standard.
 			 */
 			'lead_days'     => array(
-				'standard' => 12,
-				'express'  => 7,
-				'urgent'   => 4,
+				'standard' => 7,
+				'express'  => 4,
+				'urgent'   => 3,
 			),
 
 			/*

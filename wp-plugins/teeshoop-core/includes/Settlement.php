@@ -146,17 +146,20 @@ final class Settlement {
 			 * threshold, so there was nothing to derive and these two numbers are
 			 * that sentence and nothing else.
 			 *
-			 * AND THE TWO ASSUMPTIONS DO NOT MEET. Question 02 stops self-serve
-			 * at 2 000 EUR HT; this opens at 3 000. No basket a customer fills
-			 * alone can ever reach it, so today a deposit is only reachable on an
-			 * order an operator made, which is the quote path of session 06. That
-			 * is coherent, deposits are for large quoted jobs, and it is worth
-			 * him knowing that the two figures he is being asked to confirm never
-			 * overlap. Question 16 says so.
+			 * AND THE TWO NOW MEET, WHICH THEY DID NOT. Question 02 stops
+			 * self-serve at 2 000 EUR HT and this used to open at 3 000, so no
+			 * basket a customer filled alone could ever reach a deposit: it was
+			 * only reachable on an order an operator had made, which is the quote
+			 * path of session 06. Question 16's answer of 1 September 2026 lowers
+			 * it, « Pour toute commande supérieure à 1 000 EUR HT, possibilité
+			 * d'accepter seulement 50 % d'acompte avant production, mais
+			 * uniquement après validation du dirigeant », so a self-serve basket
+			 * between 1 000 and 2 000 EUR HT is now in range. It still takes a
+			 * human to grant one: nothing here offers a deposit by itself.
 			 *
 			 * 0 disables it, the same convention as every other threshold here.
 			 */
-			'deposit_from_ht' => 300000,
+			'deposit_from_ht' => 100000,
 
 			/*
 			 * The share of the order the deposit is, applied to the amount the
