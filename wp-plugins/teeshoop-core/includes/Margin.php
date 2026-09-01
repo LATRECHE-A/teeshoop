@@ -48,13 +48,16 @@
  * on it is the other ratio's name.
  *
  * That is not pedantry, it is the largest single number in this file. Question
- * 06 asks the associate for "un taux de marge", and if he answers 55 % meaning
- * what the words normally mean, a 250 EUR cost sells at 387,50 EUR; read as the
- * formula intends it sells at 555,56 EUR. A 168,06 EUR gap on one order, 43 %
- * of the smaller price, decided by which of two French phrases somebody had in
- * mind. `mark_up_price()` below implements the OTHER reading, not because we
- * believe it, but so the admin screen can show both figures side by side and
- * make the question impossible to answer ambiguously.
+ * 06 asked the associate for "un taux de marge" and he answered, on 1 September
+ * 2026, « un objectif de marge brute minimale d'environ 50 % après coûts
+ * directs ». Read as the words normally mean, a 250 EUR cost sells at 375,00
+ * EUR; read as the formula intends, at 500,00 EUR. A 125,00 EUR gap on one
+ * order, a third of the smaller price, decided by which of two French phrases
+ * somebody had in mind. His own wording, « marge brute après coûts directs »,
+ * is the formula's reading and that is the one in force. `mark_up_price()` below
+ * implements the OTHER one, not because we believe it, but so the admin screen
+ * can show both figures side by side and make the question impossible to answer
+ * ambiguously.
  *
  * ── The third finding: "contribution minimale" is not the same kind of number
  *    in the Bible as it is in the answer we are building on ──────────────────

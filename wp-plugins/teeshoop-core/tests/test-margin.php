@@ -34,8 +34,16 @@ if ( 'cli' !== PHP_SAPI ) {
 }
 
 require_once __DIR__ . '/../includes/Margin.php';
+/*
+ * The price authority, for ONE test: the one that argues about question 06's
+ * answer needs the rate he actually gave, and a literal there would be a second
+ * copy of it. Everything else in this file is deliberately explicit, because
+ * this is the algebra of Margin and a test of algebra states its own inputs.
+ */
+require_once __DIR__ . '/../includes/Cost.php';
 
 use Teeshoop\Core\Margin;
+use Teeshoop\Core\Cost;
 
 describe( 'Margin: cost', function () {
 	it( 'adds the components it is given', function () {
@@ -200,13 +208,17 @@ describe( 'Margin: "taux de marge" names the other ratio', function () {
 	it( 'shows how far apart the two readings of question 06 are', function () {
 		// The Bible's formula, which its own example confirms, is the taux de
 		// MARQUE: margin over selling price.
-		$marque = Margin::recommended_price( 25000, 0.55 );
+		// THE RATE HE ANSWERED, read from the price authority: this test is about
+		// his answer and not about an example, so a literal here would be a second
+		// copy of it and would go on describing 55 % after he moved to 50.
+		$rate   = Cost::default_config()['target_margin_rate'];
+		$marque = Margin::recommended_price( 25000, $rate );
 		// What the words "taux de marge" normally mean: a mark-up on the cost.
-		$marge  = Margin::mark_up_price( 25000, 0.55 );
+		$marge  = Margin::mark_up_price( 25000, $rate );
 
-		eq( $marque, 55556, '250,00 / (1 − 0,55)' );
-		eq( $marge, 38750, '250,00 x 1,55' );
-		eq( $marque - $marge, 16806, '168,06 EUR on one order, on the same answer' );
+		eq( $marque, 50000, '250,00 / (1 − 0,50)' );
+		eq( $marge, 37500, '250,00 x 1,50' );
+		eq( $marque - $marge, 12500, '125,00 EUR on one order, on the same answer' );
 	} );
 
 	it( 'agrees with itself at zero and diverges everywhere else', function () {

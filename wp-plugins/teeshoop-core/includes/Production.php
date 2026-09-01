@@ -195,12 +195,21 @@ final class Production {
 			'buffer_days'   => 1,
 
 			/*
-			 * Pieces one person can press in a working day. Question 23's written
-			 * default, which the chapter itself warns about: « La cadence annoncée
-			 * de 30 secondes pour deux t-shirts doit être testée en conditions
-			 * complètes ». Nothing here has been timed.
+			 * Pieces the workshop can press in a working day.
+			 *
+			 * Question 23's answer of 1 September 2026: « Capacité de travail à
+			 * retenir actuellement : environ 500 pièces par jour. » The written
+			 * default was 300 WITH ONE PERSON, and the answer gives no headcount,
+			 * so what changed may be the rate or may be the staff. It matters to
+			 * question 05, whose hourly rate is charged per person: if 500 is two
+			 * people, the labour cost of an order doubles and this figure did not
+			 * say so. The question is back to him.
+			 *
+			 * The chapter's own warning still stands and is still unanswered:
+			 * « La cadence annoncée de 30 secondes pour deux t-shirts doit être
+			 * testée en conditions complètes. » Nothing here has been timed.
 			 */
-			'press_per_day' => 300,
+			'press_per_day' => 500,
 
 			/*
 			 * Above this many garments in ONE lot, an operator has to say yes.

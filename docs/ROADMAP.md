@@ -179,8 +179,9 @@ imbricateur. Elle a trouvé un défaut à sa première exécution, une borne qui
 
 **Trois corrections de la Bible plutôt qu'une.** Au plancher déjà corrigé s'ajoutent :
 « taux de marge » désigne en français la marge sur le *coût* alors que la formule publiée
-est celle de la marge sur le *prix de vente*, ce qui vaut **168,06 EUR d'écart** sur une
-commande de 250 EUR de coût ; et la contribution minimale, absolue dans la Bible et
+est celle de la marge sur le *prix de vente*, ce qui vaut **125,00 EUR d'écart** sur une
+commande de 250 EUR de coût (au taux de 50 % donné le 1er septembre 2026 ; c'était
+168,06 EUR à 55 %) ; et la contribution minimale, absolue dans la Bible et
 exprimée en pourcentage dans l'hypothèse par défaut, donne une formule différente qui
 **n'a aucune solution** dans un cas que le code refuse au lieu de renvoyer un plancher
 négatif.
@@ -1213,9 +1214,9 @@ ne peut le lever.
 |---|---|---|
 | **Le régime de TVA** | associé | Question 17 et constat 6. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées**. Depuis la séance 04 les deux régimes sont construits et la bascule est une date à saisir : ce qui manque n'est plus du code, c'est la réponse. Les 15 commandes, elles, ne sont facturables par le site sous aucun régime, parce qu'aucune période ne couvre leur date |
 | La vraie grille tarifaire | associé | Questions **06** (taux de marge) et **03** (grilles d'achat réelles), sa forme publique étant la **08**. Les prix actuels sont des **valeurs de démonstration**, enregistrées une par une dans `docs/hypotheses.json`. Ce tableau renvoyait à la question 04, qui porte sur les tarifs DTF fournisseur et ne tranche aucun prix de vente. **Depuis la séance 05 ce n'est plus seulement une imprécision** : mesuré, le tarif affiché passe sous son propre prix plancher à 5 pièces et n'est vendable sans validation à aucune quantité |
-| **Le sens de « taux de marge »** | associé | Question 06. Le mot et la formule de la Bible désignent deux ratios différents, et l'écart est de 168,06 EUR sur une commande de 250 EUR de coût. Les deux lectures sont affichées côte à côte sur l'écran « Coûts et marges » pour que la réponse ne puisse pas être ambiguë |
+| **Le sens de « taux de marge »** | associé | Question 06. Le mot et la formule de la Bible désignent deux ratios différents, et l'écart est de 125,00 EUR sur une commande de 250 EUR de coût, au taux de 50 % qu'il a donné le 01/09/2026. Sa propre formulation, « marge brute après coûts directs », est la lecture de la formule, et c'est celle qui tourne. Les deux restent affichées côte à côte sur l'écran « Coûts et marges » |
 | **Le délai d'urgence, qui est impossible** | associé | Question 14. Mesuré par la séance 07 : 4 jours ouvrés promis contre 6 jours de travail incompressible (transport 2, pressage 1, battement 1, transit du film 2). Toute commande urgente est en retard de deux jours dès la validation du BAT, et l'express ne tient qu'à un jour près. Le calcul est dans `tests/test-production.php`, donc la réponse déplace un test |
-| **Les cinq temps d'atelier jamais chronométrés** | associé | Question 05. Nos deux temps chiffrent la main-d'œuvre de sa propre commande d'exemple à 7,83 EUR là où elle en inscrit 45,00 : 37,17 EUR de trou, et 63,72 EUR de prix plancher. Une série chronométrée une fois referme l'écart |
+| **Les cinq temps d'atelier jamais chronométrés** | associé | Question 05. Ses deux temps chiffrent la main-d'œuvre de sa propre commande d'exemple à 2,83 EUR là où elle en inscrit 45,00 : **42,17 EUR de trou, et 72,29 EUR de prix plancher**. Le trou a GRANDI avec sa réponse du 01/09/2026, qui pose la pose à 15 s au lieu de 45. Il demande lui-même le chronométrage du cycle complet |
 | **Le taux de marge sur un textile nu** | associé | Question 42. Les 26 399 articles du catalogue sont importés avec leur coût réel et **sans prix de vente** : consultables, non commandables, tant que le taux n'est pas fixé |
 | Clés Stripe (test puis production) | associé | Séance 04. L'extension officielle est branchée et l'alarme distingue un compte de test d'un compte réel par le préfixe de la clé, pas par la case à cocher, qui se contredit elle-même sur une configuration jamais enregistrée. **Depuis la séance 13 elles bloquent une deuxième chose** : la politique de sécurité du contenu est envoyée en Report-Only côté boutique parce qu'aucun paiement réel n'a pu être exercé sous elle, et trois des quatre hôtes Stripe qu'elle autorise ne sont prouvés par rien |
 | L'identité légale complète et le RCS | associé | Questions 17 et **45**. Rien n'est facturable sans, et rien n'est inventé à la place |

@@ -118,9 +118,9 @@ describe( 'Production: when the film has to be bought', function () use ( $ts_pr
 
 	it( 'gives the press a whole day even for one garment, and scales past that', function () use ( $ts_prod_config ) {
 		eq( Production::press_days( 0, $ts_prod_config ), 1 );
-		eq( Production::press_days( 300, $ts_prod_config ), 1 );
-		eq( Production::press_days( 301, $ts_prod_config ), 2 );
-		eq( Production::press_days( 1000, $ts_prod_config ), 4 );
+		eq( Production::press_days( 500, $ts_prod_config ), 1 );
+		eq( Production::press_days( 501, $ts_prod_config ), 2 );
+		eq( Production::press_days( 1000, $ts_prod_config ), 2 );
 	} );
 
 	it( 'buys in Spain when the delay allows and in France when it does not', function () use ( $ts_prod_config, $ts_prod_roll_film ) {
@@ -159,8 +159,12 @@ describe( 'Production: when the film has to be bought', function () use ( $ts_pr
 	} );
 
 	it( 'pushes a big order onto the fast origin, because pressing it takes days', function () use ( $ts_prod_config, $ts_prod_roll_film ) {
+		// 2 400 and not the 1 400 this used to say: question 23's answer raised the
+		// press from 300 pieces a day to 500, so 1 400 garments are three days of
+		// pressing instead of five and the slow origin fits again. The threshold
+		// moved, the rule did not.
 		$small = Production::origin_for( '2026-08-19', '2026-09-04', 60, $ts_prod_config, $ts_prod_roll_film );
-		$big   = Production::origin_for( '2026-08-19', '2026-09-04', 1400, $ts_prod_config, $ts_prod_roll_film );
+		$big   = Production::origin_for( '2026-08-19', '2026-09-04', 2400, $ts_prod_config, $ts_prod_roll_film );
 		eq( $small['origin'], 'es' );
 		eq( $big['origin'], 'fr', 'five days of pressing eat the whole Spanish margin' );
 	} );
@@ -171,7 +175,7 @@ describe( 'Production: parameters', function () {
 		$c = Production::merge_config( array( 'lead_days' => array( 'urgent' => 6 ) ) );
 		eq( $c['lead_days']['urgent'], 6 );
 		eq( $c['lead_days']['standard'], 12, 'a partial save must not delete the keys it is silent about' );
-		eq( $c['press_per_day'], 300 );
+		eq( $c['press_per_day'], 500 );
 	} );
 
 	it( 'ignores a key it does not know and a value that is not a number', function () {

@@ -372,9 +372,10 @@ function ts_margin_suite( int $product_id ): void {
 		 * shaped the way it is.
 		 *
 		 * At the shipped demonstration tariff, a purchase price of 3,37 EUR and
-		 * question 06's rates (55 % target, 25 % minimum contribution), a run of
-		 * twelve tees sells at 147,84 EUR HT against a recommended 214,04 EUR and
-		 * a floor of 128,43 EUR. It is above the floor with the film really
+		 * question 06's rates (50 % target since his answer of 01/09/2026, 25 %
+		 * minimum contribution), a run of twelve tees sells at 147,84 EUR HT
+		 * against a recommended price and a floor the report computes. It was
+		 * above the floor with the film really
 		 * nested and BELOW it when the nesting service is unreachable and the
 		 * prudent bound is used, which is the state of this mirror. Either way it
 		 * is past the 15 % a salesperson may give away unaided.

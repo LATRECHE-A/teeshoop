@@ -1871,7 +1871,7 @@
 				"operator"
 			],
 			"derives": [
-				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 7,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 37,17 EUR d'écart et 63,72 EUR de prix plancher (tests/test-cost.php)."
+				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 2,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 42,17 EUR d'écart et 72,29 EUR de prix plancher (tests/test-cost.php)."
 			],
 			"sessions": [
 				"05"
@@ -1896,9 +1896,11 @@
 			"id": "H-Q05-TEMPS-STANDARDS",
 			"question": "Q05",
 			"level": "bloquant",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-18",
-			"statement_fr": "Une commande demande 60 secondes de préparation, et chaque transfert 45 secondes de pose. Les cinq autres opérations que le chapitre 1 énumère (réception et tri, pelage, second pressage, contrôle, pliage) valent 0 seconde parce que personne ne les a chronométrées.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 05 : « En production à bon rythme, nous sommes capables de faire environ un T-shirt avec marquage devant + derrière en 30 secondes sur la phase de pose », soit 15 s la pose. Réserve, la sienne : « Il faudra néanmoins chronométrer séparément un cycle complet incluant préparation, contrôle, pliage et emballage. » Les cinq autres opérations restent à zéro, donc cette réponse rend la ligne main-d'oeuvre plus juste et le TOTAL moins juste.",
+			"statement_fr": "Une commande demande 60 secondes de préparation, et chaque transfert 15 secondes de pose. Les cinq autres opérations que le chapitre 1 énumère (réception et tri, pelage, second pressage, contrôle, pliage) valent 0 seconde parce que personne ne les a chronométrées.",
 			"home": "php:Teeshoop\\Core\\Cost::default_config()#times_s",
 			"mirrors": [],
 			"literals": [],
@@ -1907,7 +1909,7 @@
 				"operator"
 			],
 			"derives": [
-				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 7,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 37,17 EUR d'écart et 63,72 EUR de prix plancher (tests/test-cost.php)."
+				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 2,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 42,17 EUR d'écart et 72,29 EUR de prix plancher (tests/test-cost.php). Le trou a GRANDI en recevant la réponse : il valait 37,17 EUR et 63,72 EUR à 45 secondes la pose."
 			],
 			"sessions": [
 				"05"
@@ -2118,9 +2120,11 @@
 			"id": "H-Q06-MARGE-CIBLE",
 			"question": "Q06",
 			"level": "bloquant",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-18",
-			"statement_fr": "La marge cible est de 55 % du prix de vente hors taxes.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 06 : « Nous retenons comme base un objectif de marge brute minimale d'environ 50 % après coûts directs, avec paramètres adaptables selon la technique, notamment pour la broderie. » Lu comme la cible et non comme le plancher : « marge brute après coûts directs » rapportée au prix de vente est exactement ce que produit prix = coût / (1 − taux). Réserve : sa phrase contient les deux mots (« objectif » et « minimale ») et il dit « environ ».",
+			"statement_fr": "La marge cible est de 50 % du prix de vente hors taxes.",
 			"home": "php:Teeshoop\\Core\\Cost::default_config()#target_margin_rate",
 			"mirrors": [],
 			"literals": [],
@@ -2129,7 +2133,7 @@
 				"operator"
 			],
 			"derives": [
-				"L'écart de 168,06 EUR entre les deux lectures de « taux de marge » sur un coût de 250,00 EUR (tests/test-margin.php)."
+				"L'écart de 125,00 EUR entre les deux lectures de « taux de marge » sur un coût de 250,00 EUR : 500,00 EUR lu comme la formule, 375,00 EUR lu comme les mots (tests/test-margin.php). C'était 168,06 EUR à 55 %."
 			],
 			"sessions": [
 				"05"
@@ -2141,7 +2145,7 @@
 				{
 					"from": "target_margin_rate",
 					"as": "pct",
-					"text": "55 %"
+					"text": "50 %"
 				}
 			]
 		},
@@ -2160,8 +2164,8 @@
 				"operator"
 			],
 			"derives": [
-				"Les trois planchers comparés sur l'exemple du chapitre 1 : 416,67 EUR (forme absolue corrigée), 428,57 EUR (forme en taux, celle qui est livrée) et 583,33 EUR (formule publiée).",
-				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 7,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 37,17 EUR d'écart et 63,72 EUR de prix plancher (tests/test-cost.php)."
+				"Les trois planchers comparés sur l'exemple du chapitre 1 : 416,67 EUR (forme absolue corrigée), 428,57 EUR (forme en taux, celle qui est livrée) et 583,33 EUR (formule publiée). Aucun des trois ne bouge avec la marge cible : le plancher ne dépend que de cette ligne et de la commission.",
+				"Le coût de main-d'œuvre de la commande de 30 t-shirts du chapitre 1 : 2,83 EUR contre les 45,00 EUR que la Bible y inscrit, soit 42,17 EUR d'écart et 72,29 EUR de prix plancher (tests/test-cost.php)."
 			],
 			"sessions": [
 				"05"
@@ -2940,9 +2944,11 @@
 			"id": "H-Q23-CADENCE",
 			"question": "Q23",
 			"level": "important",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-19",
-			"statement_fr": "L'atelier presse 300 pièces par jour ouvré avec une personne.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 23 : « Capacité de travail à retenir actuellement : environ 500 pièces par jour. » Réserve, et elle est chiffrable : l'hypothèse écrite disait 300 pièces AVEC UNE PERSONNE et la réponse ne donne pas d'effectif. Si 500 est le fait de deux personnes, le coût de main-d'oeuvre de la question 05 double et rien ici ne le dit.",
+			"statement_fr": "L'atelier presse 500 pièces par jour ouvré.",
 			"home": "php:Teeshoop\\Core\\Production::default_config()#press_per_day",
 			"mirrors": [],
 			"literals": [],
@@ -2952,7 +2958,7 @@
 				"operator"
 			],
 			"derives": [
-				"Le nombre de jours de pressage qu'un lot demande, donc sa date limite de commande de film : mesuré, une commande de 1 400 vêtements bascule sur l'origine française là où une de 60 tient en Espagne."
+				"Le nombre de jours de pressage qu'un lot demande, donc sa date limite de commande de film : remesuré le 01/09/2026, il faut désormais 2 400 vêtements pour basculer sur l'origine rapide là où 1 400 suffisaient à 300 pièces par jour (tests/test-production.php)."
 			],
 			"sessions": [
 				"07"
@@ -2963,8 +2969,8 @@
 				{
 					"from": "press_per_day",
 					"as": "int",
-					"text": "300",
-					"in": "300 pièces par jour"
+					"text": "500",
+					"in": "500 pièces par jour"
 				}
 			]
 		},

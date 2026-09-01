@@ -135,16 +135,16 @@ describe( 'Cost: a total that says what it is worth', function () {
 describe( 'Cost: labour is temps standard x taux horaire chargé', function () use ( $ts_cost_config ) {
 	it( 'multiplies each operation by the unit the chapter names', function () use ( $ts_cost_config ) {
 		// One order, 30 garments, one transfer each. 60 s of preparation plus
-		// 30 x 45 s of pressing = 1 410 s = 0,391666… h at 20,00 EUR.
+		// 30 x 15 s of pressing = 510 s = 0,141666… h at 20,00 EUR.
 		$l = Cost::labour( array( 'orders' => 1, 'pieces' => 30, 'transfers' => 30 ), $ts_cost_config );
-		eq( $l['seconds'], 1410 );
-		eq( $l['amount_ht'], 783, '1410 / 3600 x 2000 = 783,33 cents' );
+		eq( $l['seconds'], 510 );
+		eq( $l['amount_ht'], 283, '510 / 3600 x 2000 = 283,33 cents' );
 	} );
 
 	it( 'counts transfers and not garments, because a back print is a second press', function () use ( $ts_cost_config ) {
 		$one = Cost::labour( array( 'orders' => 1, 'pieces' => 10, 'transfers' => 10 ), $ts_cost_config );
 		$two = Cost::labour( array( 'orders' => 1, 'pieces' => 10, 'transfers' => 20 ), $ts_cost_config );
-		eq( $two['seconds'] - $one['seconds'], 450, 'ten more presses is ten more 45 s' );
+		eq( $two['seconds'] - $one['seconds'], 150, 'ten more presses is ten more 15 s' );
 	} );
 
 	it( 'names the five operations nobody has ever timed', function () use ( $ts_cost_config ) {
@@ -166,7 +166,7 @@ describe( 'Cost: labour is temps standard x taux horaire chargé', function () u
 		$free = Cost::merge_config( array( 'hourly_ht' => 0 ) );
 		$l    = Cost::labour( array( 'orders' => 1, 'pieces' => 30, 'transfers' => 30 ), $free );
 		eq( $l['amount_ht'], 0 );
-		eq( $l['seconds'], 1410, 'the time was still spent' );
+		eq( $l['seconds'], 510, 'the time was still spent' );
 	} );
 } );
 
@@ -452,32 +452,42 @@ describe( 'Cost: against the Bible’s own thirty-t-shirt example', function () 
 		$ours  = Cost::labour( array( 'orders' => 1, 'pieces' => 30, 'transfers' => 30 ), $ts_cost_config );
 		$bible = 4500;
 
-		eq( $ours['amount_ht'], 783 );
-		eq( $bible - $ours['amount_ht'], 3717, 'a 37,17 EUR hole in a 250,00 EUR cost' );
+		eq( $ours['amount_ht'], 283 );
+		eq( $bible - $ours['amount_ht'], 4217, 'a 42,17 EUR hole in a 250,00 EUR cost' );
 
 		/*
 		 * Where it goes. At 20,00 EUR the hour, 45,00 EUR is 2 h 15 for thirty
 		 * garments, i.e. 270 s a piece; question 05's two timed operations account
-		 * for 47 s of that. The five untimed ones are the other 223 s, and they
+		 * for 17 s of that. The five untimed ones are the other 253 s, and they
 		 * are exactly the operations the chapter lists and nobody has stopwatched.
+		 *
+		 * THE HOLE GREW WHEN HE ANSWERED, from 37,17 EUR to 42,17. His « 30
+		 * secondes pour un devant + derrière » is three times faster than the
+		 * written default, so the two timed operations now account for less of
+		 * the chapter's own 45,00 EUR, not more. The answer made the labour line
+		 * righter and the total wronger, and it is the same answer that asks for
+		 * the missing chronometry.
 		 */
 		$implied_s = (int) round( $bible / $ts_cost_config['hourly_ht'] * 3600 );
 		eq( $implied_s, 8100 );
-		eq( (int) round( ( $implied_s - $ours['seconds'] ) / 30 ), 223 );
+		eq( (int) round( ( $implied_s - $ours['seconds'] ) / 30 ), 253 );
 	} );
 
-	it( 'moves the floor price by 63,72 EUR, which is what the missing times are worth', function () use ( $ts_cost_config ) {
+	it( 'moves the floor price by 72,29 EUR, which is what the missing times are worth', function () use ( $ts_cost_config ) {
+		// THE SHIPPED RULES, not a copy of them: the point of this test is what
+		// the missing chronometry costs on the shop's own margin policy, and a
+		// literal target here went on saying 55 % after his answer moved it.
 		$rules = array(
-			'target_margin_rate'    => 0.55,
-			'min_contribution_rate' => 0.25,
+			'target_margin_rate'    => $ts_cost_config['target_margin_rate'],
+			'min_contribution_rate' => $ts_cost_config['min_contribution_rate'],
 			'commission_rate'       => 0.40,
-			'max_discount_rate'     => 0.15,
+			'max_discount_rate'     => $ts_cost_config['max_discount_rate'],
 		);
 
-		$with_ours  = Margin::plan( 25000 - 3717, $rules );
+		$with_ours  = Margin::plan( 25000 - 4217, $rules );
 		$with_bible = Margin::plan( 25000, $rules );
 
-		eq( $with_bible['floor_ht'] - $with_ours['floor_ht'], 6372 );
+		eq( $with_bible['floor_ht'] - $with_ours['floor_ht'], 7229 );
 	} );
 } );
 

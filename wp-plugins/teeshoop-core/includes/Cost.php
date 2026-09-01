@@ -214,15 +214,29 @@ final class Cost {
 			/*
 			 * Standard times, SECONDS, per the unit named in OPERATIONS.
 			 *
-			 * Question 05's default gives two of the seven: "45 secondes par pose
-			 * de transfert, 60 secondes de préparation par commande". The five
-			 * others have never been timed on a real series and are therefore 0,
-			 * which `labour()` reports as UNTIMED rather than as free.
+			 * Question 05's answer of 1 September 2026: « En production à bon
+			 * rythme, nous sommes capables de faire environ un T-shirt avec
+			 * marquage devant + derrière en 30 secondes sur la phase de pose. »
+			 * Two transfers in thirty seconds is FIFTEEN seconds a pose, where
+			 * the written default assumed forty-five.
+			 *
+			 * ⚠ THIS ANSWER LOWERS THE FLOOR PRICE, AND IT IS THE ONLY ONE THAT
+			 * DOES. Labour is a direct cost, so a third of the time is a third of
+			 * the cost and a lower floor, on a cost that still counts five of the
+			 * seven operations at zero and carries no defect provision at all. The
+			 * associate asks for the missing chronometry himself, in the same
+			 * paragraph: « Il faudra néanmoins chronométrer séparément un cycle
+			 * complet incluant préparation, contrôle, pliage et emballage. » Until
+			 * that arrives this figure makes the labour line more accurate and the
+			 * TOTAL less so, which is worth knowing before reading a floor.
+			 *
+			 * The other five have never been timed on a real series and are
+			 * therefore 0, which `labour()` reports as UNTIMED rather than as free.
 			 */
 			'times_s'       => array(
 				'reception'       => 0,
 				'preparation'     => 60,
-				'pressage'        => 45,
+				'pressage'        => 15,
 				'pelage'          => 0,
 				'second_pressage' => 0,
 				'controle'        => 0,
@@ -445,22 +459,36 @@ final class Cost {
 			'catalogue_divisor_optimistic' => 2.5,
 
 			/*
-			 * The margin rules. Question 06's written default: "Marge cible 55 %
+			 * The margin rules. Question 06's written default was "Marge cible 55 %
 			 * sur textile et marquage, contribution minimale 25 % du prix hors
-			 * taxes, remise maximale de 15 % sans validation de votre part."
+			 * taxes, remise maximale de 15 % sans validation de votre part", and
+			 * the answer of 1 September 2026 moves the first of the three:
+			 * « Nous retenons comme base un objectif de marge brute minimale
+			 * d'environ 50 % après coûts directs, avec paramètres adaptables selon
+			 * la technique. »
+			 *
+			 * READ AS THE TARGET AND NOT AS THE FLOOR, and the reading is worth
+			 * stating because his sentence contains both words. « Marge brute après
+			 * coûts directs », as a share of the selling price, is exactly what
+			 * `target_margin_rate` is: prix = coût / (1 − taux) gives a gross
+			 * margin equal to the rate. `min_contribution_rate` is a different
+			 * quantity, what is left AFTER commission, so it cannot be what
+			 * « marge brute » names. The other two are untouched: he confirms the
+			 * floor exists (« Seul le dirigeant peut autoriser exceptionnellement
+			 * une vente sous le prix plancher ») without giving either figure.
 			 *
 			 * `target_margin_rate` IS THE TAUX DE MARQUE, margin over selling
 			 * price, which is the ratio the Bible's formula and its worked
 			 * example use whatever the chapter calls it. See the second finding
 			 * at the top of Margin.php: read as the words normally mean, the same
-			 * 55 % prices a 250 EUR cost 168,06 EUR lower.
+			 * 50 % prices a 250 EUR cost 125,00 EUR lower.
 			 *
 			 * `min_contribution_rate` is a share of the price, which is question
 			 * 06's own wording and NOT the Bible's absolute contribution. The two
 			 * are different formulas with different failure modes; both are in
 			 * Margin.php and this is the one in force.
 			 */
-			'target_margin_rate'    => 0.55,
+			'target_margin_rate'    => 0.50,
 			'min_contribution_rate' => 0.25,
 			'max_discount_rate'     => 0.15,
 
