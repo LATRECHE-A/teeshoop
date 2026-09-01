@@ -1296,6 +1296,41 @@ sont, une comparaison de marché.
 couture : tout ce qui précède est local et réversible, la 14 touche le vrai domaine et la 15
 encaisse de l'argent réel.
 
+**Et la passe adverse a trouvé vingt-sept choses sur une séance pourtant verte,
+dont deux qui auraient gâché une planche.** Quarante-deux angles, trente-sept
+trouvailles, vingt-sept qui ont survécu à leur propre vérification. Ce qu'elles
+ont en commun est exactement ce que le carnet de la compétence dit de chercher :
+aucune n'est une erreur de logique dans le code neuf. Chacune est une hypothèse
+qui tenait sous le rouleau et qui a cessé de tenir quand le film est devenu une
+feuille, sans que rien ne soit ajouté au moment où le sens a changé.
+
+Les deux qui gâchent une planche :
+
+- **Un brouillon de lot survit au changement de laize.** `create_lot` vérifie la
+  laize le jour où la planche est imbriquée ; `send_lot` re-tarife délibérément
+  le jour où l'argent part, parce qu'une semaine peut passer, et ne revérifiait
+  aucune géométrie. Mesuré sur le moteur livré : la même planche de 2,40 m
+  facture 57,84 EUR en rouleau et 33,90 EUR en six feuilles, silencieusement, et
+  l'opérateur commande six feuilles de 33 cm pour une planche de 56. Une
+  modification à l'écran des coûts suffit, sans aucun déploiement. La comparaison
+  est désormais une seule fonction posée aux deux moments.
+- **Une planche plus longue qu'une feuille.** Le champ de longueur du studio est
+  modifiable exprès et se borne au profil du fournisseur, pas au film que la
+  boutique achète. Sous le rouleau c'était une coupe plus longue, sans
+  conséquence. Depuis le 1er septembre chaque 46 cm est un bord réel : une
+  planche continue, c'est six feuilles et cinq coupes dans le dessin.
+
+Les autres, par famille : l'écran des coûts ne savait pas éditer la feuille (une
+configuration enregistrée avant la séance re-imposait 68 % de sous-coût), le
+portail lisait 200 produits sur 462 et concluait « rien trouvé », le registre
+surveillait deux champs morts, la provenance disait des mètres pour une facture
+qui compte des feuilles, l'atelier proposait encore un fournisseur espagnol que
+le tarif refuse, `Quote::expired()` n'avait aucun appelant alors que les CGV
+publient quinze jours, une version future des CGV aurait libéré la version en
+vigueur de toute comparaison, et quatre commentaires décrivaient une géométrie
+que le code refuse. Chaque correctif porte son test, et chaque test a été passé
+une fois sur un garde-fou volontairement cassé.
+
 **Le portail de mise en ligne existe : `npm run verify:lancement`.** C'est la troisième des
 trois règles du 18 août, la seule qui n'avait jamais été construite, et elle est écrite en
 toutes lettres dans `QUESTIONS-ASSOCIE.md` : « la mise en ligne est bloquée automatiquement
