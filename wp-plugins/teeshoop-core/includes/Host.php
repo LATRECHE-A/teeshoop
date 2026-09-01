@@ -101,16 +101,33 @@ final class Host {
 	 * failure with a different remedy, and merging the two lists would mean an
 	 * unpublished telephone number blocking a customer's invoice.
 	 *
+	 * TWO FIELDS SHARE A LABEL, and a list of labels alone cannot tell them
+	 * apart: the host's telephone and the publisher's contact telephone are both
+	 * « Téléphone ». On the mentions légales page they sit under their own
+	 * headings and the context does the work; in a flat list, which is what the
+	 * launch gate prints, the same word appeared twice and read as a bug. So a
+	 * label that is not unique carries the block it belongs to.
+	 *
 	 * @return string[] the French labels, in order
 	 */
 	public static function missing(): array {
 		$all    = self::all();
-		$labels = self::fields() + self::contact_fields();
+		$host   = self::fields();
+		$labels = $host + self::contact_fields();
+		$seen   = array_count_values( array_values( $labels ) );
 		$out    = array();
 		foreach ( $labels as $key => $label ) {
-			if ( '' === ( $all[ $key ] ?? '' ) ) {
-				$out[] = $label;
+			if ( '' !== ( $all[ $key ] ?? '' ) ) {
+				continue;
 			}
+			$out[] = ( $seen[ $label ] ?? 0 ) > 1
+				? sprintf(
+					/* translators: 1: which block the field belongs to, 2: the field's own label. */
+					__( '%1$s : %2$s', 'teeshoop' ),
+					isset( $host[ $key ] ) ? __( 'hébergeur', 'teeshoop' ) : __( 'éditeur', 'teeshoop' ),
+					$label
+				)
+				: $label;
 		}
 		return $out;
 	}

@@ -161,6 +161,13 @@ require_once __DIR__ . '/includes/Privacy.php';
 require_once __DIR__ . '/includes/LegalPage.php';
 require_once __DIR__ . '/includes/Content.php';
 require_once __DIR__ . '/includes/Seo.php';
+/*
+ * The launch gate's own half. Last of the plain modules and after everything it
+ * asks, because it reads the identity, the VAT timeline, the terms and the
+ * products: a file that answers « may this shop open » must load after the
+ * things that decide the answer.
+ */
+require_once __DIR__ . '/includes/Launch.php';
 require_once __DIR__ . '/includes/Admin.php';
 require_once __DIR__ . '/includes/CostAdmin.php';
 require_once __DIR__ . '/includes/Cli.php';

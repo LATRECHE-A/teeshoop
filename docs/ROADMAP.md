@@ -1277,12 +1277,43 @@ linéaire** n'étaient écrits dans aucun code exécutable. Ce dernier point est
 séance 05 : le tarif est désormais l'autorité du coût de marquage, et le module DTF garde
 ses tarifs publics relevés pour ce qu'ils sont, une comparaison de marché.
 
-**13b la solde**, entre la 13 et la 14, ce qui est la bonne couture : tout ce qui précède
-est local et réversible, la 14 touche le vrai domaine et la 15 encaisse de l'argent réel.
-Elle confronte chaque réponse au registre, applique les changements par ordre de portée,
-**remesure** ce qui dépendait d'une valeur modifiée au lieu de le réaffirmer, réaccorde ce
-que le site promet en public avec ce que l'atelier peut tenir, et installe le contrôle qui
-refuse la mise en ligne tant qu'une hypothèse bloquante atteint encore un client.
+**13b l'a soldée le 1er septembre 2026**, entre la 13 et la 14, ce qui est la bonne
+couture : tout ce qui précède est local et réversible, la 14 touche le vrai domaine et la 15
+encaisse de l'argent réel.
+
+**Le portail de mise en ligne existe : `npm run verify:lancement`.** C'est la troisième des
+trois règles du 18 août, la seule qui n'avait jamais été construite, et elle est écrite en
+toutes lettres dans `QUESTIONS-ASSOCIE.md` : « la mise en ligne est bloquée automatiquement
+tant qu'une réponse bloquante manque sur un nombre qu'un client, un fournisseur ou une
+imprimante finit par voir ». Cinq conditions, et il **refuse** tant que l'une tient :
+
+1. une ligne du registre `bloquant`, encore supposée, que personne n'a datée, et qui atteint
+   un client, un fournisseur ou une presse ;
+2. l'identité légale incomplète, celle de la facture (question 17) **et** celle du site au
+   sens de l'article 6 III de la LCEN (question 56) ;
+3. le régime de TVA non confirmé, **dans un sens ou dans l'autre** : il faut à la fois un
+   barème utilisable dans la boutique et une date de réponse sur `H-Q17-TVA`, et la réponse
+   du 1er septembre (« conserver l'hypothèse ... sous réserve de validation comptable ») n'en
+   est pas une ;
+4. des conditions générales en vigueur que personne n'a enregistrées comme relues, avec le
+   nom du relecteur et la date ;
+5. un produit personnalisable en vente qui ne déclare aucun textile nu, donc une commande
+   que l'atelier ne pourra jamais approvisionner.
+
+Il **échoue fermé** : un registre illisible refuse, une boutique injoignable refuse, et une
+condition qu'il n'a pas pu évaluer est comptée comme non vérifiée et non comme satisfaite.
+`--self-test` casse les cinq conditions une par une et vérifie aussi qu'un dépôt sans
+reproche passe, parce qu'un portail qui refuse tout n'est pas un portail. La chaîne
+d'intégration l'exécute en `--depot --ci`, qui pose une autre question : « ce portail
+fonctionne-t-il », et non « peut-on lancer », dont la réponse est non pour des semaines.
+
+**Les séances 14 et 15 le lisent avant de déployer et avant d'encaisser.** Mesuré le
+1er septembre 2026 sur le miroir : **refusé, quatorze raisons**, dont douze lignes de
+registre encore supposées.
+
+Elle a par ailleurs confronté chaque réponse au registre, appliqué les changements par ordre
+de portée, **remesuré** ce qui dépendait d'une valeur modifiée au lieu de le réaffirmer, et
+réaccordé ce que le site promet en public avec ce que l'atelier peut tenir.
 
 `QUESTIONS-ASSOCIE.md` contient **61 questions** auxquelles seul l'associé peut répondre, dont
 **21 marquées bloquantes** (comptées le 28/08/2026, et le registre des hypothèses vérifie à
