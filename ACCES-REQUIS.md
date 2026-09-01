@@ -4,7 +4,7 @@
 > Il est ordonné par ce qui bloque le plus tôt. Chaque ligne dit *pourquoi* l'accès
 > est nécessaire. Si la raison ne tient pas, l'accès ne doit pas être donné.
 >
-> Dernière mise à jour : 28 août 2026 (séance 13, §6 quinquies) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
+> Dernière mise à jour : 1er septembre 2026 (§6 sexies, les réponses de l'associé) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
 
 ---
 
@@ -31,10 +31,15 @@ Ce qui reste à obtenir n'est plus un accès mais **des réponses** : celles de 
 dans [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md), dont la TVA (constat 6), qui est
 légale et bloquante.
 
-**Depuis le 18 août, deux choses manquent à nouveau.** La première bloque une vente :
-les clés Stripe de test. Le paiement est construit et il refuse d'encaisser sans elles. Voir §6 bis.
-Une démarche non technique s'ajoute au même endroit : la plateforme de facturation
-électronique, obligatoire en réception au 1er septembre 2026 (§6 ter).
+**Les clés Stripe de test sont arrivées le 1er septembre 2026** et sont posées hors du
+dépôt. Elles ont été essayées, pas supposées : un paiement de test de 14,50 EUR est passé
+de bout en bout sur le compte réel en mode test. Ce qui manque encore côté paiement est le
+secret de signature du webhook, et le compte n'est pas activé en mode réel. Voir §6 bis
+et §6 sexies.
+
+Une démarche non technique reste au même endroit : la plateforme de facturation
+électronique, obligatoire en réception au 1er septembre 2026, c'est-à-dire aujourd'hui
+(§6 ter).
 
 La seconde ne bloque rien mais dégrade un chiffre : la constante
 `TEESHOOP_WORKER_TOKEN` dans le `wp-config.php` de la boutique (§4 bis). Sans elle, le
@@ -58,8 +63,8 @@ répond 503 ou 401 et l'écran des achats affiche pourquoi.
 | À poser | Qui | Où | Sans lui |
 |---|---|---|---|
 | `FR_CUSTOMER_NR` | **l'associé** (ou son contact fournisseur) | `wrangler secret put FR_CUSTOMER_NR` | La route répond 503 et ne construit aucun document. Voir §5 : nous avons essayé de le deviner, et la sonde dit que c'est indécidable |
-| `FR_ORDER_TOKEN` | nous, à tirer au sort | `wrangler secret put FR_ORDER_TOKEN` | La route répond 401. C'est le second secret, celui que l'importateur de catalogue ne porte pas |
-| `TEESHOOP_ORDER_TOKEN` | nous, **la même valeur** | `wp config set TEESHOOP_ORDER_TOKEN <valeur> --type=constant` | L'écran des achats refuse d'envoyer et le dit |
+| ~~`FR_ORDER_TOKEN`~~ | **posé le 01/09**, tiré au sort et vérifié dans `wrangler secret list` | fait | (c'était le second secret, celui que l'importateur de catalogue ne porte pas) |
+| `TEESHOOP_ORDER_TOKEN` | nous, **la même valeur**, elle est dans `~/.config/teeshoop/worker.env` | `./scripts/wp-secrets.sh` en local, `wp config set TEESHOOP_ORDER_TOKEN <valeur> --type=constant --quiet` sur la boutique | L'écran des achats refuse d'envoyer et le dit. Pas posable depuis cette session : ni docker, ni SSH (§6 sexies) |
 | La ligne de cron du stock | déploiement | `0 2,6,10,14,18,22 * * * … wp teeshoop stock rafraichir --discret` | Les relevés vieillissent et la boutique dit « Délai à confirmer », ce qui est correct et non une panne |
 | Le textile nu déclaré sur chaque produit personnalisable | un opérateur | fiche produit, sous « Vêtement Teeshoop » | Le panier d'achat refuse **chaque ligne** par son nom. Aujourd'hui aucun produit ne le déclare, donc aucun panier réel n'est chiffrable |
 
@@ -681,6 +686,156 @@ elle appartient à la séance 14, qui a le déploiement sous les yeux.
 
 ---
 
+## 6 sexies. Le 1er septembre 2026 : ce qui a été posé, ce qui a été mesuré, ce qui manque
+
+Les réponses de l'associé sont arrivées (les 61, voir `QUESTIONS-ASSOCIE.md`) et les clés
+Stripe de test avec elles. Cette section dit ce qui a réellement été fait, avec la mesure
+à côté, parce qu'une clé « posée » qu'on n'a pas essayée n'est pas une clé posée.
+
+### Stripe : posé, et essayé
+
+Les clés de **test** vivent dans `~/.config/teeshoop/stripe.env`, en 0600, hors du dépôt,
+avec `~/.config/teeshoop/woo.env`. Rien de tout cela ne peut être commité par accident.
+
+Ce qui a été mesuré le 01/09/2026, contre l'API Stripe, avec la clé secrète de test :
+
+| Relevé | Valeur |
+|---|---|
+| Compte | `acct_1UAr5mRBpUHFK0uT`, standard, « teeshoop test » |
+| Pays | **FR**, devise par défaut **eur** |
+| `details_submitted` | `true` |
+| `charges_enabled` / `payouts_enabled` | **`false` / `false`** |
+| `card_payments` | **inactive** |
+| `cartes_bancaires_payments` | **inactive** |
+| Moyens activés sur la configuration « Default » | `apple_pay`, `bancontact`, `card`, `klarna` |
+| Paiement de test de bout en bout | **14,50 EUR, `succeeded`**, carte de test Visa |
+
+Trois conséquences, et aucune n'est un détail.
+
+**Le mode test marche, le mode réel n'est pas ouvert.** Un compte standard encaisse en test
+même quand il n'est pas activé, ce que le paiement réussi ci-dessus démontre. Mais
+`charges_enabled` à `false` veut dire qu'aucune carte réelle ne passerait aujourd'hui.
+L'activation du compte est une démarche chez Stripe, pas une clé, et elle appartient à la
+séance 14.
+
+**Les Cartes Bancaires sont inactives.** Le §6 bis annonçait ce contrôle comme « à faire une
+fois avant la mise en ligne » ; il est fait, et la réponse est non. La plupart des cartes
+françaises sont co-badgées CB, et le routage CB coûte moins cher que Visa ou Mastercard.
+C'est une case du tableau de bord Stripe, et c'est de l'argent à chaque commande.
+
+**Deux moyens de paiement demandés par la question 15 ne sont pas activés :** Google Pay
+n'apparaît pas dans la configuration, et le virement SEPA non plus. Le mandat administratif
+n'est pas un moyen Stripe et se traite hors ligne. Bancontact, lui, est activé et n'a été
+demandé par personne : c'est belge, et la question 35 limite la livraison à la France
+métropolitaine.
+
+Ce qui manque encore :
+
+| Quoi | Où le prendre | Sans lui |
+|---|---|---|
+| `STRIPE_TEST_WEBHOOK_SECRET` (`whsec_…`) | Stripe, Développeurs puis Webhooks, mode test | Une commande payée dont la redirection de retour est perdue peut ne jamais passer en « payée », et rien ne le signale |
+| `pk_live_…`, `sk_live_…`, secret du webhook réel | les mêmes écrans, mode réel | Séance 14. **Jamais par message** |
+| L'activation du compte (`charges_enabled`) | Stripe, onboarding du compte | Aucune carte réelle ne passe |
+| Cartes Bancaires | tableau de bord Stripe, moyens de paiement | On paie le réseau le plus cher sur chaque carte française |
+
+**Une réserve sur la façon dont elles sont arrivées.** Le §6 bis dit, et il a raison, que
+des clés envoyées par message sont à révoquer. Ce sont des clés de **test** : aucun compte
+bancaire n'est exposé et aucune somme réelle n'est atteignable avec elles. La règle reste
+la bonne, et la clé secrète de test se fait tourner en un clic (Stripe, Développeurs, Clés
+API, « Roll key »). Pour les clés **réelles**, la règle n'admet aucune exception.
+
+### `FR_ORDER_TOKEN` : posé des deux côtés que nous contrôlons
+
+Tiré au sort le 01/09/2026 (`openssl rand -base64 32`), et posé :
+
+- sur le **Worker de production** : `wrangler secret put FR_ORDER_TOKEN`, vérifié dans
+  `wrangler secret list`, qui montre maintenant `ADMIN_TOKEN`, `FR_ORDER_TOKEN`,
+  `FR_WS_PASS`, `FR_WS_USER` ;
+- dans `.dev.vars`, pour `wrangler dev`, fichier ignoré par git ;
+- dans `~/.config/teeshoop/worker.env`, en 0600, parce qu'un secret qui n'existe qu'à un
+  seul endroit est un secret qu'on repose à zéro le jour où ce endroit disparaît.
+
+Il reste à poser sur la **boutique**, sous le nom `TEESHOOP_ORDER_TOKEN`, et ce n'est pas
+faisable depuis cette session (voir « deux empêchements » plus bas).
+
+Ce que la route répond aujourd'hui, mesuré contre le Worker de production
+(`https://tshop.abdellah-latreche04.workers.dev`, qui n'était écrit nulle part et l'est
+maintenant) :
+
+| Appel | Réponse |
+|---|---|
+| `POST /api/fr/order`, sans rien | 401 |
+| avec un `Bearer` qui n'est pas le bon | 401 `admin_auth` |
+| `GET /` | 200, le Worker sert |
+
+**Le `ADMIN_TOKEN` de production n'est pas entre nos mains.** Celui de `.dev.vars` est
+refusé par le Worker déployé, ce qui est la rotation du §4 faisant son travail. Conséquence
+concrète et à ne pas découvrir en séance 14 : nous ne pouvons ni vérifier la route d'achat
+de bout en bout, ni poser `TEESHOOP_CATALOGUE_TOKEN` et `TEESHOOP_WORKER_TOKEN` sur la
+boutique, puisque les deux doivent porter cette valeur. Elle se relit dans le tableau de
+bord Cloudflare ou se refait avec `wrangler secret put ADMIN_TOKEN`, et si on la refait il
+faut la reposer sur la boutique dans le même geste.
+
+### Un nouvel accès, que les réponses créent : Imbretex
+
+Quatre réponses (questions 3, 9, 43 et 46) nomment **Imbretex** comme fournisseur
+prioritaire, comme référence pour lire le stock, et comme source du délai de 24 heures.
+Nous n'avons aucun accès Imbretex : ni compte, ni identifiants de webservice, ni grille.
+Tout ce qui est construit lit Falk & Ross.
+
+Ce n'est pas un réglage et ce n'est pas non plus une demande d'accès ordinaire : tant que
+la séance 13b n'a pas tranché ce que cette réponse change, demander des identifiants pour
+une intégration qui n'existe pas serait prématuré. Ce qui est certain, c'est que la
+question 3 dit « les frais de port et seuils de franco doivent être récupérés directement
+depuis les comptes fournisseurs », et que sans accès personne ne peut les récupérer.
+
+### `FR_CUSTOMER_NR` : toujours absent, et les réponses ne le donnent pas
+
+La question 22 a été répondue et parle des tarifs négociés et de la validation manuelle.
+Elle ne donne pas le numéro de client. Le §5 reste vrai mot pour mot : la route répond 503
+et ne construit aucun document, la devinette a été supprimée, et la sonde du fournisseur ne
+sait pas distinguer un numéro faux du nôtre. **C'est un numéro à lire sur une facture.**
+
+### Deux empêchements de cette machine, qui ne sont pas des accès manquants
+
+Aucun des deux n'appartient au projet, et les deux se règlent sans demander quoi que ce
+soit à personne.
+
+| Empêchement | Diagnostic | Remède |
+|---|---|---|
+| Le miroir WordPress local ne démarre pas | `docker compose up` échoue sur « failed to create endpoint ». Le noyau qui tourne est `7.1.11-arch1-1` et `/lib/modules/` ne contient que `6.18.48-1-lts` et `7.2.2-arch1-1` : la mise à jour a emporté l'arborescence de modules du noyau courant, donc `veth` ne peut plus se charger et docker n'a plus de réseau conteneur | **Redémarrer** sur `7.2.2-arch1-1` |
+| `ssh teeshoop` ne passe pas | « Network is unreachable » puis « Connection timed out ». Ce n'est pas la clé (elle est en place, en 0600, et le `Host teeshoop` est configuré) : le port 22 sortant est bloqué depuis cet environnement, y compris vers `github.com:22`. Le HTTPS, lui, passe (`teeshoop.com` répond 301) | Ouvrir le port 22 sortant, ou faire les gestes o2switch depuis un terminal ordinaire |
+
+Tant que le premier tient, `TEESHOOP_ORDER_TOKEN` et les clés Stripe ne peuvent pas être
+posés sur le miroir. `scripts/wp-secrets.sh` existe pour que ce soit une seule commande le
+jour où docker remarche, et il refuse proprement en attendant :
+
+```bash
+./scripts/wp-secrets.sh            # pose ce qui manque
+./scripts/wp-secrets.sh --etat     # n'écrit rien, dit ce qui est posé
+```
+
+Il lit ses valeurs dans `~/.config/teeshoop/` et dans `.dev.vars`, jamais dans le dépôt, et
+il ne touche jamais la production : `wrangler secret put` reste une commande que l'on tape.
+
+### Un sujet que l'associé ouvre lui-même, et qui n'est pas technique
+
+Son second document se termine par un point sur la **propriété du code** que personne
+n'avait posé : le code ne doit pas dépendre durablement du dépôt personnel d'un
+développeur, et il faut formaliser avant le lancement commercial la propriété ou les droits
+d'utilisation du code, la situation des développements faits en stage ou en alternance, le
+dépôt Git principal de l'entreprise et ses administrateurs, la propriété du domaine, de
+l'hébergement, des comptes fournisseurs et des clés API, les licences, et ce qui permet à
+Teeshoop de continuer à fonctionner si un développeur part.
+
+C'est ici parce que c'est ce document qui tient la liste de ce qui appartient à qui. Deux
+faits utiles pour la conversation : le dépôt `LATRECHE-A/teeshoop` est privé et personnel,
+et le compte Cloudflare qui porte le Worker, R2 et les secrets est
+`abdellah.latreche04@gmail.com`. Le §6 prévoyait déjà d'ajouter l'associé en lecture ; la
+demande est maintenant plus large que ça.
+
+---
+
 ## 7. Plus tard : inutile de les créer maintenant
 
 Ces accès ne servent qu'à partir de R1/R2. Les créer trop tôt, c'est multiplier les
@@ -752,7 +907,9 @@ Pour situer ce qui est réellement bloqué et ce qui ne l'est pas :
 | Créer les produits de R1 | non (clés Woo, vérifiées en écriture le 14/08) |
 | Créer `studio.teeshoop.com` | non (`uapi SubDomain`, voir §2) |
 | Figer PHP, poser le cron serveur, brancher Redis | non (SSH, voir §2) |
-| Encaisser un paiement de test | **oui : clés Stripe de test** (R1, §7) |
+| Encaisser un paiement de test | non, depuis le 01/09 (clés posées et essayées, §6 sexies) |
+| Faire tourner le miroir WordPress local | **oui : docker n'a plus de réseau conteneur** (§6 sexies) |
+| Ouvrir une session SSH depuis cette machine | **oui : le port 22 sortant ne passe pas** (§6 sexies) |
 | Trancher la TVA, les CGV, les prix | **oui : réponses de l'associé** |
 
 Autrement dit : au 14/08, **aucun travail technique n'est bloqué par un accès**. Ce
