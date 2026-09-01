@@ -51,8 +51,13 @@ dire_pose()    { printf '  posé    %s\n' "$1"; ok=$((ok + 1)); }
 lire() {
   # lire FICHIER CLE : imprime la valeur, rien si absente. Pas de `source`,
   # parce qu'un fichier de secrets n'est pas un script à exécuter.
+  #
+  # Les espaces autour du `=` sont tolérés parce que .dev.vars en contient déjà
+  # (`FR_WS_USER =…`, écrit à la main le 12/08). Une lecture qui rate sur une
+  # espace rendrait un secret « absent » alors qu'il est là, et le script
+  # poserait un jeton vide en croyant bien faire.
   [ -f "$1" ] || return 0
-  sed -n "s/^$2=//p" "$1" | head -1
+  sed -n "s/^[[:space:]]*$2[[:space:]]*=[[:space:]]*//p" "$1" | head -1
 }
 
 ADMIN_TOKEN="$(lire "${ROOT}/.dev.vars" ADMIN_TOKEN)"
