@@ -1280,6 +1280,16 @@ final class Production {
 		 * packed at 0 mm between transfers is film the workshop cannot cut apart,
 		 * and it is also a shorter sheet.
 		 */
+		/*
+		 * THE ORIGIN HAS TO BE ONE THE TARIFF CAN BE BOUGHT FROM. The workshop
+		 * screen still offers a choice, and `Cost::origins()` is one entry long
+		 * since question 04's answer named a single supplier. A lot recorded as
+		 * Spanish whose bill is French is a purchase record that does not
+		 * describe the purchase.
+		 */
+		if ( ! in_array( $origin, Cost::origins( $film ), true ) ) {
+			return $fail( 'Cette origine de film ne peut pas être achetée avec le tarif en vigueur, qui n’a qu’un fournisseur.' );
+		}
 		if ( abs( $read['width_cm'] - $width ) > 0.01 ) {
 			return $fail(
 				sprintf(
@@ -1499,7 +1509,45 @@ final class Production {
 		 *
 		 * Re-splitting uses the SAME measured lengths: the layout is what it is,
 		 * only the tariff can have moved.
+		 *
+		 * ── EXCEPT THAT THE GEOMETRY CAN MOVE TOO, AND THEN IT IS SCRAP ──────
+		 *
+		 * The paragraph above anticipated a TARIFF changing under a draft. On
+		 * 1 September 2026 the answer to question 04 changed the FILM: a 56 cm
+		 * roll became a 33 x 46 cm sheet. A draft nested on the roll is a plate
+		 * 56 cm wide, and re-pricing it on sheets buys film that plate cannot be
+		 * printed on. `create_lot` refuses a mismatched laize; nothing repeated
+		 * that at the moment the money is actually spent, which is here.
+		 *
+		 * Found by the adversarial pass over this session's own diff.
 		 */
+		$film_now  = (array) ( Costing::config()['film'] ?? array() );
+		$width_now = (float) ( $film_now['width_cm'] ?? 0 );
+		$plate_w   = (float) ( $lot['layout']['width_cm'] ?? 0 );
+		if ( $width_now > 0 && $plate_w > 0 && abs( $plate_w - $width_now ) > 0.01 ) {
+			return array(
+				'ok'     => false,
+				'reason' => sprintf(
+					'Ce lot a été imbriqué sur une laize de %s cm et le film acheté aujourd’hui fait %s cm. Le film a changé depuis que ce brouillon a été préparé : défaites-le et reprenez l’imbrication, sinon la planche ne s’imprime pas.',
+					Money::number( $plate_w, 1 ),
+					Money::number( $width_now, 1 )
+				),
+			);
+		}
+
+		/*
+		 * AND AN ORIGIN THAT CAN NO LONGER BE BOUGHT FROM. `Cost::origins()` is
+		 * one entry long on the tariff in force, and a draft can carry 'es' from
+		 * before it was. Sending it would record a Spanish purchase whose bill is
+		 * French.
+		 */
+		if ( ! in_array( (string) $lot['origin'], Cost::origins( $film_now ), true ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'Ce lot a été préparé pour une origine de film qui n’est plus disponible. Défaites-le et reprenez-le : le tarif en vigueur n’a qu’un fournisseur.',
+			);
+		}
+
 		$solo = array();
 		$ink  = array();
 		foreach ( (array) ( $lot['layout']['orders'] ?? array() ) as $id => $row ) {

@@ -795,13 +795,29 @@ final class Costing {
 				'marquage',
 				(int) $film['amount_ht'],
 				Cost::ESTIMATED,
-				sprintf(
-					/* translators: 1: how many orders shared the film, 2: metres of film, 3: the lot number. */
-					__( 'Part de %1$d commandes imbriquées ensemble sur %2$s m de film (lot n° %3$d)', 'teeshoop' ),
-					(int) $film['orders'],
-					Money::number( (float) $film['billed_m'], 2 ),
-					(int) $film['lot_id']
-				),
+				/*
+				 * IN THE UNIT THE SUPPLIER INVOICES, and this is the ONE
+				 * provenance an operator holds a real invoice next to: a pooled
+				 * lot is a purchase that happened, with a document. It said
+				 * « sur N m de film » whatever the tariff, so after question 04's
+				 * answer it described metres against an invoice counting sheets.
+				 * Found by the adversarial pass.
+				 */
+				'sheet' === (string) ( $config['film']['billing'] ?? 'roll' )
+					? sprintf(
+						/* translators: 1: how many orders shared the film, 2: number of sheets, 3: the lot number. */
+						__( 'Part de %1$d commandes imbriquées ensemble sur %2$s feuille(s) de film (lot n° %3$d)', 'teeshoop' ),
+						(int) $film['orders'],
+						Money::number( ceil( (float) $film['billed_m'] * 100 / max( 1.0, (float) ( $config['film']['max_length_cm'] ?? 1 ) ) - 1e-9 ), 0 ),
+						(int) $film['lot_id']
+					)
+					: sprintf(
+						/* translators: 1: how many orders shared the film, 2: metres of film, 3: the lot number. */
+						__( 'Part de %1$d commandes imbriquées ensemble sur %2$s m de film (lot n° %3$d)', 'teeshoop' ),
+						(int) $film['orders'],
+						Money::number( (float) $film['billed_m'], 2 ),
+						(int) $film['lot_id']
+					),
 				''
 			);
 			if ( (int) $film['saved_ht'] > 0 ) {

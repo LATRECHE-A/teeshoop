@@ -136,7 +136,16 @@ final class ProductionPage {
 			echo '<li>' . esc_html( $line ) . '</li>';
 		}
 		echo '</ul><p>' .
-			esc_html__( 'Ces durées sont des valeurs par défaut, pas un engagement : rien sur le site n’annonce de date. La question 14 attend la réponse de l’associé, et tant qu’elle n’est pas là ces commandes partent en retard dès leur validation.', 'teeshoop' ) .
+			/*
+			 * THIS SAID THE OPPOSITE OF THE TRUTH FROM 1 SEPTEMBER 2026. It read
+			 * « rien sur le site n'annonce de date. La question 14 attend la
+			 * réponse de l'associé ». He answered on 1 September, the standard
+			 * lead time IS published on thirteen pages, and the durations stopped
+			 * being defaults. The operator reading this notice would have
+			 * concluded that a late order was a placeholder problem rather than a
+			 * promise the shop is making to a customer today.
+			 */
+			esc_html__( 'Ces durées sont celles que l’associé a données le 1er septembre 2026, et le délai standard est publié sur le site. L’express et l’urgence ne le sont pas, précisément parce qu’ils ne tiennent pas : ces commandes-là partent en retard dès leur validation, et il faut le dire au client avant de les accepter.', 'teeshoop' ) .
 			'</p></div>';
 	}
 

@@ -559,6 +559,46 @@ function ts_production_suite( int $product_id ): void {
 		ts_eq( Production::lot_of( wc_get_order( $a->get_id() ) )['state'], Production::RECEIVED, 'la commande ignore où en est son lot' );
 	} );
 
+	ts_it( 'refuses to buy film for a plate the laize has moved under', function () use ( $product_id, $today ) {
+		/*
+		 * `create_lot` checks the laize against the film in force the moment the
+		 * draft is written. `send_lot` then deliberately RE-PRICES on the tariff
+		 * in force at the press, because a week can pass in between. It did not
+		 * repeat the geometry check, so a plate nested on one width was paid for
+		 * in film of another, and nothing said so until the press, with several
+		 * customers' garments already pulled off the shelf. The change of
+		 * 1 September 2026 makes that concrete: a 56 cm roll became a 33 cm
+		 * sheet, and a draft prepared the day before survives the deploy.
+		 *
+		 * Found by the adversarial pass over this session's own diff, not by a
+		 * test and not by a customer.
+		 */
+		ts_pr_stub_nest();
+		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0170' );
+		$b    = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0171' );
+		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', ts_pr_layout( $a->get_id(), $b->get_id() ), $today );
+		ts_assert( $made['ok'], $made['reason'] );
+		$lot_id = (int) $made['lot']['lot_id'];
+		$plate  = (float) Production::lot( $lot_id )['layout']['width_cm'];
+
+		$before = get_option( \Teeshoop\Core\OPTION_COSTING, array() );
+		update_option( \Teeshoop\Core\OPTION_COSTING, array( 'film' => array( 'width_cm' => $plate + 23.0 ) ) );
+		ts_eq(
+			(float) Costing::config()['film']['width_cm'],
+			$plate + 23.0,
+			'la laize n’a pas bougé, le reste du test ne prouverait rien'
+		);
+
+		$sent = Production::send_lot( $lot_id, $today );
+		ts_eq( $sent['ok'], false, 'du film a été acheté pour une planche imbriquée sur une autre laize' );
+		ts_assert( str_contains( $sent['reason'], 'laize' ), 'la raison ne parle pas de la laize : ' . $sent['reason'] );
+		ts_eq( Production::lot( $lot_id )['state'], Production::DRAFT, 'le lot a été gelé malgré le refus' );
+
+		// And it goes through again the moment the film matches the plate.
+		update_option( \Teeshoop\Core\OPTION_COSTING, is_array( $before ) ? $before : array() );
+		ts_assert( Production::send_lot( $lot_id, $today )['ok'], 'le refus survit au retour du bon film' );
+	} );
+
 	ts_it( 'refuses to make an order late by buying the cheap film, and says which one', function () use ( $product_id, $today ) {
 		/*
 		 * The whole point of an origin. Both orders hold their date on French
