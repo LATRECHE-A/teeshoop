@@ -208,6 +208,44 @@ describe( 'Cost: the film, from a measured length', function () use ( $ts_roll_c
 	} );
 } );
 
+describe( 'Cost: the settings screen can express the tariff the shop pays', function () {
+	/*
+	 * THE DEFECT THIS PINS. The film form owned eight ROLL fields and none of the
+	 * three that decide a sheet bill, so the supplier raising an A3+ from 3,00 to
+	 * 3,50 EUR was a code change, and the one geometry field it did own could be
+	 * edited alone and desynchronise the sheet count from the packer's billing
+	 * step. Found by the adversarial pass over this session's own diff.
+	 */
+	it( 'writes a sheet tariff that Cost::film can actually use', function () {
+		$saved = Cost::merge_config(
+			array(
+				'film' => array(
+					'billing'       => 'sheet',
+					'sheet_ht'      => 350,
+					'min_sheets'    => 1,
+					'width_cm'      => 33.0,
+					'max_length_cm' => 46.0,
+					// The screen derives this from the height; a form that did not
+					// would leave the config in the state that refuses.
+					'billing_step_cm' => 46.0,
+				),
+			)
+		);
+		$f = Cost::film( 1.0, $saved );
+		truthy( $f['ok'], 'un tarif saisi à l’écran doit être exploitable' );
+		eq( $f['billed_sheets'], 3, '1,00 m sur des feuilles de 46 cm' );
+		eq( $f['rate_ht'], 350, 'le prix saisi est celui qui est appliqué' );
+	} );
+
+	it( 'refuses a height changed without its billing step, which is the trap', function () {
+		// Exactly what an operator does when the supplier changes format and the
+		// form lets them touch one field. The engine refuses rather than counting
+		// sheets against a step that is not a sheet.
+		$half = Cost::merge_config( array( 'film' => array( 'max_length_cm' => 60.0 ) ) );
+		truthy( ! Cost::film( 1.0, $half )['ok'] );
+	} );
+} );
+
 describe( 'Cost: a film tariff that does not hold together refuses', function () use ( $ts_cost_config ) {
 	/*
 	 * THE DEFECT THIS PINS, found by the adversarial pass. `merge_config` merges

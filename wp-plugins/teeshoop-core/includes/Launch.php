@@ -202,15 +202,33 @@ final class Launch {
 			return array( self::refuse( 'textile-nu', 'WooCommerce ou le module produit n’a pas pu être chargé, donc les produits personnalisables n’ont pas pu être vérifiés.' ) );
 		}
 
+		/*
+		 * EVERY PUBLISHED PRODUCT, AND THE CAP IS A REFUSAL.
+		 *
+		 * This asked for 200 and the shop publishes 462, so it read fewer than
+		 * half of them and reported the condition as verified: a gate that says
+		 * « nothing found » about a list it did not finish reading is a gate
+		 * somebody trusts. Found by the adversarial pass over this session's own
+		 * diff, and it is the same confusion between « nothing found » and
+		 * « nothing looked » that the shop-side half of this file already refuses.
+		 *
+		 * -1 asks WooCommerce for all of them, which is a real query on a real
+		 * catalogue; this runs when somebody asks whether the shop may open, not
+		 * on a page load. The count is checked anyway, because a store that grows
+		 * past what one query can hold has to say so rather than quietly stop.
+		 */
 		$products = wc_get_products(
 			array(
 				'status' => 'publish',
-				'limit'  => 200,
+				'limit'  => -1,
 				'return' => 'objects',
 			)
 		);
 		if ( ! is_array( $products ) ) {
 			return array( self::refuse( 'textile-nu', 'La liste des produits publiés n’a pas pu être lue.' ) );
+		}
+		if ( array() === $products ) {
+			return array( self::refuse( 'textile-nu', 'Aucun produit publié n’a été lu. Une boutique vide ne prouve rien : ce contrôle refuse plutôt que de conclure que tout va bien.' ) );
 		}
 
 		$out = array();

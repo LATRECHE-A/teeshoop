@@ -195,7 +195,29 @@ final class CostAdmin {
 			$times[ $op ] = self::int_in( $posted['times'][ $op ] ?? '', (int) $defaults['times_s'][ $op ], 0, 3600 );
 		}
 
+		/*
+		 * ── THE SHEET, AND THE THREE FIELDS THAT DID NOT EXIST ───────────────
+		 *
+		 * Question 04's answer of 1 September 2026 put the shop on a sheet, and
+		 * this form went on owning the ROLL: eight fields, none of which the
+		 * sheet branch of `Cost::film()` reads, and no field at all for the
+		 * 3,00 EUR the shop actually pays. The supplier raising his price by
+		 * fifty centimes was a code change. Found by the adversarial pass.
+		 *
+		 * `billing_step_cm` is written FROM the sheet height rather than typed,
+		 * because the two are one fact: a sheet is bought whole, so the packer
+		 * has to bill whole sheets, and `Cost::film()` refuses a config where
+		 * they differ. Offering both as fields would be offering an operator the
+		 * chance to make the cost engine refuse, which is not a choice anybody
+		 * wants.
+		 */
+		$billing = 'roll' === ( $posted['film']['billing'] ?? '' ) ? 'roll' : 'sheet';
+		$height  = self::float_in( $posted['film']['max_length_cm'] ?? '', (float) $defaults['film']['max_length_cm'], 10.0 );
+
 		$film = array(
+			'billing'       => $billing,
+			'sheet_ht'      => self::money_in( $posted['film']['sheet_ht'] ?? '', (int) $defaults['film']['sheet_ht'] ),
+			'min_sheets'    => self::int_in( $posted['film']['min_sheets'] ?? '', (int) $defaults['film']['min_sheets'], 1, 100 ),
 			'rate_fr_ht'    => self::money_in( $posted['film']['rate_fr_ht'] ?? '', (int) $defaults['film']['rate_fr_ht'] ),
 			'rate_es_ht'    => self::money_in( $posted['film']['rate_es_ht'] ?? '', (int) $defaults['film']['rate_es_ht'] ),
 			'width_cm'      => self::float_in( $posted['film']['width_cm'] ?? '', (float) $defaults['film']['width_cm'], 1.0 ),
@@ -203,7 +225,11 @@ final class CostAdmin {
 			'min_m'         => self::float_in( $posted['film']['min_m'] ?? '', (float) $defaults['film']['min_m'] ),
 			'waste_rate'    => self::pct_in( $posted['film']['waste_rate'] ?? '', (float) $defaults['film']['waste_rate'] ),
 			'gap_cm'        => self::float_in( $posted['film']['gap_cm'] ?? '', (float) $defaults['film']['gap_cm'] ),
-			'max_length_cm' => self::float_in( $posted['film']['max_length_cm'] ?? '', (float) $defaults['film']['max_length_cm'], 10.0 ),
+			'max_length_cm' => $height,
+			// Derived, never typed. See the note above.
+			'billing_step_cm' => 'sheet' === $billing
+				? $height
+				: self::float_in( $posted['film']['billing_step_cm'] ?? '', (float) $defaults['film']['billing_step_cm'], 0.1 ),
 		);
 
 		/*
@@ -687,19 +713,33 @@ final class CostAdmin {
 
 	private static function render_film( array $config ): void {
 		$film = (array) $config['film'];
+		$sheet = 'sheet' === (string) ( $film['billing'] ?? 'roll' );
 		self::section(
 			__( 'Le film', 'teeshoop' ),
-			__( 'Question 04. Le tarif et la laize vont ensemble : 17,00 EUR le mètre linéaire DE 56 cm est un seul tarif, et changer l’un sans l’autre chiffre le film sur un rouleau qui n’est pas le vôtre. Le métrage n’est pas saisi : il est mesuré en imbriquant les visuels réels de la commande.', 'teeshoop' )
+			$sheet
+				? __( 'Question 04. Le fournisseur vend des feuilles entières : ce qui décide de la facture est le prix d’une feuille et ses deux dimensions, occupée ou non. Le nombre de feuilles n’est pas saisi, il est mesuré en imbriquant les visuels réels de la commande. Les tarifs au rouleau ci-dessous ne sont lus par rien tant que ce mode est actif.', 'teeshoop' )
+				: __( 'Question 04. Le tarif et la laize vont ensemble : un tarif au mètre linéaire DE une laize donnée est un seul tarif, et changer l’un sans l’autre chiffre le film sur un rouleau qui n’est pas le vôtre. Le métrage n’est pas saisi : il est mesuré en imbriquant les visuels réels de la commande.', 'teeshoop' )
 		);
 		echo '<table class="form-table" role="presentation"><tbody>';
-		self::input_row( __( 'Tarif France, par mètre linéaire', 'teeshoop' ), 'couts[film][rate_fr_ht]', Money::number( Money::to_eur( (int) $film['rate_fr_ht'] ), 2 ), 'EUR' );
-		self::input_row( __( 'Tarif Espagne, par mètre linéaire', 'teeshoop' ), 'couts[film][rate_es_ht]', Money::number( Money::to_eur( (int) $film['rate_es_ht'] ), 2 ), 'EUR' );
-		self::input_row( __( 'Laize du rouleau', 'teeshoop' ), 'couts[film][width_cm]', Money::number( (float) $film['width_cm'], 1 ), 'cm' );
+		self::select_row(
+			__( 'Comment le fournisseur facture', 'teeshoop' ),
+			'couts[film][billing]',
+			(string) ( $film['billing'] ?? 'sheet' ),
+			array(
+				'sheet' => __( 'À la feuille entière', 'teeshoop' ),
+				'roll'  => __( 'Au mètre linéaire de rouleau', 'teeshoop' ),
+			)
+		);
+		self::input_row( __( 'Prix d’une feuille', 'teeshoop' ), 'couts[film][sheet_ht]', Money::number( Money::to_eur( (int) $film['sheet_ht'] ), 2 ), 'EUR' );
+		self::input_row( __( 'Feuilles minimum facturées', 'teeshoop' ), 'couts[film][min_sheets]', (string) (int) $film['min_sheets'], '' );
+		self::input_row( $sheet ? __( 'Largeur de la feuille', 'teeshoop' ) : __( 'Laize du rouleau', 'teeshoop' ), 'couts[film][width_cm]', Money::number( (float) $film['width_cm'], 1 ), 'cm' );
+		self::input_row( $sheet ? __( 'Hauteur de la feuille', 'teeshoop' ) : __( 'Longueur maximale d’un fichier', 'teeshoop' ), 'couts[film][max_length_cm]', Money::number( (float) $film['max_length_cm'], 0 ), 'cm' );
 		self::input_row( __( 'Livraison du film, par commande', 'teeshoop' ), 'couts[film][delivery_ht]', Money::number( Money::to_eur( (int) $film['delivery_ht'] ), 2 ), 'EUR' );
-		self::input_row( __( 'Métrage minimum facturé', 'teeshoop' ), 'couts[film][min_m]', Money::number( (float) $film['min_m'], 2 ), 'm' );
 		self::input_row( __( 'Provision de perte', 'teeshoop' ), 'couts[film][waste_rate]', self::pct_out( (float) $film['waste_rate'] ), '%' );
 		self::input_row( __( 'Écart entre deux motifs', 'teeshoop' ), 'couts[film][gap_cm]', Money::number( (float) $film['gap_cm'], 2 ), 'cm' );
-		self::input_row( __( 'Longueur maximale d’un fichier', 'teeshoop' ), 'couts[film][max_length_cm]', Money::number( (float) $film['max_length_cm'], 0 ), 'cm' );
+		self::input_row( __( 'Tarif rouleau France, par mètre linéaire', 'teeshoop' ), 'couts[film][rate_fr_ht]', Money::number( Money::to_eur( (int) $film['rate_fr_ht'] ), 2 ), 'EUR' );
+		self::input_row( __( 'Tarif rouleau Espagne, par mètre linéaire', 'teeshoop' ), 'couts[film][rate_es_ht]', Money::number( Money::to_eur( (int) $film['rate_es_ht'] ), 2 ), 'EUR' );
+		self::input_row( __( 'Métrage minimum facturé, au rouleau', 'teeshoop' ), 'couts[film][min_m]', Money::number( (float) $film['min_m'], 2 ), 'm' );
 		echo '</tbody></table>';
 	}
 
@@ -1060,6 +1100,35 @@ final class CostAdmin {
 			esc_attr( $value ),
 			esc_html( $unit )
 		);
+	}
+
+	/**
+	 * A closed choice, in the same shape as `input_row`.
+	 *
+	 * There is exactly one of these and it is the film's billing mode, which is
+	 * not a number: a supplier sells sheets or he sells metres, and typing a word
+	 * would let an operator invent a third answer the cost engine does not have.
+	 *
+	 * @param array<string,string> $choices value => label.
+	 */
+	private static function select_row( string $label, string $name, string $value, array $choices ): void {
+		$id = 'ts-' . md5( $name );
+		printf(
+			'<tr><th scope="row"><label for="%s">%s</label></th><td><select id="%s" name="%s">',
+			esc_attr( $id ),
+			esc_html( $label ),
+			esc_attr( $id ),
+			esc_attr( $name )
+		);
+		foreach ( $choices as $key => $text ) {
+			printf(
+				'<option value="%s"%s>%s</option>',
+				esc_attr( (string) $key ),
+				selected( (string) $key, $value, false ),
+				esc_html( (string) $text )
+			);
+		}
+		echo '</select></td></tr>';
 	}
 
 	// ── The order panel ──────────────────────────────────────────────────────
