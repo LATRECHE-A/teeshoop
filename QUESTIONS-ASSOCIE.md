@@ -101,20 +101,23 @@ dans les mots mêmes de l'associé (« conserver l'hypothèse de TVA à 20 % ...
 validation comptable »), et la boutique en ligne encaisse aujourd'hui avec le calcul des
 taxes désactivé.
 
-### Deux questions neuves, que la lecture des réponses fait apparaître
+### Trois questions neuves, que la lecture des réponses fait apparaître, dont une déjà réglée
 
-Aucune ne se tranche sans lui. Elles sont détaillées sous leur question et rappelées ici
-pour ne pas dépendre d'une lecture complète du document.
+Elles sont détaillées sous leur question et rappelées ici pour ne pas dépendre d'une
+lecture complète du document.
 
-- **L'adresse** (questions 17 et 55). Le siège déclaré est au 97 avenue de Castelnau,
-  93700 Drancy, et la fiche Google demandée est au 8 rue Primo Lévi, 93000 Bobigny. Un
-  siège et un établissement peuvent différer, mais les mentions légales n'en publient
-  qu'une, et une adresse d'établissement non déclarée est un problème de conformité.
-- **Le domaine des adresses** (questions 56 et 61). Les trois adresses données
-  (`legales@`, `ticket@`, `dev@`) sont en `teeshoop.fr`, et ce domaine **n'existe pas** :
-  interrogé le 1er septembre 2026, il répond NXDOMAIN sur A, MX et NS. Le site est sur
-  `teeshoop.com`, qui a un serveur de messagerie. Soit le domaine est déposé, soit les
-  adresses changent, et la mention légale comme la veille attendent la réponse.
+- **Le domaine des adresses** (questions 56 et 61). **Réglé le 1er septembre 2026 : c'est
+  `teeshoop.com`.** Les trois adresses du document (`legales@`, `ticket@`, `dev@`) y sont
+  écrites en `teeshoop.fr`, et ce domaine n'existe pas : interrogé le même jour, il répond
+  NXDOMAIN sur A, MX et NS, et le registre `.fr` (AFNIC) ne le connaît pas. C'est une
+  coquille du document, confirmée comme telle. `teeshoop.com` a bien un serveur de
+  messagerie (`mail.teeshoop.com`). Reste à vérifier, et ce n'est pas une question pour
+  l'associé : que les trois boîtes existent et soient relevées.
+- **L'adresse postale** (questions 17 et 55). Le siège déclaré est au 97 avenue de
+  Castelnau, 93700 Drancy, et la fiche Google demandée est au 8 rue Primo Lévi, 93000
+  Bobigny. Un siège et un établissement peuvent différer, mais les mentions légales n'en
+  publient qu'une, et une adresse d'établissement non déclarée est un problème de
+  conformité.
 - **Le fournisseur textile** (questions 3, 9, 43 et 46). Quatre réponses nomment
   **Imbretex**, comme fournisseur prioritaire, comme référence pour la lecture du stock et
   comme source du délai de 24 heures. Le catalogue, le relevé de stock et le panier d'achat
@@ -2614,13 +2617,18 @@ question pour vous : c'est à recopier du contrat o2switch, et c'est noté dans
 *La ligne `H-Q56-EDITEUR-SITE` était un refus bloquant :* la page de mentions légales est
 publiée et ne nomme personne. Elle a maintenant un nom, un e-mail et un téléphone.
 
-*Mesuré le 1er septembre 2026, et c'est un refus :* **le domaine `teeshoop.fr` n'existe
-pas.** Interrogé sur A, MX et NS, il répond NXDOMAIN. Le site est sur `teeshoop.com`, qui a
-bien un serveur de messagerie (`mail.teeshoop.com`) et les serveurs de noms o2switch. Une
-adresse de contact imposée par la loi qui rebondit ne vaut pas mieux qu'une mention
-absente, donc `legales@teeshoop.fr` ne peut pas être publiée telle quelle : soit le domaine
-est déposé et configuré, soit l'adresse passe en `teeshoop.com`. C'est une question de plus
-pour lui, et elle est courte.
+*Corrigé le 1er septembre 2026, et c'est une coquille du document :* l'adresse publique
+est **`legales@teeshoop.com`**, pas `legales@teeshoop.fr`. Le domaine `teeshoop.fr`
+n'existe pas : interrogé le même jour, il répond NXDOMAIN sur A, MX et NS, et le registre
+du `.fr` (AFNIC) ne le connaît pas. Le site et la messagerie sont sur `teeshoop.com`
+(A `109.234.166.12`, MX `mail.teeshoop.com`, serveurs de noms o2switch), et le développeur
+a confirmé que c'est bien le seul domaine détenu. Une adresse de contact imposée par
+l'article 6 III de la LCEN qui n'existe pas vaut une mention absente, donc c'est le `.com`
+qui est publié.
+
+*Ce qu'il reste à vérifier, et ce n'est pas une question pour l'associé :* que la boîte
+`legales@teeshoop.com` existe et soit relevée. Cela se lit sur le serveur
+(`uapi Email list_pops`) et appartient à la séance 14, qui a le SSH sous les yeux.
 
 *L'hébergeur n'est pas une question pour lui :* son identité est publique et se lit dans
 le contrat o2switch (`ACCES-REQUIS.md`, section 6 quater).
@@ -2859,12 +2867,17 @@ surveille (on ne réveille que sur ce qui ne peut pas attendre lundi).
 dans le vide ; elle a deux adresses et, mieux que ça, une **classification** jour/nuit qui
 dit quoi réveiller.
 
-*Mesuré le 1er septembre 2026, et cela empêche la mise en service :* les deux adresses sont
-en `teeshoop.fr`, et **ce domaine n'existe pas** (NXDOMAIN sur A, MX et NS). Une alerte
-envoyée à `ticket@teeshoop.fr` ne rebondirait même pas quelque part : elle ne partirait
-pas. C'est exactement le cas que cette question voulait éviter, une surveillance qui croit
-alerter et n'alerte pas. La ligne de cron ne se pose donc pas sur ces adresses tant que le
-domaine n'est pas déposé et configuré. `teeshoop.com`, lui, a un serveur de messagerie.
+*Corrigé le 1er septembre 2026, même coquille qu'à la question 56 :* les destinataires sont
+**`ticket@teeshoop.com`** et **`dev@teeshoop.com`**. Le document les écrit en
+`teeshoop.fr`, domaine qui n'existe pas (NXDOMAIN sur A, MX et NS, inconnu du registre
+AFNIC), et le développeur a confirmé que le domaine détenu est `teeshoop.com`, qui a bien
+un serveur de messagerie.
+
+*Ce qu'il reste à vérifier avant de poser la ligne de cron :* que les deux boîtes existent
+et soient relevées. La veille refuse de démarrer sans destinataire, ce qui est correct,
+mais elle ne peut pas savoir qu'une adresse syntaxiquement valable ne mène nulle part. Une
+alerte envoyée dans le vide est exactement ce que cette question voulait éviter, donc la
+ligne de cron se pose après le contrôle, pas avant.
 
 ---
 

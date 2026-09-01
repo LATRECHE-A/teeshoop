@@ -776,27 +776,30 @@ boutique, puisque les deux doivent porter cette valeur. Elle se relit dans le ta
 bord Cloudflare ou se refait avec `wrangler secret put ADMIN_TOKEN`, et si on la refait il
 faut la reposer sur la boutique dans le même geste.
 
-### Un domaine qui n'existe pas, et trois adresses dessus
+### Trois adresses écrites sur le mauvais domaine, corrigées
 
 Mesuré le 01/09/2026. Les questions 56 et 61 donnent `legales@teeshoop.fr`,
-`ticket@teeshoop.fr` et `dev@teeshoop.fr`. **`teeshoop.fr` répond NXDOMAIN** sur A, MX et
-NS : le domaine n'est pas déposé, ou n'est pas délégué. `teeshoop.com` répond normalement
-(A `109.234.166.12`, MX `mail.teeshoop.com`, NS o2switch).
+`ticket@teeshoop.fr` et `dev@teeshoop.fr`. **`teeshoop.fr` n'existe pas** : NXDOMAIN sur A,
+MX et NS, et le registre du `.fr` (AFNIC, RDAP) ne connaît pas le nom. C'est une coquille
+du document, confirmée le même jour par le développeur : le domaine détenu est
+**`teeshoop.com`** (A `109.234.166.12`, MX `mail.teeshoop.com`, NS o2switch).
 
-Deux conséquences immédiates, et aucune n'est cosmétique.
+Les trois adresses sont donc `legales@teeshoop.com`, `ticket@teeshoop.com` et
+`dev@teeshoop.com`.
 
-**La veille ne doit pas être mise en service sur ces adresses.** Elle refuse déjà de
-démarrer sans destinataire, ce qui est le bon comportement ; la démarrer avec un
-destinataire qui n'existe pas serait exactement le piège que la question 61 décrit. La
-ligne de cron `~/veille.sh --dest=…` attend une adresse qui reçoit.
+**Ce qui reste, et ce n'est pas une demande à l'associé :** vérifier que les trois boîtes
+existent et sont relevées. Une adresse valable qui ne mène nulle part se comporte
+exactement comme une bonne adresse jusqu'au jour où on compte dessus, et les deux endroits
+où on compte dessus sont la page de mentions légales (article 6 III de la LCEN) et la
+veille, qui refuse de démarrer sans destinataire mais ne peut pas deviner qu'un
+destinataire est mort. Cela se lit en SSH :
 
-**`legales@teeshoop.fr` ne peut pas être publiée en mentions légales.** L'adresse de
-contact est imposée par l'article 6 III de la LCEN, et une adresse qui n'existe pas vaut
-une mention manquante.
+```bash
+uapi Email list_pops    # les boîtes réellement créées sur le compte
+```
 
-Soit le domaine est déposé et configuré, soit les trois adresses passent en `teeshoop.com`.
-C'est une question pour l'associé, elle est courte, et elle est dans
-`QUESTIONS-ASSOCIE.md`.
+Le port 22 ne passant pas depuis cette session, c'est la séance 14 qui le fait, avant de
+poser la ligne de cron `~/veille.sh --dest=…`.
 
 ### Un nouvel accès, que les réponses créent : Imbretex
 
