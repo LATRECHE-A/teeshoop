@@ -589,8 +589,8 @@ return array(
 			'level' => 'important',
 			'status' => 'assumption',
 			'since' => '2026-08-18',
-			'answered' => null,
-			'answer_fr' => null,
+			'answered' => '2026-09-01',
+			'answer_fr' => 'Question 07 : « Transporteur principal : Mondial Relay. La grille de transport réelle doit être récupérée/utilisée dans le système. » La grille n\'est pas jointe et le document la classe lui-même en « éléments restant à récupérer », donc RIEN N\'EST APPLIQUÉ : la boutique chiffre toujours sur la grille publique de La Poste et la copie la nomme, parce que c\'est ce que la boutique fait aujourd\'hui. Nommer l\'autre transporteur en facturant les tarifs de celui-ci serait la fausse promesse, pas l\'inverse. Il faut aussi la remise en main propre en Île-de-France au-dessus de 250 EUR HT, qui n\'est pas un mode d\'expédition construit.',
 			'statement_fr' => 'Le transport est facturé à la grille publique Colissimo France domicile en vigueur au 1er janvier 2026, de 5,49 EUR pour 250 g à 39,59 EUR pour 30 kg.',
 			'home' => 'php:Teeshoop\\Core\\Shipping::default_config()#grid',
 			'reaches' => array(

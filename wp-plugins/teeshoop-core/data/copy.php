@@ -114,7 +114,7 @@ return array(
 		'description' => 'T-shirts personnalisés avec votre logo, imprimés en France. Zone imprimable en centimètres sur chaque fiche, prix calculé sur la surface d’encre.',
 		'h1'          => 'T-shirts personnalisés, imprimés en France',
 		'intro'       => array(
-			'Des t-shirts à personnaliser avec votre logo, imprimés en France, à partir de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes par commande, impression comprise dans le prix.',
+			'Des t-shirts à personnaliser avec votre logo, imprimés en France, à partir de {MINIMUM_PIECES} pièces par commande, impression comprise dans le prix.',
 			'Cette catégorie compte {NB_TSHIRTS} références. Chaque fiche publie sa zone imprimable en centimètres et sa grille de prix complète, prix unitaire par quantité pour cette référence, avant que vous ayez à demander un devis.',
 		),
 		'sections'    => array(
@@ -163,7 +163,7 @@ return array(
 					'Deux règles de quantité s’appliquent à une commande de t-shirts, et elles ne se comptent pas sur le même périmètre.',
 				),
 				'list'       => array(
-					'Le minimum de commande, {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes : les deux sont exigés, et ils se comptent sur le panier entier, toutes références confondues.',
+					'Le minimum de commande, {MINIMUM_PIECES} pièces, compté sur le panier entier, toutes références confondues. Aucun montant minimum ne s’y ajoute.',
 					'Le palier de quantité, celui qui fait baisser le prix unitaire : il se compte sur la quantité d’une même référence, avec le même visuel.',
 					'La répartition des tailles : les quantités saisies s’additionnent à l’intérieur de la même ligne, donc mélanger les tailles ne fait pas perdre le palier.',
 				),
@@ -210,7 +210,7 @@ return array(
 		'faq'         => array(
 			array(
 				'q' => 'Puis-je commander un seul t-shirt personnalisé ?',
-				'a' => 'Non. Le minimum est de {MINIMUM_PIECES} pièces et de {MINIMUM_MONTANT} hors taxes par commande, et les deux se comptent sur le panier entier. Ces pièces peuvent être réparties sur plusieurs tailles, plusieurs coloris et plusieurs références.',
+				'a' => 'Non. Le minimum est de {MINIMUM_PIECES} pièces par commande, comptées sur le panier entier. Ces pièces peuvent être réparties sur plusieurs tailles, plusieurs coloris et plusieurs références.',
 			),
 			array(
 				'q' => 'Est-ce que plusieurs modèles s’additionnent pour atteindre un palier de prix ?',
@@ -241,10 +241,10 @@ return array(
 
 	'categorie:polos' => array(
 		'title'       => 'Polo personnalisé entreprise : DTF, broderie sur devis',
-		'description' => 'Polos personnalisés imprimés en France, à partir de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes. Impression DTF en ligne, broderie sur devis.',
+		'description' => 'Polos personnalisés imprimés en France, à partir de {MINIMUM_PIECES} pièces. Impression DTF en ligne, broderie sur devis.',
 		'h1'          => 'Polos personnalisés pour entreprises et associations',
 		'intro'       => array(
-			'{NB_POLOS} références de polos, imprimés en France, à partir de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes.',
+			'{NB_POLOS} références de polos, imprimés en France, à partir de {MINIMUM_PIECES} pièces.',
 			'L’impression DTF se commande en ligne, avec le prix affiché avant l’ajout au panier. La broderie passe par un devis : elle est sous-traitée.',
 		),
 		'sections'    => array(
@@ -283,7 +283,7 @@ return array(
 				'list'       => array(
 					'Une ligne de panier, c’est un polo, un visuel et une répartition de tailles ajoutés en une fois. C’est la quantité de cette ligne qui fixe le palier, et répartir cette quantité entre plusieurs tailles ne la coupe pas.',
 					'Une deuxième référence, un deuxième coloris ou un deuxième visuel font une deuxième ligne, avec son propre palier. Les quantités des deux lignes ne s’additionnent pas.',
-					'Le minimum de commande, lui, se compte bien sur le panier entier : {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, toutes références confondues.',
+					'Le minimum de commande, lui, se compte bien sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues.',
 				),
 				'after'      => array(
 					'À nombre de pièces égal, regrouper la quantité sur une même référence revient donc moins cher que la répartir sur plusieurs modèles.',
@@ -304,7 +304,7 @@ return array(
 				'h2'         => 'Répartir les tailles dans une seule commande',
 				'paragraphs' => array(
 					'La répartition des tailles se saisit taille par taille, une quantité en face de chacune, dans la même commande. Il n’y a pas à passer une commande par taille, et cette répartition reste une seule ligne de panier.',
-					'Le minimum est de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, comptés l’un et l’autre sur le panier entier et non par référence. En dessous, le panier indique ce qu’il manque, en pièces comme en montant.',
+					'Le minimum est de {MINIMUM_PIECES} pièces, comptées sur le panier entier et non par référence. En dessous, le panier indique combien il en manque.',
 					'Le bon à tirer se valide en ligne, sans créer de compte. C’est utile quand la personne qui contrôle le logo n’est pas celle qui a passé la commande, et cela évite un aller-retour de pièces jointes par courriel.',
 				),
 				'links'      => array(
@@ -332,7 +332,7 @@ return array(
 			),
 			array(
 				'q' => 'Quel est le minimum de commande ?',
-				'a' => '{MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes. Les deux sont comptés sur le panier entier et non par référence, donc les polos, les t-shirts et les sweats d’un même panier s’additionnent pour l’atteindre. En dessous, le panier indique ce qu’il manque, en pièces comme en montant.',
+				'a' => '{MINIMUM_PIECES} pièces, comptées sur le panier entier et non par référence, donc les polos, les t-shirts et les sweats d’un même panier s’additionnent pour l’atteindre. En dessous, le panier indique combien il en manque.',
 			),
 			array(
 				'q' => 'Le prix baisse-t-il si j’additionne plusieurs modèles ?',
@@ -355,11 +355,11 @@ return array(
 
 	'categorie:sweats' => array(
 		'title'       => 'Sweat personnalisé et sweat à capuche imprimés en France',
-		'description' => 'Sweats à personnaliser en DTF, impression comprise, à partir de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes. Zone imprimable en centimètres.',
+		'description' => 'Sweats à personnaliser en DTF, impression comprise, à partir de {MINIMUM_PIECES} pièces. Zone imprimable en centimètres.',
 		'h1'          => 'Sweat personnalisé, imprimé en France',
 		'intro'       => array(
 			'Cette catégorie réunit {NB_SWEATS} références de sweats, filtrables par grammage, par matière et par famille de coloris.',
-			'L’impression est comprise dans le prix, en DTF, à partir de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes par commande. Le prix à la pièce baisse ensuite par palier, sur la quantité d’une même référence.',
+			'L’impression est comprise dans le prix, en DTF, à partir de {MINIMUM_PIECES} pièces par commande. Le prix à la pièce baisse ensuite par palier, sur la quantité d’une même référence.',
 			'Sur un sweat, la capuche et la poche kangourou décident de ce que vous pouvez imprimer, et la zone se lit en centimètres dans l’éditeur, avant l’ajout au panier.',
 		),
 		'sections'    => array(
@@ -397,7 +397,7 @@ return array(
 					'Les tailles saisies sur cette ligne comptent donc ensemble. Un autre modèle ou un autre coloris ouvre une autre ligne, avec sa propre quantité et son propre palier : trente pièces réparties sur trois modèles comptent comme trois lots de dix, jamais comme un lot de trente. Une série qui tient sur une même référence coûte moins cher que la même quantité étalée sur trois.',
 					'Vous payez la surface d’encre réellement imprimée, mesurée sur votre visuel, et non le rectangle du fichier. Un logo entouré de marges transparentes est facturé sur son encre.',
 					'Sur un sweat personnalisable en ligne, la grille est publiée sur la fiche avant même d’ouvrir l’éditeur : une colonne par quantité, une ligne par nombre de faces imprimées, le prix à la pièce dans chaque case. Au pied de la grille, la surface par face jusqu’à laquelle ces prix valent, et ce qui s’ajoute au-delà.',
-					'Nous produisons à partir de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes. Ces deux minimums, eux, se comptent sur le panier entier, toutes références confondues : le panier vous dit lequel des deux manque, et de combien.',
+					'Nous produisons à partir de {MINIMUM_PIECES} pièces. Ce minimum, lui, se compte sur le panier entier, toutes références confondues : le panier vous dit combien il en manque.',
 				),
 				'links'      => array(
 					array( 'label' => 'Commander une petite série', 'key' => 'page:petites-series' ),
@@ -466,7 +466,7 @@ return array(
 			),
 			array(
 				'q' => 'Combien de sweats faut-il commander au minimum ?',
-				'a' => 'À partir de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, comptés sur le panier entier : des sweats, des t-shirts et des polos commandés ensemble atteignent ce minimum. En dessous, le panier le dit et propose un devis.',
+				'a' => 'À partir de {MINIMUM_PIECES} pièces, comptées sur le panier entier : des sweats, des t-shirts et des polos commandés ensemble atteignent ce minimum. En dessous, le panier le dit et propose un devis.',
 			),
 			array(
 				'q' => 'Commander plusieurs modèles fait-il baisser le prix à la pièce ?',
@@ -489,7 +489,7 @@ return array(
 		'h1'          => 'Vêtements personnalisés pour entreprise : t-shirts, polos, sweats',
 		'intro'       => array(
 			'Trois familles au catalogue : t-shirts, polos et sweats, soit {NB_REFERENCES} références déclinées en coloris et en tailles.',
-			'Une commande démarre à {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes. Les deux conditions se comptent sur le panier entier, vêtements et tailles mélangés.',
+			'Une commande démarre à {MINIMUM_PIECES} pièces, comptées sur le panier entier, vêtements et tailles mélangés.',
 			'Les dimensions imprimables sont publiées en centimètres sur chaque fiche, et le prix s\'affiche avant l\'ajout au panier.',
 		),
 		'sections'    => array(
@@ -522,7 +522,7 @@ return array(
 				),
 				'list'       => array(
 					'le palier de quantité se lit sur une seule ligne de commande, c\'est-à-dire un même vêtement mis au panier en une fois, toutes tailles confondues',
-					'le minimum de commande se lit sur le panier entier : {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, toutes références confondues',
+					'le minimum de commande se lit sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues',
 				),
 				'after'      => array(
 					'Trente pièces d\'un même vêtement comptent donc comme trente. Les mêmes trente réparties sur trois modèles comptent comme trois fois dix, et chaque ligne est remisée sur sa propre quantité, pas sur le total du panier.',
@@ -568,7 +568,7 @@ return array(
 		'faq'         => array(
 			array(
 				'q' => 'Quel est le minimum de commande ?',
-				'a' => '{MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, les deux à la fois, comptés sur le panier entier. Les vêtements et les tailles se mélangent pour les atteindre : des t-shirts et des sweats dans le même panier comptent ensemble. Nous n\'imprimons pas de pièce isolée, parce que le film et le calage de la presse se préparent par série et qu\'une pièce seule porterait à elle seule ce travail.',
+				'a' => '{MINIMUM_PIECES} pièces, comptées sur le panier entier. Les vêtements et les tailles se mélangent pour les atteindre : des t-shirts et des sweats dans le même panier comptent ensemble. Nous n\'imprimons pas de pièce isolée, parce que le film et le calage de la presse se préparent par série et qu\'une pièce seule porterait à elle seule ce travail.',
 			),
 			array(
 				'q' => 'Le prix baisse-t-il si j\'additionne plusieurs modèles ?',
@@ -603,7 +603,7 @@ return array(
 		'h1'          => 'T-shirts, polos et sweats personnalisés pour les associations',
 		'intro'       => array(
 			'Une commande d’association tient rarement dans une seule taille. La répartition se saisit taille par taille, et toutes les tailles d’un même modèle comptent ensemble pour le palier de quantité.',
-			'Trois familles se commandent directement, les t-shirts, les polos et les sweats, impression comprise dans le prix affiché. Le panier demande {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, toutes références confondues.',
+			'Trois familles se commandent directement, les t-shirts, les polos et les sweats, impression comprise dans le prix affiché. Le panier demande {MINIMUM_PIECES} pièces, toutes références confondues.',
 			'Le bon à tirer se valide en ligne, sans créer de compte, et l’expédition part {DELAI_STANDARD} jours ouvrés après cette validation.',
 		),
 		'sections'    => array(
@@ -613,7 +613,7 @@ return array(
 					'Le travail d’un trésorier n’est pas de choisir un t-shirt, c’est de rassembler une liste. Une liste de tailles qui bouge jusqu’à la clôture des inscriptions. La répartition se saisit ligne par ligne, une ligne par taille et la quantité en face.',
 					'Découper la commande par taille ne coûte rien. La répartition d’un même modèle tient dans une seule ligne de panier, et c’est son total qui décide du palier de quantité, quelle que soit la part de chaque taille.',
 					'Ce qui divise le palier, c’est de séparer la quantité en plusieurs lignes. Deux modèles différents, ou le même modèle ajouté deux fois au panier, gardent chacun leur propre quantité et donc chacun leur propre palier : les additionner ne fait pas baisser le prix unitaire. Regrouper la commande sur un seul modèle, en une seule fois, revient moins cher que la répartir sur trois.',
-					'Le minimum, lui, se compte sur le panier entier : {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, toutes références confondues. Des t-shirts pour les bénévoles et des polos pour le bureau y comptent ensemble.',
+					'Le minimum, lui, se compte sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues. Des t-shirts pour les bénévoles et des polos pour le bureau y comptent ensemble.',
 				),
 			),
 			array(
@@ -685,7 +685,7 @@ return array(
 		'faq'         => array(
 			array(
 				'q' => 'Quel est le minimum de commande pour une association ?',
-				'a' => '{MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, comptés sur le panier entier et non par taille ni par référence : des t-shirts, des polos et des sweats mélangés y comptent ensemble. En dessous de l’un des deux, le panier refuse la validation.',
+				'a' => '{MINIMUM_PIECES} pièces, comptées sur le panier entier et non par taille ni par référence : des t-shirts, des polos et des sweats mélangés y comptent ensemble. En dessous, le panier refuse la validation.',
 			),
 			array(
 				'q' => 'Peut-on mélanger des t-shirts et des polos dans la même commande ?',
@@ -712,10 +712,10 @@ return array(
 
 	'page:clubs-sportifs' => array(
 		'title'       => 'Sweat et t-shirt personnalisés pour club de sport',
-		'description' => 'Sweats, t-shirts et polos imprimés en France pour clubs sportifs. Zone d\'impression en cm, minimum {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes.',
+		'description' => 'Sweats, t-shirts et polos imprimés en France pour clubs sportifs. Zone d\'impression en cm, minimum {MINIMUM_PIECES} pièces.',
 		'h1'          => 'Sweats, t-shirts et polos personnalisés pour clubs sportifs',
 		'intro'       => array(
-			'Nous imprimons des t-shirts, des polos et des sweats pour les clubs, en DTF, à partir de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes par commande.',
+			'Nous imprimons des t-shirts, des polos et des sweats pour les clubs, en DTF, à partir de {MINIMUM_PIECES} pièces par commande.',
 			'Nous ne vendons ni maillots techniques ni shorts : ces vêtements ne sont pas au catalogue.',
 			'Le marquage est imprimé en France et les zones d\'impression sont publiées en centimètres sur chaque fiche produit.',
 		),
@@ -773,7 +773,7 @@ return array(
 				),
 				'list'       => array(
 					'Le palier de quantité se compte ligne par ligne, sur une même référence portant le même marquage.',
-					'Le minimum de commande se compte sur le panier entier : {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, les deux ensemble, toutes références confondues.',
+					'Le minimum de commande se compte sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues.',
 					'Au-delà de {SEUIL_DEVIS} pièces sur une même référence, la commande passe par un devis et non par le panier.',
 				),
 				'after'      => array(
@@ -788,7 +788,7 @@ return array(
 			array(
 				'h2'         => 'Le réassort quand un joueur arrive en novembre',
 				'paragraphs' => array(
-					'Le minimum de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes s\'applique aussi au réassort. Nous ne pouvons pas imprimer un sweat seul en cours de saison, et c\'est la contrainte la plus gênante pour un club qui recrute toute l\'année.',
+					'Le minimum de {MINIMUM_PIECES} pièces s\'applique aussi au réassort. Nous ne pouvons pas imprimer un sweat seul en cours de saison, et c\'est la contrainte la plus gênante pour un club qui recrute toute l\'année.',
 					'Elle se règle en septembre plutôt qu\'en novembre : ajoutez quelques pièces d\'avance à la commande de début de saison, sur la même référence et le même marquage. Elles montent la quantité de cette ligne et prennent donc son palier, alors qu\'un réassort reparti seul en novembre repart à la première colonne de la grille. Ces pièces d\'avance ne dorment pas au placard : c\'est le sweat de l\'arrivant de novembre.',
 				),
 				'links'      => array(
@@ -810,7 +810,7 @@ return array(
 			),
 			array(
 				'q' => 'Quel est le minimum de commande ?',
-				'a' => '{MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes. Les deux conditions valent ensemble et se comptent sur le panier entier, toutes références confondues : des t-shirts et des sweats commandés ensemble comptent ensemble. Le minimum s\'applique aussi à un réassort en cours de saison.',
+				'a' => '{MINIMUM_PIECES} pièces, comptées sur le panier entier, toutes références confondues : des t-shirts et des sweats commandés ensemble comptent ensemble. Le minimum s\'applique aussi à un réassort en cours de saison.',
 			),
 			array(
 				'q' => 'Le prix baisse-t-il si j\'additionne les sweats et les t-shirts ?',
@@ -841,7 +841,7 @@ return array(
 		'h1'          => 'T-shirts personnalisés pour un événement : commencez par la date',
 		'intro'       => array(
 			'Notre délai est de {DELAI_STANDARD} jours ouvrés entre la validation de votre bon à tirer et l\'expédition, et il faut compter le transport en plus.',
-			'Une commande part de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, deux seuils comptés sur le panier entier.',
+			'Une commande part de {MINIMUM_PIECES} pièces, comptées sur le panier entier.',
 			'Cette page sert à faire le calcul vous-même avant de commander, y compris quand il donne non.',
 		),
 		'sections'    => array(
@@ -879,7 +879,7 @@ return array(
 			array(
 				'h2'         => 'La quantité et la répartition des tailles',
 				'paragraphs' => array(
-					'La commande commence à {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes. Ces deux conditions se comptent sur le panier entier et non sur une ligne : vous pouvez répartir ces pièces sur plusieurs modèles, plusieurs coloris et plusieurs tailles, il faut seulement que les deux seuils soient atteints à la validation du panier.',
+					'La commande commence à {MINIMUM_PIECES} pièces. Elles se comptent sur le panier entier et non sur une ligne : vous pouvez les répartir sur plusieurs modèles, plusieurs coloris et plusieurs tailles, il faut seulement que le total soit atteint à la validation du panier.',
 					'Le palier de quantité, lui, ne se compte pas de la même façon : il s\'applique ligne par ligne, sur la quantité d\'une même référence. Des t-shirts et des polos ajoutés au même panier ne s\'additionnent donc pas pour faire baisser le prix unitaire : chaque ligne obtient le palier de sa propre quantité. Les tailles d\'une même ligne, elles, comptent ensemble, puisqu\'une ligne répartie du S au XXL reste une seule ligne à sa quantité totale.',
 					'Pour un événement, cela donne un conseil d\'achat clair : un même modèle pour tout le monde, décliné en tailles et en coloris, revient moins cher que le même nombre de pièces éclaté sur trois modèles différents.',
 					'La répartition des tailles se saisit ligne par ligne, au moment de la commande. Pour un événement, cela veut dire faire circuler la liste des inscrits avant et non pendant : ce temps de collecte s\'ajoute au délai.',
@@ -942,7 +942,7 @@ return array(
 			),
 			array(
 				'q' => 'Peut-on commander moins de {MINIMUM_PIECES} pièces ?',
-				'a' => 'Non. Le panier commence à {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, toutes lignes confondues. Ces pièces peuvent être réparties sur plusieurs modèles, plusieurs coloris et plusieurs tailles.',
+				'a' => 'Non. Le panier commence à {MINIMUM_PIECES} pièces, toutes lignes confondues. Ces pièces peuvent être réparties sur plusieurs modèles, plusieurs coloris et plusieurs tailles.',
 			),
 			array(
 				'q' => 'Nos t-shirts et nos polos s\'additionnent-ils pour faire baisser le prix ?',
@@ -957,10 +957,10 @@ return array(
 
 	'page:restauration' => array(
 		'title'       => 'Tenue de service personnalisée : restaurant, bar, hôtel',
-		'description' => 'Polos, t-shirts et sweats personnalisés, salle et bar, sans tenue de cuisine. Imprimé en France, minimum {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} HT.',
+		'description' => 'Polos, t-shirts et sweats personnalisés, salle et bar, sans tenue de cuisine. Imprimé en France, minimum {MINIMUM_PIECES} pièces.',
 		'h1'          => 'Tenue de service personnalisée pour restaurants, cafés, bars et hôtels',
 		'intro'       => array(
-			'Nous imprimons des polos, des t-shirts et des sweats pour les équipes en salle et au bar. Une commande part de {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, comptés sur le panier entier.',
+			'Nous imprimons des polos, des t-shirts et des sweats pour les équipes en salle et au bar. Une commande part de {MINIMUM_PIECES} pièces, comptées sur le panier entier.',
 			'Nous ne faisons pas la tenue de cuisine : ni veste, ni tablier, ni toque. Ces vêtements ne sont pas au catalogue.',
 			'Le marquage est imprimé en France, et les dimensions d\'impression sont publiées en centimètres sur chaque fiche produit.',
 		),
@@ -996,7 +996,7 @@ return array(
 				'paragraphs' => array(
 					'Une brigade de salle ne se commande pas en une taille unique. La répartition se saisit ligne par ligne, une taille et une quantité par ligne, sans fichier à joindre ni tableau à recopier dans un e-mail.',
 					'Mélanger les tailles ne fait pas perdre le palier : les quantités saisies s\'additionnent en une seule ligne de panier, et c\'est cette quantité-là qui fixe le palier. Mélanger les modèles, en revanche, ne les additionne pas. Le palier de quantité se calcule référence par référence : des polos et des sweats commandés ensemble gardent chacun le leur, et la même quantité regroupée sur une seule référence revient moins cher qu\'éclatée sur trois modèles.',
-					'Ce qui se compte bien sur le panier entier, c\'est le minimum de commande : {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, toutes tailles et toutes références confondues. La grille complète des paliers est publiée sur chaque fiche produit, avant que vous ayez rempli quoi que ce soit.',
+					'Ce qui se compte bien sur le panier entier, c\'est le minimum de commande : {MINIMUM_PIECES} pièces, toutes tailles et toutes références confondues. La grille complète des paliers est publiée sur chaque fiche produit, avant que vous ayez rempli quoi que ce soit.',
 				),
 			),
 			array(
@@ -1004,7 +1004,7 @@ return array(
 				'paragraphs' => array(
 					'Le prix comprend l\'impression, et il s\'affiche avant l\'ajout au panier. Vous n\'avez pas à demander un devis pour savoir ce que coûte un polo marqué sur la poitrine gauche.',
 					'Le marquage est calculé sur la surface d\'encre réellement imprimée, pas sur le rectangle dans lequel le fichier a été déposé. Un logo exporté avec de larges marges transparentes coûte la même chose qu\'un logo détouré au plus près : c\'est l\'encre posée sur le vêtement qui est mesurée, et c\'est la même mesure qui part en production.',
-					'La commande commence à {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes sur le panier entier : nous ne vendons pas à l\'unité, et c\'est écrit ici plutôt qu\'à l\'étape du paiement.',
+					'La commande commence à {MINIMUM_PIECES} pièces sur le panier entier : nous ne vendons pas à l\'unité, et c\'est écrit ici plutôt qu\'à l\'étape du paiement.',
 				),
 				'links'      => array(
 					array( 'label' => 'Commander en petite série', 'key' => 'page:petites-series' ),
@@ -1046,7 +1046,7 @@ return array(
 			),
 			array(
 				'q' => 'Quel est le minimum de commande ?',
-				'a' => '{MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes. Le panier doit atteindre les deux, toutes tailles et toutes références confondues : des polos et des sweats sur la même commande comptent ensemble pour le minimum. Nous ne vendons pas à l\'unité.',
+				'a' => '{MINIMUM_PIECES} pièces, toutes tailles et toutes références confondues : des polos et des sweats sur la même commande comptent ensemble pour le minimum. Nous ne vendons pas à l\'unité.',
 			),
 			array(
 				'q' => 'Commander plusieurs modèles à la fois fait-il baisser le prix unitaire ?',
@@ -1078,7 +1078,7 @@ return array(
 		'intro'       => array(
 			'Nous imprimons à partir de {MINIMUM_PIECES} pièces, et le panier refuse en dessous. Ce n’est pas une politique commerciale : un transfert DTF s’imprime sur un film vendu au mètre linéaire, dont le fournisseur facture un métrage minimum, et la presse se règle une fois pour toute la série. Sous {MINIMUM_PIECES} pièces, cette mise en route pèse plus que les vêtements qu’elle marque.',
 			'Le minimum porte sur la commande entière : des t-shirts et des sweats dans le même panier comptent ensemble pour l’atteindre. La remise de quantité, elle, se calcule référence par référence, sur la quantité d’un même modèle. Regrouper les pièces sur un seul modèle donne donc un prix unitaire plus bas que de les répartir sur plusieurs.',
-			'Le panier contrôle deux seuils au moment de valider : {MINIMUM_PIECES} pièces, et {MINIMUM_MONTANT} hors taxes de marchandise. Il dit lequel des deux manque et de combien, plutôt que de vous renvoyer une règle.',
+			'Le panier contrôle un seul seuil au moment de valider : {MINIMUM_PIECES} pièces. Il dit combien il en manque, plutôt que de vous renvoyer une règle.',
 		),
 		'sections'    => array(
 			array(
@@ -1171,7 +1171,7 @@ return array(
 			),
 			array(
 				'q' => 'Y a-t-il un montant minimum en plus du nombre de pièces ?',
-				'a' => 'Oui. Le panier demande {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes de marchandise, comptés l’un et l’autre sur la commande entière. Les deux doivent être atteints pour valider.',
+				'a' => 'Oui. Le panier demande {MINIMUM_PIECES} pièces, comptées sur la commande entière. Aucun montant minimum ne s’y ajoute.',
 			),
 			array(
 				'q' => 'Puis-je mélanger les tailles sur une commande de {MINIMUM_PIECES} pièces ?',
@@ -1276,7 +1276,7 @@ return array(
 				'paragraphs' => array(
 					'Le prix s\'affiche avant l\'ajout au panier, impression comprise. Il baisse par paliers de quantité, et le palier se calcule sur la quantité d\'une même référence : ce sont les pièces de ce modèle, avec ce marquage, qui décident du tarif de cette ligne. La grille complète est publiée sur chaque fiche produit.',
 					'La conséquence est un conseil d\'achat et pas un détail de calcul : une même quantité regroupée sur une seule référence atteint un palier que la même quantité répartie sur trois modèles n\'atteint pas, puisque chaque référence compte pour elle seule. Quand le choix est ouvert, grouper coûte moins cher que répartir.',
-					'Le minimum de commande, lui, se compte sur le panier entier : {MINIMUM_PIECES} pièces et {MINIMUM_MONTANT} hors taxes, toutes références confondues. Les deux conditions valent ensemble, un panier qui atteint les pièces sans le montant est refusé comme l\'inverse.',
+					'Le minimum de commande, lui, se compte sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues. C\'est la seule condition : aucun montant minimum ne s\'y ajoute.',
 					'La répartition des tailles se saisit ligne par ligne : vous n\'avez pas à prendre le même nombre de chaque taille pour atteindre la commande minimum.',
 					'Le bon à tirer se valide en ligne, sans créer de compte. L\'impression est faite en France, et l\'expédition part en Colissimo, en France métropolitaine.',
 					'À partir de la validation du bon à tirer, comptez {DELAI_STANDARD} jours ouvrés jusqu\'à l\'expédition. Aucun délai plus court n\'est proposé sur ce site : nous ne publions pas une date que l\'atelier ne tient pas.',
