@@ -886,6 +886,8 @@
 			"level": "important",
 			"status": "assumption",
 			"since": "2026-08-13",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 37 : « Le prix affiché au client reste identique quelle que soit la taille du vêtement » CONFIRME cette ligne pour le prix, et « ne jamais utiliser uniquement la surface du M pour calculer le coût réel » l'interdit côté COÛT. Le coût par taille n'est pas construit. Ce qui est construit, parce que la réponse à la question 04 l'a rendu urgent, est le REFUS : la feuille de 33 x 46 cm est plus étroite que les zones publiées à partir du XL, donc le panier refuse une ligne dont le visuel ne peut pas être pressé à une taille commandée.",
 			"statement_fr": "La surface facturée est celle mesurée à la taille M, quelles que soient les tailles réellement commandées sur la ligne.",
 			"home": "ts:src/content/sizeChart.ts#DEFAULT_SIZE",
 			"mirrors": [
@@ -908,7 +910,8 @@
 			],
 			"derives": [
 				"Le chiffre de la question elle-même : un visuel de 500 cm² en M en fait 757 en 3XL, soit 120,00 EUR HT non facturés sur 30 pièces en 3XL, pour environ 50 % de film en plus.",
-				"Le métrage de film de toute commande dont les tailles ne sont pas la taille de tarification : mesuré en imbriquant les deux visuels de la commande de démonstration, trente pièces prennent 1,80 m de rouleau en M et 2,70 m en 3XL, soit 50 % de film en plus pour le même dessin (séance 05)."
+				"Le métrage de film de toute commande dont les tailles ne sont pas la taille de tarification : mesuré en imbriquant les deux visuels de la commande de démonstration, trente pièces prennent 1,80 m de rouleau en M et 2,70 m en 3XL, soit 50 % de film en plus pour le même dessin (séance 05).",
+				"CE QUE LA BOUTIQUE REFUSE DEPUIS LE 01/09/2026, et c'est nouveau. Le film est passé à une feuille de 33 x 46 cm alors que les zones publiées vont jusqu'à 37,5 x 50 cm : mesuré sur data/garments.json, un marquage plein devant ou dos tient en S, M et L sur les deux vêtements et ne tient dans AUCUNE orientation à partir du XL. Comme le coût est mesuré à la taille de tarification, le moteur ne pouvait pas le voir : la boutique aurait encaissé et l'atelier l'aurait découvert à la presse. `Cart::add` refuse désormais la ligne en nommant les tailles, via `Design::unprintable_sizes()`."
 			],
 			"sessions": [
 				"05",

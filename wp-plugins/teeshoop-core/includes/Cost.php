@@ -782,19 +782,38 @@ final class Cost {
 		$waste_ht    = Money::round( $waste_m * $rate );
 		$delivery_ht = (int) ( $film['delivery_ht'] ?? 0 );
 
+		/*
+		 * The roll refuses on the same principle: a rate of zero is not free film,
+		 * it is a tariff nobody has filled in, and a billing step of zero makes
+		 * the prudent bound divide by nothing. See the sheet branch above.
+		 */
+		$roll_why = '';
+		if ( $rate <= 0 ) {
+			$roll_why = 'le tarif au mètre linéaire n’est pas renseigné pour cette origine';
+		} elseif ( (float) ( $film['billing_step_cm'] ?? 0 ) <= 0 || (float) ( $film['width_cm'] ?? 0 ) <= 0 ) {
+			$roll_why = 'la laize ou le pas de facturation du rouleau n’est pas renseigné';
+		}
+
+		// A REFUSAL CARRIES NO MONEY, in either branch. Leaving the delivery
+		// charge on it made a refused tariff cost 15,00 EUR, which is a number a
+		// caller could add up and a floor price could be built on.
+		$refused = '' !== $roll_why;
+
 		return array(
+			'ok'          => ! $refused,
+			'why'         => $roll_why,
 			'origin'      => $origin,
 			'billing'     => 'roll',
 			'unit_fr'     => 'mètre linéaire',
 			'rate_ht'     => $rate,
 			'nested_m'    => $nested_m,
-			'billed_m'    => $billed,
-			'billed_units' => $billed,
-			'waste_m'     => $waste_m,
-			'metres_ht'   => $metres_ht,
-			'waste_ht'    => $waste_ht,
-			'delivery_ht' => $delivery_ht,
-			'amount_ht'   => $metres_ht + $waste_ht + $delivery_ht,
+			'billed_m'    => $refused ? 0.0 : $billed,
+			'billed_units' => $refused ? 0.0 : $billed,
+			'waste_m'     => $refused ? 0.0 : $waste_m,
+			'metres_ht'   => $refused ? 0 : $metres_ht,
+			'waste_ht'    => $refused ? 0 : $waste_ht,
+			'delivery_ht' => $refused ? 0 : $delivery_ht,
+			'amount_ht'   => $refused ? 0 : $metres_ht + $waste_ht + $delivery_ht,
 			/*
 			 * True when the order was too small to reach the supplier's minimum,
 			 * so the shop is paying for film it did not use. The admin panel says
@@ -802,7 +821,7 @@ final class Cost {
 			 * order's economics: it is why two small runs pressed together cost
 			 * less than the same two runs a week apart.
 			 */
-			'at_minimum'  => $nested_m < $min,
+			'at_minimum'  => ! $refused && $nested_m < $min,
 		);
 	}
 
@@ -840,14 +859,65 @@ final class Cost {
 	private static function film_sheets( float $nested_m, array $film ): array {
 		$sheet_ht = (int) ( $film['sheet_ht'] ?? 0 );
 		$height   = (float) ( $film['max_length_cm'] ?? 0 );
+		$width    = (float) ( $film['width_cm'] ?? 0 );
+		$step     = (float) ( $film['billing_step_cm'] ?? 0 );
 		$min      = max( 0, (int) ( $film['min_sheets'] ?? 0 ) );
 
 		/*
-		 * A sheet of no height is not a sheet. Refusing here rather than dividing
-		 * by it keeps the failure loud: `Costing` marks the component UNKNOWN and
-		 * withholds the floor, which is what an unreadable tariff deserves.
+		 * ── AN INCOHERENT TARIFF REFUSES, IT DOES NOT COMPUTE ────────────────
+		 *
+		 * Found by the adversarial pass, and it was the worst thing in this
+		 * session after the sheet being narrower than the garment.
+		 *
+		 * `merge_config` merges the film block PER KEY, which is deliberate: the
+		 * settings screen owns eight of its fields and a whole-block replace once
+		 * deleted the ninth and destroyed 291,94 EUR of floor price. The
+		 * consequence here is that a film block SAVED BEFORE 1 September 2026
+		 * carries `width_cm => 56` and `max_length_cm => 100` and no `billing`
+		 * key at all, so it inherits `sheet` from the defaults and the engine
+		 * bills 56 x 100 cm « sheets » at 3,00 EUR each. Measured: four nested
+		 * metres cost 27,60 EUR instead of 86,40, a 68 % under-cost, straight
+		 * into a floor price that authorises sales nobody would have signed.
+		 *
+		 * Three things have to hold together for a sheet count to mean anything:
+		 * a sheet must have a price, it must have two dimensions, and the packer
+		 * must bill whole sheets, which is `billing_step_cm == max_length_cm`.
+		 * When they do not, this refuses, `Costing` marks the marking cost
+		 * UNKNOWN and `Margin` withholds the floor. That is the same rule the
+		 * whole cost engine runs on: a zero and a failure add up to the same
+		 * total and mean opposite things.
 		 */
-		$needed = $height > 0 ? (int) ceil( max( 0.0, $nested_m ) * 100 / $height - 1e-9 ) : 0;
+		$why = '';
+		if ( $sheet_ht <= 0 ) {
+			$why = 'le prix d’une feuille n’est pas renseigné';
+		} elseif ( $height <= 0 || $width <= 0 ) {
+			$why = 'les dimensions de la feuille ne sont pas renseignées';
+		} elseif ( abs( $step - $height ) > 0.01 ) {
+			$why = 'le pas de facturation ne vaut pas la hauteur de la feuille, donc une longueur et un nombre de feuilles diraient deux choses différentes de la même facture';
+		}
+		if ( '' !== $why ) {
+			return array(
+				'ok'           => false,
+				'why'          => $why,
+				'origin'       => 'fr',
+				'billing'      => 'sheet',
+				'unit_fr'      => 'feuille',
+				'rate_ht'      => $sheet_ht,
+				'nested_m'     => $nested_m,
+				'needed_sheets' => 0,
+				'billed_sheets' => 0,
+				'billed_units' => 0.0,
+				'billed_m'     => 0.0,
+				'waste_m'      => 0.0,
+				'metres_ht'    => 0,
+				'waste_ht'     => 0,
+				'delivery_ht'  => 0,
+				'amount_ht'    => 0,
+				'at_minimum'   => false,
+			);
+		}
+
+		$needed = (int) ceil( max( 0.0, $nested_m ) * 100 / $height - 1e-9 );
 		$billed = max( $min, $needed );
 
 		$sheets_ht = $billed * $sheet_ht;
@@ -855,6 +925,8 @@ final class Cost {
 		$delivery_ht = (int) ( $film['delivery_ht'] ?? 0 );
 
 		return array(
+			'ok'           => true,
+			'why'          => '',
 			'origin'       => 'fr',
 			'billing'      => 'sheet',
 			'unit_fr'      => 'feuille',
@@ -1150,6 +1222,73 @@ final class Cost {
 	 *
 	 * @return array{ok:bool,length_cm:float,impossible:array<int,string>}
 	 */
+	/**
+	 * Whether ONE transfer can be printed at all, in either orientation.
+	 *
+	 * ── WHY THIS IS A FUNCTION AND NOT THREE COMPARISONS ─────────────────────
+	 *
+	 * It was three comparisons, inside `prudent_length_cm`, and that was fine
+	 * while the film was a 56 cm roll cut at 100 cm: nothing a garment can carry
+	 * came close. Question 04's answer put the shop on a 33 x 46 cm sheet, and
+	 * the published print zones did not move with it. Measured on
+	 * `data/garments.json` on 1 September 2026, against a 33 x 46 sheet:
+	 *
+	 *   tee front and back      S, M, L fit · XL, 2XL, 3XL DO NOT
+	 *   hoodie front and back   S, M, L fit · XL, 2XL, 3XL DO NOT
+	 *   both sleeves            every size fits
+	 *
+	 * A full front at 3XL is 37,5 x 50 cm and no A3+ sheet holds it either way
+	 * up. Half the size range of the two garments this shop sells, and the cost
+	 * engine could not see it, because it measures every line at the PRICED size
+	 * (M) whatever sizes were ordered. That is question 37, and it stopped being
+	 * a question about the price the moment the sheet became narrower than the
+	 * garment.
+	 *
+	 * So the rule has one home and two callers: the bound below, which withholds
+	 * a floor price, and `Cart::add`, which refuses the sale. The second is the
+	 * one that matters: an order taken for a print the workshop cannot press is
+	 * money in and a customer to disappoint.
+	 */
+	public static function fits_sheet( float $w_cm, float $h_cm, array $config ): bool {
+		$film  = (array) ( $config['film'] ?? array() );
+		$width = (float) ( $film['width_cm'] ?? 0 );
+		$max   = (float) ( $film['max_length_cm'] ?? 0 );
+		if ( $width <= 0 || $max <= 0 || ! is_finite( $w_cm ) || ! is_finite( $h_cm ) || $w_cm <= 0 || $h_cm <= 0 ) {
+			return false;
+		}
+		$short = min( $w_cm, $h_cm );
+		$long  = max( $w_cm, $h_cm );
+		// Upright on the sheet, or lying across it. Nothing else is a placement.
+		return ( $long <= $max && $short <= $width ) || ( $long <= $width && $short <= $max );
+	}
+
+	/**
+	 * The transfers of a set that fit no sheet, by id.
+	 *
+	 * Empty means every one of them can be printed. It does NOT mean the set can
+	 * be printed cheaply, or that it has been nested: that is the packer's
+	 * answer and this is only the question of whether each piece exists on a
+	 * sheet at all.
+	 *
+	 * @param array<int,array{id?:string,w_cm?:float,h_cm?:float,qty?:int}> $pieces
+	 * @return array<int,string>
+	 */
+	public static function unplaceable( array $pieces, array $config ): array {
+		$out = array();
+		foreach ( $pieces as $piece ) {
+			$qty = (int) ( $piece['qty'] ?? 1 );
+			if ( $qty <= 0 ) {
+				continue;
+			}
+			$w = (float) ( $piece['w_cm'] ?? 0 );
+			$h = (float) ( $piece['h_cm'] ?? 0 );
+			if ( ! self::fits_sheet( $w, $h, $config ) ) {
+				$out[] = (string) ( $piece['id'] ?? '?' );
+			}
+		}
+		return $out;
+	}
+
 	public static function prudent_length_cm( array $pieces, array $config ): array {
 		$film  = (array) ( $config['film'] ?? array() );
 		$gap   = (float) ( $film['gap_cm'] ?? 0 );
@@ -1186,18 +1325,17 @@ final class Cost {
 			$short = min( $w, $h );
 			$long  = max( $w, $h );
 
-			// Neither orientation gets it across the roll, or down a sheet.
-			if ( $short > $width || $short > $max ) {
+			// ONE FIT RULE, and it is `fits_sheet()`. It was written out here and
+			// nowhere else, which was survivable while nothing a garment carries
+			// came near a 56 cm roll; on a 33 cm sheet the same question has to
+			// be askable from the cart, before the money.
+			if ( ! self::fits_sheet( $w, $h, $config ) ) {
 				$impossible[] = $id;
 				continue;
 			}
 
 			// Lying flat is only allowed when the long side fits the laize.
 			$row = $long <= $width ? $short : $long;
-			if ( $row > $max ) {
-				$impossible[] = $id;
-				continue;
-			}
 
 			$raw    += $qty * ( $row + $gap );
 			$tallest = max( $tallest, $row );

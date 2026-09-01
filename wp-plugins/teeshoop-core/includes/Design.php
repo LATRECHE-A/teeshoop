@@ -226,6 +226,106 @@ final class Design {
 	 * in the browser, because an ink extent comes from a decoded image's alpha
 	 * and neither this server nor the Worker has a canvas.
 	 */
+	/**
+	 * The sizes at which this design carries a transfer nothing can print.
+	 *
+	 * ── WHY THE CART ASKS THIS FILE AND NOT THE COST ENGINE ──────────────────
+	 *
+	 * The answer depends on the film FORMAT, which lives in the cost config
+	 * beside the film TARIFF, and `scripts/php-guard.mjs` keeps `Cost::` and
+	 * `Costing::` out of `Cart.php` for a good reason: the cart renders to a
+	 * customer and film economics must never reach that surface. The first
+	 * version of this check called them from the cart directly and the guard
+	 * refused it, correctly.
+	 *
+	 * A format is geometry, not money. So the question lives here, in the file
+	 * that already owns what a design prints, and the cart asks it in those
+	 * terms. What crosses back is a list of size names.
+	 *
+	 * ── WHY IT EXISTS AT ALL ─────────────────────────────────────────────────
+	 *
+	 * Every rectangle on a design is measured at the PRICED size, and the studio
+	 * grades a print with the garment: a 3XL chest is 64 cm where an M is 52, so
+	 * the same artwork comes out about 23 % larger in each direction. That was a
+	 * question about the PRICE (question 37) and no more, while the film was a
+	 * 56 cm roll cut at 100 cm and nothing a garment carries came close.
+	 *
+	 * Question 04's answer of 1 September 2026 put the shop on a 33 x 46 cm A3+
+	 * sheet, and it stopped being about the price. Measured against
+	 * `data/garments.json` that day: a full front or back print fits at S, M and
+	 * L on both garments and fits in NO orientation from XL upward, where the
+	 * published zone reaches 37,5 x 50 cm. Half the size range. The cost engine
+	 * cannot see it, because it measures the priced size whatever was ordered, so
+	 * without this the shop takes the money and the workshop finds out at the
+	 * press.
+	 *
+	 * ── THE GRADING FACTOR IS READ, NEVER REDERIVED ──────────────────────────
+	 *
+	 * `data/garments.json` is generated from the studio's own definitions and
+	 * `npm run verify:garments` fails when they diverge, so the ratio between a
+	 * side's published zone at the ordered size and at the priced size IS the
+	 * studio's grading factor. Width and height scale separately, because a zone
+	 * is not always square: the hoodie front is, the tee front is not.
+	 *
+	 * ── AND IT FAILS CLOSED ──────────────────────────────────────────────────
+	 *
+	 * A side whose zone the garment data does not know, or a priced zone of zero,
+	 * cannot be scaled, and an unscalable side is refused at that size rather
+	 * than waved through. « We could not check » is not « it fits », and the
+	 * consequence of confusing the two is a paid order the press cannot make.
+	 *
+	 * @param array<int,array<string,mixed>> $sides     normalised printed sides.
+	 * @param array<string,int>              $size_grid size => count, may be empty.
+	 * @return array<int,string> the offending sizes.
+	 */
+	public static function unprintable_sizes( string $garment, array $sides, array $size_grid ): array {
+		if ( empty( $sides ) || empty( $size_grid ) ) {
+			return array();
+		}
+		$priced = Garments::priced_size( $garment );
+		if ( '' === $priced ) {
+			return array();
+		}
+		$cost = Costing::config();
+
+		$bad = array();
+		foreach ( $size_grid as $size => $count ) {
+			if ( (int) $count <= 0 || (string) $size === $priced ) {
+				continue;
+			}
+			foreach ( $sides as $side ) {
+				$pieces = (array) ( $side['pieces'] ?? array() );
+				if ( empty( $pieces ) ) {
+					continue;
+				}
+				$by = Garments::area_by_size( $garment, (string) ( $side['id'] ?? '' ) );
+				$at = (array) ( $by[ (string) $size ] ?? array() );
+				$of = (array) ( $by[ $priced ] ?? array() );
+				$pw = (float) ( $of['wCm'] ?? 0 );
+				$ph = (float) ( $of['hCm'] ?? 0 );
+				if ( $pw <= 0 || $ph <= 0 || empty( $at ) ) {
+					$bad[ (string) $size ] = true;
+					continue;
+				}
+				$kw     = (float) ( $at['wCm'] ?? 0 ) / $pw;
+				$kh     = (float) ( $at['hCm'] ?? 0 ) / $ph;
+				$scaled = array();
+				foreach ( $pieces as $piece ) {
+					$scaled[] = array(
+						'id'   => (string) ( $piece['id'] ?? '?' ),
+						'w_cm' => (float) ( $piece['w_cm'] ?? 0 ) * $kw,
+						'h_cm' => (float) ( $piece['h_cm'] ?? 0 ) * $kh,
+						'qty'  => 1,
+					);
+				}
+				if ( ! empty( Cost::unplaceable( $scaled, $cost ) ) ) {
+					$bad[ (string) $size ] = true;
+				}
+			}
+		}
+		return array_keys( $bad );
+	}
+
 	public static function normalise_sides( mixed $raw ): array {
 		if ( ! is_array( $raw ) ) {
 			return array();

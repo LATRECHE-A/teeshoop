@@ -207,6 +207,35 @@ const ALLOWED = new Map([
     },
   ],
   [
+    'wp-plugins/teeshoop-core/includes/Design.php',
+    {
+      /*
+       * WHAT IT ASKS FOR IS A FORMAT, NOT A TARIFF, and the distinction is the
+       * whole of this exemption.
+       *
+       * Question 04's answer of 1 September 2026 made the film a 33 x 46 cm
+       * sheet, which is NARROWER than the print zones this shop publishes at XL
+       * and above: a full front at 3XL is 37,5 x 50 cm and no sheet holds it
+       * either way up. So the cart has to be able to ask « can the workshop
+       * press this, at the sizes ordered » BEFORE taking the money, and that
+       * question needs the printable format, which lives in the cost config
+       * beside the tariff.
+       *
+       * `Cart.php` asked the cost engine directly and this guard refused it,
+       * correctly: the cart renders to a customer. The question moved here, to
+       * the file that already owns what a design prints, which renders nothing
+       * at all (no echo, no esc_html_e, checked). What crosses back to the cart
+       * is a list of size names.
+       *
+       * Two needles only. No supplier needle is on this line and none may be
+       * added: this file must never learn who sells the film, only how big a
+       * sheet of it is.
+       */
+      why: 'the design gate; server-only, renders nothing, and it asks the cost config for the printable FORMAT so the cart can refuse a design the press cannot make',
+      needles: [ 'Cost::', 'Costing::' ],
+    },
+  ],
+  [
     'wp-plugins/teeshoop-core/tests/test-purchase.php',
     { why: 'the pure tests for the basket arithmetic; CLI only, never served', needles: [ 'Cost::', 'Costing::' ] },
   ],

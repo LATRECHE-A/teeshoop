@@ -1985,9 +1985,40 @@ Aujourd'hui une seule surface sert aux deux. « Ne jamais utiliser uniquement la
 M pour calculer le coût réel » est une exigence sur le moteur de coût, pas un réglage.
 
 
-*Ce que la séance 13b a fait et n'a pas fait.* Le prix client est confirmé : une
-seule surface, mesurée à la taille de tarification, quelle que soit la taille
-commandée. Rien ne bouge de ce côté.
+*Une conséquence que personne n'avait vue, et c'est la plus grave de la séance.*
+La réponse à la question 04 met le film sur une **feuille de 33 x 46 cm**. Les
+zones d'impression que le site publie, elles, n'ont pas bougé, et elles montent
+jusqu'à **37,5 x 50 cm** en 3XL.
+
+Mesuré sur nos propres données le 1er septembre 2026, contre cette feuille :
+
+| Emplacement | Tient | **Ne tient pas** |
+|---|---|---|
+| t-shirt devant et dos | S, M, L | **XL, 2XL, 3XL** |
+| sweat devant et dos | S, M, L | **XL, 2XL, 3XL** |
+| manches (les deux) | toutes | aucune |
+
+**La moitié de la gamme de tailles.** Un marquage plein devant en 3XL ne tient sur
+aucune feuille, dans aucun sens. Et le moteur de coût ne pouvait pas le voir,
+précisément parce qu'il mesure tout à la taille de tarification : la boutique
+aurait encaissé la commande et l'atelier l'aurait découvert à la presse.
+
+*Ce qui est construit en attendant votre décision :* le panier **refuse** la ligne
+et nomme les tailles concernées (« Ce visuel ne peut pas être imprimé dans les
+tailles suivantes : XL, 2XL, 3XL »). Un logo cœur, lui, passe à toutes les
+tailles : ce n'est pas la taille du vêtement qui refuse, c'est la taille du
+visuel une fois agrandi avec lui.
+
+*Ce qu'il nous faut, et c'est une décision commerciale :* soit **réduire les zones
+publiées** pour qu'un marquage plein tienne sur une feuille A3+ à toutes les
+tailles, ce qui veut dire annoncer un marquage plus petit sur les grandes tailles,
+soit **un second format** chez votre fournisseur pour les grandes pièces. Nous ne
+choisissons pas à votre place : la première réduit ce que vous vendez, la seconde
+coûte de l'argent.
+
+*Ce que la séance 13b a fait et n'a pas fait par ailleurs.* Le prix client est
+confirmé : une seule surface, mesurée à la taille de tarification, quelle que soit
+la taille commandée. Rien ne bouge de ce côté.
 
 **Le coût, lui, n'a pas suivi.** « Ne jamais utiliser uniquement la surface du M
 pour calculer le coût réel » demande d'imbriquer une pièce **par taille** dans le

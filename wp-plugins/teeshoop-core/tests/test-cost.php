@@ -208,6 +208,131 @@ describe( 'Cost: the film, from a measured length', function () use ( $ts_roll_c
 	} );
 } );
 
+describe( 'Cost: a film tariff that does not hold together refuses', function () use ( $ts_cost_config ) {
+	/*
+	 * THE DEFECT THIS PINS, found by the adversarial pass. `merge_config` merges
+	 * the film block PER KEY, deliberately, because a whole-block replace once
+	 * deleted `billing_step_cm` and 291,94 EUR of floor price with it. The
+	 * consequence after question 04's answer: a film block SAVED BEFORE
+	 * 1 September 2026 carries the roll's geometry and no `billing` key, so it
+	 * inherits `sheet` from the defaults and the engine prices 56 x 100 cm
+	 * « sheets » at the A3+ price.
+	 *
+	 * Measured: four nested metres came to 27,60 EUR instead of 86,40, a 68 %
+	 * under-cost, straight into a floor price that authorises sales.
+	 */
+	it( 'REFUSES a config saved before the tariff changed, instead of quoting it cheap', function () {
+		$saved = Cost::merge_config(
+			array(
+				'film' => array(
+					'rate_fr_ht'    => 1700,
+					'rate_es_ht'    => 900,
+					'width_cm'      => 56.0,
+					'delivery_ht'   => 1500,
+					'min_m'         => 1.0,
+					'waste_rate'    => 0.05,
+					'gap_cm'        => 0.5,
+					'max_length_cm' => 100.0,
+				),
+			)
+		);
+		eq( $saved['film']['billing'], 'sheet', 'le mode est bien hérité des défauts, ce qui est la cause' );
+
+		$f = Cost::film( 4.0, $saved );
+		truthy( ! $f['ok'], 'un tarif incohérent a été chiffré au lieu d’être refusé' );
+		eq( $f['amount_ht'], 0, 'un refus ne porte pas de montant' );
+		truthy( '' !== (string) $f['why'], 'un refus sans raison ne se corrige pas' );
+	} );
+
+	it( 'refuses a sheet with no price, and a sheet with no dimensions', function () {
+		$free = Cost::merge_config( array( 'film' => array( 'sheet_ht' => 0 ) ) );
+		truthy( ! Cost::film( 1.0, $free )['ok'], 'une feuille gratuite est un tarif non renseigné' );
+
+		$flat = Cost::merge_config( array( 'film' => array( 'width_cm' => 0.0 ) ) );
+		truthy( ! Cost::film( 1.0, $flat )['ok'] );
+	} );
+
+	it( 'refuses a billing step that is not the sheet height', function () use ( $ts_cost_config ) {
+		// The load-bearing equality: the sheet count is the length divided by the
+		// sheet height, and that is only the invoice if the packer bills whole
+		// sheets. The settings screen owns `max_length_cm` and not the step, so
+		// an operator can break exactly this.
+		$skew = Cost::merge_config( array( 'film' => array( 'max_length_cm' => 60.0 ) ) );
+		truthy( ! Cost::film( 1.0, $skew )['ok'], 'une hauteur modifiée seule a été acceptée' );
+		truthy( Cost::film( 1.0, $ts_cost_config )['ok'], 'et le tarif livré, lui, passe' );
+	} );
+
+	it( 'refuses a roll with no rate rather than treating film as free', function () {
+		$free = Cost::merge_config( array( 'film' => array( 'billing' => 'roll', 'rate_fr_ht' => 0 ) ) );
+		$f    = Cost::film( 4.0, $free );
+		truthy( ! $f['ok'] );
+		eq( $f['amount_ht'], 0 );
+	} );
+} );
+
+describe( 'Cost: what fits on a sheet, which is now a question about the garment', function () use ( $ts_cost_config, $ts_roll_config ) {
+	/*
+	 * THE DEFECT THIS PINS, and it was found by the adversarial pass and not by
+	 * any test here. Question 04's answer made the film a 33 x 46 cm sheet. The
+	 * print zones this shop PUBLISHES did not move, and measured against
+	 * data/garments.json on 1 September 2026 a full front or back print fits at
+	 * S, M and L on both garments and fits in NO orientation from XL upward,
+	 * where the zone reaches 37,5 x 50 cm.
+	 *
+	 * The cost engine could not see it: it measures every line at the priced
+	 * size, M, whatever sizes were ordered. So the shop would have taken the
+	 * money and the workshop would have found out at the press.
+	 */
+	it( 'refuses a transfer that fits no sheet in either orientation', function () use ( $ts_cost_config ) {
+		// The published tee front at 3XL, to the millimetre.
+		truthy( ! Cost::fits_sheet( 37.5, 50.0, $ts_cost_config ), 'un dos de 3XL tient sur une feuille A3+' );
+		// The same zone at L, which does fit, standing up.
+		truthy( Cost::fits_sheet( 32.6, 43.5, $ts_cost_config ) );
+		// And lying across: 46 is the long side of the sheet.
+		truthy( Cost::fits_sheet( 45.0, 30.0, $ts_cost_config ), 'une pièce couchée sur la feuille est une pose' );
+		truthy( ! Cost::fits_sheet( 34.0, 47.0, $ts_cost_config ), 'un millimètre de trop dans les deux sens' );
+	} );
+
+	it( 'answers the same question the same way on a roll', function () use ( $ts_roll_config ) {
+		// The very transfer the sheet refuses fitted the 56 cm roll, which is
+		// how this got past every check until the format changed.
+		truthy( Cost::fits_sheet( 37.5, 50.0, $ts_roll_config ), 'le rouleau de 56 cm prenait ce dos' );
+	} );
+
+	it( 'names the transfers that cannot be printed, and only those', function () use ( $ts_cost_config ) {
+		$bad = Cost::unplaceable(
+			array(
+				array( 'id' => 'coeur', 'w_cm' => 9.5, 'h_cm' => 7.2, 'qty' => 30 ),
+				array( 'id' => 'dos-3xl', 'w_cm' => 37.5, 'h_cm' => 50.0, 'qty' => 1 ),
+				array( 'id' => 'manche', 'w_cm' => 12.5, 'h_cm' => 12.5, 'qty' => 2 ),
+			),
+			$ts_cost_config
+		);
+		eq( $bad, array( 'dos-3xl' ) );
+	} );
+
+	it( 'treats geometry it cannot read as unprintable, never as fine', function () use ( $ts_cost_config ) {
+		eq(
+			Cost::unplaceable(
+				array(
+					array( 'id' => 'zero', 'w_cm' => 0.0, 'h_cm' => 10.0, 'qty' => 1 ),
+					array( 'id' => 'absente', 'qty' => 1 ),
+				),
+				$ts_cost_config
+			),
+			array( 'zero', 'absente' ),
+			'une géométrie illisible doit refuser, pas passer'
+		);
+		// A quantity of zero is not a transfer at all, so it is not a refusal.
+		eq( Cost::unplaceable( array( array( 'id' => 'aucune', 'w_cm' => 99.0, 'h_cm' => 99.0, 'qty' => 0 ) ), $ts_cost_config ), array() );
+	} );
+
+	it( 'refuses a config with no sheet at all rather than accepting everything', function () {
+		$blind = Cost::merge_config( array( 'film' => array( 'width_cm' => 0.0 ) ) );
+		truthy( ! Cost::fits_sheet( 5.0, 5.0, $blind ), 'une feuille sans largeur accepte tout' );
+	} );
+} );
+
 describe( 'Cost: the film when the supplier sells sheets', function () use ( $ts_cost_config, $ts_roll_config ) {
 	it( 'is what the shop ships, and it is not a roll', function () use ( $ts_cost_config ) {
 		eq( $ts_cost_config['film']['billing'], 'sheet', 'question 04 was answered with a sheet' );

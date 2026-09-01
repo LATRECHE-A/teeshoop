@@ -818,14 +818,43 @@ final class Costing {
 				);
 			}
 		} elseif ( $nest['ok'] && $work['complete'] ) {
-			$film         = Cost::film( (float) $nest['billed_m'], $config );
-			$components[] = Cost::component(
-				'marquage',
-				(int) $film['amount_ht'],
-				Cost::ESTIMATED,
-				self::film_source_fr( $film, $config ),
-				''
-			);
+			$film = Cost::film( (float) $nest['billed_m'], $config );
+			/*
+			 * A TARIFF THAT DOES NOT HOLD TOGETHER IS UNKNOWN, NOT CHEAP.
+			 *
+			 * `Cost::film()` refuses a film block whose pieces contradict each
+			 * other, and the case that made this necessary is not hypothetical: a
+			 * film block saved from the settings screen before 1 September 2026
+			 * carries the roll's geometry and no billing mode, inherits `sheet`
+			 * from the defaults, and prices 56 x 100 cm « sheets » at the A3+
+			 * price. Four nested metres came to 27,60 EUR instead of 86,40.
+			 * Passing that through as an ESTIMATE would put it in a floor price.
+			 */
+			$components[] = empty( $film['ok'] )
+				? Cost::component(
+					'marquage',
+					0,
+					Cost::UNKNOWN,
+					sprintf(
+						/* translators: %s: why the film tariff could not be applied. */
+						__( 'Le tarif du film n’est pas exploitable : %s. Corrigez-le sur cet écran.', 'teeshoop' ),
+						(string) ( $film['why'] ?? '' )
+					)
+				)
+				: Cost::component(
+					'marquage',
+					(int) $film['amount_ht'],
+					Cost::ESTIMATED,
+					self::film_source_fr( $film, $config ),
+					''
+				);
+			if ( empty( $film['ok'] ) ) {
+				$warnings[] = sprintf(
+					/* translators: %s: why the film tariff could not be applied. */
+					__( 'Le coût de marquage n’a pas pu être calculé : %s. Tant que c’est le cas, cette commande n’a pas de prix plancher.', 'teeshoop' ),
+					(string) ( $film['why'] ?? '' )
+				);
+			}
 			if ( ! empty( $film['at_minimum'] ) ) {
 				$warnings[] = 'sheet' === ( $film['billing'] ?? 'roll' )
 					? __( 'La commande n’atteint pas le nombre de feuilles minimum du fournisseur de film : elle paie du film qu’elle n’utilise pas.', 'teeshoop' )
@@ -849,13 +878,27 @@ final class Costing {
 			if ( $bound['ok'] ) {
 				$film          = Cost::film( (float) $bound['length_cm'] / 100, $config );
 				$film['bound'] = true;
-				$components[]  = Cost::component(
-					'marquage',
-					(int) $film['amount_ht'],
-					Cost::ESTIMATED,
-					__( 'Borne haute : une bande par transfert, sans imbrication. ', 'teeshoop' ) . $reason,
-					''
-				);
+				// The same refusal as the measured path: an unusable tariff makes
+				// the bound unusable too, and a bound is already the pessimistic
+				// answer, so there is nothing below it to fall back to.
+				$components[]  = empty( $film['ok'] )
+					? Cost::component(
+						'marquage',
+						0,
+						Cost::UNKNOWN,
+						sprintf(
+							/* translators: %s: why the film tariff could not be applied. */
+							__( 'Le tarif du film n’est pas exploitable : %s.', 'teeshoop' ),
+							(string) ( $film['why'] ?? '' )
+						)
+					)
+					: Cost::component(
+						'marquage',
+						(int) $film['amount_ht'],
+						Cost::ESTIMATED,
+						self::film_source_fr( $film, $config ) . ' ' . __( '(borne haute : une bande par transfert, sans imbrication.)', 'teeshoop' ) . ' ' . $reason,
+						''
+					);
 				$warnings[] = __( 'Le métrage de film n’a pas pu être mesuré, la borne haute a été utilisée : le coût est majoré et le plancher aussi.', 'teeshoop' ) . ' ' . $reason;
 			} elseif ( array() !== $bound['impossible'] ) {
 				$components[] = Cost::component( 'marquage', 0, Cost::UNKNOWN, Nest::reason_fr( 'piece_impossible' ) );

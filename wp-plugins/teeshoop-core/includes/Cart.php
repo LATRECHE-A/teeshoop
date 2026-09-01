@@ -353,6 +353,52 @@ final class Cart {
 		}
 
 		/*
+		 * CAN THE WORKSHOP ACTUALLY PRESS THIS, AT THE SIZES ORDERED?
+		 *
+		 * ── WHY THIS EXISTS, AND WHY IT DID NOT NEED TO BEFORE ───────────────
+		 *
+		 * Every rectangle on a design is measured at the PRICED size, M, and the
+		 * studio grades a print with the garment: a 3XL chest is 64 cm where an M
+		 * is 52, so the same artwork prints about 23 % larger in each direction.
+		 * That was question 37 and it was a question about the PRICE, worth a
+		 * warning on a margin report and no more, because a graded transfer still
+		 * fitted comfortably on a 56 cm roll cut at 100 cm.
+		 *
+		 * Question 04's answer of 1 September 2026 put the shop on a 33 x 46 cm
+		 * A3+ sheet, and it stopped fitting. Measured against `garments.json` on
+		 * the same day: a full front or back print fits at S, M and L on both
+		 * garments, and fits at NO orientation from XL upward, where the zone is
+		 * up to 37,5 x 50 cm. Half the size range. The cost engine cannot see it,
+		 * because it measures the M rectangle whatever was ordered, so without
+		 * this the shop takes the money and the workshop discovers it at the
+		 * press.
+		 *
+		 * ── THE GRADING FACTOR IS READ, NOT REIMPLEMENTED ────────────────────
+		 *
+		 * `data/garments.json` is generated from the studio's own definitions and
+		 * `npm run verify:garments` fails when the two diverge, so the ratio
+		 * between a side's published zone at the ordered size and at the priced
+		 * size IS the studio's grading factor. Deriving it here would be a second
+		 * implementation of the one rule that decides how big a print comes out.
+		 *
+		 * IT REFUSES THE LINE AND NAMES THE SIZE, because « votre visuel est trop
+		 * grand » is not actionable: the same design is printable one size down,
+		 * and the customer can choose.
+		 */
+		$too_big = Design::unprintable_sizes( $garment, $sides, $size_grid );
+		if ( ! empty( $too_big ) ) {
+			return new \WP_Error(
+				'teeshoop_design_too_large',
+				sprintf(
+					/* translators: %s: comma-separated garment sizes, e.g. "XL, 2XL". */
+					__( 'Ce visuel ne peut pas être imprimé dans les tailles suivantes : %s. Le marquage grandit avec le vêtement, et à ces tailles il dépasse le format que notre imprimeur peut produire. Réduisez le visuel, ou retirez ces tailles de la commande.', 'teeshoop' ),
+					implode( ', ', $too_big )
+				),
+				array( 'status' => 422 )
+			);
+		}
+
+		/*
 		 * PAST THE THRESHOLD, THE SITE STOPS PRICING AND A HUMAN STARTS.
 		 *
 		 * Enforced here and not only on the product page, because a rule the
