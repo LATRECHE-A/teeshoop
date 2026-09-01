@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore } from '@/state/store'
-import { SCENE_IDS, getScene, type SceneId } from '@/scenes'
+import { SCENE_IDS, getScene, offeredScene, type SceneId } from '@/scenes'
 import { useT } from '@/i18n'
 
 const SCENE_ICON: Record<SceneId, LucideIcon> = {
@@ -69,7 +69,10 @@ export default function ScenePicker() {
   const [open, setOpen] = useState(false)
   // The option the keyboard is standing on. Not the chosen scene: moving with
   // the arrows must not change what the stage renders until Enter or a click.
-  const [active, setActive] = useState<SceneId>(scene)
+  // COERCED, because the stored scene may not be one this list draws: `night`
+  // was withdrawn on 1 September 2026 and a returning visitor still carries it.
+  // An `active` with no option element takes no focus and counts from -1.
+  const [active, setActive] = useState<SceneId>(() => offeredScene(scene))
   const ref = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const options = useRef<Partial<Record<SceneId, HTMLButtonElement | null>>>({})
@@ -82,7 +85,7 @@ export default function ScenePicker() {
   }
 
   const openList = () => {
-    setActive(scene)
+    setActive(offeredScene(scene))
     setOpen(true)
   }
 

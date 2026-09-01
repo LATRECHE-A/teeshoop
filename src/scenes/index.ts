@@ -358,6 +358,23 @@ export const SCENES: Record<SceneId, SceneDef> = {
   night: NIGHT,
 }
 
+/**
+ * The offered scene closest to `id`: itself, or the default.
+ *
+ * A stored preference or a saved design can name a scene that is no longer in
+ * `SCENE_IDS`, which is exactly what happened to `night` on 1 September 2026
+ * (question 53). `getScene` still knows how to BUILD it, deliberately, so an old
+ * design renders as it was made; this is the other question, which is what the
+ * PICKER should stand on, and the answer is never a scene that is not in the
+ * list it is drawing.
+ *
+ * Without it the picker opened with `active` set to a scene it had no button
+ * for, so nothing took focus and the arrow keys counted from an index of -1.
+ */
+export function offeredScene(id: SceneId): SceneId {
+  return SCENE_IDS.includes(id) ? id : SCENE_IDS[0]
+}
+
 export function getScene(id: SceneId): SceneDef {
   return SCENES[id] ?? STUDIO
 }
