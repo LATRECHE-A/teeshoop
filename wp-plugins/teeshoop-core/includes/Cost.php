@@ -994,9 +994,11 @@ final class Cost {
 	 *
 	 * The obvious answer is proportional to nested AREA, and it is defensible
 	 * until you notice what it charges for. Area charges an order for the ink it
-	 * carries; the run is bought for the film that ink FORCES. One 55 x 40 cm back
-	 * print on a 56 cm roll leaves a ribbon down the side that nothing else can
-	 * use; forty 6 x 6 cm chest marks fill whatever they are given. Under the area
+	 * carries; the run is bought for the film that ink FORCES. One 30 x 40 cm back
+	 * print on a 33 cm sheet leaves a ribbon down the side that nothing else can
+	 * use; forty 6 x 6 cm chest marks fill whatever they are given. (The example
+	 * used to be 55 x 40 on a 56 cm roll, a piece the shipped sheet refuses
+	 * outright: an illustration a reader cannot run is worse than none.) Under the area
 	 * rule the second subsidises the first, and the margin report then says the
 	 * awkward order was the cheap one, which is the exact fact the report exists
 	 * to surface. Both numbers are computed; only the solo one is charged, and
@@ -1215,10 +1217,17 @@ final class Cost {
 	 * of being printed.
 	 *
 	 * A caller that uses this MUST mark the resulting component ESTIMATED. It
-	 * overstates a real order badly (measured on scripts/nest-verify.mjs's own
-	 * corpus: 0 % on a single piece both roundings land on, and up to +850 % on a
-	 * sheet of small transfers that interlock), so it is a stopgap for a broken
-	 * link and never a substitute for asking.
+	 * overstates a real order badly, so it is a stopgap for a broken link and
+	 * never a substitute for asking.
+	 *
+	 * RE-MEASURED ON THE SHIPPED SHEET on 1 September 2026, because the figure
+	 * here had been taken on a 56 cm roll cut at 100 cm with a 10 cm billing
+	 * step, and question 04's answer changed all three, the corpus, and this
+	 * function. On scripts/nest-verify.mjs's corpus against a 33 x 46 cm sheet:
+	 * 0 % on the two orders where the bound and the packing land on the same
+	 * sheet count, +50 % and +51 % on the two multi-sheet orders, +250 % on
+	 * thirty heart logos, and +400 % on three hundred small transfers that
+	 * interlock. The old figure said +850 %.
 	 *
 	 * @return array{ok:bool,length_cm:float,impossible:array<int,string>}
 	 */

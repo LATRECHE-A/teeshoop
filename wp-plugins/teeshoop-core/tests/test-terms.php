@@ -155,15 +155,27 @@ describe(
 				 * version must be UNCHANGED, byte for byte, against a recorded
 				 * fingerprint.
 				 */
-				$version = Terms::newest();
-				truthy( '' !== $version, 'aucune version de CGV n’est publiée' );
-				$doc  = Terms::document( $version );
-				$bad  = Terms::checked( $doc, ts_terms_defaults() );
-				$why  = array_map(
-					static fn( array $r ): string => $r['cle'] . ' : ' . $r['raison'] . ' (attendu ' . $r['attendu'] . ', fragment « ' . $r['texte'] . ' »)',
-					$bad
-				);
-				eq( $bad, array(), "la version $version ne dit plus ce que la boutique fait : " . implode( ' | ', $why ) );
+				/*
+				 * BOTH, and they are usually the same file. The NEWEST is the one
+				 * being written, and a version dated in the future has to agree
+				 * with the code by the day it applies or it takes effect saying
+				 * something untrue. The one IN FORCE is the one customers are
+				 * accepting right now, and it is the one that must never stop
+				 * being compared: while a future version sits merged and pending,
+				 * checking only the newest would leave the binding text unwatched
+				 * for as long as the window lasts.
+				 */
+				$checked = array_unique( array_filter( array( Terms::newest(), Terms::current() ) ) );
+				truthy( array() !== $checked, 'aucune version de CGV n’est publiée' );
+				foreach ( $checked as $version ) {
+					$doc = Terms::document( $version );
+					$bad = Terms::checked( $doc, ts_terms_defaults() );
+					$why = array_map(
+						static fn( array $r ): string => $r['cle'] . ' : ' . $r['raison'] . ' (attendu ' . $r['attendu'] . ', fragment « ' . $r['texte'] . ' »)',
+						$bad
+					);
+					eq( $bad, array(), "la version $version ne dit plus ce que la boutique fait : " . implode( ' | ', $why ) );
+				}
 			}
 		);
 
@@ -183,6 +195,45 @@ describe(
 						(string) ( $frozen[ $version ] ?? '' ),
 						"la version $version a été modifiée après avoir été remplacée : une version acceptée ne se corrige pas, on en publie une nouvelle"
 					);
+				}
+			}
+		);
+
+		it(
+			'does not freeze the live contract when a future version is merged',
+			function () {
+				/*
+				 * `in_force()` exists so a version can be committed, reviewed and
+				 * merged BEFORE it applies, and this is what that costs if
+				 * « superseded » means « not the newest »: on the day the future
+				 * file lands, the contract customers are accepting stops being
+				 * the newest, so it gets demanded frozen, somebody adds it to
+				 * figees.php to get the suite green, and nothing compares the
+				 * binding text with the shop for as long as the window lasts.
+				 *
+				 * This writes the future version, asks, and removes it. Asserting
+				 * on today's two files alone would prove nothing: there is no
+				 * future version on disk, so the case would never be exercised.
+				 */
+				$live   = Terms::current();
+				$future = '2099-01-01';
+				$dir    = dirname( __DIR__ ) . '/data/cgv/';
+				$path   = $dir . $future . '.php';
+				truthy( ! file_exists( $path ), "il existe déjà une version $future" );
+				copy( $dir . $live . '.php', $path );
+				try {
+					eq( Terms::newest(), $future, 'la version future n’est pas la plus récente' );
+					eq( Terms::current(), $live, 'une version datée du futur est déjà en vigueur' );
+					truthy(
+						! in_array( $live, Terms::superseded(), true ),
+						"la version en vigueur $live a été classée périmée parce qu'une version future a été fusionnée"
+					);
+					truthy(
+						! in_array( $future, Terms::superseded(), true ),
+						'une version qui ne s’applique pas encore a été classée périmée'
+					);
+				} finally {
+					unlink( $path );
 				}
 			}
 		);

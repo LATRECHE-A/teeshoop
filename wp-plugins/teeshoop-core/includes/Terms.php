@@ -177,10 +177,36 @@ final class Terms {
 		return array() === $all ? '' : (string) end( $all );
 	}
 
-	/** Every version but the newest: accepted, superseded, and unchangeable. */
+	/**
+	 * Every version OLDER THAN THE ONE IN FORCE: accepted, and unchangeable.
+	 *
+	 * NOT « every version but the newest », which is what this said and which
+	 * `in_force()` two functions up explicitly invites somebody to break: a
+	 * version dated in the future can be committed, reviewed and merged before it
+	 * applies. On the day that happens the live contract stops being the newest,
+	 * so it would be demanded frozen, somebody would add it to `figees.php` to
+	 * get the suite green, and from then on nothing would compare the text
+	 * customers are actually accepting with what the shop does. A figure moved in
+	 * code during that window would be checked only against a document that does
+	 * not bind anybody yet.
+	 *
+	 * A future version is neither in force nor superseded. It is pending, it is
+	 * still being written, and freezing it would be the opposite of the point.
+	 *
+	 * Found by the adversarial pass over session 13b.
+	 */
 	public static function superseded(): array {
-		$all = self::versions();
-		return count( $all ) < 2 ? array() : array_slice( $all, 0, -1 );
+		$live = self::in_force( self::today() );
+		if ( '' === $live ) {
+			return array();
+		}
+		$out = array();
+		foreach ( self::versions() as $version ) {
+			if ( strcmp( $version, $live ) < 0 ) {
+				$out[] = $version;
+			}
+		}
+		return $out;
 	}
 
 	/**

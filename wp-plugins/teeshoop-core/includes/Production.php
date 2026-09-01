@@ -565,11 +565,16 @@ final class Production {
 	 *
 	 * ── WHAT IT FOUND THE FIRST TIME IT RAN ──────────────────────────────────
 	 *
-	 * Question 14's default urgency, 4 working days, is impossible against
-	 * question 14's own other defaults. The work between an approved proof and a
-	 * parcel is 2 days of Colissimo + 1 day of pressing + 1 day of slack + 2 days
-	 * of French film transit = 6 working days. Four minus six is MINUS TWO: every
-	 * urgent order is two days late before anyone touches it.
+	 * The urgency then assumed, 4 working days, was impossible against the other
+	 * defaults. The work between an approved proof and a parcel is 2 days of
+	 * Colissimo + 1 day of pressing + 1 day of slack + 2 days of French film
+	 * transit = 6 working days. Four minus six is MINUS TWO.
+	 *
+	 * HIS ANSWER OF 1 SEPTEMBER 2026 MADE IT WORSE, not better: urgency is 3
+	 * working days, so it is now THREE short, and express at 4 is two short. The
+	 * six incompressible days did not move, because the blanks travel beside the
+	 * film rather than after it. Only the standard 7 is published, and it has one
+	 * working day of margin, which is the workshop buffer itself.
 	 *
 	 * ── AND WHAT THE BLANKS ADDED, WHICH IS NOTHING ──────────────────────────
 	 *
@@ -741,15 +746,6 @@ final class Production {
 	}
 
 	/**
-	 * One order as the workshop sees it, or null when it is not printable.
-	 *
-	 * Null covers three different things and they are not the same: the order is
-	 * blocked (unpaid, unapproved), it is already in a lot, or it carries nothing
-	 * to press. Only the last is silent, the other two are visible on the screen
-	 * through `blocked()` and `lot_of()`, because an order that simply disappears
-	 * is an order nobody chases.
-	 */
-	/**
 	 * The last day THIS order's blanks may be ordered, `Y-m-d`, or '' if unknown.
 	 *
 	 * '' has one meaning and it is the honest one: the proof is not approved, so
@@ -773,6 +769,15 @@ final class Production {
 		return '' === $target ? '' : self::latest_blank_order_on( $target, $garments, $config );
 	}
 
+	/**
+	 * One order as the workshop sees it, or null when it is not printable.
+	 *
+	 * Null covers three different things and they are not the same: the order is
+	 * blocked (unpaid, unapproved), it is already in a lot, or it carries nothing
+	 * to press. Only the last is silent, the other two are visible on the screen
+	 * through `blocked()` and `lot_of()`, because an order that simply disappears
+	 * is an order nobody chases.
+	 */
 	private static function queue_row( \WC_Order $order, string $today, array $config, array $film ): ?array {
 		$blockers = Lifecycle::blockers( $order, Lifecycle::PRODUCTION );
 		if ( array() !== $blockers ) {
