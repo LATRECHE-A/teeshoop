@@ -861,6 +861,77 @@ demande est maintenant plus large que ça.
 
 ---
 
+## 6 septies. Ce que la séance 13b a posé et ce qu'elle a laissé ouvert (01/09/2026)
+
+### L'identité légale est posée sur le miroir, pas en production
+
+Les questions 17, 45 et 56 ont été répondues, et les treize champs sont enregistrés dans
+l'option `teeshoop_legal` du **miroir local**. Le portail de mise en ligne
+(`npm run verify:lancement`) est passé de neuf refus à zéro sur cette condition, ce qui
+prouve que le contrôle fonctionne et ne prouve rien sur la production.
+
+**À refaire en séance 14, sur teeshoop.com**, dans WooCommerce puis Facturation, ou par
+WP-CLI :
+
+| Champ | Valeur |
+|---|---|
+| Raison sociale | PHARAON |
+| Forme juridique | SAS, société par actions simplifiée |
+| Capital social | 100 EUR |
+| Adresse | 97 avenue de Castelnau (**à confirmer**, voir ci-dessous) |
+| Code postal, ville | 93700 Drancy |
+| SIRET | 93059298500012 |
+| Ville du greffe | Bobigny |
+| TVA intracommunautaire | FR45930592985 |
+| Directeur de la publication | SINGH Simran |
+| Adresse de contact | `legales@teeshoop.com` |
+| Téléphone | 07 58 48 83 98 |
+
+**L'adresse n'est pas tranchée.** La question 17 donne le siège à Drancy et la question 55
+donne le 8 rue Primo Lévi, 93000 Bobigny, pour la fiche Google. C'est le siège qui est
+posé, parce qu'il vient d'un SIRET, et la question est reposée à l'associé.
+
+**Ce qui reste vide et n'est pas une question pour lui :** les quatre champs de
+l'hébergeur, qui se recopient du contrat o2switch (§6 quater). Le portail les compte
+comme des refus tant qu'ils sont vides.
+
+### Les trois boîtes aux lettres, à vérifier et pas à créer
+
+`legales@teeshoop.com`, `ticket@teeshoop.com` et `dev@teeshoop.com`. Le domaine a bien un
+serveur de messagerie (`mail.teeshoop.com`), ce qui est vérifié ; que les boîtes existent
+et soient **relevées** ne l'est pas. Cela se lit en SSH, en une commande :
+
+```
+ssh teeshoop 'uapi Email list_pops'
+```
+
+Tant que ce n'est pas fait, la veille ne doit pas être mise en cron : elle refuse déjà de
+démarrer sans destinataire, ce qui est correct, mais elle ne peut pas savoir qu'une adresse
+syntaxiquement valable ne mène nulle part. Une alerte envoyée dans le vide est exactement
+ce que la question 61 voulait éviter.
+
+### Ce que les réponses ajoutent à la liste des choses à obtenir
+
+| À obtenir | De qui | Pourquoi maintenant |
+|---|---|---|
+| **La facture du fournisseur DTF** | associé | Elle répond seule à quatre inconnues de la question 04 : HT ou TTC (un cinquième de tout le coût de marquage), les frais de livraison (qui décident désormais de **la totalité** des 75,00 EUR que le groupage fait gagner), le minimum de commande et le délai |
+| **Un accès Imbretex** | associé | Quatre réponses le nomment fournisseur prioritaire (questions 3, 9, 43, 46) et il n'existe ni compte, ni identifiants, ni grille |
+| **La grille Mondial Relay** | associé | Il le nomme transporteur principal et la boutique chiffre toujours sur la grille publique de La Poste |
+| **Une phrase du comptable sur la TVA** | associé | La seule ligne que le portail de mise en ligne refuse nommément. Les deux régimes sont construits : ce qui manque est la phrase |
+| **Le nom du cabinet juridique et une date** | associé | Le portail refuse une version des conditions générales sans relecteur enregistré |
+| **`STRIPE_TEST_WEBHOOK_SECRET`** | associé | Signalé manquant par `Payment::problems()` à chaque exécution de `scripts/wp-secrets.sh` |
+| **Cartes Bancaires, Google Pay, virement SEPA** | associé | Mesurés absents ou inactifs de la configuration Stripe le 01/09/2026, alors que la question 15 demande les trois. Le routage CB est nettement moins cher sur une carte française co-badgée : c'est de l'argent à chaque encaissement |
+
+### Un rappel que ce document est le bon endroit pour
+
+L'associé ouvre lui-même, en fin de son second document, la question de la **propriété du
+code** : dépôt de l'entreprise, licences, situation des développements de stage, et ce qui
+se passe si un développeur part. Le dépôt est aujourd'hui `LATRECHE-A/teeshoop`, un compte
+personnel. Ce n'est pas un accès à obtenir, c'est une décision à écrire, et elle est déjà
+notée en §6 sexies.
+
+---
+
 ## 7. Plus tard : inutile de les créer maintenant
 
 Ces accès ne servent qu'à partir de R1/R2. Les créer trop tôt, c'est multiplier les
