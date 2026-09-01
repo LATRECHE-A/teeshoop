@@ -33,6 +33,13 @@
  * WHAT IS EXCLUDED, and why each one
  *
  *   docs/bible/    the associate's own text, vendored verbatim. Not ours to edit.
+ *   docs/reponses-associe/
+ *                  the same, for his answers to the 61 questions (received
+ *                  2026-09-01). Two of his sentences carry this character, in
+ *                  the question 44 colour examples, and correcting an answer to
+ *                  fit our punctuation rule is how a quotation stops being one.
+ *                  The transcription in QUESTIONS-ASSOCIE.md is ours and IS
+ *                  scanned, which is where the rule belongs.
  *   public/        vendored: a supplier's catalogue snapshot and the onnxruntime
  *                  wasm build, both copied in whole.
  *   docs/screens/  screenshots. Binary, and the byte pair that spells U+2014 in
@@ -53,7 +60,7 @@ const SELF_TEST = process.argv.includes('--self-test')
 /** U+2014. Written as an escape so this file passes its own guard. */
 const EM_DASH = '—'
 
-const EXCLUDED_PREFIXES = ['docs/bible/', 'public/', 'docs/screens/']
+const EXCLUDED_PREFIXES = ['docs/bible/', 'docs/reponses-associe/', 'public/', 'docs/screens/']
 
 /**
  * WHEN THE CHARACTER IS NOT PUNCTUATION.

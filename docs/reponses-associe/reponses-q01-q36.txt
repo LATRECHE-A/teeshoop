@@ -1,0 +1,295 @@
+                                                                              TEESHOOP | Réponses de validation
+
+
+
+
+                                         TEESHOOP
+
+              Réponses aux 36 questions
+                    de validation
+                   Version consolidée à partir des décisions du dirigeant
+
+                                            19 août 2026
+
+
+
+
+Objet du document
+Réponses consolidées aux questions commerciales, financières, juridiques, atelier et organisationnelles
+adressées à Teeshoop. Les points encore à récupérer sont listés à la fin.
+
+
+
+
+                                 Document de travail - 19 août 2026 | 1
+                                                                                           TEESHOOP | Réponses de validation
+1. Commandes professionnels / minimum
+Le site est réservé aux professionnels.
+Le minimum est de 5 pièces par commande, sans minimum obligatoire de 50 EUR HT. Le SIRET peut être demandé
+lors de la création du compte, sans nécessairement bloquer l'inscription. Les prix seront principalement affichés HT,
+avec le TTC en information secondaire.
+
+2. Achat direct ou devis
+Le client doit pouvoir personnaliser ses produits, obtenir son prix et payer directement en ligne.
+Jusqu'à 2 000 EUR HT de commande, le parcours peut être réalisé en autonomie. Au-delà de 2 000 EUR HT, passage
+par un devis et validation par Teeshoop.
+
+3. Tarifs Falk & Ross / Imbretex
+Nous avons déjà des comptes fournisseurs et des tarifs négociés. Les prix d'achat sont fréquemment de l'ordre de 2 à
+2,5 fois inférieurs aux tarifs de référence/publics, selon les produits.
+Les prix négociés apparaissent directement dans nos comptes fournisseurs. Le système doit donc utiliser autant que
+possible les vrais prix d'achat remontés depuis les comptes/API, et non des tarifs théoriques.
+Imbretex est prioritaire. Les frais de port et seuils de franco doivent être récupérés directement depuis les
+comptes/grilles fournisseurs.
+
+4. Coût DTF
+Nous avons actuellement un fournisseur en France qui nous pratique un tarif comparable aux prix espagnols.
+Tarif actuel : 3 EUR par feuille A3+ de 33 x 46 cm.
+Le moteur de coût doit pouvoir fonctionner à partir du coût réel par feuille/surface utilisée, plutôt que de figer
+arbitrairement un tarif au mètre.
+Le caractère HT ou TTC du tarif de 3 EUR, ainsi que les éventuels frais de livraison/minimums, seront à confirmer sur la
+facture fournisseur.
+
+5. Main-d'oeuvre
+Pour le calcul initial, nous pouvons utiliser un coût interne de 20 EUR / heure chargé, avec ce paramètre modifiable
+dans l'administration.
+En production à bon rythme, nous sommes capables de faire environ un T-shirt avec marquage devant + derrière en 30
+secondes sur la phase de pose.
+Il faudra néanmoins chronométrer séparément un cycle complet incluant préparation, contrôle, pliage et emballage pour
+affiner le coût réel.
+
+6. Marge et prix plancher
+Nous ne souhaitons pas appliquer un taux de marge commercial fixe identique à tous les produits et toutes les
+commandes.
+La marge doit varier selon la quantité, le textile, la technique utilisée, le temps de production, le client et le contexte
+commercial.
+Le logiciel doit calculer automatiquement un prix plancher en intégrant textile + marquage + main-d'oeuvre + emballage
++ autres coûts directs.
+Nous retenons comme base un objectif de marge brute minimale d'environ 50 % après coûts directs, avec paramètres
+adaptables selon la technique, notamment pour la broderie.
+Seul le dirigeant peut autoriser exceptionnellement une vente sous le prix plancher.
+
+7. Emballage et livraison
+Transporteur principal : Mondial Relay.
+La livraison est offerte à partir de 250 EUR HT de commande. En Île-de-France, pour une commande d'au moins 250
+EUR HT, une livraison en main propre peut également être proposée.
+
+                                             Document de travail - 19 août 2026 | 2
+                                                                                          TEESHOOP | Réponses de validation
+La grille de transport réelle doit être récupérée/utilisée dans le système.
+Pour l'emballage, dans l'attente d'une mesure réelle, on peut conserver provisoirement l'estimation de 0,60 EUR par
+pièce + 1,50 EUR par carton. Ces valeurs doivent rester configurables.
+
+8. Grille tarifaire publique / surface imprimée
+Oui, la grille tarifaire par quantité peut être visible publiquement.
+Le marquage doit être facturé autant que possible en fonction de la surface réellement utilisée/imprimée, plutôt qu'avec
+un forfait identique quelle que soit la taille du visuel. Un minimum de facturation par emplacement peut être conservé.
+
+9. Catalogue
+Imbretex est le fournisseur prioritaire.
+Je n'impose pas un nombre précis de références. L'objectif est d'avoir un catalogue qui donne immédiatement une
+image professionnelle, couvre les principales demandes B2B, soit suffisamment fourni pour le référencement naturel et
+reste performant techniquement.
+Pour le lancement, vous pouvez partir sur environ 300 références soigneusement sélectionnées, principalement
+Imbretex, puis enrichir progressivement le catalogue.
+Priorité aux T-shirts, polos, sweats, vêtements professionnels, vestes/softshells et produits à forte demande B2B.
+
+10. Tailles et produits particuliers
+Pour le lancement, la personnalisation automatique peut être priorisée sur les vêtements classiques et les tailles les
+plus courantes.
+Les produits nécessitant des gabarits spécifiques - casquettes, sacs, tabliers, bonnets, certaines tailles extrêmes, etc. -
+peuvent être visibles dans le catalogue pour le référencement et la vente, même si certains doivent temporairement
+passer par un devis.
+L'objectif est ensuite d'élargir progressivement la personnalisation à toutes les familles.
+
+11. Stock fournisseur
+Nous préférons afficher au client une information simple du type : disponible / délai allongé / sur commande, plutôt
+qu'un stock chiffré qui pourrait devenir rapidement incorrect.
+En cas de rupture après commande : contacter le client et lui proposer une référence, taille ou couleur équivalente, puis
+obtenir son accord avant remplacement.
+
+12. Techniques proposées
+Ordre de priorité : DTF, flocage/vinyle, sublimation, broderie.
+Ces quatre techniques doivent pouvoir être proposées. Pour le DTF et le vinyle, les emplacements classiques sont
+notamment coeur/poitrine, dos et manches. Les limites de dimensions doivent dépendre du produit et de la zone de
+personnalisation.
+
+13. Broderie
+Pour les petites séries, la broderie peut être réalisée en interne. Au-delà de 10 unités, elle est sous-traitée.
+Les coûts et délais doivent donc pouvoir différer automatiquement selon la quantité.
+Pour la numérisation des logos, le prix précis reste à renseigner selon le coût réel du prestataire. Dans l'intervalle, le
+système peut conserver le principe d'une numérisation facturée une seule fois par logo, puis mémorisée pour les
+réassorts.
+
+14. Délais
+À partir de la validation du BAT : standard 7 jours ; express 4 jours selon disponibilité ; urgent 2 à 3 jours selon
+disponibilité.
+Transporteur principal : Mondial Relay. Livraison en main propre possible en Île-de-France, notamment pour les
+commandes >= 250 EUR HT.
+
+
+                                              Document de travail - 19 août 2026 | 3
+                                                                                                TEESHOOP | Réponses de validation
+15. Paiements
+Stripe est déjà intégré.
+À conserver : carte bancaire, Apple Pay, Google Pay, virement bancaire, mandat administratif pour
+mairies/écoles/collectivités, et paiement fractionné via Klarna lorsqu'il est proposé par Stripe.
+
+16. Acompte
+Paiement normalement intégral avant production.
+Pour toute commande supérieure à 1 000 EUR HT, possibilité d'accepter seulement 50 % d'acompte avant production,
+mais uniquement après validation du dirigeant.
+Les collectivités avec mandat administratif seront traitées selon leur procédure spécifique.
+
+17. Informations légales
+Entité juridique : PHARAON.
+Forme : SAS - Société par actions simplifiée. SIREN : 930 592 985. SIRET siège : 930 592 985 00012. Adresse : 97
+avenue de Castelnau, 93700 Drancy. TVA intracommunautaire : FR45930592985. Capital social : 100 EUR. RCS :
+Bobigny.
+Pour le lancement, conserver l'hypothèse de TVA à 20 % sur les opérations concernées, sous réserve de validation
+comptable et des cas particuliers.
+
+ Informations issues du lien Pappers fourni par le dirigeant ; à confirmer avec les documents officiels de la société avant
+ publication définitive.
+
+
+18. CGV / juridique
+Nous avons déjà nos CGV.
+Il faut partir des CGV existantes et les intégrer au site, plutôt que d'en recréer de nouvelles.
+Il faudra simplement vérifier qu'elles couvrent correctement les articles personnalisés, le droit de rétractation applicable,
+le BAT, les tolérances de production et les modalités de SAV.
+
+19. Base de prospection
+La base d'environ 150 000 entreprises a été achetée. Elle comprend notamment e-mails, numéros de téléphone et
+prénoms/données de contacts.
+Le nom exact du fournisseur de la base n'est plus connu à ce stade et doit être retrouvé avant import/exploitation
+massive.
+Il faudra conserver dans le CRM la source, la date d'import et les informations nécessaires à la gestion des oppositions.
+
+20. Site actuel
+Oui : supprimer les meubles, tapis et tous les produits de démonstration.
+En revanche, ne pas refaire inutilement ce qui est déjà finalisé : menu, identité graphique, typographies et logo.
+Fancy Product Designer doit être remplacé/désactivé au profit du nouvel outil, avec sauvegarde préalable de l'existant.
+
+21. Accès et propriété
+Oui, les accès nécessaires peuvent être fournis à l'équipe : domaine, o2switch, WordPress administrateur, Cloudflare,
+comptes fournisseurs, licences et autres accès techniques nécessaires.
+
+22. Commandes fournisseurs
+Les comptes fournisseurs possèdent déjà nos tarifs négociés.
+Le système peut préparer automatiquement les commandes fournisseurs, mais aucune commande réelle ne doit partir
+automatiquement. Validation manuelle obligatoire avant envoi au fournisseur.
+L'accès à cette fonction doit être sécurisé. Le statut exact d'un éventuel compte Mid Ocean reste à vérifier.
+
+
+                                               Document de travail - 19 août 2026 | 4
+                                                                                       TEESHOOP | Réponses de validation
+23. Capacité de production
+Capacité de travail à retenir actuellement : environ 500 pièces par jour.
+Au-delà de 500 pièces sur une même commande, le logiciel doit au minimum afficher une alerte et demander une
+validation manuelle pour vérifier la capacité, le délai ou la nécessité d'une sous-traitance.
+
+24. Devis et facturation
+Les factures officielles doivent rester gérées par notre système externe de facturation/comptabilité, et non par une
+nouvelle numérotation indépendante créée par le site.
+Le site peut en revanche générer les éléments commerciaux nécessaires : devis, récapitulatifs de commande, BAT, etc.
+Il ne doit pas créer une deuxième numérotation légale des factures qui risquerait de provoquer des doublons.
+
+25. Aide graphique
+En l'absence d'une grille différente pour le moment, nous pouvons partir sur : nettoyage simple/placement du fichier
+inclus ; vectorisation manuelle 39 EUR HT ; création complète de logo 250 EUR HT sur devis ; deux allers-retours
+inclus.
+Ces tarifs devront être modifiables facilement dans l'administration.
+
+26. BAT
+Deux corrections incluses, puis 15 EUR HT par correction supplémentaire.
+Aucune production normale sans BAT validé. En urgence, production possible uniquement avec accord écrit explicite
+du client reconnaissant qu'il demande la production sans BAT définitif et en assume les conséquences
+correspondantes.
+
+27. SAV
+Erreur imputable à Teeshoop : remplacement/refabrication.
+Erreur de taille ou choix validé par le client : pas de remboursement automatique.
+Différences raisonnables entre couleur écran et couleur réelle acceptées ; petites tolérances normales de placement du
+marquage à définir dans les CGV/BAT ; cas importants ou inhabituels traités individuellement.
+
+28. Prospectrices Madagascar
+Si cette stratégie est maintenue, les prospectrices à Madagascar seront indépendantes/freelances.
+Je souhaite tester cette stratégie pendant environ 2 mois, car son efficacité commerciale reste à démontrer. Si les
+résultats ne sont pas satisfaisants, l'organisation pourra évoluer.
+Je souhaite notamment explorer davantage les appels d'offres et marchés professionnels/publics, qui peuvent
+constituer un axe commercial important.
+Pendant la période de test, les prospectrices ne doivent avoir accès qu'aux prospects qui leur sont attribués, sans
+données de paiement, marges ou informations sensibles.
+
+29. Commissions commerciales
+Confirmé : 40 % de la marge sur la première commande ; 25 % sur une nouvelle commande ; 12 % sur un réassort ;
+attribution du client au commercial pendant 12 mois ; 0 % si le client revient ensuite commander entièrement seul sur le
+site sans intervention commerciale ; commission définitivement acquise 30 jours après livraison sans litige.
+
+30. Prix exceptionnel / commerciaux
+Le logiciel doit empêcher automatiquement une vente sous le prix plancher.
+Une demande exceptionnelle peut être envoyée au dirigeant uniquement, avec justification. Le dirigeant reste le seul à
+pouvoir autoriser une dérogation.
+La règle proposée d'une autorisation exceptionnelle valable 7 jours peut être conservée. Ces règles devront également
+être reprises dans les contrats/conditions applicables aux commerciaux indépendants.
+
+
+
+                                            Document de travail - 19 août 2026 | 5
+                                                                                            TEESHOOP | Réponses de validation
+31. Identité de marque
+L'identité existe déjà.
+Il faut conserver le logo actuel, les couleurs actuelles, les typographies actuelles, le menu et l'organisation déjà définis,
+ainsi que l'identité graphique Teeshoop existante.
+Il ne faut pas repartir du design de démonstration du thème, ni recréer une nouvelle identité visuelle sans nécessité.
+
+32. Optimisation DTF / transferts séparés
+Oui, l'outil peut séparer intelligemment plusieurs transferts si cela permet une économie significative de film sans
+détériorer la qualité ou compliquer excessivement la production.
+L'optimisation automatique peut être activée lorsque l'économie devient significative, avec possibilité de forcer une pose
+unique manuellement pour une commande particulière.
+
+33. Compte client et créations
+Le visiteur ne doit pas être obligé de créer immédiatement un compte.
+Il doit pouvoir librement naviguer, consulter les produits, ajouter des produits, utiliser l'outil de personnalisation et
+tester/créer un design.
+La création du compte doit être demandée à une étape importante, par exemple pour sauvegarder durablement une
+création, demander/finaliser un devis, passer réellement commande, retrouver ses commandes ou effectuer un
+réassort.
+Après création du compte : fichiers de production conservés 3 ans ; aperçus conservés 1 an ; créations et anciennes
+commandes accessibles ; réassort à l'identique facilité.
+
+34. Ordre de développement
+Objectif de première mise en ligne : 1er septembre 2026.
+Ordre de priorité : 1) catalogue + prix + paiement en autonomie ; 2) CRM + prospection ; 3) devis + BAT ; 4) production
++ SAV.
+Le 1er septembre doit être considéré comme l'objectif du socle/MVP exploitable, les modules secondaires pouvant
+continuer à évoluer ensuite.
+Concernant les outils payants, en l'absence d'un autre budget défini, l'estimation provisoire d'environ 150 EUR/mois
+hors téléphonie peut servir de référence et devra être validée avant souscription.
+
+35. Pays et langues
+Au lancement : français uniquement et livraison uniquement en France métropolitaine.
+Les autres pays pourront être ajoutés ultérieurement ou traités exceptionnellement sur devis.
+
+36. Réalisations clients
+En l'absence d'une règle différente, nous pouvons conserver le principe suivant : possibilité d'utiliser les réalisations
+dans la communication Teeshoop avec autorisation prévue contractuellement et possibilité pour le client de refuser.
+Il faut prévoir cette information dans le devis/CGV afin que la gestion soit traçable.
+
+
+Éléments restant à récupérer
+   Facture ou grille complète du fournisseur DTF : confirmer si les 3 EUR sont HT ou TTC, les frais de livraison, le
+    minimum de commande et les délais.
+   Grille réelle Mondial Relay et coût réel des emballages.
+   Nom/source exacte de la base des 150 000 prospects avant import ou campagne automatisée.
+   Statut et utilité du compte Mid Ocean, le cas échéant.
+   Validation définitive des informations légales et de la TVA avec les documents officiels / la comptabilité.
+
+Note : ce document formalise les décisions du dirigeant pour permettre à l'équipe de développement d'avancer. Les paramètres
+chiffrés explicitement indiqués comme provisoires doivent rester modifiables dans l'administration.
+
+
+                                              Document de travail - 19 août 2026 | 6
+

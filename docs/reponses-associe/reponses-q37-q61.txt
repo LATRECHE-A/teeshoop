@@ -1,0 +1,361 @@
+                                   TEESHOOP
+
+                Réponses définitives
+                aux questions 37 à 61
+         Décisions métier à transmettre à l’équipe de développement
+                           Version du 1er septembre 2026
+
+Ce document constitue la référence métier la plus récente pour les sujets Q37 à Q61.
+  En cas de contradiction avec une hypothèse antérieure, les décisions ci-dessous
+                                    prévalent.
+
+
+
+
+                              Teeshoop - Réponses Q37 à Q61
+Synthèse des décisions
+    Question                                           Décision clé
+
+    Q37                                                Prix client identique par taille ; coût DTF réel
+                                                       en interne.
+
+    Q38                                                Devis valable 15 jours.
+
+    Q39                                                Commercial visible ; commission strictement
+                                                       interne.
+
+    Q40                                                Prospects non convertis : 3 ans après dernier
+                                                       contact.
+
+    Q41                                                Pas de vente textile nu en libre-service au
+                                                       lancement.
+
+    Q43                                                Imbretex : première valeur = stock vendable
+                                                       tant que non confirmé.
+
+    Q44                                                Couleurs en français + nom fabricant.
+
+    Q46                                                Imbretex : 24 h réel, 2 jours ouvrés de sécurité.
+
+    Q48                                                Pas de quantité de stock publique.
+
+    Q50                                                Poche kangourou : zone à 2 cm minimum au-
+                                                       dessus.
+
+    Q53                                                Scène nuit retirée au lancement.
+
+    Q54                                                Remises basées sur des lots de production
+                                                       compatibles.
+
+    Q55                                                GBP : 8 Rue Primo Lévi, Bobigny, 07 58 48 83
+                                                       98, 9h-17h.
+
+    Q56                                                Directeur de publication : SINGH Simran.
+
+    Q59                                                Responsable RGPD : SINGH Simran.
+
+    Q61                                                Alertes : ticket@teeshoop.fr + dev@teeshoop.fr.
+
+
+37. Gestion des grandes tailles et coût du marquage
+Décision : Le prix affiché au client reste identique quelle que soit la taille du vêtement pour un
+même visuel et une même configuration de marquage.
+
+     Le moteur interne calcule le coût réel du DTF selon la taille réellement commandée.
+     Un S, un M et un 3XL peuvent être vendus au même prix.
+     Le coût de film est calculé selon la surface réelle utilisée.
+     Le moteur de marge prend cette différence en compte.
+
+
+                                        Teeshoop - Réponses Q37 à Q61
+   Si les grandes tailles font passer la commande sous la marge plancher autorisée, un supplément
+    peut être appliqué ou la commande doit nécessiter une validation interne.
+
+Règle de développement : Ne jamais utiliser uniquement la surface du M pour calculer le coût réel
+d'une commande comportant plusieurs tailles. Le prix client reste simple ; le calcul de rentabilité
+interne reste précis.
+
+
+38. Durée de validité d'un devis
+Décision : Un devis Teeshoop est valable 15 jours calendaires à compter de sa date d'émission.
+
+   Après 15 jours, le devis expire.
+   Les stocks sont revérifiés.
+   Les prix d'achat et les coûts de marquage sont actualisés si nécessaire.
+   Le prix de vente et le délai de production sont recalculés.
+   Un nouveau devis ou une nouvelle version doit alors être émis.
+
+
+39. Commercial et commission sur le devis
+Décision : Le devis client peut comporter le nom du commercial ainsi que ses coordonnées
+professionnelles.
+
+   Peuvent apparaître : nom, téléphone, e-mail professionnel.
+   Ne doivent jamais apparaître : taux ou montant de commission, marge Teeshoop, prix d'achat,
+    coût de revient, prix plancher, données internes de rentabilité.
+   La commission reste exclusivement visible dans l'espace commercial et l'administration.
+
+
+40. Conservation des demandes de devis non converties
+Décision : Les données d'un prospect n'ayant jamais commandé sont conservées 3 ans à compter
+du dernier échange ou contact commercial.
+
+   À l'issue de cette période : suppression ou anonymisation lorsque cela est juridiquement ou
+    techniquement nécessaire.
+   Le système doit pouvoir automatiser cette échéance.
+
+
+41. Vente de textiles sans personnalisation
+Décision : Au lancement, Teeshoop n'a pas vocation à être une boutique de textile nu. Le catalogue
+sert principalement à choisir le support à personnaliser.
+
+   Parcours principal : choisir le produit -> choisir les variantes -> personnaliser -> obtenir le prix
+    -> commander.
+   Le bouton principal d'une fiche produit doit favoriser « Personnaliser ».
+   Une vente exceptionnelle de textile sans marquage à un professionnel peut être traitée
+    manuellement par devis.
+   Le catalogue reste très riche et présente toutes les caractéristiques disponibles des produits.
+
+
+                                        Teeshoop - Réponses Q37 à Q61
+42. Marge sur textile nu
+Décision : Non applicable au moteur e-commerce principal pour le lancement.
+
+   Aucun taux général n'est appliqué automatiquement à l'ensemble du catalogue pour une
+    revente textile nue.
+   Aucune mise en vente massive de textile nu n'est nécessaire.
+   Une éventuelle demande professionnelle est traitée individuellement à partir du moteur de
+    marge interne.
+
+
+43. Les trois valeurs de stock fournisseur
+Décision : Imbretex est la référence fournisseur à utiliser pour cette logique.
+
+   Tant que la signification exacte des trois valeurs n'a pas été confirmée, seule la première valeur
+    est considérée comme le stock immédiatement disponible.
+   Le système conserve néanmoins les trois valeurs brutes pour pouvoir modifier facilement leur
+    interprétation plus tard.
+
+
+44. Noms des couleurs
+Décision : Afficher le nom français suivi du nom fabricant.
+
+   Exemples : Bleu marine — Navy ; Noir — Black ; Blanc — White ; Gris chiné — Heather Grey ;
+    Vert bouteille — Bottle Green.
+   Le nom fabricant reste stocké, recherchable, visible et utilisé pour les réassorts.
+   Les noms très spécifiques sans traduction fiable peuvent rester uniquement sous leur
+    appellation fabricant.
+
+
+45. Pénalités de retard et RCS
+Décision : Société exploitante : PHARAON. RCS Bobigny 930 592 985.
+
+   Pénalités : taux de la Banque centrale européenne applicable + 10 points.
+   Indemnité forfaitaire pour frais de recouvrement : 40 €.
+   Aucun escompte pour paiement anticipé, sauf décision ultérieure contraire.
+
+
+46. Délai textile
+Décision : Pour Imbretex, le délai réel habituel est d'environ 24 heures.
+
+   Le moteur de planification retient jusqu'à 2 jours ouvrés de sécurité pour une promesse client
+    normale.
+   Si le produit n'est pas immédiatement disponible ou est en réapprovisionnement : délai à
+    confirmer.
+   Le système distingue article disponible immédiatement, disponibilité incertaine et
+    réapprovisionnement fournisseur.
+
+                                       Teeshoop - Réponses Q37 à Q61
+47. Hausse du prix fournisseur après le devis
+Décision : Pendant les 15 jours de validité du devis, Teeshoop assume une variation normale du
+prix d'achat fournisseur.
+
+   Le commercial ne voit pas sa commission réduite automatiquement pour une hausse
+    fournisseur qu'il n'a pas provoquée.
+   Le système enregistre le prix d'achat prévu, le prix d'achat réel, l'écart et la marge réelle.
+   Si la hausse fait passer la commande sous le prix plancher ou sous la marge minimale de
+    sécurité, la commande est bloquée et nécessite une validation dirigeant.
+   Après expiration du devis, les prix sont recalculés normalement.
+
+
+48. Affichage du stock
+Décision : Ne jamais publier au client le nombre exact de pièces présentes chez Imbretex.
+
+   Afficher uniquement : Disponible ; Stock limité / nous consulter ; Rupture / nous consulter ;
+    Délai à confirmer.
+   L'administration peut afficher la quantité remontée, la date de synchronisation, la source
+    fournisseur et le niveau de confiance.
+
+
+49. Familles de couleurs
+Décision : Familles validées : Blancs et écrus ; Gris ; Noirs ; Beiges et bruns ; Rouges ; Roses ;
+Oranges ; Jaunes ; Verts ; Bleus ; Violets.
+
+   Kaki -> Verts
+   Turquoise -> Bleus
+   Pixel Lime -> Verts
+   Safety Green -> Verts
+   Dusk Rose -> Roses
+   Dusty Rose -> Roses
+   Millennial Pink -> Roses
+   Magenta -> Roses
+   Le nom fabricant exact reste conservé indépendamment de la famille utilisée pour les filtres.
+
+
+50. Sweat à capuche et poche kangourou
+Décision : Dans le parcours standard, un marquage poitrine ne doit pas traverser la poche
+kangourou.
+
+   La zone imprimable se termine au minimum 2 cm au-dessus de la couture supérieure de la
+    poche.
+   Cette règle doit être identique dans le configurateur, l'aperçu 3D, le BAT, le calcul de surface, le
+    calcul DTF et les instructions de production.
+   À terme, la zone imprimable doit idéalement être adaptée au modèle de vêtement.
+
+
+                                        Teeshoop - Réponses Q37 à Q61
+51. Sous-couche blanche DTF
+Décision : Ne pas créer de tarification ou de règle client spécifique concernant une sous-couche
+blanche.
+
+   Aucun supplément « sous-couche blanche » n'est affiché ou facturé séparément.
+   Le configurateur 3D garde un rendu prudent et ne promet pas publiquement une technologie
+    spécifique de sous-couche.
+   Cette question ne doit pas bloquer le lancement.
+
+
+52. Photos portées
+Décision : Ne pas retarder le lancement pour créer un mannequin 3D par taille.
+
+   Au lancement : vues avant, vues arrière, vues détaillées, photos fournisseur lorsque leur
+    utilisation est autorisée.
+   Ne pas utiliser un mannequin dont les proportions seraient incorrectes entre S et 3XL.
+   En phase 2, Teeshoop pourra organiser des shootings sur les principales références ou
+    meilleures ventes.
+
+
+53. Scène nuit du studio
+Décision : Retirer la scène « nuit » au lancement.
+
+   Les cinq autres environnements peuvent être conservés.
+   La scène nuit pourra être réintroduite lorsqu'elle satisfera les tests de lisibilité.
+
+
+54. Remises par quantité
+Décision : La remise ne doit pas être calculée uniquement référence par référence. La logique doit
+être basée sur un lot de production compatible.
+
+   Exemple : 20 t-shirts + 10 polos = 30 pièces éligibles au même palier si le même visuel, une
+    technique compatible, des emplacements similaires et la même campagne de production sont
+    utilisés.
+   Des produits avec différents designs, différentes techniques ou différentes contraintes de
+    production ne doivent pas automatiquement être agrégés.
+   La remise doit suivre les économies réellement réalisées en production plutôt qu'une simple
+    règle informatique par SKU.
+
+
+55. Google Business Profile
+Décision : Créer une fiche Google Business Profile Teeshoop.
+
+   Adresse : 8 Rue Primo Lévi, 93000 Bobigny.
+   Téléphone : 07 58 48 83 98.
+   Horaires : lundi au vendredi, 9h00-17h00.
+
+                                         Teeshoop - Réponses Q37 à Q61
+   Samedi et dimanche : fermé / rendez-vous uniquement si organisé manuellement.
+   La fiche doit servir le référencement local sur Bobigny, Seine-Saint-Denis, Île-de-France et les
+    requêtes liées à la personnalisation textile.
+
+
+56. Directeur de publication
+Décision : Directeur de publication : SINGH Simran.
+
+   E-mail public : legales@teeshoop.fr
+   Téléphone : 07 58 48 83 98
+   Les informations de l'hébergeur doivent être récupérées dans les informations contractuelles
+    o2switch.
+
+
+57. Médiateur de la consommation
+Décision : Teeshoop est conçu actuellement comme un service B2B destiné aux professionnels.
+
+   Le parcours de lancement ne doit pas être conçu comme une boutique B2C destinée au
+    consommateur particulier.
+   La médiation de la consommation n'est pas intégrée comme condition de lancement du
+    parcours B2B.
+   Si Teeshoop ouvre ultérieurement la vente B2C, cette question devra être réouverte et les CGV
+    adaptées avant activation.
+
+
+58. Validation des documents juridiques
+Décision : Avocat ou cabinet juridique à désigner avant le lancement officiel.
+
+   À relire : CGV, mentions légales, politique de confidentialité, politique cookies si applicable,
+    rétractation/exclusion liée aux produits personnalisés, BAT, tolérances de fabrication,
+    remboursements, utilisation des réalisations clients, propriété intellectuelle et fonctionnement
+    B2B.
+   Chaque nouvelle version des CGV doit être versionnée et datée ; les anciennes commandes
+    gardent la version acceptée.
+
+
+59. DPA et sous-traitants
+Décision : SINGH Simran est responsable administrativement du suivi des contrats relatifs au
+traitement des données personnelles.
+
+   Les développeurs peuvent identifier les prestataires, récupérer les documents, préparer les
+    intégrations et signaler les éléments manquants.
+   La validation administrative reste centralisée.
+   À régulariser avant lancement officiel avec les prestataires effectivement utilisés : o2switch,
+    Cloudflare, Stripe ou futur prestataire de paiement, Brevo, transporteur, cabinet comptable et
+    tout autre sous-traitant manipulant des données personnelles.
+
+
+                                       Teeshoop - Réponses Q37 à Q61
+60. Données et factures au-delà de dix ans
+Décision : À l'issue de la période légale de conservation applicable, les données doivent être
+retirées du système opérationnel.
+
+   Les données devenues inutiles sont supprimées de manière sécurisée.
+   Une conservation supplémentaire n'a lieu que sur recommandation ou obligation validée par le
+    cabinet comptable ou juridique.
+   Il n'est pas nécessaire de développer aujourd'hui une automatisation complexe impossible à
+    tester avant plusieurs années, mais la politique doit être documentée.
+
+
+61. Alertes techniques
+Décision : Destinataires : ticket@teeshoop.fr et dev@teeshoop.fr.
+
+   En journée : alertes pertinentes sur indisponibilité site/configurateur, paiement, facturation,
+    stockage, sauvegardes, erreurs serveur répétées, BAT, achat fournisseur et intégrations
+    critiques.
+   Soir, nuit et week-end : limiter aux incidents critiques - boutique inaccessible, paiement
+    impossible, paiements encaissés sans commande/facture, risque de perte de données,
+    sauvegarde critique, panne provoquant une perte immédiate de commandes, incident
+    fournisseur ou paiement incohérent nécessitant une intervention rapide.
+   Les incidents non critiques sont journalisés et traités au prochain jour ouvré.
+
+
+Point complémentaire - propriété du code
+Le code développé pour Teeshoop ne doit pas dépendre durablement d'un dépôt personnel
+d'un développeur. Avant le lancement commercial définitif, formaliser :
+
+   la propriété ou les droits d'utilisation du code ;
+   la situation des développements effectués en stage/alternance ;
+   le dépôt Git principal de l'entreprise et ses administrateurs ;
+   la propriété du domaine, de l'hébergement, des comptes fournisseurs et des clés API ;
+   les licences ;
+   les procédures permettant à Teeshoop de continuer à fonctionner en cas de départ d'un
+    développeur.
+
+
+Conclusion
+Les décisions Q37 à Q61 peuvent désormais être considérées comme les règles métier de référence
+pour la prochaine phase de développement. Lorsqu'une décision de ce document entre en
+contradiction avec une hypothèse précédente, ce document doit être considéré comme la décision
+la plus récente sur le sujet concerné.
+
+
+
+
+                                       Teeshoop - Réponses Q37 à Q61
+
