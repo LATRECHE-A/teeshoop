@@ -249,17 +249,29 @@ for (const [name, path] of PAGES) {
    * stack trace has not failed, it has stopped, and the difference matters
    * because everything after this point went unchecked without a word.
    */
-  const garmentsUrl = `${BASE}/wp-content/plugins/teeshoop-core/data/garments.json`
-  const garmentsRes = await fetch(garmentsUrl)
-  const garmentsBody = await garmentsRes.text()
+  /*
+   * READ FROM DISK, NOT OVER HTTP, and the difference is not convenience.
+   *
+   * This fetched `${BASE}/wp-content/plugins/.../data/garments.json` and parsed
+   * it in one expression, and on 1 September 2026 it threw an unhandled
+   * SyntaxError after all 235 page checks had passed: the mirror answers 403 for
+   * that directory, so `JSON.parse` was handed an Apache error page and
+   * everything below went unchecked without a word.
+   *
+   * A 403 there is the server being RIGHT, incidentally: nothing needs that file
+   * to be public. What this check wants is the generated geometry, and the file
+   * on disk is that geometry, so it reads it where it lives. Unreadable is still
+   * a failure and never a skip.
+   */
+  const garmentsPath = join(ROOT, 'wp-plugins/teeshoop-core/data/garments.json')
   let garments = null
   try {
-    garments = JSON.parse(garmentsBody)
-  } catch {
+    garments = JSON.parse(readFileSync(garmentsPath, 'utf8'))
+  } catch (e) {
     ok(
-      'la géométrie du studio est lisible depuis le navigateur',
+      'la géométrie générée du studio est lisible',
       false,
-      `${garmentsUrl} a répondu ${garmentsRes.status} et pas du JSON, donc les contrôles de zone d'impression ci-dessous n'ont PAS eu lieu`,
+      `${garmentsPath} : ${e.message}. Les contrôles de zone d'impression n'ont PAS eu lieu.`,
     )
   }
   if (garments) {

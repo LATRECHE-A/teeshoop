@@ -182,7 +182,7 @@ imbricateur. Elle a trouvé un défaut à sa première exécution, une borne qui
 « taux de marge » désigne en français la marge sur le *coût* alors que la formule publiée
 est celle de la marge sur le *prix de vente*, ce qui vaut **125,00 EUR d'écart** sur une
 commande de 250 EUR de coût (au taux de 50 % donné le 1er septembre 2026 ; c'était
-168,06 EUR à 55 %) ; et la contribution minimale, absolue dans la Bible et
+168,06 EUR à 55 %, le taux supposé avant sa réponse) ; et la contribution minimale, absolue dans la Bible et
 exprimée en pourcentage dans l'hypothèse par défaut, donne une formule différente qui
 **n'a aucune solution** dans un cas que le code refuse au lieu de renvoyer un plancher
 négatif.
@@ -612,12 +612,19 @@ l'accueil, sur une page qui ne porte pas le formulaire. Le champ de retour est *
 donc non fiable, donc passé par `wp_validate_redirect` : une adresse étrangère au site est
 refusée et le repli reprend la main (vérifié avec `retour=https://evil.example/phish`).
 
-**Un délai est publié, et un seul.** Les 12 jours ouvrés du standard apparaissent désormais
-sur l'accueil, dans le pied de page, sur la page devis et sur la page entreprises, cadrés
-« à partir de la validation du bon à tirer » et jamais « livré le ». L'express (7 jours) et
-l'urgence (4 jours) restent internes, parce que la séance 07 a mesuré 6 jours ouvrés de
-travail incompressible entre un bon à tirer validé et un colis : publier une promesse qu'on
-a soi-même mesurée comme intenable est une pratique commerciale trompeuse.
+**Un délai est publié, et un seul.** Le délai standard apparaît sur l'accueil, dans le
+pied de page, sur la page devis et sur la page entreprises, cadré « à partir de la
+validation du bon à tirer » et jamais « livré le ». L'express et l'urgence restent internes,
+parce que la séance 07 a mesuré 6 jours ouvrés de travail incompressible entre un bon à
+tirer validé et un colis : publier une promesse qu'on a soi-même mesurée comme intenable est
+une pratique commerciale trompeuse.
+
+*Les trois chiffres étaient 12, 7 et 4 quand ce paragraphe a été écrit. La réponse à la
+question 14 du 1er septembre 2026 les met à **7, 4 et 3**, et la phrase ci-dessus vaut
+davantage qu'avant : l'express manque désormais de deux jours ouvrés et l'urgence de trois,
+et le standard lui-même n'en garde qu'un. Les nombres ne sont plus écrits ici parce qu'ils
+sont des emplacements dans la copie et une ligne du registre ; les recopier a déjà fait
+mentir ce paragraphe une fois.*
 
 **Et deux garde-fous étaient rouges depuis quatre séances.** Trouvés en les
 faisant tourner, pas en lisant du code. **Trois fichiers de test de l'extension
