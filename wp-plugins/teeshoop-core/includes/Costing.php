@@ -780,10 +780,22 @@ final class Costing {
 			&& in_array( (string) ( $lot['state'] ?? '' ), array( Production::SENT, Production::RECEIVED, Production::DONE ), true )
 			&& (int) ( $lot['share_ht'] ?? 0 ) > 0;
 		if ( $bought ) {
-			$film = array(
+			/*
+			 * THE UNIT TRAVELS WITH THE AMOUNT. A lot records the plate it bought
+			 * in metres, because that is what a plate is; the supplier's invoice
+			 * counts sheets. Deriving the count here rather than at each place
+			 * that prints it is what stops the margin report and the CLI drifting
+			 * apart, which they had: one had been moved to sheets and the other
+			 * still said metres for the same purchase.
+			 */
+			$pooled_m   = (float) ( $lot['pooled_m'] ?? 0.0 );
+			$sheet_h_cm = (float) ( $config['film']['max_length_cm'] ?? 0 );
+			$film       = array(
 				'origin'    => (string) ( $lot['origin'] ?? 'fr' ),
 				'lot_id'    => (int) $lot['lot_id'],
-				'billed_m'  => (float) ( $lot['pooled_m'] ?? 0.0 ),
+				'billed_m'  => $pooled_m,
+				'billing'   => (string) ( $config['film']['billing'] ?? 'roll' ),
+				'billed_sheets' => $sheet_h_cm > 0 ? (int) ceil( $pooled_m * 100 / $sheet_h_cm - 1e-9 ) : 0,
 				'solo_m'    => (float) ( $lot['solo_m'] ?? 0.0 ),
 				'solo_ht'   => (int) ( $lot['solo_ht'] ?? 0 ),
 				'amount_ht' => (int) ( $lot['share_ht'] ?? 0 ),
@@ -803,12 +815,12 @@ final class Costing {
 				 * answer it described metres against an invoice counting sheets.
 				 * Found by the adversarial pass.
 				 */
-				'sheet' === (string) ( $config['film']['billing'] ?? 'roll' )
+				'sheet' === $film['billing']
 					? sprintf(
 						/* translators: 1: how many orders shared the film, 2: number of sheets, 3: the lot number. */
 						__( 'Part de %1$d commandes imbriquées ensemble sur %2$s feuille(s) de film (lot n° %3$d)', 'teeshoop' ),
 						(int) $film['orders'],
-						Money::number( ceil( (float) $film['billed_m'] * 100 / max( 1.0, (float) ( $config['film']['max_length_cm'] ?? 1 ) ) - 1e-9 ), 0 ),
+						Money::number( (float) $film['billed_sheets'], 0 ),
 						(int) $film['lot_id']
 					)
 					: sprintf(
@@ -915,7 +927,16 @@ final class Costing {
 						self::film_source_fr( $film, $config ) . ' ' . __( '(borne haute : une bande par transfert, sans imbrication.)', 'teeshoop' ) . ' ' . $reason,
 						''
 					);
-				$warnings[] = __( 'Le métrage de film n’a pas pu être mesuré, la borne haute a été utilisée : le coût est majoré et le plancher aussi.', 'teeshoop' ) . ' ' . $reason;
+				/*
+				 * IN THE UNIT OF THE TARIFF, like the provenance beside it. This
+				 * warning is the one an operator reads on the path the shop
+				 * SHIPS on, the nesting service being unconfigured by default,
+				 * and it still said « le métrage » under a tariff that invoices
+				 * sheets. Found by the adversarial pass.
+				 */
+				$warnings[] = ( 'sheet' === (string) ( $film['billing'] ?? 'roll' )
+					? __( 'Le nombre de feuilles de film n’a pas pu être mesuré, la borne haute a été utilisée : le coût est majoré et le plancher aussi.', 'teeshoop' )
+					: __( 'Le métrage de film n’a pas pu être mesuré, la borne haute a été utilisée : le coût est majoré et le plancher aussi.', 'teeshoop' ) ) . ' ' . $reason;
 			} elseif ( array() !== $bound['impossible'] ) {
 				$components[] = Cost::component( 'marquage', 0, Cost::UNKNOWN, Nest::reason_fr( 'piece_impossible' ) );
 				$warnings[]   = Nest::reason_fr( 'piece_impossible' );

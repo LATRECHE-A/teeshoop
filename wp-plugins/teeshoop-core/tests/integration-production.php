@@ -168,12 +168,20 @@ function ts_pr_layout( int $a, int $b, array $over = array() ): array {
 		return $b['ok'] ? round( (float) $b['length_cm'] / 100, 2 ) : 0.0;
 	};
 
+	$pooled = $length( array_merge( $pieces_a, $pieces_b ) );
+	/*
+	 * DERIVED, not 1. A sheet edge is a physical cut, so the shop refuses a plate
+	 * longer than the film it is buying, and a fixture that hard-coded one sheet
+	 * described a 92 cm plate on a 46 cm sheet. The packer makes as many sheets as
+	 * the length needs; this fixture says so rather than pretending otherwise.
+	 */
+	$max_cm = (float) ( $film['max_length_cm'] ?? 0 );
 	$layout = array(
-		'pooled_m'     => $length( array_merge( $pieces_a, $pieces_b ) ),
+		'pooled_m'     => $pooled,
 		'width_cm'     => (float) ( $film['width_cm'] ?? 0 ),
 		'gap_cm'       => (float) ( $film['gap_cm'] ?? 0 ),
 		'billing_step_cm' => (float) ( $film['billing_step_cm'] ?? 0 ),
-		'sheets'       => 1,
+		'sheets'       => $max_cm > 0 ? max( 1, (int) ceil( $pooled * 100 / $max_cm - 1e-9 ) ) : 1,
 		'packer'       => 'trueshape',
 		'interlock_cm' => 2.0,
 		'restarts'     => 12,
@@ -442,6 +450,43 @@ function ts_production_suite( int $product_id ): void {
 			$today
 		);
 		ts_eq( $tight['ok'], false, 'une planche sans espacement entre les transferts a été acceptée' );
+	} );
+
+	ts_it( 'refuses one long plate where the film is a stack of sheets', function () use ( $product_id, $today ) {
+		/*
+		 * The studio's length field is editable on purpose, an operator packs
+		 * tighter with it, and it clamps against the SUPPLIER PROFILE's own maximum,
+		 * metres long on a roll process, not against the film the shop buys. Under a
+		 * roll tariff a
+		 * longer file was a longer cut and harmless. Since question 04's answer the
+		 * film is a 33 x 46 cm sheet and every 46 cm is a physical edge: one plate
+		 * of 2,50 m is six sheets with five cuts running through artwork.
+		 *
+		 * Found by the adversarial pass over session 13b. Nothing compared the
+		 * plate to the sheet, because under the previous tariff there was nothing
+		 * to compare it to.
+		 */
+		ts_pr_stub_nest();
+		$film = Costing::config()['film'];
+		if ( 'sheet' !== ( $film['billing'] ?? 'roll' ) ) {
+			ts_assert( false, 'ce test suppose le tarif à la feuille' );
+			return;
+		}
+		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0180' );
+		$b    = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0181' );
+		$long = ts_pr_layout( $a->get_id(), $b->get_id() );
+		$long['sheets'] = 1;   // the same ink, packed as ONE continuous plate
+		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $long, $today );
+		ts_eq( $made['ok'], false, 'une planche plus longue qu’une feuille a été acceptée' );
+		ts_assert( str_contains( $made['reason'], 'feuille' ), 'la raison ne parle pas de la feuille : ' . $made['reason'] );
+
+		// And a step that is not the one the shop is billed on.
+		$step = ts_pr_layout( $a->get_id(), $b->get_id(), array( 'billing_step_cm' => 10.0 ) );
+		ts_eq(
+			Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $step, $today )['ok'],
+			false,
+			'une planche découpée par pas de 10 cm a été acceptée pour une feuille de 46'
+		);
 	} );
 
 	ts_it( 'refuses a length no amount of ink could fit on', function () use ( $product_id, $today ) {

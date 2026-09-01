@@ -1290,24 +1290,9 @@ final class Production {
 		if ( ! in_array( $origin, Cost::origins( $film ), true ) ) {
 			return $fail( 'Cette origine de film ne peut pas être achetée avec le tarif en vigueur, qui n’a qu’un fournisseur.' );
 		}
-		if ( abs( $read['width_cm'] - $width ) > 0.01 ) {
-			return $fail(
-				sprintf(
-					'La planche a été imbriquée sur une laize de %s cm alors que le film acheté fait %s cm. Reprenez l’imbrication sur la bonne laize.',
-					Money::number( $read['width_cm'], 1 ),
-					Money::number( $width, 1 )
-				)
-			);
-		}
-		$gap_cm = (float) ( $film['gap_cm'] ?? 0 );
-		if ( $read['gap_cm'] + 0.001 < $gap_cm ) {
-			return $fail(
-				sprintf(
-					'La planche laisse %s cm entre les transferts alors que l’atelier en demande %s.',
-					Money::number( $read['gap_cm'], 2 ),
-					Money::number( $gap_cm, 2 )
-				)
-			);
+		$geometry = self::film_geometry_reason( $read['layout'], $film );
+		if ( '' !== $geometry ) {
+			return $fail( $geometry );
 		}
 
 		// 3. CEILING, asked of the packer that will print it.
@@ -1521,17 +1506,12 @@ final class Production {
 		 *
 		 * Found by the adversarial pass over this session's own diff.
 		 */
-		$film_now  = (array) ( Costing::config()['film'] ?? array() );
-		$width_now = (float) ( $film_now['width_cm'] ?? 0 );
-		$plate_w   = (float) ( $lot['layout']['width_cm'] ?? 0 );
-		if ( $width_now > 0 && $plate_w > 0 && abs( $plate_w - $width_now ) > 0.01 ) {
+		$film_now = (array) ( Costing::config()['film'] ?? array() );
+		$geometry = self::film_geometry_reason( (array) ( $lot['layout'] ?? array() ), $film_now );
+		if ( '' !== $geometry ) {
 			return array(
 				'ok'     => false,
-				'reason' => sprintf(
-					'Ce lot a été imbriqué sur une laize de %s cm et le film acheté aujourd’hui fait %s cm. Le film a changé depuis que ce brouillon a été préparé : défaites-le et reprenez l’imbrication, sinon la planche ne s’imprime pas.',
-					Money::number( $plate_w, 1 ),
-					Money::number( $width_now, 1 )
-				),
+				'reason' => 'Le film a changé depuis que ce brouillon a été préparé. ' . $geometry . ' Défaites le lot et reprenez l’imbrication : la planche ne s’imprimerait pas.',
 			);
 		}
 
@@ -1810,6 +1790,97 @@ final class Production {
 				'orders'     => $out,
 			),
 		);
+	}
+
+	/**
+	 * Why this plate cannot be printed on this film, or '' when it can.
+	 *
+	 * ONE RULE, TWO MOMENTS. `create_lot` asks it of the film in force the day
+	 * the plate is nested, and `send_lot` asks it again of the film in force the
+	 * day the money is actually spent, because a week can pass in between and the
+	 * laize is an editable field on the cost screen. Two copies of this
+	 * comparison is how the second one comes to be missing, which is exactly what
+	 * the adversarial pass of session 13b found.
+	 */
+	public static function film_geometry_reason( array $layout, array $film ): string {
+		$width = (float) ( $film['width_cm'] ?? 0 );
+		$plate = (float) ( $layout['width_cm'] ?? 0 );
+		if ( $width > 0 && $plate > 0 && abs( $plate - $width ) > 0.01 ) {
+			return sprintf(
+				'La planche a été imbriquée sur une laize de %s cm alors que le film fait %s cm.',
+				Money::number( $plate, 1 ),
+				Money::number( $width, 1 )
+			);
+		}
+
+		/*
+		 * The spacing is one setting with the laize: film packed at 0 mm between
+		 * transfers is film the workshop cannot cut apart, and it is also a
+		 * shorter sheet, so no length check would see it.
+		 */
+		$gap  = (float) ( $film['gap_cm'] ?? 0 );
+		$kept = (float) ( $layout['gap_cm'] ?? 0 );
+		if ( $kept + 0.001 < $gap ) {
+			return sprintf(
+				'La planche laisse %s cm entre les transferts alors que l’atelier en demande %s.',
+				Money::number( $kept, 2 ),
+				Money::number( $gap, 2 )
+			);
+		}
+
+		if ( 'sheet' !== (string) ( $film['billing'] ?? 'roll' ) ) {
+			return '';
+		}
+
+		/*
+		 * A SHEET EDGE IS A PHYSICAL CUT. Under the roll tariff a longer file was
+		 * simply a longer cut and the length of the plate was nobody's business
+		 * but the packer's. Question 04's answer made the film a 33 x 46 cm
+		 * sheet, and every 46 cm became a real edge: a plate packed longer than
+		 * one sheet is a plate the press cuts through, and it is discovered with
+		 * several customers' garments already pulled off the shelf.
+		 *
+		 * The studio's length field is editable on purpose (an operator may pack
+		 * tighter) and clamps against the SUPPLIER PROFILE's own maximum, metres
+		 * long on a roll process, not against the film the shop buys. Nothing
+		 * compared the two.
+		 *
+		 * The report carries no per-sheet length, so this compares the only thing
+		 * it can: the plate divided by the number of sheets the packer says it
+		 * made. Six sheets of 46 cm pass; one continuous plate of the same ink
+		 * does not. A report
+		 * that does not say how many sheets it made counts as one, which is the
+		 * conservative reading and the one that refuses.
+		 */
+		$max = (float) ( $film['max_length_cm'] ?? 0 );
+		$n   = max( 1, (int) ( $layout['sheets'] ?? 0 ) );
+		$avg = (float) ( $layout['pooled_m'] ?? 0 ) * 100 / $n;
+		if ( $max > 0 && $avg > $max + 0.01 ) {
+			return sprintf(
+				'La planche fait %s cm en %d feuille(s), soit %s cm par feuille, alors que le film n’en fait que %s. Chaque bord de feuille couperait dans un transfert.',
+				Money::number( (float) ( $layout['pooled_m'] ?? 0 ) * 100, 1 ),
+				$n,
+				Money::number( $avg, 1 ),
+				Money::number( $max, 1 )
+			);
+		}
+
+		/*
+		 * And the step the plate was billed on has to be the step the shop pays:
+		 * `Cost::film()` divides by the sheet height, so a plate packed to a
+		 * different step is counted in sheets it was not cut into.
+		 */
+		$step = (float) ( $film['billing_step_cm'] ?? 0 );
+		$took = (float) ( $layout['billing_step_cm'] ?? 0 );
+		if ( $step > 0 && $took > 0 && abs( $took - $step ) > 0.01 ) {
+			return sprintf(
+				'La planche a été découpée par pas de %s cm alors que la feuille achetée en fait %s.',
+				Money::number( $took, 1 ),
+				Money::number( $step, 1 )
+			);
+		}
+
+		return '';
 	}
 
 	/** ISO date as a French one. Display only. */

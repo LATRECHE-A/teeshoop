@@ -859,18 +859,28 @@ final class Cli {
 			 * where the order needed two, and the transfer count beside it made it
 			 * look like a measurement of this order. Say whose metres they are.
 			 */
+			/*
+			 * IN THE UNIT THE SUPPLIER INVOICES. This printed metres whatever the
+			 * tariff, and since question 04's answer the invoice counts 33 x 46 cm
+			 * sheets: a line an operator holds against a real document has to name
+			 * the thing the document counts. Found by the adversarial pass.
+			 */
+			$sheets = 'sheet' === (string) ( $report['film']['billing'] ?? 'roll' );
+			$amount = $sheets
+				? Money::number( (float) ( $report['film']['billed_sheets'] ?? 0 ), 0 ) . ' feuille(s)'
+				: Money::number( (float) $report['film']['billed_m'], 2 ) . ' m';
 			\WP_CLI::log(
 				empty( $report['film']['pooled'] )
 				? sprintf(
-					'FILM  %s m imbriqués, %d transferts%s',
-					Money::number( (float) $report['film']['billed_m'], 2 ),
+					'FILM  %s imbriqués, %d transferts%s',
+					$amount,
 					(int) $report['work']['transfers'],
 					empty( $report['film']['bound'] ) ? '' : ' (borne haute, service indisponible)'
 				)
 				: sprintf(
-					'FILM  part d’un lot de %d commandes imbriquées sur %s m (lot n° %d), %d transferts pour celle-ci',
+					'FILM  part d’un lot de %d commandes imbriquées sur %s (lot n° %d), %d transferts pour celle-ci',
 					(int) ( $report['film']['orders'] ?? 1 ),
-					Money::number( (float) $report['film']['billed_m'], 2 ),
+					$amount,
 					(int) ( $report['film']['lot_id'] ?? 0 ),
 					(int) $report['work']['transfers']
 				)

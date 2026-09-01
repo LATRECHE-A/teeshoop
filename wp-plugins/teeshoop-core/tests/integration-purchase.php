@@ -592,17 +592,20 @@ function ts_purchase_suite( int $product_id ): void {
 			$b = Cost::prudent_length_cm( $pieces, $ts_pu_cost );
 			return $b['ok'] ? round( (float) $b['length_cm'] / 100, 2 ) : 0.0;
 		};
-		$layout = array(
-			'pooled_m'        => $ts_pu_len(
-				array(
-					array( 'id' => 'front-a', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => 20 ),
-					array( 'id' => 'front-b', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => 10 ),
-				)
-			),
+		$ts_pu_pooled = $ts_pu_len(
+			array(
+				array( 'id' => 'front-a', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => 20 ),
+				array( 'id' => 'front-b', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => 10 ),
+			)
+		);
+		// The sheet count is derived for the same reason the lengths are.
+		$ts_pu_max = (float) ( $ts_pu_film['max_length_cm'] ?? 0 );
+		$layout    = array(
+			'pooled_m'        => $ts_pu_pooled,
 			'width_cm'        => (float) ( $ts_pu_film['width_cm'] ?? 0 ),
 			'gap_cm'          => (float) ( $ts_pu_film['gap_cm'] ?? 0 ),
 			'billing_step_cm' => (float) ( $ts_pu_film['billing_step_cm'] ?? 0 ),
-			'sheets'          => 1,
+			'sheets'          => $ts_pu_max > 0 ? max( 1, (int) ceil( $ts_pu_pooled * 100 / $ts_pu_max - 1e-9 ) ) : 1,
 			'packer'          => 'trueshape',
 			'interlock_cm'    => 2.0,
 			'restarts'        => 12,
