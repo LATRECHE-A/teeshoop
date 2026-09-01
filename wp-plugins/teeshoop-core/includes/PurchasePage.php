@@ -467,9 +467,10 @@ final class PurchasePage {
 	private static function orders_table( array $purchase ): void {
 		echo '<h3>' . esc_html__( 'Par commande', 'teeshoop' ) . '</h3>';
 		echo '<p class="description" style="max-width:46em">' . esc_html__( 'L’écart compare ce que les textiles coûtent aujourd’hui à ce que le rapport de marge de la commande avait supposé. Un fournisseur qui augmente un t-shirt de huit centimes ne se voit nulle part et déplace tous les prix planchers.', 'teeshoop' ) . '</p>';
+		echo '<p class="description" style="max-width:46em">' . esc_html__( '« Blancs à commander avant » est la date au-delà de laquelle les vêtements nus n’arriveront plus à temps : elle retient 2 jours ouvrés d’approvisionnement, puis le pressage, le battement d’atelier et l’acheminement. Une case vide veut dire que le bon à tirer n’est pas validé, donc que le compte à rebours n’a pas commencé.', 'teeshoop' ) . '</p>';
 		echo '<div style="overflow-x:auto;max-width:100%">';
 		echo '<table class="widefat striped"><thead><tr>';
-		foreach ( array( 'Commande', 'Client', 'Vêtements', 'Textiles HT', 'Supposé HT', 'Écart', 'Port seul', 'Part du port' ) as $head ) {
+		foreach ( array( 'Commande', 'Client', 'Vêtements', 'Blancs à commander avant', 'Textiles HT', 'Supposé HT', 'Écart', 'Port seul', 'Part du port' ) as $head ) {
 			echo '<th scope="col">' . esc_html( $head ) . '</th>';
 		}
 		echo '</tr></thead><tbody>';
@@ -481,6 +482,12 @@ final class PurchasePage {
 			echo '<th scope="row"><a href="' . esc_url( admin_url( 'post.php?post=' . (int) $row['id'] . '&action=edit' ) ) . '">' . esc_html( (string) $row['ref'] ) . '</a></th>';
 			echo '<td>' . esc_html( (string) $row['customer'] ) . '</td>';
 			echo '<td ' . $num . '>' . esc_html( (string) (int) $row['garments'] ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo '<td style="white-space:nowrap">';
+			$by = (string) ( $row['blank_by'] ?? '' );
+			echo '' !== $by
+				? esc_html( Production::fr_date( $by ) )
+				: '<span class="description">' . esc_html__( 'bon à tirer non validé', 'teeshoop' ) . '</span>';
+			echo '</td>';
 			echo '<td ' . $num . '>' . esc_html( Money::format( (int) $row['blanks_ht'] ) ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			echo '<td ' . $num . '>' . esc_html( null === $row['assumed_ht'] ? '—' : Money::format( (int) $row['assumed_ht'] ) ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			echo '<td ' . $num . '>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

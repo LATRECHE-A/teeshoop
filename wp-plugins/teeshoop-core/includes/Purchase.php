@@ -17,19 +17,35 @@
  * line whose article cannot be resolved is REFUSED by name and blocks the
  * purchase, rather than being bought at the nearest size.
  *
- * ── THE DIFFERENCE WITH FILM: WE DO NOT KNOW HOW LONG IT TAKES ───────────────
+ * ── HOW LONG THE BLANKS TAKE, ANSWERED ON 1 SEPTEMBER 2026 ──────────────────
  *
- * A lot knows the date its film must be ordered, because question 04's default
- * gives the film a transit time. Nothing gives the blanks one. The brief has no
+ * A lot has always known the date its film must be ordered, because question 04
+ * gives the film a transit time. Nothing gave the blanks one: the brief has no
  * textile lead time in any of its eight chapters (« peut livrer rapidement »,
  * said of one supplier with no figure, is the whole of it), the supplier
- * publishes none, and this shop has never placed a supplier order to measure. So
- * this file computes no blank-side deadline at all and says so on the screen.
- * Inventing one would put a date on a customer's parcel nobody has ever kept.
+ * publishes none, and this shop had never placed a supplier order to measure. So
+ * this file computed no blank-side deadline at all and said so on the screen.
  *
- * What the supplier DOES publish is the restock date of what is out of stock,
- * and that is read (`Supply::deliveries()`) and shown beside every short line,
- * because it is a fact. It is the only date this file prints.
+ * Question 46's answer: « le délai réel habituel est d'environ 24 heures. Le
+ * moteur de planification retient jusqu'à 2 jours ouvrés de sécurité pour une
+ * promesse client normale. » Two numbers, and the second is the one that
+ * schedules. `Production::blank_deadline_for()` walks it back exactly as the
+ * film's is walked back, and the date is on the per-order table.
+ *
+ * WHAT IT DID NOT CHANGE, and this is the part worth reading. Session 07
+ * measured six incompressible working days between an approved proof and a
+ * parcel WITHOUT the blanks. Adding two would give eight and would be wrong:
+ * film and blanks are ordered on the same day and travel at the same time, so
+ * the constraint is whichever arrives LAST. Two against the film's two, so the
+ * maximum is two and the work stays at six. Measured, not reasoned about:
+ * `Production::feasibility()` takes the max and `tests/test-production.php`
+ * holds it.
+ *
+ * HE ALSO SAYS WHERE IT STOPS APPLYING: « Si le produit n'est pas immédiatement
+ * disponible ou est en réapprovisionnement : délai à confirmer. » What the
+ * supplier DOES publish is the restock date of what is out of stock, and that is
+ * read (`Supply::deliveries()`) and shown beside every short line, because it is
+ * his fact and not our estimate.
  *
  * ── STOCK IS AN OBSERVATION, WITH A TIMESTAMP ────────────────────────────────
  *
@@ -745,6 +761,16 @@ final class Purchase {
 				 */
 				'delta_ht'         => null === $assumed['blanks_ht'] ? null : $mine - (int) $assumed['blanks_ht'],
 				'assumed_freight_ht' => $assumed['freight_ht'],
+				/*
+				 * WHEN THE BLANKS MUST LEAVE, since question 46 was answered on
+				 * 1 September 2026. This file computed no blank-side deadline at
+				 * all until then, and said so on the screen, because nobody had
+				 * measured how long the textile supplier takes. '' still means
+				 * « we cannot say »: no approved proof, no clock, no date.
+				 */
+				'blank_by'         => $order instanceof \WC_Order
+					? Production::blank_deadline_for( $order, (int) $row['garments'] )
+					: '',
 			);
 		}
 		return $out;

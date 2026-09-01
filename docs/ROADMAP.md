@@ -430,10 +430,17 @@ elle, et n'accepte que la forme `Bearer`, parce que la forme `Basic` existe pour
 navigateur ouvre `/admin.html` et qu'un navigateur la rejoue.
 
 **Deux questions nouvelles, toutes deux trouvées en construisant.** La **46**, bloquante :
-combien de temps s'écoule entre un bon de commande textile et la réception ? Personne ne l'a
-jamais mesuré, la Bible ne le donne dans aucun de ses huit chapitres, et l'atelier ne
-planifie donc que le film. Les 6 jours ouvrés incompressibles mesurés par la séance 07 ne
-comptent **pas** l'acheminement des vêtements nus. La **47** : que fait-on quand le prix
+combien de temps s'écoule entre un bon de commande textile et la réception ? Personne ne
+l'avait jamais mesuré, la Bible ne le donne dans aucun de ses huit chapitres, et l'atelier ne
+planifiait donc que le film.
+
+*Répondu le 1er septembre 2026 : environ 24 heures réelles, 2 jours ouvrés retenus pour
+planifier. Remesuré plutôt qu'additionné, et le résultat est que **rien ne bouge** : les
+6 jours ouvrés incompressibles restent 6. Le film et les blancs sont commandés le même jour
+et voyagent en même temps, donc l'atelier attend le plus tardif des deux une fois, et deux
+jours de blancs contre deux jours de film français font deux. Additionner de tête aurait
+donné 8 et fait paraître chaque promesse deux jours pire qu'elle n'est. L'écran des achats
+porte désormais une date limite de commande des blancs par commande.* La **47** : que fait-on quand le prix
 d'achat augmente entre le devis et l'achat ? Mises bout à bout, les règles de la Bible font
 que Teeshoop absorbe la hausse et reprend une part de commission au commercial pour une
 hausse qu'il n'a pas causée.

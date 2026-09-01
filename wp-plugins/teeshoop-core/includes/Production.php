@@ -195,6 +195,30 @@ final class Production {
 			'buffer_days'   => 1,
 
 			/*
+			 * Working days between a supplier order for BLANKS and their arrival
+			 * at the workshop.
+			 *
+			 * Question 46's answer of 1 September 2026: « le délai réel habituel
+			 * est d'environ 24 heures. Le moteur de planification retient jusqu'à
+			 * 2 jours ouvrés de sécurité pour une promesse client normale. » Two
+			 * numbers, as the question anticipated, and this is the second: what
+			 * the schedule PROMISES on, not what the supplier usually does.
+			 *
+			 * It lives here beside `ship_days` and not with the film, because
+			 * this is the schedule and both are a third party's duration. The
+			 * film's two transit times live with the film TARIFF because question
+			 * 04 quotes a rate and a delay in one sentence; there is no textile
+			 * tariff block for this one to belong to.
+			 *
+			 * HE ALSO SAYS WHEN IT DOES NOT APPLY, and the shop already draws
+			 * that line: « Si le produit n'est pas immédiatement disponible ou
+			 * est en réapprovisionnement : délai à confirmer. » `Purchase`
+			 * distinguishes available, uncertain and restocking, and the deadline
+			 * below is only stated for a basket whose stock reading supports it.
+			 */
+			'blank_days'    => 2,
+
+			/*
 			 * Pieces the workshop can press in a working day.
 			 *
 			 * Question 23's answer of 1 September 2026: « Capacité de travail à
@@ -432,6 +456,25 @@ final class Production {
 	}
 
 	/**
+	 * The last day the BLANKS may be ordered and the target still hold, `Y-m-d`.
+	 *
+	 * The same walk back as `latest_order_on()`, with question 46's supply time
+	 * where the film's transit is. Film and blanks are ordered on the same day
+	 * and travel in parallel, so the workshop's real constraint is whichever
+	 * arrives LAST, and this is the other half of that comparison.
+	 *
+	 * `Purchase.php` computed no blank-side deadline at all until 1 September
+	 * 2026 and said so on the screen, because nobody had ever measured one.
+	 */
+	public static function latest_blank_order_on( string $target_on, int $garments, array $config ): string {
+		$back = (int) ( $config['ship_days'] ?? 0 )
+			+ self::press_days( $garments, $config )
+			+ (int) ( $config['buffer_days'] ?? 0 )
+			+ (int) ( $config['blank_days'] ?? 0 );
+		return self::add_working_days( $target_on, -$back );
+	}
+
+	/**
 	 * Which origin this order's film should be bought from, and by when.
 	 *
 	 * The chapter's rule, made arithmetic: Spain when the delay allows, France
@@ -496,20 +539,34 @@ final class Production {
 	 * question 14's own other defaults. The work between an approved proof and a
 	 * parcel is 2 days of Colissimo + 1 day of pressing + 1 day of slack + 2 days
 	 * of French film transit = 6 working days. Four minus six is MINUS TWO: every
-	 * urgent order is two days late before anyone touches it. Express (7 days) has
-	 * exactly one day of slack, which is the buffer itself, so a single late
-	 * courier eats it. Only standard (12 days) has real room, and it is the only
-	 * one the cheap origin fits inside at all.
+	 * urgent order is two days late before anyone touches it.
+	 *
+	 * ── AND WHAT THE BLANKS ADDED, WHICH IS NOTHING ──────────────────────────
+	 *
+	 * Those 6 days did NOT count the blanks arriving, because until question 46
+	 * was answered nobody knew how long that took. The obvious thing to do with
+	 * the answer, adding it, is wrong: film and blanks are ordered on the same
+	 * day and travel at the same time, so the constraint is whichever arrives
+	 * LAST and not the sum. Question 46 gives 2 working days and question 04's
+	 * French film gives 2, so the maximum is 2 and the incompressible work stays
+	 * at SIX. Adding by hand would have produced 8 and made every promise look
+	 * two days worse than it is.
+	 *
+	 * It does bite on the slow film origin in reverse: there the film's 5 days
+	 * dominate the blanks' 2, so nothing changes there either. The blanks only
+	 * become the constraint if the textile supplier is slower than the film, and
+	 * the answer says he is not.
 	 *
 	 * This is not a bug to fix by lowering a number until it passes. It is the
-	 * arithmetic of four defaults nobody has confirmed, and it is written into
-	 * `QUESTIONS-ASSOCIE.md` under question 14 so the answer lands on a measured
-	 * contradiction rather than on a blank.
+	 * arithmetic of defaults, and it is written into `QUESTIONS-ASSOCIE.md` under
+	 * question 14 so the answer lands on a measured contradiction rather than on
+	 * a blank.
 	 *
-	 * @return array<string,array{days:int,fr:int,es:int}> urgency => slack.
+	 * @return array<string,array{days:int,fr:int,es:int,blank_days:int}> urgency => slack.
 	 */
 	public static function feasibility( array $config, array $film ): array {
-		$out = array();
+		$out   = array();
+		$blank = (int) ( $config['blank_days'] ?? 0 );
 		foreach ( array_keys( (array) ( $config['lead_days'] ?? array() ) ) as $urgency ) {
 			$days = (int) $config['lead_days'][ $urgency ];
 			// One garment, so the press contributes its floor of one day and the
@@ -517,10 +574,16 @@ final class Production {
 			$fixed = (int) ( $config['ship_days'] ?? 0 )
 				+ self::press_days( 1, $config )
 				+ (int) ( $config['buffer_days'] ?? 0 );
+			/*
+			 * MAX AND NOT SUM. The two supply lines run in parallel from the same
+			 * approval, so the workshop waits for the later of them once, not for
+			 * both in turn.
+			 */
 			$out[ $urgency ] = array(
-				'days' => $days,
-				'fr'   => $days - $fixed - (int) ( $film['days_fr'] ?? 0 ),
-				'es'   => $days - $fixed - (int) ( $film['days_es'] ?? 0 ),
+				'days'       => $days,
+				'fr'         => $days - $fixed - max( (int) ( $film['days_fr'] ?? 0 ), $blank ),
+				'es'         => $days - $fixed - max( (int) ( $film['days_es'] ?? 0 ), $blank ),
+				'blank_days' => $blank,
 			);
 		}
 		return $out;
@@ -656,6 +719,30 @@ final class Production {
 	 * through `blocked()` and `lot_of()`, because an order that simply disappears
 	 * is an order nobody chases.
 	 */
+	/**
+	 * The last day THIS order's blanks may be ordered, `Y-m-d`, or '' if unknown.
+	 *
+	 * '' has one meaning and it is the honest one: the proof is not approved, so
+	 * the clock question 14 starts (« à partir de la validation du bon à tirer »)
+	 * has not started, and there is no date to compute. The purchase screen says
+	 * that rather than printing a deadline derived from nothing.
+	 *
+	 * It exists here and not in `Purchase.php` because it is the same walk back
+	 * as the film's and it must stay the same walk back: two schedules would
+	 * disagree the first time somebody changed the buffer.
+	 */
+	public static function blank_deadline_for( \WC_Order $order, int $garments ): string {
+		$approved = self::approval( Bat::current( $order ) );
+		if ( '' === $approved['on'] ) {
+			return '';
+		}
+		$urgency = Costing::urgence( $order );
+		$urgency = '' !== $urgency ? $urgency : 'standard';
+		$config  = self::config();
+		$target  = self::target_date( $approved['on'], $urgency, $config );
+		return '' === $target ? '' : self::latest_blank_order_on( $target, $garments, $config );
+	}
+
 	private static function queue_row( \WC_Order $order, string $today, array $config, array $film ): ?array {
 		$blockers = Lifecycle::blockers( $order, Lifecycle::PRODUCTION );
 		if ( array() !== $blockers ) {

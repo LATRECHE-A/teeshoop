@@ -3076,10 +3076,12 @@
 			"id": "H-Q46-DELAI-TEXTILE",
 			"question": "Q46",
 			"level": "bloquant",
-			"status": "refused",
+			"status": "answered",
 			"since": "2026-08-19",
-			"statement_fr": "Aucun délai d’approvisionnement textile n’est calculé : personne n’a jamais mesuré le temps entre un bon de commande fournisseur et la réception des vêtements, et l’atelier ne planifie donc que le film.",
-			"home": "anchor:wp-plugins/teeshoop-core/includes/Purchase.php#this file computes no blank-side deadline at all",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 46 : « le délai réel habituel est d'environ 24 heures. Le moteur de planification retient jusqu'à 2 jours ouvrés de sécurité pour une promesse client normale. » Deux nombres, comme la question l'anticipait, et c'est le second qui planifie. Réserve : il le donne pour le fournisseur qu'il demande de rendre prioritaire en question 09, et le chemin d'achat construit parle à celui qui est branché. Les noms sont dans QUESTIONS-ASSOCIE.md.",
+			"statement_fr": "L'approvisionnement textile est planifié sur 2 jours ouvrés entre le bon de commande fournisseur et la réception des vêtements à l'atelier.",
+			"home": "php:Teeshoop\\Core\\Production::default_config()#blank_days",
 			"mirrors": [],
 			"literals": [],
 			"literals_why": "C’est un refus : il n’y a pas de valeur. Le contrôle vérifie que la raison est toujours écrite là où le calcul aurait eu lieu.",
@@ -3088,13 +3090,22 @@
 				"internal"
 			],
 			"derives": [
-				"La séance 07 a mesuré 6 jours ouvrés de travail incompressible entre un bon à tirer validé et un colis, contre 4 promis en urgence. Ces 6 jours ne comptent PAS l’acheminement des vêtements nus."
+				"Remesuré le 01/09/2026 : le travail incompressible entre un bon à tirer validé et un colis reste de 6 jours ouvrés, PAS 8. Le film et les blancs sont commandés le même jour et voyagent en même temps, donc l'atelier attend le plus tardif des deux une fois et non les deux à la suite. Deux jours de blancs contre deux jours de film français : le maximum vaut deux. Additionner les deux chiffres de tête aurait fait paraître chaque promesse deux jours pire qu'elle n'est.",
+				"La date limite de commande des vêtements nus de chaque commande, affichée par commande sur l'écran des achats. Elle n'existait pas : Purchase.php n'en calculait aucune et le disait."
 			],
 			"sessions": [
 				"08"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Il n’y a pas d’hypothèse par défaut à comparer : aucune question ne posait ce chiffre avant la séance 08, et la Bible ne le donne dans aucun de ses huit chapitres. Un délai inventé ici deviendrait une date de livraison promise à un client, calculée à partir d’un nombre que personne n’a tenu."
+			"shipped_matches_default": "Il n’y a pas d’hypothèse par défaut à comparer : aucune question ne posait ce chiffre avant la séance 08, et la Bible ne le donne dans aucun de ses huit chapitres. Un délai inventé ici deviendrait une date de livraison promise à un client, calculée à partir d’un nombre que personne n’a tenu.",
+			"statement_amounts": [
+				{
+					"from": "blank_days",
+					"as": "int",
+					"text": "2",
+					"in": "2 jours ouvrés"
+				}
+			]
 		},
 		{
 			"id": "H-Q31-PALETTE-ET-TYPE",

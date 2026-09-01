@@ -216,6 +216,39 @@ describe( 'Production: the promise that cannot be kept', function () use ( $ts_p
 		eq( $f['standard']['fr'], 6 );
 		eq( $f['standard']['es'], 3 );
 	} );
+
+	/*
+	 * QUESTION 46, AND THE RESULT IS THAT NOTHING MOVED.
+	 *
+	 * Session 07's six incompressible working days did not count the blanks
+	 * arriving, because nobody had measured that. The obvious thing to do with
+	 * the answer, adding its two days, gives eight and is wrong: the two supply
+	 * lines start on the same approval and run at the same time, so the workshop
+	 * waits for the LATER of them once. Two against the film's two.
+	 */
+	it( 'takes the LATER of the film and the blanks, never their sum', function () use ( $ts_prod_config, $ts_prod_film ) {
+		$f = Production::feasibility( $ts_prod_config, $ts_prod_film );
+		eq( $f['urgent']['blank_days'], 2, 'question 46 : 2 jours ouvrés retenus' );
+		eq( $f['urgent']['fr'], -2, 'still six days of work, not eight' );
+
+		// A textile supplier SLOWER than the film does move it, and by exactly
+		// the difference. This is the assertion that would catch a max() written
+		// as an addition, which the numbers above cannot: they are equal.
+		$slow = $ts_prod_config;
+		$slow['blank_days'] = 5;
+		$g = Production::feasibility( $slow, $ts_prod_film );
+		eq( $g['urgent']['fr'], -5, 'five days of blanks against two of film: the blanks decide' );
+		eq( $g['urgent']['es'], -5, 'and against five of Spanish film they tie, so nothing is added' );
+	} );
+
+	it( 'walks the blanks back the same way it walks the film back', function () use ( $ts_prod_config ) {
+		// Same target, same order size. The two deadlines differ only by the two
+		// supply times, which are equal today, so the two dates are the same one.
+		$blanks = Production::latest_blank_order_on( '2026-09-04', 60, $ts_prod_config );
+		$film   = Production::latest_order_on( '2026-09-04', 60, 'fr', $ts_prod_config, array( 'days_fr' => 2 ) );
+		eq( $blanks, $film, 'a blank deadline that is not the film deadline is a second schedule' );
+		eq( $blanks, '2026-08-27' );
+	} );
 } );
 
 describe( 'Production: reading a layout the shop did not compute', function () {
