@@ -776,6 +776,28 @@ boutique, puisque les deux doivent porter cette valeur. Elle se relit dans le ta
 bord Cloudflare ou se refait avec `wrangler secret put ADMIN_TOKEN`, et si on la refait il
 faut la reposer sur la boutique dans le même geste.
 
+### Un domaine qui n'existe pas, et trois adresses dessus
+
+Mesuré le 01/09/2026. Les questions 56 et 61 donnent `legales@teeshoop.fr`,
+`ticket@teeshoop.fr` et `dev@teeshoop.fr`. **`teeshoop.fr` répond NXDOMAIN** sur A, MX et
+NS : le domaine n'est pas déposé, ou n'est pas délégué. `teeshoop.com` répond normalement
+(A `109.234.166.12`, MX `mail.teeshoop.com`, NS o2switch).
+
+Deux conséquences immédiates, et aucune n'est cosmétique.
+
+**La veille ne doit pas être mise en service sur ces adresses.** Elle refuse déjà de
+démarrer sans destinataire, ce qui est le bon comportement ; la démarrer avec un
+destinataire qui n'existe pas serait exactement le piège que la question 61 décrit. La
+ligne de cron `~/veille.sh --dest=…` attend une adresse qui reçoit.
+
+**`legales@teeshoop.fr` ne peut pas être publiée en mentions légales.** L'adresse de
+contact est imposée par l'article 6 III de la LCEN, et une adresse qui n'existe pas vaut
+une mention manquante.
+
+Soit le domaine est déposé et configuré, soit les trois adresses passent en `teeshoop.com`.
+C'est une question pour l'associé, elle est courte, et elle est dans
+`QUESTIONS-ASSOCIE.md`.
+
 ### Un nouvel accès, que les réponses créent : Imbretex
 
 Quatre réponses (questions 3, 9, 43 et 46) nomment **Imbretex** comme fournisseur

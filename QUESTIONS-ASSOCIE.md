@@ -110,6 +110,11 @@ pour ne pas dépendre d'une lecture complète du document.
   93700 Drancy, et la fiche Google demandée est au 8 rue Primo Lévi, 93000 Bobigny. Un
   siège et un établissement peuvent différer, mais les mentions légales n'en publient
   qu'une, et une adresse d'établissement non déclarée est un problème de conformité.
+- **Le domaine des adresses** (questions 56 et 61). Les trois adresses données
+  (`legales@`, `ticket@`, `dev@`) sont en `teeshoop.fr`, et ce domaine **n'existe pas** :
+  interrogé le 1er septembre 2026, il répond NXDOMAIN sur A, MX et NS. Le site est sur
+  `teeshoop.com`, qui a un serveur de messagerie. Soit le domaine est déposé, soit les
+  adresses changent, et la mention légale comme la veille attendent la réponse.
 - **Le fournisseur textile** (questions 3, 9, 43 et 46). Quatre réponses nomment
   **Imbretex**, comme fournisseur prioritaire, comme référence pour la lecture du stock et
   comme source du délai de 24 heures. Le catalogue, le relevé de stock et le panier d'achat
@@ -2609,9 +2614,13 @@ question pour vous : c'est à recopier du contrat o2switch, et c'est noté dans
 *La ligne `H-Q56-EDITEUR-SITE` était un refus bloquant :* la page de mentions légales est
 publiée et ne nomme personne. Elle a maintenant un nom, un e-mail et un téléphone.
 
-*Point à vérifier avant publication :* l'adresse `legales@teeshoop.fr` doit exister et
-être relevée. Une adresse de contact obligatoire qui rebondit vaut une mention manquante.
-Le domaine du site est par ailleurs `teeshoop.com`, celui de l'adresse est `teeshoop.fr`.
+*Mesuré le 1er septembre 2026, et c'est un refus :* **le domaine `teeshoop.fr` n'existe
+pas.** Interrogé sur A, MX et NS, il répond NXDOMAIN. Le site est sur `teeshoop.com`, qui a
+bien un serveur de messagerie (`mail.teeshoop.com`) et les serveurs de noms o2switch. Une
+adresse de contact imposée par la loi qui rebondit ne vaut pas mieux qu'une mention
+absente, donc `legales@teeshoop.fr` ne peut pas être publiée telle quelle : soit le domaine
+est déposé et configuré, soit l'adresse passe en `teeshoop.com`. C'est une question de plus
+pour lui, et elle est courte.
 
 *L'hébergeur n'est pas une question pour lui :* son identité est publique et se lit dans
 le contrat o2switch (`ACCES-REQUIS.md`, section 6 quater).
@@ -2850,9 +2859,12 @@ surveille (on ne réveille que sur ce qui ne peut pas attendre lundi).
 dans le vide ; elle a deux adresses et, mieux que ça, une **classification** jour/nuit qui
 dit quoi réveiller.
 
-*Point à vérifier avant de poser la ligne de cron :* les deux adresses sont en
-`teeshoop.fr` et doivent exister et être relevées. Une alerte qui rebondit est une alerte
-qui n'existe pas.
+*Mesuré le 1er septembre 2026, et cela empêche la mise en service :* les deux adresses sont
+en `teeshoop.fr`, et **ce domaine n'existe pas** (NXDOMAIN sur A, MX et NS). Une alerte
+envoyée à `ticket@teeshoop.fr` ne rebondirait même pas quelque part : elle ne partirait
+pas. C'est exactement le cas que cette question voulait éviter, une surveillance qui croit
+alerter et n'alerte pas. La ligne de cron ne se pose donc pas sur ces adresses tant que le
+domaine n'est pas déposé et configuré. `teeshoop.com`, lui, a un serveur de messagerie.
 
 ---
 
