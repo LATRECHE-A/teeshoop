@@ -342,7 +342,8 @@ async function main() {
     `  et ${WEEK.length} ports de ${eur(shop.carriage)} € deviennent ${eur(pooled.freight_ht)} € parce que le panier groupé passe le franco de ${eur(shop.franco)} €.`,
   )
   console.log(
-    `  À comparer aux 121,41 € que le groupage du FILM fait gagner sur la même semaine (scripts/dtf-bench.mjs).\n`,
+    `  À comparer aux 75,00 € que le groupage du FILM fait gagner sur la même semaine (scripts/dtf-bench.mjs,\n` +
+    `  remesuré le 01/09/2026 sur le tarif à la feuille ; c'était 121,41 € sous le rouleau à 17,00 €/m).\n`,
   )
 
   const short = pooled.stock.short ?? []

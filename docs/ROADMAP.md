@@ -29,9 +29,14 @@ garde les deux versions côte à côte.
 dans lequel il avait été déposé, si bien que les marges transparentes d'un logo client étaient
 achetées en film et facturées au client. Mesuré sur une commande de 20 vêtements avec des
 fichiers clients réalistes : **220 cm de rouleau ramenés à 60 cm**, 1,28 m² de film ramenés
-à 0,35 m². Au tarif de lancement de la Bible (17 € HT/mètre linéaire en France) : **37,40 €
-ramenés à 10,20 €**. C'est exactement ce que demande le chapitre 1 : « largeur et hauteur
-de chaque **visuel** ».
+à 0,35 m². C'est exactement ce que demande le chapitre 1 : « largeur et hauteur de chaque
+**visuel** ».
+
+*Cette mesure portait une conversion en euros, « 37,40 € ramenés à 10,20 € », faite au tarif
+de la Bible (17 € HT le mètre linéaire). La réponse à la question 04 du 1er septembre 2026 a
+remplacé ce tarif par une feuille A3+ à 3,00 EUR, et la conversion n'a pas été refaite : le
+métrage ci-dessus reste mesuré, les deux montants ont été retirés plutôt que mis à l'échelle
+de tête.*
 
 La même mesure fixe désormais le prix client, en cm², ce qui corrige trois surfacturations :
 les marges transparentes, l'espace vide entre deux visuels d'une même face (59 % de la
@@ -248,14 +253,22 @@ tirer est validé, imbriqué sur les mêmes planches, une commande fournisseur, 
 et la facture répartie entre les commandes pour que chaque rapport de marge dise ce que la
 sienne a réellement coûté.
 
-Mesuré sur une semaine de six commandes réalistes (`scripts/dtf-bench.mjs`) : **198,89 EUR
-de film achetés commande par commande deviennent 77,48 EUR achetés en une fois**, soit
-121,41 EUR. La décomposition compte plus que le total, et elle est imprimée par le banc :
-**75,00 EUR sont cinq livraisons évitées**, **42,84 EUR cinq minimums d'un mètre non
-gaspillés**, et **3,57 EUR seulement l'imbrication elle-même**, qui fait passer le métrage
-de 370 à 350 cm. Lire « 61 % d'économie » comme « 61 % de film » se trompe d'un ordre de
-grandeur, et ce sont les frais de livraison et le minimum du fournisseur, pas la géométrie,
-qui décident de la valeur du groupage.
+Remesuré le 1er septembre 2026 sur le tarif à la feuille, sur la même semaine de six
+commandes réalistes (`scripts/dtf-bench.mjs`) : **134,10 EUR de film achetés commande par
+commande deviennent 59,10 EUR achetés en une fois**, soit **75,00 EUR**. La décomposition
+compte plus que le total, et elle est imprimée par le banc : **les 75,00 EUR sont
+exactement les cinq livraisons évitées**, **0,00 EUR de minimum fournisseur** et
+**0,00 EUR d'imbrication**.
+
+**Tout l'intérêt du groupage tient désormais à un seul chiffre, et c'est une hypothèse.**
+Sous le rouleau à 17,00 EUR le mètre, le banc donnait 121,41 EUR, dont 42,84 EUR de
+minimums d'un mètre non gaspillés et 3,57 EUR d'imbrication. Les deux postes ont disparu :
+sur une feuille de 33 x 46 cm chacune des six commandes occupe déjà plus d'une feuille, donc
+aucune ne paie de minimum, et il ne reste pas assez de largeur pour qu'une commande partage
+une feuille avec une autre (644 cm imbriqués ensemble contre 644 cm imbriqués séparément,
+14 planches dans les deux cas). Ce qui reste est la livraison de 15,00 EUR par commande, que
+l'associé classe lui-même en « à confirmer sur la facture fournisseur » : si elle est
+offerte, le groupage ne rapporte plus rien du tout.
 
 **Ce que ça coûte en manutention, mesuré aussi.** Sur la même semaine : **20 piles de tri
 au lieu de 7**. Une planche mutualisée mêle les visuels de plusieurs clients, donc chaque

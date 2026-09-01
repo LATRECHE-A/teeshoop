@@ -947,10 +947,12 @@
 			"id": "H-Q04-TARIF-FILM-FRANCE",
 			"question": "Q04",
 			"level": "bloquant",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-13",
-			"statement_fr": "Le film est chiffré à 17,00 EUR HT le mètre linéaire en 56 cm en France, ordre de grandeur donné par la Bible et confirmé par personne.",
-			"home": "doc:docs/ROADMAP.md#17 € HT/mètre linéaire en France",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 04 : « Tarif actuel : 3 EUR par feuille A3+ de 33 x 46 cm », un fournisseur français « qui nous pratique un tarif comparable aux prix espagnols », et « le moteur de coût doit pouvoir fonctionner à partir du coût réel par feuille/surface utilisée, plutôt que de figer arbitrairement un tarif au mètre ». Réserve, la sienne : HT ou TTC reste à confirmer sur la facture, ce qui déplace ce tarif de 20 %.",
+			"statement_fr": "Le film est acheté à la feuille et non au rouleau : 3,00 EUR la feuille A3+ de 33 x 46 cm, chez un seul fournisseur, en France.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.sheet_ht",
 			"mirrors": [],
 			"literals": [],
 			"literals_why": "17 est un nombre à deux chiffres présent dix fois dans le dépôt comme dimension et comme index. Ce tarif ne vit dans AUCUN code exécutable : il ne sert qu'à convertir une économie de film mesurée en euros, dans le texte qui la publie, et c'est ce texte qui est le foyer.",
@@ -958,8 +960,9 @@
 				"internal"
 			],
 			"derives": [
-				"37,40 EUR ramenés à 10,20 EUR sur une commande de 20 vêtements : les deux montants sont ce tarif multiplié par un métrage mesuré, donc les deux bougent avec lui. Le métrage, lui, reste vrai.",
-				"121,41 EUR économisés sur une semaine de six commandes en achetant le film une fois au lieu de six (scripts/dtf-bench.mjs), dont 3,57 EUR d'imbrication réellement gagnée. Les trois montants sont ce tarif multiplié par des métrages mesurés."
+				"75,00 EUR économisés sur une semaine de six commandes en achetant le film une fois au lieu de six (scripts/dtf-bench.mjs, remesuré le 01/09/2026 sur le tarif à la feuille) : 134,10 EUR contre 59,10 EUR. C'est ENTIÈREMENT les cinq livraisons évitées ; l'imbrication et le minimum fournisseur ne rapportent plus rien du tout. Sous le rouleau à 17,00 EUR le même banc donnait 121,41 EUR, dont 42,84 de minimum et 3,57 d'imbrication.",
+				"Le coût film d'absolument toute commande, et donc son prix plancher. Par mètre carré les trois tarifs sont 19,76 EUR (cette feuille), 30,36 EUR (le rouleau français supposé) et 16,07 EUR (le rouleau espagnol supposé).",
+				"L'ancienne conversion « 37,40 EUR ramenés à 10,20 EUR » de la mesure d'encre de la séance 05 : le métrage (220 cm ramenés à 60) reste vrai, sa conversion en euros ne l'est plus et n'a pas été remesurée sur la feuille."
 			],
 			"sessions": [
 				"05",
@@ -967,7 +970,15 @@
 				"08"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "C'est l'hypothèse par défaut elle-même, reprise telle quelle. Ce que la question 04 porte d'autre n'a pas été construit : ni le tarif espagnol de 9 EUR, ni les 15 EUR de livraison par commande, ni le minimum d'un mètre, ni les 5 % de perte prévue. La provision de perte est le seul des quatre qui manque à une formule déjà écrite : le coût film additionne le métrage et le port, et rien d'autre."
+			"shipped_matches_default": "C'est l'hypothèse par défaut elle-même, reprise telle quelle. Ce que la question 04 porte d'autre n'a pas été construit : ni le tarif espagnol de 9 EUR, ni les 15 EUR de livraison par commande, ni le minimum d'un mètre, ni les 5 % de perte prévue. La provision de perte est le seul des quatre qui manque à une formule déjà écrite : le coût film additionne le métrage et le port, et rien d'autre.",
+			"statement_amounts": [
+				{
+					"from": "film.sheet_ht",
+					"as": "eur",
+					"text": "3,00 EUR",
+					"in": "3,00 EUR la feuille"
+				}
+			]
 		},
 		{
 			"id": "H-Q04-COUT-FILM-RELEVE",
@@ -1931,9 +1942,11 @@
 			"id": "H-Q04-TARIF-FILM-ESPAGNE",
 			"question": "Q04",
 			"level": "bloquant",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-18",
-			"statement_fr": "Le film DTF commandé en Espagne coûte 9,00 EUR HT le mètre linéaire.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 04 : il n'y a qu'un fournisseur, en France. Le second tarif reste dans le moteur, en mode rouleau, et aucun chemin ne l'atteint : Cost::origins() n'offre plus qu'une origine et Production::origin_for ne peut plus renvoyer l'Espagne.",
+			"statement_fr": "Le tarif espagnol de 9,00 EUR HT le mètre linéaire reste écrit dans le moteur et n'est plus atteignable : la réponse ne nomme qu'un fournisseur, en France.",
 			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.rate_es_ht",
 			"mirrors": [],
 			"literals": [],
@@ -1942,8 +1955,8 @@
 				"operator"
 			],
 			"derives": [
-				"L'écart de 33,60 EUR entre la France et l'Espagne sur 4 mètres imbriqués (tests/test-cost.php).",
-				"Le fait qu'une commande puisse enfin être chiffrée à ce tarif : jusqu'à la séance 07 aucun chemin ne le passait, faute de preuve d'achat. Un lot expédié en est une."
+				"L'écart de 33,60 EUR entre la France et l'Espagne sur 4 mètres imbriqués (tests/test-cost.php), qui ne décrit plus qu'une branche dormante.",
+				"Le fait qu'une commande standard pouvait être planifiée sur cinq jours de transit pour économiser la moitié du film. Elle ne le peut plus, et c'est un gain de délai : trois jours ouvrés rendus à chaque commande standard."
 			],
 			"sessions": [
 				"05"
@@ -1963,9 +1976,11 @@
 			"id": "H-Q04-LAIZE",
 			"question": "Q04",
 			"level": "bloquant",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-18",
-			"statement_fr": "Le rouleau sur lequel les transferts sont imbriqués fait 56 cm de large utile.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 04 : la feuille A3+ fait 33 x 46 cm. La laize sur laquelle l'atelier imbrique est donc la largeur de cette feuille, 33 cm, et non les 56 cm que la Bible annonçait.",
+			"statement_fr": "Le support sur lequel les transferts sont imbriqués fait 33 cm de large utile, qui est la largeur de la feuille achetée.",
 			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.width_cm",
 			"mirrors": [],
 			"literals": [],
@@ -1974,7 +1989,8 @@
 				"operator"
 			],
 			"derives": [
-				"Toutes les longueurs imbriquées mesurées par scripts/nest-verify.mjs, et le coût film de chaque commande."
+				"Toutes les longueurs imbriquées mesurées par scripts/nest-verify.mjs, et le coût film de chaque commande. Remesuré le 01/09/2026 : la même commande « devant et dos, deux tailles » passe de 10,50 m sur le rouleau de 56 cm à 18,40 m de feuilles de 33 cm, et coûte pourtant moins cher (40 feuilles à 3,00 EUR contre 10,5 m à 17,00 EUR).",
+				"Le nombre de feuilles, qui EST la facture : scripts/nest-verify.mjs lit la géométrie dans Cost::default_config() depuis le 01/09/2026, parce qu'il en gardait une seconde copie et imbriquait sur un rouleau tout en bornant une feuille."
 			],
 			"sessions": [
 				"05"
@@ -1998,8 +2014,8 @@
 				"operator"
 			],
 			"derives": [
-				"Le coût de 86,40 EUR pour 4 mètres imbriqués en France, livraison et provision de perte comprises (tests/test-cost.php).",
-				"75,00 EUR des 121,41 EUR économisés sur la semaine de référence, soit cinq livraisons évitées sur six (scripts/dtf-bench.mjs). C'est le premier poste de l'économie du groupage, loin devant l'imbrication."
+				"Le coût de 86,40 EUR pour 4 mètres imbriqués en France, livraison et provision de perte comprises (tests/test-cost.php). Mesure du tarif ROULEAU, qui n'est plus celui en vigueur.",
+				"LA TOTALITÉ des 75,00 EUR économisés par le groupage sur la semaine de référence, soit cinq livraisons évitées sur six (scripts/dtf-bench.mjs, 01/09/2026). Sous le tarif à la feuille c'est le SEUL poste qui reste : l'imbrication et le minimum ne rapportent plus rien. Autrement dit, tout l'intérêt commercial du groupage tient à ce chiffre, et ce chiffre est une hypothèse que l'associé classe lui-même en « à confirmer sur la facture fournisseur »."
 			],
 			"sessions": [
 				"05"
@@ -2021,7 +2037,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-18",
-			"statement_fr": "Le fournisseur facture au moins 1 mètre linéaire, même si la commande en occupe moins.",
+			"statement_fr": "Le fournisseur facture au moins une feuille entière, même si la commande n'en occupe qu'un coin.",
 			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.min_m",
 			"mirrors": [],
 			"literals": [],
@@ -2030,8 +2046,8 @@
 				"operator"
 			],
 			"derives": [
-				"Le fait qu'une commande d'une seule pièce paie 1 mètre de film et que le rapport le signale (tests/test-cost.php).",
-				"42,84 EUR des 121,41 EUR économisés sur la semaine de référence : cinq des six commandes tenaient sous un mètre et payaient chacune le minimum (scripts/dtf-bench.mjs)."
+				"Le fait qu'une commande d'une seule pièce paie une feuille entière et que le rapport le signale (tests/test-cost.php).",
+				"Le minimum ne rapporte PLUS rien au groupage : remesuré le 01/09/2026, les six commandes de la semaine de référence occupent chacune plus d'une feuille, donc aucune ne paie de minimum. Sous le rouleau d'un mètre, cinq sur six le payaient et cela valait 42,84 EUR."
 			],
 			"sessions": [
 				"05"
@@ -2074,10 +2090,12 @@
 		{
 			"id": "H-Q04-LONGUEUR-FICHIER",
 			"question": "Q04",
-			"level": "utile",
-			"status": "assumption",
+			"level": "bloquant",
+			"status": "answered",
 			"since": "2026-08-18",
-			"statement_fr": "Un seul fichier d'impression ne dépasse pas 30 mètres ; au-delà, la commande est imbriquée sur plusieurs feuilles.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 04 : une feuille A3+ mesure 46 cm de haut, donc le plus long fichier imprimable EST la feuille. Le nombre n'est plus une prudence choisie faute de réponse, c'est une dimension.",
+			"statement_fr": "Un seul fichier d'impression ne dépasse pas 46 cm, la hauteur de la feuille ; au-delà, la commande est imbriquée sur plusieurs feuilles.",
 			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.max_length_cm",
 			"mirrors": [],
 			"literals": [],
@@ -2085,7 +2103,10 @@
 				"internal",
 				"operator"
 			],
-			"derives": [],
+			"derives": [
+				"Le nombre de feuilles facturées, qui est le coût film entier. Il décidait d'un arrondi ; il décide maintenant du prix.",
+				"Ce que la boutique REFUSE : un transfert de plus de 46 cm de haut ne tient sur aucune feuille et la commande n'a plus de coût chiffrable. Un dos de 50 cm passait sur le rouleau de 56 cm et ne passe plus (tests/test-cost.php)."
+			],
 			"sessions": [
 				"05"
 			],

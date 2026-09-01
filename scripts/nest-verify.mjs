@@ -105,8 +105,15 @@ const CORPUS = [
     ],
   },
   {
+    /*
+     * WIDER THAN THE SHEET IS WIDE, so it only fits standing up. 40 x 18 and
+     * not the 62 x 18 this used to be: a 62 cm banner fits a 56 cm roll turned
+     * sideways and fits NO A3+ sheet in either orientation, so after question
+     * 04's answer that piece stopped being the rotation case and became the
+     * refusal case, which the corpus already covers below.
+     */
     name: 'un visuel plus large que la laize',
-    pieces: [{ id: 'wide', w_cm: 62.0, h_cm: 18.0, qty: 4 }],
+    pieces: [{ id: 'wide', w_cm: 40.0, h_cm: 18.0, qty: 4 }],
   },
   {
     name: 'beaucoup de très petits transferts',
@@ -138,7 +145,49 @@ const CORPUS = [
   },
 ]
 
-const OPTIONS = { width_cm: 56, gap_cm: 0.5, max_length_cm: 100, billing_step_cm: 10 }
+/**
+ * The geometry, read from the price authority and never typed here.
+ *
+ * It WAS typed here, as `{ width_cm: 56, gap_cm: 0.5, max_length_cm: 100,
+ * billing_step_cm: 10 }`, and the PHP driver below then overrode only two of
+ * the four on top of the shipped config. Question 04's answer moved the shop
+ * from a 56 cm roll cut at 100 cm to a 33 x 46 cm sheet, and this harness
+ * carried on packing on a roll while asking PHP to bound a sheet: the check
+ * failed, correctly, but it read as a defect in the bound rather than as two
+ * geometries. A verification script that holds its own copy of the thing it
+ * verifies proves the copy.
+ */
+function filmGeometry() {
+  const dir = mkdtempSync(join(tmpdir(), 'nest-verify-geom-'))
+  const driver = join(dir, 'geom.php')
+  try {
+    writeFileSync(
+      driver,
+      `<?php
+declare(strict_types=1);
+define('TEESHOOP_TEST', 1);
+require_once $argv[1] . '/Cost.php';
+$f = \\Teeshoop\\Core\\Cost::default_config()['film'];
+echo json_encode([
+  'width_cm'        => $f['width_cm'],
+  'gap_cm'          => $f['gap_cm'],
+  'max_length_cm'   => $f['max_length_cm'],
+  'billing_step_cm' => $f['billing_step_cm'],
+]);
+`,
+    )
+    return JSON.parse(
+      execFileSync('php', [driver, join(ROOT, 'wp-plugins/teeshoop-core/includes')], { encoding: 'utf8' }),
+    )
+  } catch (e) {
+    console.error(`nest-verify: could not read the film geometry from the price authority: ${String(e.message).split('\n')[0]}`)
+    process.exit(2)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+const OPTIONS = filmGeometry()
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Boot wrangler dev.
@@ -298,10 +347,10 @@ console.log(`${DIM}the prudent bound${OFF}`)
 declare(strict_types=1);
 define('TEESHOOP_TEST', 1);
 require_once $argv[1] . '/Cost.php';
-$config = \\Teeshoop\\Core\\Cost::merge_config(['film' => array_merge(
-    \\Teeshoop\\Core\\Cost::default_config()['film'],
-    ['width_cm' => ${OPTIONS.width_cm}, 'gap_cm' => ${OPTIONS.gap_cm}]
-)]);
+// THE SHIPPED CONFIG, WHOLE. Not a merge over a geometry typed in JavaScript:
+// OPTIONS is read out of this same config (filmGeometry), so the packer on the
+// other side of the comparison and the bound on this one are one tariff.
+$config = \\Teeshoop\\Core\\Cost::default_config();
 $out = [];
 foreach (json_decode(file_get_contents($argv[2]), true) as $key => $pieces) {
     $b = \\Teeshoop\\Core\\Cost::prudent_length_cm($pieces, $config);
@@ -391,7 +440,6 @@ console.log(`${DIM}what it refuses${OFF}`)
       { id: 'endless', w_cm: 40, h_cm: 199, qty: 1 },
     ],
     ...OPTIONS,
-    max_length_cm: 100,
   })
   const tallBody = await tall.json()
   if (tall.status === 200 && Array.isArray(tallBody.unplaceable) && tallBody.unplaceable.includes('endless')) {

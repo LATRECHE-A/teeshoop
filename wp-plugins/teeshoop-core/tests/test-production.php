@@ -28,6 +28,18 @@ use Teeshoop\Core\Production;
 $ts_prod_config = Production::default_config();
 $ts_prod_film   = Cost::default_config()['film'];
 
+/*
+ * THE TWO-ORIGIN TARIFF, WHICH IS NO LONGER THE ONE IN FORCE.
+ *
+ * Question 04's answer of 1 September 2026 names ONE supplier, in France,
+ * selling sheets, so `Cost::origins()` offers one origin and `origin_for` can
+ * never return 'es'. The choosing logic itself is still worth covering, because
+ * a second supplier is a config change away, so the three tests that describe it
+ * run on an explicit roll tariff and the test below states what SHIPS.
+ */
+$ts_prod_roll_film = $ts_prod_film;
+$ts_prod_roll_film['billing'] = 'roll';
+
 describe( 'Production: the French calendar', function () {
 	it( 'computes Easter without the calendar extension', function () {
 		// Three years checked against the published dates, one of them a leap
@@ -87,7 +99,7 @@ describe( 'Production: the French calendar', function () {
 	} );
 } );
 
-describe( 'Production: when the film has to be bought', function () use ( $ts_prod_config, $ts_prod_film ) {
+describe( 'Production: when the film has to be bought', function () use ( $ts_prod_config, $ts_prod_film, $ts_prod_roll_film ) {
 	it( 'starts the promise at the proof and not at the payment', function () use ( $ts_prod_config ) {
 		// Question 14 says « à partir de la validation du bon à tirer », and it
 		// is the only one of the two dates the workshop controls: a customer who
@@ -111,27 +123,44 @@ describe( 'Production: when the film has to be bought', function () use ( $ts_pr
 		eq( Production::press_days( 1000, $ts_prod_config ), 4 );
 	} );
 
-	it( 'buys in Spain when the delay allows and in France when it does not', function () use ( $ts_prod_config, $ts_prod_film ) {
-		$standard = Production::origin_for( '2026-08-19', '2026-09-04', 60, $ts_prod_config, $ts_prod_film );
+	it( 'buys in Spain when the delay allows and in France when it does not', function () use ( $ts_prod_config, $ts_prod_roll_film ) {
+		$standard = Production::origin_for( '2026-08-19', '2026-09-04', 60, $ts_prod_config, $ts_prod_roll_film );
 		eq( $standard['origin'], 'es', 'twelve working days is room enough for the cheap origin' );
 		eq( $standard['order_by'], '2026-08-24' );
 		eq( $standard['late'], false );
 
-		$express = Production::origin_for( '2026-08-19', '2026-08-28', 60, $ts_prod_config, $ts_prod_film );
+		$express = Production::origin_for( '2026-08-19', '2026-08-28', 60, $ts_prod_config, $ts_prod_roll_film );
 		eq( $express['origin'], 'fr', 'seven days is not' );
 		eq( $express['late'], false );
 	} );
 
-	it( 'schedules a late order at the fastest origin instead of dropping it', function () use ( $ts_prod_config, $ts_prod_film ) {
-		$late = Production::origin_for( '2026-08-19', '2026-08-21', 60, $ts_prod_config, $ts_prod_film );
+	it( 'schedules a late order at the fastest origin instead of dropping it', function () use ( $ts_prod_config, $ts_prod_roll_film ) {
+		$late = Production::origin_for( '2026-08-19', '2026-08-21', 60, $ts_prod_config, $ts_prod_roll_film );
 		eq( $late['origin'], 'fr' );
 		eq( $late['late'], true );
 		truthy( '' !== $late['order_by'], 'a late order still needs a date to be chased against' );
 	} );
 
-	it( 'pushes a big order onto the fast origin, because pressing it takes days', function () use ( $ts_prod_config, $ts_prod_film ) {
-		$small = Production::origin_for( '2026-08-19', '2026-09-04', 60, $ts_prod_config, $ts_prod_film );
-		$big   = Production::origin_for( '2026-08-19', '2026-09-04', 1400, $ts_prod_config, $ts_prod_film );
+	it( 'offers ONE origin on the tariff actually in force, and it is France', function () use ( $ts_prod_config, $ts_prod_film ) {
+		/*
+		 * The three tests around this one describe a choice between two
+		 * suppliers. There is one. Buying « in Spain » would schedule a run
+		 * against a five-day transit for a saving that does not exist, and it
+		 * would put every standard order three working days later than it needs
+		 * to be. This is the test that fails the day somebody restores the
+		 * cheaper origin without restoring a supplier to buy it from.
+		 */
+		eq( Cost::origins( $ts_prod_film ), array( 'fr' ) );
+
+		$roomy = Production::origin_for( '2026-08-19', '2026-10-30', 60, $ts_prod_config, $ts_prod_film );
+		eq( $roomy['origin'], 'fr', 'all the calendar in the world does not conjure a second supplier' );
+		eq( $roomy['order_by_es'], '', 'and no Spanish date is offered to an operator either' );
+		eq( $roomy['late'], false );
+	} );
+
+	it( 'pushes a big order onto the fast origin, because pressing it takes days', function () use ( $ts_prod_config, $ts_prod_roll_film ) {
+		$small = Production::origin_for( '2026-08-19', '2026-09-04', 60, $ts_prod_config, $ts_prod_roll_film );
+		$big   = Production::origin_for( '2026-08-19', '2026-09-04', 1400, $ts_prod_config, $ts_prod_roll_film );
 		eq( $small['origin'], 'es' );
 		eq( $big['origin'], 'fr', 'five days of pressing eat the whole Spanish margin' );
 	} );

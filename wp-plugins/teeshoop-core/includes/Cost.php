@@ -35,11 +35,11 @@
  * eventually disagree, and the customer would see one number and the invoice
  * another.
  *
- * No supplier identity and no per-supplier tariff table. The film rate here is
- * one configurable number per origin, because `scripts/php-guard.mjs` keeps
- * supplier names and film economics out of this plugin entirely: the surveyed
- * supplier profiles live in the studio's admin-only module, behind the bundle
- * split, and they are not what we pay.
+ * No supplier identity and no per-supplier tariff table. The film tariff here is
+ * one price for one format, because `scripts/php-guard.mjs` keeps supplier names
+ * and film economics out of this plugin entirely: the surveyed supplier profiles
+ * live in the studio's admin-only module, behind the bundle split, and they are
+ * not what we pay.
  *
  * ── WHAT THE CHAPTER ASKS FOR AND THIS FILE DOES NOT COST ────────────────────
  *
@@ -76,21 +76,27 @@
  * coordination time, computed in percent or at real cost plus margin, and wants
  * urgency accepted only once stock, proof and capacity are confirmed. Nothing
  * here adds a centime for it. Urgency reaches the FLOOR and nothing else,
- * through `PriceRule`'s urgence selector, and no order is ever costed at the
- * Spanish rate because somebody ticked a box: `rate_es_ht` is little more than
- * half `rate_fr_ht`, so letting a dropdown choose it would take most of that
- * difference off the film cost of any order an operator marked standard, and a
- * tick is not evidence about which roll was actually bought.
+ * through `PriceRule`'s urgence selector.
  *
- * WHAT THE ORIGIN NOW ANSWERS TO, since session 07. `film()` takes an origin and
- * exactly one path passes anything but 'fr': `attribute()`, splitting the bill of
- * a print run whose film HAS been ordered. A sent run is not a tick, it is a
- * purchase, with a date, an operator and a frozen layout against it, and it
- * cannot be edited afterwards (`Production::send_lot`). A run still in draft
- * changes no cost at all, so an order's film is costed in France until the
- * moment the film is genuinely bought elsewhere.
+ * ── THE FILM IS BOUGHT BY THE SHEET, AND THERE IS ONE SUPPLIER ───────────────
  *
- * It is also downstream of a promise the shop does not make. No lead time is
+ * Question 04's answer of 1 September 2026: « 3 EUR par feuille A3+ de 33 x 46 cm »
+ * from a French supplier, and « le moteur de coût doit pouvoir fonctionner à
+ * partir du coût réel par feuille/surface utilisée, plutôt que de figer
+ * arbitrairement un tarif au mètre ». `film()` therefore has two branches and the
+ * config says which is in force; the roll branch, with its two origins, is kept
+ * and tested because he has not yet confirmed whether the 3 EUR is HT or TTC and
+ * a supplier who bills sheets today can bill metres in six months.
+ *
+ * WHAT THAT DELETED. Sessions 05 and 07 spent real effort on choosing between a
+ * dear French roll and a Spanish one half the price, and on never letting a
+ * ticked box make that choice: a run's origin had to be a purchase, with a date
+ * and an operator against it. There is one supplier now, so `origins()` offers
+ * one origin, `Production::origin_for` can no longer return 'es', and the
+ * question the guard existed for stopped being askable. The machinery stays with
+ * the roll branch it belongs to.
+ *
+ * IT IS ALSO DOWNSTREAM OF A PROMISE THE SHOP DOES NOT MAKE. No lead time is
  * announced anywhere (H-Q14-UN-COLIS-MAXIMUM), so express cannot be sold at all
  * before the associate answers question 14. Session 07 gave the workshop the
  * date and the capacity to schedule against, and measured that two of the three
@@ -226,29 +232,86 @@ final class Cost {
 			/*
 			 * The film.
 			 *
-			 * Question 04's written default, which is the Bible's own order of
-			 * magnitude: "17 EUR hors taxes le mètre linéaire en 56 cm en France
-			 * (48 h), 9 EUR hors taxes en Espagne (5 jours), 15 EUR de livraison
-			 * par commande, 1 mètre minimum, 5 % de perte prévue".
+			 * ── HE ANSWERED, AND HE CHANGED THE UNIT ─────────────────────────
 			 *
-			 * This is the FIRST executable home those two figures have had. Until
-			 * this file they existed only as a sentence in docs/ROADMAP.md, while
-			 * the studio's DTF module costed on surveyed public tariffs that are
-			 * far lower (the cheapest French roll tariff in that table is 5,45 EUR
-			 * the linear metre). The two are not in conflict: those are advertised
-			 * prices for a walk-up order and this is what the associate says he
-			 * pays. But only one of them may drive a floor price, and it is this
-			 * one, because it is the one he named.
+			 * Question 04 asked for a ROLL tariff per linear metre and the answer
+			 * of 1 September 2026 gives a SHEET: « Tarif actuel : 3 EUR par feuille
+			 * A3+ de 33 x 46 cm », from a French supplier « qui nous pratique un
+			 * tarif comparable aux prix espagnols », with the instruction that the
+			 * engine must work « à partir du coût réel par feuille/surface
+			 * utilisée, plutôt que de figer arbitrairement un tarif au mètre ».
 			 *
-			 * `width_cm` is the roll's PRINTABLE width and it is what the nesting
-			 * engine packs into. 56 is the Bible's figure for the laize being
-			 * quoted, so rate and width belong to each other: change one and the
-			 * other is no longer the same tariff.
+			 * That is not the same number in another currency, it is another
+			 * shape, and converting one to the other by hand is exactly what
+			 * CLAUDE.md forbids. Per square metre the three tariffs are 19,76 EUR
+			 * (this sheet), 30,36 EUR (the assumed French roll) and 16,07 EUR (the
+			 * assumed Spanish roll), so his "comparable to Spanish prices" is
+			 * right to within the HT/TTC question he has not answered: at 3 EUR
+			 * TTC the sheet is 16,47 EUR the square metre, which is the Spanish
+			 * roll almost exactly.
+			 *
+			 * ── WHAT A SHEET IS, TO THE PACKER ───────────────────────────────
+			 *
+			 * Nothing new. A stack of 33 x 46 cm sheets IS a 33 cm roll cut every
+			 * 46 cm, which is what `nestRoll` already does with `width_cm` and
+			 * `max_length_cm`, and it already returns the sheet count. So there is
+			 * no second packer and no second geometry: `width_cm` and
+			 * `max_length_cm` are simply what the workshop actually prints on, and
+			 * `billing` says how the invoice is written on top of it.
+			 *
+			 * `billing_step_cm` equals the sheet height ON PURPOSE in this mode.
+			 * A whole sheet is bought whatever is on it, so a length billed in
+			 * tenths of a metre would be a second, disagreeing account of the same
+			 * invoice; at 46 every sheet bills whole and `billed_m` stays exactly
+			 * `sheets x 0,46`.
+			 *
+			 * ── WHAT IS STILL UNANSWERED, AND KEPT PRUDENT ───────────────────
+			 *
+			 * He classes four things as « à confirmer sur la facture fournisseur »:
+			 * whether the 3 EUR is HT or TTC, the delivery charge, the order
+			 * minimum and the lead time. So `delivery_ht` keeps the 15,00 EUR of
+			 * question 04's written default rather than dropping to zero: an
+			 * unknown cost taken as zero LOWERS the floor price, which is the one
+			 * direction a floor may never move by accident. `min_sheets` is 1
+			 * because you cannot buy a third of a sheet, which is a fact about
+			 * paper and not an assumption about his supplier's order minimum.
+			 *
+			 * ── THE ROLL IS KEPT, AND IT IS NOT DEAD CODE ────────────────────
+			 *
+			 * `billing => 'roll'` still costs a roll per linear metre with the two
+			 * origins, and tests/test-cost.php still exercises it. Two reasons it
+			 * stays: the HT/TTC question can still move this tariff by twenty per
+			 * cent, and a supplier who bills sheets today can bill metres in six
+			 * months. It is one branch, not a second engine.
 			 */
 			'film'          => array(
+				/** 'sheet' | 'roll'. What the supplier's invoice counts. */
+				'billing'        => 'sheet',
+				/*
+				 * The sheet, and its price. 33 x 46 cm is the A3+ he names, and
+				 * it must stay equal to `width_cm` x `max_length_cm`: they are one
+				 * sheet described once as geometry for the packer and once as a
+				 * line on an invoice. `tests/test-cost.php` pins the three of them
+				 * together, because a shop nesting on one sheet and invoiced for
+				 * another would look right on both screens.
+				 */
+				'sheet_ht'       => 300,
+				'min_sheets'     => 1,
+				/*
+				 * The roll, kept for the mode above. Question 04's written
+				 * default, which was the Bible's own order of magnitude, and which
+				 * the answer of 1 September contradicts: nothing costs on these
+				 * today.
+				 */
 				'rate_fr_ht'     => 1700,
 				'rate_es_ht'     => 900,
-				'width_cm'       => 56.0,
+				/*
+				 * What the workshop PRINTS ON, whichever mode is in force, and
+				 * what the nesting engine packs into. In sheet mode these are the
+				 * sheet; in roll mode they are the roll (56 cm wide, files capped
+				 * at 100 cm).
+				 */
+				'width_cm'       => 33.0,
 				'delivery_ht'    => 1500,
 				'min_m'          => 1.0,
 				'waste_rate'     => 0.05,
@@ -259,14 +322,17 @@ final class Cost {
 				 */
 				'gap_cm'         => 0.5,
 				/*
-				 * Billing granularity, cm. 10 = 0,1 mètre linéaire, which is what
-				 * roll suppliers invoice. It is here rather than only in the
+				 * Billing granularity, cm. It is here rather than only in the
 				 * nesting request because the prudent bound has to round the same
 				 * way: a bound that ignored the rounding came out BELOW the packed
 				 * length on a small order, which is the one direction a bound may
 				 * never take. Found by scripts/nest-verify.mjs.
+				 *
+				 * 10 (0,1 mètre linéaire) is what a roll supplier invoices. In
+				 * sheet mode it is the sheet height, so a length and a sheet count
+				 * can never say two different things about the same invoice.
 				 */
-				'billing_step_cm' => 10.0,
+				'billing_step_cm' => 46.0,
 				/*
 				 * The longest single file the supplier's printer accepts, cm.
 				 *
@@ -284,8 +350,16 @@ final class Cost {
 				 * garment can carry (a print area is around 40 cm), so nothing
 				 * legitimate becomes unplaceable. Question 04 asks for the real
 				 * figure.
+				 *
+				 * ANSWERED FOR SHEET MODE, and it stopped being a guess: a sheet
+				 * IS the longest file, so this is 46, the height he gave. It also
+				 * stopped being generous. A back print measures around 40 cm tall
+				 * and now has 6 cm of headroom instead of 60, so a transfer taller
+				 * than 46 cm is unplaceable and the order is refused instead of
+				 * being costed on a sheet nobody can print. That is the correct
+				 * answer and it is new: `scripts/nest-verify.mjs` covers it.
 				 */
-				'max_length_cm'  => 100.0,
+				'max_length_cm'  => 46.0,
 				/*
 				 * How long the film takes to arrive, WORKING DAYS, per origin.
 				 *
@@ -665,6 +739,11 @@ final class Cost {
 	 */
 	public static function film( float $nested_m, array $config, string $origin = 'fr' ): array {
 		$film = (array) ( $config['film'] ?? array() );
+
+		if ( 'sheet' === (string) ( $film['billing'] ?? 'roll' ) ) {
+			return self::film_sheets( $nested_m, $film );
+		}
+
 		$rate = (int) ( 'es' === $origin ? ( $film['rate_es_ht'] ?? 0 ) : ( $film['rate_fr_ht'] ?? 0 ) );
 
 		$min     = (float) ( $film['min_m'] ?? 0 );
@@ -677,9 +756,12 @@ final class Cost {
 
 		return array(
 			'origin'      => $origin,
+			'billing'     => 'roll',
+			'unit_fr'     => 'mètre linéaire',
 			'rate_ht'     => $rate,
 			'nested_m'    => $nested_m,
 			'billed_m'    => $billed,
+			'billed_units' => $billed,
 			'waste_m'     => $waste_m,
 			'metres_ht'   => $metres_ht,
 			'waste_ht'    => $waste_ht,
@@ -694,6 +776,92 @@ final class Cost {
 			 */
 			'at_minimum'  => $nested_m < $min,
 		);
+	}
+
+	/**
+	 * The same bill when the supplier sells SHEETS, question 04's answer.
+	 *
+	 * ── WHY THE SHEET COUNT IS DERIVED AND NOT PASSED IN ─────────────────────
+	 *
+	 * `billing_step_cm` is the sheet height in this mode, so the packer bills
+	 * every sheet whole and the length it returns is exactly `sheets x hauteur`.
+	 * Deriving the count here therefore reads the same fact the packer wrote,
+	 * rather than adding a second quantity that could travel out of step with
+	 * the first through `Production`'s stored layouts, through `attribute()` and
+	 * through the bench. One number crosses the wire; one number is invoiced.
+	 *
+	 * `ceil` and not `round`, with the epsilon on the safe side: a layout that
+	 * arrives a hair short of a whole sheet still cost a whole sheet, and a cost
+	 * rounded DOWN is a floor price rounded down, which authorises a sale.
+	 *
+	 * ── THE ORIGIN IS GONE, AND THAT IS THE ANSWER TALKING ───────────────────
+	 *
+	 * He names ONE supplier, in France. There is no second origin to be cheaper,
+	 * so this branch takes no origin and `Production::origin_for` must not offer
+	 * one: see `origins()` below. Charging an order at a Spanish rate that no
+	 * longer exists would be the same defect as letting a tick box choose it.
+	 *
+	 * ── THE PROVISION IS MONEY, NOT PAPER ────────────────────────────────────
+	 *
+	 * The 5 % is applied to the value of the sheets and left fractional, exactly
+	 * as the roll branch applies it to metres. Rounding it up to a whole sheet
+	 * would charge a two-sheet order a third sheet, which is a 50 % provision on
+	 * the smallest orders and a 5 % one on the largest: a provision is an
+	 * expected loss carried in cents, not a sheet anybody buys.
+	 */
+	private static function film_sheets( float $nested_m, array $film ): array {
+		$sheet_ht = (int) ( $film['sheet_ht'] ?? 0 );
+		$height   = (float) ( $film['max_length_cm'] ?? 0 );
+		$min      = max( 0, (int) ( $film['min_sheets'] ?? 0 ) );
+
+		/*
+		 * A sheet of no height is not a sheet. Refusing here rather than dividing
+		 * by it keeps the failure loud: `Costing` marks the component UNKNOWN and
+		 * withholds the floor, which is what an unreadable tariff deserves.
+		 */
+		$needed = $height > 0 ? (int) ceil( max( 0.0, $nested_m ) * 100 / $height - 1e-9 ) : 0;
+		$billed = max( $min, $needed );
+
+		$sheets_ht = $billed * $sheet_ht;
+		$waste_ht  = Money::round( $billed * $sheet_ht * (float) ( $film['waste_rate'] ?? 0 ) );
+		$delivery_ht = (int) ( $film['delivery_ht'] ?? 0 );
+
+		return array(
+			'origin'       => 'fr',
+			'billing'      => 'sheet',
+			'unit_fr'      => 'feuille',
+			'rate_ht'      => $sheet_ht,
+			'nested_m'     => $nested_m,
+			'needed_sheets' => $needed,
+			'billed_sheets' => $billed,
+			'billed_units' => (float) $billed,
+			'billed_m'     => $billed * $height / 100,
+			'waste_m'      => 0.0,
+			'metres_ht'    => $sheets_ht,
+			'waste_ht'     => $waste_ht,
+			'delivery_ht'  => $delivery_ht,
+			'amount_ht'    => $sheets_ht + $waste_ht + $delivery_ht,
+			'at_minimum'   => $needed < $min,
+		);
+	}
+
+	/**
+	 * The origins the tariff in force can actually be bought from.
+	 *
+	 * `Production::origin_for` prefers the cheaper origin whenever the calendar
+	 * allows it, and that only means anything while two suppliers exist. Question
+	 * 04's answer names one, in France, so in sheet mode this returns one origin
+	 * and the schedule stops offering a choice that would be a fiction.
+	 *
+	 * Takes the FILM array and not the whole cost config, because that is the
+	 * shape `Production` already carries around: the schedule reads `days_fr`
+	 * and `days_es` out of it and never holds the rest.
+	 *
+	 * @param array<string,mixed> $film `$config['film']`.
+	 * @return array<int,string>
+	 */
+	public static function origins( array $film ): array {
+		return 'sheet' === (string) ( $film['billing'] ?? 'roll' ) ? array( 'fr' ) : array( 'es', 'fr' );
 	}
 
 	/**
@@ -1028,7 +1196,45 @@ final class Cost {
 		 * own sheet, which is what the fallback counts.
 		 */
 		$room   = $max - $tallest - $gap;
-		$sheets = $room > 0 ? max( 1, (int) ceil( $raw / $room ) ) : max( 1, $count );
+		/*
+		 * TWO BOUNDS, AND THE SMALLER OF THE TWO IS STILL A BOUND.
+		 *
+		 * `ceil(raw / room)` is the one derived above. The other is simply that
+		 * every sheet carries AT LEAST ONE row, so there are never more sheets
+		 * than rows. Both hold, so their minimum holds.
+		 *
+		 * The second was missing and it did not matter while a print file was
+		 * 100 cm long: room was wide and the first bound was the tight one. On a
+		 * 46 cm sheet a 38 cm back print leaves 7,5 cm of room, and four such
+		 * transfers came out as TWENTY-ONE sheets instead of four, which is
+		 * 63,00 EUR of film on a 12,00 EUR order. Prudent, in the sense that it
+		 * only ever refuses a sale that was fine: the floor price it produces is
+		 * five times the truth.
+		 */
+		$sheets = $room > 0 ? max( 1, min( $count, (int) ceil( $raw / $room ) ) ) : max( 1, $count );
+
+		/*
+		 * IN SHEET MODE THE BOUND IS THE SHEET COUNT, WHOLE.
+		 *
+		 * The roll formula below adds one billing step per extra sheet on top of
+		 * the rounded rows, because a roll bills a continuous length with a
+		 * rounding at each cut. A sheet supplier bills sheets: N sheets cost N
+		 * sheets whatever is on them, so the honest bound is N x the sheet
+		 * height, and `film()` divides it back to exactly N.
+		 *
+		 * Keeping the roll formula here with the step equal to the sheet height
+		 * would have counted the rows once as a strip AND once as sheets, roughly
+		 * doubling the bound. Prudent, but a bound twice the truth is a floor
+		 * price twice the truth, and that refuses sales rather than authorising
+		 * them: safe in direction and useless in practice.
+		 */
+		if ( 'sheet' === (string) ( $film['billing'] ?? 'roll' ) ) {
+			return array(
+				'ok'         => true,
+				'length_cm'  => $sheets * $max,
+				'impossible' => array(),
+			);
+		}
 
 		return array(
 			'ok'         => true,

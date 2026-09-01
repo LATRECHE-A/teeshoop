@@ -208,6 +208,43 @@ final class Costing {
 	}
 
 	/**
+	 * Where a marking cost came from, in the unit the supplier actually invoices.
+	 *
+	 * The sentence is the provenance of a component and an operator reads it on
+	 * the margin report to decide whether to trust the figure. It said « m
+	 * imbriqués sur laize de N cm, à X le mètre linéaire » whatever the tariff,
+	 * which after question 04's answer of 1 September 2026 described a roll
+	 * nobody buys, at a rate nobody is charged, for a length nobody is invoiced.
+	 * A provenance that names the wrong unit is worse than none: it is checkable
+	 * against an invoice and it will not match.
+	 *
+	 * @param array<string,mixed> $film   what `Cost::film()` returned.
+	 * @param array<string,mixed> $config the cost config it was computed from.
+	 */
+	private static function film_source_fr( array $film, array $config ): string {
+		$geometry = (array) ( $config['film'] ?? array() );
+
+		if ( 'sheet' === (string) ( $film['billing'] ?? 'roll' ) ) {
+			return sprintf(
+				/* translators: 1: number of sheets, 2: sheet width in cm, 3: sheet height in cm, 4: the price of one sheet. */
+				__( '%1$s feuille(s) de %2$s x %3$s cm, à %4$s la feuille', 'teeshoop' ),
+				Money::number( (float) ( $film['billed_sheets'] ?? 0 ), 0 ),
+				Money::number( (float) ( $geometry['width_cm'] ?? 0 ), 0 ),
+				Money::number( (float) ( $geometry['max_length_cm'] ?? 0 ), 0 ),
+				Money::format( (int) $film['rate_ht'] )
+			);
+		}
+
+		return sprintf(
+			/* translators: 1: metres of film, 2: roll width in cm, 3: the rate per linear metre. */
+			__( '%1$s m imbriqués sur laize de %2$s cm, à %3$s le mètre linéaire', 'teeshoop' ),
+			Money::number( (float) $film['billed_m'], 2 ),
+			Money::number( (float) ( $geometry['width_cm'] ?? 0 ), 0 ),
+			Money::format( (int) $film['rate_ht'] )
+		);
+	}
+
+	/**
 	 * The day the order was placed, which is the day its rules were in force.
 	 *
 	 * NOT TODAY, and the difference is a whole class of defect. A rule's validity
@@ -786,17 +823,13 @@ final class Costing {
 				'marquage',
 				(int) $film['amount_ht'],
 				Cost::ESTIMATED,
-				sprintf(
-					/* translators: 1: metres of film, 2: roll width in cm, 3: the rate per linear metre. */
-					__( '%1$s m imbriqués sur laize de %2$s cm, à %3$s le mètre linéaire', 'teeshoop' ),
-					Money::number( (float) $film['billed_m'], 2 ),
-					Money::number( (float) ( $config['film']['width_cm'] ?? 0 ), 0 ),
-					Money::format( (int) $film['rate_ht'] )
-				),
+				self::film_source_fr( $film, $config ),
 				''
 			);
 			if ( ! empty( $film['at_minimum'] ) ) {
-				$warnings[] = __( 'La commande n’atteint pas le métrage minimum du fournisseur de film : elle paie du film qu’elle n’utilise pas.', 'teeshoop' );
+				$warnings[] = 'sheet' === ( $film['billing'] ?? 'roll' )
+					? __( 'La commande n’atteint pas le nombre de feuilles minimum du fournisseur de film : elle paie du film qu’elle n’utilise pas.', 'teeshoop' )
+					: __( 'La commande n’atteint pas le métrage minimum du fournisseur de film : elle paie du film qu’elle n’utilise pas.', 'teeshoop' );
 			}
 		} else {
 			/*

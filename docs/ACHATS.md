@@ -133,9 +133,11 @@ même prix des deux côtés : un article se vend à l'unité, il n'y a pas de d�
 gagner. Ce sont six ports de 8,00 EUR qui deviennent zéro, parce que le panier groupé passe
 le franco de 200,00 EUR alors qu'aucune commande seule ne l'atteint.
 
-À comparer aux 121,41 EUR que le groupage du **film** fait gagner sur la même semaine. La
-leçon est la même que celle de la séance 07 : ce que le groupage fait gagner, ce sont des
-frais fixes, pas de la matière.
+À comparer aux **75,00 EUR** que le groupage du **film** fait gagner sur la même semaine
+(remesuré le 01/09/2026 sur le tarif à la feuille de la question 04 ; c'était 121,41 EUR
+sous le rouleau). La leçon est la même que celle de la séance 07, et elle est maintenant
+totale des deux côtés : ce que le groupage fait gagner, ce sont des **frais fixes**, pas de
+la matière. Sur le film il ne reste plus que ça, à l'euro près.
 
 ### 4. Envoyer est un acte unique, et jamais rejoué
 

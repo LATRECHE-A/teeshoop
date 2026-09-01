@@ -443,8 +443,21 @@ final class Production {
 		array $config,
 		array $film
 	): array {
-		$es = self::latest_order_on( $target_on, $garments, 'es', $config, $film );
 		$fr = self::latest_order_on( $target_on, $garments, 'fr', $config, $film );
+		/*
+		 * ONLY THE ORIGINS THE TARIFF IN FORCE CAN BE BOUGHT FROM.
+		 *
+		 * Preferring the cheaper origin whenever the calendar allows only means
+		 * something while two suppliers exist. Question 04's answer of
+		 * 1 September 2026 names ONE, in France, selling sheets, so
+		 * `Cost::origins()` returns one origin and the branch below never runs:
+		 * scheduling a run against a Spanish transit time that nothing can be
+		 * bought from would put an order two days later than it needs to be, for
+		 * a saving that no longer exists.
+		 */
+		$es = in_array( 'es', Cost::origins( $film ), true )
+			? self::latest_order_on( $target_on, $garments, 'es', $config, $film )
+			: '';
 		$out = array(
 			'order_by_es' => $es,
 			'order_by_fr' => $fr,

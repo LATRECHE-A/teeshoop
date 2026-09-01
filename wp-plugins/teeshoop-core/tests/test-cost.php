@@ -32,6 +32,24 @@ use Teeshoop\Core\Money;
 
 $ts_cost_config = Cost::default_config();
 
+/*
+ * THE ROLL, WHICH IS NO LONGER WHAT THE SHOP BUYS.
+ *
+ * Question 04's answer of 1 September 2026 moved the tariff from a roll billed
+ * per linear metre to a 33 x 46 cm sheet billed at 3,00 EUR, so
+ * `Cost::default_config()` above now bills sheets. The roll branch is still in
+ * the engine, because the HT/TTC question can still move that sheet price by a
+ * fifth and a supplier who bills sheets today can bill metres in six months,
+ * and code nothing exercises is code nobody can trust when it is needed. So the
+ * blocks that describe roll arithmetic run on this, explicitly, and the sheet
+ * blocks run on what ships.
+ */
+$ts_roll_config = $ts_cost_config;
+$ts_roll_config['film']['billing']         = 'roll';
+$ts_roll_config['film']['width_cm']        = 56.0;
+$ts_roll_config['film']['max_length_cm']   = 100.0;
+$ts_roll_config['film']['billing_step_cm'] = 10.0;
+
 describe( 'Cost: components carry their provenance', function () {
 	it( 'refuses a component type the chapter does not name', function () {
 		throws( fn() => Cost::component( 'marketing', 1000, Cost::REAL, 'invented' ) );
@@ -152,103 +170,211 @@ describe( 'Cost: labour is temps standard x taux horaire chargé', function () u
 	} );
 } );
 
-describe( 'Cost: the film, from a measured length', function () use ( $ts_cost_config ) {
-	it( 'reproduces the chapter formula term by term', function () use ( $ts_cost_config ) {
+describe( 'Cost: the film, from a measured length', function () use ( $ts_roll_config ) {
+	it( 'reproduces the chapter formula term by term', function () use ( $ts_roll_config ) {
 		// 4 m nested, France: 4 x 17,00 = 68,00 ; perte 5 % = 0,2 m = 3,40 ;
 		// livraison 15,00. Total 86,40.
-		$f = Cost::film( 4.0, $ts_cost_config, 'fr' );
+		$f = Cost::film( 4.0, $ts_roll_config, 'fr' );
 		eq( $f['metres_ht'], 6800 );
 		eq( $f['waste_ht'], 340 );
 		eq( $f['delivery_ht'], 1500 );
 		eq( $f['amount_ht'], 8640 );
 	} );
 
-	it( 'charges the provision on the film and not on the courier', function () use ( $ts_cost_config ) {
-		$f = Cost::film( 4.0, $ts_cost_config, 'fr' );
+	it( 'charges the provision on the film and not on the courier', function () use ( $ts_roll_config ) {
+		$f = Cost::film( 4.0, $ts_roll_config, 'fr' );
 		$naive = Money::round( ( $f['metres_ht'] + $f['delivery_ht'] ) * 0.05 );
 		truthy( $f['waste_ht'] < $naive, 'a 5 % provision on a delivery charge is not a film loss' );
 	} );
 
-	it( 'bills the supplier minimum on a run shorter than it, and says it did', function () use ( $ts_cost_config ) {
-		$f = Cost::film( 0.3, $ts_cost_config, 'fr' );
+	it( 'bills the supplier minimum on a run shorter than it, and says it did', function () use ( $ts_roll_config ) {
+		$f = Cost::film( 0.3, $ts_roll_config, 'fr' );
 		near( $f['billed_m'], 1.0, 1e-9 );
 		truthy( $f['at_minimum'], 'the shop is paying for film it did not use' );
 
-		$g = Cost::film( 4.0, $ts_cost_config, 'fr' );
+		$g = Cost::film( 4.0, $ts_roll_config, 'fr' );
 		truthy( ! $g['at_minimum'] );
 	} );
 
-	it( 'is cheaper in Spain, which is the whole point of the two rates', function () use ( $ts_cost_config ) {
-		$fr = Cost::film( 4.0, $ts_cost_config, 'fr' );
-		$es = Cost::film( 4.0, $ts_cost_config, 'es' );
+	it( 'is cheaper in Spain, which is the whole point of the two rates', function () use ( $ts_roll_config ) {
+		$fr = Cost::film( 4.0, $ts_roll_config, 'fr' );
+		$es = Cost::film( 4.0, $ts_roll_config, 'es' );
 		eq( $fr['amount_ht'] - $es['amount_ht'], 3360, '4,2 m billed at 17,00 against 9,00' );
 	} );
 
-	it( 'treats an unknown origin as France, the expensive one', function () use ( $ts_cost_config ) {
-		$x = Cost::film( 4.0, $ts_cost_config, 'zz' );
-		eq( $x['amount_ht'], Cost::film( 4.0, $ts_cost_config, 'fr' )['amount_ht'] );
+	it( 'treats an unknown origin as France, the expensive one', function () use ( $ts_roll_config ) {
+		$x = Cost::film( 4.0, $ts_roll_config, 'zz' );
+		eq( $x['amount_ht'], Cost::film( 4.0, $ts_roll_config, 'fr' )['amount_ht'] );
 	} );
 } );
 
-describe( 'Cost: the prudent length is a bound, not a nesting', function () use ( $ts_cost_config ) {
-	it( 'gives every copy its own row, in the flatter orientation', function () use ( $ts_cost_config ) {
+describe( 'Cost: the film when the supplier sells sheets', function () use ( $ts_cost_config, $ts_roll_config ) {
+	it( 'is what the shop ships, and it is not a roll', function () use ( $ts_cost_config ) {
+		eq( $ts_cost_config['film']['billing'], 'sheet', 'question 04 was answered with a sheet' );
+		eq( Cost::film( 1.0, $ts_cost_config )['unit_fr'], 'feuille' );
+	} );
+
+	it( 'charges a whole sheet for a corner of one, because that is what you buy', function () use ( $ts_cost_config ) {
+		// 10 cm of a 46 cm sheet. One sheet at 3,00 EUR, 5 % provision = 0,15,
+		// delivery 15,00. Nothing is pro-rated: a quarter sheet is a sheet.
+		$f = Cost::film( 0.10, $ts_cost_config );
+		eq( $f['billed_sheets'], 1 );
+		eq( $f['metres_ht'], 300 );
+		eq( $f['waste_ht'], 15 );
+		eq( $f['delivery_ht'], 1500 );
+		eq( $f['amount_ht'], 1815 );
+	} );
+
+	it( 'counts sheets by ceiling and never by rounding', function () use ( $ts_cost_config ) {
+		// A hair over two sheets is three sheets. Rounding to the nearest would
+		// give two, and a film cost rounded DOWN is a floor price rounded down,
+		// which authorises a sale nobody would have signed.
+		eq( Cost::film( 0.92, $ts_cost_config )['billed_sheets'], 2, '2 x 0,46 exactly' );
+		eq( Cost::film( 0.93, $ts_cost_config )['billed_sheets'], 3 );
+		eq( Cost::film( 1.37, $ts_cost_config )['billed_sheets'], 3 );
+		eq( Cost::film( 1.38, $ts_cost_config )['billed_sheets'], 3, 'and exactly three is still three' );
+	} );
+
+	it( 'says when an order is paying the supplier minimum', function () use ( $ts_cost_config ) {
+		$tiny = Cost::film( 0.0, $ts_cost_config );
+		eq( $tiny['billed_sheets'], 1, 'you cannot buy a third of a sheet' );
+		truthy( $tiny['at_minimum'] );
+		truthy( ! Cost::film( 1.0, $ts_cost_config )['at_minimum'] );
+	} );
+
+	it( 'keeps the loss provision in cents rather than buying a whole extra sheet', function () use ( $ts_cost_config ) {
+		// 5 % of two sheets is a tenth of a sheet. Rounded up to a whole one it
+		// would be a 50 % provision on a small order and 5 % on a large one.
+		$f = Cost::film( 0.90, $ts_cost_config );
+		eq( $f['billed_sheets'], 2 );
+		eq( $f['waste_ht'], 30, '5 % of 6,00 EUR' );
+		truthy( $f['waste_ht'] < $ts_cost_config['film']['sheet_ht'], 'a provision is money, not paper' );
+	} );
+
+	it( 'ignores the origin, because there is one supplier and he is in France', function () use ( $ts_cost_config ) {
+		eq(
+			Cost::film( 2.0, $ts_cost_config, 'es' )['amount_ht'],
+			Cost::film( 2.0, $ts_cost_config, 'fr' )['amount_ht']
+		);
+		eq( Cost::film( 2.0, $ts_cost_config, 'es' )['origin'], 'fr', 'and it says so rather than agreeing with the caller' );
+	} );
+
+	it( 'describes ONE sheet as geometry and as a price, never two different ones', function () use ( $ts_cost_config ) {
+		/*
+		 * `width_cm` and `max_length_cm` are what the packer packs into and what
+		 * `film()` divides a length by to get a sheet count. If they drifted from
+		 * the 33 x 46 the sheet price is quoted for, the shop would be nesting on
+		 * one sheet and invoiced for another.
+		 */
+		$film = $ts_cost_config['film'];
+		near( $film['width_cm'], 33.0, 1e-9 );
+		near( $film['max_length_cm'], 46.0, 1e-9 );
+		near( $film['billing_step_cm'], $film['max_length_cm'], 1e-9, 'a sheet bills whole or the length and the count disagree' );
+		eq( $film['sheet_ht'], 300 );
+	} );
+
+	it( 'bounds an unmeasurable order in whole sheets', function () use ( $ts_cost_config ) {
+		// Four 20 x 38 cm transfers. Each row is 38,5 cm and a sheet leaves
+		// 46 − 38 − 0,5 = 7,5 cm of room behind the tallest, so at most four
+		// sheets, and the bound is four whole sheets rather than a strip.
+		$b = Cost::prudent_length_cm(
+			array( array( 'id' => 'a', 'w_cm' => 20.0, 'h_cm' => 38.0, 'qty' => 4 ) ),
+			$ts_cost_config
+		);
+		truthy( $b['ok'] );
+		near( $b['length_cm'], 4 * 46.0, 1e-9 );
+		eq( Cost::film( $b['length_cm'] / 100, $ts_cost_config )['billed_sheets'], 4, 'the bound divides back to whole sheets' );
+	} );
+
+	it( 'refuses a transfer taller than a sheet instead of costing it', function () use ( $ts_cost_config, $ts_roll_config ) {
+		// A 30 x 50 cm back print fits a 56 cm roll and fits no A3+ sheet. It is
+		// unplaceable now, and that is new: the shop refuses the order rather
+		// than quoting a sheet the workshop cannot print.
+		$piece = array( array( 'id' => 'dos', 'w_cm' => 30.0, 'h_cm' => 50.0, 'qty' => 1 ) );
+		truthy( Cost::prudent_length_cm( $piece, $ts_roll_config )['ok'], 'it did fit the roll' );
+
+		$b = Cost::prudent_length_cm( $piece, $ts_cost_config );
+		truthy( ! $b['ok'] );
+		eq( $b['impossible'], array( 'dos' ) );
+	} );
+
+	it( 'still splits a pooled bill, and a pool of two small orders is one sheet', function () use ( $ts_cost_config ) {
+		// Two orders of 10 cm each. Apart: two sheets and two deliveries. Pooled
+		// into 20 cm: one sheet and one delivery. The saving is real and it is
+		// almost all the courier, which is what the bench says too.
+		$a = Cost::attribute( array( '1' => 0.10, '2' => 0.10 ), 0.20, $ts_cost_config );
+		eq( $a['solo_total_ht'], 3630 );
+		eq( $a['total_ht'], 1815 );
+		eq( $a['saved_ht'], 1815 );
+		eq( $a['worse'], false );
+		eq( $a['shares']['1']['share_ht'] + $a['shares']['2']['share_ht'], $a['total_ht'], 'the split reconciles to the cent' );
+	} );
+} );
+
+describe( 'Cost: the prudent length is a bound, not a nesting', function () use ( $ts_roll_config ) {
+	it( 'gives every copy its own row, in the flatter orientation', function () use ( $ts_roll_config ) {
 		// Two 20 x 30 pieces on a 56 cm roll: both fit flat, so each costs 20 cm
 		// of roll plus the gap. 41 cm rounds up to the 10 cm billing step, and
 		// the last sheet adds nothing.
 		$b = Cost::prudent_length_cm(
 			array( array( 'id' => 'a', 'w_cm' => 20.0, 'h_cm' => 30.0, 'qty' => 2 ) ),
-			$ts_cost_config
+			$ts_roll_config
 		);
 		truthy( $b['ok'] );
 		near( $b['length_cm'], 50.0, 1e-9 );
 	} );
 
-	it( 'stands a banner up when its long side will not cross the laize', function () use ( $ts_cost_config ) {
+	it( 'stands a banner up when its long side will not cross the laize', function () use ( $ts_roll_config ) {
 		// 5 x 60 on a 56 cm roll cannot lie flat, so the row it costs is 60 cm and
 		// not 5. Reading it the other way under-bounded this piece elevenfold.
 		$flat = Cost::prudent_length_cm(
 			array( array( 'id' => 'a', 'w_cm' => 5.0, 'h_cm' => 50.0, 'qty' => 1 ) ),
-			$ts_cost_config
+			$ts_roll_config
 		);
 		$tall = Cost::prudent_length_cm(
 			array( array( 'id' => 'a', 'w_cm' => 5.0, 'h_cm' => 60.0, 'qty' => 1 ) ),
-			$ts_cost_config
+			$ts_roll_config
 		);
 		near( $flat['length_cm'], 10.0, 1e-9, '50 cm fits across, so the row is 5 cm' );
-		// 60,5 cm of row, rounded up to the billing step, plus one step for the
-		// second sheet the 100 cm file limit could force. A bound is allowed to
-		// be loose; it is not allowed to be low.
-		near( $tall['length_cm'], 80.0, 1e-9, '60 cm does not, so the row is 60 cm' );
+		/*
+		 * 60,5 cm of row, rounded up to the billing step. 70 and not the 80 this
+		 * asserted before: the room divisor said the 100 cm file limit could
+		 * force a second sheet, and session 13b added the bound that says one
+		 * transfer never needs two. A bound is allowed to be loose; it is not
+		 * allowed to be low, and this one moved down towards the truth rather
+		 * than under it.
+		 */
+		near( $tall['length_cm'], 70.0, 1e-9, '60 cm does not, so the row is 60 cm' );
 	} );
 
-	it( 'rounds up to the billing step, like the supplier does', function () use ( $ts_cost_config ) {
+	it( 'rounds up to the billing step, like the supplier does', function () use ( $ts_roll_config ) {
 		// 12 x 9, one copy: 9,5 cm of roll, billed as 10.
 		$b = Cost::prudent_length_cm(
 			array( array( 'id' => 'a', 'w_cm' => 12.0, 'h_cm' => 9.0, 'qty' => 1 ) ),
-			$ts_cost_config
+			$ts_roll_config
 		);
 		near( $b['length_cm'], 10.0, 1e-9, 'a bound that ignored the rounding came out UNDER the packing' );
 	} );
 
-	it( 'refuses a transfer that fits on no roll instead of costing it', function () use ( $ts_cost_config ) {
+	it( 'refuses a transfer that fits on no roll instead of costing it', function () use ( $ts_roll_config ) {
 		$b = Cost::prudent_length_cm(
 			array(
 				array( 'id' => 'ok', 'w_cm' => 10.0, 'h_cm' => 10.0, 'qty' => 1 ),
 				array( 'id' => 'trop-large', 'w_cm' => 60.0, 'h_cm' => 70.0, 'qty' => 1 ),
 			),
-			$ts_cost_config
+			$ts_roll_config
 		);
 		truthy( ! $b['ok'] );
 		eq( $b['impossible'], array( 'trop-large' ) );
 		near( $b['length_cm'], 0.0, 1e-9, 'no bound at all, rather than a bound on what is left' );
 	} );
 
-	it( 'grows with quantity and never shrinks', function () use ( $ts_cost_config ) {
+	it( 'grows with quantity and never shrinks', function () use ( $ts_roll_config ) {
 		$prev = 0.0;
 		foreach ( array( 1, 2, 5, 30 ) as $qty ) {
 			$b = Cost::prudent_length_cm(
 				array( array( 'id' => 'a', 'w_cm' => 18.0, 'h_cm' => 24.0, 'qty' => $qty ) ),
-				$ts_cost_config
+				$ts_roll_config
 			);
 			truthy( $b['length_cm'] > $prev, "the bound did not grow at qty={$qty}" );
 			$prev = $b['length_cm'];
@@ -258,7 +384,7 @@ describe( 'Cost: the prudent length is a bound, not a nesting', function () use 
 	it( 'adds a billing step per extra sheet on a run past the file limit', function () {
 		// A 3 m maximum file length and 100 pieces of 20 cm: several sheets, each
 		// rounded up on its own, so one rounding of the whole is not enough.
-		$short = Cost::merge_config( array( 'film' => array( 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 300.0 ) ) );
+		$short = Cost::merge_config( array( 'film' => array( 'billing' => 'roll', 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 300.0 ) ) );
 		$b     = Cost::prudent_length_cm(
 			array( array( 'id' => 'a', 'w_cm' => 30.0, 'h_cm' => 20.0, 'qty' => 100 ) ),
 			$short
@@ -269,13 +395,13 @@ describe( 'Cost: the prudent length is a bound, not a nesting', function () use 
 		truthy( $b['length_cm'] <= 2050.0 + 10.0 * 10, 'and it must not run away either' );
 	} );
 
-	it( 'refuses geometry it cannot use rather than inventing a size', function () use ( $ts_cost_config ) {
+	it( 'refuses geometry it cannot use rather than inventing a size', function () use ( $ts_roll_config ) {
 		$b = Cost::prudent_length_cm(
 			array(
 				array( 'id' => 'a', 'w_cm' => 0.0, 'h_cm' => 24.0, 'qty' => 3 ),
 				array( 'id' => 'b', 'w_cm' => 18.0, 'h_cm' => 24.0, 'qty' => 0 ),
 			),
-			$ts_cost_config
+			$ts_roll_config
 		);
 		truthy( ! $b['ok'], 'nothing usable is not a length of zero' );
 	} );
@@ -364,11 +490,20 @@ describe( 'Cost: a form that owns some fields must not delete the others', funct
 		 * `prudent_length_cm` then read a billing step of 0, refused, and the
 		 * film became UNKNOWN on every order costed without the nesting service.
 		 * Measured on thirty tees with one 28,4 x 34,1 cm transfer: 291,94 EUR
-		 * of floor price, destroyed by pressing Enregistrer once.
+		 * of floor price, destroyed by pressing Enregistrer once. That euro
+		 * figure was measured under the roll tariff of session 05 and has not
+		 * been re-measured under the sheet tariff; the defect it pins is the
+		 * deleted field, which does not depend on what a metre costs.
+		 *
+		 * 874 and not the 870 this asserted before: the field that survives the
+		 * save is the SHIPPED billing step, and question 04's answer made that
+		 * the sheet height. The bound rounds 867 cm of rows up to whole steps,
+		 * which is now 19 x 46 rather than 87 x 10.
 		 */
 		$saved = Cost::merge_config(
 			array(
 				'film' => array(
+					'billing'     => 'roll',
 					'rate_fr_ht'  => 1700,
 					'rate_es_ht'  => 900,
 					'width_cm'    => 56.0,
@@ -385,7 +520,7 @@ describe( 'Cost: a form that owns some fields must not delete the others', funct
 
 		$bound = Cost::prudent_length_cm( array( array( 'id' => 'a', 'w_cm' => 28.4, 'h_cm' => 34.1, 'qty' => 30 ) ), $saved );
 		truthy( $bound['ok'], 'the bound stopped existing after a save' );
-		near( $bound['length_cm'], 870.0, 1e-9 );
+		near( $bound['length_cm'], 874.0, 1e-9 );
 	} );
 
 	it( 'merges the standard times and the payment block the same way', function () {
@@ -416,14 +551,30 @@ describe( 'Cost: the bound when the file limit is close to the artwork', functio
 		 * counts too few sheets counts too few roundings.
 		 */
 		$tight = Cost::merge_config(
-			array( 'film' => array( 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 40.0 ) )
+			array( 'film' => array( 'billing' => 'roll', 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 40.0 ) )
 		);
 		$b = Cost::prudent_length_cm( array( array( 'id' => 'a', 'w_cm' => 20.0, 'h_cm' => 38.0, 'qty' => 4 ) ), $tight );
 
 		truthy( $b['ok'] );
-		// 4 rows of 20,5 cm = 82 cm, rounded up to 90, plus one step for each of
-		// the four sheets past the first.
-		near( $b['length_cm'], 130.0, 1e-9 );
+		/*
+		 * 4 rows of 20,5 cm = 82 cm, rounded up to 90, plus one step for each of
+		 * the sheets past the first. THREE and not four: session 13b added the
+		 * second bound, that there are never more sheets than rows, and here it
+		 * is the tighter of the two (4 rows against ceil(82 / 19,5) = 5).
+		 */
+		near( $b['length_cm'], 120.0, 1e-9 );
+
+		/*
+		 * AND THE ROOM DIVISOR IS STILL THE ONE UNDER TEST. Where two rows fit
+		 * on a sheet the row count stops binding and the divisor is back in
+		 * charge: ten rows of 10,5 cm with 29,5 cm of room is four sheets, not
+		 * ten. Clamping that divisor to the billing step, which is the defect
+		 * this whole block exists for, would count three and bill three
+		 * roundings instead of four.
+		 */
+		$many = Cost::prudent_length_cm( array( array( 'id' => 'b', 'w_cm' => 10.0, 'h_cm' => 25.0, 'qty' => 10 ) ), $tight );
+		truthy( $many['ok'] );
+		near( $many['length_cm'], 140.0, 1e-9 );
 	} );
 
 	it( 'gives every transfer its own sheet when there is no room for a second row', function () {
@@ -431,7 +582,7 @@ describe( 'Cost: the bound when the file limit is close to the artwork', functio
 		// no room left, a division would be by zero or by a negative, and the
 		// count falls back to the number of transfers.
 		$tight = Cost::merge_config(
-			array( 'film' => array( 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 40.0 ) )
+			array( 'film' => array( 'billing' => 'roll', 'width_cm' => 56.0, 'gap_cm' => 0.5, 'billing_step_cm' => 10.0, 'max_length_cm' => 40.0 ) )
 		);
 		$b = Cost::prudent_length_cm( array( array( 'id' => 'a', 'w_cm' => 50.0, 'h_cm' => 39.5, 'qty' => 3 ) ), $tight );
 
@@ -443,7 +594,7 @@ describe( 'Cost: the bound when the file limit is close to the artwork', functio
 	} );
 
 	it( 'refuses a transfer longer than a whole print file', function () {
-		$tight = Cost::merge_config( array( 'film' => array( 'width_cm' => 56.0, 'max_length_cm' => 40.0 ) ) );
+		$tight = Cost::merge_config( array( 'film' => array( 'billing' => 'roll', 'width_cm' => 56.0, 'max_length_cm' => 40.0 ) ) );
 		$b     = Cost::prudent_length_cm( array( array( 'id' => 'long', 'w_cm' => 50.0, 'h_cm' => 45.0, 'qty' => 1 ) ), $tight );
 		truthy( ! $b['ok'] );
 		eq( $b['impossible'], array( 'long' ) );
@@ -459,9 +610,9 @@ describe( 'Cost: the bound when the file limit is close to the artwork', functio
 	} );
 } );
 
-describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_config ) {
-	it( 'hands out every cent of the bill and not one more', function () use ( $ts_cost_config ) {
-		$a = Cost::attribute( array( '1042' => 2.5, '1043' => 1.8, '99' => 0.9 ), 3.9, $ts_cost_config );
+describe( 'Cost: splitting a pooled film bill', function () use ( $ts_roll_config ) {
+	it( 'hands out every cent of the bill and not one more', function () use ( $ts_roll_config ) {
+		$a = Cost::attribute( array( '1042' => 2.5, '1043' => 1.8, '99' => 0.9 ), 3.9, $ts_roll_config );
 		$sum = 0;
 		foreach ( $a['shares'] as $share ) {
 			$sum += $share['share_ht'];
@@ -469,11 +620,11 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 		eq( $sum, $a['total_ht'], 'the shares must reconcile against the supplier invoice exactly' );
 	} );
 
-	it( 'reconciles on a split that does not divide evenly', function () use ( $ts_cost_config ) {
+	it( 'reconciles on a split that does not divide evenly', function () use ( $ts_roll_config ) {
 		// Three identical orders on a bill that is not a multiple of three, so the
 		// leftover cents really are handed out rather than the test passing on a
 		// division that happened to come out whole.
-		$a = Cost::attribute( array( 'a' => 1.0, 'b' => 1.0, 'c' => 1.0 ), 1.1, $ts_cost_config );
+		$a = Cost::attribute( array( 'a' => 1.0, 'b' => 1.0, 'c' => 1.0 ), 1.1, $ts_roll_config );
 		truthy( 0 !== $a['total_ht'] % 3, 'a bill that divides evenly would not exercise the remainder' );
 		$sum = 0;
 		foreach ( $a['shares'] as $share ) {
@@ -484,17 +635,17 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 		eq( $a['shares']['c']['share_ht'], 1154 );
 	} );
 
-	it( 'charges the bigger order more, always', function () use ( $ts_cost_config ) {
-		$a = Cost::attribute( array( 'petit' => 0.4, 'gros' => 6.0 ), 6.2, $ts_cost_config );
+	it( 'charges the bigger order more, always', function () use ( $ts_roll_config ) {
+		$a = Cost::attribute( array( 'petit' => 0.4, 'gros' => 6.0 ), 6.2, $ts_roll_config );
 		truthy(
 			$a['shares']['gros']['share_ht'] > $a['shares']['petit']['share_ht'],
 			'the order that would have cost more alone must pay more in the pool'
 		);
 	} );
 
-	it( 'gives the same cents whatever order the orders arrive in', function () use ( $ts_cost_config ) {
-		$forwards  = Cost::attribute( array( 'a' => 1.0, 'b' => 1.0, 'c' => 1.0 ), 2.0, $ts_cost_config );
-		$backwards = Cost::attribute( array( 'c' => 1.0, 'b' => 1.0, 'a' => 1.0 ), 2.0, $ts_cost_config );
+	it( 'gives the same cents whatever order the orders arrive in', function () use ( $ts_roll_config ) {
+		$forwards  = Cost::attribute( array( 'a' => 1.0, 'b' => 1.0, 'c' => 1.0 ), 2.0, $ts_roll_config );
+		$backwards = Cost::attribute( array( 'c' => 1.0, 'b' => 1.0, 'a' => 1.0 ), 2.0, $ts_roll_config );
 		foreach ( array( 'a', 'b', 'c' ) as $id ) {
 			eq( $backwards['shares'][ $id ]['share_ht'], $forwards['shares'][ $id ]['share_ht'], "order $id" );
 		}
@@ -502,7 +653,7 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 
 	it( 'never divides by a total weight of zero', function () {
 		$free = Cost::merge_config(
-			array( 'film' => array( 'rate_fr_ht' => 0, 'delivery_ht' => 0 ) )
+			array( 'film' => array( 'billing' => 'roll', 'rate_fr_ht' => 0, 'delivery_ht' => 0 ) )
 		);
 		$a = Cost::attribute( array( 'a' => 1.0, 'b' => 3.0 ), 4.0, $free );
 		eq( $a['total_ht'], 0 );
@@ -523,8 +674,8 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 	 * screen shows `worse` rather than a saving that is arithmetically true and
 	 * commercially meaningless.
 	 */
-	it( 'prices a run that buys MORE film and finds it still cheaper', function () use ( $ts_cost_config ) {
-		$a = Cost::attribute( array( '1' => 0.2, '2' => 0.2 ), 0.5, $ts_cost_config );
+	it( 'prices a run that buys MORE film and finds it still cheaper', function () use ( $ts_roll_config ) {
+		$a = Cost::attribute( array( '1' => 0.2, '2' => 0.2 ), 0.5, $ts_roll_config );
 		eq( $a['solo_total_ht'], 6570, 'two orders bought apart: two minimums, two deliveries' );
 		eq( $a['total_ht'], 3285, 'one order pooled: one minimum, one delivery' );
 		eq( $a['saved_ht'], 3285 );
@@ -535,7 +686,7 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 		// No supplier minimum and no delivery charge: nothing is left to hide a
 		// pool that genuinely nests worse than its parts.
 		$bare = Cost::merge_config(
-			array( 'film' => array( 'min_m' => 0.0, 'delivery_ht' => 0, 'waste_rate' => 0.0 ) )
+			array( 'film' => array( 'billing' => 'roll', 'width_cm' => 56.0, 'max_length_cm' => 100.0, 'billing_step_cm' => 10.0, 'min_m' => 0.0, 'delivery_ht' => 0, 'waste_rate' => 0.0 ) )
 		);
 		$a = Cost::attribute( array( '1' => 0.2, '2' => 0.2 ), 0.5, $bare );
 		eq( $a['total_ht'], 850 );
@@ -552,11 +703,11 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 	 * its film is not, which is exactly the difference the two rules disagree
 	 * about and exactly what a margin report has to see.
 	 */
-	it( 'publishes what the area rule would have charged, and it is not the same', function () use ( $ts_cost_config ) {
+	it( 'publishes what the area rule would have charged, and it is not the same', function () use ( $ts_roll_config ) {
 		$a = Cost::attribute(
 			array( '1042' => 2.5, '1043' => 1.8, '99' => 0.9 ),
 			3.9,
-			$ts_cost_config,
+			$ts_roll_config,
 			'fr',
 			array( '1042' => 1800.0, '1043' => 900.0, '99' => 300.0 )
 		);
@@ -569,8 +720,8 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 		eq( $sum, $a['total_ht'], 'the published rule has to reconcile too, or it is not a rule' );
 	} );
 
-	it( 'falls back to equal shares when no ink area was measured', function () use ( $ts_cost_config ) {
-		$a = Cost::attribute( array( 'a' => 1.0, 'b' => 3.0 ), 3.5, $ts_cost_config );
+	it( 'falls back to equal shares when no ink area was measured', function () use ( $ts_roll_config ) {
+		$a = Cost::attribute( array( 'a' => 1.0, 'b' => 3.0 ), 3.5, $ts_roll_config );
 		eq(
 			$a['shares']['a']['area_share_ht'] + $a['shares']['b']['area_share_ht'],
 			$a['total_ht']
@@ -587,16 +738,16 @@ describe( 'Cost: splitting a pooled film bill', function () use ( $ts_cost_confi
 	 * they actually require, the order needing five times the film pays five
 	 * times the share.
 	 */
-	it( 'does not charge a small order like a big one just because both hit the minimum', function () use ( $ts_cost_config ) {
-		$a = Cost::attribute( array( 'petite' => 0.2, 'grosse' => 1.0 ), 1.1, $ts_cost_config );
+	it( 'does not charge a small order like a big one just because both hit the minimum', function () use ( $ts_roll_config ) {
+		$a = Cost::attribute( array( 'petite' => 0.2, 'grosse' => 1.0 ), 1.1, $ts_roll_config );
 		eq( $a['shares']['petite']['solo_ht'], $a['shares']['grosse']['solo_ht'], 'both would have paid the same minimum alone' );
 		$ratio = $a['shares']['grosse']['share_ht'] / max( 1, $a['shares']['petite']['share_ht'] );
 		truthy( $ratio > 4.5 && $ratio < 5.5, "five times the film should be about five times the share, got {$ratio}" );
 	} );
 
-	it( 'costs the Spanish origin at the Spanish rate and nothing else', function () use ( $ts_cost_config ) {
-		$fr = Cost::attribute( array( 'a' => 2.0 ), 2.0, $ts_cost_config, 'fr' );
-		$es = Cost::attribute( array( 'a' => 2.0 ), 2.0, $ts_cost_config, 'es' );
+	it( 'costs the Spanish origin at the Spanish rate and nothing else', function () use ( $ts_roll_config ) {
+		$fr = Cost::attribute( array( 'a' => 2.0 ), 2.0, $ts_roll_config, 'fr' );
+		$es = Cost::attribute( array( 'a' => 2.0 ), 2.0, $ts_roll_config, 'es' );
 		eq( $fr['origin'], 'fr' );
 		eq( $es['origin'], 'es' );
 		truthy( $es['total_ht'] < $fr['total_ht'], 'Spain is the cheap origin, which is why it needs evidence' );

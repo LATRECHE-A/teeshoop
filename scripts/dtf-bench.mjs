@@ -112,7 +112,21 @@ try {
   await page.goto(BASE + '/dev/dtf.html', { waitUntil: 'load', timeout: 60000 })
   await page.waitForFunction(() => !!window.__dtf, { timeout: 25000 })
 
-  const page_out = await page.evaluate(async () => {
+  /*
+   * THE SHOP'S OWN GEOMETRY, READ BEFORE THE BROWSER IS ASKED ANYTHING.
+   *
+   * It used to be typed inside the page as `{ printableWidthCm: 56,
+   * maxLengthCm: 100 }` with a comment saying « the SHOP's roll and file length
+   * (Cost.php) ». It was, on 19 August. Question 04's answer moved the shop onto
+   * a 33 x 46 cm sheet and this copy did not move with it, so the bench packed a
+   * week of orders on a 56 cm roll and then priced the result at 3,00 EUR the
+   * A3+ sheet: every euro on the pooling table was a length from one supplier
+   * multiplied by another supplier's tariff. It is passed in now, from the same
+   * `filmTariff()` the money comes from.
+   */
+  const shopFilm = filmTariff()
+
+  const page_out = await page.evaluate(async (shopFilm) => {
     const { nest, shape, samplePieces, interlockMax } = window.__dtf
     const interlockStops = window.__dtf.interlockStops
 
@@ -359,10 +373,17 @@ try {
       else byOrder.set(p.orderId, [p])
     }
 
-    // 56 cm and 100 cm are the SHOP's roll and file length (Cost.php), not the
-    // studio's surveyed profile: the whole point is a euro figure the margin
-    // report would agree with.
-    const shopGeom = { ...base, printableWidthCm: 56, maxLengthCm: 100 }
+    // The SHOP's own printing geometry, passed in from `Cost::default_config()`
+    // rather than typed here: the whole point of this block is a euro figure the
+    // margin report would agree with, and it cannot be if the length and the
+    // tariff come from two different suppliers.
+    const shopGeom = {
+      ...base,
+      printableWidthCm: shopFilm.width_cm,
+      maxLengthCm: shopFilm.max_length_cm,
+      gapCm: shopFilm.gap_cm,
+      billingStepCm: shopFilm.billing_step_cm,
+    }
     const packShelf = (ps) => nest(ps, shopGeom)
     const packFill = (ps) =>
       shape({ pieces: ps, options: { ...shopGeom, maxInterlockCm: interlockMax, restarts: 12 } })
@@ -406,7 +427,7 @@ try {
       week.soloSheets += packFill(ps).sheets.length
     }
     return { rows, week }
-  })
+  }, shopFilm)
 
   const { rows: out, week } = page_out
   const pc = (a, b) => (b > 0 ? `${(((a - b) / a) * 100).toFixed(1)} %` : '—')
@@ -483,7 +504,24 @@ try {
   // The euros come from the price authority, twice over: the tariff from
   // `Cost::default_config()`, the split from `Cost::attribute()`. Nothing here
   // multiplies a rate by a length itself.
-  const film = filmTariff()
+  const film = shopFilm
+
+  /*
+   * THE BILLING UNIT, because question 04's answer changed it.
+   *
+   * The decomposition below is the algebra of `Cost::film`, and that function
+   * now has two branches: a roll invoiced by the linear metre and a sheet
+   * invoiced whole. Expressed in the unit the supplier counts, the algebra is
+   * the same in both, so this converts a measured LENGTH into billable UNITS
+   * once and the four terms are unchanged. `ceil` and not `round`, exactly as
+   * `Cost::film` does it, or the identity check at the bottom would reject a
+   * split that is right.
+   */
+  const SHEET = 'sheet' === film.billing
+  const UNIT_HT = SHEET ? film.sheet_ht : film.rate_fr_ht
+  const MIN_UNITS = SHEET ? film.min_sheets : film.min_m
+  const billingUnits = (metres) =>
+    SHEET ? Math.ceil((metres * 100) / film.max_length_cm - 1e-9) : metres
   const soloFill = {}
   const soloShelf = {}
   for (const id of week.orders) {
@@ -501,8 +539,11 @@ try {
   console.log('\nUNE SEMAINE DE COMMANDES : imbriquées ensemble vs une par une')
   console.log('-'.repeat(96))
   console.log(
-    `laize ${film.width_cm} cm · fichier max ${film.max_length_cm} cm · ` +
-      `${film.rate_fr_ht / 100} EUR/m · minimum ${film.min_m} m · ` +
+    (SHEET
+      ? `feuille ${film.width_cm} x ${film.max_length_cm} cm · ` +
+        `${film.sheet_ht / 100} EUR la feuille · minimum ${film.min_sheets} feuille(s) · `
+      : `laize ${film.width_cm} cm · fichier max ${film.max_length_cm} cm · ` +
+        `${film.rate_fr_ht / 100} EUR/m · minimum ${film.min_m} m · `) +
       `perte ${Math.round(film.waste_rate * 100)} % · livraison ${film.delivery_ht / 100} EUR`,
   )
   console.log(
@@ -581,16 +622,16 @@ try {
    * correct split.
    */
   const N = week.orders.length
-  const sumRaw = week.orders.reduce((a, id) => a + week.solo[id].fillCm / 100, 0)
+  const sumRaw = week.orders.reduce((a, id) => a + billingUnits(week.solo[id].fillCm / 100), 0)
   const sumBilled = week.orders.reduce(
-    (a, id) => a + Math.max(film.min_m, week.solo[id].fillCm / 100),
+    (a, id) => a + Math.max(MIN_UNITS, billingUnits(week.solo[id].fillCm / 100)),
     0,
   )
-  const pooledRaw = week.pooledFillCm / 100
-  const perM = film.rate_fr_ht * (1 + film.waste_rate)
+  const pooledRaw = billingUnits(week.pooledFillCm / 100)
+  const perM = UNIT_HT * (1 + film.waste_rate)
   const fromMinimums = Math.round(perM * (sumBilled - sumRaw))
   const fromNesting = Math.round(perM * (sumRaw - pooledRaw))
-  const pooledUnused = Math.round(perM * (Math.max(film.min_m, pooledRaw) - pooledRaw))
+  const pooledUnused = Math.round(perM * (Math.max(MIN_UNITS, pooledRaw) - pooledRaw))
   const fromDelivery = (N - 1) * film.delivery_ht
   const modelled = fromMinimums + fromNesting + fromDelivery - pooledUnused
   console.log(
