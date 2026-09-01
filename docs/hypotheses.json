@@ -2066,8 +2066,8 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-18",
-			"statement_fr": "Le fournisseur facture au moins une feuille entière, même si la commande n'en occupe qu'un coin.",
-			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.min_m",
+			"statement_fr": "Le fournisseur facture au moins 1 feuille entière, même si la commande n'en occupe qu'un coin.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.min_sheets",
 			"mirrors": [],
 			"literals": [],
 			"reaches": [
@@ -2076,14 +2076,23 @@
 			],
 			"derives": [
 				"Le fait qu'une commande d'une seule pièce paie une feuille entière et que le rapport le signale (tests/test-cost.php).",
-				"Le minimum ne rapporte PLUS rien au groupage : remesuré le 01/09/2026, les six commandes de la semaine de référence occupent chacune plus d'une feuille, donc aucune ne paie de minimum. Sous le rouleau d'un mètre, cinq sur six le payaient et cela valait 42,84 EUR."
+				"Le minimum ne rapporte PLUS rien au groupage : remesuré le 01/09/2026, les six commandes de la semaine de référence occupent chacune plus d'une feuille, donc aucune ne paie de minimum. Sous le rouleau d'un mètre, cinq sur six le payaient et cela valait 42,84 EUR.",
+				"Sa MAISON a changé le 01/09/2026 : elle pointait encore `film.min_m`, le minimum du rouleau, que le mode feuille ne lit pas. Une ligne du registre qui surveille un champ mort ne surveille rien, et sa phrase parlait déjà de feuilles."
 			],
 			"sessions": [
 				"05"
 			],
 			"cost_if_late": "reglage",
 			"shipped_matches_default": "Oui. Question 04 : « 1 mètre minimum ».",
-			"literals_why": "La valeur est 1."
+			"literals_why": "La valeur est 1.",
+			"statement_amounts": [
+				{
+					"from": "film.min_sheets",
+					"as": "int",
+					"text": "1",
+					"in": "au moins 1 feuille entière"
+				}
+			]
 		},
 		{
 			"id": "H-Q04-PERTE-FILM",
@@ -3595,6 +3604,31 @@
 			"derives": [
 				"La réponse à la question 57 tout entière : l'obligation de médiation de la consommation (article L612-1) ne tombe que si la boutique refuse effectivement un consommateur. Tant que cette ligne est un refus, l'exemption qu'il annonce n'est pas acquise, et les conditions générales continuent d'écrire qu'elle n'est pas satisfaite.",
 				"Le vocabulaire de la boutique tout entier : la question 01 fait mener le prix hors taxes partout et l'accueil dit « pour les professionnels », ce qui s'adresse à un public sans le restreindre."
+			],
+			"sessions": [
+				"13b"
+			],
+			"cost_if_late": "on refait"
+		},
+		{
+			"id": "H-Q04-FACTURATION-FILM",
+			"question": "Q04",
+			"level": "bloquant",
+			"status": "answered",
+			"since": "2026-09-01",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 04 : « Le moteur de coût doit pouvoir fonctionner à partir du coût réel par feuille/surface utilisée, plutôt que de figer arbitrairement un tarif au mètre. » C'est le champ qui décide laquelle des deux arithmétiques tourne, et il n'était surveillé par rien : trouvé par la passe adverse du 01/09/2026.",
+			"statement_fr": "Le film est facturé à la feuille et non au mètre : c'est ce mode qui décide de toute l'arithmétique du coût de marquage.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#film.billing",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "La valeur est le mot « sheet », qui apparaît partout dans le code qui la teste : le chasser produirait des dizaines de collisions sans protéger quoi que ce soit. Ce qui la protège est le refus de `Cost::film()`, qui rejette une configuration dont le mode et la géométrie ne s'accordent pas, et le test qui reproduit exactement ce que l'écran écrivait avant cette réponse.",
+			"reaches": [
+				"internal",
+				"operator"
+			],
+			"derives": [
+				"Absolument tout le coût de marquage. Mesuré : une configuration enregistrée avant le 01/09/2026 hérite de ce mode et facture des « feuilles » de 56 x 100 cm au prix de l'A3+, soit 27,60 EUR au lieu de 86,40 sur quatre mètres imbriqués, 68 % de moins, directement dans un prix plancher."
 			],
 			"sessions": [
 				"13b"
