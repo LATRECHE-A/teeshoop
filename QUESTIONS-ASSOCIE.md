@@ -3,6 +3,7 @@
 **Pour :** le dirigeant de Teeshoop
 **De :** l'équipe de développement
 **Date :** 12 août 2026
+**Réponses reçues :** 1er septembre 2026, les 61
 
 ---
 
@@ -31,7 +32,93 @@ Répondez directement sous chaque question, dans le bloc « Votre réponse ».
 
 ---
 
+## Les réponses sont arrivées
+
+**1er septembre 2026.** L'associé a répondu, en deux documents, et les 61 questions ont
+maintenant quelque chose dans leur bloc « Votre réponse ».
+
+| Document | Couvre | Daté par son auteur | Vendoré ici |
+|---|---|---|---|
+| « Réponses aux 36 questions de validation » | questions 1 à 36 | 19 août 2026 | `docs/reponses-associe/reponses-q01-q36.pdf` et `.txt` |
+| « Réponses définitives aux questions 37 à 61 » | questions 37 à 61 | 1er septembre 2026 | `docs/reponses-associe/reponses-q37-q61.pdf` et `.txt` |
+
+Les deux originaux sont dans le dépôt, en PDF et en texte, pour qu'une réponse recopiée
+puisse toujours être confrontée à sa source. Ce qui figure sous chaque question est une
+**transcription** : les mots sont ceux de l'associé, la mise en forme est de nous, et tout
+ce qui est de nous est en italique **sous** la citation, jamais dedans.
+
+**Quel document prime.** Le second le déclare lui-même, en première page et en conclusion :
+
+> En cas de contradiction avec une hypothèse antérieure, les décisions ci-dessous
+> prévalent.
+
+Il ne parle que des questions 37 à 61. Deux sujets sont traités par les deux documents, et
+c'est donc le plus récent qui tranche : l'affichage du stock (questions 11 et 48) et
+l'adresse (questions 17 et 55).
+
+**Ce que cette séance n'a pas fait.** Rien n'a été appliqué au code. Le registre
+`docs/hypotheses.json` porte toujours ses valeurs supposées, et c'est la séance 13b qui
+confronte chaque réponse à sa ligne, la classe (confirmée, valeur différente, forme
+différente) et présente le tableau avant de changer quoi que ce soit. Ici, les réponses ont
+seulement été posées là où on les cherche.
+
+### Ce que l'associé signale lui-même comme non fourni
+
+Cinq points, en fin de son premier document, mot pour mot :
+
+> - Facture ou grille complète du fournisseur DTF : confirmer si les 3 EUR sont HT ou TTC,
+>   les frais de livraison, le minimum de commande et les délais.
+> - Grille réelle Mondial Relay et coût réel des emballages.
+> - Nom/source exacte de la base des 150 000 prospects avant import ou campagne
+>   automatisée.
+> - Statut et utilité du compte Mid Ocean, le cas échéant.
+> - Validation définitive des informations légales et de la TVA avec les documents
+>   officiels / la comptabilité.
+
+Le dernier est le seul de la liste à être bloquant. Le régime de TVA reste une hypothèse
+dans les mots mêmes de l'associé (« conserver l'hypothèse de TVA à 20 % ... sous réserve de
+validation comptable »), et la boutique en ligne encaisse aujourd'hui avec le calcul des
+taxes désactivé.
+
+### Deux questions neuves, que la lecture des réponses fait apparaître
+
+Aucune ne se tranche sans lui. Elles sont détaillées sous leur question et rappelées ici
+pour ne pas dépendre d'une lecture complète du document.
+
+- **L'adresse** (questions 17 et 55). Le siège déclaré est au 97 avenue de Castelnau,
+  93700 Drancy, et la fiche Google demandée est au 8 rue Primo Lévi, 93000 Bobigny. Un
+  siège et un établissement peuvent différer, mais les mentions légales n'en publient
+  qu'une, et une adresse d'établissement non déclarée est un problème de conformité.
+- **Le fournisseur textile** (questions 3, 9, 43 et 46). Quatre réponses nomment
+  **Imbretex**, comme fournisseur prioritaire, comme référence pour la lecture du stock et
+  comme source du délai de 24 heures. Le catalogue, le relevé de stock et le panier d'achat
+  construits lisent le webservice **Falk & Ross**, et nous n'avons aucun accès Imbretex.
+  C'est la réponse qui change le plus de code, et elle ne demande explicitement de rien
+  supprimer.
+
+### Un sujet qui n'est la réponse à aucune question
+
+Le second document se termine par un point que nous n'avions pas posé. Il n'appartient ni
+au code ni au registre, et il est reproduit ici pour qu'il ne se perde pas :
+
+> Le code développé pour Teeshoop ne doit pas dépendre durablement d'un dépôt personnel
+> d'un développeur. Avant le lancement commercial définitif, formaliser : la propriété ou
+> les droits d'utilisation du code ; la situation des développements effectués en
+> stage/alternance ; le dépôt Git principal de l'entreprise et ses administrateurs ; la
+> propriété du domaine, de l'hébergement, des comptes fournisseurs et des clés API ; les
+> licences ; les procédures permettant à Teeshoop de continuer à fonctionner en cas de
+> départ d'un développeur.
+
+C'est une démarche et non un développement. Elle est reportée dans `ACCES-REQUIS.md`, qui
+est l'endroit où ce dépôt tient la liste de ce qui appartient à qui.
+
+---
+
 ## Ce que nous faisons en attendant vos réponses
+
+*(Conservé tel quel. Cette section décrit la période du 18 août au 1er septembre 2026, et
+elle explique pourquoi le code est dans l'état où il est. Les réponses sont arrivées
+depuis : voir la section précédente.)*
 
 **Décision du 18 août 2026.** Vous n'avez pas eu le temps de répondre, et arrêter le
 développement coûterait plus cher que d'avancer. Nous construisons donc la suite du site
@@ -228,9 +315,19 @@ Rien n'est faussé en attendant : aucune commande ne porte de type de client tan
 opérateur ne l'a pas choisi, et une règle qui sélectionne sur un type ne s'applique donc
 à aucune commande.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Le site est réservé aux professionnels.
+>
+> Le minimum est de 5 pièces par commande, sans minimum obligatoire de 50 EUR HT. Le SIRET
+> peut être demandé lors de la création du compte, sans nécessairement bloquer
+> l'inscription. Les prix seront principalement affichés HT, avec le TTC en information
+> secondaire.
+
+*Ce que la réponse ne tranche pas :* la liste des **types de client** demandée par la
+séance 05 (particulier, professionnel, collectivité, grand compte). La réponse écarte le
+particulier et la question 15 nomme les collectivités, la question 16 les grands comptes,
+mais l'associé ne valide pas la liste elle-même.
 
 ### 2. Voulez-vous qu'un client puisse voir un prix complet et payer seul en ligne dès le lancement, ou bien toute commande doit-elle passer par un devis que vous validez ?
 
@@ -240,9 +337,16 @@ opérateur ne l'a pas choisi, et une règle qui sélectionne sur un type ne s'ap
 
 *Si vous ne répondez pas, on partira sur :* Prix public et paiement en autonomie jusqu'à 250 pièces ou 2 000 EUR hors taxes ; au-delà, passage obligatoire par un devis.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Le client doit pouvoir personnaliser ses produits, obtenir son prix et payer directement
+> en ligne.
+>
+> Jusqu'à 2 000 EUR HT de commande, le parcours peut être réalisé en autonomie. Au-delà de
+> 2 000 EUR HT, passage par un devis et validation par Teeshoop.
+
+*Ce que la réponse ne tranche pas :* la moitié « 250 pièces » du seuil. Seul le montant
+est donné.
 
 
 ## Prix et coûts
@@ -266,9 +370,24 @@ d'achat par vêtement, avec sa source et sa date, mais c'est un pansement : la v
 est de rattacher chaque produit personnalisable à sa référence fournisseur, ce qui suppose
 votre grille.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Nous avons déjà des comptes fournisseurs et des tarifs négociés. Les prix d'achat sont
+> fréquemment de l'ordre de 2 à 2,5 fois inférieurs aux tarifs de référence/publics, selon
+> les produits.
+>
+> Les prix négociés apparaissent directement dans nos comptes fournisseurs. Le système
+> doit donc utiliser autant que possible les vrais prix d'achat remontés depuis les
+> comptes/API, et non des tarifs théoriques.
+>
+> Imbretex est prioritaire. Les frais de port et seuils de franco doivent être récupérés
+> directement depuis les comptes/grilles fournisseurs.
+
+*Ce que la réponse ne tranche pas :* les deux chiffres eux-mêmes. Aucune grille n'est
+jointe, aucun montant de port ni seuil de franco n'est donné, et « à récupérer depuis les
+comptes fournisseurs » suppose un accès au compte **Imbretex**, que nous n'avons pas (voir
+`ACCES-REQUIS.md`). Le rapport de 2 à 2,5 est une indication d'ordre de grandeur, pas une
+remise applicable.
 
 ### 4. Quels sont vos tarifs DTF réellement négociés en France et en Espagne : prix au mètre linéaire, largeur exacte du rouleau, commande minimum, frais de livraison et délai réellement tenu ? Les 17 EUR et 9 EUR sont-ils confirmés par un fournisseur nommé ?
 
@@ -317,9 +436,28 @@ groupage bien plus que la géométrie**. Si votre fournisseur facture autrement,
 change du tout au tout, et c'est la partie de la question 04 qui vaut le plus cher à
 laisser sans réponse.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Nous avons actuellement un fournisseur en France qui nous pratique un tarif comparable
+> aux prix espagnols.
+>
+> Tarif actuel : 3 EUR par feuille A3+ de 33 x 46 cm.
+>
+> Le moteur de coût doit pouvoir fonctionner à partir du coût réel par feuille/surface
+> utilisée, plutôt que de figer arbitrairement un tarif au mètre.
+>
+> Le caractère HT ou TTC du tarif de 3 EUR, ainsi que les éventuels frais de
+> livraison/minimums, seront à confirmer sur la facture fournisseur.
+
+*Ce que la réponse ne tranche pas :* le nom du fournisseur, le caractère HT ou TTC, les
+frais de livraison, la commande minimum et le délai réellement tenu. Le document les
+classe lui-même en « éléments restant à récupérer ».
+
+*À instruire en séance 13b, et c'est la réponse la plus lourde des 61 :* la question
+posait un **rouleau** facturé au mètre linéaire, la réponse donne une **feuille** facturée
+à l'unité. Ce n'est pas une valeur différente, c'est une unité différente, et `CLAUDE.md`
+interdit de convertir l'une en l'autre de tête. Toutes les mesures en euros publiées par
+ce projet passent par ce tarif.
 
 ### 5. Quel taux horaire interne devons-nous compter pour la main-d'œuvre, même quand c'est vous ou vos frères qui produisez ? Et pouvez-vous chronométrer une vraie série (préparation, pressage, pelage, seconde presse, contrôle, pliage, emballage) ?
 
@@ -349,9 +487,21 @@ donner aussi le **coût des consommables par vêtement** (feuille de transfert, 
 nettoyage de la presse) : le chapitre 1 les range dans les coûts directs et ne les chiffre
 nulle part, donc ils valent zéro eux aussi.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Pour le calcul initial, nous pouvons utiliser un coût interne de 20 EUR / heure chargé,
+> avec ce paramètre modifiable dans l'administration.
+>
+> En production à bon rythme, nous sommes capables de faire environ un T-shirt avec
+> marquage devant + derrière en 30 secondes sur la phase de pose.
+>
+> Il faudra néanmoins chronométrer séparément un cycle complet incluant préparation,
+> contrôle, pliage et emballage pour affiner le coût réel.
+
+*Ce que la réponse ne tranche pas :* le cycle complet. Les 30 secondes annoncées couvrent
+**la pose seule, pour deux faces**, et l'associé demande lui-même un chronométrage séparé
+de la préparation, du contrôle, du pliage et de l'emballage. Le taux horaire, lui, est
+confirmé au chiffre près.
 
 ### 6. Quel taux de marge visez-vous par famille de produits (t-shirt, polo, sweat, vêtement de travail), et quelle marge minimum acceptez-vous en dessous de laquelle une vente doit être refusée, même par un commercial ?
 
@@ -417,9 +567,25 @@ votre chapitre 1. C'est là que se voit une erreur de saisie : « 0,25 » au lie
 se relit « 0,25 » et fait tomber le plancher de 428,57 EUR à 251,05 EUR sans que rien
 d'autre ne bouge à l'écran.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Nous ne souhaitons pas appliquer un taux de marge commercial fixe identique à tous les
+> produits et toutes les commandes.
+>
+> La marge doit varier selon la quantité, le textile, la technique utilisée, le temps de
+> production, le client et le contexte commercial.
+>
+> Le logiciel doit calculer automatiquement un prix plancher en intégrant textile +
+> marquage + main-d'oeuvre + emballage + autres coûts directs.
+>
+> Nous retenons comme base un objectif de marge brute minimale d'environ 50 % après coûts
+> directs, avec paramètres adaptables selon la technique, notamment pour la broderie.
+>
+> Seul le dirigeant peut autoriser exceptionnellement une vente sous le prix plancher.
+
+*Ce que la réponse ne tranche pas :* la remise maximale accordée en autonomie (l'hypothèse
+écrite est 15 %, ce qui est livré atteint 35 %), et les taux par famille de produits. Le «
+environ 50 % » est donné comme une **base**, pas comme une valeur figée.
 
 ### 7. Combien coûte réellement un emballage (sachet, carton, étiquette) par commande, et quels tarifs transporteurs avez-vous négociés par tranche de poids et destination ? Offrez-vous la livraison au-dessus d'un certain montant ?
 
@@ -456,9 +622,24 @@ sur l'affiche tarifaire de La Poste. Elle est vérifiable et ne porte pas de TVA
 avez un contrat Colissimo Entreprise, ses tarifs négociés remplacent la grille publique en
 un réglage : envoyez-nous la grille.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Transporteur principal : Mondial Relay.
+>
+> La livraison est offerte à partir de 250 EUR HT de commande. En Île-de-France, pour une
+> commande d'au moins 250 EUR HT, une livraison en main propre peut également être
+> proposée.
+>
+> La grille de transport réelle doit être récupérée/utilisée dans le système.
+>
+> Pour l'emballage, dans l'attente d'une mesure réelle, on peut conserver provisoirement
+> l'estimation de 0,60 EUR par pièce + 1,50 EUR par carton. Ces valeurs doivent rester
+> configurables.
+
+*Ce que la réponse ne tranche pas :* la grille Mondial Relay par tranche de poids, que le
+document classe en « éléments restant à récupérer ». Les deux valeurs d'emballage sont
+explicitement **provisoires**, ce qui est la définition même d'une valeur à étiqueter à
+l'écran (item 6 de la séance 13b).
 
 ### 8. Acceptez-vous que la grille de prix par quantité soit visible publiquement sur chaque fiche produit, comme le fait votre principal concurrent ? Et voulez-vous facturer le marquage à la surface réellement imprimée plutôt qu'un forfait par face ?
 
@@ -468,9 +649,16 @@ un réglage : envoyez-nous la grille.
 
 *Si vous ne répondez pas, on partira sur :* Grille publique hors taxes sur 6 paliers de quantité, marquage facturé à la surface imprimée avec un minimum de facturation par emplacement.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Oui, la grille tarifaire par quantité peut être visible publiquement.
+>
+> Le marquage doit être facturé autant que possible en fonction de la surface réellement
+> utilisée/imprimée, plutôt qu'avec un forfait identique quelle que soit la taille du
+> visuel. Un minimum de facturation par emplacement peut être conservé.
+
+*Ce que la réponse ne tranche pas :* le nombre de paliers affichés (l'hypothèse en annonce
+6, ce qui est livré en montre 5) ni le montant du minimum par emplacement.
 
 
 ## Catalogue
@@ -483,9 +671,25 @@ un réglage : envoyez-nous la grille.
 
 *Si vous ne répondez pas, on partira sur :* 300 références Falk & Ross (t-shirts, polos, sweats, softshells, haute visibilité) publiées, le reste du catalogue accessible uniquement sur devis.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Imbretex est le fournisseur prioritaire.
+>
+> Je n'impose pas un nombre précis de références. L'objectif est d'avoir un catalogue qui
+> donne immédiatement une image professionnelle, couvre les principales demandes B2B, soit
+> suffisamment fourni pour le référencement naturel et reste performant techniquement.
+>
+> Pour le lancement, vous pouvez partir sur environ 300 références soigneusement
+> sélectionnées, principalement Imbretex, puis enrichir progressivement le catalogue.
+>
+> Priorité aux T-shirts, polos, sweats, vêtements professionnels, vestes/softshells et
+> produits à forte demande B2B.
+
+*À instruire en séance 13b :* ce qui est livré est **459 références Falk & Ross**, en
+trois familles, softshell activement écarté. La réponse demande Imbretex, environ 300
+références, et remet le softshell dans le périmètre. Ce n'est pas un réglage : le
+catalogue, le stock et le panier d'achat lisent tous le webservice Falk & Ross
+aujourd'hui.
 
 ### 10. Devez-vous vendre dès le lancement, avec personnalisation en ligne, les tailles XS, 4XL et 5XL, les produits enfant et les articles sans taille (casquettes, sacs, tabliers, bonnets) ?
 
@@ -495,9 +699,23 @@ un réglage : envoyez-nous la grille.
 
 *Si vous ne répondez pas, on partira sur :* Personnalisation en ligne pour les tailles S à 3XL sur les vêtements du haut du corps ; toutes les autres familles restent visibles mais uniquement sur devis, sans aperçu.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Pour le lancement, la personnalisation automatique peut être priorisée sur les vêtements
+> classiques et les tailles les plus courantes.
+>
+> Les produits nécessitant des gabarits spécifiques (casquettes, sacs, tabliers, bonnets,
+> certaines tailles extrêmes, etc.) peuvent être visibles dans le catalogue pour le
+> référencement et la vente, même si certains doivent temporairement passer par un devis.
+>
+> L'objectif est ensuite d'élargir progressivement la personnalisation à toutes les
+> familles.
+
+*Note de transcription :* le document source encadre l'énumération par des tirets ; les
+parenthèses sont de nous, le contenu ne change pas.
+
+*Ce que la réponse ne tranche pas :* quelles tailles exactement sont « les plus
+courantes ». L'hypothèse livrée est S à 3XL.
 
 ### 11. Voulez-vous afficher au client le stock fournisseur en temps réel, ou seulement une mention « disponible / sur commande » ? Et que fait-on si une taille manque au moment de commander : remplacement par une couleur proche, attente, ou remboursement partiel ?
 
@@ -507,9 +725,19 @@ un réglage : envoyez-nous la grille.
 
 *Si vous ne répondez pas, on partira sur :* Mention « disponible » ou « délai allongé » sans chiffre ; en cas de rupture, appel du client sous 24 h avec proposition d'une couleur ou d'une référence équivalente.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Nous préférons afficher au client une information simple du type : disponible / délai
+> allongé / sur commande, plutôt qu'un stock chiffré qui pourrait devenir rapidement
+> incorrect.
+>
+> En cas de rupture après commande : contacter le client et lui proposer une référence,
+> taille ou couleur équivalente, puis obtenir son accord avant remplacement.
+
+*Attention, la question 48 est plus récente et porte sur le même sujet.* Elle donne quatre
+mentions (« Disponible », « Stock limité / nous consulter », « Rupture / nous consulter »,
+« Délai à confirmer ») et le document du 1er septembre déclare primer en cas de
+contradiction. La formule « délai allongé » de la présente réponse n'y figure plus.
 
 
 ## Techniques
@@ -540,9 +768,21 @@ en décide déjà la moitié, puisqu'une broderie sous-traitée et une broderie 
 n'ont pas le même modèle de coût.
 
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Ordre de priorité : DTF, flocage/vinyle, sublimation, broderie.
+>
+> Ces quatre techniques doivent pouvoir être proposées. Pour le DTF et le vinyle, les
+> emplacements classiques sont notamment coeur/poitrine, dos et manches. Les limites de
+> dimensions doivent dépendre du produit et de la zone de personnalisation.
+
+*Ce que la réponse ne tranche pas :* aucun des pilotes de coût demandés par la question.
+Ni quantité minimum, ni taille maximale de marquage, ni supplément, ni, pour la broderie,
+prix au millier de points, frais de calage, temps machine, encadrage, changements de fil,
+numérisation ou taux d'incident, ni, pour le flocage, le vinyle et la sublimation,
+matière, temps de découpe, échenillage, temps de presse, perte, préparation ou minimum de
+facturation. La ligne `H-Q12-COUT-PAR-TECHNIQUE` reste sans valeur, et son `cost_if_late`
+est « on refait ».
 
 ### 13. La broderie est-elle produite en interne sur votre machine 15 aiguilles ou sous-traitée ? Quel est le prix de la numérisation d'un logo, et le facturez-vous au client, une seule fois ou à chaque commande ?
 
@@ -552,9 +792,19 @@ n'ont pas le même modèle de coût.
 
 *Si vous ne répondez pas, on partira sur :* Broderie sous-traitée, délai plus 5 jours ouvrés, numérisation 35 EUR hors taxes facturée une seule fois par logo puis mémorisée pour les réassorts.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Pour les petites séries, la broderie peut être réalisée en interne. Au-delà de 10
+> unités, elle est sous-traitée.
+>
+> Les coûts et délais doivent donc pouvoir différer automatiquement selon la quantité.
+>
+> Pour la numérisation des logos, le prix précis reste à renseigner selon le coût réel du
+> prestataire. Dans l'intervalle, le système peut conserver le principe d'une numérisation
+> facturée une seule fois par logo, puis mémorisée pour les réassorts.
+
+*Ce que la réponse ne tranche pas :* le prix de la numérisation (l'hypothèse écrite est 35
+EUR HT) et le délai du sous-traitant. Le seuil de 10 unités, lui, est nouveau et précis.
 
 
 ## Livraison
@@ -635,9 +885,24 @@ réponse de votre part déplace un test et pas un paragraphe. **Ce qu'il nous fa
 d'urgence que vous tenez réellement, ou l'accord pour ne pas vendre d'urgence.**
 
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> À partir de la validation du BAT : standard 7 jours ; express 4 jours selon
+> disponibilité ; urgent 2 à 3 jours selon disponibilité.
+>
+> Transporteur principal : Mondial Relay. Livraison en main propre possible en
+> Île-de-France, notamment pour les commandes >= 250 EUR HT.
+
+*Ce que la réponse ne tranche pas :* si « 7 jours » sont des jours ouvrés ou calendaires,
+et le **supplément d'urgence**, qui est l'objet de la ligne
+`H-Q14-AUCUN-SUPPLEMENT-URGENCE` et que la question demandait en pourcentage ou en coût
+réel plus marge.
+
+*À confronter à une mesure existante en séance 13b :* la séance 07 a mesuré **6 jours
+ouvrés incompressibles** entre un BAT approuvé et un colis, et ces 6 jours n'incluent pas
+l'arrivée des textiles nus. La réponse promet 4 jours en express et 2 à 3 en urgence. La
+question 46 donne enfin le délai textile manquant, donc l'écart se remesure au lieu de
+s'additionner de tête.
 
 
 ## Paiements
@@ -686,9 +951,17 @@ montant **TTC**, parce que la plateforme facture sur ce qu'elle encaisse et ne s
 quelle part est votre TVA. Le virement et le chèque ne coûtent rien et sont comptés à zéro.
 Si vous avez négocié un autre tarif, c'est un réglage sur l'écran « Coûts et marges ».
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Stripe est déjà intégré.
+>
+> À conserver : carte bancaire, Apple Pay, Google Pay, virement bancaire, mandat
+> administratif pour mairies/écoles/collectivités, et paiement fractionné via Klarna
+> lorsqu'il est proposé par Stripe.
+
+*Réglé depuis :* les clés Stripe de **test** ont été fournies le 1er septembre 2026 et
+posées sur le miroir local. Les clés réelles et les secrets de signature des webhooks
+restent à obtenir pour la séance 14. Voir `ACCES-REQUIS.md`, section 6 bis.
 
 ### 16. À partir de quel montant acceptez-vous un acompte plutôt qu'un paiement à 100 % avant production ? Et accordez-vous un paiement à 30 jours à certains clients (grands comptes, collectivités) ?
 
@@ -756,9 +1029,19 @@ par défaut, et il n'est jamais automatique. Quatre choses à savoir.
    honorer** : il n'émet aucun avoir et ne fait aucun remboursement. C'est le service
    après-vente de la séance 06, et d'ici là un remboursement se fait à la main.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Paiement normalement intégral avant production.
+>
+> Pour toute commande supérieure à 1 000 EUR HT, possibilité d'accepter seulement 50 %
+> d'acompte avant production, mais uniquement après validation du dirigeant.
+>
+> Les collectivités avec mandat administratif seront traitées selon leur procédure
+> spécifique.
+
+*Ce que la réponse ne tranche pas :* le paiement à 30 jours pour les grands comptes. Il
+n'est ni accordé ni refusé ; seul le cas des collectivités est renvoyé à « leur procédure
+spécifique ».
 
 
 ## Juridique et facturation
@@ -788,9 +1071,33 @@ Il ne manque donc plus que la réponse : **la société facture-t-elle la TVA, o
 depuis quelle date ?** Et les six informations d'identité, qui prennent deux minutes à
 recopier depuis un Kbis.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Entité juridique : PHARAON.
+>
+> Forme : SAS, société par actions simplifiée. SIREN : 930 592 985. SIRET siège : 930 592
+> 985 00012. Adresse : 97 avenue de Castelnau, 93700 Drancy. TVA intracommunautaire :
+> FR45930592985. Capital social : 100 EUR. RCS : Bobigny.
+>
+> Pour le lancement, conserver l'hypothèse de TVA à 20 % sur les opérations concernées,
+> sous réserve de validation comptable et des cas particuliers.
+>
+> Informations issues du lien Pappers fourni par le dirigeant ; à confirmer avec les
+> documents officiels de la société avant publication définitive.
+
+*Note de transcription :* le document écrit « SAS - Société par actions simplifiée » ; la
+virgule est de nous.
+
+*Ce que la réponse ne tranche pas, et c'est la moitié bloquante :* le **régime de TVA**. «
+Conserver l'hypothèse, sous réserve de validation comptable » est le mot à mot d'une
+hypothèse maintenue, pas d'une confirmation. La boutique en ligne a encaissé 15 commandes
+avec `woocommerce_calc_taxes = no` (constat 6). Le portail de lancement de la séance 13b
+exige le régime confirmé **dans un sens ou dans l'autre** : cette réponse ne le fournit
+pas.
+
+*Et une réserve sur l'identité elle-même :* l'associé dit lui-même que ces informations
+viennent de Pappers et sont à confirmer sur les documents officiels avant publication. Une
+mention légale fausse est une infraction, pas une coquille.
 
 
 ## Juridique
@@ -827,9 +1134,21 @@ vide tant que personne n'a écrit les CGV (séance 12), et nous l'enregistrons v
 que d'inventer un « v1 » que nous serions incapables de produire le jour où on nous le
 demanderait.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Nous avons déjà nos CGV.
+>
+> Il faut partir des CGV existantes et les intégrer au site, plutôt que d'en recréer de
+> nouvelles.
+>
+> Il faudra simplement vérifier qu'elles couvrent correctement les articles personnalisés,
+> le droit de rétractation applicable, le BAT, les tolérances de production et les
+> modalités de SAV.
+
+*Ce que la réponse ne tranche pas :* **les CGV elles-mêmes ne sont pas jointes.** « Partir
+des CGV existantes » suppose un fichier que ce dépôt n'a pas. La séance 12 a publié des
+textes de projet datés et versionnés ; ils restent en place tant que l'original n'arrive
+pas. La question 58 nomme par ailleurs l'avocat comme « à désigner ».
 
 
 ## RGPD et prospection
@@ -842,9 +1161,24 @@ demanderait.
 
 *Si vous ne répondez pas, on partira sur :* Import avec source et date obligatoires par contact, envoi d'e-mails limité aux adresses génériques, lien d'opposition dans chaque message, liste d'opposition conservée définitivement et jamais effacée par un nettoyage.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> La base d'environ 150 000 entreprises a été achetée. Elle comprend notamment e-mails,
+> numéros de téléphone et prénoms/données de contacts.
+>
+> Le nom exact du fournisseur de la base n'est plus connu à ce stade et doit être retrouvé
+> avant import/exploitation massive.
+>
+> Il faudra conserver dans le CRM la source, la date d'import et les informations
+> nécessaires à la gestion des oppositions.
+
+*Conséquence directe :* l'origine reste indocumentée, donc le refus tient. Le fichier
+n'est ni importé, ni lu, ni référencé, et l'associé demande lui-même de retrouver le
+fournisseur avant tout import. C'est la ligne `Q19` de `not_applicable` dans le registre,
+et elle ne bouge pas.
+
+*La seconde moitié de la question est répondue ailleurs :* la question 59 désigne SINGH
+Simran comme responsable du suivi des contrats de traitement des données.
 
 
 ## Site actuel
@@ -857,9 +1191,19 @@ demanderait.
 
 *Si vous ne répondez pas, on partira sur :* Suppression des produits de démonstration, page d'accueil refaite, Fancy Product Designer désactivé après sauvegarde de ses données, licence conservée par sécurité.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Oui : supprimer les meubles, tapis et tous les produits de démonstration.
+>
+> En revanche, ne pas refaire inutilement ce qui est déjà finalisé : menu, identité
+> graphique, typographies et logo.
+>
+> Fancy Product Designer doit être remplacé/désactivé au profit du nouvel outil, avec
+> sauvegarde préalable de l'existant.
+
+*Ce que la réponse refuse :* la seconde moitié de l'hypothèse écrite, « page d'accueil
+refaite ». L'associé demande explicitement de **ne pas** refaire le menu, l'identité
+graphique, les typographies et le logo. La question 31 dit la même chose.
 
 
 ## Accès et propriété
@@ -872,9 +1216,17 @@ demanderait.
 
 *Si vous ne répondez pas, on partira sur :* Nous travaillons sur une copie de préproduction et demandons les accès au fur et à mesure ; nous partons du principe que tous les comptes doivent être remis au nom de Teeshoop avant la mise en ligne.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Oui, les accès nécessaires peuvent être fournis à l'équipe : domaine, o2switch,
+> WordPress administrateur, Cloudflare, comptes fournisseurs, licences et autres accès
+> techniques nécessaires.
+
+*Déjà réglé le 14 août 2026*, tous accès essayés un par un (`ACCES-REQUIS.md`). Deux
+choses restent à fournir et la réponse ne les couvre pas nommément : le **compte
+Imbretex**, que les questions 3, 9, 43 et 46 rendent maintenant central, et le **numéro de
+client Falk & Ross** (`FR_CUSTOMER_NR`), sans lequel aucune commande fournisseur ne peut
+partir.
 
 
 ## Fournisseurs
@@ -887,9 +1239,24 @@ demanderait.
 
 *Si vous ne répondez pas, on partira sur :* Commande fournisseur préparée automatiquement mais toujours validée manuellement par vous, et accès à cette fonction protégé par mot de passe.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Les comptes fournisseurs possèdent déjà nos tarifs négociés.
+>
+> Le système peut préparer automatiquement les commandes fournisseurs, mais aucune
+> commande réelle ne doit partir automatiquement. Validation manuelle obligatoire avant
+> envoi au fournisseur.
+>
+> L'accès à cette fonction doit être sécurisé. Le statut exact d'un éventuel compte Mid
+> Ocean reste à vérifier.
+
+*C'est exactement ce qui est construit :* préparation automatique, transmission après
+confirmation humaine typée, route protégée par un second jeton. La ligne
+`H-Q22-COMMANDE-FOURNISSEUR` est confirmée, pas modifiée.
+
+*La première moitié de la question était déjà répondue par le fournisseur lui-même :* le
+compte Falk & Ross est en **mode test**, mesuré en direct (`webservice_mode_code = 1`), et
+`scripts/fr-verify.mjs` le revérifie à chaque exécution.
 
 
 ## Production
@@ -917,9 +1284,19 @@ blocage.
 comptant la préparation, le pelage et le contrôle et pas seulement le temps de presse. Le
 chapitre 5 le demande lui-même.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Capacité de travail à retenir actuellement : environ 500 pièces par jour.
+>
+> Au-delà de 500 pièces sur une même commande, le logiciel doit au minimum afficher une
+> alerte et demander une validation manuelle pour vérifier la capacité, le délai ou la
+> nécessité d'une sous-traitance.
+
+*Ce que la réponse ne tranche pas :* avec combien de personnes. L'hypothèse écrite était
+300 pièces par jour **avec une personne** ; la réponse donne 500 sans dire l'effectif, ce
+qui change le calcul de main-d'oeuvre de la question 5 si ce n'est pas le même.
+
+*Le seuil d'alerte, lui, est confirmé au chiffre près :* 500 pièces sur une même commande.
 
 
 ## Devis et facturation
@@ -932,9 +1309,25 @@ chapitre 5 le demande lui-même.
 
 *Si vous ne répondez pas, on partira sur :* Le site génère devis et factures avec une numérotation continue et un export comptable mensuel ; connexion à Qonto envisagée dans un second temps.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Les factures officielles doivent rester gérées par notre système externe de
+> facturation/comptabilité, et non par une nouvelle numérotation indépendante créée par le
+> site.
+>
+> Le site peut en revanche générer les éléments commerciaux nécessaires : devis,
+> récapitulatifs de commande, BAT, etc.
+>
+> Il ne doit pas créer une deuxième numérotation légale des factures qui risquerait de
+> provoquer des doublons.
+
+*À instruire en séance 13b :* c'est l'inverse de l'hypothèse livrée. Le site **génère**
+aujourd'hui la facture et porte sa propre numérotation continue, avec une séquence
+anti-collision prouvée contre 48 tentatives simultanées. La réponse demande que cette
+numérotation ne soit **pas** légale. C'est un changement de forme, pas de valeur.
+
+*Ce que la réponse ne tranche pas :* le nom du système externe ni celui du comptable, ni
+ses exigences de format d'export.
 
 
 ## Graphisme
@@ -947,9 +1340,16 @@ chapitre 5 le demande lui-même.
 
 *Si vous ne répondez pas, on partira sur :* Nettoyage automatique et placement inclus ; vectorisation manuelle 39 EUR hors taxes ; création de logo 250 EUR hors taxes sur devis ; deux allers-retours inclus.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> En l'absence d'une grille différente pour le moment, nous pouvons partir sur : nettoyage
+> simple/placement du fichier inclus ; vectorisation manuelle 39 EUR HT ; création
+> complète de logo 250 EUR HT sur devis ; deux allers-retours inclus.
+>
+> Ces tarifs devront être modifiables facilement dans l'administration.
+
+*Confirmation au chiffre près de l'hypothèse écrite*, avec la réserve que l'associé la
+reprend comme une base provisoire (« en l'absence d'une grille différente »).
 
 
 ## Bon à tirer (BAT)
@@ -992,9 +1392,15 @@ La renonciation d'urgence est construite telle que vous l'avez écrite : elle de
 enregistre qu'un opérateur a cliqué ; une phrase recopiée enregistre ce que le client a
 dit, et c'est la différence entre une preuve et une habitude.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Deux corrections incluses, puis 15 EUR HT par correction supplémentaire.
+>
+> Aucune production normale sans BAT validé. En urgence, production possible uniquement
+> avec accord écrit explicite du client reconnaissant qu'il demande la production sans BAT
+> définitif et en assume les conséquences correspondantes.
+
+*Confirmation au chiffre près de l'hypothèse écrite.*
 
 
 ## Juridique et SAV
@@ -1032,9 +1438,21 @@ Deux de ses lignes ne décident rien et c'est voulu : « erreur validée dans le
 possible », que le chapitre laisse à un humain. Nous ne les avons tranchées ni dans un
 sens ni dans l'autre.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Erreur imputable à Teeshoop : remplacement/refabrication.
+>
+> Erreur de taille ou choix validé par le client : pas de remboursement automatique.
+>
+> Différences raisonnables entre couleur écran et couleur réelle acceptées ; petites
+> tolérances normales de placement du marquage à définir dans les CGV/BAT ; cas importants
+> ou inhabituels traités individuellement.
+
+*Ce que la réponse ne tranche pas :* le **chiffre** de la tolérance de position. « Petites
+tolérances normales à définir dans les CGV/BAT » renvoie la décision à un texte que
+personne n'a encore écrit, alors que la valeur est publiée au client aujourd'hui
+(hypothèse : plus ou moins 1 cm). Le pourcentage de pièces non conformes déclenchant une
+reprise n'est pas donné non plus.
 
 
 ## RGPD et organisation
@@ -1047,9 +1465,25 @@ sens ni dans l'autre.
 
 *Si vous ne répondez pas, on partira sur :* Accès limité aux entreprises qui leur sont attribuées, sans coûts, marges ni données de paiement, avec journal des consultations ; contrat de sous-traitance à fournir avant la mise en ligne.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Si cette stratégie est maintenue, les prospectrices à Madagascar seront
+> indépendantes/freelances.
+>
+> Je souhaite tester cette stratégie pendant environ 2 mois, car son efficacité
+> commerciale reste à démontrer. Si les résultats ne sont pas satisfaisants,
+> l'organisation pourra évoluer.
+>
+> Je souhaite notamment explorer davantage les appels d'offres et marchés
+> professionnels/publics, qui peuvent constituer un axe commercial important.
+>
+> Pendant la période de test, les prospectrices ne doivent avoir accès qu'aux prospects
+> qui leur sont attribués, sans données de paiement, marges ou informations sensibles.
+
+*Ce que la réponse ne tranche pas :* le **contrat**. Un accès depuis Madagascar à des
+données personnelles de prospects européens est un transfert hors Union européenne au sens
+du chapitre V du RGPD, et il lui faut un acte, pas une intention. La réponse dit le statut
+(indépendantes) et la restriction d'accès, pas l'encadrement juridique.
 
 
 ## Commissions
@@ -1078,9 +1512,14 @@ la marge contributive, 250,00 EUR si on la calculait sur le chiffre d'affaires e
 Deux de ces trois lectures paient plus que ce que la commande rapporte. C'est bien la
 première qui est codée.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Confirmé : 40 % de la marge sur la première commande ; 25 % sur une nouvelle commande ;
+> 12 % sur un réassort ; attribution du client au commercial pendant 12 mois ; 0 % si le
+> client revient ensuite commander entièrement seul sur le site sans intervention
+> commerciale ; commission définitivement acquise 30 jours après livraison sans litige.
+
+*Confirmation intégrale et au chiffre près des sept lignes `H-Q29-*` du registre.*
 
 ### 30. Les commerciaux indépendants ont-ils un contrat signé mentionnant le mode de calcul de la commission, les cas de reprise et l'interdiction de descendre sous le prix plancher ? Qui valide une demande de prix exceptionnel : vous seul ?
 
@@ -1090,9 +1529,19 @@ première qui est codée.
 
 *Si vous ne répondez pas, on partira sur :* Blocage automatique sous le plancher, demande de dérogation envoyée au dirigeant uniquement, avec motif obligatoire et durée de validité de 7 jours.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Le logiciel doit empêcher automatiquement une vente sous le prix plancher.
+>
+> Une demande exceptionnelle peut être envoyée au dirigeant uniquement, avec
+> justification. Le dirigeant reste le seul à pouvoir autoriser une dérogation.
+>
+> La règle proposée d'une autorisation exceptionnelle valable 7 jours peut être conservée.
+> Ces règles devront également être reprises dans les contrats/conditions applicables aux
+> commerciaux indépendants.
+
+*Ce que la réponse ne tranche pas :* si un contrat signé existe aujourd'hui. Elle dit ce
+qu'il **devra** contenir.
 
 
 ## Identité de marque
@@ -1126,9 +1575,22 @@ hexadécimal**, et un **oui ou non sur l'accroche**. La police peut rester Inter
 hébergée chez nous, ce qui évite d'envoyer l'adresse IP de chaque visiteur à un serveur
 américain, ce que la CNIL a déjà sanctionné.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> L'identité existe déjà.
+>
+> Il faut conserver le logo actuel, les couleurs actuelles, les typographies actuelles, le
+> menu et l'organisation déjà définis, ainsi que l'identité graphique Teeshoop existante.
+>
+> Il ne faut pas repartir du design de démonstration du thème, ni recréer une nouvelle
+> identité visuelle sans nécessité.
+
+*Ce que la réponse ne tranche pas :* rien de ce que la question demandait concrètement. Ni
+le **logo en fichier vectoriel**, ni les **valeurs** de couleur, ni le **nom** des
+polices, ni le ton, ni le sort de l'accroche « Vous vous occupez de votre entreprise,
+Teeshoop s'occupe de votre image ». « Conserver l'existant » est une instruction, pas une
+fourniture : il faut encore relever les valeurs sur le site en ligne, ce qui est faisable
+sans lui.
 
 
 ## Production DTF
@@ -1141,9 +1603,20 @@ américain, ce que la CNIL a déjà sanctionné.
 
 *Si vous ne répondez pas, on partira sur :* Découpe automatique activée lorsqu'elle économise plus d'environ 100 cm² de film par vêtement, avec la possibilité de forcer une pose unique commande par commande.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Oui, l'outil peut séparer intelligemment plusieurs transferts si cela permet une
+> économie significative de film sans détériorer la qualité ou compliquer excessivement la
+> production.
+>
+> L'optimisation automatique peut être activée lorsque l'économie devient significative,
+> avec possibilité de forcer une pose unique manuellement pour une commande particulière.
+
+*Ce que la réponse ne tranche pas :* ce que « significative » vaut en cm². L'hypothèse
+écrite disait « plus d'environ 100 cm² par vêtement » ; ce qui est livré est une règle
+**géométrique** (deux encres séparées de plus de 5 mm deviennent deux transferts), qui
+découpe même quand l'économie est nulle. La réponse valide le principe et laisse le seuil
+ouvert.
 
 
 ## Données client
@@ -1156,9 +1629,24 @@ américain, ce que la CNIL a déjà sanctionné.
 
 *Si vous ne répondez pas, on partira sur :* Compte client obligatoire pour commander, fichiers de production conservés 3 ans, aperçus conservés 1 an, réassort possible en un clic depuis l'historique.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Le visiteur ne doit pas être obligé de créer immédiatement un compte.
+>
+> Il doit pouvoir librement naviguer, consulter les produits, ajouter des produits,
+> utiliser l'outil de personnalisation et tester/créer un design.
+>
+> La création du compte doit être demandée à une étape importante, par exemple pour
+> sauvegarder durablement une création, demander/finaliser un devis, passer réellement
+> commande, retrouver ses commandes ou effectuer un réassort.
+>
+> Après création du compte : fichiers de production conservés 3 ans ; aperçus conservés 1
+> an ; créations et anciennes commandes accessibles ; réassort à l'identique facilité.
+
+*Les durées sont confirmées au chiffre près.* La première moitié, en revanche, corrige
+l'hypothèse écrite : celle-ci disait « compte client obligatoire pour commander », la
+réponse dit que le compte est demandé **au moment de commander**, ce qui n'est pas la même
+chose pour le parcours.
 
 
 ## Pilotage
@@ -1171,9 +1659,25 @@ américain, ce que la CNIL a déjà sanctionné.
 
 *Si vous ne répondez pas, on partira sur :* Ordre 1, 2, 3 puis 4 ; première mise en ligne visée à 8 semaines ; budget outils estimé à 150 EUR par mois hors téléphonie.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Objectif de première mise en ligne : 1er septembre 2026.
+>
+> Ordre de priorité : 1) catalogue + prix + paiement en autonomie ; 2) CRM + prospection ;
+> 3) devis + BAT ; 4) production + SAV.
+>
+> Le 1er septembre doit être considéré comme l'objectif du socle/MVP exploitable, les
+> modules secondaires pouvant continuer à évoluer ensuite.
+>
+> Concernant les outils payants, en l'absence d'un autre budget défini, l'estimation
+> provisoire d'environ 150 EUR/mois hors téléphonie peut servir de référence et devra être
+> validée avant souscription.
+
+*Deux faits à regarder en face.* D'abord la date : le **1er septembre 2026 est le jour où
+ces réponses sont arrivées**, et rien n'est déployé sur le domaine réel. Ensuite l'ordre :
+la question proposait CRM et prospection en quatrième position, la réponse les met en
+**deuxième**, devant le devis et le BAT, qui sont construits. Le CRM, lui, ne l'est pas,
+et le plan écrit qu'il est à acheter et non à construire.
 
 
 ## Périmètre
@@ -1186,9 +1690,14 @@ américain, ce que la CNIL a déjà sanctionné.
 
 *Si vous ne répondez pas, on partira sur :* Français uniquement, livraison en France métropolitaine, autres pays traités sur devis manuel.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> Au lancement : français uniquement et livraison uniquement en France métropolitaine.
+>
+> Les autres pays pourront être ajoutés ultérieurement ou traités exceptionnellement sur
+> devis.
+
+*Confirmation de l'hypothèse écrite.*
 
 
 ## Juridique et marketing
@@ -1201,9 +1710,16 @@ américain, ce que la CNIL a déjà sanctionné.
 
 *Si vous ne répondez pas, on partira sur :* Clause d'autorisation intégrée aux conditions générales, avec possibilité de refus par simple demande écrite du client.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses aux 36 questions de validation », daté du 19 août 2026, `docs/reponses-associe/reponses-q01-q36.txt`)*
 
-> 
+> En l'absence d'une règle différente, nous pouvons conserver le principe suivant :
+> possibilité d'utiliser les réalisations dans la communication Teeshoop avec autorisation
+> prévue contractuellement et possibilité pour le client de refuser.
+>
+> Il faut prévoir cette information dans le devis/CGV afin que la gestion soit traçable.
+
+*Confirmation de l'hypothèse écrite*, avec une exigence en plus : la trace doit vivre dans
+le devis et les CGV, donc être enregistrée par commande.
 
 
 ## Impression et tailles
@@ -1234,9 +1750,26 @@ et elle est en notre défaveur. Le rapport de marge le signale sur chaque comman
 concernée. Le corriger demande d'imbriquer une pièce par taille, ce qui est le travail de
 la séance 07.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Le prix affiché au client reste identique quelle que soit la taille du vêtement pour un
+> même visuel et une même configuration de marquage.
+>
+> Le moteur interne calcule le coût réel du DTF selon la taille réellement commandée. Un
+> S, un M et un 3XL peuvent être vendus au même prix. Le coût de film est calculé selon la
+> surface réelle utilisée. Le moteur de marge prend cette différence en compte.
+>
+> Si les grandes tailles font passer la commande sous la marge plancher autorisée, un
+> supplément peut être appliqué ou la commande doit nécessiter une validation interne.
+>
+> Règle de développement : ne jamais utiliser uniquement la surface du M pour calculer le
+> coût réel d'une commande comportant plusieurs tailles. Le prix client reste simple ; le
+> calcul de rentabilité interne reste précis.
+
+*À instruire en séance 13b :* le prix client confirme l'hypothèse
+(`H-Q37-TAILLE-DE-TARIFICATION`), mais la règle de développement l'interdit **côté coût**.
+Aujourd'hui une seule surface sert aux deux. « Ne jamais utiliser uniquement la surface du
+M pour calculer le coût réel » est une exigence sur le moteur de coût, pas un réglage.
 
 
 ---
@@ -1253,9 +1786,18 @@ Le sujet est réel : vos prix d'achat textile bougent, et le tarif DTF que nous 
 
 *Si vous ne répondez pas, on partira sur :* Devis valable 30 jours à compter de son envoi, puis recalcul automatique aux conditions du jour. Aucune durée n'est affichée nulle part tant que vous n'avez pas tranché.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Un devis Teeshoop est valable 15 jours calendaires à compter de sa date d'émission.
+>
+> Après 15 jours, le devis expire. Les stocks sont revérifiés. Les prix d'achat et les
+> coûts de marquage sont actualisés si nécessaire. Le prix de vente et le délai de
+> production sont recalculés. Un nouveau devis ou une nouvelle version doit alors être
+> émis.
+
+*La ligne `H-Q38-VALIDITE-DEVIS` était un refus assumé :* aucune durée n'était affichée
+nulle part tant que l'associé n'avait pas tranché. Elle a maintenant une valeur, et elle
+est **calendaire**, pas ouvrée.
 
 
 ### 39. Le devis envoyé au client doit-il mentionner le commercial qui l'a préparé, et sa commission ?
@@ -1268,9 +1810,22 @@ Le nom du commercial, en revanche, a du sens sur le document : le client sait à
 
 *Si vous ne répondez pas, on partira sur :* Le nom et les coordonnées du commercial figurent sur le devis. La commission n'y figure pas et n'est visible que dans l'administration.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Le devis client peut comporter le nom du commercial ainsi que ses coordonnées
+> professionnelles.
+>
+> Peuvent apparaître : nom, téléphone, e-mail professionnel.
+>
+> Ne doivent jamais apparaître : taux ou montant de commission, marge Teeshoop, prix
+> d'achat, coût de revient, prix plancher, données internes de rentabilité.
+>
+> La commission reste exclusivement visible dans l'espace commercial et l'administration.
+
+*Confirmation de l'hypothèse, et elle en durcit la portée :* la liste des données
+interdites au client est plus large que « la commission ». Elle nomme la marge, le prix
+d'achat, le coût de revient et le prix plancher, ce qui est exactement le périmètre que
+`src/app/adminBoundary.test.ts` et `scripts/bundle-guard.mjs` gardent déjà côté studio.
 
 
 ### 40. Combien de temps conservons-nous une demande de devis qui n'aboutit à aucune commande ?
@@ -1283,9 +1838,17 @@ Ce n'est pas la même question que la 33, qui porte sur les fichiers de producti
 
 *Si vous ne répondez pas, on partira sur :* Trois ans après le dernier échange, puis suppression automatique.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Les données d'un prospect n'ayant jamais commandé sont conservées 3 ans à compter du
+> dernier échange ou contact commercial.
+>
+> À l'issue de cette période : suppression ou anonymisation lorsque cela est juridiquement
+> ou techniquement nécessaire.
+>
+> Le système doit pouvoir automatiser cette échéance.
+
+*Confirmation de l'hypothèse écrite*, avec une exigence d'automatisation explicite.
 
 
 ---
@@ -1304,9 +1867,28 @@ Si le catalogue ne sert qu'à choisir le vêtement à personnaliser, alors le bo
 
 *Si vous ne répondez pas, on partira sur :* le catalogue est consultable, chaque référence affiche ses coloris, ses tailles et ses caractéristiques réelles, et rien n'est commandable tant que la question 42 n'a pas de réponse.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Au lancement, Teeshoop n'a pas vocation à être une boutique de textile nu. Le catalogue
+> sert principalement à choisir le support à personnaliser.
+>
+> Parcours principal : choisir le produit, choisir les variantes, personnaliser, obtenir
+> le prix, commander.
+>
+> Le bouton principal d'une fiche produit doit favoriser « Personnaliser ».
+>
+> Une vente exceptionnelle de textile sans marquage à un professionnel peut être traitée
+> manuellement par devis.
+>
+> Le catalogue reste très riche et présente toutes les caractéristiques disponibles des
+> produits.
+
+*Note de transcription :* le document source écrit le parcours avec des flèches ; les
+virgules sont de nous.
+
+*C'est ce qui est livré*, et cette réponse le transforme d'attente en décision : le
+catalogue consultable et non commandable en textile nu n'est plus un effet de bord de la
+question 42, c'est le parcours voulu.
 
 
 ### 42. Quel taux de marge appliquons-nous à un textile nu revendu ?
@@ -1327,9 +1909,22 @@ Un seul taux pour tout le catalogue, ou un taux par famille (t-shirts, polos, sw
 
 *Si vous ne répondez pas, on partira sur :* rien. Aucun prix n'est écrit, le catalogue reste consultable et non commandable. Inventer un taux reviendrait à mettre en vente 26 399 vêtements à un prix que personne n'a validé.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Non applicable au moteur e-commerce principal pour le lancement.
+>
+> Aucun taux général n'est appliqué automatiquement à l'ensemble du catalogue pour une
+> revente textile nue.
+>
+> Aucune mise en vente massive de textile nu n'est nécessaire.
+>
+> Une éventuelle demande professionnelle est traitée individuellement à partir du moteur
+> de marge interne.
+
+*Le refus devient une décision.* `H-Q42-MARGE-TEXTILE-NU` était `refused` faute de
+réponse ; elle est maintenant refusée **par l'associé**, ce qui n'est pas la même chose
+pour le portail de lancement : ce n'est plus une hypothèse bloquante en attente, c'est un
+périmètre volontairement non ouvert.
 
 
 ### 43. Le fournisseur donne trois nombres de stock par article et n'en nomme aucun. Savez-vous ce qu'ils sont ?
@@ -1342,9 +1937,20 @@ Nous ne traitons donc que **la première** comme du stock vendable. Si c'est le 
 
 *Si vous ne répondez pas, on partira sur :* seul le premier nombre est du stock. C'est le sens prudent.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Imbretex est la référence fournisseur à utiliser pour cette logique.
+>
+> Tant que la signification exacte des trois valeurs n'a pas été confirmée, seule la
+> première valeur est considérée comme le stock immédiatement disponible.
+>
+> Le système conserve néanmoins les trois valeurs brutes pour pouvoir modifier facilement
+> leur interprétation plus tard.
+
+*La règle est confirmée telle quelle :* première valeur, les trois conservées brutes. Mais
+elle est énoncée **pour Imbretex**, alors que les trois nombres que nous lisons et que
+`Catalogue::STOCK_INDEX` indexe viennent de Falk & Ross. La question de savoir si le
+fournisseur change reste entière (questions 3 et 9).
 
 
 ### 44. Faut-il traduire les noms de coloris en français ?
@@ -1357,9 +1963,27 @@ Traduire les vingt les plus courants (Black, White, Navy, Red, Royal…) couvrir
 
 *Si vous ne répondez pas, on partira sur :* les noms du fabricant, tels quels.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Afficher le nom français suivi du nom fabricant.
+>
+> Exemples : Bleu marine / Navy ; Noir / Black ; Blanc / White ; Gris chiné / Heather
+> Grey ; Vert bouteille / Bottle Green.
+>
+> Le nom fabricant reste stocké, recherchable, visible et utilisé pour les réassorts.
+>
+> Les noms très spécifiques sans traduction fiable peuvent rester uniquement sous leur
+> appellation fabricant.
+
+*Note de transcription :* le document source sépare les deux noms par un tiret cadratin,
+aux lignes 143 et 144 de `docs/reponses-associe/reponses-q37-q61.txt`, qui est le seul
+endroit du dépôt où ce caractère reste écrit. `CLAUDE.md` l'interdit dans tout ce que ce
+projet écrit, donc la barre oblique ci-dessus est de nous et le séparateur réel à l'écran
+reste à choisir. C'est une décision d'interface, pas une décision de l'associé.
+
+*À instruire en séance 13b :* l'hypothèse livrée est « les noms du fabricant, tels
+quels ». La réponse demande une **traduction française** de 442 coloris, ce qui n'est pas
+un réglage : il faut la produire, et la question 49 en donne déjà huit.
 
 
 ## Facturation
@@ -1387,9 +2011,18 @@ taux d'intérêt légal**, soit 8,25 % l'an au second semestre 2026. Et si la so
 entreprise individuelle et non une société commerciale, elle n'a **ni capital social ni
 RCS** : dites-le nous, la liste des mentions obligatoires n'est pas la même.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Société exploitante : PHARAON. RCS Bobigny 930 592 985.
+>
+> Pénalités : taux de la Banque centrale européenne applicable + 10 points.
+>
+> Indemnité forfaitaire pour frais de recouvrement : 40 EUR.
+>
+> Aucun escompte pour paiement anticipé, sauf décision ultérieure contraire.
+
+*Les trois mentions obligatoires de l'article L441-10 du code de commerce sont désormais
+complètes*, et l'indemnité de 40 EUR est le montant réglementaire.
 
 
 ---
@@ -1426,9 +2059,31 @@ Ce qu'il nous faut est une durée en jours ouvrés, mesurée une fois : commande
 
 *Si vous ne répondez pas, on partira sur :* rien. Aucune date d'approvisionnement textile n'est calculée, et l'écran d'achat le dit à l'opérateur au lieu d'afficher un délai que personne n'a tenu.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Pour Imbretex, le délai réel habituel est d'environ 24 heures.
+>
+> Le moteur de planification retient jusqu'à 2 jours ouvrés de sécurité pour une promesse
+> client normale.
+>
+> Si le produit n'est pas immédiatement disponible ou est en réapprovisionnement : délai à
+> confirmer.
+>
+> Le système distingue article disponible immédiatement, disponibilité incertaine et
+> réapprovisionnement fournisseur.
+
+*Le refus `H-Q46-DELAI-TEXTILE` a enfin sa valeur*, et c'est bien deux nombres comme la
+question l'anticipait : 24 h réelles, 2 jours ouvrés retenus. `Purchase.php` peut calculer
+une date limite de commande des textiles nus, comme `Production::latest_order_on()` le
+fait déjà pour le film.
+
+*À remesurer, pas à additionner :* la séance 07 a comparé 6 jours ouvrés incompressibles à
+une promesse d'urgence de 4 jours, sans compter l'arrivée des blancs. Le prompt de la
+séance 13b demande explicitement de refaire la mesure plutôt que d'ajouter les deux
+chiffres de tête.
+
+*Réserve :* le délai est donné pour **Imbretex**, et le chemin d'achat construit parle à
+Falk & Ross.
 
 
 ### 47. Que faisons-nous quand le prix d'achat d'un textile augmente entre le devis et l'achat ?
@@ -1441,9 +2096,26 @@ Ce qu'il nous faut est une durée en jours ouvrés, mesurée une fois : commande
 
 *Si vous ne répondez pas, on partira sur :* Teeshoop absorbe l'écart, il reste visible commande par commande, et personne n'est repris dessus.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Pendant les 15 jours de validité du devis, Teeshoop assume une variation normale du prix
+> d'achat fournisseur.
+>
+> Le commercial ne voit pas sa commission réduite automatiquement pour une hausse
+> fournisseur qu'il n'a pas provoquée.
+>
+> Le système enregistre le prix d'achat prévu, le prix d'achat réel, l'écart et la marge
+> réelle.
+>
+> Si la hausse fait passer la commande sous le prix plancher ou sous la marge minimale de
+> sécurité, la commande est bloquée et nécessite une validation dirigeant.
+>
+> Après expiration du devis, les prix sont recalculés normalement.
+
+*Les trois premiers points sont ce qui est déjà mesuré et affiché par commande sur l'écran
+des achats.* Le quatrième est neuf : un **blocage** quand la hausse passe sous le
+plancher. Aujourd'hui l'écart est montré et ne décide de rien, ce qui était l'état honnête
+faute de règle. La règle est arrivée.
 
 
 ---
@@ -1504,9 +2176,22 @@ Le panneau de filtres le dit à l'écran au lieu de laisser un trou.
 réglage, pas une reprise : les quantités sont déjà stockées article par article, avec la
 date du relevé, parce que l'atelier en a besoin pour acheter.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Ne jamais publier au client le nombre exact de pièces présentes chez Imbretex.
+>
+> Afficher uniquement : Disponible ; Stock limité / nous consulter ; Rupture / nous
+> consulter ; Délai à confirmer.
+>
+> L'administration peut afficher la quantité remontée, la date de synchronisation, la
+> source fournisseur et le niveau de confiance.
+
+*Tranche le conflit que la question posait*, du côté du chapitre 5 et de ce qui est livré,
+contre le chapitre 4 de la Bible. Les quatre mentions correspondent presque mot pour mot à
+celles de la boutique, y compris « Rupture, nous consulter », qui n'était pas l'hypothèse
+écrite de la question 11 mais ce que le comportement de WooCommerce imposait. La séance
+13b a un mot de plus à placer (« Stock limité ») et un à vérifier (« Délai à confirmer »,
+déjà présent).
 
 
 ### 49. Le fournisseur donne 442 noms de coloris et aucune valeur de couleur. En avez-vous une source, et les onze familles ci-dessous sont-elles les bons mots ?
@@ -1568,9 +2253,28 @@ moyenne.
 *Si vous ne répondez pas, on garde ce qui est livré :* la mesure, les onze familles, et
 aucune pastille là où la mesure n'a pas abouti.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Familles validées : Blancs et écrus ; Gris ; Noirs ; Beiges et bruns ; Rouges ; Roses ;
+> Oranges ; Jaunes ; Verts ; Bleus ; Violets.
+>
+> Kaki vers Verts. Turquoise vers Bleus. Pixel Lime vers Verts. Safety Green vers Verts.
+> Dusk Rose vers Roses. Dusty Rose vers Roses. Millennial Pink vers Roses. Magenta vers
+> Roses.
+>
+> Le nom fabricant exact reste conservé indépendamment de la famille utilisée pour les
+> filtres.
+
+*Note de transcription :* le document source écrit ces huit rattachements avec des
+flèches ; « vers » est de nous.
+
+*Les onze familles sont confirmées mot pour mot.* Les huit rattachements sont à confronter
+au classement mesuré : la séance 09 avait ramené 28 désaccords à 8 sur 300 noms étiquetés,
+et ces huit noms sont précisément le genre de cas qui restaient ouverts.
+
+*Ce que la réponse ne tranche pas :* la première moitié de la question, « en avez-vous une
+source ». Aucune valeur de couleur fournisseur n'est fournie, donc la pastille mesurée
+reste la seule source.
 
 
 
@@ -1600,9 +2304,23 @@ endroit dans le studio, sur la fiche produit, sur le bon à tirer et dans le cal
 Si au contraire vous pressez par-dessus la poche, nous laissons la zone telle quelle et nous
 corrigeons le maillage.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Dans le parcours standard, un marquage poitrine ne doit pas traverser la poche
+> kangourou.
+>
+> La zone imprimable se termine au minimum 2 cm au-dessus de la couture supérieure de la
+> poche.
+>
+> Cette règle doit être identique dans le configurateur, l'aperçu 3D, le BAT, le calcul de
+> surface, le calcul DTF et les instructions de production.
+>
+> À terme, la zone imprimable doit idéalement être adaptée au modèle de vêtement.
+
+*Une valeur, 2 cm, et une exigence d'unicité :* « identique dans le configurateur,
+l'aperçu 3D, le BAT, le calcul de surface, le calcul DTF et les instructions de
+production » est mot pour mot la règle « jamais deux implémentations d'une même règle » de
+`CLAUDE.md`, section 1.
 
 
 ### 51. Vos transferts DTF sont-ils imprimés avec une sous-couche blanche systématique ?
@@ -1629,9 +2347,22 @@ que nous savons : l'aperçu montre le rendu le plus prudent des deux, et le clie
 jamais moins bon que ce qu'il a vu. Le jour de votre réponse, c'est un argument de vente en
 plus ou une phrase à ne jamais écrire.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Ne pas créer de tarification ou de règle client spécifique concernant une sous-couche
+> blanche.
+>
+> Aucun supplément « sous-couche blanche » n'est affiché ou facturé séparément.
+>
+> Le configurateur 3D garde un rendu prudent et ne promet pas publiquement une technologie
+> spécifique de sous-couche.
+>
+> Cette question ne doit pas bloquer le lancement.
+
+*Ce que la réponse ne tranche pas :* la question posée, qui était **factuelle** (vos
+transferts sont-ils imprimés avec une sous-couche blanche systématique ?). La réponse
+décide de ne pas la facturer et de ne rien promettre, ce qui valide le rendu prudent
+livré, mais ne dit toujours pas ce que fait le film.
 
 
 ### 52. Voulez-vous une photo « porté » sur les fiches produit au lancement, et si oui, sur qui ?
@@ -1658,9 +2389,21 @@ références (le plus crédible, et le plus cher : une demi-journée de studio p
 sont séparés (travail de 3D, pas de code, et le résultat reste un mannequin gris). Ou
 **s'en passer** au lancement et ne publier que les trois vues rendues.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Ne pas retarder le lancement pour créer un mannequin 3D par taille.
+>
+> Au lancement : vues avant, vues arrière, vues détaillées, photos fournisseur lorsque
+> leur utilisation est autorisée.
+>
+> Ne pas utiliser un mannequin dont les proportions seraient incorrectes entre S et 3XL.
+>
+> En phase 2, Teeshoop pourra organiser des shootings sur les principales références ou
+> meilleures ventes.
+
+*« Lorsque leur utilisation est autorisée » est une condition, pas une formule :* les
+droits sur les photos fournisseur sont à vérifier avant publication, et ce n'est pas une
+question à lui reposer, c'est une lecture de contrat.
 
 ### 53. Dans la scène « nuit » du studio, un vêtement noir se voit à peine. On l'éclaire, ou on la retire ?
 
@@ -1688,9 +2431,17 @@ lise « soir » plutôt que « nuit ». **Poser un fond plus clair** derrière l
 garde la nuit mais change le décor. Ou **retirer la scène nuit** du sélecteur, ce qui ne
 coûte rien puisque les cinq autres passent.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Retirer la scène « nuit » au lancement.
+>
+> Les cinq autres environnements peuvent être conservés.
+>
+> La scène nuit pourra être réintroduite lorsqu'elle satisfera les tests de lisibilité.
+
+*Décision nette et peu coûteuse*, et elle a une contrepartie mesurable : la séance 10 a
+compté les textures GPU retenues par scène, donc le retrait se vérifie au lieu de se
+déclarer.
 
 ### 54. La remise par quantité se calcule-t-elle sur une seule référence ou sur le panier entier ?
 
@@ -1729,9 +2480,26 @@ entier est un développement réel, pas un réglage : il faut recalculer toutes 
 quand une seule bouge, et refaire les tests du panier, du devis et de la facture. Comptez
 une journée, et une remesure de tous les montants que nous avons publiés.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> La remise ne doit pas être calculée uniquement référence par référence. La logique doit
+> être basée sur un lot de production compatible.
+>
+> Exemple : 20 t-shirts + 10 polos = 30 pièces éligibles au même palier si le même visuel,
+> une technique compatible, des emplacements similaires et la même campagne de production
+> sont utilisés.
+>
+> Des produits avec différents designs, différentes techniques ou différentes contraintes
+> de production ne doivent pas automatiquement être agrégés.
+>
+> La remise doit suivre les économies réellement réalisées en production plutôt qu'une
+> simple règle informatique par SKU.
+
+*À instruire en séance 13b, et c'est un changement de forme du moteur de prix.* La remise
+se calcule aujourd'hui par référence. La réponse demande un regroupement par **lot de
+production compatible**, avec quatre critères de compatibilité (même visuel, technique
+compatible, emplacements similaires, même campagne). Le prix est calculé par le serveur,
+donc la notion de lot doit exister côté `Pricing.php`, et elle n'existe pas.
 
 ### 55. Voulez-vous une fiche Google Business Profile, et à quelle adresse ?
 
@@ -1762,9 +2530,24 @@ cherche pas à se classer sur une requête locale.
 décroche, et vos horaires d'ouverture. C'est une démarche d'une heure chez vous, et elle
 débloque le seul canal de recherche où un nouveau site peut se classer vite.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Créer une fiche Google Business Profile Teeshoop.
+>
+> Adresse : 8 rue Primo Lévi, 93000 Bobigny. Téléphone : 07 58 48 83 98. Horaires : lundi
+> au vendredi, 9h00-17h00.
+>
+> Samedi et dimanche : fermé, ou rendez-vous uniquement si organisé manuellement.
+>
+> La fiche doit servir le référencement local sur Bobigny, Seine-Saint-Denis,
+> Île-de-France et les requêtes liées à la personnalisation textile.
+
+*Une contradiction à lui reposer :* la question 17 donne le SIRET du **siège** au 97
+avenue de Castelnau, 93700 Drancy, et celle-ci donne 8 rue Primo Lévi, 93000 Bobigny. Un
+siège et un établissement peuvent parfaitement différer, mais les mentions légales n'en
+publient qu'une, la fiche Google en publie une autre, et une adresse d'établissement qui
+n'est pas déclarée est un problème de conformité, pas de référencement. Il faut savoir
+laquelle est l'adresse de l'établissement et si elle est déclarée.
 
 ## Juridique : l'identité du site
 
@@ -1793,9 +2576,24 @@ quelqu'un relève, et un numéro de téléphone. Pour l'hébergeur, ce n'est pas
 question pour vous : c'est à recopier du contrat o2switch, et c'est noté dans
 `ACCES-REQUIS.md`.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Directeur de publication : SINGH Simran.
+>
+> E-mail public : legales@teeshoop.fr. Téléphone : 07 58 48 83 98.
+>
+> Les informations de l'hébergeur doivent être récupérées dans les informations
+> contractuelles o2switch.
+
+*La ligne `H-Q56-EDITEUR-SITE` était un refus bloquant :* la page de mentions légales est
+publiée et ne nomme personne. Elle a maintenant un nom, un e-mail et un téléphone.
+
+*Point à vérifier avant publication :* l'adresse `legales@teeshoop.fr` doit exister et
+être relevée. Une adresse de contact obligatoire qui rebondit vaut une mention manquante.
+Le domaine du site est par ailleurs `teeshoop.com`, celui de l'adresse est `teeshoop.fr`.
+
+*L'hébergeur n'est pas une question pour lui :* son identité est publique et se lit dans
+le contrat o2switch (`ACCES-REQUIS.md`, section 6 quater).
 
 ---
 
@@ -1824,9 +2622,24 @@ recours légal, ce qui est pire que l'absence.
 *Ce qu'il nous faut :* le nom du médiateur, son adresse postale et l'adresse de sa
 page de saisine.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Teeshoop est conçu actuellement comme un service B2B destiné aux professionnels.
+>
+> Le parcours de lancement ne doit pas être conçu comme une boutique B2C destinée au
+> consommateur particulier.
+>
+> La médiation de la consommation n'est pas intégrée comme condition de lancement du
+> parcours B2B.
+>
+> Si Teeshoop ouvre ultérieurement la vente B2C, cette question devra être réouverte et
+> les CGV adaptées avant activation.
+
+*Le refus bloquant `H-Q57-MEDIATEUR` tombe, mais sous condition, et la condition est
+exécutable.* L'obligation de médiation ne s'applique qu'aux contrats avec des
+consommateurs. Elle disparaît si et seulement si la boutique refuse effectivement les
+particuliers, ce que la question 1 confirme et ce que le code doit garantir. C'est un
+contrôle à écrire, pas une phrase à croire.
 
 ---
 
@@ -1855,9 +2668,24 @@ rétractation, qui est le fondement du modèle), l'article 11 (les tolérances d
 fabrication, question 27) et l'article 16 (la publication des réalisations,
 question 36).
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Avocat ou cabinet juridique à désigner avant le lancement officiel.
+>
+> À relire : CGV, mentions légales, politique de confidentialité, politique cookies si
+> applicable, rétractation/exclusion liée aux produits personnalisés, BAT, tolérances de
+> fabrication, remboursements, utilisation des réalisations clients, propriété
+> intellectuelle et fonctionnement B2B.
+>
+> Chaque nouvelle version des CGV doit être versionnée et datée ; les anciennes commandes
+> gardent la version acceptée.
+
+*Ce que la réponse ne tranche pas :* le nom du cabinet et la date. « À désigner avant le
+lancement officiel » reste une intention, et le portail de lancement de la séance 13b
+refuse précisément une version de CGV en vigueur que personne n'a enregistrée comme relue.
+
+*La seconde moitié est déjà construite :* les CGV sont des fichiers datés, une commande
+garde la version qu'elle a acceptée, et un contrôle redérive les chiffres figés dedans.
 
 ---
 
@@ -1885,9 +2713,26 @@ pas pensé » ne doivent pas se lire pareil.
 
 *Ce qu'il nous faut :* qui s'en charge, et une date avant la mise en ligne.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> SINGH Simran est responsable administrativement du suivi des contrats relatifs au
+> traitement des données personnelles.
+>
+> Les développeurs peuvent identifier les prestataires, récupérer les documents, préparer
+> les intégrations et signaler les éléments manquants.
+>
+> La validation administrative reste centralisée.
+>
+> À régulariser avant lancement officiel avec les prestataires effectivement utilisés :
+> o2switch, Cloudflare, Stripe ou futur prestataire de paiement, Brevo, transporteur,
+> cabinet comptable et tout autre sous-traitant manipulant des données personnelles.
+
+*Répond aussi à la seconde moitié de la question 19*, « qui est responsable des données
+personnelles chez Teeshoop ». La politique de confidentialité publiée dit aujourd'hui que
+le responsable n'est pas désigné ; elle peut le nommer.
+
+*Le transporteur nommé est maintenant Mondial Relay* (question 7), et il traite des
+données personnelles : il rejoint la liste des avenants à récupérer.
 
 ---
 
@@ -1911,9 +2756,22 @@ le trouve.
 *Ce qu'il nous faut :* ce que votre comptable préfère, et où il veut que les
 factures des exercices clos finissent.
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> À l'issue de la période légale de conservation applicable, les données doivent être
+> retirées du système opérationnel.
+>
+> Les données devenues inutiles sont supprimées de manière sécurisée.
+>
+> Une conservation supplémentaire n'a lieu que sur recommandation ou obligation validée
+> par le cabinet comptable ou juridique.
+>
+> Il n'est pas nécessaire de développer aujourd'hui une automatisation complexe impossible
+> à tester avant plusieurs années, mais la politique doit être documentée.
+
+*Décision explicite de ne pas construire, plus une obligation de documenter*, ce qui est
+exactement la seconde des deux options honnêtes de l'item 6 de la séance 13b : ne pas
+livrer, et le dire.
 
 ---
 
@@ -1951,9 +2809,29 @@ regarde en dehors des heures de bureau. Si la réponse est « personne le
 week-end », dites-le : cela se conçoit très bien, et cela change ce qu'on
 surveille (on ne réveille que sur ce qui ne peut pas attendre lundi).
 
-**Votre réponse :**
+**Votre réponse :** *(reçue le 1er septembre 2026. Source : document « Réponses définitives aux questions 37 à 61 », daté du 1er septembre 2026, `docs/reponses-associe/reponses-q37-q61.txt`)*
 
-> 
+> Destinataires : ticket@teeshoop.fr et dev@teeshoop.fr.
+>
+> En journée : alertes pertinentes sur indisponibilité site/configurateur, paiement,
+> facturation, stockage, sauvegardes, erreurs serveur répétées, BAT, achat fournisseur et
+> intégrations critiques.
+>
+> Soir, nuit et week-end : limiter aux incidents critiques, à savoir boutique
+> inaccessible, paiement impossible, paiements encaissés sans commande ou sans facture,
+> risque de perte de données, sauvegarde critique, panne provoquant une perte immédiate de
+> commandes, incident fournisseur ou paiement incohérent nécessitant une intervention
+> rapide.
+>
+> Les incidents non critiques sont journalisés et traités au prochain jour ouvré.
+
+*La veille peut démarrer.* Elle refusait de tourner sans destinataire plutôt que d'écrire
+dans le vide ; elle a deux adresses et, mieux que ça, une **classification** jour/nuit qui
+dit quoi réveiller.
+
+*Point à vérifier avant de poser la ligne de cron :* les deux adresses sont en
+`teeshoop.fr` et doivent exister et être relevées. Une alerte qui rebondit est une alerte
+qui n'existe pas.
 
 ---
 
