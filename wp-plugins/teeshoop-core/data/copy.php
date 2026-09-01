@@ -1076,7 +1076,7 @@ return array(
 		'description' => 'T-shirts, polos et sweats imprimés en France à partir de {MINIMUM_PIECES} pièces. Prix impression comprise, zones publiées en centimètres.',
 		'h1'          => 'Petites séries : t-shirts, polos et sweats personnalisés',
 		'intro'       => array(
-			'Nous imprimons à partir de {MINIMUM_PIECES} pièces, et le panier refuse en dessous. Ce n’est pas une politique commerciale : un transfert DTF s’imprime sur un film vendu au mètre linéaire, dont le fournisseur facture un métrage minimum, et la presse se règle une fois pour toute la série. Sous {MINIMUM_PIECES} pièces, cette mise en route pèse plus que les vêtements qu’elle marque.',
+			'Nous imprimons à partir de {MINIMUM_PIECES} pièces, et le panier refuse en dessous. Ce n’est pas une politique commerciale : un transfert DTF s’imprime sur une feuille que le fournisseur vend entière, quelle que soit la place occupée dessus, et la presse se règle une fois pour toute la série. Sous {MINIMUM_PIECES} pièces, cette mise en route pèse plus que les vêtements qu’elle marque.',
 			'Le minimum porte sur la commande entière : des t-shirts et des sweats dans le même panier comptent ensemble pour l’atteindre. La remise de quantité, elle, se calcule référence par référence, sur la quantité d’un même modèle. Regrouper les pièces sur un seul modèle donne donc un prix unitaire plus bas que de les répartir sur plusieurs.',
 			'Le panier contrôle un seul seuil au moment de valider : {MINIMUM_PIECES} pièces. Il dit combien il en manque, plutôt que de vous renvoyer une règle.',
 		),
@@ -1084,10 +1084,10 @@ return array(
 			array(
 				'h2'         => 'Ce qu’une série coûte avant le premier vêtement',
 				'paragraphs' => array(
-					'Un transfert DTF ne coûte pas seulement à la pièce. Trois postes ne bougent pas quand la quantité bouge, et une commande qui n’atteint pas le métrage minimum du fournisseur paie du film qu’elle n’utilise pas.',
+					'Un transfert DTF ne coûte pas seulement à la pièce. Trois postes ne bougent pas quand la quantité bouge, et une commande qui n’occupe qu’un coin d’une feuille la paie entière.',
 				),
 				'list'       => array(
-					'Le film DTF, vendu au mètre linéaire, avec un métrage minimum facturé par le fournisseur.',
+					'Le film DTF, vendu à la feuille entière par le fournisseur, occupée ou non.',
 					'Le bon à tirer, préparé et vérifié une fois pour toute la série.',
 					'Le réglage de la presse, fait une fois, quel que soit le nombre de pièces à passer.',
 				),

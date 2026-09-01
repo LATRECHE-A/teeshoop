@@ -26,8 +26,9 @@ The nonce never crosses the origin boundary.
 R2. `wp-content/uploads` is served by URL with no access control, and
 `robots.txt` is not a permission.
 
-**The print run.** A roll of film is 56 cm wide whoever is paying for it, so from
-session 07 the unit that buys film is the LOT and not the order: everything paid
+**The print run.** Film is bought in one format whoever is paying for it (a 33 x 46 cm
+A3+ sheet since question 04 was answered on 1 September 2026; a 56 cm roll before
+that), so from session 07 the unit that buys film is the LOT and not the order: everything paid
 for and approved, ganged onto one set of gang sheets, one supplier order, one
 delivery charge, and the bill split back so each margin report still says what
 its own order cost. `Production.php` owns the queue, the calendar and the lot;
@@ -829,7 +830,9 @@ one, and the screen says so rather than showing a tick over an unanswered
 question.
 
 **The film is measured, not typed.** The Bible: the DTF cost "dépend de la
-surface occupée sur une laize de 56 cm, de l'imbrication". That is a packing, and
+surface occupée sur une laize de 56 cm, de l'imbrication". The laize it names is
+no longer the one bought (question 04's answer is a 33 x 46 cm sheet) but the
+sentence's point stands: it is a packing, and
 this repository already has one, in TypeScript, and it is the one the workshop's
 gang sheets come out of. So `Nest.php` asks it over HTTP (`POST /api/nest`,
 admin-gated) instead of a second packer growing here. The per-transfer rectangles

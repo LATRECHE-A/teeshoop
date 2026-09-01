@@ -241,20 +241,40 @@ for (const [name, path] of PAGES) {
    * `npm run verify:garments` fails when they diverge. This checks the third
    * copy, the one a customer reads.
    */
-  const garments = JSON.parse(
-    await (await fetch(`${BASE}/wp-content/plugins/teeshoop-core/data/garments.json`)).text(),
-  )
-  const tee = garments.garments.tee
-  const priced = tee.pricedSize
-  const front = tee.areas.find((a) => a.side === 'front').bySize[priced]
-  const zoneText = await page.locator('.ts-zone').innerText()
-  const w = String(front.wCm).replace('.', ',')
-  const h = String(front.hCm).replace('.', ',')
-  ok(
-    'the printed zone on the homepage is the generated one',
-    zoneText.includes(w) && zoneText.includes(h),
-    `${w} x ${h} cm`,
-  )
+  /*
+   * READ IT, DO NOT ASSUME IT ANSWERS. This fetched and parsed in one expression
+   * and threw an unhandled SyntaxError on 1 September 2026, after all 235 page
+   * checks had passed: the mirror answers 403 for that directory now, so
+   * `JSON.parse` was handed an Apache error page. A harness that dies on a
+   * stack trace has not failed, it has stopped, and the difference matters
+   * because everything after this point went unchecked without a word.
+   */
+  const garmentsUrl = `${BASE}/wp-content/plugins/teeshoop-core/data/garments.json`
+  const garmentsRes = await fetch(garmentsUrl)
+  const garmentsBody = await garmentsRes.text()
+  let garments = null
+  try {
+    garments = JSON.parse(garmentsBody)
+  } catch {
+    ok(
+      'la géométrie du studio est lisible depuis le navigateur',
+      false,
+      `${garmentsUrl} a répondu ${garmentsRes.status} et pas du JSON, donc les contrôles de zone d'impression ci-dessous n'ont PAS eu lieu`,
+    )
+  }
+  if (garments) {
+    const tee = garments.garments.tee
+    const priced = tee.pricedSize
+    const front = tee.areas.find((a) => a.side === 'front').bySize[priced]
+    const zoneText = await page.locator('.ts-zone').innerText()
+    const w = String(front.wCm).replace('.', ',')
+    const h = String(front.hCm).replace('.', ',')
+    ok(
+      'the printed zone on the homepage is the generated one',
+      zoneText.includes(w) && zoneText.includes(h),
+      `${w} x ${h} cm`,
+    )
+  }
 
   /* The quote path is one click from every page. */
   const devisHref = await page.locator('.ts-mast__quote').getAttribute('href')

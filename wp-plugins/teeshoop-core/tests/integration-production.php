@@ -20,10 +20,11 @@
  * plumbing and the refusals, not the tightness of the bound. The tightness is
  * `scripts/dtf-verify.mjs`'s pooled suite, which runs the real packer.
  *
- * The layout the studio is pretending to have measured is not invented either.
- * The two orders below nest to 0,3 m and 0,2 m alone and 0,4 m together on the
- * shipped geometry, measured with the real packer in `src/lib/dtf/run.test.ts`'s
- * own harness (56 cm laize, 5 mm gap, 10 cm billing step).
+ * The layout the studio is pretending to have measured is not invented either:
+ * every length in it is DERIVED from the shipped geometry with the same bound
+ * the stub answers with. It used to be three real measurements taken on a 56 cm
+ * roll, and question 04's answer turned them into another supplier's numbers
+ * overnight. See the note above `ts_pr_layout()`.
  *
  * NO `declare(strict_types=1)`: required from integration.php, which is eval'd.
  *
@@ -115,13 +116,63 @@ function ts_pr_ready( int $product_id, int $qty, array $sides, string $design ):
  *
  * `$over` lets a case corrupt exactly one number, which is how each refusal is
  * proved to be doing something rather than passing by accident.
+ *
+ * ── EVERY LENGTH HERE IS DERIVED, AND IT USED TO BE TYPED ────────────────────
+ *
+ * This carried `pooled_m => 0.4`, `solo_m => 0.3` and `0.2`, `width_cm => 56`
+ * and `billing_step_cm => 10`: real lengths, measured with the real packer on
+ * the geometry the shop bought in August. Question 04's answer moved the shop to
+ * a 33 x 46 cm sheet on 1 September 2026 and every one of those numbers became a
+ * length from another supplier. Fourteen cases failed at once, all of them with
+ * « la commande ne peut pas tenir sur 0,30 m de film : son encre en demande 0,36
+ * m au minimum », which is the per-order floor doing exactly its job: the same
+ * ink needs a longer strip on a narrower sheet.
+ *
+ * So the geometry comes from the price authority and the lengths come from
+ * `Cost::prudent_length_cm`, which is the same bound the HTTP stub above answers
+ * the packer request with. That makes the fixture internally consistent by
+ * construction rather than by somebody remembering to re-measure it, and it is
+ * the fifth place in this session where a second copy of the shop's geometry had
+ * to be replaced by a reader.
+ *
+ * What it costs: the bound is LOOSE, so these lengths are longer than a real
+ * packing. These cases prove the plumbing and the refusals, never the tightness
+ * of a nesting, which is `scripts/dtf-bench.mjs` and `scripts/nest-verify.mjs`
+ * against the real packer.
  */
 function ts_pr_layout( int $a, int $b, array $over = array() ): array {
+	$film    = (array) ( \Teeshoop\Core\Costing::config()['film'] ?? array() );
+	$cost    = \Teeshoop\Core\Costing::config();
+	$pieces_a = array(
+		array( 'key' => 'front~1', 'w_cm' => 18.0, 'h_cm' => 14.5, 'qty' => 4 ),
+		array( 'key' => 'front~2', 'w_cm' => 12.0, 'h_cm' => 3.2, 'qty' => 4 ),
+	);
+	$pieces_b = array(
+		array( 'key' => 'front', 'w_cm' => 17.0, 'h_cm' => 14.0, 'qty' => 2 ),
+	);
+	// `prudent_length_cm` wants `id`, the layout wants `key`: the same rectangles
+	// under two names, so the bound is taken on exactly what is posted.
+	$as_bound = static function ( array $pieces ): array {
+		return array_map(
+			static fn( array $p ): array => array(
+				'id'   => $p['key'],
+				'w_cm' => $p['w_cm'],
+				'h_cm' => $p['h_cm'],
+				'qty'  => $p['qty'],
+			),
+			$pieces
+		);
+	};
+	$length = static function ( array $pieces ) use ( $as_bound, $cost ): float {
+		$b = \Teeshoop\Core\Cost::prudent_length_cm( $as_bound( $pieces ), $cost );
+		return $b['ok'] ? round( (float) $b['length_cm'] / 100, 2 ) : 0.0;
+	};
+
 	$layout = array(
-		'pooled_m'     => 0.4,
-		'width_cm'     => 56.0,
-		'gap_cm'       => 0.5,
-		'billing_step_cm' => 10.0,
+		'pooled_m'     => $length( array_merge( $pieces_a, $pieces_b ) ),
+		'width_cm'     => (float) ( $film['width_cm'] ?? 0 ),
+		'gap_cm'       => (float) ( $film['gap_cm'] ?? 0 ),
+		'billing_step_cm' => (float) ( $film['billing_step_cm'] ?? 0 ),
 		'sheets'       => 1,
 		'packer'       => 'trueshape',
 		'interlock_cm' => 2.0,
@@ -129,19 +180,14 @@ function ts_pr_layout( int $a, int $b, array $over = array() ): array {
 		'flip'         => false,
 		'orders'       => array(
 			(string) $a => array(
-				'solo_m' => 0.3,
+				'solo_m' => $length( $pieces_a ),
 				'poses'  => 4,
-				'pieces' => array(
-					array( 'key' => 'front~1', 'w_cm' => 18.0, 'h_cm' => 14.5, 'qty' => 4 ),
-					array( 'key' => 'front~2', 'w_cm' => 12.0, 'h_cm' => 3.2, 'qty' => 4 ),
-				),
+				'pieces' => $pieces_a,
 			),
 			(string) $b => array(
-				'solo_m' => 0.2,
+				'solo_m' => $length( $pieces_b ),
 				'poses'  => 2,
-				'pieces' => array(
-					array( 'key' => 'front', 'w_cm' => 17.0, 'h_cm' => 14.0, 'qty' => 2 ),
-				),
+				'pieces' => $pieces_b,
 			),
 		),
 	);

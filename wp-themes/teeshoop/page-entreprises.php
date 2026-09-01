@@ -78,7 +78,7 @@ $ts_bases = price_bases();
 	<dl class="ts-defs ts-defs--wide">
 		<dt><?php esc_html_e( 'La facture', 'teeshoop' ); ?></dt>
 		<dd>
-			<?php esc_html_e( 'Établie à votre raison sociale, avec votre SIRET et votre numéro de TVA intracommunautaire, et un numéro dans une série continue. Elle est figée le jour de son émission : elle ne se recalcule pas si un tarif change ensuite.', 'teeshoop' ); ?>
+			<?php esc_html_e( 'Établie à votre raison sociale, avec votre SIRET et votre numéro de TVA intracommunautaire. Elle est figée le jour de son émission : elle ne se recalcule pas si un tarif change ensuite.', 'teeshoop' ); ?>
 		</dd>
 
 		<dt><?php esc_html_e( 'Le prix', 'teeshoop' ); ?></dt>

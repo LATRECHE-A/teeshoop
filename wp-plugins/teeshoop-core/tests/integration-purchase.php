@@ -55,6 +55,7 @@ if ( 'cli' !== PHP_SAPI ) {
 use Teeshoop\Core\Bat;
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Catalogue;
+use Teeshoop\Core\Cost;
 use Teeshoop\Core\Costing;
 use Teeshoop\Core\Importer;
 use Teeshoop\Core\Product;
@@ -260,20 +261,39 @@ function ts_ac_stub(): void {
 			}
 			if ( str_contains( (string) $url, '/api/nest' ) ) {
 				/*
-				 * The CEILING a browser-measured layout may not exceed. Answered
-				 * from the pieces actually posted rather than with a constant, so
-				 * a lot built here is bounded by something proportionate to what
-				 * it contains: 20 x 20 cm transfers sit two to a row on a 56 cm
-				 * roll, so the strip packing is ceil(copies / 2) rows of 20,5 cm.
+				 * The CEILING a browser-measured layout may not exceed, answered
+				 * with the SHIPPED bound and not with arithmetic of its own.
+				 *
+				 * This computed `ceil(copies / 2) * 20,5 cm` under a comment
+				 * saying « 20 x 20 cm transfers sit two to a row on a 56 cm
+				 * roll ». They did, until question 04's answer of 1 September
+				 * 2026 put the shop on a 33 cm sheet, where a 20 cm transfer
+				 * sits ONE to a row. The stub then answered 3,08 m for thirty
+				 * pieces that need 11,50, and refused a lot for being longer
+				 * than a packing measured on somebody else's roll. Third copy of
+				 * the geometry found in this session, and the last one.
+				 *
+				 * `Cost::prudent_length_cm` is the bound this plugin already
+				 * proves is never SHORTER than a real packing, re-proved against
+				 * the real packer by `scripts/nest-verify.mjs` on every run. It
+				 * is loose, which is exactly right for a ceiling.
 				 */
 				$body   = json_decode( (string) ( $args['body'] ?? '{}' ), true );
+				$pieces = array();
 				$copies = 0;
 				foreach ( (array) ( $body['pieces'] ?? array() ) as $piece ) {
-					$copies += max( 1, (int) ( $piece['qty'] ?? 1 ) );
+					$copies  += max( 1, (int) ( $piece['qty'] ?? 1 ) );
+					$pieces[] = array(
+						'id'   => (string) ( $piece['id'] ?? '?' ),
+						'w_cm' => (float) ( $piece['w_cm'] ?? 0 ),
+						'h_cm' => (float) ( $piece['h_cm'] ?? 0 ),
+						'qty'  => max( 1, (int) ( $piece['qty'] ?? 1 ) ),
+					);
 				}
+				$bound = Cost::prudent_length_cm( $pieces, Costing::config() );
 				return $json(
 					array(
-						'billed_m'    => 0 === $copies ? 0.4 : ( ceil( $copies / 2 ) * 20.5 ) / 100,
+						'billed_m'    => 0 === $copies || ! $bound['ok'] ? 0.4 : (float) $bound['length_cm'] / 100,
 						'sheets'      => 1,
 						'unplaceable' => array(),
 						'utilization' => 0.5,
@@ -550,15 +570,38 @@ function ts_purchase_suite( int $product_id ): void {
 		 *
 		 * The lot is built by the shipped `create_lot`, with the layout a studio
 		 * would have posted. The poses are the two orders' real garment counts,
-		 * 20 and 10, because that check is exact and refuses anything else; the
-		 * lengths sit between the floor (12 000 cm2 of ink over a 56 cm roll,
-		 * 2,15 m) and the ceiling (what the packer makes of the same 30 pieces).
+		 * 20 and 10, because that check is exact and refuses anything else.
+		 *
+		 * THE LENGTHS AND THE GEOMETRY ARE DERIVED, and they used to be typed:
+		 * `pooled_m => 2.5`, `56.0` and a 10 cm billing step, with a comment
+		 * saying the floor was « 12 000 cm2 d'encre sur une laize de 56 cm,
+		 * 2,15 m ». Question 04's answer of 1 September 2026 moved the shop to a
+		 * 33 x 46 cm sheet and the same ink needs 3,63 m of it, so the per-order
+		 * floor refused this lot and this case failed for a reason that had
+		 * nothing to do with what it tests. The floor is `minimum_length_m`, the
+		 * ceiling is the same bound the HTTP stub answers the packer with, and
+		 * taking both from the shipped config is what stops this going stale the
+		 * next time a supplier changes.
 		 */
+		$ts_pu_cost   = Costing::config();
+		$ts_pu_film   = (array) ( $ts_pu_cost['film'] ?? array() );
+		$ts_pu_pieces = static fn( int $garments ): array => array(
+			array( 'id' => 'front', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => $garments ),
+		);
+		$ts_pu_len = static function ( array $pieces ) use ( $ts_pu_cost ): float {
+			$b = Cost::prudent_length_cm( $pieces, $ts_pu_cost );
+			return $b['ok'] ? round( (float) $b['length_cm'] / 100, 2 ) : 0.0;
+		};
 		$layout = array(
-			'pooled_m'        => 2.5,
-			'width_cm'        => 56.0,
-			'gap_cm'          => 0.5,
-			'billing_step_cm' => 10.0,
+			'pooled_m'        => $ts_pu_len(
+				array(
+					array( 'id' => 'front-a', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => 20 ),
+					array( 'id' => 'front-b', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => 10 ),
+				)
+			),
+			'width_cm'        => (float) ( $ts_pu_film['width_cm'] ?? 0 ),
+			'gap_cm'          => (float) ( $ts_pu_film['gap_cm'] ?? 0 ),
+			'billing_step_cm' => (float) ( $ts_pu_film['billing_step_cm'] ?? 0 ),
 			'sheets'          => 1,
 			'packer'          => 'trueshape',
 			'interlock_cm'    => 2.0,
@@ -566,9 +609,9 @@ function ts_purchase_suite( int $product_id ): void {
 			'flip'            => false,
 			'orders'          => array(),
 		);
-		foreach ( array( array( $a, 20, 2.1 ), array( $b, 10, 1.1 ) ) as [ $order, $garments, $solo ] ) {
+		foreach ( array( array( $a, 20 ), array( $b, 10 ) ) as [ $order, $garments ] ) {
 			$layout['orders'][ (string) $order->get_id() ] = array(
-				'solo_m'     => $solo,
+				'solo_m'     => $ts_pu_len( $ts_pu_pieces( $garments ) ),
 				'poses'      => $garments,
 				'area_sq_cm' => 400.0 * $garments,
 				'pieces'     => array(

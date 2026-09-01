@@ -168,8 +168,9 @@ sa date et sa **fiabilité**, et une fiabilité à quatre valeurs et non deux, p
 même chose. Le rapport refuse de se déclarer complet tant qu'un poste est inconnu, et le
 plancher qu'il affiche est alors un plancher **minimum**.
 
-Le **coût du film n'est pas saisi, il est mesuré** : la commande est imbriquée sur une laize
-de 56 cm par `src/lib/dtf/nesting.ts`, le même moteur qui produit les planches de l'atelier,
+Le **coût du film n'est pas saisi, il est mesuré** : la commande est imbriquée sur la
+géométrie que la boutique achète réellement (depuis le 01/09/2026 une feuille A3+ de
+33 x 46 cm, avant cela un rouleau de 56 cm) par `src/lib/dtf/nesting.ts`, le même moteur qui produit les planches de l'atelier,
 appelé par le plugin sur une route d'administration du Worker. Il n'y a donc pas deux
 imbricateurs. Quand la route n'est pas joignable, le coût retombe sur une **borne haute
 démontrée** (une bande par transfert), jamais sur une estimation : `scripts/nest-verify.mjs`
@@ -1278,9 +1279,11 @@ références et trois familles** au lieu des 300 et cinq familles annoncées ; l
 publique** a cinq colonnes au lieu de six et accorde 35 % de remise en autonomie là où la
 question 06 en plafonne la remise à 15 % ; la **découpe en visuels** se déclenche sur une
 géométrie et non sur le seuil de 100 cm² d'économie annoncé ; et les **17 EUR le mètre
-linéaire** n'étaient écrits dans aucun code exécutable. Ce dernier point est refermé par la
-séance 05 : le tarif est désormais l'autorité du coût de marquage, et le module DTF garde
-ses tarifs publics relevés pour ce qu'ils sont, une comparaison de marché.
+linéaire** n'étaient écrits dans aucun code exécutable. Ce dernier point a été refermé par la
+séance 05, puis **rendu caduc par la réponse elle-même** : le 1er septembre 2026 l'associé
+donne une feuille A3+ à 3,00 EUR et non un mètre de rouleau, et les 17 EUR ne sont plus le
+tarif de personne. Le module DTF du studio garde ses tarifs publics relevés pour ce qu'ils
+sont, une comparaison de marché.
 
 **13b l'a soldée le 1er septembre 2026**, entre la 13 et la 14, ce qui est la bonne
 couture : tout ce qui précède est local et réversible, la 14 touche le vrai domaine et la 15
