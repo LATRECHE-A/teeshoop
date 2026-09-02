@@ -1058,9 +1058,32 @@ y sont, l'anonymisation est passée, les sauvegardes sont prises, la clé de
 déploiement est posée, le `PATH` du crontab est corrigé. Ce qui n'a pas pu être
 fini est la dernière simulation de la purge de démonstration, décrite plus bas.
 
-**Comment le rouvrir :** attendre que le blocage expire (souvent une heure), ou
-cPanel > Accès SSH > autoriser l'adresse IP courante, ou passer par le Terminal
-web de cPanel qui contourne la liste blanche.
+**Le diagnostic, mesuré et pas supposé.** Quatre relevés, faits une heure après :
+
+| Essai | Résultat |
+|---|---|
+| `ascaphus.o2switch.net:22` | **délai dépassé** |
+| `ascaphus.o2switch.net:443` | ouvert |
+| `github.com:22`, `gitlab.com:22`, `bitbucket.org:22` | **ouverts** |
+| `ssh -v` | `connect to address 109.234.166.12 port 22: Connection timed out` |
+
+Le port 22 sortant n'est donc PAS bloqué depuis cette machine, contrairement à ce
+qui était vrai le 1er septembre : trois autres hôtes répondent dessus. Et ce n'est
+pas le port qui est fermé côté serveur, sinon la réponse serait « refusé » et non
+« délai dépassé ». Un délai dépassé sur un seul hôte et un seul port, alors que le
+443 du même hôte répond, c'est une règle de pare-feu qui **jette** les paquets.
+C'est o2switch qui a bloqué cette adresse pour SSH.
+
+**L'adresse à débloquer, relevée le 02/09/2026 :** `176.140.219.173`.
+
+**Comment le rouvrir, du plus simple au plus sûr :**
+
+1. **Attendre.** Ces blocages expirent seuls, souvent en une heure.
+2. **cPanel > Accès SSH >** autoriser `176.140.219.173` (cinq adresses maximum par
+   compte, voir §1 bis).
+3. **Le Terminal web de cPanel**, qui contourne la liste blanche par construction
+   puisqu'il ne passe pas par le port 22. C'est le chemin qui marche toujours, et
+   celui à utiliser pour lancer une commande sans rien reconfigurer.
 
 **Et une leçon pour la suite :** un déploiement fait une poignée de connexions,
 pas cent. Les scripts qui bouclent en appelant `wp` une fois par élément sont ce
