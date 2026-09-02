@@ -141,11 +141,27 @@ final class Shelf {
 	/**
 	 * What a customer is told about a supplier article's availability.
 	 *
-	 * Three answers, because there are three facts:
+	 * Four answers, because there are four facts:
 	 *
-	 *   · fresh and in stock       → « Disponible »
-	 *   · fresh and out of stock   → « Rupture, nous consulter »
-	 *   · anything else            → « Délai à confirmer »
+	 *   · fresh and comfortably in stock → « Disponible »
+	 *   · fresh and thin                 → « Stock limité, nous consulter »
+	 *   · fresh and out of stock         → « Rupture, nous consulter »
+	 *   · anything else                  → « Délai à confirmer »
+	 *
+	 * THE FOURTH IS QUESTION 48'S, ADDED 2 SEPTEMBER 2026. His answer lists the
+	 * four mentions to display and no others, and « Stock limité / nous
+	 * consulter » was the one the shop did not have. Without it an article with
+	 * three pieces left says « Disponible » to a customer about to order fifty,
+	 * and the shop finds out when the cartons are opened.
+	 *
+	 * AND THE THRESHOLD IS DERIVED, NOT CHOSEN. He gives no number, and picking
+	 * one would be inventing the promise the mention exists to avoid. So thin
+	 * means « below what an order we would accept without a human could
+	 * consume »: `Pricing` sends anything over `quote_from_qty` pieces to a quote,
+	 * so a reading at or above that figure can serve any basket the shop settles
+	 * in autonomy, and a reading below it cannot. The two move together on
+	 * purpose, and `H-Q11-STOCK-LIMITE` records that this is a derivation and
+	 * not a value the associate gave.
 	 *
 	 * THE SECOND ONE IS NOT QUESTION 11'S WORD, and the difference is deliberate.
 	 * Its written default says « délai allongé », which tells a buyer to order and
@@ -191,16 +207,39 @@ final class Shelf {
 				'class'        => 'teeshoop-stock-unknown',
 			);
 		}
-		if ( (int) $have > 0 ) {
+		if ( (int) $have <= 0 ) {
 			return array(
-				'availability' => __( 'Disponible', 'teeshoop' ),
-				'class'        => 'teeshoop-stock-in',
+				'availability' => __( 'Rupture, nous consulter', 'teeshoop' ),
+				'class'        => 'teeshoop-stock-late',
+			);
+		}
+		if ( (int) $have < self::thin_below() ) {
+			return array(
+				'availability' => __( 'Stock limité, nous consulter', 'teeshoop' ),
+				'class'        => 'teeshoop-stock-thin',
 			);
 		}
 		return array(
-			'availability' => __( 'Rupture, nous consulter', 'teeshoop' ),
-			'class'        => 'teeshoop-stock-late',
+			'availability' => __( 'Disponible', 'teeshoop' ),
+			'class'        => 'teeshoop-stock-in',
 		);
+	}
+
+	/**
+	 * The reading below which stock is « limité » rather than « disponible ».
+	 *
+	 * Read from the quote threshold rather than written here, so there is one
+	 * number and not two. Falls back to refusing the distinction entirely
+	 * (PHP_INT_MAX would call everything thin, 0 would call nothing thin): when
+	 * the threshold cannot be read, the shop keeps the three answers it had
+	 * rather than inventing a fourth from nothing.
+	 */
+	private static function thin_below(): int {
+		if ( ! class_exists( __NAMESPACE__ . '\\Settings' ) ) {
+			return 0;
+		}
+		$qty = (int) ( Settings::pricing()['quote_from_qty'] ?? 0 );
+		return $qty > 0 ? $qty : 0;
 	}
 
 	/**

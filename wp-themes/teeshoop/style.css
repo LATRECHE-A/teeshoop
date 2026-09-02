@@ -861,11 +861,12 @@ ul.products li.product .price {
 
 /*
  * The line that says what the shop can promise about a blank, in words and never
- * a figure: the three strings come from `Shelf::availability()` and the ledger
+ * a figure: the four strings come from `Shelf::availability()` and the ledger
  * fails if one of them disappears.
  *
  * THE CLASS NAMES ARE THE PLUGIN'S, not ones invented here. `Shelf::availability`
- * returns `teeshoop-stock-in`, `teeshoop-stock-late` and `teeshoop-stock-unknown`
+ * returns `teeshoop-stock-in`, `teeshoop-stock-thin`, `teeshoop-stock-late` and
+ * `teeshoop-stock-unknown`
  * and WooCommerce prints them on the `<p class="stock">`. This file first styled
  * `.ts-stock--yes/no/unknown`, which nothing on the site emits: three rules that
  * matched nothing, so the one sentence the shop says about supplier stock was
@@ -884,6 +885,16 @@ ul.products li.product .price {
 
 .woocommerce p.stock.teeshoop-stock-late {
 	color: var(--ts-bad);
+}
+
+/*
+ * « Stock limité, nous consulter », question 48, added 2 September 2026. Warning
+ * and not bad: the article can still be bought, in a quantity the shop wants to
+ * discuss first. Semantic colour, kept apart from the brand accent, as
+ * `CLAUDE.md` section 7 requires.
+ */
+.woocommerce p.stock.teeshoop-stock-thin {
+	color: var(--ts-warn);
 }
 
 .woocommerce p.stock.teeshoop-stock-unknown {

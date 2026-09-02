@@ -62,6 +62,7 @@ use Teeshoop\Core\Product;
 use Teeshoop\Core\Production;
 use Teeshoop\Core\Purchase;
 use Teeshoop\Core\Settings;
+use Teeshoop\Core\Shelf;
 
 /**
  * One article of the fixture, in the shape the catalogue route hands back.
@@ -492,6 +493,88 @@ function ts_purchase_suite( int $product_id ): void {
 	ts_it( 'reads the stock the supplier published, with the date it published it', function () use ( $basket ) {
 		ts_assert( ! empty( $basket['stock']['trusted'] ), 'le relevé n’est pas cru alors qu’il vient d’être écrit' );
 		ts_assert( array() === $basket['stock']['short'], 'une rupture est annoncée alors que tout est en stock' );
+	} );
+
+	/*
+	 * ── THE FOUR WORDS A CUSTOMER READS ──────────────────────────────────────
+	 *
+	 * Question 48 lists exactly four mentions and no others, and until
+	 * 2 September the shop had three: an article with a handful of pieces left
+	 * said « Disponible » to somebody about to order fifty. `Shelf::availability`
+	 * had no test at all, which is how three of the four survived unexamined
+	 * through the answer that named them.
+	 *
+	 * Driven through a real WC_Product with real meta, because the whole point
+	 * of the function is the three facts it reads off one.
+	 */
+	ts_it( 'says one of four things about a blank, and never a number', function () {
+		$sku = get_posts(
+			array(
+				'post_type'   => 'product_variation',
+				'numberposts' => 1,
+				'fields'      => 'ids',
+				'meta_key'    => Catalogue::META_SUPPLY_SKU, // phpcs:ignore WordPress.DB.SlowDBQuery
+			)
+		);
+		ts_assert( ! empty( $sku ), 'aucune variation importée : ce test ne mesurerait rien' );
+		$variation = wc_get_product( (int) $sku[0] );
+		ts_assert( $variation instanceof \WC_Product, 'la variation importée est illisible' );
+
+		/*
+		 * PUT BACK WHAT THIS BORROWS. The variation is shared with the tests
+		 * below, and the first version of this one left it holding 5 000 pieces
+		 * with a fresh date, so « says how short the supplier is » stopped
+		 * finding a shortage two tests later. The failure was in the other test,
+		 * which is what makes this kind of leak expensive to find.
+		 */
+		$was_qty = $variation->get_stock_quantity();
+		$was_at  = (string) $variation->get_meta( Catalogue::META_STOCK_AT, true );
+
+		$blank = array( 'availability' => 'inchangé', 'class' => '' );
+		$say   = static function ( $have, $at ) use ( $variation, $blank ) {
+			$variation->set_stock_quantity( null === $have ? null : (int) $have );
+			$variation->update_meta_data( Catalogue::META_STOCK_AT, $at );
+			$variation->save();
+			return Shelf::availability( $blank, wc_get_product( $variation->get_id() ) );
+		};
+
+		/*
+		 * `Y-m-d H:i:s` IN THE SUPPLIER'S ZONE, which is what `Purchase::moment`
+		 * parses and nothing else: an ISO string with a T and a Z comes back as
+		 * null, the reading reads as illisible, and every case below would have
+		 * answered « Délai à confirmer » while looking like it tested four
+		 * states. An hour back, because a stamp ahead of our clock is
+		 * deliberately not a fresh reading either.
+		 */
+		$zone = new \DateTimeZone( 'Europe/Paris' );
+		$now  = ( new \DateTimeImmutable( '-1 hour', $zone ) )->format( 'Y-m-d H:i:s' );
+		$old  = ( new \DateTimeImmutable( '-90 days', $zone ) )->format( 'Y-m-d H:i:s' );
+		$thin = (int) Settings::pricing()['quote_from_qty'];
+
+		ts_eq( $say( $thin, $now )['availability'], 'Disponible', 'exactement le seuil est encore disponible' );
+		ts_eq( $say( $thin - 1, $now )['availability'], 'Stock limité, nous consulter', 'une pièce sous le seuil' );
+		ts_eq( $say( 1, $now )['availability'], 'Stock limité, nous consulter', 'une seule pièce' );
+		ts_eq( $say( 0, $now )['availability'], 'Rupture, nous consulter', 'plus rien' );
+		ts_eq( $say( 5000, $old )['availability'], 'Délai à confirmer', 'un relevé trop vieux ne dit rien' );
+
+		/*
+		 * AND NEVER A FIGURE, which is the first line of his answer. Asserted on
+		 * the four sentences together rather than on each, so a fifth added later
+		 * is covered by the same rule.
+		 */
+		foreach ( array( $thin, $thin - 1, 0, 5000 ) as $have ) {
+			$said = $say( $have, $now )['availability'];
+			ts_assert(
+				1 !== preg_match( '/\d/', $said ),
+				'la mention « ' . $said . ' » publie un chiffre du stock fournisseur'
+			);
+		}
+
+		$variation->set_stock_quantity( $was_qty );
+		$variation->update_meta_data( Catalogue::META_STOCK_AT, $was_at );
+		$variation->save();
+		$back = wc_get_product( $variation->get_id() );
+		ts_eq( $back->get_stock_quantity(), $was_qty, 'la variation partagée n’a pas été remise comme elle était' );
 	} );
 
 	// ── what a basket must refuse ────────────────────────────────────────────

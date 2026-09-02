@@ -323,10 +323,10 @@ return array(
 			'id' => 'H-Q11-STOCK-CHIFFRE',
 			'question' => 'Q11',
 			'level' => 'utile',
-			'status' => 'assumption',
+			'status' => 'answered',
 			'since' => '2026-08-14',
-			'answered' => null,
-			'answer_fr' => null,
+			'answered' => '2026-09-01',
+			'answer_fr' => 'Questions 11 et 48 : ne jamais publier au client le nombre exact de pièces que le fournisseur annonce, et n\'afficher que quatre mentions (disponible, stock limité, rupture, délai à confirmer). Le document du 1er septembre prime sur celui du 19 août et tranche contre le chapitre 4 de la Bible. La citation exacte est sous la question 48 : elle nomme le fournisseur, et cette projection est rendue dans un navigateur.',
 			'statement_fr' => 'La quantité exacte annoncée par le fournisseur est écrite sur chaque article, et rien ne décide encore comment la boutique l\'affiche.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Importer.php#manage_stock',
 			'reaches' => array(
@@ -338,16 +338,17 @@ return array(
 			'sessions' => array(
 				'08',
 				'09',
+				'13b',
 			),
 		),
 		array(
 			'id' => 'H-Q11-FRAICHEUR-STOCK',
 			'question' => 'Q11',
 			'level' => 'utile',
-			'status' => 'assumption',
+			'status' => 'answered',
 			'since' => '2026-08-19',
-			'answered' => null,
-			'answer_fr' => null,
+			'answered' => '2026-09-01',
+			'answer_fr' => 'Questions 11 et 48 : ne jamais publier au client le nombre exact de pièces que le fournisseur annonce, et n\'afficher que quatre mentions (disponible, stock limité, rupture, délai à confirmer). Le document du 1er septembre prime sur celui du 19 août et tranche contre le chapitre 4 de la Bible. La citation exacte est sous la question 48 : elle nomme le fournisseur, et cette projection est rendue dans un navigateur.',
 			'statement_fr' => 'Un relevé de stock de plus de 24 heures ne permet plus d’annoncer une disponibilité : la boutique affiche « Délai à confirmer » plutôt qu’un état qu’elle ne peut plus prouver.',
 			'home' => 'phpconst:Teeshoop\\Core\\Purchase::STOCK_TRUST_HOURS',
 			'reaches' => array(
@@ -359,6 +360,25 @@ return array(
 			'sessions' => array(
 				'08',
 				'09',
+				'13b',
+			),
+		),
+		array(
+			'id' => 'H-Q48-STOCK-LIMITE',
+			'question' => 'Q48',
+			'level' => 'important',
+			'status' => 'assumption',
+			'since' => '2026-09-02',
+			'answered' => null,
+			'answer_fr' => null,
+			'statement_fr' => 'Un stock fournisseur est dit « limité » sous 250 pièces, seuil non donné par l\'associé mais repris du seuil de devis, parce qu\'au-delà la commande passe de toute façon par un humain.',
+			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#quote_from_qty',
+			'reaches' => array(
+				'customer',
+			),
+			'cost_if_late' => 'reglage',
+			'sessions' => array(
+				'13b',
 			),
 		),
 		array(

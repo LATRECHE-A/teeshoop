@@ -795,7 +795,7 @@
 			"id": "H-Q11-STOCK-CHIFFRE",
 			"question": "Q11",
 			"level": "utile",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-14",
 			"statement_fr": "La quantité exacte annoncée par le fournisseur est écrite sur chaque article, et rien ne décide encore comment la boutique l'affiche.",
 			"home": "anchor:wp-plugins/teeshoop-core/includes/Importer.php#manage_stock",
@@ -810,17 +810,20 @@
 			"derives": [],
 			"sessions": [
 				"08",
-				"09"
+				"09",
+				"13b"
 			],
 			"cost_if_late": "reglage",
 			"shipped_matches_default": "Moitié, et la moitié qui diverge a été corrigée par la séance 08. La quantité exacte reste écrite sur l'article, parce que l'atelier en a besoin pour acheter, et ce qu'un client lit ne la contient pas : « Disponible », « Rupture, nous consulter » ou « Délai à confirmer », sans chiffre. « Rupture, nous consulter » n'est PAS le mot de la question 11, qui dit « délai allongé » : l'importateur pose backorders = no sur chaque article, donc WooCommerce refuse la commande qu'un « délai allongé » inviterait à passer. La formulation suit le comportement ; l'inverse serait une promesse que la boutique ne tient pas. La fenêtre au-delà de laquelle elle cesse d'annoncer une disponibilité est H-Q11-FRAICHEUR-STOCK.",
-			"label_fr": "Rupture, nous consulter"
+			"label_fr": "Rupture, nous consulter",
+			"answered": "2026-09-01",
+			"answer_fr": "Questions 11 et 48 : ne jamais publier au client le nombre exact de pièces que le fournisseur annonce, et n'afficher que quatre mentions (disponible, stock limité, rupture, délai à confirmer). Le document du 1er septembre prime sur celui du 19 août et tranche contre le chapitre 4 de la Bible. La citation exacte est sous la question 48 : elle nomme le fournisseur, et cette projection est rendue dans un navigateur."
 		},
 		{
 			"id": "H-Q11-FRAICHEUR-STOCK",
 			"question": "Q11",
 			"level": "utile",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-19",
 			"statement_fr": "Un relevé de stock de plus de 24 heures ne permet plus d’annoncer une disponibilité : la boutique affiche « Délai à confirmer » plutôt qu’un état qu’elle ne peut plus prouver.",
 			"home": "phpconst:Teeshoop\\Core\\Purchase::STOCK_TRUST_HOURS",
@@ -838,11 +841,38 @@
 			],
 			"sessions": [
 				"08",
-				"09"
+				"09",
+				"13b"
 			],
 			"cost_if_late": "reglage",
 			"label_fr": "Délai à confirmer",
-			"shipped_matches_default": "Aucune hypothèse par défaut ne donne de fenêtre. La question 11 demande une mention « disponible » ou « délai allongé » sans chiffre, ce qui suppose de savoir si le stock est encore vrai, et ne dit pas à partir de quand il cesse de l’être. Vingt-quatre heures est une journée de commandes des autres clients du fournisseur : au-delà, le nombre ne dit plus rien de son entrepôt."
+			"shipped_matches_default": "Aucune hypothèse par défaut ne donne de fenêtre. La question 11 demande une mention « disponible » ou « délai allongé » sans chiffre, ce qui suppose de savoir si le stock est encore vrai, et ne dit pas à partir de quand il cesse de l’être. Vingt-quatre heures est une journée de commandes des autres clients du fournisseur : au-delà, le nombre ne dit plus rien de son entrepôt.",
+			"answered": "2026-09-01",
+			"answer_fr": "Questions 11 et 48 : ne jamais publier au client le nombre exact de pièces que le fournisseur annonce, et n'afficher que quatre mentions (disponible, stock limité, rupture, délai à confirmer). Le document du 1er septembre prime sur celui du 19 août et tranche contre le chapitre 4 de la Bible. La citation exacte est sous la question 48 : elle nomme le fournisseur, et cette projection est rendue dans un navigateur."
+		},
+		{
+			"id": "H-Q48-STOCK-LIMITE",
+			"question": "Q48",
+			"level": "important",
+			"status": "assumption",
+			"since": "2026-09-02",
+			"statement_fr": "Un stock fournisseur est dit « limité » sous 250 pièces, seuil non donné par l'associé mais repris du seuil de devis, parce qu'au-delà la commande passe de toute façon par un humain.",
+			"home": "php:Teeshoop\\Core\\Pricing::default_config()#quote_from_qty",
+			"mirrors": [],
+			"literals": [],
+			"literals_why": "Le seuil n'a pas de valeur propre : il EST celui du devis, lu à l'exécution par `Shelf::thin_below()`. Un littéral ici serait précisément la seconde copie que cette dérivation évite, et `H-Q02-SEUIL-DEVIS-QTE` surveille déjà le nombre à son seul emplacement.",
+			"reaches": [
+				"customer"
+			],
+			"derives": [
+				"La mention affichée sur une fiche produit dont le fournisseur annonce peu de pièces."
+			],
+			"sessions": [
+				"13b"
+			],
+			"cost_if_late": "reglage",
+			"label_fr": "Stock limité, nous consulter",
+			"shipped_matches_default": "Il n'y avait pas de défaut écrit : la mention elle-même vient de la réponse à la question 48, le seuil n'en vient pas. L'associé donne les quatre mentions à afficher et aucun nombre. Choisir un chiffre ici aurait été inventer la promesse que la mention existe pour éviter, donc « limité » veut dire « sous ce qu'une commande réglée sans intervention humaine pourrait consommer », ce qui est exactement le seuil de devis. Les deux bougent ensemble, volontairement. Si l'associé donne son propre seuil, cette ligne devient une valeur à part entière et la dérivation disparaît."
 		},
 		{
 			"id": "H-Q08-SURFACE-ENCRE",
