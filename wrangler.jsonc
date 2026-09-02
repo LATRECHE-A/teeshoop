@@ -123,7 +123,7 @@
 		//
 		// Filled in at deploy: the shop's origin, once studio.teeshoop.com and the
 		// shop host are decided (session 14).
-		"SHOP_ORIGINS": ""
+		"SHOP_ORIGINS": "https://teeshoop.com https://www.teeshoop.com https://4bde-26076daa9357.wptiger.fr"
 	},
 	// AR model blob store. Create it once with:  wrangler r2 bucket create tshop-ar
 	// R2 has no per-object TTL. Add a lifecycle rule to expire the `ar/` prefix
