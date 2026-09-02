@@ -59,6 +59,14 @@
 # Une option de ligne de commande se tape sans y penser ; un fichier qu'il faut
 # créer et remplir avec la phrase de quelqu'un, non.
 #
+# ── COMMENT L'ÉPROUVER SANS RISQUE ──────────────────────────────────────────
+#
+# `scripts/purge-demo-fixture.php` pose sur le miroir local quatre images et
+# quatre façons de s'en servir, une par source que le contrôle doit lire. La
+# réponse attendue est « MÉDIAS : 2 à supprimer, 2 gardés », et son en-tête donne
+# les trois commandes. Trois des quatre versions de ce contrôle ont été fausses,
+# aucune ne l'était à la lecture, et les trois ont été trouvées par ce jeu d'essai.
+#
 # Sortie : 0 fait (ou simulé) · 1 quelque chose a échoué · 2 refus de tourner ici.
 
 set -euo pipefail
@@ -202,108 +210,116 @@ VARIATIONS=$(q "SELECT ID FROM ${P}posts WHERE post_type = 'product_variation'
 NBV=$(echo "$VARIATIONS" | wc -w)
 dire "VARIATIONS liées : $NBV"
 
-# Les médias : vignette et galerie de chaque produit visé, MOINS tout média
-# qu'un autre contenu utilise encore. Un média partagé avec une page vivante ne
-# se supprime pas parce qu'un produit disparaît.
-# Idem : une requête pour les vignettes et les galeries des 42 produits, au lieu
-# de 84 appels wp-cli.
-# LES IMAGES DES VARIATIONS COMPTENT AUSSI. Une variation porte sa propre
-# `_thumbnail_id`, et elle est supprimée dans la même passe que son parent. En ne
-# ramassant que les images des PRODUITS, ce script laissait derrière lui l'image
-# d'une variation condamnée : plus personne ne l'utilisait et personne ne la
-# retirait. Mesuré sur le miroir avec une variation fabriquée pour le cas :
-# 2 candidats trouvés au lieu de 3, et le troisième devenait orphelin.
-MEDIAS=$(q "SELECT meta_value FROM ${P}postmeta
-   WHERE meta_key IN ('_thumbnail_id','_product_image_gallery') AND meta_value <> ''
-     AND post_id IN ($(echo "$CIBLES $VARIATIONS" | tr -s ' ' ',' | sed 's/^,//;s/,$//'))" \
-  | tr ',' '\n' | tr -d ' ' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)
-# LA LISTE POUR SQL, CONSTRUITE UNE FOIS ET VÉRIFIÉE NON VIDE. Interpolée vide,
-# `NOT IN ()` est une erreur de syntaxe MySQL : la requête ne rend rien, `ailleurs`
-# vaut 0, et TOUS les médias sont classés « à supprimer ». Le garde-fou se
-# transformait en son contraire exactement quand il n'y avait rien à purger.
+# ── CE QUI DISPARAÎT, CONSTRUIT UNE SEULE FOIS ──────────────────────────────
+#
+# CIBLES_SQL sert aux termes (qui s'attachent aux produits et pas aux variations).
+# SUPPRIMES_SQL sert à tout le reste, et il est bâti UNE fois : la version
+# précédente le recomposait à deux endroits, et c'est précisément une divergence
+# entre les deux qui a produit le bogue des variations. Deux écritures d'une même
+# règle finissent par ne plus dire la même chose.
 CIBLES_SQL=$(echo "$CIBLES" | tr -s ' ' ',' | sed 's/^,//;s/,$//')
 [ -n "$CIBLES_SQL" ] || refus "la liste des produits visés est vide au moment de bâtir la requête : rien ne sera supprimé."
 
-# ── CE QUI DISPARAÎT N'EST PAS « AILLEURS » ─────────────────────────────────
-#
-# Les quatre requêtes ci-dessous demandent « cette image sert-elle à un contenu
-# qu'on GARDE ». Elles excluaient les 42 produits et pas leurs variations, qui
-# sont pourtant supprimées dans la même passe. Une variation porte sa propre
-# `_thumbnail_id` : une image qui ne sert qu'à une variation condamnée était donc
-# comptée comme « utilisée ailleurs » et gardée pour toujours, orpheline.
-#
-# Trouvé en recalculant la même chose par l'API REST, en HTTPS, pendant que le SSH
-# était fermé : le SQL comptait 9 images partagées, le REST 0. Les deux avaient
-# raison à leur question ; ce sont les questions qui différaient.
-SUPPRIMES_SQL=$(echo "$CIBLES $VARIATIONS" | tr -s ' ' ',' | sed 's/^,//;s/,$//')
+# Les révisions partent avec leur parent : `wp_delete_post` les supprime lui-même.
+# Elles doivent donc compter comme « ce qui disparaît », sinon une image citée
+# uniquement dans le corps d'une révision d'un produit condamné reste protégée
+# par un contenu qui n'existera plus.
+REVISIONS=$(q "SELECT ID FROM ${P}posts WHERE post_type = 'revision'
+   AND post_parent IN ($(echo "$CIBLES $VARIATIONS" | tr -s ' ' ',' | sed 's/^,//;s/,$//'))" | tr '\n' ' ' || true)
+SUPPRIMES_SQL=$(echo "$CIBLES $VARIATIONS $REVISIONS" | tr -s ' ' ',' | sed 's/^,//;s/,$//')
+dire "RÉVISIONS emportées : $(echo "$REVISIONS" | wc -w)"
+
+# Les médias candidats : vignette et galerie de tout ce qui disparaît, variations
+# comprises. Une variation porte sa propre `_thumbnail_id`, et ne ramasser que les
+# images des PRODUITS laissait derrière l'image d'une variation condamnée.
+MEDIAS=$(q "SELECT meta_value FROM ${P}postmeta
+   WHERE meta_key IN ('_thumbnail_id','_product_image_gallery') AND meta_value <> ''
+     AND post_id IN ($SUPPRIMES_SQL)" \
+  | tr ',' '\n' | tr -d ' ' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)
 
 GARDES_MEDIA=""
 SUPPR_MEDIA=""
 
-# ── QUELLES IMAGES SERVENT AILLEURS : QUATRE REQUÊTES D'ENSEMBLE ────────────
+# ── QUELLES IMAGES SERVENT AILLEURS ─────────────────────────────────────────
 #
-# Ce contrôle a été écrit trois fois et les deux premières étaient fausses, dans
-# la même direction, qui est la mauvaise.
+# Six sources, et CHACUNE porte son propre témoin.
 #
-#   1. La version d'origine ne regardait que `_thumbnail_id`. Une image encore en
-#      galerie d'un produit conservé, ou citée dans une page vivante, était donc
-#      effacée du disque avec son fichier.
-#   2. La deuxième posait UNE requête avec une liste `UNION ALL` et quatre
-#      `EXISTS`. `wp db query` ne rend AUCUN résultat pour cette forme, sans rien
-#      signaler. `$UTILISES` était vide, donc « aucune image n'est partagée »,
-#      donc les 69 étaient toutes classées à supprimer. Un contrôle témoin
-#      « SELECT 1 » ne l'a pas vu : il prouvait que la base répond, pas que MA
-#      requête répond. Une vérification indépendante a compté 9 images partagées.
+# Ce contrôle a été écrit quatre fois. La deuxième version posait une requête
+# d'une forme à laquelle `wp db query` ne rend AUCUNE ligne, sans rien signaler :
+# la lecture était vide, donc « aucune image n'est partagée », donc les 69 étaient
+# toutes classées à supprimer. La troisième a ajouté un témoin, mais un seul, et
+# il ne surveillait que la première des quatre sources ; les trois autres, dont
+# celle qui lit Elementor, pouvaient encore devenir muettes sans que rien ne le
+# dise. Et ce témoin unique était SAUTÉ quand il ne trouvait rien, ce qui rendait
+# la vérification facultative exactement quand elle devenait nécessaire.
 #
-# D'où cette forme-ci : quatre requêtes qui rendent chacune un ENSEMBLE, sur des
-# formes dont on a mesuré qu'elles rendent bien leurs lignes, et l'extraction des
-# identifiants faite ici plutôt qu'en SQL. Et un canari, plus bas, parce qu'un
-# contrôle dont l'échec ressemble à un succès doit porter sa propre preuve.
+# `lire_source` remplace tout cela : avant de lire, elle DEMANDE combien de lignes
+# la source devrait rendre. Si le compte est positif et la lecture vide, elle
+# refuse. C'est la règle de CLAUDE.md section 5, appliquée par source plutôt qu'une
+# fois pour toutes : « rien trouvé » et « rien regardé » sont deux résultats.
+lire_source() {
+  local nom="$1" compte vals n
+  compte=$(q "$3" | tr -d '[:space:]')
+  case "$compte" in ''|*[!0-9]*) refus "la source « $nom » ne sait pas dire combien de lignes elle contient : lecture non fiable, aucun média ne sera supprimé." ;; esac
+  vals=$(q "$2" || true)
+  n=$(printf '%s' "$vals" | grep -c . || true)
+  if [ "$compte" -gt 0 ] && [ "${n:-0}" -eq 0 ]; then
+    refus "la source « $nom » annonce $compte ligne(s) et n'en rend aucune : lecture non fiable, aucun média ne sera supprimé."
+  fi
+  printf '%s\n' "$vals"
+}
+
 if [ -n "$(echo "$MEDIAS" | tr -d ' ')" ]; then
 
-  # 1. Vignettes des contenus conservés.
-  U1=$(q "SELECT DISTINCT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
-          WHERE pm.meta_key = '_thumbnail_id' AND p.ID NOT IN ($SUPPRIMES_SQL)")
+  U1=$(lire_source "vignettes des contenus conservés" \
+    "SELECT DISTINCT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
+     WHERE pm.meta_key = '_thumbnail_id' AND pm.meta_value <> '' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
+    "SELECT COUNT(*) FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
+     WHERE pm.meta_key = '_thumbnail_id' AND pm.meta_value <> '' AND p.ID NOT IN ($SUPPRIMES_SQL)")
 
-  # 2. Galeries des produits conservés : des listes séparées par des virgules.
-  U2=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
-          WHERE pm.meta_key = '_product_image_gallery' AND pm.meta_value <> '' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
-       | tr ',' '\n')
+  U2=$(lire_source "galeries des produits conservés" \
+    "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
+     WHERE pm.meta_key = '_product_image_gallery' AND pm.meta_value <> '' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
+    "SELECT COUNT(*) FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
+     WHERE pm.meta_key = '_product_image_gallery' AND pm.meta_value <> '' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
+    | tr ',' '\n')
 
-  # 3. Le corps des contenus conservés : WordPress y écrit `wp-image-<id>`.
-  # `|| true` PARCE QU'UN grep QUI NE TROUVE RIEN REND 1. Sous
-  # `set -euo pipefail`, ce 1 remonte la chaîne et tue le script, donc l'absence
-  # de contenu citant une image, qui est le cas NORMAL, arrêtait la purge net.
-  # Mesuré sur le miroir : U3 vide, sortie 1, plus rien après « VARIATIONS liées ».
-  # C'est la deuxième fois de la séance que cette forme casse un script au moment
-  # exact où tout va bien ; la première était dans l'anonymiseur.
-  U3=$(q "SELECT post_content FROM ${P}posts WHERE ID NOT IN ($SUPPRIMES_SQL)
-          AND post_status NOT IN ('trash','auto-draft') AND post_content LIKE '%wp-image-%'" \
-       | grep -oE 'wp-image-[0-9]+' | cut -d- -f3 || true)
+  U3=$(lire_source "corps des contenus conservés" \
+    "SELECT post_content FROM ${P}posts WHERE ID NOT IN ($SUPPRIMES_SQL)
+     AND post_status NOT IN ('trash','auto-draft') AND post_content LIKE '%wp-image-%'" \
+    "SELECT COUNT(*) FROM ${P}posts WHERE ID NOT IN ($SUPPRIMES_SQL)
+     AND post_status NOT IN ('trash','auto-draft') AND post_content LIKE '%wp-image-%'" \
+    | grep -oE 'wp-image-[0-9]+' | cut -d- -f3 || true)
 
-  # 4. Elementor, qui ne met rien dans post_content et tout dans une meta. La
-  #    page d'accueil de cette boutique est une page Elementor de démonstration
-  #    de meubles : c'est le contenu le plus susceptible de partager une image
-  #    avec un produit purgé.
-  U4=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
-          WHERE pm.meta_key = '_elementor_data' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
-       | grep -oE '\"id\":[0-9]+' | cut -d: -f2 || true)
+  U4=$(lire_source "données Elementor des contenus conservés" \
+    "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
+     WHERE pm.meta_key = '_elementor_data' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
+    "SELECT COUNT(*) FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
+     WHERE pm.meta_key = '_elementor_data' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
+    | grep -oE '\"id\":[0-9]+' | cut -d: -f2 || true)
 
-  UTILISES=$(printf '%s\n%s\n%s\n%s\n' "$U1" "$U2" "$U3" "$U4" | tr -d ' ' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)
+  # LES IMAGES DE CATÉGORIE NE SONT PAS DANS postmeta. WooCommerce range la
+  # vignette d'une catégorie de produits dans `termmeta`, pas dans `postmeta` :
+  # aucune des quatre sources ci-dessus ne la voyait. Sur une boutique dont le
+  # contenu vient d'une démonstration de meubles, une image de catégorie EST
+  # couramment aussi l'image d'un produit de cette démonstration, et elle serait
+  # partie du disque avec lui.
+  U5=$(lire_source "vignettes de catégories (termmeta)" \
+    "SELECT meta_value FROM ${P}termmeta WHERE meta_key = 'thumbnail_id' AND meta_value <> ''" \
+    "SELECT COUNT(*) FROM ${P}termmeta WHERE meta_key = 'thumbnail_id' AND meta_value <> ''")
 
-  # ── LE CANARI ───────────────────────────────────────────────────────────────
-  #
-  # Une vignette d'un contenu CONSERVÉ, choisie dans la base. Elle doit
-  # obligatoirement ressortir de la requête 1. Si elle n'y est pas, c'est que
-  # cette lecture ne rend pas ce qu'elle devrait, et « aucune image partagée »
-  # serait alors une lecture ratée et non un résultat. On refuse.
-  CANARI=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
-              WHERE pm.meta_key = '_thumbnail_id' AND p.ID NOT IN ($SUPPRIMES_SQL) AND pm.meta_value <> '' LIMIT 1" | tr -d ' ')
-  if [ -n "$CANARI" ]; then
-    trouve=0
-    for u in $UTILISES; do [ "$u" = "$CANARI" ] && trouve=1; done
-    [ "$trouve" -eq 1 ] || refus "le contrôle des médias partagés ne retrouve pas son propre témoin ($CANARI) : la lecture est fausse, aucun média ne sera supprimé."
-  fi
+  # Et les réglages : logo, favicon, images du thème. Volontairement large, parce
+  # qu'un identifiant retenu à tort ne fait que CONSERVER une image, ce qui est le
+  # sens dans lequel ce contrôle a le droit de se tromper.
+  U6=$(lire_source "réglages du site (options)" \
+    "SELECT option_value FROM ${P}options WHERE option_name = 'site_icon'
+        OR option_name LIKE 'theme_mods_%' OR option_name LIKE '%_image_id' OR option_name LIKE '%_logo%'" \
+    "SELECT COUNT(*) FROM ${P}options WHERE option_name = 'site_icon'
+        OR option_name LIKE 'theme_mods_%' OR option_name LIKE '%_image_id' OR option_name LIKE '%_logo%'" \
+    | grep -oE '[0-9]{1,10}' || true)
+
+  UTILISES=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$U1" "$U2" "$U3" "$U4" "$U5" "$U6" \
+    | tr -d ' ' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)
 
   for m in $MEDIAS; do
     garde=0
@@ -355,15 +371,34 @@ fi
 # ── SUPPRIMER ───────────────────────────────────────────────────────────────
 dire ""
 dire "SUPPRESSION ..."
-N=0
-for id in $VARIATIONS; do wp post delete "$id" --force >/dev/null 2>&1 && N=$((N+1)); done
-dire "  $N variation(s)"
-N=0
-for id in $CIBLES; do wp post delete "$id" --force >/dev/null 2>&1 && N=$((N+1)); done
-dire "  $N produit(s)"
-N=0
-for id in $SUPPR_MEDIA; do wp post delete "$id" --force >/dev/null 2>&1 && N=$((N+1)); done
-dire "  $N média(s)"
+
+# L'ORDRE N'EST PAS LIBRE : variations, produits, PUIS un contrôle, PUIS les
+# médias. Une image n'est classée « à supprimer » que parce que les seuls
+# contenus qui la citaient disparaissent dans cette passe. Si l'un d'eux SURVIT à
+# sa suppression (fatal PHP, verrou, coupure ssh au milieu), l'image est encore
+# utilisée et l'effacer casse ce qui reste : `wp_delete_attachment` retire en plus
+# la ligne `_thumbnail_id` du survivant, donc on perd le fichier ET le lien.
+# Les suppressions avalent leur sortie et ne s'arrêtent pas sur un échec, ce qui
+# est voulu pour ne pas laisser une purge à moitié faite ; c'est justement pour
+# ça que le compte doit être vérifié avant d'aller plus loin.
+N_VAR=0
+for id in $VARIATIONS; do wp post delete "$id" --force >/dev/null 2>&1 && N_VAR=$((N_VAR+1)); done
+dire "  $N_VAR variation(s) sur $NBV"
+N_PROD=0
+for id in $CIBLES; do wp post delete "$id" --force >/dev/null 2>&1 && N_PROD=$((N_PROD+1)); done
+dire "  $N_PROD produit(s) sur $NB"
+
+if [ "$N_VAR" -ne "$NBV" ] || [ "$N_PROD" -ne "$NB" ]; then
+  dire "ARRÊT : $((NBV - N_VAR)) variation(s) et $((NB - N_PROD)) produit(s) n'ont pas été supprimés."
+  dire "Aucun média ne sera touché : ils n'étaient candidats que parce que tout ce qui les"
+  dire "citait devait disparaître, et ce n'est plus vrai. Les produits déjà retirés sont dans"
+  dire "$WXR et dans la sauvegarde prise au début."
+  echec "suppression incomplète, les médias sont laissés en place"
+fi
+
+N_MED=0
+for id in $SUPPR_MEDIA; do wp post delete "$id" --force >/dev/null 2>&1 && N_MED=$((N_MED+1)); done
+dire "  $N_MED média(s) sur $(echo "$SUPPR_MEDIA" | wc -w)"
 
 # LES TERMES QUE CETTE PURGE A VIDÉS, ET PAS TOUS LES TERMES VIDES.
 #
