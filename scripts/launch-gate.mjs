@@ -349,10 +349,23 @@ function shopCommand(target) {
    */
   const commun = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20']
   if (target.kind === 'deploy') {
-    // Le verbe `verdict` de deploiement.sh fait `cd <racine> && wp teeshoop
-    // lancement --porcelaine` de l'autre côté. Même charge utile, même marqueurs,
-    // et c'est une des huit choses que la clé restreinte a le droit de lancer.
-    return { cmd: 'ssh', args: [...commun, target.host, `verdict ${target.env}`] }
+    /*
+     * `./deploiement.sh verdict <env>` ET NON `verdict <env>`, POUR QUE LA MÊME
+     * LIGNE MARCHE AVEC LES DEUX CLÉS.
+     *
+     * Avec la clé de déploiement, `command=` remplace la commande demandée et le
+     * script retire lui-même ce préfixe : les deux formes arrivent au même verbe.
+     * Avec la clé ordinaire d'un développeur il n'y a pas de commande forcée, et
+     * `verdict preprod` est alors une commande shell qui n'existe pas : le
+     * portail lisait « boutique injoignable » et sortait 2 sur une boutique
+     * parfaitement joignable. Mesuré le 02/09/2026, en croyant à une régression
+     * de la préproduction.
+     *
+     * Le même alias d'hôte ne porte donc pas la même clé selon la machine, et
+     * c'est exactement le genre de différence qu'une procédure ne doit pas avoir
+     * à connaître.
+     */
+    return { cmd: 'ssh', args: [...commun, target.host, `./deploiement.sh verdict ${target.env}`] }
   }
   return {
     cmd: 'ssh',

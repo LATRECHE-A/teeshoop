@@ -130,16 +130,33 @@ que le miroir.
 
 | | Miroir (docker) | Préproduction (WP Tiger) | Production (teeshoop.com) |
 |---|---|---|---|
-| Code de sortie | **1** | **2** | **2** |
-| Boutique jointe | oui | **non** | **non** |
+| Code de sortie | **1** | **1** | **2** |
+| Boutique jointe | oui | oui | **non** |
 | `registre` | 13 | 13 | 13 |
 | `tva` | 1 | 1 | 1 |
 | `mediation` | 1 | 1 | 1 |
-| `editeur` | 4 | non regardé | non regardé |
-| `cgv` | 2 | non regardé | non regardé |
-| `textile-nu` | 6 | non regardé | non regardé |
-| `identite` | 0 | non regardé | non regardé |
-| **Total** | **27** | **16** | **16** |
+| `editeur` | 0 | 0 | non regardé |
+| `cgv` | 2 | 2 | non regardé |
+| `textile-nu` | 6 | 0 | non regardé |
+| `identite` | 0 | 0 | non regardé |
+| **Total** | **23** | **17** | **16** |
+
+**Ce tableau a bougé deux fois dans la journée du 2 septembre**, et les deux
+mouvements se lisent :
+
+- la préproduction est passée de 16 à 33 quand l'extension y a été déployée. Le 33
+  n'était pas une régression : c'est le premier chiffre INFORMÉ, cinq conditions
+  ayant enfin pu être regardées ;
+- puis de 33 à 17 quand l'identité légale et celle de l'hébergeur y ont été
+  posées. Les quatre champs de l'hébergeur ont été lus sur les conditions
+  générales publiées par o2switch (`https://www.o2switch.fr/cgv/`), qui est la
+  source que `ACCES-REQUIS.md` §6 quater désigne. Une recherche générale rendait
+  deux SIRET différents ; c'est la page contractuelle qui tranche, et rien n'a été
+  écrit avant de l'avoir lue.
+
+Le miroir est passé de 27 à 23 par le même geste (`editeur` 4 puis 0). Il garde
+ses 6 refus de `textile-nu` que la préproduction n'a pas, parce que ses produits
+personnalisables sont ceux du catalogue importé.
 
 **Le 16 des deux colonnes de droite n'est pas meilleur que le 27, il est moins informé.**
 Quinze refus viennent du registre, qui est le même fichier pour les trois, et le seizième

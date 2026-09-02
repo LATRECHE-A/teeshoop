@@ -82,13 +82,17 @@ Rejoué contre chaque installation, ce qui n'avait jamais été fait.
 |---|---|---|---|
 | Sortie | 1 | 1 | **2** |
 | Boutique jointe | oui | oui | **non** |
-| Total | 27 | **33** | 16 |
+| Total | **23** | **17** | 16 |
 
 **Le 16 de la production n'est pas meilleur, il est moins informé** : l'extension
 n'y est pas déployée, donc cinq conditions sur huit ne sont pas regardées et le
-portail sort 2 pour le dire. Le 33 de la préproduction est le chiffre à comparer
-en séance 15 ; il est plus grand que celui du miroir parce que l'identité légale
-et l'hébergeur sont renseignés sur le miroir **et sur le miroir seulement**.
+portail sort 2 pour le dire.
+
+**Le 17 de la préproduction est le chiffre à comparer en séance 15.** Il est
+passé de 16 à 33 quand l'extension y a été déployée (cinq conditions enfin
+regardées), puis de 33 à 17 quand l'identité légale et celle de l'hébergeur y ont
+été posées. Ce qui reste s'y lit en une ligne : 13 lignes du registre, la TVA, la
+médiation et les deux des conditions générales. **Aucune n'est du code.**
 
 ---
 

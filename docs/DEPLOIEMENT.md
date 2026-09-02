@@ -15,7 +15,7 @@ suivi ligne à ligne, sans rien deviner.
 | Je veux | Je fais |
 |---|---|
 | Livrer en préproduction | Rien. Un `push` sur `main` le fait tout seul. |
-| Livrer en production | GitHub, onglet **Actions**, *Déploiement*, **Run workflow**, cible `prod`. Aujourd'hui **ça refuse**, et c'est voulu : voir §6. |
+| Livrer en production | GitHub, onglet **Actions**, *Déploiement*, **Run workflow**, cible `prod`, et taper `DEPLOYER-EN-PRODUCTION` dans « confirmation ». Aujourd'hui **ça refuse**, et c'est voulu : voir §6. |
 | Annuler la dernière livraison | `ssh teeshoop './deploiement.sh retour preprod'` · **3 secondes** |
 | Tout remettre comme avant-hier | §7, la restauration de base · **18 secondes** |
 | Savoir où en est une installation | `ssh teeshoop './deploiement.sh etat preprod'` |
@@ -371,6 +371,9 @@ la valeur qu'il vient d'écrire, ce qui est exactement l'incident du 14 août.
 
 ## 11. Poser les secrets GitHub, une fois
 
+**C'est fait, le 2 septembre 2026.** Les quatre secrets sont posés sur
+`LATRECHE-A/teeshoop`. Pour mémoire, et pour le jour où il faudra les refaire :
+
 ```bash
 # La partie publique est déjà dans ~/.ssh/authorized_keys du compte o2switch.
 gh secret set O2SWITCH_DEPLOY_KEY  < ~/.config/teeshoop/deploy_o2switch
@@ -384,9 +387,39 @@ ssh-keyscan -t ed25519 ascaphus.o2switch.net | gh secret set O2SWITCH_KNOWN_HOST
 identique à celle acceptée le 14/08. Si `ssh-keyscan` en rend une autre un jour,
 ne pas la poser : quelque chose s'est passé.
 
-Puis, dans GitHub → Settings → **Environments**, créer `production` et y exiger
-une validation manuelle. C'est là que vit la liste des personnes autorisées, et
-non dans un fichier du dépôt.
+### La validation manuelle n'est pas disponible sur ce forfait
+
+L'environnement `production` existe. La règle « validation requise » qui devait
+l'accompagner a été demandée par l'API le 02/09/2026 et **refusée** :
+
+```
+Failed to create the environment protection rule.
+Please ensure the billing plan supports the required reviewers protection rule.
+```
+
+Les règles de protection d'environnement ne sont pas comprises dans le forfait de
+ce dépôt privé. L'environnement ne protège donc rien aujourd'hui, et il ne faut
+pas lire sa présence comme une garantie.
+
+**Ce qui tient lieu de garde-fou à la place**, par ordre de solidité :
+
+1. **Le portail de mise en ligne**, qui refuse la production sans dérogation
+   possible. C'est la vraie porte, et elle ne dépend d'aucun forfait.
+2. **Le travail ne part que sur une action manuelle** avec la cible `prod`.
+3. **Une phrase à taper**, `DEPLOYER-EN-PRODUCTION`, dans le champ
+   « confirmation ». Ce n'est **pas** une validation par un tiers : cela
+   n'empêche pas quelqu'un qui a le droit de lancer le travail de le lancer, cela
+   empêche de le faire en changeant une liste déroulante sans y penser.
+
+Le jour où le dépôt passe sur un forfait qui les autorise, la règle se pose en
+une commande et la phrase à taper devient superflue :
+
+```bash
+gh api -X PUT repos/LATRECHE-A/teeshoop/environments/production \
+  --input - <<'JSON'
+{"wait_timer":0,"reviewers":[{"type":"User","id":186862308}],"deployment_branch_policy":null}
+JSON
+```
 
 ---
 

@@ -628,7 +628,7 @@ est une information qui part en production.
 
 | Quoi | Où le trouver | Qui |
 |---|---|---|
-| L'identité légale de l'hébergeur : raison sociale, adresse postale, téléphone | Le contrat o2switch, ou les mentions légales publiées par o2switch sur son propre site | Le développeur, en cinq minutes |
+| ~~L'identité légale de l'hébergeur~~ | **FAIT le 02/09/2026**, lue sur `https://www.o2switch.fr/cgv/` : o2switch, SAS au capital de 100 000 EUR, Chemin des Pardiaux, 63000 Clermont-Ferrand, 04 44 44 60 40 | fait |
 | L'avenant de traitement des données (RGPD article 28) de Cloudflare, Stripe et o2switch | L'espace client de chacun. Chez les trois, c'est une case à cocher ou un document à télécharger | Le développeur, un après-midi |
 | Le compte Brevo, et son avenant de traitement | Le compte n'existe pas encore (§7 le classe en R4). Il faudra le créer AVANT la mise en ligne, parce que Brevo reçoit le corps des messages, ce qui inclut le lien de validation d'un bon à tirer | À arbitrer |
 
@@ -976,13 +976,26 @@ L'empreinte de l'hôte relevée le 02/09 est
 `SHA256:nHdxcvdj7qiM/kw9U6APKA0hisP59ArTdYo56UottFo`, identique à celle acceptée
 le 14/08. Si `ssh-keyscan` en rend une autre un jour, ne pas la poser.
 
-Puis GitHub → Settings → **Environments** → créer `production` avec une validation
-manuelle. C'est là que vit la liste des personnes autorisées à mettre en
-production, et pas dans un fichier du dépôt.
+**FAIT le 02/09/2026.** Les quatre secrets sont posés sur `LATRECHE-A/teeshoop`,
+et la clé d'hôte a été comparée à celle acceptée le 14/08 avant d'être écrite :
+même empreinte `SHA256:nHdxcvdj7qiM/kw9U6APKA0hisP59ArTdYo56UottFo`.
 
-`CLOUDFLARE_API_TOKEN` reste à créer aussi, pour le travail « studio », qui est
-manuel et le restera tant qu'il n'y aura qu'un seul Worker pour les deux
-environnements.
+**L'environnement `production` existe, et il ne protège rien.** La règle
+« validation requise » a été demandée par l'API et refusée :
+
+```
+Failed to create the environment protection rule.
+Please ensure the billing plan supports the required reviewers protection rule.
+```
+
+Les règles de protection d'environnement ne font pas partie du forfait de ce
+dépôt privé. Le fichier de déploiement porte donc une phrase à taper
+(`DEPLOYER-EN-PRODUCTION`) qui n'est **pas** l'équivalent d'une validation par un
+tiers : elle empêche un geste distrait, pas une décision. La vraie porte reste le
+portail de mise en ligne, qui n'a pas de dérogation. Voir `docs/DEPLOIEMENT.md` §11.
+
+`CLOUDFLARE_API_TOKEN` reste à créer, pour le travail « studio », qui est manuel
+et le restera tant qu'il n'y aura qu'un seul Worker pour les deux environnements.
 
 ### Les trois boîtes aux lettres n'existent pas
 

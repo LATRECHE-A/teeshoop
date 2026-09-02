@@ -48,6 +48,11 @@ on:
         # environnements. On choisit donc l'un OU l'autre, jamais les deux d'un
         # même geste.
         options: [preprod, prod, studio]
+      confirmation:
+        description: "Pour « prod » seulement : taper DEPLOYER-EN-PRODUCTION"
+        required: false
+        default: ""
+
 
 concurrency:
   # Deux déploiements simultanés sur la même installation échangent deux fois le
@@ -150,6 +155,37 @@ jobs:
     # dans ce fichier. À créer : Settings > Environments > production.
     environment: production
     steps:
+      # ── LA VALIDATION MANUELLE, ÉCRITE ICI PARCE QUE GITHUB LA REFUSE ────────
+      #
+      # `environment: production` ci-dessus devait porter une règle « validation
+      # requise ». Elle a été demandée par l'API le 02/09/2026 et refusée :
+      #
+      #   Failed to create the environment protection rule. Please ensure the
+      #   billing plan supports the required reviewers protection rule.
+      #
+      # Les règles de protection d'environnement ne sont pas comprises dans le
+      # forfait de ce dépôt privé. L'environnement existe donc et ne protège
+      # rien, et un document qui promettrait le contraire serait faux.
+      #
+      # À la place, une phrase à taper. Ce n'est pas équivalent à une validation
+      # par un tiers, et il ne faut pas le lire comme tel : cela n'empêche pas
+      # quelqu'un qui a le droit de lancer le travail de le lancer. Cela empêche
+      # de le faire par inadvertance, en changeant une liste déroulante sans y
+      # penser. La vraie porte reste le portail de mise en ligne, deux étapes
+      # plus bas, qui refuse et n'a pas de dérogation.
+      - name: Confirmer que la production est bien voulue
+        run: |
+          set -euo pipefail
+          ATTENDU='DEPLOYER-EN-PRODUCTION'
+          RECU='${{ github.event.inputs.confirmation }}'
+          if [ "$RECU" != "$ATTENDU" ]; then
+            echo "Déploiement en PRODUCTION demandé sans confirmation."
+            echo "Relancez le travail en tapant $ATTENDU dans le champ « confirmation »."
+            echo "Rien n'a été envoyé, rien n'a été touché."
+            exit 1
+          fi
+          echo "Confirmation reçue. La suite reste soumise au portail de mise en ligne."
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
