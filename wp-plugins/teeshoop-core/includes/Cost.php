@@ -856,6 +856,30 @@ final class Cost {
 	 * the smallest orders and a 5 % one on the largest: a provision is an
 	 * expected loss carried in cents, not a sheet anybody buys.
 	 */
+	/**
+	 * How many sheets a length of nested film occupies. NULL when it cannot be said.
+	 *
+	 * ONE PLACE, BECAUSE THERE WERE TWO. `Costing` computed this expression a
+	 * second time to put a unit on the pooled report, without the minimum and
+	 * without the refusal below, so a film block whose billing step and sheet
+	 * height disagree made the engine refuse to cost the order and made the
+	 * report print a confident number of sheets for it, from the same
+	 * configuration, on the same screen. The two would have diverged the first
+	 * time somebody edited a dimension on the cost screen.
+	 *
+	 * Null rather than zero, for the reason this whole engine exists: zero
+	 * sheets and « we cannot count sheets » are opposite facts and add up the
+	 * same way.
+	 */
+	public static function sheets_for( float $metres, array $film ): ?int {
+		$height = (float) ( $film['max_length_cm'] ?? 0 );
+		$step   = (float) ( $film['billing_step_cm'] ?? 0 );
+		if ( $height <= 0 || abs( $step - $height ) > 0.01 ) {
+			return null;
+		}
+		return (int) ceil( max( 0.0, $metres ) * 100 / $height - 1e-9 );
+	}
+
 	private static function film_sheets( float $nested_m, array $film ): array {
 		$sheet_ht = (int) ( $film['sheet_ht'] ?? 0 );
 		$height   = (float) ( $film['max_length_cm'] ?? 0 );
@@ -917,7 +941,9 @@ final class Cost {
 			);
 		}
 
-		$needed = (int) ceil( max( 0.0, $nested_m ) * 100 / $height - 1e-9 );
+		// Cannot be null here: the three refusals above already cover every case
+		// in which `sheets_for` declines to answer.
+		$needed = (int) self::sheets_for( $nested_m, $film );
 		$billed = max( $min, $needed );
 
 		$sheets_ht = $billed * $sheet_ht;

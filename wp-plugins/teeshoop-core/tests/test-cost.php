@@ -398,6 +398,33 @@ describe( 'Cost: the film when the supplier sells sheets', function () use ( $ts
 		eq( Cost::film( 1.38, $ts_cost_config )['billed_sheets'], 3, 'and exactly three is still three' );
 	} );
 
+	it( 'counts sheets in one place, and declines rather than answering 0', function () use ( $ts_cost_config ) {
+		/*
+		 * The expression lived in `Cost::film_sheets()` AND in `Costing`, where
+		 * it had neither the supplier minimum nor the refusal, so one
+		 * configuration could make the engine refuse to cost an order while the
+		 * report printed a confident number of sheets for it. One home now, and
+		 * this is the test that says the home answers « I cannot » instead of
+		 * zero, which is the difference the whole engine turns on.
+		 */
+		$film = (array) $ts_cost_config['film'];
+		eq( Cost::sheets_for( 0.93, $film ), 3, 'the same ceiling the engine bills' );
+		eq( Cost::sheets_for( 0.0, $film ), 0, 'no film is no sheets, before the minimum applies' );
+
+		$broken = $film;
+		$broken['billing_step_cm'] = 100.0;
+		truthy( null === Cost::sheets_for( 2.0, $broken ), 'a step that is not the sheet height cannot be counted' );
+
+		$flat = $film;
+		$flat['max_length_cm'] = 0.0;
+		truthy( null === Cost::sheets_for( 2.0, $flat ), 'a sheet with no height cannot be counted' );
+
+		// And the two ends agree on the same config, which is the property the
+		// second copy was quietly free to break.
+		$engine = Cost::film( 1.37, $ts_cost_config );
+		eq( Cost::sheets_for( 1.37, $film ), $engine['needed_sheets'], 'helper and engine count the same sheets' );
+	} );
+
 	it( 'says when an order is paying the supplier minimum', function () use ( $ts_cost_config ) {
 		$tiny = Cost::film( 0.0, $ts_cost_config );
 		eq( $tiny['billed_sheets'], 1, 'you cannot buy a third of a sheet' );

@@ -225,10 +225,18 @@ final class Costing {
 		$geometry = (array) ( $config['film'] ?? array() );
 
 		if ( 'sheet' === (string) ( $film['billing'] ?? 'roll' ) ) {
+			/*
+			 * A sheet count of null is a film block that cannot express sheets,
+			 * not an order that needs none. Saying « 0 feuille(s) » next to a
+			 * charge would be the report contradicting the bill it describes.
+			 */
+			if ( null === ( $film['billed_sheets'] ?? null ) ) {
+				return __( 'le nombre de feuilles n’a pas pu être établi : la géométrie de la feuille et le pas de facturation ne s’accordent pas', 'teeshoop' );
+			}
 			return sprintf(
 				/* translators: 1: number of sheets, 2: sheet width in cm, 3: sheet height in cm, 4: the price of one sheet. */
 				__( '%1$s feuille(s) de %2$s x %3$s cm, à %4$s la feuille', 'teeshoop' ),
-				Money::number( (float) ( $film['billed_sheets'] ?? 0 ), 0 ),
+				Money::number( (float) $film['billed_sheets'], 0 ),
 				Money::number( (float) ( $geometry['width_cm'] ?? 0 ), 0 ),
 				Money::number( (float) ( $geometry['max_length_cm'] ?? 0 ), 0 ),
 				Money::format( (int) $film['rate_ht'] )
@@ -788,14 +796,23 @@ final class Costing {
 			 * apart, which they had: one had been moved to sheets and the other
 			 * still said metres for the same purchase.
 			 */
-			$pooled_m   = (float) ( $lot['pooled_m'] ?? 0.0 );
-			$sheet_h_cm = (float) ( $config['film']['max_length_cm'] ?? 0 );
+			$pooled_m = (float) ( $lot['pooled_m'] ?? 0.0 );
+			/*
+			 * ASKED OF `Cost`, NOT RECOMPUTED HERE. This line used to carry its
+			 * own `ceil( m * 100 / height )`, without the supplier minimum and
+			 * without the refusal that `Cost::film()` applies to an incoherent
+			 * tariff, so the same configuration could make the engine refuse to
+			 * cost an order and make this report print a confident sheet count
+			 * for it. Null means the film block cannot express sheets at all,
+			 * and the sentence below says so rather than printing 0.
+			 */
+			$sheets     = Cost::sheets_for( $pooled_m, (array) ( $config['film'] ?? array() ) );
 			$film       = array(
 				'origin'    => (string) ( $lot['origin'] ?? 'fr' ),
 				'lot_id'    => (int) $lot['lot_id'],
 				'billed_m'  => $pooled_m,
 				'billing'   => (string) ( $config['film']['billing'] ?? 'roll' ),
-				'billed_sheets' => $sheet_h_cm > 0 ? (int) ceil( $pooled_m * 100 / $sheet_h_cm - 1e-9 ) : 0,
+				'billed_sheets' => $sheets,
 				'solo_m'    => (float) ( $lot['solo_m'] ?? 0.0 ),
 				'solo_ht'   => (int) ( $lot['solo_ht'] ?? 0 ),
 				'amount_ht' => (int) ( $lot['share_ht'] ?? 0 ),
@@ -815,7 +832,7 @@ final class Costing {
 				 * answer it described metres against an invoice counting sheets.
 				 * Found by the adversarial pass.
 				 */
-				'sheet' === $film['billing']
+				'sheet' === $film['billing'] && null !== $film['billed_sheets']
 					? sprintf(
 						/* translators: 1: how many orders shared the film, 2: number of sheets, 3: the lot number. */
 						__( 'Part de %1$d commandes imbriquées ensemble sur %2$s feuille(s) de film (lot n° %3$d)', 'teeshoop' ),

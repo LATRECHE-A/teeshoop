@@ -865,9 +865,10 @@ final class Cli {
 			 * sheets: a line an operator holds against a real document has to name
 			 * the thing the document counts. Found by the adversarial pass.
 			 */
-			$sheets = 'sheet' === (string) ( $report['film']['billing'] ?? 'roll' );
+			$sheets = 'sheet' === (string) ( $report['film']['billing'] ?? 'roll' )
+				&& null !== ( $report['film']['billed_sheets'] ?? null );
 			$amount = $sheets
-				? Money::number( (float) ( $report['film']['billed_sheets'] ?? 0 ), 0 ) . ' feuille(s)'
+				? Money::number( (float) $report['film']['billed_sheets'], 0 ) . ' feuille(s)'
 				: Money::number( (float) $report['film']['billed_m'], 2 ) . ' m';
 			\WP_CLI::log(
 				empty( $report['film']['pooled'] )
