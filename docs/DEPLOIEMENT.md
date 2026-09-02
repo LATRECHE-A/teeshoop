@@ -395,13 +395,21 @@ non dans un fichier du dépôt.
 - **La production n'a reçu ni l'extension ni le thème.** Le portail refuse, et
   c'est le comportement voulu.
 - **Les produits de démonstration ne sont supprimés nulle part**, ni en
-  production ni en préproduction. `purge-demo.sh` a tourné en SIMULATION sur la
-  préproduction et sa sélection est juste (42 produits, 13 variations, les cinq
-  vrais produits épargnés). Mais son contrôle « cette image sert-elle ailleurs »
-  a été corrigé APRÈS cette simulation, et la simulation de contrôle n'a pas pu
-  être rejouée : le SSH s'est fermé (§6 octies de `ACCES-REQUIS.md`).
-  **À rejouer avant tout `--faire`**, et à comparer aux neuf images partagées
-  qu'une vérification indépendante a comptées :
+  production ni en préproduction. Ce qui est prouvé et ce qui ne l'est pas :
+
+  **Prouvé.** La sélection, sur la préproduction : 42 produits, 13 variations,
+  les cinq vrais produits épargnés, 15 commandes inchangées. Et le contrôle
+  « cette image sert-elle ailleurs », corrigé après cette simulation, a été
+  éprouvé sur le miroir local contre un vrai WooCommerce, avec trois produits
+  fabriqués pour l'occasion dont une image est aussi celle d'une page conservée :
+  **2 à supprimer, 1 gardée**, exactement ce qu'il fallait. Le canari a été
+  vérifié en cassant la première requête exprès : le script REFUSE au lieu de
+  conclure qu'aucune image n'est partagée.
+
+  **Pas prouvé.** Le script complet contre les 42 vrais produits de la
+  préproduction, avec son contrôle corrigé. Le SSH s'est fermé avant (§6 octies
+  de `ACCES-REQUIS.md`). **À rejouer avant tout `--faire`**, et à comparer aux
+  neuf images partagées qu'une vérification indépendante a comptées :
 
   ```bash
   scp scripts/purge-demo.sh teeshoop:~/ && ssh teeshoop 'chmod 755 ~/purge-demo.sh'

@@ -98,13 +98,21 @@ et l'hébergeur sont renseignés sur le miroir **et sur le miroir seulement**.
 dérogation, et c'est le comportement voulu. Ce n'est pas un travail à finir :
 c'est la porte qui fait son travail.
 
-**La purge de démonstration n'a été jouée qu'en simulation, et sa dernière
-version n'a pas été rejouée.** La sélection est juste et mesurée (42 produits,
-13 variations, les cinq vrais produits épargnés, 15 commandes inchangées). Mais
-le contrôle « cette image sert-elle ailleurs » a été corrigé APRÈS cette
-simulation, et le SSH s'est fermé avant qu'elle puisse être refaite. **À rejouer
-avant tout `--faire`**, et à comparer aux **neuf images partagées** qu'une
-vérification indépendante a comptées. Rien n'a été supprimé nulle part.
+**La purge de démonstration n'a jamais supprimé quoi que ce soit, nulle part.**
+Sa sélection est juste et mesurée sur la préproduction : 42 produits, 13
+variations, les cinq vrais produits épargnés, 15 commandes inchangées.
+
+Son contrôle « cette image sert-elle ailleurs » a été corrigé après cette
+simulation, et le SSH s'est fermé avant qu'elle puisse être refaite. Il a donc
+été éprouvé **sur le miroir local**, contre un vrai WooCommerce, avec trois
+produits fabriqués pour l'occasion dont une image sert aussi à une page
+conservée : **2 à supprimer, 1 gardée**, ce qui est la bonne réponse. Et le
+canari a été vérifié en cassant la première requête exprès : le script refuse au
+lieu de conclure que rien n'est partagé.
+
+Ce qui reste à faire est donc précis : **rejouer le script contre les 42 vrais
+produits de la préproduction**, et comparer aux **neuf images partagées** qu'une
+vérification indépendante a comptées là-bas. Avant tout `--faire`.
 
 **Fancy Product Designer n'est pas désactivé**, et `docs/FANCY-PRODUCT-DESIGNER.md`
 dit pourquoi il peut l'être sans rien perdre : aucune commande n'en dépend,
@@ -170,7 +178,9 @@ connexions, pas cent.
 
 **Pas mesuré, et il faut le savoir :**
 
-- **la purge avec son contrôle des médias corrigé** (§5) ;
+- **la purge, avec son contrôle corrigé, contre les 42 vrais produits de la
+  préproduction** (§5). La logique est éprouvée sur le miroir, la donnée réelle
+  ne l'est pas ;
 - **le déploiement depuis GitHub Actions**, jamais déclenché : les secrets ne sont
   pas posés. Tout ce qui a été fait l'a été à la main, avec la clé restreinte,
   dans le même ordre que le fichier de travail ;

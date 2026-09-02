@@ -124,6 +124,18 @@ dire() { echo "$*" | tee -a "$LOG"; }
 # plutôt qu'à chaque appel.
 q() { wp db query "$1" --skip-column-names 2>/dev/null | grep -v '^Success:' || true; }
 
+
+# LE PRÉFIXE DES TABLES SE DEMANDE, IL NE S'ÉCRIT PAS EN DUR.
+#
+# Il était écrit `wp68_` en dur partout, ce qui est juste sur les deux
+# installations o2switch et faux ailleurs : le miroir local est en `wp_`. Un
+# script qui ne peut pas tourner sur le miroir est un script qu'on ne peut pas
+# éprouver avant de le lancer sur des données réelles, ce qu'on s'interdit ici.
+# `wp db prefix` répond, ou on refuse : deviner un préfixe de tables sur une base
+# qu'on va modifier n'est pas une option.
+P="$(wp db prefix 2>/dev/null | tr -d '[:space:]')"
+[ -n "$P" ] || refus "impossible de lire le préfixe des tables (wp db prefix). Rien ne sera fait."
+
 dire "purge-demo $STAMP"
 dire "racine     : $(pwd -P)"
 dire "mode       : $([ "$FAIRE" -eq 1 ] && echo 'SUPPRESSION' || echo 'simulation (ajoutez --faire)')"
@@ -133,14 +145,14 @@ dire ""
 AV_PRODUITS=$(wp post list --post_type=product --post_status=any --format=count)
 AV_VARIATIONS=$(wp post list --post_type=product_variation --post_status=any --format=count)
 AV_MEDIAS=$(wp post list --post_type=attachment --post_status=any --format=count)
-AV_TERMES=$(q "SELECT COUNT(*) FROM wp68_term_taxonomy WHERE taxonomy IN ('product_cat','product_tag','product_brand')")
-AV_COMMANDES=$(q "SELECT COUNT(*) FROM wp68_wc_orders")
+AV_TERMES=$(q "SELECT COUNT(*) FROM ${P}term_taxonomy WHERE taxonomy IN ('product_cat','product_tag','product_brand')")
+AV_COMMANDES=$(q "SELECT COUNT(*) FROM ${P}wc_orders")
 dire "AVANT   produits=$AV_PRODUITS variations=$AV_VARIATIONS medias=$AV_MEDIAS termes=$AV_TERMES commandes=$AV_COMMANDES"
 dire ""
 
 # ── LA SÉLECTION ────────────────────────────────────────────────────────────
-CIBLES=$(q "SELECT p.ID FROM wp68_posts p
-   JOIN wp68_postmeta sku ON sku.post_id = p.ID AND sku.meta_key = '_sku'
+CIBLES=$(q "SELECT p.ID FROM ${P}posts p
+   JOIN ${P}postmeta sku ON sku.post_id = p.ID AND sku.meta_key = '_sku'
    WHERE p.post_type = 'product'
      AND sku.meta_value REGEXP '^(CH|TB|SO|AR|GC)-'
      AND p.post_date < '2024-01-01'
@@ -159,7 +171,7 @@ dire "SÉLECTION : $NB produit(s) dont la référence commence par CH-, TB-, SO-
 # supprimés par quelqu'un avant nous, et leurs quinze commandes se lisent encore.
 # Le garde-fou n'a donc rien à protéger aujourd'hui, et c'est exactement pour
 # demain qu'il est là.
-VENDUS=$(q "SELECT DISTINCT meta_value FROM wp68_woocommerce_order_itemmeta WHERE meta_key='_product_id' AND meta_value <> '0'" | tr '\n' ' ')
+VENDUS=$(q "SELECT DISTINCT meta_value FROM ${P}woocommerce_order_itemmeta WHERE meta_key='_product_id' AND meta_value <> '0'" | tr '\n' ' ')
 GARDES=""
 RESTE=""
 for id in $CIBLES; do
@@ -179,13 +191,13 @@ dire "À SUPPRIMER : $NB produit(s)"
 # seconde et demie pièce sur cet hébergement mutualisé. La simulation prenait six
 # minutes et une exécution s'est fait couper par une coupure ssh au milieu.
 q "SELECT CONCAT('  ', p.ID, '  ', LEFT(p.post_title, 46), '  [', COALESCE(sku.meta_value,'-'), ']')
-   FROM wp68_posts p LEFT JOIN wp68_postmeta sku ON sku.post_id = p.ID AND sku.meta_key = '_sku'
+   FROM ${P}posts p LEFT JOIN ${P}postmeta sku ON sku.post_id = p.ID AND sku.meta_key = '_sku'
    WHERE p.ID IN ($(echo "$CIBLES" | tr -s ' ' ',' | sed 's/^,//;s/,$//')) ORDER BY p.ID" | tee -a "$LOG"
 dire ""
 
 # Les variations sont les enfants des produits variables. Elles n'existent pas
 # sans leur parent et WordPress ne les emporte pas toujours.
-VARIATIONS=$(q "SELECT ID FROM wp68_posts WHERE post_type = 'product_variation'
+VARIATIONS=$(q "SELECT ID FROM ${P}posts WHERE post_type = 'product_variation'
    AND post_parent IN ($(echo "$CIBLES" | tr -s ' ' ',' | sed 's/^,//;s/,$//'))" | tr '\n' ' ')
 NBV=$(echo "$VARIATIONS" | wc -w)
 dire "VARIATIONS liées : $NBV"
@@ -195,7 +207,7 @@ dire "VARIATIONS liées : $NBV"
 # se supprime pas parce qu'un produit disparaît.
 # Idem : une requête pour les vignettes et les galeries des 42 produits, au lieu
 # de 84 appels wp-cli.
-MEDIAS=$(q "SELECT meta_value FROM wp68_postmeta
+MEDIAS=$(q "SELECT meta_value FROM ${P}postmeta
    WHERE meta_key IN ('_thumbnail_id','_product_image_gallery') AND meta_value <> ''
      AND post_id IN ($(echo "$CIBLES" | tr -s ' ' ',' | sed 's/^,//;s/,$//'))" \
   | tr ',' '\n' | tr -d ' ' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)
@@ -231,26 +243,32 @@ SUPPR_MEDIA=""
 if [ -n "$(echo "$MEDIAS" | tr -d ' ')" ]; then
 
   # 1. Vignettes des contenus conservés.
-  U1=$(q "SELECT DISTINCT pm.meta_value FROM wp68_postmeta pm JOIN wp68_posts p ON p.ID = pm.post_id
+  U1=$(q "SELECT DISTINCT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
           WHERE pm.meta_key = '_thumbnail_id' AND p.ID NOT IN ($CIBLES_SQL)")
 
   # 2. Galeries des produits conservés : des listes séparées par des virgules.
-  U2=$(q "SELECT pm.meta_value FROM wp68_postmeta pm JOIN wp68_posts p ON p.ID = pm.post_id
+  U2=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
           WHERE pm.meta_key = '_product_image_gallery' AND pm.meta_value <> '' AND p.ID NOT IN ($CIBLES_SQL)" \
        | tr ',' '\n')
 
   # 3. Le corps des contenus conservés : WordPress y écrit `wp-image-<id>`.
-  U3=$(q "SELECT post_content FROM wp68_posts WHERE ID NOT IN ($CIBLES_SQL)
+  # `|| true` PARCE QU'UN grep QUI NE TROUVE RIEN REND 1. Sous
+  # `set -euo pipefail`, ce 1 remonte la chaîne et tue le script, donc l'absence
+  # de contenu citant une image, qui est le cas NORMAL, arrêtait la purge net.
+  # Mesuré sur le miroir : U3 vide, sortie 1, plus rien après « VARIATIONS liées ».
+  # C'est la deuxième fois de la séance que cette forme casse un script au moment
+  # exact où tout va bien ; la première était dans l'anonymiseur.
+  U3=$(q "SELECT post_content FROM ${P}posts WHERE ID NOT IN ($CIBLES_SQL)
           AND post_status NOT IN ('trash','auto-draft') AND post_content LIKE '%wp-image-%'" \
-       | grep -oE 'wp-image-[0-9]+' | cut -d- -f3)
+       | grep -oE 'wp-image-[0-9]+' | cut -d- -f3 || true)
 
   # 4. Elementor, qui ne met rien dans post_content et tout dans une meta. La
   #    page d'accueil de cette boutique est une page Elementor de démonstration
   #    de meubles : c'est le contenu le plus susceptible de partager une image
   #    avec un produit purgé.
-  U4=$(q "SELECT pm.meta_value FROM wp68_postmeta pm JOIN wp68_posts p ON p.ID = pm.post_id
+  U4=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
           WHERE pm.meta_key = '_elementor_data' AND p.ID NOT IN ($CIBLES_SQL)" \
-       | grep -oE '\"id\":[0-9]+' | cut -d: -f2)
+       | grep -oE '\"id\":[0-9]+' | cut -d: -f2 || true)
 
   UTILISES=$(printf '%s\n%s\n%s\n%s\n' "$U1" "$U2" "$U3" "$U4" | tr -d ' ' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)
 
@@ -260,7 +278,7 @@ if [ -n "$(echo "$MEDIAS" | tr -d ' ')" ]; then
   # obligatoirement ressortir de la requête 1. Si elle n'y est pas, c'est que
   # cette lecture ne rend pas ce qu'elle devrait, et « aucune image partagée »
   # serait alors une lecture ratée et non un résultat. On refuse.
-  CANARI=$(q "SELECT pm.meta_value FROM wp68_postmeta pm JOIN wp68_posts p ON p.ID = pm.post_id
+  CANARI=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
               WHERE pm.meta_key = '_thumbnail_id' AND p.ID NOT IN ($CIBLES_SQL) AND pm.meta_value <> '' LIMIT 1" | tr -d ' ')
   if [ -n "$CANARI" ]; then
     trouve=0
@@ -278,7 +296,7 @@ dire "MÉDIAS   : $(echo "$SUPPR_MEDIA" | wc -w) à supprimer, $(echo "$GARDES_M
 dire ""
 
 dire "NON TOUCHÉ, et à décider par un humain :"
-q "SELECT post_type, COUNT(*) FROM wp68_posts
+q "SELECT post_type, COUNT(*) FROM ${P}posts
    WHERE post_type IN ('woodmart_slider','woodmart_slide','woodmart_layout','cms_block','elementor_library','template','woodmart_size_guide')
    GROUP BY post_type" | sed 's/^/  /' | tee -a "$LOG"
 dire "  La page d'accueil est '$(wp option get page_on_front 2>/dev/null || echo '?')' et son slug est '$(wp post get "$(wp option get page_on_front 2>/dev/null || echo 0)" --field=post_name 2>/dev/null || echo '?')'."
@@ -295,8 +313,8 @@ fi
 # la relation n'existe plus et on ne saurait plus lesquels cette purge a vidés.
 TERMES_AVANT=""
 for tax in product_cat product_tag product_brand; do
-  for t in $(q "SELECT DISTINCT tt.term_id FROM wp68_term_relationships tr
-                JOIN wp68_term_taxonomy tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
+  for t in $(q "SELECT DISTINCT tt.term_id FROM ${P}term_relationships tr
+                JOIN ${P}term_taxonomy tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
                 WHERE tt.taxonomy = '$tax' AND tr.object_id IN ($CIBLES_SQL)"); do
     TERMES_AVANT="$TERMES_AVANT $tax:$t"
   done
@@ -356,8 +374,8 @@ wp cache flush >/dev/null 2>&1 || true
 AP_PRODUITS=$(wp post list --post_type=product --post_status=any --format=count)
 AP_VARIATIONS=$(wp post list --post_type=product_variation --post_status=any --format=count)
 AP_MEDIAS=$(wp post list --post_type=attachment --post_status=any --format=count)
-AP_TERMES=$(q "SELECT COUNT(*) FROM wp68_term_taxonomy WHERE taxonomy IN ('product_cat','product_tag','product_brand')")
-AP_COMMANDES=$(q "SELECT COUNT(*) FROM wp68_wc_orders")
+AP_TERMES=$(q "SELECT COUNT(*) FROM ${P}term_taxonomy WHERE taxonomy IN ('product_cat','product_tag','product_brand')")
+AP_COMMANDES=$(q "SELECT COUNT(*) FROM ${P}wc_orders")
 dire ""
 dire "APRÈS   produits=$AP_PRODUITS variations=$AP_VARIATIONS medias=$AP_MEDIAS termes=$AP_TERMES commandes=$AP_COMMANDES"
 dire "ÉCART   produits=-$((AV_PRODUITS-AP_PRODUITS)) variations=-$((AV_VARIATIONS-AP_VARIATIONS)) medias=-$((AV_MEDIAS-AP_MEDIAS)) termes=-$((AV_TERMES-AP_TERMES))"

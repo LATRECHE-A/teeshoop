@@ -115,16 +115,28 @@ trap 'rm -rf "$TMP"' EXIT
 
 q() { wp db query "$1" --skip-column-names 2>/dev/null; }
 
+
+# LE PRÉFIXE DES TABLES SE DEMANDE, IL NE S'ÉCRIT PAS EN DUR.
+#
+# Il était écrit `wp68_` en dur partout, ce qui est juste sur les deux
+# installations o2switch et faux ailleurs : le miroir local est en `wp_`. Un
+# script qui ne peut pas tourner sur le miroir est un script qu'on ne peut pas
+# éprouver avant de le lancer sur des données réelles, ce qu'on s'interdit ici.
+# `wp db prefix` répond, ou on refuse : deviner un préfixe de tables sur une base
+# qu'on va modifier n'est pas une option.
+P="$(wp db prefix 2>/dev/null | tr -d '[:space:]')"
+[ -n "$P" ] || refus "impossible de lire le préfixe des tables (wp db prefix). Rien ne sera fait."
+
 # ── 1. RELEVER LES IDENTIFIANTS RÉELS, POUR POUVOIR LES CHERCHER APRÈS ──────
 #
 # Jamais affichés. C'est la liste contre laquelle le vidage final sera relu.
 {
-  q "SELECT DISTINCT email FROM wp68_wc_order_addresses WHERE email <> ''"
-  q "SELECT DISTINCT billing_email FROM wp68_wc_orders WHERE billing_email <> ''"
-  q "SELECT DISTINCT user_email FROM wp68_users WHERE user_email <> ''"
-  q "SELECT DISTINCT phone FROM wp68_wc_order_addresses WHERE phone <> '' AND LENGTH(phone) >= 8"
-  q "SELECT DISTINCT last_name FROM wp68_wc_order_addresses WHERE LENGTH(last_name) >= 5"
-  q "SELECT DISTINCT email FROM wp68_bwf_contact WHERE email <> ''"
+  q "SELECT DISTINCT email FROM ${P}wc_order_addresses WHERE email <> ''"
+  q "SELECT DISTINCT billing_email FROM ${P}wc_orders WHERE billing_email <> ''"
+  q "SELECT DISTINCT user_email FROM ${P}users WHERE user_email <> ''"
+  q "SELECT DISTINCT phone FROM ${P}wc_order_addresses WHERE phone <> '' AND LENGTH(phone) >= 8"
+  q "SELECT DISTINCT last_name FROM ${P}wc_order_addresses WHERE LENGTH(last_name) >= 5"
+  q "SELECT DISTINCT email FROM ${P}bwf_contact WHERE email <> ''"
 } 2>/dev/null \
   | sed '/^$/d' \
   `# CE SCRIPT REPASSE APRÈS CHAQUE RESYNCHRONISATION, donc il rencontre ses` \
@@ -155,7 +167,7 @@ fi
 # pourrait atteindre qui que ce soit. `example.com`, lui, existe.
 echo "anonymiser: nettoyage ..."
 
-wp db query "UPDATE wp68_wc_order_addresses SET
+wp db query "UPDATE ${P}wc_order_addresses SET
     first_name = CONCAT('Prenom', order_id),
     last_name  = CONCAT('Nom', order_id),
     company    = IF(company IS NULL OR company = '', company, CONCAT('Societe', order_id)),
@@ -167,7 +179,7 @@ wp db query "UPDATE wp68_wc_order_addresses SET
     email      = CONCAT('client', order_id, '@example.invalid'),
     phone      = '0100000000'"
 
-wp db query "UPDATE wp68_wc_orders SET
+wp db query "UPDATE ${P}wc_orders SET
     billing_email = CONCAT('client', id, '@example.invalid'),
     ip_address    = '0.0.0.0',
     user_agent    = 'preproduction',
@@ -177,15 +189,15 @@ wp db query "UPDATE wp68_wc_orders SET
 # Les index d'adresse portent l'adresse complète en clair, dans une chaîne que
 # WooCommerce reconstruit à la demande. Les vider est sans conséquence : ils
 # servent la recherche dans l'administration.
-wp db query "UPDATE wp68_wc_orders_meta SET meta_value = ''
+wp db query "UPDATE ${P}wc_orders_meta SET meta_value = ''
    WHERE meta_key IN ('_billing_address_index','_shipping_address_index')"
 
 # Les identifiants Stripe désignent des personnes chez Stripe. Ils n'ont aucun
 # sens hors de la production et ils ne doivent pas voyager.
-wp db query "DELETE FROM wp68_wc_orders_meta WHERE meta_key LIKE '_stripe%'"
+wp db query "DELETE FROM ${P}wc_orders_meta WHERE meta_key LIKE '_stripe%'"
 
 # HPOS n'a pas retiré les anciennes lignes de postmeta des commandes.
-wp db query "UPDATE wp68_postmeta SET meta_value = CASE
+wp db query "UPDATE ${P}postmeta SET meta_value = CASE
       WHEN meta_key LIKE '%_email'      THEN CONCAT('client', post_id, '@example.invalid')
       WHEN meta_key LIKE '%_phone'      THEN '0100000000'
       WHEN meta_key LIKE '%_first_name' THEN CONCAT('Prenom', post_id)
@@ -205,13 +217,13 @@ wp db query "UPDATE wp68_postmeta SET meta_value = CASE
       ELSE meta_value END
    WHERE meta_key REGEXP '^_(billing|shipping)_'"
 
-wp db query "UPDATE wp68_users SET
+wp db query "UPDATE ${P}users SET
     user_email = CONCAT('utilisateur', ID, '@example.invalid'),
     user_url   = '',
     display_name = CONCAT('Utilisateur ', ID)
    WHERE user_login NOT IN ('LTHAbdou')"
 
-wp db query "UPDATE wp68_usermeta SET meta_value = CASE
+wp db query "UPDATE ${P}usermeta SET meta_value = CASE
       WHEN meta_key LIKE '%_email'      THEN CONCAT('utilisateur', user_id, '@example.invalid')
       WHEN meta_key LIKE '%_phone'      THEN '0100000000'
       WHEN meta_key IN ('first_name')   THEN CONCAT('Prenom', user_id)
@@ -227,7 +239,7 @@ wp db query "UPDATE wp68_usermeta SET meta_value = CASE
       ELSE meta_value END
    WHERE meta_key REGEXP '^(first_name|last_name|nickname|billing_|shipping_)'"
 
-wp db query "UPDATE wp68_wc_customer_lookup SET
+wp db query "UPDATE ${P}wc_customer_lookup SET
     first_name = CONCAT('Prenom', customer_id),
     last_name  = CONCAT('Nom', customer_id),
     email      = CONCAT('client', customer_id, '@example.invalid'),
@@ -236,27 +248,27 @@ wp db query "UPDATE wp68_wc_customer_lookup SET
 
 # Les notes de commande. Une note d'atelier cite couramment le client par son
 # nom, et 89 d'entre elles portent une adresse e-mail d'auteur.
-wp db query "UPDATE wp68_comments SET
+wp db query "UPDATE ${P}comments SET
     comment_author       = 'Preproduction',
     comment_author_email = CONCAT('note', comment_ID, '@example.invalid'),
     comment_author_url   = '',
     comment_author_IP    = '0.0.0.0'
    WHERE comment_type = 'order_note' OR comment_author_email <> ''"
 
-wp db query "TRUNCATE TABLE wp68_woocommerce_sessions"
-wp db query "DELETE FROM wp68_wc_download_log"
+wp db query "TRUNCATE TABLE ${P}woocommerce_sessions"
+wp db query "DELETE FROM ${P}wc_download_log"
 
 # Les tables qui ne contiennent QUE des personnes se vident plutôt qu'elles ne
 # se remplacent : marketing, journaux de connexion Wordfence, soumissions de
 # formulaires Elementor. Une préproduction n'a besoin d'aucune des trois, et
 # remplacer ligne à ligne ce qui n'a aucune raison d'exister est du travail pour
 # rien. Une extension peut avoir été retirée, d'où le `|| true`.
-for t in wp68_bwf_contact wp68_bwf_optin_entries wp68_bwfan_abandonedcarts \
-         wp68_woodmart_unsubscribed_emails wp68_wc_email_unsubscribes \
-         wp68_wflogins wp68_wfhits wp68_wflivetraffichuman wp68_wfnotifications \
-         wp68_wfblockediplog wp68_wfblocks7 wp68_wfcrawlers \
-         wp68_wffilemods wp68_wfknownfilelist \
-         wp68_e_submissions_values wp68_e_submissions_actions_log wp68_e_submissions; do
+for t in ${P}bwf_contact ${P}bwf_optin_entries ${P}bwfan_abandonedcarts \
+         ${P}woodmart_unsubscribed_emails ${P}wc_email_unsubscribes \
+         ${P}wflogins ${P}wfhits ${P}wflivetraffichuman ${P}wfnotifications \
+         ${P}wfblockediplog ${P}wfblocks7 ${P}wfcrawlers \
+         ${P}wffilemods ${P}wfknownfilelist \
+         ${P}e_submissions_values ${P}e_submissions_actions_log ${P}e_submissions; do
   wp db query "DELETE FROM $t" >/dev/null 2>&1 || echo "  ($t absente, rien à vider)"
 done
 
@@ -266,7 +278,7 @@ done
 # mais seulement sa colonne `name`, jamais `val`. Or `alertEmails` est dans `val`,
 # et c'est l'adresse d'une vraie personne, celle qui reçoit les alertes du
 # pare-feu. Aucune quantité de balayage générique ne l'aurait trouvée.
-wp db query "UPDATE wp68_wfconfig SET val = 'preproduction@example.invalid'
+wp db query "UPDATE ${P}wfconfig SET val = 'preproduction@example.invalid'
    WHERE name IN ('alertEmails','apiKey','email_summary_email_addresses')" >/dev/null 2>&1 || true
 
 # ── UN COMPTE CONNECTÉ NE SE NETTOIE PAS, IL SE DÉBRANCHE ───────────────────
@@ -453,7 +465,7 @@ INCONNUES=${INCONNUES:-0}
 # chaque numéro de CLIENT, doit avoir disparu, et c'est celui-là qui refuse.
 TELS=$(grep -oE '\b0[1-9][0-9]{8}\b' "$TMP/verif.sql" | grep -v '^0100000000$' | sort -u | wc -l || true)
 TELS=${TELS:-0}
-CLIENTS_RESTANTS=$(wp db query "SELECT COUNT(*) FROM wp68_wc_order_addresses WHERE phone <> '0100000000' AND phone <> ''" --skip-column-names 2>/dev/null || echo '?')
+CLIENTS_RESTANTS=$(wp db query "SELECT COUNT(*) FROM ${P}wc_order_addresses WHERE phone <> '0100000000' AND phone <> ''" --skip-column-names 2>/dev/null || echo '?')
 echo "anonymiser: relecture indépendante : $INCONNUES adresse(s) inconnue(s)."
 echo "anonymiser: $TELS numéro(s) français encore dans la base (le site DOIT publier le sien et celui de son hébergeur), dont $CLIENTS_RESTANTS de client."
 
