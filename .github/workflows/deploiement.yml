@@ -32,31 +32,39 @@ name: Déploiement
 # Aucun n'est dans le dépôt et aucun ne doit y arriver. Comment les poser :
 # docs/DEPLOIEMENT.md.
 
-# ── POURQUOI IL N'Y A PLUS DE DÉCLENCHEUR SUR `push` ─────────────────────────
+# ── POURQUOI CE FICHIER TOURNE SUR UN EXÉCUTANT AUTO-HÉBERGÉ ─────────────────
 #
-# Il y en avait un, et il a tourné pour de vrai le 02/09/2026. Toutes les portes
-# sont passées, puis :
+# Parce qu'un exécutant hébergé par GitHub ne peut pas joindre l'hébergeur, et ne
+# le pourra jamais. Mesuré le 02/09/2026 : le déclencheur a tourné pour de vrai,
+# a passé toutes les portes, et s'est arrêté sur
 #
-#   pin-verify: preprod n'a pas répondu :
 #   ssh: connect to host *** port 22: Connection timed out
 #
-# o2switch filtre les connexions SSH par adresse IP, cinq au maximum par compte.
-# L'adresse du développeur y est ; celle d'un exécutant GitHub, jamais : ces
-# machines sont éphémères et tirent leur adresse de plages entières. Mesuré à la
-# minute près, le port 22 répond depuis la machine du développeur et expire depuis
-# l'exécutant.
+# o2switch filtre SSH par adresse IP, cinq au maximum par compte. L'adresse du
+# développeur y est ; celle d'un exécutant GitHub, jamais : ces machines sont
+# éphémères et tirent leur adresse de plages entières que personne ne peut
+# lister. Depuis la machine du développeur, à la même minute, le port 22 répond.
 #
-# Laisser le déclencheur aurait donné une croix rouge à chaque poussée, sur une
-# panne qui n'en est pas une. `scripts/launch-gate.mjs` dit déjà pourquoi c'est
-# nuisible : « une intégration continue rouge en permanence est une intégration
-# continue que personne ne lit ».
+# L'exécutant `o2switch-autorise` est donc une machine dont l'adresse EST
+# autorisée. C'est sa seule raison d'être, et c'est ce qui rend « une poussée
+# livre la préproduction » littéralement vrai plutôt que décoratif.
 #
-# DONC : le déploiement se lance à la main ici, et `scripts/deployer.sh` fait la
-# même séquence depuis une machine autorisée. « Une poussée livre la
-# préproduction » redeviendra vrai le jour où un exécutant AUTO-HÉBERGÉ tournera
-# sur une machine dont l'adresse est autorisée ; il n'y a rien d'autre à changer
-# que ce bloc et le `runs-on`.
+# ── CE QUE CES TRAVAUX NE FONT PLUS : RECOPIER deployer.sh ───────────────────
+#
+# Ils listaient les mêmes sept étapes que `scripts/deployer.sh`, dans le même
+# ordre, en double. Deux écritures d'une même règle finissent toujours par
+# diverger, et celle-ci décide ce qui part sur une boutique qui encaisse. Les
+# travaux appellent maintenant le script, qui reste la seule description de la
+# séquence, et qui s'exécute à l'identique lancé à la main.
+#
+# Cela a aussi retiré un vrai danger. L'étape « Ouvrir la porte SSH » écrivait
+# `~/.ssh/id_ed25519` et ajoutait à `~/.ssh/config`. Inoffensif sur une machine
+# jetable ; sur l'exécutant auto-hébergé, c'est le VRAI dossier `.ssh` du
+# développeur qui aurait été écrasé à chaque déploiement. L'exécutant utilise sa
+# propre configuration SSH, celle qui marche déjà, et n'écrit rien dedans.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       cible:
@@ -93,85 +101,29 @@ jobs:
 
   preproduction:
     needs: verifications
-    if: github.event.inputs.cible == 'preprod'
-    runs-on: ubuntu-latest
+    # Une poussée sur `main` livre la préproduction, et c'est le seul
+    # déploiement automatique de ce dépôt.
+    if: github.event_name == 'push' || github.event.inputs.cible == 'preprod'
+    runs-on: [self-hosted, o2switch-autorise]
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-
+      # Pas de setup-node : l'exécutant auto-hébergé a le sien, et une action qui
+      # installerait une autre version changerait celle du développeur.
       - run: npm ci
 
-      - name: Ouvrir la porte SSH
-        env:
-          CLE: ${{ secrets.O2SWITCH_DEPLOY_KEY }}
-          HOTES: ${{ secrets.O2SWITCH_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          # Fermé par défaut : sans secret, on s'arrête ici plutôt que de lancer
-          # un déploiement qui échouera trois étapes plus loin en disant autre chose.
-          [ -n "$CLE" ] || { echo "O2SWITCH_DEPLOY_KEY n'est pas posé."; exit 1; }
-          [ -n "$HOTES" ] || { echo "O2SWITCH_KNOWN_HOSTS n'est pas posé. On n'accepte pas une clé d'hôte à l'aveugle."; exit 1; }
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$CLE" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$HOTES" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
-          cat >> ~/.ssh/config <<CONF
-          Host teeshoop
-            HostName ${{ secrets.O2SWITCH_HOST }}
-            User ${{ secrets.O2SWITCH_USER }}
-            IdentityFile ~/.ssh/id_ed25519
-            IdentitiesOnly yes
-            BatchMode yes
-            StrictHostKeyChecking yes
-          CONF
-          chmod 600 ~/.ssh/config
-
-      # LA CIBLE EST-ELLE ENCORE CELLE CONTRE LAQUELLE CE DÉPÔT A ÉTÉ ÉCRIT.
-      # Les mises à jour majeures automatiques sont activées sur les deux
-      # installations : la production est passée en WordPress 7.1 toute seule le
-      # 20 août, et la préproduction pendant la séance du 2 septembre, à 14 h 38.
-      # Répéter une manoeuvre sur une préproduction qui n'a pas la version de la
-      # boutique ne prouve rien.
-      - name: La préproduction est bien la version attendue
-        run: node scripts/pin-verify.mjs --cible=preprod
-
-      - name: Sauvegarder avant de toucher quoi que ce soit
-        run: ssh teeshoop './deploiement.sh sauvegarder preprod'
-
-      - name: Envoyer l'extension et le thème
-        run: |
-          set -euo pipefail
-          # --delete : sinon un fichier supprimé du dépôt reste sur le serveur et
-          # la copie n'est plus une copie. Les tests et le README ne partent pas :
-          # rien à l'exécution ne les lit, et wp-content/plugins est servi par URL.
-          rsync -az --delete \
-            --exclude '/tests/' --exclude '/README.md' \
-            wp-plugins/teeshoop-core/ teeshoop:teeshoop-deploiements/preprod/entrant/teeshoop-core/
-          rsync -az --delete \
-            wp-themes/teeshoop/ teeshoop:teeshoop-deploiements/preprod/entrant/teeshoop/
-
-      # Analyse avec le PHP DU SERVEUR, échange atomique, activation, migration,
-      # puis une sonde qui charge WordPress. Chacune de ces quatre étapes qui rate
-      # remet la livraison précédente, sur le serveur, sans revenir ici.
-      - name: Installer
-        run: ssh teeshoop './deploiement.sh installer preprod'
-
-      - name: État après déploiement
-        run: ssh teeshoop './deploiement.sh etat preprod'
-
-      # POUR INFORMATION ET NON POUR BLOQUER. La préproduction est l'endroit où
-      # l'on teste une boutique qui n'a pas le droit d'ouvrir, donc un refus du
-      # portail y est normal et attendu. Il est imprimé pour être lu et comparé
-      # d'une séance à l'autre.
-      - name: Ce que le portail de mise en ligne dit de la préproduction
-        continue-on-error: true
-        run: node scripts/launch-gate.mjs --boutique=deploy:teeshoop:preprod
+      # UNE SEULE DESCRIPTION DE LA SÉQUENCE. Le script pose, dans cet ordre : le
+      # port 22 est-il joignable, la cible est-elle la version attendue, une
+      # sauvegarde, l'envoi vers un dépôt d'attente, l'installation (analyse avec
+      # le PHP du serveur, échange, activation, migration, sonde, retour arrière
+      # automatique si l'une échoue), puis l'état et ce que le portail en dit.
+      - name: Déployer en préproduction
+        run: ./scripts/deployer.sh preprod
 
   production:
     needs: verifications
     if: github.event.inputs.cible == 'prod'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, o2switch-autorise]
     # Un environnement GitHub, pour que la validation manuelle et la liste des
     # personnes qui peuvent la donner vivent dans les réglages du dépôt et non
     # dans ce fichier. À créer : Settings > Environments > production.
@@ -210,32 +162,7 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-
       - run: npm ci
-
-      - name: Ouvrir la porte SSH
-        env:
-          CLE: ${{ secrets.O2SWITCH_DEPLOY_KEY }}
-          HOTES: ${{ secrets.O2SWITCH_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          [ -n "$CLE" ] || { echo "O2SWITCH_DEPLOY_KEY n'est pas posé."; exit 1; }
-          [ -n "$HOTES" ] || { echo "O2SWITCH_KNOWN_HOSTS n'est pas posé."; exit 1; }
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$CLE" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$HOTES" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
-          cat >> ~/.ssh/config <<CONF
-          Host teeshoop
-            HostName ${{ secrets.O2SWITCH_HOST }}
-            User ${{ secrets.O2SWITCH_USER }}
-            IdentityFile ~/.ssh/id_ed25519
-            IdentitiesOnly yes
-            BatchMode yes
-            StrictHostKeyChecking yes
-          CONF
-          chmod 600 ~/.ssh/config
 
       # ── LA PORTE, ET ELLE EST FERMÉE AUJOURD'HUI ────────────────────────────
       #
@@ -263,29 +190,11 @@ jobs:
       # « boutique injoignable » et sortait 2 quel que soit l'état réel de la
       # boutique. Il bloquait donc pour la mauvaise raison, et aurait continué à
       # bloquer le jour où la vraie réponse aurait été « on peut ».
-      - name: Le portail de mise en ligne autorise-t-il la production
-        run: node scripts/launch-gate.mjs --boutique=deploy:teeshoop:prod
-
-      - name: La production est bien la version attendue
-        run: node scripts/pin-verify.mjs --cible=prod
-
-      - name: Sauvegarder avant de toucher quoi que ce soit
-        run: ssh teeshoop './deploiement.sh sauvegarder prod'
-
-      - name: Envoyer l'extension et le thème
-        run: |
-          set -euo pipefail
-          rsync -az --delete \
-            --exclude '/tests/' --exclude '/README.md' \
-            wp-plugins/teeshoop-core/ teeshoop:teeshoop-deploiements/prod/entrant/teeshoop-core/
-          rsync -az --delete \
-            wp-themes/teeshoop/ teeshoop:teeshoop-deploiements/prod/entrant/teeshoop/
-
-      - name: Installer
-        run: ssh teeshoop './deploiement.sh installer prod'
-
-      - name: État après déploiement
-        run: ssh teeshoop './deploiement.sh etat prod'
+      # Le portail est posé PAR LE SCRIPT, avant tout envoi, et sans dérogation :
+      # `deployer.sh prod` sort 2 et n'envoie rien si la boutique n'a pas le
+      # droit d'ouvrir. Le refus mesuré le 02/09/2026 : 16 raisons, sortie 2.
+      - name: Déployer en production
+        run: ./scripts/deployer.sh prod
 
   # ── LE STUDIO, SÉPARÉMENT ET À LA MAIN ──────────────────────────────────────
   #
