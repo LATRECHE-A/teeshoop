@@ -44,12 +44,20 @@ $ts_min      = minimum();
 				<?php if ( null !== $ts_min ) : ?>
 					<li>
 						<?php
-						printf(
-							/* translators: 1: minimum number of pieces, 2: minimum order value, before tax. */
-							esc_html__( 'Commande minimum : %1$s pièces et %2$s', 'teeshoop' ),
-							'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
-							'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
-						);
+						if ( $ts_min['has_ht'] ) {
+							printf(
+								/* translators: 1: minimum number of pieces, 2: minimum order value, before tax. */
+								esc_html__( 'Commande minimum : %1$s pièces et %2$s', 'teeshoop' ),
+								'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
+								'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
+							);
+						} else {
+							printf(
+								/* translators: %s: minimum number of pieces. */
+								esc_html__( 'Commande minimum : %s pièces', 'teeshoop' ),
+								'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>'
+							);
+						}
 						?>
 					</li>
 				<?php endif; ?>

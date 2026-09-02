@@ -131,15 +131,17 @@ $ts_cat      = catalogue_stats();
 					esc_html( num( (float) $ts_min['qty'] ) )
 				);
 				?>
-				<small>
-					<?php
-					printf(
-						/* translators: %s: the minimum order value. */
-						esc_html__( 'et %s de commande', 'teeshoop' ),
-						esc_html( eur( $ts_min['ht_cents'] ) )
-					);
-					?>
-				</small>
+				<?php if ( $ts_min['has_ht'] ) : ?>
+					<small>
+						<?php
+						printf(
+							/* translators: %s: the minimum order value. */
+							esc_html__( 'et %s de commande', 'teeshoop' ),
+							esc_html( eur( $ts_min['ht_cents'] ) )
+						);
+						?>
+					</small>
+				<?php endif; ?>
 			</dd>
 		</div>
 		<?php endif; ?>

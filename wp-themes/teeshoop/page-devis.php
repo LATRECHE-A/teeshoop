@@ -66,12 +66,20 @@ $ts_lead = lead_days();
 			<?php if ( null !== $ts_min ) : ?>
 				<li>
 					<?php
-					printf(
-						/* translators: 1: minimum pieces, 2: minimum order value. */
-						esc_html__( 'À partir de %1$s pièces et %2$s. Au-delà, le tarif baisse par paliers et le devis les applique.', 'teeshoop' ),
-						'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
-						'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
-					);
+					if ( $ts_min['has_ht'] ) {
+						printf(
+							/* translators: 1: minimum pieces, 2: minimum order value. */
+							esc_html__( 'À partir de %1$s pièces et %2$s. Au-delà, le tarif baisse par paliers et le devis les applique.', 'teeshoop' ),
+							'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
+							'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
+						);
+					} else {
+						printf(
+							/* translators: %s: minimum pieces. */
+							esc_html__( 'À partir de %s pièces. Au-delà, le tarif baisse par paliers et le devis les applique.', 'teeshoop' ),
+							'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>'
+						);
+					}
 					?>
 				</li>
 			<?php endif; ?>

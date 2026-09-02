@@ -192,6 +192,24 @@ for (const [name, path] of PAGES) {
     ok(`[${width}] ${name} ships no placeholder text`, found.length === 0, found.join(' '))
 
     /*
+     * A ZERO IS NOT A SMALL NUMBER, IT IS AN ABSENT ONE.
+     *
+     * Question 01's answer of 1 September 2026 removed the 50,00 EUR HT order
+     * floor and kept the five pieces. The plugin's copy was rewritten; four
+     * templates in the theme were not, and went on printing the amount, so the
+     * footer of every page of this site published « Commande minimum : 5 pièces
+     * et 0,00 € » until 2 September. Every test passed the whole time, the
+     * screenshots were taken, and nobody reading them saw it.
+     *
+     * So it is asserted rather than looked at. Any amount that renders as zero
+     * on a page a customer reads is a setting that was emptied under a sentence
+     * nobody moved. `0 %` is excluded on purpose: a discount tier that starts at
+     * nothing is a real and meaningful zero.
+     */
+    const zeroes = [...text.matchAll(/(?:^|[^0-9,.])0(?:,00)?\s*(?:€|EUR\b)/g)].map((m) => m[0].trim())
+    ok(`[${width}] ${name} publishes no amount that is zero`, zeroes.length === 0, zeroes.join(' | '))
+
+    /*
      * `ERR_NETWORK_CHANGED` is Chromium saying the machine's network interface
      * moved under it, not the page saying anything. It is dropped by name,
      * here, rather than by widening the filter to "errors that mention a URL".

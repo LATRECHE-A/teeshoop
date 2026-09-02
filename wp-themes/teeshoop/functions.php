@@ -368,7 +368,16 @@ function headline( string $garment ): array {
  * the homepage offered « à partir de 0 pièces », and all of it answered 200 with
  * nothing a visitor could see. A missing number is an omitted line.
  *
- * @return array{qty:int,ht_cents:int}|null
+ * AND `has_ht`, WHICH IS THE SAME BUG THROUGH THE OTHER DOOR. Question 01's
+ * answer of 1 September 2026 removed the 50,00 EUR HT floor and kept the five
+ * pieces, so `min_ht` is now legitimately 0 and every one of the four templates
+ * that printed it published « Commande minimum : 5 pièces et 0,00 € », in the
+ * footer of every page of the site. A configured zero is not a small minimum,
+ * it is the absence of one, and the sentence has to lose its second half rather
+ * than fill it with nothing. Decided here once so the four callers cannot
+ * disagree about it.
+ *
+ * @return array{qty:int,ht_cents:int,has_ht:bool}|null
  */
 function minimum(): ?array {
 	$config = pricing_config();
@@ -378,6 +387,7 @@ function minimum(): ?array {
 	return array(
 		'qty'      => (int) $config['min_qty'],
 		'ht_cents' => (int) $config['min_ht'],
+		'has_ht'   => (int) $config['min_ht'] > 0,
 	);
 }
 

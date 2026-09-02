@@ -116,12 +116,20 @@ $ts_bases = price_bases();
 			<dt><?php esc_html_e( 'Le minimum', 'teeshoop' ); ?></dt>
 			<dd>
 				<?php
-				printf(
-					/* translators: 1: minimum pieces, 2: minimum order value. */
-					esc_html__( '%1$s pièces et %2$s. Le minimum porte sur la commande entière, pas sur chaque ligne : trois t-shirts et trois sweats font six pièces et passent.', 'teeshoop' ),
-					'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
-					'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
-				);
+				if ( $ts_min['has_ht'] ) {
+					printf(
+						/* translators: 1: minimum pieces, 2: minimum order value. */
+						esc_html__( '%1$s pièces et %2$s. Le minimum porte sur la commande entière, pas sur chaque ligne : trois t-shirts et trois sweats font six pièces et passent.', 'teeshoop' ),
+						'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>',
+						'<span class="ts-num">' . esc_html( eur( $ts_min['ht_cents'] ) ) . '</span>'
+					);
+				} else {
+					printf(
+						/* translators: %s: minimum pieces. */
+						esc_html__( '%s pièces. Le minimum porte sur la commande entière, pas sur chaque ligne : trois t-shirts et trois sweats font six pièces et passent.', 'teeshoop' ),
+						'<span class="ts-num">' . esc_html( num( (float) $ts_min['qty'] ) ) . '</span>'
+					);
+				}
 				?>
 			</dd>
 		<?php endif; ?>
