@@ -1,6 +1,6 @@
 <?php
 /**
- * Conditions générales de vente, version du 26 août 2026.
+ * Conditions générales de vente, version du 1er septembre 2026.
  *
  * CE FICHIER NE SE MODIFIE PLUS. Une version est le texte qu'un client a
  * accepté : `Waiver::freeze()` en enregistre le nom sur sa commande, et une

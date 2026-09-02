@@ -1019,16 +1019,19 @@ répondent, et c'est la même réponse qui débloque les deux.
 *Ce que la séance 11 a trouvé le 26 août, et qui n'est toujours pas tranché :* **12 jours
 ouvrés jusqu'à quoi ?** Le dépôt porte les deux lectures et personne ne les a confrontées.
 
-- Ce que le site **publie** aujourd'hui, en 43 phrases : 12 jours ouvrés entre votre
-  validation du bon à tirer et **l'expédition**, puis 2 jours ouvrés d'acheminement
-  Colissimo, soit **14 jours ouvrés** annoncés au client.
+*Mise à jour du 2 septembre 2026 : les chiffres ci-dessous sont désormais les vôtres, 7 / 4 /
+3 jours ouvrés, et la lecture reste la même question.*
+
+- Ce que le site **publie** aujourd'hui : 7 jours ouvrés entre votre validation du bon à
+  tirer et **l'expédition**, puis 2 jours ouvrés d'acheminement, soit **9 jours ouvrés**
+  annoncés au client.
 - Ce que l'atelier **planifie** : `Production::feasibility()` retire les 2 jours de transport
-  des 12, donc il achète le film pour que le **colis soit remis** au douzième jour.
+  des 7, donc il achète le film pour que le **colis soit remis** au septième jour.
 
 Les deux vont dans le sens prudent : l'atelier vise deux jours plus tôt que ce que le client
 lit. Mais ce sont deux promesses différentes, et c'est vous qui décidez laquelle vous tenez.
-Si c'est « réception en 12 jours ouvrés », la copie du site est à corriger et vous vous
-engagez sur un transporteur que vous ne contrôlez pas. Si c'est « expédition en 12 jours
+Si c'est « réception en 7 jours ouvrés », la copie du site est à corriger et vous vous
+engagez sur un transporteur que vous ne contrôlez pas. Si c'est « expédition en 7 jours
 ouvrés », c'est le calendrier de l'atelier qui gagne deux jours de marge.
 
 *Ce que la séance 07 a mesuré, le 19 août :* **deux des trois délais ci-dessus ne peuvent
@@ -1120,9 +1123,11 @@ deux jours pire qu'elle n'est.
 
 ## Paiements
 
-*Ce que la séance 09 publie, le 19 août :* **les 12 jours ouvrés du standard, et eux
-seuls**, sur l'accueil, dans le pied de page, sur la page devis et sur la page entreprises,
-toujours formulés « à partir de la validation du bon à tirer » et jamais « livré le ».
+*Ce que la séance 09 publie, le 19 août, et ce que la séance 13b y a changé le 1er
+septembre :* **le seul délai standard, et lui seul**, sur l'accueil, dans le pied de page, sur
+la page devis et sur la page entreprises, toujours formulé « à partir de la validation du bon
+à tirer » et jamais « livré le ». Le nombre était 12 jours ouvrés ; c'est le vôtre depuis, 7,
+et il est lu du code plutôt que recopié dans les phrases.
 
 L'express (7 jours) et l'urgence (4 jours) **ne sont pas publiés**, et ce n'est pas un
 oubli : la séance 07 a mesuré 6 jours ouvrés de travail incompressible entre un bon à tirer

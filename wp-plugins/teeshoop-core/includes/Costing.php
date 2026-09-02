@@ -685,7 +685,8 @@ final class Costing {
 	 * the shop bore. The revenue side of the margin already contains the first,
 	 * because it is a line of the order; the cost side needs the second, and it
 	 * is the SAME number whether or not the franco applied. That is exactly the
-	 * chapter's "livraison offerte" cost: an order over 300 EUR charges nothing
+	 * chapter's "livraison offerte" cost: an order over the franco (250,00 EUR HT since
+	 * question 07's answer, and read from the config rather than written here) charges nothing
 	 * for carriage and still buys the parcel.
 	 */
 	public static function parcel( \WC_Order $order ): array {

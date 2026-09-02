@@ -467,7 +467,26 @@ final class PurchasePage {
 	private static function orders_table( array $purchase ): void {
 		echo '<h3>' . esc_html__( 'Par commande', 'teeshoop' ) . '</h3>';
 		echo '<p class="description" style="max-width:46em">' . esc_html__( 'L’écart compare ce que les textiles coûtent aujourd’hui à ce que le rapport de marge de la commande avait supposé. Un fournisseur qui augmente un t-shirt de huit centimes ne se voit nulle part et déplace tous les prix planchers.', 'teeshoop' ) . '</p>';
-		echo '<p class="description" style="max-width:46em">' . esc_html__( '« Blancs à commander avant » est la date au-delà de laquelle les vêtements nus n’arriveront plus à temps : elle retient 2 jours ouvrés d’approvisionnement, puis le pressage, le battement d’atelier et l’acheminement. Une case vide veut dire que le bon à tirer n’est pas validé, donc que le compte à rebours n’a pas commencé.', 'teeshoop' ) . '</p>';
+		/*
+		 * READ, NOT WRITTEN. This sentence carried the number 2 in its own text
+		 * while `Production::config()['blank_days']` decided the date beside it,
+		 * so an operator changing the supplier lead time would have moved the
+		 * column and not the sentence that explains it. The row that owns the
+		 * value declares no mirror and no literal, so no guard could see the
+		 * second copy: only reading it removes it.
+		 */
+		echo '<p class="description" style="max-width:46em">' . esc_html(
+			sprintf(
+				/* translators: %d: working days the supplier takes to deliver blanks. */
+				_n(
+					'« Blancs à commander avant » est la date au-delà de laquelle les vêtements nus n’arriveront plus à temps : elle retient %d jour ouvré d’approvisionnement, puis le pressage, le battement d’atelier et l’acheminement. Une case vide veut dire que le bon à tirer n’est pas validé, donc que le compte à rebours n’a pas commencé.',
+					'« Blancs à commander avant » est la date au-delà de laquelle les vêtements nus n’arriveront plus à temps : elle retient %d jours ouvrés d’approvisionnement, puis le pressage, le battement d’atelier et l’acheminement. Une case vide veut dire que le bon à tirer n’est pas validé, donc que le compte à rebours n’a pas commencé.',
+					(int) ( Production::config()['blank_days'] ?? 0 ),
+					'teeshoop'
+				),
+				(int) ( Production::config()['blank_days'] ?? 0 )
+			)
+		) . '</p>';
 		echo '<div style="overflow-x:auto;max-width:100%">';
 		echo '<table class="widefat striped"><thead><tr>';
 		foreach ( array( 'Commande', 'Client', 'Vêtements', 'Blancs à commander avant', 'Textiles HT', 'Supposé HT', 'Écart', 'Port seul', 'Part du port' ) as $head ) {

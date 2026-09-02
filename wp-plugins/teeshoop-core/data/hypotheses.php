@@ -188,8 +188,8 @@ return array(
 			'status' => 'answered',
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
-			'answer_fr' => 'Question 02 : « Jusqu\'à 2 000 EUR HT de commande, le parcours peut être réalisé en autonomie. Au-delà, passage par un devis. » Confirmé au chiffre près.',
-			'statement_fr' => 'Au-delà de 2 000,00 EUR hors taxes sur une ligne, la commande passe obligatoirement par un devis.',
+			'answer_fr' => 'Question 02 : « Jusqu\'à 2 000 EUR HT de commande, le parcours peut être réalisé en autonomie. Au-delà, passage par un devis. » Confirmé au chiffre près, et le mot « commande » a corrigé une forme : le seuil était appliqué ligne par ligne.',
+			'statement_fr' => 'Au-delà de 2 000,00 EUR hors taxes sur la commande entière, la commande passe obligatoirement par un devis.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#quote_from_ht',
 			'reaches' => array(
 				'customer',
@@ -199,6 +199,7 @@ return array(
 			'sessions' => array(
 				'04',
 				'05',
+				'13b',
 			),
 		),
 		array(

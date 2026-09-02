@@ -170,7 +170,7 @@ return array(
 				'after'      => array(
 					'Mélanger les modèles, en revanche, ne les additionne pas : des t-shirts et des polos commandés ensemble gardent chacun leur palier. La même quantité regroupée sur une seule référence revient donc moins cher qu’éclatée sur trois modèles. C’est un arbitrage de prix qui vous appartient, au même titre que la taille du visuel.',
 					'En dessous du minimum, le panier refuse la commande et indique ce qui manque, en pièces et en montant. Il vaut mieux le lire ici que le découvrir au moment de payer.',
-					'Le libre-service a aussi un plafond : au-delà de {SEUIL_DEVIS} pièces sur une même ligne, nous chiffrons la commande à la main, le panier vous renvoie vers un devis et votre création est conservée.',
+					'Le libre-service a aussi deux plafonds : au-delà de {SEUIL_DEVIS} pièces sur une même ligne, ou de {SEUIL_DEVIS_MONTANT} hors taxes sur la commande entière, nous chiffrons la commande à la main, le panier vous renvoie vers un devis et votre création est conservée.',
 				),
 				'links'      => array(
 					array( 'label' => 'Demander un devis pour un cas particulier', 'key' => 'page:devis' ),
@@ -408,7 +408,7 @@ return array(
 				'paragraphs' => array(
 					'Une seule technique se commande sans passer par un devis : le DTF. Le visuel est imprimé sur un film, puis pressé sur le vêtement. Il n’impose pas de limite de couleurs, ce qui convient à un logo en dégradé comme à un blason de club.',
 					'La broderie, le flocage et la sublimation existent, mais passent par un devis. La broderie est confiée à un atelier extérieur : elle n’est pas faite chez nous, et nous n’affichons aucun délai pour elle tant que nous ne pouvons pas le tenir.',
-					'Le devis ne sert pas qu’aux autres techniques. Au-delà de {SEUIL_DEVIS} pièces sur une même ligne, ou du montant hors taxes indiqué sous la grille de prix, nous chiffrons la commande à la main plutôt que de la laisser passer au paiement.',
+					'Le devis ne sert pas qu’aux autres techniques. Au-delà de {SEUIL_DEVIS} pièces sur une même ligne, ou de {SEUIL_DEVIS_MONTANT} hors taxes sur la commande entière, nous chiffrons la commande à la main plutôt que de la laisser passer au paiement.',
 					'Pour une demande, indiquez la référence, la quantité, la répartition des tailles et ce que vous voulez marquer.',
 				),
 				'links'      => array(
@@ -774,7 +774,7 @@ return array(
 				'list'       => array(
 					'Le palier de quantité se compte ligne par ligne, sur une même référence portant le même marquage.',
 					'Le minimum de commande se compte sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues.',
-					'Au-delà de {SEUIL_DEVIS} pièces sur une même référence, la commande passe par un devis et non par le panier.',
+					'Au-delà de {SEUIL_DEVIS} pièces sur une même référence, ou de {SEUIL_DEVIS_MONTANT} hors taxes sur la commande entière, la commande passe par un devis et non par le panier.',
 				),
 				'after'      => array(
 					'Les deux règles vont donc dans des sens opposés : additionner des modèles différents vous fait atteindre le minimum, jamais le palier.',
@@ -884,7 +884,7 @@ return array(
 					'Pour un événement, cela donne un conseil d\'achat clair : un même modèle pour tout le monde, décliné en tailles et en coloris, revient moins cher que le même nombre de pièces éclaté sur trois modèles différents.',
 					'La répartition des tailles se saisit ligne par ligne, au moment de la commande. Pour un événement, cela veut dire faire circuler la liste des inscrits avant et non pendant : ce temps de collecte s\'ajoute au délai.',
 					'Commandez la totalité en une seule fois, pièces de réserve comprises. Un complément commandé après coup est une nouvelle commande, avec son propre bon à tirer et les mêmes {DELAI_STANDARD} jours ouvrés à partir de sa validation : refaites le calcul avant de compter dessus.',
-					'Au-delà de {SEUIL_DEVIS} pièces sur une même ligne, la boutique ne chiffre plus seule et la commande passe par un devis ; une commande d\'un montant important y bascule également. Le devis ajoute une étape avant le bon à tirer et nous n\'annonçons pas de délai pour cette étape, donc demandez-le avant de bâtir votre calendrier.',
+					'Au-delà de {SEUIL_DEVIS} pièces sur une même ligne, la boutique ne chiffre plus seule et la commande passe par un devis ; au-delà de {SEUIL_DEVIS_MONTANT} hors taxes sur la commande entière, elle y bascule également. Le devis ajoute une étape avant le bon à tirer et nous n\'annonçons pas de délai pour cette étape, donc demandez-le avant de bâtir votre calendrier.',
 				),
 				'links'      => array(
 					array( 'label' => 'Commander en petite série', 'key' => 'page:petites-series' ),

@@ -573,8 +573,8 @@
 			"status": "answered",
 			"since": "2026-08-14",
 			"answered": "2026-09-01",
-			"answer_fr": "Question 02 : « Jusqu'à 2 000 EUR HT de commande, le parcours peut être réalisé en autonomie. Au-delà, passage par un devis. » Confirmé au chiffre près.",
-			"statement_fr": "Au-delà de 2 000,00 EUR hors taxes sur une ligne, la commande passe obligatoirement par un devis.",
+			"answer_fr": "Question 02 : « Jusqu'à 2 000 EUR HT de commande, le parcours peut être réalisé en autonomie. Au-delà, passage par un devis. » Confirmé au chiffre près, et le mot « commande » a corrigé une forme : le seuil était appliqué ligne par ligne.",
+			"statement_fr": "Au-delà de 2 000,00 EUR hors taxes sur la commande entière, la commande passe obligatoirement par un devis.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#quote_from_ht",
 			"mirrors": [],
 			"literals": [
@@ -584,14 +584,18 @@
 				"customer",
 				"operator"
 			],
-			"derives": [],
+			"derives": [
+				"Le montant au-delà duquel la boutique refuse de vendre en autonomie.",
+				"La tenue du délai standard publié : 500 vêtements par jour de presse et 1 jour ouvré de marge, donc une commande de plus de 500 pièces mange la marge et une de plus de 1 000 est impossible. Le seuil de montant est ce qui borne le panier."
+			],
 			"sessions": [
 				"04",
-				"05"
+				"05",
+				"13b"
 			],
 			"cost_if_late": "on refait",
 			"label_fr": "la commande est chiffrée à la main",
-			"shipped_matches_default": "Oui, seconde moitié de la même phrase que H-Q02-SEUIL-DEVIS-QTE.",
+			"shipped_matches_default": "Le montant, oui. Sa portée, non, et la réponse l'a révélé : le seuil s'appliquait à chaque LIGNE, donc cinq lignes de deux cents pièces à 1 884,00 EUR passaient tous les contrôles et faisaient une commande de 9 420,00 EUR chiffrée par le site seul. Corrigé le 2 septembre 2026 : il porte sur le panier entier, ce que le mot « commande » de sa réponse dit. La moitié « 250 pièces » reste par ligne et reste une hypothèse, parce que sa réponse ne la tranche pas.",
 			"statement_amounts": [
 				{
 					"from": "quote_from_ht",
@@ -2074,7 +2078,7 @@
 				"05"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Oui. Question 04 et le chapitre 1 : « 17 EUR HT par mètre linéaire de 56 cm ». Le tarif et la laize sont un seul tarif ; changer l'un sans l'autre chiffre le film sur un rouleau qui n'est pas le nôtre.",
+			"shipped_matches_default": "Non, plus depuis la réponse à la question 04. Le défaut écrit était « 17 EUR HT par mètre linéaire de 56 cm » ; l'associé donne une feuille A3+ de 33 x 46 cm à 3,00 EUR. Le tarif et la géométrie restent un seul tarif : changer l'un sans l'autre chiffre le film sur un support qui n'est pas le nôtre, et `Cost::film()` refuse désormais plutôt que de calculer quand les deux ne s'accordent pas.",
 			"literals_why": "56 est un nombre à deux chiffres qui apparaît partout ; le contrôle du métrage (scripts/nest-verify.mjs) compare la valeur en faisant tourner les deux implémentations, ce qu'aucune recherche de littéral ne ferait."
 		},
 		{
@@ -2158,7 +2162,7 @@
 				"operator"
 			],
 			"derives": [
-				"Le coût de 86,40 EUR pour 4 mètres imbriqués en France, livraison et provision de perte comprises (tests/test-cost.php)."
+				"Le coût de 86,40 EUR pour 4 mètres imbriqués en France, livraison et provision de perte comprises (tests/test-cost.php). Mesure du tarif ROULEAU, qui n'est plus celui en vigueur depuis la réponse à la question 04."
 			],
 			"sessions": [
 				"05"
@@ -2884,7 +2888,7 @@
 				"11"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Oui, c'est l'hypothèse par défaut de la question 14 reprise telle quelle. Ce que la séance 07 y ajoute est qu'elle est désormais exécutable : elle décide la date à laquelle le film doit être commandé et donc l'origine. La séance 09 le PUBLIE, et publie celui-là seul. L'express (7 jours) et l'urgence (4 jours) restent internes parce que la séance 07 a mesuré 6 jours ouvrés de travail incompressible entre un bon à tirer validé et un colis : l'urgence est en retard de deux jours au moment où le client valide, et l'express tient à un jour près. Publier une promesse qu'on a soi-même mesurée comme intenable est une pratique commerciale trompeuse, donc les deux sont traitées au cas par cas, sur devis. Le chiffre publié est aussi cadré : « à partir de la validation du bon à tirer », jamais « livré le ».",
+			"shipped_matches_default": "Oui, l'hypothèse par défaut de la question 14 puis la réponse de l'associé, qui a ramené le standard de 12 à 7 jours ouvrés. Elle est exécutable : elle décide la date à laquelle le film doit être commandé et donc l'origine. La séance 09 la PUBLIE, et publie celle-là seule. L'express (4 jours) et l'urgence (3 jours) restent internes parce que la séance 07 a mesuré 6 jours ouvrés de travail incompressible, remesurés le 1er septembre 2026 sous les nouveaux délais : le standard garde 1 jour ouvré de marge, et ce jour EST le battement d'atelier.",
 			"statement_amounts": [
 				{
 					"from": "lead_days.standard",
@@ -2919,7 +2923,7 @@
 				"07"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Oui. Mesuré depuis, ce délai ne laisse qu'un jour de marge, qui est exactement le jour de battement de l'atelier : un transporteur en retard le consomme entièrement.",
+			"shipped_matches_default": "Non, plus depuis le 1er septembre 2026 : la réponse ramène l'express de 7 à 4 jours ouvrés. Remesuré contre les 6 jours ouvrés de travail incompressible mesurés en séance 07, il manque **2 jours ouvrés**. Il n'est pas vendu et ne le sera pas tant que les 6 jours n'auront pas bougé : annoncer un délai qu'on a soi-même mesuré comme intenable est une pratique commerciale trompeuse au sens de l'article L. 121-2 du code de la consommation.",
 			"statement_amounts": [
 				{
 					"from": "lead_days.express",
@@ -2954,7 +2958,7 @@
 				"07"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Non, et c'est le constat le plus dur de la séance. La valeur par défaut est bien celle de la question 14, mais mesurée contre les autres valeurs par défaut de la même question elle est impossible : 2 jours de transport, 1 de pressage, 1 de battement et 2 de transit du film font 6 jours ouvrés dans une promesse de 4. Rien n'est ajusté pour la faire tenir, parce que le nombre juste est la réponse de l'associé et pas un chiffre choisi pour que le contrôle passe.",
+			"shipped_matches_default": "Non, et c'est le constat le plus dur de la séance. La réponse de l'associé ramène l'urgence de 4 à 3 jours ouvrés, et mesurée contre le travail qu'elle contient elle est impossible : 2 jours de transport, 1 de pressage, 1 de battement et 2 de transit du film font 6 jours ouvrés dans une promesse de 3, soit **3 jours ouvrés de trop**. Rien n'est ajusté pour la faire tenir, et elle n'est pas vendue.",
 			"statement_amounts": [
 				{
 					"from": "lead_days.urgent",

@@ -177,6 +177,50 @@ final class Checkout {
 		self::check_shipping();
 		self::check_no_third_party_fee( $cart );
 		self::check_shop_can_sell( $cart );
+		self::check_order_needs_quote( $cart );
+	}
+
+	/**
+	 * The amount threshold, counted over the WHOLE basket, which is what
+	 * question 02 answers and what the shop was not doing.
+	 *
+	 * « Jusqu'à 2 000 EUR HT DE COMMANDE, le parcours peut être réalisé en
+	 * autonomie. Au-delà de 2 000 EUR HT, passage par un devis. » The word is
+	 * commande. `Cart` applied it to each LINE, so five lines of two hundred
+	 * pieces at 1 884,00 EUR each cleared every check and made a 9 420,00 EUR
+	 * order the site priced by itself.
+	 *
+	 * AND IT IS THE LEAD TIME THAT MAKES THIS URGENT, not only the money. The
+	 * site publishes 7 working days, and `Production::press_days` presses 500
+	 * garments a day: the standard promise carries exactly one working day of
+	 * slack, so an order of more than 500 garments eats it and one of more than
+	 * 1 000 is arithmetically impossible. Nothing bounded the basket, so the
+	 * shop could accept an order it had already told the customer it would ship
+	 * in a week. In France that is a pratique commerciale trompeuse and not a
+	 * copy problem.
+	 *
+	 * The quantity half of the threshold stays per line: it is still ours (the
+	 * answer settles only the amount) and `H-Q02-SEUIL-DEVIS-QTE` says so.
+	 * `needs_quote` is asked with a quantity of zero so only the amount branch
+	 * can fire, which keeps one implementation of the rule rather than two.
+	 */
+	private static function check_order_needs_quote( \WC_Cart $cart ): void {
+		$config   = Settings::pricing();
+		$goods_ht = Money::from_eur( (string) $cart->get_subtotal() );
+
+		if ( ! Pricing::needs_quote( 0, $goods_ht, $config ) ) {
+			return;
+		}
+
+		wc_add_notice(
+			sprintf(
+				/* translators: 1: the basket total excl. VAT, 2: the threshold excl. VAT. */
+				__( 'Cette commande atteint %1$s hors taxes. Au-delà de %2$s, nous la chiffrons à la main : demandez un devis, vos créations sont conservées et le prix est en général meilleur que celui de la grille publique.', 'teeshoop' ),
+				Money::format( $goods_ht ),
+				Money::format( (int) $config['quote_from_ht'] )
+			),
+			'error'
+		);
 	}
 
 	/**

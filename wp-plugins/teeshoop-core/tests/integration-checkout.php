@@ -730,6 +730,64 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		update_option( 'teeshoop_pricing', $saved_pricing );
 	} );
 
+	ts_it( 'sends a basket over the amount threshold to a quote, line by line or not', function () use ( $product_id, $sides, $design, $saved_pricing ) {
+		ts_ck_regime( Vat::STANDARD );
+
+		/*
+		 * FIVE LINES THAT EACH PASS AND A BASKET THAT MUST NOT.
+		 *
+		 * Question 02 says « jusqu'à 2 000 EUR HT DE COMMANDE », and the shop
+		 * applied it to each line, so a basket of lines individually under the
+		 * threshold cleared every check. The threshold is lowered here rather
+		 * than the basket enlarged, because the point is the SCOPE and not the
+		 * number: with a 400,00 EUR threshold, two lines of ten printed tees are
+		 * 123,20 EUR each and 246,40 EUR together, so per line it passes and per
+		 * order it must not.
+		 */
+		update_option( 'teeshoop_pricing', array_merge( (array) $saved_pricing, array( 'quote_from_ht' => 20000 ) ) );
+
+		/*
+		 * RESTORED IN A `finally`, because `ts_assert` throws. The first version
+		 * put the restore after the assertions, so the run where this test failed
+		 * left a 200,00 EUR threshold and a full basket behind, and « gives the
+		 * delivery away above the franco » failed two tests later for a reason
+		 * that had nothing to do with it. A test that leaks on failure turns one
+		 * red line into two and hides which is which.
+		 */
+		try {
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$second = Cart::add( array( 'product_id' => $product_id, 'qty' => 10, 'sides' => $sides, 'design_id' => $design ) );
+		ts_assert( ! is_wp_error( $second ), 'la deuxième ligne a été refusée : ' . ( is_wp_error( $second ) ? $second->get_error_message() : '' ) );
+		WC()->cart->calculate_totals();
+
+		$goods_ht = Money::from_eur( (string) WC()->cart->get_subtotal() );
+		ts_assert( $goods_ht > 20000, 'le panier ne dépasse pas le seuil, ce test ne mesure rien' );
+
+		/*
+		 * BOTH CHECKS SIT ON `woocommerce_check_cart_items`, so the two are told
+		 * apart by their words rather than by their hook. The per-line one opens
+		 * with the product name and « au-delà de N pièces ou de » ; the
+		 * order-level one opens with « Cette commande atteint ». If the per-line
+		 * check had fired, this test would prove nothing about scope.
+		 */
+		wc_clear_notices();
+		do_action( 'woocommerce_check_cart_items' );
+		$said = ts_ck_errors();
+		ts_assert(
+			! ts_ck_any( $said, 'au-delà de' ),
+			'la vérification ligne par ligne a refusé, donc ce test ne prouve rien sur la portée'
+		);
+		ts_assert(
+			ts_ck_any( $said, 'Cette commande atteint' ),
+			'une commande au-dessus du seuil est passée en autonomie'
+		);
+
+		} finally {
+			update_option( 'teeshoop_pricing', $saved_pricing );
+			WC()->cart->empty_cart();
+		}
+	} );
+
 	// ── carriage ─────────────────────────────────────────────────────────────
 
 	ts_it( 'offers a Colissimo rate priced from the real cart weight', function () use ( $product_id, $sides, $design ) {
@@ -892,7 +950,7 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 	 * An order an OPERATOR made, above the deposit threshold.
 	 *
 	 * It cannot come from a basket: question 02 stops self-serve at 2 000 EUR HT
-	 * and question 16 opens deposits at 3 000, so the only orders that can ever
+	 * and question 16 opens deposits at 1 000 since his answer, so the only orders that can ever
 	 * qualify are the ones a person makes. That is the quote path of session 06,
 	 * and it is why this fixture is built with the order API rather than the
 	 * cart.
