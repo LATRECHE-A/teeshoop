@@ -194,7 +194,7 @@ return array(
 				'h2'         => 'Le marquage : le DTF en ligne, le reste en devis',
 				'paragraphs' => array(
 					'Une seule technique se commande en autonomie sur ce site : le DTF, un transfert imprimé puis pressé sur le vêtement. C’est celle que l’éditeur sait mesurer et chiffrer au centimètre carré, donc c’est celle que vous pouvez commander sans nous écrire.',
-					'La broderie, le flocage et la sublimation existent et passent par un devis. La broderie est sous-traitée : elle ne sort pas de notre atelier, et nous n’annonçons donc pas de délai pour elle.',
+					'La broderie, le flocage et la sublimation existent et passent par un devis. La broderie se fait dans notre atelier en petite série et chez un atelier partenaire au-delà de dix pièces. Nous n’annonçons de délai dans aucun des deux cas : ni l’un ni l’autre n’a été chronométré.',
 				),
 			),
 			array(
@@ -226,7 +226,7 @@ return array(
 			),
 			array(
 				'q' => 'Faites-vous de la broderie ?',
-				'a' => 'Oui, en devis, pas en ligne. La broderie est sous-traitée : elle ne sort pas de notre atelier et nous n’annonçons pas de délai pour elle. En autonomie sur le site, la seule technique est le DTF.',
+				'a' => 'Oui, en devis, pas en ligne. En petite série nous la faisons nous-mêmes ; au-delà de dix pièces elle part chez un atelier partenaire. Nous n’annonçons de délai dans aucun des deux cas. En autonomie sur le site, la seule technique est le DTF.',
 			),
 			array(
 				'q' => 'Sous combien de temps je reçois ma commande ?',
@@ -245,18 +245,18 @@ return array(
 		'h1'          => 'Polos personnalisés pour entreprises et associations',
 		'intro'       => array(
 			'{NB_POLOS} références de polos, imprimés en France, à partir de {MINIMUM_PIECES} pièces.',
-			'L’impression DTF se commande en ligne, avec le prix affiché avant l’ajout au panier. La broderie passe par un devis : elle est sous-traitée.',
+			'L’impression DTF se commande en ligne, avec le prix affiché avant l’ajout au panier. La broderie passe par un devis : en petite série dans notre atelier, au-delà de dix pièces chez un partenaire.',
 		),
 		'sections'    => array(
 			array(
 				'h2'         => 'Ce qui se commande seul, ce qui passe par un devis',
 				'paragraphs' => array(
 					'Une seule technique se commande en autonomie sur ce site : le DTF. Le visuel est imprimé sur un film, puis pressé sur le polo. Vous choisissez la référence, la quantité et les tailles, et le prix s’affiche avant l’ajout au panier.',
-					'La broderie n’est pas produite dans notre atelier, elle est sous-traitée : nous n’affichons donc ni sa grille de prix ni son délai. Le flocage et la sublimation passent eux aussi par un devis.',
+					'La broderie se fait chez nous en petite série et chez un atelier partenaire au-delà de dix pièces : nous n’affichons ni sa grille de prix ni son délai, ni dans un cas ni dans l’autre. Le flocage et la sublimation passent eux aussi par un devis.',
 				),
 				'list'       => array(
 					'En ligne, sans devis : impression DTF.',
-					'Sur devis : broderie (sous-traitée), flocage, sublimation.',
+					'Sur devis : broderie, flocage, sublimation.',
 					'Délai publié : {DELAI_STANDARD} jours ouvrés en DTF, entre la validation du bon à tirer et l’expédition.',
 				),
 				'links'      => array(
@@ -324,7 +324,7 @@ return array(
 		'faq'         => array(
 			array(
 				'q' => 'Puis-je commander des polos brodés directement sur le site ?',
-				'a' => 'Non. La broderie est sous-traitée : elle n’est pas produite dans notre atelier, donc elle passe par un devis et nous n’annonçons pas de délai pour elle. Ce qui se commande seul, c’est l’impression DTF. Une demande de devis reprend la référence du polo, la quantité, les tailles et l’emplacement du logo.',
+				'a' => 'Non. La broderie passe par un devis, et nous n’annonçons pas de délai pour elle : en petite série nous la faisons ici sans l’avoir chronométrée, au-delà de dix pièces elle part chez un atelier partenaire dont le délai ne nous appartient pas. Ce qui se commande seul, c’est l’impression DTF. Une demande de devis reprend la référence du polo, la quantité, les tailles et l’emplacement du logo.',
 			),
 			array(
 				'q' => 'Quelle différence entre le DTF et la broderie sur un polo ?',
@@ -548,7 +548,7 @@ return array(
 				'h2'         => 'Le DTF en autonomie, la broderie sur devis',
 				'paragraphs' => array(
 					'Sur ce site, la technique disponible en autonomie est le DTF, et lui seul. C\'est celle que l\'atelier opère, du fichier jusqu\'à la presse.',
-					'La broderie, le flocage et la sublimation existent et passent par un devis. La broderie est sous-traitée : elle ne sort pas de notre atelier, et nous ne publions pas de délai pour elle, parce que ce délai serait tenu par l\'atelier de broderie et pas par nous.',
+					'La broderie, le flocage et la sublimation existent et passent par un devis. La broderie se fait dans notre atelier en petite série, et au-delà de dix pièces chez un atelier partenaire. Nous ne publions de délai pour aucun des deux : le nôtre n\'a jamais été chronométré, et l\'autre ne nous appartient pas.',
 					'Le catalogue tient trois familles : t-shirts, polos et sweats. Une veste ou un tablier n\'y sont pas aujourd\'hui, et nous préférons ne pas ouvrir une fiche pour un vêtement que nous ne pouvons pas expédier.',
 				),
 				'links'      => array(
@@ -580,7 +580,7 @@ return array(
 			),
 			array(
 				'q' => 'Faites-vous de la broderie, et sur des vestes ?',
-				'a' => 'La broderie, oui, sur devis, et elle est sous-traitée : elle ne se commande pas en ligne et nous n\'annonçons pas de délai pour elle. Les vestes, non : le catalogue tient trois familles, t-shirts, polos et sweats.',
+				'a' => 'La broderie, oui, sur devis : en petite série chez nous, au-delà de dix pièces chez un atelier partenaire. Elle ne se commande pas en ligne et nous n\'annonçons pas de délai pour elle. Les vestes, non : le catalogue tient trois familles, t-shirts, polos et sweats.',
 			),
 			array(
 				'q' => 'Mon logo a un fond blanc, est-ce que je paie cette surface ?',
@@ -665,7 +665,7 @@ return array(
 				'h2'         => 'Ce qui se commande seul, et ce qui passe par un devis',
 				'paragraphs' => array(
 					'L’impression DTF est la seule technique commandable directement sur le site. C’est celle que l’éditeur affiche et celle qui est comprise dans le prix. Nous l’imprimons dans notre atelier, en France.',
-					'La broderie, le flocage et la sublimation existent, et ils passent par un devis. La broderie est sous-traitée : elle n’est pas faite dans notre atelier, et nous n’annonçons aucun délai pour elle avant d’avoir la réponse de l’atelier qui la réalise. Le polo brodé de l’écusson suit donc ce chemin, et pas celui du panier.',
+					'La broderie, le flocage et la sublimation existent, et ils passent par un devis. La broderie se fait chez nous en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n’annonçons aucun délai pour elle dans un cas comme dans l’autre. Le polo brodé de l’écusson suit donc ce chemin, et pas celui du panier.',
 				),
 				'links'      => array(
 					array( 'label' => 'Demander un devis', 'key' => 'page:devis' ),
@@ -705,7 +705,7 @@ return array(
 			),
 			array(
 				'q' => 'Pouvez-vous broder les polos du bureau ?',
-				'a' => 'Oui, par devis et non par le site. La broderie est sous-traitée, et nous n’annonçons pas de délai pour elle tant que l’atelier qui la réalise n’a pas répondu. Le flocage et la sublimation suivent le même chemin.',
+				'a' => 'Oui, par devis et non par le site. En petite série nous les brodons ici ; au-delà de dix pièces cela part chez un atelier partenaire, et nous n’annonçons pas de délai tant qu’il n’a pas répondu. Le flocage et la sublimation suivent le même chemin.',
 			),
 		),
 	),
@@ -741,7 +741,7 @@ return array(
 				'h2'         => 'Une seule technique se commande en ligne, le DTF',
 				'paragraphs' => array(
 					'Vous déposez votre fichier, l\'éditeur montre le vêtement en 2D, en 3D et en réalité augmentée, et le prix s\'affiche avant l\'ajout au panier. Le bon à tirer se valide ensuite en ligne, sans créer de compte : le trésorier ou le président valide sans que personne ait à lui ouvrir un accès.',
-					'Le flocage, la sublimation et la broderie existent, mais ils passent par un devis. La broderie est sous-traitée, elle ne sort pas de notre atelier, et nous n\'annonçons pas de délai pour elle.',
+					'Le flocage, la sublimation et la broderie existent, mais ils passent par un devis. La broderie se fait dans notre atelier en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n\'annonçons de délai dans aucun des deux cas.',
 					'Le grammage de chaque référence est publié et filtrable. Un sweat que l\'on garde sur le dos au bord du terrain en février et un t-shirt de tournoi de juin ne se choisissent pas au même chiffre.',
 				),
 				'links'      => array(
@@ -826,7 +826,7 @@ return array(
 			),
 			array(
 				'q' => 'Faites-vous la broderie du blason ?',
-				'a' => 'Elle passe par un devis et elle est sous-traitée : elle n\'est pas réalisée dans notre atelier. Nous n\'annonçons pas de délai pour elle, pour la même raison.',
+				'a' => 'Elle passe par un devis. En petite série nous la réalisons ici ; au-delà de dix pièces elle part chez un atelier partenaire. Nous n\'annonçons de délai dans aucun des deux cas.',
 			),
 			array(
 				'q' => 'Comment être sûr de la couleur du club ?',
@@ -919,7 +919,7 @@ return array(
 				'h2'         => 'Le DTF en ligne, la broderie en devis',
 				'paragraphs' => array(
 					'La seule technique que vous pouvez commander seul sur ce site est le DTF, imprimé en France, dans notre atelier. Les {DELAI_STANDARD} jours ouvrés sont ceux de cet atelier.',
-					'La broderie, le flocage et la sublimation existent, mais passent par un devis. La broderie est sous-traitée : elle ne sort pas de notre atelier, et nous n\'annonçons aucun délai pour elle. Si votre projet en contient, le calcul de date de cette page ne s\'y applique pas.',
+					'La broderie, le flocage et la sublimation existent, mais passent par un devis. La broderie se fait chez nous en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n\'annonçons aucun délai pour elle dans un cas comme dans l\'autre. Si votre projet en contient, le calcul de date de cette page ne s\'y applique pas.',
 				),
 			),
 		),
@@ -950,7 +950,7 @@ return array(
 			),
 			array(
 				'q' => 'Nous voulons de la broderie sur les polos de l\'accueil.',
-				'a' => 'Cela passe par un devis. La broderie est sous-traitée et nous n\'annonçons pas de délai pour elle, donc le calcul de date de cette page ne couvre pas ce cas. Le DTF est la seule technique commandable seul en ligne.',
+				'a' => 'Cela passe par un devis. Nous n\'annonçons pas de délai pour la broderie, qu\'elle soit faite ici en petite série ou chez un atelier partenaire au-delà de dix pièces, donc le calcul de date de cette page ne couvre pas ce cas. Le DTF est la seule technique commandable seul en ligne.',
 			),
 		),
 	),
@@ -1032,7 +1032,7 @@ return array(
 				'h2'         => 'Broderie, flocage et sublimation passent par un devis',
 				'paragraphs' => array(
 					'Le DTF est la seule technique commandable en autonomie sur le site : c\'est celle dont les zones, les paliers de prix et le délai sont publiés ici.',
-					'La broderie, le flocage et la sublimation existent, mais par devis. La broderie est sous-traitée, elle ne sort pas de notre atelier, et nous n\'annonçons aucun délai pour elle tant que l\'atelier qui la réalise ne l\'a pas confirmé. Pour un écusson brodé sur un polo de réception d\'hôtel, la réponse est un devis, pas un ajout au panier.',
+					'La broderie, le flocage et la sublimation existent, mais par devis. La broderie se fait dans notre atelier en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n\'annonçons aucun délai pour elle dans un cas comme dans l\'autre. Pour un écusson brodé sur un polo de réception d\'hôtel, la réponse est un devis, pas un ajout au panier.',
 				),
 				'links'      => array(
 					array( 'label' => 'Demander un devis pour la broderie', 'key' => 'page:devis' ),
@@ -1146,7 +1146,7 @@ return array(
 				'h2'         => 'Ce que nous imprimons, et ce qui passe par un devis',
 				'paragraphs' => array(
 					'En autonomie sur le site, une seule technique : le DTF. Un transfert imprimé sur film, puis pressé sur le vêtement. Il ne demande pas un écran par couleur, et c’est exactement ce qui rend une petite série possible : il n’y a pas d’outillage à amortir sur une longue série.',
-					'La broderie, le flocage et la sublimation passent par un devis. La broderie est sous-traitée : elle n’est pas faite dans notre atelier, et nous ne vous annoncerons pas de délai pour elle tant qu’il ne dépend pas de nous.',
+					'La broderie, le flocage et la sublimation passent par un devis. La broderie se fait dans notre atelier en petite série et chez un atelier partenaire au-delà de dix pièces, et nous ne vous annoncerons de délai ni pour l’un ni pour l’autre : le nôtre n’a jamais été chronométré, l’autre ne dépend pas de nous.',
 				),
 				'links'      => array(
 					array( 'label' => 'Demander un devis', 'key' => 'page:devis' ),
@@ -1191,7 +1191,7 @@ return array(
 			),
 			array(
 				'q' => 'Faites-vous de la broderie sur une petite série ?',
-				'a' => 'La broderie passe par un devis et elle est sous-traitée : elle n’est pas faite dans notre atelier. Nous ne vous annoncerons pas de délai de broderie tant qu’il ne dépend pas de nous. En autonomie sur le site, la technique est le DTF.',
+				'a' => 'La broderie passe par un devis : en petite série nous la faisons ici, au-delà de dix pièces elle part chez un atelier partenaire. Nous ne vous annoncerons de délai dans aucun des deux cas. En autonomie sur le site, la technique est le DTF.',
 			),
 		),
 	),
@@ -1267,7 +1267,7 @@ return array(
 				'h2'         => 'Le DTF, en clair',
 				'paragraphs' => array(
 					'DTF veut dire Direct To Film. Le visuel est imprimé sur un film, puis transféré sur le vêtement sous presse à chaud. Sur un textile foncé, l’aperçu du studio est volontairement prudent : un visuel semi-transparent y laisse voir la couleur du vêtement au travers, et ce que vous recevrez ne sera jamais moins bon que ce que l’aperçu montre.',
-					'C\'est la seule technique commandable directement sur ce site. La broderie, le flocage et la sublimation existent et passent par un devis. La broderie est sous-traitée : nous ne publions donc pas de délai pour elle.',
+					'C\'est la seule technique commandable directement sur ce site. La broderie, le flocage et la sublimation existent et passent par un devis. La broderie se fait chez nous en petite série et chez un atelier partenaire au-delà de dix pièces : nous ne publions de délai pour aucun des deux.',
 					'Le DTF pose une matière sur le tissu, il ne le teint pas. Et l\'écran ne dit pas la couleur finale : sur le bon à tirer, jugez le placement et les dimensions, pas la teinte exacte.',
 				),
 			),
