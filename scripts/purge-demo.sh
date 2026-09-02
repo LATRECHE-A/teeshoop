@@ -207,9 +207,15 @@ dire "VARIATIONS liées : $NBV"
 # se supprime pas parce qu'un produit disparaît.
 # Idem : une requête pour les vignettes et les galeries des 42 produits, au lieu
 # de 84 appels wp-cli.
+# LES IMAGES DES VARIATIONS COMPTENT AUSSI. Une variation porte sa propre
+# `_thumbnail_id`, et elle est supprimée dans la même passe que son parent. En ne
+# ramassant que les images des PRODUITS, ce script laissait derrière lui l'image
+# d'une variation condamnée : plus personne ne l'utilisait et personne ne la
+# retirait. Mesuré sur le miroir avec une variation fabriquée pour le cas :
+# 2 candidats trouvés au lieu de 3, et le troisième devenait orphelin.
 MEDIAS=$(q "SELECT meta_value FROM ${P}postmeta
    WHERE meta_key IN ('_thumbnail_id','_product_image_gallery') AND meta_value <> ''
-     AND post_id IN ($(echo "$CIBLES" | tr -s ' ' ',' | sed 's/^,//;s/,$//'))" \
+     AND post_id IN ($(echo "$CIBLES $VARIATIONS" | tr -s ' ' ',' | sed 's/^,//;s/,$//'))" \
   | tr ',' '\n' | tr -d ' ' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)
 # LA LISTE POUR SQL, CONSTRUITE UNE FOIS ET VÉRIFIÉE NON VIDE. Interpolée vide,
 # `NOT IN ()` est une erreur de syntaxe MySQL : la requête ne rend rien, `ailleurs`
@@ -217,6 +223,19 @@ MEDIAS=$(q "SELECT meta_value FROM ${P}postmeta
 # transformait en son contraire exactement quand il n'y avait rien à purger.
 CIBLES_SQL=$(echo "$CIBLES" | tr -s ' ' ',' | sed 's/^,//;s/,$//')
 [ -n "$CIBLES_SQL" ] || refus "la liste des produits visés est vide au moment de bâtir la requête : rien ne sera supprimé."
+
+# ── CE QUI DISPARAÎT N'EST PAS « AILLEURS » ─────────────────────────────────
+#
+# Les quatre requêtes ci-dessous demandent « cette image sert-elle à un contenu
+# qu'on GARDE ». Elles excluaient les 42 produits et pas leurs variations, qui
+# sont pourtant supprimées dans la même passe. Une variation porte sa propre
+# `_thumbnail_id` : une image qui ne sert qu'à une variation condamnée était donc
+# comptée comme « utilisée ailleurs » et gardée pour toujours, orpheline.
+#
+# Trouvé en recalculant la même chose par l'API REST, en HTTPS, pendant que le SSH
+# était fermé : le SQL comptait 9 images partagées, le REST 0. Les deux avaient
+# raison à leur question ; ce sont les questions qui différaient.
+SUPPRIMES_SQL=$(echo "$CIBLES $VARIATIONS" | tr -s ' ' ',' | sed 's/^,//;s/,$//')
 
 GARDES_MEDIA=""
 SUPPR_MEDIA=""
@@ -244,11 +263,11 @@ if [ -n "$(echo "$MEDIAS" | tr -d ' ')" ]; then
 
   # 1. Vignettes des contenus conservés.
   U1=$(q "SELECT DISTINCT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
-          WHERE pm.meta_key = '_thumbnail_id' AND p.ID NOT IN ($CIBLES_SQL)")
+          WHERE pm.meta_key = '_thumbnail_id' AND p.ID NOT IN ($SUPPRIMES_SQL)")
 
   # 2. Galeries des produits conservés : des listes séparées par des virgules.
   U2=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
-          WHERE pm.meta_key = '_product_image_gallery' AND pm.meta_value <> '' AND p.ID NOT IN ($CIBLES_SQL)" \
+          WHERE pm.meta_key = '_product_image_gallery' AND pm.meta_value <> '' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
        | tr ',' '\n')
 
   # 3. Le corps des contenus conservés : WordPress y écrit `wp-image-<id>`.
@@ -258,7 +277,7 @@ if [ -n "$(echo "$MEDIAS" | tr -d ' ')" ]; then
   # Mesuré sur le miroir : U3 vide, sortie 1, plus rien après « VARIATIONS liées ».
   # C'est la deuxième fois de la séance que cette forme casse un script au moment
   # exact où tout va bien ; la première était dans l'anonymiseur.
-  U3=$(q "SELECT post_content FROM ${P}posts WHERE ID NOT IN ($CIBLES_SQL)
+  U3=$(q "SELECT post_content FROM ${P}posts WHERE ID NOT IN ($SUPPRIMES_SQL)
           AND post_status NOT IN ('trash','auto-draft') AND post_content LIKE '%wp-image-%'" \
        | grep -oE 'wp-image-[0-9]+' | cut -d- -f3 || true)
 
@@ -267,7 +286,7 @@ if [ -n "$(echo "$MEDIAS" | tr -d ' ')" ]; then
   #    de meubles : c'est le contenu le plus susceptible de partager une image
   #    avec un produit purgé.
   U4=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
-          WHERE pm.meta_key = '_elementor_data' AND p.ID NOT IN ($CIBLES_SQL)" \
+          WHERE pm.meta_key = '_elementor_data' AND p.ID NOT IN ($SUPPRIMES_SQL)" \
        | grep -oE '\"id\":[0-9]+' | cut -d: -f2 || true)
 
   UTILISES=$(printf '%s\n%s\n%s\n%s\n' "$U1" "$U2" "$U3" "$U4" | tr -d ' ' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)
@@ -279,7 +298,7 @@ if [ -n "$(echo "$MEDIAS" | tr -d ' ')" ]; then
   # cette lecture ne rend pas ce qu'elle devrait, et « aucune image partagée »
   # serait alors une lecture ratée et non un résultat. On refuse.
   CANARI=$(q "SELECT pm.meta_value FROM ${P}postmeta pm JOIN ${P}posts p ON p.ID = pm.post_id
-              WHERE pm.meta_key = '_thumbnail_id' AND p.ID NOT IN ($CIBLES_SQL) AND pm.meta_value <> '' LIMIT 1" | tr -d ' ')
+              WHERE pm.meta_key = '_thumbnail_id' AND p.ID NOT IN ($SUPPRIMES_SQL) AND pm.meta_value <> '' LIMIT 1" | tr -d ' ')
   if [ -n "$CANARI" ]; then
     trouve=0
     for u in $UTILISES; do [ "$u" = "$CANARI" ] && trouve=1; done
