@@ -102,6 +102,33 @@ médiation et les deux des conditions générales. **Aucune n'est du code.**
 dérogation, et c'est le comportement voulu. Ce n'est pas un travail à finir :
 c'est la porte qui fait son travail.
 
+**LA PURGE EST FAITE, EN PRÉPRODUCTION PUIS EN PRODUCTION**, le 2 septembre 2026,
+sur autorisation écrite du propriétaire du dépôt (et non de l'associé, qui n'était
+pas joignable ; ses mots sont dans `~/teeshoop-autorisation-purge.txt` sur le
+serveur). Les deux passages donnent exactement le même compte :
+
+| | préproduction | production |
+|---|---|---|
+| produits | **-42** | **-42** |
+| variations | -13 | -13 |
+| médias | -58 (sur 71 visés, 13 pointaient déjà dans le vide) | -58 |
+| termes vidés | -10 | -10 |
+| **commandes** | **15, inchangé** | **15, inchangé** |
+
+Vérifié après, sur la vraie boutique : toutes les pages en 200, **zéro erreur
+fatale**, la boutique ne montre plus un seul meuble (`Mariposa`, `Palissade`,
+`Ventura`, `Trevi`, `Savile Row`, `Gift card` : 0 occurrence), les cinq vrais
+produits sont là, et une adresse de produit supprimé rend 404. Un export WXR de
+896 ko et une sauvegarde complète ont été pris avant.
+
+Ce qui reste et qui appartient à un humain : les 27 objets de démonstration du
+thème (13 modèles Elementor, 5 blocs, 5 dispositions, 3 diapositives, 1 guide des
+tailles) et **la page d'accueil, qui est elle-même une page de démonstration de
+meubles** (`home-furniture2`). Le script ne les touche pas parce qu'il ne peut pas
+savoir lesquels sont utilisés.
+
+*(Paragraphe d'origine, conservé parce qu'il dit ce qui avait été éprouvé avant :)*
+
 **La purge de démonstration n'a jamais supprimé quoi que ce soit, nulle part.**
 Sa sélection est juste et mesurée sur la préproduction : 42 produits, 13
 variations, les cinq vrais produits épargnés, 15 commandes inchangées.
@@ -155,6 +182,48 @@ connexions, pas cent.
 
 ---
 
+## 6 bis. Les quatre prix provisoires, et où ils sont signalés
+
+L'associé n'est pas joignable et ne le sera pas de sitôt. La décision prise le
+2 septembre est donc : **on garde les valeurs supposées, on les signale, et on
+n'ouvre pas la boutique avec.** Ce n'est pas un contournement du portail : le
+portail continue de refuser sur ces quatre lignes, et c'est ce qui empêche
+d'ouvrir.
+
+| Ligne du registre | Ce qu'elle suppose |
+|---|---|
+| `H-Q06-TARIF-TEE` | un t-shirt une face vaut **14,50 EUR HT** (9,50 de textile + 5,00 de marquage) |
+| `H-Q06-TARIF-SWEAT` | un sweat une face vaut **32,00 EUR HT** (27,00 + 5,00) |
+| `H-Q06-TARIF-VETEMENT-CLIENT` | vêtement fourni par le client : **12,00 EUR HT** la face |
+| `H-Q06-MARQUAGE-FACE-SUP` | chaque face après la première : **6,00 EUR HT** |
+
+Toutes les quatre : `status: assumption`, `level: bloquant`, `reaches: customer,
+operator`, sans date de réponse. Question 06.
+
+**Où un opérateur le voit maintenant.** Le marqueur existait et ne s'affichait
+qu'en boutique, pour un opérateur connecté (grille de prix, page d'accueil, pied
+de page). Il ne paraissait sur **aucun écran d'administration**, c'est-à-dire
+précisément là où un opérateur travaille et modifie un prix. `CLAUDE.md` demande
+qu'un chiffre provisoire soit signalé « dans l'interface où un opérateur peut le
+voir », donc `Hypotheses::admin_note()` l'affiche désormais sur la fiche produit,
+la liste des produits, les réglages WooCommerce et l'écran des coûts, avec le
+nombre de valeurs concernées, les numéros de questions et un lien vers le
+registre. Sur ces écrans-là seulement : un bandeau partout est un bandeau que
+personne ne lit.
+
+**Ce qu'un client voit : rien, et c'est délibéré.** La décision est antérieure et
+elle tient : « un client qui lit "ces prix sont des hypothèses" n'apprend rien
+qu'il puisse utiliser et doute d'un nombre qui est par ailleurs calculé
+correctement ». Ce que le client reçoit est la formulation française sous laquelle
+chaque chiffre est affiché. Et de toute façon la boutique ne vend pas : aucun
+moyen de paiement n'est activé.
+
+**Ce qui reste à faire quand il répondra :** confirmer ou corriger les quatre
+nombres, dater la ligne dans `docs/hypotheses.json`, et relancer le portail. Le
+compte de refus doit baisser de quatre.
+
+---
+
 ## 7. Ce que la séance 15 doit faire en premier
 
 1. **Faire avancer `main`.** C'est la seule chose qui empêche encore le
@@ -196,8 +265,11 @@ connexions, pas cent.
 
 **Pas mesuré, et il faut le savoir :**
 
-- **la purge en vrai** (`--faire`). La simulation est passée sur la vraie
-  préproduction et sur le miroir ; rien n'a jamais été supprimé ;
+- **le déploiement automatique depuis GitHub.** Il a été déclenché pour de vrai le
+  2 septembre et il a échoué à l'étape SSH : **o2switch filtre par adresse IP**, et
+  un exécutant GitHub n'y sera jamais. Ce n'est pas une panne, c'est une propriété
+  de l'hébergement. `scripts/deployer.sh` fait la même séquence depuis une machine
+  autorisée, et l'en-tête du script dit les trois façons de vivre avec ;
 - **le déploiement depuis GitHub Actions**, jamais déclenché : les secrets ne sont
   pas posés. Tout ce qui a été fait l'a été à la main, avec la clé restreinte,
   dans le même ordre que le fichier de travail ;

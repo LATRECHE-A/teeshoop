@@ -399,6 +399,73 @@ final class Hypotheses {
 
 	public static function init(): void {
 		add_action( 'admin_menu', array( self::class, 'menu' ) );
+		add_action( 'admin_notices', array( self::class, 'admin_note' ) );
+	}
+
+	/**
+	 * LE MÊME AVERTISSEMENT, MAIS LÀ OÙ UN OPÉRATEUR TRAVAILLE VRAIMENT.
+	 *
+	 * `note()` ne s'affiche qu'en boutique, sur trois gabarits, et seulement pour
+	 * quelqu'un qui a `manage_woocommerce`. Un opérateur connecté qui regarde un
+	 * prix DANS l'ADMINISTRATION ne voyait donc rien : ni sur la fiche produit
+	 * qu'il édite, ni sur la colonne Prix de la liste des produits, ni sur les
+	 * écrans de coûts. `CLAUDE.md` demande qu'un chiffre provisoire soit signalé
+	 * « dans l'interface où un opérateur peut le voir », et l'administration est
+	 * précisément cette interface.
+	 *
+	 * SUR LES ÉCRANS CONCERNÉS SEULEMENT. Un bandeau sur les cinquante écrans de
+	 * WordPress est un bandeau que personne ne lit, et la barre de qualité
+	 * interdit le « badge soup ». Il ne paraît donc que là où un prix supposé est
+	 * affiché ou modifiable.
+	 */
+	public static function admin_note(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
+		$ecran = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! $ecran ) {
+			return;
+		}
+		$concerne = ( 'product' === ( $ecran->post_type ?? '' ) )
+			|| false !== strpos( (string) ( $ecran->id ?? '' ), 'teeshoop-couts' )
+			|| false !== strpos( (string) ( $ecran->id ?? '' ), 'wc-settings' );
+		if ( ! $concerne ) {
+			return;
+		}
+
+		/*
+		 * « On n'a pas pu regarder » n'est pas « il n'y a rien à dire », ici comme
+		 * partout ailleurs : un registre illisible rendrait cet écran muet alors
+		 * qu'il porte des chiffres supposés.
+		 */
+		if ( ! self::readable() ) {
+			printf(
+				'<div class="notice notice-error"><p><strong>%s</strong> %s</p></div>',
+				esc_html__( 'Teeshoop :', 'teeshoop' ),
+				esc_html__( 'le registre des hypothèses est illisible, donc cet écran ne peut pas dire quels chiffres sont provisoires. Lancez « node scripts/hypotheses-guard.mjs --write ».', 'teeshoop' )
+			);
+			return;
+		}
+
+		$lignes = self::assumed_at( self::HOME_PRICING );
+		if ( array() === $lignes ) {
+			return;
+		}
+
+		printf(
+			'<div class="notice notice-warning"><p><strong>%s</strong> %s <a href="%s">%s</a></p></div>',
+			esc_html__( 'Chiffres provisoires.', 'teeshoop' ),
+			esc_html(
+				sprintf(
+					/* translators: 1: how many figures, 2: the question numbers, e.g. "02, 06, 08". */
+					__( '%1$d valeur(s) affichée(s) ici viennent d’hypothèses que personne n’a encore confirmées (questions %2$s). Elles sont utilisables pour travailler et elles ne doivent pas partir en ligne telles quelles : le portail de mise en ligne les refuse.', 'teeshoop' ),
+					count( $lignes ),
+					self::question_list( $lignes )
+				)
+			),
+			esc_url( admin_url( 'admin.php?page=teeshoop-hypotheses' ) ),
+			esc_html__( 'Voir lesquelles', 'teeshoop' )
+		);
 	}
 
 	public static function menu(): void {

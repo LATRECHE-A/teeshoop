@@ -336,6 +336,32 @@ fi
 dire "MÉDIAS   : $(echo "$SUPPR_MEDIA" | wc -w) à supprimer, $(echo "$GARDES_MEDIA" | wc -w) gardés parce qu'un autre contenu les utilise."
 dire ""
 
+# ── CE QUE CE SCRIPT NE REGARDE PAS, ET QU'IL FAUT SAVOIR ────────────────────
+#
+# Le seul contrôle de référence qu'il fait sur un PRODUIT est « figure-t-il dans
+# une commande ». Il applique aux IMAGES une discipline de six sources avec un
+# témoin chacune, et rien de tel aux produits. Ne sont donc pas examinés : un
+# identifiant de produit cité dans un widget Elementor, dans un raccourci
+# `[products ids=]` d'un bloc de contenu, par une entrée de menu, par une
+# disposition Woodmart, par une liste de souhaits, ou dans les ventes croisées
+# des produits conservés.
+#
+# Mesuré et raisonné : aucune de ces classes ne casse le site, elles le vident.
+# WordPress retire de lui-même une entrée de menu qui pointe vers un contenu
+# disparu, WooCommerce nettoie ses propres tables de recherche, une commande fige
+# le nom et le prix sur sa ligne, et une image supprimée ne rend rien. La seule
+# classe qui pourrait produire une vraie erreur 500 est du code tiers qui
+# stockerait un identifiant de produit et le déréférencerait sans vérifier.
+# Éprouvé en préproduction le 02/09/2026 avant la production : toutes les pages
+# en 200, aucune erreur fatale.
+#
+# Deux conséquences à connaître et qui ne sont pas des défauts :
+#   - les 42 adresses des produits supprimés répondent 404, sans redirection ;
+#   - le cache de PAGES n'est pas vidé. `wp cache flush` plus bas vide le cache
+#     OBJET. Sur o2switch, LiteSpeed sert des pages entières depuis un autre
+#     cache, et un visiteur peut donc voir un produit disparu jusqu'à ce qu'il
+#     expire. Vider à la main : `wp litespeed-purge all`.
+
 dire "NON TOUCHÉ, et à décider par un humain :"
 q "SELECT post_type, COUNT(*) FROM ${P}posts
    WHERE post_type IN ('woodmart_slider','woodmart_slide','woodmart_layout','cms_block','elementor_library','template','woodmart_size_guide')
