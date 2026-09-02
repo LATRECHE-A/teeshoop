@@ -147,18 +147,66 @@ jobs:
   # The WordPress plugin. Its pure classes (Money, Pricing, Margin) call no
   # WordPress function on purpose, so they need PHP and nothing else. The
   # runner exits 2 if it finds no tests, so "scanned nothing" cannot pass.
+  #
+  # TWO PHP VERSIONS, AND 8.1 IS THE ONE THAT MATTERS. o2switch serves
+  # teeshoop.com with PHP 8.1.34. This job used to pin 8.3 alone, the mirror runs
+  # 8.3 because the official WordPress images stop shipping php8.1 at WordPress
+  # 6.8, and `npm run test:php` runs on whatever the developer has, 8.5 today. So
+  # until 02/09/2026 the plugin's PHP had been exercised on 8.3 and 8.5 and never
+  # once on the version that actually serves customers. Anything using a function
+  # added after 8.1 passed every gate in this repository and would have fatalled
+  # on the live shop with a white page.
+  #
+  # Measured the day this was added, on `php:8.1-cli` (8.1.34, production's exact
+  # patch): 550/550 pass, and the lint is clean over wp-plugins AND wp-themes.
+  # There was nothing to fix. That is worth stating rather than quietly deleting
+  # the warning: the hole was real, the code happened to be clean, and this job is
+  # what keeps it that way.
+  #
+  # 8.3 stays because it is what the mirror runs, so a divergence between the two
+  # is visible here rather than in a bug report.
+  #
+  # A NOTE ON THE PATCH LEVEL, so nobody reads more into a green tick than is
+  # there: the runner installs the newest 8.1.x, which is not necessarily .34.
+  # This catches the version difference, which is the whole class of fault. The
+  # exact build o2switch runs is covered by the deploy, which lints the deployed
+  # files with the server's own PHP before activating anything.
   plugin:
+    name: plugin (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    strategy:
+      # Not fail-fast: when 8.1 and 8.3 disagree, the disagreement IS the result,
+      # and cancelling the other job throws away half of it.
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
     steps:
       - uses: actions/checkout@v4
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php }}
           coverage: none
 
+      # wp-themes as well as wp-plugins. The theme is PHP that o2switch executes
+      # on every page, and it was outside this line until 02/09/2026.
       - name: Lint every PHP file
-        run: find wp-plugins -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: find wp-plugins wp-themes -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Plugin unit tests
         run: php wp-plugins/teeshoop-core/tests/run.php
+
+      # THE THIRD LAYER, AND THE ONE THE OTHER TWO CANNOT SEE. `php -l` parses,
+      # so a call to json_validate() is valid 8.1 syntax and passes. The suite
+      # executes, so it only covers a path a test walks, which the admin screens,
+      # the twelve WP-CLI commands and the REST handlers largely are not. What is
+      # left over is a function that does not exist on 8.1 on a line no test
+      # reaches, and that is exactly the shape that gets shipped.
+      #
+      # Demonstrated rather than asserted, on 02/09/2026: a json_validate() call
+      # planted in Money.php was passed by `php -l` under 8.1.34 and caught here.
+      - name: No symbol the shop's PHP does not have
+        run: php scripts/php81-guard.php
+
+      - name: The 8.1 guard can still fail
+        run: php scripts/php81-guard.php --self-test
