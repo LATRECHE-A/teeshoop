@@ -1,15 +1,41 @@
 <?php
 /**
- * The invoice: its number, its frozen contents, and the PDF.
+ * The order récapitulatif: its reference, its frozen contents, and the PDF.
  *
- * ── THE NUMBER ───────────────────────────────────────────────────────────────
+ * ── IT IS NOT A FACTURE, SINCE QUESTION 24 ───────────────────────────────────
  *
- * CGI, annexe II, article 242 nonies A, I, 7° requires "un numéro unique basé
- * sur une séquence chronologique et continue". Continue means no holes: an
- * invoice that turns out to be wrong is cancelled by an avoir, never by
- * deleting or reusing its number. BOI-TVA-DECLA-30-20-20-10 § 90 adds that
- * uniqueness is required between two invoices issued IN THE SAME YEAR, which is
- * what licenses the ordinary French form FA2026-0001 with an annual series.
+ * The associate's answer of 1 September 2026: "Les factures officielles doivent
+ * rester gérées par notre système externe de facturation/comptabilité, et non
+ * par une nouvelle numérotation indépendante créée par le site. Le site peut en
+ * revanche générer les éléments commerciaux nécessaires : devis, récapitulatifs
+ * de commande, BAT, etc. Il ne doit pas créer une deuxième numérotation légale
+ * des factures qui risquerait de provoquer des doublons."
+ *
+ * That is the opposite of what session 04 shipped, and the correction retained
+ * is to KEEP THE DOCUMENT AND TAKE AWAY ITS LEGAL CHARACTER rather than delete
+ * it. The PDF is the only thing that states what was sold, at what price, under
+ * which conditions, with the withdrawal waiver frozen beside it, and a deposit
+ * that produced no document at all would be worse for the customer than one
+ * that produces a récapitulatif.
+ *
+ * WHAT THIS COSTS, SAID HERE BECAUSE IT IS THE RISK OF THE CHANGE: article 289
+ * of the CGI still requires a facture, and for a supply of goods it requires one
+ * on each advance payment received. Nothing in this shop issues one any more.
+ * That obligation now sits entirely with an accounting system nobody has named,
+ * so `H-Q63-FACTURE-EXTERNE` is a blocking row and the launch gate refuses
+ * go-live while it is unanswered. Fail closed, and visibly.
+ *
+ * ── THE REFERENCE ────────────────────────────────────────────────────────────
+ *
+ * NOT a fiscal sequence, and the letters say so: TS2026-0001, not FA2026-0001,
+ * because the old prefix read as facture to anyone who has ever filed one. What CGI,
+ * annexe II, article 242 nonies A, I, 7° requires of an invoice number, and what
+ * BOI-TVA-DECLA-30-20-20-10 § 90 says about uniqueness within a year, is the
+ * external system's problem now.
+ *
+ * The sequence is unchanged all the same. A commercial reference that repeats
+ * is still a reference that cannot identify its document, and an avoir issued
+ * against the wrong one is still a real mistake.
  *
  * IT IS ALLOCATED IN ONE SQL STATEMENT, and that is the only way to get it
  * right. Two customers paying in the same second are two PHP processes, and a
@@ -79,14 +105,31 @@ final class Invoice {
 	 * Every document this order has produced, in the order it produced them.
 	 *
 	 * A list rather than a field, because an order settled in two payments
-	 * produces two invoices and both are numbered: article 289, I-1-c du CGI
-	 * makes a facture d'acompte mandatory on receipt of an advance payment for
-	 * a supply of goods, and BOI-TVA-DECLA-30-20-20-10 § 60 requires the final
-	 * one to reference them.
+	 * produces two documents and each carries its own reference.
+	 *
+	 * The obligation itself is NOT ours since question 24: article 289, I-1-c du
+	 * CGI makes a facture d'acompte mandatory on receipt of an advance payment
+	 * for a supply of goods, and BOI-TVA-DECLA-30-20-20-10 § 60 requires the
+	 * final invoice to reference them. Both are now owed by the accounting
+	 * system that issues the factures, and `H-Q63-FACTURE-EXTERNE` refuses
+	 * go-live until somebody has named it, because a deposit taken with nothing
+	 * issuing that facture is the one thing this change could break.
 	 */
 	public const META_DOCS = '_teeshoop_factures';
 
-	/** The kinds of document this issues. Both are factures in the law's sense. */
+	/*
+	 * The kinds of document this issues. NEITHER IS A FACTURE.
+	 *
+	 * Question 24: the legal invoice stays in the associate's own accounting
+	 * system, and the site must not open a second legal numbering that could
+	 * collide with it. So what this class issues is a récapitulatif de commande,
+	 * which is a commercial document, and the facture is issued elsewhere.
+	 *
+	 * The two stored words are unchanged on purpose. They are storage keys, in
+	 * `META_DOCS` on orders taken before the answer arrived, and renaming a key
+	 * orphans the documents it names for no gain: nothing a customer reads comes
+	 * from them.
+	 */
 	public const KIND_INVOICE = 'facture';
 	public const KIND_DEPOSIT = 'acompte';
 
@@ -116,6 +159,13 @@ final class Invoice {
 		add_action( 'woocommerce_payment_complete', array( self::class, 'on_payment' ), 20, 1 );
 		add_action( 'woocommerce_order_status_changed', array( self::class, 'on_status' ), 20, 4 );
 
+		/*
+		 * The action name still says facture, and so does the `teeshoop-facture`
+		 * class on the customer's link. Both are addresses rather than wording:
+		 * the first is in URLs already sent, the second in stylesheets, and
+		 * neither is read by a customer. Question 24 changed what the document
+		 * IS and everything it says, not where it lives.
+		 */
 		add_action( 'admin_post_teeshoop_facture', array( self::class, 'serve' ) );
 		add_action( 'admin_post_nopriv_teeshoop_facture', array( self::class, 'serve' ) );
 
@@ -198,9 +248,19 @@ final class Invoice {
 	 */
 	public static function default_config(): array {
 		return array(
-			// The ordinary French form. Question 24's default gives us the
-			// numbering; the letters are convention, not law.
-			'prefix'       => 'FA',
+			/*
+			 * THESE TWO LETTERS ARE THE WHOLE OF QUESTION 24. The prefix used
+			 * to be the two that open the word facture, which is what any
+			 * accountant reads them as, and a reference that reads as an invoice
+			 * number beside a real invoice number from another system is exactly
+			 * the collision his answer asks us to avoid. This is a commercial
+			 * reference on a commercial document, and it says so.
+			 *
+			 * The sequence underneath it is unchanged: still one per year, still
+			 * allocated in the single SQL statement session 04 proved against 48
+			 * simultaneous attempts. A récapitulatif still has to be unique.
+			 */
+			'prefix'       => 'TS',
 			/*
 			 * The late-payment interest rate, and it is EMPTY on purpose.
 			 *
@@ -232,8 +292,12 @@ final class Invoice {
 	 *
 	 * Anywhere that is not production gets a series of its own, so a rehearsal,
 	 * a preproduction test and a developer's afternoon can never consume a
-	 * number a real customer's invoice would continue from. It is not a fiscal
-	 * series in the BOFiP sense, because none of those documents is an invoice.
+	 * number a real customer's document would continue from.
+	 *
+	 * NONE of these is a fiscal series in the BOFiP sense, on production as much
+	 * as off it, because since question 24 none of these documents is an
+	 * invoice. Before that answer the carve-out applied only to the rehearsal
+	 * series; it now describes every series this class allocates.
 	 */
 	public static function series( string $iso_date ): string {
 		$year   = substr( Vat::iso_date( $iso_date ), 0, 4 );
@@ -244,7 +308,7 @@ final class Invoice {
 		return $prefix . $year;
 	}
 
-	/** "FA2026-0001". Four digits, then as many as it takes. */
+	/** "TS2026-0001". Four digits, then as many as it takes. */
 	public static function format_number( string $series, int $n ): string {
 		return $series . '-' . str_pad( (string) $n, 4, '0', STR_PAD_LEFT );
 	}
@@ -332,7 +396,7 @@ final class Invoice {
 		if ( ! self::lock( $lock ) ) {
 			return new \WP_Error(
 				'teeshoop_busy',
-				__( 'La facture de cette commande est en cours d’émission ailleurs.', 'teeshoop' )
+				__( 'Le récapitulatif de cette commande est en cours d’émission ailleurs.', 'teeshoop' )
 			);
 		}
 
@@ -350,7 +414,7 @@ final class Invoice {
 			$series = self::series( $doc['date'] );
 			$n      = self::next_number( $series );
 			if ( $n <= 0 ) {
-				return new \WP_Error( 'teeshoop_sequence', __( 'Le numéro de facture n’a pas pu être attribué.', 'teeshoop' ) );
+				return new \WP_Error( 'teeshoop_sequence', __( 'La référence du récapitulatif n’a pas pu être attribuée.', 'teeshoop' ) );
 			}
 
 			$doc['series'] = $series;
@@ -422,7 +486,7 @@ final class Invoice {
 		if ( null !== self::stored( $order ) ) {
 			return new \WP_Error(
 				'teeshoop_already_invoiced',
-				__( 'Cette commande porte déjà sa facture définitive : aucun acompte ne peut plus être facturé dessus.', 'teeshoop' )
+				__( 'Cette commande porte déjà son récapitulatif définitif : aucun acompte ne peut plus y être ajouté.', 'teeshoop' )
 			);
 		}
 
@@ -457,13 +521,13 @@ final class Invoice {
 			 */
 			$order = wc_get_order( $order->get_id() ) ?: $order;
 			if ( null !== self::stored( $order ) ) {
-				return new \WP_Error( 'teeshoop_already_invoiced', __( 'Cette commande porte déjà sa facture définitive.', 'teeshoop' ) );
+				return new \WP_Error( 'teeshoop_already_invoiced', __( 'Cette commande porte déjà son récapitulatif définitif.', 'teeshoop' ) );
 			}
 
 			$series = self::series( $doc['date'] );
 			$n      = self::next_number( $series );
 			if ( $n <= 0 ) {
-				return new \WP_Error( 'teeshoop_sequence', __( 'Le numéro de facture n’a pas pu être attribué.', 'teeshoop' ) );
+				return new \WP_Error( 'teeshoop_sequence', __( 'La référence du récapitulatif n’a pas pu être attribuée.', 'teeshoop' ) );
 			}
 			$doc['series'] = $series;
 			$doc['number'] = self::format_number( $series, $n );
@@ -673,7 +737,7 @@ final class Invoice {
 		if ( '' === $regime || 'inconnu' === $regime ) {
 			return new \WP_Error(
 				'teeshoop_no_regime',
-				__( 'Cette commande ne porte aucun régime de TVA : elle a été prise avant que le régime ne soit renseigné, ou hors de toute période connue. Aucune facture conforme ne peut en être tirée.', 'teeshoop' )
+				__( 'Cette commande ne porte aucun régime de TVA : elle a été prise avant que le régime ne soit renseigné, ou hors de toute période connue. Aucun récapitulatif ne peut en être tiré.', 'teeshoop' )
 			);
 		}
 
@@ -699,7 +763,7 @@ final class Invoice {
 		if ( '' !== (string) $order->get_meta( Privacy::META_ERASED, true ) ) {
 			return new \WP_Error(
 				'teeshoop_order_erased',
-				__( 'Les données de cette commande ont été effacées à la demande du client : aucune facture ne peut plus en être tirée, parce qu’elle ne porterait aucun acheteur. Si une facture était due, elle devait être émise avant l’effacement.', 'teeshoop' )
+				__( 'Les données de cette commande ont été effacées à la demande du client : aucun récapitulatif ne peut plus en être tiré, parce qu’il ne porterait aucun acheteur. Si une facture était due, elle devait être émise par le service comptable avant l’effacement.', 'teeshoop' )
 			);
 		}
 
@@ -710,7 +774,7 @@ final class Invoice {
 				'teeshoop_no_identity',
 				sprintf(
 					/* translators: %s: a list of missing legal fields. */
-					__( 'L’identité légale du vendeur est incomplète (%s), donc aucune facture conforme ne peut être émise.', 'teeshoop' ),
+					__( 'L’identité légale du vendeur est incomplète (%s), donc aucun document ne peut être émis à son nom.', 'teeshoop' ),
 					implode( ', ', $verdict['labels'] )
 				)
 			);
@@ -835,7 +899,7 @@ final class Invoice {
 		}
 
 		if ( empty( $lines ) ) {
-			return new \WP_Error( 'teeshoop_no_lines', __( 'Cette commande ne contient aucune ligne à facturer.', 'teeshoop' ) );
+			return new \WP_Error( 'teeshoop_no_lines', __( 'Cette commande ne contient aucune ligne à récapituler.', 'teeshoop' ) );
 		}
 
 		$totals      = self::order_totals( $order );
@@ -851,7 +915,7 @@ final class Invoice {
 				'teeshoop_totals',
 				sprintf(
 					/* translators: %d: an order number. */
-					__( 'Les montants de la commande %d ne s’additionnent pas au centime près. Aucune facture n’est émise tant que ce n’est pas expliqué.', 'teeshoop' ),
+					__( 'Les montants de la commande %d ne s’additionnent pas au centime près. Aucun récapitulatif n’est émis tant que ce n’est pas expliqué.', 'teeshoop' ),
 					$order->get_id()
 				)
 			);
@@ -876,7 +940,7 @@ final class Invoice {
 				'teeshoop_vat_mismatch',
 				sprintf(
 					/* translators: %d: an order number. */
-					__( 'La TVA enregistrée sur la commande %d ne correspond pas au taux sous lequel elle a été prise. Aucune facture n’est émise tant que ce n’est pas expliqué.', 'teeshoop' ),
+					__( 'La TVA enregistrée sur la commande %d ne correspond pas au taux sous lequel elle a été prise. Aucun récapitulatif n’est émis tant que ce n’est pas expliqué.', 'teeshoop' ),
 					$order->get_id()
 				)
 			);
@@ -948,7 +1012,7 @@ final class Invoice {
 					'teeshoop_deposits_missing',
 					sprintf(
 						/* translators: %d: an order number. */
-						__( 'La commande %d a encaissé des acomptes qui ne portent pas tous leur facture, donc la facture définitive ne peut pas les déduire. Émettez les factures d’acompte manquantes avant de facturer.', 'teeshoop' ),
+						__( 'La commande %d a encaissé des acomptes qui ne portent pas tous leur récapitulatif, donc le récapitulatif définitif ne peut pas les déduire. Émettez les récapitulatifs d’acompte manquants avant de clore.', 'teeshoop' ),
 						$order->get_id()
 					)
 				);
@@ -1230,8 +1294,10 @@ final class Invoice {
 
 		$out = $pdf->render(
 			sprintf(
-				/* translators: %s: an invoice number. */
-				__( 'Facture %s', 'teeshoop' ),
+				/* translators: %s: a document reference. */
+				self::KIND_DEPOSIT === ( $doc['kind'] ?? self::KIND_INVOICE )
+					? __( 'Récapitulatif d’acompte %s', 'teeshoop' )
+					: __( 'Récapitulatif de commande %s', 'teeshoop' ),
 				(string) $doc['number']
 			),
 			self::pdf_date( (string) $doc['date'] )
@@ -1297,18 +1363,31 @@ final class Invoice {
 			$y += 4;
 		}
 
-		// The title block, right, level with the top of the seller block.
-		// A facture d'acompte says so in the largest type on the page: it is a
-		// different document and a customer must not file it as the invoice.
+		/*
+		 * The title block, right, level with the top of the seller block.
+		 *
+		 * TWO LINES BECAUSE ONE DOES NOT FIT. Set on one line at the 20 pt the
+		 * word FACTURE used, "RÉCAPITULATIF DE COMMANDE" measures 112,1 mm
+		 * against the 174 mm the page has to share with the seller block, so it
+		 * would have run into the raison sociale. Measured with `Pdf::width_mm`
+		 * on the shipped metrics, not estimated. Split this way the widest line
+		 * is 50,4 mm and starts at x=141,6, which is clear of any seller block
+		 * this shop can produce.
+		 *
+		 * The kind still says itself in the second line rather than in a
+		 * footnote: an acompte is a different document from the one that closes
+		 * the order, and a customer must not file one as the other.
+		 */
+		$pdf->text_right( $right, 24, __( 'RÉCAPITULATIF', 'teeshoop' ), Pdf::BOLD, 18 );
 		$pdf->text_right(
 			$right,
-			24,
-			$deposit ? __( 'FACTURE D’ACOMPTE', 'teeshoop' ) : __( 'FACTURE', 'teeshoop' ),
+			30,
+			$deposit ? __( 'D’ACOMPTE', 'teeshoop' ) : __( 'DE COMMANDE', 'teeshoop' ),
 			Pdf::BOLD,
-			$deposit ? 15 : 20
+			11
 		);
-		$pdf->text_right( $right, 31, (string) $doc['number'], Pdf::BOLD, 11 );
-		$pdf->text_right( $right, 37, Vat::fr_date( (string) $doc['date'] ), Pdf::REGULAR, 9 );
+		$pdf->text_right( $right, 36, (string) $doc['number'], Pdf::BOLD, 11 );
+		$pdf->text_right( $right, 41, Vat::fr_date( (string) $doc['date'] ), Pdf::REGULAR, 9 );
 
 		// The buyer, right, where a window envelope shows it.
 		$buyer = (array) $doc['buyer'];
@@ -1397,9 +1476,24 @@ final class Invoice {
 		$out       = array();
 		$franchise = Vat::FRANCHISE === ( $doc['regime'] ?? '' );
 
+		/*
+		 * FIRST, AND BEFORE ANY FIGURE: what this document is and is not.
+		 *
+		 * Question 24. Everything below still describes the sale accurately, so
+		 * nothing was removed; what would be dishonest is letting a document
+		 * that carries a reference, a seller identity, a VAT rate and a
+		 * late-payment clause be filed as the facture. It is not one, and the
+		 * sentence that says so is the first thing on the block rather than a
+		 * footnote at the bottom, because the bottom is where a reader stops.
+		 */
+		$out[] = self::KIND_DEPOSIT === ( $doc['kind'] ?? self::KIND_INVOICE )
+			? __( 'Ce document est un récapitulatif d’acompte. Il ne tient pas lieu de facture : la facture d’acompte est établie séparément par notre service comptable, sous sa propre numérotation.', 'teeshoop' )
+			: __( 'Ce document est un récapitulatif de commande. Il ne tient pas lieu de facture : la facture est établie séparément par notre service comptable, sous sa propre numérotation.', 'teeshoop' );
+
 		if ( '' !== (string) $doc['mention'] ) {
-			// CGI art. 293 E, II. Mandatory and not decorative: an invoice under
-			// the franchise that does not carry it is non-conforming.
+			// CGI art. 293 E, II. Kept although this is no longer the facture:
+			// the document states amounts with no VAT on them, and this is the
+			// sentence that says why.
 			$out[] = (string) $doc['mention'];
 		}
 
@@ -1450,7 +1544,7 @@ final class Invoice {
 			 */
 			$out[] = sprintf(
 				/* translators: 1: a date, 2: a payment method. */
-				__( 'Acompte encaissé le %1$s par %2$s. Cette facture ne réclame aucun règlement.', 'teeshoop' ),
+				__( 'Acompte encaissé le %1$s par %2$s. Ce récapitulatif ne réclame aucun règlement.', 'teeshoop' ),
 				Vat::fr_date( (string) ( $doc['paid_on'] ?? $doc['date'] ) ),
 				'' !== (string) ( $doc['method'] ?? '' ) ? (string) $doc['method'] : __( 'virement', 'teeshoop' )
 			);
@@ -1474,17 +1568,23 @@ final class Invoice {
 		} elseif ( '' !== (string) $order['paid'] ) {
 			$out[] = sprintf(
 				/* translators: 1: a date, 2: a payment method. */
-				__( 'Règlement à la commande. Facture payée le %1$s par %2$s.', 'teeshoop' ),
+				__( 'Règlement à la commande. Commande payée le %1$s par %2$s.', 'teeshoop' ),
 				Vat::fr_date( (string) $order['paid'] ),
 				'' !== (string) $order['method'] ? (string) $order['method'] : __( 'paiement en ligne', 'teeshoop' )
 			);
 		} else {
-			$out[] = __( 'Règlement à la commande, à réception de la présente facture.', 'teeshoop' );
+			$out[] = __( 'Règlement à la commande, à réception de la facture.', 'teeshoop' );
 		}
 
 		/*
-		 * L. 441-9 du code de commerce: a professional invoice must carry the
-		 * escompte conditions, the late-payment rate and the recovery indemnity.
+		 * L. 441-9 du code de commerce puts the escompte conditions, the
+		 * late-payment rate and the recovery indemnity on the professional
+		 * INVOICE, which since question 24 is not this document. They are
+		 * printed here anyway, and that is a decision rather than an oversight:
+		 * they are the terms of the sale this récapitulatif records, the
+		 * customer reads them here first because this is what the site sends,
+		 * and the conditions générales carry the same three. Dropping them would
+		 * make the document say less about the sale than it truthfully can.
 		 *
 		 * The rate is printed as the RULE and not as a number when nobody has
 		 * set one, because that is exactly what the law says applies by default
@@ -1513,7 +1613,7 @@ final class Invoice {
 		if ( '' !== (string) $doc['stamp'] ) {
 			$out[] = sprintf(
 				/* translators: %s: a list of missing legal fields. */
-				__( 'Document non conforme, inutilisable comme facture : %s manque à l’identité du vendeur.', 'teeshoop' ),
+				__( 'Document incomplet : %s manque à l’identité du vendeur.', 'teeshoop' ),
 				implode( ', ', (array) $doc['missing'] )
 			);
 		}
@@ -1585,7 +1685,7 @@ final class Invoice {
 
 		$order = $order_id > 0 ? wc_get_order( $order_id ) : null;
 		if ( ! $order instanceof \WC_Order ) {
-			wp_die( esc_html__( 'Cette facture n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
+			wp_die( esc_html__( 'Ce document n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
 		}
 
 		$allowed = current_user_can( 'edit_shop_orders' )
@@ -1593,7 +1693,7 @@ final class Invoice {
 		if ( ! $allowed ) {
 			// The same answer as a missing order, on purpose: a different one
 			// would confirm that the order number exists.
-			wp_die( esc_html__( 'Cette facture n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
+			wp_die( esc_html__( 'Ce document n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
 		}
 
 		/*
@@ -1625,7 +1725,7 @@ final class Invoice {
 
 		if ( null === $doc ) {
 			wp_die(
-				esc_html__( 'Ce document n’est pas encore émis : la facture l’est au règlement, l’acompte à son encaissement.', 'teeshoop' ),
+				esc_html__( 'Ce document n’est pas encore émis : le récapitulatif de commande l’est au règlement, celui d’acompte à son encaissement.', 'teeshoop' ),
 				'',
 				array( 'response' => 409 )
 			);
@@ -1650,10 +1750,10 @@ final class Invoice {
 				esc_html(
 					sprintf(
 						self::KIND_DEPOSIT === ( $doc['kind'] ?? self::KIND_INVOICE )
-							/* translators: %s: a document number. */
-							? __( 'Télécharger la facture d’acompte %s (PDF)', 'teeshoop' )
-							/* translators: %s: a document number. */
-							: __( 'Télécharger la facture %s (PDF)', 'teeshoop' ),
+							/* translators: %s: a document reference. */
+							? __( 'Télécharger le récapitulatif d’acompte %s (PDF)', 'teeshoop' )
+							/* translators: %s: a document reference. */
+							: __( 'Télécharger le récapitulatif de commande %s (PDF)', 'teeshoop' ),
 						(string) $doc['number']
 					)
 				)
@@ -1669,7 +1769,7 @@ final class Invoice {
 			if ( $lost > 0 ) {
 				printf(
 					'<p class="form-field form-field-wide"><strong>%s</strong> %s</p>',
-					esc_html__( 'Facture', 'teeshoop' ),
+					esc_html__( 'Récapitulatif', 'teeshoop' ),
 					esc_html(
 						sprintf(
 							/* translators: %d: a number of characters. */
@@ -1686,7 +1786,7 @@ final class Invoice {
 			}
 			printf(
 				'<p class="form-field form-field-wide"><strong>%s</strong> %s (<a href="%s">%s</a>)</p>',
-				esc_html__( 'Facture', 'teeshoop' ),
+				esc_html__( 'Récapitulatif', 'teeshoop' ),
 				esc_html( (string) $doc['number'] ),
 				esc_url( self::url( $order ) ),
 				esc_html__( 'télécharger le PDF', 'teeshoop' )
@@ -1697,11 +1797,11 @@ final class Invoice {
 		$why = self::compose( $order );
 		printf(
 			'<p class="form-field form-field-wide"><strong>%s</strong> %s</p>',
-			esc_html__( 'Facture', 'teeshoop' ),
+			esc_html__( 'Récapitulatif', 'teeshoop' ),
 			esc_html(
 				is_wp_error( $why )
 					? $why->get_error_message()
-					: __( 'pas encore émise : elle le sera à l’encaissement.', 'teeshoop' )
+					: __( 'pas encore émis : il le sera à l’encaissement.', 'teeshoop' )
 			)
 		);
 	}

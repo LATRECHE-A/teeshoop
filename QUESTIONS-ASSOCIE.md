@@ -3219,6 +3219,47 @@ seuls qui a le droit d'acheter chez vous.
 Nous ne pouvons pas choisir à votre place : la première ferme une porte
 commerciale, la troisième coûte de l'argent tous les ans.
 
+### 63. Quel système émet vos factures légales, et qui émet celle d'un acompte ?
+
+**Bloquant**
+
+*Pourquoi on a besoin de la réponse :* votre réponse à la question 24 est
+appliquée depuis le 2 septembre 2026. Le site n'émet plus de facture et ne porte
+plus de numérotation légale : il édite un **récapitulatif de commande** sous une
+référence commerciale (TS2026-0001 et non FA2026-0001), et le document dit
+lui-même, en première ligne de son bloc de mentions, que la facture est établie
+séparément par votre service comptable.
+
+Ce qui reste ouvert est ce que votre réponse ne nomme pas, et c'est ce qui rend
+ce changement risqué au lieu d'être neutre. L'article 289 du code général des
+impôts impose une facture, et pour une livraison de biens il en impose une **à
+chaque acompte encaissé** (BOI-TVA-DECLA-30-20-10-10 § 120 précise que c'est
+valable pour tous les acomptes, pas seulement ceux qui rendent la TVA exigible).
+Depuis que la boutique n'en produit plus, cette obligation repose entièrement sur
+un système que personne ici ne connaît. Si vous encaissez un acompte de
+1 000,00 EUR et que rien n'émet la facture correspondante, l'obligation n'est pas
+remplie, et le site n'a aucun moyen de s'en apercevoir.
+
+*Si vous ne répondez pas, on partira sur :* **rien ne part en ligne.** La ligne
+`H-Q63-FACTURE-EXTERNE` du registre est bloquante et `npm run verify:lancement`
+refuse le déploiement tant qu'elle n'est pas datée. C'est délibéré, et c'est le
+seul endroit où cette séance a rendu la boutique plus prudente qu'elle ne l'était
+la veille : votre réponse a retiré une facture, et tant que personne ne dit ce qui
+la remplace, la bonne réponse est de ne pas encaisser.
+
+*Ce qu'il nous faut, en trois lignes :*
+
+1. **Le nom du système** qui émet vos factures, et celui de votre comptable.
+2. **Comment la facture d'acompte est émise, et par qui**, à chaque encaissement.
+   C'est le seul des trois points qui puisse coûter un redressement.
+3. **Le format d'export** qu'il attend, pour que le récapitulatif produit par le
+   site lui soit transmis sans ressaisie.
+
+*Ce qui, en revanche, ne bloque plus :* le risque de doublon que votre réponse
+voulait éviter. Les deux numérotations ne peuvent plus se croiser : la nôtre ne
+commence plus par les deux lettres d'une facture, elle ne prétend plus être une
+série fiscale, et le document porte en toutes lettres qu'il n'en est pas une.
+
 
 ---
 

@@ -150,7 +150,7 @@ return array(
 			'paragraphes' => array(
 				'Le consommateur qui achète à distance dispose en principe d’un délai de quatorze jours pour se rétracter, sans motif et sans pénalité.',
 				'CE DROIT NE S’APPLIQUE PAS AUX ARTICLES PERSONNALISÉS. L’article L221-28 3° du code de la consommation exclut du droit de rétractation les biens confectionnés selon les spécifications du consommateur ou nettement personnalisés. Un vêtement imprimé au visuel d’un client est un tel bien : il ne peut être ni repris, ni échangé, ni remis en vente.',
-				'Cette exclusion est portée à la connaissance de l’acheteur avant la conclusion du contrat : une case doit être cochée au moment du paiement, dès que le panier contient un article personnalisé, et l’acceptation est enregistrée avec sa date, la version des présentes conditions et la phrase exacte qui était affichée. Elle est rappelée sur la facture.',
+				'Cette exclusion est portée à la connaissance de l’acheteur avant la conclusion du contrat : une case doit être cochée au moment du paiement, dès que le panier contient un article personnalisé, et l’acceptation est enregistrée avec sa date, la version des présentes conditions et la phrase exacte qui était affichée. Elle est rappelée sur le récapitulatif de commande.',
 				'Le droit de rétractation reste entier pour tout article non personnalisé. Il s’exerce alors dans les quatorze jours suivant la réception, par une déclaration dénuée d’ambiguïté adressée à Teeshoop, et l’article doit être retourné neuf, non porté et dans son emballage.',
 			),
 		),

@@ -606,8 +606,34 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		ts_eq( $doc['stamp'], Legal::STAMP_TEXT, 'the stamp' );
 		ts_assert( ! empty( $doc['missing'] ), 'a stamped document does not say what is missing' );
 		ts_assert(
-			ts_ck_any( Invoice::mentions( $doc ), 'inutilisable comme facture' ),
+			ts_ck_any( Invoice::mentions( $doc ), 'Document incomplet' ),
 			'the stamped document does not say so in words'
+		);
+		/*
+		 * AND WHAT THE SAME BLOCK MUST NOW SAY, ON EVERY DOCUMENT AND NOT ONLY
+		 * THIS ONE. Question 24: the site issues no facture, so the first thing
+		 * on the mentions block names the document and says where the facture is
+		 * established. The old wording said the opposite of both, and said it on
+		 * a page headed FACTURE.
+		 */
+		ts_assert(
+			ts_ck_any( Invoice::mentions( $doc ), 'Ce document est un récapitulatif de commande' ),
+			'the document does not say what it is'
+		);
+		ts_assert(
+			ts_ck_any( Invoice::mentions( $doc ), 'la facture est établie séparément par notre service comptable' ),
+			'the document does not say where the facture is established'
+		);
+		ts_eq( substr( Invoice::series( '2026-05-04' ), 0, 5 ), 'ESSAI', 'the series off production' );
+		/*
+		 * The RULE, not a second copy of the value. Asserting the two letters
+		 * here would put the register's value in a second place, and the
+		 * hypotheses guard says so. What question 24 forbids is a reference that
+		 * reads as a facture number, so that is what is asserted.
+		 */
+		ts_assert(
+			'FA' !== Invoice::default_config()['prefix'],
+			'the shipped prefix is still the facture series question 24 refuses'
 		);
 
 		$doc['number'] = 'ESSAI2026-0001';

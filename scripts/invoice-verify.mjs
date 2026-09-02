@@ -206,7 +206,38 @@ for (const name of ['standard', 'franchise', 'stamped', 'long']) {
     must(name, s.doc.missing.length > 0, 'a document with no seller does not say what is missing')
   }
   must(name, s.text.includes(s.doc.buyer.company), 'the buyer is not on the page')
-  must(name, s.text.includes('FACTURE'), 'the page does not say what it is')
+  /*
+   * WHAT THE PAGE SAYS IT IS, AND WHAT IT SAYS IT IS NOT.
+   *
+   * Question 24, applied 2 September 2026: the legal invoice stays in the
+   * associate's accounting system and this document stops being one. Read back
+   * here rather than asserted in PHP for the same reason as everything else in
+   * this file: the plugin renaming its own title and then checking its own
+   * rename proves nothing about the page a customer opens.
+   *
+   * All three are needed. The title alone would still pass if the mentions
+   * block went on calling the document a facture; the sentence alone would pass
+   * on a page headed FACTURE; and the refusal of the standalone word is what
+   * catches a half-done rename, which is what the first attempt at this change
+   * actually was.
+   */
+  must(name, s.text.includes('RÉCAPITULATIF'), 'the page does not say what it is')
+  must(name, /DE COMMANDE|D’ACOMPTE/.test(s.text), 'the page does not say which kind of récapitulatif it is')
+  must(
+    name,
+    /la facture est établie séparément par notre service comptable|la facture d’acompte est établie séparément par notre service comptable/.test(s.text),
+    'the page does not say where the facture is issued, so a customer could file this as one',
+  )
+  mustNot(
+    name,
+    /\bFACTURE\b/.test(s.text),
+    'the page still presents itself as a facture, which question 24 forbids',
+  )
+  must(
+    name,
+    /^(TS|ESSAI)\d{4}-\d{4,}$/.test(s.doc.number),
+    `the reference ${s.doc.number} is not a commercial one: FA reads as facture and is the collision question 24 asks us to avoid`,
+  )
 
   /*
    * Amounts, as a French document writes them, compared with every kind of
@@ -266,7 +297,7 @@ for (const name of ['standard', 'franchise', 'stamped', 'long']) {
 
   if (name === 'stamped') {
     must(name, s.text.includes(data.mentions.stamp), 'a non-conforming document is not marked as one')
-    must(name, /inutilisable comme facture/i.test(s.text), 'and does not say so in words')
+    must(name, /Document incomplet/i.test(s.text), 'and does not say so in words')
   } else {
     mustNot(name, s.text.includes(data.mentions.stamp), 'a conforming document is stamped')
   }

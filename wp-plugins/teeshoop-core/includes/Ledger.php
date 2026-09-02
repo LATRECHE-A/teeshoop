@@ -287,9 +287,17 @@ final class Ledger {
 		 * AN ADVANCE PAYMENT OBLIGES A DOCUMENT. Article 289, I-1-c du CGI makes
 		 * a facture d'acompte mandatory for money received before a supply of
 		 * goods is made, and BOI-TVA-DECLA-30-20-10-10 § 120 says it applies to
-		 * every acompte and not only to the ones where VAT becomes exigible. So
-		 * a receipt that does not clear the balance produces one; the receipt
-		 * that clears it produces the final invoice instead, through
+		 * every acompte and not only to the ones where VAT becomes exigible.
+		 *
+		 * SINCE QUESTION 24 THAT OBLIGATION IS NOT DISCHARGED HERE. What this
+		 * issues is a récapitulatif d'acompte, and the facture the article
+		 * requires is owed by the accounting system the associate has not yet
+		 * named. The document is still produced, because a customer who has paid
+		 * needs something that says what for, and because it is what the
+		 * accounting system will be given to invoice from.
+		 *
+		 * A receipt that does not clear the balance produces one; the receipt
+		 * that clears it produces the closing récapitulatif instead, through
 		 * `payment_complete()` below.
 		 */
 		if ( Settlement::remaining( self::due( $order ), self::received( $order ) ) > 0 ) {
@@ -305,7 +313,7 @@ final class Ledger {
 				$order->add_order_note(
 					sprintf(
 						/* translators: %s: why the document was refused. */
-						__( 'Encaissement enregistré mais la facture d’acompte n’a pas pu être émise : %s', 'teeshoop' ),
+						__( 'Encaissement enregistré mais le récapitulatif d’acompte n’a pas pu être émis : %s', 'teeshoop' ),
 						$document->get_error_message()
 					)
 				);
