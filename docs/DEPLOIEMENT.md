@@ -10,6 +10,42 @@ suivi ligne à ligne, sans rien deviner.
 
 ---
 
+## Avant tout : rien ne se déclenche tant que `main` n'a pas bougé
+
+Constaté le 02/09/2026, et c'est la condition qui manque pour que tout ce
+document soit vrai : la branche par défaut du dépôt est `main`, et **elle ne
+contient aucun fichier de travail GitHub**, pas même celui de l'intégration
+continue. Tout vit sur `r0-securite-et-socle`, qui a **245 commits d'avance**.
+
+Deux conséquences, mesurées et pas déduites :
+
+- `on: push: branches: [main]` ne se déclenche jamais, donc **un `push` ne livre
+  rien** ;
+- `workflow_dispatch` n'apparaît pas dans l'onglet Actions, parce que GitHub ne
+  propose au lancement manuel que les travaux présents sur la branche par défaut.
+  `gh workflow list` ne montre que « CI », et « Déploiement » nulle part.
+
+L'intégration continue tourne quand même, parce que son déclencheur est `push:`
+sans restriction de branche.
+
+**Ce qu'il faut faire, une fois :**
+
+```bash
+git checkout main && git merge --ff-only r0-securite-et-socle && git push origin main
+git checkout r0-securite-et-socle
+```
+
+`--ff-only` est volontaire : `origin/main` est un ANCÊTRE de la branche de
+travail, donc l'avance est une simple translation, sans fusion et sans conflit
+possible. Si cette commande refuse un jour, c'est que quelqu'un a écrit sur `main`
+entre-temps, et il faut regarder quoi avant d'insister.
+
+C'est une décision et pas une manoeuvre technique : elle publie 245 commits sur
+la branche par défaut du dépôt. Elle n'a pas été prise à la place de son
+propriétaire.
+
+---
+
 ## En trente secondes
 
 | Je veux | Je fais |

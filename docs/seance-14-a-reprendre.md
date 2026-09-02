@@ -157,9 +157,13 @@ connexions, pas cent.
 
 ## 7. Ce que la séance 15 doit faire en premier
 
-1. **Poser les quatre secrets GitHub** (`ACCES-REQUIS.md` §6 octies) et créer
-   l'environnement `production` avec sa validation manuelle. Sans eux, le
-   déploiement automatique ne part pas, et il le dit dès la première étape.
+1. **Faire avancer `main`.** C'est la seule chose qui empêche encore le
+   déploiement d'exister : la branche par défaut ne contient aucun fichier de
+   travail GitHub, donc `push` ne déclenche rien et « Déploiement » n'apparaît
+   même pas dans l'onglet Actions. `git merge --ff-only` suffit, `origin/main`
+   étant un ancêtre. Voir `docs/DEPLOIEMENT.md`, tout en haut.
+
+   *(Les quatre secrets GitHub, eux, sont posés depuis le 02/09.)*
 2. **Faire tourner les deux clés qui ont transité par une conversation** : la clé
    WooCommerce lecture/écriture et la clé secrète Stripe de test. Vérifié cette
    séance : ni l'une ni l'autre ne l'a été.
