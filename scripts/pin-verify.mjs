@@ -154,7 +154,19 @@ export function comparer(attendu, reel) {
   for (const clef of ['wordpress', 'woocommerce', 'php']) {
     const a = String(attendu[clef] ?? '')
     let r = String(reel[clef] ?? '')
-    if (a === '') continue
+    if (a === '') {
+      /*
+       * UNE ATTENTE VIDE EST UN ÉCART, PAS UN ACCORD. Cette ligne disait
+       * `continue`, donc un `docs/versions-cibles.json` où `wordpress` serait
+       * vide (une virgule mal placée, une fusion à moitié faite, un champ jamais
+       * rempli pour une nouvelle cible) faisait imprimer « prod est bien en
+       * WordPress … » en vert sans avoir rien comparé. C'est exactement le
+       * « rien regardé » qui se lit comme « rien trouvé », et c'est le seul
+       * défaut de ce fichier qu'une relecture adverse a confirmé.
+       */
+      ecarts.push({ clef, attendu: '(non renseigné dans le pin)', reel: r || '(illisible)' })
+      continue
+    }
     if (r === '') {
       ecarts.push({ clef, attendu: a, reel: '(illisible)' })
       continue
@@ -183,6 +195,8 @@ if (SELF_TEST) {
     { nom: 'php a changé de version', a: { wordpress: '7.1', woocommerce: '11.0.1', php: '8.1' }, r: { wordpress: '7.1', woocommerce: '11.0.1', php: '8.3.2' }, ecarts: 1 },
     { nom: 'php a seulement changé de correctif', a: { wordpress: '7.1', woocommerce: '11.0.1', php: '8.1' }, r: { wordpress: '7.1', woocommerce: '11.0.1', php: '8.1.99' }, ecarts: 0 },
     { nom: 'une version illisible est un écart', a: { wordpress: '7.1', woocommerce: '11.0.1', php: '8.1' }, r: { wordpress: '7.1', woocommerce: '', php: '8.1.34' }, ecarts: 1 },
+    { nom: 'une ATTENTE vide est un écart, pas un accord', a: { wordpress: '', woocommerce: '11.0.1', php: '8.1' }, r: { wordpress: '7.1', woocommerce: '11.0.1', php: '8.1.34' }, ecarts: 1 },
+    { nom: 'un pin entièrement vide refuse tout', a: { wordpress: '', woocommerce: '', php: '' }, r: { wordpress: '7.1', woocommerce: '11.0.1', php: '8.1.34' }, ecarts: 3 },
     { nom: 'les trois ont bougé', a: { wordpress: '7.0.4', woocommerce: '10.9.4', php: '8.0' }, r: { wordpress: '7.1', woocommerce: '11.0.1', php: '8.1.34' }, ecarts: 3 },
   ]
   let bon = true

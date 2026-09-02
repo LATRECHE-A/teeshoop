@@ -62,8 +62,12 @@
  * contre la production est une étape de la séance 14, pas une formalité ».
  *
  *   --boutique=miroir                the local mirror through docker (default)
- *   --boutique=ssh:<hôte>:<chemin>   a real WordPress over SSH, e.g.
- *                                    ssh:teeshoop:public_html
+ *   --boutique=ssh:<hôte>:<chemin>   a real WordPress over SSH, with a key that
+ *                                    can run wp-cli, e.g. ssh:teeshoop:public_html
+ *   --boutique=deploy:<hôte>:<env>   the same shop through deploiement.sh's
+ *                                    `verdict` verb, which is what the RESTRICTED
+ *                                    deploy key can actually run. This is the form
+ *                                    the pipeline uses.
  *
  * Both ends run the same thing: `wp teeshoop lancement --porcelaine`, which is a
  * WP-CLI subcommand rather than the inline `wp eval` string this used to send.
@@ -154,9 +158,34 @@ if (badArgs.length > 0) {
  */
 function parseTarget(raw) {
   if (raw === 'miroir') return { kind: 'miroir', label: 'le miroir local (docker)' }
+
+  /*
+   * `deploy:` EXISTE PARCE QUE LA CLÉ DE DÉPLOIEMENT NE PEUT PAS LANCER wp-cli.
+   *
+   * Elle est posée avec `command="…/deploiement.sh"`, donc elle n'exécute que les
+   * verbes de ce script. Le travail de production appelait ce portail avec
+   * `ssh:teeshoop:~/public_html`, qui envoie `cd … && wp teeshoop lancement` :
+   * l'aiguilleur répond « verbe inconnu », le portail lit « boutique
+   * injoignable » et sort 2. Toujours 2, quel que soit l'état réel de la
+   * boutique. Il bloquait donc bien, mais pour la mauvaise raison, et il aurait
+   * continué à bloquer le jour où la vraie réponse aurait été « on peut ».
+   * Trouvé par une relecture adverse avant le premier déploiement.
+   */
+  const d = /^deploy:([^:]+):([a-z]+)$/.exec(raw)
+  if (d) {
+    const [, host, env] = d
+    if (!/^[A-Za-z0-9._@-]+$/.test(host)) {
+      return { kind: 'invalide', why: `l'hôte « ${host} » contient un caractère que ce contrôle refuse de passer à un shell.` }
+    }
+    if (!['preprod', 'prod'].includes(env)) {
+      return { kind: 'invalide', why: `environnement « ${env} » inconnu (preprod, prod).` }
+    }
+    return { kind: 'deploy', host, env, label: `${host} (clé de déploiement, ${env})` }
+  }
+
   const m = /^ssh:([^:]+):(.+)$/.exec(raw)
   if (!m) {
-    return { kind: 'invalide', why: `« ${raw} » n'est ni « miroir » ni « ssh:<hôte>:<chemin> ».` }
+    return { kind: 'invalide', why: `« ${raw} » n'est ni « miroir », ni « ssh:<hôte>:<chemin> », ni « deploy:<hôte>:<env> ».` }
   }
   const [, host, path] = m
   if (!/^[A-Za-z0-9._@-]+$/.test(host)) {
@@ -313,14 +342,21 @@ function shopCommand(target) {
       args: ['compose', '-f', COMPOSE, 'run', '--rm', '-T', 'wpcli', 'teeshoop', 'lancement', '--porcelaine'],
     }
   }
+  /*
+   * BatchMode: an ssh that stops to ask for a passphrase would hang a deploy for
+   * ever with no output. Refusing immediately is the answer, and the refusal is
+   * « we could not look », which blocks.
+   */
+  const commun = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20']
+  if (target.kind === 'deploy') {
+    // Le verbe `verdict` de deploiement.sh fait `cd <racine> && wp teeshoop
+    // lancement --porcelaine` de l'autre côté. Même charge utile, même marqueurs,
+    // et c'est une des huit choses que la clé restreinte a le droit de lancer.
+    return { cmd: 'ssh', args: [...commun, target.host, `verdict ${target.env}`] }
+  }
   return {
     cmd: 'ssh',
-    /*
-     * BatchMode: an ssh that stops to ask for a passphrase would hang a deploy
-     * for ever with no output. Refusing immediately is the answer, and the
-     * refusal is « we could not look », which blocks.
-     */
-    args: ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20', target.host, `cd ${target.path} && wp teeshoop lancement --porcelaine`],
+    args: [...commun, target.host, `cd ${target.path} && wp teeshoop lancement --porcelaine`],
   }
 }
 

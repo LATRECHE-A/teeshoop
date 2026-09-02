@@ -135,12 +135,46 @@ aiguiller_rsync() {
       --sender)  refus "cette clé ne sert qu'à recevoir, pas à envoyer" ;;
       .) ;;
       -*)
-        # Un seul paquet d'options courtes, celui que rsync compose lui-même.
-        # Toute option longue est refusée : aucune n'est nécessaire et
-        # plusieurs sont dangereuses.
         case "${mots[$i]}" in
           --*) refus "option rsync refusée : ${mots[$i]}" ;;
         esac
+        # ── LE PAQUET D'OPTIONS COURTES SE LIT LETTRE PAR LETTRE ──────────────
+        #
+        # Il était accepté en bloc dès qu'il ne commençait pas par deux tirets, et
+        # une relecture adverse a montré que cela suffit à sortir des deux
+        # répertoires entrants, en deux temps et avec la seule clé de déploiement :
+        #
+        #   1. un `rsync -a` parfaitement légitime dépose un lien symbolique
+        #      `x -> ../../../../public_html/wp-content/uploads` (les liens
+        #      passent : `-l` est dans `-a`) ;
+        #   2. un second envoi vers la MÊME destination autorisée, avec `-K` et
+        #      `--delete`, fait traiter ce lien comme un vrai répertoire. Un
+        #      `x/` vide efface alors les 2 866 fichiers de wp-content/uploads,
+        #      et un `x/` non vide écrit n'importe où sur le compte.
+        #
+        # C'est exactement ce que `rrsync` désactive (`short_disabled_subdir =
+        # 'KLk'`) dès que la clé est confinée à un sous-répertoire, et c'est la
+        # raison pour laquelle ce fichier ne pouvait pas se contenter de recopier
+        # la moitié « destination » de son travail.
+        #
+        # `T` est refusé en plus : `-T/chemin` est la forme collée de
+        # `--temp-dir`, mesurée acceptée elle aussi, et elle écrit hors de la
+        # destination. `s` est le mode « protect-args » côté serveur.
+        #
+        # TOUT CE QUI SUIT UN `e` EST IGNORÉ : rsync y colle sa chaîne de
+        # compatibilité (`e.iLsfxCIvu`), qui n'est pas une liste d'options. La
+        # lire comme telle refuserait tous les transferts légitimes, à cause du
+        # `L` qu'elle contient presque toujours.
+        lettres="${mots[$i]#-}"
+        j=0
+        while [ "$j" -lt "${#lettres}" ]; do
+          c="${lettres:$j:1}"
+          [ "$c" = "e" ] && break
+          case "$c" in
+            K|L|k|T|s) refus "option rsync courte refusée : -$c (dans « ${mots[$i]} »). Elle permet d'écrire hors du répertoire de dépôt." ;;
+          esac
+          j=$(( j + 1 ))
+        done
         ;;
       *) refus "argument rsync inattendu : ${mots[$i]}" ;;
     esac
@@ -162,8 +196,15 @@ aiguiller_rsync() {
   esac
 
   mkdir -p "$HOME/$dest"
-  journal "RSYNC  $dest"
-  exec rsync "${mots[@]:1}"
+  # LES OPTIONS SONT JOURNALISÉES, PAS SEULEMENT LA DESTINATION. La ligne ne
+  # disait que « RSYNC <destination> », donc une invocation hostile ne laissait
+  # aucune trace de ce qu'elle avait demandé.
+  journal "RSYNC  $dest  [${mots[*]:1:${#mots[@]}-3}]"
+  # `--safe-links` en plus de la liste blanche ci-dessus : le receveur refuse
+  # alors tout lien symbolique qui pointe hors de l'arborescence reçue. Notre
+  # charge utile (une extension et un thème) n'en contient aucun, donc cela ne
+  # coûte rien et cela ferme la première moitié de l'attaque en deux temps.
+  exec rsync --safe-links "${mots[@]:1}"
 }
 
 # ── Les verbes ──────────────────────────────────────────────────────────────
@@ -310,21 +351,40 @@ verbe_retour() {
     avait=0
     grep -qxF "$composant" "$versions/PRECEDENT.txt" 2>/dev/null && avait=1
 
+    # QUATRE CAS, ÉCRITS UN PAR UN, ET LE TROISIÈME EST UN DÉFAUT QUI A ÉTÉ
+    # TROUVÉ PAR UNE RELECTURE ADVERSE AVANT D'ÊTRE LIVRÉ.
+    #
+    # Ce bloc était un `if / elif [ -d "$cible" ]`, et il retirait l'extension dès
+    # que la copie de sauvegarde était absente, quelle qu'en soit la raison. Or
+    # elle est absente juste après un retour arrière réussi : elle a été remise en
+    # place. Donc un SECOND `retour`, sur la même livraison, supprimait
+    # l'extension et le thème de la boutique et sortait 0 en annonçant « ramené ».
+    # C'est la commande qu'on tape quand on ne sait plus où on en est, un soir de
+    # panne, et elle était la plus dangereuse du fichier.
     if [ "$avait" -eq 1 ] && [ -d "$versions/$composant" ]; then
+      # 1. Il y avait quelque chose avant, et on l'a encore : on le remet.
       rm -rf "$cible.a-jeter"
       [ -d "$cible" ] && mv "$cible" "$cible.a-jeter"
       mv "$versions/$composant" "$cible"
       rm -rf "$cible.a-jeter"
       journal "RETOUR $env $composant <- $horodatage"
+    elif [ "$avait" -eq 1 ]; then
+      # 2. Il y avait quelque chose avant et on ne l'a plus : cette livraison a
+      #    DÉJÀ été annulée. Ne rien toucher, et le dire.
+      echec "la livraison $horodatage a déjà été annulée pour $composant : la copie de sauvegarde n'est plus là. Rien n'a été touché. Choisissez une autre livraison (« versions $env »)."
     elif [ -d "$cible" ]; then
-      # Il n'y avait rien avant : le retour arrière est un retrait, et pour
-      # l'extension il faut d'abord la désactiver, sinon WordPress garde son
-      # nom dans `active_plugins` et se plaint à chaque page d'un fichier absent.
+      # 3. Il n'y avait RIEN avant (premier déploiement) : annuler, c'est retirer.
+      #    L'extension se désactive d'abord, sinon WordPress garde son nom dans
+      #    `active_plugins` et se plaint à chaque page d'un fichier absent.
       if [ "$composant" = "teeshoop-core" ]; then
         ( cd "$racine" && wp plugin deactivate teeshoop-core 2>/dev/null ) || true
       fi
       mv "$cible" "$versions/$composant.retire"
       journal "RETOUR $env $composant retiré (rien à remettre)"
+    else
+      # 4. Rien avant, rien maintenant : il n'y a rien à faire et ce n'est pas
+      #    une erreur.
+      echo "deploiement: $composant n'est pas installé, rien à annuler."
     fi
   done
   echo "deploiement: $env ramené à la livraison $horodatage."

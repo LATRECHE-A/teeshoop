@@ -151,6 +151,17 @@ jobs:
       - name: The style guard can still fail
         run: node scripts/style-guard.mjs --self-test
 
+      # THE PIN GUARD'S SELF-TEST. The guard itself cannot run here (it needs the
+      # server), so this job can only prove that its COMPARISON still works. That
+      # is worth doing: it is the one gate standing between a deploy and a target
+      # that has silently changed WordPress version under it, and until this line
+      # it was the only guard in the repository nobody had ever seen fail.
+      # It also covers the defect an adversarial pass found on 02/09/2026: an
+      # empty expected value used to be skipped, so a half-filled pin printed a
+      # green pass without comparing anything.
+      - name: The pin guard's comparison can still fail
+        run: node scripts/pin-verify.mjs --self-test
+
   # The WordPress plugin. Its pure classes (Money, Pricing, Margin) call no
   # WordPress function on purpose, so they need PHP and nothing else. The
   # runner exits 2 if it finds no tests, so "scanned nothing" cannot pass.

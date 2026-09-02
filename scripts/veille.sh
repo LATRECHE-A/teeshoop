@@ -197,9 +197,18 @@ $out["paid_without_invoice"] = $paid;
 // Un bon a tirer qui n'est jamais parti : le client attend une preuve qu'il ne
 // recevra pas, et la commande ne bouge plus.
 $t = $wpdb->prefix . "teeshoop_mail";
-$out["bat_failed"] = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $t ) )
-  ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$t} WHERE statut = 'echec' AND envoye_le > DATE_SUB(NOW(), INTERVAL 24 HOUR)" )
-  : 0;
+// LES NOMS DE COLONNES ETAIENT FAUX ET CETTE ALARME NE POUVAIT PAS SONNER.
+// Elle interrogeait `statut` et `envoye_le`; la table porte `status` et
+// `created_at` (voir Schema::step_mail_table). MySQL rejetait la requete,
+// get_var rendait NULL, (int) NULL vaut 0, et la veille annoncait donc
+// « aucun bon a tirer en echec » a chaque passage depuis qu'elle existe.
+// Trouve le 02/09/2026 par une relecture adverse, pas par une alerte.
+// -1 signale « je n'ai pas pu regarder », que le shell distingue de 0.
+$out["bat_failed"] = -1;
+if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $t ) ) ) {
+  $n = $wpdb->get_var( "SELECT COUNT(*) FROM {$t} WHERE status IN ('failed','abandoned') AND created_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR)" );
+  $out["bat_failed"] = ( null === $n ) ? -1 : (int) $n;
+}
 
 // Un achat fournisseur bloqué en « envoi incertain ». Séance 08 : il se résout
 // seul depuis « envoi en cours » en cinq minutes, après quoi il attend un
@@ -222,7 +231,8 @@ PHPEOF
       echo "veille: l'extension Teeshoop n'est pas active ici, les trois contrôles boutique sont ignorés." >&2
     P=$(lire paid_without_invoice); B=$(lire bat_failed); A=$(lire achats_incertains)
     [ -n "${P:-}" ] && [ "$P" -gt 0 ] && note "$P commande(s) payée(s) depuis plus d'une heure sans facture"
-    [ -n "${B:-}" ] && [ "$B" -gt 0 ] && note "$B bon(s) à tirer en échec d'envoi sur les 24 dernières heures"
+    [ -n "${B:-}" ] && [ "$B" -gt 0 ] && note "$B message(s) en échec d'envoi sur les 24 dernières heures"
+    [ -n "${B:-}" ] && [ "$B" -lt 0 ] && note "le journal des envois n'a pas pu être interrogé : « on n'a pas pu regarder » n'est pas « rien à signaler »"
     [ -n "${A:-}" ] && [ "$A" -gt 0 ] && note "$A achat(s) fournisseur bloqué(s) en « envoi incertain » depuis plus d'une heure"
   fi
 fi

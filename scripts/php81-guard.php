@@ -147,6 +147,23 @@ function declared_names(array $files): array {
 			if (!is_array($t[$i])) continue;
 			$id = $t[$i][0];
 			if ($id !== T_FUNCTION && $id !== T_CLASS && $id !== T_INTERFACE && $id !== T_TRAIT) continue;
+			/*
+			 * UNE MÉTHODE N'EST PAS UNE FONCTION GLOBALE. Sans ce filtre, une
+			 * méthode privée nommée `array_find` n'importe où dans l'extension
+			 * faisait taire un VRAI appel à `array_find()` partout ailleurs : la
+			 * liste est repo-wide et ne distingue pas les portées. Trouvé par une
+			 * relecture adverse. `public/private/protected/static/abstract/final`
+			 * juste avant `function`, c'est une méthode.
+			 */
+			if ($id === T_FUNCTION) {
+				$avant = null;
+				for ($k = $i - 1; $k >= 0; $k--) {
+					if (is_array($t[$k]) && in_array($t[$k][0], array(T_WHITESPACE, T_COMMENT, T_DOC_COMMENT), true)) continue;
+					$avant = $t[$k];
+					break;
+				}
+				if (is_array($avant) && in_array($avant[0], array(T_PUBLIC, T_PRIVATE, T_PROTECTED, T_STATIC, T_ABSTRACT, T_FINAL), true)) continue;
+			}
 			for ($j = $i + 1; $j < $n; $j++) {
 				if (is_array($t[$j]) && $t[$j][0] === T_WHITESPACE) continue;
 				if (is_array($t[$j]) && $t[$j][0] === T_STRING) {
@@ -176,6 +193,43 @@ function referenced(string $path): array {
 	if (!is_array($t)) return array(array(), array());
 	$fn = array(); $cl = array();
 	$n = count($t);
+
+	/*
+	 * LES ALIAS `use`, ET C'EST LE TROU QUI COMPTAIT.
+	 *
+	 * Personne n'écrit `new \Random\Randomizer()`. On écrit `use Random\Randomizer;`
+	 * en tête de fichier puis `new Randomizer()`, et c'est la seule forme que ce
+	 * dépôt emploie. Le jeton vu au point d'usage est alors `Randomizer`, qui
+	 * n'est dans aucune table, et le contrôle laissait passer exactement la
+	 * construction qu'il existe pour attraper. Trouvé par une relecture adverse.
+	 *
+	 * On lit donc les `use` du fichier et on note à quoi chaque nom court renvoie.
+	 */
+	$alias = array();
+	for ($i = 0; $i < $n; $i++) {
+		if (!is_array($t[$i]) || $t[$i][0] !== T_USE) continue;
+		// Un `use` de trait est à l'intérieur d'une classe et suit un `{`; celui
+		// qui nous intéresse est au niveau du fichier. Les deux se lisent pareil
+		// pour ce qu'on en fait, et un faux positif ici ne fait que renommer un
+		// trait, ce qui ne peut pas créer de fausse alerte : le nom résolu doit
+		// encore figurer dans une table pour être signalé.
+		$plein = '';
+		$court = '';
+		for ($j = $i + 1; $j < $n; $j++) {
+			if ($t[$j] === ';' || $t[$j] === '{' || $t[$j] === '(') break;
+			if (!is_array($t[$j])) continue;
+			if (in_array($t[$j][0], array(T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED), true)) {
+				if ('' === $plein) { $plein = ltrim($t[$j][1], '\\'); $court = $plein; }
+				else { $court = $t[$j][1]; }   // la partie après `as`
+			}
+		}
+		if ('' === $plein) continue;
+		if ($court === $plein) {
+			$parts = explode('\\', $plein);
+			$court = end($parts);
+		}
+		$alias[strtolower($court)] = $plein;
+	}
 	$prev = function (int $i) use ($t) {
 		for ($j = $i - 1; $j >= 0; $j--) {
 			if (is_array($t[$j]) && ($t[$j][0] === T_WHITESPACE || $t[$j][0] === T_COMMENT || $t[$j][0] === T_DOC_COMMENT)) continue;
@@ -206,9 +260,32 @@ function referenced(string $path): array {
 		// a class
 		$isClass = false;
 		if (is_array($p) && in_array($p[0], array(T_NEW, T_INSTANCEOF, T_EXTENDS, T_IMPLEMENTS), true)) $isClass = true;
+		/*
+		 * `catch ( Foo $e )`. Le docblock au-dessus l'annonçait et le code ne le
+		 * faisait pas : le jeton qui précède le nom est `(`, pas `T_CATCH`. Une
+		 * relecture adverse a lu la promesse et le code, et ils ne disaient pas la
+		 * même chose. On remonte donc d'un jeton de plus.
+		 */
+		if ($p === '(') {
+			// Deux remontées, pas une : d'abord jusqu'à la parenthèse elle-même,
+			// puis jusqu'au jeton d'avant. Partir de $i-2 tombait sur la
+			// parenthèse et s'arrêtait là, ce que l'auto-test a dit tout de suite.
+			$k = $i - 1;
+			while ($k >= 0 && is_array($t[$k]) && in_array($t[$k][0], array(T_WHITESPACE, T_COMMENT, T_DOC_COMMENT), true)) $k--;
+			if ($k >= 0 && $t[$k] === '(') {
+				$k--;
+				while ($k >= 0 && is_array($t[$k]) && in_array($t[$k][0], array(T_WHITESPACE, T_COMMENT, T_DOC_COMMENT), true)) $k--;
+				if ($k >= 0 && is_array($t[$k]) && $t[$k][0] === T_CATCH) $isClass = true;
+			}
+		}
 		if (is_array($q) && $q[0] === T_DOUBLE_COLON) $isClass = true;
 		if (is_array($p) && $p[0] === T_ATTRIBUTE) $isClass = true;
-		if ($isClass) $cl[strtolower($name)][] = $line;
+		if ($isClass) {
+			$court = strtolower($name);
+			// Le nom résolu s'il vient d'un `use`, le nom écrit sinon.
+			$resolu = isset($alias[$court]) ? strtolower($alias[$court]) : $court;
+			$cl[$resolu][] = $line;
+		}
 	}
 	return array($fn, $cl);
 }
@@ -252,8 +329,22 @@ if ($selfTest) {
 	$bait = $dir . '/bait.php';
 	file_put_contents($bait, <<<'BAIT'
 <?php
-// Each line below is a real post-8.1 symbol, and one that o2switch lacks.
+namespace Teeshoop\Core;
+
+// LES DEUX FORMES QUE CE CONTRÔLE NE VOYAIT PAS AVANT LE 02/09/2026, plantées
+// ici pour que l'auto-test refuse si jamais elles redevenaient invisibles.
+use Random\Randomizer as Tirage;   // alias explicite
+use Random\RandomException;        // alias implicite, le nom court
+
+final class Appat {
+	// Une MÉTHODE qui porte le nom d'une fonction de PHP 8.4. Elle ne doit pas
+	// faire taire l'appel à la vraie fonction, plus bas.
+	private function array_find(): void {}
+}
+
 function bait(): void {
+	$t = new Tirage();                  // 8.2, par alias explicite
+	$e = RandomException::class;        // 8.2, par alias implicite
 	$ok = json_validate('{}');                 // 8.3
 	$p  = mb_str_pad('x', 3);                  // 8.3
 	$f  = array_find(array(), fn($v) => true); // 8.4
@@ -262,6 +353,7 @@ function bait(): void {
 	$r  = new \Random\Randomizer();            // 8.2
 	$m  = \Random\Engine\Mt19937::class;       // 8.2
 	$c  = chroot('/tmp');                      // absent from o2switch
+	try { $x = 1; } catch ( \Random\BrokenRandomEngineError $err ) { $x = 2; }  // 8.2, en catch
 	// A comment naming json_validate() and Random\Randomizer must NOT be a hit.
 	$s  = 'json_validate() inside a string must not be a hit either';
 }
@@ -269,7 +361,7 @@ BAIT);
 	$hits = scan(array($bait));
 	$found = array();
 	foreach ($hits as $h) $found[strtolower($h[2])] = true;
-	$want = array('json_validate()', 'mb_str_pad()', 'array_find()', 'array_any()', 'mb_trim()', 'random\randomizer', 'random\engine\mt19937', 'chroot()');
+	$want = array('json_validate()', 'mb_str_pad()', 'array_find()', 'array_any()', 'mb_trim()', 'random\randomizer', 'random\engine\mt19937', 'chroot()', 'random\randomexception', 'random\brokenrandomengineerror');
 	$missing = array();
 	foreach ($want as $w) if (!isset($found[$w])) $missing[] = $w;
 	// And the negative half: the comment and the string literal must not count.

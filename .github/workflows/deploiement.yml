@@ -42,7 +42,12 @@ on:
         required: true
         type: choice
         default: preprod
-        options: [preprod, prod]
+        # `studio` est une valeur À PART et non une case à cocher en plus, parce
+        # qu'il ne va pas au même endroit : il publie le bundle sur le Worker
+        # Cloudflare, dont il n'existe qu'un exemplaire pour les deux
+        # environnements. On choisit donc l'un OU l'autre, jamais les deux d'un
+        # même geste.
+        options: [preprod, prod, studio]
 
 concurrency:
   # Deux déploiements simultanés sur la même installation échangent deux fois le
@@ -134,7 +139,7 @@ jobs:
       # d'une séance à l'autre.
       - name: Ce que le portail de mise en ligne dit de la préproduction
         continue-on-error: true
-        run: node scripts/launch-gate.mjs --boutique=ssh:teeshoop:~/myTiger-Preprod/4bde-26076daa9357.wptiger.fr
+        run: node scripts/launch-gate.mjs --boutique=deploy:teeshoop:preprod
 
   production:
     needs: verifications
@@ -193,8 +198,15 @@ jobs:
       # lève en répondant aux questions qu'elle nomme, et docs/MISE-EN-LIGNE.md
       # dit lesquelles. Une boutique qui déploie par-dessus ce refus publie un
       # prix que personne n'a confirmé.
+      # `deploy:` ET NON `ssh:`. La clé de déploiement est posée avec une commande
+      # forcée : elle ne peut lancer que les verbes de deploiement.sh, jamais
+      # wp-cli. Écrit en `ssh:teeshoop:~/public_html`, ce portail envoyait
+      # `cd … && wp teeshoop lancement`, recevait « verbe inconnu », concluait
+      # « boutique injoignable » et sortait 2 quel que soit l'état réel de la
+      # boutique. Il bloquait donc pour la mauvaise raison, et aurait continué à
+      # bloquer le jour où la vraie réponse aurait été « on peut ».
       - name: Le portail de mise en ligne autorise-t-il la production
-        run: node scripts/launch-gate.mjs --boutique=ssh:teeshoop:~/public_html
+        run: node scripts/launch-gate.mjs --boutique=deploy:teeshoop:prod
 
       - name: La production est bien la version attendue
         run: node scripts/pin-verify.mjs --cible=prod
@@ -228,8 +240,18 @@ jobs:
   # `npm run deploy` fait la construction, le garde-fou de bundle et l'envoi dans
   # cet ordre, et le garde-fou est ce qui empêche un prix d'achat ou un modèle de
   # coût de partir dans un fichier que le client télécharge.
+  # LA CONDITION A ÉTÉ CORRIGÉE AVANT LE PREMIER DÉPLOIEMENT, ET C'ÉTAIT GRAVE.
+  #
+  # Elle disait seulement `github.event_name == 'workflow_dispatch'`, sans
+  # regarder `cible`. Un opérateur qui ouvrait Actions, laissait la valeur par
+  # défaut `preprod` et lançait, publiait donc AUSSI le studio sur le Worker de
+  # production, au moment précis où il croyait ne toucher que la préproduction.
+  # L'en-tête de ce fichier annonçait que cela ne pouvait pas arriver « sur un
+  # push » : le push était bien couvert, le dispatch ne l'était pas, et le
+  # dispatch est la seule façon de déployer à la main. Trouvé par une relecture
+  # adverse.
   studio:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.cible == 'studio'
     needs: verifications
     runs-on: ubuntu-latest
     environment: production

@@ -232,15 +232,18 @@ final class Schema {
 	}
 
 	/** The steps this database has not had, in order. */
+	/**
+	 * Les étapes que cette base n'a pas eues, dans l'ordre.
+	 *
+	 * Passe par `plan()` plutôt que de refaire la boucle : c'était la MÊME règle
+	 * écrite à deux endroits, et l'une des deux triait par identifiant pendant que
+	 * l'autre suivait l'ordre de déclaration. Le jour où quelqu'un insère une
+	 * étape au milieu de `steps()`, `status()` l'annonçait dans le désordre
+	 * pendant que `migrate()` la jouait dans le bon. `cli` à true parce que cette
+	 * liste répond « qu'est-ce qui reste », pas « qu'est-ce qui peut tourner ici ».
+	 */
 	public static function outstanding(): array {
-		$at  = self::current();
-		$out = array();
-		foreach ( self::steps() as $step ) {
-			if ( (int) $step['id'] > $at ) {
-				$out[] = $step;
-			}
-		}
-		return $out;
+		return self::plan( self::steps(), self::current(), true )['run'];
 	}
 
 	/**
@@ -347,18 +350,45 @@ final class Schema {
 		 * the lock, because it writes nothing.
 		 */
 		if ( ! $dry ) {
-			if ( false !== get_transient( self::LOCK ) ) {
-				return array(
-					'ok'      => false,
-					'from'    => $from,
-					'to'      => $from,
-					'dry'     => false,
-					'ran'     => array(),
-					'skipped' => array(),
-					'error'   => 'une migration est déjà en cours (verrou ' . self::LOCK . '). Rien n’a été fait.',
-				);
+			/*
+			 * LE VERROU EST UN INSERT, PAS UN « LIRE PUIS ÉCRIRE ».
+			 *
+			 * C'était `get_transient` puis `set_transient`, deux opérations
+			 * séparées : deux requêtes concurrentes lisaient toutes les deux
+			 * « libre » et posaient toutes les deux le verrou. Sur une boutique
+			 * qui reçoit des robots, deux requêtes à la même seconde n'ont rien
+			 * d'improbable. `add_option()` fait un INSERT sur `option_name`, qui
+			 * porte un index unique : une seule des deux peut réussir, et c'est
+			 * la base de données qui tranche. Le test qui couvrait ce verrou ne
+			 * pouvait pas voir la différence, parce qu'il est séquentiel.
+			 *
+			 * `autoload` à false : ce verrou ne doit pas être chargé sur chaque
+			 * requête alors qu'il n'existe que quelques secondes par an.
+			 */
+			$maintenant = time();
+			if ( ! add_option( self::LOCK, $maintenant, '', false ) ) {
+				$tenu = (int) get_option( self::LOCK, 0 );
+				if ( $tenu > 0 && ( $maintenant - $tenu ) < self::LOCK_SECONDS ) {
+					return array(
+						'ok'      => false,
+						'from'    => $from,
+						'to'      => $from,
+						'dry'     => false,
+						'ran'     => array(),
+						'skipped' => array(),
+						'error'   => 'une migration est déjà en cours (verrou ' . self::LOCK . '). Rien n’a été fait.',
+					);
+				}
+				/*
+				 * Le verrou est plus vieux que la plus longue migration possible :
+				 * le processus qui le tenait est mort. On le reprend. Il reste ici
+				 * une fenêtre théorique entre le constat et la reprise, bien plus
+				 * étroite que celle qu'on vient de fermer, et le pire qu'elle
+				 * produise est ce que le paragraphe suivant décrit : deux passages
+				 * d'étapes idempotentes.
+				 */
+				update_option( self::LOCK, $maintenant, false );
 			}
-			set_transient( self::LOCK, time(), self::LOCK_SECONDS );
 		}
 
 		$at    = $from;
@@ -394,7 +424,7 @@ final class Schema {
 			$error = sprintf( 'étape %d interrompue : %s', $doing, $e->getMessage() );
 		} finally {
 			if ( ! $dry ) {
-				delete_transient( self::LOCK );
+				delete_option( self::LOCK );
 			}
 		}
 
@@ -441,7 +471,50 @@ final class Schema {
 		if ( ! self::pending() ) {
 			return;
 		}
-		self::migrate( array( 'cli' => defined( 'WP_CLI' ) && \WP_CLI ) );
+
+		/*
+		 * UNE ÉTAPE QUI ÉCHOUE NE DOIT PAS ÊTRE RÉESSAYÉE À CHAQUE REQUÊTE.
+		 *
+		 * Ce corps était `if pending -> migrate`, et le rapport de `migrate()`
+		 * était jeté. Une étape qui échoue toujours (une table qu'on n'a pas le
+		 * droit de créer, un disque plein) laissait donc la version en arrière,
+		 * donc `pending()` restait vrai, donc chaque page du site relançait la
+		 * migration, indéfiniment, sans que rien nulle part ne le dise. Sur un
+		 * hébergement mutualisé c'est une requête SQL en échec par visiteur.
+		 * Trouvé par une relecture adverse avant le premier déploiement.
+		 *
+		 * L'échec est donc mémorisé et on n'y revient pas avant un quart d'heure,
+		 * ce qui laisse le temps à un administrateur de lire l'avertissement, et
+		 * à `wp teeshoop migrer` de retenter tout de suite sans attendre (il ne
+		 * passe pas par ici).
+		 */
+		$etat = get_option( self::OPTION, array() );
+		$dernier = is_array( $etat ) ? (int) ( $etat['echec_at'] ?? 0 ) : 0;
+		if ( $dernier > 0 && ( time() - $dernier ) < 15 * MINUTE_IN_SECONDS ) {
+			return;
+		}
+
+		$rapport = self::migrate( array( 'cli' => defined( 'WP_CLI' ) && \WP_CLI ) );
+		if ( ! $rapport['ok'] ) {
+			self::note_echec( (string) $rapport['error'] );
+		} elseif ( $dernier > 0 ) {
+			self::note_echec( '' );
+		}
+	}
+
+	/** Garder (ou effacer) la trace du dernier échec, pour l'avertissement et le recul. */
+	private static function note_echec( string $message ): void {
+		$etat = get_option( self::OPTION, array() );
+		if ( ! is_array( $etat ) ) {
+			$etat = array();
+		}
+		if ( '' === $message ) {
+			unset( $etat['echec'], $etat['echec_at'] );
+		} else {
+			$etat['echec']    = $message;
+			$etat['echec_at'] = time();
+		}
+		update_option( self::OPTION, $etat, true );
 	}
 
 	/**
@@ -455,11 +528,15 @@ final class Schema {
 			return;
 		}
 		$status = self::status();
+		$etat   = get_option( self::OPTION, array() );
+		$echec  = is_array( $etat ) ? (string) ( $etat['echec'] ?? '' ) : '';
 		printf(
-			'<div class="notice notice-warning"><p><strong>Teeshoop</strong> : la base est en version %d et le code en attend %d. %d étape(s) en attente. Lancez <code>wp teeshoop migrer</code> en ligne de commande.</p></div>',
+			'<div class="notice notice-%s"><p><strong>Teeshoop</strong> : la base est en version %d et le code en attend %d. %d étape(s) en attente.%s Lancez <code>wp teeshoop migrer</code> en ligne de commande.</p></div>',
+			'' === $echec ? 'warning' : 'error',
 			(int) $status['current'],
 			(int) $status['target'],
-			(int) $status['pending']
+			(int) $status['pending'],
+			'' === $echec ? '' : ' <strong>La dernière tentative a échoué :</strong> ' . esc_html( $echec ) . '.'
 		);
 	}
 

@@ -39,6 +39,7 @@
     "gen:garments": "node scripts/gen-garment-data.mjs",
     "verify:php": "node scripts/php-guard.mjs",
     "verify:php81": "php scripts/php81-guard.php",
+    "verify:pin": "node scripts/pin-verify.mjs",
     "verify:hypotheses": "node scripts/hypotheses-guard.mjs",
     "verify:lancement": "node scripts/launch-gate.mjs",
     "verify:garments": "node scripts/gen-garment-data.mjs --check",
