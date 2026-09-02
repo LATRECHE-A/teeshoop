@@ -406,14 +406,38 @@ non dans un fichier du dépôt.
   vérifié en cassant la première requête exprès : le script REFUSE au lieu de
   conclure qu'aucune image n'est partagée.
 
-  **Pas prouvé.** Le script complet contre les 42 vrais produits de la
-  préproduction, avec son contrôle corrigé. Le SSH s'est fermé avant (§6 octies
-  de `ACCES-REQUIS.md`). **À rejouer avant tout `--faire`**, et à comparer aux
-  neuf images partagées qu'une vérification indépendante a comptées :
+  **Et joué en simulation sur la vraie préproduction**, une fois le SSH revenu :
+
+  | | |
+  |---|---|
+  | produits sélectionnés | **42** |
+  | variations emportées | 13 |
+  | révisions emportées | 0 |
+  | images candidates | **73** |
+  | images supprimées | 71 |
+  | images gardées | 2 |
+  | commandes | inchangées |
+
+  **Les 2 gardées sont des coïncidences, et il faut le savoir pour lire ce
+  chiffre.** La source « réglages du site » est délibérément large : 298
+  correspond à un numéro de menu (`"main-menu";s:3:"298"`) et 400 à une graisse
+  de police (`"font-weight";i:400`). Vérifié précisément par ailleurs : **aucune**
+  des 73 images n'est citée par Elementor, ni sous la forme `"id":N` ni par son
+  URL, et aucune n'est une vignette de catégorie. Le nombre d'images réellement
+  partagées est donc **zéro**, et le 2 est une marge de prudence.
+
+  **13 des 73 références pointent dans le vide** : la pièce jointe a été
+  supprimée il y a longtemps et seule la ligne `postmeta` demeure. C'est ce qui
+  explique l'écart entre les 69 comptés en SQL et les 57 rendus par l'API REST,
+  qui n'énumère que les images qui existent encore.
+
+  **Toujours pas fait, et c'est la seule chose qui reste : `--faire`.** Rien n'a
+  été supprimé, ni ici ni en production. La commande, quand la décision sera
+  prise :
 
   ```bash
-  scp scripts/purge-demo.sh teeshoop:~/ && ssh teeshoop 'chmod 755 ~/purge-demo.sh'
-  ssh teeshoop '~/purge-demo.sh'          # simulation, ne supprime rien
+  ssh teeshoop '~/purge-demo.sh'            # simulation, ne supprime rien
+  ssh teeshoop '~/purge-demo.sh ~/myTiger-Preprod/4bde-26076daa9357.wptiger.fr --faire'
   ```
 
   En production c'est en plus la question 20, elle appartient à l'associé, et le

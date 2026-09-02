@@ -102,17 +102,28 @@ c'est la porte qui fait son travail.
 Sa sélection est juste et mesurée sur la préproduction : 42 produits, 13
 variations, les cinq vrais produits épargnés, 15 commandes inchangées.
 
-Son contrôle « cette image sert-elle ailleurs » a été corrigé après cette
-simulation, et le SSH s'est fermé avant qu'elle puisse être refaite. Il a donc
-été éprouvé **sur le miroir local**, contre un vrai WooCommerce, avec trois
-produits fabriqués pour l'occasion dont une image sert aussi à une page
-conservée : **2 à supprimer, 1 gardée**, ce qui est la bonne réponse. Et le
-canari a été vérifié en cassant la première requête exprès : le script refuse au
-lieu de conclure que rien n'est partagé.
+Le SSH s'est rouvert en fin de séance et la simulation a été rejouée sur la vraie
+préproduction :
 
-Ce qui reste à faire est donc précis : **rejouer le script contre les 42 vrais
-produits de la préproduction**, et comparer aux **neuf images partagées** qu'une
-vérification indépendante a comptées là-bas. Avant tout `--faire`.
+| | |
+|---|---|
+| produits sélectionnés | **42** |
+| variations emportées | 13 |
+| images candidates | **73** |
+| supprimées / gardées | 71 / 2 |
+| commandes | inchangées |
+
+**Les 2 gardées sont des coïncidences**, et le chiffre ne doit pas se lire
+autrement : la source « réglages du site » est large exprès, 298 est un numéro de
+menu et 400 une graisse de police. Vérifié précisément : **aucune** des 73 images
+n'est citée par Elementor (ni `"id":N`, ni par URL), et aucune n'est une vignette
+de catégorie. Le nombre d'images réellement partagées est **zéro**.
+
+**13 des 73 références pointent dans le vide** : la pièce jointe n'existe plus et
+seule la ligne `postmeta` demeure. C'est l'écart entre les 69 du SQL et les 57 de
+l'API REST, résolu.
+
+Il ne reste que la décision : `--faire`. Rien n'a été supprimé, nulle part.
 
 **Fancy Product Designer n'est pas désactivé**, et `docs/FANCY-PRODUCT-DESIGNER.md`
 dit pourquoi il peut l'être sans rien perdre : aucune commande n'en dépend,
@@ -142,20 +153,19 @@ connexions, pas cent.
 
 ## 7. Ce que la séance 15 doit faire en premier
 
-1. **Rouvrir le SSH**, puis rejouer `~/purge-demo.sh` en simulation et lire le
-   nombre d'images gardées. S'il n'est pas de neuf, comprendre pourquoi avant
-   d'aller plus loin.
-2. **Poser les quatre secrets GitHub** (`ACCES-REQUIS.md` §6 octies) et créer
+1. **Poser les quatre secrets GitHub** (`ACCES-REQUIS.md` §6 octies) et créer
    l'environnement `production` avec sa validation manuelle. Sans eux, le
    déploiement automatique ne part pas, et il le dit dès la première étape.
-3. **Faire tourner les deux clés qui ont transité par une conversation** : la clé
+2. **Faire tourner les deux clés qui ont transité par une conversation** : la clé
    WooCommerce lecture/écriture et la clé secrète Stripe de test. Vérifié cette
    séance : ni l'une ni l'autre ne l'a été.
-4. **Rejouer le portail contre les trois installations** et comparer au tableau
+3. **Rejouer le portail contre les trois installations** et comparer au tableau
    du §4. Une raison neuve est une régression.
-5. **Décider des trois boîtes aux lettres** : `legales@`, `ticket@` et `dev@` de
+4. **Décider des trois boîtes aux lettres** : `legales@`, `ticket@` et `dev@` de
    `teeshoop.com` n'existent pas, et la page des mentions légales publie la
    première.
+5. **Et, si l'associé le dit, lancer la purge en vrai.** La simulation est passée
+   sur la vraie préproduction (§5) ; il ne manque que la décision.
 
 ---
 
@@ -178,9 +188,8 @@ connexions, pas cent.
 
 **Pas mesuré, et il faut le savoir :**
 
-- **la purge, avec son contrôle corrigé, contre les 42 vrais produits de la
-  préproduction** (§5). La logique est éprouvée sur le miroir, la donnée réelle
-  ne l'est pas ;
+- **la purge en vrai** (`--faire`). La simulation est passée sur la vraie
+  préproduction et sur le miroir ; rien n'a jamais été supprimé ;
 - **le déploiement depuis GitHub Actions**, jamais déclenché : les secrets ne sont
   pas posés. Tout ce qui a été fait l'a été à la main, avec la clé restreinte,
   dans le même ordre que le fichier de travail ;

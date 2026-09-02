@@ -308,9 +308,15 @@ if [ -n "$(echo "$MEDIAS" | tr -d ' ')" ]; then
     "SELECT meta_value FROM ${P}termmeta WHERE meta_key = 'thumbnail_id' AND meta_value <> ''" \
     "SELECT COUNT(*) FROM ${P}termmeta WHERE meta_key = 'thumbnail_id' AND meta_value <> ''")
 
-  # Et les réglages : logo, favicon, images du thème. Volontairement large, parce
-  # qu'un identifiant retenu à tort ne fait que CONSERVER une image, ce qui est le
-  # sens dans lequel ce contrôle a le droit de se tromper.
+  # Et les réglages : logo, favicon, images du thème. VOLONTAIREMENT LARGE, et
+  # mesuré : sur la préproduction, cette source retient 2 identifiants sur 73, et
+  # les deux sont des coïncidences. 298 correspond à
+  # `nav_menu_locations ... "main-menu";s:3:"298"`, qui est un numéro de menu, et
+  # 400 à `"font-weight";i:400`, qui est une graisse de police. Le compte « gardés »
+  # ne se lit donc PAS comme « images réellement partagées » : c'est un plancher de
+  # prudence. Un identifiant retenu à tort ne fait que conserver un fichier ;
+  # l'inverse efface une image encore utilisée, et c'est le seul sens dans lequel
+  # ce contrôle n'a pas le droit de se tromper.
   U6=$(lire_source "réglages du site (options)" \
     "SELECT option_value FROM ${P}options WHERE option_name = 'site_icon'
         OR option_name LIKE 'theme_mods_%' OR option_name LIKE '%_image_id' OR option_name LIKE '%_logo%'" \
