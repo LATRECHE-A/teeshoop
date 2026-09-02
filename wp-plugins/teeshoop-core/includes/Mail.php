@@ -72,14 +72,10 @@ final class Mail {
 	/** The retry pass. */
 	private const CRON = 'teeshoop_mail_retry';
 
-	/** Schema version of the outbox table. */
-	private const DB_VERSION = '1';
-
 	/** The admin action behind the retry button. */
 	public const ACTION_RETRY = 'teeshoop_mail_retry_now';
 
 	public static function init(): void {
-		add_action( 'plugins_loaded', array( self::class, 'maybe_install' ), 20 );
 		add_action( self::CRON, array( self::class, 'retry_pass' ) );
 		add_action( 'init', array( self::class, 'schedule' ) );
 		add_action( 'admin_post_' . self::ACTION_RETRY, array( self::class, 'handle_retry' ) );
@@ -92,47 +88,18 @@ final class Mail {
 		return $wpdb->prefix . 'teeshoop_mail';
 	}
 
-	/**
-	 * Create the table if it is not there.
+	/*
+	 * THE TABLE IS CREATED BY Schema, STEP 2, AND NOT HERE.
 	 *
-	 * On `plugins_loaded` and not on activation, the same as `Invoice`: a site
-	 * where the plugin was already active never runs an activation hook again,
-	 * so a table added later would never exist there and the failure would be a
-	 * silent one on the day it mattered.
+	 * This was a lazy `maybe_install()` on `plugins_loaded`, deliberately not an
+	 * activation hook, for a reason that was right and is now handled properly:
+	 * a site where the plugin is ALREADY active never runs an activation hook
+	 * again, so a table added in a later version would never exist there and the
+	 * failure would be a silent one on the day it mattered. Schema keeps that
+	 * guarantee (it runs its O(1) steps on `plugins_loaded` too) and adds the
+	 * part this shape could not do: a version, an order, and a way to change a
+	 * table rather than only create one.
 	 */
-	public static function maybe_install(): void {
-		if ( get_option( 'teeshoop_mail_db' ) === self::DB_VERSION ) {
-			return;
-		}
-		self::install();
-		update_option( 'teeshoop_mail_db', self::DB_VERSION, false );
-	}
-
-	public static function install(): void {
-		global $wpdb;
-		$table   = self::table();
-		$collate = $wpdb->get_charset_collate();
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange
-		$wpdb->query(
-			"CREATE TABLE IF NOT EXISTS {$table} (
-				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-				created_at DATETIME NOT NULL,
-				sent_at DATETIME NULL,
-				kind VARCHAR(40) NOT NULL,
-				order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
-				recipient VARCHAR(190) NOT NULL,
-				subject VARCHAR(255) NOT NULL,
-				status VARCHAR(16) NOT NULL,
-				attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-				transport VARCHAR(16) NOT NULL DEFAULT '',
-				message_id VARCHAR(120) NOT NULL DEFAULT '',
-				last_error TEXT NULL,
-				PRIMARY KEY (id),
-				KEY status_created (status, created_at),
-				KEY order_kind (order_id, kind)
-			) {$collate}"
-		);
-	}
 
 	public static function schedule(): void {
 		if ( ! wp_next_scheduled( self::CRON ) ) {

@@ -158,6 +158,7 @@ require_once __DIR__ . '/includes/Quote.php';
 require_once __DIR__ . '/includes/Consent.php';
 require_once __DIR__ . '/includes/Funnel.php';
 require_once __DIR__ . '/includes/Privacy.php';
+require_once __DIR__ . '/includes/Schema.php';
 require_once __DIR__ . '/includes/LegalPage.php';
 require_once __DIR__ . '/includes/Content.php';
 require_once __DIR__ . '/includes/Seo.php';
@@ -191,6 +192,14 @@ function boot(): void {
 		);
 		return;
 	}
+
+	/*
+	 * FIRST, because everything below it may read a table it owns. It does the
+	 * work synchronously rather than hooking itself later: boot() is already a
+	 * `plugins_loaded` callback, so a hook on `plugins_loaded` registered here
+	 * would never fire. See the note on Schema::init().
+	 */
+	Schema::init();
 
 	Product::init();
 	Listing::init();
@@ -295,12 +304,36 @@ add_action( 'plugins_loaded', __NAMESPACE__ . '\\boot' );
 register_deactivation_hook(
 	__FILE__,
 	static function (): void {
-		foreach ( array( 'teeshoop_purge_devis', Mail::cron() ) as $hook ) {
+		/*
+		 * Privacy::CRON was missing from this list until 02/09/2026, which is
+		 * precisely the failure the paragraph above describes: `teeshoop_purge_donnees`
+		 * is scheduled daily in Privacy::init() and survived deactivation, firing
+		 * for ever with no callback. Found by reading this hook against every
+		 * wp_schedule_event in the plugin rather than against its own comment.
+		 */
+		foreach ( array( 'teeshoop_purge_devis', Mail::cron(), Privacy::CRON ) as $hook ) {
 			$next = wp_next_scheduled( $hook );
 			if ( $next ) {
 				wp_unschedule_event( $next, $hook );
 			}
 		}
+	}
+);
+
+/**
+ * Bring the database to the shape this copy of the code expects.
+ *
+ * The deploy runs `wp teeshoop migrer` explicitly and that is the path that
+ * matters, because it is the one whose output somebody reads. This hook is for
+ * the other way in: an administrator activating the plugin from wp-admin, on a
+ * site no pipeline has ever touched. `cli => false` because this is a web
+ * request on shared hosting, so only the O(1) steps run and the rest is reported
+ * by Schema::notice().
+ */
+register_activation_hook(
+	__FILE__,
+	static function (): void {
+		Schema::migrate( array( 'cli' => defined( 'WP_CLI' ) && \WP_CLI ) );
 	}
 );
 

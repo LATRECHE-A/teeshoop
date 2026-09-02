@@ -53,17 +53,48 @@
  * did not run, because a gate that passes when it cannot look is worse than no
  * gate: it is a gate somebody trusts.
  *
+ * ── WHICH SHOP IT ASKS ───────────────────────────────────────────────────────
+ *
+ * Until 02/09/2026 the answer was « the local docker mirror », hard-coded, with
+ * no flag and no environment variable. Three tracked documents told session 14
+ * to replay this gate against the REAL shop before deploying, and the code had
+ * no mechanism to do it: `docs/MISE-EN-LIGNE.md` even says « rejouer le portail
+ * contre la production est une étape de la séance 14, pas une formalité ».
+ *
+ *   --boutique=miroir                the local mirror through docker (default)
+ *   --boutique=ssh:<hôte>:<chemin>   a real WordPress over SSH, e.g.
+ *                                    ssh:teeshoop:public_html
+ *
+ * Both ends run the same thing: `wp teeshoop lancement --porcelaine`, which is a
+ * WP-CLI subcommand rather than the inline `wp eval` string this used to send.
+ * That is not tidying. Shipping a PHP program through ssh and a shell means two
+ * layers of quoting around a payload containing single quotes, backslashes and
+ * accented French, and the failure mode of getting it wrong is a parse error
+ * that reads exactly like an unreachable shop.
+ *
+ * A plugin too old to have that subcommand makes wp-cli exit non-zero, which is
+ * « we could not look », which refuses. Fail closed, as everywhere else here.
+ *
  * Usage:
  *   node scripts/launch-gate.mjs              # the real thing; needs the shop
  *   node scripts/launch-gate.mjs --depot      # the register half only
  *   node scripts/launch-gate.mjs --ci         # run it, print the verdict, and
  *                                             # fail only if the GATE is broken
  *   node scripts/launch-gate.mjs --self-test  # prove each condition can refuse
+ *   node scripts/launch-gate.mjs --json       # the verdict as JSON, for a deploy
  *
  * Exit: 0 go-live authorised (or, under --ci, the gate itself is trustworthy)
  *       1 refused, with reasons
- *       2 the gate could not be trusted (nothing read, shop unreachable when
- *         it was required, self-test did not fire)
+ *       2 the gate could not be trusted: the register is unreadable, the shop
+ *         could not be REACHED, or the self-test did not fire
+ *
+ * THE DIFFERENCE BETWEEN 1 AND 2 IS NEW AND IT IS THE ONE A PIPELINE NEEDS. Both
+ * refuse a launch, so `docs/MISE-EN-LIGNE.md` is still right that there are two
+ * answers to « peut-on lancer » and no third. But a deploy that stops has to be
+ * able to tell its operator « the shop said no » from « nothing asked the shop »,
+ * and until now both exited 1 while the docblock above claimed otherwise: an
+ * unreachable shop became an ordinary blocker. Deliberately not asking (--depot)
+ * is still 1, because that is a choice and not a failure.
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -80,9 +111,68 @@ const DIM = '\x1b[2m'
 const BOLD = '\x1b[1m'
 const OFF = '\x1b[0m'
 
-const DEPOT_ONLY = process.argv.includes('--depot')
-const CI = process.argv.includes('--ci')
-const SELF_TEST = process.argv.includes('--self-test')
+/*
+ * STRICT ARGUMENT PARSING, and this is a fail-closed change rather than
+ * housekeeping. Every flag used to be read with `process.argv.includes(...)`, so
+ * an unknown one was silently ignored: `--boutque=ssh:teeshoop:public_html`, one
+ * letter out, would have run this gate against the LOCAL MIRROR and printed a
+ * verdict about the wrong shop, in the one place whose entire job is to be
+ * believed. Anything unrecognised now exits 2.
+ */
+const ARGS = process.argv.slice(2)
+const KNOWN = new Set(['--depot', '--ci', '--self-test', '--json'])
+const DEPOT_ONLY = ARGS.includes('--depot')
+const CI = ARGS.includes('--ci')
+const SELF_TEST = ARGS.includes('--self-test')
+const JSON_OUT = ARGS.includes('--json')
+
+let TARGET_RAW = 'miroir'
+const badArgs = []
+for (const a of ARGS) {
+  if (KNOWN.has(a)) continue
+  if (a.startsWith('--boutique=')) {
+    TARGET_RAW = a.slice('--boutique='.length)
+    continue
+  }
+  badArgs.push(a)
+}
+if (badArgs.length > 0) {
+  console.error(
+    `${RED}launch-gate: argument inconnu : ${badArgs.join(', ')}. ` +
+      `Attendus : --depot, --ci, --self-test, --json, --boutique=miroir|ssh:<hôte>:<chemin>.${OFF}`,
+  )
+  process.exit(2)
+}
+
+/**
+ * Where the shop is, parsed and VALIDATED.
+ *
+ * The host and the path are pasted into an ssh command line, so they are checked
+ * against a deliberately narrow character set rather than quoted. Quoting the
+ * path would also defeat the `~` a home-relative WordPress root needs, and a
+ * gate that has to choose between shell-safe and correct should refuse instead.
+ */
+function parseTarget(raw) {
+  if (raw === 'miroir') return { kind: 'miroir', label: 'le miroir local (docker)' }
+  const m = /^ssh:([^:]+):(.+)$/.exec(raw)
+  if (!m) {
+    return { kind: 'invalide', why: `« ${raw} » n'est ni « miroir » ni « ssh:<hôte>:<chemin> ».` }
+  }
+  const [, host, path] = m
+  if (!/^[A-Za-z0-9._@-]+$/.test(host)) {
+    return { kind: 'invalide', why: `l'hôte « ${host} » contient un caractère que ce contrôle refuse de passer à un shell.` }
+  }
+  if (!/^[A-Za-z0-9._~/-]+$/.test(path)) {
+    return { kind: 'invalide', why: `le chemin « ${path} » contient un caractère que ce contrôle refuse de passer à un shell.` }
+  }
+  return { kind: 'ssh', host, path, label: `${host}:${path} (ssh)` }
+}
+
+const TARGET = parseTarget(TARGET_RAW)
+if (TARGET.kind === 'invalide') {
+  console.error(`${RED}launch-gate: --boutique invalide : ${TARGET.why}${OFF}`)
+  process.exit(2)
+}
 
 /**
  * Who a value has to reach for a missing answer to block a launch.

@@ -760,6 +760,16 @@ ts_listing_suite();
 require_once __DIR__ . '/integration-lancement.php';
 ts_lancement_suite();
 
+/*
+ * The migration runner against a real database. Placed after the launch gate
+ * because it deletes and rewrites the schema option several times and one of its
+ * cases deliberately leaves the version at 0 for the length of an assertion: any
+ * suite reading a table while that is true would be reading a state no deploy
+ * ever produces. It puts the option back before it returns.
+ */
+require_once __DIR__ . '/integration-schema.php';
+ts_schema_suite();
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 

@@ -136,9 +136,6 @@ final class Invoice {
 	/** How many characters of the document could not be written to a PDF. */
 	public const META_LOST = '_teeshoop_invoice_lost';
 
-	/** Bumped when the sequence table's shape changes. */
-	private const DB_VERSION = '1';
-
 	/**
 	 * The 40 EUR recovery indemnity, fixed by article D. 441-5 du code de
 	 * commerce. A legal constant and not an assumption: it is not ours to set
@@ -147,8 +144,6 @@ final class Invoice {
 	private const RECOVERY_INDEMNITY_EUR = 40;
 
 	public static function init(): void {
-		self::maybe_install();
-
 		/*
 		 * Issued when the money is in, and on both of the paths that put it
 		 * there. `payment_complete` is the convention, and BACS and COD
@@ -180,33 +175,21 @@ final class Invoice {
 		return $wpdb->prefix . 'teeshoop_sequence';
 	}
 
-	public static function maybe_install(): void {
-		if ( get_option( 'teeshoop_db_version' ) === self::DB_VERSION ) {
-			return;
-		}
-		self::install();
-	}
-
-	public static function install(): void {
-		global $wpdb;
-		$table = self::table();
-
-		/*
-		 * `series` is the primary key and there is no auto-increment column: the
-		 * number comes from `LAST_INSERT_ID(expr)`, not from a row id, so an
-		 * InnoDB auto-increment gap (which a failed insert can leave) cannot
-		 * become a hole in a legally continuous sequence.
-		 */
-		$wpdb->query(
-			"CREATE TABLE IF NOT EXISTS {$table} (
-				series VARCHAR(32) NOT NULL,
-				next_number BIGINT UNSIGNED NOT NULL,
-				PRIMARY KEY (series)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
-		); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-
-		update_option( 'teeshoop_db_version', self::DB_VERSION, false );
-	}
+	/*
+	 * THE TABLE IS CREATED BY Schema, STEP 1, AND NOT HERE.
+	 *
+	 * It used to be a lazy `maybe_install()` on `plugins_loaded` guarded by an
+	 * option called `teeshoop_db_version`, which is a plugin-wide name holding
+	 * one table's marker. That shape could create a table and could never change
+	 * one: adding a column to the literal would have reached no existing install,
+	 * silently, because the marker already said the table was there.
+	 *
+	 * `series` is still the primary key and there is still no auto-increment
+	 * column, for the reason that has not changed: the number comes from
+	 * `LAST_INSERT_ID(expr)` and not from a row id, so an InnoDB auto-increment
+	 * gap left by a failed insert cannot become a hole in a legally continuous
+	 * sequence. That reasoning now lives next to the DDL, in Schema.php.
+	 */
 
 	/**
 	 * The next number in a series, allocated atomically.

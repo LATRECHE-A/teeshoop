@@ -45,6 +45,8 @@ final class Cli {
 		\WP_CLI::add_command( 'teeshoop couleurs reclasser', array( self::class, 'colours_reclassify' ) );
 		\WP_CLI::add_command( 'teeshoop couleurs oublier', array( self::class, 'colours_forget' ) );
 		\WP_CLI::add_command( 'teeshoop juridique', array( self::class, 'legal_pages' ) );
+		\WP_CLI::add_command( 'teeshoop migrer', array( self::class, 'migrate' ) );
+		\WP_CLI::add_command( 'teeshoop lancement', array( self::class, 'launch' ) );
 	}
 
 	/**
@@ -1391,6 +1393,137 @@ final class Cli {
 	 * @param array $args       positional, unused.
 	 * @param array $assoc_args --dry-run.
 	 */
+	/**
+	 * Bring the database to the shape this copy of the code expects.
+	 *
+	 * ## WHY A COMMAND AND NOT A HOOK
+	 *
+	 * Both exist and they answer different needs. `Schema` runs its O(1) steps on
+	 * every request, which is the guarantee the two lazy installers used to give:
+	 * a site where the plugin is already active never runs an activation hook
+	 * again, so a table added later would never exist there. What that shape
+	 * cannot do is a step that walks rows: o2switch's web SAPI has a
+	 * `max_execution_time` and a migration killed halfway through a page load
+	 * would leave the version un-bumped and the work half done, on a request
+	 * nobody was watching. Those steps are CLI-only and this is the CLI.
+	 *
+	 * It is also the step a deploy runs, and the reason its output is a list of
+	 * what each step DID rather than a tick: a deploy log that says « ok » tells
+	 * whoever reads it at 19h on a Friday nothing at all.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--a-blanc]
+	 * : Say what would run and change nothing, not even the version.
+	 *
+	 * [--refaire]
+	 * : Run every step again from the first, for repairing an install by hand.
+	 *   Every step is idempotent, so this is safe; it is not the normal path.
+	 *
+	 * [--etat]
+	 * : Print the version and what is outstanding, run nothing.
+	 *
+	 * [--porcelaine]
+	 * : One line of JSON on stdout and nothing else, for a pipeline to read.
+	 */
+	public static function migrate( array $args, array $assoc_args = array() ): void {
+		$json = isset( $assoc_args['porcelaine'] );
+
+		if ( isset( $assoc_args['etat'] ) ) {
+			$status = Schema::status();
+			if ( $json ) {
+				echo wp_json_encode( $status, JSON_UNESCAPED_UNICODE ), "\n";
+				return;
+			}
+			\WP_CLI::log( sprintf( 'base en version %d, code en version %d.', (int) $status['current'], (int) $status['target'] ) );
+			foreach ( $status['steps'] as $step ) {
+				\WP_CLI::log( sprintf( '  étape %d %s %s', (int) $step['id'], $step['auto'] ? '(auto)  ' : '(ligne de commande)', $step['label'] ) );
+			}
+			if ( 0 === (int) $status['pending'] ) {
+				\WP_CLI::success( 'rien en attente.' );
+			}
+			return;
+		}
+
+		$report = Schema::migrate(
+			array(
+				'dry'  => isset( $assoc_args['a-blanc'] ),
+				'redo' => isset( $assoc_args['refaire'] ),
+				'cli'  => true,
+			)
+		);
+
+		if ( $json ) {
+			echo wp_json_encode( $report, JSON_UNESCAPED_UNICODE ), "\n";
+			if ( ! $report['ok'] ) {
+				exit( 1 );
+			}
+			return;
+		}
+
+		foreach ( $report['ran'] as $step ) {
+			\WP_CLI::log( sprintf( 'étape %d %s : %s', (int) $step['id'], $step['label'], $step['did'] ) );
+		}
+		foreach ( $report['skipped'] as $step ) {
+			\WP_CLI::warning( sprintf( 'étape %d %s : non exécutée.', (int) $step['id'], $step['label'] ) );
+		}
+		if ( ! $report['ok'] ) {
+			\WP_CLI::error( $report['error'] );
+		}
+		if ( $report['from'] === $report['to'] && array() === $report['ran'] ) {
+			\WP_CLI::success( sprintf( 'base déjà en version %d, rien à faire.', (int) $report['to'] ) );
+			return;
+		}
+		\WP_CLI::success(
+			sprintf(
+				'%sbase passée de la version %d à la version %d, %d étape(s).',
+				$report['dry'] ? 'à blanc : ' : '',
+				(int) $report['from'],
+				(int) $report['to'],
+				count( $report['ran'] )
+			)
+		);
+	}
+
+	/**
+	 * The launch gate's shop half, so it can be asked from outside this machine.
+	 *
+	 * ## WHY THIS EXISTS
+	 *
+	 * `scripts/launch-gate.mjs` asked WordPress through one hard-coded
+	 * `docker compose run wpcli eval` against the local mirror, so the three
+	 * tracked documents telling session 14 to replay the gate against the REAL
+	 * shop were asking for something the code could not do. The gate now speaks
+	 * to a transport, and this is the far end of it: it prints the same
+	 * marker-wrapped JSON the eval string used to, over SSH or over docker,
+	 * without shipping a PHP program through two layers of shell quoting.
+	 *
+	 * The markers are not decoration. WP-CLI, WordPress notices, PHP deprecations
+	 * and docker itself all write to these streams, and a parser that took the
+	 * whole output would read a warning as an unreachable shop.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--porcelaine]
+	 * : Print only the marker-wrapped JSON. This is the form the gate reads.
+	 */
+	public static function launch( array $args, array $assoc_args = array() ): void {
+		$answer = array( 'ok' => true, 'blockers' => Launch::blockers() );
+		if ( isset( $assoc_args['porcelaine'] ) ) {
+			echo "\n<<<TEESHOOP-LAUNCH>>>", wp_json_encode( $answer, JSON_UNESCAPED_UNICODE ), "<<<END>>>\n";
+			return;
+		}
+		$blockers = $answer['blockers'];
+		if ( array() === $blockers ) {
+			\WP_CLI::success( 'aucune condition de la boutique ne refuse.' );
+			return;
+		}
+		foreach ( $blockers as $b ) {
+			\WP_CLI::log( sprintf( '[%s] %s', (string) ( $b['cle'] ?? '?' ), (string) ( $b['pourquoi'] ?? '' ) ) );
+		}
+		\WP_CLI::warning( sprintf( '%d raison(s) de refuser.', count( $blockers ) ) );
+	}
+
 	public static function legal_pages( array $args, array $assoc_args = array() ): void {
 		$dry     = isset( $assoc_args['dry-run'] );
 		$changed = array();
