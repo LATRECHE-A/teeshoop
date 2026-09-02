@@ -214,18 +214,44 @@ final class Launch {
 		 *
 		 * -1 asks WooCommerce for all of them, which is a real query on a real
 		 * catalogue; this runs when somebody asks whether the shop may open, not
-		 * on a page load. The count is checked anyway, because a store that grows
-		 * past what one query can hold has to say so rather than quietly stop.
+		 * on a page load.
+		 *
+		 * AND THE COUNT IS COMPARED, which this comment claimed before anything
+		 * did it. `paginate` makes WooCommerce report how many published products
+		 * it found in total beside the ones it handed back, so a query that stops
+		 * short for any reason (a memory cap, a filter another extension added, a
+		 * future default this file does not control) is caught instead of being
+		 * read as « nothing found ». That is the same confusion this whole file
+		 * exists to refuse, and leaving it as a sentence in a comment was the
+		 * second time this session it went unnoticed.
 		 */
-		$products = wc_get_products(
+		$query = wc_get_products(
 			array(
-				'status' => 'publish',
-				'limit'  => -1,
-				'return' => 'objects',
+				'status'   => 'publish',
+				'limit'    => -1,
+				'return'   => 'objects',
+				'paginate' => true,
 			)
 		);
-		if ( ! is_array( $products ) ) {
+		$products = is_object( $query ) && isset( $query->products ) && is_array( $query->products )
+			? $query->products
+			: null;
+		if ( null === $products ) {
 			return array( self::refuse( 'textile-nu', 'La liste des produits publiés n’a pas pu être lue.' ) );
+		}
+		$total = is_object( $query ) && isset( $query->total ) ? (int) $query->total : count( $products );
+		if ( count( $products ) < $total ) {
+			return array(
+				self::refuse(
+					'textile-nu',
+					sprintf(
+						/* translators: 1: products actually read, 2: products the shop says it publishes. */
+						__( 'La boutique publie %2$d produits et la requête n’en a rendu que %1$d. Ce contrôle refuse plutôt que de conclure sur une liste qu’il n’a pas fini de lire.', 'teeshoop' ),
+						count( $products ),
+						$total
+					)
+				),
+			);
 		}
 		if ( array() === $products ) {
 			return array( self::refuse( 'textile-nu', 'Aucun produit publié n’a été lu. Une boutique vide ne prouve rien : ce contrôle refuse plutôt que de conclure que tout va bien.' ) );

@@ -85,6 +85,29 @@ jobs:
       - name: The hypotheses guard can still fail
         run: node scripts/hypotheses-guard.mjs --self-test
 
+      # THE LAUNCH GATE, WHICH WAS THE DELIVERABLE OF SESSION 13B AND WAS IN NO
+      # CI JOB AT ALL.
+      #
+      # It went into the `npm run ci` alias in package.json and stopped there,
+      # which is the exact drift the comment below describes and which session 12
+      # said it was fixing "rather than adding a third divergence". This was the
+      # fourth. Found on 2 September by auditing the session against its own
+      # brief instead of against its own summary.
+      #
+      # `--depot --ci` asks whether the gate WORKS, not whether the shop may
+      # launch: CI has no WordPress to interrogate, so it checks the register
+      # half, prints the real verdict, and exits 0 unless the register is
+      # unreadable. The verdict is printed to be read, and it is a refusal today.
+      - name: The launch gate runs on the register
+        run: node scripts/launch-gate.mjs --depot --ci
+
+      # And it can still refuse. Same reason as the two guards around it, and a
+      # stronger one here: --ci exits 0 on a refusal by design, so without this
+      # step the only failure the gate could produce in CI is an unparseable
+      # ledger, and all seven conditions could rot unnoticed.
+      - name: The launch gate can still refuse
+        run: node scripts/launch-gate.mjs --self-test
+
       # THE TWO THIS FILE HAD BEEN MISSING SINCE THEY WERE WRITTEN.
       #
       # `npm run ci` and this workflow are two hand-kept lists of the same thing,

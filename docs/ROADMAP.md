@@ -1208,8 +1208,8 @@ instructions de travail, elles changent plus vite que le code).
 | ~~12~~ | ~~Juridique, RGPD, accessibilité~~ **faite**. Les quatre pages existent et se déclarent comme des projets non relus par un avocat, les CGV sont des versions datées dont les chiffres sont contrôlés contre le code, l'effacement suit la donnée jusqu'à R2 et refuse plutôt que de finir à moitié, et le parcours d'achat passe WCAG 2.2 AA. Sept points bloquent encore la vente et aucun n'est du code : voir `docs/seance-12-a-reprendre.md` §2 |
 | ~~13~~ | ~~Performance, sécurité, supervision~~ **faite**. Les six types de page sont mesurés avant et après sur le même instrument, la passe adverse a publié ses 75 attaques repoussées autant que ses 5 trouvailles, la sauvegarde a été **restaurée** et pas seulement prise, et une alerte a été déclenchée pour de vrai. Trois choses ne peuvent pas être closes ici et sont nommées : le cache de page (il faut LiteSpeed), l'application de la politique de sécurité du contenu (il faut un paiement réel) et la limitation de débit (il faut un déploiement). Voir `docs/seance-13-a-reprendre.md` |
 | 13b | Les réponses de l'associé, et redire la vérité | 13 |
-| 14 | Déploiement : préproduction, pipeline, purge de la démo | 13b |
-| 15 | Répétition générale et mise en ligne | 14 |
+| 14 | Déploiement : préproduction, pipeline, purge de la démo. **Commence et finit par `npm run verify:lancement`, rejoué contre la vraie boutique et non contre le miroir** : la liste de contrôle est `docs/MISE-EN-LIGNE.md` | 13b |
+| 15 | Répétition générale et mise en ligne. **La mise en ligne ne se fait pas sur un refus du portail**, et il n'existe pas de dérogation : `docs/MISE-EN-LIGNE.md` | 14 |
 
 **Seules les séances 14 et 15 touchent au serveur o2switch, et leurs accès sont
 désormais en place.** Tout le reste se construit et se vérifie sur le miroir local.
@@ -1227,7 +1227,7 @@ ne peut le lever.
 
 | Blocage | Qui | Détail |
 |---|---|---|
-| **Le régime de TVA** | associé | Question 17 et constat 6. **Répondu le 01/09/2026 et toujours bloquant**, dans ses propres mots : « conserver l'hypothèse de TVA à 20 % ... sous réserve de validation comptable » est une hypothèse maintenue et non une confirmation. C'est la seule ligne que `npm run verify:lancement` refuse nommément. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées** ; elles ne sont facturables sous aucun régime, faute de période qui couvre leur date. Les deux régimes sont construits : ce qui manque est une phrase du comptable, dans un sens ou dans l'autre |
+| **Le régime de TVA** | associé | Question 17 et constat 6. **Répondu le 01/09/2026 et toujours bloquant**, dans ses propres mots : « conserver l'hypothèse de TVA à 20 % ... sous réserve de validation comptable » est une hypothèse maintenue et non une confirmation. `npm run verify:lancement` la refuse nommément, comme les douze autres lignes bloquantes encore supposées, et il porte en plus une condition qui ne parle que d'elle : le régime n'est confirmé dans **aucun** sens. La boutique a encaissé 15 commandes (465,79 EUR, nov. 2024 à avr. 2025) **taxes désactivées** ; elles ne sont facturables sous aucun régime, faute de période qui couvre leur date. Les deux régimes sont construits : ce qui manque est une phrase du comptable, dans un sens ou dans l'autre |
 | La vraie grille tarifaire | associé | Questions **06** (taux de marge) et **03** (grilles d'achat réelles), sa forme publique étant la **08**. Les prix actuels sont des **valeurs de démonstration**, enregistrées une par une dans `docs/hypotheses.json`. Ce tableau renvoyait à la question 04, qui porte sur les tarifs DTF fournisseur et ne tranche aucun prix de vente. **Depuis la séance 05 ce n'est plus seulement une imprécision** : mesuré, le tarif affiché passe sous son propre prix plancher à 5 pièces et n'est vendable sans validation à aucune quantité |
 | **Le sens de « taux de marge »** | associé | Question 06. Le mot et la formule de la Bible désignent deux ratios différents, et l'écart est de 125,00 EUR sur une commande de 250 EUR de coût, au taux de 50 % qu'il a donné le 01/09/2026. Sa propre formulation, « marge brute après coûts directs », est la lecture de la formule, et c'est celle qui tourne. Les deux restent affichées côte à côte sur l'écran « Coûts et marges » |
 | **Les délais, qui ont raccourci** | associé | Question 14. **Répondu le 01/09/2026 : 7 / 4 / 2 à 3 jours**, contre 12 / 7 / 4 supposés, et remesuré aussitôt. Le travail incompressible reste **6 jours ouvrés** (transport 2, pressage 1, battement 1, approvisionnement 2, le film et les blancs voyageant en parallèle). Le standard garde donc **un** jour ouvré de marge là où il en avait six, et ce jour EST le battement : un transporteur en retard le consomme. L'express manque de 2 jours, l'urgence de 3 ; ni l'un ni l'autre n'est publié. Restent deux inconnues dans sa phrase : ouvrés ou calendaires, et jusqu'à l'expédition ou jusqu'à la livraison |
@@ -1352,23 +1352,36 @@ imprimante finit par voir ». Cinq conditions, et il **refuse** tant que l'une t
 
 Il **échoue fermé** : un registre illisible refuse, une boutique injoignable refuse, et une
 condition qu'il n'a pas pu évaluer est comptée comme non vérifiée et non comme satisfaite.
-`--self-test` casse les cinq conditions une par une et vérifie aussi qu'un dépôt sans
-reproche passe, parce qu'un portail qui refuse tout n'est pas un portail. La chaîne
+`--self-test` casse les **sept** conditions une par une et vérifie aussi qu'un dépôt sans
+reproche passe, parce qu'un portail qui refuse tout n'est pas un portail. Les cinq du brief
+plus deux que la construction a rendues nécessaires : la médiation, qui n'est une infraction
+que couplée à l'absence de refus d'un particulier, et la boutique injoignable, parce que
+« on n'a pas pu regarder » n'est pas « il n'y a rien ». Depuis le 2 septembre il tourne dans
+l'intégration continue, sous son propre nom d'étape, à côté de `--depot --ci`. La chaîne
 d'intégration l'exécute en `--depot --ci`, qui pose une autre question : « ce portail
 fonctionne-t-il », et non « peut-on lancer », dont la réponse est non pour des semaines.
 
-**Les séances 14 et 15 le lisent avant de déployer et avant d'encaisser.** Mesuré le
-1er septembre 2026 sur le miroir : **refusé, quatorze raisons**, dont douze lignes de
-registre encore supposées.
+**Les séances 14 et 15 le lisent avant de déployer et avant d'encaisser**, et depuis le
+2 septembre 2026 cette consigne est dans un fichier suivi par git plutôt que dans une phrase :
+`docs/MISE-EN-LIGNE.md`, que les deux lignes de la feuille de route ci-dessus nomment. Elle
+ne vivait jusque-là que dans `prompts/`, qui est ignoré par git, et le portail lui-même
+n'était dans **aucun** travail d'intégration continue : il était entré dans l'alias
+`npm run ci` et s'était arrêté là, ce qui est exactement la dérive que la séance 12 disait
+corriger « plutôt que d'en ajouter une troisième ». C'était la quatrième.
+
+Mesuré le 2 septembre 2026 sur le miroir : **refusé, 28 raisons** (13 registre, 7 textile nu,
+4 éditeur, 2 CGV, 1 TVA, 1 médiation). C'était quatorze la veille : sept produits sans
+textile nu au lieu de trois après la lecture du catalogue entier, et la ligne neuve
+`H-Q63-FACTURE-EXTERNE`.
 
 Elle a par ailleurs confronté chaque réponse au registre, appliqué les changements par ordre
 de portée, **remesuré** ce qui dépendait d'une valeur modifiée au lieu de le réaffirmer, et
 réaccordé ce que le site promet en public avec ce que l'atelier peut tenir.
 
 `QUESTIONS-ASSOCIE.md` contient **61 questions** auxquelles seul l'associé peut répondre, dont
-**21 marquées bloquantes** (comptées le 28/08/2026, et le registre des hypothèses vérifie à
-chaque exécution de la chaîne que les 21 bloquantes ont toutes une ligne ou un motif écrit de
-non-applicabilité). Le chiffre inscrit ici disait encore 44 sur 18, ce qui datait de la séance
+**23 marquées bloquantes** (recomptées le 02/09/2026, et le registre des hypothèses vérifie à
+chaque exécution de la chaîne que les 23 bloquantes ont toutes une ligne ou un motif écrit de
+non-applicabilité ; le chiffre est imprimé par le contrôle et non recopié ici). Le chiffre inscrit ici disait encore 44 sur 18, ce qui datait de la séance
 05 : c'est corrigé, et il vaut mieux le compter que le recopier. Q06 (les taux de marge) et
 Q03 (les grilles d'achat réelles) conditionnent une grande partie de la séance 05. La dernière
 en date est la **61**, ajoutée par la séance 13 : la boutique se surveille désormais toute
@@ -1394,8 +1407,8 @@ prennent la décision ligne par ligne, à chaque exécution de la chaîne :
   doit exister dans une vraie table de chaînes livrée. Une hypothèse qu'un client
   rencontre sans phrase autour fait échouer la chaîne. Depuis cette séance, la
   règle vaut aussi dans l'autre sens : une ligne **confirmée** qui garde une
-  étiquette doit toujours l'avoir à l'écran, parce que confirmer 28 lignes d'un
-  coup relâchait sinon 11 phrases que plus rien ne surveillait.
+  étiquette doit toujours l'avoir à l'écran, parce que confirmer 41 lignes d'un
+  coup relâchait sinon 15 phrases que plus rien ne surveillait.
 - `scripts/launch-gate.mjs` : **une hypothèse bloquante que personne n'a datée et
   qui atteint un client, un fournisseur ou une presse refuse la mise en ligne.**
   Étiquetée ou non.
@@ -1405,8 +1418,9 @@ tant qu'elle vit, et si elle est bloquante elle ne va pas en ligne du tout.
 
 ### Ce que cela donne aujourd'hui, en trois piles
 
-**Étiquetées et livrées** (47 lignes encore supposées, dont 22 atteignent un
-client). Chacune porte la phrase sous laquelle le client la rencontre : « Prix à
+**Étiquetées et livrées** (47 lignes encore supposées, dont 27 atteignent un
+client ; 22 est le compte de la projection filtrée que lit la boutique, qui est un
+autre ensemble). Chacune porte la phrase sous laquelle le client la rencontre : « Prix à
 la pièce, impression comprise », « Rupture, nous consulter », « Délai à
 confirmer », « Les coloris portent le nom du fabricant », « imprimé en France »,
 « Projet, non validé par un juriste ». Le reste n'atteint qu'un opérateur, et
@@ -1414,7 +1428,7 @@ l'écran des hypothèses ou celui des coûts et marges les montre avec leur
 question, leur date et, depuis cette séance, la réponse de l'associé quand il y
 en a une.
 
-**Livrées comme un refus explicite** (14 lignes). Rien n'est construit et le
+**Livrées comme un refus explicite** (15 lignes, chiffre imprimé par le contrôle). Rien n'est construit et le
 produit le dit : aucun taux de marge sur le textile nu, donc le catalogue est
 consultable et non commandable ; aucun modèle de coût pour la broderie, le
 flocage, le vinyle et la sublimation, donc une commande qui en contiendrait n'a
@@ -1440,13 +1454,23 @@ n'est écrite nulle part est un oubli.
 | Réponse | Ce qu'elle demande | Pourquoi rien n'est livré |
 |---|---|---|
 | **Q37** | « ne jamais utiliser uniquement la surface du M pour calculer le coût réel » | Le prix client est confirmé et ne bouge pas. Le **coût** doit suivre la taille commandée, ce qui veut dire imbriquer une pièce par taille dans le chemin de coût et non plus une seule à la taille de tarification. Mesuré en séance 05 : trente pièces prennent 1,80 m en M et 2,70 m en 3XL. C'est le moteur de coût, pas un réglage, et la remesure qui suit touche tous les planchers |
-| **Q44** | le nom français suivi du nom fabricant, 442 coloris | 437 traductions à écrire et à faire valider par quelqu'un qui connaît le catalogue papier. Ce n'est pas du code. Question 73 |
+| **Q44** | le nom français suivi du nom fabricant, 442 coloris | 437 traductions à écrire et à faire valider par quelqu'un qui connaît le catalogue papier. Ce n'est pas du code, et la réponse à la question 44 autorise elle-même de ne traduire que les plus vendus |
 | **Q50** | la zone imprimable s'arrête 2 cm au-dessus de la couture de poche | Il faut d'abord savoir **où est la couture** sur le maillage du sweat, et `scripts/fabric-verify.mjs` déclare précisément ces rangées « indécidables » : deux épaisseurs de tissu, jusqu'à 14 mm de désaccord entre les deux mesures indépendantes qu'il sait construire. Poser 2 cm au-dessus d'une couture mesurée à 14 mm près, c'est publier une dimension imprimable fausse, et une dimension imprimable est un engagement |
-| **Q54** | la remise sur un lot de production compatible | Trois des quatre critères sont des jugements (« emplacements similaires », « même campagne ») et le prix est calculé par le serveur pendant que le client remplit son panier. Question 74 |
+| **Q54** | la remise sur un lot de production compatible | Trois des quatre critères sont des jugements (« emplacements similaires », « même campagne ») et le prix est calculé par le serveur pendant que le client remplit son panier, et un serveur ne sait pas juger « similaire » |
 
-Deux autres n'attendent pas un choix mais un accès : **Q09** (Imbretex
-prioritaire) et **Q24** (la facture légale hors du site). La première n'a ni
-compte ni identifiants. La seconde est instruite ci-dessous.
+**Q09** (Imbretex prioritaire) n'attend pas un choix mais un accès : ni compte,
+ni identifiants, ni grille.
+
+**Q24 n'est plus dans cette liste : elle est construite**, le 2 septembre 2026.
+La séance du 1er avait écrit la correction retenue et ne l'avait pas faite, ce
+qui est pire qu'une question ouverte parce que la séance suivante y croit. Le
+site n'émet plus de facture : le document reste, il s'appelle « récapitulatif de
+commande », sa référence commence par deux lettres qui ne sont pas celles d'une
+facture, et la première ligne de son bloc de mentions dit où la facture est
+établie. Ce que cela coûte est enregistré comme une ligne bloquante,
+`H-Q63-FACTURE-EXTERNE` : l'article 289 du code général des impôts impose une
+facture à chaque acompte encaissé, plus rien ici n'en produit, et le système qui
+doit le faire n'est pas nommé. Le portail refuse la mise en ligne dessus.
 
 ---
 

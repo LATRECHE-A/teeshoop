@@ -72,7 +72,9 @@ presse, tant que l'identité légale est incomplète, tant que le régime de TVA
 confirmé dans un sens ou dans l'autre, tant que les conditions de vente en vigueur n'ont
 pas de relecteur, tant qu'un produit personnalisable en vente ne déclare aucun textile nu,
 et tant qu'aucun médiateur n'est désigné sur une boutique qui ne refuse pas les
-particuliers. Mesuré le 1er septembre : **refusé, quatorze raisons.**
+particuliers. Mesuré le 2 septembre : **refusé, 28 raisons** (13 registre, 7 textile nu,
+4 éditeur, 2 CGV, 1 TVA, 1 médiation). C'était quatorze la veille, avant que le portail ne
+lise le catalogue entier au lieu de ses 200 premiers produits, et avant la question 63.
 
 Sous chaque question dont la réponse a laissé quelque chose ouvert, un bloc en italique dit
 exactement quoi, ce que nous faisons en attendant, et ce qu'il nous faut.
