@@ -19,7 +19,8 @@
 		"cost_if_late": "reglage | reglage et remesure | on refait",
 		"label_fr": "obligatoire quand une hypothèse atteint un client : la chaîne française sous laquelle il la rencontre à l'écran",
 		"shipped_matches_default": "ce qui a été livré est-il l'hypothèse par défaut écrite dans QUESTIONS-ASSOCIE.md",
-		"statement_amounts": "les fragments de statement_fr qui SONT la valeur : le contrôle les redérive depuis le code et refuse une phrase qui ne dit plus ce que le code fait"
+		"statement_amounts": "les fragments de statement_fr qui SONT la valeur : le contrôle les redérive depuis le code et refuse une phrase qui ne dit plus ce que le code fait",
+		"label_fr_why": "à la place de label_fr, quand ce qu'un client rencontre n'est pas une chaîne livrée : dit ce qu'il rencontre et pourquoi aucune table de chaînes ne peut le porter"
 	},
 	"entries": [
 		{
@@ -2897,7 +2898,7 @@
 					"in": "7 jours ouvrés"
 				}
 			],
-			"label_fr": "jours ouvrés"
+			"label_fr": "jours ouvrés après validation du bon à tirer"
 		},
 		{
 			"id": "H-Q14-DELAI-EXPRESS",
@@ -3235,14 +3236,14 @@
 				"09"
 			],
 			"cost_if_late": "reglage",
-			"label_fr": "Teeshoop",
 			"shipped_matches_default": "C'est l'hypothèse écrite de la question 31 (« le logo actuellement sur le site, bleu et noir, Inter ») et rien n'a été inventé : les valeurs sont EXTRAITES de assets/product.css, qui avait été écrit contre le site existant. LE LOGO N'EST PAS DESSINÉ : le thème déclare le support `custom-logo` de WordPress et, tant qu'aucun fichier n'y est déposé, rend le NOM du site en toutes lettres. Déposer le vrai logo est un envoi dans le personnalisateur, pas une modification de code.",
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/includes/Notify.php",
 				"wp-plugins/teeshoop-core/includes/BatPage.php",
 				"scripts/palette-guard.mjs"
 			],
-			"literal_allow_why": "Les deux copies imposées de la palette, et le contrôle qui les compare. Aucune n'est une seconde décision : ce sont les endroits où une propriété personnalisée ne survit pas (un client de messagerie, un document servi sans thème), et palette-guard échoue quand l'une d'elles s'écarte du foyer."
+			"literal_allow_why": "Les deux copies imposées de la palette, et le contrôle qui les compare. Aucune n'est une seconde décision : ce sont les endroits où une propriété personnalisée ne survit pas (un client de messagerie, un document servi sans thème), et palette-guard échoue quand l'une d'elles s'écarte du foyer.",
+			"label_fr_why": "Ce qu'un client rencontre ici n'est pas une phrase : c'est la signature du site, que le thème tire de `get_bloginfo( 'name' )` dans un lien `ts-wordmark`, plus le bleu et la fonte. Aucune table de chaînes ne peut la porter, et l'étiquette qui y figurait, le seul mot « Teeshoop », se retrouvait dans 89 tables, y compris des commentaires `@package`, donc le contrôle ne pouvait pas échouer. Ce que le client verra changer le jour où l'associé répond, c'est un logo à la place du nom."
 		},
 		{
 			"id": "H-Q31-ACCROCHE",

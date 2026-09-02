@@ -783,27 +783,83 @@ function parseBlockingQuestions(text) {
  * requirement to HAVE one is still the assumption's alone; the requirement for
  * the one you have to be true is everybody's.
  */
+/**
+ * How many shipped string tables a `label_fr` may appear in before it stops
+ * proving anything. Six is deliberately generous: the widest real label in this
+ * register (« Délai à confirmer », which the shelf, the product page, the quote
+ * and two e-mails all say) reaches four.
+ */
+const LABEL_MAX_TABLES = 6
+
 function checkSaidOutLoud(entries, tables) {
   const fails = []
   const texts = tables.map((abs) => textOf(abs))
   for (const entry of entries) {
     const facesCustomer = entry.reaches.includes('customer')
-    if (entry.status === 'assumption' && facesCustomer && !entry.label_fr) {
+    /*
+     * `label_fr_why` IS THE SAME TRADE THIS REGISTER ALREADY MAKES FOR LITERALS.
+     *
+     * A row can reach a customer through something that is not a shipped string:
+     * `H-Q31-PALETTE-ET-TYPE` is the brand mark, and the theme draws it from
+     * `get_bloginfo( 'name' )`, a WordPress setting, inside a `ts-wordmark`
+     * link. No sentence in any string table can be true of it, so the label it
+     * carried was the single word « Teeshoop », which matched 89 tables and
+     * could not fail. An escape hatch that must be argued in prose is honest;
+     * a label that matches everything is not.
+     */
+    if (entry.status === 'assumption' && facesCustomer && !entry.label_fr && !entry.label_fr_why) {
       fails.push({
         check: 'said-out-loud',
         id: entry.id,
         where: 'docs/hypotheses.json',
-        why: 'reaches a customer as an assumption and carries no label_fr',
+        why: 'reaches a customer as an assumption and carries neither a label_fr nor a label_fr_why saying what it meets instead',
+      })
+      continue
+    }
+    if (entry.label_fr && entry.label_fr_why) {
+      fails.push({
+        check: 'said-out-loud',
+        id: entry.id,
+        where: 'docs/hypotheses.json',
+        why: 'carries both a label_fr and a label_fr_why, so it is not clear which is true',
       })
       continue
     }
     if (!entry.label_fr) continue
-    if (!texts.some((t) => t.includes(entry.label_fr))) {
+    const hits = texts.filter((t) => t.includes(entry.label_fr)).length
+    if (hits === 0) {
       fails.push({
         check: 'said-out-loud',
         id: entry.id,
         where: 'string tables',
         why: 'its label_fr is in no shipped string table, so nothing on screen says it',
+      })
+      continue
+    }
+    /*
+     * AND A LABEL THAT MATCHES EVERYWHERE PROVES NOTHING.
+     *
+     * This is a substring test over whole files, so a one-word generic label
+     * cannot fail it: « Teeshoop » matched 406 places including
+     * `@package Teeshoop\Core` doc comments and `use Teeshoop\Core\Cart;`, and
+     * « Studio » and « Facture » were no better. Three rows were therefore
+     * carrying a check that could not go red, which is the shape CLAUDE.md calls
+     * a gate that cannot fail. Found on 2 September by auditing this session
+     * against its own brief.
+     *
+     * A sentence a customer actually reads lives in one string table, sometimes
+     * two or three when a page, an e-mail and a template say the same thing.
+     * Past that, the label is a word rather than a sentence and the match is a
+     * coincidence. The number is the rule, so it is named rather than inlined.
+     */
+    if (hits > LABEL_MAX_TABLES) {
+      fails.push({
+        check: 'said-out-loud',
+        id: entry.id,
+        where: 'string tables',
+        why:
+          `its label_fr matches ${hits} string tables, so it is a word and not the sentence a ` +
+          `customer reads: nothing here could ever fail. Give it the phrase it appears in.`,
       })
     }
   }
@@ -1096,7 +1152,42 @@ if (SELF_TEST) {
           (e) => e.status === 'assumption' && e.reaches.includes('customer'),
           'that reaches a customer',
         )
-        d.entries.find((e) => e.id === id).label_fr = 'ceci ne figure dans aucune table de chaînes'
+        const e = d.entries.find((x) => x.id === id)
+        delete e.label_fr_why
+        e.label_fr = 'ceci ne figure dans aucune table de chaînes'
+      },
+    },
+    {
+      /*
+       * The half added on 2 September 2026. Three rows carried a one-word label
+       * (« Teeshoop », « Studio », « Facture ») that a substring test over whole
+       * files could never fail: the first matched 89 string tables including
+       * `@package` doc comments. A check that cannot go red is not a check, and
+       * this is the case that proves this one can.
+       */
+      name: 'said-out-loud',
+      why: 'a label so generic it matches every string table, so nothing could fail',
+      mutate: (d) => {
+        const id = first(
+          (e) => e.status === 'assumption' && e.reaches.includes('customer'),
+          'that reaches a customer',
+        )
+        const e = d.entries.find((x) => x.id === id)
+        delete e.label_fr_why
+        // A single space is in every shipped string table there is, which is the
+        // reductio of the label the register actually carried.
+        e.label_fr = ' '
+      },
+    },
+    {
+      name: 'said-out-loud',
+      why: 'a row claiming both a label and a reason for having none',
+      mutate: (d) => {
+        const id = first(
+          (e) => e.status === 'assumption' && e.reaches.includes('customer') && e.label_fr,
+          'that reaches a customer with a label',
+        )
+        d.entries.find((x) => x.id === id).label_fr_why = 'et pourtant elle en porte une'
       },
     },
     {
