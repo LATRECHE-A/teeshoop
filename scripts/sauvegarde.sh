@@ -46,7 +46,36 @@ WP_ROOT="${1:-$HOME/public_html}"
 DEST="${2:-$HOME/sauvegardes}"
 KEEP="${3:-7}"
 
-command -v wp >/dev/null || { echo "sauvegarde: wp-cli est introuvable." >&2; exit 1; }
+# LE CHEMIN DE CRON N'EST PAS LE CHEMIN D'UN SHELL DE CONNEXION, et ce script a
+# échoué cinq nuits de suite pour cette seule raison. Constaté le 02/09/2026 :
+# ~/sauvegardes ne contenait qu'une sauvegarde du 28 août, prise à la main, et
+# journal.log contenait cinq fois « sauvegarde: wp-cli est introuvable ».
+#
+# Mesuré sur le serveur :
+#   env -i /bin/bash -c 'echo $PATH'                 -> /usr/local/bin:/usr/bin
+#   env -i PATH=/usr/bin:/bin /bin/bash -c 'echo …'  -> /usr/bin:/bin
+#
+# cron impose son propre PATH avant d'appeler le shell, et bash ne le remplace
+# pas par son défaut quand il est déjà défini. `wp` est dans /usr/local/bin, donc
+# introuvable. Le `SHELL="/bin/bash"` du crontab ne change rien à cela.
+#
+# La ligne de cron porte maintenant un PATH explicite, ET ce script le complète,
+# parce qu'une sauvegarde ne doit pas dépendre d'une ligne de crontab que
+# personne ne relit. Le second est le durable : il voyage avec le fichier.
+#
+# `php` a exactement le même problème et il est plus vicieux : sous le PATH de
+# cron, /usr/bin/php est le binaire **php-cgi**, qui refuse `-r` et imprime son
+# mode d'emploi. Voir veille.sh, qui envoyait ses alertes par là.
+case ":$PATH:" in
+  *":/usr/local/bin:"*) ;;
+  *) PATH="/usr/local/bin:$PATH" ;;
+esac
+export PATH
+
+command -v wp >/dev/null || {
+  echo "sauvegarde: wp-cli est introuvable. PATH=$PATH" >&2
+  exit 1
+}
 [ -f "$WP_ROOT/wp-config.php" ] || { echo "sauvegarde: pas de wp-config.php sous $WP_ROOT" >&2; exit 1; }
 
 STAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
@@ -90,7 +119,22 @@ fi
 
 echo "sauvegarde: fichiers téléversés ..."
 t2=$(date +%s)
-tar -C "$WP_ROOT/wp-content" -czf "$WORK/uploads.tar.gz" uploads
+# TAR SORT 1 QUAND UN FICHIER BOUGE PENDANT LA LECTURE, ce qui est la normale
+# sur une boutique vivante et n'est pas une panne. Sous `set -e`, cette sortie 1
+# arrêtait le script, et le `trap cleanup EXIT` effaçait alors le dump de base
+# DÉJÀ VÉRIFIÉ trois lignes plus haut : une sauvegarde perdue pour un fichier de
+# cache réécrit. 2 et au-delà sont de vraies erreurs et restent fatales.
+tar --warning=no-file-changed \
+    -C "$WP_ROOT/wp-content" -czf "$WORK/uploads.tar.gz" uploads || {
+  rc=$?
+  [ "$rc" -eq 1 ] || { echo "sauvegarde: tar a échoué (code $rc)." >&2; exit "$rc"; }
+  echo "sauvegarde: des fichiers ont changé pendant la copie, l'archive reste exploitable."
+}
+
+# ET ELLE S'OUVRE. Accepter la sortie 1 de tar sans relire l'archive reviendrait
+# à accepter une archive tronquée, ce qui est précisément le contrôle que le dump
+# de base a et que celui-ci n'avait pas.
+gzip -t "$WORK/uploads.tar.gz" || { echo "sauvegarde: l'archive des téléversements ne se décompresse pas." >&2; exit 1; }
 t3=$(date +%s)
 
 cp -p "$WP_ROOT/wp-config.php" "$WORK/wp-config.php"

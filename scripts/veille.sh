@@ -58,6 +58,28 @@ STUDIO=""
 ETAT_SEUL=0
 ETAT_DIR="$HOME/.teeshoop-veille"
 SAUVEGARDES="$HOME/sauvegardes"
+# LE MÊME PIÈGE QUE DANS sauvegarde.sh, ET IL A COÛTÉ PLUS CHER ICI.
+#
+# cron impose PATH=/usr/bin:/bin. Sous ce chemin, /usr/bin/php est le binaire
+# **php-cgi**, qui refuse l'option `-r` et imprime son mode d'emploi au lieu
+# d'envoyer quoi que ce soit. Les deux envois d'alerte de ce script passent par
+# `php -r '... mail(...)'`, donc depuis le 28 août 2026 :
+#
+#   1. la sauvegarde nocturne échouait (wp introuvable, même cause) ;
+#   2. ce script le détectait correctement, à chaque passage ;
+#   3. il « envoyait » l'alerte à php-cgi, qui imprimait son mode d'emploi ;
+#   4. il écrivait quand même `en-alerte` et journalisait « message envoyé » ;
+#   5. les 719 passages suivants disaient « déjà signalé, pas de second message ».
+#
+# Cinq jours de sauvegardes absentes, détectées, et jamais annoncées à personne.
+# La correction est en deux endroits : le PATH ci-dessous, et le fait que l'état
+# `en-alerte` n'est plus écrit quand l'envoi échoue.
+case ":$PATH:" in
+  *":/usr/local/bin:"*) ;;
+  *) PATH="/usr/local/bin:$PATH" ;;
+esac
+export PATH
+
 SEUIL_DISQUE=90
 SAUVEGARDE_MAX_H=36
 SEUIL_5XX=10
@@ -205,6 +227,28 @@ PHPEOF
   fi
 fi
 
+# ── envoyer, et SAVOIR si c'est parti ───────────────────────────────────────
+#
+# Lit le corps sur son entrée standard. Sort 0 seulement si PHP a rendu `true`,
+# ce que les deux appels précédents ne regardaient pas : ils écrasaient la sortie
+# de php avec 2>/dev/null et concluaient au succès dans tous les cas, y compris
+# quand le binaire appelé était php-cgi et n'avait rien envoyé du tout.
+#
+# `mail()` qui rend true veut dire « remis au serveur local », pas « arrivé ». Ce
+# n'est pas la même garantie et il ne faut pas la lire pour plus qu'elle n'est ;
+# c'est en revanche exactement la différence entre « on a essayé » et « on n'a
+# même pas pu essayer », qui est celle qui manquait.
+envoyer() {
+  local sujet="$1" sortie
+  command -v php >/dev/null || { echo "veille: php est introuvable, aucune alerte ne peut partir. PATH=$PATH" >&2; return 1; }
+  sortie=$(V_DEST="$DEST" V_SUJET="$sujet" php -r \
+    '$m=stream_get_contents(STDIN); echo mail(getenv("V_DEST"), getenv("V_SUJET"), $m, "Content-Type: text/plain; charset=utf-8") ? "ENVOYE" : "REFUSE";' 2>&1) || true
+  case "$sortie" in
+    *ENVOYE*) return 0 ;;
+    *) echo "veille: l'envoi a échoué : $(printf '%s' "$sortie" | head -2 | tr '\n' ' ')" >&2; return 1 ;;
+  esac
+}
+
 # ── rien vérifié n'est pas un succès ────────────────────────────────────────
 if [ "$VERIFIES" -eq 0 ]; then
   echo "veille: aucun contrôle n'a pu s'exécuter." >&2
@@ -216,10 +260,14 @@ if [ "${#PROBLEMES[@]}" -eq 0 ]; then
   echo "$HORODATAGE  ok  ($VERIFIES contrôles)"
   if [ "$ETAT_SEUL" -eq 0 ] && [ -f "$ETAT_DIR/en-alerte" ]; then
     # LE RETOUR À LA NORMALE EST UNE ALERTE AUSSI.
-    printf 'Tout est revenu à la normale.\n\n%s\n%s contrôles, aucun problème.\n' "$HORODATAGE" "$VERIFIES" \
-      | V_DEST="$DEST" V_SUJET="[Teeshoop] retour à la normale" php -r \
-        '$m=stream_get_contents(STDIN); mail(getenv("V_DEST"), getenv("V_SUJET"), $m, "Content-Type: text/plain; charset=utf-8");' 2>/dev/null
-    rm -f "$ETAT_DIR/en-alerte"
+    if printf 'Tout est revenu à la normale.\n\n%s\n%s contrôles, aucun problème.\n' "$HORODATAGE" "$VERIFIES" \
+         | envoyer "[Teeshoop] retour à la normale"; then
+      rm -f "$ETAT_DIR/en-alerte"
+    else
+      # L'état reste : tant que personne n'a pu être prévenu du retour à la
+      # normale, l'alerte n'est pas close.
+      echo "  (le message de retour à la normale n'est pas parti, l'état d'alerte est conservé)" >&2
+    fi
   fi
   exit 0
 fi
@@ -243,10 +291,19 @@ if [ "$SIGNATURE" != "$PRECEDENTE" ]; then
     echo ""
     echo "Quoi faire : docs/EXPLOITATION.md"
     echo "Ce message n'est envoyé qu'une fois par problème. Un autre suivra quand ce sera revenu à la normale."
-  } | V_DEST="$DEST" V_SUJET="[Teeshoop] ${PROBLEMES[0]:0:90}" php -r \
-    '$m=stream_get_contents(STDIN); mail(getenv("V_DEST"), getenv("V_SUJET"), $m, "Content-Type: text/plain; charset=utf-8");' 2>/dev/null
-  echo "$SIGNATURE" > "$ETAT_DIR/en-alerte"
-  echo "  (message envoyé à $DEST)"
+  } | envoyer "[Teeshoop] ${PROBLEMES[0]:0:90}" && ENVOYE=1 || ENVOYE=0
+
+  if [ "$ENVOYE" -eq 1 ]; then
+    # L'ÉTAT N'EST ÉCRIT QUE SI LE MESSAGE EST PARTI. Il l'était inconditionnellement,
+    # et c'est ce qui a rendu la panne du 28 août silencieuse : le premier envoi
+    # échouait, la signature était enregistrée quand même, et tous les passages
+    # suivants concluaient « déjà signalé ». Un problème qu'on n'a pas su annoncer
+    # n'est pas un problème annoncé.
+    echo "$SIGNATURE" > "$ETAT_DIR/en-alerte"
+    echo "  (message envoyé à $DEST)"
+  else
+    echo "  (ENVOI IMPOSSIBLE vers $DEST : le problème sera réannoncé au prochain passage)" >&2
+  fi
 else
   echo "  (déjà signalé, pas de second message)"
 fi
