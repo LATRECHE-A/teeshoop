@@ -130,4 +130,5 @@ titre "Ce que le portail dit de $CIBLE"
 # Informatif ici : pour la production il a déjà été posé en garde, plus haut.
 node scripts/launch-gate.mjs --boutique="deploy:$HOTE:$CIBLE" || true
 
-vert "\ndeployer: $CIBLE est à jour."
+echo
+vert "deployer: $CIBLE est à jour."
