@@ -10,7 +10,7 @@
 
 | | Avant | Après |
 |---|---|---|
-| Déploiement | rien, jamais fait | un `push` livre la préproduction ; la production est manuelle et refusée par le portail |
+| Déploiement | rien, jamais fait | `./scripts/deployer.sh preprod` livre en 1 min 19 s ; la production refuse au portail. Pas de déclencheur sur `push` : o2switch filtre SSH par IP et un exécutant GitHub ne peut pas être autorisé |
 | Extension sur un vrai serveur | nulle part | déployée et active en **préproduction** |
 | PHP de la boutique | jamais exécuté | l'intégration continue lance la suite entière sur `php:8.1-cli` |
 | Migrations | deux tables créables une fois, jamais modifiables | un moteur versionné, ordonné, rejouable |
