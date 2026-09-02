@@ -41,7 +41,8 @@ Cinq formes, pour cinq moments :
 | Commande | Ce qu'elle demande | Qui s'en sert |
 |---|---|---|
 | `npm run verify:lancement` | « Peut-on lancer ? » Le registre **et** le miroir local | Le développeur |
-| `node scripts/launch-gate.mjs --boutique=ssh:teeshoop:~/public_html` | La même question, posée à **la vraie boutique** | Séances 14 et 15, et le déploiement |
+| `node scripts/launch-gate.mjs --boutique=ssh:teeshoop:~/public_html` | La même question, posée à **la vraie boutique**, avec une clé qui peut lancer wp-cli | Le développeur |
+| `node scripts/launch-gate.mjs --boutique=deploy:teeshoop:prod` | La même question, par le verbe `verdict` de `deploiement.sh` | **Le déploiement**, dont la clé restreinte ne peut lancer que ça |
 | `node scripts/launch-gate.mjs --json --boutique=…` | La même chose, lisible par un programme | Le déploiement, qui archive le verdict |
 | `node scripts/launch-gate.mjs --depot --ci` | « Ce portail fonctionne-t-il ? » Le registre seul, sans WordPress | L'intégration continue |
 | `node scripts/launch-gate.mjs --self-test` | « Ce portail sait-il encore refuser ? » | L'intégration continue |

@@ -3329,6 +3329,91 @@ série fiscale, et le document porte en toutes lettres qu'il n'en est pas une.
 
 ---
 
+## Ce que la séance 14 a trouvé dans la base en préparant le déploiement
+
+### 64. Combien de temps gardons-nous les journaux de Wordfence et les formulaires Elementor ?
+
+**Important**
+
+*Pourquoi on a besoin de la réponse :* ce sont des données personnelles de tiers,
+elles sont sur la boutique aujourd'hui, et rien ne dit quand elles s'effacent.
+
+*Pourquoi « Important » et pas « Bloquant » :* le portail de mise en ligne ne
+regarde pas les durées de conservation, et prétendre le contraire serait faux. Ce
+n'est pas non plus un chiffre inventé qu'un client va lire, ce que le registre
+sert à attraper. C'est une obligation à laquelle la boutique ne répond pas
+aujourd'hui, sur des données qu'elle détient déjà depuis un an, et qui doit être
+réglée avant d'ouvrir. Un réglage, pas du développement.
+
+En anonymisant la copie de préproduction, le 2 septembre 2026, nous avons compté
+les adresses e-mail présentes dans la base. Nous en attendions **quinze**, celles
+des quinze clients. Il y en a **soixante-dix**. Les cinquante-cinq autres ne
+viennent pas des commandes :
+
+| Où | Quoi | Combien |
+|---|---|---|
+| `wp68_wflogins` | Wordfence journalise **chaque tentative de connexion** à l'administration, avec l'identifiant essayé et l'adresse IP | 108 lignes |
+| `wp68_e_submissions_values` | Elementor conserve **le contenu de chaque formulaire rempli** par un visiteur | 27 lignes |
+
+Ce ne sont pas des clients : ce sont des visiteurs, et pour Wordfence des
+personnes qui ont essayé de se connecter, ce qui inclut des tiers quelconques.
+Une adresse IP est une donnée personnelle en droit français, et le RGPD demande
+une **durée de conservation déterminée** pour chaque traitement (article 5.1.e).
+
+Aucune des deux extensions n'a de purge configurée sur cette boutique, et
+`docs/RGPD.md` ne les mentionne pas : elles ont été trouvées en cherchant autre
+chose.
+
+*Trois issues, et une seule est gratuite :*
+
+1. **Fixer une durée et la configurer.** Wordfence propose une rétention réglable ;
+   Elementor conserve les envois jusqu'à suppression manuelle. Six mois pour les
+   tentatives de connexion et un an pour les formulaires sont des durées usuelles
+   qu'un délégué à la protection des données ne discuterait pas. C'est un réglage,
+   pas du développement.
+2. **Désactiver la conservation** des formulaires Elementor si personne ne les
+   lit, ce qui est probable : le formulaire de contact envoie déjà un e-mail.
+3. **Ne rien faire**, ce qui est le cas aujourd'hui, et qui n'est pas tenable une
+   fois que la boutique vend : le registre des traitements devra les nommer.
+
+*Ce dont nous avons besoin de vous :* combien de temps vous voulez les garder, ou
+l'accord de ne plus les garder du tout. Le reste est de la configuration.
+
+---
+
+### 65. Quelle licence Envato avons-nous pour Fancy Product Designer, et faut-il la désactiver ?
+
+**Secondaire**
+
+*Pourquoi on pose la question :* le studio Teeshoop remplace cette extension, elle
+tourne encore sur la boutique, et vous l'avez payée. Rien n'en dépend : aucune
+commande ne porte de donnée Fancy Product Designer, et la boutique fonctionne
+exactement pareil qu'on la garde ou qu'on l'arrête.
+
+Ce que la base dit, mesuré le 2 septembre 2026, et le détail complet est dans
+`docs/FANCY-PRODUCT-DESIGNER.md` :
+
+- **aucune commande ne contient de donnée Fancy Product Designer.** Vérifié sur
+  les quatre endroits où WooCommerce a pu les mettre, et par un recensement de
+  **toutes** les clés existantes, pas seulement de celles qui portent le mot. Il
+  n'y a donc rien à sauvegarder avant de l'arrêter ;
+- **un seul produit l'utilise**, le « T-shirt Impérial SOL'S » ;
+- l'extension **charge ses feuilles de style sur chaque page publique**, y compris
+  l'accueil et la boutique, et occupe 41 Mo ;
+- un **code d'achat CodeCanyon** est enregistré dans la base pour l'article 7758048.
+
+*Ce que nous ne pouvons pas savoir sans vous :* le **type** de licence (Regular ou
+Extended) et sa date d'achat. Un code d'achat ne dit ni l'un ni l'autre ; ils se
+lisent dans votre compte Envato, sous « Downloads ». Une licence Envato ne se
+périme pas ; c'est le support et les mises à jour qui s'arrêtent, six ou douze
+mois après l'achat.
+
+*Ce que nous proposons, quand vous le direz :* la **désactiver** et non la
+supprimer, en préproduction d'abord. Une désactivation laisse les tables, les
+fichiers et le code d'achat en place et se défait en un clic.
+
+---
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

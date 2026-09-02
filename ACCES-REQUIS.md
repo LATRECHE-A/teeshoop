@@ -4,7 +4,7 @@
 > Il est ordonné par ce qui bloque le plus tôt. Chaque ligne dit *pourquoi* l'accès
 > est nécessaire. Si la raison ne tient pas, l'accès ne doit pas être donné.
 >
-> Dernière mise à jour : 1er septembre 2026 (§6 sexies, les réponses de l'associé) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
+> Dernière mise à jour : 2 septembre 2026 (§6 octies, la séance 14 : déploiement) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
 
 ---
 
@@ -929,6 +929,154 @@ code** : dépôt de l'entreprise, licences, situation des développements de sta
 se passe si un développeur part. Le dépôt est aujourd'hui `LATRECHE-A/teeshoop`, un compte
 personnel. Ce n'est pas un accès à obtenir, c'est une décision à écrire, et elle est déjà
 notée en §6 sexies.
+
+---
+
+## 6 octies. La séance 14 : ce qui est posé, ce qui a été mesuré, ce qui manque (02/09/2026)
+
+### Les deux clés qui ont transité par une conversation N'ONT PAS été refaites
+
+Le §4 demande de refaire la clé WooCommerce du 14/08 et le §6 sexies de faire
+tourner la clé secrète Stripe de test. **Ni l'une ni l'autre ne l'a été**, et la
+séance 14 l'a vérifié plutôt que de le supposer :
+
+| Clé | Comment on l'a su | État |
+|---|---|---|
+| WooCommerce `teeshoop-claude` | `truncated_key` en base vaut `a8af131`, et les sept derniers caractères de `WC_KEY` dans `~/.config/teeshoop/woo.env` valent `a8af131` | **la même qu'au 14/08** |
+| Stripe, clé secrète de test | inchangée dans `~/.config/teeshoop/stripe.env` | **la même qu'au 01/09** |
+
+Ce n'est pas une question de confiance : tout ce qui est écrit dans une
+conversation est transmis et conservé. La clé WooCommerce est en
+**lecture/écriture** et ouvre les quinze commandes, donc des noms, des adresses et
+des adresses e-mail. La faire tourner prend une minute.
+
+**Et les deux clés dormantes sont toujours là.** `SendCloud API` (dernier usage
+14/05/2025) et `DSers - API` (25/01/2025), toutes deux en lecture/écriture.
+
+### Une clé neuve, et celle-ci est restreinte
+
+`teeshoop-deploy-actions-20260902`, dédiée aux GitHub Actions. La partie publique
+est posée dans `~/.ssh/authorized_keys` du compte o2switch avec une commande
+forcée : elle ne peut lancer que `~/deploiement.sh`, donc huit verbes sur deux
+répertoires connus. Essayé : un shell, `cat`, une injection par `;` et un chemin
+arbitraire sont tous refusés (voir `docs/DEPLOIEMENT.md` §4).
+
+La partie privée est dans `~/.config/teeshoop/deploy_o2switch`, en 600, hors du
+dépôt. **Elle n'a pas été posée dans GitHub**, et c'est la seule chose qui manque
+pour que le déploiement automatique fonctionne :
+
+```bash
+gh secret set O2SWITCH_DEPLOY_KEY  < ~/.config/teeshoop/deploy_o2switch
+gh secret set O2SWITCH_HOST        --body 'ascaphus.o2switch.net'
+gh secret set O2SWITCH_USER        --body 'dawe4500'
+ssh-keyscan -t ed25519 ascaphus.o2switch.net | gh secret set O2SWITCH_KNOWN_HOSTS
+```
+
+L'empreinte de l'hôte relevée le 02/09 est
+`SHA256:nHdxcvdj7qiM/kw9U6APKA0hisP59ArTdYo56UottFo`, identique à celle acceptée
+le 14/08. Si `ssh-keyscan` en rend une autre un jour, ne pas la poser.
+
+Puis GitHub → Settings → **Environments** → créer `production` avec une validation
+manuelle. C'est là que vit la liste des personnes autorisées à mettre en
+production, et pas dans un fichier du dépôt.
+
+`CLOUDFLARE_API_TOKEN` reste à créer aussi, pour le travail « studio », qui est
+manuel et le restera tant qu'il n'y aura qu'un seul Worker pour les deux
+environnements.
+
+### Les trois boîtes aux lettres n'existent pas
+
+C'était la tâche du §6 septies. Réponse, en une commande :
+
+```
+$ ssh teeshoop 'uapi Email list_pops'
+contact@teeshoop.com
+s.singh@teeshoop.com
+support@teeshoop.com
+```
+
+**`legales@teeshoop.com`, `ticket@teeshoop.com` et `dev@teeshoop.com` n'existent
+pas.** Ce sont les trois adresses que les réponses aux questions 56 et 61
+désignent, et la page des mentions légales publie la première au titre de
+l'article 6 III de la LCEN. Une adresse publiée qui ne mène nulle part se
+comporte exactement comme une bonne adresse jusqu'au jour où quelqu'un écrit.
+
+Trois issues, et ce n'est pas à l'associé de trancher seul : créer les trois
+boîtes (`uapi Email add_pop`), ou faire des alias vers `contact@`, ou publier les
+adresses qui existent déjà. La veille, elle, est en cron et pointe vers
+`vibecoding@worklance.fr`, qui est un quatrième domaine.
+
+### La sauvegarde n'avait pas tourné depuis cinq nuits
+
+Trouvé en préparant le déploiement, corrigé, et raconté dans
+`docs/DEPLOIEMENT.md` §9. En résumé : `cron` impose `PATH=/usr/bin:/bin`, où
+`wp-cli` est introuvable et où `/usr/bin/php` est **php-cgi**, qui refuse
+l'option `-r` par laquelle la veille envoyait ses alertes. La panne était donc
+détectée et indicible. Ce n'est pas un accès manquant, c'est un défaut, et il est
+réparé en trois endroits.
+
+### Les mises à jour majeures de WordPress sont automatiques, des deux côtés
+
+`auto_update_core_major = enabled` sur la boutique et sur la préproduction. La
+production est passée en 7.1 toute seule le 20 août et la préproduction pendant
+la séance, à 14 h 38. Ce n'est pas à changer sans y penser (une boutique qui
+encaisse et ne reçoit plus de correctif de sécurité est pire), mais il faut le
+savoir, et `scripts/pin-verify.mjs` refuse maintenant un déploiement sur une cible
+qui a bougé. C'est un point à trancher avec l'associé avant la mise en ligne.
+
+### Ce que la préproduction a révélé, et qui concerne la production
+
+L'anonymisation a compté **soixante-dix adresses e-mail** dans la base, là où les
+quinze commandes n'en expliquent que quinze. Les autres viennent de
+`wp68_wflogins` (108 tentatives de connexion journalisées par Wordfence, avec
+IP) et de `wp68_e_submissions_values` (27 formulaires remplis par des visiteurs
+et conservés par Elementor). **Ces deux tables existent en production**, sans
+durée de conservation. C'est la question 64.
+
+Et une extension a résisté à tout : `rank_math_connect_data` porte l'adresse du
+compte relié au service Rank Math et **se réécrit à chaque démarrage de
+WordPress**, y compris après une suppression en SQL direct. La seule façon de
+l'ôter d'une copie de test est de débrancher l'extension, ce que le script fait
+maintenant, et ce qui rend la préproduction un peu moins fidèle : à réactiver le
+temps d'un essai de référencement.
+
+### Le SSH s'est fermé en fin de séance, et c'est nous
+
+À 18 h le 2 septembre, `ssh teeshoop` répond « Network is unreachable » alors que
+la même machine sert `https://www.teeshoop.com/` en 200 et que `github.com:22`
+répond normalement. Ce n'est donc PAS le blocage du port 22 sortant décrit au
+§6 sexies, qui était général : c'est cet hôte-là, sur ce port-là.
+
+L'explication la plus simple est la bonne : la séance a ouvert plus d'une centaine
+de connexions SSH en quelques heures, et o2switch filtre par IP (§1 bis) en plus
+d'avoir les protections habituelles contre les connexions répétées. L'adresse est
+très probablement bloquée automatiquement.
+
+**Ce que ça change, et ce que ça ne change pas.** Tout ce qui a été fait sur le
+serveur tient : l'extension est déployée en préproduction, les clés Stripe de test
+y sont, l'anonymisation est passée, les sauvegardes sont prises, la clé de
+déploiement est posée, le `PATH` du crontab est corrigé. Ce qui n'a pas pu être
+fini est la dernière simulation de la purge de démonstration, décrite plus bas.
+
+**Comment le rouvrir :** attendre que le blocage expire (souvent une heure), ou
+cPanel > Accès SSH > autoriser l'adresse IP courante, ou passer par le Terminal
+web de cPanel qui contourne la liste blanche.
+
+**Et une leçon pour la suite :** un déploiement fait une poignée de connexions,
+pas cent. Les scripts qui bouclent en appelant `wp` une fois par élément sont ce
+qui a produit ce volume, et `purge-demo.sh` a été réécrit pour poser trois
+requêtes au lieu de deux cent quinze pour cette raison autant que pour la vitesse.
+
+### Ce qui reste à obtenir, et qui n'a pas changé
+
+| À poser | Qui | Sans lui |
+|---|---|---|
+| `FR_CUSTOMER_NR` | **l'associé** | La route fournisseur répond 503 |
+| `TEESHOOP_ORDER_TOKEN` en production | développeur | L'écran des achats refuse d'envoyer |
+| `TEESHOOP_CATALOGUE_TOKEN` et `TEESHOOP_WORKER_TOKEN` en production | développeur, **après avoir relu `ADMIN_TOKEN`** | Import impossible, coût sur une borne haute |
+| `STRIPE_TEST_WEBHOOK_SECRET` | l'associé | Une commande payée peut ne jamais passer en « payée » |
+| Activation du compte Stripe, Cartes Bancaires | l'associé | Aucune carte réelle ne passe, et le réseau le plus cher est facturé |
+| Le type de licence Envato de Fancy Product Designer | l'associé | Question 65 |
 
 ---
 
