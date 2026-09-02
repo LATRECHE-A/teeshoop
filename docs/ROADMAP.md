@@ -195,9 +195,43 @@ règle qui s'applique à une commande est gelée dans son rapport et nommée sur
 ABAISSER un plancher, et que les taux par famille sont la question 06.
 
 **Et une mesure qui appelle une décision.** Aux réglages actuels, **aucune colonne de la
-grille publique n'est vendable sans validation** : à 5 pièces le tarif de démonstration
-passe 14,21 EUR sous son propre plancher, et toutes les autres dépassent les 15 % de remise
-qu'un commercial peut accorder seul. Le tableau mesuré est dans la question 06.
+grille publique n'est vendable sans validation**. Remesuré le 2 septembre 2026 après les
+réponses, par `tests/demo-grille.php` : cinq pièces passent **3,69 EUR** sous leur plancher
+(c'était 14,21 EUR sous le rouleau et 55 % de marge cible), **cinquante pièces sont passées
+sous le leur de 1,81 EUR alors qu'elles étaient à valider**, et les trois autres colonnes
+dépassent les 15 % de remise qu'un commercial peut accorder seul.
+
+Les cinquante pièces sont la ligne que la page d'accueil met en avant, donc c'est la vente la
+plus probable de la boutique qui est sous son plancher. Et le coût monte de **16 %** à cent
+pièces alors que la question 05 a divisé le temps de pose par trois : la feuille A3+ coûte
+plus cher que le rouleau pour ce visuel, 61 feuilles à 3,00 EUR contre les mêmes mètres au
+mètre linéaire. Les deux tableaux sont côte à côte dans la question 06.
+
+**Et sur une vraie commande, pas sur une grille.** L'item 3 de la séance demande le prix
+plancher, le prix conseillé et la commission redérivés sur une commande réellement passée.
+`tests/demo-order.php` en pose une (trente t-shirts, visuel en deux morceaux, cliente à
+Paris), elle est payée, facturée et chiffrée, et `wp teeshoop marge` l'imprime. Mesuré le
+2 septembre 2026 :
+
+| | |
+|---|---|
+| Vendue HT | 326,10 EUR |
+| Coût direct connu | 240,19 EUR, **incomplet** |
+| Prix plancher | 411,75 EUR, et c'est un plancher MINIMUM |
+| Prix conseillé | 480,38 EUR |
+| Commission | 34,36 EUR, provisoire |
+| Verdict | **sous le plancher, sans dérogation** |
+
+**Le marquage de cette commande est une borne haute et le rapport le dit** : le service
+d'imbrication n'a pas répondu depuis le conteneur, donc 19 feuilles ont été comptées à raison
+d'une bande par transfert, sans imbrication. Le coût réel est plus bas et le plancher aussi.
+C'est le comportement voulu (une mesure impossible majore le coût au lieu de l'ignorer) et
+c'est aussi la raison pour laquelle ce chiffre n'est pas comparable ligne à ligne avec la
+grille ci-dessus, qui a tourné avec le Worker joignable.
+
+Deux lignes du coût valent toujours **inconnu** et non zéro : les consommables et la
+provision de défaut. Une troisième est minorée et le dit : la main-d'œuvre, 5,33 EUR, avec
+cinq opérations d'atelier jamais chronométrées.
 
 **Et ce que la séance n'a pas construit, écrit avant de fermer.** Le chapitre 1 est plus
 large que ce que la séance demandait, et quatre morceaux restent dehors, délibérément. Deux

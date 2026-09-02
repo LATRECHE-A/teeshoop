@@ -623,6 +623,21 @@ produire un prix plancher négatif.
 validation.** Mesuré en faisant tourner le moteur, sur un t-shirt acheté 3,37 EUR, imprimé
 d'un visuel en deux morceaux, avec le film réellement imbriqué :
 
+**Remesurée le 2 septembre 2026**, après vos réponses. La colonne « marquage » est
+identique à celle du 18 août, ce qui confirme que le tarif public n'a pas bougé : tout ce
+qui change ci-dessous vient de vous.
+
+| Quantité | Marquage HT | Livraison HT | Encaissé HT | Coût direct | Prix plancher | Prix conseillé | Verdict |
+|---|---|---|---|---|---|---|---|
+| 5 | 72,50 EUR | 14,09 EUR | 86,59 EUR | 67,71 EUR *(incomplet)* | 90,28 EUR | 135,42 EUR | **sous le plancher de 3,69 EUR** |
+| 10 | 123,20 EUR | 18,69 EUR | 141,89 EUR | 99,44 EUR *(incomplet)* | 132,59 EUR | 198,88 EUR | remise au-delà de l'autonomie |
+| 25 | 271,75 EUR | 0,00 EUR | 271,75 EUR | 196,04 EUR *(incomplet)* | 261,39 EUR | 392,08 EUR | remise au-delà de l'autonomie |
+| 50 | 471,00 EUR | 0,00 EUR | 471,00 EUR | 354,61 EUR *(incomplet)* | 472,81 EUR | 709,22 EUR | **sous le plancher de 1,81 EUR** |
+| 100 | 942,00 EUR | 0,00 EUR | 942,00 EUR | 662,24 EUR *(incomplet)* | 882,99 EUR | 1 324,48 EUR | remise au-delà de l'autonomie |
+
+Ce qu'elle était le 18 août, sous le rouleau à 17,00 EUR le mètre, 45 secondes de pose et
+55 % de marge cible, et sans la colonne livraison :
+
 | Quantité | Prix public HT | Coût direct | Prix plancher | Prix conseillé | Verdict |
 |---|---|---|---|---|---|
 | 5 | 72,50 EUR | 65,03 EUR | 86,71 EUR | 144,51 EUR | **sous le plancher de 14,21 EUR** |
@@ -631,11 +646,37 @@ d'un visuel en deux morceaux, avec le film réellement imbriqué :
 | 50 | 471,00 EUR | 301,88 EUR | 402,51 EUR | 670,84 EUR | à valider |
 | 100 | 942,00 EUR | 569,15 EUR | 758,87 EUR | 1 264,78 EUR | à valider |
 
+**Trois choses à lire dans l'écart, et deux vont dans le sens que vous n'attendez pas.**
+
+**Le coût monte à toutes les quantités**, alors que vous avez divisé le temps de pose par
+trois : 65,03 devient 67,71 à cinq pièces, 569,15 devient 662,24 à cent, soit **16 % de
+plus**. La feuille A3+ coûte plus cher que le rouleau pour ce visuel : à cent pièces il faut
+61 feuilles, et 61 x 3,00 EUR dépasse ce que les mêmes mètres coûtaient au rouleau. Ce que
+la question 05 a rendu, la question 04 l'a repris et davantage.
+
+**Une colonne est passée sous le plancher et personne ne l'aurait vu : cinquante pièces.**
+Elle était « à valider » le 18 août, elle manque aujourd'hui **1,81 EUR**. C'est exactement
+la ligne que la page d'accueil met en avant (9,42 EUR la pièce dès 50), donc c'est la vente
+la plus probable de la boutique qui est sous son plancher.
+
+**L'écart à cinq pièces s'est en revanche resserré**, de 14,21 EUR à 3,69 EUR, parce que le
+prix plancher a baissé avec la marge cible.
+
 Le coût de cette table est encore **incomplet** : il ne compte ni provision de défaut, ni
 consommables, ni cinq des sept opérations d'atelier, donc le vrai plancher est plus haut que
 la colonne qui l'affiche. Trois nombres peuvent expliquer l'écart et un seul est de notre
 fait : le tarif public affiché (une valeur de démonstration, jamais validée par vous), le
 prix d'achat, ou vos taux. Dites-nous lequel doit bouger.
+
+**Cette table se remesure en une commande**, ce qui n'était pas le cas avant le 2 septembre :
+
+```
+npm run wp:cli -- eval-file wp-content/plugins/teeshoop-core/tests/demo-grille.php
+```
+
+Elle crée cinq commandes sur le miroir, les chiffre avec le code livré, imprime les lignes
+ci-dessus et efface tout. Une table que personne ne peut rejouer se périme en silence et
+continue d'être citée : c'est exactement ce qui est arrivé à celle du 18 août.
 
 *Ce que la séance 05 a livré, le 18 août :* **le plancher peut maintenant être différent
 selon le périmètre**, comme votre chapitre 1 le demande (par famille de produits, par

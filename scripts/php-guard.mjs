@@ -336,6 +336,10 @@ const ALLOWED = new Map([
     { why: 'builds the worked order the session report quotes; wp-cli only, guarded on PHP_SAPI, renders nothing', needles: ['Costing::'] },
   ],
   [
+    'wp-plugins/teeshoop-core/tests/demo-grille.php',
+    { why: 'remeasures the public price grid question 06 quotes; wp-cli only, guarded on PHP_SAPI, prints to a terminal and renders nothing', needles: ['Costing::'] },
+  ],
+  [
     'wp-plugins/teeshoop-core/tests/integration-margin.php',
     { why: 'the WooCommerce test for the costing; runs under wp-cli, renders to nobody', needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::', 'PriceRule::'] },
   ],
