@@ -57,14 +57,25 @@ c'est donc le plus récent qui tranche : l'affichage du stock (questions 11 et 4
 l'adresse (questions 17 et 55).
 
 **Ce que la séance 13b en a fait, le 1er septembre 2026.** Les 61 réponses ont été
-confrontées au registre une par une. **Vingt-neuf lignes sont passées de « supposée » à
-« répondue »**, avec la date et la phrase de l'associé sous chacune : ce n'est pas une
-formalité, c'est ce qui transforme une devinette en fait, et le portail de mise en ligne
-lit cette date. **Neuf valeurs ont bougé** (le minimum en euros, le franco, l'acompte, la
-cadence, le temps de pose, la marge cible, les trois délais) et chacune a entraîné une
-**remesure** plutôt qu'une règle de trois. **Une forme a changé** : le film s'achète à la
-feuille et non au mètre. **Quatre réponses ne sont délibérément pas construites** et
-disent ici ce qui manque pour les construire (questions 37, 44, 50 et 54).
+confrontées au registre une par une, les 1er et 2 septembre 2026. Recompté à la fin plutôt
+que recopié du début : **43 lignes sont passées de « supposée » à « répondue »** et **52
+portent une date**, avec la phrase de l'associé sous chacune. Ce n'est pas une formalité,
+c'est ce qui transforme une devinette en fait, et le portail de mise en ligne lit cette date.
+
+**Dix valeurs ont bougé** (le minimum en pièces et en euros, le franco, l'acompte, la
+cadence, le temps de pose, la marge cible, les trois délais, la validité du devis, le délai
+textile) et chacune a entraîné une **remesure** plutôt qu'une règle de trois.
+
+**Quatre formes ont changé.** Le film s'achète à la feuille et non au mètre (question 04).
+Le site n'émet plus de facture, il édite un récapitulatif de commande (question 24). La
+boutique dit une quatrième chose sur le stock, « Stock limité, nous consulter »
+(question 48). Et le seuil de devis en euros porte sur la commande entière et non sur
+chaque ligne, ce que le mot « commande » de votre réponse à la question 02 dit et que le
+code ne faisait pas.
+
+**Quatre réponses ne sont délibérément pas construites** et disent ici ce qui manque pour
+les construire (questions 37, 44, 50 et 54). **Quatre lignes neuves** sont nées de vos
+réponses, dont deux bloquantes.
 
 Et le contrôle qui manquait existe : `npm run verify:lancement` **refuse la mise en ligne**
 tant qu'une hypothèse bloquante non répondue atteint un client, un fournisseur ou une
@@ -90,9 +101,10 @@ citation par « Ce que la réponse ne tranche pas ») : 1, 2, 3, 4, 5, 6, 7, 8, 
 **Les 6 réponses qui demandent autre chose que ce qui est construit**, et qui changent donc
 une forme et non un réglage (« À instruire en séance 13b ») : **4** (une feuille A3+ à
 l'unité là où le coût est bâti sur un rouleau au mètre), **9** (Imbretex au lieu de
-Falk & Ross), **24** (la facture légale sort d'un système externe, pas du site), **37** (le
-coût réel doit suivre la taille commandée), **44** (traduire 442 coloris en français),
-**54** (la remise se calcule sur un lot de production, pas par référence).
+Falk & Ross), **24** (la facture légale sort d'un système externe, pas du site ; **construite le
+2 septembre 2026**), **37** (le coût réel doit suivre la taille commandée), **44**
+(traduire 442 coloris en français), **54** (la remise se calcule sur un lot de production,
+pas par référence).
 
 **Les 5 endroits où la mise en forme est de nous** et où l'original fait foi (« Note de
 transcription ») : 10, 17, 41, 44, 49.
@@ -118,7 +130,13 @@ dans les mots mêmes de l'associé (« conserver l'hypothèse de TVA à 20 % ...
 validation comptable »), et la boutique en ligne encaisse aujourd'hui avec le calcul des
 taxes désactivé.
 
-### Trois questions neuves, que la lecture des réponses fait apparaître, dont une déjà réglée
+### Trois constats neufs que la lecture des réponses fait apparaître, dont un déjà réglé
+
+*Et deux questions neuves, numérotées à la fin de ce document : la **62** (comment la
+boutique refuse effectivement un particulier, sans quoi l'exemption de médiation que votre
+réponse à la question 57 annonce ne tient pas) et la **63** (quel système émet vos factures
+légales, et qui émet celle d'un acompte, depuis que votre réponse à la question 24 est
+appliquée). Les deux sont bloquantes et le portail de mise en ligne refuse dessus.*
 
 Elles sont détaillées sous leur question et rappelées ici pour ne pas dépendre d'une
 lecture complète du document.

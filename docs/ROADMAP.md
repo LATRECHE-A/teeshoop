@@ -1452,9 +1452,9 @@ tant qu'elle vit, et si elle est bloquante elle ne va pas en ligne du tout.
 
 ### Ce que cela donne aujourd'hui, en trois piles
 
-**Étiquetées et livrées** (47 lignes encore supposées, dont 27 atteignent un
-client ; 22 est le compte de la projection filtrée que lit la boutique, qui est un
-autre ensemble). Chacune porte la phrase sous laquelle le client la rencontre : « Prix à
+**Étiquetées et livrées** (46 lignes encore supposées, dont 26 atteignent un
+client, recomptées le 2 septembre 2026 ; 22 était le compte de la projection filtrée que lit
+la boutique, qui est un autre ensemble et n'aurait jamais dû figurer ici). Chacune porte la phrase sous laquelle le client la rencontre : « Prix à
 la pièce, impression comprise », « Rupture, nous consulter », « Délai à
 confirmer », « Les coloris portent le nom du fabricant », « imprimé en France »,
 « Projet, non validé par un juriste ». Le reste n'atteint qu'un opérateur, et
@@ -1462,7 +1462,8 @@ l'écran des hypothèses ou celui des coûts et marges les montre avec leur
 question, leur date et, depuis cette séance, la réponse de l'associé quand il y
 en a une.
 
-**Livrées comme un refus explicite** (15 lignes, chiffre imprimé par le contrôle). Rien n'est construit et le
+**Livrées comme un refus explicite** (15 lignes, chiffre imprimé par le contrôle et non
+recopié ici). Rien n'est construit et le
 produit le dit : aucun taux de marge sur le textile nu, donc le catalogue est
 consultable et non commandable ; aucun modèle de coût pour la broderie, le
 flocage, le vinyle et la sublimation, donc une commande qui en contiendrait n'a
@@ -1471,13 +1472,14 @@ pas de plancher et le rapport le signale ; aucun supplément d'urgence ; aucun
 plutôt que d'être présenté comme total. Un refus livre une absence, et une
 absence est honnête.
 
-**Bloquées à la mise en ligne** (12 lignes, listées par `npm run
+**Bloquées à la mise en ligne** (13 lignes, listées par `npm run
 verify:lancement`). Ce sont celles qui sont à la fois bloquantes, encore
 supposées, et tournées vers l'extérieur : les quatre tarifs de démonstration du
 studio, la TVA et sa période, le seuil de devis en pièces, les zones
-d'impression, « imprimé en France », « pour les professionnels », et les deux
-lignes des textes juridiques. Elles vivent, elles sont étiquetées, et le portail
-refuse le déploiement tant qu'elles sont là.
+d'impression, « imprimé en France », « pour les professionnels », les deux
+lignes des textes juridiques, et depuis le 2 septembre `H-Q63-FACTURE-EXTERNE`,
+née de l'application de la question 24. Elles vivent, elles sont étiquetées, et
+le portail refuse le déploiement tant qu'elles sont là.
 
 ### Les quatre choses que cette séance a délibérément NE PAS construites
 

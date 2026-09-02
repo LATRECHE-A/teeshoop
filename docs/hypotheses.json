@@ -3524,7 +3524,7 @@
 			"level": "important",
 			"status": "refused",
 			"since": "2026-08-26",
-			"statement_fr": "Aucune durée de conservation n'est fixée pour les créations des clients : l'outil qui les supprime existe, aucune tâche ne l'appelle, et rien n'expire.",
+			"statement_fr": "Les durées de conservation des créations sont connues depuis le 1er septembre 2026 (trois ans, un an sans commande) et rien ne les applique : l'outil qui supprime existe, aucune tâche ne l'appelle, et rien n'expire.",
 			"home": "anchor:wp-plugins/teeshoop-core/includes/Privacy.php#un balayage périodique",
 			"mirrors": [],
 			"literals": [],
@@ -3537,7 +3537,9 @@
 				"12"
 			],
 			"cost_if_late": "reglage et remesure",
-			"shipped_matches_default": "Non. L'hypothèse écrite de la question 33 dit trois ans pour les fichiers de production et un an pour les aperçus. Ce sont deux durées et deux formes de clés dans R2, donc deux règles, et aucune n'a été posée : la règle de cycle de vie R2 couvre le préfixe ar/ à 30 jours et ne couvre pas design/, parce que seule la boutique sait quelle création est encore due contre une commande. POST /api/design/reap est construit et attend une décision et un ordonnanceur."
+			"shipped_matches_default": "Reste un refus, et la date dit pourquoi : ce ne sont plus les durées qui manquent, c'est le balayage qui les applique et la ligne de cron qui l'appelle. Poser une tâche périodique est un acte de déploiement, sur un serveur auquel seule la séance 14 touche, et c'est le même écart que le rafraîchissement de stock.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 33 : les créations des clients sont conservées trois ans, et un an pour un compte sans commande. Les deux durées sont confirmées au chiffre près."
 		},
 		{
 			"id": "H-Q28-MADAGASCAR",
@@ -3592,7 +3594,7 @@
 			"level": "bloquant",
 			"status": "refused",
 			"since": "2026-08-26",
-			"statement_fr": "Le directeur de la publication, l'adresse de contact, le téléphone et l'identité de l'hébergeur restent vides, et la page des mentions légales publie la liste de ce qui manque plutôt qu'un exemple crédible.",
+			"statement_fr": "Le directeur de la publication, l'adresse de contact et le téléphone sont connus depuis le 1er septembre 2026 et ne sont saisis nulle part ; l'identité de l'hébergeur reste à tirer du contrat. La page des mentions légales publie donc toujours la liste de ce qui manque plutôt qu'un exemple crédible.",
 			"home": "anchor:wp-plugins/teeshoop-core/includes/Host.php#'directeur_publication' => 'Directeur de la publication',",
 			"mirrors": [
 				{
@@ -3612,7 +3614,9 @@
 				"12"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "Il n'y a pas d'hypothèse par défaut : la question 56 est née de cette séance. Le refus reprend celui que Legal.php applique déjà à l'identité du vendeur, et pour la même raison : un exemple crédible est une chose qui part en production. L'identité de l'hébergeur est le seul de ces quatre champs qui ne soit pas une question pour l'associé, c'est une ligne à recopier du contrat o2switch, et elle est demandée dans ACCES-REQUIS.md."
+			"shipped_matches_default": "Reste un refus, et la date dit pourquoi : ce n'est plus l'associé qui manque, c'est la saisie. Les trois valeurs existent et rien ne les a écrites dans les réglages de la boutique, ce qui est un acte de déploiement et appartient à la séance 14. Le portail de mise en ligne ne lit pas cette ligne (il ne refuse que sur les hypothèses) : c'est sa condition `identite`, qui interroge la vraie boutique, qui tient la porte.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 56 : directeur de la publication SINGH Simran, adresse publique legales@teeshoop.com (le document écrit .fr, domaine qui n'existe pas, corrigé le 1er septembre) et téléphone. L'hébergeur reste à tirer du contrat o2switch."
 		},
 		{
 			"id": "H-Q57-MEDIATEUR",
