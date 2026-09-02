@@ -2,9 +2,9 @@ name: Déploiement
 
 # ── CE QUE CE FICHIER FAIT, ET CE QU'IL REFUSE DE FAIRE ──────────────────────
 #
-# Un `push` sur `main` déploie en PRÉPRODUCTION, tout seul. La PRODUCTION ne se
-# déploie que par une action manuelle, et cette asymétrie est la séance 14 tout
-# entière : la boutique a quinze commandes réelles, des noms, des adresses et des
+# La PRÉPRODUCTION et la PRODUCTION se lancent toutes deux à la main, et la
+# seconde est en plus gardée par le portail de mise en ligne. Cette asymétrie est
+# la séance 14 tout entière : la boutique a quinze commandes réelles, des noms, des adresses et des
 # adresses e-mail de vraies personnes, et elle n'encaisse plus rien depuis
 # avril 2025. Le risque ici n'est pas d'interrompre un chiffre d'affaires, c'est
 # de détruire un historique qu'on ne peut pas refaire.
@@ -32,9 +32,31 @@ name: Déploiement
 # Aucun n'est dans le dépôt et aucun ne doit y arriver. Comment les poser :
 # docs/DEPLOIEMENT.md.
 
+# ── POURQUOI IL N'Y A PLUS DE DÉCLENCHEUR SUR `push` ─────────────────────────
+#
+# Il y en avait un, et il a tourné pour de vrai le 02/09/2026. Toutes les portes
+# sont passées, puis :
+#
+#   pin-verify: preprod n'a pas répondu :
+#   ssh: connect to host *** port 22: Connection timed out
+#
+# o2switch filtre les connexions SSH par adresse IP, cinq au maximum par compte.
+# L'adresse du développeur y est ; celle d'un exécutant GitHub, jamais : ces
+# machines sont éphémères et tirent leur adresse de plages entières. Mesuré à la
+# minute près, le port 22 répond depuis la machine du développeur et expire depuis
+# l'exécutant.
+#
+# Laisser le déclencheur aurait donné une croix rouge à chaque poussée, sur une
+# panne qui n'en est pas une. `scripts/launch-gate.mjs` dit déjà pourquoi c'est
+# nuisible : « une intégration continue rouge en permanence est une intégration
+# continue que personne ne lit ».
+#
+# DONC : le déploiement se lance à la main ici, et `scripts/deployer.sh` fait la
+# même séquence depuis une machine autorisée. « Une poussée livre la
+# préproduction » redeviendra vrai le jour où un exécutant AUTO-HÉBERGÉ tournera
+# sur une machine dont l'adresse est autorisée ; il n'y a rien d'autre à changer
+# que ce bloc et le `runs-on`.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       cible:
@@ -71,7 +93,7 @@ jobs:
 
   preproduction:
     needs: verifications
-    if: github.event_name == 'push' || github.event.inputs.cible == 'preprod'
+    if: github.event.inputs.cible == 'preprod'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -148,7 +170,7 @@ jobs:
 
   production:
     needs: verifications
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.cible == 'prod'
+    if: github.event.inputs.cible == 'prod'
     runs-on: ubuntu-latest
     # Un environnement GitHub, pour que la validation manuelle et la liste des
     # personnes qui peuvent la donner vivent dans les réglages du dépôt et non
@@ -287,7 +309,7 @@ jobs:
   # dispatch est la seule façon de déployer à la main. Trouvé par une relecture
   # adverse.
   studio:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.cible == 'studio'
+    if: github.event.inputs.cible == 'studio'
     needs: verifications
     runs-on: ubuntu-latest
     environment: production

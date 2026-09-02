@@ -10,39 +10,55 @@ suivi ligne à ligne, sans rien deviner.
 
 ---
 
-## Avant tout : rien ne se déclenche tant que `main` n'a pas bougé
+## Avant tout : ce qu'un `push` fait, et ce qu'il ne fait pas
 
-Constaté le 02/09/2026, et c'est la condition qui manque pour que tout ce
-document soit vrai : la branche par défaut du dépôt est `main`, et **elle ne
-contient aucun fichier de travail GitHub**, pas même celui de l'intégration
-continue. Tout vit sur `r0-securite-et-socle`, qui a **245 commits d'avance**.
+Il ne livre rien, et la raison n'est pas celle qu'on croit.
 
-Deux conséquences, mesurées et pas déduites :
+**Ce qui a été corrigé le 02/09/2026.** La branche par défaut du dépôt, `main`, ne
+contenait aucun fichier de travail GitHub, pas même celui de l'intégration
+continue : tout vivait sur `r0-securite-et-socle`, avec 245 commits d'avance.
+`workflow_dispatch` n'apparaissait donc pas dans l'onglet Actions, parce que
+GitHub ne propose au lancement manuel que les travaux présents sur la branche par
+défaut. `main` a été avancée, et *Déploiement* est lançable depuis l'interface.
 
-- `on: push: branches: [main]` ne se déclenche jamais, donc **un `push` ne livre
-  rien** ;
-- `workflow_dispatch` n'apparaît pas dans l'onglet Actions, parce que GitHub ne
-  propose au lancement manuel que les travaux présents sur la branche par défaut.
-  `gh workflow list` ne montre que « CI », et « Déploiement » nulle part.
+**Ce qui ne peut pas être corrigé ici.** Le déclencheur `on: push` existait, il a
+tourné pour de vrai le même jour, il a passé toutes les portes, et il s'est arrêté
+sur :
 
-L'intégration continue tourne quand même, parce que son déclencheur est `push:`
-sans restriction de branche.
-
-**Ce qu'il faut faire, une fois :**
-
-```bash
-git checkout main && git merge --ff-only r0-securite-et-socle && git push origin main
-git checkout r0-securite-et-socle
+```
+pin-verify: preprod n'a pas répondu :
+ssh: connect to host *** port 22: Connection timed out
 ```
 
-`--ff-only` est volontaire : `origin/main` est un ANCÊTRE de la branche de
-travail, donc l'avance est une simple translation, sans fusion et sans conflit
-possible. Si cette commande refuse un jour, c'est que quelqu'un a écrit sur `main`
-entre-temps, et il faut regarder quoi avant d'insister.
+**o2switch filtre SSH par adresse IP**, cinq au maximum par compte (voir
+`ACCES-REQUIS.md` §1 bis). L'adresse du développeur y est ; celle d'un exécutant
+GitHub, non, et elle ne peut pas y être : ces machines sont éphémères et tirent
+leur adresse de plages entières que personne ne peut lister. Mesuré à la minute
+près le même jour : depuis la machine du développeur le port 22 répond, depuis
+l'exécutant il expire.
 
-C'est une décision et pas une manoeuvre technique : elle publie 245 commits sur
-la branche par défaut du dépôt. Elle n'a pas été prise à la place de son
-propriétaire.
+Ce n'est donc pas une panne à réparer, c'est une propriété de l'hébergement, et
+il y a trois façons de vivre avec :
+
+1. **un exécutant auto-hébergé** sur une machine dont l'adresse est autorisée.
+   C'est la seule qui rende « une poussée livre la préproduction » littéralement
+   vrai. Elle demande qu'une machine reste allumée et enregistrée auprès de
+   GitHub. Rien d'autre à changer que le `runs-on` et le déclencheur ;
+2. **piloter depuis une machine autorisée**, avec `scripts/deployer.sh`, qui
+   exécute la même séquence, dans le même ordre, avec les mêmes portes. C'est ce
+   qui est en place ;
+3. ouvrir SSH à des plages entières d'un fournisseur de nuage, ce qui revient à
+   retirer le filtre. Non.
+
+Le déclencheur `on: push` a donc été **retiré** de
+`.github/workflows/deploiement.yml`. Le laisser aurait donné une croix rouge à
+chaque poussée sur une panne qui n'en est pas une, et une intégration continue
+rouge en permanence est une intégration continue que personne ne lit.
+
+**Ce que GitHub garde, et qui n'est pas rien :** toute la vérification.
+`ci.yml` se déclenche sur `push`, sans restriction de branche, sur deux versions
+de PHP. Et *Déploiement* reste lançable à la main pour le jour où un exécutant
+auto-hébergé existe.
 
 ---
 
@@ -50,8 +66,8 @@ propriétaire.
 
 | Je veux | Je fais |
 |---|---|
-| Livrer en préproduction | Rien. Un `push` sur `main` le fait tout seul. |
-| Livrer en production | GitHub, onglet **Actions**, *Déploiement*, **Run workflow**, cible `prod`, et taper `DEPLOYER-EN-PRODUCTION` dans « confirmation ». Aujourd'hui **ça refuse**, et c'est voulu : voir §6. |
+| Livrer en préproduction | `./scripts/deployer.sh preprod`, depuis une machine dont l'adresse est autorisée en SSH · **1 min 19 s**, chronométré le 02/09/2026 |
+| Livrer en production | `./scripts/deployer.sh prod`. Aujourd'hui **ça refuse avant d'envoyer quoi que ce soit**, et c'est voulu : voir §6. |
 | Annuler la dernière livraison | `ssh teeshoop './deploiement.sh retour preprod'` · **3 secondes** |
 | Tout remettre comme avant-hier | §7, la restauration de base · **18 secondes** |
 | Savoir où en est une installation | `ssh teeshoop './deploiement.sh etat preprod'` |
@@ -114,8 +130,8 @@ aucun verbe qui puisse le faire, et la clé de déploiement ne peut lancer que c
 script.
 
 **Le studio ne part pas d'ici non plus.** Il est servi par le Worker Cloudflare, et
-il n'y a **qu'un seul Worker pour les deux environnements** : le publier depuis un
-`push` changerait ce que voient les clients de la production. C'est un travail
+il n'y a **qu'un seul Worker pour les deux environnements** : le publier avec le
+reste changerait ce que voient les clients de la production. C'est un travail
 manuel, en bas de `.github/workflows/deploiement.yml`, et il le reste tant qu'il
 n'y a pas un second environnement Worker.
 
@@ -124,7 +140,10 @@ n'y a pas un second environnement Worker.
 ## 3. Comment un déploiement se déroule vraiment
 
 ```
-push sur main
+./scripts/deployer.sh preprod        (ou GitHub > Actions > Déploiement)
+  └─ port 22 joignable ?  posé en premier, parce qu'un délai dépassé sur SSH
+  │                       pendant que le site répond en HTTPS ne ressemble pas
+  │                       à un problème d'autorisation
   └─ CI (les mêmes contrôles que d'habitude, appelés et non recopiés)
        └─ pin-verify        la cible est-elle la version attendue          17 s
        └─ sauvegarder       base + fichiers + manifeste, avant tout        25 s
