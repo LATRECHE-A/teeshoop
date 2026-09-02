@@ -722,6 +722,16 @@ ts_rgpd_suite( $product_id );
 require_once __DIR__ . '/integration-listing.php';
 ts_listing_suite();
 
+/*
+ * The launch gate's shop half, which had no test at all. Four of its five
+ * conditions live in `Launch` rather than in `scripts/launch-gate.mjs`, and the
+ * script's `--self-test` proves them against a fabricated shop object: that
+ * shows the script reads a refusal, not that a real database produces one.
+ * Placed last because it reads the state every suite above has finished leaving.
+ */
+require_once __DIR__ . '/integration-lancement.php';
+ts_lancement_suite();
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 

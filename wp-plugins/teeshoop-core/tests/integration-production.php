@@ -751,6 +751,24 @@ function ts_production_suite( int $product_id ): void {
 		ts_eq( Production::lot( $lot_id ), null, 'le lot défait existe encore' );
 		ts_eq( Production::lot_of( wc_get_order( $a->get_id() ) ), null, 'la commande porte encore une part' );
 		$ids = array_column( Production::queue( $today ), 'id' );
+		/*
+		 * THE PRECONDITION THIS TEST HAD AND NEVER SAID.
+		 *
+		 * `queue()` caps at 500 orders and drops the NEWEST, deliberately: the
+		 * oldest deadline is the one that matters and a cap must never drop the
+		 * urgent end. The order this test just created is the newest there is, so
+		 * once the mirror holds 500 queueable orders this assertion fails with
+		 * « la commande n'est pas revenue dans la file », which is true and says
+		 * nothing about what is wrong. It happened on 2 September 2026, after the
+		 * suite had been run enough times to leave 440 fixture orders behind, and
+		 * it cost an hour that looked like a production bug.
+		 *
+		 * The cap is the product working. The mirror filling up is not.
+		 */
+		ts_assert(
+			! Production::queue_truncated(),
+			'le miroir porte assez de commandes en attente pour tronquer la file, qui perd alors les plus récentes : ce test ne peut rien prouver. Purgez les commandes de test (celles dont l’e-mail finit par @example.test).'
+		);
 		ts_assert( in_array( $a->get_id(), $ids, true ), 'la commande n’est pas revenue dans la file' );
 
 		// And a lot whose film is bought can never be undone.

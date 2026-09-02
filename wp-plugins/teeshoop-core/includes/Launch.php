@@ -75,7 +75,7 @@ final class Launch {
 				'identite',
 				sprintf(
 					/* translators: %s: the French label of a legal-identity field. */
-					__( 'Mention légale obligatoire absente ou invalide : %s. Une facture à laquelle il en manque une est refusée, et la page des mentions légales publie la liste de ce qui manque.', 'teeshoop' ),
+					__( 'Mention légale obligatoire absente ou invalide : %s. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).', 'teeshoop' ),
 					(string) ( $fields[ $key ] ?? $key )
 				)
 			);
