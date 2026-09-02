@@ -17,26 +17,57 @@ ne vit que dans un fichier ignoré ne survit pas à la séance qui l'a écrite.
 npm run verify:lancement
 ```
 
-Elle sort **1** tant que la boutique ne doit pas être mise en ligne, et **0** quand elle
-peut l'être. Il n'y a pas de troisième réponse et il n'y a pas de « oui mais ».
+Elle sort **0** quand la boutique peut être mise en ligne et **non zéro** quand elle ne le
+peut pas. À la question « peut-on lancer », il n'y a que deux réponses et il n'y a pas de
+« oui mais ».
 
-Trois formes, pour trois moments :
+Le code de sortie distingue en revanche deux refus, **depuis la séance 14**, et un
+déploiement a besoin de cette distinction :
+
+| Code | Ce que ça veut dire | Ce qu'il faut faire |
+|---|---|---|
+| `0` | rien ne refuse | lancer |
+| `1` | quelque chose refuse, **et on a bien pu demander** | corriger ce que le portail nomme |
+| `2` | **on n'a pas pu demander** : registre illisible, boutique injoignable | réparer l'accès, puis redemander |
+
+`2` n'est pas « pire que 1 ». Les deux bloquent. Ils diffèrent par ce qu'un opérateur doit
+faire ensuite, et un journal de déploiement qui n'écrit que « refusé » envoie quelqu'un
+chercher au mauvais endroit un vendredi à dix-neuf heures. Avant la séance 14, une boutique
+injoignable sortait **1**, comme un refus ordinaire, alors que l'en-tête du script annonçait
+déjà 2 : les deux cas étaient indiscernables.
+
+Cinq formes, pour cinq moments :
 
 | Commande | Ce qu'elle demande | Qui s'en sert |
 |---|---|---|
-| `npm run verify:lancement` | « Peut-on lancer ? » Interroge le registre **et** la boutique | Séances 14 et 15 |
+| `npm run verify:lancement` | « Peut-on lancer ? » Le registre **et** le miroir local | Le développeur |
+| `node scripts/launch-gate.mjs --boutique=ssh:teeshoop:~/public_html` | La même question, posée à **la vraie boutique** | Séances 14 et 15, et le déploiement |
+| `node scripts/launch-gate.mjs --json --boutique=…` | La même chose, lisible par un programme | Le déploiement, qui archive le verdict |
 | `node scripts/launch-gate.mjs --depot --ci` | « Ce portail fonctionne-t-il ? » Le registre seul, sans WordPress | L'intégration continue |
 | `node scripts/launch-gate.mjs --self-test` | « Ce portail sait-il encore refuser ? » | L'intégration continue |
 
-La deuxième sort 0 même sur un refus, **par construction** : l'intégration continue n'a pas
+**La deuxième n'existait pas avant la séance 14**, et son absence était un trou : trois
+documents suivis par git demandaient de rejouer le portail contre la production, et le code
+interrogeait un `docker compose` du miroir local écrit en dur, sans option ni variable
+d'environnement. Les deux extrémités exécutent maintenant la même chose,
+`wp teeshoop lancement --porcelaine`, une sous-commande WP-CLI et non plus un programme PHP
+expédié à travers ssh et un shell : les guillemets, les antislashs et les accents d'un tel
+envoi produisent, quand ils se passent mal, une erreur d'analyse qui ressemble exactement à
+une boutique injoignable.
+
+Un argument inconnu **refuse** désormais au lieu d'être ignoré. `--boutque=ssh:…`, une
+lettre en moins, aurait interrogé le miroir local et imprimé un verdict sur la mauvaise
+boutique, dans le seul outil dont tout le travail est d'être cru.
+
+La quatrième sort 0 même sur un refus, **par construction** : l'intégration continue n'a pas
 de boutique à interroger et ne peut donc pas répondre à la première question. C'est
-exactement pour cela que la troisième existe : sans elle, la seule panne que
-l'intégration continue pourrait voir serait un registre illisible, et les sept conditions
+exactement pour cela que la cinquième existe : sans elle, la seule panne que
+l'intégration continue pourrait voir serait un registre illisible, et les huit conditions
 pourraient pourrir sans que rien ne le dise.
 
 ---
 
-## Les sept conditions, et ce que chaque refus veut dire
+## Les huit conditions, et ce que chaque refus veut dire
 
 Aucune n'est un avertissement. Chacune décrit une chose qui, faite en vrai, coûte de
 l'argent ou expose l'entreprise.
@@ -47,6 +78,7 @@ l'argent ou expose l'entreprise.
 | `tva` | le régime n'est confirmé **dans aucun sens** | la boutique encaisse sans savoir ce qu'elle doit déclarer. Elle l'a déjà fait quinze fois |
 | `mediation` | aucun médiateur désigné **et** rien ne refuse un particulier | article L612-1 du code de la consommation. Les deux lignes prises séparément sont des refus assumés ; ensemble elles sont une infraction |
 | `identite` | une mention obligatoire manque à l'identité légale | article 6 III de la LCEN, et aucune pièce comptable conforme n'est possible |
+| `editeur` | l'hébergeur du site n'est pas nommé dans les mentions légales | article 6 III de la LCEN également. **Cette ligne manquait à ce tableau** : `Launch.php` l'émettait depuis la séance 13b, elle vaut quatre des vingt-sept refus d'aujourd'hui, et elle ne figurait ni dans l'auto-test ni dans la liste des conditions vérifiées |
 | `cgv` | une version en vigueur n'enregistre pas qui l'a relue ni quand | le contrat qui lie la boutique à ses clients est un brouillon interne |
 | `textile-nu` | un produit personnalisable est en vente sans textile nu déclaré | la boutique prend une commande dont elle ne peut acheter les vêtements |
 | `boutique` | on n'a pas pu interroger WordPress du tout | « on n'a pas pu regarder » n'est pas « il n'y a rien » |
@@ -86,6 +118,46 @@ première chose à regarder est le miroir et non la boutique.
 du code général des impôts en impose une à chaque acompte encaissé. Tant que personne ne
 nomme ce système, encaisser un acompte est une obligation non remplie que rien ici ne peut
 voir.
+
+---
+
+## L'état des VRAIES boutiques, mesuré le 2 septembre 2026
+
+Rejoué depuis la séance 14, contre chacune des trois installations, avec la commande
+au-dessus de chaque colonne. C'est la première fois que le portail a interrogé autre chose
+que le miroir.
+
+| | Miroir (docker) | Préproduction (WP Tiger) | Production (teeshoop.com) |
+|---|---|---|---|
+| Code de sortie | **1** | **2** | **2** |
+| Boutique jointe | oui | **non** | **non** |
+| `registre` | 13 | 13 | 13 |
+| `tva` | 1 | 1 | 1 |
+| `mediation` | 1 | 1 | 1 |
+| `editeur` | 4 | non regardé | non regardé |
+| `cgv` | 2 | non regardé | non regardé |
+| `textile-nu` | 6 | non regardé | non regardé |
+| `identite` | 0 | non regardé | non regardé |
+| **Total** | **27** | **16** | **16** |
+
+**Le 16 des deux colonnes de droite n'est pas meilleur que le 27, il est moins informé.**
+Quinze refus viennent du registre, qui est le même fichier pour les trois, et le seizième
+est la condition `boutique` elle-même. La raison est la même des deux côtés et elle est
+exacte :
+
+```
+Error: 'teeshoop' is not a registered wp command.
+```
+
+L'extension `teeshoop-core` **n'est déployée nulle part** : ni en préproduction, ni en
+production. Cinq conditions sur huit ne peuvent donc pas être évaluées, et le portail sort
+2 plutôt que 1 pour dire précisément cela. Ce sera le premier chiffre à rebaisser après le
+premier déploiement en préproduction, et la séance 15 devra le comparer à celui-ci.
+
+L'identité légale (`identite`, 0 refus sur le miroir) est le contre-exemple utile : elle
+est renseignée sur le miroir et **sur le miroir seulement**. Sur la production, l'option
+`teeshoop_legal` n'existe pas du tout. Le 0 de la colonne de gauche ne dit donc rien de
+la boutique, et c'est la raison pour laquelle ces trois colonnes existent séparément.
 
 ---
 

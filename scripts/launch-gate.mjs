@@ -297,8 +297,42 @@ function mediationBlockers(ledger) {
  * parser that took the whole output would fail on a warning and read as an
  * unreachable shop.
  */
-function shopBlockers() {
-  if (!existsSync(COMPOSE)) {
+/**
+ * The command that asks one shop, whichever shop it is.
+ *
+ * Both ends run `wp teeshoop lancement --porcelaine`. The subcommand exists so
+ * that this does not have to ship a PHP program through ssh and a shell: the
+ * payload it replaced contained single quotes, backslashes and accented French,
+ * and a quoting mistake produces a parse error that reads exactly like an
+ * unreachable shop, which is the one thing this gate must never confuse.
+ */
+function shopCommand(target) {
+  if (target.kind === 'miroir') {
+    return {
+      cmd: 'docker',
+      args: ['compose', '-f', COMPOSE, 'run', '--rm', '-T', 'wpcli', 'teeshoop', 'lancement', '--porcelaine'],
+    }
+  }
+  return {
+    cmd: 'ssh',
+    /*
+     * BatchMode: an ssh that stops to ask for a passphrase would hang a deploy
+     * for ever with no output. Refusing immediately is the answer, and the
+     * refusal is « we could not look », which blocks.
+     */
+    args: ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20', target.host, `cd ${target.path} && wp teeshoop lancement --porcelaine`],
+  }
+}
+
+/**
+ * Ask the shop.
+ *
+ * Every failure path returns `ok: false` with a reason, and the caller turns
+ * that into a refusal AND into exit 2. There is no path here that returns an
+ * empty blocker list because something went wrong.
+ */
+function shopBlockers(target) {
+  if (target.kind === 'miroir' && !existsSync(COMPOSE)) {
     return { ok: false, why: `${COMPOSE} n'existe pas : la boutique ne peut pas être interrogée.` }
   }
   /*
@@ -308,24 +342,37 @@ function shopBlockers() {
    * blanks as VERIFIED, which is the exact confusion between « nothing found »
    * and « nothing looked » this whole gate exists to refuse. It answers `ok:
    * false` now and the four conditions are counted as unlooked.
+   *
+   * On a shop where the plugin is absent or too old, wp-cli exits non-zero on
+   * the unknown command and that lands in the catch below, with the same effect.
    */
-  const php = `
-if ( ! class_exists( '\\\\Teeshoop\\\\Core\\\\Launch' ) ) {
-    $answer = array( 'ok' => false, 'why' => "l'extension Teeshoop n'est pas active sur cette boutique." );
-} else {
-    $answer = array( 'ok' => true, 'blockers' => \\Teeshoop\\Core\\Launch::blockers() );
-}
-echo "\\n<<<TEESHOOP-LAUNCH>>>" . json_encode( $answer, JSON_UNESCAPED_UNICODE ) . "<<<END>>>\\n";
-`
+  const { cmd, args } = shopCommand(target)
   let stdout
   try {
-    stdout = execFileSync(
-      'docker',
-      ['compose', '-f', COMPOSE, 'run', '--rm', '-T', 'wpcli', 'eval', php],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    )
+    stdout = execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
   } catch (e) {
-    return { ok: false, why: `la boutique n'a pas répondu : ${String(e.message).split('\n')[0]}` }
+    /*
+     * wp-cli writes its errors to stderr and exits non-zero, and that text is
+     * the only useful thing here: « Error: 'teeshoop' is not a registered
+     * command » and « Error: This does not seem to be a WordPress installation »
+     * are different problems with different fixes, and `e.message` alone says
+     * neither.
+     */
+    const stderr = String(e.stderr ?? '')
+      .trim()
+      .split('\n')
+      /*
+       * OpenSSH prints a three-line post-quantum advisory to stderr on every
+       * connection to o2switch's older sshd. It is not the problem and it
+       * crowded out the line that was: « Error: 'teeshoop' is not a registered
+       * wp command », which is the sentence that tells an operator the plugin is
+       * not deployed yet.
+       */
+      .filter((l) => l.trim() !== '' && !l.startsWith('**'))
+      .slice(-2)
+      .join(' · ')
+    const first = String(e.message).split('\n')[0]
+    return { ok: false, why: `la boutique n'a pas répondu : ${first}${stderr ? ` (${stderr})` : ''}` }
   }
   const m = /<<<TEESHOOP-LAUNCH>>>(.*)<<<END>>>/s.exec(stdout)
   if (!m) {
@@ -374,23 +421,62 @@ function gate({ ledger, shop }) {
   blockers.push(...mediationBlockers(ledger))
   looked.push('médiation')
 
+  /*
+   * THE SHOP'S FIVE, AND `éditeur` WAS MISSING FROM THIS LIST.
+   *
+   * Launch.php emits it from Host::missing() for the site's own publisher under
+   * article 6 III of the LCEN, and it is four of the twenty-seven refusals the
+   * mirror prints today. It appeared in no label and in no self-test case, so
+   * the summary line under a refusal listed seven conditions while eight were
+   * being evaluated, and the count in the sentence below said « four of five »
+   * when four of the shop's own conditions were being skipped out of five.
+   * Counting wrong in the line that says what was NOT checked is the specific
+   * mistake this gate exists to make impossible.
+   */
+  const SHOP_CONDITIONS = ['identité', 'éditeur', 'tva (barème)', 'cgv', 'textile nu']
   if (shop.ok) {
     blockers.push(...shop.blockers)
-    looked.push('identité', 'tva (barème)', 'cgv', 'textile nu')
+    looked.push(...SHOP_CONDITIONS)
   } else {
     /*
-     * NOT A PASS. Four of the five conditions are the shop's, so a shop that
-     * could not be asked is four conditions nobody looked at, and this script
+     * NOT A PASS. Five of the eight conditions are the shop's, so a shop that
+     * could not be asked is five conditions nobody looked at, and this script
      * says so as a refusal rather than counting them absent.
      */
-    unlooked.push('identité', 'tva (barème)', 'cgv', 'textile nu')
+    unlooked.push(...SHOP_CONDITIONS)
     blockers.push({
       cle: 'boutique',
-      pourquoi: `Quatre conditions sur cinq n'ont pas pu être vérifiées : ${shop.why} « On n'a pas pu regarder » n'est pas « il n'y a rien ».`,
+      pourquoi: `${SHOP_CONDITIONS.length} conditions sur ${looked.length + SHOP_CONDITIONS.length} n'ont pas pu être vérifiées : ${shop.why} « On n'a pas pu regarder » n'est pas « il n'y a rien ».`,
     })
   }
 
-  return { trusted: true, blockers, looked, unlooked }
+  /*
+   * `reached` is the field that makes exit 2 possible, and it distinguishes two
+   * things the old code did not: a shop that answered « no » from a shop nobody
+   * managed to ask. `--depot` is a third state and it is NOT untrusted: not
+   * asking on purpose is a choice, so it refuses with exit 1 like any other
+   * refusal. The old `trusted` field was set here and read nowhere, which is why
+   * this one is asserted by the self-test.
+   */
+  return { reached: shop.ok === true || shop.deliberate === true, blockers, looked, unlooked }
+}
+
+/**
+ * The one number a pipeline reads.
+ *
+ *   0  nothing refuses
+ *   1  something refuses, and we did manage to ask
+ *   2  we could not ask, so the answer is unknown and therefore no
+ *
+ * 2 is not « worse than 1 ». Both block. They differ in what the operator must
+ * do next, and telling them apart is the whole reason this exists: « the shop
+ * said no » is fixed by fixing the shop, « nothing asked the shop » is fixed by
+ * fixing the connection, and a deploy log that says only « refused » sends
+ * somebody looking in the wrong place at seven on a Friday evening.
+ */
+function exitCode(result) {
+  if (!result.reached) return 2
+  return result.blockers.length === 0 ? 0 : 1
 }
 
 function report(result) {
@@ -484,6 +570,20 @@ if (SELF_TEST) {
       shop: () => ({ ok: true, blockers: [{ cle: 'textile-nu', pourquoi: 'aucune référence' }] }),
     },
     {
+      /*
+       * THE EIGHTH KEY, AND IT HAD NO CASE HERE UNTIL 02/09/2026. `Launch.php`
+       * emits `editeur` from `Host::missing()` for the site's own publisher
+       * identity under article 6 III of the LCEN, and it is four of the
+       * twenty-seven refusals the gate prints today. It was in no self-test case
+       * and in no `looked` label, so the one condition currently doing the most
+       * refusing was the one nobody had proved could refuse.
+       */
+      name: 'editeur',
+      why: 'un hébergeur que les mentions légales ne nomment pas',
+      ledger: () => clone(),
+      shop: () => ({ ok: true, blockers: [{ cle: 'editeur', pourquoi: 'raison sociale de l’hébergeur absente' }] }),
+    },
+    {
       name: 'boutique',
       why: 'une boutique qu’on n’a pas pu interroger du tout',
       ledger: () => clone(),
@@ -521,19 +621,70 @@ if (SELF_TEST) {
     allFired = false
   }
 
+  /*
+   * AND THE EXIT CODE ITSELF, because a deploy reads that and not this text.
+   * Three shop answers, three verdicts: reached and clean, reached and refusing,
+   * and never reached. The third is the one that has to come out as 2, and the
+   * second must NOT, or a pipeline would report « we could not look » every time
+   * the shop simply said no.
+   */
+  const exitCases = [
+    { label: 'boutique jointe, rien à redire', shop: { ok: true, blockers: [] }, reached: true, refuses: false },
+    { label: 'boutique jointe, elle refuse', shop: { ok: true, blockers: [{ cle: 'identite', pourquoi: 'SIRET absent' }] }, reached: true, refuses: true },
+    { label: 'boutique injoignable', shop: { ok: false, why: 'ssh a expiré' }, reached: false, refuses: true },
+    { label: '--depot, pas interrogée volontairement', shop: { ok: false, deliberate: true, why: '--depot' }, reached: true, refuses: true },
+  ]
+  for (const c of exitCases) {
+    const r = gate({ ledger: clean, shop: c.shop })
+    const code = exitCode(r)
+    const want = !c.refuses ? 0 : c.reached ? 1 : 2
+    const good = code === want
+    console.log(`  ${good ? 'CODE OK ' : 'CODE FAUX'}  [sortie ${code}, attendu ${want}] ${c.label}`)
+    if (!good) allFired = false
+  }
+
   if (!allFired) {
     console.error(`\n${RED}launch-gate --self-test: au moins un contrôle ne se déclenche pas. Il ne prouve rien.${OFF}`)
     process.exit(2)
   }
-  console.log(`\nlaunch-gate --self-test: les ${cases.length} conditions refusent, et un dépôt propre passe.`)
+  console.log(`\nlaunch-gate --self-test: les ${cases.length} conditions refusent, les ${exitCases.length} codes de sortie sont les bons, et un dépôt propre passe.`)
   process.exit(0)
 }
 
 const shop = DEPOT_ONLY
-  ? { ok: false, why: '--depot : la boutique n’a délibérément pas été interrogée.' }
-  : shopBlockers()
+  ? { ok: false, deliberate: true, why: '--depot : la boutique n’a délibérément pas été interrogée.' }
+  : shopBlockers(TARGET)
 
 const result = gate({ ledger: loaded.data, shop })
+const code = exitCode(result)
+
+/*
+ * MACHINE-READABLE FIRST, and nothing else on stdout when it is asked for. The
+ * deploy attaches this to its run so that « what was refusing on the day we
+ * shipped » is answerable six months later without rerunning anything.
+ */
+if (JSON_OUT) {
+  console.log(
+    JSON.stringify(
+      {
+        verdict: code === 0 ? 'autorisee' : 'refusee',
+        code,
+        reached: result.reached,
+        boutique: TARGET.label,
+        blockers: result.blockers,
+        looked: result.looked,
+        unlooked: result.unlooked,
+      },
+      null,
+      2,
+    ),
+  )
+  process.exit(code)
+}
+
+if (!DEPOT_ONLY) {
+  console.log(`${DIM}boutique interrogée : ${TARGET.label}${OFF}`)
+}
 report(result)
 
 /*
@@ -552,4 +703,11 @@ if (CI) {
   process.exit(0)
 }
 
-process.exit(result.blockers.length === 0 ? 0 : 1)
+if (2 === code) {
+  console.error(
+    `\n${RED}launch-gate: la boutique n'a pas pu être interrogée, donc ${result.unlooked.length} conditions ` +
+      `sur ${result.looked.length + result.unlooked.length} n'ont pas été regardées. Sortie 2 et non 1 : ` +
+      `« on n'a pas pu regarder » n'est pas « la boutique a dit non ».${OFF}`,
+  )
+}
+process.exit(code)
