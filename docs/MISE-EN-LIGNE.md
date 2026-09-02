@@ -98,9 +98,15 @@ voir.
    doit **baisser** entre 14 et 15, et si une nouvelle raison apparaît, c'est une régression
    et elle se traite avant le reste.
 3. Les conditions `identite`, `cgv` et `textile-nu` interrogent la vraie boutique. Sur
-   o2switch, elles répondront autre chose que sur le miroir : la boutique de production a
-   462 produits publiés, pas ceux du miroir. **Rejouer le portail contre la production est
-   une étape de la séance 14, pas une formalité.**
+   o2switch, elles répondront autre chose que sur le miroir. **Rejouer le portail contre la
+   production est une étape de la séance 14, pas une formalité.**
+
+   **Correction du 2 septembre 2026, mesurée en SSH.** Cette ligne annonçait « 462 produits
+   publiés » en production. C'est faux : `wp post list --post_type=product --post_status=publish
+   --format=count` sur teeshoop.com répond **47**. Le 462 est le nombre de références du
+   catalogue importé sur le **miroir**, et il a été recopié ici comme s'il décrivait la
+   boutique. La différence n'est pas cosmétique pour ce document : `textile-nu` parcourt
+   chaque produit publié, donc le chiffre décide de la taille du refus qu'on attend.
 
 ## Séance 15 : répétition générale et mise en ligne
 

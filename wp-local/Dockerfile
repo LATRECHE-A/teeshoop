@@ -22,7 +22,7 @@
 # prompts happen to be asked in, and this extension asks about igbinary, lzf,
 # zstd, msgpack and lz4. Feeding the wrong "yes" to msgpack failed the build
 # looking for php_msgpack.h. Naming each option leaves nothing to the order.
-FROM wordpress:7.0.4-php8.3-apache
+FROM wordpress:7.1-php8.3-apache
 
 RUN set -eux; \
 	apt-get update; \

@@ -77,10 +77,14 @@ critères de la remise par lot sont des jugements). Le détail est dans
 ## 4. Ce que la séance 14 doit faire en premier
 
 1. **`npm run verify:lancement` contre la vraie boutique**, pas contre le
-   miroir. Trois des conditions interrogent WooCommerce, et la production a
-   462 produits publiés qui ne sont pas ceux du miroir. Noter le nombre de
-   raisons condition par condition : il doit baisser entre 14 et 15, et une
-   raison neuve est une régression.
+   miroir. Trois des conditions interrogent WooCommerce, et les produits de la
+   production ne sont pas ceux du miroir. Noter le nombre de raisons condition
+   par condition : il doit baisser entre 14 et 15, et une raison neuve est une
+   régression.
+
+   *(Le « 462 produits publiés » qui était écrit ici était faux, et la séance 14
+   l'a mesuré : la production en a **47**. Le 462 décrit le catalogue importé sur
+   le miroir.)*
 2. **Poser l'identité légale sur teeshoop.com.** Les treize champs sont dans
    `ACCES-REQUIS.md` §6 septies. Ils sont posés sur le miroir et nulle part
    ailleurs.

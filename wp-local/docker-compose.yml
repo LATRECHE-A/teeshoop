@@ -25,15 +25,25 @@
 # the mirror was on 7.0.3. When production moves, this file moves with it, in a
 # commit that says so.
 #
-# ONE GAP REMAINS, AND IT IS THE PHP VERSION. o2switch runs PHP 8.1.34. The
-# official WordPress images stop offering php8.1 at WordPress 6.8, so there is no
-# 7.0.4-php8.1 to pin to, and this mirror runs 8.3. `npm run test:php` runs on
-# whatever PHP the developer has, which today is 8.5. So the plugin's PHP is
-# currently exercised on 8.3 and 8.5 and never on the 8.1 that actually serves
-# customers: anything using syntax or a function introduced after 8.1 would pass
-# every gate here and fatal on the live shop. Until either production is raised
-# or a lint against 8.1 is added, that is a known hole, written here rather than
-# discovered from a white page on teeshoop.com.
+# 02/09/2026, AND THIS IS THAT COMMIT. Production was re-measured before the first
+# deploy and had moved on its own: `wp core version` on o2switch answers 7.1, not
+# the 7.0.4 pinned here since 14/08. WooCommerce has not moved (11.0.1 both sides).
+# The pin is now 7.1 and the mirror was brought to it, checked by database
+# revision and not by the tag: both sides report 61833.
+#
+# Note for whoever moves it next: changing the tag is not enough. The official
+# entrypoint only populates an EMPTY volume, so an existing mirror keeps serving
+# the old core files while `docker compose ps` shows the new image. The volume
+# was upgraded the way the entrypoint would have, then `wp core update-db`.
+#
+# THE PHP GAP IS CLOSED, and this paragraph records how rather than deleting the
+# warning. o2switch runs PHP 8.1.34, the official WordPress images stop offering
+# php8.1 at WordPress 6.8, so there is still no 7.1-php8.1 to pin to and this
+# mirror still runs 8.3. What changed is that the plugin no longer goes to
+# production having never executed on 8.1: `.github/workflows/ci.yml` runs the
+# lint AND the whole PHP suite on `php:8.1-cli`, which is 8.1.34, production's
+# exact patch. Measured the day it was added: 550/550 pass on 8.1, and the
+# repository contained no construct newer than 8.1 to begin with.
 services:
   db:
     image: mariadb:11
@@ -81,7 +91,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: teeshoop/wp-local:7.0.4-php8.3
+    image: teeshoop/wp-local:7.1-php8.3
     depends_on:
       db:
         condition: service_healthy
