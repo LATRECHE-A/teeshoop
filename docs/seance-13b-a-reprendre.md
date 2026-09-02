@@ -31,14 +31,15 @@ Ce n'est pas une anecdote, c'est la seule leçon de méthode de la séance :
 ## 2. Ce que le portail de mise en ligne refuse aujourd'hui
 
 `npm run verify:lancement`, le 2 septembre 2026, sur le miroir : **REFUSÉE,
-28 raisons.** La liste de contrôle des séances 14 et 15 est
+27 raisons**, un compte stable depuis que la suite d'intégration efface ses propres produits.
+La liste de contrôle des séances 14 et 15 est
 `docs/MISE-EN-LIGNE.md`, et le portail tourne maintenant dans l'intégration
 continue, ce qui n'était pas le cas quand il a été livré.
 
 | Condition | Raisons | Ce qui la referme |
 |---|---|---|
 | `registre` | 13 | Les quatre tarifs du studio, la TVA et sa période, le seuil de devis en pièces, les zones d'impression, « imprimé en France », « pour les professionnels », les deux lignes des textes juridiques, et `H-Q63-FACTURE-EXTERNE` |
-| `textile-nu` | 7 | Déclarer le textile nu de quatre produits en vente (trois des sept sont des fixtures de test) |
+| `textile-nu` | 6 | Déclarer le textile nu de trois produits en vente (les trois autres sont des sondes de test) |
 | `editeur` | 4 | Les quatre champs de l'hébergeur, à recopier du contrat o2switch |
 | `cgv` | 2 | Un juriste qui relit et dont le nom et la date sont enregistrés (question 58) |
 | `tva` | 1 | Une phrase du comptable, dans un sens ou dans l'autre (question 70 du registre, question 17 du document) |

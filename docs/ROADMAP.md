@@ -1403,10 +1403,16 @@ n'était dans **aucun** travail d'intégration continue : il était entré dans 
 `npm run ci` et s'était arrêté là, ce qui est exactement la dérive que la séance 12 disait
 corriger « plutôt que d'en ajouter une troisième ». C'était la quatrième.
 
-Mesuré le 2 septembre 2026 sur le miroir : **refusé, 28 raisons** (13 registre, 7 textile nu,
-4 éditeur, 2 CGV, 1 TVA, 1 médiation). C'était quatorze la veille : sept produits sans
-textile nu au lieu de trois après la lecture du catalogue entier, et la ligne neuve
+Mesuré le 2 septembre 2026 sur le miroir : **refusé, 27 raisons** (13 registre, 6 textile nu,
+4 éditeur, 2 CGV, 1 TVA, 1 médiation). C'était quatorze la veille : six produits sans textile
+nu au lieu de trois après la lecture du catalogue entier, et la ligne neuve
 `H-Q63-FACTURE-EXTERNE`.
+
+Le compte a fait un détour par 40 avant de se poser, et le détour valait la mesure : la suite
+d'intégration publiait trois produits personnalisables à chaque exécution sans jamais les
+effacer, donc le portail comptait les résidus de la journée comme des produits en vente. Le
+balayage les retire maintenant, et le vérifie sur les trois identifiants qu'il vient de créer
+plutôt que sur un « rien trouvé ».
 
 Elle a par ailleurs confronté chaque réponse au registre, appliqué les changements par ordre
 de portée, **remesuré** ce qui dépendait d'une valeur modifiée au lieu de le réaffirmer, et

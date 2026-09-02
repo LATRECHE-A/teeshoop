@@ -46,6 +46,7 @@ if ( 'cli' !== PHP_SAPI ) {
 
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Compat;
+use Teeshoop\Core\Mail;
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Pricing;
 use Teeshoop\Core\Product;
@@ -141,6 +142,33 @@ wc_load_cart();
 global $wpdb;
 $ts_high_order = (int) $wpdb->get_var( "SELECT COALESCE(MAX(id), 0) FROM {$wpdb->prefix}wc_orders" );
 $ts_high_post  = (int) $wpdb->get_var( "SELECT COALESCE(MAX(ID), 0) FROM {$wpdb->posts}" );
+/*
+ * THE FIXTURE PRODUCTS, SWEPT BY NAME, AND THE NAME IS THE POINT.
+ *
+ * `ts_product()` publishes three products on every run and nothing removed
+ * them, so six runs of this suite left twelve personalisable products on sale
+ * declaring no blank. `npm run verify:lancement` counts exactly that, by name,
+ * so its verdict drifted from 7 refusals to 19 in one afternoon and the figure
+ * written in `docs/MISE-EN-LIGNE.md` stopped being true.
+ *
+ * BY NAME AND NOT BY A HIGH-WATER MARK, after two attempts at the general
+ * sweep failed and were measured failing: a product created here comes back
+ * with an id above `MAX(ID)` in `wp_posts` and is not in the id list
+ * `wc_get_products()` returns, so both the posts query and the product query
+ * found nothing to delete and reported success. These three titles are created
+ * nowhere else in the repository, which makes the narrow sweep provable where
+ * the general one was not.
+ */
+$ts_fixture_names = array( 'Integration fixture', 'Integration hoodie', 'Integration undeclared' );
+$ts_fixtures_left = static function () use ( $ts_fixture_names ): array {
+	$out = array();
+	foreach ( $ts_fixture_names as $ts_name ) {
+		foreach ( (array) get_posts( array( 'post_type' => 'product', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids', 'title' => $ts_name ) ) as $ts_id ) {
+			$out[] = (int) $ts_id;
+		}
+	}
+	return $out;
+};
 
 $ts_settings_before = get_option( 'teeshoop_settings', array() );
 update_option( 'teeshoop_settings', array_merge( (array) $ts_settings_before, array( 'worker_url' => 'https://worker.invalid' ) ) );
@@ -749,7 +777,7 @@ update_option( 'teeshoop_settings', $ts_settings_before );
  * order under HPOS lives in four tables and the invoice, the waiver and the
  * design meta hang off it; deleting the row would leave the rest.
  */
-$ts_removed = array( 'orders' => 0, 'posts' => 0 );
+$ts_removed = array( 'orders' => 0, 'posts' => 0, 'products' => 0, 'outbox' => 0 );
 foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}wc_orders WHERE id > %d", $ts_high_order ) ) as $ts_id ) {
 	$ts_order = wc_get_order( (int) $ts_id );
 	if ( $ts_order ) {
@@ -757,9 +785,64 @@ foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix
 		++$ts_removed['orders'];
 	}
 }
+
+/*
+ * AND THE OUTBOX ROWS THOSE ORDERS LEFT, which nothing took with them.
+ *
+ * `Mail` keeps its own table and deleting an order does not touch it, so every
+ * confirmation, proof and dispatch notice this suite ever queued stayed behind
+ * pointing at an order that no longer exists. Measured on 2 September 2026:
+ * 86 084 rows, of which 85 698 were orphans, and `Mail::stuck()` answered 8 489
+ * instead of a number a person could read. « sees a message nobody knows the
+ * fate of » does arithmetic on that number and started failing by one, which is
+ * how the pile was found.
+ *
+ * Orphans and not « rows this suite made »: a row whose order is gone can never
+ * be acted on again, whoever wrote it.
+ */
+$ts_removed['outbox'] = (int) $wpdb->query(
+	"DELETE o FROM " . Mail::table() . " o
+	 WHERE o.order_id > 0
+	   AND NOT EXISTS ( SELECT 1 FROM {$wpdb->prefix}wc_orders w WHERE w.id = o.order_id )"
+);
 foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE ID > %d AND post_type IN ( 'ts_lot', 'shop_order_placehold' )", $ts_high_post ) ) as $ts_id ) {
 	wp_delete_post( (int) $ts_id, true );
 	++$ts_removed['posts'];
+}
+
+/*
+ * AND THE PRODUCTS, WHICH THIS SWEEP DID NOT TOUCH.
+ *
+ * `ts_product()` publishes « Integration fixture » and « Integration hoodie » on
+ * every run and nothing removed them, so six runs of this suite left twelve
+ * personalisable products on sale declaring no blank. The launch gate counts
+ * exactly that, by name, so its verdict drifted from 7 refusals to 19 in one
+ * afternoon and the number in `docs/MISE-EN-LIGNE.md` stopped being true.
+ *
+ * Measured on 2 September 2026. Variations go with their parent, which is why
+ * this deletes the parents and lets WooCommerce take the children.
+ */
+/*
+ * FLUSHED FIRST, AND THIS IS THE THIRD THING THAT MADE THIS SWEEP LOOK CLEAN
+ * WHILE DOING NOTHING. The mirror runs a persistent object cache, and a product
+ * created earlier in THIS request is not returned by a query made later in it:
+ * measured on 2 September 2026, the fixture came back with an id the sweep's own
+ * query did not list, so the sweep removed the PREVIOUS run's products and
+ * reported success while leaving its own behind. One run's worth of residue is
+ * unbounded over a hundred runs.
+ */
+wp_cache_flush();
+
+$ts_fixture_ids = array( 'tee' => $product_id, 'hoodie' => $hoodie_id, 'bare' => $bare_id );
+
+foreach ( $ts_fixtures_left() as $ts_id ) {
+	$ts_product = wc_get_product( $ts_id );
+	if ( $ts_product ) {
+		// `delete( true )` takes any variations with it, which `wp_delete_post`
+		// would leave orphaned.
+		$ts_product->delete( true );
+		++$ts_removed['products'];
+	}
 }
 
 /*
@@ -769,13 +852,35 @@ foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts}
  */
 ts_it(
 	'leaves the mirror as it found it',
-	function () use ( $ts_high_order, $ts_high_post, $ts_removed ) {
+	function () use ( $ts_high_order, $ts_high_post, $ts_fixture_ids, $ts_removed ) {
 		global $wpdb;
-		$left_orders = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}wc_orders WHERE id > %d", $ts_high_order ) );
-		$left_lots   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE ID > %d AND post_type = 'ts_lot'", $ts_high_post ) );
+		$left_orders   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}wc_orders WHERE id > %d", $ts_high_order ) );
+		$left_lots     = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE ID > %d AND post_type = 'ts_lot'", $ts_high_post ) );
+		/*
+		 * THE THREE IDS THIS RUN ACTUALLY CREATED, and not a count of what is
+		 * left. « Nothing found » would be vacuous on a mirror that never had
+		 * any; these three were made forty lines above and must be gone.
+		 */
+		$left_products = count( array_filter(
+			array( $ts_fixture_ids['tee'], $ts_fixture_ids['hoodie'], $ts_fixture_ids['bare'] ),
+			static fn( int $id ): bool => wc_get_product( $id ) instanceof WC_Product
+		) );
 		ts_eq( $left_orders, 0, "orders left behind (removed {$ts_removed['orders']})" );
 		ts_eq( $left_lots, 0, "print lots left behind (removed {$ts_removed['posts']})" );
+		ts_eq( $left_products, 0, "products left behind (removed {$ts_removed['products']})" );
+		$left_outbox = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM " . Mail::table() . " o
+			 WHERE o.order_id > 0
+			   AND NOT EXISTS ( SELECT 1 FROM {$wpdb->prefix}wc_orders w WHERE w.id = o.order_id )"
+		);
+		ts_eq( $left_outbox, 0, "orphaned outbox rows left behind (removed {$ts_removed['outbox']})" );
 		ts_assert( $ts_removed['orders'] > 0, 'the suite created no order at all, so this sweep proves nothing' );
+		/*
+		 * No « removed > 0 » for products, deliberately. The sweep legitimately
+		 * removes nothing on a mirror the previous run left clean, and the
+		 * assertion above is the one that cannot pass vacuously: it names three
+		 * ids that certainly existed.
+		 */
 	}
 );
 

@@ -59,20 +59,26 @@ d'exception ici.
 
 ## L'état mesuré, le 2 septembre 2026
 
-**REFUSÉE, 28 raisons**, réparties ainsi :
+**REFUSÉE, 27 raisons**, réparties ainsi :
 
 | Condition | Raisons |
 |---|---|
 | `registre` | 13 |
-| `textile-nu` | 7 |
+| `textile-nu` | 6 |
 | `editeur` | 4 |
 | `cgv` | 2 |
 | `tva` | 1 |
 | `mediation` | 1 |
 
 Sept des treize lignes du registre sont les quatre tarifs de démonstration du studio, la
-TVA et sa période, et le seuil de devis. Les sept produits sans textile nu incluent trois
-fixtures de test ; les quatre autres sont de vrais produits en vente.
+TVA et sa période, et le seuil de devis. Les six produits sans textile nu incluent trois
+sondes de test ; les trois autres sont de vrais produits en vente.
+
+**Ce nombre est stable depuis le 2 septembre 2026, et il ne l'était pas avant.** La suite
+d'intégration publiait trois produits à chaque exécution sans jamais les effacer, donc le
+verdict montait tout seul, de 7 refus à 19 en une après-midi. Le balayage de fin de suite les
+retire maintenant et le vérifie. Si ce compte remonte sans qu'une décision ait été prise, la
+première chose à regarder est le miroir et non la boutique.
 
 **La treizième ligne est neuve et vient de la séance du 2 septembre :**
 `H-Q63-FACTURE-EXTERNE`. Le site n'émet plus de facture depuis que la réponse à la question
