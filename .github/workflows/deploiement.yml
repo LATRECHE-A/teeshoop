@@ -1,0 +1,249 @@
+name: Déploiement
+
+# ── CE QUE CE FICHIER FAIT, ET CE QU'IL REFUSE DE FAIRE ──────────────────────
+#
+# Un `push` sur `main` déploie en PRÉPRODUCTION, tout seul. La PRODUCTION ne se
+# déploie que par une action manuelle, et cette asymétrie est la séance 14 tout
+# entière : la boutique a quinze commandes réelles, des noms, des adresses et des
+# adresses e-mail de vraies personnes, et elle n'encaisse plus rien depuis
+# avril 2025. Le risque ici n'est pas d'interrompre un chiffre d'affaires, c'est
+# de détruire un historique qu'on ne peut pas refaire.
+#
+# CE QUI PART : notre extension et notre thème. Rien d'autre. Jamais
+# `wp-content/uploads`, jamais une installation WordPress entière, jamais la
+# base. `scripts/deploiement.sh`, côté serveur, n'a d'ailleurs aucun verbe pour
+# le faire, et la clé de déploiement ne peut lancer que ce script.
+#
+# CE QUI NE PART PAS D'ICI : le studio. Il est servi par le Worker Cloudflare, et
+# il n'y a qu'UN Worker pour les deux environnements. Un déploiement automatique
+# sur un `push` changerait donc ce que voient les clients de la production en même
+# temps que la préproduction. Il a son propre travail, manuel, tout en bas, et il
+# le restera tant qu'il n'y aura pas un second environnement Worker.
+#
+# ── LES SECRETS QUE CE FICHIER ATTEND ────────────────────────────────────────
+#
+#   O2SWITCH_DEPLOY_KEY    la moitié privée de la paire dédiée du 02/09/2026
+#   O2SWITCH_HOST          ascaphus.o2switch.net
+#   O2SWITCH_USER          dawe4500
+#   O2SWITCH_KNOWN_HOSTS   la clé d'hôte, pour ne pas accepter n'importe quel
+#                          serveur qui répond à ce nom
+#   CLOUDFLARE_API_TOKEN   seulement pour le travail « studio », tout en bas
+#
+# Aucun n'est dans le dépôt et aucun ne doit y arriver. Comment les poser :
+# docs/DEPLOIEMENT.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      cible:
+        description: "Où déployer"
+        required: true
+        type: choice
+        default: preprod
+        options: [preprod, prod]
+
+concurrency:
+  # Deux déploiements simultanés sur la même installation échangent deux fois le
+  # même répertoire et laissent une livraison mise de côté que personne ne
+  # retrouve. On ne les met pas en file : le second attend le premier.
+  group: deploiement-${{ github.event.inputs.cible || 'preprod' }}
+  cancel-in-progress: false
+
+jobs:
+  # Exactement les contrôles de l'intégration continue, appelés et non recopiés.
+  # `ci.yml` et `npm run ci` ont déjà divergé deux fois ; une troisième liste tenue
+  # à la main dans un fichier de déploiement est la façon dont un déploiement passe
+  # devant une porte que personne n'a pensé à y remettre.
+  verifications:
+    uses: ./.github/workflows/ci.yml
+
+  preproduction:
+    needs: verifications
+    if: github.event_name == 'push' || github.event.inputs.cible == 'preprod'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+
+      - run: npm ci
+
+      - name: Ouvrir la porte SSH
+        env:
+          CLE: ${{ secrets.O2SWITCH_DEPLOY_KEY }}
+          HOTES: ${{ secrets.O2SWITCH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          # Fermé par défaut : sans secret, on s'arrête ici plutôt que de lancer
+          # un déploiement qui échouera trois étapes plus loin en disant autre chose.
+          [ -n "$CLE" ] || { echo "O2SWITCH_DEPLOY_KEY n'est pas posé."; exit 1; }
+          [ -n "$HOTES" ] || { echo "O2SWITCH_KNOWN_HOSTS n'est pas posé. On n'accepte pas une clé d'hôte à l'aveugle."; exit 1; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$HOTES" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<CONF
+          Host teeshoop
+            HostName ${{ secrets.O2SWITCH_HOST }}
+            User ${{ secrets.O2SWITCH_USER }}
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+          CONF
+          chmod 600 ~/.ssh/config
+
+      # LA CIBLE EST-ELLE ENCORE CELLE CONTRE LAQUELLE CE DÉPÔT A ÉTÉ ÉCRIT.
+      # Les mises à jour majeures automatiques sont activées sur les deux
+      # installations : la production est passée en WordPress 7.1 toute seule le
+      # 20 août, et la préproduction pendant la séance du 2 septembre, à 14 h 38.
+      # Répéter une manoeuvre sur une préproduction qui n'a pas la version de la
+      # boutique ne prouve rien.
+      - name: La préproduction est bien la version attendue
+        run: node scripts/pin-verify.mjs --cible=preprod
+
+      - name: Sauvegarder avant de toucher quoi que ce soit
+        run: ssh teeshoop './deploiement.sh sauvegarder preprod'
+
+      - name: Envoyer l'extension et le thème
+        run: |
+          set -euo pipefail
+          # --delete : sinon un fichier supprimé du dépôt reste sur le serveur et
+          # la copie n'est plus une copie. Les tests et le README ne partent pas :
+          # rien à l'exécution ne les lit, et wp-content/plugins est servi par URL.
+          rsync -az --delete \
+            --exclude '/tests/' --exclude '/README.md' \
+            wp-plugins/teeshoop-core/ teeshoop:teeshoop-deploiements/preprod/entrant/teeshoop-core/
+          rsync -az --delete \
+            wp-themes/teeshoop/ teeshoop:teeshoop-deploiements/preprod/entrant/teeshoop/
+
+      # Analyse avec le PHP DU SERVEUR, échange atomique, activation, migration,
+      # puis une sonde qui charge WordPress. Chacune de ces quatre étapes qui rate
+      # remet la livraison précédente, sur le serveur, sans revenir ici.
+      - name: Installer
+        run: ssh teeshoop './deploiement.sh installer preprod'
+
+      - name: État après déploiement
+        run: ssh teeshoop './deploiement.sh etat preprod'
+
+      # POUR INFORMATION ET NON POUR BLOQUER. La préproduction est l'endroit où
+      # l'on teste une boutique qui n'a pas le droit d'ouvrir, donc un refus du
+      # portail y est normal et attendu. Il est imprimé pour être lu et comparé
+      # d'une séance à l'autre.
+      - name: Ce que le portail de mise en ligne dit de la préproduction
+        continue-on-error: true
+        run: node scripts/launch-gate.mjs --boutique=ssh:teeshoop:~/myTiger-Preprod/4bde-26076daa9357.wptiger.fr
+
+  production:
+    needs: verifications
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.cible == 'prod'
+    runs-on: ubuntu-latest
+    # Un environnement GitHub, pour que la validation manuelle et la liste des
+    # personnes qui peuvent la donner vivent dans les réglages du dépôt et non
+    # dans ce fichier. À créer : Settings > Environments > production.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+
+      - run: npm ci
+
+      - name: Ouvrir la porte SSH
+        env:
+          CLE: ${{ secrets.O2SWITCH_DEPLOY_KEY }}
+          HOTES: ${{ secrets.O2SWITCH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [ -n "$CLE" ] || { echo "O2SWITCH_DEPLOY_KEY n'est pas posé."; exit 1; }
+          [ -n "$HOTES" ] || { echo "O2SWITCH_KNOWN_HOSTS n'est pas posé."; exit 1; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$HOTES" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<CONF
+          Host teeshoop
+            HostName ${{ secrets.O2SWITCH_HOST }}
+            User ${{ secrets.O2SWITCH_USER }}
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+          CONF
+          chmod 600 ~/.ssh/config
+
+      # ── LA PORTE, ET ELLE EST FERMÉE AUJOURD'HUI ────────────────────────────
+      #
+      # C'est la troisième des trois règles écrites le 18 août 2026 quand la
+      # décision a été prise de construire les séances 04 à 13 sur des hypothèses
+      # plutôt que de s'arrêter :
+      #
+      #   « La mise en ligne est bloquée automatiquement tant qu'une réponse
+      #     bloquante manque sur un nombre qu'un client, un fournisseur ou une
+      #     imprimante finit par voir. Ce n'est pas une note dans un document,
+      #     c'est un contrôle qui refuse de laisser passer. »
+      #
+      # Ici, sans `continue-on-error`, avant tout envoi de fichier. Au 2 septembre
+      # 2026 il sort 2 (la boutique ne peut pas être interrogée, l'extension n'y
+      # est pas) et sortira 1 ensuite, et les deux arrêtent ce travail.
+      #
+      # IL N'Y A PAS DE DÉROGATION ET IL NE FAUT PAS EN ÉCRIRE UNE. La porte se
+      # lève en répondant aux questions qu'elle nomme, et docs/MISE-EN-LIGNE.md
+      # dit lesquelles. Une boutique qui déploie par-dessus ce refus publie un
+      # prix que personne n'a confirmé.
+      - name: Le portail de mise en ligne autorise-t-il la production
+        run: node scripts/launch-gate.mjs --boutique=ssh:teeshoop:~/public_html
+
+      - name: La production est bien la version attendue
+        run: node scripts/pin-verify.mjs --cible=prod
+
+      - name: Sauvegarder avant de toucher quoi que ce soit
+        run: ssh teeshoop './deploiement.sh sauvegarder prod'
+
+      - name: Envoyer l'extension et le thème
+        run: |
+          set -euo pipefail
+          rsync -az --delete \
+            --exclude '/tests/' --exclude '/README.md' \
+            wp-plugins/teeshoop-core/ teeshoop:teeshoop-deploiements/prod/entrant/teeshoop-core/
+          rsync -az --delete \
+            wp-themes/teeshoop/ teeshoop:teeshoop-deploiements/prod/entrant/teeshoop/
+
+      - name: Installer
+        run: ssh teeshoop './deploiement.sh installer prod'
+
+      - name: État après déploiement
+        run: ssh teeshoop './deploiement.sh etat prod'
+
+  # ── LE STUDIO, SÉPARÉMENT ET À LA MAIN ──────────────────────────────────────
+  #
+  # `wrangler deploy` publie le bundle sur le Worker Cloudflare, et il n'y a
+  # qu'un Worker : ce que ce travail envoie est vu par les clients de la
+  # production, quelle que soit la branche d'où il part. Il ne se déclenche donc
+  # jamais sur un `push`, et il ne sera automatisable que le jour où il y aura un
+  # second environnement Worker pour la préproduction.
+  #
+  # `npm run deploy` fait la construction, le garde-fou de bundle et l'envoi dans
+  # cet ordre, et le garde-fou est ce qui empêche un prix d'achat ou un modèle de
+  # coût de partir dans un fichier que le client télécharge.
+  studio:
+    if: github.event_name == 'workflow_dispatch'
+    needs: verifications
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Le jeton Cloudflare est-il posé
+        env:
+          JETON: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          [ -n "$JETON" ] || { echo "CLOUDFLARE_API_TOKEN n'est pas posé, le studio ne part pas."; exit 1; }
+      - name: Construire, vérifier la frontière, publier
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npm run deploy

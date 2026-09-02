@@ -24,6 +24,13 @@ name: CI
 on:
   push:
   pull_request:
+  # CALLABLE, so that .github/workflows/deploiement.yml can require these exact
+  # checks rather than list them again. This file and `npm run ci` have already
+  # drifted twice (session 12 found verify:palette and verify:couleurs in one and
+  # not the other, session 13b found the launch gate in neither), and a third
+  # hand-kept copy inside a deploy workflow is how a deploy ships past a gate
+  # somebody forgot to add there.
+  workflow_call:
 
 jobs:
   verify:
