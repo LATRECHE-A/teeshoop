@@ -10,20 +10,12 @@ suivi ligne à ligne, sans rien deviner.
 
 ---
 
-## Avant tout : ce qu'un `push` fait, et ce qu'il ne fait pas
+## Avant tout : une poussée livre la préproduction, depuis cette machine
 
-Il ne livre rien, et la raison n'est pas celle qu'on croit.
+C'est vrai depuis le 02/09/2026, et la nuance est dans « depuis cette machine ».
 
-**Ce qui a été corrigé le 02/09/2026.** La branche par défaut du dépôt, `main`, ne
-contenait aucun fichier de travail GitHub, pas même celui de l'intégration
-continue : tout vivait sur `r0-securite-et-socle`, avec 245 commits d'avance.
-`workflow_dispatch` n'apparaissait donc pas dans l'onglet Actions, parce que
-GitHub ne propose au lancement manuel que les travaux présents sur la branche par
-défaut. `main` a été avancée, et *Déploiement* est lançable depuis l'interface.
-
-**Ce qui ne peut pas être corrigé ici.** Le déclencheur `on: push` existait, il a
-tourné pour de vrai le même jour, il a passé toutes les portes, et il s'est arrêté
-sur :
+**Ce qui ne marchait pas, et pourquoi ce n'était pas réparable.** Le déclencheur
+`on: push` a tourné pour de vrai, a passé toutes les portes, et s'est arrêté sur
 
 ```
 pin-verify: preprod n'a pas répondu :
@@ -32,33 +24,38 @@ ssh: connect to host *** port 22: Connection timed out
 
 **o2switch filtre SSH par adresse IP**, cinq au maximum par compte (voir
 `ACCES-REQUIS.md` §1 bis). L'adresse du développeur y est ; celle d'un exécutant
-GitHub, non, et elle ne peut pas y être : ces machines sont éphémères et tirent
-leur adresse de plages entières que personne ne peut lister. Mesuré à la minute
-près le même jour : depuis la machine du développeur le port 22 répond, depuis
-l'exécutant il expire.
+hébergé par GitHub, jamais : ces machines sont éphémères et tirent leur adresse de
+plages entières que personne ne peut lister. Mesuré à la minute près : depuis la
+machine du développeur le port 22 répond, depuis l'exécutant il expire.
 
-Ce n'est donc pas une panne à réparer, c'est une propriété de l'hébergement, et
-il y a trois façons de vivre avec :
+**Ce qui a été fait.** Un **exécutant auto-hébergé** tourne sur la machine du
+développeur, étiqueté `o2switch-autorise`. Sa seule raison d'être est que son
+adresse est autorisée. Le travail de déploiement s'y exécute, et une poussée sur
+`main` livre donc la préproduction pour de bon. Vérifié de bout en bout : la
+poussée du 02/09/2026 a lancé la vérification (deux versions de PHP), puis la
+séquence complète, sauvegarde de 289 Mo comprise.
 
-1. **un exécutant auto-hébergé** sur une machine dont l'adresse est autorisée.
-   C'est la seule qui rende « une poussée livre la préproduction » littéralement
-   vrai. Elle demande qu'une machine reste allumée et enregistrée auprès de
-   GitHub. Rien d'autre à changer que le `runs-on` et le déclencheur ;
-2. **piloter depuis une machine autorisée**, avec `scripts/deployer.sh`, qui
-   exécute la même séquence, dans le même ordre, avec les mêmes portes. C'est ce
-   qui est en place ;
-3. ouvrir SSH à des plages entières d'un fournisseur de nuage, ce qui revient à
-   retirer le filtre. Non.
+Les travaux **n'écrivent plus la séquence une seconde fois** : ils appellent
+`scripts/deployer.sh`, qui reste la seule description de ce qui part et dans quel
+ordre. Cela a aussi retiré un vrai danger : l'ancienne étape « Ouvrir la porte
+SSH » écrivait `~/.ssh/id_ed25519` et complétait `~/.ssh/config`, inoffensif sur
+une machine jetable, destructeur sur l'exécutant auto-hébergé où c'est le vrai
+dossier `.ssh` du développeur.
 
-Le déclencheur `on: push` a donc été **retiré** de
-`.github/workflows/deploiement.yml`. Le laisser aurait donné une croix rouge à
-chaque poussée sur une panne qui n'en est pas une, et une intégration continue
-rouge en permanence est une intégration continue que personne ne lit.
+**La contrepartie, et il faut la connaître :** le déploiement automatique dépend
+d'une machine allumée. Si elle est éteinte, la poussée attend au lieu de livrer,
+et `scripts/deployer.sh preprod` fait la même chose à la main en **1 min 19 s**.
 
-**Ce que GitHub garde, et qui n'est pas rien :** toute la vérification.
-`ci.yml` se déclenche sur `push`, sans restriction de branche, sur deux versions
-de PHP. Et *Déploiement* reste lançable à la main pour le jour où un exécutant
-auto-hébergé existe.
+| | |
+|---|---|
+| Service | `systemctl --user status teeshoop-runner` |
+| Journal | `journalctl --user -u teeshoop-runner -f` |
+| Le voir côté GitHub | Settings > Actions > Runners, `teeshoop-o2switch` |
+| Survivre à une déconnexion | `sudo loginctl enable-linger $USER`, **à faire une fois** |
+
+Sans cette dernière commande, systemd arrête les services utilisateur à la
+fermeture de la dernière session, et l'exécutant repasse hors ligne sans que rien
+ne le dise.
 
 ---
 
@@ -66,7 +63,7 @@ auto-hébergé existe.
 
 | Je veux | Je fais |
 |---|---|
-| Livrer en préproduction | `./scripts/deployer.sh preprod`, depuis une machine dont l'adresse est autorisée en SSH · **1 min 19 s**, chronométré le 02/09/2026 |
+| Livrer en préproduction | Rien : une poussée sur `main` le fait. À la main, `./scripts/deployer.sh preprod` · **1 min 19 s**, chronométré le 02/09/2026 |
 | Livrer en production | `./scripts/deployer.sh prod`. Aujourd'hui **ça refuse avant d'envoyer quoi que ce soit**, et c'est voulu : voir §6. |
 | Annuler la dernière livraison | `ssh teeshoop './deploiement.sh retour preprod'` · **3 secondes** |
 | Tout remettre comme avant-hier | §7, la restauration de base · **18 secondes** |
@@ -140,7 +137,7 @@ n'y a pas un second environnement Worker.
 ## 3. Comment un déploiement se déroule vraiment
 
 ```
-./scripts/deployer.sh preprod        (ou GitHub > Actions > Déploiement)
+push sur main  (ou ./scripts/deployer.sh preprod, qui est la même séquence)
   └─ port 22 joignable ?  posé en premier, parce qu'un délai dépassé sur SSH
   │                       pendant que le site répond en HTTPS ne ressemble pas
   │                       à un problème d'autorisation

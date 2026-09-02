@@ -25,10 +25,13 @@
 # y a trois façons de vivre avec, et la deuxième est celle-ci :
 #
 #   1. un exécutant AUTO-HÉBERGÉ sur une machine autorisée. C'est la seule qui
-#      rende « un push livre la préproduction » littéralement vrai. Elle demande
-#      qu'une machine reste allumée et enregistrée auprès de GitHub ;
-#   2. **piloter le déploiement depuis une machine autorisée**, avec ce script,
-#      qui exécute la même séquence dans le même ordre et avec les mêmes portes ;
+#      rende « un push livre la préproduction » littéralement vrai, et c'est ce
+#      qui a été fait le 02/09/2026 : le service `teeshoop-runner`, étiqueté
+#      `o2switch-autorise`. Il demande une machine allumée ;
+#   2. **piloter le déploiement depuis une machine autorisée**, avec ce script.
+#      C'est ce que le travail GitHub appelle, pour qu'il n'y ait qu'une seule
+#      description de la séquence, et c'est le recours quand la machine est
+#      éteinte ;
 #   3. ouvrir SSH à des plages entières d'un fournisseur de nuage, ce qui revient
 #      à retirer le filtre. Non.
 #

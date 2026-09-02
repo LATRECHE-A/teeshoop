@@ -1116,6 +1116,47 @@ requêtes au lieu de deux cent quinze pour cette raison autant que pour la vites
 
 ---
 
+## 6 nonies. Une commande à lancer une fois, et un mot de passe à connaître (02/09/2026)
+
+### Une seule commande vous est demandée
+
+```bash
+sudo loginctl enable-linger $USER
+```
+
+**Pourquoi.** Le déploiement automatique tourne sur un exécutant GitHub
+auto-hébergé (`teeshoop-runner`), installé en service systemd **utilisateur**,
+parce que ce compte n'a pas de `sudo` sans mot de passe. systemd arrête les
+services utilisateur à la fermeture de la dernière session : sans cette commande,
+l'exécutant repasse hors ligne à la déconnexion et une poussée attend au lieu de
+livrer, sans que rien ne le dise.
+
+Pour vérifier après coup : `loginctl show-user $USER --property=Linger` doit
+répondre `Linger=yes`, et `systemctl --user status teeshoop-runner` doit être
+`active (running)`.
+
+**Ce n'est pas bloquant.** Machine éteinte ou exécutant arrêté,
+`./scripts/deployer.sh preprod` fait exactement la même chose à la main, en
+1 min 19 s.
+
+### L'accès à la préproduction
+
+La préproduction WP Tiger est derrière une authentification HTTP posée par
+l'hébergeur le 13/08/2026. Le compte `wptiger` d'origine est intact et son mot de
+passe n'est pas en notre possession ; un second compte a été ajouté le
+02/09/2026 pour que le site soit consultable.
+
+**Les identifiants sont dans un fichier, pas ici et jamais dans une conversation :**
+
+```bash
+cat ~/.config/teeshoop/preprod-acces.txt
+```
+
+Le fichier est en 0600 et hors du dépôt. Pour retirer ce compte, la commande est
+écrite dedans.
+
+---
+
 ## 7. Plus tard : inutile de les créer maintenant
 
 Ces accès ne servent qu'à partir de R1/R2. Les créer trop tôt, c'est multiplier les
