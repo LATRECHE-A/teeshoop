@@ -1,0 +1,43 @@
+{
+	"_lisez_moi": "Écrit par scripts/acces-probe.mjs. Les nuits suivantes lisent ce fichier pour choisir leur branche. « ferme » et « indetermine » ne sont pas la même chose : voir l en-tête du script.",
+	"releve_le": "2026-09-03T19:21:10.264Z",
+	"canal_deploiement": "ouvert",
+	"sondes": {
+		"ip_publique": {
+			"etat": "ouvert",
+			"adresse": "176.140.195.150",
+			"sources": [
+				"ifconfig.me",
+				"icanhazip"
+			]
+		},
+		"tcp_22_o2switch": {
+			"etat": "ouvert",
+			"hote": "ascaphus.o2switch.net",
+			"port": 22,
+			"ms": 282
+		},
+		"ssh_teeshoop": {
+			"etat": "ouvert",
+			"alias": "teeshoop",
+			"hote_repondu": "ascaphus.o2switch.net",
+			"ms": 747
+		},
+		"wrangler": {
+			"etat": "ouvert",
+			"ms": 8402
+		},
+		"http_production": {
+			"etat": "ouvert",
+			"url": "https://www.teeshoop.com/",
+			"code": 200,
+			"ms": 1127
+		},
+		"http_preproduction": {
+			"etat": "ouvert",
+			"url": "https://4bde-26076daa9357.wptiger.fr/",
+			"code": 401,
+			"ms": 316
+		}
+	}
+}
