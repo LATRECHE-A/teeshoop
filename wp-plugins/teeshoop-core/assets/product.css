@@ -310,6 +310,19 @@
 	border: 1px solid var(--ts-line-strong);
 	border-radius: 3px;
 	background: var(--ts-surface);
+	/*
+	 * SUR CETTE TEINTE, LE GRIS SECONDAIRE EST L'AUTRE.
+	 *
+	 * `--ts-muted` est le #767676 de l'associé et il vaut 4,54:1 sur du papier,
+	 * ce qui passe AA de quatre centièmes. Sur `--ts-surface` il tombe à 4,24:1
+	 * et échoue. Redéclarer le jeton ICI plutôt que de changer la couleur de
+	 * chaque texte : une propriété personnalisée cascade, donc tout ce qui est
+	 * dessiné dans ce bloc et lit `var(--ts-muted)` prend la variante sombre
+	 * sans avoir à être listé quelque part, et rien ne rote quand un enfant est
+	 * ajouté. Mesuré par `npm run verify:a11y`, qui refusait 13 textes sur la
+	 * page catalogue.
+	 */
+	--ts-muted: var(--ts-muted-strong);
 	color: var(--ts-ink);
 	font-size: 0.875rem;
 	cursor: pointer;
@@ -323,6 +336,7 @@
 	padding: 0.75rem 0.875rem;
 	border-left: 3px solid var(--ts-ink);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-estimate__for {
@@ -457,6 +471,7 @@
 	border: 1px solid var(--ts-line);
 	border-radius: 4px;
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-devis__lead {

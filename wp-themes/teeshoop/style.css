@@ -580,6 +580,19 @@ html {
 	overflow: hidden;
 	border-radius: var(--ts-radius);
 	background: var(--ts-surface);
+	/*
+	 * SUR CETTE TEINTE, LE GRIS SECONDAIRE EST L'AUTRE.
+	 *
+	 * `--ts-muted` est le #767676 de l'associé et il vaut 4,54:1 sur du papier,
+	 * ce qui passe AA de quatre centièmes. Sur `--ts-surface` il tombe à 4,24:1
+	 * et échoue. Redéclarer le jeton ICI plutôt que de changer la couleur de
+	 * chaque texte : une propriété personnalisée cascade, donc tout ce qui est
+	 * dessiné dans ce bloc et lit `var(--ts-muted)` prend la variante sombre
+	 * sans avoir à être listé quelque part, et rien ne rote quand un enfant est
+	 * ajouté. Mesuré par `npm run verify:a11y`, qui refusait 13 textes sur la
+	 * page catalogue.
+	 */
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-hero__photo {
@@ -765,6 +778,7 @@ ul.products li.product a img,
 	margin: 0 0 var(--ts-space-3);
 	border: 1px solid var(--ts-line);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .woocommerce ul.products li.product .woocommerce-loop-product__title,
@@ -879,6 +893,7 @@ div.product span.price {
 	padding: var(--ts-space-3);
 	border-inline-start: 3px solid var(--ts-line-strong);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 	max-width: var(--ts-measure);
 }
 
@@ -935,6 +950,7 @@ div.product span.price {
 
 .ts-sort__go:hover {
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .woocommerce ul.products li.product .price,
@@ -956,6 +972,7 @@ ul.products li.product .price {
 	margin: 0 0 var(--ts-space-3);
 	border: 1px dashed var(--ts-line-strong);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 	color: var(--ts-muted);
 	font-size: var(--ts-eyebrow-size);
 	font-family: var(--ts-font-display);
@@ -1020,6 +1037,7 @@ ul.products li.product .price {
 	padding: var(--ts-space-6);
 	border: 1px dashed var(--ts-line-strong);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-empty__title {
@@ -1064,6 +1082,7 @@ ul.products li.product .price {
 	padding: var(--ts-space-3) var(--ts-space-4);
 	border: 0;
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 	color: var(--ts-ink);
 	font: inherit;
 	font-family: var(--ts-font-display);
@@ -1324,6 +1343,7 @@ a.ts-chip:hover {
 
 .ts-fam__head:hover {
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-fam__head:focus-visible {
@@ -1377,6 +1397,7 @@ a.ts-chip:hover {
 	padding: var(--ts-space-3);
 	border-top: 1px solid var(--ts-line);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	list-style: none;
@@ -1387,6 +1408,7 @@ a.ts-chip:hover {
 	flex: 1 0 100%;
 	justify-content: flex-start;
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 	border-style: dashed;
 }
 
@@ -1403,6 +1425,7 @@ a.ts-chip:hover {
 .ts-fam__why {
 	border-top: 1px solid var(--ts-line);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-fam__source {
@@ -1777,6 +1800,7 @@ a.ts-chip:hover {
 	border-left: 3px solid var(--ts-accent);
 	border-radius: 0;
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 	color: var(--ts-ink);
 	font-size: var(--ts-text);
 	list-style: none;
@@ -1827,6 +1851,7 @@ a.ts-chip:hover {
 .woocommerce #respond input#submit:hover {
 	border-color: var(--ts-ink);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 	color: var(--ts-ink);
 }
 
@@ -1888,6 +1913,7 @@ a.ts-chip:hover {
 	padding: var(--ts-space-3) var(--ts-space-4);
 	border-left: 3px solid var(--ts-warn);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 	font-size: var(--ts-text);
 }
 
@@ -1914,6 +1940,7 @@ a.ts-chip:hover {
 	padding: var(--ts-space-5) var(--ts-space-4) var(--ts-space-4);
 	border: 1px solid var(--ts-line);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-zone__svg {
@@ -2071,6 +2098,7 @@ a.ts-chip:hover {
 	height: 96px;
 	border-radius: var(--ts-radius);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-fams__img {
@@ -2213,6 +2241,7 @@ a.ts-chip:hover {
 	padding: var(--ts-space-6) 0;
 	border-top: 1px solid var(--ts-line);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 .ts-advice__inner {
@@ -2414,6 +2443,7 @@ a.ts-chip:hover {
 .ts-editing .teeshoop-studio {
 	border: 1px solid var(--ts-line);
 	background: var(--ts-surface);
+	--ts-muted: var(--ts-muted-strong);
 }
 
 /* ────────────────────────────────────────────────────────────── 640 px ── */
