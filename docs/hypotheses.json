@@ -3206,44 +3206,55 @@
 			"id": "H-Q31-PALETTE-ET-TYPE",
 			"question": "Q31",
 			"level": "important",
-			"status": "assumption",
+			"status": "answered",
 			"since": "2026-08-19",
-			"statement_fr": "La marque est le bleu #1f4fd8 sur du noir #14171a, en Inter, avec le nom du site comme signature tant qu'aucun logo n'a été fourni.",
-			"home": "anchor:wp-plugins/teeshoop-core/assets/tokens.css#--ts-accent: #1f4fd8",
+			"statement_fr": "La marque est le navy #010050 et l'orange #FF8601 du logo, avec les titres en Urbanist 700 et le texte en Lato, l'encre #242424 et le texte secondaire #767676 de son thème.",
+			"home": "anchor:wp-plugins/teeshoop-core/assets/tokens.css#--ts-accent: #010050",
 			"mirrors": [
 				{
-					"ref": "anchor:wp-plugins/teeshoop-core/includes/Notify.php#$blue  = '#1f4fd8';",
+					"ref": "anchor:wp-plugins/teeshoop-core/includes/Notify.php#$blue  = '#010050';",
 					"relation": "meme-valeur",
 					"why": "aucun client de messagerie ne résout une propriété personnalisée, donc la palette des e-mails est écrite en hexadécimal ; scripts/palette-guard.mjs échoue quand les deux divergent."
 				},
 				{
-					"ref": "anchor:wp-plugins/teeshoop-core/includes/BatPage.php#--accent:#1f4fd8",
+					"ref": "anchor:wp-plugins/teeshoop-core/includes/BatPage.php#--accent:#010050",
 					"relation": "meme-valeur",
-					"why": "le bon à tirer est servi depuis admin-post.php sans thème et sans enqueue, donc sa feuille de style est en ligne et nomme ses propriétés autrement (--accent et non --ts-accent) ; scripts/palette-guard.mjs compare les trois par rôle."
+					"why": "le bon à tirer est servi depuis admin-post.php sans thème et sans enqueue, donc sa feuille de style est en ligne et nomme ses propriétés autrement (--accent et non --ts-accent) ; scripts/palette-guard.mjs compare les quatre sources par rôle."
+				},
+				{
+					"ref": "anchor:wp-themes/teeshoop/header.php#<meta name=\"theme-color\" content=\"#010050\">",
+					"relation": "meme-valeur",
+					"why": "la couleur dont un téléphone peint sa propre barre d'adresse est un attribut HTML qu'aucune propriété personnalisée n'atteint ; elle portait un quasi-noir qui n'appartenait à personne."
 				}
 			],
 			"literals": [
-				"#1f4fd8"
+				"#010050"
 			],
 			"reaches": [
 				"customer"
 			],
 			"derives": [
-				"Chaque contraste mesuré et inscrit dans tokens.css : 6,63:1 pour l'accent sur blanc, 17,99:1 pour l'encre, 3,26:1 pour le bord des champs.",
-				"Le fait que remplacer la marque en séance 13b soit un changement de fichier et non une refonte."
+				"Chaque contraste mesuré et inscrit dans tokens.css : 18,80:1 pour le navy sur blanc, 15,52:1 pour l'encre, 4,54:1 pour le texte secondaire sur papier (et 4,24:1 sur teinte, donc borné au papier), 3,26:1 pour le bord des champs.",
+				"Les deux variantes DÉRIVÉES, teinte et saturation conservées, parce que les couleurs de marque échouent à porter du texte sur blanc : #B65F00 pour l'orange (2,42:1 devient 4,54:1) et #C0580B pour la primaire Woodmart (2,18:1 devient 4,52:1).",
+				"Le fait que le pied de page soit peint en navy, et donc que --ts-on-brand-muted et --ts-on-brand-warn soient mesurés contre #010050 et non contre l'ancienne encre.",
+				"Les quatre fontes livrées et leurs 70 764 octets : Urbanist 600 et 700 sont ses deux graisses de titre et de menu mesurées, Lato 400 et 700 le texte."
 			],
 			"sessions": [
-				"09"
+				"09",
+				"13b",
+				"nuit-1"
 			],
 			"cost_if_late": "reglage",
-			"shipped_matches_default": "C'est l'hypothèse écrite de la question 31 (« le logo actuellement sur le site, bleu et noir, Inter ») et rien n'a été inventé : les valeurs sont EXTRAITES de assets/product.css, qui avait été écrit contre le site existant. LE LOGO N'EST PAS DESSINÉ : le thème déclare le support `custom-logo` de WordPress et, tant qu'aucun fichier n'y est déposé, rend le NOM du site en toutes lettres. Déposer le vrai logo est un envoi dans le personnalisateur, pas une modification de code.\n\nAprès ses réponses, le 2 septembre 2026, cette ligne reste une hypothèse. Sa réponse du 1er septembre 2026 confirme la direction sans fournir aucune valeur : « conserver le logo actuel, les couleurs actuelles, les typographies actuelles » est une instruction, pas une charte, et il ne donne ni hexadécimal, ni nom de police, ni fichier vectoriel. Le bleu #1f4fd8, l'encre #14171a et Inter restent donc des valeurs que nous avons relevées sur le site existant, pas des valeurs qu'il a validées, et c'est ce qui laisse la ligne en hypothèse alors même que rien n'a besoin de bouger. Le logo est le point le plus net : « conserver le logo actuel » désigne un fichier que le dépôt n'a pas, et header.php continue d'écrire le nom du site en toutes lettres parce que l'emplacement custom-logo est vide, aucun fichier de logo n'existant nulle part ici. S'ajoute une tension avec ce que le constat 1 mesure sur la boutique en ligne : sa page d'accueil est encore celle de démonstration du thème et 44 de ses 47 produits en viennent, si bien que « les couleurs actuelles » et « ne pas repartir du design de démonstration du thème » ne désignent pas forcément la même chose. Relever ces valeurs sur le site ne demande rien de plus de sa part, mais tant que le relevé n'est pas fait la ligne n'est pas datée.",
+			"shipped_matches_default": "Non, et c'est le sujet. Le dépôt a livré #1f4fd8 et Inter du 19 août au 3 septembre, sur le site d'un propriétaire qui avait demandé par écrit le 1er septembre de garder les siens. L'en-tête de tokens.css affirmait encore « QUESTION 31 IS NOT ANSWERED ». Les valeurs sont maintenant relevées : recensement de pixels du logo pour les deux couleurs de marque (confirmé par deux programmes indépendants), propriétés --wd-* servies par le site pour le reste.",
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/includes/Notify.php",
 				"wp-plugins/teeshoop-core/includes/BatPage.php",
 				"scripts/palette-guard.mjs"
 			],
 			"literal_allow_why": "Les deux copies imposées de la palette, et le contrôle qui les compare. Aucune n'est une seconde décision : ce sont les endroits où une propriété personnalisée ne survit pas (un client de messagerie, un document servi sans thème), et palette-guard échoue quand l'une d'elles s'écarte du foyer.",
-			"label_fr_why": "Ce qu'un client rencontre ici n'est pas une phrase : c'est la signature du site, que le thème tire de `get_bloginfo( 'name' )` dans un lien `ts-wordmark`, plus le bleu et la fonte. Aucune table de chaînes ne peut la porter, et l'étiquette qui y figurait, le seul mot « Teeshoop », se retrouvait dans 89 tables, y compris des commentaires `@package`, donc le contrôle ne pouvait pas échouer. Ce que le client verra changer le jour où l'associé répond, c'est un logo à la place du nom."
+			"label_fr_why": "Ce qu'un client rencontre ici n'est pas une phrase : c'est la signature du site, que le thème tire de `get_bloginfo( 'name' )` dans un lien `ts-wordmark`, plus le bleu et la fonte. Aucune table de chaînes ne peut la porter, et l'étiquette qui y figurait, le seul mot « Teeshoop », se retrouvait dans 89 tables, y compris des commentaires `@package`, donc le contrôle ne pouvait pas échouer. Ce que le client verra changer le jour où l'associé répond, c'est un logo à la place du nom.",
+			"answered": "2026-09-01",
+			"answer_fr": "Question 31 : « L'identité existe déjà. Il faut conserver le logo actuel, les couleurs actuelles, les typographies actuelles, le menu et l'organisation déjà définis (...) Il ne faut pas repartir du design de démonstration du thème, ni recréer une nouvelle identité visuelle sans nécessité. » Appliqué le 03/09/2026 : chaque valeur est relevée sur teeshoop.com, aucune n'est choisie. Une réserve demeure et elle est en Q62 : sa boutique déclare DEUX polices de texte (--wd-text-font vaut Work Sans, --wd-alternative-font vaut Lato) et nous avons pris Lato."
 		},
 		{
 			"id": "H-Q31-ACCROCHE",

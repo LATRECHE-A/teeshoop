@@ -493,22 +493,44 @@ final class Seo {
 		}
 
 		/*
-		 * The shop's own card, 1200 x 630, which is the size every client lays
-		 * out without cropping. It is derived from the associate's own home
-		 * header rather than drawn: a person wearing a marked tee, which is what
-		 * we sell. Shipped with the theme, so an environment nobody has
-		 * configured still shares correctly.
+		 * The shop's own card, at the 1,91:1 ratio every client lays out without
+		 * cropping. It is derived from the associate's own home header rather
+		 * than drawn: a person wearing a marked tee, which is what we sell.
+		 * Shipped with the theme, so an environment nobody has configured still
+		 * shares correctly.
+		 *
+		 * THE DIMENSIONS ARE READ FROM THE FILE, not written here. Two reasons,
+		 * and only the second was foreseen. The first: a tag that ASSERTS a size
+		 * is a tag that lies the day somebody replaces the picture, and several
+		 * clients lay the card out from these numbers before the file arrives,
+		 * so the lie is what the reader sees. The second: written out, the width
+		 * of this card is, digit for digit, the price of decorating one side of
+		 * a customer's own garment in cents (H-Q06), and the hypotheses register
+		 * hunts that value through this very file. It flagged it, correctly: two
+		 * places writing the same digits are two places that have to be told
+		 * apart, and reading the real size tells them apart by removing one.
+		 *
+		 * Cached for the request. `getimagesize` opens the file; a homepage
+		 * calls this once.
 		 */
+		static $card = null;
+		if ( null !== $card ) {
+			return $card;
+		}
+
 		$file = get_template_directory() . '/assets/images/partage-teeshoop.jpg';
 		if ( ! file_exists( $file ) ) {
-			return array();
+			$card = array();
+			return $card;
 		}
-		return array(
+		$size = @getimagesize( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- a file that is not an image must give no card, not a warning in the head.
+		$card = array(
 			'url' => get_template_directory_uri() . '/assets/images/partage-teeshoop.jpg',
-			'w'   => 1200,
-			'h'   => 630,
+			'w'   => is_array( $size ) ? (int) $size[0] : 0,
+			'h'   => is_array( $size ) ? (int) $size[1] : 0,
 			'alt' => __( 'Une personne portant un t-shirt marqué', 'teeshoop-core' ),
 		);
+		return $card;
 	}
 
 	/**

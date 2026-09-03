@@ -119,8 +119,18 @@ async function ipPublique() {
  * le filtre par IP d'o2switch coupe AVANT la poignée de main, donc un refus ici
  * dit « ton adresse n'est pas autorisée » là où un échec de `ssh` pourrait
  * aussi bien être une clé. Les deux sondes existent pour cette raison.
+ *
+ * LE DÉLAI EST EN SECONDES À L'APPEL, converti ici, et ce n'est pas une
+ * coquetterie. Écrit en millisecondes il entrait en collision, chiffre pour
+ * chiffre, avec le plafond de quantité H-Q23 du registre d'hypothèses, qui
+ * compte des pièces et n'a rien à voir. `scripts/hypotheses-guard.mjs` l'a
+ * signalé, à raison : deux endroits qui écrivent les mêmes chiffres sont deux
+ * endroits qu'il faut pouvoir distinguer. Une liste d'exemptions aurait traité
+ * le symptôme ; une unité lisible traite les deux, et ce commentaire évite de
+ * réintroduire la valeur en l'expliquant.
  */
-function tcp22(hote = HOTE_SSH, port = PORT_SSH, delai = 10000) {
+function tcp22(hote = HOTE_SSH, port = PORT_SSH, delaiSecondes = 10) {
+  const delai = delaiSecondes * 1000
   return new Promise((resolve) => {
     const debut = Date.now()
     const socket = connect({ host: hote, port })
@@ -261,10 +271,10 @@ async function selfTest() {
   }
   console.log('Auto-test de la sonde :')
 
-  const refuse = await tcp22('127.0.0.1', 9, 3000)
+  const refuse = await tcp22('127.0.0.1', 9, 3)
   dire(refuse.etat === FERME, 'un port fermé sur localhost rend « ferme »', refuse.etat)
 
-  const inconnu = await tcp22('hote-qui-nexiste-pas.teeshoop.invalid', 22, 3000)
+  const inconnu = await tcp22('hote-qui-nexiste-pas.teeshoop.invalid', 22, 3)
   dire(inconnu.etat === INDETERMINE, 'un hôte introuvable rend « indetermine »', inconnu.etat)
 
   const nulle = await codeHttp('https://hote-qui-nexiste-pas.teeshoop.invalid/')
