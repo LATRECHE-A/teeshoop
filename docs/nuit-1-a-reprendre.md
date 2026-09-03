@@ -29,8 +29,18 @@
 
 `--famille=all` planifie **2 303 références**. Une tranche de 30 minutes en
 traite environ 220. Le pilote (`scratchpad/import2.sh`, non suivi en git) est
-lancé pour 12 tranches. Au moment d'écrire, le miroir est passé de 465 à plus de
-700 produits publiés.
+lancé pour 12 tranches et tourne encore à la fermeture.
+
+Relevé à 22 h 54 le 3 septembre, contre le miroir :
+
+| | au réveil du miroir | à la fermeture |
+|---|---|---|
+| produits publiés | 465 | **728** |
+| brouillons | 0 | 4 (dont 2 sans photographie fournisseur) |
+| déclinaisons | 26 359 | **28 946** |
+| pièces jointes | 735 | **1 122** |
+| base | 302,8 Mo | 247,5 Mo |
+| produits fournisseur sans photo | non mesuré | **0** |
 
 **Pour le relancer** : le Worker local doit tourner (`npx wrangler dev --port
 8788`), et `teeshoop_settings.worker_url` doit pointer dessus, sinon l'import
