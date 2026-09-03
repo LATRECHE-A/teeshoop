@@ -129,6 +129,38 @@ function setup(): void {
 add_action( 'after_setup_theme', __NAMESPACE__ . '\\setup' );
 
 /**
+ * THE LOGO LINK ALWAYS HAS A NAME, whoever uploaded the file.
+ *
+ * `the_custom_logo()` builds `<a class="custom-logo-link"><img alt="…"></a>` and
+ * takes the alt from the attachment's alt-text field. That field is empty on a
+ * file that arrived by sideload, and an anchor whose only child is an image with
+ * an empty alt has NO accessible name at all: a screen reader announces « lien »
+ * and the first control on every page of the shop is unlabelled. WCAG 2.2 4.1.2.
+ *
+ * Found by `scripts/site-shots.mjs` the night the logo was put in, on the very
+ * commit that put it in: 316 assertions green, one red, `a.custom-logo-link`.
+ *
+ * `scripts/visuels-associe.php` sets the alt text when it sideloads, so the
+ * common path is already right. This is the net under it, because the next logo
+ * will be uploaded by a person through the Customizer, and nothing in that
+ * screen asks for alt text.
+ *
+ * The name is the site's, not « logo » : what the link DOES is go home, and
+ * « Teeshoop » is what a person would say.
+ *
+ * @param string $html The markup WordPress assembled.
+ * @return string
+ */
+function logo_has_a_name( $html ): string {
+	$html = (string) $html;
+	if ( '' === $html || ! str_contains( $html, 'alt=""' ) ) {
+		return $html;
+	}
+	return str_replace( 'alt=""', 'alt="' . esc_attr( get_bloginfo( 'name' ) ) . '"', $html );
+}
+add_filter( 'get_custom_logo', __NAMESPACE__ . '\\logo_has_a_name' );
+
+/**
  * How many columns WooCommerce believes the grid has.
  *
  * The stylesheet decides the real number per breakpoint; this is what Woo writes

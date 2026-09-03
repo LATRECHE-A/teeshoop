@@ -603,14 +603,22 @@ html {
 	}
 }
 
-/* The print-zone drawing, now beside the paragraph that makes it useful. */
-.ts-zone {
+/*
+ * The print-zone drawing, now beside the paragraph that makes it useful.
+ *
+ * `ts-zone-bloc` AND NOT `ts-zone`: `print_zone_figure()` already puts
+ * `ts-zone` on the <figure> it returns, so a wrapper of the same name made the
+ * selector match twice and `scripts/site-shots.mjs` died on a strict-mode
+ * locator violation. It is the harness that caught it, which is the argument
+ * for the harness.
+ */
+.ts-zone-bloc {
 	margin-top: var(--ts-space-5);
 	max-width: 34rem;
 }
 
-.ts-zone img,
-.ts-zone svg {
+.ts-zone-bloc img,
+.ts-zone-bloc svg {
 	display: block;
 	width: 100%;
 	height: auto;

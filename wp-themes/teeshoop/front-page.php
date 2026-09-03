@@ -354,7 +354,7 @@ $ts_cat      = catalogue_stats();
 		 */
 		$ts_figure = '' !== $ts_garment ? print_zone_figure( $ts_garment ) : '';
 		if ( '' !== $ts_figure ) {
-			echo '<div class="ts-zone">' . $ts_figure . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure().
+			echo '<div class="ts-zone-bloc">' . $ts_figure . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure().
 		}
 		?>
 	</div>

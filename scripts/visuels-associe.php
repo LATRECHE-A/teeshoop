@@ -190,6 +190,18 @@ function ts_media_theme( string $fichier, string $titre ): int {
 		return 0;
 	}
 	update_post_meta( (int) $id, '_teeshoop_visuel_source', $marque );
+	/*
+	 * LE TEXTE ALTERNATIF, POSÉ ICI ET PAS SEULEMENT DANS LE THÈME.
+	 *
+	 * `the_custom_logo()` lit ce champ pour l'attribut `alt`, et une pièce
+	 * jointe versée par programme arrive avec le champ vide. Un lien dont le
+	 * seul contenu est une image sans alt n'a AUCUN nom accessible : un lecteur
+	 * d'écran annonce « lien », sur le premier contrôle de chaque page de la
+	 * boutique. Trouvé par `scripts/site-shots.mjs` le soir de la pose du logo.
+	 * Le thème a un filet (`logo_has_a_name()`) pour le logo qu'un humain
+	 * téléversera ; ici on répare la donnée plutôt que de compter dessus.
+	 */
+	update_post_meta( (int) $id, '_wp_attachment_image_alt', $titre );
 	return (int) $id;
 }
 

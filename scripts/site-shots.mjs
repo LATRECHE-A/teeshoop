@@ -41,6 +41,17 @@ const PAGES = [
   ['categorie', '/categorie/t-shirts/'],
   ['produit', '/produit/teeshoop-demo-tee/'],
   ['studio', '/produit/teeshoop-demo-tee/?personnaliser=1'],
+  /*
+   * UNE VRAIE FICHE DU CATALOGUE, en plus de celle de démonstration.
+   *
+   * `teeshoop-demo-tee` est une fixture : elle n'a ni photographie, ni marque,
+   * ni les 91 déclinaisons d'une référence réelle, et c'est très bien pour
+   * asseoir les assertions du studio, qui ont besoin d'un produit stable. Ce
+   * n'est pas ce qu'un client ouvre. La preuve qu'une fiche produit tient
+   * demande une fiche produit : une référence importée, avec sa photo
+   * fournisseur, sa grille de tailles et ses coloris.
+   */
+  ['produit-catalogue', '/produit/russell-pure-organic-mens-pure-organic-tee/'],
   ['devis', '/devis/'],
   ['entreprises', '/entreprises/'],
   /*
@@ -613,9 +624,27 @@ for (const [name, path] of PAGES) {
   const nameless = await page.evaluate(() =>
     [...document.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea')]
       .filter((el) => {
+        /*
+         * THE ALT OF A NESTED IMAGE IS A NAME, and leaving it out was a false
+         * positive rather than a strictness.
+         *
+         * « Name from content » in the accname algorithm walks the subtree, and
+         * an `img` contributes its `alt`. A logo link, which is the canonical
+         * shape `<a><img alt="Teeshoop"></a>`, has the accessible name
+         * « Teeshoop » and is announced « Teeshoop, lien ». This check reported
+         * it as nameless the night the logo was put in, on a link that was
+         * correct, and the only ways to satisfy it would have been to add a
+         * redundant `aria-label` (which a reader would then announce INSTEAD of
+         * the alt) or visible text beside the mark.
+         *
+         * A check that is wrong in the safe direction is still wrong: it teaches
+         * whoever hits it to work around it, and the workaround is worse markup.
+         */
+        const fromImages = [...el.querySelectorAll('img[alt]')].map((i) => i.getAttribute('alt')).join(' ')
         const name =
           el.getAttribute('aria-label') ||
           el.textContent ||
+          fromImages ||
           el.getAttribute('title') ||
           (el.labels && el.labels[0] && el.labels[0].textContent) ||
           el.getAttribute('placeholder') ||
