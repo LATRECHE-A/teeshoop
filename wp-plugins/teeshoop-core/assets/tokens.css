@@ -16,47 +16,139 @@
  * rule that styled an element would be this plugin restyling someone else's
  * page. Declaring a variable nobody reads costs a visitor nothing.
  *
- * QUESTION 31 IS NOT ANSWERED. The associate has not sent a logo, a palette or
- * a type specimen. These values are EXTRACTED from what teeshoop.com already
- * uses (blue and black, Inter) and from `assets/product.css`, which was written
- * against them; they are not an invented brand. When the real assets arrive,
- * session 13b changes this file and nothing else.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * QUESTION 31 IS ANSWERED, AND THIS FILE IS THE ANSWER APPLIED (03/09/2026).
+ *
+ * The associate replied on 01/09/2026, in `docs/reponses-associe/reponses-q01-q36.txt`
+ * lines 241 to 245:
+ *
+ *   « L'identité existe déjà. Il faut conserver le logo actuel, les couleurs
+ *   actuelles, les typographies actuelles, le menu et l'organisation déjà
+ *   définis (...) Il ne faut pas repartir du design de démonstration du thème,
+ *   ni recréer une nouvelle identité visuelle sans nécessité. »
+ *
+ * The previous version of this file said the question was unanswered and shipped
+ * an invented blue (#1f4fd8) and Inter on a site whose owner had asked in writing
+ * for his own. Every value below is now MEASURED off what teeshoop.com actually
+ * serves, and the measurement is named beside it. Nothing here was chosen.
+ *
+ * WHERE EACH NUMBER COMES FROM:
+ *
+ *   #010050  navy    pixel census of the logo, 2 225 fully-opaque px, the
+ *                    dominant colour. Cross-checked with ImageMagick's own
+ *                    histogram (2 380 with alpha flattened), which is a
+ *                    different program reading the same file.
+ *   #FF8601  orange  same census, 1 455 px (ImageMagick: 1 488).
+ *                    Logo: /wp-content/uploads/2025/05/Sans-titre-300-x-54-px.png
+ *   #F59A57          --wd-primary-color, served by the live site
+ *   #242424          --wd-title-color
+ *   #767676          --wd-text-color
+ *   10px             --wd-brd-radius
+ *   1400px           --wd-container-w
+ *   Urbanist 700     --wd-entities-title-font / --wd-entities-title-font-weight
+ *   Lato             --wd-alternative-font
+ *
+ * A BRAND COLOUR IS NOT REPLACED BECAUSE IT FAILS A CONTRAST TEST. It is given
+ * a ground it is allowed to sit on. Two of the three brand colours cannot carry
+ * text on white and BOTH numbers are written below: the failing one, so nobody
+ * re-tries it, and the derived one that passes. A derived variant keeps the hue
+ * and the saturation and moves only the lightness, so it is visibly the same
+ * colour and not a fourth one.
  *
  * EVERY COLOUR PAIR BELOW HAS A MEASURED CONTRAST RATIO, computed with the
- * WCAG 2.1 relative-luminance formula and printed in the comment beside it.
- * Accessibility is session 12's audit, but a palette is the one thing that
- * cannot be retrofitted: changing it late re-opens every screen.
+ * WCAG 2.1 relative-luminance formula on the exact hexadecimals in this file.
  */
 
 :root {
 	/* ------------------------------------------------------------ brand */
 
 	/*
-	 * The blue already on the site and in the product page. On white it is
-	 * 6,63:1, so it carries body text, a link and a button label at AA, and
-	 * it is also the focus ring.
+	 * THE NAVY, and it is the accent because it is the only brand colour that
+	 * carries text. 18,80:1 on paper, which is the highest ratio in this file:
+	 * it is the button ground, the link colour, the focus ring and the footer.
+	 *
+	 * IT KEEPS THE NAME `--ts-accent` rather than becoming `--ts-navy`, and
+	 * that is a decision. Thirty-four rules, the mail composer's `$blue`, the
+	 * proof page's `--accent` and the guard that compares all three already
+	 * mean « the brand colour that carries white text » by this name. Renaming
+	 * it would be a hundred-line diff across four files on the night the value
+	 * changed, which is how a colour ends up half-migrated. `$blue` also stays
+	 * honest: #010050 is hsl(240,8°), a blue.
 	 */
-	--ts-accent: #1f4fd8;
-	--ts-accent-ink: #ffffff; /* on --ts-accent: 6,63:1 */
+	--ts-accent: #010050; /* on paper 18,80:1, on surface 17,54:1 */
+	--ts-accent-ink: #ffffff; /* on --ts-accent: 18,80:1 */
 
 	/*
-	 * Hover and pressed. Same hue and saturation, lightness -6 points, so it
-	 * is visibly the same colour and not a second blue. White on it: 7,98:1.
+	 * Hover and pressed, and it is LIGHTER than the base, which is the opposite
+	 * of what the previous palette did. The navy sits at 15,7 % lightness:
+	 * taking six points off moves its luminance by 0,0026 and is invisible,
+	 * putting six on moves it by 0,0057 and can be seen. Same hue, same
+	 * saturation. White still reads on it at 17,06:1.
 	 */
-	--ts-accent-dark: #1b45bd;
+	--ts-accent-dark: #01006f;
 
 	/*
-	 * The tint a selected filter or an active tab sits on. Same hue, +42
-	 * points of lightness. The accent still reads on it at 4,93:1 and the ink
-	 * at 13,38:1, which is what lets a chip be selected without needing a
-	 * second border to say so.
+	 * The tint a selected filter or an active tab sits on. Same hue and
+	 * saturation, +78 points of lightness. The accent reads on it at 14,44:1
+	 * and the ink at 11,93:1, which is what lets a chip be selected without
+	 * needing a second border to say so.
 	 */
-	--ts-accent-wash: #d4def9;
+	--ts-accent-wash: #dfdfff;
+
+	/*
+	 * THE ORANGE OF THE LOGO, and the ground rule that comes with it.
+	 *
+	 * #FF8601 is 2,42:1 on white. That fails AA for text (4,5:1) and fails even
+	 * the 3:1 that WCAG 1.4.11 asks of a control's edge, so on paper this colour
+	 * may be a FILL and never a mark: no text in it, no rule drawn with it, no
+	 * icon that has to be found. Where it belongs is on the navy (7,75:1) and
+	 * under dark text (--ts-ink on it: 6,40:1), which is exactly how the logo
+	 * itself uses the two colours.
+	 */
+	--ts-brand-orange: #ff8601; /* on paper 2,42:1, UNUSABLE for text or a rule */
+	--ts-brand-orange-on-brand: #ff8601; /* on --ts-accent: 7,75:1 */
+
+	/*
+	 * The same orange darkened until it carries text on white: hue 31,4° and
+	 * saturation 100 % kept, lightness 50,2 % down to 35,6 %. 2,42:1 becomes
+	 * 4,54:1. This is what a price, a sale label or an underline uses on paper;
+	 * the brand orange above is what the same page uses as a fill.
+	 */
+	--ts-brand-orange-ink: #b65f00; /* on paper 4,54:1 */
+
+	/*
+	 * THE SHOP'S CURRENT INTERACTIVE PRIMARY, kept because a component ported
+	 * from the live Woodmart must land on the colour it was drawn against. It
+	 * is NOT the logo orange: hsl(25,4°, 88,8 %, 65,1 %) against the logo's
+	 * hsl(31,4°, 100 %, 50,2 %), so they are two colours and not a rounding.
+	 *
+	 * It is 2,18:1 on white, worse than the logo orange, so the same ground
+	 * rule applies and harder. Our buttons are the navy instead, because a
+	 * button whose label cannot be read is not a button.
+	 */
+	--ts-primary: #f59a57; /* on paper 2,18:1, UNUSABLE for text or a rule */
+	--ts-primary-ink: #c0580b; /* same hue darkened: on paper 4,52:1 */
 
 	/* -------------------------------------------------------- ink, paper */
 
-	--ts-ink: #14171a; /* on paper 17,99:1, on surface 16,78:1 */
-	--ts-muted: #5b6470; /* on paper 6,00:1, on surface 5,59:1 */
+	/*
+	 * BOTH OF THESE ARE THE ASSOCIATE'S, and the second one comes with a
+	 * restriction that the first does not.
+	 *
+	 * `--ts-ink` is --wd-title-color. 15,52:1 on paper, 14,48:1 on surface:
+	 * it goes anywhere.
+	 *
+	 * `--ts-muted` is --wd-text-color, and it is 4,54:1 on paper. That clears
+	 * AA by four hundredths, so it is legal running text ON PAPER and nowhere
+	 * else: on `--ts-surface` the same colour measures 4,24:1 and fails. There
+	 * is no surface tint that saves it, because keeping #767676 at 4,5:1 needs
+	 * a background of luminance 0,990 or lighter and #f6f7f9 is 0,930. So the
+	 * colour is not replaced, it is bounded, and `--ts-muted-strong` below is
+	 * what the same text uses when it lands on a tint.
+	 */
+	--ts-ink: #242424; /* on paper 15,52:1, on surface 14,48:1 */
+	--ts-muted: #767676; /* on paper 4,54:1. ON PAPER ONLY: 4,24:1 on surface */
+	--ts-muted-strong: #717171; /* on surface 4,55:1, on paper 4,88:1 */
 	--ts-paper: #ffffff;
 	--ts-surface: #f6f7f9;
 
@@ -77,21 +169,27 @@
 	--ts-line-strong: #8190a2;
 
 	/*
-	 * ON THE DARK GROUND. The footer is the one surface painted in `--ts-ink`,
-	 * and neither `--ts-muted` nor `--ts-warn` survives the inversion:
-	 * `--ts-muted` measures 3,00:1 on ink, which is a hint colour used for a
-	 * heading, and `--ts-warn` is worse. These two are chosen for that ground
-	 * and measured on it.
+	 * ON THE BRAND GROUND. The footer is painted in `--ts-accent` now rather
+	 * than in the ink, which is the single change that makes a page read as
+	 * this shop's and not as a template's. These two are measured on THAT
+	 * ground, and they were re-measured when it changed from #14171a to the
+	 * navy: `--ts-muted` is 2,10:1 on the navy, which is a hint colour used for
+	 * a heading, and the semantic warn is worse.
+	 *
+	 * They were named `--ts-on-ink-*` while the dark ground was the ink. A
+	 * token whose name says which ground it was measured against, pointing at a
+	 * different ground, is how a contrast failure survives a redesign.
 	 */
-	--ts-on-ink-muted: #a7b0bd; /* on --ts-ink: 8,21:1 */
-	--ts-on-ink-warn: #f0c98a; /* on --ts-ink: 11,50:1 */
+	--ts-on-brand-muted: #a7b0bd; /* on --ts-accent: 8,58:1 */
+	--ts-on-brand-warn: #f0c98a; /* on --ts-accent: 12,02:1 */
 
 	/* ---------------------------------------------------------- semantic */
 
 	/*
 	 * Separate from the accent on purpose: a shop whose "good" is its brand
-	 * blue cannot say "en stock" and "en promotion" in the same sentence.
-	 * All three are read on paper, all three clear AA.
+	 * navy cannot say "en stock" and "en promotion" in the same sentence.
+	 * All three are read on paper, all three clear AA, and all three still
+	 * clear it on the surface tint (4,94 / 4,71 / 6,10).
 	 */
 	--ts-good: #0f7b4f; /* 5,29:1 */
 	--ts-warn: #a85b00; /* 5,05:1 */
@@ -116,25 +214,52 @@
 	/* -------------------------------------------------------------- type */
 
 	/*
-	 * Inter, which is what the site uses, with the system stack behind it so a
-	 * page is readable before a webfont arrives and if one never does. No
-	 * second family: a display face is a brand decision and question 31 has
-	 * not been answered, so the display sizes get their character from weight
-	 * and tracking instead of from a typeface nobody chose.
+	 * TWO FAMILIES, BOTH THE ASSOCIATE'S, both self-hosted.
+	 *
+	 * The live site loads three from Google: Work Sans 400/600, Urbanist
+	 * 400/600/700/800 and Lato 400/700. Urbanist is `--wd-entities-title-font`
+	 * at weight 700 and is also `--wd-header-el-font` at 600, so it is the
+	 * title and navigation face beyond argument. The body face is the one place
+	 * the site says two things at once: `--wd-text-font` is Work Sans and
+	 * `--wd-alternative-font` is Lato. Lato is taken here, both because it is
+	 * one of the three faces the shop already serves and because a third family
+	 * is bytes on every page. The question is in QUESTIONS-ASSOCIE.md and the
+	 * reasoning in docs/decisions/, because which of the two is « the » body
+	 * face is his to say, not ours at three in the morning.
+	 *
+	 * SELF-HOSTED, and that is not a preference. Every page of teeshoop.com
+	 * currently sends its visitor's IP address to fonts.googleapis.com, which
+	 * the CNIL has already fined a French site for. `assets/fonts.css` in the
+	 * theme carries the four files and `scripts/theme-fonts-check.mjs` fails if
+	 * any rule asks for a weight that is not there, or if any file reaches
+	 * Google.
 	 */
-	--ts-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+	--ts-font: 'Lato', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+	--ts-font-display: 'Urbanist', var(--ts-font);
 	--ts-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
 	/*
+	 * The weight a title is set in, as a token, because it is a MEASURED value
+	 * (--wd-entities-title-font-weight) and not a stylistic preference, and
+	 * because the fonts check reads the declared weights out of this file to
+	 * decide which woff2 the theme is obliged to ship.
+	 */
+	--ts-weight-display: 700;
+	--ts-weight-nav: 600; /* --wd-header-el-font-weight */
+	--ts-weight-body: 400; /* --wd-text-font-weight */
+	--ts-weight-strong: 700;
+
+	/*
 	 * A text scale of four sizes and a display scale of four more, on a 1,24
-	 * ratio from 15 px. Two scales rather than one long one because the shop
-	 * has exactly two jobs: reading a specification (13 to 21 px, tight) and
-	 * announcing something (26 px and up, fluid). Nothing on this site is
-	 * allowed a size that is not one of these eight.
+	 * ratio from 15 px, which is --wd-text-font-size. Two scales rather than
+	 * one long one because the shop has exactly two jobs: reading a
+	 * specification (13 to 21 px, tight) and announcing something (26 px and
+	 * up, fluid). Nothing on this site is allowed a size that is not one of
+	 * these eight.
 	 */
 	--ts-text-xs: 0.8125rem; /* 13 px, notes, legal, table captions */
 	--ts-text-sm: 0.875rem; /* 14 px, labels and dense tables */
-	--ts-text: 0.9375rem; /* 15 px, body. The product page's size */
+	--ts-text: 0.9375rem; /* 15 px, body. --wd-text-font-size */
 	--ts-text-lg: 1.0625rem; /* 17 px, lead paragraph */
 
 	--ts-display-xs: 1.3125rem; /* 21 px */
@@ -167,28 +292,33 @@
 
 	/* ------------------------------------------------------------ layout */
 
-	--ts-page: 1200px;
+	/* --wd-container-w, measured. It was 1200px, which was ours and not his. */
+	--ts-page: 1400px;
 	--ts-gutter: 1rem;
 	--ts-gutter-wide: 2rem;
 
 	/* ------------------------------------------------------------- shape */
 
 	/*
-	 * 3 px, which is what the product page already draws, and 0 for anything
-	 * that reads as a printed rule. There is deliberately no large radius:
-	 * the same soft corner on every element is how an interface announces that
-	 * nobody chose it.
+	 * 10px, which is --wd-brd-radius on the live site. It was 3px here, chosen
+	 * on the argument that « the same soft corner on every element is how an
+	 * interface announces that nobody chose it ». That argument is still right
+	 * and it is not ours to make: the shop's owner chose 10px, and the way to
+	 * keep the interface from looking generated is to put the radius only where
+	 * it means something (a card, a photograph, a control) and to leave a rule,
+	 * a table and a section edge square. There is deliberately still only ONE
+	 * radius: `--ts-radius-lg` existed and no rule in the repository read it.
 	 */
-	--ts-radius: 3px;
-	--ts-radius-lg: 6px;
+	--ts-radius: 10px;
 
 	/*
 	 * Shadow is elevation, never decoration. One value for a thing that floats
 	 * over the page (a menu, a drawer) and one for a thing that floats over
-	 * that. Nothing at rest on the page casts a shadow.
+	 * that. Nothing at rest on the page casts a shadow. Tinted with the ink and
+	 * not with the navy: a coloured shadow is decoration.
 	 */
-	--ts-elev-1: 0 1px 2px rgb(20 23 26 / 0.08), 0 2px 8px rgb(20 23 26 / 0.08);
-	--ts-elev-2: 0 2px 4px rgb(20 23 26 / 0.10), 0 12px 32px rgb(20 23 26 / 0.16);
+	--ts-elev-1: 0 1px 2px rgb(36 36 36 / 0.08), 0 2px 8px rgb(36 36 36 / 0.08);
+	--ts-elev-2: 0 2px 4px rgb(36 36 36 / 0.10), 0 12px 32px rgb(36 36 36 / 0.16);
 
 	/* Focus, one ring everywhere, drawn outside the element so it never moves layout. */
 	--ts-focus-width: 2px;

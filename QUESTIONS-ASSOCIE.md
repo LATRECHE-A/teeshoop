@@ -3414,6 +3414,71 @@ fichiers et le code d'achat en place et se défait en un clic.
 
 ---
 
+## Ce que la nuit du 3 septembre a trouvé en appliquant votre réponse 31
+
+Votre réponse 31 (« conserver le logo actuel, les couleurs actuelles, les typographies
+actuelles ») a été appliquée cette nuit. Le logo, le navy, l'orange, le rayon, la largeur
+de page et les titres en Urbanist 700 sont relevés sur votre site et posés tels quels.
+Deux points se sont présentés en chemin et un seul de vous peut les trancher.
+
+### Q62. Le texte courant : Lato ou Work Sans ? (*Important*)
+
+Votre site charge **trois** polices : Work Sans, Urbanist et Lato. Pour les titres et le
+menu, aucune ambiguïté, c'est Urbanist. Pour le **texte courant**, votre thème dit deux
+choses à la fois :
+
+| Réglage du thème | Valeur |
+|---|---|
+| `--wd-text-font` (« police de texte ») | **Work Sans** |
+| `--wd-alternative-font` (« police alternative ») | **Lato** |
+
+**Ce que nous avons fait en attendant :** nous avons pris **Lato**. C'est bien une de vos
+trois polices, et une famille de moins, ce sont environ 45 ko de moins à télécharger sur
+chaque page.
+
+**Ce que ça change si vous préférez Work Sans :** rien de structurel. Deux lignes de
+configuration et deux fichiers de police à remplacer, une demi-heure. Les deux sont des
+linéales très proches à la taille du texte courant ; la différence se voit surtout côte à
+côte.
+
+*Votre réponse :*
+
+### Q63. Vos polices partent aujourd'hui chercher chez Google, et c'est un risque RGPD réel (*Important*)
+
+**Ce que nous avons mesuré**, le 3 septembre 2026, sur `www.teeshoop.com` : chaque page du
+site contient
+
+```
+https://fonts.googleapis.com/css?family=Work Sans:400,600|Urbanist:400,600,700,800|Lato:400,700
+```
+
+Concrètement, le navigateur de **chaque visiteur** ouvre une connexion vers un serveur de
+Google avant même d'afficher la page, et lui transmet son adresse IP, sa page d'origine et
+son type de navigateur. L'adresse IP est une donnée personnelle. Le transfert part hors
+Union européenne, sans consentement, et il a lieu avant toute bannière.
+
+Ce n'est pas une hypothèse de juriste : la CNIL a déjà sanctionné un site français pour
+exactement ce montage, et un tribunal allemand a accordé des dommages à un visiteur pour la
+même chose. Le risque est faible en montant et réel en principe.
+
+**Ce que nous avons fait de notre côté :** notre thème héberge ses polices lui-même. Aucune
+requête ne sort. Les fichiers sont dans le dépôt avec leurs licences (les deux sont en SIL
+Open Font License, qui autorise explicitement cet usage, y compris commercial), et un
+contrôle automatique refuse désormais toute adresse Google dans notre code.
+
+**Ce que nous ne pouvons pas faire sans vous :** votre site actuel tourne sous Woodmart, et
+c'est un réglage de Woodmart qui provoque ces appels. Woodmart sait héberger les polices
+localement (« Theme Settings > Typography > Load fonts locally » selon les versions).
+
+*Deux questions :*
+1. Voulez-vous que nous activions cette option sur votre site actuel, en préproduction
+   d'abord ? C'est réversible en un clic.
+2. Si oui, faut-il le faire avant ou après la bascule de thème ?
+
+*Votre réponse :*
+
+---
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

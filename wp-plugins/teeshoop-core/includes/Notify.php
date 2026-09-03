@@ -474,11 +474,24 @@ final class Notify {
 	 * inboxes render.
 	 */
 	public static function html( array $spec ): string {
-		$ink   = '#14171a';
-		$soft  = '#5b6470';
+		/*
+		 * THE FIVE HEXES, WRITTEN OUT, and each one measured on the ground it
+		 * is actually drawn on in this message and not on a ground it never
+		 * touches. `$soft` is 4,54:1 and clears AA by four hundredths, which is
+		 * only true on white: every `$soft` below is inside the 600 px card,
+		 * never on `$wash`. If a line of grey text is ever moved out onto the
+		 * page background it has to become #717171 (`--ts-muted-strong`), which
+		 * is the same colour five points darker and 4,55:1 there.
+		 *
+		 * `$blue` is the brand navy, question 31 answered. It is still called
+		 * blue because #010050 is hsl(240,8°), and because the palette guard
+		 * reads this variable by name.
+		 */
+		$ink   = '#242424'; // sur blanc 15,52:1
+		$soft  = '#767676'; // sur blanc 4,54:1, et sur blanc uniquement
 		$line  = '#dce0e5';
 		$wash  = '#f6f7f9';
-		$blue  = '#1f4fd8';
+		$blue  = '#010050'; // blanc dessus 18,80:1
 
 		$out  = '<!doctype html><html lang="fr"><head><meta charset="utf-8">';
 		$out .= '<meta name="viewport" content="width=device-width, initial-scale=1">';

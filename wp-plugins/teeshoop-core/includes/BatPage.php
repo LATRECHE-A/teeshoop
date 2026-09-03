@@ -51,8 +51,8 @@ final class BatPage {
 	private static function css(): string {
 		return <<<'CSS'
 :root{
-  --ink:#14171a; --ink-soft:#5b6470; --line:#dce0e5; --paper:#fff; --wash:#f6f7f9;
-  --accent:#1f4fd8; --accent-ink:#fff;
+  --ink:#242424; --ink-soft:#717171; --line:#dce0e5; --paper:#fff; --wash:#f6f7f9;
+  --accent:#010050; --accent-ink:#fff;
   --good:#0f7b4f; --warn:#a85b00; --bad:#b3261e;
 }
 *{box-sizing:border-box}

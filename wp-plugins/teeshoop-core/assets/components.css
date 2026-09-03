@@ -66,6 +66,7 @@
 	background: var(--ts-accent);
 	color: var(--ts-accent-ink);
 	font-size: 1rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	text-align: center;
 	text-decoration: none;
@@ -84,11 +85,22 @@
 	outline-offset: 2px;
 }
 
+/*
+ * 600 AND NOT 500. A ghost button is a button and is set in the same face as
+ * the solid one; 500 was a half-step that only existed because Inter shipped it
+ * here. The theme now serves Urbanist at 600 and 700 only, so a rule asking for
+ * 500 would get a weight the browser invented by smearing the 400 outline.
+ * `scripts/theme-fonts-check.mjs` refuses it.
+ *
+ * It is still visibly lighter than the solid CTA: that difference is carried by
+ * the ground and the border, which is where it belongs.
+ */
 .ts-cta--ghost {
 	background: var(--ts-paper);
 	border-color: var(--ts-line-strong);
 	color: var(--ts-ink);
-	font-weight: 500;
+	font-family: var(--ts-font-display);
+	font-weight: 600;
 }
 
 .ts-cta--ghost:hover,
@@ -137,6 +149,7 @@
 	border-bottom: 2px solid var(--ts-ink);
 	color: var(--ts-muted);
 	font-size: 0.75rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
@@ -151,6 +164,7 @@
 
 .ts-table--pricing tbody th {
 	white-space: nowrap;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -169,6 +183,7 @@
 	display: block;
 	color: var(--ts-good);
 	font-size: 0.6875rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -195,6 +210,7 @@
 	display: block;
 	margin-bottom: 0.1875rem;
 	font-size: 0.8125rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -401,6 +417,7 @@ body:has(.teeshoop-studio) {
 	display: flex;
 	gap: var(--ts-space-2);
 	align-items: baseline;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	cursor: pointer;
 }
@@ -451,6 +468,7 @@ body:has(.teeshoop-studio) {
 	color: var(--ts-accent-ink);
 	font: inherit;
 	font-size: 1rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	text-align: center;
 	cursor: pointer;

@@ -32,7 +32,28 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const read = (p) => readFileSync(join(ROOT, p), 'utf8')
 
 /** The roles every source has to hold, and nothing else is compared. */
-const ROLES = ['ink', 'muted', 'line', 'surface', 'paper', 'accent', 'good', 'warn', 'bad']
+const ROLES = [
+  'ink',
+  'muted',
+  // The same grey five points darker, for the one thing `muted` may not do:
+  // land on a tint. #767676 is the associate's --wd-text-color and clears AA on
+  // paper by four hundredths (4,54:1); on --ts-surface it is 4,24:1 and fails,
+  // and no usable tint saves it. So the role is split rather than the colour
+  // replaced, and each consumer declares which of the two it draws with.
+  'muted-strong',
+  'line',
+  'surface',
+  'paper',
+  'accent',
+  // Tracked even though only tokens.css holds them: these two ARE the identity
+  // (a pixel census of the logo), and deleting one has to be a failure and not
+  // a quiet disappearance.
+  'brand-orange',
+  'primary',
+  'good',
+  'warn',
+  'bad',
+]
 
 /*
  * EACH SOURCE DECLARES WHICH ROLES IT HOLDS, and a declared role it cannot read
@@ -72,9 +93,11 @@ const SOURCES = [
     file: 'wp-plugins/teeshoop-core/includes/BatPage.php',
     what: 'the proof page',
     // `--ink:#14171a; --ink-soft:#5b6470; …` in one inline :root
-    holds: ['ink', 'muted', 'line', 'surface', 'paper', 'accent', 'good', 'warn', 'bad'],
+    // `muted-strong` AND NOT `muted`: this page's body background is `--wash`,
+    // so its grey text lands on a tint and #767676 would be 4,24:1 there.
+    holds: ['ink', 'muted-strong', 'line', 'surface', 'paper', 'accent', 'good', 'warn', 'bad'],
     read: (text, role) => {
-      const name = { ink: 'ink', muted: 'ink-soft', line: 'line', surface: 'wash', paper: 'paper', accent: 'accent', good: 'good', warn: 'warn', bad: 'bad' }[role]
+      const name = { ink: 'ink', 'muted-strong': 'ink-soft', line: 'line', surface: 'wash', paper: 'paper', accent: 'accent', good: 'good', warn: 'warn', bad: 'bad' }[role]
       if (!name) return null
       const m = text.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})`))
       return m && m[1].toLowerCase()
@@ -84,15 +107,21 @@ const SOURCES = [
     /*
      * The fourth copy, and the one nobody thinks of: the colour a phone paints
      * its own browser chrome with. It is an HTML attribute, so no custom
-     * property can reach it, and it is the ink. A site whose address bar is one
-     * black and whose page is another is a site that looks broken on the device
-     * most of its visitors use.
+     * property can reach it.
+     *
+     * IT IS THE BRAND NAVY AND NO LONGER THE INK. It held #14171a, a near-black
+     * that belongs to no company: on a phone, which is where most of this
+     * shop's visitors are, the one band of colour the operating system paints
+     * around the page said nothing about whose shop it was. The role it is
+     * compared against changed with it, because a token that still said `ink`
+     * while holding the accent would be the divergence this file exists to
+     * catch, dressed up as agreement.
      */
     file: 'wp-themes/teeshoop/header.php',
     what: "the phone's browser chrome",
-    holds: ['ink'],
+    holds: ['accent'],
     read: (text, role) =>
-      'ink' === role
+      'accent' === role
         ? (text.match(/name="theme-color" content="(#[0-9a-fA-F]{3,8})"/) ?? [])[1]?.toLowerCase() ?? null
         : null,
   },
@@ -167,7 +196,7 @@ if (compared === 0) {
  */
 if (process.argv.includes('--self-test')) {
   const broken = texts.map((s) =>
-    s.file.endsWith('tokens.css') ? { ...s, text: s.text.replace('#1f4fd8', '#0f0f0f') } : s,
+    s.file.endsWith('tokens.css') ? { ...s, text: s.text.replace('--ts-accent: #010050', '--ts-accent: #0f0f0f') } : s,
   )
   const homeBroken = broken.find((s) => s.file.endsWith('tokens.css'))
   const others = broken.filter((s) => !s.file.endsWith('tokens.css') && s.holds.includes('accent'))

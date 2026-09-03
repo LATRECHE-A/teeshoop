@@ -62,7 +62,7 @@ body {
 	font-family: var(--ts-font);
 	font-size: var(--ts-text);
 	line-height: var(--ts-leading);
-	/* Inter's own kerning and contextual alternates; off by default in some engines. */
+	/* Kerning and contextual alternates, off by default in some engines. */
 	font-feature-settings: 'kern' 1, 'calt' 1;
 	text-rendering: optimizeLegibility;
 }
@@ -144,17 +144,26 @@ a:hover {
 
 /* ────────────────────────────────────────────────────────── typography ── */
 
+/*
+ * URBANIST 700, WHICH IS THE ASSOCIATE'S TITLE FACE AND HIS TITLE WEIGHT.
+ * `--wd-entities-title-font` and `--wd-entities-title-font-weight` on the live
+ * site, measured, not chosen. The weight is a token rather than a literal
+ * because `scripts/theme-fonts-check.mjs` reads the declared weights out of
+ * `tokens.css` to decide which woff2 the theme is obliged to ship.
+ */
 h1,
 h2,
 h3,
 h4 {
 	margin: 0 0 var(--ts-space-3);
-	font-weight: 600;
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-display);
 	line-height: var(--ts-leading-tight);
 	/*
-	 * Inter needs negative tracking above about 24 px or the display sizes read
-	 * loose. The value is per size, not global: at body size the same tracking
-	 * closes the letters up and costs legibility.
+	 * Urbanist needs negative tracking above about 24 px or the display sizes
+	 * read loose, the same way Inter did before it. The value is per size, not
+	 * global: at body size the same tracking closes the letters up and costs
+	 * legibility.
 	 */
 	letter-spacing: -0.015em;
 	text-wrap: balance;
@@ -180,6 +189,23 @@ p {
 }
 
 /*
+ * BOLD INSIDE RUNNING TEXT IS LATO 700, SAID OUT LOUD.
+ *
+ * A browser maps `strong` and `b` to `bold` on its own, and `bold` is 700, so
+ * this rule changes nothing that renders. It is here because the only weights
+ * this theme ships are Urbanist 600/700 and Lato 400/700, and the one weight a
+ * shopper's browser can reach WITHOUT any rule of ours is exactly this one. Left
+ * implicit, `scripts/theme-fonts-check.mjs` reads the stylesheets, finds nothing
+ * asking for Lato 700, and reports 23 040 octets shipped on every page for
+ * nothing. It found precisely that, which is how this rule got written.
+ */
+strong,
+b {
+	font-family: var(--ts-font);
+	font-weight: var(--ts-weight-strong);
+}
+
+/*
  * The uppercase micro-label above a section. It is a LABEL, not a badge: no
  * pill, no background, no colour of its own beyond the muted ink, so a page
  * with six of them does not read as badge soup.
@@ -189,6 +215,7 @@ p {
 	margin: 0 0 var(--ts-space-2);
 	color: var(--ts-muted);
 	font-size: var(--ts-eyebrow-size);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	letter-spacing: var(--ts-eyebrow-tracking);
 	text-transform: uppercase;
@@ -292,6 +319,7 @@ html {
 	overflow: hidden;
 	color: var(--ts-ink);
 	font-size: 1.0625rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	letter-spacing: 0.06em;
 	text-overflow: ellipsis;
@@ -349,6 +377,7 @@ html {
 	color: var(--ts-ink);
 	font: inherit;
 	font-size: var(--ts-text-sm);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	cursor: pointer;
 }
@@ -395,6 +424,7 @@ html {
 	display: block;
 	padding: var(--ts-space-2) 0;
 	color: var(--ts-ink);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	text-decoration: none;
 }
@@ -430,6 +460,7 @@ html {
 	border-radius: var(--ts-radius);
 	color: var(--ts-ink);
 	font-size: var(--ts-text-sm);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	text-decoration: none;
 	white-space: nowrap;
@@ -580,6 +611,7 @@ html {
 
 .ts-facts__value {
 	font-size: var(--ts-text-lg);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
@@ -666,6 +698,7 @@ ul.products li.product .woocommerce-loop-product__title,
 	margin: 0 0 var(--ts-space-1);
 	padding: 0;
 	font-size: var(--ts-text);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	line-height: var(--ts-leading);
 	letter-spacing: 0;
@@ -719,6 +752,7 @@ div.product span.price {
 .ts-legal__h3 {
 	margin: var(--ts-space-4) 0 var(--ts-space-1);
 	font-size: var(--ts-text);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -745,6 +779,7 @@ div.product span.price {
 }
 
 .ts-legal__dl dt {
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -818,6 +853,7 @@ div.product span.price {
 
 .ts-sort__go {
 	border-color: var(--ts-ink);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	cursor: pointer;
 }
@@ -847,6 +883,7 @@ ul.products li.product .price {
 	background: var(--ts-surface);
 	color: var(--ts-muted);
 	font-size: var(--ts-eyebrow-size);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	letter-spacing: var(--ts-eyebrow-tracking);
 	text-transform: uppercase;
@@ -876,6 +913,7 @@ ul.products li.product .price {
 .woocommerce p.stock {
 	margin: var(--ts-space-2) 0 0;
 	font-size: var(--ts-text-sm);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -953,6 +991,7 @@ ul.products li.product .price {
 	background: var(--ts-surface);
 	color: var(--ts-ink);
 	font: inherit;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	text-align: left;
 	cursor: pointer;
@@ -1006,6 +1045,7 @@ ul.products li.product .price {
 	padding: 0;
 	color: var(--ts-muted);
 	font-size: var(--ts-eyebrow-size);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	letter-spacing: var(--ts-eyebrow-tracking);
 	text-transform: uppercase;
@@ -1116,6 +1156,7 @@ a.ts-chip:hover {
 	border-color: var(--ts-accent);
 	background: var(--ts-accent-wash);
 	color: var(--ts-accent);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -1223,6 +1264,7 @@ a.ts-chip:hover {
 	 */
 	margin-right: auto;
 	font-size: var(--ts-text-sm);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -1396,6 +1438,7 @@ a.ts-chip:hover {
 	border-color: var(--ts-accent);
 	background: var(--ts-accent);
 	color: var(--ts-accent-ink);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -1430,15 +1473,30 @@ a.ts-chip:hover {
 
 .ts-studio__back {
 	font-size: var(--ts-text-sm);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
 /* ─────────────────────────────────────────────────────────────── footer ── */
 
+/*
+ * THE FOOTER IS THE BRAND GROUND, and this one line is most of what makes a
+ * page read as this shop's. It was the ink, which is a near-black every theme
+ * has. The navy is the associate's, measured off his logo.
+ *
+ * THE MASTHEAD IS NOT PAINTED WITH IT, deliberately: the logo is two colours on
+ * a transparent ground and one of them IS this navy, so on a navy bar half the
+ * mark disappears. The logo is never repeated down here for the same reason.
+ *
+ * Everything drawn on this ground is measured against #010050 and not against
+ * the old #14171a: white 18,80:1, `--ts-on-brand-muted` 8,58:1,
+ * `--ts-on-brand-warn` 12,02:1. The focus ring survives the change without an
+ * override because its visible edge is the white halo, not the ink outline.
+ */
 .ts-foot {
 	margin-top: var(--ts-space-8);
 	border-top: 1px solid var(--ts-line);
-	background: var(--ts-ink);
+	background: var(--ts-accent);
 	color: var(--ts-paper);
 }
 
@@ -1462,6 +1520,7 @@ a.ts-chip:hover {
 .ts-foot__title {
 	margin: 0 0 var(--ts-space-3);
 	font-size: var(--ts-eyebrow-size);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	letter-spacing: var(--ts-eyebrow-tracking);
 	text-transform: uppercase;
@@ -1469,7 +1528,7 @@ a.ts-chip:hover {
 	 * Deliberately not `--ts-muted`: measured on this ground it is 3,00:1, and
 	 * this is a heading rather than a hint.
 	 */
-	color: var(--ts-on-ink-muted);
+	color: var(--ts-on-brand-muted);
 }
 
 .ts-foot__list {
@@ -1513,6 +1572,7 @@ a.ts-chip:hover {
 }
 
 .ts-foot__name {
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -1523,7 +1583,7 @@ a.ts-chip:hover {
 }
 
 .ts-foot__legal dt {
-	color: var(--ts-on-ink-muted);
+	color: var(--ts-on-brand-muted);
 }
 
 .ts-foot__legal dd {
@@ -1534,15 +1594,15 @@ a.ts-chip:hover {
  * The missing legal identity, said out loud.
  *
  * Warn-coloured on a dark ground, so the paper tone cannot be used:
- * `--ts-warn` is chosen against white. `--ts-on-ink-warn` is chosen against
+ * `--ts-warn` is chosen against white. `--ts-on-brand-warn` is chosen against
  * this one and measures 11,50:1 on it, for the text and for the rule.
  */
 .ts-foot__gap {
 	margin: var(--ts-space-3) 0 0;
 	padding: var(--ts-space-3);
-	border-left: 3px solid var(--ts-on-ink-warn);
+	border-left: 3px solid var(--ts-on-brand-warn);
 	background: color-mix(in srgb, var(--ts-paper) 6%, transparent);
-	color: var(--ts-on-ink-warn);
+	color: var(--ts-on-brand-warn);
 	font-size: var(--ts-text-xs);
 	line-height: var(--ts-leading);
 	max-width: none;
@@ -1551,9 +1611,9 @@ a.ts-chip:hover {
 /* The admin-only assumptions marker, readable on the dark ground it sits on. */
 .ts-foot__marker .ts-admin-note {
 	margin: 0 0 var(--ts-space-4);
-	border-left-color: var(--ts-on-ink-warn);
+	border-left-color: var(--ts-on-brand-warn);
 	background: color-mix(in srgb, var(--ts-paper) 6%, transparent);
-	color: var(--ts-on-ink-warn);
+	color: var(--ts-on-brand-warn);
 }
 
 .ts-foot__base {
@@ -1564,7 +1624,7 @@ a.ts-chip:hover {
 
 .ts-foot__copy {
 	margin: 0;
-	color: var(--ts-on-ink-muted);
+	color: var(--ts-on-brand-muted);
 	font-size: var(--ts-text-xs);
 	font-variant-numeric: tabular-nums;
 }
@@ -1587,7 +1647,7 @@ a.ts-chip:hover {
 }
 
 .ts-foot__consent-date {
-	color: var(--ts-on-ink-muted);
+	color: var(--ts-on-brand-muted);
 }
 
 .ts-foot__consent-date::before {
@@ -1765,6 +1825,7 @@ a.ts-chip:hover {
 /* ───────────────────────────────────────────────── hero, and the drawing ── */
 
 .ts-hero__second {
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -1902,6 +1963,7 @@ a.ts-chip:hover {
 
 .ts-families__name {
 	font-size: var(--ts-text-lg);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -1942,6 +2004,7 @@ a.ts-chip:hover {
 
 .ts-section__more {
 	margin: var(--ts-space-5) 0 0;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -1976,6 +2039,7 @@ a.ts-chip:hover {
 	color: var(--ts-muted);
 	font-size: var(--ts-text-sm);
 	font-variant-numeric: tabular-nums;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	text-align: right;
 	border-right: 2px solid var(--ts-accent);
@@ -2094,6 +2158,7 @@ a.ts-chip:hover {
 
 .ts-defs--wide dt {
 	margin-top: var(--ts-space-4);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -2193,6 +2258,7 @@ a.ts-chip:hover {
 	padding-bottom: var(--ts-space-3);
 	border-bottom: 1px solid var(--ts-line);
 	font-size: var(--ts-text-sm);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -2514,6 +2580,7 @@ a.ts-chip:hover {
 
 .ts-faq__q {
 	margin-top: var(--ts-space-3);
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 

@@ -120,6 +120,7 @@
 	padding: 0;
 	color: var(--ts-muted);
 	font-size: 0.75rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
@@ -177,6 +178,7 @@
 .ts-seg__item input[type='radio']:checked + span {
 	background: var(--ts-ink);
 	color: #fff;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 }
 
@@ -237,6 +239,7 @@
 .ts-table__quote {
 	color: var(--ts-accent);
 	font-size: 0.8125rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	white-space: nowrap;
 }
@@ -264,6 +267,7 @@
 	min-width: 2.25rem;
 	color: var(--ts-muted);
 	font-size: 0.75rem;
+	font-family: var(--ts-font-display);
 	font-weight: 600;
 	letter-spacing: 0.04em;
 }
@@ -394,6 +398,7 @@
 .ts-devis__title {
 	margin: 1.5rem 0 0.5rem;
 	font-size: 1.125rem;
+	font-family: var(--ts-font-display);
 	font-weight: 700;
 	letter-spacing: -0.01em;
 }

@@ -170,14 +170,18 @@ function assets(): void {
 	$dir = get_template_directory_uri();
 
 	/*
-	 * Inter, self-hosted, two weights.
+	 * Urbanist and Lato, self-hosted, two weights each.
 	 *
-	 * Question 31's default is the type the site already uses. Two files rather
-	 * than four: 400 for text and 600 for everything that announces something.
-	 * 700 is deliberately absent, so no rule in this theme may ask for it and
-	 * get a browser-synthesised fake. Latin subset only, because the shop sells
-	 * in metropolitan France (question 35). 48 ko total, and the 400 is
-	 * preloaded because it is on the critical path of every page.
+	 * QUESTION 31 IS ANSWERED and these are the associate's faces, measured off
+	 * what teeshoop.com serves: Urbanist is `--wd-entities-title-font` at 700
+	 * and `--wd-header-el-font` at 600, Lato is `--wd-alternative-font`. This
+	 * used to be Inter, which nobody had chosen. Latin subset only, because the
+	 * shop sells in metropolitan France (question 35). 70 764 octets for the
+	 * four, measured, and the two on the critical path are preloaded above.
+	 *
+	 * No rule in this theme may ask for a weight that is not one of the four:
+	 * the browser would synthesise a counterfeit and nothing would say so.
+	 * `scripts/theme-fonts-check.mjs` is what makes that a rule and not a hope.
 	 */
 	wp_enqueue_style( 'teeshoop-fonts', $dir . '/assets/fonts.css', array(), VERSION );
 
@@ -288,12 +292,31 @@ function drop_emoji(): void {
 }
 add_action( 'init', __NAMESPACE__ . '\\drop_emoji' );
 
-/** Preload the text weight; the browser cannot find it inside a stylesheet in time. */
+/**
+ * Preload the two faces the first paint needs; the browser cannot find them
+ * inside a stylesheet in time.
+ *
+ * TWO AND NOT ONE, and not four. Lato 400 is every paragraph and Urbanist 700
+ * is the heading above the fold on every page of this shop, so both are on the
+ * critical path and both would otherwise swap in visibly. Urbanist 600
+ * (navigation, labels) and Lato 700 (bold inside a paragraph) are not: they can
+ * arrive with the stylesheet.
+ *
+ * THIS LIST IS CHECKED. It preloaded `inter-latin-400.woff2` for a day after
+ * Inter was removed from the theme, which is a 404 fetched at high priority on
+ * every page of the shop, in the one request the browser is told to hurry.
+ * Nothing rendered differently and nothing logged. `scripts/theme-fonts-check.mjs`
+ * now reads this array and fails when a name in it is not a file on disk.
+ */
+const PRELOAD = array( 'lato-latin-400.woff2', 'urbanist-latin-700.woff2' );
+
 function preload_font(): void {
-	printf(
-		'<link rel="preload" href="%s" as="font" type="font/woff2" crossorigin>' . "\n",
-		esc_url( get_template_directory_uri() . '/assets/fonts/inter-latin-400.woff2' )
-	);
+	foreach ( PRELOAD as $file ) {
+		printf(
+			'<link rel="preload" href="%s" as="font" type="font/woff2" crossorigin>' . "\n",
+			esc_url( get_template_directory_uri() . '/assets/fonts/' . $file )
+		);
+	}
 }
 add_action( 'wp_head', __NAMESPACE__ . '\\preload_font', 1 );
 
