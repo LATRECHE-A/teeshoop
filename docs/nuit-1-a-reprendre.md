@@ -27,15 +27,30 @@
 
 ### L'import du catalogue tourne encore
 
-`--famille=all` planifie **2 303 références**. Une tranche de 30 minutes en
-traite environ 220. Le pilote (`scratchpad/import2.sh`, non suivi en git) est
-lancé pour 12 tranches et tourne encore à la fermeture.
+`--famille=all` planifie **2 303 références** et l'avancement était de
+**421/2303, zéro en échec**, à 23 h 06. Une tranche de 30 minutes en traite
+entre 220 et 420 selon la proportion de créations. Le pilote (dans le
+scratchpad, non suivi en git) tourne encore à la fermeture.
+
+**TROIS PILOTES, DEUX MAUVAIS SIGNAUX, et c'est la partie à retenir.** Le
+premier a brûlé cinq tranches en treize secondes le soir où le Worker était à
+terre, et a fait marquer 2 043 références « en échec » pour cette seule raison ;
+il vérifie maintenant le Worker avant chaque tranche. Le second s'est arrêté
+après UNE tranche en annonçant « TERMINE », sur deux lectures fausses de
+`teeshoop catalogue etat` :
+
+  Liste complète   : oui        <- les 2 303 ont été ÉNUMÉRÉES, pas traitées
+  Terminé          : en cours   <- un grep « Terminé  » matche cette ligne
+
+Le seul signal fiable est **`Avancement : X/Y` avec X égal à Y**. C'est ce que
+le troisième lit, et il l'affiche avant et après chaque tranche pour qu'un
+arrêt prématuré se voie dans le journal.
 
 Relevé à 22 h 54 le 3 septembre, contre le miroir :
 
 | | au réveil du miroir | à la fermeture |
 |---|---|---|
-| produits publiés | 465 | **728** |
+| produits publiés | 465 | **734** |
 | brouillons | 0 | 4 (dont 2 sans photographie fournisseur) |
 | déclinaisons | 26 359 | **28 946** |
 | pièces jointes | 735 | **1 122** |
