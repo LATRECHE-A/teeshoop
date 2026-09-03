@@ -60,13 +60,35 @@ defined( 'ABSPATH' ) || exit;
 
 		<?php
 		/*
-		 * THE LOGO SLOT. `the_custom_logo()` prints nothing at all until a file
-		 * is uploaded, which is the shipped state: question 31 is unanswered and
-		 * a company's logo is not something that can be defaulted. Until then the
-		 * name is the mark, set in the site's own type.
+		 * THE LOGO, IN THREE STEPS, AND THE MIDDLE ONE IS NEW.
+		 *
+		 * Question 31 is answered: « conserver le logo actuel ». The file is
+		 * his, 300 x 54, two colours on a transparent ground, taken from
+		 * /wp-content/uploads/2025/05/Sans-titre-300-x-54-px.png and shipped in
+		 * `assets/images/` so that an installation which has never been
+		 * configured still shows the right mark. That was the hole: the theme
+		 * registered the slot, nothing filled it, and every environment we
+		 * control rendered the site's NAME in text where a logo belongs.
+		 *
+		 *   1. what an admin uploaded, if any: the Customizer always wins;
+		 *   2. the file we ship, which is what makes step 1 optional;
+		 *   3. the wordmark, only if somebody deleted the file.
+		 *
+		 * WIDTH AND HEIGHT ARE WRITTEN OUT because this is the first element in
+		 * the masthead: without them the bar reflows the moment the PNG lands,
+		 * and the whole page under it moves. `fetchpriority` for the same
+		 * reason, it is above the fold on every page of the site.
 		 */
+		$ts_logo = get_template_directory() . '/assets/images/logo-teeshoop.png';
 		if ( has_custom_logo() ) {
 			the_custom_logo();
+		} elseif ( file_exists( $ts_logo ) ) {
+			printf(
+				'<a class="ts-logo" href="%s" rel="home"><img src="%s" width="300" height="54" alt="%s" fetchpriority="high" decoding="async"></a>',
+				esc_url( home_url( '/' ) ),
+				esc_url( get_template_directory_uri() . '/assets/images/logo-teeshoop.png' ),
+				esc_attr( get_bloginfo( 'name' ) )
+			);
 		} else {
 			printf(
 				'<a class="ts-wordmark" href="%s" rel="home">%s</a>',

@@ -690,37 +690,162 @@ function quote_url(): string {
 }
 
 /**
- * The top-level product categories that actually have something in them.
+ * The top-level product categories that actually have something in them,
+ * counting what is filed UNDER them and not only what is filed directly on them.
  *
- * `hide_empty` is true on purpose. Session 03's taxonomy carries families the
- * catalogue has not filled yet ("Sweats" is empty on the mirror today), and a
- * navigation that offers a category leading to "aucun produit" is the shop
- * telling a buyer it is unfinished. When the import fills it, it appears.
+ * `hide_empty` stays true, and for the reason it was written: a navigation that
+ * offers a category leading to "aucun produit" is the shop telling a buyer it
+ * is unfinished.
+ *
+ * WHAT WAS WRONG WITH IT. `get_terms( 'hide_empty' => true )` reads
+ * `term_taxonomy.count`, which WooCommerce fills with the products filed on
+ * THAT term exactly. The importer files a t-shirt under « T-shirts > Manches
+ * courtes », so on 03/09/2026 the mirror measured:
+ *
+ *     T-shirts   count 0    child « Manches courtes » count 139
+ *     Polos      count 2    children 88 + 14
+ *     Sweats     count 168  no child
+ *
+ * and this function returned two families out of three. A shop with 184
+ * t-shirts in it did not have « T-shirts » in its navigation, and nothing said
+ * so: the category was not broken, it was invisible.
+ *
+ * The fix counts descendants. `get_term_children()` is cheap here (one cached
+ * option-like read per taxonomy) and the whole result is memoised for the
+ * request, because the masthead and the homepage both ask.
  *
  * @return \WP_Term[]
  */
 function top_categories(): array {
+	static $cache = null;
+	if ( null !== $cache ) {
+		return $cache;
+	}
+
 	$terms = get_terms(
 		array(
 			'taxonomy'   => 'product_cat',
 			'parent'     => 0,
-			'hide_empty' => true,
+			'hide_empty' => false,
 			'orderby'    => 'name',
 			'exclude'    => array( (int) get_option( 'default_product_cat', 0 ) ),
 		)
 	);
-	return is_array( $terms ) ? $terms : array();
+	if ( ! is_array( $terms ) ) {
+		return $cache = array();
+	}
+
+	$kept = array();
+	foreach ( $terms as $term ) {
+		if ( ! $term instanceof \WP_Term ) {
+			continue;
+		}
+		$total = (int) $term->count;
+		foreach ( (array) get_term_children( $term->term_id, 'product_cat' ) as $child_id ) {
+			$child  = get_term( (int) $child_id, 'product_cat' );
+			$total += $child instanceof \WP_Term ? (int) $child->count : 0;
+		}
+		if ( $total > 0 ) {
+			// Carried on the term so the caller does not count twice; `count`
+			// itself is left alone, because it is WooCommerce's field and a
+			// theme writing to it would be a second bookkeeping.
+			$term->ts_total = $total;
+			$kept[]         = $term;
+		}
+	}
+	return $cache = $kept;
 }
 
 /**
- * The navigation when nobody has built a menu in the admin.
+ * How many references a family holds, itself and everything under it.
  *
- * WordPress's own fallback is `wp_page_menu`, which on a fresh WooCommerce
- * lists "Panier", "Commander", "Mon compte" and "Page d'exemple" as if they
- * were the shop's departments. This one is built from what the shop actually
- * sells, so a site that has just been installed navigates correctly before
- * anyone has touched a menu screen.
+ * @param \WP_Term $term A product category.
  */
+function family_count( \WP_Term $term ): int {
+	return isset( $term->ts_total ) ? (int) $term->ts_total : (int) $term->count;
+}
+
+/**
+ * The photograph attached to a product category, at the size a tile draws it.
+ *
+ * WHERE THESE COME FROM. Eleven photographs of people wearing marked garments
+ * are attached to the terms on teeshoop.com and have been since May 2025.
+ * `scripts/visuels-associe.mjs` copies them into an environment's media library
+ * and re-attaches them by name. They are the associate's own product
+ * photography and there is nothing to invent.
+ *
+ * THEY ARE 170 x 170, measured, and that is the whole reason the tile is the
+ * size it is. The comment that used to sit above `.ts-families` said a category
+ * « n'a pas de photographie honnête unique », which was simply not true; what is
+ * true is that the honest photograph it has is small, so the tile is drawn at a
+ * size the file can fill rather than blown up into a soft banner.
+ *
+ * Returns '' when the term has no photograph, and the caller decides what to
+ * draw instead. It never substitutes another category's picture.
+ *
+ * @param \WP_Term $term A product category.
+ */
+function category_media( \WP_Term $term ): string {
+	$id = (int) get_term_meta( $term->term_id, 'thumbnail_id', true );
+	if ( $id <= 0 ) {
+		return '';
+	}
+	return (string) wp_get_attachment_image(
+		$id,
+		'woocommerce_thumbnail',
+		false,
+		array(
+			'class'   => 'ts-fams__img',
+			'loading' => 'lazy',
+			'decoding' => 'async',
+			/*
+			 * EMPTY ALT, DELIBERATELY. The link right beside it already says
+			 * « T-Shirts, 184 références » in text. A screen reader that also
+			 * read « photographie d'une personne portant un t-shirt marqué »
+			 * would announce the same tile twice, and WCAG 1.1.1 calls an image
+			 * whose information is already in adjacent text decorative.
+			 */
+			'alt'     => '',
+		)
+	);
+}
+
+/**
+ * THE ASSOCIATE'S ORGANISATION, in the order he put it in.
+ *
+ * His answer 31 asks to keep « le menu et l'organisation déjà définis ». On
+ * teeshoop.com that is the menu « Menu Principale teeshoop » (11 product
+ * families, alphabetical) followed by the standing pages of « Avant menu
+ * header » (Devis gratuit, Services, Suivi, À propos, Blog). Read from his site
+ * on 03/09/2026 and reproduced here.
+ *
+ * WHY A FALLBACK AND NOT A MENU IN THE DATABASE. WordPress's own fallback is
+ * `wp_page_menu`, which on a fresh WooCommerce lists "Panier", "Commander",
+ * "Mon compte" and "Page d'exemple" as if they were the shop's departments.
+ * This one is built from what the shop actually sells, so an installation that
+ * has just been made navigates correctly before anyone has touched a menu
+ * screen. An admin who builds a real menu in `primaire` overrides all of it.
+ *
+ * WHAT IT WILL NOT DO IS OFFER A DEPARTMENT THAT IS EMPTY. Eight of his eleven
+ * families (Vestes, Débardeurs, Sport, Casquettes, Bonnets, Tabliers, Sacs,
+ * Maison) have no product on his own shop either, and the supplier import does
+ * not reach them: the studio prints upper-body garments and the importer asks
+ * for those. Putting the other eight in the bar would be eleven links of which
+ * eight lead to « aucun produit », which is the shop announcing it is
+ * unfinished, eight times, on every page. His ORDER and his NAMES are kept;
+ * what is not stocked is not advertised. See docs/decisions/.
+ *
+ * The standing pages are listed by slug and only the PUBLISHED ones render
+ * (`page_url()` returns '' otherwise), so the day somebody creates « services »
+ * the link appears with no code change.
+ */
+const STANDING_PAGES = array(
+	'services'     => 'Services',
+	'suivi'        => 'Suivi de commande',
+	'entreprises'  => 'Entreprises et associations',
+	'a-propos'     => 'À propos',
+);
+
 function default_nav(): void {
 	echo '<ul class="ts-nav__list">';
 
@@ -741,12 +866,15 @@ function default_nav(): void {
 		);
 	}
 
-	$pro = page_url( 'entreprises' );
-	if ( '' !== $pro ) {
+	foreach ( STANDING_PAGES as $slug => $label ) {
+		$url = page_url( $slug );
+		if ( '' === $url ) {
+			continue;
+		}
 		printf(
 			'<li class="ts-nav__item"><a href="%s">%s</a></li>',
-			esc_url( $pro ),
-			esc_html__( 'Entreprises et associations', 'teeshoop' )
+			esc_url( $url ),
+			esc_html( $label )
 		);
 	}
 

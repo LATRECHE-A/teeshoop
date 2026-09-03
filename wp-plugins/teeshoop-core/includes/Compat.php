@@ -341,6 +341,14 @@ final class Compat {
 		add_filter( 'woocommerce_breadcrumb_defaults', array( self::class, 'breadcrumb' ) );
 		add_filter( 'woocommerce_product_add_to_cart_text', array( self::class, 'add_to_cart_text' ), 10, 2 );
 		add_filter( 'woocommerce_catalog_orderby', array( self::class, 'orderby_labels' ) );
+
+		/*
+		 * Two filters and not one: WooCommerce queues this callback through
+		 * `as_enqueue_async_action()` on a normal save and through
+		 * `as_schedule_single_action()` when it is spreading the load.
+		 */
+		add_filter( 'pre_as_enqueue_async_action', array( self::class, 'refuse_dead_lookup' ), 10, 2 );
+		add_filter( 'pre_as_schedule_single_action', array( self::class, 'refuse_dead_lookup_scheduled' ), 10, 3 );
 	}
 
 	/** Say it where the person who can fix it will read it. */
@@ -471,6 +479,69 @@ final class Compat {
 		}
 		unset( $options['rating'] );
 		return $options;
+	}
+
+	/**
+	 * REFUSE TO QUEUE A JOB THAT FILLS A TABLE NOTHING READS.
+	 *
+	 * WHAT WAS MEASURED, on the mirror, 03/09/2026:
+	 *
+	 *     wp_actionscheduler_actions          96 259 en attente
+	 *     dont ce seul crochet                96 241
+	 *     wp_wc_product_attributes_lookup      0 ligne
+	 *     woocommerce_attribute_lookup_enabled no
+	 *     les deux tables d'Action Scheduler   70,9 Mo d'une base de 302,8
+	 *
+	 * Ninety-six thousand jobs queued to fill an empty table for a feature that
+	 * is switched off. Purging them took four seconds and gave back 70,6 Mo.
+	 *
+	 * WHY THE SETTING DOES NOT STOP IT, which is the part worth writing down.
+	 * `woocommerce_attribute_lookup_enabled` governs whether the FILTERING reads
+	 * the table. The queuing is in `LookupDataStore::on_product_changed()`, whose
+	 * only guard is `check_lookup_table_exists()`, and the table exists on every
+	 * WooCommerce install because Woo creates it. So turning the feature off in
+	 * the admin leaves the work being scheduled forever, invisibly, and it comes
+	 * straight back: the queue was at 18 after the purge and at 1 828 twenty
+	 * minutes into the next import.
+	 *
+	 * `on_product_changed` is not called through a hook (WC_Product::save() calls
+	 * it on the container directly), so there is nothing to unhook. Action
+	 * Scheduler's own `pre_as_*` filters are the supported way in, and they are
+	 * where this sits.
+	 *
+	 * IT FAILS IN THE DIRECTION THAT KEEPS THE FEATURE WORKING. The moment
+	 * somebody turns the setting on, this returns null and every job is queued
+	 * again. A performance cache that is quietly never rebuilt would be a slow
+	 * shop nobody can explain, which is a worse bug than the one being fixed.
+	 *
+	 * @param mixed  $pre  Null unless another filter already answered.
+	 * @param string $hook The action being queued.
+	 * @return mixed 0 to refuse, or whatever was passed in.
+	 */
+	public static function refuse_dead_lookup( $pre, $hook = '' ) {
+		if ( null !== $pre ) {
+			return $pre;
+		}
+		if ( 'woocommerce_run_product_attribute_lookup_update_callback' !== $hook ) {
+			return $pre;
+		}
+		if ( 'yes' === get_option( 'woocommerce_attribute_lookup_enabled' ) ) {
+			return $pre;
+		}
+		return 0;
+	}
+
+	/**
+	 * The same refusal on the scheduled variant, where the hook is the third
+	 * argument rather than the second.
+	 *
+	 * @param mixed  $pre       Null unless another filter already answered.
+	 * @param int    $timestamp When it would have run.
+	 * @param string $hook      The action being queued.
+	 * @return mixed 0 to refuse, or whatever was passed in.
+	 */
+	public static function refuse_dead_lookup_scheduled( $pre, $timestamp = 0, $hook = '' ) {
+		return self::refuse_dead_lookup( $pre, $hook );
 	}
 
 	public static function notice(): void {

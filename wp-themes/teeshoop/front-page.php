@@ -87,13 +87,41 @@ $ts_cat      = catalogue_stats();
 		</div>
 	</div>
 
+	<?php
+	/*
+	 * HIS PHOTOGRAPH, AND NOT A LINE DRAWING.
+	 *
+	 * What was here was `print_zone_figure()`, a diagram of three rectangles
+	 * giving the print area in centimetres. It is a good drawing and it was the
+	 * ONLY illustration on the homepage: measured 03/09/2026, this page rendered
+	 * zero `<img>` while teeshoop.com rendered fifty-one. A shop that sells
+	 * putting pictures on clothes cannot open with a wireframe. The drawing has
+	 * moved down to the section where somebody is actually choosing a print
+	 * size, which is where it helps.
+	 *
+	 * The file is his: `home-header-teeshoop-3-scaled.jpg`, on his home page
+	 * since April 2023, a person wearing a marked tee that reads « Votre design
+	 * ici ». Three widths are shipped and the browser picks; `sizes` says the
+	 * media column is the full width on a phone and about half of a 1400 px page
+	 * at a desk, so a 375 px screen fetches the 768 and not the 2048.
+	 *
+	 * The framing is done with `object-fit` rather than by cropping three more
+	 * files: the subject sits at about 68 % across a very wide frame, so a tall
+	 * box on a phone keeps her in it and a wide box at a desk shows the whole
+	 * composition. Width and height are on the tag so the hero does not jump
+	 * when it lands.
+	 */
+	$ts_img = get_template_directory_uri() . '/assets/images/accueil-teeshoop-';
+	?>
 	<div class="ts-hero__media">
-		<?php
-		$ts_figure = '' !== $ts_garment ? print_zone_figure( $ts_garment ) : '';
-		if ( '' !== $ts_figure ) {
-			echo $ts_figure; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure().
-		}
-		?>
+		<img
+			class="ts-hero__photo"
+			src="<?php echo esc_url( $ts_img . '1536.jpg' ); ?>"
+			srcset="<?php echo esc_attr( $ts_img . '768.jpg 768w, ' . $ts_img . '1536.jpg 1536w, ' . $ts_img . '2048.jpg 2048w' ); ?>"
+			sizes="(min-width: 60rem) 46vw, 100vw"
+			width="1536" height="512"
+			fetchpriority="high" decoding="async"
+			alt="<?php esc_attr_e( 'Une personne portant un t-shirt noir marqué « Votre design ici »', 'teeshoop' ); ?>">
 	</div>
 </section>
 
@@ -248,19 +276,49 @@ $ts_cat      = catalogue_stats();
 			<p><?php esc_html_e( 'Aucune famille de produits n’est publiée sur cette boutique. L’import fournisseur remplit les catégories ; tant qu’il n’a pas tourné, il n’y a rien d’honnête à montrer ici.', 'teeshoop' ); ?></p>
 		</div>
 	<?php else : ?>
-		<ul class="ts-families">
+		<?php
+		/*
+		 * A GRID OF TILES, EACH WITH THE CATEGORY'S OWN PHOTOGRAPH.
+		 *
+		 * This was a list of names and counts, justified by a comment saying a
+		 * category « n'a pas de photographie honnête unique ». That was wrong:
+		 * eleven photographs of people wearing marked garments have been
+		 * attached to these terms on teeshoop.com since May 2025.
+		 * `scripts/visuels-associe.mjs` brings them into an environment.
+		 *
+		 * A TILE WITHOUT A PHOTOGRAPH IS STILL A TILE, and it says so rather
+		 * than borrowing a neighbour's picture: `category_media()` returns
+		 * nothing and the tile is drawn as type on the brand wash. That is the
+		 * state on a category imported before the photographs were copied, and
+		 * it has to be designed rather than avoided.
+		 *
+		 * The count is the family's TOTAL, subcategories included, which is the
+		 * number a buyer means. `T-shirts` itself holds zero products directly:
+		 * everything is filed under `Manches courtes`.
+		 */
+		?>
+		<ul class="ts-fams">
 			<?php foreach ( $ts_terms as $ts_term ) : ?>
-				<li class="ts-families__item">
-					<a class="ts-families__link" href="<?php echo esc_url( (string) get_term_link( $ts_term ) ); ?>">
-						<span class="ts-families__name"><?php echo esc_html( $ts_term->name ); ?></span>
-						<span class="ts-families__n ts-num">
-							<?php
-							printf(
-								/* translators: %s: number of references in this family. */
-								esc_html( _n( '%s référence', '%s références', (int) $ts_term->count, 'teeshoop' ) ),
-								esc_html( num( (float) $ts_term->count ) )
-							);
-							?>
+				<?php $ts_media = category_media( $ts_term ); ?>
+				<li class="ts-fams__item">
+					<a class="ts-fams__link<?php echo '' === $ts_media ? ' ts-fams__link--typeonly' : ''; ?>" href="<?php echo esc_url( (string) get_term_link( $ts_term ) ); ?>">
+						<?php if ( '' !== $ts_media ) : ?>
+							<span class="ts-fams__media">
+								<?php echo $ts_media; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_get_attachment_image() escapes. ?>
+							</span>
+						<?php endif; ?>
+						<span class="ts-fams__text">
+							<span class="ts-fams__name"><?php echo esc_html( $ts_term->name ); ?></span>
+							<span class="ts-fams__n ts-num">
+								<?php
+								$ts_n = family_count( $ts_term );
+								printf(
+									/* translators: %s: number of references in this family. */
+									esc_html( _n( '%s référence', '%s références', $ts_n, 'teeshoop' ) ),
+									esc_html( num( (float) $ts_n ) )
+								);
+								?>
+							</span>
 						</span>
 					</a>
 				</li>
@@ -284,6 +342,21 @@ $ts_cat      = catalogue_stats();
 		<p class="ts-lead">
 			<?php esc_html_e( 'Vous déposez votre visuel, vous le placez, vous voyez le prix à votre quantité, et vous payez. Le bon à tirer arrive ensuite : rien n’est imprimé avant que vous l’ayez validé.', 'teeshoop' ); ?>
 		</p>
+
+		<?php
+		/*
+		 * The print area, drawn to scale. It opened the homepage until 03/09/2026
+		 * and it was the only picture on it; here it sits next to the paragraph
+		 * that tells somebody they are about to place a visual, which is the
+		 * moment the centimetres mean something. Every dimension comes from
+		 * `Garments::areas()`, generated from the studio, so the drawing and the
+		 * editor cannot disagree.
+		 */
+		$ts_figure = '' !== $ts_garment ? print_zone_figure( $ts_garment ) : '';
+		if ( '' !== $ts_figure ) {
+			echo '<div class="ts-zone">' . $ts_figure . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure().
+		}
+		?>
 	</div>
 
 	<?php if ( empty( $ts_products ) ) : ?>

@@ -383,7 +383,7 @@ final class Seo {
 	// The head
 	// -----------------------------------------------------------------------
 
-	/** Canonical, description, pagination links and the JSON-LD graph. */
+	/** Canonical, description, sharing card, pagination links and the JSON-LD graph. */
 	public static function head(): void {
 		$description = self::description();
 		if ( '' !== $description ) {
@@ -398,7 +398,117 @@ final class Seo {
 			self::adjacent();
 		}
 
+		self::sharing( $description );
 		self::graph();
+	}
+
+	/**
+	 * THE CARD A LINK BECOMES WHEN SOMEBODY PASTES IT.
+	 *
+	 * Measured 03/09/2026: this shop published NO Open Graph at all. A link to it
+	 * in WhatsApp, on LinkedIn, in Slack or in a Teams channel rendered a white
+	 * rectangle with a black bar, for a company whose trade is putting a logo on
+	 * things. Every quotation this shop sends contains a link to a product page.
+	 *
+	 * IT IS PRINTED EVEN ON A `noindex` PAGE, deliberately. `noindex` is an
+	 * instruction to a search engine about its INDEX; it says nothing about a
+	 * person forwarding an address to a colleague, which is exactly what happens
+	 * to a filtered listing somebody wants a second opinion on. The URL in the
+	 * card is the canonical one where there is one, so a link carrying eight
+	 * facet parameters still shares as the clean page.
+	 *
+	 * THE IMAGE, IN ORDER OF WHAT IS TRUE:
+	 *   1. on a product, that product's own photograph. Sharing a garment and
+	 *      showing a generic banner would be the wrong picture, not a missing one;
+	 *   2. otherwise the shop's own sharing image, shipped with the theme;
+	 *   3. otherwise nothing at all. A card with no image beats a card with
+	 *      somebody else's.
+	 *
+	 * WIDTH AND HEIGHT ARE SENT because several clients (LinkedIn among them)
+	 * will not lay out a large card until they have fetched and measured the
+	 * file, and some give up first. `og:image:alt` because a card is read aloud
+	 * on a phone.
+	 *
+	 * @param string $description The same description the meta tag carries.
+	 */
+	private static function sharing( string $description ): void {
+		$title = wp_get_document_title();
+		$url   = self::canonical();
+		if ( '' === $url ) {
+			$url = home_url( add_query_arg( array() ) );
+		}
+
+		$type = is_singular( 'product' ) ? 'product' : ( is_singular( 'post' ) ? 'article' : 'website' );
+
+		printf( '<meta property="og:type" content="%s">' . "\n", esc_attr( $type ) );
+		printf( '<meta property="og:site_name" content="%s">' . "\n", esc_attr( get_bloginfo( 'name' ) ) );
+		printf( '<meta property="og:locale" content="%s">' . "\n", esc_attr( str_replace( '-', '_', get_bloginfo( 'language' ) ) ) );
+		printf( '<meta property="og:title" content="%s">' . "\n", esc_attr( $title ) );
+		printf( '<meta property="og:url" content="%s">' . "\n", esc_url( $url ) );
+		if ( '' !== $description ) {
+			printf( '<meta property="og:description" content="%s">' . "\n", esc_attr( $description ) );
+		}
+
+		$image = self::sharing_image();
+		if ( array() === $image ) {
+			// No picture, so no large card: `summary` renders correctly without
+			// one, `summary_large_image` renders as a bare line of text.
+			print( '<meta name="twitter:card" content="summary">' . "\n" );
+			return;
+		}
+
+		printf( '<meta property="og:image" content="%s">' . "\n", esc_url( $image['url'] ) );
+		if ( $image['w'] > 0 && $image['h'] > 0 ) {
+			printf( '<meta property="og:image:width" content="%d">' . "\n", (int) $image['w'] );
+			printf( '<meta property="og:image:height" content="%d">' . "\n", (int) $image['h'] );
+		}
+		printf( '<meta property="og:image:alt" content="%s">' . "\n", esc_attr( $image['alt'] ) );
+
+		print( '<meta name="twitter:card" content="summary_large_image">' . "\n" );
+		printf( '<meta name="twitter:image" content="%s">' . "\n", esc_url( $image['url'] ) );
+		printf( '<meta name="twitter:image:alt" content="%s">' . "\n", esc_attr( $image['alt'] ) );
+	}
+
+	/**
+	 * The picture this page shares as, absolute, with its real dimensions.
+	 *
+	 * @return array{url:string,w:int,h:int,alt:string}|array{}
+	 */
+	private static function sharing_image(): array {
+		if ( is_singular( 'product' ) ) {
+			$id = (int) get_post_thumbnail_id( (int) get_queried_object_id() );
+			if ( $id > 0 ) {
+				// `large` and not `full`: a supplier photograph can be 3 000 px
+				// wide, and several clients refuse a file over 5 Mo outright.
+				$src = wp_get_attachment_image_src( $id, 'large' );
+				if ( is_array( $src ) && ! empty( $src[0] ) ) {
+					return array(
+						'url' => (string) $src[0],
+						'w'   => (int) ( $src[1] ?? 0 ),
+						'h'   => (int) ( $src[2] ?? 0 ),
+						'alt' => (string) get_the_title( (int) get_queried_object_id() ),
+					);
+				}
+			}
+		}
+
+		/*
+		 * The shop's own card, 1200 x 630, which is the size every client lays
+		 * out without cropping. It is derived from the associate's own home
+		 * header rather than drawn: a person wearing a marked tee, which is what
+		 * we sell. Shipped with the theme, so an environment nobody has
+		 * configured still shares correctly.
+		 */
+		$file = get_template_directory() . '/assets/images/partage-teeshoop.jpg';
+		if ( ! file_exists( $file ) ) {
+			return array();
+		}
+		return array(
+			'url' => get_template_directory_uri() . '/assets/images/partage-teeshoop.jpg',
+			'w'   => 1200,
+			'h'   => 630,
+			'alt' => __( 'Une personne portant un t-shirt marqué', 'teeshoop-core' ),
+		);
 	}
 
 	/**

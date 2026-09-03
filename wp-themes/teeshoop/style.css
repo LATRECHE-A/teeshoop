@@ -561,15 +561,82 @@ html {
 	line-height: var(--ts-leading);
 }
 
+/*
+ * THE HERO PHOTOGRAPH.
+ *
+ * One file at three widths, framed by `object-fit` rather than by cropping more
+ * files. The source is 2 560 x 853 (3:1) with the subject at about 68 % across
+ * and a wide empty peach field on the left: at 375 px a 3:1 strip would be
+ * 125 px tall and she would be a thumbnail, so the box is 4:3 on a phone and
+ * opens out to 3:2 and then to the frame's own ratio as the page widens.
+ * `object-position` keeps her in shot at every one of them.
+ *
+ * The rounded corner is `--ts-radius`, which is the associate's 10 px, and it
+ * is here because this IS a photograph in a frame. The rules and the section
+ * edges elsewhere on this page stay square.
+ */
 .ts-hero__media {
 	margin: var(--ts-space-6) 0 0;
-	border: 1px solid var(--ts-line);
+	overflow: hidden;
+	border-radius: var(--ts-radius);
 	background: var(--ts-surface);
 }
 
-.ts-hero__media img {
+.ts-hero__photo {
 	display: block;
 	width: 100%;
+	height: auto;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+	object-position: 68% center;
+}
+
+@media (min-width: 45rem) {
+	.ts-hero__photo {
+		aspect-ratio: 3 / 2;
+	}
+}
+
+@media (min-width: 60rem) {
+	.ts-hero__photo {
+		aspect-ratio: 16 / 10;
+	}
+}
+
+/* The print-zone drawing, now beside the paragraph that makes it useful. */
+.ts-zone {
+	margin-top: var(--ts-space-5);
+	max-width: 34rem;
+}
+
+.ts-zone img,
+.ts-zone svg {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+/*
+ * The masthead logo. 300 x 54 is its natural size and it is drawn at a height
+ * rather than a width so the bar keeps the same rhythm if the file is ever
+ * replaced by one of another proportion.
+ */
+.ts-logo {
+	display: inline-flex;
+	align-items: center;
+	line-height: 0;
+}
+
+.ts-logo img {
+	display: block;
+	width: auto;
+	height: 30px;
+}
+
+@media (min-width: 45rem) {
+	.ts-logo img {
+		height: 36px;
+	}
 }
 
 .ts-hero__caption {
@@ -1927,47 +1994,121 @@ a.ts-chip:hover {
 	max-width: none;
 }
 
-/* ─────────────────────────────────────────────────────── the families list ── */
+/* ────────────────────────────────────────────────── the families, as tiles ── */
 
 /*
- * The catalogue's own shape, as a ruled list rather than as tiles. Tiles need a
- * photograph each and a category has no single honest photograph; a list can
- * carry the one thing a buyer wants here, which is how many references are in
- * it.
+ * THE CATALOGUE'S OWN SHAPE, WITH THE ASSOCIATE'S PHOTOGRAPHS IN IT.
+ *
+ * This was a ruled list, argued for with « tiles need a photograph each and a
+ * category has no single honest photograph ». The photographs existed the whole
+ * time: eleven of them, people wearing marked garments, attached to these very
+ * terms on teeshoop.com since May 2025.
+ *
+ * THE TILE IS THE SIZE THE FILE CAN FILL. Those photographs are 170 x 170,
+ * measured, and that is their original: there is no larger version on the
+ * server. So the picture is drawn at 96 px (128 px from the medium breakpoint),
+ * which a 170 px file still covers on a 1x screen and softens only slightly on
+ * a 2x one. Blowing it up to a 400 px banner would be the one thing worse than
+ * the list it replaces.
+ *
+ * That is also why this is a ROW and not a card: photograph left, name and
+ * count right, on one rule. It reads as a catalogue index, which is what it is,
+ * and it stays legible at 375 px without a second layout.
  */
-.ts-families {
+.ts-fams {
+	display: grid;
+	gap: 0;
 	margin: 0;
 	padding: 0;
 	list-style: none;
 	border-top: 1px solid var(--ts-line);
 }
 
-.ts-families__item {
+@media (min-width: 45rem) {
+	.ts-fams {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		column-gap: var(--ts-space-6);
+	}
+}
+
+@media (min-width: 75rem) {
+	.ts-fams {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+.ts-fams__item {
 	border-bottom: 1px solid var(--ts-line);
 }
 
-.ts-families__link {
+.ts-fams__link {
 	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
+	align-items: center;
 	gap: var(--ts-space-4);
-	padding: var(--ts-space-4) 0;
+	padding: var(--ts-space-3) 0;
 	color: var(--ts-ink);
 	text-decoration: none;
 }
 
-.ts-families__link:hover .ts-families__name {
+/*
+ * The picture is a fixed square and never a fraction of the row, so eleven
+ * tiles line up whatever the length of their names. `object-fit: cover` is
+ * there for the day a category is given a photograph that is not square.
+ */
+.ts-fams__media {
+	flex: 0 0 auto;
+	display: block;
+	overflow: hidden;
+	width: 96px;
+	height: 96px;
+	border-radius: var(--ts-radius);
+	background: var(--ts-surface);
+}
+
+.ts-fams__img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+@media (min-width: 45rem) {
+	.ts-fams__media {
+		width: 128px;
+		height: 128px;
+	}
+}
+
+.ts-fams__text {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ts-space-1);
+	min-width: 0;
+}
+
+/*
+ * THE TILE WITH NO PHOTOGRAPH, designed rather than avoided. It keeps the row
+ * height so the grid does not stagger, and it says so with the brand wash
+ * instead of a grey rectangle pretending to be a loading image.
+ */
+.ts-fams__link--typeonly {
+	padding-left: var(--ts-space-4);
+	border-left: 3px solid var(--ts-accent-wash);
+}
+
+.ts-fams__link:hover .ts-fams__name {
 	color: var(--ts-accent);
 	text-decoration: underline;
 }
 
-.ts-families__name {
+.ts-fams__name {
 	font-size: var(--ts-text-lg);
 	font-family: var(--ts-font-display);
 	font-weight: 600;
+	overflow-wrap: anywhere;
 }
 
-.ts-families__n {
+.ts-fams__n {
 	color: var(--ts-muted);
 	font-size: var(--ts-text-sm);
 	white-space: nowrap;
