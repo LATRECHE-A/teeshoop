@@ -68,6 +68,16 @@ final class Importer {
 	/** The resumable run state. Not autoloaded: it carries ~460 references. */
 	private const OPTION_RUN = 'teeshoop_catalogue_run';
 
+	/**
+	 * Product meta: THIS importer took the fiche offline for want of a
+	 * photograph, and may put it back when one arrives.
+	 *
+	 * Separate from `META_DELISTED`, which means « the supplier stopped listing
+	 * it ». The two undo themselves on different events and conflating them
+	 * would republish a discontinued style the day an unrelated photo appeared.
+	 */
+	private const META_NO_PHOTO = '_teeshoop_sans_photo';
+
 	/** Attachment meta: which supplier file this image came from. */
 	private const META_SOURCE = '_teeshoop_source';
 
@@ -572,6 +582,54 @@ final class Importer {
 		if ( $images['changed'] ) {
 			$why[]   = 'photos';
 			$changed = true;
+		}
+
+		/*
+		 * UNE RÉFÉRENCE SANS PHOTOGRAPHIE N'EST PAS MISE EN VENTE.
+		 *
+		 * MESURÉ le 03/09/2026, après un import `--famille=all` : deux articles
+		 * sur 574 sont arrivés sans aucune image, un tapis de bain et un bavoir,
+		 * tous deux dans « Autres textiles ». Le fournisseur ne publie pas de
+		 * photo pour eux ; ce n'est pas un téléchargement raté, c'est un champ
+		 * vide dans son flux, et `images()` sait déjà faire la différence.
+		 *
+		 * Publiés quand même, ils devenaient deux pavés gris « Sans photo » dans
+		 * une grille de vêtements photographiés, sur la boutique d'une entreprise
+		 * dont le métier est l'image. Un vêtement qu'on ne peut pas regarder ne
+		 * se vend pas : personne n'achète vingt polos sur la foi d'un nom.
+		 *
+		 * BROUILLON ET NON CORBEILLE, et marqué comme tel. Le fournisseur ajoute
+		 * des photos après coup : le jour où il en publie une, la passe suivante
+		 * la trouve et remet la fiche en ligne par le même chemin que
+		 * `delist()`. Une fiche mise en brouillon PAR UN HUMAIN n'est jamais
+		 * republiée, ce qui est déjà la règle juste au-dessus et pourquoi ce
+		 * marqueur existe.
+		 *
+		 * Le problème est écrit dans le rapport plutôt que silencieux : un
+		 * catalogue qui rétrécit sans le dire est pire qu'un catalogue troué.
+		 */
+		$sans_photo = 0 === (int) ( wc_get_product( $product_id ) ? wc_get_product( $product_id )->get_image_id() : 0 );
+		$deja_brouillon = 'draft' === get_post_status( $product_id );
+		if ( $sans_photo && ! $deja_brouillon ) {
+			$hors_ligne = wc_get_product( $product_id );
+			if ( $hors_ligne instanceof \WC_Product ) {
+				$hors_ligne->set_status( 'draft' );
+				$hors_ligne->update_meta_data( self::META_NO_PHOTO, '1' );
+				$hors_ligne->save();
+				$problems[] = 'Aucune photographie chez le fournisseur : la fiche reste hors ligne.';
+				$why[]      = 'hors ligne, sans photo';
+				$changed    = true;
+			}
+		} elseif ( ! $sans_photo && '1' === (string) get_post_meta( $product_id, self::META_NO_PHOTO, true ) ) {
+			// La photo est arrivée depuis la dernière passe.
+			$revenu = wc_get_product( $product_id );
+			if ( $revenu instanceof \WC_Product ) {
+				$revenu->set_status( 'publish' );
+				$revenu->delete_meta_data( self::META_NO_PHOTO );
+				$revenu->save();
+				$why[]   = 'remise en ligne, photo reçue';
+				$changed = true;
+			}
 		}
 
 		// --- variations -----------------------------------------------------

@@ -1157,6 +1157,80 @@ Le fichier est en 0600 et hors du dépôt. Pour retirer ce compte, la commande e
 
 ---
 
+## 6 decies. La nuit 1 : deux choses à fournir, une à faire tourner (03/09/2026)
+
+### A. Imbretex : ni compte, ni identifiants, ni code. C'est un accès à obtenir.
+
+**Ce que l'associé demande.** Ses réponses 3, 9, 43 et 46 nomment **Imbretex en
+priorité** comme fournisseur, et environ 300 références choisies.
+
+**Ce que nous avons.** Rien d'exploitable : **46 produits raclés le 26 juillet
+2026** sur son site public, avec des **prix de détail**. Pas de webservice, pas de
+compte, pas de numéro client, pas de tarif d'achat.
+
+**Ce que nous n'avons pas fait, et pourquoi c'est délibéré.** Nous n'avons PAS
+écrit d'adaptateur Imbretex contre ce raclage. Un prix de détail rangé dans le
+champ « coût d'achat » ne ressemble pas à une erreur : il ressemble à un coût.
+Il passerait ensuite sous chaque calcul de marge, sous chaque prix plancher et
+sous chaque devis, et la boutique vendrait à perte ou refuserait des commandes
+rentables sans que rien n'ait l'air cassé. `Margin.php` a déjà corrigé une
+formule fausse de la Bible ; une donnée fausse est pire qu'une formule fausse,
+parce qu'aucun test ne la voit.
+
+**Ce qu'il nous faut, précisément :**
+
+| Ce qu'il faut | Où le demander |
+|---|---|
+| Un compte professionnel Imbretex ouvert au nom de Teeshoop | commercial Imbretex |
+| Le numéro client | idem |
+| Leurs **tarifs d'achat** (grille PDF ou export) | idem |
+| L'existence, ou non, d'un **webservice** et sa documentation | idem, question explicite |
+
+Sans le quatrième point, l'intégration sera un import de fichier et non une
+synchronisation, ce qui change la conception : à dire avant de commencer.
+
+**Ce qui tourne en attendant :** Falk & Ross, qui répond. Son service web a
+rendu 200 le 2 septembre avec 2 303 styles et 39 adresses de photos par style,
+et le catalogue de cette nuit en vient.
+
+### B. Un jeton à faire tourner, et c'est notre faute
+
+`TEESHOOP_CATALOGUE_TOKEN` a été posé sur le **miroir docker local** cette nuit
+avec `wp config set`. WP-CLI **affiche la valeur qu'il vient d'écrire** dans son
+message de succès, et cette valeur s'est donc retrouvée dans la transcription de
+la séance. Ce n'est pas un secret de production, c'est l'`ADMIN_TOKEN` de
+`.dev.vars`, celui du Worker de développement, mais c'est la même valeur que
+celle du Worker déployé si elles n'ont jamais divergé.
+
+**À faire, quand vous voudrez, dans cet ordre** (rien n'est cassé en attendant,
+et rien n'est urgent si le Worker de développement n'est joignable que depuis
+cette machine) :
+
+```
+wrangler secret put ADMIN_TOKEN
+# puis la MÊME nouvelle valeur dans .dev.vars (ligne ADMIN_TOKEN=)
+# puis, sur chaque boutique qui importe le catalogue :
+wp config set TEESHOOP_CATALOGUE_TOKEN <nouvelle valeur> --type=constant --quiet
+```
+
+Le `--quiet` est le correctif : il supprime le message qui affiche la valeur.
+C'est la forme utilisée au paragraphe 4 de ce document et elle aurait dû l'être
+ici aussi.
+
+### C. Deux réponses attendues de l'associé, écrites dans QUESTIONS-ASSOCIE.md
+
+Ce ne sont pas des accès, elles sont rappelées ici parce qu'elles conditionnent
+un détail visible du site :
+
+- **Q62** : le texte courant en **Lato** ou en **Work Sans** ? Son thème déclare
+  les deux. Nous avons pris Lato, et le changement coûte deux lignes.
+- **Q63** : ses polices sont chargées depuis **Google** sur chaque page de
+  `teeshoop.com`, ce qui envoie l'adresse IP de chaque visiteur hors Union
+  européenne sans consentement. Woodmart sait les héberger localement ;
+  faut-il activer l'option, et avant ou après la bascule de thème ?
+
+---
+
 ## 7. Plus tard : inutile de les créer maintenant
 
 Ces accès ne servent qu'à partir de R1/R2. Les créer trop tôt, c'est multiplier les

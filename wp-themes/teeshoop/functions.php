@@ -496,7 +496,27 @@ function personalisable_products( int $limit = 12 ): array {
 	$products = array();
 	foreach ( $ids as $id ) {
 		$product = wc_get_product( (int) $id );
-		if ( $product instanceof \WC_Product ) {
+		/*
+		 * AND IT MUST HAVE A PHOTOGRAPH, which is a rule about the offer and not
+		 * about tidiness.
+		 *
+		 * This list is « choisissez le vêtement que vous allez dessiner ». A
+		 * buyer picks a garment by looking at it: nobody chooses the blank they
+		 * are about to put their company's logo on, in quantity, from a name.
+		 * An entry with no picture is not a weaker offer, it is not an offer.
+		 *
+		 * It is also what keeps the harness fixtures out of the homepage, the
+		 * same way the `exclude-from-catalog` clause above does, and for a
+		 * reason that survives them: measured 03/09/2026, the nine products
+		 * carrying a garment on this mirror were all test fixtures (« Probe
+		 * fixture 3 », « Tee de vérification »), none had a photograph, and the
+		 * homepage drew a grey « Sans photo » tile as the shop's flagship.
+		 *
+		 * The section's empty state already says what to do about it, in words:
+		 * a garment becomes personalisable when a product declares which studio
+		 * model it is printed on. It now also has to be one somebody can see.
+		 */
+		if ( $product instanceof \WC_Product && (int) $product->get_image_id() > 0 ) {
 			$products[] = $product;
 		}
 	}
