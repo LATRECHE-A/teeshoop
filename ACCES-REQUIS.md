@@ -1311,3 +1311,31 @@ Autrement dit : au 14/08, **aucun travail technique n'est bloqué par un accès*
 qui bloque encore est d'une autre nature : des décisions qui appartiennent à
 l'associé, et une méthode que l'on s'impose (préproduction, sauvegarde, puis
 déploiement) parce que la boutique encaisse déjà.
+
+## 12. Les vues produit à plat du fournisseur, manches écartées (nuit 2, 4 septembre 2026)
+
+**Ce qui manque.** Des photographies du vêtement POSÉ À PLAT, manches écartées,
+pour les références de la gamme personnalisable.
+
+**Pourquoi.** La zone d'impression de chaque référence se mesure sur sa propre
+photographie : c'est ce qui ouvrirait la personnalisation à autre chose que les
+deux vêtements que le studio sait dessiner. Mesuré le 4 septembre sur les dix-huit
+photographies de la gamme, la machinerie a refusé les dix-huit : les vues de face
+sont des mannequins vivants (une l'est à deux personnes), et les vues de dos, qui
+sont bien à plat, n'ont pas d'encolure creusée à mesurer. Détail et chiffres dans
+`docs/decisions/2026-09-04-zone-impression-mesuree.md`.
+
+**Ce n'est pas une question technique, c'est une question à poser au
+fournisseur.** Falk & Ross en publie déjà pour une partie du catalogue : le Fruit
+of the Loom Valueweight (référence 15001) a une vue de face à plat manches
+écartées, et c'est la seule des neuf. Si le reste existe, il suffit de savoir sous
+quel type de média il est servi.
+
+**Qui peut l'obtenir :** le développeur ou l'associé, auprès de Falk & Ross.
+
+**Le contournement en attendant**, et il tient pour neuf références : poser les
+rectangles à la main dans l'écran d'administration, avec `PrintAreaPlacer`, qui
+existe et qui est fait pour ça. Une heure de travail pour la gamme de lancement.
+Il ne tient pas pour trois cents.
+
+---

@@ -169,7 +169,23 @@ function snapArea(
  * the rect is the historical proportional guess, surfaced in the chip title
  * so nobody mistakes a guess for a measurement.
  */
-function presetsFor(
+/**
+ * The placements this photo supports, measured or proportional.
+ *
+ * EXPORTED since 4 September 2026, and that is the point rather than a
+ * convenience: `scripts/zones-mesurer.mjs` measures the printable rectangle of
+ * every catalogue reference at import time, and it takes it from HERE. The
+ * alternative was a second implementation of "largest sane print: torso minus
+ * seam allowance, collar to hem", which is exactly the shape CLAUDE.md forbids:
+ * the day the two drifted, the shop would publish one rectangle and the studio
+ * would let a customer draw in another.
+ *
+ * `measured` on each preset is the load-bearing field for the batch: false
+ * means the collar was not found and the rectangle is a proportional guess,
+ * which the editor may offer to a human looking at the photo and the catalogue
+ * may NOT write onto a product.
+ */
+export function presetsFor(
   side: Side,
   a: GarmentAnatomy,
   widthIn: number,
