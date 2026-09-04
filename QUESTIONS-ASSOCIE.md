@@ -3479,7 +3479,7 @@ localement (« Theme Settings > Typography > Load fonts locally » selon les ver
 
 ---
 
-### Q64. Le tarif publié vendait sous son coût, nous l'avons remonté au minimum : voulez-vous aller plus haut ? (*Bloquant*)
+### Q64. Nous avons appliqué votre marge brute minimale de 50 % : voici le tarif qu'elle produit (*Bloquant*)
 
 **Ce que nous avons mesuré, la nuit du 4 septembre 2026.** La grille publique
 annonçait 14,50 EUR le t-shirt imprimé et 32,00 EUR le sweat. Ces deux chiffres
@@ -3488,67 +3488,111 @@ registre le disait déjà.
 
 Nous avons fait tourner le moteur de coût sur neuf références réelles de votre
 catalogue, à la surface d'impression que la page promet, au coloris le plus cher
-de chaque référence, et pour une, deux et trois faces. Résultat :
+et à la taille la plus chère de chaque référence, et pour une, deux et trois
+faces. Résultat :
 
 > **102 des 219 colonnes publiées se vendaient sous leur prix plancher**, de
 > 1,71 EUR à 299,01 EUR par commande. Toutes les colonnes t-shirt, sans
 > exception.
 
-**Ce que nous avons fait, et sur quelle autorité.** Nous avons remonté le tarif
-au plus petit niveau auquel aucune colonne ne passe sous son plancher : 21,00 EUR
-le t-shirt à cinq pièces (13,65 EUR à cinquante), 39,00 EUR le sweat. Refuser de
-vendre sous le coût est une décision d'ingénierie et nous l'avons prise seuls.
-Un contrôle automatique (`npm run verify:grille`) refuse désormais toute
-configuration qui repasserait sous le plancher.
+**Ce que nous avons fait, et sur quelle autorité.** Votre réponse à la question
+06, reçue le 1er septembre, dit « un objectif de marge brute minimale d'environ
+50 % après coûts directs ». Le mot est *minimale*, et la phrase qui suit nomme le
+plancher : nous l'avons donc traitée comme un plancher et pas comme une cible, et
+le tarif en découle. Aucun chiffre ci-dessous n'est choisi : c'est le plus petit
+tarif, arrondi à l'euro, auquel aucune colonne publiée ne passe sous ce plancher,
+au coloris et à la taille les plus chers. La dérivation exacte donnait 33,69 EUR
+et 72,44 EUR.
 
-**Ce que nous n'avons PAS décidé, parce que c'est à vous.** Il y a trois niveaux
-possibles, tous les trois calculés sur les mêmes mesures :
+| Ce qui est publié depuis le 5 septembre 2026 | 1 pièce | 5 | 10 | 25 | 50 | 100 |
+|---|---|---|---|---|---|---|
+| T-shirt, une face | 34,00 | 34,00 | 28,90 | 25,50 | 22,10 | sur devis |
+| Sweat à capuche, une face | 73,00 | 73,00 | 62,05 | 54,75 | sur devis | sur devis |
+| Chaque face supplémentaire | 10,00 | | | | | |
 
-| | T-shirt, 5 pièces | T-shirt, 50 pièces | Ce que la boutique garde |
-|---|---|---|---|
-| **Ce que nous avons publié** (plancher) | **23,00 EUR** | **14,95 EUR** | 25 % du prix |
-| Zone d'autonomie commerciale | environ 28 EUR | environ 18 EUR | environ 42 % |
-| Marge brute de 50 % | environ 34 EUR | environ 22 EUR | 50 % |
+Prix HT à la pièce. Un contrôle automatique (`npm run verify:grille`) refuse
+désormais toute configuration qui repasserait sous le plancher : il a été cassé
+volontairement pour vérifier qu'il sait dire non, et il compte aujourd'hui
+99 colonnes publiées, toutes au-dessus.
 
-**Une quatrième question, et elle vient de votre réponse 37.** Vous y écrivez que
-si les grandes tailles font passer la commande sous le plancher, « un supplément
-peut être appliqué ou la commande doit nécessiter une validation interne ». Une
-boutique en autonomie ne peut pas faire la seconde : il n'y a personne entre le
-clic et le paiement. Nous avons donc pris la première voie sous sa forme la plus
-simple, celle qui ne demande rien de nouveau au client : **le prix couvre la
-taille la plus chère**. Concrètement, un acheteur en S paie ce que coûte un 3XL,
-et c'est environ 2 EUR par pièce sur un t-shirt. Un supplément explicite sur les
-grandes tailles ferait redescendre le prix de toutes les autres.
+L'ancien tarif dégageait entre 26,1 % et 41,1 % de marge brute selon la colonne,
+médiane 32 %. Il était donc sous votre minimum partout, y compris là où il
+couvrait le coût.
 
-Votre réponse à la question 06, le 1er septembre, dit « un objectif de marge
-brute minimale d'environ 50 % après coûts directs ». Nous n'avons pas publié ce
-niveau-là, parce qu'il sort de la fourchette des prix que nous avons relevés
-chez vos concurrents : mistertee vend le même genre de t-shirt imprimé à
-l'unité entre 15,97 EUR et 23,11 EUR, et son propre moteur de prix, que son site
-publie, calcule 19,26 EUR. Seule la première ligne du tableau est dedans.
+**Ce que ce niveau vous coûte face au marché, et c'est la question.** Nous avions
+relevé chez mistertee un t-shirt imprimé à l'unité entre 15,97 EUR et 23,11 EUR,
+et son propre moteur de prix, que son site publie, calcule 19,26 EUR. À 34,00 EUR
+la pièce, votre tarif à l'unité est au-dessus de cette fourchette. C'est la
+conséquence directe de votre réponse, appliquée telle quelle, et nous préférons
+vous la montrer chiffrée plutôt que de l'atténuer nous-mêmes.
 
-Nous avons donc choisi de ne pas vous mettre hors marché sans vous demander.
-L'écart entre ce que nous publions et votre objectif vaut **9,61 EUR par
-t-shirt à cinq pièces**.
+Les deux autres niveaux que nous avions calculés, pour mémoire : le plancher de
+contribution seul donnait 23,00 EUR à cinq pièces et 14,95 EUR à cinquante, et la
+zone d'autonomie commerciale environ 28 EUR et 18 EUR.
 
-**Deux choses à savoir avant de répondre.**
+**Trois conséquences visibles, à connaître avant de répondre.**
 
-1. Le coût sur lequel ce plancher est bâti est **incomplet**. Deux postes valent
-   zéro faute d'avoir été mesurés : les consommables (question 05) et la
-   provision de défaut (question 27). Le vrai plancher est donc un peu plus haut
-   que celui que nous appliquons.
-2. Le prix du film est une **borne haute** : le service d'imbrication n'a pas
-   répondu, donc chaque transfert est chiffré comme s'il occupait sa propre
-   bande.
+1. **Le passage en devis arrive plus tôt.** Votre réponse à la question 02 fixe
+   l'autonomie à 2 000 EUR HT de commande. Au nouveau tarif, cent t-shirts valent
+   2 210 EUR HT et cinquante sweats dépassent aussi : ces colonnes ne portent plus
+   de prix public, elles renvoient vers un devis. C'est votre règle appliquée à
+   votre marge, pas une décision de notre part.
+2. **Un acheteur en S paie ce que coûte un 3XL**, environ 2 EUR par pièce sur un
+   t-shirt. C'est la forme la plus simple de votre réponse 37 : une boutique en
+   autonomie ne peut pas « faire valider en interne », il n'y a personne entre le
+   clic et le paiement. Un supplément explicite sur les grandes tailles ferait
+   redescendre le prix de toutes les autres.
+3. **Le coût sur lequel ce plancher est bâti reste incomplet.** Deux postes
+   valent zéro faute d'avoir été mesurés : les consommables (question 05) et la
+   provision de défaut (question 27). Le vrai plancher est un peu plus haut. En
+   sens inverse, le prix du film est une borne haute, le service d'imbrication
+   n'ayant pas répondu.
 
 *Trois questions :*
-1. Gardons-nous 21,00 EUR, ou montons-nous à l'un des deux autres niveaux ?
+1. Confirmez-vous 34,00 EUR et 73,00 EUR, ou nous demandez-vous de redescendre
+   sous votre minimum de 50 % pour rester dans la fourchette du marché ? Si vous
+   redescendez, dites à quel niveau : nous ne choisirons pas à votre place de
+   vendre moins cher que ce que vous avez écrit.
 2. La remise par quantité (15 % à dix pièces, 25 % à vingt-cinq, 35 % à
    cinquante) est notre hypothèse et pas la vôtre. La confirmez-vous ?
 3. Faut-il un tarif différent par famille de textile, ou un seul tarif t-shirt
    qui doit tenir pour la référence la plus chère de la gamme ? Aujourd'hui
    c'est la seconde forme, et elle fait payer au client du B&C #E150 le prix du
    B&C #inspire.
+
+*Votre réponse :*
+
+---
+
+### Q65. Un marquage pleine taille ne passe pas en 3XL sur les deux Gildan (*Non bloquant*)
+
+**Ce que nous avons mesuré, le 5 septembre 2026.** Jusqu'ici l'éditeur agrandissait
+le marquage d'une taille à l'autre en suivant la grille d'un seul vêtement, le
+Stanley/Stella sur lequel son dessin est calibré, quelle que soit la référence
+vendue. Nous avons branché les vraies fiches de vos fournisseurs. Elles ne montent
+pas de la même façon :
+
+| Référence | Demi-poitrine 3XL / M | Marquage de 25,0 cm de côté, en 3XL |
+|---|---|---|
+| B&C #E150, #inspire, #Exact 190 | 1,226 | 30,7 cm, tient |
+| Gildan Heavy Blend (sweat) | 1,364 | 34,1 cm, **dépasse** |
+| Gildan Heavy Cotton | 1,400 | 35,0 cm, **dépasse** |
+
+Le film fait 33 cm de large. Un marquage carré au maximum du palier standard
+(625 cm², soit 25,0 cm de côté) ne peut donc pas être produit en 3XL sur les deux
+Gildan : le transfert serait plus large que la feuille. La boutique refuse la
+ligne avant le paiement et nomme la taille en cause. Les marquages plus petits,
+et tous les marquages non carrés qui peuvent se coucher en travers de la feuille,
+passent normalement.
+
+Ce n'est pas un défaut du site : c'est une contrainte physique qui était
+invisible tant que tous les vêtements étaient gradés par la grille d'un seul.
+
+*Deux questions :*
+1. Est-ce acceptable de refuser ce cas, ou faut-il plafonner la taille du
+   marquage sur ces deux références pour qu'aucun 3XL ne soit jamais refusé ?
+2. Existe-t-il chez votre fournisseur de film une laize plus large que 33 cm à
+   un prix comparable ? Cela lèverait la contrainte d'un coup.
 
 *Votre réponse :*
 

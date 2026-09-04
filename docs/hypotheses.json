@@ -32,7 +32,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-12",
-			"statement_fr": "Un t-shirt imprimé sur une face vaut 23,00 EUR HT à l'unité : 13,00 EUR de textile nu et 10,00 EUR de marquage.",
+			"statement_fr": "Un t-shirt imprimé sur une face vaut 34,00 EUR HT à l'unité : 24,00 EUR de textile nu et de frais de commande, et 10,00 EUR de marquage.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.base_ht+garments.tee.first_side_ht",
 			"mirrors": [
 				{
@@ -42,14 +42,11 @@
 				}
 			],
 			"literals": [
-				"1300"
+				"2400"
 			],
 			"literal_allow": [
-				"src/dev/dtfHarness.tsx",
-				"wp-plugins/teeshoop-core/tests/test-pricing.php",
-				"wp-plugins/teeshoop-core/tests/test-cost.php"
+				"wp-plugins/teeshoop-core/tests/test-production.php"
 			],
-			"literal_allow_why": "1300 y est une SURFACE et une PART, jamais un prix de vente. Dans `src/dev/dtfHarness.tsx` c'est `areaShareCents`, la part d'une pièce dans le coût d'une feuille de film. Dans `tests/test-pricing.php` c'est une surface en cm² passée à `ts_side()` pour tomber dans le palier de surface supérieur. Le même chiffre, d'autres unités, d'autres sujets : une collision, pas une seconde copie du tarif. Et dans `tests/test-cost.php` c'est un montant ordinaire d'une commande chiffrée par le test du moteur de coût, qui écrit de vraies sommes.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -66,12 +63,12 @@
 				{
 					"from": "garments.tee.base_ht+garments.tee.first_side_ht",
 					"as": "eur",
-					"text": "23,00 EUR"
+					"text": "34,00 EUR"
 				},
 				{
 					"from": "garments.tee.base_ht",
 					"as": "eur",
-					"text": "13,00 EUR"
+					"text": "24,00 EUR"
 				},
 				{
 					"from": "garments.tee.first_side_ht",
@@ -81,7 +78,8 @@
 			],
 			"decided_by": "equipe",
 			"decided_on": "2026-09-04",
-			"decided_why": "le tarif publié vendait sous son propre plancher de coût, sur 102 des 219 colonnes publiées puis sur 34 de plus une fois le coût mesuré à la taille réellement commandée et non à M (règle de développement de la réponse 37) ; il est maintenant dérivé du plancher que le moteur calcule, à la taille et au coloris les plus chers, arrondi à l'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md"
+			"decided_why": "le tarif publié vendait sous son propre plancher de coût, et le plancher lui-même lisait notre contribution de 25 % au lieu de la marge brute minimale de 50 % qu'il a répondue le 1er septembre ; il est maintenant dérivé de SON minimum, à la taille et au coloris les plus chers que l'offre vend. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md",
+			"literal_allow_why": "2400 y est un nombre de pièces à produire dans le test de l'ordonnancement d'atelier, pas de l'argent. Collision de chiffres."
 		},
 		{
 			"id": "H-Q06-TARIF-SWEAT",
@@ -89,7 +87,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-12",
-			"statement_fr": "Un sweat imprimé sur une face vaut 49,00 EUR HT à l'unité : 39,00 EUR de textile nu et 10,00 EUR de marquage.",
+			"statement_fr": "Un sweat imprimé sur une face vaut 73,00 EUR HT à l'unité : 63,00 EUR de textile nu et de frais de commande, et 10,00 EUR de marquage.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.hoodie.base_ht+garments.hoodie.first_side_ht",
 			"mirrors": [
 				{
@@ -99,7 +97,7 @@
 				}
 			],
 			"literals": [
-				"3900"
+				"6300"
 			],
 			"reaches": [
 				"customer",
@@ -117,12 +115,12 @@
 				{
 					"from": "garments.hoodie.base_ht+garments.hoodie.first_side_ht",
 					"as": "eur",
-					"text": "49,00 EUR"
+					"text": "73,00 EUR"
 				},
 				{
 					"from": "garments.hoodie.base_ht",
 					"as": "eur",
-					"text": "39,00 EUR"
+					"text": "63,00 EUR"
 				},
 				{
 					"from": "garments.hoodie.first_side_ht",
@@ -133,7 +131,7 @@
 			"literal_allow": [],
 			"decided_by": "equipe",
 			"decided_on": "2026-09-04",
-			"decided_why": "le tarif publié vendait sous son propre plancher de coût, sur 102 des 219 colonnes publiées puis sur 34 de plus une fois le coût mesuré à la taille réellement commandée et non à M (règle de développement de la réponse 37) ; il est maintenant dérivé du plancher que le moteur calcule, à la taille et au coloris les plus chers, arrondi à l'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md"
+			"decided_why": "le tarif publié vendait sous son propre plancher de coût, et le plancher lui-même lisait notre contribution de 25 % au lieu de la marge brute minimale de 50 % qu'il a répondue le 1er septembre ; il est maintenant dérivé de SON minimum, à la taille et au coloris les plus chers que l'offre vend. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md"
 		},
 		{
 			"id": "H-Q06-TARIF-VETEMENT-CLIENT",
@@ -197,7 +195,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-12",
-			"statement_fr": "Chaque face imprimée après la première coûte 7,00 EUR HT, quel que soit le vêtement.",
+			"statement_fr": "Chaque face imprimée après la première coûte 10,00 EUR HT, quel que soit le vêtement.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.extra_side_ht",
 			"mirrors": [
 				{
@@ -227,7 +225,7 @@
 				}
 			],
 			"literals": [
-				"700"
+				"1000"
 			],
 			"reaches": [
 				"customer",
@@ -247,22 +245,31 @@
 				"src/lib/teeshoop/"
 			],
 			"literal_allow": [
-				"wp-plugins/teeshoop-core/includes/Payment.php",
+				"src/lib/teeshoop/bridge.ts",
+				"wp-plugins/teeshoop-core/includes/Admin.php",
+				"wp-plugins/teeshoop-core/includes/Bat.php",
+				"wp-plugins/teeshoop-core/includes/Catalogue.php",
+				"wp-plugins/teeshoop-core/includes/Cost.php",
+				"wp-plugins/teeshoop-core/includes/Pdf.php",
+				"wp-plugins/teeshoop-core/includes/Shipping.php",
+				"wp-plugins/teeshoop-core/tests/integration-checkout.php",
+				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
-				"wp-plugins/teeshoop-core/includes/Notify.php"
+				"wp-plugins/teeshoop-core/tests/test-production.php",
+				"wp-plugins/teeshoop-core/tests/test-shipping.php"
 			],
-			"literal_allow_why": "700 y est le début de « 700 000 », un nombre de boutiques cité dans le commentaire d'en-tête de Payment.php à propos du journal des versions de WooCommerce. Ce n'est pas de l'argent, c'est une collision de chiffres. Dans test-pricing.php c'est une SURFACE en cm², passée à `ts_side()` pour tomber dans le palier intermédiaire : le même chiffre, une autre unité, un autre sujet. Dans Notify.php c'est une GRAISSE DE POLICE : « font:700 17px » dans le style en ligne du bandeau de marque du courriel. Aucun client de messagerie ne résout une propriété personnalisée, donc ces styles sont littéraux par nécessité, et 700 y est du gras, pas de l'argent.",
-			"literal_scope_why": "700 est cherché là où un second prix par face pourrait s'écrire, et pas ailleurs. Il apparaît aussi comme graisse de police dans le gabarit de courriel, comme surface en cm² dans les tests de prix, et à l'intérieur de « 700 000 » dans un commentaire de Payment.php : ces trois-là sont déclarés dans literal_allow avec leur raison. La valeur est écrite SIX fois au total, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées comme miroirs et comparées en faisant tourner les deux moteurs. (Cette note parlait encore de 600, la valeur d'avant le 4 septembre 2026, et c'est elle qui dit au prochain lecteur jusqu'où le scan doit aller.)",
+			"literal_scope_why": "1000 est cherché là où un second prix par face pourrait s'écrire : l'extension, les tables de contenu du studio et la passerelle. Pas ailleurs, parce que ce chiffre est partout et que chercher partout produirait un bruit que personne ne relirait, donc un garde que personne ne croit. (Cette note a parlé de 600 puis de 700 : c'est elle qui dit au prochain lecteur jusqu'où le scan doit aller quand la valeur bouge.)",
 			"statement_amounts": [
 				{
 					"from": "garments.tee.extra_side_ht",
 					"as": "eur",
-					"text": "7,00 EUR"
+					"text": "10,00 EUR"
 				}
 			],
 			"decided_by": "equipe",
 			"decided_on": "2026-09-04",
-			"decided_why": "le tarif publié vendait sous son propre plancher de coût, sur 102 des 219 colonnes publiées puis sur 34 de plus une fois le coût mesuré à la taille réellement commandée et non à M (règle de développement de la réponse 37) ; il est maintenant dérivé du plancher que le moteur calcule, à la taille et au coloris les plus chers, arrondi à l'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md"
+			"decided_why": "le tarif publié vendait sous son propre plancher de coût, et le plancher lui-même lisait notre contribution de 25 % au lieu de la marge brute minimale de 50 % qu'il a répondue le 1er septembre ; il est maintenant dérivé de SON minimum, à la taille et au coloris les plus chers que l'offre vend. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md",
+			"literal_allow_why": "1000 est le littéral le plus banal du dépôt et cette liste est longue pour cette seule raison. Aucune de ces douze occurrences n'est un prix par face : ce sont des millisecondes de délai, des grammes de colis, des pixels, des cotes de bon à tirer, des tailles de lot d'import, et des montants ordinaires dans des tests qui chiffrent de vraies commandes. La valeur EST écrite six fois, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées comme miroirs et comparées en faisant tourner les deux moteurs, pas en cherchant une chaîne. La portée reste large exprès, pour qu'un NOUVEAU fichier qui écrirait un second prix par face sorte de cette liste et fasse rougir le garde."
 		},
 		{
 			"id": "H-Q08-PALIERS-SURFACE",
@@ -2201,9 +2208,9 @@
 			"status": "answered",
 			"since": "2026-08-18",
 			"answered": "2026-09-01",
-			"answer_fr": "Question 06 : « Nous retenons comme base un objectif de marge brute minimale d'environ 50 % après coûts directs, avec paramètres adaptables selon la technique, notamment pour la broderie. » Lu comme la cible et non comme le plancher : « marge brute après coûts directs » rapportée au prix de vente est exactement ce que produit prix = coût / (1 − taux). Réserve : sa phrase contient les deux mots (« objectif » et « minimale ») et il dit « environ ».",
-			"statement_fr": "La marge cible est de 50 % du prix de vente hors taxes.",
-			"home": "php:Teeshoop\\Core\\Cost::default_config()#target_margin_rate",
+			"answer_fr": "Question 06 : « Nous retenons comme base un objectif de marge brute minimale d'environ 50 % après coûts directs, avec paramètres adaptables selon la technique, notamment pour la broderie. » Lu comme le PLANCHER depuis le 5 septembre 2026, parce que le mot est « minimale » et que la phrase suivante dit « Seul le dirigeant peut autoriser exceptionnellement une vente sous le prix plancher » : les deux décrivent le même seuil. Le prix de liste au-dessus de ce minimum, lui, n'a pas été donné.",
+			"statement_fr": "La marge brute minimale est de 50 % du prix de vente hors taxes après coûts directs, et c'est le prix plancher.",
+			"home": "php:Teeshoop\\Core\\Cost::default_config()#min_margin_rate",
 			"mirrors": [],
 			"literals": [],
 			"reaches": [
@@ -2219,13 +2226,7 @@
 			"cost_if_late": "reglage et remesure",
 			"shipped_matches_default": "Partiellement. Question 06 : « Marge cible 55 % ». La Bible appelle ce taux « taux de marge » alors que sa formule est celle du taux de MARQUE (marge sur prix de vente), et son propre exemple chiffré implique 60 %. Les deux lectures sont affichées côte à côte sur l'écran d'administration pour que la réponse ne puisse pas être ambiguë.",
 			"literals_why": "0.55 est un taux sans unité que rien d'autre ne porte dans ce dépôt ; la phrase le vérifie.",
-			"statement_amounts": [
-				{
-					"from": "target_margin_rate",
-					"as": "pct",
-					"text": "50 %"
-				}
-			]
+			"statement_amounts": []
 		},
 		{
 			"id": "H-Q06-CONTRIBUTION-MINIMALE",
@@ -2233,7 +2234,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-18",
-			"statement_fr": "Après commission, il doit rester à Teeshoop au moins 25 % du prix de vente hors taxes ; c'est ce que le prix plancher garantit.",
+			"statement_fr": "Après commission, il doit rester à Teeshoop au moins 25 % du prix de vente hors taxes ; c'est l'une des deux jambes du prix plancher, et celle que l'associé n'a pas donnée.",
 			"home": "php:Teeshoop\\Core\\Cost::default_config()#min_contribution_rate",
 			"mirrors": [],
 			"literals": [],
@@ -2251,13 +2252,7 @@
 			"cost_if_late": "reglage et remesure",
 			"shipped_matches_default": "Partiellement. Question 06 : « contribution minimale 25 % du prix hors taxes ». La Bible, elle, prend une contribution ABSOLUE ; la forme en taux est une autre formule, avec un cas sans solution quand la contribution demandée dépasse ce qui reste après commission. Les deux sont dans Margin.php et testées.",
 			"literals_why": "0.25 est aussi le taux de commission d'une nouvelle commande et une remise de palier : le littéral ne distingue pas trois valeurs différentes qui s'écrivent pareil.",
-			"statement_amounts": [
-				{
-					"from": "min_contribution_rate",
-					"as": "pct",
-					"text": "25 %"
-				}
-			]
+			"statement_amounts": []
 		},
 		{
 			"id": "H-Q06-REMISE-MAXIMALE",

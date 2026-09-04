@@ -216,16 +216,22 @@ final class Margin {
 	 * `recommended_ht` is the MAXIMUM of the target-margin price and the floor,
 	 * which is the chapter's own rule ("le prix final conseillé doit être le
 	 * maximum entre le prix économique nécessaire et la stratégie commerciale
-	 * retenue"). It matters more than it looks: with a target margin of 40 % and
-	 * a minimum contribution of 25 % after a 40 % commission, the target price is
-	 * BELOW the floor, and a screen that published it would be inviting a
-	 * salesperson to negotiate down from a price that already needs a
-	 * derogation. `raised_to_floor` says when that happened, because the honest
-	 * reading of it is not "we rounded up", it is "these two settings contradict
-	 * each other and somebody should look".
+	 * retenue").
+	 *
+	 * SINCE 5 SEPTEMBER 2026 THE FLOOR CONTAINS THE TARGET, because the
+	 * associate's own words make his 50 % a MINIMUM and not only an objective
+	 * (see the block in `plan()`). So `recommended_ht === floor_ht` whenever the
+	 * gross-margin arm binds, which is every commission rate this shop uses, and
+	 * `raised_to_floor` is then false because the two are equal rather than in
+	 * conflict. It still fires the day the contribution arm takes over, which is
+	 * what it was written to surface: two settings that contradict each other
+	 * and somebody should look.
 	 *
 	 * $rules:
 	 *   target_margin_rate     margin ÷ price, the taux de marque. Required.
+	 *   min_margin_rate        the gross margin the shop refuses to go under,
+	 *                          margin ÷ price. Question 06's answer of
+	 *                          1 September 2026. Absent or 0 means no such floor.
 	 *   commission_rate        share of the contributive margin. Required.
 	 *   min_contribution_ht    absolute minimum kept, cents. Wins when present.
 	 *   min_contribution_rate  share of the price kept. Used when the above is null.
@@ -239,14 +245,64 @@ final class Margin {
 		$abs        = $rules['min_contribution_ht'] ?? null;
 
 		if ( null !== $abs ) {
-			$floor = self::floor_price( $direct_ht, (int) $abs, $commission );
-			$basis = 'absolute';
+			$contribution = self::floor_price( $direct_ht, (int) $abs, $commission );
+			$basis        = 'absolute';
 		} else {
-			$floor = self::floor_price_rate( $direct_ht, (float) ( $rules['min_contribution_rate'] ?? 0 ), $commission );
-			$basis = 'rate';
+			$contribution = self::floor_price_rate( $direct_ht, (float) ( $rules['min_contribution_rate'] ?? 0 ), $commission );
+			$basis        = 'rate';
 		}
 
 		$by_target = self::recommended_price( $direct_ht, $target );
+
+		/*
+		 * ── LE PLANCHER EST SA MARGE BRUTE MINIMALE, QUAND ELLE EST DONNÉE ───
+		 *
+		 * Sa réponse à la question 06, le 1er septembre 2026 : « Nous retenons
+		 * comme base un objectif de marge brute MINIMALE d'environ 50 % après
+		 * coûts directs », et deux lignes plus bas « Seul le dirigeant peut
+		 * autoriser exceptionnellement une vente sous le prix plancher ». Les
+		 * deux phrases parlent du même seuil : ce qu'il appelle minimal est ce
+		 * que ce fichier appelle plancher.
+		 *
+		 * Jusqu'au 5 septembre 2026 ce 50 % n'était lu QUE comme la cible, et le
+		 * plancher restait notre contribution minimale de 25 % après commission
+		 * (H-Q06-CONTRIBUTION-MINIMALE, notre hypothèse par défaut, jamais
+		 * confirmée). Le plancher valait donc la moitié de ce qu'il a demandé, et
+		 * le tarif publié en héritait : mesuré sur les 111 colonnes de la grille,
+		 * la marge brute allait de 26,1 % à 41,1 %, médiane 32 %.
+		 *
+		 * ── C'EST UNE RÈGLE À PART, ET PAS LA CIBLE RENOMMÉE ─────────────────
+		 *
+		 * `min_margin_rate` est distinct de `target_margin_rate` parce que ce
+		 * sont deux nombres différents : le premier est le minimum sous lequel on
+		 * ne descend pas, le second est le prix qu'on affiche et depuis lequel un
+		 * commercial négocie. L'associé a donné le premier et pas le second.
+		 * Les confondre a une conséquence visible et voulue : quand ils sont
+		 * égaux, le conseillé tombe sur le plancher, `zone_ht` vaut zéro et
+		 * `binding` dit « plancher », c'est-à-dire qu'il n'y a rien à négocier.
+		 * Ce n'est pas un bug, c'est ce que deux nombres égaux veulent dire, et
+		 * c'est visible sur l'écran des marges plutôt que caché.
+		 *
+		 * Absent (zéro), cette contrainte ne s'applique pas et le plancher reste
+		 * la contribution seule : c'est la forme d'avant, et les périmètres de
+		 * `PriceRule` qui ne posent qu'une contribution la gardent.
+		 *
+		 * LES DEUX CONTRAINTES SONT GARDÉES, et le plancher est leur maximum.
+		 * Elles ne mesurent pas la même chose : la sienne est une marge brute sur
+		 * le prix, la nôtre est ce qui RESTE après la commission du commercial.
+		 * La sienne domine à tous les taux que la boutique pratique (0, 12, 25 et
+		 * 40 %, question 29) : la nôtre ne reprend la main qu'au-delà de 50 % de
+		 * commission, parce que 1 - 0,25/(1-c) < 0,5 exige c > 0,5. Supprimer la
+		 * nôtre serait donc sans effet aujourd'hui et faux le jour où un taux
+		 * monte.
+		 */
+		$min_margin = (float) ( $rules['min_margin_rate'] ?? 0 );
+		$by_margin  = $min_margin > 0 ? self::recommended_price( $direct_ht, $min_margin ) : 0;
+		$floor      = max( $contribution, $by_margin );
+		if ( $by_margin > $contribution ) {
+			$basis = 'marge_brute';
+		}
+
 		$recommended = max( $by_target, $floor );
 
 		/*

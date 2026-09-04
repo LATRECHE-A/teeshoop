@@ -663,9 +663,29 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 	ts_it( 'adds up to the cent at every quantity around a discount break', function () use ( $product_id, $sides, $design ) {
 		ts_ck_regime( Vat::STANDARD );
 
+		$devis = 0;
 		foreach ( array( 5, 9, 10, 24, 25, 49, 50, 100 ) as $qty ) {
-			ts_ck_fill( $product_id, $qty, $sides, $design );
+			$key   = ts_ck_fill( $product_id, $qty, $sides, $design );
 			$quote = Pricing::quote( array( 'garment' => 'tee', 'qty' => $qty, 'sides' => $sides ), Settings::pricing() );
+
+			/*
+			 * AU-DELÀ DU SEUIL IL N'Y A PAS DE FACTURE À VÉRIFIER, et c'est
+			 * l'absence qui est vérifiée.
+			 *
+			 * Le seuil vient de l'associé (Q02 : « jusqu'à 2 000 EUR HT en
+			 * autonomie »), et cent t-shirts le franchissent depuis que le tarif
+			 * a été remonté à son plancher de marge le 5 septembre 2026 :
+			 * 2 210 EUR HT. Cette boucle assurait auparavant que la commande
+			 * existait ; sans ce contrôle elle lirait un panier vide et
+			 * comparerait 0 à 0 sur les lignes suivantes, ce qui passerait au
+			 * vert en ne mesurant rien.
+			 */
+			if ( $quote['needs_quote'] ) {
+				++$devis;
+				ts_assert( is_wp_error( $key ), "qty {$qty} : le panier a accepté une commande sur devis" );
+				continue;
+			}
+			ts_assert( ! is_wp_error( $key ), "qty {$qty} refusé" );
 
 			$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
 			$order->payment_complete( 'ts-round-' . $qty );
@@ -693,6 +713,8 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 
 			$order->delete( true );
 		}
+		// « Rien trouvé » et « rien regardé » sont deux résultats différents.
+		ts_assert( $devis > 0, 'aucune quantité sur devis dans le jeu testé' );
 	} );
 
 	// ── the minimum order ────────────────────────────────────────────────────
@@ -734,17 +756,33 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		ts_ck_regime( Vat::STANDARD );
 
 		/*
-		 * FIVE LINES THAT EACH PASS AND A BASKET THAT MUST NOT.
+		 * DEUX LIGNES QUI PASSENT CHACUNE ET UN PANIER QUI NE DOIT PAS.
 		 *
-		 * Question 02 says « jusqu'à 2 000 EUR HT DE COMMANDE », and the shop
-		 * applied it to each line, so a basket of lines individually under the
-		 * threshold cleared every check. The threshold is lowered here rather
-		 * than the basket enlarged, because the point is the SCOPE and not the
-		 * number: with a 400,00 EUR threshold, two lines of ten printed tees are
-		 * 123,20 EUR each and 246,40 EUR together, so per line it passes and per
-		 * order it must not.
+		 * Question 02 dit « jusqu'à 2 000 EUR HT DE COMMANDE », et la boutique
+		 * appliquait la règle à chaque LIGNE : un panier de lignes chacune sous
+		 * le seuil passait tous les contrôles. Le seuil est abaissé ici plutôt
+		 * que le panier agrandi, parce que ce qui est en jeu est la PORTÉE et
+		 * pas le nombre.
+		 *
+		 * LE SEUIL EST DÉRIVÉ DU TARIF, PAS ÉCRIT EN DUR. Il valait 200,00 EUR,
+		 * ce qui plaçait une ligne de dix t-shirts en dessous tant que le tarif
+		 * était celui d'avant ; le 5 septembre 2026 la même ligne est passée
+		 * au-dessus, le contrôle ligne par ligne a refusé le premier ajout, et le
+		 * test ne mesurait plus la portée. Le voici calé à mi-chemin entre une
+		 * ligne et deux : par construction une ligne passe et deux ne passent
+		 * pas, quel que soit le tarif.
 		 */
-		update_option( 'teeshoop_pricing', array_merge( (array) $saved_pricing, array( 'quote_from_ht' => 20000 ) ) );
+		$ligne = Pricing::quote(
+			array( 'garment' => 'tee', 'qty' => 10, 'sides' => $sides ),
+			$saved_pricing ? (array) $saved_pricing : Settings::pricing()
+		)['total_ht'];
+		$seuil = (int) round( $ligne * 1.5 );
+		update_option( 'teeshoop_pricing', array_merge( (array) $saved_pricing, array( 'quote_from_ht' => $seuil ) ) );
+		echo sprintf(
+			"      une ligne %s, seuil de ce test %s\n",
+			Money::format( $ligne ),
+			Money::format( $seuil )
+		);
 
 		/*
 		 * RESTORED IN A `finally`, because `ts_assert` throws. The first version
@@ -761,7 +799,8 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		WC()->cart->calculate_totals();
 
 		$goods_ht = Money::from_eur( (string) WC()->cart->get_subtotal() );
-		ts_assert( $goods_ht > 20000, 'le panier ne dépasse pas le seuil, ce test ne mesure rien' );
+		ts_assert( $goods_ht > $seuil, 'le panier ne dépasse pas le seuil, ce test ne mesure rien' );
+		ts_assert( $ligne <= $seuil, 'une seule ligne dépasse déjà le seuil, ce test ne mesure pas la portée' );
 
 		/*
 		 * BOTH CHECKS SIT ON `woocommerce_check_cart_items`, so the two are told

@@ -1,5 +1,12 @@
 # 4 septembre 2026 : le tarif publié cesse d'être une figure de démonstration
 
+> **Le niveau choisi ici a été remplacé le lendemain.** La réponse 06 de
+> l'associé nomme une marge brute minimale de 50 %, et c'est elle qui tient le
+> plancher depuis le 5 septembre 2026 :
+> `2026-09-05-le-plancher-est-sa-marge-brute-de-50-pourcent.md`. Tout le reste de
+> cette note vaut toujours : la méthode, le garde, et la façon de refaire la
+> mesure.
+
 Décision prise seule, la nuit, personne n'étant joignable. Elle porte sur un
 chiffre que des clients paieront, elle est donc écrite en entier, avec la façon
 de la refaire.

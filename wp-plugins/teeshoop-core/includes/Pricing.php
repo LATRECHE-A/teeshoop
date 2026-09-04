@@ -84,10 +84,34 @@ final class Pricing {
 			 * atteint le plancher que `Costing` calcule pour elle, À LA TAILLE
 			 * ET AU COLORIS LES PLUS CHERS que l'offre vend, arrondi à l'euro
 			 * supérieur. L'arrondi ne fabrique rien : il ne fait que s'éloigner
-			 * du plancher, et il évite un garde qui vire au rouge sur onze
-			 * centimes. Solution exacte : 22,54 EUR le t-shirt et 48,38 EUR le
-			 * sweat ; publiée : 23,00 et 49,00, ce qui laisse au pire 16,17 EUR
-			 * et 13,40 EUR de marge au-dessus du plancher.
+			 * du plancher. Solution exacte : 33,69 EUR le t-shirt et 72,44 EUR
+			 * le sweat ; publiée : 34,00 et 73,00, ce qui laisse au pire 5,08 EUR
+			 * et 10,73 EUR de marge au-dessus du plancher.
+			 *
+			 * ── ET LE PLANCHER EST SA MARGE MINIMALE DEPUIS LE 5 SEPTEMBRE ────
+			 *
+			 * Le tarif du 4 septembre (23,00 et 49,00) dégageait de 26,1 % à
+			 * 41,1 % de marge brute, médiane 32 %, parce que le plancher lisait
+			 * notre contribution de 25 % après commission et pas les 50 % qu'il a
+			 * répondus. Le plancher est maintenant le maximum des deux jambes
+			 * (la configuration de coût, clé `min_margin_rate`), et le tarif suit.
+			 *
+			 * UNE SEULE FACE SUPPLÉMENTAIRE À 10,00 EUR SUR LES TROIS VÊTEMENTS,
+			 * parce que c'est le même travail de marquage. Résolu séparément, le
+			 * t-shirt demandait 10,00 et le sweat 8,60 : la plus haute des deux
+			 * couvre les deux, et deux prix pour un même geste seraient deux
+			 * choses à tenir d'accord. C'est aussi ce que mistertee publie pour
+			 * la même opération, à cinquante centimes près.
+			 *
+			 * ── CE QUE `base_ht` PORTE VRAIMENT ──────────────────────────────
+			 *
+			 * Pas seulement le textile nu. Il porte tout ce que le prix du
+			 * marquage ne porte pas : le port fournisseur, la livraison du film,
+			 * l'emballage, la main-d'oeuvre, et surtout les COÛTS PAR COMMANDE
+			 * que cinq pièces se partagent à cinq. C'est pourquoi 24,00 EUR de
+			 * base sur un textile nu qui coûte 3 à 6 EUR n'est pas une erreur de
+			 * frappe : à cinq pièces, 23,00 EUR de frais fixes par commande font
+			 * 4,60 EUR la pièce, et à cent pièces 0,23.
 			 *
 			 * ── LA TAILLE LA PLUS CHÈRE, ET C'EST SA RÈGLE À LUI ───────────────
 			 *
@@ -142,14 +166,14 @@ final class Pricing {
 			 */
 			'garments'   => array(
 				'tee'    => array(
-					'base_ht'       => 1300,
+					'base_ht'       => 2400,
 					'first_side_ht' => 1000,
-					'extra_side_ht' => 700,
+					'extra_side_ht' => 1000,
 				),
 				'hoodie' => array(
-					'base_ht'       => 3900,
+					'base_ht'       => 6300,
 					'first_side_ht' => 1000,
-					'extra_side_ht' => 700,
+					'extra_side_ht' => 1000,
 				),
 				/*
 				 * The customer ships their own garment: decoration only, and the
@@ -167,7 +191,7 @@ final class Pricing {
 				'custom' => array(
 					'base_ht'       => 0,
 					'first_side_ht' => 1200,
-					'extra_side_ht' => 700,
+					'extra_side_ht' => 1000,
 				),
 			),
 
@@ -257,19 +281,32 @@ final class Pricing {
 			/*
 			 * Where self-serve stops and a devis begins.
 			 *
-			 * ATTENTION: THIS IS OUR ASSUMPTION, NOT THE ASSOCIATE'S RULE.
-			 * Question 02 of QUESTIONS-ASSOCIE.md is blocking and unanswered, and
-			 * its published default (the one we committed to acting on in the
-			 * absence of an answer) is "prix public et paiement en autonomie
-			 * jusqu'à 250
-			 * pièces ou 2 000 EUR hors taxes ; au-delà, passage obligatoire par
-			 * un devis". These two numbers are that sentence, and nothing else.
+			 * LES DEUX NOMBRES N'ONT PAS LE MÊME AUTEUR, et c'est la seule chose
+			 * à retenir ici.
 			 *
-			 * The Bible specifies no threshold at all: chapter 2 names four
-			 * parcours (achat autonome, devis commercial, grand compte,
-			 * réassort) and never says which one an order falls into. So there
-			 * was nothing to derive and the honest thing is to say whose number
-			 * this is, in the file where it is read.
+			 * 2 000 EUR HT EST LA RÈGLE DE L'ASSOCIÉ. Réponse à la question 02,
+			 * reçue le 1er septembre 2026 et vendue dans
+			 * docs/reponses-associe/ : « Jusqu'à 2 000 EUR HT de commande, le
+			 * parcours peut être réalisé en autonomie. Au-delà de 2 000 EUR HT,
+			 * passage par un devis et validation par Teeshoop. » Ce commentaire a
+			 * dit le contraire jusqu'au 5 septembre 2026, parce qu'il avait été
+			 * écrit avant les réponses et jamais relu après.
+			 *
+			 * IL DIT « DE COMMANDE », donc la portée est le panier. La règle est
+			 * appliquée aux DEUX niveaux : ici sur la ligne, parce qu'une ligne
+			 * seule qui franchit le seuil ne doit pas afficher de prix payable,
+			 * et sur le panier entier dans `Checkout`, parce que deux lignes
+			 * chacune sous le seuil font une commande qui le dépasse. Retirer le
+			 * second contrôle rendrait la règle contournable en scindant une
+			 * commande en deux lignes ; retirer le premier ferait publier une
+			 * grille dont la dernière colonne n'est pas achetable.
+			 *
+			 * 250 PIÈCES EST NOTRE HYPOTHÈSE. Il n'a pas répondu sur un plafond
+			 * de quantité et la Bible n'en donne aucun : son chapitre 2 nomme
+			 * quatre parcours (achat autonome, devis commercial, grand compte,
+			 * réassort) sans jamais dire lequel s'applique. Avec le tarif du
+			 * 5 septembre 2026, c'est de toute façon le montant qui mord le
+			 * premier : cent t-shirts une face valent 2 210 EUR HT.
 			 *
 			 * Either at 0 disables that side of the rule.
 			 */

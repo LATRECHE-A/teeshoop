@@ -169,6 +169,13 @@ final class Costing {
 	public static function rules( float $commission_rate, array $config ): array {
 		return array(
 			'target_margin_rate'    => (float) ( $config['target_margin_rate'] ?? 0 ),
+			/*
+			 * Sa marge brute minimale, qui est le plancher depuis le 5 septembre
+			 * 2026. Voir le bloc de `Margin::plan()` : c'est une règle à part de
+			 * la cible parce que ce sont deux nombres différents, et il n'en a
+			 * donné qu'un.
+			 */
+			'min_margin_rate'       => (float) ( $config['min_margin_rate'] ?? 0 ),
 			'min_contribution_rate' => (float) ( $config['min_contribution_rate'] ?? 0 ),
 			'commission_rate'       => $commission_rate,
 			'max_discount_rate'     => (float) ( $config['max_discount_rate'] ?? 0 ),

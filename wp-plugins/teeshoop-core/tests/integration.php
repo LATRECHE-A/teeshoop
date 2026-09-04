@@ -572,6 +572,7 @@ ts_it( 'the grid, the cart and the order agree at every quantity around a break'
 	$qtys = array( 1, 9, 10, 24, 25, 49, 50, 100 );
 	$grid = Pricing::grid( 'tee', $qtys, array( 1 ), $config );
 
+	$devis = 0;
 	foreach ( $qtys as $index => $qty ) {
 		WC()->cart->empty_cart();
 		$key = Cart::add(
@@ -583,16 +584,40 @@ ts_it( 'the grid, the cart and the order agree at every quantity around a break'
 				'design_id'  => $design,
 			)
 		);
-		ts_assert( ! is_wp_error( $key ), "qty {$qty} was refused" );
-
-		WC()->cart->calculate_totals();
-		$item  = WC()->cart->get_cart_item( $key );
-		$quote = Pricing::quote( array( 'garment' => 'tee', 'qty' => $qty, 'sides' => $sides ), $config );
 
 		// The grid is priced at the standard area tier, so its cell equals this
 		// quote only when the design is in that tier too. It is: 400 cm².
 		$cell = $grid[0]['cells'][ $index ];
+		$quote = Pricing::quote( array( 'garment' => 'tee', 'qty' => $qty, 'sides' => $sides ), $config );
 		ts_eq( $cell['qty'], $qty, 'grid column' );
+
+		/*
+		 * LA COLONNE QUI PASSE SUR DEVIS EST VÉRIFIÉE, PAS SAUTÉE.
+		 *
+		 * Le seuil est celui de l'associé (réponse Q02 : « jusqu'à 2 000 EUR HT
+		 * en autonomie, au-delà passage par un devis »), et depuis que le tarif
+		 * a été remonté à son plancher de marge le 5 septembre 2026, cent
+		 * t-shirts le franchissent : 22,10 EUR HT x 100 = 2 210 EUR. La colonne
+		 * existe toujours dans la grille, elle n'y porte simplement plus de prix
+		 * payable.
+		 *
+		 * C'est le cas où grille et panier peuvent se contredire sans que
+		 * personne ne le voie, et c'était un vrai défaut : le tableau public
+		 * annonçait un prix unitaire que `Cart::add` refusait par un 409. Les
+		 * deux verdicts sont donc comparés ici, dans les deux sens.
+		 */
+		if ( $cell['needs_quote'] ) {
+			++$devis;
+			ts_assert( is_wp_error( $key ), "qty {$qty}: la grille dit devis, le panier a accepté" );
+			ts_eq( $key->get_error_code(), 'teeshoop_needs_quote', "code de refus à {$qty}" );
+			ts_assert( $quote['needs_quote'], "qty {$qty}: la grille et le devis divergent" );
+			continue;
+		}
+
+		ts_assert( ! is_wp_error( $key ), "qty {$qty} was refused" );
+
+		WC()->cart->calculate_totals();
+		$item  = WC()->cart->get_cart_item( $key );
 		ts_eq( $cell['unit_ht'], $quote['unit_ht'], "grid cell vs quote at {$qty}" );
 
 		/*
@@ -628,6 +653,10 @@ ts_it( 'the grid, the cart and the order agree at every quantity around a break'
 		);
 		$order->delete( true );
 	}
+	// Une suite qui n'aurait vérifié aucune colonne sur devis ne prouverait rien
+	// de la concordance qu'elle prétend tenir : « rien trouvé » et « rien
+	// regardé » sont deux résultats différents.
+	ts_assert( $devis > 0, 'aucune colonne sur devis dans le jeu de quantités' );
 } );
 
 /*

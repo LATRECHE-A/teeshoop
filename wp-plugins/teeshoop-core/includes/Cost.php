@@ -489,6 +489,30 @@ final class Cost {
 			 * Margin.php and this is the one in force.
 			 */
 			'target_margin_rate'    => 0.50,
+			/*
+			 * SA MARGE MINIMALE, ET C'EST LE PLANCHER.
+			 *
+			 * « Nous retenons comme base un objectif de marge brute MINIMALE
+			 * d'environ 50 % après coûts directs » (réponse 06, 1er septembre
+			 * 2026). Ce mot-là, minimale, plus « Seul le dirigeant peut
+			 * autoriser exceptionnellement une vente sous le prix plancher »
+			 * deux lignes plus bas, décrivent un seuil et pas une ambition.
+			 *
+			 * Jusqu'au 5 septembre ce 50 % n'était lu que comme la cible, et le
+			 * plancher restait notre contribution de 25 % après commission, qui
+			 * est notre hypothèse et pas sa réponse. Le tarif publié en héritait :
+			 * mesuré sur les 111 colonnes de la grille, la marge brute allait de
+			 * 26,1 % à 41,1 %, médiane 32 %, quand il en demande 50.
+			 *
+			 * IL EST ÉGAL À LA CIBLE, ET ÇA SE VOIT. Il n'a donné qu'un nombre,
+			 * donc le prix conseillé tombe sur le plancher, la zone de
+			 * négociation vaut zéro et l'écran des marges dit « plancher » comme
+			 * contrainte qui mord. C'est la conséquence exacte de deux nombres
+			 * égaux, et elle est affichée plutôt que dissimulée : le jour où il
+			 * donne un prix de liste au-dessus de son minimum, la zone rouvre
+			 * sans toucher au code.
+			 */
+			'min_margin_rate'       => 0.50,
 			'min_contribution_rate' => 0.25,
 			'max_discount_rate'     => 0.15,
 

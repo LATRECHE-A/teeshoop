@@ -473,25 +473,55 @@ function ts_margin_suite( int $product_id ): void {
 		$before = Costing::compute( $order );
 		ts_eq( $before['rule'], null, 'nothing applies before a rule exists' );
 
-		update_option(
-			OPTION_PRICE_RULES,
-			array(
-				array(
-					'id'                    => 'r-tee',
-					'label'                 => 'T-shirts en volume',
-					'active'                => true,
-					'famille'               => 'tee',
-					'qty_min'               => 10,
-					'min_contribution_rate' => '15',
-				),
-			)
+		/*
+		 * LA RÈGLE DOIT TOUCHER LA JAMBE QUI TIENT LE PLANCHER.
+		 *
+		 * Depuis le 5 septembre 2026 le plancher est le plus haut de deux jambes
+		 * (`Margin::floor_price`) : la contribution de 25 % et la marge brute
+		 * minimale de 50 % répondue en Q06. Dans la configuration livrée c'est la
+		 * seconde qui l'emporte, la première ne reprenant la main qu'au-dessus de
+		 * 50 % de commission. Ce cas amincissait la contribution seule et
+		 * vérifiait que le plancher descendait : il est passé au rouge le jour où
+		 * la seconde jambe est arrivée, et il avait raison de le faire.
+		 *
+		 * Il vérifie donc maintenant les deux moitiés du fait, dans cet ordre :
+		 * une règle qui n'amincit que la jambe muette ne bouge rien, et une règle
+		 * qui amincit la jambe qui tient baisse le plancher.
+		 */
+		$muette = array(
+			'id'                    => 'r-tee',
+			'label'                 => 'T-shirts en volume',
+			'active'                => true,
+			'famille'               => 'tee',
+			'qty_min'               => 10,
+			'min_contribution_rate' => '15',
 		);
+		update_option( OPTION_PRICE_RULES, array( $muette ) );
+
+		$inerte = Costing::compute( wc_get_order( $order->get_id() ) );
+		ts_eq( $inerte['rule']['label'], 'T-shirts en volume', 'la règle nommée s’applique quand même' );
+		ts_eq(
+			(int) $inerte['plan']['floor_ht'],
+			(int) $before['plan']['floor_ht'],
+			'amincir la seule contribution ne bouge rien tant que la marge brute tient le plancher'
+		);
+		ts_eq( (string) $inerte['plan']['floor_basis'], 'marge_brute', 'et le rapport dit laquelle tient' );
+
+		// La même règle, la jambe qui tient en moins.
+		update_option( OPTION_PRICE_RULES, array( array_merge( $muette, array( 'min_margin_rate' => '30' ) ) ) );
 
 		$after = Costing::compute( wc_get_order( $order->get_id() ) );
 		ts_eq( $after['rule']['label'], 'T-shirts en volume', 'the report must name the rule that priced it' );
+		ts_eq( $after['rule']['min_margin_rate'], 0.30, 'et le rapport gèle le taux qu’elle portait' );
 		ts_assert(
 			(int) $after['plan']['floor_ht'] < (int) $before['plan']['floor_ht'],
-			'a thinner contribution must lower the floor, which is what a rule is for'
+			'a thinner floor rate must lower the floor, which is what a rule is for'
+		);
+		echo sprintf(
+			"      plancher : %s sans règle, %s avec la contribution seule, %s avec la marge brute\n",
+			\Teeshoop\Core\Money::format( (int) $before['plan']['floor_ht'] ),
+			\Teeshoop\Core\Money::format( (int) $inerte['plan']['floor_ht'] ),
+			\Teeshoop\Core\Money::format( (int) $after['plan']['floor_ht'] )
 		);
 		ts_eq(
 			(int) $after['plan']['recommended_ht'],

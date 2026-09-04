@@ -215,6 +215,19 @@ final class PriceRule {
 		 */
 		$rule['target_margin_rate']    = self::rate( $raw['target_margin_rate'] ?? null );
 		$rule['min_contribution_rate'] = self::rate( $raw['min_contribution_rate'] ?? null );
+		/*
+		 * LA TROISIÈME JAMBE, ajoutée le 5 septembre 2026.
+		 *
+		 * Le plancher a deux jambes depuis que la marge brute minimale de 50 %
+		 * répondue en Q06 est appliquée (`Margin::floor_price`), et c'est celle-ci
+		 * qui l'emporte dans la configuration livrée : la jambe de contribution ne
+		 * reprend la main qu'au-dessus de 50 % de commission. Sans ce champ, une
+		 * règle de périmètre ne pouvait plus baisser aucun plancher, ce qu'un test
+		 * d'intégration a montré en refusant de voir bouger le sien. Une
+		 * fonctionnalité qui ne peut plus rien faire est pire qu'absente : l'écran
+		 * la propose toujours.
+		 */
+		$rule['min_margin_rate']       = self::rate( $raw['min_margin_rate'] ?? null );
 
 		/*
 		 * A NAME IS NOT A CRITERION AND NOT A RATE. Counting the label as one
@@ -222,7 +235,7 @@ final class PriceRule {
 		 * saving stored a live rule with no selectors and no rates, which then
 		 * outranked, and silenced, every rule that actually cut a floor.
 		 */
-		$sets     = null !== $rule['target_margin_rate'] || null !== $rule['min_contribution_rate'];
+		$sets     = self::decides( $rule );
 		$selects  = false;
 		foreach ( array_keys( self::SELECTORS ) as $key ) {
 			$selects = $selects || '' !== $rule[ $key ];
@@ -305,7 +318,7 @@ final class PriceRule {
 	 * no contribution is effectively asking for. Then the order it was written
 	 * in, so the answer is total and never depends on a sort's stability.
 	 */
-	public static function best( array $rules, array $facts, string $today, float $base_contribution ): ?array {
+	public static function best( array $rules, array $facts, string $today, float $base_contribution, float $base_margin = 0.0 ): ?array {
 		$winner = null;
 		$best   = null;
 		$index  = 0;
@@ -333,6 +346,15 @@ final class PriceRule {
 				'contribution' => null === ( $rule['min_contribution_rate'] ?? null )
 					? $base_contribution
 					: (float) $rule['min_contribution_rate'],
+				/*
+				 * La jambe de marge brute départage après celle de contribution,
+				 * et dans le même sens : la plus stricte gagne. Elle vient après
+				 * et non avant pour que l'ordre existant entre deux règles qui ne
+				 * touchent que la contribution reste exactement celui qu'il était.
+				 */
+				'margin'       => null === ( $rule['min_margin_rate'] ?? null )
+					? $base_margin
+					: (float) $rule['min_margin_rate'],
 				// Earlier wins, so the comparison is written on a value that
 				// grows the other way.
 				'written'      => -$index,
@@ -353,9 +375,9 @@ final class PriceRule {
 		return $winner;
 	}
 
-	/** Strictly better, on the four criteria in order. */
+	/** Strictly better, on the five criteria in order. */
 	private static function outranks( array $a, array $b ): bool {
-		foreach ( array( 'priority', 'specificity', 'contribution', 'written' ) as $key ) {
+		foreach ( array( 'priority', 'specificity', 'contribution', 'margin', 'written' ) as $key ) {
 			if ( $a[ $key ] > $b[ $key ] ) {
 				return true;
 			}
@@ -368,7 +390,9 @@ final class PriceRule {
 
 	/** Whether a rule changes any rate at all. One that does not decides nothing. */
 	public static function decides( array $rule ): bool {
-		return null !== ( $rule['target_margin_rate'] ?? null ) || null !== ( $rule['min_contribution_rate'] ?? null );
+		return null !== ( $rule['target_margin_rate'] ?? null )
+			|| null !== ( $rule['min_contribution_rate'] ?? null )
+			|| null !== ( $rule['min_margin_rate'] ?? null );
 	}
 
 	/** How many things a rule names. Ties are settled towards the considered one. */
@@ -393,10 +417,34 @@ final class PriceRule {
 	 * the chapter gives it, never the commission (which is the salesperson's
 	 * contract, not a pricing policy) and never the discount ceiling.
 	 *
+	 * ── NI LA MARGE BRUTE MINIMALE, ET C'EST DÉLIBÉRÉ ────────────────────────
+	 *
+	 * Depuis le 5 septembre 2026 le plancher est le maximum de deux jambes, et
+	 * l'une d'elles est la marge brute minimale que l'associé a répondue le
+	 * 1er septembre. Un périmètre peut donc abaisser NOTRE contribution, et il
+	 * ne peut pas descendre sous SON minimum : ce serait une politique de
+	 * périmètre qui contourne une règle d'entreprise, alors que sa phrase ne
+	 * laisse qu'une porte, « seul le dirigeant peut autoriser exceptionnellement
+	 * une vente sous le prix plancher », c'est-à-dire une dérogation nominative
+	 * sur une commande et pas une règle permanente sur un segment.
+	 *
+	 * Concrètement, un périmètre qui baisse la contribution sous ce niveau est
+	 * INERTE aujourd'hui, et `Costing::compute()` le montre parce que
+	 * `floor_basis` rend alors « marge_brute » et non le nom de la jambe que la
+	 * règle a touchée. La table des règles est livrée vide
+	 * (H-Q06-PLANCHERS-PERIMETRE), donc rien ne change tant que personne n'en
+	 * écrit une.
+	 *
 	 * @return array{rules:array,rule:?array}
 	 */
 	public static function apply( array $base, array $rules, array $facts, string $today ): array {
-		$rule = self::best( $rules, $facts, $today, (float) ( $base['min_contribution_rate'] ?? 0 ) );
+		$rule = self::best(
+			$rules,
+			$facts,
+			$today,
+			(float) ( $base['min_contribution_rate'] ?? 0 ),
+			(float) ( $base['min_margin_rate'] ?? 0 )
+		);
 		if ( null === $rule ) {
 			return array(
 				'rules' => $base,
@@ -411,6 +459,9 @@ final class PriceRule {
 		if ( null !== ( $rule['min_contribution_rate'] ?? null ) ) {
 			$out['min_contribution_rate'] = (float) $rule['min_contribution_rate'];
 		}
+		if ( null !== ( $rule['min_margin_rate'] ?? null ) ) {
+			$out['min_margin_rate'] = (float) $rule['min_margin_rate'];
+		}
 
 		return array(
 			'rules' => $out,
@@ -424,6 +475,7 @@ final class PriceRule {
 				'label'                 => (string) $rule['label'],
 				'target_margin_rate'    => $rule['target_margin_rate'] ?? null,
 				'min_contribution_rate' => $rule['min_contribution_rate'] ?? null,
+				'min_margin_rate'       => $rule['min_margin_rate'] ?? null,
 			),
 		);
 	}

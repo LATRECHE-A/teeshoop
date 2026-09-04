@@ -55,16 +55,18 @@ const AREA_TIERS: AreaTier[] = [
  * its siblings). So these are not independent figures: they are this table's
  * copy of the server's, and they move when it moves.
  *
- * 4 September 2026: the tee went from 14,50 to 23,00 and the hoodie from 32,00
- * to 49,00, because `tests/integration-grille.php` measured 102 of the 219
- * published columns selling under their cost floor, and then 34 more once it
- * stopped costing every order at size M. The derivation is in the comment above
- * `garments` in Pricing.php.
+ * 4 and 5 September 2026: the tee went from 14,50 to 34,00 and the hoodie from
+ * 32,00 to 73,00. First because `tests/integration-grille.php` measured 102 of
+ * the 219 published columns selling under their cost floor, then 34 more once it
+ * stopped costing every order at size M, and finally because the floor became
+ * the 50 % minimum gross margin the associate answered on 1 September rather
+ * than our own unconfirmed 25 %. The derivation is above `garments` in
+ * Pricing.php.
  */
 export const PRICING: Record<'tee' | 'hoodie' | 'custom', PricingRule> = {
-  tee: { baseUsd: 23, perExtraSideUsd: 7, areaTiers: AREA_TIERS },
-  hoodie: { baseUsd: 49, perExtraSideUsd: 7, areaTiers: AREA_TIERS },
-  custom: { baseUsd: 12, perExtraSideUsd: 7, areaTiers: AREA_TIERS },
+  tee: { baseUsd: 34, perExtraSideUsd: 10, areaTiers: AREA_TIERS },
+  hoodie: { baseUsd: 73, perExtraSideUsd: 10, areaTiers: AREA_TIERS },
+  custom: { baseUsd: 12, perExtraSideUsd: 10, areaTiers: AREA_TIERS },
 }
 
 /** Quantity discounts; the highest reached threshold wins. */

@@ -945,6 +945,14 @@ final class CostAdmin {
 		);
 
 		printf(
+			'<label>%s<br><input type="text" name="%s" value="%s" size="7" inputmode="decimal" placeholder="%s"> %%</label>',
+			esc_html__( 'Marge brute min.', 'teeshoop' ),
+			esc_attr( $name( 'min_margin_rate' ) ),
+			esc_attr( null === $value( 'min_margin_rate', null ) ? '' : self::pct_out( (float) $value( 'min_margin_rate' ) ) ),
+			esc_attr( self::pct_out( (float) ( $config['min_margin_rate'] ?? 0 ) ) )
+		);
+
+		printf(
 			'<label>%s<br><input type="date" name="%s" value="%s"></label>',
 			esc_html__( 'À partir du', 'teeshoop' ),
 			esc_attr( $name( 'from' ) ),
@@ -1442,6 +1450,13 @@ final class CostAdmin {
 				/* translators: %s: a percentage. */
 				__( 'contribution minimale %s', 'teeshoop' ),
 				self::pct_out( (float) $rule['min_contribution_rate'] ) . "\u{00A0}%"
+			);
+		}
+		if ( null !== ( $rule['min_margin_rate'] ?? null ) ) {
+			$parts[] = sprintf(
+				/* translators: %s: a percentage. */
+				__( 'marge brute minimale %s', 'teeshoop' ),
+				self::pct_out( (float) $rule['min_margin_rate'] ) . "\u{00A0}%"
 			);
 		}
 		if ( null !== ( $rule['target_margin_rate'] ?? null ) ) {
