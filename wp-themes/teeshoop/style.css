@@ -2643,6 +2643,41 @@ a.ts-chip:hover {
 	}
 
 	/*
+	 * AND IT STOPS ABOVE THE CONSENT STRIP, WHICH IS THE FLOOR OF THE PAGE.
+	 *
+	 * `components.css` reserves the strip's height twice, at the foot of the
+	 * document (`body:has(.ts-consent) { padding-block-end }`) and for the root
+	 * scroller (`html:has(.ts-consent) { scroll-padding-block-end }`), so that
+	 * WCAG 2.2's 2.4.11 Focus Not Obscured « stops being failed by a panel the
+	 * visitor never opened ». Both of those are about the DOCUMENT scroller.
+	 *
+	 * The rule above makes this panel a SECOND scroller, sticky and as tall as
+	 * the viewport, and neither reserve reaches it. Measured on the shop at
+	 * 1440 x 900 on a first visit: the strip occupies y 675 to 900, the panel
+	 * runs from y 89 to 893, so its bottom 218 px are under the strip, and it
+	 * has 2 940 px of content in an 802 px port. `npm run verify:a11y` found a
+	 * tab stop down there: « 1 arrêt masqué sur 400, recouvert par
+	 * section#ts-consent ».
+	 *
+	 * A `scroll-padding-block-end` here would NOT be enough, and that is worth
+	 * writing down because it is the obvious fix. Scroll padding only applies
+	 * when a scroll happens; an element already inside the port is left where
+	 * it is, and where it is may be under the strip. Bounding the panel is
+	 * provable instead of usually right: nothing it contains can be below y 477.
+	 *
+	 * It uses the SAME `--ts-consent-h` as the other two reserves, which is the
+	 * fourth use of that one number and exactly what its comment asks for. It
+	 * over-reserves (the strip measures 225 px at this width against a 416 px
+	 * ceiling) and that is the safe direction: the token is the maximum the
+	 * strip may occupy, so this can never reserve too little at any width.
+	 * It applies only while the strip is there, so a returning visitor gets the
+	 * full-height panel back.
+	 */
+	html:has(.ts-consent) .ts-filters {
+		max-height: calc(100vh - 6rem - var(--ts-consent-h));
+	}
+
+	/*
 	 * From here the panel is a column, so the button that opens it has nothing
 	 * to open and the panel is open whatever the script did at a smaller width.
 	 */
