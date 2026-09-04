@@ -134,14 +134,38 @@ function ts_schema_suite(): void {
 	ts_it(
 		'REFUSES rather than racing when another migration holds the lock',
 		function (): void {
+			/*
+			 * LE VERROU EST UNE OPTION, PAS UN TRANSIENT, ET CE TEST NE LE
+			 * SAVAIT PLUS.
+			 *
+			 * `Schema::migrate` posait son verrou avec `get_transient` puis
+			 * `set_transient`, deux opérations qui laissent une fenêtre entre
+			 * elles ; il est passé à `add_option()`, un INSERT sur une colonne
+			 * unique, qui est atomique. Ce test-ci est resté sur l'ancienne
+			 * clé : il écrivait `_transient_teeshoop_schema_lock` pendant que le
+			 * code lisait `teeshoop_schema_lock`. Deux noms, aucune rencontre.
+			 *
+			 * Il posait donc un verrou que rien ne tenait, et vérifiait qu'une
+			 * migration s'y arrêtait. C'est la forme exacte de défaut que
+			 * `CLAUDE.md` section 5 nomme : un contrôle qui ne peut rien voir.
+			 * Trouvé le 4 septembre 2026, en faisant tourner `npm run test:wp`
+			 * pour une raison sans rapport.
+			 *
+			 * Le verrou est posé comme le code le pose, avec l'autoload à faux,
+			 * pour que ce soit la MÊME ligne de base de données.
+			 */
 			delete_option( Schema::OPTION );
-			set_transient( 'teeshoop_schema_lock', time(), 900 );
+			delete_option( 'teeshoop_schema_lock' );
+			ts_assert(
+				add_option( 'teeshoop_schema_lock', time(), '', false ),
+				'le verrou de ce test n’a pas pu être posé : il ne prouverait rien'
+			);
 			$report = Schema::migrate( array( 'cli' => true ) );
 			ts_assert( ! $report['ok'], 'une migration concurrente doit être refusée, pas doublée' );
 			ts_eq( $report['ran'], array(), 'rien ne doit avoir tourné sous le verrou' );
 			ts_eq( Schema::current(), 0, 'la version ne doit pas bouger sous le verrou' );
 			ts_assert( str_contains( $report['error'], 'verrou' ), 'le refus doit dire pourquoi : ' . $report['error'] );
-			delete_transient( 'teeshoop_schema_lock' );
+			delete_option( 'teeshoop_schema_lock' );
 			Schema::migrate( array( 'cli' => true ) );
 			ts_eq( Schema::current(), Schema::target(), 'le verrou levé, la migration repasse' );
 		}

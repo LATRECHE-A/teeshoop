@@ -86,6 +86,33 @@ function ts_assert( bool $condition, string $message ): void {
 	}
 }
 
+/**
+ * Deux montants comparés EN CENTIMES, jamais en flottants.
+ *
+ * ── POURQUOI CETTE FONCTION EXISTE ──────────────────────────────────────────
+ *
+ * Les assertions d'argent de ce fichier s'écrivaient
+ * `ts_eq( (float) $prix, $cents / 100 )`. Deux d'entre elles avaient oublié le
+ * transtypage du côté attendu, ce qui marchait tant que le tarif portait des
+ * centimes : `1450 / 100` vaut 14.5, un flottant. Le 4 septembre 2026 le tarif
+ * est passé à 21,00 EUR, `2100 / 100` vaut 21, un ENTIER, et `21.0 !== 21` a
+ * fait échouer deux tests sur un panier parfaitement juste.
+ *
+ * Le correctif n'est pas d'ajouter le transtypage manquant, c'est de ne plus
+ * comparer d'argent en flottants du tout : `CLAUDE.md` section 2 l'interdit
+ * partout ailleurs, et `Money::from_eur` est le lecteur que la boutique possède
+ * déjà pour transformer la chaîne décimale de WooCommerce en centimes.
+ */
+function ts_eq_cents( string|float|int $actual_eur, int $expected_cents, string $what ): void {
+	$actual = \Teeshoop\Core\Money::from_eur( (string) $actual_eur );
+	if ( $actual !== $expected_cents ) {
+		throw new \RuntimeException(
+			"{$what}: attendu " . \Teeshoop\Core\Money::format( $expected_cents )
+			. ', obtenu ' . \Teeshoop\Core\Money::format( $actual )
+		);
+	}
+}
+
 function ts_eq( mixed $actual, mixed $expected, string $what ): void {
 	if ( $actual !== $expected ) {
 		throw new \RuntimeException( "{$what}: expected " . var_export( $expected, true ) . ', got ' . var_export( $actual, true ) );
@@ -300,7 +327,7 @@ ts_it( 'prices from the product’s garment even when the request names none', f
 	$custom = Pricing::quote( array( 'garment' => 'custom', 'qty' => 3, 'sides' => $sides ), $config );
 	// Both sides cast: PHP's `/` returns an int when the division is exact, and
 	// ts_eq is strict, so 3200/100 is int(32) and the price is float(32.0).
-	ts_eq( (float) $item['data']->get_price(), (float) $hoodie['unit_ht'] / 100, 'unit price' );
+	ts_eq_cents( $item['data']->get_price(), (int) $hoodie['unit_ht'], 'prix unitaire' );
 	ts_assert( $hoodie['unit_ht'] !== $custom['unit_ht'], 'the fixture cannot tell the two apart' );
 } );
 
@@ -321,9 +348,9 @@ ts_it( 'charges the server price, not the catalogue price', function () use ( $p
 	$item = WC()->cart->get_cart_item( $key );
 	$want = Pricing::quote( array( 'garment' => 'tee', 'qty' => 25, 'sides' => $sides ), $config );
 
-	ts_eq( (float) $item['data']->get_price(), $want['unit_ht'] / 100, 'unit price' );
+	ts_eq_cents( $item['data']->get_price(), (int) $want['unit_ht'], 'prix unitaire' );
 	ts_assert( (float) $item['data']->get_price() !== 14.50, 'the catalogue price leaked through' );
-	ts_eq( (float) WC()->cart->get_subtotal(), $want['total_ht'] / 100, 'subtotal' );
+	ts_eq_cents( WC()->cart->get_subtotal(), (int) $want['total_ht'], 'sous-total' );
 } );
 
 ts_it( 'reprices at every quantity, including across discount thresholds', function () use ( $product_id, $sides, $design, $config ) {
@@ -345,7 +372,7 @@ ts_it( 'reprices at every quantity, including across discount thresholds', funct
 		WC()->cart->calculate_totals();
 		$item = WC()->cart->get_cart_item( $key );
 		$want = Pricing::quote( array( 'garment' => 'tee', 'qty' => $qty, 'sides' => $sides ), $config );
-		ts_eq( (float) $item['data']->get_price(), $want['unit_ht'] / 100, "unit price at qty {$qty}" );
+		ts_eq_cents( $item['data']->get_price(), (int) $want['unit_ht'], "prix unitaire à {$qty}" );
 	}
 } );
 
@@ -412,7 +439,7 @@ ts_it( 'prices each line on its own inputs when several are in the cart', functi
 			),
 			$config
 		);
-		ts_eq( (float) $item['data']->get_price(), $want['unit_ht'] / 100, 'line ' . $item['teeshoop']['design_id'] );
+		ts_eq_cents( $item['data']->get_price(), (int) $want['unit_ht'], 'ligne ' . $item['teeshoop']['design_id'] );
 	}
 } );
 
@@ -500,7 +527,7 @@ ts_it( 'writes the workshop hand-off onto the order line', function () use ( $pr
 
 	// The customer-visible label, and the price the order actually froze.
 	ts_assert( '' !== $line->get_meta( 'Création', true ), 'no visible design meta' );
-	ts_eq( (float) $order->get_subtotal(), (float) WC()->cart->get_subtotal(), 'order subtotal vs cart' );
+	ts_eq_cents( $order->get_subtotal(), \Teeshoop\Core\Money::from_eur( (string) WC()->cart->get_subtotal() ), 'sous-total commande contre panier' );
 
 	$order->delete( true );
 } );
@@ -552,14 +579,14 @@ ts_it( 'the grid, the cart and the order agree at every quantity around a break'
 		 * version of this case failed at exactly one of the eight quantities,
 		 * for a reason that has nothing to do with money.
 		 */
-		ts_eq( (float) $item['data']->get_price(), (float) ( $quote['unit_ht'] / 100 ), "cart unit price at {$qty}" );
-		ts_eq( (float) WC()->cart->get_subtotal(), (float) ( $quote['total_ht'] / 100 ), "cart subtotal at {$qty}" );
+		ts_eq_cents( $item['data']->get_price(), (int) $quote['unit_ht'], "prix unitaire au panier à {$qty}" );
+		ts_eq_cents( WC()->cart->get_subtotal(), (int) $quote['total_ht'], "sous-total panier à {$qty}" );
 
 		// And the order WooCommerce would create from it.
 		$order = WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) );
 		ts_assert( ! is_wp_error( $order ), "order creation failed at {$qty}" );
 		$order = wc_get_order( $order );
-		ts_eq( (float) $order->get_subtotal(), (float) ( $quote['total_ht'] / 100 ), "order subtotal at {$qty}" );
+		ts_eq_cents( $order->get_subtotal(), (int) $quote['total_ht'], "sous-total commande à {$qty}" );
 		/*
 		 * The carriage is deducted, and that is not a fudge: since session 04
 		 * the order legitimately carries a delivery line and its tax, and this

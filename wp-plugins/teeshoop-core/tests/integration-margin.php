@@ -366,32 +366,32 @@ function ts_margin_suite( int $product_id ): void {
 
 	// ── the floor, the verdict and the exception ─────────────────────────────
 
-	ts_it( 'finds that the published tariff clears its own floor at no quantity', function () use ( $product_id ) {
+	ts_it( 'the published tariff clears its own floor, which it did not until 4 September 2026', function () use ( $product_id ) {
 		/*
-		 * THIS IS A FINDING, NOT A REGRESSION, and it is why the assertion is
-		 * shaped the way it is.
+		 * CE TEST A ÉTÉ RETOURNÉ, ET LA MESURE EST DANS LE MESSAGE DE COMMIT.
 		 *
-		 * At the shipped demonstration tariff, a purchase price of 3,37 EUR and
-		 * question 06's rates (50 % target since his answer of 01/09/2026, 25 %
-		 * minimum contribution), a run of twelve tees sells at 147,84 EUR HT
-		 * against a recommended price and a floor the report computes. It was
-		 * above the floor with the film really
-		 * nested and BELOW it when the nesting service is unreachable and the
-		 * prudent bound is used, which is the state of this mirror. Either way it
-		 * is past the 15 % a salesperson may give away unaided.
+		 * Il assertait l'INVERSE : « le tarif publié ne franchit son plancher à
+		 * aucune quantité », avec un commentaire disant que c'était un CONSTAT et
+		 * pas une régression, et une phrase d'échec demandant de re-mesurer avant
+		 * de le changer. Cela a été fait le 4 septembre 2026 :
+		 * `tests/integration-grille.php` a mesuré 102 des 219 colonnes publiées
+		 * sous leur plancher, sur les vraies références, à la surface que la
+		 * grille promet ; le tarif a été dérivé du plancher lui-même
+		 * (docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md).
 		 *
-		 * So what is asserted is the thing that is true in both states: the
-		 * engine refuses to call this sale free. The measured table, at every
-		 * quantity on the public grid, is in QUESTIONS-ASSOCIE.md, because which
-		 * of the two numbers moves is his decision and not ours.
+		 * Ce qui est asserté maintenant est la propriété que ce changement a
+		 * achetée, et elle est plus forte que l'ancienne : une douzaine de
+		 * t-shirts ne se vend PAS sous son plancher. La première assertion, elle,
+		 * n'a pas bougé : un plancher au niveau du coût ou en dessous n'est pas
+		 * un plancher, quel que soit le tarif.
 		 */
 		$order  = ts_mg_order( $product_id, 12, ts_mg_sides() );
 		$report = Costing::compute( $order );
 
 		ts_assert( (int) $report['plan']['floor_ht'] > (int) $report['cost']['total_ht'], 'a floor at or under cost is not a floor' );
 		ts_assert(
-			(bool) $report['verdict']['below_floor'] || (bool) $report['verdict']['needs_approval'],
-			'the shipped tariff cleared its own floor, which it has never done: re-measure before changing this test'
+			! (bool) $report['verdict']['below_floor'],
+			'le tarif publié est repassé sous son plancher : relancez « npm run verify:grille », qui dit quelle colonne et de combien'
 		);
 		ts_assert(
 			(bool) $report['verdict']['below_floor'] === ( (int) $report['revenue']['total_ht'] < (int) $report['plan']['floor_ht'] ),
