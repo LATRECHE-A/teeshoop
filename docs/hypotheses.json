@@ -263,9 +263,10 @@
 			],
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/includes/Payment.php",
-				"wp-plugins/teeshoop-core/tests/test-pricing.php"
+				"wp-plugins/teeshoop-core/tests/test-pricing.php",
+				"wp-plugins/teeshoop-core/includes/Notify.php"
 			],
-			"literal_allow_why": "700 y est le début de « 700 000 », un nombre de boutiques cité dans le commentaire d'en-tête de Payment.php à propos du journal des versions de WooCommerce. Ce n'est pas de l'argent, c'est une collision de chiffres. Dans test-pricing.php c'est une SURFACE en cm², passée à `ts_side()` pour tomber dans le palier intermédiaire : le même chiffre, une autre unité, un autre sujet.",
+			"literal_allow_why": "700 y est le début de « 700 000 », un nombre de boutiques cité dans le commentaire d'en-tête de Payment.php à propos du journal des versions de WooCommerce. Ce n'est pas de l'argent, c'est une collision de chiffres. Dans test-pricing.php c'est une SURFACE en cm², passée à `ts_side()` pour tomber dans le palier intermédiaire : le même chiffre, une autre unité, un autre sujet. Dans Notify.php c'est une GRAISSE DE POLICE : « font:700 17px » dans le style en ligne du bandeau de marque du courriel. Aucun client de messagerie ne résout une propriété personnalisée, donc ces styles sont littéraux par nécessité, et 700 y est du gras, pas de l'argent.",
 			"literal_scope_why": "600 apparaît dans dix-sept fichiers du dépôt comme dimension, comme délai et comme taille de police, et trente-quatre fois en tout. Il est cherché là où un second prix par face pourrait s'écrire. La valeur est écrite SIX fois au total, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées ci-dessus comme miroirs et comparées, faute de pouvoir les supprimer sans redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire.",
 			"statement_amounts": [
 				{
@@ -3251,9 +3252,10 @@
 			"literal_allow": [
 				"wp-plugins/teeshoop-core/includes/Notify.php",
 				"wp-plugins/teeshoop-core/includes/BatPage.php",
-				"scripts/palette-guard.mjs"
+				"scripts/palette-guard.mjs",
+				"scripts/achat-shots.mjs"
 			],
-			"literal_allow_why": "Les deux copies imposées de la palette, et le contrôle qui les compare. Aucune n'est une seconde décision : ce sont les endroits où une propriété personnalisée ne survit pas (un client de messagerie, un document servi sans thème), et palette-guard échoue quand l'une d'elles s'écarte du foyer.",
+			"literal_allow_why": "Les deux copies imposées de la palette, et le contrôle qui les compare. Aucune n'est une seconde décision : ce sont les endroits où une propriété personnalisée ne survit pas (un client de messagerie, un document servi sans thème), et palette-guard échoue quand l'une d'elles s'écarte du foyer. `scripts/achat-shots.mjs` écrit le navy pour VÉRIFIER qu'il est dans le courriel rendu : c'est l'assertion « le courriel porte le navy de la marque ». Un contrôle qui lirait la valeur ailleurs que dans le registre ne prouverait que sa propre cohérence.",
 			"label_fr_why": "Ce qu'un client rencontre ici n'est pas une phrase : c'est la signature du site, que le thème tire de `get_bloginfo( 'name' )` dans un lien `ts-wordmark`, plus le bleu et la fonte. Aucune table de chaînes ne peut la porter, et l'étiquette qui y figurait, le seul mot « Teeshoop », se retrouvait dans 89 tables, y compris des commentaires `@package`, donc le contrôle ne pouvait pas échouer. Ce que le client verra changer le jour où l'associé répond, c'est un logo à la place du nom.",
 			"answered": "2026-09-01",
 			"answer_fr": "Question 31 : « L'identité existe déjà. Il faut conserver le logo actuel, les couleurs actuelles, les typographies actuelles, le menu et l'organisation déjà définis (...) Il ne faut pas repartir du design de démonstration du thème, ni recréer une nouvelle identité visuelle sans nécessité. » Appliqué le 03/09/2026 : chaque valeur est relevée sur teeshoop.com, aucune n'est choisie. Une réserve demeure et elle est en Q62 : sa boutique déclare DEUX polices de texte (--wd-text-font vaut Work Sans, --wd-alternative-font vaut Lato) et nous avons pris Lato."
