@@ -151,3 +151,67 @@ garde-fou elle montait d'environ 75 par minute.
 réglage repasse à `yes`, le filtre rend `null` et tout est reprogrammé : un cache
 de performance jamais reconstruit serait une boutique lente que personne ne sait
 expliquer, ce qui est pire que le défaut corrigé.
+
+
+---
+
+## 5. Fait, le 4 septembre 2026 : les rayons sont remplis
+
+La correction annoncée au paragraphe 1 est faite. Elle n'a PAS pris la forme
+qu'on y envisageait, et la différence tient à une mesure.
+
+**Ce qu'on allait faire :** ouvrir `FrKind` aux six familles manquantes.
+**Ce qui l'a empêché :** `FrKind` atteint l'argent. `Costing::facts()` le lit et
+`PriceRule::SELECTORS` s'en sert. Y mettre `casquette` aurait posé dans un
+sélecteur une valeur que `PriceRule::FAMILIES` n'offre pas : une règle écrite
+pour `other` aurait cessé de correspondre à une casquette, et aucune n'aurait pu
+la remplacer. Mesuré sur une commande de 30 pièces, la même vente de 330,00 EUR
+passe alors de « vendable » à « sous plancher, dérogation requise ».
+
+**Ce qui a été fait :** un SECOND champ, `FrShelf`, qui n'atteint aucun montant.
+`FrKind` répond « quel support est-ce », `FrShelf` répond « dans quel rayon un
+client le cherche ». Une serviette de bain est `other` pour le prix et `maison`
+pour la navigation ; ce ne sont pas deux implémentations d'une règle.
+
+### Le résultat, compté en base
+
+| Rayon | Produits | Sa photographie |
+|---|---|---|
+| Sacs & tote bags | 500 | oui |
+| Vestes | 393 | oui |
+| Casquettes | 379 | oui |
+| **Autres textiles** | **236** (contre 1 744) | il n'en a pas |
+| Sweats | 195 (contre 168) | oui |
+| Bonnets | 122 | oui |
+| Chemises | 100 | il n'en a pas |
+| Tabliers | 44 | oui |
+| Maison | 43 | oui |
+| T-Shirts, Polos | via leurs sous-rayons | oui |
+
+La barre de navigation est passée de 2 rayons à 11. Neuf des onze de l'associé y
+sont ; « Débardeurs » et « Sport » restent absents parce que le vocabulaire du
+fournisseur ne les sépare pas, et une sous-catégorie « Sans manches » existe déjà
+sous T-Shirts.
+
+### Ce qui reste faux, nommé
+
+**Sept produits portant « Beanie » dans leur nom sont dans Casquettes**, contre
+56 après le premier passage. Ce sont des cas où le fournisseur lui-même ne
+distingue pas : 62868 et 91069 sont rangés par lui sous « CASQUETTES et
+CHAPEAUX », et 15069 n'a aucune sous-catégorie de type (« NOUVEAUTÉS 2026,
+Enfants »). Les corriger demanderait une règle sur le NOM, la technique exacte
+qui a produit deux régressions documentées dans ce dépôt (« Tee Jays Luxury
+Stretch Shirt » est un polo, « Recycled Fleece Hood » est un bonnet polaire).
+0,3 % de mal classé contre le risque de rouvrir ces deux-là : non.
+
+Vérifié en revanche, et c'est ce qui comptait : **zéro gant et zéro écharpe dans
+Casquettes ou dans Bonnets**. 41 des 410 « Caps & Hats » du fournisseur ne sont
+pas des couvre-chefs, et aucun n'est vendu comme tel.
+
+### Et 27 sweats à capuche qui n'étaient jamais téléchargés
+
+Sous-catégorie fournisseur « Hoods » au pluriel, que `\bhooded\b` ne matche pas.
+Ils tombaient en `other`, donc hors de `--famille=printable`. La famille `sweat`
+passe de 168 à 195. C'est le seul changement de cette nuit qui touche une valeur
+lue par le moteur de prix, il n'introduit aucune valeur nouvelle, et zéro règle
+de prix existe aujourd'hui.

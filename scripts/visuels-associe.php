@@ -100,7 +100,16 @@ $ts_categories = array(
  * sens selon qui a saisi le terme.
  */
 function ts_clef( string $nom ): string {
-	$sans = remove_accents( $nom );
+	/*
+	 * LES ENTITÉS D'ABORD, et ce n'est pas de la prudence : WordPress stocke le
+	 * nom d'un terme AVEC son esperluette encodée. « Sacs & tote bags » est en
+	 * base sous « Sacs &amp; tote bags », donc la clé nue donnait
+	 * « sacsamptotebags » d'un côté et « sacstotebags » de l'autre, et le rayon
+	 * le plus rempli de la boutique (500 produits) était rapporté « absent ici »
+	 * alors qu'il était sous les yeux. Mesuré le 04/09/2026.
+	 */
+	$sans = html_entity_decode( $nom, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	$sans = remove_accents( $sans );
 	$sans = strtolower( $sans );
 	return (string) preg_replace( '/[^a-z0-9]+/', '', $sans );
 }
@@ -229,8 +238,14 @@ foreach ( $ts_categories as $ts_nom => $ts_chemin ) {
 	}
 	$ts_term = $ts_index[ $ts_clef ];
 
-	// Son nom exact, slug intact.
-	if ( $ts_term->name !== $ts_nom ) {
+	/*
+	 * Son nom exact, slug intact. COMPARÉ DÉCODÉ, sinon le renommage ne se
+	 * termine jamais : WordPress ré-encode l'esperluette en écrivant, donc la
+	 * lecture suivante rend « Sacs &amp; tote bags », la comparaison brute le
+	 * trouve différent de « Sacs & tote bags », et le script renomme à chaque
+	 * exécution en annonçant un changement qu'il vient de défaire.
+	 */
+	if ( ts_clef( $ts_term->name ) !== ts_clef( $ts_nom ) || html_entity_decode( $ts_term->name, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) !== $ts_nom ) {
 		wp_update_term( $ts_term->term_id, 'product_cat', array( 'name' => $ts_nom ) );
 		WP_CLI::log( sprintf( '  renommé : « %s » devient « %s » (slug %s inchangé)', $ts_term->name, $ts_nom, $ts_term->slug ) );
 		++$ts_renommes;
@@ -250,9 +265,13 @@ foreach ( $ts_categories as $ts_nom => $ts_chemin ) {
 	update_term_meta( $ts_term->term_id, 'thumbnail_id', $ts_id );
 	WP_CLI::log( sprintf( '  photo posée : %s (pièce jointe %d)', $ts_nom, $ts_id ) );
 	++$ts_poses;
-	// Son hébergement mutualisé répond 429 sur une rafale. Onze fichiers valent
-	// bien onze secondes ; c'est sa machine, pas la nôtre.
-	sleep( 1 );
+	/*
+	 * Son hébergement mutualisé répond 429 sur une rafale, et une seconde ne
+	 * suffisait pas : deux photographies sur onze ont été refusées à la
+	 * deuxième exécution. Quatre secondes par fichier, donc moins d'une minute
+	 * pour les onze, sur sa machine et pas la nôtre.
+	 */
+	sleep( 4 );
 }
 
 /* ── Le logo et l'icône ───────────────────────────────────────────────────── */

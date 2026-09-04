@@ -40,31 +40,29 @@ article, 42 143 déclinaisons écrites, **2 450 photographies copiées**.
 | produits fournisseur sans photographie | non mesuré | **0** |
 | base | 302,8 Mo | 342,7 Mo |
 
-**LE TRAVAIL LE PLUS RENTABLE QUI RESTE, ET IL EST CHIFFRÉ.** 1 744 de ces
-produits sont rangés dans « Autres textiles », parce que
-`Catalogue::CATEGORIES` ne connaît que tee, polo, sweat, chemise et « autres ».
-Compté par mot-clé sur le titre :
+**C'EST FAIT, LE 4 SEPTEMBRE.** « Autres textiles » est passé de **1 744 à 236**
+et la barre de navigation de 2 rayons à 11 :
 
-| Ce qui dort dans « Autres textiles » | Combien |
+| Rayon | Produits |
 |---|---|
-| casquettes | **256** |
-| bonnets | **111** |
-| vestes | **328** |
-| sacs et tote bags | **428** |
-| tabliers | **46** |
-| maison | **34** |
-| chaussures, hors sujet | 18 |
+| Sacs & tote bags | 500 |
+| Vestes | 393 |
+| Casquettes | 379 |
+| Autres textiles | 236 |
+| Sweats | 195 |
+| Bonnets | 122 |
+| Chemises | 100 |
+| Tabliers | 44 |
+| Maison | 43 |
 
-**Six des onze rayons de l'associé ont donc déjà 1 203 produits photographiés**,
-mal classés. Cette nuit affirmait qu'ils étaient vides et que les remplir était
-un projet : c'est faux, et la correction est écrite dans
-`docs/decisions/2026-09-03-catalogue-rayons-et-photos.md` §1.
+Le classement est DÉRIVÉ du vocabulaire du fournisseur (`style_product_group_list`,
+que le Worker jetait) et jamais du titre. Il vit dans un SECOND champ, `FrShelf`,
+parce que `FrKind` atteint le prix plancher via `PriceRule`. Détail complet et
+chiffres dans `docs/decisions/2026-09-03-catalogue-rayons-et-photos.md` §5.
 
-Ce n'est pas fait ici parce que classer 1 744 titres par mots-clés est une
-heuristique (« Bodywarmer » est-il une veste ? un « Storage Trug » un sac ?), que
-la famille vient du classifieur du Worker enregistré comme H-Q09-FAMILLES, et
-qu'écrire cette règle sans relecture sur le tuyau qui alimente les marges n'est
-pas une chose à faire à trois heures du matin.
+Il reste **7 bonnets dans Casquettes** sur 2 309 produits, tous des cas où le
+fournisseur lui-même ne distingue pas. Zéro gant et zéro écharpe vendus comme
+couvre-chefs, ce qui était le vrai risque.
 
 **Pour relancer un import** : le Worker local doit tourner (`npx wrangler dev
 --port 8788`) et `teeshoop_settings.worker_url` doit pointer dessus, sinon
@@ -80,6 +78,29 @@ en annonçant « TERMINE », sur deux lectures fausses de `catalogue etat` :
     Terminé          : en cours   <- un grep « Terminé  » matche cette ligne
 
 Le seul signal fiable est **`Avancement : X/Y` avec X égal à Y**.
+
+### Le Worker et l'extension doivent partir ENSEMBLE, et je n'ai déployé ni l'un ni l'autre
+
+Le classement en rayons est écrit des deux côtés : le Worker calcule le rayon,
+l'extension le traduit en catégorie. **Livrer une moitié sans l'autre range tout
+le catalogue dans « Autres textiles »**, ce qui est le repli voulu et signalé
+dans le rapport d'import, mais c'est quand même une boutique cassée.
+
+Je n'ai pas déployé le Worker cette nuit, et c'est délibéré : `wrangler deploy`
+touche le Worker UNIQUE qui sert aussi la production, et le brief de la nuit 1
+interdit de toucher à la production. Le changement est purement additif (un
+champ de plus dans le JSON) et testé, mais ce n'est pas à moi de le décider un
+soir où la consigne est de ne rien y toucher.
+
+**Donc, dans cet ordre, quand quelqu'un le décidera :**
+
+```
+npm run deploy                      # le Worker, partagé avec la production
+./scripts/deployer.sh preprod       # l'extension et le thème
+```
+
+Et si l'ordre est inversé, rien n'est perdu : l'extension sans le Worker range
+dans le fourre-tout et l'écrit dans son rapport, ligne par ligne.
 
 ### La préproduction a le code mais pas le catalogue
 
