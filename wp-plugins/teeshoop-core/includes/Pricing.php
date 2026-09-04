@@ -33,10 +33,17 @@ final class Pricing {
 	/**
 	 * Shipped defaults, in cents HT.
 	 *
-	 * ⚠ THESE NUMBERS ARE PLACEHOLDERS AND ARE NOT THE BUSINESS'S PRICES.
-	 * They are the studio's demo figures converted 1:1 from dollars to euros so
-	 * the plumbing can be tested end to end. Each one has a row in
-	 * `docs/hypotheses.json` naming the question that settles it: the garment
+	 * THE GARMENT TARIFFS ARE DERIVED, and the derivation is above `garments`.
+	 *
+	 * THIS PARAGRAPH SAID THE OPPOSITE UNTIL 4 SEPTEMBER 2026, and it was right
+	 * until then: « THESE NUMBERS ARE PLACEHOLDERS ... the studio's demo figures
+	 * converted 1:1 from dollars to euros ». It stayed twenty lines above the
+	 * block that now says they are derived, and it is the paragraph a maintainer
+	 * reads before deciding whether a number may be changed freely. It may not:
+	 * `npm run verify:grille` measures it against the real cost engine.
+	 *
+	 * WHAT IS STILL ASSUMED IS THE RULE, not the arithmetic. Each value has a row
+	 * in `docs/hypotheses.json` naming the question that settles it: the garment
 	 * tariffs are question 06 (the margin rates) fed by question 03 (the real
 	 * purchase grids), the surcharge and discount ladders are question 08, the
 	 * VAT rate is question 17 and the self-serve thresholds are question 02.
@@ -74,12 +81,38 @@ final class Pricing {
 			 *
 			 * LA RÈGLE, écrite pour qu'on puisse la refaire : le tarif est le
 			 * plus petit auquel CHAQUE colonne publiée de `Pricing::grid()`
-			 * atteint le plancher que `Costing` calcule pour elle, arrondi à
-			 * l'euro supérieur. L'arrondi ne fabrique rien : il ne fait que
-			 * s'éloigner du plancher, et il évite un garde qui vire au rouge sur
-			 * dix-neuf centimes. Solution exacte : 20,01 EUR le t-shirt et
-			 * 38,18 EUR le sweat ; publiée : 21,00 et 39,00, ce qui laisse au
-			 * pire 14,37 EUR et 9,15 EUR de marge au-dessus du plancher.
+			 * atteint le plancher que `Costing` calcule pour elle, À LA TAILLE
+			 * ET AU COLORIS LES PLUS CHERS que l'offre vend, arrondi à l'euro
+			 * supérieur. L'arrondi ne fabrique rien : il ne fait que s'éloigner
+			 * du plancher, et il évite un garde qui vire au rouge sur onze
+			 * centimes. Solution exacte : 22,54 EUR le t-shirt et 48,38 EUR le
+			 * sweat ; publiée : 23,00 et 49,00, ce qui laisse au pire 16,17 EUR
+			 * et 13,40 EUR de marge au-dessus du plancher.
+			 *
+			 * ── LA TAILLE LA PLUS CHÈRE, ET C'EST SA RÈGLE À LUI ───────────────
+			 *
+			 * La première dérivation mesurait à la taille de tarification, M. La
+			 * passe adversariale a montré que le pas de taille (mesuré : 3,37 EUR
+			 * en M contre 4,95 en 2XL sur la fiche fournisseur du dépôt, +47 % du
+			 * plus gros poste) est plus grand que la marge que le tarif laissait,
+			 * donc qu'une série entièrement en grande taille repassait sous son
+			 * plancher pendant que le garde restait vert.
+			 *
+			 * La réponse 37 de l'associé le dit avant nous, et c'est une règle de
+			 * développement dans son texte : « Ne jamais utiliser uniquement la
+			 * surface du M pour calculer le coût réel d'une commande comportant
+			 * plusieurs tailles. » Elle dit aussi que le prix client reste le
+			 * MÊME à toutes les tailles (« Un S, un M et un 3XL peuvent être
+			 * vendus au même prix »), et que si les grandes tailles font passer
+			 * la commande sous le plancher, « un supplément peut être appliqué ou
+			 * la commande doit nécessiter une validation interne ».
+			 *
+			 * Des deux, une boutique en autonomie ne peut pas faire la seconde :
+			 * il n'y a personne entre le clic et le paiement. Donc le prix couvre
+			 * la taille la plus chère, et un acheteur en S paie ce que coûte un
+			 * 3XL. C'est un choix commercial, il est à lui, et le supplément de
+			 * taille qu'il évoque est la façon de faire redescendre le prix des
+			 * tailles courantes : question 64.
 			 *
 			 * POURQUOI LE PLANCHER ET PAS LE PRIX CONSEILLÉ. Les trois cibles
 			 * dérivables ont été calculées : plancher (contribution 25 %),
@@ -109,12 +142,12 @@ final class Pricing {
 			 */
 			'garments'   => array(
 				'tee'    => array(
-					'base_ht'       => 1100,
+					'base_ht'       => 1300,
 					'first_side_ht' => 1000,
 					'extra_side_ht' => 700,
 				),
 				'hoodie' => array(
-					'base_ht'       => 2900,
+					'base_ht'       => 3900,
 					'first_side_ht' => 1000,
 					'extra_side_ht' => 700,
 				),
@@ -644,7 +677,7 @@ final class Pricing {
 	 * Returns array() when the grid is empty rather than a zero, because a
 	 * headline of 0,00 EUR is a price and 'no headline' is not.
 	 */
-	public static function headline( string $garment, array $config, int $self_serve_max = 0 ): array {
+	public static function headline( string $garment, array $config, ?int $self_serve_max = null ): array {
 		$rows = self::grid( $garment, self::grid_qtys( $config ), array( 1 ), $config );
 		if ( empty( $rows ) || empty( $rows[0]['cells'] ) ) {
 			return array();
@@ -689,10 +722,14 @@ final class Pricing {
 			 * grille Colissimo ne sait pas affranchir : une promesse en tête de
 			 * page pour une commande qui n'a pas de mode de livraison.
 			 *
-			 * Zéro veut dire « aucune borne de ce genre », la même convention
-			 * que les seuils de `default_config()`.
+			 * TROIS ÉTATS ET PAS DEUX. `null` veut dire « aucune borne n'a été
+			 * fournie », ce qui est le studio hors boutique et laisse passer
+			 * toutes les colonnes. Un ENTIER est une mesure, y compris 0, qui
+			 * veut dire « pas une seule pièce ne tient dans un colis » et doit
+			 * donc tout refuser. Confondre les deux publiait une accroche de
+			 * prix au-dessus d'un tableau entièrement « sur devis ».
 			 */
-			if ( $self_serve_max > 0 && (int) $cell['qty'] > $self_serve_max ) {
+			if ( null !== $self_serve_max && (int) $cell['qty'] > $self_serve_max ) {
 				continue;
 			}
 			if ( null === $best || $cell['unit_ht'] < $best['unit_ht'] ) {

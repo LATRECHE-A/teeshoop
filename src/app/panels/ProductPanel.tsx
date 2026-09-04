@@ -130,18 +130,20 @@ export default function ProductPanel() {
             >
               <img src={thumbs[id]} alt="" className="h-[84px] w-[84px]" draggable={false} />
               <span className="text-[12px] font-medium text-tx">{t('garment.' + id)}</span>
-              {/* Silent when a real shop is on the other side of the frame.
-                  PRICING is the studio's own demo table, in dollars, and it
-                  disagrees with the server: it says "dès 14,50 $" for a tee the
-                  shop prices from 9,50 EUR HT. Two prices in two currencies, a
-                  panel apart, is exactly the divergence the server-side price
-                  authority exists to prevent, and framing the studio is what
-                  first put them on one screen. The shop's own "from" price
-                  belongs on the product page (GET /wp-json/teeshoop/v1/grid),
-                  which is session 02. */}
+              {/* Silent when a real shop is on the other side of the frame: the
+                  shop's own "from" price is on the product page, computed by
+                  the price authority.
+                  IN EUROS, AND IT MATTERS SINCE 4 SEPTEMBER 2026. This said
+                  "dès 14,50 $" while PRICING was a demo table in dollars that
+                  deliberately disagreed with the server. That table is now a
+                  MIRROR of `Pricing::default_config()`, checked by running both
+                  (`scripts/hypotheses-guard.mjs`), so the number here is the
+                  shop's real EUR HT tariff. Leaving the dollar sign on it
+                  published 23,00 EUR as "23.00 $", with an English decimal
+                  point, on a URL anyone can open. */}
               {!canOrder && (
                 <span className="mono-dim">
-                  {t('product.from_price', { price: PRICING[id].baseUsd.toFixed(2) })}
+                  {t('product.from_price', { price: fmtNum(PRICING[id].baseUsd, 2) })}
                 </span>
               )}
             </button>

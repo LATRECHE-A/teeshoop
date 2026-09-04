@@ -26,9 +26,6 @@ defined( 'ABSPATH' ) || exit;
 
 final class Cli {
 
-	/** Stable slug so the command can be run twice without piling up products. */
-	private const DEMO_SLUG = 'teeshoop-demo-tee';
-
 	public static function init(): void {
 		if ( ! defined( 'WP_CLI' ) || ! \WP_CLI ) {
 			return;
@@ -1717,7 +1714,14 @@ final class Cli {
 				);
 				continue;
 			}
-			\WP_CLI::warning( sprintf( '%s : %s', $row['ref'], $row['why'] ) );
+			\WP_CLI::warning(
+				sprintf(
+					'%s : %s%s',
+					$row['ref'],
+					$row['why'],
+					! empty( $row['retired'] ) ? ' (son offre est SORTIE DE LA VENTE)' : ''
+				)
+			);
 		}
 
 		\WP_CLI::log( '' );

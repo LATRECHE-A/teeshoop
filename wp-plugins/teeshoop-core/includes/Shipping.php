@@ -252,20 +252,31 @@ final class Shipping {
 	 * répondu par un 409 (voir `Pricing::grid()`), par l'autre bout : une
 	 * colonne que la boutique ne sait pas servir n'est pas un prix.
 	 *
-	 * Rend 0 quand le poids unitaire est inconnu ou nul. Zéro veut dire « aucune
-	 * quantité n'est sûre », ce qui est la réponse prudente : « on n'a pas pu
-	 * peser » n'est pas « c'est léger ».
+	 * ── NULL N'EST PAS ZÉRO, ET LA DIFFÉRENCE A DÉJÀ MENTI À UN CLIENT ─────────
+	 *
+	 * Cette fonction rendait 0 pour « le poids est inconnu » ET pour « aucune
+	 * quantité ne tient ». Deux appelants ont lu ce 0 dans deux sens opposés :
+	 * `ProductPage::grid_rows()` comme « aucune quantité n'est sûre », donc toutes
+	 * les colonnes sur devis, et `Pricing::headline()` comme « aucune borne de ce
+	 * genre », donc l'accroche publiée. Une offre sans poids affichait donc
+	 * « 13,65 EUR l'unité dès 50 pièces » au-dessus d'un tableau où chaque
+	 * cellule disait « sur devis », et `structured_data()` envoyait le même prix
+	 * à Google. Trouvé par la passe adversariale du 4 septembre 2026.
+	 *
+	 * `null` veut dire « on n'a pas pu peser » et n'a qu'une lecture possible :
+	 * refuser. `0` veut dire « pas une seule pièce ne tient », ce qui est une
+	 * mesure. `CLAUDE.md` section 3 : le code doit pouvoir distinguer « non » de
+	 * « je n'ai pas pu regarder ».
 	 */
-	public static function max_pieces( int $unit_g, array $config ): int {
+	public static function max_pieces( int $unit_g, array $config ): ?int {
 		if ( $unit_g <= 0 ) {
-			return 0;
+			return null;
 		}
-		$ceiling = self::max_parcel_g( $config );
-		$per     = $unit_g + (int) $config['packaging_piece_g'];
+		$per = $unit_g + (int) $config['packaging_piece_g'];
 		if ( $per <= 0 ) {
-			return 0;
+			return null;
 		}
-		$room = $ceiling - (int) $config['packaging_order_g'];
+		$room = self::max_parcel_g( $config ) - (int) $config['packaging_order_g'];
 		return $room <= 0 ? 0 : (int) floor( $room / $per );
 	}
 

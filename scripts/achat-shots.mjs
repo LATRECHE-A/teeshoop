@@ -291,8 +291,18 @@ for (const width of WIDTHS) {
    * rendait un libellé sans chiffre et l'assertion échouait sur un panier qui
    * allait très bien. C'est le conteneur des totaux qui est lu.
    */
+  /*
+   * LE TOTAL, PAS LA PREMIÈRE SOMME DU BLOC.
+   *
+   * Lire le conteneur entier et prendre le premier montant donnait le
+   * sous-total à 375 px et autre chose à 1 440 px, parce que le bloc réordonne
+   * ses lignes : 61,20 EUR d'un côté, 367,20 de l'autre, pour un même panier.
+   * Une assertion qui compare deux nombres doit d'abord savoir lesquels.
+   */
   const cartTotal = await page
-    .locator('.cart_totals, .wc-block-cart__sidebar, .wp-block-woocommerce-cart-order-summary-block')
+    .locator(
+      '.wc-block-components-totals-footer-item .wc-block-components-totals-item__value, .cart_totals .order-total .woocommerce-Price-amount',
+    )
     .first()
     .innerText()
     .catch(() => '')
@@ -334,6 +344,35 @@ for (const width of WIDTHS) {
     .locator('.woocommerce-checkout-review-order-table, .wc-block-components-order-summary')
     .count()
   ok(`caisse : le récapitulatif est rendu (${width} px)`, review > 0)
+
+  /*
+   * ── LE MONTANT, PAS « UN » MONTANT ────────────────────────────────────────
+   *
+   * Les assertions d'argent de ce harnais vérifiaient qu'UNE somme en euros est
+   * affichée, jamais LAQUELLE. Le seul contrôle qui promène un client de la
+   * fiche à la commande, au tarif re-dérivé, ne pouvait donc pas échouer sur un
+   * écart entre ce qui est annoncé et ce qui est facturé, qui est précisément
+   * ce que ce projet redoute le plus.
+   *
+   * La caisse doit porter le même total TTC que le panier a annoncé, au centime.
+   */
+  const checkoutTotal = await page
+    .locator(
+      '.wc-block-components-totals-footer-item .wc-block-components-totals-item__value, .order-total .woocommerce-Price-amount',
+    )
+    .first()
+    .innerText()
+    .catch(() => '')
+  const cents = (text) => {
+    const m = /(\d[\d\s\u202f\u00a0]*),(\d\d)\s*(?:€|EUR)/.exec((text ?? '').replace(/\u00a0/g, ' '))
+    return m ? Number(m[1].replace(/[\s\u202f]/g, '')) * 100 + Number(m[2]) : null
+  }
+  ok(
+    `caisse : le total est celui du panier, au centime (${width} px)`,
+    cents(checkoutTotal) !== null && cents(checkoutTotal) === cents(cartTotal),
+    `panier ${cents(cartTotal)} c, caisse ${cents(checkoutTotal)} c`,
+  )
+
   await shot('caisse')
   await noSideScroll('caisse')
 
@@ -454,6 +493,13 @@ echo "\\n<<<JSON>>>" . wp_json_encode( $out ) . "<<<FIN>>>\\n";
 `),
       'la commande',
     )
+    /*
+     * `if (view.url)` SANS `else` N'ENREGISTRAIT AUCUNE ASSERTION quand la
+     * recherche ne rendait pas d'adresse, et le harnais restait vert en ayant
+     * sauté la page de commande reçue à cette largeur. Une branche muette dans
+     * un contrôle est un contrôle qui ne peut pas échouer.
+     */
+    ok(`commande reçue : la commande de la première largeur est retrouvable (${width} px)`, Boolean(view.url), view.url ?? '')
     if (view.url) {
       await page.goto(view.url, { waitUntil: 'domcontentloaded' })
       ok(

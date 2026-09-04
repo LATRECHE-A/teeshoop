@@ -203,8 +203,21 @@ $ts_last_size = ! empty( $sizes ) ? (string) ( end( $sizes )['size'] ?? '' ) : '
 						<tr>
 							<th scope="row"><?php echo esc_html( (string) $ts_row['size'] ); ?></th>
 							<td class="ts-num"><?php echo esc_html( Garments::cm( (float) $ts_row['halfChestCm'] ) ); ?></td>
-							<td class="ts-num"><?php echo esc_html( Garments::cm( (float) $ts_row['bodyLengthCm'] ) ); ?></td>
-							<td class="ts-num"><?php echo esc_html( Garments::cm( (float) $ts_row['sleeveLengthCm'] ) ); ?></td>
+							<?php
+							/*
+							 * UNE COLONNE VIDE PLUTÔT QU'UNE MESURE EMPRUNTÉE.
+							 *
+							 * Quand la grille vient de la fiche du fabricant, elle
+							 * ne donne que la demi-poitrine. Reprendre la longueur
+							 * et la manche de la charte du studio mettrait les
+							 * mesures de DEUX vêtements sur une même ligne, sous le
+							 * nom d'un seul. Le tiret dit « nous ne l'avons pas »,
+							 * ce qui est la vérité, et un lecteur d'écran l'annonce
+							 * par son intitulé de colonne.
+							 */
+							?>
+							<td class="ts-num"><?php echo (float) $ts_row['bodyLengthCm'] > 0 ? esc_html( Garments::cm( (float) $ts_row['bodyLengthCm'] ) ) : '<span aria-hidden="true">&mdash;</span><span class="screen-reader-text">' . esc_html__( 'non publiée par le fabricant', 'teeshoop' ) . '</span>'; ?></td>
+							<td class="ts-num"><?php echo (float) $ts_row['sleeveLengthCm'] > 0 ? esc_html( Garments::cm( (float) $ts_row['sleeveLengthCm'] ) ) : '<span aria-hidden="true">&mdash;</span><span class="screen-reader-text">' . esc_html__( 'non publiée par le fabricant', 'teeshoop' ) . '</span>'; ?></td>
 						</tr>
 					<?php endforeach; ?>
 				</tbody>

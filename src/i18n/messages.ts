@@ -104,7 +104,7 @@ export const messages: Record<Lang, Record<string, string>> = {
 
     // -- product panel ----------------------------------------------------
     'product.garment': 'Vêtement',
-    'product.from_price': 'dès {price} $',
+    'product.from_price': 'dès {price} EUR HT',
     'product.your_garment': 'Votre propre vêtement',
     'product.your_garment_set':
       'Photos configurées. Envoyez-nous le vêtement, on imprime dessus.',
@@ -591,7 +591,7 @@ export const messages: Record<Lang, Record<string, string>> = {
 
     // -- product panel ----------------------------------------------------
     'product.garment': 'Garment',
-    'product.from_price': 'from ${price}',
+    'product.from_price': 'from {price} EUR excl. VAT',
     'product.your_garment': 'Your own garment',
     'product.your_garment_set':
       'Photos configured. Send us the garment, we print on it.',

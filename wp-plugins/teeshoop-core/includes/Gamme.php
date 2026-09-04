@@ -127,10 +127,14 @@ final class Gamme {
 	 * `WC_Product::is_purchasable()` répond non, donc ils disparaissent du
 	 * portail de mise en ligne et d'une boutique en ligne.
 	 *
-	 * Reconnus par leur slug ou, à défaut, par leur titre exact. Le slug est ce
-	 * qui survit à une traduction ; le titre est ce qui reste des montages
-	 * qu'aucun fichier du dépôt ne crée (les trois « Probe fixture » et
-	 * « Repro tee », résidus d'une sonde d'une séance passée).
+	 * Reconnus par leur TITRE EXACT, et c'est ce que `retire()` fait. Le
+	 * commentaire disait « par leur slug ou, à défaut, par leur titre », ce qui
+	 * n'a jamais été vrai : la liste ne contient que des titres et la requête
+	 * n'interroge que `title`. La conséquence est réelle et elle est ici plutôt
+	 * que dans une promesse : renommer un montage de harnais le remet en vente
+	 * en silence, et la commande annonce « 0 montage(s) sortis de la vente »
+	 * sans rien de rouge. Le jour où ça arrive, c'est cette liste qu'il faut
+	 * mettre à jour, pas le code.
 	 */
 	public const FIXTURES = array(
 		'Probe fixture',
@@ -250,11 +254,36 @@ final class Gamme {
 		 * and that term is listed rather than guessed at: an unmeasured colour
 		 * has no family, so it cannot be matched and must not be proposed.
 		 */
+		/*
+		 * ── UN COLORIS QUI MANQUE DANS UNE TAILLE N'EST PAS PROPOSÉ DU TOUT ───
+		 *
+		 * Le studio offre toutes ses tailles quelle que soit la couleur. Le
+		 * fournisseur, non : il arrête des coloris dans les grandes tailles.
+		 * Mesuré le 4 septembre 2026 sur les neuf offres, 936 paires
+		 * (coloris, taille) : DIX sont invendables, dont toute la ligne 3XL du
+		 * Fruit of the Loom Classic Hooded (neuf coloris) et le S Orange en 3XL
+		 * du Gildan Heavy Blend.
+		 *
+		 * Sans ce filtre, le client choisit la couleur, choisit le 3XL, paie, et
+		 * c'est le bon de commande fournisseur qui refuse par son nom :
+		 * « Le fournisseur ne vend pas la taille 3XL en Bottle Green ». Après le
+		 * paiement, sur une commande dont le film est peut-être déjà imprimé.
+		 *
+		 * Le coloris est donc retenu seulement s'il existe dans TOUTES les
+		 * tailles que le studio presse. C'est un nuancier plus court et vrai
+		 * plutôt qu'un plus long qui refuse en caisse.
+		 */
+		$sellable = self::colours_in_every_size( $blank_id );
+
 		$candidates = array();
 		foreach ( $terms as $term ) {
 			$read = Colours::read( (int) $term->term_id );
 			if ( null === $read || array() === $read['labs'] || '' === (string) $read['family'] ) {
 				$unmeasured[] = (string) $term->name;
+				continue;
+			}
+			if ( ! isset( $sellable[ strtolower( (string) $term->name ) ] ) ) {
+				$unmeasured[] = (string) $term->name . ' (absent d’au moins une taille)';
 				continue;
 			}
 			$candidates[] = array(
@@ -351,6 +380,52 @@ final class Gamme {
 	}
 
 	/**
+	 * Les coloris de cette référence qui existent dans CHAQUE taille pressée.
+	 *
+	 * Voir le commentaire au point d'appel. Rend une carte nom minuscule => vrai.
+	 *
+	 * @return array<string,bool>
+	 */
+	private static function colours_in_every_size( int $blank_id ): array {
+		$blank = wc_get_product( $blank_id );
+		if ( ! $blank instanceof \WC_Product ) {
+			return array();
+		}
+		$garment = self::RANGE[ (string) get_post_meta( $blank_id, '_teeshoop_ref', true ) ] ?? '';
+		$sizes   = '' === $garment ? array() : array_map( 'strtolower', ProductPage::size_ids( $garment ) );
+		if ( array() === $sizes ) {
+			return array();
+		}
+
+		/* colour name (lowercased) => the set of sizes it exists in. */
+		$seen = array();
+		foreach ( $blank->get_children() as $child ) {
+			$variation = wc_get_product( (int) $child );
+			if ( ! $variation instanceof \WC_Product_Variation ) {
+				continue;
+			}
+			$attributes = $variation->get_attributes();
+			$size       = strtolower( (string) ( $attributes['pa_taille'] ?? '' ) );
+			if ( ! in_array( $size, $sizes, true ) ) {
+				continue;
+			}
+			$term = get_term_by( 'slug', (string) ( $attributes['pa_couleur'] ?? '' ), Colours::TAXONOMY );
+			if ( ! $term instanceof \WP_Term ) {
+				continue;
+			}
+			$seen[ strtolower( $term->name ) ][ $size ] = true;
+		}
+
+		$out = array();
+		foreach ( $seen as $name => $found ) {
+			if ( count( $found ) === count( array_unique( $sizes ) ) ) {
+				$out[ $name ] = true;
+			}
+		}
+		return $out;
+	}
+
+	/**
 	 * The procurement half of the palette: studio dye id => the maker's name.
 	 *
 	 * The shape `Product::META_BLANK_COLOURS` has always had, so `Purchase.php`
@@ -428,8 +503,9 @@ final class Gamme {
 
 			$blank_id = self::blank_product( $ref );
 			if ( $blank_id <= 0 ) {
-				$row['why'] = 'la référence n’est pas dans le catalogue importé';
-				$rows[]     = $row;
+				$row['why']     = 'la référence n’est pas dans le catalogue importé';
+				$row['retired'] = self::withdraw( $ref, $dry_run );
+				$rows[]         = $row;
 				continue;
 			}
 			$row['blank_id'] = $blank_id;
@@ -448,15 +524,17 @@ final class Gamme {
 				 * an offer (session 13b), and the print area of the next item
 				 * is measured on that very photograph.
 				 */
-				$row['why'] = 'la référence n’a aucune photographie';
-				$rows[]     = $row;
+				$row['why']     = 'la référence n’a aucune photographie';
+				$row['retired'] = self::withdraw( $ref, $dry_run );
+				$rows[]         = $row;
 				continue;
 			}
 
 			$palette = self::palette( $blank_id );
 			if ( array() === $palette['deck'] ) {
-				$row['why'] = 'aucune couleur du studio ne correspond à un coloris mesuré de cette référence';
-				$rows[]     = $row;
+				$row['why']     = 'aucune couleur du studio ne correspond à un coloris mesuré de cette référence';
+				$row['retired'] = self::withdraw( $ref, $dry_run );
+				$rows[]         = $row;
 				continue;
 			}
 			$row['colours'] = count( $palette['deck'] );
@@ -531,10 +609,44 @@ final class Gamme {
 				Garments::META_MATERIAL   => (string) $blank->get_meta( Garments::META_MATERIAL, true ),
 				Garments::META_WEIGHT     => (string) $blank->get_meta( Garments::META_WEIGHT, true ),
 				Garments::META_SPECS_DATE => (string) $blank->get_meta( Garments::META_SPECS_DATE, true ),
+				/*
+				 * LA GRILLE DE TAILLES DU FABRICANT, et elle a une raison d'être
+				 * là plutôt que d'être lue chez le textile nu au moment du rendu.
+				 *
+				 * `scripts/zones-mesurer.mjs` l'écrit sur la référence importée,
+				 * qui est un AUTRE produit que cette offre. Sans cette copie, la
+				 * fiche retombait sur la charte du studio et publiait 52,0 cm de
+				 * demi-poitrine en M sous le nom « B&C TU01T », là où B&C écrit
+				 * 50 sur sa propre fiche. Deux centimètres d'erreur, sur la ligne
+				 * où un acheteur choisit sa taille.
+				 *
+				 * Copiée et pas lue en direct, comme la marque et la matière au-
+				 * dessus : ce qui est vendu est ce que l'offre porte, et une
+				 * référence retirée du catalogue ne doit pas vider une fiche.
+				 */
 			) as $key => $value ) {
 				if ( '' !== $value ) {
 					$offer->update_meta_data( $key, $value );
 				}
+			}
+
+			/*
+			 * LA GRILLE DE TAILLES SE COPIE OU S'EFFACE, jamais « on garde
+			 * l'ancienne ».
+			 *
+			 * Les autres faits du fabricant se copient seulement s'ils existent :
+			 * une matière absente n'efface pas celle qu'on avait. Celle-ci est
+			 * différente, parce que `zones-mesurer` la RETIRE quand il découvre
+			 * qu'elle était mal lue ou incomplète. La laisser en place ferait
+			 * survivre sur la fiche produit exactement la série que le contrôle
+			 * vient de refuser, et c'est le guide des tailles qu'un acheteur
+			 * professionnel lit.
+			 */
+			$chart = (string) $blank->get_meta( '_teeshoop_demi_poitrine', true );
+			if ( '' === $chart ) {
+				$offer->delete_meta_data( '_teeshoop_demi_poitrine' );
+			} else {
+				$offer->update_meta_data( '_teeshoop_demi_poitrine', $chart );
 			}
 
 			$offer->save();
@@ -604,6 +716,40 @@ final class Gamme {
 		return $max > 0 ? (string) $max : '';
 	}
 
+	/**
+	 * Une offre dont la référence ne se résout plus SORT DE LA VENTE.
+	 *
+	 * ── POURQUOI « CONTINUE » NE SUFFISAIT PAS ────────────────────────────────
+	 *
+	 * `apply()` se dit idempotente, et elle l'était sur son chemin heureux
+	 * seulement : quand une référence disparaissait du catalogue, perdait sa
+	 * photographie ou n'avait plus un seul coloris mesuré, la boucle passait à
+	 * la suivante SANS TOUCHER à l'offre déjà publiée. La boutique continuait
+	 * donc de vendre un vêtement dont le textile nu n'existe plus, avec la carte
+	 * de coloris et le poids de la semaine dernière, et l'état de la boutique
+	 * dépendait de son historique plutôt que de `RANGE`.
+	 *
+	 * L'offre perd son prix, comme les montages de harnais, pour la même raison :
+	 * c'est ce que `is_purchasable()` lit, donc ce que le panier et le portail de
+	 * mise en ligne lisent. Elle n'est pas supprimée, parce qu'une commande
+	 * passée la référence encore.
+	 *
+	 * @return bool true si une offre a effectivement été retirée.
+	 */
+	private static function withdraw( string $ref, bool $dry_run ): bool {
+		$offer = self::find_offer( $ref );
+		if ( ! $offer instanceof \WC_Product || '' === (string) $offer->get_regular_price() ) {
+			return false;
+		}
+		if ( ! $dry_run ) {
+			$offer->set_regular_price( '' );
+			$offer->set_sale_price( '' );
+			$offer->set_price( '' );
+			$offer->save();
+		}
+		return true;
+	}
+
 	/** The offer for a reference, or null. */
 	private static function find_offer( string $ref ): ?\WC_Product {
 		$found = get_posts(
@@ -645,11 +791,17 @@ final class Gamme {
 	/**
 	 * Le slug porte la référence, et c'est ce qui le rend stable.
 	 *
-	 * Le fournisseur renomme ses styles (« B&C #E150 T-Shirt » a été
-	 * « B&C Exact 150 »), et un slug qui suit le titre casse chaque adresse
-	 * indexée le jour où il le fait. La référence, elle, est sa clé et ne bouge
-	 * pas. Le titre reste dans le slug pour ce qu'il vaut en référencement ;
-	 * c'est la référence qui garantit l'unicité.
+	 * La référence garantit l'UNICITÉ, pas la stabilité, et il faut le dire
+	 * parce que le commentaire précédent promettait la seconde. `apply()`
+	 * réécrit le slug à CHAQUE exécution, donc un fournisseur qui renomme son
+	 * style plus un « teeshoop gamme appliquer » déplace toutes les adresses
+	 * indexées, et casse le slug que trois harnais écrivent en dur
+	 * (`a11y-verify`, `site-shots`, `product-shots`).
+	 *
+	 * C'est un compromis assumé pour le référencement : un slug qui ne porte que
+	 * la référence serait stable et illisible. Le jour où une adresse doit
+	 * survivre à un renommage, c'est ici qu'il faut cesser de réécrire le slug
+	 * quand le produit existe déjà.
 	 */
 	private static function offer_slug( string $ref, \WC_Product $blank ): string {
 		return sanitize_title( $blank->get_name() . '-a-personnaliser-' . $ref );

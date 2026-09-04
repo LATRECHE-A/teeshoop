@@ -84,8 +84,9 @@ Chez mistertee, le prix affiché en tête de fiche et sur chaque carte de listin
 et coûte 23,11 EUR (**2,17 fois plus**). Le tri par prix trie sur ce chiffre-là.
 
 `Pricing::headline()` lit ses deux ancres **dans la grille imprimée juste en dessous** et
-publie la quantité qui atteint le prix, dans la même phrase : « 9,42 EUR HT l'unité dès
-50 pièces ». Un acheteur de vingt pièces ne découvre pas l'écart en descendant la page.
+publie la quantité qui atteint le prix, dans la même phrase : « 14,95 EUR HT l'unité
+dès 50 pièces » (le chiffre bouge avec le tarif, qui est dérivé du plancher depuis le
+4 septembre 2026 ; la phrase, elle, ne bouge pas). Un acheteur de vingt pièces ne découvre pas l'écart en descendant la page.
 
 ### 2. Les dimensions d'impression sont publiées, en centimètres
 

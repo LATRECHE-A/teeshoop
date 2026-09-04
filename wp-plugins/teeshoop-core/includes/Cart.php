@@ -226,6 +226,23 @@ final class Cart {
 	 *
 	 * @return string|\WP_Error
 	 */
+	/**
+	 * Le poids d'une pièce en grammes, ou 0 quand il est inconnu.
+	 *
+	 * ZÉRO EST « ON N'A PAS PU PESER ». `WC_Product::get_weight()` rend '' pour
+	 * un produit dont personne n'a saisi le poids ; le lire comme 0 g mettrait
+	 * chaque colis dans la tranche la plus légère de la grille Colissimo, et
+	 * ferait passer ce contrôle-ci pour « aucune limite ». La même distinction
+	 * que `Shipping::NO_WEIGHT` fait au moment d'affranchir.
+	 */
+	private static function unit_grams( \WC_Product $product ): int {
+		$weight = $product->get_weight();
+		if ( '' === $weight || null === $weight || ! is_numeric( $weight ) || (float) $weight <= 0 ) {
+			return 0;
+		}
+		return (int) round( (float) wc_get_weight( (float) $weight, 'g' ) );
+	}
+
 	public static function add( array $payload ) {
 		$product_id = (int) ( $payload['product_id'] ?? 0 );
 		$product    = $product_id > 0 ? wc_get_product( $product_id ) : null;
@@ -432,6 +449,45 @@ final class Cart {
 					__( 'Au-delà de %1$d pièces ou de %2$s hors taxes, nous chiffrons la commande à la main. Demandez un devis depuis la fiche produit, votre création est conservée.', 'teeshoop' ),
 					(int) $config['quote_from_qty'],
 					Money::format( (int) $config['quote_from_ht'] )
+				),
+				array( 'status' => 409 )
+			);
+		}
+
+		/*
+		 * ── ET CE QU'UN COLIS NE PORTE PAS ────────────────────────────────────
+		 *
+		 * `Pricing::needs_quote` connaît la quantité et le montant. Il ne connaît
+		 * pas le POIDS : `Pricing` est pur et n'a ni transporteur ni balance. La
+		 * grille de la fiche retenait déjà les colonnes trop lourdes
+		 * (`ProductPage::grid_rows`), et le panier ne les retenait pas.
+		 *
+		 * Mesuré le 4 septembre 2026 par la passe adversariale : cinquante sweats
+		 * Fruit of the Loom pèsent 35 kg, cinq de plus que la grille Colissimo ne
+		 * sait affranchir. La fiche imprimait « sur devis », l'encadré d'achat de
+		 * la MÊME page imprimait « 1 267,50 EUR HT », `Cart::add` acceptait la
+		 * ligne, et le client arrivait à une caisse sans aucun mode de livraison,
+		 * avec un panier à 1 521,00 EUR TTC. Trois réponses pour une case, et
+		 * c'est le chemin qui prend l'argent qui prenait la plus optimiste.
+		 *
+		 * La borne est lue ici plutôt que recopiée : `Shipping::max_pieces` est
+		 * la seule maison de la règle, et `null` (« on n'a pas pu peser ») refuse
+		 * comme zéro, parce qu'un produit sans poids n'a pas de tarif de
+		 * livraison du tout.
+		 */
+		$parcel_max = Shipping::max_pieces( self::unit_grams( $product ), Shipping::config() );
+		if ( null === $parcel_max || $qty > $parcel_max ) {
+			return new \WP_Error(
+				'teeshoop_parcel_too_heavy',
+				sprintf(
+					/* translators: %d: how many pieces fit in one parcel. */
+					_n(
+						'Cette quantité dépasse ce qu’un colis peut porter (%d pièce). Nous organisons la livraison à la main : demandez un devis depuis la fiche produit, votre création est conservée.',
+						'Cette quantité dépasse ce qu’un colis peut porter (%d pièces). Nous organisons la livraison à la main : demandez un devis depuis la fiche produit, votre création est conservée.',
+						(int) ( $parcel_max ?? 0 ),
+						'teeshoop'
+					),
+					(int) ( $parcel_max ?? 0 )
 				),
 				array( 'status' => 409 )
 			);

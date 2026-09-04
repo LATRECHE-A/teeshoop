@@ -163,6 +163,181 @@ function teeshoop_grille_dearest_colour( int $product_id, string $size ): ?array
 	return $best;
 }
 
+/**
+ * La taille LA PLUS CHÈRE que cette offre vend, ou '' si aucune ne se résout.
+ *
+ * Le prix d'achat monte avec la taille et le prix de vente ne bouge pas, donc
+ * c'est la taille la plus grande qui décide si le tarif tient. Voir le
+ * commentaire au point d'appel.
+ */
+function teeshoop_grille_dearest_size( int $product_id, string $garment ): string {
+	$ref = Product::blank_ref_of( $product_id );
+	if ( '' === $ref ) {
+		return '';
+	}
+	$blank_ids = get_posts(
+		array(
+			'post_type'      => 'product',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_key'       => '_teeshoop_ref', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a command, not a page load.
+			'meta_value'     => $ref, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- as above.
+		)
+	);
+	if ( array() === $blank_ids ) {
+		return '';
+	}
+	$blank = wc_get_product( (int) $blank_ids[0] );
+	if ( ! $blank instanceof \WC_Product ) {
+		return '';
+	}
+
+	/*
+	 * LA TAILLE DOIT ÊTRE UNE QUE LE STUDIO SAIT PRESSER, sinon `Cart::add`
+	 * refuse la grille de tailles et le contrôle mesure zéro colonne en croyant
+	 * mesurer la plus chère. Le fournisseur en publie que la charte n'a pas.
+	 */
+	$known = array_map( 'strtolower', ProductPage::size_ids( $garment ) );
+
+	$best      = '';
+	$best_cost = 0;
+	foreach ( $blank->get_children() as $child ) {
+		$variation = wc_get_product( (int) $child );
+		if ( ! $variation instanceof \WC_Product_Variation ) {
+			continue;
+		}
+		$attributes = $variation->get_attributes();
+		$size       = strtolower( (string) ( $attributes['pa_taille'] ?? '' ) );
+		if ( '' === $size || ! in_array( $size, $known, true ) ) {
+			continue;
+		}
+		$cents = $variation->get_meta( '_teeshoop_supply_cents', true );
+		if ( ! is_numeric( $cents ) || (int) $cents <= 0 ) {
+			continue;
+		}
+		// Strict, then alphabetical, so two sizes at one price do not make the
+		// answer depend on the order WooCommerce returned the children in.
+		if ( (int) $cents > $best_cost || ( (int) $cents === $best_cost && '' !== $best && strcmp( $size, $best ) < 0 ) ) {
+			$best_cost = (int) $cents;
+			$best      = $size;
+		}
+	}
+	return '' === $best ? '' : strtoupper( $best );
+}
+
+/**
+ * Une création que la boutique acceptera, mintée sur la vraie route du Worker.
+ *
+ * ── POURQUOI PAS UN IDENTIFIANT INVENTÉ ────────────────────────────────────
+ *
+ * `Design::verify` échappe deux cas en développement, « aucun Worker configuré »
+ * et « Worker injoignable », et PAS « le Worker ne connaît pas cette
+ * création » : un 404 refuse, ce qui est le bon comportement pour une boutique.
+ * Le harnais utilisait un identifiant fixe, donc son verdict dépendait de ce qui
+ * écoutait sur le port du Worker : arrêté, tout passait ; en marche, tout
+ * échouait, et le message annonçait un plancher franchi sur des colonnes jamais
+ * chiffrées.
+ *
+ * Alors il en crée une vraie, sur `POST /api/design`, la route ouverte que le
+ * studio utilise. Un document sans image est un document valide (un marquage en
+ * texte seul), ce qui évite d'inventer une œuvre pour un contrôle de prix.
+ *
+ * Rend '' quand aucun Worker n'est configuré, ce qui est le cas normal du miroir
+ * et où l'échappatoire de développement fait le travail.
+ */
+function teeshoop_grille_design_id( array $sides ): string {
+	static $cache = array();
+
+	$worker = (string) Settings::get( 'worker_url' );
+	if ( '' === $worker ) {
+		return 'grillegardegrilleg';
+	}
+
+	/*
+	 * UNE CRÉATION PAR NOMBRE DE FACES, et c'est le manifeste qui l'impose.
+	 *
+	 * `Cart::add` prend les surfaces imprimées DU MANIFESTE et non de la requête
+	 * dès que la création est vérifiée, ce qui est tout l'intérêt du manifeste.
+	 * Une seule création à une face donnait donc une ligne à une face quelle que
+	 * soit la colonne mesurée, et le coût sortait sans marquage sur les colonnes
+	 * à deux et trois faces. Les surfaces sont mises en cache par leur forme,
+	 * donc trois appels au Worker pour tout le contrôle.
+	 */
+	$key = wp_json_encode( $sides );
+	if ( isset( $cache[ $key ] ) ) {
+		return $cache[ $key ];
+	}
+
+	$layers = array();
+	foreach ( $sides as $side ) {
+		$layers[] = array( 'type' => 'text', 'side' => (string) $side['id'], 'text' => 'GARDE' );
+	}
+	$doc = wp_json_encode(
+		array(
+			'garmentId' => 'tee',
+			'colorId'   => 'navy',
+			'layers'    => $layers,
+			'sides'     => $sides,
+		)
+	);
+	// Un PNG 1x1 transparent : l'aperçu est obligatoire, sa taille ne l'est pas.
+	$png      = base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' );
+	$boundary = 'teeshoopgrille' . wp_generate_password( 16, false );
+	$eol      = "\r\n";
+	$body     = '--' . $boundary . $eol
+		. 'Content-Disposition: form-data; name="design"; filename="design.json"' . $eol
+		. 'Content-Type: application/json' . $eol . $eol . $doc . $eol
+		. '--' . $boundary . $eol
+		. 'Content-Disposition: form-data; name="preview"; filename="preview.png"' . $eol
+		. 'Content-Type: image/png' . $eol . $eol . $png . $eol
+		. '--' . $boundary . '--' . $eol;
+
+	$response = wp_remote_post(
+		rtrim( $worker, '/' ) . '/api/design',
+		array(
+			'timeout' => 20,
+			'headers' => array( 'content-type' => 'multipart/form-data; boundary=' . $boundary ),
+			'body'    => $body,
+		)
+	);
+	if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+		/*
+		 * Un Worker configuré mais qui refuse est un état dont ce contrôle ne
+		 * peut rien conclure : il le dit et s'arrête, plutôt que de retomber sur
+		 * un identifiant que `Design::verify` refusera colonne par colonne.
+		 */
+		WP_CLI::error(
+			'Le Worker de `teeshoop_settings.worker_url` est configuré mais n’a pas accepté la création du contrôle : '
+			. ( is_wp_error( $response ) ? $response->get_error_message() : 'code ' . wp_remote_retrieve_response_code( $response ) )
+			. '. Rien n’a été mesuré.'
+		);
+	}
+	$parsed = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+	$id     = is_array( $parsed ) ? (string) ( $parsed['id'] ?? '' ) : '';
+	if ( '' === $id ) {
+		WP_CLI::error( 'Le Worker n’a pas rendu d’identifiant de création. Rien n’a été mesuré.' );
+	}
+	/*
+	 * LE MANIFESTE DOIT PORTER AUTANT DE FACES QUE DEMANDÉ, sinon le contrôle
+	 * mesure une autre commande que celle qu'il croit. `readDesignDoc` laisse
+	 * tomber en silence une pièce trop petite pour l'encre qu'elle annonce, et
+	 * une face sans pièce ne coûte pas de film.
+	 */
+	$manifest = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+	if ( count( (array) ( $manifest['sides'] ?? array() ) ) !== count( $sides ) ) {
+		WP_CLI::error(
+			sprintf(
+				'Le Worker a retenu %d face(s) sur les %d demandées : le contrôle mesurerait une autre commande que celle qu’il publie.',
+				count( (array) ( $manifest['sides'] ?? array() ) ),
+				count( $sides )
+			)
+		);
+	}
+	$cache[ $key ] = $id;
+	return $id;
+}
+
 $config = Settings::pricing();
 $qtys   = Pricing::grid_qtys( $config );
 $bound  = Pricing::std_area_sq_cm( $config );
@@ -195,6 +370,7 @@ WC()->customer->save();
 $rows    = array();
 $made    = array();
 $fails   = array();
+$blocked = array();
 $skipped = array();
 $offers  = 0;
 
@@ -221,7 +397,31 @@ foreach ( Gamme::RANGE as $ref => $garment ) {
 	}
 	++$offers;
 
-	$size = Garments::priced_size( $garment );
+	/*
+	 * LA TAILLE LA PLUS CHÈRE, ET C'EST LE MÊME RAISONNEMENT QUE LA COULEUR.
+	 *
+	 * Le tarif publié est le MÊME à toutes les tailles : `Pricing::quote()` ne
+	 * reçoit pas de taille, par construction. Le COÛT, lui, est par taille :
+	 * `Purchase::articles_for()` résout un article fournisseur par taille de la
+	 * grille et le facture au prix de cet article. Mesuré sur la fiche
+	 * fournisseur du dépôt, même coloris : 3,37 EUR en S et en M, 4,95 en 2XL,
+	 * soit +47 % sur le plus gros poste de coût.
+	 *
+	 * Ce contrôle mesurait à `Garments::priced_size()`, c'est-à-dire M, donc à la
+	 * bande de tailles la moins chère. Une série entièrement en 2XL pouvait
+	 * passer sous son plancher pendant que le garde restait vert : trouvé par la
+	 * passe adversariale du 4 septembre 2026, qui a calculé que la marge du sweat
+	 * (9,15 EUR sur cinq pièces, soit 1,83 par pièce) est plus petite que le pas
+	 * de taille (au moins 2,11 EUR de plancher par pièce).
+	 *
+	 * Le garde mesure donc la commande la plus chère à servir que la page
+	 * publie : la taille la plus chère, dans le coloris le plus cher.
+	 */
+	$size = teeshoop_grille_dearest_size( $product_id, $garment );
+	if ( '' === $size ) {
+		$fails[] = sprintf( '%s : aucune taille de l’offre ne se résout à un article fournisseur avec un prix d’achat.', $ref );
+		continue;
+	}
 
 	/*
 	 * LA COULEUR LA PLUS CHÈRE DE LA RÉFÉRENCE, et c'est un choix de garde.
@@ -305,17 +505,33 @@ foreach ( Gamme::RANGE as $ref => $garment ) {
 				'qty'        => $qty,
 				'size_grid'  => array( $size => $qty ),
 				'sides'      => $sides,
-				'design_id'  => 'grillegardegrilleg',
+				'design_id'  => teeshoop_grille_design_id( $sides ),
 			)
 		);
 		if ( is_wp_error( $key ) ) {
 			/*
-			 * UN PANIER REFUSÉ N'EST PAS UNE LIGNE VERTE. La grille publie cette
-			 * colonne : si le panier la refuse, la page ment, et c'est le même
-			 * défaut que la colonne à 100 pièces qui citait un prix répondu par
-			 * un 409 (voir Pricing::grid()).
+			 * DEUX REFUS DIFFÉRENTS, ET ILS NE VEULENT PAS DIRE LA MÊME CHOSE.
+			 *
+			 * `teeshoop_design_*` veut dire que la CRÉATION n'a pas pu être
+			 * confirmée : le contrôle n'a rien mesuré. Tout autre code veut dire
+			 * que la boutique refuse une colonne qu'elle publie, ce qui est un
+			 * vrai défaut de la page.
+			 *
+			 * Ils étaient comptés ensemble, et ça a menti le 4 septembre 2026 :
+			 * le Worker local tournait, `Design::verify` a répondu 404 sur
+			 * l'identifiant de création du harnais (l'échappatoire de
+			 * développement ne couvre que « injoignable », pas « inconnu »), et
+			 * le garde a conclu « 111 colonnes sur 111 se vendent sous leur
+			 * plancher, la boutique perd de l'argent à chaque vente ». Il n'avait
+			 * mesuré aucun plancher. Le même garde, Worker arrêté, disait
+			 * « toutes au-dessus ». Un contrôle dont le verdict dépend de ce qui
+			 * écoute sur un port est pire qu'aucun contrôle, parce qu'on le croit.
 			 */
-			$fails[] = sprintf( '%s %df x%d : le panier refuse la colonne publiée (%s)', $ref, $faces, $qty, $key->get_error_message() );
+			if ( str_starts_with( $key->get_error_code(), 'teeshoop_design_' ) ) {
+				$blocked[] = sprintf( '%s %df x%d : %s (%s)', $ref, $faces, $qty, $key->get_error_message(), $key->get_error_code() );
+			} else {
+				$fails[] = sprintf( '%s %df x%d : le panier refuse la colonne publiée (%s)', $ref, $faces, $qty, $key->get_error_message() );
+			}
 			continue;
 		}
 		WC()->cart->calculate_totals();
@@ -381,6 +597,7 @@ foreach ( Gamme::RANGE as $ref => $garment ) {
 			'ref'      => (string) $ref,
 			'garment'  => $garment,
 			'faces'    => $faces,
+			'taille'   => $size,
 			'borne'    => (int) ( $report['parcel']['borne_ht'] ?? 0 ),
 			'goods'    => (int) $report['revenue']['goods_ht'],
 			'qty'      => $qty,
@@ -441,14 +658,15 @@ WP_CLI::log(
 	)
 );
 WP_CLI::log( '' );
-WP_CLI::log( '| Référence | Vêtement | Faces | Qté | Unité HT | Encaissé HT | Coût direct | Plancher | Conseillé | Écart au plancher |' );
-WP_CLI::log( '|---|---|---|---|---|---|---|---|---|---|' );
+WP_CLI::log( '| Référence | Vêtement | Taille | Faces | Qté | Unité HT | Encaissé HT | Coût direct | Plancher | Conseillé | Écart au plancher |' );
+WP_CLI::log( '|---|---|---|---|---|---|---|---|---|---|---|' );
 foreach ( $rows as $r ) {
 	WP_CLI::log(
 		sprintf(
-			'| %s | %s | %d | %d | %s | %s | %s%s | %s | %s | %s |',
+			'| %s | %s | %s | %d | %d | %s | %s | %s%s | %s | %s | %s |',
 			$r['ref'],
 			$r['garment'],
+			$r['taille'],
 			$r['faces'],
 			$r['qty'],
 			Money::format( $r['unit'] ),
@@ -492,6 +710,26 @@ if ( array() !== $fails ) {
  * grille sans colonne rendraient ce contrôle silencieusement vert, et « rien
  * trouvé » n'est pas « rien regardé » (CLAUDE.md section 5).
  */
+if ( array() !== $blocked ) {
+	WP_CLI::log( sprintf( '%d colonne(s) que le contrôle n’a PAS PU mesurer :', count( $blocked ) ) );
+	foreach ( array_slice( $blocked, 0, 6 ) as $why ) {
+		WP_CLI::log( '  ' . $why );
+	}
+	if ( count( $blocked ) > 6 ) {
+		WP_CLI::log( sprintf( '  ... et %d autres, toutes pour la même raison.', count( $blocked ) - 6 ) );
+	}
+	WP_CLI::log( '' );
+	WP_CLI::error(
+		sprintf(
+			'%d colonne(s) sur %d n’ont pas pu être chiffrées parce que la création du harnais n’a pas été confirmée. '
+			. 'Ce n’est PAS un plancher franchi : le contrôle n’a rien mesuré et refuse de conclure. '
+			. 'Vérifiez que le Worker de `teeshoop_settings.worker_url` accepte cette création, ou arrêtez-le.',
+			count( $blocked ),
+			count( $blocked ) + count( $rows ) + count( $fails )
+		)
+	);
+}
+
 if ( 0 === $offers ) {
 	WP_CLI::error( 'Aucune offre de la gamme n’est publiée et achetable.' );
 }

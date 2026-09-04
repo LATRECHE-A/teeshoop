@@ -386,5 +386,26 @@ final class Product {
 			}
 		}
 		$product->update_meta_data( self::META_BLANK_COLOURS, array() === $map ? '' : (string) wp_json_encode( $map ) );
+
+		/*
+		 * ── ET LE NUANCIER MESURÉ EST EFFACÉ, PAS LAISSÉ DERRIÈRE ─────────────
+		 *
+		 * `META_BLANK_PALETTE` est écrit par `Gamme::apply()`, DÉRIVÉ de la même
+		 * correspondance que celle qu'on vient de réécrire à la main. Cet écran
+		 * ne touchait que la carte d'achat, donc les deux divergeaient dès la
+		 * première correction manuelle : un opérateur remplace « Fuchsia » par
+		 * « Bubble Gum » parce que la première est en rupture, le studio continue
+		 * de proposer une pastille étiquetée « Fuchsia » et peinte en fuchsia, le
+		 * client la choisit, et la ligne gèle « Bubble Gum ». On expédie une
+		 * couleur que personne n'a choisie. Trouvé par la passe adversariale du
+		 * 4 septembre 2026.
+		 *
+		 * EFFACÉ ET PAS RECALCULÉ, parce que le nuancier vient d'une mesure de
+		 * pastilles et pas d'une saisie : le recalculer ici mettrait une
+		 * deuxième implémentation de `Gamme::palette()` dans un gestionnaire de
+		 * formulaire. Sans lui, l'éditeur retombe sur ses propres teintes, ce
+		 * qui est un état lisible, et « teeshoop gamme appliquer » le réécrit.
+		 */
+		$product->delete_meta_data( self::META_BLANK_PALETTE );
 	}
 }

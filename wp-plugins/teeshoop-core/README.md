@@ -467,7 +467,7 @@ added by someone who never heard of it. It is also queryable, which "which
 products are personalisable" eventually needs.
 
 Above all **it is a price input**, so it must not arrive from a browser. It
-decides the cost of the blank: `tee` is 9,50 EUR and `custom` is zero, because
+decides the cost of the blank: `tee` contributes 13,00 EUR and `custom` zero, because
 with `custom` the customer ships their own garment. `Cart::add` reads it from
 the product; a request naming a different garment is refused rather than
 corrected, because a disagreement means the page and the studio are selling two

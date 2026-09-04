@@ -101,7 +101,17 @@ export function garmentDye(colorId: string): GarmentDye | null {
  * The first stop, not a blend: a heather is drawn as a two-stop gradient where
  * the surface supports one and as its dominant stop where it does not, and a
  * blended average of the two is a colour the supplier does not sell.
+ *
+ * WHEN THE DECK IS MEASURED, THE STUDIO'S DYES ARE NOT A FALLBACK. An id that
+ * is not in the shop's deck is a colour this reference is not sold in; painting
+ * it with the studio's invented hex is the exact "pale pink circle labelled
+ * Rose" this module was written to remove, one layer down. The garment is
+ * painted in the fallback instead, which is a garment nobody can mistake for a
+ * choice, and `CartModal` refuses the line before it is ever uploaded.
  */
 export function garmentHexOf(colorId: string): string {
+  if (shopDeck) {
+    return shopDeck.find((c) => c.id === colorId)?.stops[0] ?? FALLBACK_HEX
+  }
   return garmentDye(colorId)?.stops[0] ?? FALLBACK_HEX
 }

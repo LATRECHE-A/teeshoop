@@ -231,7 +231,22 @@ function ts_product( string $name, string $price, ?string $garment, string $weig
  * not a claim about what a t-shirt weighs and they never reach a customer.
  */
 $product_id = ts_product( 'Integration fixture', '14.50', 'tee', '0.18' );
-$hoodie_id  = ts_product( 'Integration hoodie', '39.00', 'hoodie', '0.5' );
+/*
+ * LE PRIX CATALOGUE DE LA FIXTURE DOIT ÊTRE IMPOSSIBLE, et pas seulement
+ * différent d'aujourd'hui.
+ *
+ * Il valait 39,00 EUR, choisi pour qu'une fuite se voie contre les 32,00 du
+ * serveur. Le 4 septembre 2026 le tarif du sweat est devenu 39,00 : le test qui
+ * vérifie que la boutique facture SON prix et pas celui du catalogue passait
+ * alors que la fuite ait lieu ou non. Trouvé par la passe adversariale, pas par
+ * une exécution rouge.
+ *
+ * 1,11 EUR n'est le tarif d'aucun vêtement et ne peut pas le devenir : le tarif
+ * est dérivé d'un plancher de coût qui contient déjà plus que ça de film et de
+ * port. Un montant qu'aucune dérivation ne peut atteindre est ce qui garde
+ * l'assertion vivante.
+ */
+$hoodie_id  = ts_product( 'Integration hoodie', '1.11', 'hoodie', '0.5' );
 $bare_id    = ts_product( 'Integration undeclared', '14.50', null );
 
 $sides  = array( array( 'id' => 'front', 'area_sq_cm' => 400 ) );
@@ -325,10 +340,18 @@ ts_it( 'prices from the product’s garment even when the request names none', f
 
 	$hoodie = Pricing::quote( array( 'garment' => 'hoodie', 'qty' => 3, 'sides' => $sides ), $config );
 	$custom = Pricing::quote( array( 'garment' => 'custom', 'qty' => 3, 'sides' => $sides ), $config );
-	// Both sides cast: PHP's `/` returns an int when the division is exact, and
-	// ts_eq is strict, so 3200/100 is int(32) and the price is float(32.0).
 	ts_eq_cents( $item['data']->get_price(), (int) $hoodie['unit_ht'], 'prix unitaire' );
 	ts_assert( $hoodie['unit_ht'] !== $custom['unit_ht'], 'the fixture cannot tell the two apart' );
+	/*
+	 * ET LA FIXTURE DOIT POUVOIR ÉCHOUER. Son prix catalogue ne doit jamais
+	 * égaler le prix serveur, sinon cette assertion passe qu'il y ait fuite ou
+	 * non : c'est exactement ce qui est arrivé le jour où le tarif du sweat est
+	 * devenu 39,00 EUR, la valeur de la fixture.
+	 */
+	ts_assert(
+		(int) $hoodie['unit_ht'] !== 111,
+		'le prix catalogue de la fixture a rejoint le prix serveur : cette assertion ne prouve plus rien'
+	);
 } );
 
 ts_it( 'charges the server price, not the catalogue price', function () use ( $product_id, $sides, $design, $config ) {

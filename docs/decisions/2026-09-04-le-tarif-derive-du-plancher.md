@@ -74,22 +74,47 @@ résoudre un problème qui a une autre solution.
 
 > Le tarif publié est le plus petit auquel **chaque** colonne publiée de
 > `Pricing::grid()` atteint le plancher que `Costing` calcule pour elle, sur les
-> vraies références, à la surface promise, au coloris le plus cher, arrondi à
-> l'euro supérieur.
+> vraies références, à la surface promise, **à la taille et au coloris les plus
+> chers que l'offre vend**, arrondi à l'euro supérieur.
 
 L'arrondi ne fabrique rien : il ne fait que s'éloigner du plancher. Sans lui la
-solution exacte est 20,01 EUR le t-shirt, ce qui laisse dix-neuf centimes de
-marge sur la colonne la plus tendue, et un garde qui vire au rouge sur dix-neuf
-centimes est un garde qu'on finit par ignorer.
+solution exacte est 22,54 EUR le t-shirt et 48,38 EUR le sweat, ce qui laisse
+onze centimes de marge sur la colonne la plus tendue, et un garde qui vire au
+rouge sur onze centimes est un garde qu'on finit par ignorer.
 
 | | avant | après |
 |---|---|---|
-| T-shirt, une face, 5 pièces | 14,50 EUR | **21,00 EUR** |
-| T-shirt, une face, 50 pièces | 9,42 EUR | **13,65 EUR** |
-| Sweat, une face, 5 pièces | 32,00 EUR | **39,00 EUR** |
+| T-shirt, une face, 5 pièces | 14,50 EUR | **23,00 EUR** |
+| T-shirt, une face, 50 pièces | 9,42 EUR | **14,95 EUR** |
+| Sweat, une face, 5 pièces | 32,00 EUR | **49,00 EUR** |
 | Face supplémentaire | 6,00 EUR | **7,00 EUR** |
 | Colonnes publiées sous leur plancher | **102 sur 219** | **0 sur 111** |
-| Marge minimale au-dessus du plancher | −299,01 EUR | **+9,15 EUR** |
+| Marge minimale au-dessus du plancher | −299,01 EUR | **+16,17 EUR** |
+
+### La deuxième dérivation, et pourquoi la première ne suffisait pas
+
+La première passe a donné 21,00 EUR et 39,00 EUR, mesurés à la taille de
+tarification, M. La passe adversariale a montré que c'était insuffisant : le
+prix est le même à toutes les tailles (`Pricing::quote()` ne reçoit pas de
+taille, par construction) alors que le COÛT est par taille, et le pas mesuré sur
+la fiche fournisseur du dépôt est de +47 % sur le plus gros poste entre M et
+2XL. Une série entièrement en grande taille repassait donc sous son plancher
+pendant que le garde restait vert : **34 colonnes de plus**, une fois le garde
+rendu conscient de la taille.
+
+La réponse 37 de l'associé le disait avant nous, et sous forme de règle de
+développement : « **Ne jamais utiliser uniquement la surface du M pour calculer
+le coût réel** d'une commande comportant plusieurs tailles. » Le garde la
+respecte maintenant : il mesure à la taille ET au coloris les plus chers que
+l'offre vend.
+
+Sa réponse donne aussi les deux issues possibles quand les grandes tailles
+franchissent le plancher : « un supplément peut être appliqué **ou** la commande
+doit nécessiter une validation interne ». Une boutique en autonomie ne peut pas
+faire la seconde, il n'y a personne entre le clic et le paiement. Donc le prix
+couvre la taille la plus chère, et un acheteur en S paie ce que coûte un 3XL.
+Le supplément de taille qu'il évoque est la façon de faire redescendre le prix
+des tailles courantes, et c'est son arbitrage : question 64.
 
 Le nombre de colonnes baisse de 219 à 111 parce qu'un prix plus haut franchit
 plus tôt le seuil d'autonomie de 2 000 EUR HT, et parce que les colonnes de
@@ -103,9 +128,14 @@ les mêmes mesures :
 
 | Cible | T-shirt, 5 pièces | T-shirt, 50 pièces |
 |---|---|---|
-| Plancher (contribution minimale 25 %) | **21,00 EUR** | **13,65 EUR** |
-| Zone d'autonomie (conseillé moins 15 %) | 25,43 EUR | 16,53 EUR |
-| Prix conseillé (marge brute 50 %) | 30,61 EUR | 19,90 EUR |
+| Plancher (contribution minimale 25 %) | **23,00 EUR** | **14,95 EUR** |
+| Zone d'autonomie (conseillé moins 15 %) | environ 28 EUR | environ 18 EUR |
+| Prix conseillé (marge brute 50 %) | environ 34 EUR | environ 22 EUR |
+
+(Les deux dernières lignes ont été calculées exactement sur la première
+dérivation, à la taille M : 25,43 et 30,61 EUR à cinq pièces. Elles montent dans
+la même proportion que le plancher une fois la taille prise en compte ; elles
+sont données arrondies parce que ce qui compte ici est le rang, pas le centime.)
 
 Les prix concurrents **mesurés** pour un t-shirt imprimé à l'unité
 (`docs/CONCURRENTS.md`) : mistertee vend le Sol's REGENT 15,97 EUR et le
@@ -167,8 +197,18 @@ une exécution qui n'a rien mesuré.
 Il ne tourne pas dans `npm run ci` : il lui faut un vrai WordPress, une base et
 le catalogue importé, comme `npm run test:wp`.
 
-**Cassé exprès une fois**, le 4 septembre : `garments.tee.base_ht` ramené de
-11,00 EUR à 4,00 EUR. Le garde a sorti le code 1 avec **74 refus nommés**
-(« 01942 (tee) 1f x5 : encaissé 85,69 EUR, plancher 105,85 EUR, il manque
-20,16 EUR »). Valeur restaurée, il est repassé à « 111 colonnes publiées, toutes
-au-dessus de leur plancher ».
+**Cassé exprès deux fois**, le 4 septembre. La première, `garments.tee.base_ht`
+ramené de 11,00 EUR à 4,00 EUR : code de sortie 1, 74 refus nommés. La seconde,
+après la deuxième dérivation, de 13,00 EUR à 6,00 EUR : code 1, **80 refus
+nommés** (« 01542 (tee) 1f x5 : encaissé 95,69 EUR, plancher 105,85 EUR, il
+manque 10,16 EUR »). Valeur restaurée, il est repassé à « 111 colonnes publiées,
+toutes au-dessus de leur plancher ».
+
+**Et il refuse aussi de conclure quand il n'a rien mesuré**, ce qu'il ne savait
+pas faire au début de la nuit. Sa création de contrôle portait un identifiant
+inventé ; `Design::verify` échappe « Worker injoignable » mais pas « création
+inconnue », donc Worker arrêté tout passait et Worker en marche tout échouait
+avec le message « la boutique perd de l'argent à chaque vente ». Il n'avait
+chiffré aucune commande. Il minte maintenant une vraie création sur la route
+ouverte du Worker, une par nombre de faces, et distingue « le panier a refusé »
+de « le plancher est franchi » dans son verdict.

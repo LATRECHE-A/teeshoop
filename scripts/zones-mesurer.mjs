@@ -100,6 +100,16 @@ const ALL = process.argv.includes('--tout')
  * detector stopped believing it.
  */
 const DEBUG = process.argv.includes('--anatomie')
+/*
+ * `--refaire` ignore la fiche de mesures déjà stockée et la relit.
+ *
+ * Sans lui, une référence qui porte déjà `_teeshoop_demi_poitrine` ne redemande
+ * jamais son PDF, et une correction du lecteur ne peut pas atteindre les
+ * références qu'elle corrige : la première série mal lue reste publiée et le
+ * contrôle repasse au vert. C'est arrivé le 4 septembre 2026, sur la correction
+ * qui attribuait un même nombre à deux tailles.
+ */
+const REDO = process.argv.includes('--refaire')
 const DRY = process.argv.includes('--simuler')
 
 const RED = '[31m'
@@ -163,6 +173,20 @@ foreach ( $ids as $id ) {
 		'front'   => $front > 0 ? (string) wp_get_attachment_url( $front ) : '',
 		'back'    => $back > 0 ? (string) wp_get_attachment_url( $back ) : '',
 		'taille'  => Garments::priced_size( 'tee' ),
+		/*
+		 * Les tailles ADULTES que cette référence est vendue, en majuscules, pour
+		 * que le contrôle de complétude de la fiche de mesures porte sur ce que
+		 * la boutique propose vraiment et pas sur une liste écrite dans un script.
+		 */
+		'sizes'   => array_values(
+			array_filter(
+				array_map(
+					static fn( $t ) => strtoupper( (string) $t->name ),
+					(array) ( get_the_terms( $id, 'pa_taille' ) ?: array() )
+				),
+				static fn( string $n ): bool => 1 === preg_match( '/^(XXS|XS|S|M|L|XL|2XL|3XL|4XL|5XL|6XL)$/', $n )
+			)
+		),
 	);
 }
 echo "\\n<<<JSON>>>" . wp_json_encode( $rows ) . "<<<FIN>>>\\n";
@@ -269,21 +293,60 @@ function parseColumnar(lines, rowRe) {
    * Numbers from the measurement row and the four lines under it. B&C wraps a
    * long row; a line that contributes nothing simply contributes nothing.
    */
+  /*
+   * ON S'ARRÊTE DÈS QU'ON A AUTANT DE NOMBRES QUE DE TAILLES, et c'est un défaut
+   * mesuré.
+   *
+   * La fenêtre allait jusqu'à quatre lignes sous la ligne mesurée pour rattraper
+   * l'enjambement de B&C, et ne s'arrêtait qu'à une autre ligne « HALF CHEST ».
+   * Elle avalait donc aussi la ligne SUIVANTE, « B BODY LENGTH 68 70 72 74 76 78
+   * 80 82 84 », qui porte elle aussi un 70, exactement sous la colonne 5XL. La
+   * fiche produit publiait 70,0 cm de demi-poitrine en 4XL ET en 5XL, là où B&C
+   * dit 70 et 75 : un acheteur en 5XL commandait sur une mesure de 5 cm trop
+   * petite, et le 75 n'apparaissait nulle part.
+   *
+   * Le tableau a exactement une mesure par taille. Dès qu'on en a autant, la
+   * ligne d'après appartient à une autre mesure.
+   */
   const nums = []
   for (let i = rowIdx; i < Math.min(lines.length, rowIdx + 5); i++) {
     if (i > rowIdx && rowRe.test(lines[i])) break
     nums.push(...numbersWithOffset(lines[i]))
+    if (nums.length >= head.length) break
   }
 
-  const map = {}
+  /*
+   * UN NOMBRE NE SERT QU'UNE FOIS, et c'est un défaut mesuré, pas une précaution.
+   *
+   * La première version cherchait, pour chaque taille, le nombre le plus proche.
+   * Sur la fiche du B&C #E150, dont la ligne « A HALF CHEST » porte
+   * « 47 50 53 56 59 62 65 70 75 », le 70 se trouvait être le plus proche À LA
+   * FOIS de la colonne 4XL et de la colonne 5XL : la fiche produit publiait
+   * 70,0 cm de demi-poitrine en 4XL ET en 5XL, et le 75 disparaissait. Un
+   * acheteur en 5XL commandait sur une mesure de 5 cm trop petite.
+   *
+   * Les paires sont donc classées par distance et attribuées une par une, les
+   * deux extrémités quittant le lot. Départage sur le nom de la taille pour que
+   * deux paires à égalité ne dépendent pas de l'ordre de lecture.
+   */
   const gap = head.length > 1 ? Math.abs(head[1].at - head[0].at) : 6
-  for (const h of head) {
-    let best = null
-    for (const n of nums) {
+  const pairs = []
+  head.forEach((h, hi) => {
+    nums.forEach((n, ni) => {
       const d = Math.abs(n.at - h.at)
-      if (d <= gap * 0.75 && (best === null || d < best.d)) best = { d, value: n.value }
-    }
-    if (best) map[h.size] = best.value
+      if (d <= gap * 0.75) pairs.push({ hi, ni, d })
+    })
+  })
+  pairs.sort((a, b) => (a.d !== b.d ? a.d - b.d : head[a.hi].size.localeCompare(head[b.hi].size)))
+
+  const map = {}
+  const takenHead = new Set()
+  const takenNum = new Set()
+  for (const pair of pairs) {
+    if (takenHead.has(pair.hi) || takenNum.has(pair.ni)) continue
+    takenHead.add(pair.hi)
+    takenNum.add(pair.ni)
+    map[head[pair.hi].size] = nums[pair.ni].value
   }
   return Object.keys(map).length >= 3 ? map : null
 }
@@ -300,6 +363,53 @@ function parseRowwise(lines) {
     if (m) map[canonical(m[1])] = parseFloat(m[2].replace(',', '.'))
   }
   return Object.keys(map).length >= 3 ? map : null
+}
+
+/**
+ * Une série de demi-poitrines CROÎT STRICTEMENT avec la taille, ou elle est fausse.
+ *
+ * ── CE N'EST PAS UN SEUIL, C'EST UNE LOI PHYSIQUE ──────────────────────────
+ *
+ * Un vêtement plus grand est plus large. Deux tailles à la même demi-poitrine,
+ * ou une taille plus grande plus étroite, veut dire que le tableau a été mal lu :
+ * une colonne prise pour une autre, un nombre attrapé sur la ligne d'à côté.
+ *
+ * ── LES DEUX MAUVAISES LECTURES QUE CETTE PORTE A ATTRAPÉES ────────────────
+ *
+ * Le 4 septembre 2026, sur les neuf fiches de la gamme :
+ *
+ *   B&C #E150 (01542) et #E190 (01942) : « ...65 70 70 », le 5XL prenant le 70
+ *   de la ligne BODY LENGTH d'en dessous au lieu du 75 de la sienne. Un acheteur
+ *   en 5XL commandait sur cinq centimètres de moins que le vêtement.
+ *
+ *   B&C ID.333 (23742) : « M 57,5 / 2XL 68 / 3XL 68 / 4XL 72 / 5XL 72 », quatre
+ *   tailles manquantes et deux paires identiques, parce que la ligne de tailles
+ *   de cette fiche est traversée par le nom d'un style voisin.
+ *
+ * Ces deux-là étaient DÉJÀ PUBLIÉES sur la fiche produit quand cette porte a été
+ * écrite. Une demi-poitrine fausse sur la page où un acheteur professionnel
+ * choisit sa taille est exactement le chiffre fabriqué que `CLAUDE.md` interdit,
+ * et il valait mieux ne rien publier.
+ */
+const SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL']
+
+function strictlyRising(map) {
+  const present = SIZE_ORDER.filter((s) => map[s] !== undefined)
+  if (present.length !== Object.keys(map).length) {
+    const unknown = Object.keys(map).filter((s) => !SIZE_ORDER.includes(s))
+    return { ok: false, why: `nomme une taille que ce contrôle ne sait pas ordonner (${unknown.join(', ')})` }
+  }
+  for (let i = 1; i < present.length; i++) {
+    const before = map[present[i - 1]]
+    const after = map[present[i]]
+    if (!(after > before)) {
+      return {
+        ok: false,
+        why: `donne ${before} cm en ${present[i - 1]} puis ${after} cm en ${present[i]} : une taille plus grande n'est pas plus étroite, la table a été mal lue`,
+      }
+    }
+  }
+  return { ok: true }
 }
 
 function halfChestFromPdf(bytes) {
@@ -326,6 +436,10 @@ function halfChestFromPdf(bytes) {
           ok: false,
           why: `le tableau ${maker} donne des demi-poitrines de ${min} à ${max}, hors de toute plage plausible en centimètres : unité douteuse, refusé plutôt que converti`,
         }
+      }
+      const rising = strictlyRising(map)
+      if (!rising.ok) {
+        return { ok: false, why: `le tableau ${maker} ${rising.why}` }
       }
       return { ok: true, map, maker }
     }
@@ -386,7 +500,7 @@ console.log(`${DIM}${candidates.length} référence(s) à mesurer${ALL ? ' (tout
 // nothing to measure. A reference already carrying one is not re-fetched, so
 // the Worker is only needed the first time.
 for (const c of candidates) {
-  if (c.chest) {
+  if (c.chest && !REDO) {
     try {
       c.chestMap = JSON.parse(c.chest)
       continue
@@ -401,6 +515,25 @@ for (const c of candidates) {
   const got = await fetchSpec(c.spec)
   if (!got.ok) {
     c.specRefus = got.why
+    continue
+  }
+  /*
+   * ── ET LA SÉRIE DOIT COUVRIR LES TAILLES RÉELLEMENT VENDUES ───────────────
+   *
+   * `strictlyRising` attrape une série mal alignée. Elle ne dit rien d'une
+   * série INCOMPLÈTE : le Fruit of the Loom Classic Hooded se lisait
+   * « S 51 / M 56 / L 61 / XL 63,5 / 2XL 68,5 », strictement croissante et
+   * amputée de trois tailles que la boutique vend. Publiée telle quelle dans le
+   * guide des tailles, elle laisse un acheteur en 3XL sans mesure du tout.
+   *
+   * Les tailles vendues viennent du produit importé (`pa_taille`), donc de la
+   * boutique et pas d'une liste écrite ici.
+   */
+  const missing = (c.sizes ?? []).filter((size) => got.map[size] === undefined)
+  if (missing.length > 0) {
+    c.specRefus =
+      `la fiche ${got.maker} ne donne pas de demi-poitrine pour ${missing.length} taille(s) que la boutique vend ` +
+      `(${missing.join(', ')}) : une série amputée laisse un acheteur sans mesure`
     continue
   }
   c.chestMap = got.map
@@ -427,14 +560,27 @@ try {
 
   for (const c of measurable) {
     const photos = {}
+    const fetchFailed = {}
     for (const side of ['front', 'back']) {
       if (!c[side]) continue
+      /*
+       * UNE PHOTO QU'ON N'A PAS PU LIRE N'EST PAS UNE PHOTO QUI N'EXISTE PAS.
+       *
+       * Un 502 de la médiathèque laissait la face absente de `sides`, donc le
+       * rapport annonçait « aucune photographie de face » sur un produit qui en
+       * a une, ET la face ne contribuait ni aux zones ni aux refus, donc
+       * l'écriture effaçait le refus nommé du passage précédent. Deux états
+       * confondus (CLAUDE.md section 3), et une régression silencieuse.
+       */
       try {
         const res = await fetch(c[side])
-        if (!res.ok) continue
+        if (!res.ok) {
+          fetchFailed[side] = `la photographie répond ${res.status}`
+          continue
+        }
         photos[side] = Buffer.from(await res.arrayBuffer()).toString('base64')
-      } catch {
-        /* an unreachable photo is a refusal below, not a crash here. */
+      } catch (e) {
+        fetchFailed[side] = `la photographie n'a pas pu être lue (${String(e).slice(0, 80)})`
       }
     }
 
@@ -591,6 +737,10 @@ try {
       return res
     }, { photos, chestMap: c.chestMap, size: c.taille, debug: DEBUG })
 
+    for (const [side, why] of Object.entries(fetchFailed)) {
+      out.sides = out.sides ?? {}
+      out.sides[side] = { ok: false, why }
+    }
     results.push({ ...c, ...out })
     const f = out.sides?.front
     const b = out.sides?.back
@@ -651,21 +801,35 @@ for (const c of candidates) {
  * produit, et aucune zone : c'est exactement l'état voulu, et c'est ce qui la
  * garde non personnalisable.
  */
-const writable = results.filter((r) => r.chestMap)
+/*
+ * ── UNE FICHE REFUSÉE EFFACE CELLE QU'ON AVAIT ────────────────────────────────
+ *
+ * Seules les références dont la fiche se lit étaient écrites, donc une référence
+ * dont la fiche vient d'être REFUSÉE gardait la série du passage précédent. Le
+ * jour où le lecteur apprend à voir qu'une série était mal lue, la mauvaise
+ * série reste publiée sur la fiche produit et le contrôle repasse au vert :
+ * exactement ce qui s'est passé le 4 septembre 2026 avec les tailles en double.
+ *
+ * Toute référence examinée traverse donc, avec sa série ou avec `null`, et
+ * `null` efface.
+ */
+const writable = candidates.filter((c) => c.chestMap || c.specRefus)
 
 if (!DRY && writable.length > 0) {
   const payload = writable.map((r) => ({
     id: r.id,
-    chest: r.chestMap,
+    chest: r.chestMap ?? null,
     zones: Object.fromEntries(
-      Object.entries(r.sides)
+      Object.entries((results.find((x) => x.id === r.id) ?? {}).sides ?? {})
         .filter(([, s]) => s.ok)
         .map(([side, s]) => [side, s]),
     ),
     refus: Object.fromEntries(
-      Object.entries(r.sides)
-        .filter(([, s]) => !s.ok)
-        .map(([side, s]) => [side, s.why]),
+      r.specRefus
+        ? [['fiche', r.specRefus]]
+        : Object.entries((results.find((x) => x.id === r.id) ?? {}).sides ?? {})
+            .filter(([, s]) => !s.ok)
+            .map(([side, s]) => [side, s.why]),
     ),
   }))
   const out = wp(`<?php
@@ -676,8 +840,16 @@ JSON
 $n = 0;
 foreach ( $rows as $row ) {
 	$id = (int) $row['id'];
-	update_post_meta( $id, '_teeshoop_demi_poitrine', wp_json_encode( $row['chest'] ) );
-	update_post_meta( $id, '_teeshoop_zone_impression', wp_json_encode( $row['zones'] ) );
+	if ( null === $row['chest'] ) {
+		delete_post_meta( $id, '_teeshoop_demi_poitrine' );
+	} else {
+		update_post_meta( $id, '_teeshoop_demi_poitrine', wp_json_encode( $row['chest'] ) );
+	}
+	if ( array() === $row['zones'] || empty( $row['zones'] ) ) {
+		delete_post_meta( $id, '_teeshoop_zone_impression' );
+	} else {
+		update_post_meta( $id, '_teeshoop_zone_impression', wp_json_encode( $row['zones'] ) );
+	}
 	if ( array() === $row['refus'] || empty( $row['refus'] ) ) {
 		delete_post_meta( $id, '_teeshoop_zone_refus' );
 	} else {

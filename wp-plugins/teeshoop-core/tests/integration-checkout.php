@@ -837,16 +837,82 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		ts_eq( $rate->get_meta_data()['_teeshoop_free'], 'yes', 'the free flag' );
 	} );
 
-	ts_it( 'offers no rate at all, and says why, when a line has no weight', function () use ( $hoodie_id, $sides, $design ) {
+	ts_it( 'refuses a line the shop cannot weigh, rather than selling it', function () use ( $hoodie_id, $sides, $design ) {
+		/*
+		 * LA MOITIÉ QUI MANQUAIT, AJOUTÉE LE 4 SEPTEMBRE 2026.
+		 *
+		 * Le test d'à côté vérifiait que la LIVRAISON refuse un panier
+		 * impesable. Rien ne vérifiait que le panier refuse de le prendre : un
+		 * client pouvait donc remplir un panier à quatre chiffres et arriver à
+		 * une caisse sans aucun mode de livraison. `Cart::add` lit maintenant la
+		 * même borne que la grille de la fiche (`Shipping::max_pieces`), pour
+		 * laquelle un poids inconnu ne veut pas dire « aucune limite ».
+		 */
 		ts_ck_regime( Vat::STANDARD );
 		$hoodie = wc_get_product( $hoodie_id );
 		$hoodie->set_weight( '' );
 		$hoodie->save();
 
+		WC()->cart->empty_cart();
+		$refused = Cart::add(
+			array(
+				'product_id' => $hoodie_id,
+				'qty'        => 5,
+				'sides'      => $sides,
+				'design_id'  => $design,
+			)
+		);
+		ts_assert( is_wp_error( $refused ), 'un article impesable est entré au panier' );
+		ts_eq( $refused->get_error_code(), 'teeshoop_parcel_too_heavy', 'la raison du refus' );
+		ts_eq( WC()->cart->get_cart_contents_count(), 0, 'le panier a gardé quelque chose' );
+
+		$hoodie->set_weight( '0.5' );
+		$hoodie->save();
+	} );
+
+	ts_it( 'offers no rate at all, and says why, when a line loses its weight', function () use ( $hoodie_id, $sides, $design ) {
+		/*
+		 * LE POIDS DISPARAÎT APRÈS L'AJOUT, ce qui est le cas qui reste possible
+		 * maintenant que `Cart::add` refuse un article impesable : un opérateur
+		 * vide le poids d'un produit qu'un visiteur a déjà dans son panier.
+		 * `Shipping` doit alors refuser d'affranchir et le dire.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		$hoodie = wc_get_product( $hoodie_id );
+
 		ts_ck_fill( $hoodie_id, 5, $sides, $design );
+		$hoodie->set_weight( '' );
+		$hoodie->save();
+		/*
+		 * LE POIDS EST RETIRÉ SUR L'INSTANCE QUE LE PANIER TIENT, et c'est la
+		 * seule façon d'atteindre ce que ce test vise.
+		 *
+		 * WooCommerce garde son propre `WC_Product` par ligne, chargé au moment
+		 * de l'ajout, et met ses tarifs en cache par empreinte de colis, une
+		 * empreinte où le poids n'entre pas. Sauvegarder le produit en base ne
+		 * change donc ni l'un ni l'autre. Ce que `Shipping` doit savoir refuser
+		 * est une LIGNE sans poids, et c'est exactement ce que ces deux lignes
+		 * construisent.
+		 *
+		 * Avant le 4 septembre 2026 ce test vidait le poids AVANT de remplir le
+		 * panier. Il ne peut plus : `Cart::add` refuse désormais un article
+		 * impesable, ce que le test d'à côté vérifie.
+		 */
+		foreach ( WC()->cart->get_cart() as $ts_key => $ts_item ) {
+			WC()->cart->cart_contents[ $ts_key ]['data']->set_weight( '' );
+		}
+		/*
+		 * ET LE TARIF DÉJÀ EN SESSION EST JETÉ. `calculate_totals()` en a mis un
+		 * en cache sous `shipping_for_package_0` au moment du remplissage, avec
+		 * une empreinte de colis où le poids n'entre pas : sans cette ligne, la
+		 * caisse resservait le tarif calculé quand l'article pesait encore.
+		 */
+		WC()->session->set( 'shipping_for_package_0', null );
+		WC()->shipping()->reset_shipping();
 		WC()->cart->calculate_shipping();
 
-		$rates = WC()->shipping()->get_packages()[0]['rates'];
+		$packages = WC()->shipping()->get_packages();
+		$rates    = (array) ( $packages[0]['rates'] ?? array() );
 		ts_eq( count( $rates ), 0, 'a line with no weight was shipped anyway' );
 		ts_eq( Shipping::last_refusal(), Shipping::NO_WEIGHT, 'refusal reason' );
 

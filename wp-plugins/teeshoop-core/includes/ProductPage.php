@@ -94,16 +94,44 @@ final class ProductPage {
 	 * printed on the page (`Pricing::headline`). TTC, because schema.org's
 	 * `price` is what the buyer pays and a consumer pays tax.
 	 */
+	/**
+	 * Ce produit peut-il ANNONCER un prix, c'est-à-dire faire une offre ?
+	 *
+	 * ── UN PRIX ANNONCÉ EST UNE OFFRE, ET UN PRODUIT RETIRÉ N'EN FAIT PAS ─────
+	 *
+	 * `Product::garment_of()` dit « le studio sait l'habiller ». Il ne dit pas
+	 * « on peut l'acheter ». Trois entrées de cette classe ne regardaient que la
+	 * première : la reprise de la fiche, le prix de la vignette, et les données
+	 * structurées envoyées à Google.
+	 *
+	 * Trouvé par la passe adversariale du 4 septembre 2026, sur la boutique
+	 * réelle : « T-shirt personnalisé, coton bio », que `Gamme::retire()` venait
+	 * de sortir de la vente en effaçant son prix, restait publié, visible dans le
+	 * catalogue, et sa page annonçait « 14,95 EUR HT l'unité dès 50 pièces,
+	 * impression comprise » avec un bouton « Personnaliser ce vêtement ». La
+	 * seule chose qui manquait était la possibilité d'acheter. En France un prix
+	 * annoncé engage, et ce fichier le dit déjà lui-même à propos d'un autre cas.
+	 *
+	 * `is_purchasable()` est la même question que le panier pose et que le
+	 * portail de mise en ligne pose : une seule réponse, à un seul endroit.
+	 */
+	private static function may_quote( ?\WC_Product $product ): bool {
+		return $product instanceof \WC_Product
+			&& '' !== Product::garment_of( $product->get_id() )
+			&& $product->is_purchasable();
+	}
+
 	public static function structured_data( array $markup, $product ): array {
 		if ( ! $product instanceof \WC_Product ) {
 			return $markup;
 		}
-		$garment = Product::garment_of( $product->get_id() );
-		if ( '' === $garment ) {
+		if ( ! self::may_quote( $product ) ) {
+			unset( $markup['offers'] );
 			return $markup;
 		}
+		$garment = Product::garment_of( $product->get_id() );
 
-		$headline = self::headline( $garment, self::self_serve_max( $product ) );
+		$headline = self::headline( $garment, self::self_serve_cap( $product ) );
 		if ( empty( $headline['best'] ) || empty( $headline['unit'] ) ) {
 			// No self-serve price to publish. Saying nothing beats publishing the
 			// blank's cost basis as though it were an offer.
@@ -142,7 +170,7 @@ final class ProductPage {
 		}
 
 		$product_id = (int) get_queried_object_id();
-		if ( '' === Product::garment_of( $product_id ) ) {
+		if ( ! self::may_quote( wc_get_product( $product_id ) ) ) {
 			return;
 		}
 
@@ -354,8 +382,8 @@ final class ProductPage {
 	 * accroche de prix lue sur un autre produit est exactement le défaut que
 	 * `Pricing::headline` existe pour empêcher.
 	 */
-	public static function headline( string $garment, int $self_serve_max = 0 ): array {
-		$key = $garment . '|' . $self_serve_max;
+	public static function headline( string $garment, ?int $self_serve_max = null ): array {
+		$key = $garment . '|' . ( null === $self_serve_max ? 'aucune' : (string) $self_serve_max );
 		if ( ! isset( self::$headlines[ $key ] ) ) {
 			$config = Settings::pricing();
 			self::$headlines[ $key ] = isset( $config['garments'][ $garment ] )
@@ -365,9 +393,28 @@ final class ProductPage {
 		return self::$headlines[ $key ];
 	}
 
-	/** How many pieces of THIS product one parcel carries, 0 when unknown. */
-	public static function self_serve_max( ?\WC_Product $product ): int {
+	/**
+	 * Combien de pièces de CE produit un colis porte, ou null si on ne sait pas.
+	 *
+	 * Null se propage jusqu'à `Pricing::headline()`, où il vaut « aucune borne ».
+	 * Ce n'est PAS ce qu'un poids inconnu doit produire : voir `self_serve_cap()`.
+	 */
+	public static function self_serve_max( ?\WC_Product $product ): ?int {
 		return Shipping::max_pieces( self::unit_grams( $product ), Shipping::config() );
+	}
+
+	/**
+	 * La borne à donner à l'accroche de prix, poids inconnu compris.
+	 *
+	 * UN POIDS INCONNU BORNE À ZÉRO, il ne débride pas. `Shipping::quote()`
+	 * répond `NO_WEIGHT` sur un tel produit et la caisse n'a aucun tarif de
+	 * livraison : pas une pièce n'est expédiable, donc aucune quantité n'est
+	 * publiable. `grid_rows()` prend déjà cette lecture ; c'est l'accroche qui
+	 * prenait l'autre et publiait un prix par-dessus un tableau entièrement
+	 * « sur devis ».
+	 */
+	public static function self_serve_cap( ?\WC_Product $product ): int {
+		return self::self_serve_max( $product ) ?? 0;
 	}
 
 	/**
@@ -383,12 +430,12 @@ final class ProductPage {
 		if ( ! $product instanceof \WC_Product ) {
 			return $html;
 		}
-		$garment = Product::garment_of( $product->get_id() );
-		if ( '' === $garment ) {
+		if ( ! self::may_quote( $product ) ) {
 			return $html;
 		}
+		$garment = Product::garment_of( $product->get_id() );
 
-		$headline = self::headline( $garment, self::self_serve_max( $product ) );
+		$headline = self::headline( $garment, self::self_serve_cap( $product ) );
 		if ( empty( $headline['best'] ) ) {
 			return $html;
 		}
@@ -528,12 +575,25 @@ final class ProductPage {
 				'config'      => $config,
 				'request'     => $request,
 				'quote'       => $quote,
-				'headline'    => self::headline( $garment, self::self_serve_max( wc_get_product( $product_id ) ) ),
+				'headline'    => self::headline( $garment, self::self_serve_cap( wc_get_product( $product_id ) ) ),
 				'sizes'       => self::size_ids( $garment ),
 				'max_faces'   => Garments::printable_sides_count( $garment ),
 				'studio_url'  => self::studio_url( $product_id, $request, $garment ),
 				'size'        => self::requested_size( $garment ),
-				'needs_quote' => Pricing::needs_quote( $request['qty'], (int) $quote['total_ht'], $config ),
+				/*
+				 * LA MÊME RÉPONSE QUE LA GRILLE ET QUE LE PANIER.
+				 *
+				 * Cet encadré lisait `Pricing::needs_quote` seul, qui connaît la
+				 * quantité et le montant et pas le poids. Mesuré le 4 septembre
+				 * 2026 : sur la fiche d'un sweat, la grille imprimait « sur
+				 * devis » à cinquante pièces pendant que cet encadré, DIX
+				 * CENTIMÈTRES PLUS HAUT, imprimait « 1 267,50 EUR HT, soit
+				 * 25,35 EUR l'unité » et laissait « Personnaliser » en action
+				 * principale. Trois surfaces, trois réponses, sur une commande
+				 * que la caisse ne sait pas expédier.
+				 */
+				'needs_quote' => Pricing::needs_quote( $request['qty'], (int) $quote['total_ht'], $config )
+					|| $request['qty'] > self::self_serve_cap( wc_get_product( $product_id ) ),
 			),
 			'',
 			TEESHOOP_CORE_DIR . 'templates/'
@@ -552,9 +612,9 @@ final class ProductPage {
 				'garment'     => $garment,
 				'areas'       => Garments::areas( $garment ),
 				'priced_size' => Garments::priced_size( $garment ),
-				'colors'      => Garments::colors(),
-				'sizes'       => Garments::sizes( $garment ),
-				'brand_ref'   => Garments::brand_ref( $garment ),
+				'colors'      => self::colours_for( $product_id ),
+				'sizes'       => self::sizes_for( $product_id, $garment ),
+				'brand_ref'   => self::sizes_source( $product_id, $garment ),
 				'material'    => (string) get_post_meta( $product_id, Garments::META_MATERIAL, true ),
 				'weight_gsm'  => (int) get_post_meta( $product_id, Garments::META_WEIGHT, true ),
 				'brand'       => (string) get_post_meta( $product_id, Garments::META_BRAND, true ),
@@ -564,6 +624,131 @@ final class ProductPage {
 			'',
 			TEESHOOP_CORE_DIR . 'templates/'
 		);
+	}
+
+	/**
+	 * Les coloris que CETTE référence a, pas les dix-huit du studio.
+	 *
+	 * ── CE QUE LA PAGE DISAIT AVANT LE 4 SEPTEMBRE 2026 ────────────────────────
+	 *
+	 * `Garments::colors()` est la liste du STUDIO : dix-huit teintures inventées
+	 * pour une démonstration, avec leurs noms français (« Menthe », « Sable »,
+	 * « Vert gazon »). Elles étaient imprimées sur chaque fiche personnalisable,
+	 * quelle que soit la référence. Le B&C #E150 annonçait donc dix-huit coloris
+	 * dont le fournisseur ne vend qu'une partie, sous des noms qui ne figurent
+	 * sur aucune de ses factures.
+	 *
+	 * `Gamme::palette()` a écrit sur le produit le nuancier DÉRIVÉ des pastilles
+	 * mesurées de cette référence (`Product::META_BLANK_PALETTE`) : le nom du
+	 * fabricant et sa couleur mesurée. C'est ce que la fiche montre désormais.
+	 *
+	 * La liste du studio reste le repli, et elle est juste dans ce cas-là : un
+	 * produit qui ne déclare aucun textile nu est un vêtement que NOUS
+	 * fournissons, et ces teintures sont alors les nôtres.
+	 *
+	 * @return array<int,array{name:string,hex:string}>
+	 */
+	public static function colours_for( int $product_id ): array {
+		$palette = Product::blank_palette_of( $product_id );
+		if ( array() === $palette ) {
+			return Garments::colors();
+		}
+		$out = array();
+		foreach ( $palette as $entry ) {
+			$out[] = array(
+				'name' => (string) $entry['name'],
+				/*
+				 * Le premier arrêt, pas un mélange : un chiné se dessine en deux
+				 * teintes là où la surface le permet et par sa teinte dominante
+				 * ailleurs, et la moyenne des deux est une couleur que le
+				 * fournisseur ne vend pas.
+				 */
+				'hex'  => (string) $entry['stops'][0],
+			);
+		}
+		return $out;
+	}
+
+	/**
+	 * La grille de tailles de CETTE référence, quand le fabricant l'a publiée.
+	 *
+	 * ── LE CHIFFRE FAUX QUE CETTE FONCTION RETIRE ─────────────────────────────
+	 *
+	 * La fiche imprimait `Garments::sizes( $garment )`, c'est-à-dire la charte du
+	 * STUDIO, sous une légende qui nommait la référence du produit. Mesuré le
+	 * 4 septembre 2026 sur le B&C #E150 : la page publiait 52,0 cm de
+	 * demi-poitrine en M, là où la fiche de mesures de B&C dit 50. Deux
+	 * centimètres d'erreur, sur la page où un acheteur professionnel choisit sa
+	 * taille, sous le nom du fabricant.
+	 *
+	 * `scripts/zones-mesurer.mjs` lit maintenant la fiche du fabricant et écrit
+	 * la série sur le produit. Quand elle est là, c'est elle qui est publiée.
+	 *
+	 * ── ET LES DEUX COLONNES QU'ON N'A PAS RESTENT VIDES ──────────────────────
+	 *
+	 * La fiche du fabricant ne donne que la demi-poitrine à cet endroit. La
+	 * longueur et la manche ne sont PAS reprises de la charte du studio pour
+	 * remplir le tableau : ce serait mélanger les mesures de deux vêtements dans
+	 * une même ligne, ce qui est pire qu'une colonne vide. `CLAUDE.md` section 7 :
+	 * si la donnée n'existe pas, on construit l'état vide.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public static function sizes_for( int $product_id, string $garment ): array {
+		$maker = self::maker_half_chest( $product_id );
+		if ( array() === $maker ) {
+			return Garments::sizes( $garment );
+		}
+		$out = array();
+		foreach ( $maker as $size => $cm ) {
+			$out[] = array(
+				'size'            => (string) $size,
+				'halfChestCm'     => (float) $cm,
+				'bodyLengthCm'    => 0.0,
+				'sleeveLengthCm'  => 0.0,
+			);
+		}
+		return $out;
+	}
+
+	/** What the size table is measured from, for its caption. */
+	public static function sizes_source( int $product_id, string $garment ): string {
+		if ( array() !== self::maker_half_chest( $product_id ) ) {
+			$brand = trim( (string) get_post_meta( $product_id, Garments::META_BRAND, true ) );
+			$code  = trim( (string) get_post_meta( $product_id, Garments::META_BRAND_REF, true ) );
+			return trim( $brand . ' ' . $code );
+		}
+		return Garments::brand_ref( $garment );
+	}
+
+	/**
+	 * The maker's own half-chest series, size => cm, or an empty array.
+	 *
+	 * @return array<string,float>
+	 */
+	private static function maker_half_chest( int $product_id ): array {
+		if ( $product_id <= 0 ) {
+			return array();
+		}
+		$raw = json_decode( (string) get_post_meta( $product_id, '_teeshoop_demi_poitrine', true ), true );
+		if ( ! is_array( $raw ) ) {
+			return array();
+		}
+		$out = array();
+		foreach ( $raw as $size => $cm ) {
+			$size = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $size ) ?? '' );
+			/*
+			 * Une demi-poitrine hors de cette plage n'est pas une demi-poitrine :
+			 * c'est une lecture ratée de la fiche PDF, ou un tableau en pouces.
+			 * Le même garde-fou que `zones-mesurer.mjs` applique à l'écriture,
+			 * appliqué de nouveau à la lecture, parce que ce nombre atteint un
+			 * client qui choisit sa taille dessus.
+			 */
+			if ( '' !== $size && is_numeric( $cm ) && (float) $cm >= 25 && (float) $cm <= 95 ) {
+				$out[ $size ] = (float) $cm;
+			}
+		}
+		return $out;
 	}
 
 	/**
@@ -616,7 +801,7 @@ final class ProductPage {
 		);
 
 		$max = Shipping::max_pieces( $unit_g, Shipping::config() );
-		if ( $max <= 0 ) {
+		if ( null === $max || $max <= 0 ) {
 			/*
 			 * Un produit sans poids ne se sert pas du tout : `Shipping::quote`
 			 * répond `no_weight` et la caisse n'a pas de tarif. Toutes les

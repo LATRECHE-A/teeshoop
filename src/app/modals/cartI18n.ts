@@ -47,6 +47,8 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'cart.no_qty': 'Indiquez au moins une taille pour continuer.',
     'cart.mismatch':
       'Cette page vend un article « {product} » et votre création est sur un « {design} ». Ouvrez la fiche du bon produit pour commander celui-ci.',
+    'cart.colour_gone':
+      'Ce vêtement n’existe pas dans la couleur de votre création. Choisissez une des couleurs proposées sur cette page, puis réessayez.',
 
     'cart.err.no_printable_side':
       'Il n’y a rien à imprimer. Ajoutez un visuel ou du texte sur une face, puis réessayez.',
@@ -111,6 +113,8 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'cart.no_qty': 'Pick at least one size to continue.',
     'cart.mismatch':
       'This page sells a “{product}” and your design is on a “{design}”. Open the right product page to order this one.',
+    'cart.colour_gone':
+      'This garment does not come in your design’s colour. Pick one of the colours offered on this page, then try again.',
 
     'cart.err.no_printable_side':
       'There is nothing to print. Add artwork or text to a side, then try again.',

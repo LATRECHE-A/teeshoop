@@ -176,9 +176,19 @@ $ts_quote_url = isset( $quote_url ) && '' !== $quote_url ? (string) $quote_url :
 	<?php endif; ?>
 	<p class="ts-note">
 		<?php
+		/*
+		 * LA NOTE DIT LES DEUX RAISONS, parce qu'il y en a deux.
+		 *
+		 * Elle n'en nommait qu'une : le seuil d'autonomie. Depuis que
+		 * `ProductPage::grid_rows()` retient aussi les colonnes qu'un colis ne
+		 * porte pas, une cellule peut passer « sur devis » à cinquante pièces et
+		 * 1 267,50 EUR HT, c'est-à-dire ni au-delà de la quantité ni au-delà du
+		 * montant que cette phrase citait. Le lecteur se voyait donner une
+		 * raison démontrablement fausse pour la case qu'il regardait.
+		 */
 		printf(
 			/* translators: 1: a quantity, 2: an amount excl. VAT. */
-			esc_html__( 'Au-delà de %1$s pièces ou de %2$s hors taxes, la commande est chiffrée à la main : les cellules concernées portent la mention « sur devis ».', 'teeshoop' ),
+			esc_html__( 'Au-delà de %1$s pièces, de %2$s hors taxes, ou d’une quantité qui ne tient pas dans un seul colis, la commande est chiffrée à la main : les cellules concernées portent la mention « sur devis ».', 'teeshoop' ),
 			esc_html( Money::number( (float) $config['quote_from_qty'] ) ),
 			esc_html( Money::format( (int) $config['quote_from_ht'] ) )
 		);

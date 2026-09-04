@@ -3506,9 +3506,19 @@ possibles, tous les trois calculés sur les mêmes mesures :
 
 | | T-shirt, 5 pièces | T-shirt, 50 pièces | Ce que la boutique garde |
 |---|---|---|---|
-| **Ce que nous avons publié** (plancher) | **21,00 EUR** | **13,65 EUR** | 25 % du prix |
-| Zone d'autonomie commerciale | 25,43 EUR | 16,53 EUR | environ 42 % |
-| Marge brute de 50 % | 30,61 EUR | 19,90 EUR | 50 % |
+| **Ce que nous avons publié** (plancher) | **23,00 EUR** | **14,95 EUR** | 25 % du prix |
+| Zone d'autonomie commerciale | environ 28 EUR | environ 18 EUR | environ 42 % |
+| Marge brute de 50 % | environ 34 EUR | environ 22 EUR | 50 % |
+
+**Une quatrième question, et elle vient de votre réponse 37.** Vous y écrivez que
+si les grandes tailles font passer la commande sous le plancher, « un supplément
+peut être appliqué ou la commande doit nécessiter une validation interne ». Une
+boutique en autonomie ne peut pas faire la seconde : il n'y a personne entre le
+clic et le paiement. Nous avons donc pris la première voie sous sa forme la plus
+simple, celle qui ne demande rien de nouveau au client : **le prix couvre la
+taille la plus chère**. Concrètement, un acheteur en S paie ce que coûte un 3XL,
+et c'est environ 2 EUR par pièce sur un t-shirt. Un supplément explicite sur les
+grandes tailles ferait redescendre le prix de toutes les autres.
 
 Votre réponse à la question 06, le 1er septembre, dit « un objectif de marge
 brute minimale d'environ 50 % après coûts directs ». Nous n'avons pas publié ce

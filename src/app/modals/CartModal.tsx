@@ -30,6 +30,7 @@ import Modal from './Modal'
 import { useStore } from '@/state/store'
 import { useMockupUrl } from '../hooks/useMockup'
 import { useShopBridge } from '../hooks/useShopBridge'
+import { garmentPalette, paletteIsMeasured } from '@/content/garmentPalette'
 import { useCartT } from './cartI18n'
 import { useT } from '@/i18n'
 import { SIZE_IDS, type SizeId } from '@/content/sizeChart'
@@ -107,6 +108,31 @@ export default function CartModal() {
   const productGarment = context?.garment ?? ''
   const mismatch = productGarment !== '' && productGarment !== design.garmentId
   /*
+   * LA COULEUR AUSSI, ET PAS SEULEMENT LE VÊTEMENT.
+   *
+   * Ce composant refusait déjà une création faite sur un autre vêtement que
+   * celui que la page vend. Il ne regardait pas la COULEUR, et depuis que la
+   * boutique restreint le nuancier à ce que la référence est réellement
+   * vendue, la différence est devenue payante.
+   *
+   * Le chemin, trouvé par la passe adversariale du 4 septembre 2026 : le studio
+   * garde la création dans le stockage local d'une seule origine. Un visiteur
+   * choisit « Menthe » sur une référence qui l'a (18 teintes sur 18), ouvre
+   * ensuite le sweat qui ne l'a pas (16 sur 18), et son `colorId` reste. Rien
+   * ne le corrige. `Cart::add` accepte la ligne, `Cart.php` gèle une couleur
+   * fournisseur VIDE, et c'est le bon de commande fournisseur qui refuse, par
+   * son nom, APRÈS le paiement.
+   *
+   * Refusé ici, avant l'envoi, comme le vêtement : au moment où `Cart::add`
+   * répondrait, le client a déjà attendu une mesure et un téléversement.
+   *
+   * Une palette non mesurée ne refuse rien : c'est le studio hors boutique, ou
+   * un produit qui ne déclare pas ses coloris, et ses dix-huit teintes sont
+   * alors les nôtres.
+   */
+  const colourGone =
+    paletteIsMeasured() && !garmentPalette().some((c) => c.id === design.colorId)
+  /*
    * The shop's verdict, read before anything is uploaded.
    *
    * Refusing here rather than at the add is the whole point: by the time
@@ -150,7 +176,7 @@ export default function CartModal() {
   // a fresher one in the component's state either.
   const quoteSeq = useRef(0)
   useEffect(() => {
-    if (!sides || qty < 1 || mismatch) return
+    if (!sides || qty < 1 || mismatch || colourGone) return
     const mine = ++quoteSeq.current
     setQuoteFailed(false)
     requestShopQuote({ garment: design.garmentId, qty, sides })
@@ -167,7 +193,7 @@ export default function CartModal() {
         // permalinks every quote 404'd while add-to-cart worked.
         setQuoteFailed(true)
       })
-  }, [sides, qty, mismatch, design.garmentId])
+  }, [sides, qty, mismatch, colourGone, design.garmentId])
 
   /*
    * Ask the page for a taller frame if this modal does not fit in it.
@@ -289,6 +315,13 @@ export default function CartModal() {
                 product: t('garment.' + productGarment),
                 design: t('garment.' + design.garmentId),
               })}
+            </p>
+          )}
+
+          {colourGone && (
+            <p className="flex gap-2 rounded-lg border border-yl/40 bg-yl/10 p-3 text-[12.5px] leading-relaxed text-tx">
+              <TriangleAlert size={15} className="mt-0.5 shrink-0 text-yl" />
+              {ct('cart.colour_gone')}
             </p>
           )}
 
@@ -425,7 +458,7 @@ export default function CartModal() {
             <button
               className="btn btn-primary h-11 w-full justify-center"
               data-teeshoop="add-to-cart"
-              disabled={busy || qty < 1 || mismatch || needsQuote || !sides || !quote}
+              disabled={busy || qty < 1 || mismatch || colourGone || needsQuote || !sides || !quote}
               onClick={addToCart}
             >
               {busy ? (

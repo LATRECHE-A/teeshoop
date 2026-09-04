@@ -32,8 +32,8 @@ return array(
 			'answer_fr' => null,
 			'decided_by' => 'equipe',
 			'decided_on' => '2026-09-04',
-			'decided_why' => 'le tarif publié vendait sous son propre plancher de coût sur 102 des 219 colonnes publiées, mesuré par tests/integration-grille.php ; il est maintenant dérivé du plancher que le moteur calcule, arrondi à l\'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md',
-			'statement_fr' => 'Un t-shirt imprimé sur une face vaut 21,00 EUR HT à l\'unité : 11,00 EUR de textile nu et 10,00 EUR de marquage.',
+			'decided_why' => 'le tarif publié vendait sous son propre plancher de coût, sur 102 des 219 colonnes publiées puis sur 34 de plus une fois le coût mesuré à la taille réellement commandée et non à M (règle de développement de la réponse 37) ; il est maintenant dérivé du plancher que le moteur calcule, à la taille et au coloris les plus chers, arrondi à l\'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md',
+			'statement_fr' => 'Un t-shirt imprimé sur une face vaut 23,00 EUR HT à l\'unité : 13,00 EUR de textile nu et 10,00 EUR de marquage.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.base_ht+garments.tee.first_side_ht',
 			'reaches' => array(
 				'customer',
@@ -55,8 +55,8 @@ return array(
 			'answer_fr' => null,
 			'decided_by' => 'equipe',
 			'decided_on' => '2026-09-04',
-			'decided_why' => 'le tarif publié vendait sous son propre plancher de coût sur 102 des 219 colonnes publiées, mesuré par tests/integration-grille.php ; il est maintenant dérivé du plancher que le moteur calcule, arrondi à l\'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md',
-			'statement_fr' => 'Un sweat imprimé sur une face vaut 39,00 EUR HT à l\'unité : 29,00 EUR de textile nu et 10,00 EUR de marquage.',
+			'decided_why' => 'le tarif publié vendait sous son propre plancher de coût, sur 102 des 219 colonnes publiées puis sur 34 de plus une fois le coût mesuré à la taille réellement commandée et non à M (règle de développement de la réponse 37) ; il est maintenant dérivé du plancher que le moteur calcule, à la taille et au coloris les plus chers, arrondi à l\'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md',
+			'statement_fr' => 'Un sweat imprimé sur une face vaut 49,00 EUR HT à l\'unité : 39,00 EUR de textile nu et 10,00 EUR de marquage.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#garments.hoodie.base_ht+garments.hoodie.first_side_ht',
 			'reaches' => array(
 				'customer',
@@ -101,7 +101,7 @@ return array(
 			'answer_fr' => null,
 			'decided_by' => 'equipe',
 			'decided_on' => '2026-09-04',
-			'decided_why' => 'le tarif publié vendait sous son propre plancher de coût sur 102 des 219 colonnes publiées, mesuré par tests/integration-grille.php ; il est maintenant dérivé du plancher que le moteur calcule, arrondi à l\'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md',
+			'decided_why' => 'le tarif publié vendait sous son propre plancher de coût, sur 102 des 219 colonnes publiées puis sur 34 de plus une fois le coût mesuré à la taille réellement commandée et non à M (règle de développement de la réponse 37) ; il est maintenant dérivé du plancher que le moteur calcule, à la taille et au coloris les plus chers, arrondi à l\'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md',
 			'statement_fr' => 'Chaque face imprimée après la première coûte 7,00 EUR HT, quel que soit le vêtement.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.extra_side_ht',
 			'reaches' => array(
