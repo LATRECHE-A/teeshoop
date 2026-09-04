@@ -230,11 +230,52 @@ final class Catalogue {
 	 * a category with no products in it is a promise the shop cannot keep.
 	 */
 	private const CATEGORIES = array(
-		'tee'   => 'T-shirts',
+		'tee'   => 'T-Shirts',
 		'polo'  => 'Polos',
 		'sweat' => 'Sweats',
 		'shirt' => 'Chemises',
 		'other' => 'Autres textiles',
+	);
+
+	/**
+	 * THE SHOP'S AISLES, WITH THE ASSOCIATE'S OWN NAMES.
+	 *
+	 * Keyed by `FrShelf`, which the Worker now returns beside `kind`. The two
+	 * are different questions and this is the one a shopper navigates by; the
+	 * Worker's own source carries the long argument. `CATEGORIES` above stays
+	 * keyed by KIND because `families()` translates a `--famille` argument into
+	 * the keys the Worker filters on, and those are kinds.
+	 *
+	 * WHY THIS EXISTS. Measured on 04/09/2026, after the first `--famille=all`
+	 * import: 1 744 of 2 309 published products were in « Autres textiles ». The
+	 * catch-all was three quarters of the shop, and inside it were 428 bags, 408
+	 * caps, 328 jackets, 117 beanies, 46 aprons and 34 pieces of house linen,
+	 * which are six of the eleven aisles the associate already has on his own
+	 * site. They were not missing. They were unfiled.
+	 *
+	 * THE NAMES ARE HIS, read off teeshoop.com on 03/09/2026, casing included.
+	 * `T-shirts` above became `T-Shirts` in the same pass: the constant had been
+	 * disagreeing with the term in the database since the first import, and only
+	 * MariaDB's case-insensitive collation kept `Taxonomy::category_id()` from
+	 * creating a second one.
+	 *
+	 * « Débardeurs » and « Sport » are two of his eleven and are deliberately
+	 * absent: the supplier vocabulary does not separate them (a sleeveless tee
+	 * is already a sub-category of T-Shirts), so an aisle here would be a name
+	 * with nothing behind it.
+	 */
+	private const SHELVES = array(
+		'tshirt'    => 'T-Shirts',
+		'polo'      => 'Polos',
+		'sweat'     => 'Sweats',
+		'chemise'   => 'Chemises',
+		'veste'     => 'Vestes',
+		'casquette' => 'Casquettes',
+		'bonnet'    => 'Bonnets',
+		'sac'       => 'Sacs & tote bags',
+		'tablier'   => 'Tabliers',
+		'maison'    => 'Maison',
+		'autre'     => 'Autres textiles',
 	);
 
 	/**
@@ -506,6 +547,14 @@ final class Catalogue {
 		$brand       = self::text( $style['brand'] ?? '' );
 		$name        = self::text( $style['name'] ?? '' );
 		$kind        = self::text( $style['kind'] ?? 'other' );
+		/*
+		 * `autre` and not `other` when the Worker says nothing: an older Worker
+		 * that predates this field must file into the catch-all, never into the
+		 * first aisle of the table. The two vocabularies are deliberately spelt
+		 * differently (`other` is a kind, `autre` is an aisle) so that a mix-up
+		 * is a missing key and not a silently wrong shelf.
+		 */
+		$shelf       = self::text( $style['shelf'] ?? 'autre' );
 		$sleeve      = self::text( $style['sleeve'] ?? 'unknown' );
 		$description = self::text( $style['description'] ?? '' );
 
@@ -574,7 +623,8 @@ final class Catalogue {
 			'material'      => self::composition( $description ),
 			'weight_gsm'    => $grammage['gsm'],
 			'weight_varies' => $grammage['varies'],
-			'categories'    => self::categories( $kind, $sleeve ),
+			'shelf'         => $shelf,
+			'categories'    => self::categories( $shelf, $sleeve ),
 			'attributes'    => self::attributes( $style, $colours, $sizes, $sleeve ),
 			'front'         => self::text( $style['front'] ?? '' ) ?: self::first_colour_photo( $style ),
 			'back'          => self::text( $style['back'] ?? '' ),
@@ -820,8 +870,19 @@ final class Catalogue {
 	}
 
 	/** Category path: family, then sleeve where the supplier states one. */
-	private static function categories( string $kind, string $sleeve ): array {
-		$family = self::CATEGORIES[ $kind ] ?? self::CATEGORIES['other'];
+	private static function categories( string $shelf, string $sleeve ): array {
+		/*
+		 * A SHELF THIS TABLE DOES NOT KNOW GOES TO THE CATCH-ALL, and it says so
+		 * in the run report rather than doing it silently.
+		 *
+		 * The `??` here used to be mute, and that is how a whole vocabulary can
+		 * drift without anyone noticing: a Worker deployed with an aisle the
+		 * plugin has not learnt would file every one of its products under
+		 * « Autres textiles » while both halves looked healthy. The two are
+		 * deployed separately, so they WILL be out of step at some point; the
+		 * question is only whether anybody finds out.
+		 */
+		$family = self::SHELVES[ $shelf ] ?? self::SHELVES['autre'];
 		$path   = array( $family );
 
 		/*
@@ -829,11 +890,25 @@ final class Catalogue {
 		 * long-sleeved (measured: 167 of 168), so the sub-category would hold
 		 * the whole family and tell a buyer nothing.
 		 */
-		if ( in_array( $kind, array( 'tee', 'polo' ), true ) && isset( self::SLEEVES[ $sleeve ] ) ) {
+		if ( in_array( $shelf, array( 'tshirt', 'polo' ), true ) && isset( self::SLEEVES[ $sleeve ] ) ) {
 			$path[] = self::SLEEVES[ $sleeve ];
 		}
 
 		return $path;
+	}
+
+	/**
+	 * Does this plugin know where to file that aisle.
+	 *
+	 * Read by `Importer::sync()`, which turns a no into a line in the run
+	 * report. It is a question and not a silent fallback because the Worker and
+	 * the plugin are deployed separately and WILL be out of step one day: a
+	 * Worker that has learnt a new aisle would otherwise file every one of its
+	 * products under « Autres textiles » while both halves looked healthy, which
+	 * is the exact shape of the defect this whole change repairs.
+	 */
+	public static function knows_shelf( string $shelf ): bool {
+		return isset( self::SHELVES[ $shelf ] );
 	}
 
 	/** Attribute name → term names, dropping every attribute with nothing in it. */

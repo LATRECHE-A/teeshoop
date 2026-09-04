@@ -567,6 +567,20 @@ final class Importer {
 		}
 
 		// --- category -------------------------------------------------------
+		/*
+		 * A RAYON THE WORKER NAMED AND THIS PLUGIN DOES NOT KNOW is reported,
+		 * not swallowed. The two are deployed separately; the day one learns an
+		 * aisle the other has not, every product of that aisle lands in the
+		 * catch-all and both halves look healthy. That is precisely how 1 744
+		 * products came to sit in « Autres textiles » unnoticed.
+		 */
+		if ( ! Catalogue::knows_shelf( (string) ( $mapped['shelf'] ?? '' ) ) ) {
+			$problems[] = sprintf(
+				'Rayon « %s » inconnu de l’extension : la fiche est allée dans « Autres textiles ».',
+				(string) ( $mapped['shelf'] ?? '(vide)' )
+			);
+		}
+
 		$category = Taxonomy::category_id( $mapped['categories'] );
 		if ( $category > 0 ) {
 			$current = wp_get_object_terms( $product_id, 'product_cat', array( 'fields' => 'ids' ) );

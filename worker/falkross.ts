@@ -372,6 +372,40 @@ export interface FrSku {
 }
 
 export type FrKind = 'tee' | 'polo' | 'sweat' | 'shirt' | 'other'
+
+/**
+ * WHICH OF THE SHOP'S DEPARTMENTS A STYLE BELONGS IN, which is a DIFFERENT
+ * question from `FrKind` and is deliberately a second field rather than more
+ * values on the first.
+ *
+ * `FrKind` answers « what blank is this », and it is read by
+ * `Costing::facts()` in the plugin, which feeds `PriceRule::SELECTORS` and so
+ * the floor price and the recommended price. Adding `casquette` to it would put
+ * a value in a money selector that `PriceRule::FAMILIES` does not offer, so a
+ * rule written for `other` would silently stop matching a cap and no rule could
+ * be written to replace it. Measured on a 30-piece order: the same 330,00 EUR
+ * moves from « sellable » to « below floor, needs approval ».
+ *
+ * `FrShelf` answers « where does a shopper look for it », reaches no amount
+ * anywhere in the plugin (product_cat appears only in Content, Taxonomy,
+ * Importer and Seo), and is the associate's own list of departments.
+ *
+ * Two fields, two questions, and neither is a second implementation of the
+ * other: a bath towel is `other` for pricing, because the studio does not print
+ * it, and `maison` for navigation, because that is the aisle it is sold in.
+ */
+export type FrShelf =
+  | 'tshirt'
+  | 'polo'
+  | 'sweat'
+  | 'chemise'
+  | 'veste'
+  | 'casquette'
+  | 'bonnet'
+  | 'sac'
+  | 'tablier'
+  | 'maison'
+  | 'autre'
 export type FrSleeve = 'short' | 'long' | 'sleeveless' | 'unknown'
 
 export interface FrStyle {
@@ -384,6 +418,12 @@ export interface FrStyle {
   /** Supplier sub-categories, FR then EN fallback. */
   categories: string[]
   kind: FrKind
+  /**
+   * The shop's aisle. See `FrShelf`: a second question from `kind`, and the one
+   * the customer navigates by. `kind` decides pricing and what the studio can
+   * print; this decides where the product is filed.
+   */
+  shelf: FrShelf
   sleeve: FrSleeve
   gender: string
   neckline: string
@@ -451,7 +491,7 @@ function colourFromFilename(file: string): string | null {
 }
 
 /** Every `<style_x_group_list>` entry, translated. */
-function groupList(xml: string, list: string, item: string, prefer = LANGS): string[] {
+function groupList(xml: string, list: string, item: string, prefer: readonly string[] = LANGS): string[] {
   const inner = elementInner(xml, list)
   if (!inner) return []
   return allElements(inner, item)
@@ -503,7 +543,31 @@ const NAME_VETO =
 const KIND_PATTERNS: readonly (readonly [RegExp, FrKind])[] = [
   [/\bpolos?\b/i, 'polo'],
   [/\bt-?shirts?\b|\btee-?shirts?\b|\bcamisetas?\b/i, 'tee'],
-  [/\bsweat|\bhoodie|\bhooded\b|\bkapuzen|\bsudadera/i, 'sweat'],
+  /*
+   * `hoods` and `hoody` are NOT covered by `hoodie` or `hooded`, and that gap
+   * cost 27 printable sweatshirts.
+   *
+   * MEASURED on 04/09/2026: the supplier's own sub-category for a hooded
+   * sweatshirt is the plural « Hoods », which `\bhooded\b` does not match, and
+   * many names spell it « Hoody », which `\bhoodie` does not match either. So 27
+   * styles (20039 Heavy Hoody, 26600 Men's Authentic Zipped Hood, 29401 Classic
+   * Hooded Sweat Jacket…) classified as `other`, and because `isPrintableKind`
+   * gates the catalogue list, `--famille=printable` NEVER DOWNLOADED THEM. They
+   * are garments the studio prints every week.
+   *
+   * SINGULAR `\bhood\b` is deliberately absent. It would match the name
+   * « Recycled Fleece Hood », which is a fleece BEANIE, and that is the exact
+   * mistake the comment on `classifyKind` below records. Plural on the category,
+   * « hoody » on the name, and nothing else.
+   *
+   * THIS MOVES A FAMILY, AND A FAMILY REACHES MONEY: `Costing::facts()` reads it
+   * and `PriceRule::SELECTORS` matches on it. It introduces no new value, `sweat`
+   * is already in `PriceRule::FAMILIES`, and it moves these styles from a family
+   * that is wrong to one that is right. Measured the same day: zero price rules
+   * exist (`teeshoop_price_rules` is `[]` on the mirror and absent on the shop),
+   * so today it moves no money at all.
+   */
+  [/\bsweat|\bhoodie|\bhoods\b|\bhoody\b|\bhooded\b|\bkapuzen|\bsudadera/i, 'sweat'],
   [/\bshirts?\b|\bknitwear\b|\bchemises?\b|\bhemd|\bblouse|\bbluse/i, 'shirt'],
 ]
 
@@ -534,6 +598,117 @@ function classifyKind(categories: string[], name: string): FrKind {
 
 /** Blanks the studio can actually print on, the catalogue's default filter. */
 export const isPrintableKind = (k: FrKind) => k === 'tee' || k === 'polo' || k === 'sweat'
+
+/* ─────────────────────────────────────────────────────── the shop's aisles ── */
+
+/**
+ * THE SUPPLIER'S PRODUCT GROUP IS THE FINE SIGNAL, and it is what this file
+ * used to throw away.
+ *
+ * `parseStyle` reads five of the supplier's group lists (sleeve, gender,
+ * neckline, fabric, certificate) and skipped `style_product_group_list`. It is
+ * the only field that separates an apron from a towel: style 91367 « Bib Apron
+ * Basic with Pocket » carries the sub-categories « Horeca & Care / TOP SELLERS
+ * / Washable up to 60°C » and NOTHING else says apron. Its groups say
+ * « Gastronomy / Aprons ». Verified against the live payload on 04/09/2026.
+ *
+ * A WHITELIST AND NOT A REGULAR EXPRESSION, because the group list mixes
+ * product types with attributes: the same style carries « Full Zip »,
+ * « Showerproof » and « Size 4XL+ » beside « Softshell ». A pattern would match
+ * the attributes; an exact table can only match what it was told about, and a
+ * label nobody listed simply falls through to the sub-category below.
+ *
+ * The order is the precedence, and it decides SEVEN styles in the whole
+ * catalogue: two sport jackets, two beanies also filed under Caps & Hats, one
+ * « Fitted Cap Softshell », and two cushion covers filed as both Bags and
+ * Towels. Those seven are inspectable, which is why this is a list and not an
+ * argument.
+ */
+const SHELF_BY_GROUP: readonly (readonly [string, FrShelf])[] = [
+  // Aprons first: they hide inside « Horeca & Care » with towels and cookware.
+  ['aprons', 'tablier'],
+  // Knitted and winter hats are bonnets; « Caps » and plain « Hats » are not.
+  ['winter hats', 'bonnet'],
+  ['knitted hats', 'bonnet'],
+  ['caps', 'casquette'],
+  ['hats', 'casquette'],
+  ['backpacks', 'sac'],
+  ['shopping bags', 'sac'],
+  ['special bags', 'sac'],
+  ['sportsbags', 'sac'],
+  ['travelbags', 'sac'],
+  ['shoulder bags', 'sac'],
+  ['office bags', 'sac'],
+  ['towels', 'maison'],
+  ['blankets', 'maison'],
+  ['bathrobes', 'maison'],
+  ['cookwear', 'maison'],
+  ['jackets', 'veste'],
+  ['softshell', 'veste'],
+  ['bodywarmers', 'veste'],
+  ['fleece', 'veste'],
+]
+
+/**
+ * The fallback, on the supplier's sub-categories, for the styles whose product
+ * groups say nothing useful. Fourteen styles carry no group at all.
+ *
+ * These are the same tokens `CATEGORY_VETO` above already lists, and that is
+ * the point rather than a duplication: the veto answers « not printable » and
+ * this answers « which aisle ». One says what the studio cannot decorate, the
+ * other says where a shopper finds it, and a bag is both.
+ */
+const SHELF_BY_CATEGORY: readonly (readonly [RegExp, FrShelf])[] = [
+  [/beanies/i, 'bonnet'],
+  [/caps & hats/i, 'casquette'],
+  [/bags & accessories/i, 'sac'],
+  [/towels & home/i, 'maison'],
+  [/\bjackets?\b|softshell|bodywarmer/i, 'veste'],
+]
+
+/**
+ * Groups that are NOT one of the eleven aisles, listed so that they stop at the
+ * group table instead of falling through to a sub-category that would misfile
+ * them.
+ *
+ * MEASURED, and this is why the table exists: 41 of the 410 styles the supplier
+ * files under « Caps & Hats » are not headwear. Nineteen pairs of gloves,
+ * eighteen scarves or snoods, three headbands. A rule reading the sub-category
+ * alone would have sold every one of them as a cap.
+ *
+ * The associate has no aisle for gloves, trousers or shoes, so they stay in
+ * « Autres textiles » and say so, rather than being pushed into the nearest
+ * aisle that would have them.
+ */
+const GROUP_NOT_AN_AISLE = /^(gloves|scarfs|headbands|shoes|trousers|sweat pants|shorts|underwear|safety vests)$/i
+
+/**
+ * Which aisle a style is sold in.
+ *
+ * The four printable kinds keep their own aisle, so this never disagrees with
+ * `classifyKind`: a polo is `polo` in both. Everything the studio cannot print
+ * is then placed by the supplier's own vocabulary, group first and
+ * sub-category second, and what neither can place stays `autre` rather than
+ * being guessed at from its name. Deriving an aisle from a title is the trap
+ * this file already records twice: « Tee Jays Luxury Stretch Shirt » is a polo,
+ * and « Recycled Fleece Hood » is a fleece beanie, not a hoodie.
+ */
+export function classifyShelf(kind: FrKind, categories: string[], groups: string[]): FrShelf {
+  if (kind === 'tee') return 'tshirt'
+  if (kind === 'polo') return 'polo'
+  if (kind === 'sweat') return 'sweat'
+  if (kind === 'shirt') return 'chemise'
+
+  const seen = groups.map((g) => g.trim().toLowerCase())
+  if (seen.some((g) => GROUP_NOT_AN_AISLE.test(g))) return 'autre'
+  for (const [label, shelf] of SHELF_BY_GROUP) {
+    if (seen.includes(label)) return shelf
+  }
+  for (const [re, shelf] of SHELF_BY_CATEGORY) {
+    if (categories.some((c) => re.test(c))) return shelf
+  }
+  return 'autre'
+}
 
 /**
  * Choose the front/back pair to show for a style.
@@ -597,6 +772,10 @@ export function parseStyle(xml: string, styleNr: string): FrStyle {
 
   const sleeve = classifySleeve(groupList(style, 'style_sleeve_group_list', 'style_sleeve_group'))
   const kind = classifyKind(categoriesEn, nameEn || name)
+  // ENGLISH, like the classification above and for the same reason: the French
+  // labels are marketing copy, the English ones are a controlled vocabulary.
+  const productGroupsEn = groupList(style, 'style_product_group_list', 'style_product_group', LANGS_EN)
+  const shelf = classifyShelf(kind, categoriesEn, productGroupsEn)
 
   // --- photos -------------------------------------------------------------
   const photos: FrPhoto[] = []
@@ -659,6 +838,7 @@ export function parseStyle(xml: string, styleNr: string): FrStyle {
     description: langText(elementInner(style, 'style_description'), LANGS),
     categories,
     kind,
+    shelf,
     sleeve,
     gender: groupList(style, 'style_gender_group_list', 'style_gender_group').join(', '),
     neckline: groupList(style, 'style_neckline_group_list', 'style_neckline_group').join(', '),

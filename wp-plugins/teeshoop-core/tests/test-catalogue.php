@@ -468,16 +468,67 @@ describe(
 		it(
 			'files a short-sleeved tee under a French category path',
 			static function (): void {
-				$m = Catalogue::map( ts_entry() );
-				eq( $m['categories'], array( 'T-shirts', 'Manches courtes' ) );
+				$m = Catalogue::map( ts_entry( array( 'style' => array( 'shelf' => 'tshirt' ) ) ) );
+				eq( $m['categories'], array( 'T-Shirts', 'Manches courtes' ) );
 			}
 		);
 
 		it(
 			'does not sub-divide sweats by sleeve, because they are all long',
 			static function (): void {
-				$m = Catalogue::map( ts_entry( array( 'style' => array( 'kind' => 'sweat', 'sleeve' => 'long' ) ) ) );
+				$m = Catalogue::map( ts_entry( array( 'style' => array( 'kind' => 'sweat', 'shelf' => 'sweat', 'sleeve' => 'long' ) ) ) );
 				eq( $m['categories'], array( 'Sweats' ) );
+			}
+		);
+
+		/*
+		 * THE AISLE IS THE WORKER'S ANSWER, NOT THE FAMILY'S. A cap is `other`
+		 * for pricing, because the studio cannot print it, and « Casquettes » for
+		 * navigation. Reading the family here would put every one of the 1 744
+		 * unprintable references back into one catch-all, which is the defect
+		 * this pair of fields exists to repair.
+		 */
+		it(
+			'files by the aisle the Worker sent, not by the pricing family',
+			static function (): void {
+				$m = Catalogue::map( ts_entry( array( 'style' => array( 'kind' => 'other', 'shelf' => 'casquette' ) ) ) );
+				eq( $m['categories'], array( 'Casquettes' ) );
+				eq( $m['shelf'], 'casquette' );
+			}
+		);
+
+		it(
+			'gives the associate his own names, casing included',
+			static function (): void {
+				foreach ( array( 'veste' => 'Vestes', 'bonnet' => 'Bonnets', 'sac' => 'Sacs & tote bags', 'tablier' => 'Tabliers', 'maison' => 'Maison' ) as $shelf => $nom ) {
+					$m = Catalogue::map( ts_entry( array( 'style' => array( 'kind' => 'other', 'shelf' => $shelf ) ) ) );
+					eq( $m['categories'], array( $nom ), $shelf );
+				}
+			}
+		);
+
+		/*
+		 * FAIL CLOSED ON A VOCABULARY IT DOES NOT KNOW. A Worker deployed ahead
+		 * of this plugin must send its products to the catch-all, never to the
+		 * first aisle of the table, and `Importer::sync()` turns the same
+		 * question into a line in the run report.
+		 */
+		it(
+			'sends an aisle it has never heard of to the catch-all, and says it does not know it',
+			static function (): void {
+				$m = Catalogue::map( ts_entry( array( 'style' => array( 'kind' => 'other', 'shelf' => 'chaussures' ) ) ) );
+				eq( $m['categories'], array( 'Autres textiles' ) );
+				eq( Catalogue::knows_shelf( 'chaussures' ), false );
+				eq( Catalogue::knows_shelf( 'casquette' ), true );
+			}
+		);
+
+		it(
+			'treats a Worker too old to send an aisle as unknown rather than as a t-shirt',
+			static function (): void {
+				$m = Catalogue::map( ts_entry( array( 'style' => array( 'kind' => 'tee' ) ) ) );
+				eq( $m['categories'], array( 'Autres textiles' ), 'aucun rayon envoyé' );
+				eq( Catalogue::knows_shelf( '' ), false );
 			}
 		);
 
