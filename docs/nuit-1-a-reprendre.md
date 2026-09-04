@@ -11,6 +11,7 @@
 | | Avant | Après |
 |---|---|---|
 | Le miroir docker | **chaque page du thème rendait 200 avec zéro octet** | l'accueil rend 46 683 octets |
+| Produits publiés | 465 | **2 309** |
 | `<img>` sur l'accueil du miroir | **0** | **6** |
 | `<img>` sur l'archive boutique | 24 pour 24 fiches | 25 pour 24 fiches |
 | tuiles « Sans photo » visibles | 1 sur l'accueil | **0** |
@@ -25,43 +26,60 @@
 
 ## 2. Ce qui n'est pas fini, nommément
 
-### L'import du catalogue tourne encore
+### L'import est fini, et il a découvert le travail de la nuit 2
 
-`--famille=all` planifie **2 303 références** et l'avancement était de
-**421/2303, zéro en échec**, à 23 h 06. Une tranche de 30 minutes en traite
-entre 220 et 420 selon la proportion de créations. Le pilote (dans le
-scratchpad, non suivi en git) tourne encore à la fermeture.
+Terminé le 4 septembre à 3 h 00, en 8 tranches et 13 937 s : **2 303 références
+sur 2 303, zéro en échec**. 1 630 créées, 601 modifiées, 70 inchangées, 2 sans
+article, 42 143 déclinaisons écrites, **2 450 photographies copiées**.
 
-**TROIS PILOTES, DEUX MAUVAIS SIGNAUX, et c'est la partie à retenir.** Le
-premier a brûlé cinq tranches en treize secondes le soir où le Worker était à
-terre, et a fait marquer 2 043 références « en échec » pour cette seule raison ;
-il vérifie maintenant le Worker avant chaque tranche. Le second s'est arrêté
-après UNE tranche en annonçant « TERMINE », sur deux lectures fausses de
-`teeshoop catalogue etat` :
-
-  Liste complète   : oui        <- les 2 303 ont été ÉNUMÉRÉES, pas traitées
-  Terminé          : en cours   <- un grep « Terminé  » matche cette ligne
-
-Le seul signal fiable est **`Avancement : X/Y` avec X égal à Y**. C'est ce que
-le troisième lit, et il l'affiche avant et après chaque tranche pour qu'un
-arrêt prématuré se voie dans le journal.
-
-Relevé à 22 h 54 le 3 septembre, contre le miroir :
-
-| | au réveil du miroir | à la fermeture |
+| | au réveil du miroir | à la fin |
 |---|---|---|
-| produits publiés | 465 | **734** |
-| brouillons | 0 | 4 (dont 2 sans photographie fournisseur) |
-| déclinaisons | 26 359 | **28 946** |
-| pièces jointes | 735 | **1 122** |
-| base | 302,8 Mo | 247,5 Mo |
-| produits fournisseur sans photo | non mesuré | **0** |
+| produits publiés | 465 | **2 309** |
+| déclinaisons | 26 359 | **46 594** |
+| pièces jointes | 735 | **3 502** |
+| produits fournisseur sans photographie | non mesuré | **0** |
+| base | 302,8 Mo | 342,7 Mo |
 
-**Pour le relancer** : le Worker local doit tourner (`npx wrangler dev --port
-8788`), et `teeshoop_settings.worker_url` doit pointer dessus, sinon l'import
-refuse chaque référence, ce qui est le bon comportement et non une panne. C'est
-arrivé cette nuit : cinq tranches ont été brûlées en treize secondes et 2 043
-références marquées « en échec » pour cette seule raison.
+**LE TRAVAIL LE PLUS RENTABLE QUI RESTE, ET IL EST CHIFFRÉ.** 1 744 de ces
+produits sont rangés dans « Autres textiles », parce que
+`Catalogue::CATEGORIES` ne connaît que tee, polo, sweat, chemise et « autres ».
+Compté par mot-clé sur le titre :
+
+| Ce qui dort dans « Autres textiles » | Combien |
+|---|---|
+| casquettes | **256** |
+| bonnets | **111** |
+| vestes | **328** |
+| sacs et tote bags | **428** |
+| tabliers | **46** |
+| maison | **34** |
+| chaussures, hors sujet | 18 |
+
+**Six des onze rayons de l'associé ont donc déjà 1 203 produits photographiés**,
+mal classés. Cette nuit affirmait qu'ils étaient vides et que les remplir était
+un projet : c'est faux, et la correction est écrite dans
+`docs/decisions/2026-09-03-catalogue-rayons-et-photos.md` §1.
+
+Ce n'est pas fait ici parce que classer 1 744 titres par mots-clés est une
+heuristique (« Bodywarmer » est-il une veste ? un « Storage Trug » un sac ?), que
+la famille vient du classifieur du Worker enregistré comme H-Q09-FAMILLES, et
+qu'écrire cette règle sans relecture sur le tuyau qui alimente les marges n'est
+pas une chose à faire à trois heures du matin.
+
+**Pour relancer un import** : le Worker local doit tourner (`npx wrangler dev
+--port 8788`) et `teeshoop_settings.worker_url` doit pointer dessus, sinon
+l'import refuse chaque référence, ce qui est le bon comportement et non une
+panne.
+
+**TROIS PILOTES, DEUX MAUVAIS SIGNAUX.** Le premier a brûlé cinq tranches en
+treize secondes quand le Worker était à terre, faisant marquer 2 043 références
+« en échec » pour cette seule raison. Le second s'est arrêté après UNE tranche
+en annonçant « TERMINE », sur deux lectures fausses de `catalogue etat` :
+
+    Liste complète   : oui        <- les 2 303 ont été ÉNUMÉRÉES, pas traitées
+    Terminé          : en cours   <- un grep « Terminé  » matche cette ligne
+
+Le seul signal fiable est **`Avancement : X/Y` avec X égal à Y**.
 
 ### La préproduction a le code mais pas le catalogue
 

@@ -34,6 +34,43 @@ apparaît sans toucher au code.
 dans l'import, ce qui suppose que le classifieur du Worker sache les produire et
 que Falk & Ross les référence. C'est un projet, pas un réglage.
 
+### CORRECTION, 4 septembre 2026 à 3 h : le premier argument était faux
+
+L'import `--famille=all` s'est terminé à 3 h 00 (2 303 références sur 2 303,
+**zéro en échec**). Il place **1 744 produits dans « Autres textiles »**, et
+compté par mot-clé sur le titre, en voici la composition :
+
+| Ce que ça contient | Combien |
+|---|---|
+| casquettes (`cap`, `trucker`) | **256** |
+| bonnets (`beanie`) | **111** |
+| vestes (`jacket`, `softshell`, `bodywarmer`, `gilet`) | **328** |
+| sacs (`bag`, `tote`, `holdall`, `backpack`) | **428** |
+| tabliers (`apron`, `tabard`) | **46** |
+| maison (`towel`, `robe`, `blanket`) | **34** |
+| chaussures (`trainer`, `shoe`, `boot`), hors sujet | 18 |
+| le reste | ~541 |
+
+**Six des huit rayons que j'ai déclarés « vides des deux côtés » ont donc
+1 203 produits photographiés dans le catalogue, dès maintenant.** Ils ne sont pas
+absents : ils sont mal classés, parce que `Catalogue::CATEGORIES` ne connaît que
+tee, polo, sweat, chemise et « autres », et que tout ce qui n'entre pas dans les
+quatre premiers tombe dans le cinquième.
+
+La décision de ne pas afficher un rayon vide reste juste. **Le fait sur lequel
+je l'ai appuyée ne l'est pas**, et la conclusion change avec lui : il ne s'agit
+plus d'ouvrir des rayons que le fournisseur ne remplit pas, mais de **classer ce
+qui est déjà là**.
+
+**Ce que je n'ai pas fait, et pourquoi.** Classer 1 744 titres par mots-clés est
+une heuristique : « Bodywarmer » est-il une veste, « Tabard » un tablier, un
+« Storage Trug » un sac ? Ces réponses appartiennent à quelqu'un qui vend ces
+articles, et la famille est produite par le classifieur du Worker, qui est
+enregistré comme H-Q09-FAMILLES. Écrire la règle à trois heures du matin, sans
+relecture et sans test, sur le tuyau qui alimente les marges, aurait été le
+contraire de ce que ce fichier défend. C'est le premier travail de la nuit 2, et
+il est chiffré ci-dessus.
+
 ## 2. Un vêtement qu'on ne peut pas regarder n'est pas une offre
 
 Deux règles, du même principe, à deux endroits.
