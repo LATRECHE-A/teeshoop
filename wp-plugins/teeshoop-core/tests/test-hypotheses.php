@@ -74,8 +74,13 @@ describe( 'Hypotheses: the shop\'s copy of the register', function (): void {
 		 * `$allowed` and not in `$needed` because they are null on every row the
 		 * associate has not settled, and `isset()` reads a null as absent: a row
 		 * with no answer is the normal case, not a defect.
+		 *
+		 * `decided_by`, `decided_on` and `decided_why` joined on 4 September
+		 * 2026, for the same reason and the opposite fact: a decision taken in
+		 * his absence. `Hypotheses::render` prints them under a DIFFERENT
+		 * sentence, and the register refuses a row that carries both sets.
 		 */
-		$allowed = array( 'id', 'question', 'level', 'status', 'since', 'answered', 'answer_fr', 'statement_fr', 'home', 'reaches', 'cost_if_late', 'sessions' );
+		$allowed = array( 'id', 'question', 'level', 'status', 'since', 'answered', 'answer_fr', 'decided_by', 'decided_on', 'decided_why', 'statement_fr', 'home', 'reaches', 'cost_if_late', 'sessions' );
 		$needed  = array( 'id', 'question', 'level', 'status', 'statement_fr', 'home', 'reaches', 'cost_if_late' );
 		foreach ( Hypotheses::rows() as $row ) {
 			foreach ( array_keys( $row ) as $key ) {

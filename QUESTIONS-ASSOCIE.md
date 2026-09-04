@@ -3479,6 +3479,71 @@ localement (« Theme Settings > Typography > Load fonts locally » selon les ver
 
 ---
 
+### Q64. Le tarif publié vendait sous son coût, nous l'avons remonté au minimum : voulez-vous aller plus haut ? (*Bloquant*)
+
+**Ce que nous avons mesuré, la nuit du 4 septembre 2026.** La grille publique
+annonçait 14,50 EUR le t-shirt imprimé et 32,00 EUR le sweat. Ces deux chiffres
+étaient des valeurs de démonstration, jamais dérivées de quoi que ce soit : le
+registre le disait déjà.
+
+Nous avons fait tourner le moteur de coût sur neuf références réelles de votre
+catalogue, à la surface d'impression que la page promet, au coloris le plus cher
+de chaque référence, et pour une, deux et trois faces. Résultat :
+
+> **102 des 219 colonnes publiées se vendaient sous leur prix plancher**, de
+> 1,71 EUR à 299,01 EUR par commande. Toutes les colonnes t-shirt, sans
+> exception.
+
+**Ce que nous avons fait, et sur quelle autorité.** Nous avons remonté le tarif
+au plus petit niveau auquel aucune colonne ne passe sous son plancher : 21,00 EUR
+le t-shirt à cinq pièces (13,65 EUR à cinquante), 39,00 EUR le sweat. Refuser de
+vendre sous le coût est une décision d'ingénierie et nous l'avons prise seuls.
+Un contrôle automatique (`npm run verify:grille`) refuse désormais toute
+configuration qui repasserait sous le plancher.
+
+**Ce que nous n'avons PAS décidé, parce que c'est à vous.** Il y a trois niveaux
+possibles, tous les trois calculés sur les mêmes mesures :
+
+| | T-shirt, 5 pièces | T-shirt, 50 pièces | Ce que la boutique garde |
+|---|---|---|---|
+| **Ce que nous avons publié** (plancher) | **21,00 EUR** | **13,65 EUR** | 25 % du prix |
+| Zone d'autonomie commerciale | 25,43 EUR | 16,53 EUR | environ 42 % |
+| Marge brute de 50 % | 30,61 EUR | 19,90 EUR | 50 % |
+
+Votre réponse à la question 06, le 1er septembre, dit « un objectif de marge
+brute minimale d'environ 50 % après coûts directs ». Nous n'avons pas publié ce
+niveau-là, parce qu'il sort de la fourchette des prix que nous avons relevés
+chez vos concurrents : mistertee vend le même genre de t-shirt imprimé à
+l'unité entre 15,97 EUR et 23,11 EUR, et son propre moteur de prix, que son site
+publie, calcule 19,26 EUR. Seule la première ligne du tableau est dedans.
+
+Nous avons donc choisi de ne pas vous mettre hors marché sans vous demander.
+L'écart entre ce que nous publions et votre objectif vaut **9,61 EUR par
+t-shirt à cinq pièces**.
+
+**Deux choses à savoir avant de répondre.**
+
+1. Le coût sur lequel ce plancher est bâti est **incomplet**. Deux postes valent
+   zéro faute d'avoir été mesurés : les consommables (question 05) et la
+   provision de défaut (question 27). Le vrai plancher est donc un peu plus haut
+   que celui que nous appliquons.
+2. Le prix du film est une **borne haute** : le service d'imbrication n'a pas
+   répondu, donc chaque transfert est chiffré comme s'il occupait sa propre
+   bande.
+
+*Trois questions :*
+1. Gardons-nous 21,00 EUR, ou montons-nous à l'un des deux autres niveaux ?
+2. La remise par quantité (15 % à dix pièces, 25 % à vingt-cinq, 35 % à
+   cinquante) est notre hypothèse et pas la vôtre. La confirmez-vous ?
+3. Faut-il un tarif différent par famille de textile, ou un seul tarif t-shirt
+   qui doit tenir pour la référence la plus chère de la gamme ? Aujourd'hui
+   c'est la seconde forme, et elle fait payer au client du B&C #E150 le prix du
+   B&C #inspire.
+
+*Votre réponse :*
+
+---
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

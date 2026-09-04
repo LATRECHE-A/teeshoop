@@ -236,6 +236,40 @@ final class Shipping {
 	}
 
 	/**
+	 * Combien de pièces tiennent dans UN colis, au poids unitaire donné.
+	 *
+	 * ── POURQUOI CETTE QUESTION EXISTE ────────────────────────────────────────
+	 *
+	 * La grille publique annonce un prix par quantité et n'a aucune idée de ce
+	 * qu'un colis peut porter : `Pricing` est pur et ne connaît ni transporteur
+	 * ni balance. Mesuré le 4 septembre 2026 sur le Fruit of the Loom Classic
+	 * Hooded, dont la déclinaison la plus lourde pèse 0,7 kg : la colonne
+	 * « 50 pièces » de sa grille publiait 20,80 EUR l'unité pour un colis de
+	 * 35 kg, cinq de plus que la grille Colissimo ne sait affranchir. Le client
+	 * pouvait mettre la ligne au panier et se retrouver sans mode de livraison.
+	 *
+	 * C'est le même défaut que la colonne à cent pièces qui citait un prix
+	 * répondu par un 409 (voir `Pricing::grid()`), par l'autre bout : une
+	 * colonne que la boutique ne sait pas servir n'est pas un prix.
+	 *
+	 * Rend 0 quand le poids unitaire est inconnu ou nul. Zéro veut dire « aucune
+	 * quantité n'est sûre », ce qui est la réponse prudente : « on n'a pas pu
+	 * peser » n'est pas « c'est léger ».
+	 */
+	public static function max_pieces( int $unit_g, array $config ): int {
+		if ( $unit_g <= 0 ) {
+			return 0;
+		}
+		$ceiling = self::max_parcel_g( $config );
+		$per     = $unit_g + (int) $config['packaging_piece_g'];
+		if ( $per <= 0 ) {
+			return 0;
+		}
+		$room = $ceiling - (int) $config['packaging_order_g'];
+		return $room <= 0 ? 0 : (int) floor( $room / $per );
+	}
+
+	/**
 	 * Price one delivery.
 	 *
 	 * @param int  $goods_g   Weight of the garments alone, grams.

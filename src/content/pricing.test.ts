@@ -74,24 +74,50 @@ describe('area tiers', () => {
 })
 
 describe('quote()', () => {
+  /*
+   * THE ARITHMETIC IS ASSERTED, NOT THE TARIFF.
+   *
+   * These three used to hard-code 14,50 and 20,50, so the day the tariff was
+   * re-derived from the cost floor (4 September 2026, see Pricing.php) they
+   * failed for a reason that had nothing to do with what they test: whether an
+   * extra side is ADDED and whether the result is rounded. The tariff has its
+   * own guard, `scripts/hypotheses-guard.mjs`, which compares this table with
+   * the PHP authority by running both. Here the base is read, and the operation
+   * on it is the assertion.
+   */
   it('the areas array decides the side count, overriding `sides`', () => {
+    const { baseUsd, perExtraSideUsd } = PRICING.tee
     // two areas → two sides, whatever `sides` says
-    expect(quote('tee', 1, 1, [50, 50]).unitUsd).toBe(14.5 + 6)
+    expect(quote('tee', 1, 1, [50, 50]).unitUsd).toBe(baseUsd + perExtraSideUsd)
     // zero areas are filtered out → one side, despite sides = 3
-    expect(quote('tee', 3, 1, [50, 0, 0]).unitUsd).toBe(14.5)
+    expect(quote('tee', 3, 1, [50, 0, 0]).unitUsd).toBe(baseUsd)
   })
 
   it('the flat path (no areas) is unchanged', () => {
-    expect(quote('tee', 2, 1).unitUsd).toBe(20.5)
-    expect(quote('hoodie', 1, 1).unitUsd).toBe(32)
-    expect(quote('custom', 1, 1).unitUsd).toBe(12)
+    expect(quote('tee', 2, 1).unitUsd).toBe(PRICING.tee.baseUsd + PRICING.tee.perExtraSideUsd)
+    expect(quote('hoodie', 1, 1).unitUsd).toBe(PRICING.hoodie.baseUsd)
+    expect(quote('custom', 1, 1).unitUsd).toBe(PRICING.custom.baseUsd)
   })
 
   it('rounds to whole cents at BOTH the unit and the total', () => {
-    // 14.5 * 0.85 = 12.325 → 12.33
-    const q = quote('tee', 1, 10)
-    expect(q.unitUsd).toBe(12.33)
-    expect(q.totalUsd).toBe(123.3)
+    /*
+     * A HALF-CENT HAS TO EXIST FOR THE ROUNDING TO BE TESTED. The old case was
+     * 14,50 x 0,85 = 12,325, and the tariff moved to a whole euro, where every
+     * discount lands on an exact cent and the assertion proved nothing. So the
+     * half-cent is constructed here rather than hoped for: a base whose 15 %
+     * discount ends in a half-cent, quoted through the same code path.
+     */
+    const halfCent = { ...PRICING.tee, baseUsd: 14.5 }
+    const original = PRICING.tee
+    ;(PRICING as Record<string, unknown>).tee = halfCent
+    try {
+      // 14,50 x 0,85 = 12,325 → 12,33
+      const q = quote('tee', 1, 10)
+      expect(q.unitUsd).toBe(12.33)
+      expect(q.totalUsd).toBe(123.3)
+    } finally {
+      ;(PRICING as Record<string, unknown>).tee = original
+    }
 
     for (const g of ['tee', 'hoodie', 'custom'] as const)
       for (const qty of [1, 7, 10, 25, 33, 50, 99]) {

@@ -483,7 +483,7 @@ final class Gamme {
 			$offer->set_image_id( $image );
 			$offer->set_gallery_image_ids( array_map( 'intval', $blank->get_gallery_image_ids() ) );
 			$offer->set_virtual( false );
-			$offer->set_weight( (string) $blank->get_weight() );
+			$offer->set_weight( self::heaviest_weight( $blank ) );
 			$offer->set_short_description( self::offer_teaser( $blank, $garment ) );
 			$offer->set_description( self::offer_body( $blank, $garment ) );
 
@@ -558,6 +558,50 @@ final class Gamme {
 		}
 
 		return $rows;
+	}
+
+	/**
+	 * Le poids de l'offre : le plus lourd de la référence, en kilogrammes.
+	 *
+	 * ── POURQUOI PAS CELUI DU PARENT ───────────────────────────────────────────
+	 *
+	 * Il n'y en a pas. WooCommerce porte le poids sur la DÉCLINAISON, et
+	 * l'importateur y écrit celui du fournisseur ; le produit variable parent
+	 * reste vide. Copié tel quel, il donnait une offre sans poids, et
+	 * `Shipping` refusait alors de chiffrer le port : mesuré le 4 septembre
+	 * 2026, « Le poids d'un des articles du panier n'est pas renseigné », donc
+	 * ZÉRO EURO de livraison dans le coût et zéro dans l'encaissé. Le plancher
+	 * était calculé sans le port et la boutique se croyait au-dessus.
+	 *
+	 * ── POURQUOI LE PLUS LOURD ─────────────────────────────────────────────────
+	 *
+	 * Parce que le client choisit sa couleur et sa taille, et que les deux
+	 * pèsent. Mesuré sur le Fruit of the Loom Classic Hooded : 0,45 kg en blanc
+	 * et 0,46 kg en noir, à taille égale. La grille Colissimo est par TRANCHE :
+	 * un colis sous-pesé bascule d'une tranche et le port est facturé sous son
+	 * coût, ce qui sort de la marge. Le plus lourd est la seule valeur dont on
+	 * sait qu'aucune commande ne la dépasse.
+	 */
+	private static function heaviest_weight( \WC_Product $blank ): string {
+		$max = 0.0;
+		foreach ( $blank->get_children() as $child ) {
+			$variation = wc_get_product( (int) $child );
+			if ( ! $variation instanceof \WC_Product ) {
+				continue;
+			}
+			$weight = (string) $variation->get_weight();
+			if ( '' !== $weight && is_numeric( $weight ) ) {
+				$max = max( $max, (float) $weight );
+			}
+		}
+		/*
+		 * Une référence dont aucune déclinaison ne porte de poids rend '', et
+		 * c'est ce qu'il faut : `Shipping` sait dire « je n'ai pas pu regarder »
+		 * et refuse de chiffrer, ce qui remonte comme un coût inconnu. Écrire un
+		 * poids par défaut ferait passer une devinette pour une mesure sur la
+		 * ligne qui décide de la tranche transporteur.
+		 */
+		return $max > 0 ? (string) $max : '';
 	}
 
 	/** The offer for a reference, or null. */

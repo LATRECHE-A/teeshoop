@@ -340,6 +340,13 @@ const ALLOWED = new Map([
     { why: 'remeasures the public price grid question 06 quotes; wp-cli only, guarded on PHP_SAPI, prints to a terminal and renders nothing', needles: ['Costing::'] },
   ],
   [
+    'wp-plugins/teeshoop-core/tests/integration-grille.php',
+    {
+      why: 'the floor gate: it runs BOTH engines on real orders to prove no published column sells under its cost. wp-cli only, guarded on PHP_SAPI, prints to a terminal and renders nothing. Its whole job is to name the floor out loud where an operator can read it.',
+      needles: ['Costing::'],
+    },
+  ],
+  [
     'wp-plugins/teeshoop-core/tests/integration-margin.php',
     { why: 'the WooCommerce test for the costing; runs under wp-cli, renders to nobody', needles: ['Cost::', 'Commission::', 'Costing::', 'Margin::', 'PriceRule::'] },
   ],

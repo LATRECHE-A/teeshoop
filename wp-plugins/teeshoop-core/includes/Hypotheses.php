@@ -617,6 +617,30 @@ final class Hypotheses {
 					)
 					. ' ' . esc_html( (string) ( $row['answer_fr'] ?? '' ) ) . '</span>';
 			}
+			/*
+			 * ET LA DÉCISION PRISE À SA PLACE, qui n'est pas la même chose.
+			 *
+			 * Les séances de nuit de septembre 2026 tranchent seules, par
+			 * consigne. Écrire ces arbitrages dans le champ de l'associé les lui
+			 * attribuerait ET débloquerait le portail de mise en ligne, qui lit
+			 * `answered` comme « il a confirmé ». Ils ont donc leurs propres
+			 * champs, et l'écran les imprime sous une phrase différente : un
+			 * opérateur doit pouvoir distinguer « il a tranché » de « on a
+			 * tranché en son absence et il ne l'a pas encore vu ». Le registre
+			 * refuse une ligne qui porterait les deux.
+			 */
+			$decided = (string) ( $row['decided_on'] ?? '' );
+			if ( '' !== $decided && '' !== (string) ( $row['decided_by'] ?? '' ) ) {
+				echo '<br><span class="description"><strong>'
+					. esc_html(
+						sprintf(
+							/* translators: %s: the date the team decided, YYYY-MM-DD. */
+							__( 'Tranché en interne le %s, en son absence.', 'teeshoop' ),
+							$decided
+						)
+					)
+					. '</strong> ' . esc_html( (string) ( $row['decided_why'] ?? '' ) ) . '</span>';
+			}
 			if ( self::overridden_row( $row ) ) {
 				echo ' <strong>' . esc_html__( 'remplacée par un réglage enregistré', 'teeshoop' ) . '</strong>';
 			}

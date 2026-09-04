@@ -32,7 +32,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-12",
-			"statement_fr": "Un t-shirt imprimé sur une face vaut 14,50 EUR HT à l'unité : 9,50 EUR de textile nu et 5,00 EUR de marquage.",
+			"statement_fr": "Un t-shirt imprimé sur une face vaut 21,00 EUR HT à l'unité : 11,00 EUR de textile nu et 10,00 EUR de marquage.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.base_ht+garments.tee.first_side_ht",
 			"mirrors": [
 				{
@@ -42,19 +42,20 @@
 				}
 			],
 			"literals": [
-				"950"
+				"1100"
 			],
 			"literal_allow": [
-				"scripts/stage-shots.mjs",
-				"wp-plugins/teeshoop-core/includes/Cost.php",
-				"wp-plugins/teeshoop-core/includes/Commission.php",
-				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
-				"wp-plugins/teeshoop-core/includes/Costing.php",
+				"scripts/3d-shots.mjs",
+				"scripts/ar-shots.mjs",
+				"scripts/board-verify.mjs",
+				"scripts/render-verify.mjs",
+				"src/app/Scene3D.tsx",
+				"src/dev/threeHarness.tsx",
+				"src/lib/arExport.ts",
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
-				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php"
+				"scripts/stage-shots.mjs"
 			],
-			"literal_allow_why": "950 y est une hauteur de fenêtre de navigateur, pas de l'argent. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
+			"literal_allow_why": "1100 y est un nombre de pixels ou une distance de caméra, pas de l'argent : hauteurs de rendu des harnais 3D et d'export AR, tailles de texture, positions de lumière. Le littéral précédent, 950, avait la même sorte de collisions et sa propre liste ; ce n'est pas une seconde copie du tarif, c'est une collision de chiffres. Chaque valeur qui EST de l'argent a sa propre ligne dans ce registre. C'est aussi une hauteur de fenêtre de navigateur dans stage-shots.mjs et un montant ordinaire chiffré par le test du moteur de coût, qui écrit de vraies commandes.",
 			"reaches": [
 				"customer",
 				"operator"
@@ -71,19 +72,22 @@
 				{
 					"from": "garments.tee.base_ht+garments.tee.first_side_ht",
 					"as": "eur",
-					"text": "14,50 EUR"
+					"text": "21,00 EUR"
 				},
 				{
 					"from": "garments.tee.base_ht",
 					"as": "eur",
-					"text": "9,50 EUR"
+					"text": "11,00 EUR"
 				},
 				{
 					"from": "garments.tee.first_side_ht",
 					"as": "eur",
-					"text": "5,00 EUR"
+					"text": "10,00 EUR"
 				}
-			]
+			],
+			"decided_by": "equipe",
+			"decided_on": "2026-09-04",
+			"decided_why": "le tarif publié vendait sous son propre plancher de coût sur 102 des 219 colonnes publiées, mesuré par tests/integration-grille.php ; il est maintenant dérivé du plancher que le moteur calcule, arrondi à l'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md"
 		},
 		{
 			"id": "H-Q06-TARIF-SWEAT",
@@ -91,7 +95,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-12",
-			"statement_fr": "Un sweat imprimé sur une face vaut 32,00 EUR HT à l'unité : 27,00 EUR de textile nu et 5,00 EUR de marquage.",
+			"statement_fr": "Un sweat imprimé sur une face vaut 39,00 EUR HT à l'unité : 29,00 EUR de textile nu et 10,00 EUR de marquage.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.hoodie.base_ht+garments.hoodie.first_side_ht",
 			"mirrors": [
 				{
@@ -101,7 +105,7 @@
 				}
 			],
 			"literals": [
-				"2700"
+				"2900"
 			],
 			"reaches": [
 				"customer",
@@ -119,17 +123,17 @@
 				{
 					"from": "garments.hoodie.base_ht+garments.hoodie.first_side_ht",
 					"as": "eur",
-					"text": "32,00 EUR"
+					"text": "39,00 EUR"
 				},
 				{
 					"from": "garments.hoodie.base_ht",
 					"as": "eur",
-					"text": "27,00 EUR"
+					"text": "29,00 EUR"
 				},
 				{
 					"from": "garments.hoodie.first_side_ht",
 					"as": "eur",
-					"text": "5,00 EUR"
+					"text": "10,00 EUR"
 				}
 			],
 			"literal_allow": [
@@ -141,7 +145,10 @@
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
 				"wp-plugins/teeshoop-core/tests/integration-margin.php"
 			],
-			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle."
+			"literal_allow_why": "Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle.",
+			"decided_by": "equipe",
+			"decided_on": "2026-09-04",
+			"decided_why": "le tarif publié vendait sous son propre plancher de coût sur 102 des 219 colonnes publiées, mesuré par tests/integration-grille.php ; il est maintenant dérivé du plancher que le moteur calcule, arrondi à l'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md"
 		},
 		{
 			"id": "H-Q06-TARIF-VETEMENT-CLIENT",
@@ -205,7 +212,7 @@
 			"level": "bloquant",
 			"status": "assumption",
 			"since": "2026-08-12",
-			"statement_fr": "Chaque face imprimée après la première coûte 6,00 EUR HT, quel que soit le vêtement.",
+			"statement_fr": "Chaque face imprimée après la première coûte 7,00 EUR HT, quel que soit le vêtement.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.extra_side_ht",
 			"mirrors": [
 				{
@@ -235,7 +242,7 @@
 				}
 			],
 			"literals": [
-				"600"
+				"700"
 			],
 			"reaches": [
 				"customer",
@@ -255,29 +262,21 @@
 				"src/lib/teeshoop/"
 			],
 			"literal_allow": [
-				"wp-plugins/teeshoop-core/includes/Importer.php",
-				"wp-plugins/teeshoop-core/tests/test-pricing.php",
-				"src/lib/teeshoop/bridge.test.ts",
-				"wp-plugins/teeshoop-core/includes/Cost.php",
-				"wp-plugins/teeshoop-core/includes/Commission.php",
-				"wp-plugins/teeshoop-core/includes/CostAdmin.php",
-				"wp-plugins/teeshoop-core/includes/Costing.php",
-				"wp-plugins/teeshoop-core/tests/test-cost.php",
-				"wp-plugins/teeshoop-core/tests/test-commission.php",
-				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"wp-plugins/teeshoop-core/includes/BatPage.php",
-				"wp-plugins/teeshoop-core/includes/Notify.php",
-				"wp-plugins/teeshoop-core/includes/Lifecycle.php"
+				"wp-plugins/teeshoop-core/includes/Payment.php",
+				"wp-plugins/teeshoop-core/tests/test-pricing.php"
 			],
-			"literal_allow_why": "Dans l'importeur, 600 est un nombre de secondes dans un exemple de ligne de commande ; les deux autres sont des tests. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. La séance 06 ajoute trois fichiers de mise en forme : 600 y est une graisse de caractère CSS et la largeur en pixels d'un e-mail transactionnel, jamais un prix.",
+			"literal_allow_why": "700 y est le début de « 700 000 », un nombre de boutiques cité dans le commentaire d'en-tête de Payment.php à propos du journal des versions de WooCommerce. Ce n'est pas de l'argent, c'est une collision de chiffres. Dans test-pricing.php c'est une SURFACE en cm², passée à `ts_side()` pour tomber dans le palier intermédiaire : le même chiffre, une autre unité, un autre sujet.",
 			"literal_scope_why": "600 apparaît dans dix-sept fichiers du dépôt comme dimension, comme délai et comme taille de police, et trente-quatre fois en tout. Il est cherché là où un second prix par face pourrait s'écrire. La valeur est écrite SIX fois au total, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées ci-dessus comme miroirs et comparées, faute de pouvoir les supprimer sans redessiner le moteur de prix, ce que la séance 03b n'a pas le droit de faire.",
 			"statement_amounts": [
 				{
 					"from": "garments.tee.extra_side_ht",
 					"as": "eur",
-					"text": "6,00 EUR"
+					"text": "7,00 EUR"
 				}
-			]
+			],
+			"decided_by": "equipe",
+			"decided_on": "2026-09-04",
+			"decided_why": "le tarif publié vendait sous son propre plancher de coût sur 102 des 219 colonnes publiées, mesuré par tests/integration-grille.php ; il est maintenant dérivé du plancher que le moteur calcule, arrondi à l'euro supérieur. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md"
 		},
 		{
 			"id": "H-Q08-PALIERS-SURFACE",

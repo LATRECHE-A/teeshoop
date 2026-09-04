@@ -57,24 +57,84 @@ final class Pricing {
 			 * side. The studio's model folded the first side's marking into the
 			 * base, which made a BLANK garment cost exactly as much as a printed
 			 * one, fine for a demo, wrong for a shop that also resells blanks.
+			 *
+			 * ── 4 SEPTEMBRE 2026 : CES CHIFFRES SONT DÉRIVÉS, PLUS RECOPIÉS ────
+			 *
+			 * Ils valaient 14,50 EUR le t-shirt et 32,00 EUR le sweat, et le
+			 * registre disait d'où ils venaient : « la figure de démonstration du
+			 * studio convertie du dollar à l'euro pour que la plomberie se teste
+			 * de bout en bout » (H-Q06-TARIF-TEE). Mesuré par
+			 * `tests/integration-grille.php` contre les neuf références de la
+			 * gamme, à la surface que la grille promet (625 cm², la borne du
+			 * palier standard) et au coloris le plus cher de chaque référence :
+			 * **102 des 219 colonnes publiées se vendaient sous leur plancher**,
+			 * de 1,71 EUR à 299,01 EUR. Le brief de la nuit 2 citait 1,81 EUR à
+			 * cinquante pièces ; c'était mesuré sur 288 cm² et sur un prix
+			 * d'achat générique, et la réalité était bien pire.
+			 *
+			 * LA RÈGLE, écrite pour qu'on puisse la refaire : le tarif est le
+			 * plus petit auquel CHAQUE colonne publiée de `Pricing::grid()`
+			 * atteint le plancher que `Costing` calcule pour elle, arrondi à
+			 * l'euro supérieur. L'arrondi ne fabrique rien : il ne fait que
+			 * s'éloigner du plancher, et il évite un garde qui vire au rouge sur
+			 * dix-neuf centimes. Solution exacte : 20,01 EUR le t-shirt et
+			 * 38,18 EUR le sweat ; publiée : 21,00 et 39,00, ce qui laisse au
+			 * pire 14,37 EUR et 9,15 EUR de marge au-dessus du plancher.
+			 *
+			 * POURQUOI LE PLANCHER ET PAS LE PRIX CONSEILLÉ. Les trois cibles
+			 * dérivables ont été calculées : plancher (contribution 25 %),
+			 * zone d'autonomie (conseillé moins 15 %) et prix conseillé (marge
+			 * 50 %). Elles donnent 21,00, 25,43 et 30,61 EUR le t-shirt à cinq
+			 * pièces. Les prix concurrents MESURÉS pour un t-shirt imprimé à
+			 * l'unité (docs/CONCURRENTS.md) sont 15,97 EUR et 23,11 EUR chez
+			 * mistertee, dont le moteur publié donne 19,26 EUR. Seule la
+			 * première des trois tombe dans cette fourchette. Choisir une des
+			 * deux autres serait un arbitrage de positionnement commercial, qui
+			 * appartient à l'associé ; refuser de vendre sous le coût est un
+			 * arbitrage d'ingénierie, qui est le nôtre.
+			 *
+			 * CE QUE ÇA LAISSE OUVERT, et c'est une question pour lui : au
+			 * plancher la boutique garde 25 % du prix, pas les 50 % de marge
+			 * brute minimale qu'il a nommés le 1er septembre. L'écart vaut
+			 * 9,61 EUR par t-shirt à cinq pièces. Question 06 bis dans
+			 * QUESTIONS-ASSOCIE.md.
+			 *
+			 * LE MARQUAGE A UN SEUL PRIX, parce que c'est le même travail sur les
+			 * deux vêtements : 10,00 EUR la première face (mistertee publie
+			 * 10,50 EUR pour le même geste, et le film seul coûte 6,15 EUR la
+			 * face sur la plus petite série qu'on vend) et 7,00 EUR chaque face
+			 * suivante, qui est ce que le garde exige et qui est le film plus la
+			 * pose sans la mise en route. Le reste est la contribution du textile
+			 * nu, et elle diffère parce que les vêtements diffèrent.
 			 */
 			'garments'   => array(
 				'tee'    => array(
-					'base_ht'       => 950,
-					'first_side_ht' => 500,
-					'extra_side_ht' => 600,
+					'base_ht'       => 1100,
+					'first_side_ht' => 1000,
+					'extra_side_ht' => 700,
 				),
 				'hoodie' => array(
-					'base_ht'       => 2700,
-					'first_side_ht' => 500,
-					'extra_side_ht' => 600,
+					'base_ht'       => 2900,
+					'first_side_ht' => 1000,
+					'extra_side_ht' => 700,
 				),
-				// The customer ships their own garment: decoration only, and the
-				// blank costs us nothing.
+				/*
+				 * The customer ships their own garment: decoration only, and the
+				 * blank costs us nothing.
+				 *
+				 * NOT DERIVED, and that is said out loud. There is no product in
+				 * the launch range a customer can send their own garment to, so
+				 * `tests/integration-grille.php` has nothing to build an order
+				 * from and cannot measure this one. `first_side_ht` therefore
+				 * stays the assumption it was (H-Q06-TARIF-VETEMENT-CLIENT).
+				 * Only `extra_side_ht` moves, to the one price the marking has:
+				 * a second face is the same film and the same pose whoever
+				 * bought the garment.
+				 */
 				'custom' => array(
 					'base_ht'       => 0,
 					'first_side_ht' => 1200,
-					'extra_side_ht' => 600,
+					'extra_side_ht' => 700,
 				),
 			),
 
@@ -584,7 +644,7 @@ final class Pricing {
 	 * Returns array() when the grid is empty rather than a zero, because a
 	 * headline of 0,00 EUR is a price and 'no headline' is not.
 	 */
-	public static function headline( string $garment, array $config ): array {
+	public static function headline( string $garment, array $config, int $self_serve_max = 0 ): array {
 		$rows = self::grid( $garment, self::grid_qtys( $config ), array( 1 ), $config );
 		if ( empty( $rows ) || empty( $rows[0]['cells'] ) ) {
 			return array();
@@ -616,6 +676,23 @@ final class Pricing {
 			 * of deriving the anchor rather than choosing it.
 			 */
 			if ( ! empty( $cell['needs_quote'] ) ) {
+				continue;
+			}
+			/*
+			 * NI UNE QUANTITÉ QUE LA BOUTIQUE NE SAIT PAS EXPÉDIER.
+			 *
+			 * Ce module est pur et ne connaît ni transporteur ni balance, donc
+			 * la borne lui est DONNÉE. `ProductPage` la calcule avec
+			 * `Shipping::max_pieces()` à partir du poids du produit. Sans elle,
+			 * mesuré le 4 septembre 2026, la fiche d'un sweat annonçait
+			 * « 20,80 EUR l'unité dès 50 pièces » pour un colis de 35 kg que la
+			 * grille Colissimo ne sait pas affranchir : une promesse en tête de
+			 * page pour une commande qui n'a pas de mode de livraison.
+			 *
+			 * Zéro veut dire « aucune borne de ce genre », la même convention
+			 * que les seuils de `default_config()`.
+			 */
+			if ( $self_serve_max > 0 && (int) $cell['qty'] > $self_serve_max ) {
 				continue;
 			}
 			if ( null === $best || $cell['unit_ht'] < $best['unit_ht'] ) {

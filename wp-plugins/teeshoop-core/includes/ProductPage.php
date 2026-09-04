@@ -103,7 +103,7 @@ final class ProductPage {
 			return $markup;
 		}
 
-		$headline = self::headline( $garment );
+		$headline = self::headline( $garment, self::self_serve_max( $product ) );
 		if ( empty( $headline['best'] ) || empty( $headline['unit'] ) ) {
 			// No self-serve price to publish. Saying nothing beats publishing the
 			// blank's cost basis as though it were an offer.
@@ -344,15 +344,30 @@ final class ProductPage {
 	// Price display
 	// -----------------------------------------------------------------------
 
-	/** The two anchors, cached per garment for the length of the request. */
-	public static function headline( string $garment ): array {
-		if ( ! isset( self::$headlines[ $garment ] ) ) {
+	/**
+	 * Les deux ancres, en cache par (vêtement, borne d'expédition) pour la durée
+	 * de la requête.
+	 *
+	 * LA BORNE FAIT PARTIE DE LA CLÉ. Le cache était par vêtement seul, et une
+	 * archive de vingt-quatre fiches où deux sweats n'ont pas le même poids
+	 * aurait servi à la deuxième l'ancre calculée pour la première. Une
+	 * accroche de prix lue sur un autre produit est exactement le défaut que
+	 * `Pricing::headline` existe pour empêcher.
+	 */
+	public static function headline( string $garment, int $self_serve_max = 0 ): array {
+		$key = $garment . '|' . $self_serve_max;
+		if ( ! isset( self::$headlines[ $key ] ) ) {
 			$config = Settings::pricing();
-			self::$headlines[ $garment ] = isset( $config['garments'][ $garment ] )
-				? Pricing::headline( $garment, $config )
+			self::$headlines[ $key ] = isset( $config['garments'][ $garment ] )
+				? Pricing::headline( $garment, $config, $self_serve_max )
 				: array();
 		}
-		return self::$headlines[ $garment ];
+		return self::$headlines[ $key ];
+	}
+
+	/** How many pieces of THIS product one parcel carries, 0 when unknown. */
+	public static function self_serve_max( ?\WC_Product $product ): int {
+		return Shipping::max_pieces( self::unit_grams( $product ), Shipping::config() );
 	}
 
 	/**
@@ -373,7 +388,7 @@ final class ProductPage {
 			return $html;
 		}
 
-		$headline = self::headline( $garment );
+		$headline = self::headline( $garment, self::self_serve_max( $product ) );
 		if ( empty( $headline['best'] ) ) {
 			return $html;
 		}
@@ -513,7 +528,7 @@ final class ProductPage {
 				'config'      => $config,
 				'request'     => $request,
 				'quote'       => $quote,
-				'headline'    => self::headline( $garment ),
+				'headline'    => self::headline( $garment, self::self_serve_max( wc_get_product( $product_id ) ) ),
 				'sizes'       => self::size_ids( $garment ),
 				'max_faces'   => Garments::printable_sides_count( $garment ),
 				'studio_url'  => self::studio_url( $product_id, $request, $garment ),
@@ -551,11 +566,89 @@ final class ProductPage {
 		);
 	}
 
+	/**
+	 * Le poids d'une pièce en grammes, ou 0 quand il est inconnu.
+	 *
+	 * ZÉRO EST « ON N'A PAS PU PESER », jamais « ça ne pèse rien ».
+	 * `WC_Product::get_weight()` rend '' pour un produit dont personne n'a saisi
+	 * le poids, et le lire comme 0 g mettrait chaque colis dans la tranche la
+	 * plus légère, donc la moins chère, de la grille Colissimo. C'est la même
+	 * distinction que `Shipping::NO_WEIGHT` fait au moment d'affranchir.
+	 */
+	private static function unit_grams( ?\WC_Product $product ): int {
+		if ( ! $product instanceof \WC_Product ) {
+			return 0;
+		}
+		$weight = $product->get_weight();
+		if ( '' === $weight || null === $weight || ! is_numeric( $weight ) || (float) $weight <= 0 ) {
+			return 0;
+		}
+		return (int) round( (float) wc_get_weight( (float) $weight, 'g' ) );
+	}
+
+	/**
+	 * La grille du prix authority, MOINS les colonnes que la boutique ne sait
+	 * pas servir.
+	 *
+	 * `Pricing::grid()` marque déjà « sur devis » les cellules au-delà du seuil
+	 * d'autonomie, parce qu'elle connaît la quantité et le montant. Elle ne
+	 * connaît pas le POIDS : elle est pure par construction et n'a ni
+	 * transporteur ni balance. Mesuré le 4 septembre 2026, un sweat dont la
+	 * déclinaison la plus lourde pèse 0,7 kg publiait un prix à cinquante pièces
+	 * pour un colis de 35 kg, cinq de plus que la grille Colissimo ne sait
+	 * affranchir : le client mettait la ligne au panier et arrivait à une caisse
+	 * sans mode de livraison.
+	 *
+	 * La règle combinée vit ICI et nulle part ailleurs, et
+	 * `tests/integration-grille.php` l'appelle plutôt que d'en tenir une
+	 * deuxième copie : un garde qui décide autrement que la page qu'il garde ne
+	 * garde rien.
+	 *
+	 * @param int $unit_g Le poids d'une pièce en grammes, 0 quand il est inconnu.
+	 * @return array<int,array<string,mixed>>
+	 */
+	public static function grid_rows( string $garment, array $config, int $unit_g ): array {
+		$rows = Pricing::grid(
+			$garment,
+			Pricing::grid_qtys( $config ),
+			range( 1, Garments::printable_sides_count( $garment ) ),
+			$config
+		);
+
+		$max = Shipping::max_pieces( $unit_g, Shipping::config() );
+		if ( $max <= 0 ) {
+			/*
+			 * Un produit sans poids ne se sert pas du tout : `Shipping::quote`
+			 * répond `no_weight` et la caisse n'a pas de tarif. Toutes les
+			 * colonnes passent sur devis plutôt qu'une seule, parce que la
+			 * quantité n'y est pour rien.
+			 */
+			foreach ( $rows as $r => $row ) {
+				foreach ( $row['cells'] as $c => $cell ) {
+					$rows[ $r ]['cells'][ $c ]['needs_quote'] = true;
+				}
+			}
+			return $rows;
+		}
+
+		foreach ( $rows as $r => $row ) {
+			foreach ( $row['cells'] as $c => $cell ) {
+				if ( (int) $cell['qty'] > $max ) {
+					$rows[ $r ]['cells'][ $c ]['needs_quote'] = true;
+				}
+			}
+		}
+		return $rows;
+	}
+
 	/** Faces by quantity, HT and TTC, straight from the price authority. */
 	public static function price_grid(): void {
-		$garment = Product::garment_of( (int) get_queried_object_id() );
-		$config  = Settings::pricing();
-		$qtys    = Pricing::grid_qtys( $config );
+		$product_id = (int) get_queried_object_id();
+		$garment    = Product::garment_of( $product_id );
+		$config     = Settings::pricing();
+		$qtys       = Pricing::grid_qtys( $config );
+		$product    = wc_get_product( $product_id );
+		$unit_g     = self::unit_grams( $product );
 
 		wc_get_template(
 			'teeshoop/product-price-grid.php',
@@ -563,7 +656,7 @@ final class ProductPage {
 				'garment'  => $garment,
 				'config'   => $config,
 				'qtys'     => $qtys,
-				'rows'     => Pricing::grid( $garment, $qtys, range( 1, Garments::printable_sides_count( $garment ) ), $config ),
+				'rows'     => self::grid_rows( $garment, $config, $unit_g ),
 				'std_area' => Pricing::std_area_sq_cm( $config ),
 				'request'  => self::request( $garment, $config ),
 			),

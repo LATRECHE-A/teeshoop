@@ -46,10 +46,24 @@ const AREA_TIERS: AreaTier[] = [
   { maxSqCm: Infinity, addUsd: 9, labelKey: 'price.tier_xl' },
 ]
 
+/**
+ * THE SHOP IS THE AUTHORITY; this table is what the standalone studio shows.
+ *
+ * `Pricing::default_config()` in wp-plugins/teeshoop-core computes every price
+ * a customer can pay, and `scripts/hypotheses-guard.mjs` fails when the two
+ * disagree, by RUNNING both rather than by comparing text (H-Q06-TARIF-TEE and
+ * its siblings). So these are not independent figures: they are this table's
+ * copy of the server's, and they move when it moves.
+ *
+ * 4 September 2026: the tee went from 14,50 to 21,00 and the hoodie from 32,00
+ * to 39,00, because `tests/integration-grille.php` measured 102 of the 219
+ * published columns selling under their cost floor. The derivation is in the
+ * comment above `garments` in Pricing.php.
+ */
 export const PRICING: Record<'tee' | 'hoodie' | 'custom', PricingRule> = {
-  tee: { baseUsd: 14.5, perExtraSideUsd: 6, areaTiers: AREA_TIERS },
-  hoodie: { baseUsd: 32, perExtraSideUsd: 6, areaTiers: AREA_TIERS },
-  custom: { baseUsd: 12, perExtraSideUsd: 6, areaTiers: AREA_TIERS },
+  tee: { baseUsd: 21, perExtraSideUsd: 7, areaTiers: AREA_TIERS },
+  hoodie: { baseUsd: 39, perExtraSideUsd: 7, areaTiers: AREA_TIERS },
+  custom: { baseUsd: 12, perExtraSideUsd: 7, areaTiers: AREA_TIERS },
 }
 
 /** Quantity discounts; the highest reached threshold wins. */
