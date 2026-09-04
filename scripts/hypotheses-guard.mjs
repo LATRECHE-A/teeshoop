@@ -1287,6 +1287,20 @@ if (SELF_TEST) {
       },
     },
     {
+      /*
+       * IL FAUT RETIRER LA DATE, PAS OMETTRE DE LA POSER.
+       *
+       * Ce cas écrivait `decided_by` et `decided_why` sur la première ligne
+       * encore supposée, en comptant sur l'absence de `decided_on`. Le jour où
+       * une VRAIE décision a été inscrite au registre (4 septembre 2026,
+       * H-Q06-TARIF-TEE), cette ligne portait déjà les trois champs : la
+       * mutation en réécrivait deux, la date restait, la règle était satisfaite
+       * et le cas est passé SILENT. La CI l'a vu, pas la machine qui l'a écrit,
+       * parce que `npm run ci` lance le contrôle et pas le --self-test.
+       *
+       * Un cas de self-test qui dépend de l'état du registre ne prouve rien :
+       * il faut CONSTRUIRE l'état cassé, quel que soit le point de départ.
+       */
       name: 'shape',
       why: 'a decision with an author and no date',
       mutate: (d) => {
@@ -1294,6 +1308,7 @@ if (SELF_TEST) {
         const e = d.entries.find((x) => x.id === id)
         e.decided_by = 'equipe'
         e.decided_why = 'une décision prise en séance, sans la date à laquelle elle a été prise'
+        delete e.decided_on
       },
     },
     {
@@ -1302,6 +1317,7 @@ if (SELF_TEST) {
       mutate: (d) => {
         const id = first((e) => e.status === 'assumption', 'still assumed')
         const e = d.entries.find((x) => x.id === id)
+        // Les trois champs sont POSÉS, pas complétés : voir le cas au-dessus.
         e.decided_by = 'associe'
         e.decided_on = '2026-09-04'
         e.decided_why = 'sa signature dans le champ qui sert précisément à dire que ce n est pas lui'
