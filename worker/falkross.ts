@@ -701,6 +701,27 @@ export function classifyShelf(kind: FrKind, categories: string[], groups: string
 
   const seen = groups.map((g) => g.trim().toLowerCase())
   if (seen.some((g) => GROUP_NOT_AN_AISLE.test(g))) return 'autre'
+
+  /*
+   * A BEANIE BEATS ITS OWN PRODUCT GROUP, and this is the one place the fine
+   * signal is the coarse one.
+   *
+   * MEASURED after the first re-classification: 56 styles with « Beanie » in
+   * the name had landed in Casquettes. Style 03134 « Softex Beanie » is the
+   * shape of all of them, sub-category « Beanies & Accessories » and product
+   * group « Hats », so the group table put it under caps before the
+   * sub-category was ever consulted. The supplier keeps a dedicated
+   * sub-category for beanies and groups half of them under the generic
+   * « Hats »; the sub-category is the one that means it.
+   *
+   * SAFE ONLY BECAUSE IT COMES AFTER THE REFUSAL ABOVE. « Beanies &
+   * Accessories » is really « bonnets, bobs, gants, écharpes »: it holds 19
+   * pairs of gloves and 18 scarves, and those have already been sent to the
+   * catch-all by their own product group. Move this test up one line and the
+   * shop starts selling gloves as hats.
+   */
+  if (categories.some((c) => /beanies/i.test(c))) return 'bonnet'
+
   for (const [label, shelf] of SHELF_BY_GROUP) {
     if (seen.includes(label)) return shelf
   }

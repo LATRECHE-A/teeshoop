@@ -27,6 +27,10 @@
  *          the catalogue where two aisle rules both match.
  *   01334  a trucker cap, grouped « Caps ». The control for the case above.
  *   96069  a beanie whose groups are « Winter Hats / Knitted Hats / Hats ».
+ *   03134  a beanie whose only group is the generic « Hats ». It is not here
+ *          because it looked hard: it is here because the first
+ *          re-classification put 56 beanies in Casquettes and this is one of
+ *          them, read back out of the database afterwards.
  *   90828  a tote and 00730 a backpack: two different group labels, one aisle.
  *   46918  a softshell jacket whose only sub-category is « Softshell ».
  *   20033  a hi-vis zipped safety hoody, grouped « Jackets » AND « Sweatshirts ».
@@ -53,6 +57,10 @@ const CASES: ReadonlyArray<{ nr: string; quoi: string; kind: FrKind; shelf: FrSh
   { nr: '00869', quoi: 'Beechfield Snood/Hat Combo, groupes « Hats / Winter Hats »', kind: 'other', shelf: 'bonnet' },
   { nr: '01334', quoi: 'Result Detroit Truckers, groupe « Caps »', kind: 'other', shelf: 'casquette' },
   { nr: '96069', quoi: 'Beechfield Oversized Cuffed Beanie', kind: 'other', shelf: 'bonnet' },
+  // Trouve en base APRES le premier reclassement : 56 bonnets etaient partis en
+  // Casquettes, tous de cette forme, sous-categorie « Beanies & Accessories »
+  // et groupe produit « Hats ».
+  { nr: '03134', quoi: 'Beechfield Softex Beanie, groupe « Hats » et rien d’autre', kind: 'other', shelf: 'bonnet' },
   { nr: '90828', quoi: 'Westford Mill Tote Bag, groupe « Shopping Bags »', kind: 'other', shelf: 'sac' },
   { nr: '00730', quoi: 'Quadra Backpack, groupe « Backpacks »', kind: 'other', shelf: 'sac' },
   { nr: '46918', quoi: 'Stormtech Orbiter Softshell Jacket', kind: 'other', shelf: 'veste' },
@@ -103,7 +111,21 @@ describe('the aisle is a second question, not a second name for the family', () 
     expect(classifyShelf('other', ['Shoes'], ['Shoes'])).toBe('autre')
   })
 
-  /* The group is the fine signal and wins over the sub-category. */
+  /*
+   * The one exception to « the group is the fine signal », and it is measured: the supplier groups half its beanies
+   * under the generic « Hats ». Its dedicated sub-category is what means it.
+   * The gloves and scarves that share that sub-category are refused first, by
+   * their own group, which is what makes this safe.
+   */
+  it('lets the beanie sub-category beat a generic « Hats » group', () => {
+    expect(classifyShelf('other', ['Beanies & Accessories'], ['Hats'])).toBe('bonnet')
+    expect(classifyShelf('other', ['Beanies & Accessories'], ['Gloves'])).toBe('autre')
+    expect(classifyShelf('other', ['Beanies & Accessories'], ['Scarfs'])).toBe('autre')
+    // a real cap is still a cap
+    expect(classifyShelf('other', ['Caps & Hats'], ['Caps'])).toBe('casquette')
+  })
+
+  /* Otherwise the group is the fine signal and wins over the sub-category. */
   it('reads the product group before the sub-category', () => {
     expect(classifyShelf('other', ['Horeca & Care'], ['Aprons'])).toBe('tablier')
     expect(classifyShelf('other', ['Horeca & Care'], ['Towels'])).toBe('maison')
