@@ -20,6 +20,7 @@
     "test:wp": "docker compose -f wp-local/docker-compose.yml run --rm wpcli eval-file wp-content/plugins/teeshoop-core/tests/integration.php",
     "verify:grille": "docker compose -f wp-local/docker-compose.yml run --rm wpcli eval-file wp-content/plugins/teeshoop-core/tests/integration-grille.php",
     "zones:mesurer": "node scripts/zones-mesurer.mjs",
+    "verify:achat": "node scripts/achat-shots.mjs",
     "wp:up": "docker compose -f wp-local/docker-compose.yml up -d",
     "wp:down": "docker compose -f wp-local/docker-compose.yml down",
     "wp:cli": "docker compose -f wp-local/docker-compose.yml run --rm wpcli",

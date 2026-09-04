@@ -2814,3 +2814,869 @@ a.ts-chip:hover {
 		column-gap: var(--ts-space-7);
 	}
 }
+
+/* ------------------------------------------------- le chemin d'achat */
+
+/*
+ * PANIER, CAISSE, COMMANDE REÇUE, MON COMPTE.
+ *
+ * ── POURQUOI CE BLOC N'EXISTAIT PAS, ET POURQUOI C'EST GRAVE ─────────────────
+ *
+ * Mesuré le 4 septembre 2026 : `grep` sur nos deux feuilles de style rendait
+ * ZÉRO sélecteur pour le panier, la caisse, le compte client et la page de
+ * commande reçue. Le thème habillait l'accueil, l'archive boutique, la fiche
+ * produit et les boutons, et s'arrêtait exactement là où le client sort sa
+ * carte. Les quatre écrans où l'argent bouge étaient ceux qui ressemblaient le
+ * moins à une boutique : les gabarits par défaut de WooCommerce, dans la police
+ * du thème et rien d'autre.
+ *
+ * ── LE VOCABULAIRE EST CELUI QUI EXISTE ──────────────────────────────────────
+ *
+ * Rien d'inventé ici. `.ts-cta` (le bouton de la fiche produit), `.ts-table`
+ * (la grille de prix) et `.ts-msg` (les messages) vivent dans
+ * `wp-plugins/teeshoop-core/assets/components.css`, et ce bloc AMÈNE les
+ * éléments de WooCommerce dedans plutôt que d'ouvrir un second jeu de boutons.
+ * Un « Commander » qui ne ressemble pas à « Ajouter au panier » est deux
+ * marques sur un même parcours.
+ *
+ * ── LE TÉLÉPHONE D'ABORD, ET LE TABLEAU DE PANIER EN EST LA RAISON ───────────
+ *
+ * Un tableau de panier à cinq colonnes ne tient pas dans 375 px : WooCommerce le
+ * laisse déborder et le client fait défiler latéralement une page où il doit
+ * lire un prix. Sous 45 rem chaque ligne devient une carte, et les intitulés de
+ * colonne reviennent depuis l'attribut `data-title` que WooCommerce écrit déjà
+ * sur chaque cellule. Aucun gabarit n'est copié.
+ *
+ * ── LES CHIFFRES SONT TABULAIRES PARTOUT OÙ ILS S'ALIGNENT ───────────────────
+ *
+ * Prix, quantités, totaux. `font-variant-numeric: tabular-nums` est déjà la
+ * règle de `.ts-num` dans le plugin ; ici elle est portée aux éléments de
+ * WooCommerce, qui n'ont pas nos classes.
+ */
+
+.woocommerce-cart-form,
+.woocommerce-checkout,
+.woocommerce-order,
+.woocommerce-MyAccount-content,
+.woocommerce-MyAccount-navigation {
+	font-size: var(--ts-text);
+}
+
+/* -- le tableau du panier et celui de la caisse ------------------------- */
+
+.woocommerce table.shop_table {
+	width: 100%;
+	margin: 0 0 var(--ts-space-5);
+	border: 0;
+	border-collapse: collapse;
+	border-radius: 0;
+	font-size: var(--ts-text-sm);
+}
+
+.woocommerce table.shop_table th,
+.woocommerce table.shop_table td {
+	padding: var(--ts-space-3) var(--ts-space-3);
+	border-bottom: 1px solid var(--ts-line);
+	text-align: left;
+	vertical-align: top;
+}
+
+.woocommerce table.shop_table thead th {
+	border-bottom: 2px solid var(--ts-ink);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-nav);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+/*
+ * Les colonnes d'argent et de quantité, à droite et en chiffres tabulaires.
+ * WooCommerce ne pose aucune classe dessus ; ce sont ses noms de colonne.
+ */
+.woocommerce table.shop_table td.product-subtotal,
+.woocommerce table.shop_table td.product-price,
+.woocommerce table.shop_table td.product-total,
+.woocommerce table.shop_table th.product-subtotal,
+.woocommerce table.shop_table th.product-price,
+.woocommerce table.shop_table th.product-total,
+.woocommerce table.shop_table tfoot td,
+.woocommerce .cart_totals td,
+.woocommerce .woocommerce-Price-amount,
+.woocommerce ul.order_details li strong {
+	font-variant-numeric: tabular-nums;
+}
+
+.woocommerce table.shop_table td.product-subtotal,
+.woocommerce table.shop_table td.product-price,
+.woocommerce table.shop_table td.product-total,
+.woocommerce table.shop_table th.product-subtotal,
+.woocommerce table.shop_table th.product-price,
+.woocommerce table.shop_table th.product-total {
+	text-align: right;
+	white-space: nowrap;
+}
+
+.woocommerce table.shop_table td.product-name a {
+	color: var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-nav);
+	text-decoration: none;
+}
+
+.woocommerce table.shop_table td.product-name a:hover,
+.woocommerce table.shop_table td.product-name a:focus-visible {
+	text-decoration: underline;
+}
+
+/*
+ * La personnalisation, sous le nom de l'article.
+ *
+ * `Cart::item_data` y écrit la taille, les faces imprimées et la couleur. C'est
+ * la seule trace que le client a de ce qu'il a dessiné, et par défaut elle sort
+ * en gras collé au titre.
+ */
+.woocommerce table.shop_table td.product-name dl.variation {
+	margin: var(--ts-space-2) 0 0;
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading-loose);
+}
+
+.woocommerce table.shop_table td.product-name dl.variation dt,
+.woocommerce table.shop_table td.product-name dl.variation dd {
+	display: inline;
+	margin: 0;
+	padding: 0;
+	float: none;
+}
+
+.woocommerce table.shop_table td.product-name dl.variation dt {
+	font-weight: var(--ts-weight-strong);
+}
+
+.woocommerce table.shop_table td.product-name dl.variation dd::after {
+	content: '\A';
+	white-space: pre;
+}
+
+.woocommerce table.shop_table td.product-name dl.variation p {
+	display: inline;
+	margin: 0;
+}
+
+.woocommerce table.shop_table td.product-thumbnail img {
+	width: 4rem;
+	height: auto;
+	border: 1px solid var(--ts-line);
+}
+
+/*
+ * Le retrait d'une ligne : une croix, pas un bouton rouge rond.
+ *
+ * Elle garde une cible de 44 px et un anneau de focus, parce qu'elle est la
+ * seule action destructrice de la page et qu'un client au clavier doit voir
+ * où il est avant d'appuyer.
+ */
+.woocommerce a.remove {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.75rem;
+	height: 2.75rem;
+	margin: -0.5rem 0 0 -0.5rem;
+	border-radius: 0;
+	background: none;
+	color: var(--ts-muted-strong);
+	font-size: 1.25rem;
+	line-height: 1;
+	text-decoration: none;
+}
+
+.woocommerce a.remove:hover,
+.woocommerce a.remove:focus {
+	background: var(--ts-bad-wash);
+	color: var(--ts-bad-ink);
+}
+
+.woocommerce a.remove:focus-visible {
+	outline: var(--ts-focus-width) solid var(--ts-ink);
+	outline-offset: calc(var(--ts-focus-offset) * -1);
+}
+
+/* -- la quantité, le coupon, les actions -------------------------------- */
+
+.woocommerce .quantity input.qty {
+	width: 5rem;
+	min-height: 2.75rem;
+	padding: 0.375rem 0.5rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: 3px;
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-family: var(--ts-font);
+	font-size: var(--ts-text);
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+.woocommerce .quantity input.qty:focus-visible,
+.woocommerce form .form-row input:focus-visible,
+.woocommerce form .form-row select:focus-visible,
+.woocommerce form .form-row textarea:focus-visible {
+	outline: var(--ts-focus-width) solid var(--ts-ink);
+	outline-offset: var(--ts-focus-offset);
+}
+
+.woocommerce table.shop_table td.actions {
+	padding-top: var(--ts-space-4);
+	border-bottom: 0;
+}
+
+.woocommerce table.shop_table td.actions .coupon {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2);
+	align-items: center;
+	margin: 0 0 var(--ts-space-4);
+	float: none;
+}
+
+.woocommerce table.shop_table td.actions .coupon label {
+	width: 100%;
+	color: var(--ts-muted);
+	font-size: var(--ts-text-xs);
+}
+
+.woocommerce table.shop_table td.actions .coupon .input-text {
+	flex: 1 1 12rem;
+	min-height: 2.75rem;
+	padding: 0.5rem 0.625rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: 3px;
+	font-size: var(--ts-text);
+}
+
+/* -- les totaux ---------------------------------------------------------- */
+
+.woocommerce .cart-collaterals,
+.woocommerce-page .cart-collaterals {
+	width: auto;
+	float: none;
+}
+
+.woocommerce .cart_totals {
+	width: auto;
+	float: none;
+	padding: var(--ts-space-4);
+	border: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+}
+
+.woocommerce .cart_totals > h2,
+.woocommerce #order_review_heading,
+.woocommerce-order h2,
+.woocommerce-MyAccount-content h2,
+.woocommerce-MyAccount-content h3 {
+	margin: 0 0 var(--ts-space-3);
+	color: var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-size: var(--ts-text-lg);
+	font-weight: var(--ts-weight-display);
+	letter-spacing: -0.01em;
+}
+
+.woocommerce .cart_totals table.shop_table {
+	margin: 0;
+	font-size: var(--ts-text);
+}
+
+.woocommerce .cart_totals table.shop_table th {
+	width: 45%;
+	color: var(--ts-muted-strong);
+	font-family: var(--ts-font);
+	font-weight: var(--ts-weight-body);
+	text-transform: none;
+	letter-spacing: normal;
+	font-size: var(--ts-text);
+}
+
+.woocommerce .cart_totals table.shop_table td {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.woocommerce .cart_totals .order-total th,
+.woocommerce .cart_totals .order-total td {
+	border-bottom: 0;
+	border-top: 2px solid var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-display);
+	font-size: var(--ts-text-lg);
+}
+
+/*
+ * La mention de base d'imposition, sous le total.
+ *
+ * `Settings::price_pair()` décide ce qu'elle dit ; ce bloc décide seulement
+ * qu'elle est lisible et qu'elle ne passe pas pour une ligne de prix.
+ */
+.woocommerce .cart_totals .includes_tax,
+.woocommerce .cart_totals small,
+.woocommerce-checkout-review-order-table .includes_tax {
+	display: block;
+	color: var(--ts-muted-strong);
+	font-family: var(--ts-font);
+	font-size: var(--ts-text-xs);
+	font-weight: var(--ts-weight-body);
+}
+
+.woocommerce .wc-proceed-to-checkout {
+	padding: var(--ts-space-4) 0 0;
+}
+
+/* -- le panier vide ------------------------------------------------------ */
+
+.woocommerce .cart-empty {
+	margin: 0 0 var(--ts-space-3);
+	font-family: var(--ts-font-display);
+	font-size: var(--ts-text-lg);
+	font-weight: var(--ts-weight-display);
+}
+
+.woocommerce .return-to-shop {
+	margin: 0 0 var(--ts-space-6);
+}
+
+/* -- la caisse ----------------------------------------------------------- */
+
+.woocommerce-checkout #customer_details {
+	display: grid;
+	gap: var(--ts-space-5);
+	margin: 0 0 var(--ts-space-6);
+}
+
+.woocommerce-checkout #customer_details .col-1,
+.woocommerce-checkout #customer_details .col-2 {
+	width: auto;
+	float: none;
+}
+
+.woocommerce-checkout h3 {
+	margin: 0 0 var(--ts-space-3);
+	color: var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-size: var(--ts-text-lg);
+	font-weight: var(--ts-weight-display);
+}
+
+.woocommerce form .form-row {
+	display: grid;
+	gap: 0.25rem;
+	margin: 0 0 var(--ts-space-3);
+	padding: 0;
+}
+
+.woocommerce form .form-row label {
+	color: var(--ts-muted-strong);
+	font-size: var(--ts-text-sm);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-nav);
+}
+
+.woocommerce form .form-row .required {
+	color: var(--ts-bad);
+	text-decoration: none;
+}
+
+.woocommerce form .form-row input.input-text,
+.woocommerce form .form-row textarea,
+.woocommerce form .form-row select,
+.woocommerce form .form-row .select2-container .select2-selection--single {
+	width: 100%;
+	min-height: 2.75rem;
+	padding: 0.5rem 0.625rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: 3px;
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-family: var(--ts-font);
+	font-size: var(--ts-text);
+	line-height: 1.4;
+}
+
+/*
+ * L'ERREUR DIT CE QUI NE VA PAS, ET LA BORDURE NE LE DIT PAS TOUTE SEULE.
+ *
+ * WooCommerce marque un champ invalide avec `woocommerce-invalid`. Une bordure
+ * rouge est une information portée par la seule couleur, ce que WCAG 1.4.1
+ * refuse : le champ prend aussi un trait plus épais, et le message de
+ * WooCommerce reste au-dessus du formulaire, où un lecteur d'écran l'annonce.
+ */
+.woocommerce form .form-row.woocommerce-invalid input.input-text,
+.woocommerce form .form-row.woocommerce-invalid select {
+	border-color: var(--ts-bad);
+	border-width: 2px;
+}
+
+.woocommerce form .form-row.woocommerce-validated input.input-text {
+	border-color: var(--ts-good);
+}
+
+.woocommerce-checkout #order_review {
+	width: auto;
+	float: none;
+	padding: var(--ts-space-4);
+	border: 1px solid var(--ts-line);
+	background: var(--ts-surface);
+}
+
+.woocommerce-checkout-review-order-table tfoot th {
+	color: var(--ts-muted-strong);
+	font-family: var(--ts-font);
+	font-weight: var(--ts-weight-body);
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.woocommerce-checkout-review-order-table tfoot td {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.woocommerce-checkout-review-order-table tfoot .order-total th,
+.woocommerce-checkout-review-order-table tfoot .order-total td {
+	border-top: 2px solid var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-display);
+	font-size: var(--ts-text-lg);
+}
+
+.woocommerce-checkout #payment {
+	border-radius: 0;
+	background: transparent;
+}
+
+.woocommerce-checkout #payment ul.payment_methods {
+	margin: 0;
+	padding: var(--ts-space-4) 0 0;
+	border-bottom: 0;
+	list-style: none;
+}
+
+.woocommerce-checkout #payment ul.payment_methods li {
+	margin: 0 0 var(--ts-space-2);
+	padding: var(--ts-space-3);
+	border: 1px solid var(--ts-line);
+	background: var(--ts-paper);
+}
+
+.woocommerce-checkout #payment ul.payment_methods li label {
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-nav);
+}
+
+.woocommerce-checkout #payment div.payment_box {
+	margin: var(--ts-space-2) 0 0;
+	padding: var(--ts-space-3);
+	border-radius: 0;
+	background: var(--ts-surface);
+	color: var(--ts-muted-strong);
+	font-size: var(--ts-text-sm);
+}
+
+.woocommerce-checkout #payment div.payment_box::before {
+	display: none;
+}
+
+.woocommerce-checkout #payment .place-order {
+	padding: var(--ts-space-4) 0 0;
+}
+
+.woocommerce-checkout .woocommerce-terms-and-conditions-wrapper {
+	margin: 0 0 var(--ts-space-3);
+	font-size: var(--ts-text-sm);
+	line-height: var(--ts-leading-loose);
+}
+
+/* -- la commande reçue --------------------------------------------------- */
+
+.woocommerce .woocommerce-thankyou-order-received {
+	margin: 0 0 var(--ts-space-4);
+	padding: var(--ts-space-4);
+	border-left: 3px solid var(--ts-good);
+	background: var(--ts-good-wash);
+	color: var(--ts-good-ink);
+	font-family: var(--ts-font-display);
+	font-size: var(--ts-text-lg);
+	font-weight: var(--ts-weight-display);
+}
+
+.woocommerce ul.order_details {
+	display: grid;
+	gap: var(--ts-space-3);
+	margin: 0 0 var(--ts-space-6);
+	padding: 0;
+	list-style: none;
+}
+
+.woocommerce ul.order_details li {
+	margin: 0;
+	padding: 0 0 var(--ts-space-3);
+	border-bottom: 1px solid var(--ts-line);
+	border-right: 0;
+	color: var(--ts-muted-strong);
+	font-size: var(--ts-text-xs);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	float: none;
+}
+
+.woocommerce ul.order_details li strong {
+	display: block;
+	margin-top: 0.25rem;
+	color: var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-size: var(--ts-text-lg);
+	font-weight: var(--ts-weight-display);
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.woocommerce .woocommerce-customer-details address {
+	padding: var(--ts-space-3);
+	border: 1px solid var(--ts-line);
+	border-radius: 0;
+	font-style: normal;
+	line-height: var(--ts-leading-loose);
+}
+
+/* -- mon compte ---------------------------------------------------------- */
+
+.woocommerce-account .woocommerce-MyAccount-navigation ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-1);
+	margin: 0 0 var(--ts-space-5);
+	padding: 0 0 var(--ts-space-2);
+	border-bottom: 1px solid var(--ts-line);
+	list-style: none;
+}
+
+.woocommerce-account .woocommerce-MyAccount-navigation li a {
+	display: block;
+	padding: 0.625rem var(--ts-space-3);
+	color: var(--ts-muted-strong);
+	font-family: var(--ts-font-display);
+	font-size: var(--ts-text-sm);
+	font-weight: var(--ts-weight-nav);
+	text-decoration: none;
+}
+
+.woocommerce-account .woocommerce-MyAccount-navigation li a:hover,
+.woocommerce-account .woocommerce-MyAccount-navigation li a:focus {
+	background: var(--ts-surface);
+	color: var(--ts-ink);
+}
+
+.woocommerce-account .woocommerce-MyAccount-navigation li a:focus-visible {
+	outline: var(--ts-focus-width) solid var(--ts-ink);
+	outline-offset: var(--ts-focus-offset);
+}
+
+/*
+ * L'onglet courant porte un trait, pas seulement une couleur : le repère ne
+ * peut pas dépendre de la seule teinte (WCAG 1.4.1).
+ */
+.woocommerce-account .woocommerce-MyAccount-navigation li.is-active a {
+	border-bottom: 2px solid var(--ts-accent);
+	color: var(--ts-accent);
+}
+
+.woocommerce-account .woocommerce-MyAccount-content > p:first-child {
+	margin-top: 0;
+}
+
+.woocommerce-account .woocommerce-Address {
+	margin: 0 0 var(--ts-space-5);
+}
+
+.woocommerce-account .woocommerce-Address-title {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2);
+	align-items: baseline;
+	justify-content: space-between;
+}
+
+.woocommerce-account table.woocommerce-orders-table td.woocommerce-orders-table__cell-order-number a {
+	color: var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-nav);
+	font-variant-numeric: tabular-nums;
+}
+
+/* -- 375 px d'abord : le tableau devient une pile de cartes --------------- */
+
+@media (max-width: 44.999rem) {
+	/*
+	 * `data-title` est écrit par WooCommerce sur chaque cellule de panier et de
+	 * commande. Le rendre visible ici est ce qui remplace l'en-tête de colonne,
+	 * et c'est pour ça qu'aucun gabarit n'a besoin d'être copié.
+	 */
+	.woocommerce table.shop_table.cart thead,
+	.woocommerce table.woocommerce-orders-table thead,
+	.woocommerce table.woocommerce-table--order-details thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	.woocommerce table.shop_table.cart tbody tr,
+	.woocommerce table.woocommerce-orders-table tbody tr,
+	.woocommerce table.woocommerce-table--order-details tbody tr {
+		display: grid;
+		grid-template-columns: 4.5rem minmax(0, 1fr);
+		gap: 0 var(--ts-space-3);
+		align-items: start;
+		margin: 0 0 var(--ts-space-4);
+		padding: 0 0 var(--ts-space-3);
+		border-bottom: 1px solid var(--ts-line);
+	}
+
+	.woocommerce table.shop_table.cart tbody td,
+	.woocommerce table.woocommerce-orders-table tbody td,
+	.woocommerce table.woocommerce-table--order-details tbody td {
+		grid-column: 2;
+		padding: 0.125rem 0;
+		border-bottom: 0;
+		text-align: left;
+	}
+
+	.woocommerce table.shop_table.cart tbody td.product-thumbnail {
+		grid-column: 1;
+		grid-row: 1 / span 4;
+	}
+
+	.woocommerce table.shop_table.cart tbody td.product-remove {
+		grid-column: 1;
+		padding: 0;
+	}
+
+	.woocommerce table.shop_table.cart tbody td[data-title]::before,
+	.woocommerce table.woocommerce-orders-table tbody td[data-title]::before,
+	.woocommerce table.woocommerce-table--order-details tbody td[data-title]::before {
+		content: attr(data-title) ' ';
+		color: var(--ts-muted-strong);
+		font-size: var(--ts-text-xs);
+		font-family: var(--ts-font-display);
+		font-weight: var(--ts-weight-nav);
+	}
+
+	.woocommerce table.shop_table.cart tbody td.product-thumbnail::before,
+	.woocommerce table.shop_table.cart tbody td.product-name::before,
+	.woocommerce table.shop_table.cart tbody td.product-remove::before {
+		content: none;
+	}
+
+	.woocommerce table.shop_table.cart tbody td.product-subtotal,
+	.woocommerce table.shop_table.cart tbody td.product-price {
+		text-align: left;
+	}
+
+	.woocommerce table.shop_table td.actions .coupon .button,
+	.woocommerce table.shop_table td.actions > .button {
+		width: 100%;
+	}
+}
+
+@media (min-width: 45rem) {
+	.woocommerce-checkout #customer_details {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--ts-space-6);
+	}
+
+	.woocommerce ul.order_details {
+		grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+	}
+}
+
+@media (min-width: 60rem) {
+	/*
+	 * Les totaux à côté du tableau, pas dessous : sur un écran large, un client
+	 * qui change une quantité doit voir le total bouger sans faire défiler.
+	 */
+	.woocommerce-cart .woocommerce {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 22rem;
+		gap: 0 var(--ts-space-6);
+		align-items: start;
+	}
+
+	/*
+	 * Les avis de WooCommerce vivent DANS le même conteneur que le formulaire
+	 * et les totaux (« Le coupon a bien été appliqué », « Article supprimé »).
+	 * Sans cette ligne ils prendraient une colonne et pousseraient les totaux
+	 * hors de l'écran le jour où le client applique un code.
+	 */
+	.woocommerce-cart .woocommerce > .woocommerce-notices-wrapper,
+	.woocommerce-cart .woocommerce > .cart-empty,
+	.woocommerce-cart .woocommerce > .return-to-shop {
+		grid-column: 1 / -1;
+	}
+
+	.woocommerce-cart .woocommerce > .woocommerce-cart-form {
+		grid-column: 1;
+	}
+
+	.woocommerce-cart .woocommerce > .cart-collaterals {
+		grid-column: 2;
+	}
+
+	.woocommerce-checkout .woocommerce > form.checkout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 24rem;
+		gap: var(--ts-space-6);
+		align-items: start;
+	}
+
+	.woocommerce-checkout .woocommerce > form.checkout > #customer_details {
+		grid-column: 1;
+		margin-bottom: 0;
+	}
+
+	.woocommerce-checkout .woocommerce > form.checkout > #order_review_heading,
+	.woocommerce-checkout .woocommerce > form.checkout > #order_review {
+		grid-column: 2;
+	}
+
+	.woocommerce-checkout .woocommerce > form.checkout > #order_review_heading {
+		align-self: end;
+	}
+
+	.woocommerce-account .woocommerce {
+		display: grid;
+		grid-template-columns: 14rem minmax(0, 1fr);
+		gap: var(--ts-space-6);
+		align-items: start;
+	}
+
+	.woocommerce-account .woocommerce-MyAccount-navigation ul {
+		display: block;
+		border-bottom: 0;
+		border-right: 1px solid var(--ts-line);
+		padding-bottom: 0;
+		padding-right: var(--ts-space-2);
+	}
+
+	.woocommerce-account .woocommerce-MyAccount-navigation li.is-active a {
+		border-bottom: 0;
+		border-left: 2px solid var(--ts-accent);
+	}
+}
+
+/* ------------------------------- le panier et la caisse en blocs */
+
+/*
+ * WOOCOMMERCE A DEUX CAISSES, ET C'EST LA SECONDE QUI EST INSTALLÉE.
+ *
+ * Mesuré le 4 septembre 2026 : les pages `cart` et `checkout` du miroir
+ * contiennent `<!-- wp:woocommerce/cart -->` et `<!-- wp:woocommerce/checkout -->`,
+ * donc les blocs React, pas les raccourcis classiques. « Mon compte » est resté
+ * le raccourci `[woocommerce_my_account]`. Le bloc précédent de cette feuille
+ * habille le chemin classique, que l'extension sert aussi (`Checkout.php` :
+ * « REGISTERED TWICE, because WooCommerce has two checkouts ») et que « Mon
+ * compte » emprunte ; celui-ci habille les blocs.
+ *
+ * ── CE QUE CE BLOC FAIT, ET CE QU'IL SE REFUSE À FAIRE ──────────────────────
+ *
+ * Il ne re-peint pas une bibliothèque de composants React. Les blocs de
+ * WooCommerce arrivent avec leur propre feuille de style, une spécificité
+ * élevée et un balisage qui change d'une version à l'autre : les combattre
+ * classe par classe donnerait une feuille qui casse au prochain
+ * `wp plugin update woocommerce`, en silence, sur les écrans où l'argent bouge.
+ *
+ * Il fait les quatre choses qui manquaient vraiment, et qui sont les quatre que
+ * `CLAUDE.md` section 7 exige nommément :
+ *
+ *   1. les boutons parlent la même langue que `.ts-cta`, pour qu'un même
+ *      parcours n'ait pas deux marques ;
+ *   2. les chiffres qui s'alignent en colonne sont tabulaires ;
+ *   3. le total à payer est dans la police d'affichage, comme sur la fiche ;
+ *   4. l'anneau de focus est celui du reste du site, visible au clavier.
+ *
+ * Tout le reste est laissé à WooCommerce, délibérément.
+ */
+
+.wc-block-components-button:not(.is-link) {
+	border-radius: 3px;
+	background: var(--ts-accent);
+	color: var(--ts-accent-ink);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-nav);
+}
+
+.wc-block-components-button:not(.is-link):hover,
+.wc-block-components-button:not(.is-link):focus {
+	background: var(--ts-accent-dark);
+	color: var(--ts-accent-ink);
+}
+
+.wc-block-components-button:not(.is-link):focus-visible,
+.wc-block-components-text-input input:focus-visible,
+.wc-block-components-quantity-selector input:focus-visible,
+.wc-block-components-checkout-step input:focus-visible,
+.wc-block-components-checkout-step select:focus-visible {
+	outline: var(--ts-focus-width) solid var(--ts-ink);
+	outline-offset: var(--ts-focus-offset);
+}
+
+.wc-block-components-product-price,
+.wc-block-components-totals-item__value,
+.wc-block-components-order-summary-item__total-price,
+.wc-block-formatted-money-amount,
+.wc-block-components-quantity-selector__input {
+	font-variant-numeric: tabular-nums;
+}
+
+.wc-block-components-totals-footer-item .wc-block-components-totals-item__label,
+.wc-block-components-totals-footer-item .wc-block-components-totals-item__value {
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-display);
+	color: var(--ts-ink);
+}
+
+.wc-block-components-checkout-step__title,
+.wc-block-cart__totals-title,
+.wc-block-cart__empty-cart__title {
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-display);
+	color: var(--ts-ink);
+	letter-spacing: -0.01em;
+}
+
+.wc-block-components-product-name {
+	color: var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-nav);
+}
+
+/*
+ * La personnalisation sous le nom de l'article : taille, faces, couleur, ce que
+ * `Cart::item_data` écrit. C'est la seule trace que le client a de ce qu'il a
+ * dessiné, et par défaut elle sort dans la même graisse que le titre.
+ */
+.wc-block-components-product-details {
+	color: var(--ts-muted-strong);
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading-loose);
+}
+
+.wc-block-components-product-details__name {
+	font-weight: var(--ts-weight-strong);
+}

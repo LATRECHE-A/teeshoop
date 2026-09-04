@@ -492,6 +492,13 @@ final class Notify {
 		$line  = '#dce0e5';
 		$wash  = '#f6f7f9';
 		$blue  = '#010050'; // blanc dessus 18,80:1
+		/*
+		 * L'orange de son logo. Il ne porte JAMAIS de texte : 2,42:1 sur papier.
+		 * Il n'est ici qu'un filet de 3 px sous le bandeau navy, où il mesure
+		 * 7,75:1 et où il ne transporte aucune information qu'un lecteur
+		 * daltonien perdrait.
+		 */
+		$orange = '#ff8601';
 
 		$out  = '<!doctype html><html lang="fr"><head><meta charset="utf-8">';
 		$out .= '<meta name="viewport" content="width=device-width, initial-scale=1">';
@@ -501,8 +508,26 @@ final class Notify {
 		$out .= '<tr><td align="center" style="padding:24px 12px;">';
 		$out .= '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid ' . $line . ';">';
 
-		$out .= '<tr><td style="padding:24px 24px 8px 24px;font:600 13px/1.4 Helvetica,Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:' . $soft . ';">Teeshoop</td></tr>';
-		$out .= '<tr><td style="padding:0 24px 8px 24px;font:600 22px/1.3 Helvetica,Arial,sans-serif;color:' . $ink . ';">' . esc_html( (string) $spec['heading'] ) . '</td></tr>';
+		/*
+		 * LE BANDEAU DE MARQUE, AJOUTÉ LE 4 SEPTEMBRE 2026.
+		 *
+		 * Le nom sortait en petites capitales grises, ce qui était le seul
+		 * élément du parcours d'achat à ne pas porter l'identité que l'associé a
+		 * demandé de conserver (réponse 31, appliquée la nuit du 3 septembre :
+		 * navy #010050, orange #FF8601). Un courriel transactionnel est le
+		 * document que le client garde et transfère à sa comptabilité ; c'est le
+		 * dernier endroit où la marque devrait manquer.
+		 *
+		 * L'ORANGE NE PORTE PAS DE TEXTE, ICI NON PLUS. Mesuré la nuit du
+		 * 3 septembre : #FF8601 vaut 2,42:1 sur du papier, inutilisable pour du
+		 * texte ou un trait porteur de sens, et 7,75:1 sur le navy. Il n'est donc
+		 * qu'un filet sous le bandeau, décoratif et jamais informatif ; le nom
+		 * est en blanc sur le navy, à 18,80:1.
+		 */
+		$out .= '<tr><td style="padding:18px 24px;background:' . $blue . ';font:700 17px/1.2 Helvetica,Arial,sans-serif;letter-spacing:.02em;color:#ffffff;">Teeshoop</td></tr>';
+		$out .= '<tr><td style="padding:0;font-size:0;line-height:0;background:' . $orange . ';height:3px;">&nbsp;</td></tr>';
+		$out .= '<tr><td style="height:16px;line-height:16px;font-size:0;">&nbsp;</td></tr>';
+		$out .= '<tr><td style="padding:0 24px 8px 24px;font:700 22px/1.3 Helvetica,Arial,sans-serif;color:' . $ink . ';">' . esc_html( (string) $spec['heading'] ) . '</td></tr>';
 
 		foreach ( (array) $spec['lines'] as $paragraph ) {
 			if ( '' === trim( (string) $paragraph ) ) {
