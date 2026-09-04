@@ -134,6 +134,15 @@ const STATUSES = new Set(['assumption', 'answered', 'refused'])
 const LEVELS = new Set(['bloquant', 'important', 'utile', 'secondaire'])
 const REACHES = new Set(['customer', 'supplier', 'printer', 'operator', 'internal'])
 const COSTS = new Set(['reglage', 'reglage et remesure', 'on refait'])
+/*
+ * WHO DECIDED, when the associate could not be asked.
+ *
+ * A CLOSED SET, and « associe » is deliberately not in it. The whole value of
+ * `decided_by` is that it cannot be mistaken for `answered`; a row reading
+ * `decided_by: "l'associé"` would be the same falsification by another route,
+ * with the added insult of looking like a citation.
+ */
+const DECIDERS = new Set(['equipe'])
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reading the tree
@@ -423,6 +432,44 @@ function validateShape(data) {
     }
     if (e.status === 'answered' && e.answered === undefined) {
       bad.push(`${id}: status answered with no date; a confirmation nobody can point at is a conversation`)
+    }
+
+    /*
+     * A DECISION TAKEN IN HIS PLACE IS NOT AN ANSWER, and the register has to be
+     * able to say so without borrowing his field.
+     *
+     * The night sessions of September 2026 decide alone, by instruction: nobody
+     * is reachable and stopping is not on the table. Those decisions have to be
+     * recorded somewhere, and the only date field that existed was `answered`,
+     * which `launch-gate.mjs` reads as « he confirmed it ». Writing one there
+     * would have turned every decision we took into a decision he took, and
+     * unblocked the launch gate on our own say-so: the one thing that separates
+     * an unconfirmed figure from a customer.
+     *
+     * So: three fields of our own, and the two sets are mutually exclusive by
+     * this check. A row he has since answered drops `decided_by`, because the
+     * answer supersedes the decision and keeping both invites the reader to
+     * wonder which one is in force.
+     */
+    const decided = ['decided_by', 'decided_on', 'decided_why'].filter((k) => e[k] !== undefined)
+    if (decided.length > 0 && decided.length < 3) {
+      const missing = ['decided_by', 'decided_on', 'decided_why'].filter((k) => e[k] === undefined)
+      bad.push(`${id}: carries ${decided.join(', ')} but not ${missing.join(', ')}; a decision with no author, no date or no reason is an edit`)
+    }
+    if (e.decided_by !== undefined && !DECIDERS.has(e.decided_by)) {
+      bad.push(`${id}: decided_by must be one of ${[...DECIDERS].join(', ')}`)
+    }
+    if (e.decided_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(e.decided_on)) {
+      bad.push(`${id}: decided_on must be YYYY-MM-DD`)
+    }
+    if (e.decided_why !== undefined && String(e.decided_why).trim().length < 20) {
+      bad.push(`${id}: decided_why must say why, not just that`)
+    }
+    if (e.answered !== undefined && e.decided_by !== undefined) {
+      bad.push(
+        `${id}: carries both answered and decided_by. The first is the associate and the second is us; ` +
+          'a row that claims both tells the launch gate he confirmed a decision we took.',
+      )
     }
     if (!e.statement_fr) bad.push(`${id}: statement_fr is empty`)
     if (!e.home) bad.push(`${id}: no home`)
@@ -927,6 +974,16 @@ function projectForShop(data) {
        */
       answered: e.answered ?? null,
       answer_fr: e.answer_fr ?? null,
+      /*
+       * And so does a decision taken in his place, since 4 September 2026, for
+       * the same reason the answer crosses: an operator has to tell « nobody has
+       * ever looked at this » from « we chose it on a Thursday night and he has
+       * not seen it yet ». They are separate fields on this side too, so no
+       * screen can print one under the other's heading.
+       */
+      decided_by: e.decided_by ?? null,
+      decided_on: e.decided_on ?? null,
+      decided_why: e.decided_why ?? null,
       statement_fr: e.statement_fr,
       home: e.home,
       reaches: e.reaches,
@@ -1212,6 +1269,42 @@ if (SELF_TEST) {
       mutate: (d) => {
         const id = first((e) => e.status === 'answered', 'the associate has answered')
         delete d.entries.find((e) => e.id === id).answered
+      },
+    },
+    {
+      /*
+       * THE CASE THIS PAIR OF FIELDS EXISTS FOR. Without it the exclusion is a
+       * paragraph, and a paragraph does not refuse a commit.
+       */
+      name: 'shape',
+      why: 'a row claiming the associate answered AND that we decided',
+      mutate: (d) => {
+        const id = first((e) => e.status === 'answered', 'the associate has answered')
+        const e = d.entries.find((x) => x.id === id)
+        e.decided_by = 'equipe'
+        e.decided_on = '2026-09-04'
+        e.decided_why = 'une décision prise en séance, écrite sur une ligne qu il a déjà tranchée'
+      },
+    },
+    {
+      name: 'shape',
+      why: 'a decision with an author and no date',
+      mutate: (d) => {
+        const id = first((e) => e.status === 'assumption', 'still assumed')
+        const e = d.entries.find((x) => x.id === id)
+        e.decided_by = 'equipe'
+        e.decided_why = 'une décision prise en séance, sans la date à laquelle elle a été prise'
+      },
+    },
+    {
+      name: 'shape',
+      why: 'a decision signed by the associate himself',
+      mutate: (d) => {
+        const id = first((e) => e.status === 'assumption', 'still assumed')
+        const e = d.entries.find((x) => x.id === id)
+        e.decided_by = 'associe'
+        e.decided_on = '2026-09-04'
+        e.decided_why = 'sa signature dans le champ qui sert précisément à dire que ce n est pas lui'
       },
     },
   ]

@@ -30,6 +30,9 @@ return array(
 			'since' => '2026-08-12',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Un t-shirt imprimé sur une face vaut 14,50 EUR HT à l\'unité : 9,50 EUR de textile nu et 5,00 EUR de marquage.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.base_ht+garments.tee.first_side_ht',
 			'reaches' => array(
@@ -50,6 +53,9 @@ return array(
 			'since' => '2026-08-12',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Un sweat imprimé sur une face vaut 32,00 EUR HT à l\'unité : 27,00 EUR de textile nu et 5,00 EUR de marquage.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#garments.hoodie.base_ht+garments.hoodie.first_side_ht',
 			'reaches' => array(
@@ -70,6 +76,9 @@ return array(
 			'since' => '2026-08-12',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Quand le client fournit son propre vêtement, la décoration d\'une face vaut 12,00 EUR HT et le textile ne nous coûte rien.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#garments.custom.base_ht+garments.custom.first_side_ht',
 			'reaches' => array(
@@ -90,6 +99,9 @@ return array(
 			'since' => '2026-08-12',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Chaque face imprimée après la première coûte 6,00 EUR HT, quel que soit le vêtement.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.extra_side_ht',
 			'reaches' => array(
@@ -110,6 +122,9 @@ return array(
 			'since' => '2026-08-12',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le supplément de surface par face est de 0,00 EUR jusqu\'à 625 cm², de 4,00 EUR HT jusqu\'à 1 250 cm², puis de 9,00 EUR HT sans borne.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#area_tiers',
 			'reaches' => array(
@@ -129,6 +144,9 @@ return array(
 			'since' => '2026-08-12',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Les remises de quantité sont de 15 % à partir de 10 pièces, 25 % à partir de 25 et 35 % à partir de 50, appliquées au prix unitaire complet, et le palier se calcule sur la quantité d\'une seule ligne de panier et non sur le panier entier.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#qty_breaks',
 			'reaches' => array(
@@ -149,6 +167,9 @@ return array(
 			'since' => '2026-08-12',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La TVA est de 20 % sur tout ce que le site chiffre, sous la forme d\'une constante unique et non d\'une période datée.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#vat_rate',
 			'reaches' => array(
@@ -168,6 +189,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Au-delà de 250 pièces sur une ligne, la commande passe obligatoirement par un devis au lieu d\'être payée en autonomie.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#quote_from_qty',
 			'reaches' => array(
@@ -189,6 +213,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 02 : « Jusqu\'à 2 000 EUR HT de commande, le parcours peut être réalisé en autonomie. Au-delà, passage par un devis. » Confirmé au chiffre près, et le mot « commande » a corrigé une forme : le seuil était appliqué ligne par ligne.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Au-delà de 2 000,00 EUR hors taxes sur la commande entière, la commande passe obligatoirement par un devis.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#quote_from_ht',
 			'reaches' => array(
@@ -210,6 +237,9 @@ return array(
 			'since' => '2026-08-12',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Une ligne de commande est plafonnée à 10 000 pièces, au-delà desquelles la quantité est ramenée au plafond.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#max_qty',
 			'reaches' => array(
@@ -230,6 +260,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 42 : « Non applicable au moteur e-commerce principal pour le lancement. Aucun taux général n\'est appliqué automatiquement. Aucune mise en vente massive de textile nu n\'est nécessaire. » Le refus reste, mais il est maintenant le SIEN : ce n\'est plus une hypothèse bloquante en attente, c\'est un périmètre volontairement non ouvert.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Aucun taux de marge n\'est appliqué à un textile nu revendu, donc aucun prix de vente n\'est écrit sur les 26 392 articles importés.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#blank_margin_rate',
 			'reaches' => array(
@@ -250,6 +283,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 41 : « Le catalogue sert principalement à choisir le support à personnaliser. Le bouton principal d\'une fiche produit doit favoriser Personnaliser. » Ce qui était une attente de la question 42 devient le parcours voulu.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Une référence importée est publiée et visible dès sa création, avec ses coloris, ses tailles et ses caractéristiques, et n\'est pas commandable faute de prix.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Shelf.php#unpriced_notice',
 			'reaches' => array(
@@ -270,6 +306,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Trois familles sont publiées, t-shirts, polos et sweats, sans plafond de nombre de références. La règle est écrite des deux côtés : le Worker filtre ce qu\'il renvoie, l\'extension décide ce qu\'elle dépublie.',
 			'home' => 'phpconst:Teeshoop\\Core\\Catalogue::PRINTABLE_FAMILIES',
 			'reaches' => array(
@@ -289,6 +328,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 43 : « Tant que la signification exacte des trois valeurs n\'a pas été confirmée, seule la première valeur est considérée comme le stock immédiatement disponible. Le système conserve néanmoins les trois valeurs brutes. » Réserve : il l\'énonce pour le fournisseur qu\'il demande de rendre prioritaire en question 09, et les trois nombres que la boutique lit aujourd\'hui viennent de celui qui est branché. Les noms sont dans QUESTIONS-ASSOCIE.md : ils n\'ont pas le droit d\'être rendus ici.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Des trois nombres de stock que le fournisseur donne par article, seul le premier est traité comme du stock vendable.',
 			'home' => 'phpconst:Teeshoop\\Core\\Catalogue::STOCK_INDEX',
 			'reaches' => array(
@@ -309,6 +351,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Les 442 noms de coloris sont publiés tels que le fabricant les écrit, sans traduction.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Catalogue.php#$colour_names[ $code ]  = self::text( $cw[\'name\'] ?? \'\' );',
 			'reaches' => array(
@@ -328,6 +373,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Questions 11 et 48 : ne jamais publier au client le nombre exact de pièces que le fournisseur annonce, et n\'afficher que quatre mentions (disponible, stock limité, rupture, délai à confirmer). Le document du 1er septembre prime sur celui du 19 août et tranche contre le chapitre 4 de la Bible. La citation exacte est sous la question 48 : elle nomme le fournisseur, et cette projection est rendue dans un navigateur.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La quantité exacte annoncée par le fournisseur est écrite sur chaque article, et rien ne décide encore comment la boutique l\'affiche.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Importer.php#manage_stock',
 			'reaches' => array(
@@ -350,6 +398,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Questions 11 et 48 : ne jamais publier au client le nombre exact de pièces que le fournisseur annonce, et n\'afficher que quatre mentions (disponible, stock limité, rupture, délai à confirmer). Le document du 1er septembre prime sur celui du 19 août et tranche contre le chapitre 4 de la Bible. La citation exacte est sous la question 48 : elle nomme le fournisseur, et cette projection est rendue dans un navigateur.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Un relevé de stock de plus de 24 heures ne permet plus d’annoncer une disponibilité : la boutique affiche « Délai à confirmer » plutôt qu’un état qu’elle ne peut plus prouver.',
 			'home' => 'phpconst:Teeshoop\\Core\\Purchase::STOCK_TRUST_HOURS',
 			'reaches' => array(
@@ -372,6 +423,9 @@ return array(
 			'since' => '2026-09-02',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Un stock fournisseur est dit « limité » sous 250 pièces, seuil non donné par l\'associé mais repris du seuil de devis, parce qu\'au-delà la commande passe de toute façon par un humain.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#quote_from_qty',
 			'reaches' => array(
@@ -390,6 +444,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le DTF est la seule technique personnalisable en ligne, et les zones publiées sont celles du studio, en centimètres, mesurées à la taille de tarification.',
 			'home' => 'json:wp-plugins/teeshoop-core/data/garments.json#garments.tee.areas.0.bySize.M',
 			'reaches' => array(
@@ -411,6 +468,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 03 : « Le système doit utiliser autant que possible les vrais prix d\'achat remontés depuis les comptes/API, et non des tarifs théoriques. » C\'est ce qui est construit. Réserve : il dit aussi que les tarifs négociés sont DÉJÀ dans les comptes, donc le prix renvoyé par l\'interface est le prix négocié et non un tarif public.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le coût d\'achat retenu est celui que l\'interface du fournisseur renvoie, sans remise négociée, sans port et sans franco.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Catalogue.php#$cost = $prices[ $supply ][\'cost\'] ?? null;',
 			'reaches' => array(
@@ -431,6 +491,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 22 : « Le système peut préparer automatiquement les commandes fournisseurs, mais aucune commande réelle ne doit partir automatiquement. Validation manuelle obligatoire. L\'accès à cette fonction doit être sécurisé. » C\'est mot pour mot ce qui est construit.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La commande fournisseur est préparée automatiquement à partir des commandes et de leurs grilles de tailles, et elle n’est transmise qu’après une confirmation manuelle : l’opérateur recopie le mode du compte fournisseur affiché à l’écran, et la transmission est refusée si ce mode a changé entre-temps.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/PurchasePage.php#Pour envoyer, recopiez le mode du compte',
 			'reaches' => array(
@@ -451,6 +514,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 38 : « Un devis Teeshoop est valable 15 jours calendaires à compter de sa date d\'émission. Après 15 jours, le devis expire. Les stocks sont revérifiés. Les prix d\'achat et les coûts de marquage sont actualisés si nécessaire. » CALENDAIRES, dans son mot à lui, et c\'est l\'inverse de toutes les autres durées de cette extension.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Un devis envoyé reste une offre ferme pendant 15 jours calendaires à compter de son émission, puis il expire.',
 			'home' => 'phpconst:Teeshoop\\Core\\Quote::VALIDITY_DAYS',
 			'reaches' => array(
@@ -470,6 +536,9 @@ return array(
 			'since' => '2026-08-14',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 40 : « Les données d\'un prospect n\'ayant jamais commandé sont conservées 3 ans à compter du dernier échange. » Confirmé, avec une exigence d\'automatisation explicite, qui est ce qui est construit.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Une demande de devis sans suite est conservée 1 095 jours, soit trois ans après le dernier échange, puis supprimée automatiquement.',
 			'home' => 'phpconst:Teeshoop\\Core\\Quote::KEEP_DAYS',
 			'reaches' => array(
@@ -490,6 +559,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 01 : « Le minimum est de 5 pièces par commande ». Le nombre de pièces est confirmé au chiffre près ; c\'est la moitié en euros qui tombe (H-Q01-MINIMUM-MONTANT).',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La boutique refuse un panier de moins de 5 pièces, toutes lignes confondues, à la validation du panier.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#min_qty',
 			'reaches' => array(
@@ -511,6 +583,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 01 : « Le minimum est de 5 pièces par commande, sans minimum obligatoire de 50 EUR HT. » Le seuil en euros est supprimé, pas déplacé. La séance 04 avait signalé qu\'au tarif livré il ne refusait jamais rien : cinq t-shirts imprimés font 72,50 EUR HT.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La boutique n\'exige aucun montant minimum de commande : seul le nombre de pièces refuse un panier.',
 			'home' => 'php:Teeshoop\\Core\\Pricing::default_config()#min_ht',
 			'reaches' => array(
@@ -532,6 +607,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le régime de TVA en vigueur est celui d\'une entreprise assujettie, et la période ouverte pour l\'affirmer commence le 18 août 2026 : rien n\'est affirmé avant cette date.',
 			'home' => 'phpconst:Teeshoop\\Core\\Vat::ASSUMED_FROM',
 			'reaches' => array(
@@ -552,6 +630,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 07 : « on peut conserver provisoirement l\'estimation de 0,60 EUR par pièce ». Confirmé au chiffre près et déclaré PROVISOIRE par lui : la mesure réelle reste à faire.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'L\'emballage coûte 0,60 EUR hors taxes par pièce, facturé au client dans la ligne de livraison.',
 			'home' => 'php:Teeshoop\\Core\\Shipping::default_config()#packaging_piece_ht',
 			'reaches' => array(
@@ -572,6 +653,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 07 : « 1,50 EUR par carton ». Confirmé au chiffre près et déclaré PROVISOIRE par lui, comme l\'emballage à la pièce.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Chaque commande porte 1,50 EUR hors taxes de carton, une seule fois, quelle que soit la quantité.',
 			'home' => 'php:Teeshoop\\Core\\Shipping::default_config()#packaging_order_ht',
 			'reaches' => array(
@@ -592,6 +676,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 07 : « La livraison est offerte à partir de 250 EUR HT de commande. » L\'hypothèse écrite disait 300. La même réponse change le transporteur pour Mondial Relay et ajoute une remise en main propre en Île-de-France au-dessus du même seuil : ni l\'une ni l\'autre n\'est appliquée, faute de grille tarifaire.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La livraison est offerte au-dessus de 250,00 EUR hors taxes de marchandise, et son coût reste porté par la boutique.',
 			'home' => 'php:Teeshoop\\Core\\Shipping::default_config()#free_from_ht',
 			'reaches' => array(
@@ -612,6 +699,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 07 : « Transporteur principal : Mondial Relay. La grille de transport réelle doit être récupérée/utilisée dans le système. » La grille n\'est pas jointe et le document la classe lui-même en « éléments restant à récupérer », donc RIEN N\'EST APPLIQUÉ : la boutique chiffre toujours sur la grille publique de La Poste et la copie la nomme, parce que c\'est ce que la boutique fait aujourd\'hui. Nommer l\'autre transporteur en facturant les tarifs de celui-ci serait la fausse promesse, pas l\'inverse. Il faut aussi la remise en main propre en Île-de-France au-dessus de 250 EUR HT, qui n\'est pas un mode d\'expédition construit.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le transport est facturé à la grille publique Colissimo France domicile en vigueur au 1er janvier 2026, de 5,49 EUR pour 250 g à 39,59 EUR pour 30 kg.',
 			'home' => 'php:Teeshoop\\Core\\Shipping::default_config()#grid',
 			'reaches' => array(
@@ -632,6 +722,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le poids de l\'emballage est compté pour 0 gramme, parce que personne n\'a pesé un carton.',
 			'home' => 'php:Teeshoop\\Core\\Shipping::default_config()#packaging_piece_g',
 			'reaches' => array(
@@ -652,6 +745,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 35 : « Au lancement : français uniquement et livraison uniquement en France métropolitaine. Les autres pays pourront être traités exceptionnellement sur devis. »',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La boutique ne livre qu\'en France métropolitaine : les DOM, les collectivités et l\'étranger sont renvoyés vers un devis manuel.',
 			'home' => 'php:Teeshoop\\Core\\Shipping::default_config()#countries',
 			'reaches' => array(
@@ -673,6 +769,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Au-delà d\'un colis Colissimo, la boutique ne chiffre pas le transport et renvoie vers un devis ; aucun délai de livraison n\'est annoncé nulle part.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Shipping.php#ABOVE ONE PARCEL WE REFUSE TO QUOTE',
 			'reaches' => array(
@@ -693,6 +792,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 15 : « Stripe est déjà intégré. » Confirmé. Il ajoute la liste des moyens à conserver : carte, Apple Pay, Google Pay, virement, mandat administratif, Klarna. Mesuré le 01/09/2026, trois d\'entre eux ne sont pas configurés chez Stripe.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le paiement passe par Stripe, à travers l\'extension officielle maintenue par Stripe, et rien dans la facture, l\'état de la commande ou la marge ne connaît ce nom.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Payment.php#SO NOTHING HERE IS ABOUT ANY PARTICULAR PROVIDER',
 			'reaches' => array(
@@ -714,6 +816,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 24 : « Les factures officielles doivent rester gérées par notre système externe de facturation/comptabilité, et non par une nouvelle numérotation indépendante créée par le site. Le site peut en revanche générer les éléments commerciaux nécessaires : devis, récapitulatifs de commande, BAT, etc. » C\'est l\'inverse de ce qui était livré, et c\'est appliqué : le document reste, sa numérotation légale part.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le document que le site édite est un récapitulatif de commande et non une facture, sous une référence commerciale continue par année de la forme TS2026-0001, attribuée en une seule instruction SQL.',
 			'home' => 'php:Teeshoop\\Core\\Invoice::default_config()#prefix',
 			'reaches' => array(
@@ -735,6 +840,9 @@ return array(
 			'since' => '2026-09-02',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Un système comptable externe, que personne n\'a nommé, émet la facture légale de chaque commande et la facture de chaque acompte encaissé ; la boutique n\'en produit plus aucune et ne peut pas vérifier qu\'elles l\'ont été.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Invoice.php#la facture est établie séparément par notre service comptable',
 			'reaches' => array(
@@ -755,6 +863,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 45 : « Pénalités : taux de la Banque centrale européenne applicable + 10 points. Indemnité forfaitaire pour frais de recouvrement : 40 EUR. Aucun escompte pour paiement anticipé. » C\'est le taux légal, qui est ce que la facture cite.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Aucun taux de pénalité de retard n\'est fixé : la facture cite le taux légal, celui de la Banque centrale européenne majoré de 10 points.',
 			'home' => 'php:Teeshoop\\Core\\Invoice::default_config()#penalty_rate',
 			'reaches' => array(
@@ -774,6 +885,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 16 : « Pour toute commande supérieure à 1 000 EUR HT, possibilité d\'accepter seulement 50 % d\'acompte avant production, mais uniquement après validation du dirigeant. » Le seuil descend de 3 000 à 1 000.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Un acompte n\'est possible qu\'au-dessus de 1 000,00 EUR hors taxes de commande, et jamais sans qu\'une personne l\'ait autorisé sur cette commande.',
 			'home' => 'php:Teeshoop\\Core\\Settlement::default_config()#deposit_from_ht',
 			'reaches' => array(
@@ -795,6 +909,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 16 : « possibilité d\'accepter seulement 50 % d\'acompte avant production, mais uniquement après validation du dirigeant ». Le taux et le caractère non automatique sont confirmés ; c\'est le seuil qui bouge (H-Q16-SEUIL-ACOMPTE).',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'L\'acompte demandé est de 50 % du montant toutes taxes comprises de la commande, et il ouvre la production sans ouvrir l\'expédition.',
 			'home' => 'php:Teeshoop\\Core\\Settlement::default_config()#deposit_rate',
 			'reaches' => array(
@@ -816,6 +933,9 @@ return array(
 			'since' => '2026-08-18',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Aucun échéancier et aucun paiement à échéance n\'existe : une commande est réglée en une ou deux fois, jamais selon un calendrier.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Settlement.php#No échéancier (an instalment plan with dates), no payment terms, no dunning',
 			'reaches' => array(
@@ -836,6 +956,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 26 : « Deux corrections incluses. » Confirmé au chiffre près.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le prix inclut 2 allers-retours de bon à tirer, comptés par demande du client et non par version envoyée.',
 			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#corrections_incluses',
 			'reaches' => array(
@@ -854,6 +977,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 26 : « puis 15 EUR HT par correction supplémentaire ». Confirmé au chiffre près. Toujours affiché à l\'opérateur et facturé à la main : rien dans le code n\'ajoute la ligne.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Au-delà des corrections incluses, chaque correction supplémentaire vaut 15,00 EUR hors taxes.',
 			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#correction_ht',
 			'reaches' => array(
@@ -872,6 +998,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Sur la taille pour laquelle les cotes sont données, la position du marquage est garantie à 1 cm près par rapport au bon à tirer validé.',
 			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#tolerance_position_cm',
 			'reaches' => array(
@@ -891,6 +1020,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le lien de validation d\'un bon à tirer reste actif 30 jours, puis il faut le redemander.',
 			'home' => 'php:Teeshoop\\Core\\Bat::default_config()#lien_jours',
 			'reaches' => array(
@@ -909,6 +1041,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 14 : « À partir de la validation du BAT : standard 7 jours. » L\'hypothèse écrite disait 12. Trois choses que sa phrase ne dit pas : ouvrés ou calendaires (lus ouvrés), jusqu\'à l\'expédition ou jusqu\'à la remise (l\'atelier planifie la remise, plus strict, et le contrat publie l\'expédition puis deux jours de transport), et rien sur le supplément d\'urgence.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Une commande standard vise 7 jours ouvrés entre la validation du bon à tirer et l\'expédition, et c\'est le seul des trois délais que le site publie.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#lead_days.standard',
 			'reaches' => array(
@@ -931,6 +1066,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 14 : « express 4 jours selon disponibilité ». L\'hypothèse écrite disait 7. La mesure : il manque désormais deux jours ouvrés là où il en restait un. L\'express n\'est toujours pas publié.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Une commande express vise 4 jours ouvrés entre la validation du bon à tirer et la remise du colis.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#lead_days.express',
 			'reaches' => array(
@@ -950,6 +1088,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 14 : « urgent 2 à 3 jours selon disponibilité ». C\'est le plus long des deux qui est retenu, parce qu\'une promesse tenable est la plus longue des deux. L\'hypothèse écrite disait 4.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Une commande urgente vise 3 jours ouvrés entre la validation du bon à tirer et la remise du colis, et ce délai est plus court que le travail qu\'il contient.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#lead_days.urgent',
 			'reaches' => array(
@@ -969,6 +1110,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le transporteur met 2 jours ouvrés pour livrer en France métropolitaine.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#ship_days',
 			'reaches' => array(
@@ -989,6 +1133,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'L\'ordonnancement garde 1 jour ouvré de battement entre l\'arrivée du film et le début du pressage.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#buffer_days',
 			'reaches' => array(
@@ -1008,6 +1155,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 23 : « Capacité de travail à retenir actuellement : environ 500 pièces par jour. » Réserve, et elle est chiffrable : l\'hypothèse écrite disait 300 pièces AVEC UNE PERSONNE et la réponse ne donne pas d\'effectif. Si 500 est le fait de deux personnes, le coût de main-d\'oeuvre de la question 05 double et rien ici ne le dit.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'L\'atelier presse 500 pièces par jour ouvré.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#press_per_day',
 			'reaches' => array(
@@ -1027,6 +1177,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 23 : « Au-delà de 500 pièces sur une même commande, le logiciel doit au minimum afficher une alerte et demander une validation manuelle. » Le chiffre est confirmé. Le seuil est appliqué au LOT et non à la commande, écart volontaire de la séance 07 : quatre commandes de 200 pièces le même jour saturent la presse comme une de 800.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Au-delà de 500 vêtements dans un même lot d\'impression, l\'écran demande une validation humaine avant de lancer la production.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#manual_above',
 			'reaches' => array(
@@ -1046,6 +1199,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 46 : « le délai réel habituel est d\'environ 24 heures. Le moteur de planification retient jusqu\'à 2 jours ouvrés de sécurité pour une promesse client normale. » Deux nombres, comme la question l\'anticipait, et c\'est le second qui planifie. Réserve : il le donne pour le fournisseur qu\'il demande de rendre prioritaire en question 09, et le chemin d\'achat construit parle à celui qui est branché. Les noms sont dans QUESTIONS-ASSOCIE.md.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'L\'approvisionnement textile est planifié sur 2 jours ouvrés entre le bon de commande fournisseur et la réception des vêtements à l\'atelier.',
 			'home' => 'php:Teeshoop\\Core\\Production::default_config()#blank_days',
 			'reaches' => array(
@@ -1065,6 +1221,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 31 : « L\'identité existe déjà. Il faut conserver le logo actuel, les couleurs actuelles, les typographies actuelles, le menu et l\'organisation déjà définis (...) Il ne faut pas repartir du design de démonstration du thème, ni recréer une nouvelle identité visuelle sans nécessité. » Appliqué le 03/09/2026 : chaque valeur est relevée sur teeshoop.com, aucune n\'est choisie. Une réserve demeure et elle est en Q62 : sa boutique déclare DEUX polices de texte (--wd-text-font vaut Work Sans, --wd-alternative-font vaut Lato) et nous avons pris Lato.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La marque est le navy #010050 et l\'orange #FF8601 du logo, avec les titres en Urbanist 700 et le texte en Lato, l\'encre #242424 et le texte secondaire #767676 de son thème.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/assets/tokens.css#--ts-accent: #010050',
 			'reaches' => array(
@@ -1085,6 +1244,9 @@ return array(
 			'since' => '2026-08-20',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La pastille de couleur affichée à côté d\'un coloris est mesurée sur le nuancier du fabricant, à défaut sur la photo du vêtement, jamais relevée sur le tissu.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Swatch.php#public static function centre( array $lab ): array',
 			'reaches' => array(
@@ -1104,6 +1266,9 @@ return array(
 			'since' => '2026-08-20',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 49 : les onze familles sont confirmées mot pour mot. Les huit rattachements qu\'il donne (kaki, turquoise, Pixel Lime, Safety Green, Dusk Rose, Dusty Rose, Millennial Pink, Magenta) sont à confronter au classement mesuré.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Les 442 coloris sont regroupés en onze familles, déduites de la couleur mesurée et jamais du nom : blancs et écrus, gris, noirs, beiges et bruns, rouges, roses, oranges, jaunes, verts, bleus, violets.',
 			'home' => 'php:Teeshoop\\Core\\Swatch::families()',
 			'reaches' => array(
@@ -1122,6 +1287,9 @@ return array(
 			'since' => '2026-08-26',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Les mentions légales, les conditions générales de vente, la politique de confidentialité et la déclaration d\'accessibilité sont des projets rédigés en interne à partir du fonctionnement réel de la boutique, publiés en portant l\'état « projet » et un avertissement de relecture, et aucun avocat ne les a lus.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#\'etat\'   => \'projet\',',
 			'reaches' => array(
@@ -1141,6 +1309,9 @@ return array(
 			'since' => '2026-08-19',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'La phrase par laquelle un client renonce au droit de rétractation sur les articles personnalisés est rédigée par nous, affichée avant le paiement et non à la validation du bon à tirer, et figée sur la commande avec la version des conditions générales en vigueur.',
 			'home' => 'php:Teeshoop\\Core\\Waiver::text()',
 			'reaches' => array(
@@ -1161,6 +1332,9 @@ return array(
 			'since' => '2026-08-26',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Une trace d\'envoi de message est conservée 730 jours, soit deux ans, alignés sur la garantie légale de conformité, puis supprimée automatiquement.',
 			'home' => 'phpconst:Teeshoop\\Core\\Privacy::OUTBOX_KEEP_DAYS',
 			'reaches' => array(
@@ -1180,6 +1354,9 @@ return array(
 			'since' => '2026-08-26',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 33 : les créations des clients sont conservées trois ans, et un an pour un compte sans commande. Les deux durées sont confirmées au chiffre près.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Les durées de conservation des créations sont connues depuis le 1er septembre 2026 (trois ans, un an sans commande) et rien ne les applique : l\'outil qui supprime existe, aucune tâche ne l\'appelle, et rien n\'expire.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Privacy.php#un balayage périodique',
 			'reaches' => array(
@@ -1198,6 +1375,9 @@ return array(
 			'since' => '2026-08-26',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 36 : « autorisation prévue contractuellement et possibilité pour le client de refuser ». Confirmé, avec une exigence en plus : « prévoir cette information dans le devis/CGV afin que la gestion soit traçable », donc la trace est par commande et elle n\'est pas construite.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'L\'autorisation de publier les réalisations d\'un client est une clause des conditions générales de vente, refusable à tout moment par simple demande écrite, avec retrait des publications déjà en ligne.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Publication des réalisations',
 			'reaches' => array(
@@ -1216,6 +1396,9 @@ return array(
 			'since' => '2026-08-26',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 56 : directeur de la publication SINGH Simran, adresse publique legales@teeshoop.com (le document écrit .fr, domaine qui n\'existe pas, corrigé le 1er septembre) et téléphone. L\'hébergeur reste à tirer du contrat o2switch.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Le directeur de la publication, l\'adresse de contact et le téléphone sont connus depuis le 1er septembre 2026 et ne sont saisis nulle part ; l\'identité de l\'hébergeur reste à tirer du contrat. La page des mentions légales publie donc toujours la liste de ce qui manque plutôt qu\'un exemple crédible.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/includes/Host.php#\'directeur_publication\' => \'Directeur de la publication\',',
 			'reaches' => array(
@@ -1235,6 +1418,9 @@ return array(
 			'since' => '2026-08-26',
 			'answered' => '2026-09-01',
 			'answer_fr' => 'Question 57 : « Teeshoop est conçu actuellement comme un service B2B destiné aux professionnels. La médiation de la consommation n\'est pas intégrée comme condition de lancement du parcours B2B. » SOUS CONDITION, et la condition est exécutable : l\'exemption ne tombe que si la boutique refuse effectivement un consommateur, ce que rien ne fait. Question 62.',
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Aucun médiateur de la consommation n\'est désigné, et les conditions générales de vente disent en toutes lettres que cette obligation n\'est pas satisfaite plutôt que de laisser la ligne vide.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Le médiateur retenu par Teeshoop et ses coordonnées seront indiqués ici dès sa désignation.',
 			'reaches' => array(
@@ -1253,6 +1439,9 @@ return array(
 			'since' => '2026-09-01',
 			'answered' => null,
 			'answer_fr' => null,
+			'decided_by' => null,
+			'decided_on' => null,
+			'decided_why' => null,
 			'statement_fr' => 'Rien ne refuse un particulier : le SIRET est demandé et non exigé, aucune déclaration d\'achat professionnel n\'est recueillie, et les conditions de vente s\'appliquent en toutes lettres à un consommateur comme à un professionnel.',
 			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Elles s’appliquent aussi bien à un acheteur professionnel qu’à un consommateur.',
 			'reaches' => array(
