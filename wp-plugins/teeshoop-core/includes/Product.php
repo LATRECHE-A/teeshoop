@@ -96,6 +96,27 @@ final class Product {
 	 */
 	public const META_BLANK_COLOURS = '_teeshoop_blank_colours';
 
+	/**
+	 * Le nuancier proposé au client : identifiant du studio, nom du fabricant,
+	 * couleur MESURÉE. JSON, sur le produit.
+	 *
+	 * ── POURQUOI IL EXISTE À CÔTÉ DU PRÉCÉDENT ─────────────────────────────────
+	 *
+	 * `META_BLANK_COLOURS` répond à « qu'est-ce que l'atelier achète ». Celui-ci
+	 * répond à « qu'est-ce que le client REGARDE », et ce n'est pas la même
+	 * chose : l'éditeur peignait ses dix-huit teintes de démonstration, alors
+	 * que la boutique connaît la pastille mesurée du coloris réel. Mesuré le
+	 * 4 septembre 2026 : le « Rose » du studio (#F3A6C0) est acheté en
+	 * « Fuchsia » sur le B&C #E150, à 0,306 en OKLab. Montrer le rond rose pâle
+	 * du studio sous le nom « Rose » est un chiffre fabriqué qui atteint un
+	 * client ; montrer le rond fuchsia sous le nom « Fuchsia » est la vérité.
+	 *
+	 * DÉRIVÉ, écrit par `Gamme::apply()` depuis les pastilles de `Colours`, et
+	 * jamais saisi. Absent est un état valide : l'éditeur retombe alors sur ses
+	 * propres teintes, ce qui est le comportement d'un studio hors boutique.
+	 */
+	public const META_BLANK_PALETTE = '_teeshoop_blank_palette';
+
 	public static function init(): void {
 		add_action( 'woocommerce_product_options_general_product_data', array( self::class, 'field' ) );
 		add_action( 'woocommerce_admin_process_product_object', array( self::class, 'save' ) );
@@ -144,6 +165,54 @@ final class Product {
 	 *
 	 * @return array<string,string>
 	 */
+	/**
+	 * Le nuancier proposé, prêt à traverser vers le studio.
+	 *
+	 * Chaque entrée : `id` (la teinture du studio), `name` (le nom du
+	 * fabricant), `stops` (un ou deux hexadécimaux mesurés). Une liste vide veut
+	 * dire « ce produit ne restreint rien », pas « aucune couleur ».
+	 *
+	 * @return array<int,array{id:string,name:string,stops:string[]}>
+	 */
+	public static function blank_palette_of( int $product_id ): array {
+		if ( $product_id <= 0 ) {
+			return array();
+		}
+		$raw = json_decode( (string) get_post_meta( $product_id, self::META_BLANK_PALETTE, true ), true );
+		if ( ! is_array( $raw ) ) {
+			return array();
+		}
+		$out = array();
+		foreach ( $raw as $entry ) {
+			if ( ! is_array( $entry ) ) {
+				continue;
+			}
+			$id    = sanitize_key( (string) ( $entry['id'] ?? '' ) );
+			$name  = trim( (string) ( $entry['name'] ?? '' ) );
+			$stops = array_values(
+				array_filter(
+					array_map( 'strval', (array) ( $entry['stops'] ?? array() ) ),
+					static fn( string $h ): bool => 1 === preg_match( '/^#[0-9a-fA-F]{6}$/', $h )
+				)
+			);
+			/*
+			 * A SWATCH WITH NO MEASURED COLOUR IS DROPPED, not painted grey. The
+			 * whole point of this field is that the chip is the measurement; a
+			 * placeholder chip under a real colour name is the defect it exists
+			 * to remove.
+			 */
+			if ( '' === $id || '' === $name || array() === $stops ) {
+				continue;
+			}
+			$out[] = array(
+				'id'    => $id,
+				'name'  => $name,
+				'stops' => array_slice( $stops, 0, 2 ),
+			);
+		}
+		return $out;
+	}
+
 	public static function blank_colours_of( int $product_id ): array {
 		if ( $product_id <= 0 ) {
 			return array();

@@ -224,6 +224,29 @@ final class Shortcode {
 				 * invoice says.
 				 */
 				'preset'       => self::preset( $garment ),
+				/*
+				 * LES COULEURS QUE CE PRODUIT PEUT VRAIMENT ÊTRE.
+				 *
+				 * Sans elles, l'éditeur propose ses dix-huit teintures de
+				 * démonstration sur n'importe quel vêtement, y compris celles
+				 * que le fournisseur ne vend pas dans cette référence. Le client
+				 * choisit « Menthe », personne ne peut l'acheter, et la ligne est
+				 * refusée au moment du bon de commande fournisseur, c'est-à-dire
+				 * après le paiement.
+				 *
+				 * Chaque entrée porte le NOM DU FABRICANT et sa pastille
+				 * MESURÉE. Le studio peint et étiquette avec ça, pas avec son
+				 * approximation : c'est la différence entre montrer « Fuchsia »
+				 * en fuchsia et montrer « Rose » en rose pâle sur un vêtement
+				 * qui arrivera fuchsia.
+				 *
+				 * Une liste vide veut dire « ce produit ne restreint rien » et
+				 * l'éditeur garde ses teintes, ce qui est le studio hors
+				 * boutique. Elle ne peut pas servir de passe-droit : le panier
+				 * ne lit pas ce champ, et l'achat refuse une couleur sans
+				 * correspondance par son nom.
+				 */
+				'colours'      => Product::blank_palette_of( $product_id ),
 				'cartUrl'      => function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' ),
 				'i18n'         => array(
 					'added'   => __( 'Ajouté au panier.', 'teeshoop' ),

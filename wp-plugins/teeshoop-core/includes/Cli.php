@@ -47,6 +47,8 @@ final class Cli {
 		\WP_CLI::add_command( 'teeshoop juridique', array( self::class, 'legal_pages' ) );
 		\WP_CLI::add_command( 'teeshoop migrer', array( self::class, 'migrate' ) );
 		\WP_CLI::add_command( 'teeshoop lancement', array( self::class, 'launch' ) );
+		\WP_CLI::add_command( 'teeshoop gamme appliquer', array( self::class, 'range_apply' ) );
+		\WP_CLI::add_command( 'teeshoop gamme etat', array( self::class, 'range_state' ) );
 	}
 
 	/**
@@ -709,7 +711,7 @@ final class Cli {
 		self::ensure_site_pages( $changed );
 		self::ensure_settings( $assoc_args, $changed );
 
-		$product_id = self::ensure_demo_product( $changed );
+		$offers = self::ensure_range( $changed );
 		self::flush_rewrites();
 
 		\WP_CLI::log( '' );
@@ -718,7 +720,21 @@ final class Cli {
 		} else {
 			\WP_CLI::log( 'Modifié : ' . implode( ', ', $changed ) );
 		}
-		\WP_CLI::log( 'Fiche produit : ' . get_permalink( $product_id ) );
+		if ( array() === $offers ) {
+			/*
+			 * NO INVENTED PRODUCT WHEN THERE IS NOTHING TO SELL.
+			 *
+			 * This used to create « T-shirt personnalisé, coton bio », a
+			 * product with no supplier reference behind it, so the shop came out
+			 * of provisioning with exactly one buyable thing and that thing was
+			 * a fiction. `CLAUDE.md` section 7: real content, always; if the data
+			 * does not exist yet, build the empty state. The empty state is this
+			 * sentence.
+			 */
+			\WP_CLI::log( 'Aucune offre personnalisable : la gamme se pose sur des références importées. Lancez « teeshoop catalogue importer », puis « teeshoop gamme appliquer ».' );
+		} else {
+			\WP_CLI::log( sprintf( '%d offre(s) personnalisable(s). Première fiche : %s', count( $offers ), (string) get_permalink( (int) $offers[0] ) ) );
+		}
 		if ( in_array( 'permaliens', $changed, true ) ) {
 			// This process built its rewrite object before the structure changed,
 			// so the URL above is the plain form. It works; the pretty one is
@@ -1662,57 +1678,119 @@ final class Cli {
 	}
 
 	/**
-	 * The demo product, so the next session starts from a working page.
+	 * `wp teeshoop gamme appliquer [--simuler]`
 	 *
-	 * Everything on it is real. The catalogue price is the blank's own
-	 * contribution to a personalised line and is never charged, so it is READ
-	 * from the price authority rather than typed here: it used to be the string
-	 * '9.50', which is `garments.tee.base_ht` written a second time, in another
-	 * unit, where nothing compared them (question 06, registered as
-	 * H-Q06-TARIF-TEE). The brand reference is the one the studio's size chart
-	 * is measured from. It
-	 * carries NO matière and NO grammage, on purpose: this project holds neither
-	 * for this reference, the page renders the honest empty state, and the admin
-	 * note under it says where they will come from.
+	 * Écrit une offre personnalisable par référence de la gamme et sort les
+	 * montages de harnais de la vente. Idempotente : la deuxième exécution ne
+	 * change rien et le dit.
+	 *
+	 * ELLE NE SORT PAS 0 QUAND ELLE N'A RIEN FAIT DE BON. Une gamme dont aucune
+	 * référence ne se résout est une gamme qui n'existe pas, et une commande qui
+	 * annonce « terminé » sur ce résultat est exactement le signal qui a fait
+	 * croire à la nuit 1 que son import était fini à 421 références sur 2 303.
 	 */
-	private static function ensure_demo_product( array &$changed ): int {
-		$existing = get_page_by_path( self::DEMO_SLUG, OBJECT, 'product' );
-		$product  = $existing ? wc_get_product( $existing->ID ) : new \WC_Product_Simple();
-		$is_new   = ! $existing;
+	public static function range_apply( array $args, array $assoc_args = array() ): void {
+		$dry = ! empty( $assoc_args['simuler'] );
 
-		$product->set_name( 'T-shirt personnalisé, coton bio' );
-		$product->set_slug( self::DEMO_SLUG );
-		$product->set_status( 'publish' );
-		$product->set_catalog_visibility( 'visible' );
-		/*
-		 * Read defensively, because `merge_config` replaces the whole `garments`
-		 * map on purpose: an admin who overlays it without a `tee` key is doing
-		 * something the price config explicitly allows, and a demo product is not
-		 * a reason to fatal on their site. No key, no price written, and the
-		 * product keeps whatever it had.
-		 */
-		$ts_blank = Settings::pricing()['garments']['tee']['base_ht'] ?? null;
-		if ( null !== $ts_blank ) {
-			$product->set_regular_price( number_format( Money::to_eur( (int) $ts_blank ), 2, '.', '' ) );
+		$retired = Gamme::retire( $dry );
+		foreach ( $retired as $row ) {
+			\WP_CLI::log( sprintf( '  hors vente : « %s » (#%d), prix %s effacé', $row['name'], $row['id'], $row['was'] ) );
 		}
-		$product->set_short_description(
-			'Un t-shirt à personnaliser avec votre logo, votre texte ou votre visuel. '
-			. 'Imprimé à la demande, à partir d’une pièce.'
-		);
-		$product->set_description(
-			'Ce t-shirt sert de base à vos marquages : devant, dos et manche. '
-			. 'Le prix dépend du nombre de pièces et de la surface réellement imprimée, '
-			. 'pas de la taille du fichier que vous nous envoyez.'
-		);
-		$product->update_meta_data( Product::META, 'tee' );
-		$product->update_meta_data( Garments::META_BRAND_REF, 'STTU755' );
-		$product->save();
+		\WP_CLI::log( sprintf( '%d montage(s) de harnais sortis de la vente.', count( $retired ) ) );
+		\WP_CLI::log( '' );
 
-		if ( $is_new ) {
-			$changed[] = 'article de démonstration';
+		$rows = Gamme::apply( $dry );
+		$ok   = 0;
+		foreach ( $rows as $row ) {
+			if ( (int) $row['offer_id'] > 0 || ( $dry && '' === $row['why'] ) ) {
+				++$ok;
+				\WP_CLI::log(
+					sprintf(
+						'  %-6s %-9s %-52s %2d couleur(s) sur %d%s',
+						$row['ref'],
+						$row['garment'],
+						substr( (string) $row['name'], 0, 52 ),
+						(int) $row['colours'],
+						count( Gamme::studio_colours() ),
+						! empty( $row['created'] ) ? ' (créée)' : ( ! empty( $row['changed'] ) ? ' (modifiée)' : '' )
+					)
+				);
+				continue;
+			}
+			\WP_CLI::warning( sprintf( '%s : %s', $row['ref'], $row['why'] ) );
 		}
 
-		return (int) $product->get_id();
+		\WP_CLI::log( '' );
+		if ( 0 === $ok ) {
+			\WP_CLI::error( sprintf( 'Aucune des %d références de la gamme ne s’est résolue. Rien n’est personnalisable.', count( $rows ) ) );
+		}
+		if ( $ok < count( $rows ) ) {
+			\WP_CLI::error( sprintf( '%d référence(s) sur %d posées ; les autres sont nommées ci-dessus.', $ok, count( $rows ) ) );
+		}
+		\WP_CLI::success( sprintf( '%d référence(s) de la gamme posées%s.', $ok, $dry ? ' (simulation)' : '' ) );
+	}
+
+	/** `wp teeshoop gamme etat` : ce qui est achetable et ce qui est personnalisable. */
+	public static function range_state(): void {
+		$rows = Gamme::state();
+		if ( array() === $rows ) {
+			\WP_CLI::error( 'Aucun produit n’est ni achetable ni personnalisable. Une boutique vide ne prouve rien : cette commande refuse plutôt que d’annoncer que tout va bien.' );
+		}
+		\WP_CLI::log( sprintf( '%-8s %-52s %-8s %-8s %-8s %-8s %s', 'id', 'nom', 'vetement', 'nu', 'coul.', 'a vendre', 'origine' ) );
+		$bad = 0;
+		foreach ( $rows as $r ) {
+			$broken = ( '' !== $r['garment'] && $r['purchasable'] && '' === $r['blank_ref'] )
+				|| ( '' === $r['garment'] && $r['purchasable'] );
+			if ( $broken ) {
+				++$bad;
+			}
+			\WP_CLI::log(
+				sprintf(
+					'%-8d %-52s %-8s %-8s %-8d %-8s %s%s',
+					$r['id'],
+					substr( (string) $r['name'], 0, 52 ),
+					'' === $r['garment'] ? '-' : $r['garment'],
+					'' === $r['blank_ref'] ? '-' : $r['blank_ref'],
+					(int) $r['colours'],
+					$r['purchasable'] ? 'oui' : 'non',
+					$r['ours'] ? 'gamme' : 'autre',
+					$broken ? '   <- incohérent' : ''
+				)
+			);
+		}
+		\WP_CLI::log( '' );
+		if ( $bad > 0 ) {
+			\WP_CLI::error( sprintf( '%d produit(s) incohérents : achetable sans marquage, ou personnalisable sans textile nu.', $bad ) );
+		}
+		\WP_CLI::success( sprintf( '%d produit(s) relevés, aucun incohérent.', count( $rows ) ) );
+	}
+
+	/**
+	 * The launch range, applied as part of provisioning.
+	 *
+	 * REPLACES a hand-written demo product that had no supplier reference behind
+	 * it, so the only buyable thing on a freshly provisioned shop was a fiction
+	 * with a price. `Gamme::apply()` writes offers on top of REAL imported
+	 * references or writes nothing at all and says why, which is the honest
+	 * empty state rather than a plausible one.
+	 *
+	 * @return int[] the offer ids, in range order.
+	 */
+	private static function ensure_range( array &$changed ): array {
+		$ids = array();
+		$made = 0;
+		foreach ( Gamme::apply() as $row ) {
+			if ( (int) $row['offer_id'] > 0 ) {
+				$ids[] = (int) $row['offer_id'];
+			}
+			if ( ! empty( $row['created'] ) ) {
+				++$made;
+			}
+		}
+		if ( $made > 0 ) {
+			$changed[] = sprintf( '%d offre(s) personnalisable(s)', $made );
+		}
+		return $ids;
 	}
 
 	/**

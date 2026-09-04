@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { Camera, Pencil } from 'lucide-react'
 import clsx from 'clsx'
 import { GARMENTS } from '@/garments'
-import { GARMENT_COLORS } from '@/content/palettes'
+import { garmentPalette, paletteIsMeasured } from '@/content/garmentPalette'
 import { PRICING } from '@/content/pricing'
 import { useShopBridge } from '@/app/hooks/useShopBridge'
 import { SIZE_CHARTS, SIZE_IDS } from '@/content/sizeChart'
@@ -77,6 +77,23 @@ export default function ProductPanel() {
   const setPrintBaseSize = useStore((s) => s.setPrintBaseSize)
   const lang = useStore((s) => s.lang)
   const g = (k: keyof typeof GRADE_I18N.fr) => (GRADE_I18N[lang] ?? GRADE_I18N.fr)[k]
+
+  /*
+   * THE DECK ON OFFER, and where its names come from.
+   *
+   * Standalone, it is the studio's own eighteen dyes and their names live in
+   * the string table under `color.<id>`, translated. Inside a shop product it
+   * is the colourways that reference is actually sold in, and their names are
+   * the MAKER'S: "Fuchsia", "Bottle Green", "Heather Royal". Those are not
+   * translated and must not be, because they are what appears on the supplier's
+   * invoice and on the workshop's picking list, and a customer who reads
+   * "Fuchsia" on the page and finds "Fuchsia" on the packing slip has been told
+   * the truth twice.
+   */
+  const palette = garmentPalette()
+  const measured = paletteIsMeasured()
+  const dyeLabel = (id: string): string =>
+    measured ? (palette.find((c) => c.id === id)?.name ?? id) : t('color.' + id)
 
   const thumbs = useMemo(
     () => ({
@@ -186,15 +203,15 @@ export default function ProductPanel() {
           <div className="panel-title mb-2.5">
             {t('product.color')} ·{' '}
             <span className="normal-case tracking-normal text-tx2">
-              {t('color.' + design.colorId)}
+              {dyeLabel(design.colorId)}
             </span>
           </div>
           <div className="grid grid-cols-9 gap-1.5">
-            {GARMENT_COLORS.map((c) => (
+            {palette.map((c) => (
               <button
                 key={c.id}
-                title={t('color.' + c.id)}
-                aria-label={t('color.' + c.id)}
+                title={dyeLabel(c.id)}
+                aria-label={dyeLabel(c.id)}
                 aria-pressed={design.colorId === c.id}
                 onClick={() => setColor(c.id)}
                 className={clsx(
@@ -203,7 +220,13 @@ export default function ProductPanel() {
                     ? 'border-cy ring-2 ring-cy/40'
                     : 'border-black/30',
                 )}
-                style={{ backgroundColor: c.hex }}
+                /* Two stops means a heather, and the shop's own swatch renderer
+                   draws it as the same half-and-half split. One chip, one rule. */
+                style={
+                  c.stops.length > 1
+                    ? { backgroundImage: `linear-gradient(135deg, ${c.stops[0]} 50%, ${c.stops[1]} 50%)` }
+                    : { backgroundColor: c.stops[0] }
+                }
               />
             ))}
           </div>

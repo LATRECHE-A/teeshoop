@@ -20,6 +20,8 @@ import {
   shopContext,
   startShopBridge,
 } from './bridge'
+import { garmentHexOf, garmentPalette, paletteIsMeasured } from '@/content/garmentPalette'
+import { GARMENT_COLORS } from '@/content/palettes'
 
 const SHOP = 'https://shop.example'
 const OTHER = 'https://other.example'
@@ -100,7 +102,61 @@ describe('handshake', () => {
     deliver({ type: 'teeshoop:context', productId: 42, garment: 'tee', locale: 'fr' })
     expect(bridgeStatus()).toBe('connected')
     expect(isShopConnected()).toBe(true)
-    expect(shopContext()).toEqual({ productId: 42, garment: 'tee', locale: 'fr' })
+    expect(shopContext()).toEqual({
+      productId: 42,
+      garment: 'tee',
+      locale: 'fr',
+      preset: undefined,
+      colours: [],
+    })
+  })
+
+  describe('the colour deck the shop hands over', () => {
+    it('restricts the offered dyes and carries the maker\u2019s own name and measurement', () => {
+      startShopBridge()
+      deliver({
+        type: 'teeshoop:context',
+        productId: 42,
+        garment: 'tee',
+        locale: 'fr',
+        colours: [
+          { id: 'pink', name: 'Fuchsia', stops: ['#C8006E'] },
+          { id: 'heather', name: 'Ash', stops: ['#C9CDD2', '#B0B5BB'] },
+        ],
+      })
+      expect(garmentPalette().map((c) => c.id)).toEqual(['pink', 'heather'])
+      expect(paletteIsMeasured()).toBe(true)
+      // The chip is the MEASUREMENT, not the studio's demonstration pink.
+      expect(garmentHexOf('pink')).toBe('#C8006E')
+      // A dye the reference is not sold in still resolves for an OLD saved
+      // design, because refusing to paint one would render a garment with no
+      // colour at all; what it must not do is APPEAR in the deck above.
+      expect(garmentPalette().some((c) => c.id === 'mint')).toBe(false)
+    })
+
+    it('an empty deck restricts nothing, because \u00ab the shop said none \u00bb is not \u00ab the shop said nothing \u00bb', () => {
+      startShopBridge()
+      deliver({ type: 'teeshoop:context', productId: 42, garment: 'tee', locale: 'fr', colours: [] })
+      expect(paletteIsMeasured()).toBe(false)
+      expect(garmentPalette().length).toBe(GARMENT_COLORS.length)
+    })
+
+    it('drops an entry with no measurement rather than painting it grey', () => {
+      startShopBridge()
+      deliver({
+        type: 'teeshoop:context',
+        productId: 42,
+        garment: 'tee',
+        locale: 'fr',
+        colours: [
+          { id: 'navy', name: 'Navy', stops: ['#1B2A4A'] },
+          { id: 'red', name: 'Rouge sans mesure', stops: [] },
+          { id: 'gold', name: 'Or', stops: ['pas un hexadecimal'] },
+          { id: '', name: 'sans identifiant', stops: ['#000000'] },
+        ],
+      })
+      expect(garmentPalette().map((c) => c.id)).toEqual(['navy'])
+    })
   })
 
   it('reads the product id WordPress actually sends, which is a string', () => {

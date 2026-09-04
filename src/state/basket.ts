@@ -20,7 +20,7 @@ import { get, update } from 'idb-keyval'
 import { nanoid } from 'nanoid'
 import type { Design, Side } from '@/lib/types'
 import { isSizeId, type SizeId } from '@/content/sizeChart'
-import { GARMENT_COLORS } from '@/content/palettes'
+import { garmentHexOf } from '@/content/garmentPalette'
 import { sideLayers } from '@/lib/renderDesign'
 import { getLang } from '@/i18n/lang'
 import { messages } from '@/i18n/messages'
@@ -44,8 +44,6 @@ export interface BasketLine {
 export const BASKET_SIDES: Side[] = ['front', 'back', 'sleeve']
 
 const MAX_QTY = 999
-/** Custom garments carry no dye colour: the swatch falls back to this. */
-const FALLBACK_HEX = '#FFFFFF'
 
 export function clampQty(n: number): number {
   if (!Number.isFinite(n)) return 1
@@ -64,7 +62,7 @@ export function garmentLabelFor(design: Design): string {
 }
 
 export function garmentColorHex(design: Design): string {
-  return GARMENT_COLORS.find((c) => c.id === design.colorId)?.hex ?? FALLBACK_HEX
+  return garmentHexOf(design.colorId)
 }
 
 /** Sides of a snapshot that actually carry artwork (= transfers to print). */

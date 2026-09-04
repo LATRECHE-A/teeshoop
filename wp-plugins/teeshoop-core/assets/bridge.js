@@ -78,6 +78,10 @@
 			// re-validated in the frame, because the frame trusts nothing it is
 			// told, including us.
 			preset: cfg.preset && typeof cfg.preset === 'object' ? cfg.preset : null,
+			// The colourways this product can actually be bought in, with the
+			// maker's own name and the swatch the shop MEASURED. Empty means
+			// "this page restricts nothing", never "no colours".
+			colours: Array.isArray(cfg.colours) ? cfg.colours : [],
 		});
 	}
 

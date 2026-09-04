@@ -22,7 +22,7 @@
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 
-const URL_ = process.argv[2] || 'http://localhost:8080/product/teeshoop-demo-tee/'
+const URL_ = process.argv[2] || 'http://localhost:8080/produit/bc-e150-t-shirt-a-personnaliser-01542/'
 const OUT = process.argv[3] || 'docs/screens/session02'
 const WIDTHS = [375, 768, 1440]
 

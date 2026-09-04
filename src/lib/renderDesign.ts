@@ -9,7 +9,7 @@ import { GARMENT_VIEW } from '@/lib/types'
 import { GARMENTS } from '@/garments'
 import { SIZE_CHARTS, sizeScale, type SizeId } from '@/content/sizeChart'
 import { GRAPHICS } from '@/content/graphics'
-import { GARMENT_COLORS } from '@/content/palettes'
+import { garmentHexOf } from '@/content/garmentPalette'
 import { ensureFont } from '@/lib/fonts'
 import { ensureAssetImage, getCachedAssetImage } from '@/state/assets'
 import { ensureRaster, getRaster, sizeBucket, withSvgSize } from '@/lib/rasterCache'
@@ -58,10 +58,13 @@ export function getAreaSizeIn(design: Design, side: Side, size?: SizeId): SizeIn
   return scaleAreaIn(GARMENTS[design.garmentId].printAreasIn[side], k)
 }
 
+/**
+ * Kept as the name every renderer already imports; the RULE lives in one place
+ * now (src/content/garmentPalette.ts). There were four copies of this lookup
+ * with three different fallbacks.
+ */
 export function garmentColorHex(design: Design): string {
-  return (
-    GARMENT_COLORS.find((c) => c.id === design.colorId)?.hex ?? '#FFFFFF'
-  )
+  return garmentHexOf(design.colorId)
 }
 
 /**

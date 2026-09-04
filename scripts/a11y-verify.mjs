@@ -95,7 +95,7 @@ const PAGES = [
   ['accueil', '/'],
   ['catalogue', '/shop/'],
   ['categorie', '/categorie/t-shirts/'],
-  ['produit', '/produit/teeshoop-demo-tee/'],
+  ['produit', '/produit/bc-e150-t-shirt-a-personnaliser-01542/'],
   ['panier', '/cart/'],
   ['devis', '/devis/'],
   ['commande', '/checkout/'],
@@ -1521,7 +1521,7 @@ const autotests = async (browser) => {
   {
     const context = await ctxFor(browser, 1440, { consent: true })
     const page = await context.newPage()
-    await load(page, BASE + '/produit/teeshoop-demo-tee/')
+    await load(page, BASE + '/produit/bc-e150-t-shirt-a-personnaliser-01542/')
     const before = await page.evaluate(() => window.__a11y.regleTexte())
     const armed = await page.evaluate(() => {
       const el = [...document.querySelectorAll('main p, main li, main h2, main h1, main span')].find(

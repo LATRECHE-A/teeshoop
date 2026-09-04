@@ -163,6 +163,13 @@ require_once __DIR__ . '/includes/LegalPage.php';
 require_once __DIR__ . '/includes/Content.php';
 require_once __DIR__ . '/includes/Seo.php';
 /*
+ * La gamme personnalisable, après `Importer` (elle résout une référence par sa
+ * recherche), après `Colours` (elle lit des pastilles mesurées) et après
+ * `Settings` (elle lit le tarif). Rien ne la charge sur une page publique : elle
+ * n'a que des commandes d'opérateur.
+ */
+require_once __DIR__ . '/includes/Gamme.php';
+/*
  * The launch gate's own half. Last of the plain modules and after everything it
  * asks, because it reads the identity, the VAT timeline, the terms and the
  * products: a file that answers « may this shop open » must load after the

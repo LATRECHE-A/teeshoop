@@ -16,7 +16,7 @@ import type {
   TextLayer,
 } from '@/lib/types'
 import { GARMENTS } from '@/garments'
-import { GARMENT_COLORS } from '@/content/palettes'
+import { garmentHexOf } from '@/content/garmentPalette'
 import { GRAPHICS } from '@/content/graphics'
 import { makeSampleDesign } from '@/content/sampleDesign'
 import { getAreaSizeIn, measureLayer } from '@/lib/renderDesign'
@@ -681,7 +681,7 @@ export const useStore = create<StoreState>()(
       addTextLayer: (text = 'YOUR TEXT', overrides, maxWidthIn) => {
         const s = get()
         const dark = s.design.garmentId === 'custom' ? true : isDark(
-          GARMENT_COLORS.find((c) => c.id === s.design.colorId)?.hex ?? '#fff',
+          garmentHexOf(s.design.colorId),
         )
         const layer: TextLayer = {
           id: nanoid(8),
@@ -815,7 +815,7 @@ export const useStore = create<StoreState>()(
         const def = GRAPHICS.find((g) => g.id === graphicId)
         if (!def) return
         const dark = s.design.garmentId === 'custom' ? true : isDark(
-          GARMENT_COLORS.find((c) => c.id === s.design.colorId)?.hex ?? '#fff',
+          garmentHexOf(s.design.colorId),
         )
         const wIn = 3.4
         const layer: GraphicLayer = {

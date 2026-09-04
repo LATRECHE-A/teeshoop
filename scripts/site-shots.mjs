@@ -39,17 +39,22 @@ const PAGES = [
   ['accueil', '/'],
   ['catalogue', '/shop/'],
   ['categorie', '/categorie/t-shirts/'],
-  ['produit', '/produit/teeshoop-demo-tee/'],
-  ['studio', '/produit/teeshoop-demo-tee/?personnaliser=1'],
+  ['produit', '/produit/bc-e150-t-shirt-a-personnaliser-01542/'],
+  ['studio', '/produit/bc-e150-t-shirt-a-personnaliser-01542/?personnaliser=1'],
   /*
-   * UNE VRAIE FICHE DU CATALOGUE, en plus de celle de démonstration.
+   * DEUX FICHES, PARCE QU'IL Y A DEUX SORTES DE FICHES.
    *
-   * `teeshoop-demo-tee` est une fixture : elle n'a ni photographie, ni marque,
-   * ni les 91 déclinaisons d'une référence réelle, et c'est très bien pour
-   * asseoir les assertions du studio, qui ont besoin d'un produit stable. Ce
-   * n'est pas ce qu'un client ouvre. La preuve qu'une fiche produit tient
-   * demande une fiche produit : une référence importée, avec sa photo
-   * fournisseur, sa grille de tailles et ses coloris.
+   * Celle du dessus est une OFFRE de marquage : simple, achetable, au tarif du
+   * studio, elle déclare le textile nu sur lequel elle est imprimée. Celle du
+   * dessous est une fiche de CATALOGUE : variable, consultable et pas
+   * achetable, avec ses déclinaisons, ses coloris et sa grille de tailles.
+   * Elles ne rendent pas le même gabarit et une preuve qui n'en regarde qu'une
+   * ne prouve rien sur l'autre.
+   *
+   * Le 4 septembre 2026 la fiche du dessus était `teeshoop-demo-tee`, un
+   * montage sans photographie ni marque. Elle est sortie de la vente avec les
+   * huit autres montages ; ce que le harnais ouvre maintenant est un produit
+   * que le client peut vraiment acheter.
    */
   ['produit-catalogue', '/produit/russell-pure-organic-mens-pure-organic-tee/'],
   ['devis', '/devis/'],

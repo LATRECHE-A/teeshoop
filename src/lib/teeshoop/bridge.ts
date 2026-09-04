@@ -39,6 +39,18 @@
  * costs.
  */
 import { SIZE_IDS } from '@/content/sizeChart'
+import { setShopPalette, type GarmentDye } from '@/content/garmentPalette'
+// The dye id IS a `Design.colorId`, so its bound is the one the design document
+// already enforces. A second constant here would be a second bound.
+import { MAX_GARMENT_ID_LEN } from '@/lib/teeshoop/designDoc'
+
+/**
+ * Bounds on the shop's colour deck. The supplier's widest reference in the
+ * launch range carries 54 colourways; 128 leaves room for a wider one and still
+ * refuses a page that tried to make the frame allocate.
+ */
+const MAX_COLOURS = 128
+const MAX_COLOUR_NAME_LEN = 64
 
 /** One printed side, in the unit the PHP price authority reads. cm², never in². */
 export interface BridgeSide {
@@ -100,6 +112,15 @@ export interface ShopContext {
    * and never what an invoice says.
    */
   preset?: { qty?: number; sizeGrid?: Record<string, number> }
+  /**
+   * The colourways this product can actually be bought in.
+   *
+   * Empty (or absent) means the page restricts nothing and the studio keeps its
+   * own demonstration dyes, which is the standalone editor. It is NOT an
+   * authorisation: the cart re-derives every colour it charges for and the
+   * purchase basket refuses, by name, one it cannot buy.
+   */
+  colours: GarmentDye[]
 }
 
 /**
@@ -428,14 +449,47 @@ function asPreset(raw: unknown): ShopContext['preset'] {
   return preset.sizeGrid === undefined ? undefined : preset
 }
 
+/**
+ * The shop's colour deck, re-validated here.
+ *
+ * The frame trusts nothing it is told, including us: a name is capped, a hex
+ * must BE a hex, and an entry missing either is dropped rather than painted
+ * grey under a real colour name. Two stops at most, which is what a heather
+ * needs and what the shop's own swatch renderer draws.
+ */
+function asColours(raw: unknown): GarmentDye[] {
+  if (!Array.isArray(raw)) return []
+  const out: GarmentDye[] = []
+  for (const entry of raw.slice(0, MAX_COLOURS)) {
+    if (!entry || typeof entry !== 'object') continue
+    const e = entry as Record<string, unknown>
+    const id = typeof e.id === 'string' ? e.id.slice(0, MAX_GARMENT_ID_LEN) : ''
+    const name = typeof e.name === 'string' ? e.name.trim().slice(0, MAX_COLOUR_NAME_LEN) : ''
+    const stops = (Array.isArray(e.stops) ? e.stops : [])
+      .filter((h): h is string => typeof h === 'string' && /^#[0-9a-fA-F]{6}$/.test(h))
+      .slice(0, 2)
+    if (id === '' || name === '' || stops.length === 0) continue
+    out.push({ id, name, stops })
+  }
+  return out
+}
+
 function onContext(origin: string, data: Record<string, unknown>): void {
   parentOrigin = origin
+  const colours = asColours(data.colours)
   context = {
     productId: asProductId(data.productId),
     garment: typeof data.garment === 'string' ? data.garment : '',
     locale: typeof data.locale === 'string' ? data.locale : 'fr',
     preset: asPreset(data.preset),
+    colours,
   }
+  /*
+   * Pushed rather than pulled, so the palette module has no import edge back
+   * into this one and stays usable by the render path, which runs where no
+   * bridge exists.
+   */
+  setShopPalette(colours)
   for (const t of handshakeTimers) clearTimeout(t)
   handshakeTimers.length = 0
   status = 'connected'
@@ -580,6 +634,7 @@ export function requestFrameHeight(px: number): void {
 
 /** Test seam: drop all bridge state so a suite can start from nothing. */
 export function resetShopBridgeForTests(): void {
+  setShopPalette(null)
   if (typeof window !== 'undefined') window.removeEventListener('message', onMessage)
   for (const t of handshakeTimers) clearTimeout(t)
   handshakeTimers.length = 0
