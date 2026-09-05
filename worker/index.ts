@@ -58,8 +58,9 @@ import { nestOrder } from './nest'
 import { isGlb, isPng, isUsdz } from './containers'
 import { rateLimited, type RateLimitEnv } from './ratelimit'
 import { cspNonce, studioPolicy, viewerPolicy, withCsp, type CspEnv } from './csp'
+import { preflight, withCors, type CorsEnv } from './cors'
 
-interface Env extends FalkRossEnv, DesignEnv, RateLimitEnv, CspEnv {
+interface Env extends FalkRossEnv, DesignEnv, RateLimitEnv, CspEnv, CorsEnv {
   ASSETS: Fetcher
   AR_BUCKET: R2Bucket
 }
@@ -252,14 +253,30 @@ export default {
       return uploadAr(request, env)
     }
 
-    // The design hand-off (worker/design.ts). The upload is open for the same
-    // reason `POST /api/ar` is (the customer is the author and cannot
-    // authenticate), and the read is what the WordPress plugin calls before it
-    // will put a personalised line in a cart.
+    /*
+     * The design hand-off (worker/design.ts). The upload is open for the same
+     * reason `POST /api/ar` is (the customer is the author and cannot
+     * authenticate), and the read is what the WordPress plugin calls before it
+     * will put a personalised line in a cart.
+     *
+     * THESE TWO ROUTES, AND ONLY THESE TWO, CARRY CORS HEADERS (worker/cors.ts).
+     * The customiser now runs inside the shop's own page rather than in a frame
+     * served from here, so the fetch that stores a design is cross-origin and
+     * the browser will not let the page read the id back without one. Exact
+     * string equality against `SHOP_ORIGINS`, no credentials, and `vary: origin`
+     * on the refusals too. Nothing else here gains a header: `/api/fr/*` is the
+     * supplier's costs, `/api/nest` is the film economics, and both are
+     * admin-only and have no business being readable from a page.
+     */
+    if (path === '/api/design' && request.method === 'OPTIONS') {
+      return preflight(request, env, 'POST, OPTIONS')
+    }
     if (path === '/api/design' && request.method === 'POST') {
       const tooMany = await rateLimited(env.DESIGN_UPLOAD_LIMIT, request, 'POST /api/design')
-      if (tooMany) return tooMany
-      return createDesign(request, env)
+      // The refusal is stamped too. A 429 the page cannot read is a purchase
+      // that stops with "failed to fetch" instead of "too many uploads".
+      if (tooMany) return withCors(tooMany, request, env)
+      return withCors(await createDesign(request, env), request, env)
     }
     /*
      * Retention (worker/design.ts). ADMIN-ONLY, and matched before the `{id}`
@@ -271,10 +288,21 @@ export default {
     }
     const design = /^\/api\/design\/([^/]+)$/.exec(path)
     if (design) {
+      // The preflight is answered BEFORE the id is decoded, and for any id.
+      // A browser asking whether it may read /api/design/{id} must get the same
+      // answer whether or not that design exists, or the preflight becomes an
+      // oracle for which ids are real.
+      if (request.method === 'OPTIONS') return preflight(request, env, 'GET, HEAD, OPTIONS')
       const id = decodeSegment(design[1])
-      if (id === null) return json({ error: 'not found' }, 404)
-      if (request.method === 'GET' || request.method === 'HEAD') return getDesign(env, id)
-      // The R2 half of an RGPD erasure request; the shop calls it. ADMIN-ONLY.
+      if (id === null) return withCors(json({ error: 'not found' }, 404), request, env)
+      if (request.method === 'GET' || request.method === 'HEAD')
+        return withCors(await getDesign(env, id), request, env)
+      /*
+       * The R2 half of an RGPD erasure request; the shop calls it, SERVER TO
+       * SERVER, with the admin token. Deliberately NOT stamped: a page that
+       * could read this answer is a page that was handed a deletion route, and
+       * no browser needs one.
+       */
       if (request.method === 'DELETE') return deleteDesign(request, env, id)
     }
     const designFile = /^\/r2\/design\/([^/]+)\/(.+)$/.exec(path)

@@ -68,7 +68,8 @@
     "verify:seo": "node scripts/seo-verify.mjs",
     "verify:consent": "node scripts/consent-verify.mjs",
     "verify:a11y": "node scripts/a11y-verify.mjs",
-    "verify:focus": "node scripts/focus-verify.mjs"
+    "verify:focus": "node scripts/focus-verify.mjs",
+    "verify:cors": "node scripts/cors-verify.mjs"
   },
   "keywords": [],
   "type": "module",
