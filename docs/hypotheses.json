@@ -591,7 +591,8 @@
 				"wp-plugins/teeshoop-core/tests/test-cost.php",
 				"wp-plugins/teeshoop-core/tests/test-commission.php",
 				"wp-plugins/teeshoop-core/tests/integration-margin.php",
-				"scripts/focus-verify.mjs"
+				"scripts/focus-verify.mjs",
+				"scripts/sauvegarde-r2.mjs"
 			],
 			"literal_allow_why": "Dans Shipping et son test, 10000 est la tranche des 10 kg de la grille Colissimo, en grammes. Aucun rapport avec le plafond de pièces sur une ligne. Le moteur de coût de la séance 05 : l'exemple chiffré du chapitre 1 (250,00 EUR de coût, 625,00 EUR de vente) et les taux de la question 06 s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Ce ne sont pas des secondes copies, ce sont des collisions de littéraux, et chacune de ces valeurs a sa propre ligne dans ce registre. Le test d'intégration du moteur de coût est ajouté pour la même raison : il chiffre des commandes réelles, donc il écrit des montants ordinaires qui s'écrivent avec les mêmes chiffres que cette valeur sans être elle. Et dans focus-verify, 10000 est un délai d'attente Playwright en millisecondes, comme dans les deux autres harnais déjà listés ici.",
 			"reaches": [

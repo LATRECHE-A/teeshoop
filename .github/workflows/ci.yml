@@ -427,8 +427,15 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # `--wait` NE PORTE QUE SUR LES SERVICES QUI TOURNENT. `wpcli` est un
+      # conteneur à un coup (`entrypoint: wp`, `command: --info`) : il fait son
+      # travail et sort 0. `--wait` sans liste l'attend comme les autres, voit un
+      # conteneur sorti au lieu d'un conteneur sain, et rend 1 sur un miroir
+      # parfaitement monté. Mesuré : « container wp-local-wpcli-1 exited (0) »
+      # suivi de « Process completed with exit code 1 », sur la première
+      # exécution réelle de ce travail.
       - name: Monter le miroir
-        run: docker compose -f wp-local/docker-compose.yml up -d --wait
+        run: docker compose -f wp-local/docker-compose.yml up -d --wait db redis wp
 
       # L'entrée du conteneur `wp` recopie WordPress dans un volume vide, ce qui
       # prend quelques secondes, et `wp-cli` sur un volume à moitié rempli répond
