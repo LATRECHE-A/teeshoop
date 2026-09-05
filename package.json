@@ -72,7 +72,8 @@
     "verify:cors": "node scripts/cors-verify.mjs",
     "build:editeur": "vite build --config vite.editeur.config.ts",
     "verify:editeur": "node scripts/editeur-guard.mjs",
-    "verify:editeur-shots": "node scripts/editeur-shots.mjs"
+    "verify:editeur-shots": "node scripts/editeur-shots.mjs",
+    "verify:vendable": "node scripts/fiche-vendable.mjs"
   },
   "keywords": [],
   "type": "module",

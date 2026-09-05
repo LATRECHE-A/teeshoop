@@ -3598,6 +3598,52 @@ invisible tant que tous les vêtements étaient gradés par la grille d'un seul.
 
 ---
 
+## Ce que la nuit du 5 septembre a trouvé en remontant l'éditeur dans la fiche produit
+
+### Q66. Le fournisseur a-t-il une photographie par coloris, ou n'en livre-t-il qu'une par référence ? (*Important*)
+
+Relevé le 5 septembre 2026 sur le Gildan Heavy Cotton (référence 18009) dans
+notre base : le produit porte **54 coloris et une seule photographie distincte**
+pour les 54. La même image accompagne « Blanc », « Noir », « Sport Grey » et
+« Cardinal Red ».
+
+Ce n'est pas gênant pour la couleur elle-même : nos pastilles sont MESURÉES sur
+la puce du fabricant, 423 coloris relevés, et c'est cette mesure qui peint le
+vêtement dans l'éditeur. C'est gênant pour la photographie : nous ne pouvons pas
+montrer au client la photographie du vêtement dans la couleur qu'il vient de
+choisir, et nous refusons de teinter une image pour faire semblant.
+
+*Deux questions :*
+1. Le fournisseur met-il à disposition une vue par coloris, quelque part où nous
+   n'avons pas regardé (un flux séparé, une convention de nom d'image) ?
+2. Sinon, préférez-vous que la fiche montre la photographie de la référence avec
+   une phrase qui le dit (ce qui est en place aujourd'hui), ou pas de
+   photographie du tout à côté de l'éditeur ?
+
+*Votre réponse :*
+
+---
+
+### Q67. Le détourage automatique doit-il revenir en ligne, sachant ce qu'il coûte ? (*Non bloquant*)
+
+Le bouton « enlever le fond » du studio faisait tourner un modèle d'intelligence
+artificielle DANS le navigateur du client. Mesuré cette nuit en essayant de le
+remettre dans le nouvel éditeur : il faudrait embarquer **13,5 Mo** de code
+technique et **4,6 Mo** de modèle dans le site, ou aller les chercher ailleurs en
+assouplissant un réglage de sécurité de la boutique.
+
+Aujourd'hui l'éditeur dit au client : « Envoyez un PNG à fond transparent, ou
+écrivez-nous : nous détourons le visuel avant l'impression. »
+
+*La question :* combien de vos clients envoient un visuel avec un fond à
+retirer ? Si c'est rare, la phrase ci-dessus suffit et l'atelier le fait mieux
+qu'un modèle automatique. Si c'est fréquent, cela vaut le réglage de sécurité et
+nous le ferons.
+
+*Votre réponse :*
+
+---
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site
