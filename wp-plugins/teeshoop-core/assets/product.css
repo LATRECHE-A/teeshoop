@@ -559,3 +559,44 @@
 		transition: none;
 	}
 }
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LE CONTENEUR DE L'ÉDITEUR, ET LA PHRASE QU'IL PORTE AVANT QUE LE SCRIPT
+ * ARRIVE.
+ *
+ * `assets/editeur/editeur.css` habille tout ce qui est DANS l'éditeur, sous
+ * `.tshop-ed`. Ces quatre règles habillent le conteneur lui-même et le message
+ * de secours que PHP y écrit, parce que ce message doit être lisible même si le
+ * paquet de l'éditeur n'est jamais chargé : c'est précisément le cas où il sert.
+ */
+.teeshoop-editeur {
+	margin: var(--ts-space-4) 0 0;
+}
+
+.teeshoop-editeur__secours {
+	margin: 0;
+	padding: var(--ts-space-3);
+	background: var(--ts-warn-wash);
+	border: 1px solid var(--ts-warn);
+	border-radius: var(--ts-radius);
+	color: var(--ts-warn-ink);
+	font-size: var(--ts-text-sm);
+}
+
+/* Le message de secours disparaît dès que l'éditeur a pris la place. */
+.teeshoop-editeur.tshop-ed .teeshoop-editeur__secours {
+	display: none;
+}
+
+/*
+ * Le second conteneur, sur un thème qui rend la description deux fois. Marqué
+ * plutôt qu'effacé : un administrateur doit pouvoir voir qu'il y en a deux.
+ */
+.teeshoop-editeur[data-teeshoop-editeur-etat='doublon'] {
+	display: none;
+}
+
+.ts-actions--devis {
+	margin-top: var(--ts-space-4);
+}

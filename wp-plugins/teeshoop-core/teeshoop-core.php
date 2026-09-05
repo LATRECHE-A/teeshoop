@@ -139,6 +139,7 @@ require_once __DIR__ . '/includes/Payment.php';
 require_once __DIR__ . '/includes/Checkout.php';
 require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Shortcode.php';
+require_once __DIR__ . '/includes/Editeur.php';
 require_once __DIR__ . '/includes/Compat.php';
 require_once __DIR__ . '/includes/ProductPage.php';
 require_once __DIR__ . '/includes/Nest.php';

@@ -55,6 +55,7 @@ if ( 'cli' !== PHP_SAPI ) {
 }
 
 use Teeshoop\Core\Cart;
+use Teeshoop\Core\Editeur;
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Pricing;
 use Teeshoop\Core\ProductPage;
@@ -179,6 +180,15 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 	update_option( 'woocommerce_price_decimal_sep', ',' );
 	update_option( 'woocommerce_price_thousand_sep', ' ' );
 
+	/*
+	 * L'ÉDITEUR NATIF EST ALLUMÉ ICI, ET C'EST LE HARNAIS QUI L'ALLUME.
+	 *
+	 * `editeur_natif` est faux par défaut dans `Settings::all()` : le contrat de
+	 * retour de la nuit 3 veut que l'ancien chemin reste branché tant que le
+	 * nouveau n'est pas vert. Ce fichier est ce qui le rend vert, donc il
+	 * l'allume sur le miroir et sur le miroir seulement. `studio_origin` reste
+	 * renseigné pour que les cas qui exercent encore le cadre puissent tourner.
+	 */
 	update_option(
 		'teeshoop_settings',
 		array(
@@ -186,6 +196,7 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 			'studio_path'        => '/',
 			'worker_url'         => $worker_url,
 			'design_verify_path' => '/api/design/',
+			'editeur_natif'      => '1',
 		)
 	);
 
@@ -258,6 +269,18 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 			'studio_origin'   => Settings::studio_origin(),
 			'worker_url'      => Settings::get( 'worker_url' ),
 			'unverified_ok'   => Settings::allow_unverified_designs(),
+			/*
+			 * Le chemin natif est-il branché, et son paquet est-il là.
+			 *
+			 * Rapporté, jamais asserté ici : le harnais décide. Sans le paquet
+			 * construit, `Editeur::rendre()` retombe sur le message de secours
+			 * et la fiche produit n'a pas de bouton d'achat ; le harnais doit
+			 * pouvoir dire « lancez npm run build:editeur » plutôt que « le
+			 * canevas n'est jamais apparu », qui est le même symptôme pour cinq
+			 * causes différentes.
+			 */
+			'editeur_natif'   => Editeur::est_actif(),
+			'editeur_pret'    => Editeur::paquet_present(),
 		)
 	);
 }

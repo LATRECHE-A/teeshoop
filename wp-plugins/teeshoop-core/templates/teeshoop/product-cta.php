@@ -30,6 +30,9 @@
  * @var int    $max_faces
  * @var string $studio_url
  * @var bool   $needs_quote
+ * @var bool   $editeur_natif  L'éditeur est dans la page : ce fichier ne pose
+ *                             alors ni formulaire de quantité ni bouton
+ *                             « Personnaliser », parce que l'éditeur les porte.
  */
 
 use Teeshoop\Core\Money;
@@ -96,6 +99,29 @@ $ts_bases     = Settings::price_bases();
 		</p>
 	<?php endif; ?>
 
+	<?php
+	/*
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * UNE SEULE QUESTION, POSÉE UNE SEULE FOIS.
+	 *
+	 * Cette boîte demandait la quantité, les tailles et le nombre de faces,
+	 * puis `CartModal`, à l'intérieur du cadre, redemandait la même grille.
+	 * `Shortcode::preset` n'existait que pour masquer ce doublon, et il était
+	 * abandonné dès que la série dépassait le plafond, donc le doublon
+	 * réapparaissait exactement quand la commande devenait importante. Deux
+	 * formulaires pour une réponse, c'est là qu'un acheteur décide que le site
+	 * n'est pas fini.
+	 *
+	 * Quand l'éditeur est dans la page, c'est LUI qui porte la grille de
+	 * tailles, le prix et le bouton d'achat : tout ce bloc disparaît. Ce qui
+	 * reste au-dessus et en dessous est ce qu'un visiteur sans JavaScript doit
+	 * pouvoir lire quand même, et la grille de tarifs publiée plus bas est
+	 * rendue par le serveur dans les deux cas.
+	 */
+	if ( $editeur_natif ) :
+		\Teeshoop\Core\Editeur::rendre();
+	else :
+	?>
 	<form class="ts-buy__form" method="get" action="<?php echo esc_url( $ts_permalink ); ?>" data-teeshoop-estimator>
 
 		<?php if ( $max_faces > 1 ) : ?>
@@ -311,6 +337,24 @@ $ts_bases     = Settings::price_bases();
 			<?php esc_html_e( 'Demander un devis', 'teeshoop' ); ?>
 		</a>
 	</div>
+	<?php endif; ?>
+
+	<?php
+	/*
+	 * LE LIEN VERS LE DEVIS SURVIT À LA DISPARITION DES DEUX BOUTONS.
+	 *
+	 * Une commande au-delà du seuil ne se chiffre pas toute seule, et l'éditeur
+	 * le dit aussi ; mais un visiteur qui arrive sur la fiche sans rien poser
+	 * doit trouver le chemin du devis sans avoir à déposer un fichier d'abord.
+	 */
+	if ( $editeur_natif ) :
+	?>
+		<p class="ts-actions ts-actions--devis">
+			<a class="ts-cta ts-cta--ghost" href="#teeshoop-devis" data-teeshoop-devis-link>
+				<?php esc_html_e( 'Demander un devis', 'teeshoop' ); ?>
+			</a>
+		</p>
+	<?php endif; ?>
 
 	<p class="ts-note">
 		<?php

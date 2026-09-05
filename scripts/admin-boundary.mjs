@@ -103,14 +103,24 @@ function resolveSpecifier(spec, fromFile, srcDir) {
  * erases it, so no edge survives into the bundle. A dynamic `import()` is NOT
  * skipped, because a lazy chunk still ships and is still fetchable.
  */
-export function specifiersOf(src) {
+export function specifiersOf(src, { dynamic = true } = {}) {
   const out = []
   for (const m of src.matchAll(/^\s*(?:import|export)\s+([\s\S]*?)\s*from\s*['"]([^'"]+)['"]/gm)) {
     if (/^type[\s{]/.test(m[1].trim())) continue
     out.push(m[2])
   }
   for (const m of src.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)) out.push(m[1])
-  for (const m of src.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)) out.push(m[1])
+  /*
+   * `dynamic: false` LEAVES `import()` OUT, and there is exactly one caller.
+   *
+   * For the ADMIN boundary a lazy chunk is still an edge: it ships, it uploads,
+   * and `GET /assets/<hash>.js` still returns it to anyone. For the SHOP
+   * editor's first load the question is the opposite one, what a customer
+   * downloads before clicking anything, and there a chunk that is only fetched
+   * on demand is precisely what the split exists to produce. Two questions, one
+   * walk, and the difference is named rather than reimplemented.
+   */
+  if (dynamic) for (const m of src.matchAll(/\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)) out.push(m[1])
   /*
    * AND A WEB WORKER, which is an edge no import parser sees.
    *
@@ -136,7 +146,7 @@ export function specifiersOf(src) {
 }
 
 /** Transitive closure from an entry: repo-relative path to the file that pulled it in. */
-export function closureFrom(entry, repoRoot) {
+export function closureFrom(entry, repoRoot, opts = {}) {
   const srcDir = join(repoRoot, 'src')
   const reached = new Map([[entry, '(entry)']])
   const queue = [entry]
@@ -148,7 +158,7 @@ export function closureFrom(entry, repoRoot) {
     } catch {
       continue
     }
-    for (const spec of specifiersOf(src)) {
+    for (const spec of specifiersOf(src, opts)) {
       const target = resolveSpecifier(spec, file, srcDir)
       if (!target || reached.has(target)) continue
       reached.set(target, file)

@@ -233,7 +233,23 @@ try {
   }
   await waitFor(SHOP, 90000).catch(() => bail(`${SHOP} never answered. Try: npm run wp:up`))
 
-  // --- 1. the studio, built as it ships ----------------------------------
+  // --- 1. the two bundles, built as they ship ----------------------------
+  /*
+   * L'ÉDITEUR EST TOUJOURS RECONSTRUIT, MÊME AVEC `WP_E2E_SKIP_BUILD`.
+   *
+   * `dist/` est lourd et le sauter fait gagner une minute ; le paquet de
+   * l'éditeur se construit en une demi-seconde et il EST ce que la boutique
+   * sert, parce que le greffon est monté dans le conteneur. Le sauter, ce
+   * serait tester le paquet d'avant contre le code d'aujourd'hui, ce qui est
+   * exactement la rouille que `scripts/editeur-guard.mjs` existe pour attraper.
+   */
+  console.log('building the in-page editor into the plugin ...')
+  try {
+    execFileSync('npm', ['run', 'build:editeur'], { stdio: ['ignore', 'ignore', 'inherit'] })
+  } catch {
+    bail('npm run build:editeur failed')
+  }
+
   if (process.env.WP_E2E_SKIP_BUILD === '1') {
     console.log('reusing dist/ (WP_E2E_SKIP_BUILD=1)')
   } else {
@@ -401,147 +417,178 @@ try {
     OUT ? page.screenshot({ path: `${OUT}/${n}.png`, timeout: 15000 }).catch(() => {}) : Promise.resolve()
 
   await page.goto(fixture.url, { waitUntil: 'domcontentloaded', timeout: 45000 })
-  const frameEl = page.locator('iframe.teeshoop-studio__frame')
-  ok('the product page carries exactly one studio', (await frameEl.count()) === 1)
-  await frameEl.scrollIntoViewIfNeeded()
-  const studio = page.frameLocator('iframe.teeshoop-studio__frame')
+  /*
+   * ── L'ÉDITEUR EST DANS LA PAGE, PLUS DANS UN CADRE ──────────────────────
+   *
+   * Ce bloc pilotait un `frameLocator` : il ouvrait le panneau « Imports » du
+   * studio, cliquait une vignette, refermait le panneau (parce que le studio
+   * encadré est presque toujours dans sa disposition mobile, quelle que soit la
+   * taille de l'écran), puis ouvrait « Commander ». Rien de tout ça n'existe
+   * plus : la fiche produit porte l'éditeur, et il n'a ni panneau, ni cadre, ni
+   * poignée de main à réussir avant de pouvoir vendre.
+   *
+   * Ce que le harnais vérifie N'A PAS BOUGÉ, et c'est le point : la ligne est
+   * dans la session du visiteur, la création se vérifie contre le Worker, les
+   * surfaces viennent du document stocké, le prix est celui de `Pricing::quote`
+   * aux trois endroits qui doivent s'accorder, un identifiant fabriqué est
+   * refusé, et la moitié privée reste privée.
+   */
+  const editeur = page.locator('[data-teeshoop-editeur]')
+  ok('the product page carries exactly one editor', (await editeur.count()) === 1)
+  ok('and no studio iframe at all', (await page.locator('iframe.teeshoop-studio__frame').count()) === 0)
+  await editeur.scrollIntoViewIfNeeded()
 
-  await studio.locator('canvas').first().waitFor({ timeout: 90000 })
-  await page.waitForTimeout(2500)
+  /*
+   * LE BANDEAU DE CONSENTEMENT EST ÉCARTÉ AVANT TOUT CLIC.
+   *
+   * Il est en `position: fixed` au-dessus de la page et il avale le premier
+   * clic sur la moitié basse de l'écran. Ce n'est pas une gêne de harnais : un
+   * client le voit aussi, et le refus est un choix légitime que la suite doit
+   * pouvoir traverser. « Tout refuser » plutôt que « Tout accepter », parce que
+   * c'est le chemin où le moins de choses sont chargées.
+   */
+  for (const label of ['Tout refuser', 'Tout accepter']) {
+    const bouton = page.getByRole('button', { name: label })
+    if ((await bouton.count()) > 0) {
+      await bouton.first().click({ timeout: 5000 }).catch(() => {})
+      break
+    }
+  }
+  await page.waitForTimeout(500)
 
-  // The handshake succeeded if and only if the studio is offering the SHOP's
-  // route to buying rather than its standalone quote-by-email flow.
-  const order = studio.getByRole('button', { name: 'Commander' })
-  await order.waitFor({ timeout: 20000 }).catch(() => {})
-  if (!ok('the studio handshook with the shop', await order.isVisible().catch(() => false)))
-    bail('the studio never connected to the shop, so nothing below can be tested')
+  // Le canevas est le signe que l'éditeur a démarré : `Editeur::rendre()` pose
+  // d'abord un message de secours, et le script ne le remplace que s'il est en
+  // état de vendre.
+  await page.locator('.tshop-ed canvas').first().waitFor({ timeout: 60000 }).catch(() => {})
+  if (
+    !ok(
+      'the editor started, on this product, with no handshake',
+      (await editeur.getAttribute('data-teeshoop-editeur-etat')) === 'pret',
+      `état ${await editeur.getAttribute('data-teeshoop-editeur-etat')}` +
+        (fixture.editeur_pret ? '' : ' (assets/editeur absent: npm run build:editeur)'),
+    )
+  )
+    bail('the native editor never started, so nothing below can be tested')
   await shot('wp-e2e-1-product-page')
+
+  /*
+   * IL OUVRE SUR LE PRODUIT CLIQUÉ, ET SUR RIEN D'AUTRE.
+   *
+   * Le cadre restaurait le dernier brouillon du visiteur ou chargeait
+   * `makeSampleDesign()`, un t-shirt noir portant « TSHOP » en arche. C'est
+   * l'assertion que cette nuit existe pour rendre possible, et elle se lit sur
+   * la création elle-même : le bon vêtement, et zéro calque.
+   */
+  const auDepart = await page.evaluate(() => window.teeshoopEditeur?.creationActuelle?.() ?? null)
+  ok(
+    'the editor opens on THIS product, with an empty design',
+    auDepart !== null && auDepart.garmentId === fixture.garment && auDepart.layers.length === 0,
+    JSON.stringify({ garment: auDepart?.garmentId, calques: auDepart?.layers?.length }),
+  )
 
   // A customer's own artwork, mostly transparent margin. It exercises the
   // raster upload, the magic-byte gate and the ink measurement at once.
-  await studio.getByRole('button', { name: 'Imports' }).click()
-  // `[multiple]` picks the Imports panel's input; EditorCanvas has a
-  // single-file one of its own for drops onto the stage.
-  await studio
-    .locator('input[type=file][multiple]')
-    .setInputFiles({ name: 'logo-client.png', mimeType: 'image/png', buffer: paddedLogoPng() })
-  const thumb = studio.locator('button.checkerboard').first()
-  await thumb.waitFor({ timeout: 20000 })
-  await thumb.click()
-  // Close the panel again. The frame is a column inside the theme's layout, so
-  // it is under the studio's `md` breakpoint even on a 1440 px page: the tool
-  // panel opens as a sheet with a full-frame scrim, and the scrim swallows every
-  // other click. Worth knowing: framed, the studio is nearly always in its
-  // mobile layout, whatever the visitor's screen says.
-  await studio.getByRole('button', { name: 'Imports' }).click()
-  await page.waitForTimeout(1200)
-  const frameBox = await frameEl.boundingBox()
-  console.log(`studio frame: ${Math.round(frameBox?.width ?? 0)} x ${Math.round(frameBox?.height ?? 0)} px`)
+  await page.setInputFiles('.tshop-ed__fichier', {
+    name: 'logo-client.png',
+    mimeType: 'image/png',
+    buffer: paddedLogoPng(),
+  })
+  await page.locator('[data-teeshoop="taille-visuel"]').waitFor({ timeout: 20000 })
+  const boiteEditeur = await editeur.boundingBox()
+  console.log(`editor: ${Math.round(boiteEditeur?.width ?? 0)} x ${Math.round(boiteEditeur?.height ?? 0)} px`)
   await shot('wp-e2e-2-artwork-placed')
 
   /*
    * ── LE GRADIENT SUIT-IL LA FICHE DU FABRICANT ? ─────────────────────────
    *
-   * C'est le seul saut de la chaîne qu'aucun test unitaire ne peut faire :
-   * `assets/bridge.js` lit `TEESHOOP_BRIDGE.sizeChart`, le poste au cadre, et
-   * `src/lib/teeshoop/bridge.ts` le pose sur la création. Les deux bouts sont
-   * testés séparément ; entre les deux il y a un postMessage réel entre deux
-   * origines, et c'est là que ça se casse en silence.
+   * `Editeur::contexte()` publie la série du fabricant sur la page, et
+   * `src/native/editeur.ts` la pose sur la création. Les deux bouts sont testés
+   * séparément ; entre les deux il y a `wp_localize_script`, qui transforme
+   * tout en chaîne de caractères, et c'est là que ça se casse en silence.
    *
-   * Lu dans le document que le studio a lui-même écrit dans IndexedDB, à travers
-   * `idb-keyval` (base `keyval-store`, magasin `keyval`, clé `tshop:current`),
-   * donc sans aucun crochet de débogage dans le code livré.
+   * Lu sur la création que l'éditeur tient vraiment, à travers l'accesseur
+   * qu'il expose, et non dans une variable de débogage : c'est le même objet
+   * que celui qui sera déposé.
    *
    * La fiche est celle du Gildan Heavy Cotton, la référence dont la série
    * s'écarte le plus de la charte du studio : 71,12 / 50,8 = 1,400 contre
-   * 64 / 52 = 1,2308. Le studio qui graderait encore par sa propre charte ne
+   * 64 / 52 = 1,2308. Un éditeur qui graderait encore par sa propre charte ne
    * porterait tout simplement pas ce champ.
    */
-  const published = await page.evaluate(() => window.TEESHOOP_BRIDGE?.sizeChart ?? null)
+  const published = await page.evaluate(() => window.TEESHOOP_EDITEUR?.sizeChart ?? null)
   ok(
-    'the product page publishes the maker\'s series to the studio',
+    "the product page publishes the maker's series to the editor",
     published !== null && Object.keys(published).length >= 2,
     JSON.stringify(published),
   )
-
-  const stored = await studio.locator('body').evaluate(
-    () =>
-      new Promise((resolve) => {
-        const open = indexedDB.open('keyval-store')
-        open.onerror = () => resolve({ error: 'idb refusée' })
-        open.onsuccess = () => {
-          const db = open.result
-          if (!db.objectStoreNames.contains('keyval')) return resolve({ error: 'pas de magasin keyval' })
-          const req = db.transaction('keyval', 'readonly').objectStore('keyval').get('tshop:current')
-          req.onerror = () => resolve({ error: 'lecture refusée' })
-          req.onsuccess = () =>
-            resolve({ chart: req.result?.shopSizeChart ?? null, garment: req.result?.garmentId ?? '' })
-        }
-      }),
+  const applied = await page.evaluate(
+    () => window.teeshoopEditeur?.creationActuelle?.()?.shopSizeChart ?? null,
   )
-  const applied = stored?.chart ?? null
   ok(
-    'the studio grades by the maker\'s series, not by its own chart',
+    "the editor grades by the maker's series, not by its own chart",
     Boolean(applied) &&
       applied.garmentId === fixture.garment &&
       Math.abs(Number(applied.halfChestCm?.['3XL']) - Number(fixture.size_chart?.['3XL'])) < 0.001,
-    JSON.stringify(stored),
+    JSON.stringify(applied),
   )
   if (applied) {
     const k = Number(applied.halfChestCm['3XL']) / Number(applied.halfChestCm.M)
     console.log(`grading 3XL/M: ${k.toFixed(4)} from the maker, 1.2308 from the studio chart`)
-    ok('and the factor is the maker\'s, measurably not the studio\'s', Math.abs(k - 1.4) < 0.001, k.toFixed(4))
+    ok("and the factor is the maker's, measurably not the studio's", Math.abs(k - 1.4) < 0.001, k.toFixed(4))
   }
 
-  await order.click()
-  const price = studio.locator('[data-teeshoop="price"]')
-  await price.waitFor({ timeout: 30000 })
+  /*
+   * UNE SEULE QUESTION, POSÉE UNE SEULE FOIS.
+   *
+   * La boîte d'achat demandait la quantité, les tailles et le nombre de faces,
+   * puis `CartModal` redemandait la même grille dans le cadre. Il n'y a plus
+   * qu'une grille sur la page, et c'est celle de l'éditeur.
+   */
+  ok(
+    'the page asks for the size breakdown exactly once',
+    (await page.locator('[data-teeshoop-estimator]').count()) === 0 &&
+      (await page.locator('.tshop-ed__qte').count()) > 0,
+    `${await page.locator('.tshop-ed__qte').count()} cases de taille, ${await page
+      .locator('[data-teeshoop-estimator]')
+      .count()} formulaire(s) d'estimation`,
+  )
 
-  const qtyField = studio.getByLabel(`Quantité en M`)
+  const qtyField = page.getByLabel('Quantité en M')
   await qtyField.fill(String(ORDER_QTY))
-  const shownTtc = await settledText(studio.locator('[data-teeshoop="total-ttc"]'))
-  const shownHt = await settledText(studio.locator('[data-teeshoop="total-ht"]'))
-  ok('the studio shows a price it was given', shownTtc.length > 0, `${shownTtc} TTC`)
-  await shot('wp-e2e-3-cart-modal')
+  await page.locator('[data-teeshoop="price"]').waitFor({ timeout: 30000 })
+  const shownTtc = await settledText(page.locator('[data-teeshoop="total-ttc"]'))
+  const shownHt = await settledText(page.locator('[data-teeshoop="total-ht"]'))
+  ok('the editor shows a price it was given', shownTtc.length > 0, `${shownTtc}`)
+  await shot('wp-e2e-3-price')
 
-  const addButton = studio.locator('[data-teeshoop="add-to-cart"]')
+  const addButton = page.locator('[data-teeshoop="add-to-cart"]')
   await addButton.waitFor({ state: 'visible', timeout: 20000 })
   // Reported before clicking, because "the click timed out" is not a diagnosis:
-  // a disabled button, a button under the mobile scrim and a button pushed out
-  // of the frame all look the same from the outside.
+  // a disabled button and a button under a fixed banner look the same outside.
   const buyState = await addButton.evaluate((el) => ({
     disabled: el.hasAttribute('disabled'),
     label: (el.textContent ?? '').trim(),
-    top: Math.round(el.getBoundingClientRect().top),
-    frameH: window.innerHeight,
   }))
   if (!ok('the add button is offered', !buyState.disabled, JSON.stringify(buyState))) {
     await shot('wp-e2e-x-disabled')
     bail(`the buy button is disabled: ${JSON.stringify(buyState)}`)
   }
-  // Put the FRAME at the top of the window first. The studio's modals are
-  // `position: fixed` inside the frame, so once the frame has grown toward the
-  // window height its lower part sits below the fold until the page itself
-  // scrolls. A visitor does that without thinking; Playwright's
-  // scrollIntoViewIfNeeded only scrolls the nearest container, so it reported
-  // "element is outside of the viewport" for a button a person can plainly see.
   const startedAt = Date.now()
-  await frameEl.evaluate((el) => el.scrollIntoView({ block: 'start' }))
   await addButton.scrollIntoViewIfNeeded()
   await addButton.click({ timeout: 20000 })
   const outcome = await Promise.race([
-    studio.locator('[data-teeshoop="cart-done"]').waitFor({ timeout: 120000 }).then(() => 'done'),
-    studio.locator('[data-teeshoop="cart-error"]').waitFor({ timeout: 120000 }).then(() => 'error'),
+    page.locator('[data-teeshoop="cart-done"]').waitFor({ timeout: 120000 }).then(() => 'done'),
+    page.locator('[data-teeshoop="cart-error"]').waitFor({ timeout: 120000 }).then(() => 'error'),
   ]).catch(() => 'timeout')
   if (outcome !== 'done') {
-    const why = await studio.locator('[data-teeshoop="cart-error"]').textContent().catch(() => '')
+    const why = await page.locator('[data-teeshoop="cart-error"]').textContent().catch(() => '')
     await shot('wp-e2e-x-failed')
     bail(
       `add to cart ${outcome}: ${why || 'no message'}` +
         (cartReplies.length ? `\n  shop answered: ${cartReplies.join(' | ')}` : '\n  the shop was never asked'),
     )
   }
-  ok('the studio reports the line was added', true, `${Math.round((Date.now() - startedAt) / 100) / 10} s`)
+  ok('the editor reports the line was added', true, `${Math.round((Date.now() - startedAt) / 100) / 10} s`)
   await shot('wp-e2e-4-added')
 
   if (upload)
@@ -594,7 +641,7 @@ try {
     `${eur(cart.cart_totals.subtotal)}`,
   )
   ok(
-    'the studio displayed that same number',
+    'the editor displayed that same number',
     shownTtc === line.expected.display.total_ttc && shownHt.includes(line.expected.display.total_ht),
     `shown ${shownTtc} / server ${line.expected.display.total_ttc}`,
   )
@@ -608,7 +655,7 @@ try {
    * caption the invoice would have contradicted.
    */
   ok(
-    'WooCommerce charges the VAT the studio promised',
+    'WooCommerce charges the VAT the editor promised',
     cart.cart_totals.total !== null &&
       eur(cart.cart_totals.total) === eur(line.expected.total_ttc / 100),
     `charged ${eur(cart.cart_totals.total)} vs quoted ${eur(line.expected.total_ttc / 100)}`,

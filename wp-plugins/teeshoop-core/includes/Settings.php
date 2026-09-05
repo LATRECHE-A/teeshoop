@@ -25,6 +25,18 @@ final class Settings {
 		$defaults = array(
 			'studio_origin'      => '',
 			'studio_path'        => '/',
+			/*
+			 * LE PERSONNALISATEUR DANS LA PAGE, PLUTÔT QUE DANS UN CADRE.
+			 *
+			 * `false` par défaut, et ce défaut EST le contrat de retour de la
+			 * nuit 3 : une fiche produit incapable de vendre est strictement
+			 * pire qu'une fiche qui vend à travers un cadre, donc l'ancien
+			 * chemin reste branché tant que le nouveau n'est pas vert de bout en
+			 * bout contre un vrai WooCommerce. Une chaîne, comme le reste de ce
+			 * tableau, parce que le formulaire des réglages écrit des chaînes ;
+			 * `Editeur::est_actif()` est le seul endroit qui l'interprète.
+			 */
+			'editeur_natif'      => '',
 			'worker_url'         => '',
 			'design_verify_path' => '/api/design/',
 			// Where a quote request is announced. Empty falls back to the site

@@ -53,6 +53,23 @@ final class Shortcode {
 	}
 
 	public static function render( mixed $raw_atts ): string {
+		/*
+		 * DEUX PERSONNALISATEURS SUR UNE FICHE, C'EST UN DE TROP.
+		 *
+		 * Quand l'éditeur natif est branché, il occupe la fente d'ajout au
+		 * panier. Une description de produit qui porte encore ce raccourci
+		 * poserait un second éditeur, sur une autre origine, avec sa propre
+		 * création : le client en remplirait un et achèterait l'autre. Le
+		 * raccourci se tait donc, et le dit à qui peut retirer la ligne.
+		 */
+		if ( class_exists( __NAMESPACE__ . '\\Editeur' ) && Editeur::est_actif() ) {
+			return current_user_can( 'manage_options' )
+				? '<p class="teeshoop-error">' .
+					esc_html__( 'Teeshoop : le personnalisateur est maintenant intégré à la fiche produit. Retirez le raccourci [teeshoop_studio] de cette description ; il n’affiche plus rien.', 'teeshoop' ) .
+					'</p>'
+				: '';
+		}
+
 		if ( self::$rendered ) {
 			return current_user_can( 'manage_options' )
 				? '<p class="teeshoop-error">' .

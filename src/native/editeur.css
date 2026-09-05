@@ -1,0 +1,605 @@
+/*
+ * L'éditeur, habillé, dans la page de quelqu'un d'autre.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CE FICHIER NE PEUT PAS TOUCHER LE THÈME, ET C'EST VÉRIFIÉ.
+ *
+ * `scripts/editeur-guard.mjs` lit la feuille construite et refuse le paquet si
+ * un sélecteur ne commence pas par `.tshop-ed`, ou s'il vise `body`, `html`,
+ * `:root` ou `*`. C'est la réponse aux deux premières raisons de
+ * `Shortcode.php` : la remise à zéro non préfixée de Tailwind v4 réécrivait les
+ * `a`, `h1` à `h6`, `button` et `img` du thème, et `body{overflow:hidden}` avec
+ * `100dvh` tuait le défilement du site. Il n'y a pas de remise à zéro ici, il y
+ * a des règles nommées.
+ *
+ * Les propriétés de marque sont déclarées sur `.tshop-ed` et non sur `:root`,
+ * avec la valeur de `assets/tokens.css` en repli écrit en dur : la fiche produit
+ * charge les jetons, mais un éditeur qui deviendrait gris parce qu'une feuille
+ * a manqué serait un éditeur cassé pour une raison invisible.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 375 PX D'ABORD. Une colonne, pas de défilement horizontal, les contrôles à
+ * portée de pouce. La grande largeur est un `@media` qui met la scène et les
+ * contrôles côte à côte, et c'est le seul.
+ *
+ * PAS DE `position: fixed`. Quatrième raison de `Shortcode.php` : les fenêtres
+ * fixes du studio entraient en collision avec Elementor. Il n'y a pas de
+ * fenêtre dans la vue simple, et la vue avancée utilise `<dialog>`, dont la
+ * couche supérieure est au-dessus de tout contexte d'empilement par définition.
+ */
+
+.tshop-ed {
+	--tshop-accent: var(--ts-accent, #010050);
+	--tshop-accent-ink: var(--ts-accent-ink, #ffffff);
+	--tshop-ink: var(--ts-ink, #242424);
+	--tshop-muted: var(--ts-muted, #767676);
+	--tshop-paper: var(--ts-paper, #ffffff);
+	--tshop-surface: var(--ts-surface, #f6f7f9);
+	--tshop-line: var(--ts-line, #dce0e5);
+	--tshop-line-strong: var(--ts-line-strong, #8190a2);
+	--tshop-bad: var(--ts-bad, #b3261e);
+	--tshop-bad-wash: var(--ts-bad-wash, #fdeeed);
+	--tshop-bad-ink: var(--ts-bad-ink, #8c1d18);
+	--tshop-good-wash: var(--ts-good-wash, #eef7f2);
+	--tshop-good-ink: var(--ts-good-ink, #0b5c3b);
+	--tshop-radius: var(--ts-radius, 10px);
+	--tshop-font: var(--ts-font, 'Lato', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif);
+	--tshop-font-display: var(--ts-font-display, 'Urbanist', var(--tshop-font));
+
+	display: block;
+	box-sizing: border-box;
+	font-family: var(--tshop-font);
+	font-size: var(--ts-text, 0.9375rem);
+	line-height: var(--ts-leading, 1.5);
+	color: var(--tshop-ink);
+	max-width: 100%;
+}
+
+.tshop-ed *,
+.tshop-ed *::before,
+.tshop-ed *::after {
+	box-sizing: border-box;
+}
+
+/* ------------------------------------------------------------------- scène */
+
+.tshop-ed__scene {
+	position: relative;
+	background: var(--tshop-surface);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+	overflow: hidden;
+}
+
+/*
+ * LE FOND EST UN SOL UNI, et c'est une décision produit.
+ *
+ * Le studio tirait `stageBackground` de `@/scenes`, qui sert aussi les scènes
+ * 3D (plage, forêt, ville, coucher de soleil, nuit) : un import de valeur, donc
+ * une arête vers un module de décor dans un paquet dont le travail est de
+ * vendre un vêtement. Une fiche produit n'a pas besoin d'une plage derrière le
+ * t-shirt, elle a besoin qu'on voie le vêtement.
+ */
+.tshop-ed__toile {
+	width: 100%;
+	aspect-ratio: 1 / 1;
+	max-height: 62vh;
+	background: var(--tshop-surface);
+}
+
+.tshop-ed__scene--survol {
+	border-color: var(--tshop-accent);
+	box-shadow: inset 0 0 0 2px var(--tshop-accent);
+}
+
+.tshop-ed__vide {
+	position: absolute;
+	inset: auto 0 0 0;
+	margin: 0;
+	padding: 0.75rem 1rem;
+	background: color-mix(in srgb, var(--tshop-paper) 88%, transparent);
+	border-top: 1px solid var(--tshop-line);
+	color: var(--tshop-muted);
+	font-size: var(--ts-text-sm, 0.875rem);
+	text-align: center;
+	pointer-events: none;
+}
+
+/* -------------------------------------------------- contrôles de l'objet */
+
+/*
+ * Ils n'existent que quand un objet est sélectionné : le noeud est `hidden`,
+ * donc absent de l'ordre de tabulation et de l'arbre d'accessibilité, et pas
+ * seulement transparent.
+ */
+.tshop-ed__outils {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	margin-top: 0.5rem;
+	padding: 0.5rem;
+	background: var(--tshop-surface);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+}
+
+.tshop-ed__mesure {
+	font-variant-numeric: tabular-nums;
+	font-size: var(--ts-text-sm, 0.875rem);
+	color: var(--tshop-muted);
+	margin-right: auto;
+}
+
+.tshop-ed__outil {
+	font: inherit;
+	padding: 0.375rem 0.75rem;
+	min-height: 2.25rem;
+	background: var(--tshop-paper);
+	color: var(--tshop-ink);
+	border: 1px solid var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+	cursor: pointer;
+}
+
+.tshop-ed__outil--retirer {
+	color: var(--tshop-bad-ink);
+	border-color: var(--tshop-bad);
+}
+
+/* ------------------------------------------------------------ photographie */
+
+.tshop-ed__bande {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.75rem;
+	margin-top: 0.75rem;
+}
+
+.tshop-ed__photo {
+	width: 64px;
+	height: 64px;
+	flex: 0 0 auto;
+	object-fit: contain;
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+}
+
+.tshop-ed__legende {
+	margin: 0;
+	font-size: var(--ts-text-xs, 0.8125rem);
+	color: var(--tshop-muted);
+}
+
+/* ------------------------------------------------------------------ blocs */
+
+.tshop-ed__bloc {
+	margin-top: 1rem;
+}
+
+.tshop-ed__titre {
+	font-family: var(--tshop-font-display);
+	font-weight: var(--ts-weight-display, 700);
+	font-size: var(--ts-text-sm, 0.875rem);
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--tshop-muted);
+	margin: 0 0 0.5rem;
+}
+
+/* --------------------------------------------------------------- couleurs */
+
+.tshop-ed__couleurs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.tshop-ed__pastille {
+	width: 2.25rem;
+	height: 2.25rem;
+	padding: 0;
+	border-radius: 50%;
+	border: 1px solid var(--tshop-line-strong);
+	background: var(--pastille, #ffffff);
+	cursor: pointer;
+}
+
+.tshop-ed__pastille[aria-checked='true'] {
+	/*
+	 * L'ANNEAU, PAS SEULEMENT UNE OMBRE. Un état sélectionné qui ne tient
+	 * qu'à une couleur est invisible pour un daltonien et disparaît en
+	 * contraste forcé ; l'anneau est une différence de forme.
+	 */
+	box-shadow: 0 0 0 2px var(--tshop-paper), 0 0 0 4px var(--tshop-accent);
+}
+
+/* --------------------------------------------------------------- fichier */
+
+/*
+ * Le champ natif est masqué par déplacement, jamais par `display:none`.
+ * `display:none` le retire de l'ordre de tabulation, et l'étiquette n'est plus
+ * atteignable au clavier : le client ne peut plus choisir de fichier du tout.
+ */
+.tshop-ed__fichier {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+.tshop-ed__depot {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.75rem;
+	padding: 0.5rem 1.25rem;
+	background: var(--tshop-paper);
+	color: var(--tshop-accent);
+	border: 1px solid var(--tshop-accent);
+	border-radius: var(--tshop-radius);
+	font-weight: var(--ts-weight-strong, 700);
+	cursor: pointer;
+}
+
+.tshop-ed__fichier:focus-visible + .tshop-ed__depot,
+.tshop-ed__depot:hover {
+	background: var(--ts-accent-wash, #dfdfff);
+}
+
+.tshop-ed__fichier:focus-visible + .tshop-ed__depot {
+	outline: 3px solid var(--tshop-accent);
+	outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- tailles */
+
+.tshop-ed__tailles {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr));
+	gap: 0.5rem;
+}
+
+.tshop-ed__taille {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.tshop-ed__taille-nom {
+	font-size: var(--ts-text-xs, 0.8125rem);
+	font-weight: var(--ts-weight-strong, 700);
+	color: var(--tshop-muted);
+}
+
+.tshop-ed__qte {
+	font: inherit;
+	/* Les chiffres s'alignent en colonne : une grille de tailles est un tableau. */
+	font-variant-numeric: tabular-nums;
+	width: 100%;
+	min-height: 2.75rem;
+	padding: 0.375rem 0.5rem;
+	text-align: center;
+	color: var(--tshop-ink);
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+}
+
+/* ------------------------------------------------------------------- prix */
+
+.tshop-ed__prix {
+	margin-top: 1rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--tshop-line);
+	font-variant-numeric: tabular-nums;
+}
+
+.tshop-ed__ligne {
+	margin: 0;
+	font-size: var(--ts-text-lg, 1.0625rem);
+}
+
+.tshop-ed__unite {
+	font-family: var(--tshop-font-display);
+	font-weight: var(--ts-weight-display, 700);
+	font-size: var(--ts-display-xs, 1.3125rem);
+}
+
+.tshop-ed__total {
+	margin: 0.25rem 0 0;
+}
+
+.tshop-ed__ttc {
+	margin: 0.125rem 0 0;
+	color: var(--tshop-muted);
+}
+
+.tshop-ed__mention {
+	margin: 0.25rem 0 0;
+	font-size: var(--ts-text-xs, 0.8125rem);
+	color: var(--tshop-muted);
+}
+
+.tshop-ed__note {
+	margin: 0;
+	color: var(--tshop-muted);
+	font-size: var(--ts-text-sm, 0.875rem);
+}
+
+.tshop-ed__devis {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	align-items: flex-start;
+}
+
+/* ------------------------------------------------------------------ achat */
+
+.tshop-ed__acheter {
+	font: inherit;
+	font-family: var(--tshop-font-display);
+	font-weight: var(--ts-weight-display, 700);
+	display: block;
+	width: 100%;
+	min-height: 3rem;
+	margin-top: 1rem;
+	padding: 0.75rem 1.5rem;
+	color: var(--tshop-accent-ink);
+	background: var(--tshop-accent);
+	border: 1px solid var(--tshop-accent);
+	border-radius: var(--tshop-radius);
+	cursor: pointer;
+}
+
+.tshop-ed__acheter[disabled] {
+	cursor: progress;
+	opacity: 0.72;
+}
+
+.tshop-ed__etat {
+	margin-top: 0.75rem;
+}
+
+.tshop-ed__ok {
+	margin: 0;
+	padding: 0.625rem 0.75rem;
+	color: var(--tshop-good-ink);
+	background: var(--tshop-good-wash);
+	border: 1px solid var(--tshop-good-ink);
+	border-radius: var(--tshop-radius);
+	font-weight: var(--ts-weight-strong, 700);
+}
+
+.tshop-ed__alerte {
+	margin: 0;
+	padding: 0.625rem 0.75rem;
+	color: var(--tshop-bad-ink);
+	background: var(--tshop-bad-wash);
+	border: 1px solid var(--tshop-bad);
+	border-radius: var(--tshop-radius);
+}
+
+.tshop-ed__lien {
+	display: inline-block;
+	margin-top: 0.5rem;
+	color: var(--tshop-accent);
+	font-weight: var(--ts-weight-strong, 700);
+}
+
+/* ------------------------------------------------------------ vue avancée */
+
+.tshop-ed__avance {
+	font: inherit;
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.75rem;
+	margin-top: 1rem;
+	padding: 0.5rem 1rem;
+	color: var(--tshop-accent);
+	background: transparent;
+	border: 1px dashed var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+	cursor: pointer;
+}
+
+.tshop-ed__zone-avancee:empty {
+	display: none;
+}
+
+/* ------------------------------------------------------------------ focus */
+
+/*
+ * L'ANNEAU DE FOCUS EST ÉCRIT ICI ET PAS RETROUVÉ PLUS TARD.
+ *
+ * Le thème peut en avoir un, ou avoir mis `outline:none` sur ses boutons ; les
+ * deux se sont vus. Celui-ci est déclaré sur nos propres classes, donc il
+ * gagne sans toucher à quoi que ce soit du thème. `scripts/focus-verify.mjs`
+ * le mesure.
+ */
+.tshop-ed__outil:focus-visible,
+.tshop-ed__pastille:focus-visible,
+.tshop-ed__qte:focus-visible,
+.tshop-ed__acheter:focus-visible,
+.tshop-ed__avance:focus-visible,
+.tshop-ed__lien:focus-visible {
+	outline: 3px solid var(--tshop-accent);
+	outline-offset: 2px;
+}
+
+/* --------------------------------------------------------- grande largeur */
+
+@media (min-width: 56rem) {
+	.tshop-ed {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+		grid-template-areas:
+			'scene controles'
+			'outils controles'
+			'bande controles';
+		column-gap: 1.5rem;
+		align-items: start;
+	}
+
+	.tshop-ed__scene {
+		grid-area: scene;
+	}
+
+	.tshop-ed__outils {
+		grid-area: outils;
+	}
+
+	.tshop-ed__bande {
+		grid-area: bande;
+	}
+
+	.tshop-ed__bloc,
+	.tshop-ed__prix,
+	.tshop-ed__acheter,
+	.tshop-ed__etat,
+	.tshop-ed__avance,
+	.tshop-ed__zone-avancee {
+		grid-column: 2;
+	}
+
+	.tshop-ed__toile {
+		max-height: 34rem;
+	}
+}
+
+/* ------------------------------------------------- mouvement et contraste */
+
+@media (prefers-reduced-motion: reduce) {
+	.tshop-ed__acheter,
+	.tshop-ed__outil,
+	.tshop-ed__depot {
+		transition: none;
+	}
+}
+
+@media (prefers-contrast: more) {
+	.tshop-ed__qte,
+	.tshop-ed__outil,
+	.tshop-ed__pastille {
+		border-color: var(--tshop-ink);
+	}
+}
+
+/* ═══════════════════════════════════════════════════════ la vue avancée ══ */
+
+/*
+ * Chargée à la demande, habillée ici quand même.
+ *
+ * Sa feuille pourrait voyager avec son morceau, et ce serait quelques centaines
+ * d'octets de moins sur la première charge. Ce n'est pas fait, pour une raison
+ * mesurable : une feuille injectée par un module arrive APRÈS le rendu du
+ * panneau, donc le client voit un instant de contenu non stylé au moment précis
+ * où il vient de cliquer. Ces règles pèsent 0,4 ko compressés.
+ */
+.tshop-ed__avancee {
+	margin-top: 1rem;
+	padding: 1rem;
+	background: var(--tshop-surface);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+}
+
+.tshop-ed__faces {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.tshop-ed__face {
+	font: inherit;
+	min-height: 2.5rem;
+	padding: 0.375rem 0.875rem;
+	color: var(--tshop-ink);
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+	cursor: pointer;
+}
+
+.tshop-ed__face[aria-checked='true'] {
+	color: var(--tshop-accent-ink);
+	background: var(--tshop-accent);
+	border-color: var(--tshop-accent);
+}
+
+.tshop-ed__calques {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+}
+
+.tshop-ed__calque {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.tshop-ed__calque-nom {
+	font: inherit;
+	flex: 1 1 auto;
+	min-height: 2.5rem;
+	padding: 0.375rem 0.625rem;
+	text-align: left;
+	color: var(--tshop-ink);
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tshop-ed__calque-nom[aria-pressed='true'] {
+	border-color: var(--tshop-accent);
+	box-shadow: inset 0 0 0 1px var(--tshop-accent);
+}
+
+.tshop-ed__champs {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+	gap: 0.5rem;
+	margin-bottom: 0.75rem;
+}
+
+.tshop-ed__champ {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.tshop-ed__champ-nom {
+	font-size: var(--ts-text-xs, 0.8125rem);
+	color: var(--tshop-muted);
+}
+
+.tshop-ed__select {
+	font: inherit;
+	min-height: 2.75rem;
+	padding: 0.375rem 0.5rem;
+	color: var(--tshop-ink);
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+}
+
+.tshop-ed__face:focus-visible,
+.tshop-ed__calque-nom:focus-visible,
+.tshop-ed__select:focus-visible {
+	outline: 3px solid var(--tshop-accent);
+	outline-offset: 2px;
+}

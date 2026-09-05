@@ -103,7 +103,18 @@ const SELF_TEST = process.argv.includes('--self-test')
  */
 const SCAN_DIRS = ['src', 'worker', 'wp-plugins', 'wp-themes', 'scripts']
 const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.php', '.json'])
-const SCAN_SKIP = new Set(['node_modules', 'dist', '.git'])
+/*
+ * `editeur` REJOINT `dist` ET `node_modules`, ET POUR LA MÊME RAISON.
+ *
+ * `wp-plugins/teeshoop-core/assets/editeur/` est la SORTIE DE CONSTRUCTION de
+ * l'éditeur natif, versionnée parce qu'un greffon WordPress se déploie en
+ * copiant son répertoire. Ce n'est pas un endroit où une valeur habite : c'est
+ * la même valeur, minifiée, déjà comptée dans `src/native/`. La laisser dans le
+ * parcours transformait chaque littéral de la source en trois violations dans
+ * le paquet, et la trace pointait sur `editeur.js:306`, une colonne que
+ * personne ne peut corriger.
+ */
+const SCAN_SKIP = new Set(['node_modules', 'dist', '.git', 'editeur'])
 const SCAN_EXCLUDE_FILES = new Set(['wp-plugins/teeshoop-core/data/hypotheses.php'])
 
 /**

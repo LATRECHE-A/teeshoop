@@ -58,6 +58,18 @@ export interface SyncState {
   showGuides: boolean
   /** Garment size the catalog art renders at (real cm dimensions). */
   previewSize: SizeId
+  /**
+   * Draw the named upload spots on an empty side.
+   *
+   * OPTIONAL, AND UNDEFINED MEANS WHAT IT ALWAYS DID, because the studio has
+   * four callers of `sync` and none of them should have to learn a new field to
+   * keep its behaviour. `false` is passed by exactly one: the shop's simple
+   * view, which offers one print area and no named spots. Those rectangles look
+   * clickable, and there they would not be: the simple view has no per-spot
+   * placement to route a click to, and a control that does nothing is worse
+   * than no control.
+   */
+  showUploadZones?: boolean
 }
 
 interface LayoutInfo {
@@ -653,6 +665,7 @@ export class EditorEngine {
       const setup = s.side === 'sleeve' ? null : s.design.custom?.[s.side]
       if (!setup) return false
     }
+    if (s.showUploadZones === false) return false
     if (this.dropActive) return true
     return this.showGuides || sideLayers(s.design, s.side).length === 0
   }

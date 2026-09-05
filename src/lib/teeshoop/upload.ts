@@ -414,12 +414,37 @@ function failureFor(status: number): UploadFailure {
   return 'server'
 }
 
+/**
+ * WHERE `POST /api/design` LIVES, when it is not on this page's own origin.
+ *
+ * Empty means the default, `/api/design` relative, which is what the studio has
+ * always sent: the Worker serves both the studio and the route, so the fetch is
+ * same-origin. The shop's own product page is a DIFFERENT origin from the
+ * Worker, so it passes the Worker's base here, and `worker/cors.ts` is what
+ * lets the browser hand the answer back.
+ *
+ * Passed rather than set on a module variable, because a module-level setting
+ * is a setting one editor instance can change under another. The trailing slash
+ * is stripped so a base with one and a base without one produce the same URL,
+ * and therefore the same cache key.
+ */
+export interface UploadOptions {
+  /** Origin (and optional path prefix) the design routes are served from. */
+  endpoint?: string
+}
+
+function designUrl(opts?: UploadOptions): string {
+  const base = (opts?.endpoint ?? '').replace(/\/+$/, '')
+  return base === '' ? '/api/design' : `${base}/api/design`
+}
+
 async function send(
   doc: Record<string, unknown>,
   sides: BridgeSide[],
   parts: { id: string; blob: Blob }[],
   preview: Blob,
   perSide: { side: Side; blob: Blob }[],
+  opts?: UploadOptions,
 ): Promise<UploadedDesign> {
   const form = new FormData()
   const docBlob = new Blob([JSON.stringify(doc)], { type: 'application/json' })
@@ -437,9 +462,17 @@ async function send(
 
   let res: Response
   try {
-    // Same origin as the studio: the Worker serves both, so there is no CORS
-    // preflight and nothing for the iframe sandbox to permit beyond scripts.
-    res = await fetch('/api/design', { method: 'POST', body: form })
+    /*
+     * Relative from the studio, absolute from the shop's own page.
+     *
+     * From the studio the Worker serves both ends, so this is same-origin and
+     * no browser ever asks for a CORS header. From the shop it is cross-origin:
+     * the multipart POST is a simple request and always leaves, and what would
+     * fail without `worker/cors.ts` is READING the id out of the answer. The
+     * symptom is a purchase that stops one step before the cart with a
+     * TypeError, which is why the header and this line arrived together.
+     */
+    res = await fetch(designUrl(opts), { method: 'POST', body: form })
   } catch {
     throw new DesignUploadError('network')
   }
@@ -467,13 +500,22 @@ async function send(
  * Idempotent: the same design uploaded twice returns the first id without
  * touching the network, and two calls racing each other share one request.
  */
-export async function uploadDesign(design: Design): Promise<UploadedDesign> {
+export async function uploadDesign(
+  design: Design,
+  opts?: UploadOptions,
+): Promise<UploadedDesign> {
   const { sides } = await measureOrder(design)
   const doc = buildDocument(design, sides)
   const assets = referencedAssets(design, doc)
   if (!assets) throw new DesignUploadError('rejected', 'design document')
 
-  const key = cacheKey(doc, assets)
+  /*
+   * THE ENDPOINT IS PART OF THE KEY. Two editors on one page pointed at two
+   * Workers would otherwise share one entry: the second would be handed an id
+   * that exists on the first Worker and nowhere the shop is going to look, and
+   * `Design::verify` would refuse a design that had really been uploaded.
+   */
+  const key = designUrl(opts) + '\x00' + cacheKey(doc, assets)
   const hit = cache.find((e) => e.key === key)
   if (hit) return hit.promise
 
@@ -543,7 +585,7 @@ export async function uploadDesign(design: Design): Promise<UploadedDesign> {
       const first = previewSide(design)
       const preview = (perSide.find((p) => p.side === first) ?? perSide[0]).blob
 
-      return send(doc, sides, parts, preview, perSide)
+      return send(doc, sides, parts, preview, perSide, opts)
     })(),
   )
 }

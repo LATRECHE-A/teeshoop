@@ -187,7 +187,19 @@ final class ProductPage {
 		// first.
 		add_action( 'woocommerce_after_single_product_summary', array( self::class, 'quote_block' ), 12 );
 
-		if ( self::studio_requested() ) {
+		/*
+		 * L'ÉDITEUR DANS LA PAGE, OU LE CADRE, JAMAIS LES DEUX.
+		 *
+		 * `Editeur::rendre()` est appelé par `product-cta.php`, dans la fente
+		 * d'ajout au panier, là où l'oeil de l'acheteur est déjà. Le chemin
+		 * `?personnaliser=1` du studio encadré n'est plus proposé quand le
+		 * chemin natif est branché : deux personnalisateurs sur une fiche, ce
+		 * sont deux créations qui ne se connaissent pas et un client qui perd la
+		 * sienne en changeant d'onglet.
+		 */
+		if ( Editeur::est_actif() && Editeur::paquet_present() ) {
+			Editeur::enqueue();
+		} elseif ( self::studio_requested() ) {
 			add_action( 'woocommerce_before_single_product', array( self::class, 'studio' ), 5 );
 		}
 
@@ -594,6 +606,17 @@ final class ProductPage {
 				 */
 				'needs_quote' => Pricing::needs_quote( $request['qty'], (int) $quote['total_ht'], $config )
 					|| $request['qty'] > self::self_serve_cap( wc_get_product( $product_id ) ),
+				/*
+				 * L'ÉDITEUR EST-IL DANS LA PAGE.
+				 *
+				 * Quand il l'est, il porte la grille de tailles, le prix et le
+				 * bouton d'achat, et ce gabarit n'en pose aucun : c'est la
+				 * « seule question posée une seule fois ». `paquet_present()`
+				 * est dans la condition parce qu'un greffon déployé sans son
+				 * répertoire construit doit retomber sur le chemin qui vend,
+				 * pas sur une fiche produit sans bouton.
+				 */
+				'editeur_natif' => Editeur::est_actif() && Editeur::paquet_present(),
 			),
 			'',
 			TEESHOOP_CORE_DIR . 'templates/'
