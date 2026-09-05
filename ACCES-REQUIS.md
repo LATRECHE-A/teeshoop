@@ -1339,3 +1339,16 @@ existe et qui est fait pour ça. Une heure de travail pour la gamme de lancement
 Il ne tient pas pour trois cents.
 
 ---
+
+## 13. La suite du 5 septembre 2026 : rien de nouveau à fournir
+
+La nuit du 5 n'a créé aucun besoin d'accès. Elle a en revanche rendu inutile un
+soupçon : `npm run verify:wp-e2e` ne demandait pas d'accès manquant, il était cassé
+par une variable (`SHOP_ORIGINS`) que le harnais ne passait pas au Worker. Il rend
+106 assertions vertes contre le miroir docker, sans rien d'extérieur.
+
+Ce qui reste demandé est inchangé : les vues à plat du fournisseur (§12), l'accès
+Imbretex (§6 decies A), le jeton à faire tourner (§6 decies B), et les réponses de
+l'associé. Deux questions se sont ajoutées à `QUESTIONS-ASSOCIE.md` : la 64,
+réécrite, sur le niveau de tarif que sa marge minimale produit, et la 65, sur le
+3XL Gildan.
