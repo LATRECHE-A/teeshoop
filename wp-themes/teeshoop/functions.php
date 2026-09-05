@@ -556,20 +556,17 @@ function personalisable_products( int $limit = 12 ): array {
 }
 
 /**
- * The link that opens the editor on a product.
+ * Le lien qui ouvre l'éditeur sur un produit : la fiche produit elle-même.
  *
- * `ProductPage::STUDIO_ARG` is the plugin's own flag, read rather than
- * repeated: the day it changes, every button on this site follows it.
+ * IL Y AVAIT UN DRAPEAU DANS L'ADRESSE, `?personnaliser=1`, qui échangeait la
+ * page de vente contre une seconde page portant le studio encadré. L'éditeur
+ * est maintenant DANS la fiche, dans la fente d'ajout au panier : il n'y a plus
+ * de seconde page, donc plus de drapeau, et cette fonction reste parce que la
+ * page d'accueil et les listes appellent toujours « le lien qui mène à
+ * l'éditeur » sans avoir à savoir que c'est devenu le permalien.
  */
 function studio_url( int $product_id ): string {
-	if ( ! class_exists( '\\Teeshoop\\Core\\ProductPage' ) ) {
-		return (string) get_permalink( $product_id );
-	}
-	return add_query_arg(
-		\Teeshoop\Core\ProductPage::STUDIO_ARG,
-		'1',
-		(string) get_permalink( $product_id )
-	);
+	return (string) get_permalink( $product_id );
 }
 
 /**
@@ -1084,20 +1081,12 @@ function placeholder_gallery( $html, $post_thumbnail_id ): string {
 add_filter( 'woocommerce_single_product_image_thumbnail_html', __NAMESPACE__ . '\\placeholder_gallery', 10, 2 );
 
 /**
- * Say which page this is, in a class, so the stylesheet can dress the editor.
+ * Say which page this is, in a class, so the stylesheet can dress it.
  *
- * `ProductPage::STUDIO_ARG` is read rather than repeated: the flag belongs to
- * the plugin and the theme follows it.
+ * `ts-editing` a disparu avec `?personnaliser=1` : il n'y a plus de page
+ * « en train d'éditer » distincte de la fiche produit, l'éditeur est dedans.
  */
 function body_classes( array $classes ): array {
-	if (
-		class_exists( '\\Teeshoop\\Core\\ProductPage' )
-		&& function_exists( 'is_product' ) && is_product()
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading the URL shape, exactly as ProductPage does.
-		&& ! empty( $_GET[ \Teeshoop\Core\ProductPage::STUDIO_ARG ] )
-	) {
-		$classes[] = 'ts-editing';
-	}
 	if ( has_filters() ) {
 		$classes[] = 'ts-filtered';
 	}

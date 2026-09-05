@@ -1,6 +1,6 @@
 ---
 name: perf
-description: Performance budgets, measurement method and the known costs of the Teeshoop stack (a heavy 3D studio in a cross-origin iframe, WordPress and WooCommerce on shared hosting, a Cloudflare Worker with a subrequest budget). Use before optimising anything, when a page or a build feels slow, when adding a dependency or a plugin, and whenever a speed claim needs a number behind it.
+description: Performance budgets, measurement method and the known costs of the Teeshoop stack (a customiser served in the product page by WordPress itself, a heavy 3D studio behind the admin gate, WooCommerce on shared hosting, a Cloudflare Worker with a subrequest budget). Use before optimising anything, when a page or a build feels slow, when adding a dependency or a plugin, and whenever a speed claim needs a number behind it.
 ---
 
 # Performance
@@ -33,15 +33,19 @@ Set them per page type, hold to them, and fail loudly rather than drifting.
 | | Target |
 |---|---|
 | Catalogue and product pages, mobile 4G | LCP under 2,5 s, INP under 200 ms, CLS under 0,1 |
-| Studio first interactive, inside the iframe | under 3 s on a mid-range phone profile |
+| The customiser, interactive in the product page | under 3 s on a mid-range phone profile |
+| Its first load, compressed | under 130 ko. Measured 114 385 o on 05/09/2026, against 246 473 for the framed studio. `npm run verify:editeur` prints it |
 | 3D preview frame time | 16 ms on a mid-range phone, and it must degrade rather than stutter |
 | Customer JS on a product page | the `three` chunk must not be in it |
 
 ## How to measure, specifically here
 
 - **Throttled mobile profile**, not this machine. A workstation makes everything look fine.
-- **Measure the studio combined with its host page.** It runs in an iframe now. The number
-  that matters is what the customer waits for, not what the studio alone reports.
+- **Measure the customiser as part of the product page.** It is a plugin asset in that
+  page since 5 September 2026, not a frame with its own document, so there is no longer a
+  separate number to read: what the customer waits for IS the product page's LCP and INP.
+  `npm run verify:editeur` gives the compressed weight of the first load and of what stays
+  behind a click; `npm run bench:cwv` gives the page.
 - **Real device class for 3D.** Frame time on a desktop GPU tells you nothing about the
   phone the customer is holding.
 - Playwright Chromium is installed and the harnesses in `scripts/` already boot the real
@@ -67,9 +71,13 @@ o2switch is shared hosting: no root, PHP limits, and real cron only if it was en
 
 ## Do not let a plugin touch the studio
 
-Performance plugins minify, defer, concatenate and inline. The studio bundle is already
-optimised, code-split deliberately, and served by a different origin. Exclude it explicitly.
-The first symptom of a plugin having "optimised" it is a blank iframe in production only.
+Performance plugins minify, defer, concatenate and inline. The customiser is an ES module
+with content-hashed chunk names, deliberately code-split, and it must be excluded
+explicitly. Two symptoms, both production-only: concatenating it into another file breaks
+`import()` and the advanced view never opens, and appending a cache-busting query to the
+entry makes the browser load the module TWICE, which mounts a second editor over the first.
+That second one is not hypothetical, it is what WordPress's own `?ver=` did on 5 September
+2026 before the hash moved into the filename.
 
 ## Reporting
 

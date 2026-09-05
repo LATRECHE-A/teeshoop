@@ -70,11 +70,10 @@ export const COPIE = {
   prixEnCours: 'Calcul du prix.',
 
   // ----------------------------------------------------------------- le prix
-  parPiece: ' HT la pièce',
-  totalHt: (total: string, pieces: number): string =>
-    `${total} HT pour ${pieces} ${pieces > 1 ? 'pièces' : 'pièce'}`,
+  pour: (pieces: number): string => `pour ${pieces} ${pieces > 1 ? 'pièces' : 'pièce'}`,
+  suffixeHt: ' HT',
   suffixeTtc: ' TTC',
-  ttcMention: (taux: number): string => `TVA ${formatTaux(taux)} % incluse.`,
+  laPiece: ' la pièce',
   prixIndisponible:
     'Le prix n’a pas pu être calculé. Rechargez la page, puis réessayez : rien n’a été facturé.',
   surDevis:
@@ -104,6 +103,8 @@ export const COPIE = {
     'Nous acceptons le PNG, le JPEG, le WebP et le SVG. Enregistrez votre visuel dans l’un de ces formats, puis réessayez.',
   fichierIllisible:
     'Ce fichier n’a pas pu être lu. Enregistrez-le en PNG depuis votre logiciel, puis réessayez.',
+  stockagePlein:
+    'Le stockage de votre navigateur est plein, donc votre visuel n’a pas pu être conservé. Libérez de la place, quittez la navigation privée, ou envoyez-nous le fichier par courriel : nous prenons la commande à la main.',
 
   // ------------------------------------------------------------ vue avancée
   ouvrirAvancee: 'Ouvrir les réglages avancés',
@@ -115,24 +116,26 @@ export const COPIE = {
   depot: DEPOT,
 } as const
 
-/**
- * Un taux de TVA lisible, sans zéro inutile.
- *
+/*
  * ─────────────────────────────────────────────────────────────────────────────
- * `vat_rate` EST UNE FRACTION, PAS UN POUR CENT, ET LE PREMIER ÉCRAN L'A DIT.
+ * IL N'Y A PLUS DE PHRASE DE TVA ÉCRITE ICI, ET C'EST UNE CORRECTION.
  *
- * `Pricing::default_config()` porte `'vat_rate' => 0.20`, et la première
- * version de cette phrase l'a imprimée telle quelle : « TVA 0,2 % incluse »,
- * lue sur le miroir le 5 septembre 2026, sous un total qui portait bien
- * vingt pour cent. Une mention de TVA fausse sur une page de vente française
- * n'est pas un détail de rendu.
+ * Il y en a eu une, `ttcMention`, qui écrivait « TVA X % incluse » à partir du
+ * taux renvoyé par le devis. Elle s'est trompée deux fois en une nuit.
  *
- * `toFixed(2)` écrirait « 20.00 » avec un point au milieu d'une phrase pleine
- * de virgules décimales, ce que la boutique a déjà corrigé une fois ailleurs ;
- * l'arrondi au centième garde les 2,10 % de l'outre-mer sans traîner de zéros.
+ * D'abord sur l'unité : `vat_rate` est une FRACTION, pas un pour cent, et le
+ * premier écran a affiché « TVA 0,2 % incluse » sous un total qui en portait
+ * bien vingt. Puis, une fois l'unité corrigée, sur la question elle-même, que
+ * la passe adversariale a écrite en entier : sous la franchise en base
+ * (article 293 B du CGI) le taux vaut zéro et la phrase devenait
+ * « TVA 0 % incluse », à dix centimètres d'une grille de tarifs disant « TVA
+ * non applicable », qui est la mention que la loi impose. Régime INCONNU, elle
+ * écrivait « TVA 20 % incluse » sur une boutique que `Vat::problems()` déclare
+ * incapable de facturer.
+ *
+ * Le taux ne suffit pas à écrire cette phrase : il faut le RÉGIME. La boutique
+ * en a une seule maison, `Settings::price_bases()`, que la fiche produit et la
+ * grille de tarifs lisent déjà. L'éditeur la lit maintenant aussi et affiche la
+ * `mention` telle quelle. Une quatrième rédaction de la même règle est
+ * exactement ce que `CLAUDE.md` section 1 interdit.
  */
-function formatTaux(fraction: number): string {
-  if (!Number.isFinite(fraction) || fraction < 0) return '0'
-  const pourCent = Math.round(fraction * 100 * 100) / 100
-  return String(pourCent).replace('.', ',')
-}

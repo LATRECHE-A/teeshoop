@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client'
 import '@/styles.css'
 import App from '@/app/App'
 import { useStore } from '@/state/store'
-import { startShopBridge } from '@/lib/teeshoop/bridge'
 
 /*
  * Offer the handshake to the shop before React mounts.
@@ -13,7 +12,6 @@ import { startShopBridge } from '@/lib/teeshoop/bridge'
  * rather than switching under the customer's cursor. Inert, and says so once in
  * the console, when the studio is not framed.
  */
-startShopBridge()
 
 if (import.meta.env.DEV) {
   ;(window as unknown as { __tshop: typeof useStore }).__tshop = useStore

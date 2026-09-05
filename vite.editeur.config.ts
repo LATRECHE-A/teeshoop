@@ -83,6 +83,41 @@ function sansBinaireWasm() {
 }
 
 export default defineConfig({
+  /*
+   * ─────────────────────────────────────────────────────────────────────────
+   * RELATIF, ET CETTE LIGNE MANQUAIT : LES POLICES D'IMPRESSION RENDAIENT 404
+   *
+   * `base` vaut `/` par défaut. Le greffon, lui, est servi sous
+   * `…/wp-content/plugins/teeshoop-core/assets/editeur/`. Sans cette ligne,
+   * `vite` écrit `url(/actif-anton-….woff2)` dans la feuille des polices et
+   * calcule l'URL de cette feuille elle-même comme racine-absolue : les deux
+   * partaient chercher à la racine du site et rendaient 404.
+   *
+   * Ce n'est pas un défaut d'apparence. `document.fonts.load()` se résout
+   * JOYEUSEMENT quand la déclaration existe et que son fichier manque, donc
+   * `ensureFont` déclarait la police prête, `measureTextInk` mesurait l'encre de
+   * la police de REPLI, et cette boîte-là est celle que `Pricing.php` facture et
+   * celle que le paqueteur pose sur la feuille de 33 x 46 cm. Le transfert, lui,
+   * est rendu plus tard par le studio, servi depuis la racine du Worker, où
+   * Anton se charge. Les deux bouts mesuraient deux polices différentes.
+   *
+   * Mesuré le 5 septembre 2026 dans un vrai Chromium, sur les octets livrés,
+   * servis au vrai chemin WordPress, pour « TEESHOOP » en Anton 64 px :
+   *
+   *   feuille telle que le paquet la demandait   324,5 x 43,0 px, deux 404
+   *   feuille dont les url() résolvent           231,0 x 58,0 px
+   *   écart : largeur -28,8 %, hauteur +34,9 %
+   *
+   * À la taille de texte par défaut de la vue avancée, cela fait une pièce
+   * enregistrée et facturée 20,6 x 2,7 cm et imprimée 14,7 x 3,7 cm : 5,9 cm de
+   * trop en largeur et 1,0 cm de moins en hauteur sur le film. La surface, elle,
+   * ne bougeait que de 4 %, donc le prix restait plausible.
+   *
+   * `document.fonts.check()` rend TRUE quand aucune déclaration n'existe et
+   * FALSE quand elle existe et que son fichier manque : un contrôle écrit
+   * là-dessus serait passé.
+   */
+  base: './',
   plugins: [sansBinaireWasm()],
   /*
    * PAS DE RÉPERTOIRE PUBLIC. C'est la troisième raison de `Shortcode.php`,

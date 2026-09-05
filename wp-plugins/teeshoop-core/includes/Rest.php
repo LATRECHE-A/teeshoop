@@ -17,7 +17,11 @@
  * `/cart` requires the WordPress REST nonce. The studio itself cannot send one:
  * it runs cross-origin in an iframe and has no access to the cookie. It posts a
  * message to the parent page instead, and the parent page (same origin, holding
- * the nonce) makes this call. See assets/bridge.js.
+ * the nonce) makes this call. THAT IS NO LONGER TRUE OF THE CUSTOMER PATH: the
+ * editor is in the page since 5 September 2026 (includes/Editeur.php), holds the
+ * nonce itself and calls this route directly. The paragraph is kept because the
+ * REASON it states has not changed: this route requires the nonce explicitly,
+ * because WordPress only refuses a BAD cookie nonce and never a missing one.
  *
  * @package Teeshoop\Core
  */

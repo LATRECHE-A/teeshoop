@@ -433,11 +433,13 @@ a floor price too low, and a sale nobody would have authorised.
 
 - `src/config.ts`: business name, tagline, and **the quote-request email**
   (replace `orders@tshop.example` before going live)
-- `src/content/pricing.ts`: base prices, per-side surcharge, quantity breaks,
-  and the **area tiers** (`areaTiers`). Prints up to A4 are the standard price;
-  A3 and oversize step up. Remove `areaTiers` from a garment's rule to make it
-  flat again, no other change needed. Zone inch-sizes come from
-  `src/content/zones.ts`
+- Les prix : `wp-plugins/teeshoop-core/includes/Pricing.php`, et rien d'autre.
+  Prix de base, supplément par face, paliers de quantité et paliers de surface y
+  vivent, le serveur les calcule, et l'éditeur les demande. Le studio a porté sa
+  propre table (`src/content/pricing.ts`) jusqu'au 5 septembre 2026 : elle
+  chiffrait dans le navigateur, en dollars, et un client l'atteignait chaque fois
+  que la poignée de main avec la boutique échouait. Les tailles de zone en pouces
+  restent dans `src/content/zones.ts`
 - `src/content/palettes.ts`: garment colors and ink swatches
 
 ## Asset credits

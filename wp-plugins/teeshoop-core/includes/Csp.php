@@ -207,13 +207,22 @@ final class Csp {
 
 	/** The policy string, so a test can read it without sending a header. */
 	public static function policy(): string {
-		$studio = Settings::studio_origin();
-		$worker = self::origin_of( (string) Settings::get( 'worker_url' ) );
+		$worker = Url::origin_of( (string) Settings::get( 'worker_url' ) );
 		$nonce  = "'nonce-" . self::nonce() . "'";
 
 		$img     = array_filter( array( "'self'", 'data:', 'blob:', $worker ) );
 		$connect = array_merge( array_filter( array( "'self'", $worker ) ), self::STRIPE_CONNECT );
-		$frame   = array_merge( array_filter( array( $studio ) ), self::STRIPE_FRAME );
+		/*
+		 * PLUS D'ORIGINE DE STUDIO DANS `frame-src`.
+		 *
+		 * La boutique encadrait le studio, servi en croisé par le Worker : cette
+		 * origine était la seule chose que `frame-src` autorisait en plus de
+		 * Stripe. Le cadre est retiré le 5 septembre 2026, le personnalisateur
+		 * est un actif du greffon servi par WordPress, donc couvert par
+		 * `script-src 'self'`. La seule chose que la boutique encadre encore est
+		 * le formulaire de carte de Stripe.
+		 */
+		$frame   = self::STRIPE_FRAME;
 		$script  = array_merge( array( "'self'", $nonce, "'unsafe-inline'" ), self::STRIPE_SCRIPT );
 
 		$directives = array(
@@ -267,19 +276,4 @@ final class Csp {
 		return implode( '; ', $out );
 	}
 
-	/** scheme://host[:port] of a configured URL, or '' when there is not one. */
-	private static function origin_of( string $url ): string {
-		if ( '' === $url ) {
-			return '';
-		}
-		$p = wp_parse_url( $url );
-		if ( empty( $p['scheme'] ) || empty( $p['host'] ) ) {
-			return '';
-		}
-		$origin = strtolower( $p['scheme'] ) . '://' . strtolower( $p['host'] );
-		if ( ! empty( $p['port'] ) ) {
-			$origin .= ':' . (int) $p['port'];
-		}
-		return $origin;
-	}
 }

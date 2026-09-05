@@ -172,10 +172,14 @@ What is required instead.
 ## 8. This codebase
 
 - **The studio** (`src/`) is React + TypeScript, 2D Konva and 3D three.js, served by a
-  Cloudflare Worker (`worker/`). It runs inside WordPress as a cross-origin iframe.
+  Cloudflare Worker (`worker/`). It is now the ADMIN and standalone tool: since
+  5 September 2026 the customer's customiser is `src/native/`, built into
+  `wp-plugins/teeshoop-core/assets/editeur/` and served by WordPress itself, in the product
+  page, with no iframe. `scripts/editeur-guard.mjs` is the gate on what it may carry.
 - **The shop** is WordPress 7.0.3 + WooCommerce 11.0.1 on o2switch, plus our plugin
   `wp-plugins/teeshoop-core/`, which owns three things neither of them may: the price, the
-  postMessage bridge, and the design hand-off. Its README is the contract.
+  customiser in the product page (`includes/Editeur.php`), and the design hand-off. Its
+  README is the contract.
 - **A local mirror** of the exact production versions runs in docker: `npm run wp:up`,
   `npm run wp:cli`, `npm run test:wp`. **Docker and PHP are both available on this
   machine.** Before declaring WordPress work blocked on hosting access, check this: only

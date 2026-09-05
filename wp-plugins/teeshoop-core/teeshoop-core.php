@@ -25,7 +25,7 @@
  *   2. THE BRIDGE. The studio runs cross-origin in an iframe, so it cannot read
  *      WordPress cookies and cannot call the REST API itself. It posts a message
  *      to the parent page; the parent page (same origin, holding the nonce)
- *      makes the call. assets/bridge.js checks the sender's origin on every
+ *      makes the call. See includes/Editeur.php, which now holds the editor
  *      message, and never posts back to '*'.
  *
  *   3. THE HAND-OFF. An order line stores a design IDENTIFIER, never the artwork.
@@ -104,6 +104,7 @@ const OPTION_PRODUCTION = 'teeshoop_production';
  */
 const OPTION_PRICE_RULES = 'teeshoop_price_rules';
 
+require_once __DIR__ . '/includes/Url.php';
 require_once __DIR__ . '/includes/Money.php';
 require_once __DIR__ . '/includes/Pricing.php';
 require_once __DIR__ . '/includes/Vat.php';
@@ -138,7 +139,6 @@ require_once __DIR__ . '/includes/Invoice.php';
 require_once __DIR__ . '/includes/Payment.php';
 require_once __DIR__ . '/includes/Checkout.php';
 require_once __DIR__ . '/includes/Rest.php';
-require_once __DIR__ . '/includes/Shortcode.php';
 require_once __DIR__ . '/includes/Editeur.php';
 require_once __DIR__ . '/includes/Compat.php';
 require_once __DIR__ . '/includes/ProductPage.php';
@@ -220,7 +220,6 @@ function boot(): void {
 	Checkout::init();
 	Invoice::init();
 	Rest::init();
-	Shortcode::init();
 	ProductPage::init();
 	Waiver::init();
 	Lifecycle::init();

@@ -11,7 +11,8 @@
  *   2. serves it from `wrangler dev`, which is also the Worker that stores the
  *      design, so `POST /api/design` and the studio are one origin,
  *   3. points the local WordPress at both and gives it a product page carrying
- *      `[teeshoop_studio]`,
+ *      whose product declares a garment, which is what puts the editor in its
+ *      add-to-cart slot,
  *   4. opens that page in Chromium, uploads a raster with transparent margins
  *      through the studio's own file input, adds it to the design, sets a size
  *      grid of 25 and clicks "Ajouter au panier",

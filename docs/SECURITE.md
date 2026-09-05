@@ -133,6 +133,28 @@ Après : 38 fichiers, 28 client, 1 visionneuse, 9 ADMIN, 0 orphelin.
 75 attaques, avec le mécanisme exact qui les arrête. Résumé par surface ; les
 lignes citées sont dans le dépôt.
 
+
+> **CETTE SECTION DÉCRIT UN PONT QUI N'EXISTE PLUS (5 septembre 2026).**
+>
+> Le studio encadré, `Shortcode.php` et `assets/bridge.js` sont supprimés :
+> l'éditeur est dans la fiche produit, servi par la boutique, et il n'y a plus
+> de `postMessage`, plus de comparaison d'origine côté page, plus de table de
+> messages. Les analyses ci-dessous restent écrites parce qu'elles disent
+> POURQUOI chaque contrôle existait, et deux d'entre elles ont survécu au
+> changement : le nonce REST exigé explicitement, et le fait qu'aucun prix ni
+> aucune surface ne décide quoi que ce soit depuis la requête.
+>
+> La surface d'aujourd'hui est décrite dans
+> `docs/decisions/2026-09-05-le-personnalisateur-est-dans-la-page.md` et dans
+> `.claude/skills/security/SKILL.md` : le nonce reste sur la page et n'atteint
+> qu'une route, tout ce que `wp_localize_script` publie est relu par
+> `src/native/contexte.ts`, et le dépôt de la création est le seul appel
+> inter-origines, autorisé par `worker/cors.ts` en égalité de chaîne exacte.
+>
+> Ce que le cadre achetait et qui est perdu : il isolait la création du client
+> des autres scripts de la page. Ce n'est plus le cas. Le rayon d'action d'une
+> extension compromise sur une fiche produit est plus large qu'avant.
+
 ### 3.1 Le pont postMessage (15)
 
 La règle du projet est `event.origin === attendu`, jamais `startsWith`, jamais

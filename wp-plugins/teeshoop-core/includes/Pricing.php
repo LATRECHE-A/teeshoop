@@ -9,7 +9,7 @@
  * VAT basis), and the day they do, the customer sees one number and the
  * invoice says another.
  *
- * The studio's own src/content/pricing.ts stays where it is: it is a *preview*
+ * The studio used to carry its own src/content/pricing.ts as a *preview*
  * for the editor's UI, in placeholder dollars, and the plan is explicit that it
  * must not be ported as-is. Anything payable comes from here.
  *

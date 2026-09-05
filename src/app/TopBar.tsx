@@ -8,9 +8,7 @@ import { useAdminSlots } from '@/app/adminSlots'
 import { renderAndSave } from '@/state/persist'
 import { useT } from '@/i18n/useT'
 import { useBasketT } from './modals/basketI18n'
-import { useCartT } from './modals/cartI18n'
 import { useBoardT } from './board/boardI18n'
-import { useShopBridge } from './hooks/useShopBridge'
 
 export default function TopBar() {
   const design = useStore((s) => s.design)
@@ -27,14 +25,12 @@ export default function TopBar() {
   const t = useT()
   const bt = useBasketT()
   const bdt = useBoardT()
-  const cartT = useCartT()
   /*
    * Framed by the shop, the primary action leads to a real WooCommerce basket
    * with a server-computed price. Standalone, it leads to the quote-by-email
    * flow, which is all the studio can honestly offer with no shop behind it.
    * The two are never both on screen: one price, one route to buying.
    */
-  const { canOrder } = useShopBridge()
   /*
    * Not while browsing the board. `design` is then the user's own parked draft
    * while the screen shows somebody else's products (see browsingBoard in
@@ -43,7 +39,6 @@ export default function TopBar() {
    * draft, at worst "il n'y a rien à imprimer" in front of five finished
    * products. Focused is not browsing; that document IS on screen.
    */
-  const canBuy = canOrder && !(boardOn && !boardFocused)
 
   const saveNow = async () => {
     try {
@@ -135,22 +130,15 @@ export default function TopBar() {
           <span className="hidden sm:inline">{t('topbar.share_export')}</span>
         </button>
         {/*
-          LE BOUTON N'EXISTE QUE QUAND IL Y A UN PANIER AU BOUT.
+          IL N'Y A PLUS DE BOUTON PANIER DANS LE STUDIO.
 
-          Il ouvrait `OrderModal` quand `canBuy` était faux, c'est-à-dire chaque
-          fois que la poignée de main avec la boutique échouait, et ce panneau
-          chiffrait la commande DANS LE NAVIGATEUR, en dollars. Un client
-          atteignait donc un prix que le serveur n'avait pas calculé, à l'endroit
-          exact où quelque chose venait de mal tourner. Le second moteur est
-          supprimé (nuit 3) ; sans boutique en face, il n'y a rien à proposer que
-          la boutique n'ait pas déjà refusé.
+          Il ouvrait `CartModal`, qui parlait à une boutique par postMessage à
+          travers un cadre. Ce pont est supprimé le 5 septembre 2026 : le
+          personnalisateur du client est dans la fiche produit
+          (`src/native/`, `includes/Editeur.php`), et cette application est
+          l'outil d'atelier et la démonstration autonome. Un bouton « panier »
+          qui ne peut atteindre aucune caisse est pire qu'un bouton absent.
         */}
-        {canBuy && (
-          <button className="btn btn-primary" onClick={() => openModal('cart')}>
-            {cartT('cart.open')}
-            <span aria-hidden>→</span>
-          </button>
-        )}
       </div>
     </header>
   )

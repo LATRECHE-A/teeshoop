@@ -15,7 +15,12 @@ The cart stores the customer's choices and re-derives the price on every totals 
 tampered session, a replayed request and a price that was right last week all resolve to
 today's correct number.
 
-`src/content/pricing.ts` in the studio is a **preview**. It must never be the number a
+THE STUDIO HAS NO PRICE TABLE ANY MORE. `src/content/pricing.ts` was deleted on
+5 September 2026 with the iframe path: it computed a price in the browser, in
+dollars, and a customer reached it every time the handshake with the shop failed.
+There is now one engine, `Pricing.php`, and the in-page editor asks it. What
+follows is the rule that made that deletion necessary and it has not changed: no
+browser-side table may ever be the number a
 customer pays. Where the two must agree, they agree because they read the same bounds in the
 same unit, not because someone kept them in sync by hand: the tier bounds were once 97 in²
 and 193 in² here against 625 cm² and 1250 cm² there, which are 625,81 and 1245,16, close

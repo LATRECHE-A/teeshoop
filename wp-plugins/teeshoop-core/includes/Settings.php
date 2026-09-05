@@ -25,18 +25,6 @@ final class Settings {
 		$defaults = array(
 			'studio_origin'      => '',
 			'studio_path'        => '/',
-			/*
-			 * LE PERSONNALISATEUR DANS LA PAGE, PLUTÔT QUE DANS UN CADRE.
-			 *
-			 * `false` par défaut, et ce défaut EST le contrat de retour de la
-			 * nuit 3 : une fiche produit incapable de vendre est strictement
-			 * pire qu'une fiche qui vend à travers un cadre, donc l'ancien
-			 * chemin reste branché tant que le nouveau n'est pas vert de bout en
-			 * bout contre un vrai WooCommerce. Une chaîne, comme le reste de ce
-			 * tableau, parce que le formulaire des réglages écrit des chaînes ;
-			 * `Editeur::est_actif()` est le seul endroit qui l'interprète.
-			 */
-			'editeur_natif'      => '',
 			'worker_url'         => '',
 			'design_verify_path' => '/api/design/',
 			// Where a quote request is announced. Empty falls back to the site
@@ -302,39 +290,19 @@ final class Settings {
 	 * fails OPEN if it is written as a `startsWith`. So it is normalised once,
 	 * here, and compared with `===` there.
 	 */
+	/**
+	 * L'origine du studio, pour la page d'ATELIER seulement.
+	 *
+	 * Elle a servi jusqu'au 5 septembre 2026 à encadrer le studio dans la fiche
+	 * produit et à comparer les origines des messages du pont. Les deux ont
+	 * disparu avec le cadre. Ce qui reste est le lien que `ProductionPage` donne
+	 * à l'opérateur vers `/admin.html#production` : un réglage d'atelier, plus
+	 * un paramètre de sécurité, et aucun client ne l'atteint.
+	 */
 	public static function studio_origin(): string {
-		$raw = self::get( 'studio_origin' );
-		if ( '' === $raw ) {
-			return '';
-		}
-
-		$parts = wp_parse_url( $raw );
-		if ( empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
-			return '';
-		}
-		if ( ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) ) {
-			return '';
-		}
-
-		$origin = strtolower( $parts['scheme'] ) . '://' . strtolower( $parts['host'] );
-		if ( ! empty( $parts['port'] ) ) {
-			$origin .= ':' . (int) $parts['port'];
-		}
-		return $origin;
+		return Url::origin_of( self::get( 'studio_origin' ) );
 	}
 
-	/** Full URL the iframe loads, or '' when the studio origin is not configured. */
-	public static function studio_url(): string {
-		$origin = self::studio_origin();
-		if ( '' === $origin ) {
-			return '';
-		}
-		$path = self::get( 'studio_path' );
-		if ( '' === $path || '/' !== $path[0] ) {
-			$path = '/' . $path;
-		}
-		return $origin . $path;
-	}
 
 	/**
 	 * Whether a design may be added to the cart without the Worker confirming

@@ -3,7 +3,6 @@ import { Camera, Pencil } from 'lucide-react'
 import clsx from 'clsx'
 import { GARMENTS } from '@/garments'
 import { garmentPalette, paletteIsMeasured } from '@/content/garmentPalette'
-import { useShopBridge } from '@/app/hooks/useShopBridge'
 import { SIZE_CHARTS, SIZE_IDS, type SizeId } from '@/content/sizeChart'
 import { useStore } from '@/state/store'
 import { useAdminSlots } from '@/app/adminSlots'
@@ -63,7 +62,6 @@ function garmentThumb(id: CatalogGarmentId, hex: string): string {
 
 export default function ProductPanel() {
   const t = useT()
-  const { canOrder } = useShopBridge()
   const admin = useAdminSlots()
   const design = useStore((s) => s.design)
   const side = useStore((s) => s.activeSide)

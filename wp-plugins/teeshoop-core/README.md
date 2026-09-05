@@ -17,10 +17,21 @@ absent. The cart stores the customer's *choices* and re-derives the price from
 them on every totals pass, so a tampered session, a replayed request, or a price
 that was right last week all resolve to today's correct number.
 
-**The bridge.** The studio runs cross-origin in an iframe, so it cannot read
-WordPress cookies and cannot call the REST API itself. It posts a message to the
-parent page; the parent page (same origin, holding the nonce) makes the call.
-The nonce never crosses the origin boundary.
+**The editor is in the page.** Until 5 September 2026 the studio ran cross-origin
+in an iframe: it could not read WordPress cookies, could not call the REST API,
+and posted a message to the parent page, which held the nonce and made the call.
+That whole apparatus is gone (`Shortcode.php`, `assets/bridge.js`). The editor is
+now a plugin asset served from the shop's own origin (`includes/Editeur.php`,
+built from `src/native/` into `assets/editeur/`), holds the nonce itself, and
+calls `/wp-json/teeshoop/v1/cart` directly. The one thing that still crosses an
+origin is the artwork upload to the Worker, which is why `worker/cors.ts` exists.
+
+The rules did not move: the nonce is required explicitly (`Rest::check_nonce`),
+`Cart::add` re-derives the garment from the product and the printed sides from
+the stored design, and `refuse_plain_add` still refuses every add that does not
+go through `Cart::add`. An editor in the page gets no more trust than one in a
+frame. See `docs/decisions/2026-09-05-le-personnalisateur-est-dans-la-page.md`
+for the six reasons the frame existed and the answer to each.
 
 **The hand-off.** An order line stores a design *identifier*. Artwork lives in
 R2. `wp-content/uploads` is served by URL with no access control, and
@@ -110,7 +121,11 @@ includes/
   Shelf.php           what an imported reference does once published: the seal
                       on the purchase price, and the colour photo swap
   Rest.php            /wp-json/teeshoop/v1/*
-  Shortcode.php       [teeshoop_studio]
+  Editeur.php         the customiser, in the product page: the container, the
+                      two assets, and the context the page hands the bundle.
+                      Replaced Shortcode.php and its iframe on 05/09/2026
+  Url.php             scheme://host[:port] of a configured URL, once. Three
+                      copies of this had drifted apart by one allow-list
   Swatch.php          the colour of a garment, measured. Pure: no WordPress and
                       no GD, so tests/run.php exercises every branch of it
   Colours.php         where the images come from and where the verdict goes
@@ -138,8 +153,12 @@ templates/teeshoop/
   product-price-grid.php   faces by quantity, HT and TTC
   product-quote.php   the devis form
 assets/
-  bridge.js           the postMessage bridge (runs on the WP page, not in the frame)
-  bridge.css          the frame's box, and nothing else
+  editeur/            THE BUILT CUSTOMISER, from src/native/. Versioned, because a
+                      WordPress plugin is deployed by copying its directory, and
+                      `scripts/editeur-guard.mjs` rebuilds it into a temp dir and
+                      byte-compares so it cannot rot. The entry carries a content
+                      hash in its name: WordPress's `?ver=` query would make the
+                      lazy chunk import a SECOND copy of the module
   product.css         the fiche produit. Scoped under `ts-`, restyles nothing else
   product.js          the live estimate. Contains no price and no French
 tests/

@@ -25,17 +25,40 @@ Not a targeted adversary. Automated and opportunistic, in roughly this order of 
 
 ## Our surfaces, and the rule for each
 
-**The postMessage bridge** (`wp-plugins/teeshoop-core/assets/bridge.js` and the studio
-client). Three checks on every inbound message, all three required: `event.origin ===` the
-configured origin (never `startsWith`, because a prefix test passes for
-`studio.teeshoop.com.evil.tld`), `event.source ===` our own frame's `contentWindow`, and a
-payload that is an object with a known `type`. Outbound always names the target origin;
-`'*'` broadcasts cart totals to whatever document currently occupies the frame.
+**The in-page editor** (`wp-plugins/teeshoop-core/includes/Editeur.php`, built from
+`src/native/` into `assets/editeur/`). It replaced the postMessage bridge on 5 September
+2026. THE POSTMESSAGE BRIDGE NO LONGER EXISTS: `Shortcode.php` and `assets/bridge.js` are
+deleted, and with them the origin comparison, the `event.source` check and the whole
+message table. If you find a `window.addEventListener('message'` in this repository, it is
+not ours and it is a finding.
 
-**The REST nonce.** It never crosses the origin boundary. The parent page holds it and acts
-on the frame's behalf. WordPress only rejects a *bad* cookie nonce, never a missing one, so
-`POST /cart` checks it explicitly. A `permission_callback` of `__return_true` is a bug, not
-a shortcut.
+What replaced it, and the rule for each part:
+
+- **The REST nonce** is on the page and stays there. It reaches exactly one call,
+  `POST /wp-json/teeshoop/v1/cart`, as an `X-WP-Nonce` header. It is never sent to the
+  Worker: the design upload carries the document, the rasters and the preview, and no
+  credential of any kind. WordPress only rejects a *bad* cookie nonce, never a missing one,
+  so `Rest::check_nonce` requires it explicitly. A `permission_callback` of
+  `__return_true` on a route that writes is a bug, not a shortcut.
+- **Everything the page hands the bundle** crosses a trust boundary and is re-read once, in
+  `src/native/contexte.ts`, which is the only reader of `window.TEESHOOP_EDITEUR`. Colour
+  swatches must match `/^#[0-9a-fA-F]{6}$/` before they reach a CSS custom property; a
+  photo URL must be http(s) or a path that cannot start an origin (`/\` normalises to
+  `//`); ids are held to `sanitize_key`'s alphabet. `src/native/` contains no `innerHTML`,
+  and `src/native/dom.ts` deliberately ships no helper that would write one.
+- **The artwork upload is now cross-origin**, shop page to Worker, and `worker/cors.ts` is
+  what lets the page read the answer. Exact string equality against `SHOP_ORIGINS`, never
+  `startsWith` (a prefix test passes for `teeshoop.com.evil.tld`), never `*`, no
+  credentials, `vary: Origin` on the refusals too, and only on the two design routes:
+  `/api/nest` is the film economics and `/api/fr/*` is our purchase cost, and neither has
+  any business being readable from a page.
+
+**WHAT THE FRAME USED TO BUY, AND NO LONGER DOES.** The iframe isolated the customer's
+artwork from every other script on the shop page. It does not any more: the theme, any
+WooCommerce plugin and any tag on that page can read the design and the same-origin
+storage. Those scripts already shared the nonce's origin, so this does not widen an
+attacker's reach; it widens a supply-chain incident's blast radius, and it is the price of
+the change. Weigh a new plugin on a product page accordingly.
 
 **Open routes** (`POST /api/ar`, `POST /api/design`). Open because the customer is the
 author and cannot authenticate. They stay safe through magic-byte checks rather than the

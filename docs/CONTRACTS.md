@@ -237,7 +237,13 @@ export function ensureFont(family: string): Promise<void> // document.fonts.load
 export function allFontsReady(): Promise<void>
 ```
 
-Include the `@fontsource/<pkg>/400.css` side-effect imports here (they're
+The `@fontsource/<pkg>/400.css` side-effect imports live in
+`src/lib/fontFaces.ts` since 5 September 2026, and `ensureFont` pulls that module
+in on first use: this file is reached from `ink.ts`, so importing them here put
+thirteen families in every customer's first load for screens that write no text
+(27,73 ko of stylesheet down to 4,42). Order matters and is enforced there:
+`document.fonts.load()` resolves happily with zero faces when no `@font-face`
+rule exists, and the canvas then measures the fallback. They're
 preinstalled; Oswald also 600). Categories: block: Anton, Archivo Black,
 Bebas Neue, Oswald, Russo One, Alfa Slab One · display: Bangers, Righteous ·
 script: Permanent Marker, Pacifico, Lobster · retro: Special Elite.
@@ -266,13 +272,15 @@ verify.
   Also `export const INK_COLORS: string[]`, 16 print-ink hexes for text/
   graphics fills (white, black, grays, CMYK-ish brights, metallic-ish gold/
   silver approximations).
-- `pricing.ts`: `export interface PricingRule { baseUsd: number; perExtraSideUsd: number }`,
-  `export const PRICING: Record<'tee'|'hoodie'|'custom', PricingRule>`
-  (tee 14.5/6, hoodie 32/6, custom 12/6: custom = customer ships garment),
-  `export const QTY_BREAKS: { minQty: number; discount: number }[]`
-  ([10 → 0.15, 25 → 0.25, 50 → 0.35]),
-  `export function quote(garment, sides: number, qty: number): { unitUsd: number; totalUsd: number; discount: number }`,
-  `export const SIZES = ['S','M','L','XL','2XL','3XL'] as const`.
+- `pricing.ts`: **SUPPRIMÉ le 5 septembre 2026.** Il portait `PRICING`,
+  `QTY_BREAKS`, `areaTiers` et une fonction `quote()` qui chiffrait dans le
+  navigateur, en dollars. Un client l'atteignait chaque fois que la poignée de
+  main avec la boutique échouait, et les montants pouvaient contredire la
+  facture. L'autorité est
+  `wp-plugins/teeshoop-core/includes/Pricing.php`, seule, et l'éditeur intégré
+  lui demande le prix par `GET /wp-json/teeshoop/v1/quote`. Ce contrat est
+  conservé ici parce qu'un lecteur du studio d'origine tombera dessus, et il
+  doit trouver la raison plutôt qu'un fichier absent.
 - `sampleDesign.ts`: `export function makeSampleDesign(): Design`, a genuinely
   tasteful first-load design on a **black tee**: arced "TSHOP" (Anton, white,
   curve ≈ 35, ~2.2″ tall), a badge graphic from YOUR registry between/below,

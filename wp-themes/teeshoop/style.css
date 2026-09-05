@@ -2419,33 +2419,6 @@ a.ts-chip:hover {
 
 /* ──────────────────────────────────────── the editor, dressed as our own ── */
 
-/*
- * The studio is served from another origin and framed. A customer must not be
- * able to tell: our masthead is above it, our rule under the heading, and the
- * frame runs to the edge of the page on a phone, where every pixel of an editor
- * counts. The plugin renders the container and the back link; this is the only
- * place the theme touches its markup, and it adds to it rather than fighting it.
- */
-.ts-editing .teeshoop-studio-view {
-	margin: 0 0 var(--ts-space-6);
-	padding-top: var(--ts-space-4);
-}
-
-.ts-editing .teeshoop-studio-view__back {
-	margin: 0 0 var(--ts-space-3);
-	padding-bottom: var(--ts-space-3);
-	border-bottom: 1px solid var(--ts-line);
-	font-size: var(--ts-text-sm);
-	font-family: var(--ts-font-display);
-	font-weight: 600;
-}
-
-.ts-editing .teeshoop-studio {
-	border: 1px solid var(--ts-line);
-	background: var(--ts-surface);
-	--ts-muted: var(--ts-muted-strong);
-}
-
 /* ────────────────────────────────────────────────────────────── 640 px ── */
 
 @media (min-width: 640px) {

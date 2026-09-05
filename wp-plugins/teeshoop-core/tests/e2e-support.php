@@ -181,13 +181,10 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 	update_option( 'woocommerce_price_thousand_sep', ' ' );
 
 	/*
-	 * L'ÉDITEUR NATIF EST ALLUMÉ ICI, ET C'EST LE HARNAIS QUI L'ALLUME.
-	 *
-	 * `editeur_natif` est faux par défaut dans `Settings::all()` : le contrat de
-	 * retour de la nuit 3 veut que l'ancien chemin reste branché tant que le
-	 * nouveau n'est pas vert. Ce fichier est ce qui le rend vert, donc il
-	 * l'allume sur le miroir et sur le miroir seulement. `studio_origin` reste
-	 * renseigné pour que les cas qui exercent encore le cadre puissent tourner.
+	 * PLUS DE DRAPEAU À ALLUMER : l'éditeur est le seul chemin, et il est là dès
+	 * que son paquet construit est dans le greffon. `studio_origin` reste
+	 * renseigné parce que la page d'atelier (`ProductionPage`) y envoie encore
+	 * l'opérateur ; ce n'est plus une origine que le client voit.
 	 */
 	update_option(
 		'teeshoop_settings',
@@ -196,7 +193,6 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 			'studio_path'        => '/',
 			'worker_url'         => $worker_url,
 			'design_verify_path' => '/api/design/',
-			'editeur_natif'      => '1',
 		)
 	);
 
@@ -213,7 +209,15 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 	// The short description: WooCommerce's classic summary template runs it
 	// through `do_shortcode`, and it puts the editor high on the page where a
 	// personalisation tool belongs rather than inside the description tab.
-	$product->set_short_description( '[teeshoop_studio]' );
+	/*
+	 * PLUS DE RACCOURCI DANS LA DESCRIPTION : l'éditeur est posé par
+	 * `product-cta.php` dans la fente d'ajout au panier, sur toute fiche dont le
+	 * produit déclare un vêtement. Le contournement du thème de blocs
+	 * (`ts_e2e_classic_theme`) reste : ce n'est plus `wp_kses_post` qui l'impose
+	 * (il n'y a plus d'iframe à retirer) mais les crochets de la fente d'achat,
+	 * que la production a et qu'un gabarit de blocs ne fournit pas.
+	 */
+	$product->set_short_description( '' );
 	/*
 	 * A FIXTURE WEIGHT, and nothing else reads it. Carriage is priced from the
 	 * supplier's own per-SKU weight and `Shipping::quote` refuses a line that
@@ -279,7 +283,6 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 			 * canevas n'est jamais apparu », qui est le même symptôme pour cinq
 			 * causes différentes.
 			 */
-			'editeur_natif'   => Editeur::est_actif(),
 			'editeur_pret'    => Editeur::paquet_present(),
 		)
 	);

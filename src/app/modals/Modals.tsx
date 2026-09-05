@@ -24,7 +24,6 @@ const BasketModal = lazy(() => import('./BasketModal'))
 // The shop basket. Lazy for the same reason as the two above and no other: it
 // is customer code, and most visits are to the standalone studio where the
 // bridge never connects and this never opens.
-const CartModal = lazy(() => import('./CartModal'))
 
 export default function Modals() {
   const modals = useStore((s) => s.modals)
@@ -44,11 +43,6 @@ export default function Modals() {
       {modals.basket && (
         <LazyModal modal="basket">
           <BasketModal />
-        </LazyModal>
-      )}
-      {modals.cart && (
-        <LazyModal modal="cart">
-          <CartModal />
         </LazyModal>
       )}
       {admin.modals}

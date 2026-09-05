@@ -84,6 +84,19 @@ export class RefusAtelier extends Error {
 const RAISONS: Record<string, string> = {
   reseau:
     'La boutique n’a pas répondu. Vérifiez votre connexion, puis réessayez : rien n’a été facturé.',
+  /*
+   * LE MÊME INCIDENT, UNE AUTRE PHRASE, PARCE QUE L'AJOUT ÉCRIT.
+   *
+   * « Rien n'a été facturé » est vrai d'un devis, qui ne fait que lire. Sur
+   * l'ajout au panier c'est une affirmation que nous ne pouvons pas tenir : une
+   * réponse perdue APRÈS que le serveur a validé laisse une vraie ligne dans le
+   * panier, et `Cart::keep_items_distinct` clé sur `microtime()`, donc rien ne
+   * fusionne et un second essai en crée une seconde. On dit ce qu'on sait, et on
+   * envoie regarder plutôt que de promettre. Trouvé par la passe adversariale
+   * du 5 septembre 2026.
+   */
+  reseau_panier:
+    'La connexion s’est interrompue pendant l’ajout, et nous ne savons pas si la boutique l’a enregistré. Ouvrez votre panier pour vérifier avant de réessayer.',
   illisible:
     'La boutique a répondu quelque chose que nous ne savons pas lire. Rechargez la page, puis réessayez.',
   teeshoop_bad_nonce:
@@ -199,7 +212,7 @@ export async function ajouterAuPanier(
       }),
     })
   } catch {
-    throw new RefusAtelier('reseau', RAISONS.reseau)
+    throw new RefusAtelier('reseau', RAISONS.reseau_panier)
   }
 
   const body = await corps(res)

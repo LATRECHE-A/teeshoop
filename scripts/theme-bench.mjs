@@ -7,7 +7,8 @@
  * Session 09 chose a classic theme we own over a block theme, and the reasons
  * that matter are not performance: a block theme puts the page structure in the
  * database, where the repository cannot check it, and WooCommerce's block
- * product template strips the studio iframe through `wp_kses_post`. But the
+ * product template strips an iframe through `wp_kses_post`. That iframe is gone
+ * (5 septembre 2026), but the classic theme is still what production runs. But the
  * decision record also claims a classic theme is cheaper to serve on shared
  * hosting, and a claim in a comment is worth nothing without a number.
  *

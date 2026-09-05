@@ -10,7 +10,7 @@
  * Il ne pose pas un panier factice : il fait le parcours. Il ouvre une fiche de
  * la gamme, lit le jeton REST que la page publie pour sa propre passerelle,
  * POSTe une ligne dans `/teeshoop/v1/cart` exactement comme le fait
- * `assets/bridge.js`, puis remplit la caisse et valide la commande. Ce qui est
+ * l'éditeur de la fiche produit, puis remplit la caisse et valide la commande. Ce qui est
  * photographié est donc ce qu'un client voit, y compris les lignes de
  * personnalisation, les totaux calculés par `Pricing::quote()` et la vraie page
  * de commande reçue.
@@ -203,25 +203,27 @@ for (const width of WIDTHS) {
   await shot('fiche-produit')
   await noSideScroll('fiche produit')
 
-  // -- le panier, construit comme la passerelle le fait ---------------------
+  // -- le panier, construit comme l'éditeur de la page le fait --------------
   /*
-   * LE JETON EST SUR LA PAGE QUI OUVRE LE STUDIO, pas sur la fiche.
+   * LE JETON EST SUR LA FICHE PRODUIT, PARCE QUE L'ÉDITEUR Y EST.
    *
-   * `Shortcode::enqueue()` ne publie `TEESHOOP_BRIDGE` que là où l'éditeur est
-   * réellement encadré, ce qui est la bonne portée : un jeton REST posé sur
-   * chaque fiche du catalogue serait un jeton de plus dans la nature pour rien.
-   * Le harnais va donc le chercher là où un client le rencontre, en ouvrant la
-   * fiche avec `?personnaliser=1`.
+   * Il était publié par `Shortcode::enqueue()` sur la seule page qui encadrait
+   * le studio, atteinte par `?personnaliser=1`. Ce chemin n'existe plus depuis
+   * le 5 septembre 2026 : `Editeur::enqueue()` publie `TEESHOOP_EDITEUR` sur la
+   * fiche elle-même, dès qu'elle déclare un vêtement, ce qui reste la bonne
+   * portée (aucune page de catalogue ne porte de jeton).
+   *
+   * Ce harnais photographie l'achat ; il construit la ligne par l'API plutôt
+   * que par l'écran, exprès, parce que ce qu'il documente est le panier, la
+   * caisse et la commande. Le parcours dans l'éditeur, lui, est photographié par
+   * `scripts/editeur-shots.mjs` et asserté par `scripts/wp-e2e-verify.mjs`.
    */
-  await page.goto(`${shop.url}${shop.url.includes('?') ? '&' : '?'}personnaliser=1`, {
-    waitUntil: 'domcontentloaded',
-  })
-  await page.waitForFunction(() => Boolean(window.TEESHOOP_BRIDGE?.nonce), null, { timeout: 15000 }).catch(
+  await page.waitForFunction(() => Boolean(window.TEESHOOP_EDITEUR?.nonce), null, { timeout: 15000 }).catch(
     () => undefined,
   )
 
   const added = await page.evaluate(async ({ productId, designId }) => {
-    const cfg = window.TEESHOOP_BRIDGE
+    const cfg = window.TEESHOOP_EDITEUR
     if (!cfg || !cfg.restUrl || !cfg.nonce) return { ok: false, why: 'la page ne publie pas de jeton REST' }
     const res = await fetch(cfg.restUrl + 'cart', {
       method: 'POST',

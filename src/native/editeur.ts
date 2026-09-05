@@ -447,8 +447,24 @@ class Instance implements Editeur {
       this.echec = ''
       this.rendre()
       this.chiffrerBientot()
-    } catch {
-      this.montrerEchec(COPIE.fichierIllisible)
+    } catch (e) {
+      /*
+       * « JE N'AI PAS PU LIRE » ET « JE N'AI PAS PU RANGER » NE SONT PAS LA
+       * MÊME PANNE.
+       *
+       * `addAsset` décode le fichier PUIS l'écrit dans IndexedDB. Sur un
+       * navigateur dont le quota d'origine est plein (Safari en navigation
+       * privée, un téléphone plein), l'écriture lève `QuotaExceededError` alors
+       * que le fichier a été lu parfaitement. La phrase « enregistrez-le en PNG
+       * puis réessayez » envoie alors le client refaire exactement ce qui vient
+       * de marcher, et la vente est perdue sur un conseil faux. Même forme que
+       * la trouvaille numéro 1 de la passe précédente : deux états là où il en
+       * faut trois.
+       */
+      const plein =
+        e instanceof DOMException &&
+        /Quota|NO_DEVICE_SPACE|NS_ERROR_FILE_NO_DEVICE_SPACE/i.test(e.name + ' ' + e.message)
+      this.montrerEchec(plein ? COPIE.stockagePlein : COPIE.fichierIllisible)
     }
   }
 
@@ -552,6 +568,45 @@ class Instance implements Editeur {
    * annule la requête et pas la promesse déjà résolue.
    */
   private chiffrerBientot(): void {
+    /*
+     * LE PRIX DEVIENT INCONNU À L'INSTANT OÙ L'ÉCRAN CHANGE, ET PAS 250 ms PLUS
+     * TARD.
+     *
+     * Trouvé par la passe adversariale du 5 septembre 2026. `saisirQuantite`
+     * mutait la grille, appelait `rendrePrix()` tout de suite, puis armait ce
+     * minuteur : `rendrePrix` lisait la NOUVELLE quantité et l'ANCIEN devis, et
+     * la fiche affichait « 154,00 EUR HT pour 200 pièces » avec un prix unitaire
+     * pris à la mauvaise remise. Le serveur facturait juste ; c'était un prix
+     * annoncé qu'une boutique française ne peut pas honorer, affiché pendant une
+     * frappe plus un aller-retour, c'est-à-dire des secondes sur un téléphone.
+     *
+     * Le harnais ne pouvait pas le voir : il compare le montant affiché à
+     * `display.total_ttc`, et les deux moitiés venaient du même devis périmé.
+     * Le test et le code partageaient l'hypothèse.
+     */
+    if (this.devisEtat === 'ok') {
+      this.devisEtat = 'chargement'
+      this.rendrePrix()
+    }
+    /*
+     * ET LA CONFIRMATION CESSE D'ÊTRE VRAIE DÈS QUE LA CRÉATION CHANGE.
+     *
+     * « Ajouté au panier. » et « Voir le panier » restaient à l'écran quand le
+     * client déposait un second visuel ou changeait une quantité : la phrase
+     * décrivait un panier qui contenait autre chose, et le lien y menait. Un
+     * contrôle dit ce qui va se passer, une confirmation dit ce qui S'EST passé,
+     * et celle-là n'était plus vraie. Trouvé par la passe adversariale du
+     * 5 septembre 2026.
+     *
+     * Les phases en vol ne sont PAS remises à zéro : ce sont elles qui font la
+     * garde du double clic.
+     */
+    if (this.phase === 'ajoute' || this.phase === 'echec') {
+      this.phase = 'repos'
+      this.echec = ''
+      this.panierUrl = ''
+      this.rendreAchat()
+    }
     if (this.timerDevis !== null) window.clearTimeout(this.timerDevis)
     this.timerDevis = window.setTimeout(() => void this.chiffrer(), 250)
   }
@@ -561,6 +616,21 @@ class Instance implements Editeur {
     this.timerDevis = null
     const total = this.quantite()
 
+    /*
+     * ON ANNULE AVANT DE SORTIR, ET PAS SEULEMENT AVANT DE REPARTIR.
+     *
+     * L'abandon et l'incrément de séquence étaient SOUS le retour anticipé.
+     * Chaîne écrite par la passe adversariale du 5 septembre 2026 : le client
+     * tape 300, le devis part, il vide la case, ce bloc met `devis` à null et
+     * sort sans rien annuler, la réponse du 300 arrive, son garde de séquence
+     * la laisse passer parce que la séquence n'a pas bougé, et `needs_quote`
+     * ressuscite. Le client tape 30, clique, et la boutique lui répond « à cette
+     * quantité nous chiffrons à la main » pour trente pièces, sans rechiffrer.
+     */
+    this.annuleDevis?.abort()
+    this.annuleDevis = null
+    const seq = ++this.sequenceDevis
+
     if (this.creation.layers.length === 0 || total === 0) {
       this.faces = []
       this.devis = null
@@ -569,10 +639,8 @@ class Instance implements Editeur {
       return
     }
 
-    this.annuleDevis?.abort()
     const controleur = new AbortController()
     this.annuleDevis = controleur
-    const seq = ++this.sequenceDevis
 
     this.devisEtat = 'chargement'
     this.rendrePrix()
@@ -611,6 +679,12 @@ class Instance implements Editeur {
   }
 
   private async acheter(): Promise<void> {
+    /*
+     * LA GARDE EST POSÉE AVANT LE PREMIER `await`, ET C'EST CE QUI LA REND
+     * ÉTANCHE : deux clics dans la même tâche du navigateur voient tous les deux
+     * `phase === 'repos'` si la première ne l'a pas déjà changée. Elle l'est ici,
+     * synchroniquement, plus bas, avant `measureOrder`.
+     */
     if (this.phase === 'mesure' || this.phase === 'depot' || this.phase === 'ajout') return
 
     const total = this.quantite()
@@ -640,20 +714,40 @@ class Instance implements Editeur {
       return
     }
 
+    /*
+     * ── L'ACHAT PORTE SUR UN INSTANTANÉ, PAS SUR L'ÉTAT VIVANT ─────────────
+     *
+     * Trouvé par la passe adversariale du 5 septembre 2026. Cette fonction
+     * relisait `this.creation` et `this.grille` à QUATRE moments, avec trois
+     * allers-retours réseau entre eux, et rien ne gèle l'éditeur pendant ce
+     * temps : `rendreAchat()` ne désactive que le bouton, la scène Konva reste
+     * déplaçable, le champ de fichier reste vivant et les champs en centimètres
+     * de la vue avancée aussi. Un client qui bouge son visuel pendant
+     * « Envoi de votre visuel » se faisait chiffrer un état et facturer l'autre.
+     *
+     * L'instantané est pris ici, une fois, et les quatre étapes le lisent. Le
+     * document est immuable par construction (chaque mutation crée un nouvel
+     * objet), donc le retenir suffit ; la grille est copiée parce qu'elle ne
+     * l'est pas.
+     */
+    const creation = this.creation
+    const grille = { ...this.grille }
+    const pieces = Object.values(grille).reduce((s, n) => s + n, 0)
+
     try {
       // 1. LA MESURE se stabilise. Refaite ici et non reprise du devis : entre
       //    le dernier chiffrage et ce clic, le client a pu bouger le visuel.
       this.phase = 'mesure'
       this.echec = ''
       this.rendreAchat()
-      const mesure = await measureOrder(this.creation)
+      const mesure = await measureOrder(creation)
       if (this.detruit) return
       this.faces = mesure.sides
 
       // 2. LE SERVEUR CHIFFRE, sur ces surfaces. Le refus d'un devis (au-delà
       //    du seuil, vêtement inconnu) arrive AVANT le dépôt, donc avant qu'un
       //    client ait attendu le téléversement de son fichier pour rien.
-      const devis = await demanderDevis(this.ctx, this.faces, this.quantite())
+      const devis = await demanderDevis(this.ctx, this.faces, pieces)
       if (this.detruit) return
       this.devis = devis
       this.devisEtat = 'ok'
@@ -668,17 +762,29 @@ class Instance implements Editeur {
       // 3. LE FICHIER PART SUR R2 et rend un identifiant.
       this.phase = 'depot'
       this.rendreAchat()
-      const depose = await uploadDesign(this.creation, { endpoint: this.ctx.workerUrl })
+      const depose = await uploadDesign(creation, { endpoint: this.ctx.workerUrl })
       if (this.detruit) return
 
       // 4. L'AJOUT AU PANIER, avec le nonce de la page, et les faces que le
       //    DÉPÔT a enregistrées, pas celles de l'écran.
       this.phase = 'ajout'
       this.rendreAchat()
+      /*
+       * LES FACES ENVOYÉES SONT CELLES DU DEVIS, PAS CELLES DU DÉPÔT.
+       *
+       * `Cart::add` ne PRICE jamais sur ce champ : il redérive les faces depuis
+       * le document que le Worker a stocké. Ce qu'il en fait, c'est les comparer
+       * et journaliser un écart. Envoyer `depose.sides`, c'est-à-dire le tableau
+       * que le Worker vient d'enregistrer, rendait cette comparaison
+       * structurellement toujours vraie : un garde qui ne peut pas échouer, ce
+       * que `CLAUDE.md` section 1 interdit. Envoyer les faces sur lesquelles le
+       * PRIX a été calculé lui redonne son travail, et l'écart qu'il attraperait
+       * serait exactement celui que la passe adversariale a décrit.
+       */
       const panier = await ajouterAuPanier(this.ctx, {
         designId: depose.id,
-        faces: depose.sides,
-        grille: { ...this.grille },
+        faces: this.faces,
+        grille,
       })
       if (this.detruit) return
 
@@ -833,6 +939,16 @@ class Instance implements Editeur {
       champ.placeholder = '0'
       champ.setAttribute('aria-label', COPIE.quantiteEn(taille))
       champ.addEventListener('input', () => this.saisirQuantite(taille, champ.value))
+      /*
+       * Sur `change` et pas sur `input` : normaliser à chaque frappe mangerait
+       * la touche suivante. La case pouvait afficher « 1e3 » ou « 999999 »
+       * pendant que la grille retenait 1 ou 100 000, donc un écran qui ne dit
+       * pas ce qui sera commandé.
+       */
+      champ.addEventListener('change', () => {
+        const n = this.grille[taille] ?? 0
+        champ.value = n > 0 ? String(n) : ''
+      })
 
       const etiquette = document.createElement('label')
       etiquette.className = 'tshop-ed__taille'
@@ -924,39 +1040,72 @@ class Instance implements Editeur {
       return
     }
 
-    // Les chaînes viennent du serveur, déjà écrites en français par
-    // `Money::format`. Rien ici ne divise par cent ni n'arrondit.
+    /*
+     * ── LA BOUTIQUE DÉCIDE COMMENT UN PRIX S'ÉCRIT, PAS CET ÉCRAN ─────────
+     *
+     * Les montants viennent du serveur, déjà écrits en français par
+     * `Money::format` : rien ici ne divise par cent ni n'arrondit. Le
+     * SUFFIXE et la MENTION viennent de `Settings::price_bases()`, la même
+     * décision que la fiche produit et la grille de tarifs lisent, parce qu'il y
+     * a des régimes où « HT » et « TTC » sont le même nombre et où l'écrire deux
+     * fois invite le lecteur à chercher une taxe qui ne doit pas exister.
+     *
+     * `deux` faux : un seul montant, sans suffixe, suivi de la mention que le
+     * régime impose. `connue` faux : un seul montant et RIEN sur la taxe, parce
+     * qu'une boutique qui n'a pas dit son régime ne peut pas en annoncer un.
+     */
+    const bases = this.ctx.bases
+    const suffixe = bases.deux ? COPIE.suffixeHt : ''
+
     const ligne = el('p', 'tshop-ed__ligne')
     ligne.setAttribute('data-teeshoop', 'price')
     const unite = el('strong', 'tshop-ed__unite')
     unite.setAttribute('data-teeshoop', 'unit-ht')
     unite.textContent = d.display.unit_ht
-    ligne.append(unite, texte(COPIE.parPiece))
-
-    const totalHt = el('p', 'tshop-ed__total')
-    totalHt.setAttribute('data-teeshoop', 'total-ht')
-    totalHt.textContent = COPIE.totalHt(d.display.total_ht, total)
+    ligne.append(unite, texte(suffixe + COPIE.laPiece))
 
     /*
-     * LE MONTANT SEUL DANS LE NOEUD MARQUÉ, LE MOT « TTC » À CÔTÉ.
+     * LE NOMBRE DE PIÈCES VIENT DU DEVIS, PAS DE L'ÉCRAN.
      *
-     * `scripts/wp-e2e-verify.mjs` compare `[data-teeshoop="total-ttc"]`
-     * caractère pour caractère à `display.total_ttc`, la chaîne que
-     * `Money::format` a écrite sur le serveur. Mettre le mot dans le même noeud
-     * a fait échouer cette assertion, et la bonne correction est celle-ci et pas
-     * un assouplissement du harnais : ce marqueur existe pour dire « voici,
-     * exactement, ce que le serveur a répondu ».
+     * `d.qty` est ce que le serveur a chiffré ; `this.quantite()` est ce que la
+     * grille dit maintenant. Les deux ne peuvent différer que le temps d'un
+     * aller-retour, et c'est précisément l'instant où la phrase mentait. Deux
+     * moitiés d'une même phrase doivent venir d'une même réponse.
      */
-    const totalTtc = el('p', 'tshop-ed__ttc')
-    const montantTtc = el('span')
-    montantTtc.setAttribute('data-teeshoop', 'total-ttc')
-    montantTtc.textContent = d.display.total_ttc
-    totalTtc.append(montantTtc, texte(COPIE.suffixeTtc))
+    const totalHt = el('p', 'tshop-ed__total')
+    const montantHt = el('span')
+    montantHt.setAttribute('data-teeshoop', 'total-ht')
+    montantHt.textContent = d.display.total_ht
+    totalHt.append(montantHt, texte(suffixe + ' '), texte(COPIE.pour(d.qty)))
+    zone.append(ligne, totalHt)
 
-    const mention = el('p', 'tshop-ed__mention')
-    mention.textContent = COPIE.ttcMention(d.vat_rate)
+    if (bases.deux) {
+      /*
+       * LE MONTANT SEUL DANS LE NOEUD MARQUÉ, LE MOT « TTC » À CÔTÉ.
+       *
+       * `scripts/wp-e2e-verify.mjs` compare `[data-teeshoop="total-ttc"]`
+       * caractère pour caractère à `display.total_ttc`, la chaîne que
+       * `Money::format` a écrite sur le serveur. Mettre le mot dans le même
+       * noeud a fait échouer cette assertion, et la bonne correction est
+       * celle-ci et pas un assouplissement du harnais : ce marqueur existe pour
+       * dire « voici, exactement, ce que le serveur a répondu ».
+       */
+      const totalTtc = el('p', 'tshop-ed__ttc')
+      const montantTtc = el('span')
+      montantTtc.setAttribute('data-teeshoop', 'total-ttc')
+      montantTtc.textContent = d.display.total_ttc
+      totalTtc.append(montantTtc, texte(COPIE.suffixeTtc))
+      zone.append(totalTtc)
+    }
 
-    zone.append(ligne, totalHt, totalTtc, mention)
+    // La phrase du régime, écrite par `Vat` et reprise telle quelle. Vide quand
+    // le régime n'est pas connu, et l'écran se tait alors.
+    if (bases.mention !== '') {
+      const mention = el('p', 'tshop-ed__mention')
+      mention.setAttribute('data-teeshoop', 'mention-tva')
+      mention.textContent = bases.mention
+      zone.append(mention)
+    }
   }
 
   private rendreAchat(): void {

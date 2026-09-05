@@ -29,19 +29,18 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * CE QUE « RÉTABLIR » VEUT DIRE
  *
- * Avec `--retablir` et seulement avec lui, un échec fait deux choses, dans cet
- * ordre, et les annonce :
+ * Avec `--retablir` et seulement avec lui, un échec ANNULE le commit qui a
+ * retiré le cadre, avec `git revert --no-edit`, puis reconstruit et redemande.
  *
- *   il ÉTEINT le drapeau `editeur_natif` sur la boutique interrogée, ce qui
- *   rebranche le chemin qui vendait la veille sans toucher au code ;
+ * IL Y A EU UNE PREMIÈRE ÉTAPE, et elle a été retirée : « éteindre le drapeau
+ * `editeur_natif` ». Ce drapeau n'existe plus, parce qu'un drapeau qui ne peut
+ * basculer vers rien est un drapeau qui ment, et un secours qui l'éteignait
+ * aurait rapporté un succès sans rien changer. Le seul chemin de retour est
+ * dans l'historique, et c'est celui-ci.
  *
- *   si le cadre n'existe plus dans le code (le commit qui l'a retiré est
- *   passé), il ANNULE ce commit avec `git revert --no-edit`, parce qu'éteindre
- *   un drapeau qui ne commande plus rien serait un secours qui ne secourt pas.
- *
- * Puis il recharge la page et redemande. Sans `--retablir` il ne fait que dire,
- * ce qui est le bon défaut : un script qui réécrit l'histoire d'un dépôt sans
- * qu'on le lui ait demandé est pire que le problème qu'il corrige.
+ * Sans `--retablir` il ne fait que dire, ce qui est le bon défaut : un script
+ * qui réécrit l'histoire d'un dépôt sans qu'on le lui ait demandé est pire que
+ * le problème qu'il corrige.
  *
  * Env :
  *   VENDABLE_URL=http://…      la fiche à interroger
@@ -55,13 +54,9 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const URL_FICHE =
   process.env.VENDABLE_URL ??
   'http://localhost:8080/produit/gildan-heavy-cotton-adult-t-shirt-a-personnaliser-18009/'
-const COMPOSE = ['compose', '-f', 'wp-local/docker-compose.yml']
 const RETABLIR = process.argv.includes('--retablir')
 
 const dit = (s) => console.log(s)
-
-const docker = (args, opts = {}) =>
-  execFileSync('docker', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], ...opts })
 
 /**
  * Ce que la fiche offre, mesuré dans un vrai navigateur.
@@ -182,18 +177,6 @@ function verdict(etat) {
   }
 }
 
-function eteindreLeDrapeau() {
-  dit('  remise en état 1/2 : extinction du drapeau editeur_natif sur la boutique ...')
-  docker([
-    ...COMPOSE,
-    'run',
-    '--rm',
-    'wpcli',
-    'eval',
-    '$s = get_option("teeshoop_settings", array()); $s["editeur_natif"] = ""; update_option("teeshoop_settings", $s); echo "eteint";',
-  ])
-}
-
 /** Le commit qui a retiré le cadre, s'il existe et si le cadre a disparu. */
 function commitDuRetrait() {
   if (process.env.VENDABLE_COMMIT) return process.env.VENDABLE_COMMIT
@@ -235,9 +218,7 @@ dit(`  chemin d’achat : ${v.vend ? 'OUI' : 'NON'}, par ${v.par}${v.detail ? ' 
 let repare = false
 if (!v.vend && RETABLIR) {
   dit('\nAUCUN CHEMIN D’ACHAT. Remise en état du chemin précédent.')
-  eteindreLeDrapeau()
-  if (!etat.joignable || (!etat.encadre.cadre && !etat.encadre.lien)) annulerLeRetrait()
-  repare = true
+  repare = annulerLeRetrait()
   dit('  nouvelle interrogation ...')
   etat = await interroger(navigateur)
   v = verdict(etat)

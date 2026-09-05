@@ -114,7 +114,23 @@ const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.php', '.json'])
  * le paquet, et la trace pointait sur `editeur.js:306`, une colonne que
  * personne ne peut corriger.
  */
-const SCAN_SKIP = new Set(['node_modules', 'dist', '.git', 'editeur'])
+const SCAN_SKIP = new Set(['node_modules', 'dist', '.git'])
+/**
+ * Les répertoires de SORTIE DE CONSTRUCTION, par leur chemin complet.
+ *
+ * `wp-plugins/teeshoop-core/assets/editeur/` est le paquet construit de
+ * l'éditeur natif, versionné parce qu'un greffon WordPress se déploie en copiant
+ * son répertoire. Ce n'est pas un endroit où une valeur habite : c'est la même
+ * valeur, minifiée, déjà comptée dans `src/native/`. Le laisser dans le parcours
+ * transformait chaque littéral de la source en trois violations dans le paquet,
+ * et la trace pointait sur une colonne que personne ne peut corriger.
+ *
+ * PAR LE CHEMIN ET PAS PAR LE NOM. La première version ajoutait `'editeur'` à
+ * `SCAN_SKIP`, qui compare `entry.name` : n'importe quel futur répertoire
+ * `src/editeur/` ou `includes/editeur/` aurait cessé d'être contrôlé en
+ * silence. Trouvé par la passe adversariale du 5 septembre 2026.
+ */
+const SCAN_SKIP_PATHS = new Set(['wp-plugins/teeshoop-core/assets/editeur'])
 const SCAN_EXCLUDE_FILES = new Set(['wp-plugins/teeshoop-core/data/hypotheses.php'])
 
 /**
@@ -168,6 +184,7 @@ function walk(dir, out = [], exts = SCAN_EXT) {
   for (const entry of entries) {
     if (SCAN_SKIP.has(entry.name)) continue
     const p = join(dir, entry.name)
+    if (entry.isDirectory() && SCAN_SKIP_PATHS.has(rel(p))) continue
     if (entry.isDirectory()) walk(p, out, exts)
     else if (exts.has(p.slice(p.lastIndexOf('.')))) out.push(p)
   }

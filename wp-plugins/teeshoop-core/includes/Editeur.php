@@ -121,21 +121,6 @@ final class Editeur {
 	private static bool $rendu = false;
 
 	/**
-	 * Le chemin natif est-il branché sur cette boutique.
-	 *
-	 * FALSE par défaut, et ce défaut est le contrat de retour : le commit qui
-	 * retire le cadre est postérieur à celui dont le test de bout en bout est
-	 * vert. La constante existe pour le harnais, qui doit pouvoir allumer le
-	 * chemin sans écrire dans la base d'une boutique.
-	 */
-	public static function est_actif(): bool {
-		if ( defined( 'TEESHOOP_EDITEUR_NATIF' ) ) {
-			return (bool) constant( 'TEESHOOP_EDITEUR_NATIF' );
-		}
-		return (bool) Settings::get( 'editeur_natif' );
-	}
-
-	/**
 	 * Le paquet construit est-il réellement là.
 	 *
 	 * Un greffon déployé sans son répertoire `assets/editeur/` afficherait un
@@ -311,11 +296,48 @@ final class Editeur {
 			 */
 			'workerUrl'     => self::origine_worker(),
 			'colours'       => self::couleurs( $product_id ),
-			'sizes'         => ProductPage::size_ids( $garment ),
+			/*
+			 * LES TAILLES QUE LE PANIER ACCEPTERA, PAS CELLES DE LA FAMILLE.
+			 *
+			 * `Design::unprintable_sizes` refuse toute taille absente de la
+			 * fiche du fabricant dès que cette fiche existe. L'éditeur offrait
+			 * les six tailles de `garments.json` : sur une référence dont la
+			 * fiche n'en porte que quatre, un client remplissait une case 3XL,
+			 * attendait la mesure de l'encre et le téléversement de son fichier,
+			 * et se faisait refuser par une phrase qui parlait du marquage trop
+			 * grand alors que la vraie raison est qu'on n'a pas la demi-poitrine
+			 * de cette taille. Trouvé par la passe adversariale du 5 septembre.
+			 *
+			 * L'INTERSECTION et pas la fiche seule : les fiches fournisseur
+			 * portent des XS, 4XL et 5XL que `Garments` ne connaît pas et que
+			 * `Design::unprintable_sizes` refuse aussi.
+			 */
+			'sizes'         => self::tailles_vendables( $product_id, $garment ),
 			'pricedSize'    => Garments::priced_size( $garment ),
 			'sizeChart'     => ProductPage::maker_chart( $product_id ),
 			'areas'         => self::zones( $garment ),
 			'sides'         => self::faces( $garment ),
+			/*
+			 * LA BASE FISCALE DE CETTE BOUTIQUE, ET PAS UNE QUATRIÈME COPIE DE
+			 * LA RÈGLE.
+			 *
+			 * `Settings::price_bases()` existe pour empêcher exactement ce que
+			 * l'éditeur faisait : imprimer un total TTC, le mot « TTC » et
+			 * « TVA X % incluse » sans regarder si cette boutique a une TVA. La
+			 * fiche produit et la grille de tarifs le lisent déjà ; l'éditeur
+			 * était la troisième surface de prix de la même page et la seule à
+			 * ne pas le faire.
+			 *
+			 * Deux états que rien ne distinguait, trouvés par la passe
+			 * adversariale du 5 septembre 2026. Sous la franchise en base
+			 * (article 293 B du CGI) le taux vaut 0, et l'éditeur écrivait
+			 * « TVA 0 % incluse » là où la mention obligatoire est une autre
+			 * phrase, à dix centimètres d'une grille qui disait « TVA non
+			 * applicable ». Régime INCONNU, il écrivait « TVA 20 % incluse » sur
+			 * une boutique que `Vat::problems()` déclare incapable de facturer.
+			 * `known` sépare les deux, `mention` porte la phrase du régime.
+			 */
+			'priceBases'    => Settings::price_bases(),
 			'maxQty'        => (int) $config['max_qty'],
 			'quoteFromQty'  => (int) $config['quote_from_qty'],
 			'quoteFromHt'   => (int) $config['quote_from_ht'],
@@ -324,30 +346,37 @@ final class Editeur {
 	}
 
 	/**
+	 * Les tailles que l'éditeur a le droit d'offrir.
+	 *
+	 * L'intersection de la charte de la famille et de la fiche du fabricant,
+	 * dans l'ordre de la charte. Une fiche vide veut dire « on ne l'a pas lue »
+	 * et pas « aucune taille » : `Design::unprintable_sizes` ne refuse alors
+	 * rien sur ce motif, donc l'éditeur n'a rien à retirer non plus.
+	 *
+	 * @return string[]
+	 */
+	private static function tailles_vendables( int $product_id, string $garment ): array {
+		$famille = ProductPage::size_ids( $garment );
+		$fiche   = ProductPage::maker_chart( $product_id );
+		if ( array() === $fiche ) {
+			return $famille;
+		}
+		return array_values( array_filter( $famille, static fn( string $t ): bool => isset( $fiche[ $t ] ) ) );
+	}
+
+	/**
 	 * L'origine du Worker, sans le chemin.
 	 *
 	 * `worker_url` porte une URL complète parce que `Design::verify` y colle
 	 * `/api/design/`. L'éditeur, lui, a besoin de la base : il compose
-	 * `POST {base}/api/design`. Une base normalisée ici plutôt que découpée des
-	 * deux côtés, pour la même raison que `Settings::studio_origin()` existe.
+	 * `POST {base}/api/design`. `Url::origin_of` est la SEULE normalisation
+	 * d'origine du greffon depuis le 5 septembre 2026 : `Csp` en avait une
+	 * copie sans liste blanche de schémas, et deux normalisations différentes
+	 * pour une même valeur, c'est `connect-src` qui refuse un dépôt qu'il croit
+	 * autoriser.
 	 */
 	private static function origine_worker(): string {
-		$raw = (string) Settings::get( 'worker_url' );
-		if ( '' === $raw ) {
-			return '';
-		}
-		$parts = wp_parse_url( $raw );
-		if ( empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
-			return '';
-		}
-		if ( ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) ) {
-			return '';
-		}
-		$origin = strtolower( $parts['scheme'] ) . '://' . strtolower( $parts['host'] );
-		if ( ! empty( $parts['port'] ) ) {
-			$origin .= ':' . (int) $parts['port'];
-		}
-		return $origin;
+		return Url::origin_of( (string) Settings::get( 'worker_url' ) );
 	}
 
 	/**

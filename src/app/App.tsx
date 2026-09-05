@@ -10,12 +10,10 @@ import PropertiesPanel from './PropertiesPanel'
 import Toasts from './Toasts'
 import Modals from './modals/Modals'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
-import { useShopSizeChart } from './hooks/useShopSizeChart'
 
 export default function App() {
   const hydrated = useStore((s) => s.hydrated)
   useKeyboardShortcuts()
-  useShopSizeChart()
 
   useEffect(() => {
     void hydrateStore()

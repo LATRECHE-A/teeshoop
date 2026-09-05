@@ -107,7 +107,24 @@ const BANNIS = [
 ]
 
 /** Paquets tiers interdits, cherchés dans les spécificateurs nus du graphe. */
-const PAQUETS_BANNIS = ['three', '@react-three', 'react', 'react-dom', 'onnxruntime-web']
+/**
+ * Paquets tiers interdits, cherchés dans les spécificateurs nus du graphe.
+ *
+ * `lucide-react` est là parce que la comparaison est sur le nom de tête EXACT :
+ * `react` ne l'attrape pas, et c'est un paquet que `src/app/` utilise partout,
+ * donc le premier qu'un portage naïf ramènerait.
+ */
+const PAQUETS_BANNIS = [
+  'three',
+  '@react-three',
+  'react',
+  'react-dom',
+  'react/jsx-runtime',
+  'lucide-react',
+  'onnxruntime-web',
+  'zustand',
+  'zundo',
+]
 
 /**
  * Modules qui DOIVENT rester atteignables.
@@ -149,17 +166,46 @@ const lire = (p) => readFileSync(p, 'utf8')
 // 1. le graphe statique
 // ---------------------------------------------------------------------------
 
+/*
+ * DEUX PARCOURS, DEUX QUESTIONS, ET LA PREMIÈRE VERSION N'EN POSAIT QU'UNE.
+ *
+ *   `graphe`  statique  : ce qu'un client télécharge AVANT d'avoir cliqué. C'est
+ *                         la question du POIDS, et un morceau paresseux n'en est
+ *                         pas, ce qui est tout l'intérêt du découpage.
+ *   `tout`    + dynamiques : ce que le paquet EMBARQUE, morceaux compris. C'est
+ *                         la question de la FRONTIÈRE, et là un `import()` est
+ *                         une arête comme une autre : le morceau part quand même
+ *                         chez le client, et un `GET /morceau-<hash>.js` le rend
+ *                         à qui le demande, exactement comme pour la frontière
+ *                         administrateur (`scripts/admin-boundary.mjs`).
+ *
+ * La première version posait les interdits sur le parcours statique seul, si
+ * bien que `src/native/avancee.ts` et tout ce qu'il importe n'étaient dans aucun
+ * graphe gardé. Trouvé par la passe adversariale du 5 septembre 2026, avec la
+ * remarque qui fait mal : l'en-tête de `avancee.ts` réserve justement ce fichier
+ * au détourage, à la réalité augmentée et à la 3D.
+ */
 const graphe = closureFrom(ENTREE, ROOT, { dynamic: false })
+const tout = closureFrom(ENTREE, ROOT)
 if (!ok('le graphe a été parcouru', graphe.size > 15, `${graphe.size} modules atteints`)) {
   console.error('\nFATAL  le parcours n’a rien trouvé, donc rien n’est prouvé.')
   process.exit(2)
 }
+ok(
+  'et le parcours qui suit les imports paresseux voit au moins autant',
+  tout.size >= graphe.size,
+  `${tout.size} modules avec les morceaux, ${graphe.size} sans`,
+)
 
 for (const [prefixe, pourquoi] of BANNIS) {
-  const fuites = [...graphe.entries()]
+  const fuites = [...tout.entries()]
     .filter(([f]) => (prefixe.endsWith('/') ? f.startsWith(prefixe) : f === prefixe))
     .map(([f, par]) => `${f} <- ${par}`)
-  ok(`la vue simple n’atteint pas ${prefixe}`, fuites.length === 0, fuites.length ? fuites.join(' | ') : pourquoi)
+  ok(
+    `le paquet n’atteint pas ${prefixe}, morceaux paresseux compris`,
+    fuites.length === 0,
+    fuites.length ? fuites.join(' | ') : pourquoi,
+  )
 }
 
 /*
@@ -172,10 +218,27 @@ for (const [prefixe, pourquoi] of BANNIS) {
  * autrement.
  */
 const paquetsVus = new Map()
-for (const rel of graphe.keys()) {
+for (const rel of tout.keys()) {
+  /*
+   * LES COMMENTAIRES SONT RETIRÉS D'ABORD.
+   *
+   * La première version cherchait les spécificateurs dans le texte brut et a
+   * rapporté « the same id, different pixels » comme un paquet npm : c'est de
+   * la prose de `src/state/assets.ts`. Un scanner qui invente des dépendances
+   * est un scanner dont on cesse de lire la sortie.
+   */
   const src = lire(join(ROOT, rel))
-  for (const m of src.matchAll(/(?:^\s*(?:import|export)[\s\S]*?from|^\s*import)\s*['"]([^'".@/][^'"]*|@[^'"/]+\/[^'"]+)['"]/gm)) {
-    const nom = m[1].split('/')[0].startsWith('@') ? m[1].split('/').slice(0, 2).join('/') : m[1].split('/')[0]
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+  const specs = [
+    ...src.matchAll(/(?:^\s*(?:import|export)[\s\S]*?from|^\s*import)\s*['"]([^'"]+)['"]/gm),
+    // `import()` et `require()`, qui n'ont ni l'un ni l'autre la forme ci-dessus.
+    ...src.matchAll(/\b(?:import|require)\(\s*['"]([^'"]+)['"]\s*\)/g),
+  ]
+  for (const m of specs) {
+    const spec = m[1]
+    if (spec.startsWith('.') || spec.startsWith('@/') || spec.startsWith('/')) continue
+    const nom = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]
     if (!paquetsVus.has(nom)) paquetsVus.set(nom, rel)
   }
 }
@@ -243,8 +306,37 @@ try {
 }
 ok('le paquet construit est là et n’est pas vide', paquet.length > 1000, `${paquet.length} octets`)
 
+/*
+ * TOUT LE JAVASCRIPT DU RÉPERTOIRE, PAS SEULEMENT L'ENTRÉE.
+ *
+ * La première version lisait `PAQUET` seul, et le parcours du graphe est
+ * volontairement STATIQUE, donc `import('./avancee')` n'y est pas une arête :
+ * `src/native/avancee.ts` et `src/lib/fontFaces.ts` n'étaient dans aucun graphe
+ * gardé, et leurs morceaux dans aucun scan. Trouvé par la passe adversariale du
+ * 5 septembre 2026, avec la chaîne complète : le fichier d'entrée est public, il
+ * porte en clair le nom haché du morceau, on récupère le morceau et on lit ce
+ * qu'il y a dedans. Mesuré clean ce jour-là ; ce qui manquait, c'est ce qui
+ * l'empêcherait de cesser de l'être, et l'en-tête de `avancee.ts` réserve
+ * justement ce fichier au détourage, à la réalité augmentée et à la 3D.
+ *
+ * Le poids, lui, reste mesuré sur la seule première charge : c'est une autre
+ * question et elle est posée plus bas.
+ */
+const scriptsSortie = readdirSync(SORTIE).filter((f) => f.endsWith('.js'))
+ok(
+  'tous les scripts du paquet sont contrôlés, pas seulement l’entrée',
+  scriptsSortie.length >= 2,
+  scriptsSortie.join(', '),
+)
+const toutLeJs = scriptsSortie.map((f) => ({ nom: f, src: lire(join(SORTIE, f)) }))
+
 for (const [marqueur, quoi] of MARQUEURS) {
-  ok(`la première charge ne porte pas « ${marqueur} »`, !paquet.includes(marqueur), quoi)
+  const porteurs = toutLeJs.filter((f) => f.src.includes(marqueur)).map((f) => f.nom)
+  ok(
+    `aucun morceau ne porte « ${marqueur} »`,
+    porteurs.length === 0,
+    porteurs.length ? porteurs.join(', ') : quoi,
+  )
 }
 
 /*
@@ -255,8 +347,10 @@ for (const [marqueur, quoi] of MARQUEURS) {
  * ou `document` reste littéralement lisible. C'est la même raison pour laquelle
  * `scripts/bundle-guard.mjs` lit la sortie plutôt que les fichiers.
  */
-const clavierGlobal = [...paquet.matchAll(/(window|document)\.addEventListener\(\s*["'](key[a-z]*)["']/g)].map(
-  (m) => `${m[1]}.addEventListener("${m[2]}")`,
+const clavierGlobal = toutLeJs.flatMap((f) =>
+  [...f.src.matchAll(/(window|document)\.addEventListener\(\s*["'](key[a-z]*)["']/g)].map(
+    (m) => `${f.nom} : ${m[1]}.addEventListener("${m[2]}")`,
+  ),
 )
 ok(
   'aucun écouteur clavier posé sur window ou document',
@@ -275,6 +369,15 @@ try {
   console.error(`\nFATAL  ${relative(ROOT, FEUILLE)} est absente.`)
   process.exit(2)
 }
+/*
+ * ET TOUTES LES AUTRES FEUILLES. Celle des polices d'impression arrive avec le
+ * morceau de la vue avancée : elle est injectée dans la MÊME page, donc une
+ * règle qui sortirait de `.tshop-ed` y ferait exactement le dégât que la
+ * première raison de `Shortcode.php` décrit, avec un clic de retard.
+ */
+const feuillesSortie = readdirSync(SORTIE).filter((f) => f.endsWith('.css'))
+ok('toutes les feuilles du paquet sont contrôlées', feuillesSortie.length >= 1, feuillesSortie.join(', '))
+feuille = feuillesSortie.map((f) => lire(join(SORTIE, f))).join('\n')
 
 /**
  * Les sélecteurs de la feuille, sans les blocs `@media` ni les commentaires.
@@ -331,6 +434,21 @@ ok(
   globaux.length ? globaux.join(' | ') : 'le défilement du site est intact',
 )
 
+/*
+ * `@import` NE FINIT PAS PAR `{`, DONC `selecteurs()` NE LE VOIT PAS.
+ *
+ * Une feuille distante importée depuis la nôtre porterait ses propres règles
+ * `body{...}` dans la page de la boutique, et chaque assertion de portée
+ * ci-dessus resterait verte. Il n'y en a aucune, et il n'y en aura pas :
+ * `default-src`/`style-src` de la boutique ne les autoriserait pas non plus,
+ * mais une porte qui dépend d'une autre porte n'est pas une porte.
+ */
+ok(
+  'aucune feuille n’en importe une autre',
+  !/@import/.test(feuille),
+  'une feuille importée porterait ses propres sélecteurs dans la page',
+)
+
 ok(
   'aucune fenêtre en position: fixed',
   !/position\s*:\s*fixed/i.test(feuille),
@@ -341,6 +459,42 @@ ok(
   'un anneau de focus est déclaré',
   /focus-visible/.test(feuille) && /outline\s*:/.test(feuille),
   'le clavier depuis le début, pas rétrofité',
+)
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * AUCUNE URL RACINE-ABSOLUE, ET CELLE-CI A COÛTÉ UNE GÉOMÉTRIE D'IMPRESSION.
+ *
+ * `vite.editeur.config.ts` n'avait pas de `base`, donc le paquet écrivait
+ * `url(/actif-anton-….woff2)` et calculait l'URL de la feuille des polices
+ * comme racine-absolue. Le greffon est servi sous
+ * `/wp-content/plugins/teeshoop-core/assets/editeur/` : les deux rendaient 404,
+ * `document.fonts.load()` se résolvait quand même, et l'encre d'un texte était
+ * mesurée dans la police de repli. Mesuré : 20,6 x 2,7 cm enregistrés et
+ * facturés pour 14,7 x 3,7 cm imprimés.
+ *
+ * Cette porte est écrite sur les OCTETS LIVRÉS et pas sur la configuration :
+ * `base` peut être juste et une autre chose écrire une URL absolue.
+ */
+const urlsAbsolues = []
+for (const f of feuillesSortie) {
+  for (const m of lire(join(SORTIE, f)).matchAll(/url\(\s*(['"]?)(\/[^)'"]*)\1\s*\)/g)) {
+    urlsAbsolues.push(`${f} : url(${m[2]})`)
+  }
+}
+for (const f of toutLeJs) {
+  // Le tableau que vite écrit pour les dépendances d'un import paresseux.
+  const deps = f.src.match(/__vite__mapDeps\.viteFileDeps\s*=\s*\[([^\]]*)\]/)
+  if (deps) {
+    for (const m of deps[1].matchAll(/["'](\/[^"']*)["']/g)) urlsAbsolues.push(`${f.nom} : dep ${m[1]}`)
+  }
+}
+ok(
+  'aucune URL racine-absolue dans le paquet',
+  urlsAbsolues.length === 0,
+  urlsAbsolues.length
+    ? urlsAbsolues.slice(0, 5).join(' | ') + '  (base: \'./\' dans vite.editeur.config.ts)'
+    : 'le greffon n’est pas servi à la racine du site',
 )
 
 // ---------------------------------------------------------------------------

@@ -85,13 +85,29 @@ const FONTS_CSS = `${THEME}/assets/fonts.css`
 const FONTS_DIR = `${THEME}/assets/fonts`
 const TOKENS = 'wp-plugins/teeshoop-core/assets/tokens.css'
 
-/** The stylesheets that are actually served to a shopper. */
-const STYLESHEETS = [
-  `${THEME}/style.css`,
-  'wp-plugins/teeshoop-core/assets/components.css',
-  'wp-plugins/teeshoop-core/assets/product.css',
-  'wp-plugins/teeshoop-core/assets/bridge.css',
-]
+/**
+ * The stylesheets that are actually served to a shopper.
+ *
+ * A GLOB, NOT A FIXED PATH, for the editor's sheet: it carries a content hash
+ * (`editeur-<hash>.css`), and a literal name here would simply stop existing on
+ * the next build. The list was filtered by `existsSync` below, so a name that
+ * stopped resolving dropped out in SILENCE, which is "nothing looked" reading
+ * as "nothing found". It now refuses instead.
+ */
+const EDITEUR_DIR = 'wp-plugins/teeshoop-core/assets/editeur'
+function stylesheets() {
+  const editeur = existsSync(p(EDITEUR_DIR))
+    ? readdirSync(p(EDITEUR_DIR))
+        .filter((f) => f.startsWith('editeur-') && f.endsWith('.css'))
+        .map((f) => `${EDITEUR_DIR}/${f}`)
+    : []
+  return [
+    `${THEME}/style.css`,
+    'wp-plugins/teeshoop-core/assets/components.css',
+    'wp-plugins/teeshoop-core/assets/product.css',
+    ...editeur,
+  ]
+}
 
 /** Anything under these two roots is ours and may not reach Google. */
 const NO_GOOGLE = [THEME, 'wp-plugins/teeshoop-core']
@@ -340,7 +356,11 @@ const readBytesOrNull = (rel) => {
 const realInputs = () => ({
   fontsCss: read(FONTS_CSS),
   tokensCss: read(TOKENS),
-  sheets: STYLESHEETS.filter((f) => existsSync(p(f))).map((f) => [f, read(f)]),
+  /*
+   * PLUS DE `filter(existsSync)`. Une feuille listée et absente est une panne,
+   * pas une ligne à sauter : `read()` lève, et c'est ce qu'on veut.
+   */
+  sheets: stylesheets().map((f) => [f, read(f)]),
   fileBytes: readBytesOrNull,
   packageBytes: (face) => {
     const pkg = `node_modules/@fontsource/${face.family.toLowerCase()}`

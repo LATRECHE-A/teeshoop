@@ -28,7 +28,6 @@
  * @var array  $sizes       Size ids this garment is offered in.
  * @var string $size        The size a single-size run is in.
  * @var int    $max_faces
- * @var string $studio_url
  * @var bool   $needs_quote
  * @var bool   $editeur_natif  L'éditeur est dans la page : ce fichier ne pose
  *                             alors ni formulaire de quantité ni bouton
@@ -329,11 +328,23 @@ $ts_bases     = Settings::price_bases();
 			?>
 		</p>
 
-		<?php $ts_devis_first = $needs_quote || $ts_over_cap; ?>
-		<a class="ts-cta <?php echo $ts_devis_first ? 'ts-cta--ghost' : ''; ?>" href="<?php echo esc_url( $studio_url ); ?>" data-teeshoop-personnaliser>
-			<?php esc_html_e( 'Personnaliser ce vêtement', 'teeshoop' ); ?>
-		</a>
-		<a class="ts-cta <?php echo $ts_devis_first ? '' : 'ts-cta--ghost'; ?>" href="#teeshoop-devis" data-teeshoop-devis-link>
+		<?php
+		/*
+		 * IL N'Y A PLUS DE BOUTON « PERSONNALISER », ET C'EST VOULU.
+		 *
+		 * Il menait à `?personnaliser=1`, une seconde page qui encadrait le
+		 * studio. L'éditeur est maintenant dans cette fente-ci ; cette branche du
+		 * gabarit n'est atteinte que lorsque le paquet construit est ABSENT du
+		 * greffon, c'est-à-dire quand il n'y a rien à personnaliser. Un bouton
+		 * qui mène à une page vide est pire qu'une phrase qui dit quoi faire :
+		 * mesuré la nuit du 5 septembre, `verify:vendable` a compté cette ancre
+		 * comme un chemin d'achat jusqu'à ce qu'il aille voir derrière.
+		 */
+		?>
+		<p class="ts-actions__quote">
+			<?php esc_html_e( 'Le personnalisateur n’est pas disponible sur cette page pour le moment. Demandez-nous un devis et joignez votre visuel : nous prenons la commande à la main.', 'teeshoop' ); ?>
+		</p>
+		<a class="ts-cta" href="#teeshoop-devis" data-teeshoop-devis-link>
 			<?php esc_html_e( 'Demander un devis', 'teeshoop' ); ?>
 		</a>
 	</div>

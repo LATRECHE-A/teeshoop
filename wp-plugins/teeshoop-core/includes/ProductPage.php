@@ -34,9 +34,6 @@ defined( 'ABSPATH' ) || exit;
 
 final class ProductPage {
 
-	/** Query flag that swaps the marketing page for the editor. */
-	public const STUDIO_ARG = 'personnaliser';
-
 	/** @var array<string,array> Headline per garment, so an archive of 100 does not recompute 100 times. */
 	private static array $headlines = array();
 
@@ -188,19 +185,17 @@ final class ProductPage {
 		add_action( 'woocommerce_after_single_product_summary', array( self::class, 'quote_block' ), 12 );
 
 		/*
-		 * L'ÉDITEUR DANS LA PAGE, OU LE CADRE, JAMAIS LES DEUX.
+		 * L'ÉDITEUR EST DANS LA FENTE D'AJOUT AU PANIER, où l'oeil de l'acheteur
+		 * est déjà, et il n'y a plus de seconde page.
 		 *
-		 * `Editeur::rendre()` est appelé par `product-cta.php`, dans la fente
-		 * d'ajout au panier, là où l'oeil de l'acheteur est déjà. Le chemin
-		 * `?personnaliser=1` du studio encadré n'est plus proposé quand le
-		 * chemin natif est branché : deux personnalisateurs sur une fiche, ce
-		 * sont deux créations qui ne se connaissent pas et un client qui perd la
-		 * sienne en changeant d'onglet.
+		 * `?personnaliser=1` ouvrait le studio encadré sur une vue séparée : un
+		 * rechargement complet, une seconde adresse à ne pas indexer, et un
+		 * cadre qui ne savait même pas quel produit venait d'être cliqué. Il n'y
+		 * a plus qu'un écran, et `Editeur::rendre()` le pose depuis
+		 * `product-cta.php`.
 		 */
-		if ( Editeur::est_actif() && Editeur::paquet_present() ) {
+		if ( Editeur::paquet_present() ) {
 			Editeur::enqueue();
-		} elseif ( self::studio_requested() ) {
-			add_action( 'woocommerce_before_single_product', array( self::class, 'studio' ), 5 );
 		}
 
 		self::enqueue();
@@ -322,7 +317,7 @@ final class ProductPage {
 	 * The size a single-size run is in.
 	 *
 	 * The pane used to ask only "how many", and the answer travelled into the
-	 * studio as a bare quantity, where the basket panel turned it into "40 of
+	 * editor as a bare quantity, where the basket panel turned it into "40 of
 	 * whatever size the 3D preview happened to be showing". That is a size the
 	 * buyer never chose, on forty garments. The pane asks now, so what crosses
 	 * the boundary is always a real breakdown.
@@ -355,23 +350,22 @@ final class ProductPage {
 		return $out;
 	}
 
-	private static function studio_requested(): bool {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a navigation flag, not an action.
-		return ! empty( $_GET[ self::STUDIO_ARG ] );
-	}
 
 	/**
-	 * The editor view is the same URL with a flag, and it is not the page we
-	 * want indexed: the product page is. Estimator permutations are noindex for
-	 * the same reason: one product, not forty near-identical URLs.
+	 * Les permutations de l'estimateur ne s'indexent pas : un produit, pas
+	 * quarante adresses presque identiques.
+	 *
+	 * `?personnaliser=1` a disparu de cette liste avec le studio encadré : il
+	 * n'y a plus de seconde page à ne pas indexer, l'éditeur est dans la fiche.
+	 * Les six autres restent parce que l'estimateur sans JavaScript recharge
+	 * toujours la page avec ses réponses dans l'adresse.
 	 */
 	public static function robots( array $robots ): array {
 		if ( ! function_exists( 'is_product' ) || ! is_product() ) {
 			return $robots;
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading the URL shape, not acting on it.
-		$noisy = self::studio_requested()
-			|| isset( $_GET['qte'] ) || isset( $_GET['tailles'] ) || isset( $_GET['faces'] )
+		$noisy = isset( $_GET['qte'] ) || isset( $_GET['tailles'] ) || isset( $_GET['faces'] )
 			|| isset( $_GET['taille'] ) || isset( $_GET['mode'] ) || isset( $_GET['devis'] );
 		if ( $noisy ) {
 			$robots['noindex'] = true;
@@ -500,7 +494,7 @@ final class ProductPage {
 	 * `Cart::add` calls `WC_Cart::add_to_cart()` directly, and that method does
 	 * NOT apply this filter on WooCommerce 11.0.1 (the filter lives in the form
 	 * handler, the AJAX handler, the Store API controller and the reorder path).
-	 * So the studio's own path is untouched and needs no exemption. The
+	 * So the editor's own path is untouched and needs no exemption. The
 	 * `teeshoop` key is still checked, because the reorder path and the session
 	 * restore both pass `$cart_item_data` and a future Woo may pass it here too.
 	 *
@@ -547,21 +541,6 @@ final class ProductPage {
 	// Blocks
 	// -----------------------------------------------------------------------
 
-	/** The editor, when the customer asked for it. */
-	public static function studio(): void {
-		$product_id = (int) get_queried_object_id();
-		echo '<div class="teeshoop-studio-view">';
-		printf(
-			'<p class="teeshoop-studio-view__back"><a href="%s">%s</a></p>',
-			esc_url( get_permalink( $product_id ) ?: home_url( '/' ) ),
-			esc_html__( 'Revenir à la fiche produit', 'teeshoop' )
-		);
-		// Shortcode::render carries its own one-per-page guard, so a product
-		// whose description also holds [teeshoop_studio] gets one editor, not
-		// two megabytes of WebGL twice.
-		echo do_shortcode( '[teeshoop_studio product_id="' . (int) $product_id . '"]' );
-		echo '</div>';
-	}
 
 	/** Quantity, faces, the live total and the two ways forward. */
 	public static function buy_box(): void {
@@ -590,7 +569,6 @@ final class ProductPage {
 				'headline'    => self::headline( $garment, self::self_serve_cap( wc_get_product( $product_id ) ) ),
 				'sizes'       => self::size_ids( $garment ),
 				'max_faces'   => Garments::printable_sides_count( $garment ),
-				'studio_url'  => self::studio_url( $product_id, $request, $garment ),
 				'size'        => self::requested_size( $garment ),
 				/*
 				 * LA MÊME RÉPONSE QUE LA GRILLE ET QUE LE PANIER.
@@ -611,12 +589,17 @@ final class ProductPage {
 				 *
 				 * Quand il l'est, il porte la grille de tailles, le prix et le
 				 * bouton d'achat, et ce gabarit n'en pose aucun : c'est la
-				 * « seule question posée une seule fois ». `paquet_present()`
-				 * est dans la condition parce qu'un greffon déployé sans son
-				 * répertoire construit doit retomber sur le chemin qui vend,
-				 * pas sur une fiche produit sans bouton.
+				 * « seule question posée une seule fois ».
+				 *
+				 * UNE SEULE CONDITION, ET LA MÊME QUE CELLE QUI DÉCIDE DE
+				 * L'ENQUEUE. Il y en a eu deux pendant une heure, `est_actif()`
+				 * ici et `paquet_present()` là-bas, et la passe adversariale a
+				 * écrit la chaîne : une boutique sans l'option publiait le
+				 * script et le nonce pour un conteneur jamais rendu, et perdait
+				 * son bouton d'achat. Deux portes pour une question, c'est la
+				 * configuration où aucune des deux n'est celle qu'on croit.
 				 */
-				'editeur_natif' => Editeur::est_actif() && Editeur::paquet_present(),
+				'editeur_natif' => Editeur::paquet_present(),
 			),
 			'',
 			TEESHOOP_CORE_DIR . 'templates/'
@@ -747,9 +730,11 @@ final class ProductPage {
 	/**
 	 * La série du fabricant, pour la passerelle.
 	 *
-	 * Publique parce que `Shortcode::enqueue()` la fait traverser vers le studio,
-	 * où elle décide du gradient d'impression. Même lecture, même garde-fou
-	 * d'unité : une seule maison pour « quelle est la vraie demi-poitrine ».
+	 * Publique parce que `Editeur::contexte()` la publie vers l'éditeur, où elle
+	 * décide du gradient d'impression, et parce que `Cart::add` la relit pour
+	 * refuser une taille où le marquage ne tiendrait pas sur le film. Même
+	 * lecture, même garde-fou d'unité : une seule maison pour « quelle est la
+	 * vraie demi-poitrine ».
 	 *
 	 * @return array<string,float>
 	 */
@@ -906,39 +891,4 @@ final class ProductPage {
 		);
 	}
 
-	/**
-	 * The link into the editor, carrying what the buyer already told this page.
-	 *
-	 * Tostadora's one real advantage is that its editor opens on the garment and
-	 * the design the buyer clicked, so nothing is chosen twice. The size grid a
-	 * B2B buyer fills in here is exactly that: retyping it in the studio's
-	 * add-to-cart panel would be the page throwing away work.
-	 *
-	 * It is a PRE-FILL and nothing more. `Cart::add` re-derives the garment from
-	 * the product and the printed areas from the stored design, so a tampered
-	 * link changes what a form shows and never what an invoice says.
-	 */
-	public static function studio_url( int $product_id, array $request, string $garment = '' ): string {
-		$args = array( self::STUDIO_ARG => 1 );
-
-		if ( 'grid' === $request['mode'] && ! empty( $request['grid'] ) ) {
-			$args['tailles'] = $request['grid'];
-		} elseif ( $request['qty'] > 1 && '' !== $garment ) {
-			// A SIZE AND A COUNT, never a bare count. The studio would otherwise
-			// have to invent the size, and it invented the one its 3D preview
-			// happened to be showing.
-			$size = self::requested_size( $garment );
-			if ( '' !== $size ) {
-				$args['tailles'] = array( $size => $request['qty'] );
-			}
-		}
-
-		if ( ! empty( $request['over_cap'] ) ) {
-			// Nothing is carried for a run the cart will not take: the customer
-			// is being sent to the devis, not to the editor.
-			$args = array( self::STUDIO_ARG => 1 );
-		}
-
-		return add_query_arg( $args, get_permalink( $product_id ) ?: home_url( '/' ) );
-	}
 }

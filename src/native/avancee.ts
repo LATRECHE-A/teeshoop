@@ -251,11 +251,27 @@ class Avancee {
         ),
       )
     }
+    /*
+     * LA MOITIÉ DE LA ZONE, PAS LA ZONE ENTIÈRE.
+     *
+     * La géométrie est mesurée depuis le CENTRE de la zone, qui s'étend donc de
+     * -w/2 à +w/2. Borner à +/- w laissait taper un décalage qui pose le calque
+     * entièrement hors de la zone : `clampInkToArea` rend alors `null`, la pièce
+     * disparaît du film ET du prix, et avec deux calques ça se fait sans un mot,
+     * ce qui est exactement la forme que `CLAUDE.md` section 3 nomme. Avec un
+     * seul calque le dépôt refuse par « rien à imprimer », donc le défaut ne se
+     * voyait que dans le cas où il coûte le plus cher.
+     *
+     * Trouvé par la passe adversariale du 5 septembre 2026. La borne est la même
+     * que celle de `clampLayersToArea` dans le magasin du studio.
+     */
+    const demiW = inToCm(zone.wIn) / 2
+    const demiH = inToCm(zone.hIn) / 2
     grille.append(
-      this.champCm(MOTS.decalageX, calque.xIn, -inToCm(zone.wIn), inToCm(zone.wIn), (cm) =>
+      this.champCm(MOTS.decalageX, calque.xIn, -demiW, demiW, (cm) =>
         this.patch(calque.id, { xIn: cmToIn(cm) }),
       ),
-      this.champCm(MOTS.decalageY, calque.yIn, -inToCm(zone.hIn), inToCm(zone.hIn), (cm) =>
+      this.champCm(MOTS.decalageY, calque.yIn, -demiH, demiH, (cm) =>
         this.patch(calque.id, { yIn: cmToIn(cm) }),
       ),
     )

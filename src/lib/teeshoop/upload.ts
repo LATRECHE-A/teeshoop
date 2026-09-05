@@ -48,7 +48,6 @@ import { printScaleK, printScaleOf } from '@/lib/printScale'
 import { assetRevision, getAssetBlob, type AssetVariant } from '@/state/assets'
 import { canvasToBlob } from '@/lib/download'
 import { readDesignDoc } from './designDoc'
-import type { BridgeSide } from './bridge'
 
 /** Sides the studio can print. The wire ids are these, verbatim. */
 const PRINTABLE_SIDES: Side[] = ['front', 'back', 'sleeve']
@@ -103,6 +102,56 @@ export class DesignUploadError extends Error {
     this.detail = detail
   }
 }
+
+/**
+ * Une face imprimée, mesurée, telle que la boutique la reçoit.
+ *
+ * ELLE VIVAIT DANS `src/lib/teeshoop/bridge.ts` et s'appelait `BridgeSide`. Ce
+ * fichier-là décrivait le pont postMessage entre le studio encadré et la page
+ * WordPress ; il est supprimé le 5 septembre 2026 avec le cadre, et ce type est
+ * la seule chose qu'il portait qui survive. Il descend ici parce que c'est le
+ * module qui la produit, et le nom perd le mot « bridge », qui ne désigne plus
+ * rien.
+ */
+export interface BridgeSide {
+  id: string
+  area_sq_cm: number
+  /**
+   * The transfers this side prints as, cm, in part order.
+   *
+   * The AREA prices the customer; these RECTANGLES cost the film, and the two
+   * are different questions with different answers: 400 cm² of ink is one
+   * transfer or six, and six of them pack onto a 56 cm roll very differently
+   * from one. They travel together because they are one measurement
+   * (`src/lib/ink.ts`) taken once, at the priced size, in the only place that
+   * can take it: a browser that has decoded the artwork.
+   */
+  pieces?: { w_cm: number; h_cm: number; top_cm: number; center_dx_cm: number }[]
+  /** The (graded) print area those placements are measured inside, cm. */
+  area_w_cm?: number
+  area_h_cm?: number
+  /**
+   * Whether the marking scales with the garment.
+   *
+   * A per-DESIGN choice the customer makes in the Produit panel, and the proof
+   * has to state the right one: in `fixed` mode one identical physical transfer
+   * is pressed on the S and on the 3XL, which is the cheaper option, and a proof
+   * telling that customer their marking grades is telling them something that
+   * will not happen.
+   */
+  graded?: boolean
+  /**
+   * Collar seam to the print area's CENTRE, cm, positive downwards.
+   *
+   * The one number a press is actually set up from: professional placement is
+   * measured in centimetres below the collar and it is where the operator puts
+   * the ruler. Absent for a garment the customer ships themselves, which has no
+   * collar landmark in our data and whose print area is defined on their own
+   * photograph instead. Absent means the proof says so; it never means zero.
+   */
+  drop_cm?: number
+}
+
 
 export interface MeasuredOrder {
   /** One entry per side that actually carries ink, in cm². */

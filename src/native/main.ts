@@ -41,17 +41,32 @@
  *      d'un éditeur est dans son instance (`src/native/editeur.ts`), et la garde
  *      refuse un `let` ou un `var` au niveau du module dans tout `src/native/`,
  *      qui est la forme que ce défaut prend en pratique : personne n'écrit
- *      « singleton », quelqu'un écrit `let courant = null`. Deux valeurs
- *      partagées demeurent, et ce sont les deux bonnes :
+ *      « singleton », quelqu'un écrit `let courant = null`.
  *
- *        le cache de dépôt (`src/lib/teeshoop/upload.ts`), qui est clé par le
- *        CONTENU et par l'adresse du Worker, donc deux éditeurs qui déposent la
- *        même création partagent une requête au lieu d'en payer deux ;
+ *      CINQ VALEURS PARTAGÉES DEMEURENT, dans les modules que l'éditeur importe,
+ *      et la garde ne les voit pas parce qu'elle ne lit que `src/native/`. Elles
+ *      sont comptées ici plutôt que niées, parce qu'une réponse qui prétend à
+ *      zéro état partagé serait fausse et que la passe adversariale du
+ *      5 septembre 2026 en avait trouvé trois de plus que ce paragraphe :
  *
- *        le nuancier de la boutique (`setShopPalette`), qui est de la
- *        configuration de DOCUMENT : une fiche produit vend un article. C'est
- *        la raison pour laquelle ce fichier n'en monte qu'un par page, comme
- *        `Shortcode::$rendered` le faisait, et le dit à qui peut le corriger.
+ *        `upload.ts` : le cache de dépôt, clé par le CONTENU et par l'adresse du
+ *        Worker, donc deux éditeurs qui déposent la même création partagent une
+ *        requête au lieu d'en payer deux. Partage VOULU.
+ *
+ *        `garmentPalette.ts` : le nuancier, posé par `setShopPalette`. C'est de
+ *        la configuration de DOCUMENT, une fiche produit vend un article, et
+ *        c'est la raison pour laquelle ce fichier n'en monte qu'un par page.
+ *
+ *        `i18n/lang.ts` : la langue, que l'éditeur fixe à `fr`. Une par document,
+ *        et la boutique ne propose pas d'en changer.
+ *
+ *        `state/assets.ts` et `lib/rasterCache.ts` : deux caches d'images
+ *        décodées, clés par identifiant d'actif et par révision. Deux éditeurs
+ *        qui montrent le même visuel doivent le décoder une fois.
+ *
+ *      Aucune n'empêche deux instances de coexister ; la première et la seconde
+ *      seraient partagées à tort si les deux fiches vendaient des produits
+ *      différents, et c'est ce que la limite d'un par page tient.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * SANS JAVASCRIPT
@@ -74,7 +89,7 @@ declare global {
   }
 }
 
-/** Le conteneur que `ProductPage::editeur()` écrit dans la page. */
+/** Le conteneur que `Editeur::rendre()` écrit, depuis `product-cta.php`. */
 const SELECTEUR = '[data-teeshoop-editeur]'
 
 function demarrer(): void {

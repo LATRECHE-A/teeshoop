@@ -57,15 +57,25 @@ export const MUST_REACH = [
   'src/app/modals/BasketModal.tsx',
   'src/app/modals/CustomSetupModal.tsx',
   'src/app/backOriginI18n.ts',
-  // The route from a design to a WooCommerce basket. Nothing here is
-  // shop-internal, and all of it must ship to the customer or the studio cannot
-  // sell anything.
-  'src/lib/teeshoop/bridge.ts',
-  'src/lib/teeshoop/upload.ts',
-  'src/lib/teeshoop/designDoc.ts',
-  'src/app/modals/CartModal.tsx',
-  'src/app/modals/cartI18n.ts',
 ]
+
+/*
+ * WHAT LEFT THIS LIST ON 5 SEPTEMBER 2026, AND WHY IT IS NOT A REGRESSION.
+ *
+ * It carried `src/lib/teeshoop/bridge.ts`, `CartModal.tsx` and `cartI18n.ts`
+ * under the note "the route from a design to a WooCommerce basket … all of it
+ * must ship to the customer or the studio cannot sell anything". That route is
+ * gone: the customer's customiser is `src/native/`, served by WordPress in the
+ * product page, and the postMessage bridge it needed was deleted at both ends.
+ * The three files are deleted too, so listing them here would fail the boundary
+ * test for a feature that no longer exists.
+ *
+ * `upload.ts` and `designDoc.ts` are NOT listed any more either, and that is
+ * deliberate rather than an oversight: they are no longer reachable from
+ * `src/main.tsx` (nothing in the studio uploads a design now), and what holds
+ * them is `OBLIGATOIRES` in `scripts/editeur-guard.mjs`, which walks from the
+ * editor's entry. The guarantee moved with the feature.
+ */
 
 /** The directory admin-only chunks are emitted into, and the Worker gates. */
 export const ADMIN_ASSET_DIR = 'admin-assets'
