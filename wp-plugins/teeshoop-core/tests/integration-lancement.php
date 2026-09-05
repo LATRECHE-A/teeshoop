@@ -32,8 +32,10 @@ if ( 'cli' !== PHP_SAPI ) {
 	exit( 1 );
 }
 
+use Teeshoop\Core\Admin;
 use Teeshoop\Core\Launch;
 use Teeshoop\Core\Legal;
+use Teeshoop\Core\Payment;
 use Teeshoop\Core\Product;
 use Teeshoop\Core\Terms;
 
@@ -46,6 +48,74 @@ function ts_lg_reasons( string $key ): array {
 		}
 	}
 	return $out;
+}
+
+/**
+ * Put the shop in a state where the money door has nothing to say.
+ *
+ * REAL FACTS, NOT A STUB. It declares a blank on every personalisable product
+ * that lacks one and records a floor measurement, which is exactly what an
+ * operator would do, and it hands back a closure that undoes both. A gate proved
+ * only in the direction it already refuses is a gate that refuses everything,
+ * which is the failure mode this file's identity test was written to catch.
+ *
+ * @return callable():void
+ */
+function ts_lg_clear_money_door(): callable {
+	$touched = array();
+	$ids     = get_posts(
+		array(
+			'post_type'      => 'product',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'meta_key'       => Product::META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a test, not a page load.
+		)
+	);
+	foreach ( $ids as $id ) {
+		if ( '' !== Product::blank_ref_of( (int) $id ) ) {
+			continue;
+		}
+		$touched[] = (int) $id;
+		update_post_meta( (int) $id, Product::META_BLANK_REF, '18001' );
+	}
+
+	$grid_before = get_option( Launch::OPTION_GRILLE, null );
+	Launch::record_grid_verdict( 0, 0, 219 );
+
+	return static function () use ( $touched, $grid_before ): void {
+		foreach ( $touched as $id ) {
+			delete_post_meta( $id, Product::META_BLANK_REF );
+		}
+		if ( null === $grid_before ) {
+			delete_option( Launch::OPTION_GRILLE );
+		} else {
+			update_option( Launch::OPTION_GRILLE, $grid_before, false );
+		}
+		Launch::forget();
+	};
+}
+
+/**
+ * Write a gateway's settings with the activation guard lifted, and put it back.
+ *
+ * REMETTRE L'ÉTAT D'ORIGINE PASSE PAR LE GARDE, ce que la première version de ce
+ * fichier a oublié : restaurer un `enabled => yes` pendant que la porte refuse
+ * est exactement l'écriture que le garde existe pour refuser, donc le miroir est
+ * resté avec son virement bancaire éteint et les deux assertions suivantes ont
+ * échoué sur « aucune passerelle activée ». C'est le garde qui a raison ; c'est
+ * le décor qui doit se contourner nommément.
+ */
+function ts_lg_write_gateway( string $option, $value ): void {
+	remove_filter( 'pre_update_option_' . $option, array( Payment::class, 'refuse_enabling' ), 10 );
+	update_option( $option, $value );
+	add_filter( 'pre_update_option_' . $option, array( Payment::class, 'refuse_enabling' ), 10, 2 );
+}
+
+/** Which gateway ids WooCommerce would offer a customer right now. */
+function ts_lg_offered(): array {
+	Launch::forget();
+	return array_keys( WC()->payment_gateways()->get_available_payment_gateways() );
 }
 
 /** Whether any reason with this key mentions this fragment. */
@@ -171,5 +241,432 @@ function ts_lancement_suite(): void {
 			ts_assert( '' !== trim( (string) ( $blocker['pourquoi'] ?? '' ) ), 'un refus sans raison lisible' );
 		}
 		ts_assert( count( Launch::blockers() ) > 0, 'le portail n’a rien à redire, ce qui serait la première fois' );
+	} );
+
+	ts_porte_argent_suite();
+}
+
+/**
+ * LA PORTE ARGENT, ET LE FAIT QU'ELLE TIENNE VRAIMENT LA CAISSE.
+ *
+ * Avant le 5 septembre 2026, le portail refusait sur seize motifs pendant qu'un
+ * humain pouvait activer Stripe dans l'administration, parce que la porte
+ * bloquait une COPIE DE FICHIERS et que rien dans WordPress n'avait jamais
+ * entendu parler d'elle. Ce bloc mesure les deux directions de chacun des trois
+ * chemins qui la lisent désormais : la liste proposée au client, l'écriture qui
+ * allume une passerelle, et l'écran qui dit pourquoi.
+ */
+function ts_porte_argent_suite(): void {
+	echo "\nLa porte argent, tenue par WordPress\n";
+
+	/*
+	 * Les gardes par option sont enregistrés depuis la liste des passerelles,
+	 * comme WooCommerce enregistre les siens. Rien ici ne doit dépendre de
+	 * l'ordre dans lequel un autre bloc a demandé cette liste avant nous.
+	 */
+	WC()->payment_gateways();
+
+	ts_it( 'labels every refusal with the door it belongs to, and only two exist', function () {
+		$doors = array();
+		foreach ( Launch::blockers() as $blocker ) {
+			$door = (string) ( $blocker['porte'] ?? '' );
+			ts_assert(
+				in_array( $door, array( Launch::PORTE_ARGENT, Launch::PORTE_PUBLICATION ), true ),
+				'un refus porte une porte que personne ne connaît : ' . var_export( $blocker, true )
+			);
+			$doors[ $door ] = true;
+		}
+		/*
+		 * La table est dans `Launch::PORTES` et une clé inconnue retombe sur
+		 * argent, donc ce test ne peut pas passer par accident : il faudrait
+		 * qu'une clé soit classée publication à la main pour qu'il échoue.
+		 */
+		ts_assert(
+			ts_lg_says( 'cgv', 'projet' ) || ts_lg_says( 'cgv', 'relue' ),
+			'le décor de ce test a changé : les CGV ne refusent plus'
+		);
+		foreach ( Launch::blockers() as $blocker ) {
+			if ( 'cgv' === ( $blocker['cle'] ?? '' ) ) {
+				ts_eq( (string) $blocker['porte'], Launch::PORTE_PUBLICATION, 'la porte des CGV' );
+			}
+			if ( 'textile-nu' === ( $blocker['cle'] ?? '' ) ) {
+				ts_eq( (string) $blocker['porte'], Launch::PORTE_ARGENT, 'la porte du textile nu' );
+			}
+		}
+	} );
+
+	ts_it( 'refuses on a floor nobody has ever measured, and says which command measures it', function () {
+		$before = get_option( Launch::OPTION_GRILLE, null );
+		try {
+			delete_option( Launch::OPTION_GRILLE );
+			Launch::forget();
+			ts_assert( ts_lg_says( 'prix-plancher', 'Personne n’a mesuré' ), 'un plancher jamais mesuré ne refuse pas' );
+			ts_assert( ts_lg_says( 'prix-plancher', 'verify:grille' ), 'le refus ne nomme pas la commande qui le lève' );
+		} finally {
+			if ( null === $before ) {
+				delete_option( Launch::OPTION_GRILLE );
+			} else {
+				update_option( Launch::OPTION_GRILLE, $before, false );
+			}
+			Launch::forget();
+		}
+	} );
+
+	ts_it( 'reads the recorded measurement, in all four of its states', function () {
+		$before = get_option( Launch::OPTION_GRILLE, null );
+		try {
+			// 1. Green: measured, nothing under, signature current.
+			Launch::record_grid_verdict( 0, 0, 219 );
+			Launch::forget();
+			ts_eq( ts_lg_reasons( 'prix-plancher' ), array(), 'une mesure verte refuse quand même' );
+
+			// 2. Columns under their floor. The shop loses money on each sale.
+			Launch::record_grid_verdict( 12, 0, 219 );
+			Launch::forget();
+			ts_assert( ts_lg_says( 'prix-plancher', 'sous leur plancher' ), 'douze colonnes sous leur plancher ne refusent pas' );
+			ts_assert( ts_lg_says( 'prix-plancher', 'perd de l’argent' ), 'le refus ne dit pas ce que ça coûte' );
+
+			// 3. Columns nobody could cost. Not a floor crossed, a floor unknown.
+			Launch::record_grid_verdict( 0, 3, 219 );
+			Launch::forget();
+			ts_assert( ts_lg_says( 'prix-plancher', 'n’ont pas pu être chiffrées' ), 'des colonnes non chiffrables ne refusent pas' );
+
+			// 4. Superseded: the tariff moved after the measurement.
+			$stored = get_option( Launch::OPTION_GRILLE );
+			$stored['under']     = 0;
+			$stored['blocked']   = 0;
+			$stored['signature'] = 'ceci-n-est-pas-la-signature';
+			update_option( Launch::OPTION_GRILLE, $stored, false );
+			Launch::forget();
+			ts_assert( ts_lg_says( 'prix-plancher', 'tarif publié a changé' ), 'une mesure périmée par un changement de tarif ne refuse pas' );
+
+			// 5. Stale: older than the window, tariff untouched.
+			$stored              = get_option( Launch::OPTION_GRILLE );
+			$stored['signature'] = Launch::grid_signature();
+			$stored['at']        = gmdate( 'Y-m-d H:i:s', time() - ( Launch::GRILLE_JOURS + 1 ) * DAY_IN_SECONDS );
+			update_option( Launch::OPTION_GRILLE, $stored, false );
+			Launch::forget();
+			ts_assert( ts_lg_says( 'prix-plancher', 'n’a pas été mesurée' ), 'une mesure trop vieille ne refuse pas' );
+		} finally {
+			if ( null === $before ) {
+				delete_option( Launch::OPTION_GRILLE );
+			} else {
+				update_option( Launch::OPTION_GRILLE, $before, false );
+			}
+			Launch::forget();
+		}
+	} );
+
+	ts_it( 'offers no way to pay at all while the money door refuses', function () {
+		$restore = ts_lg_clear_money_door();
+		try {
+			$open = ts_lg_offered();
+			ts_assert( array() !== $open, 'le décor de ce test a changé : la boutique ne propose aucun paiement même porte ouverte' );
+
+			/*
+			 * UN SEUL FAIT CHANGÉ, et c'est celui-là qui doit fermer la caisse :
+			 * un produit personnalisable en vente dont l'atelier ne peut acheter
+			 * le textile. La commande serait payée et jamais servie.
+			 */
+			$probe = new \WC_Product_Simple();
+			$probe->set_name( 'Sonde de la porte argent' );
+			$probe->set_regular_price( '14.50' );
+			$probe->set_status( 'publish' );
+			$probe->save();
+			update_post_meta( $probe->get_id(), Product::META, 'tee' );
+
+			try {
+				Launch::forget();
+				ts_assert( Launch::money_refuses(), 'la porte argent ne refuse pas alors qu’un produit n’a pas de textile nu' );
+				ts_eq( ts_lg_offered(), array(), 'des moyens de paiement sont encore proposés au client' );
+			} finally {
+				wp_delete_post( $probe->get_id(), true );
+			}
+
+			// Et elle rouvre, ce qui est l'autre moitié de la preuve.
+			ts_eq( ts_lg_offered(), $open, 'la caisse ne rouvre pas une fois la condition levée' );
+		} finally {
+			$restore();
+		}
+	} );
+
+	ts_it( 'ne ferme pas la caisse sur un fait qui ne vaut que pour CE panier', function () {
+		/*
+		 * LE DÉFAUT QUE CETTE ASSERTION GARDE, et il a fermé la caisse d'une
+		 * boutique saine avant d'être trouvé. `Payment::problems()` compte
+		 * « activé et non proposé au client », qui est un fait NORMAL ET PAR
+		 * PANIER : un moyen Stripe sous le montant minimum d'un Klarna, un
+		 * paiement à la livraison exclu par le mode de livraison choisi, ou
+		 * l'écran « ajouter un moyen de paiement », qui exclut d'office toute
+		 * passerelle sans tokenisation. Quand la porte argent lisait cette
+		 * phrase, elle retirait TOUTES les passerelles, carte comprise.
+		 *
+		 * La porte ne lit donc plus que la configuration. Ce test l'exerce par le
+		 * chemin réel : on cache une passerelle du panier courant, exactement
+		 * comme WooCommerce le fait, et on vérifie que la caisse reste ouverte.
+		 */
+		$restore = ts_lg_clear_money_door();
+		$cacher  = static function ( $gateways ) {
+			unset( $gateways['bacs'] );
+			return $gateways;
+		};
+		try {
+			Launch::forget();
+			ts_eq( Launch::money_blockers(), array(), 'le décor a changé : la porte refuse déjà avant qu’on cache quoi que ce soit' );
+
+			add_filter( 'woocommerce_available_payment_gateways', $cacher, 99 );
+			Launch::forget();
+			$motifs = array_values( array_filter(
+				Launch::money_blockers(),
+				static fn( array $b ): bool => 'paiement' === ( $b['cle'] ?? '' )
+			) );
+			ts_eq( $motifs, array(), 'la porte argent refuse sur un fait qui ne vaut que pour ce panier' );
+
+			// ET ELLE REFUSE TOUJOURS SUR UNE VRAIE MAUVAISE CONFIGURATION,
+			// sinon ce test aurait acheté sa stabilité en désarmant la porte.
+			$saved = get_option( 'woocommerce_bacs_settings', array() );
+			try {
+				ts_lg_write_gateway( 'woocommerce_bacs_settings', array( 'enabled' => 'no' ) );
+				WC()->payment_gateways()->init();
+				Launch::forget();
+				ts_assert(
+					array() !== array_filter(
+						Launch::money_blockers(),
+						static fn( array $b ): bool => 'paiement' === ( $b['cle'] ?? '' )
+					),
+					'plus aucune passerelle active et la porte argent ne dit rien'
+				);
+			} finally {
+				ts_lg_write_gateway( 'woocommerce_bacs_settings', $saved );
+				WC()->payment_gateways()->init();
+			}
+		} finally {
+			remove_filter( 'woocommerce_available_payment_gateways', $cacher, 99 );
+			$restore();
+			Launch::forget();
+		}
+	} );
+
+	ts_it( 'is not fooled by its own hold when it reports the payment configuration', function () {
+		/*
+		 * LE PIÈGE QUE CETTE ASSERTION GARDE. `Payment::enabled()` calcule
+		 * « proposé au client » avec `get_available_payment_gateways()`, que le
+		 * filtre vide quand la porte refuse. Sans le drapeau d'inspection, une
+		 * boutique tenue par la porte se décrirait elle-même comme « activée et
+		 * invisible », qui est la phrase de ce fichier pour DES CLÉS MANQUANTES,
+		 * et l'opérateur irait chercher des clés déjà en place.
+		 */
+		Launch::forget();
+		ts_assert( Launch::money_refuses(), 'le décor de ce test a changé : la porte argent ne refuse plus rien' );
+		ts_eq( ts_lg_offered(), array(), 'la porte ne tient pas la caisse' );
+
+		$listed = Payment::enabled();
+		ts_assert( array() !== $listed, 'aucune passerelle activée sur le miroir : ce test ne mesure rien' );
+		foreach ( $listed as $id => $gateway ) {
+			ts_eq( $gateway['offered'], true, "« {$id} » est décrit comme invisible alors que c’est la porte qui le retient" );
+		}
+	} );
+
+	ts_it( 'refuses the write that switches a payment method on', function () {
+		$saved = get_option( 'woocommerce_cheque_settings', array() );
+		try {
+			Launch::forget();
+			ts_assert( Launch::activation_blockers() !== array(), 'le décor de ce test a changé : rien ne bloque une activation' );
+
+			update_option( 'woocommerce_cheque_settings', array( 'enabled' => 'yes', 'title' => 'Chèque' ) );
+			$after = get_option( 'woocommerce_cheque_settings', array() );
+			ts_eq( (string) ( $after['enabled'] ?? '' ), 'no', 'le moyen de paiement a été activé pendant que la porte refusait' );
+			ts_eq( (string) ( $after['title'] ?? '' ), 'Chèque', 'le garde a réécrit autre chose que l’activation' );
+		} finally {
+			ts_lg_write_gateway( 'woocommerce_cheque_settings', $saved );
+			delete_transient( 'teeshoop_paiement_refuse' );
+		}
+	} );
+
+	ts_it( 'lets a payment method be switched on once the shop is fit to take money', function () {
+		/*
+		 * L'AUTRE DIRECTION, et elle vaut plus que la première. Un garde qui
+		 * refuse toujours n'est pas un garde, et celui-ci a un risque particulier :
+		 * « aucun moyen de paiement n'est actif » est un refus de la porte argent,
+		 * vrai de toute boutique qui n'en a pas encore allumé un. S'il comptait,
+		 * il interdirait pour toujours l'action qui le lève.
+		 */
+		$saved   = get_option( 'woocommerce_cheque_settings', array() );
+		$restore = ts_lg_clear_money_door();
+		try {
+			Launch::forget();
+			ts_eq( Launch::activation_blockers(), array(), 'la boutique est saine et l’activation reste bloquée' );
+
+			update_option( 'woocommerce_cheque_settings', array( 'enabled' => 'yes', 'title' => 'Chèque' ) );
+			$after = get_option( 'woocommerce_cheque_settings', array() );
+			ts_eq( (string) ( $after['enabled'] ?? '' ), 'yes', 'une boutique saine ne peut pas allumer un moyen de paiement' );
+		} finally {
+			ts_lg_write_gateway( 'woocommerce_cheque_settings', $saved );
+			$restore();
+		}
+	} );
+
+	ts_it( 'never stands in the way of switching a payment method off', function () {
+		$saved = get_option( 'woocommerce_bacs_settings', array() );
+		try {
+			Launch::forget();
+			ts_assert( Launch::activation_blockers() !== array(), 'le décor de ce test a changé : rien ne bloque une activation' );
+
+			$off            = is_array( $saved ) ? $saved : array();
+			$off['enabled'] = 'no';
+			update_option( 'woocommerce_bacs_settings', $off );
+			$after = get_option( 'woocommerce_bacs_settings', array() );
+			ts_eq( (string) ( $after['enabled'] ?? '' ), 'no', 'le garde a empêché une EXTINCTION, ce qui enfermerait l’opérateur' );
+		} finally {
+			ts_lg_write_gateway( 'woocommerce_bacs_settings', $saved );
+		}
+		/*
+		 * HORS DU `finally`, pour ne pas masquer l'échec qu'il vient de nettoyer.
+		 * La première version de ce test laissait le miroir avec son virement
+		 * bancaire éteint, parce que la restauration passait par le garde qu'il
+		 * venait de prouver.
+		 */
+		$back = (array) get_option( 'woocommerce_bacs_settings', array() );
+		ts_eq( (string) ( $back['enabled'] ?? '' ), 'yes', 'le miroir est resté avec son virement bancaire éteint' );
+	} );
+
+	ts_it( 'answers the payments-list toggle before WooCommerce does', function () {
+		/*
+		 * Le chemin qu'un humain emprunte vraiment est l'interrupteur de la liste
+		 * des passerelles, qui passe par AJAX et n'a AUCUN filtre à l'intérieur :
+		 * lu dans `WC_AJAX::toggle_gateway_enabled()` sur WooCommerce 11.0.1, il
+		 * appelle `update_option('enabled','yes')` sans rien demander à personne.
+		 * On se place donc avant lui sur le même crochet.
+		 */
+		$ours   = has_action( 'wp_ajax_woocommerce_toggle_gateway_enabled', array( Payment::class, 'refuse_toggle' ) );
+		$theirs = has_action( 'wp_ajax_woocommerce_toggle_gateway_enabled', array( 'WC_AJAX', 'toggle_gateway_enabled' ) );
+		ts_assert( false !== $ours, 'rien ne se place devant l’interrupteur de la liste des passerelles' );
+		ts_assert( false !== $theirs, 'WooCommerce n’enregistre plus son propre interrupteur : ce test ne mesure plus rien' );
+		ts_assert( (int) $ours < (int) $theirs, "notre garde passe après WooCommerce ({$ours} contre {$theirs})" );
+	} );
+
+	ts_it( 'holds the till on a fault instead of opening it', function () {
+		/*
+		 * « On n'a pas pu regarder » n'est pas « tout va bien », y compris quand
+		 * ce qui n'a pas pu être regardé est la porte elle-même. Le filtre est
+		 * appelé ici directement avec ce que WooCommerce lui passerait.
+		 */
+		ts_eq( Payment::hold_gateways( 'pas un tableau' ), array(), 'un argument illisible ouvre la caisse' );
+
+		Launch::forget();
+		ts_assert( Launch::money_refuses(), 'le décor de ce test a changé : la porte argent ne refuse plus rien' );
+		$fake = array( 'sonde' => new \WC_Gateway_Cheque() );
+		ts_eq( Payment::hold_gateways( $fake ), array(), 'une passerelle passe alors que la porte refuse' );
+	} );
+
+	ts_it( 'tells the customer at the checkout, without telling them our business', function () {
+		/*
+		 * RETIRER LES PASSERELLES LAISSAIT LA PHRASE DE WOOCOMMERCE, qui parle
+		 * d'une indisponibilité liée au pays de livraison et invite à « prendre
+		 * d'autres dispositions ». C'est faux, et un état non dessiné est un état
+		 * que la barre de qualité refuse.
+		 *
+		 * Et la phrase ne dit AUCUNE raison : la porte refuse sur nos références
+		 * fournisseur et nos planchers de coût, qui ne regardent pas le client.
+		 */
+		Launch::forget();
+		ts_assert( Launch::money_refuses(), 'le décor de ce test a changé : la porte argent ne refuse plus rien' );
+
+		$dit = Payment::no_methods_message( 'Sorry, it seems that there are no available payment methods.' );
+		ts_assert( false !== mb_stripos( $dit, 'paiement en ligne est fermé' ), 'le client lit encore la phrase de WooCommerce : ' . $dit );
+		ts_assert( false !== mb_stripos( $dit, 'devis' ), 'la phrase ne propose aucune suite au client' );
+		ts_assert( false === strpos( $dit, '!' ), 'un point d’exclamation en copie client' );
+		foreach ( Launch::money_blockers() as $blocker ) {
+			$fuite = mb_substr( (string) $blocker['pourquoi'], 0, 40 );
+			ts_assert( false === mb_stripos( $dit, $fuite ), 'la phrase client répète une raison interne' );
+		}
+		ts_assert( false === mb_stripos( $dit, 'plancher' ) && false === mb_stripos( $dit, 'textile nu' ), 'la phrase client nomme une condition interne' );
+
+		// Et elle rend la main à WooCommerce quand la porte ne refuse rien.
+		$restore = ts_lg_clear_money_door();
+		try {
+			Launch::forget();
+			ts_eq( Payment::no_methods_message( 'phrase de WooCommerce' ), 'phrase de WooCommerce', 'la phrase de WooCommerce est remplacée alors que la porte ne refuse rien' );
+		} finally {
+			$restore();
+		}
+	} );
+
+	ts_it( 'shows the debt where an operator works, and draws the missing document', function () {
+		/*
+		 * L'ÉCRAN REFUSE UN VISITEUR SANS DROITS, ce qui sous WP-CLI veut dire
+		 * qu'il refuse le harnais : il n'y a pas d'utilisateur courant. On en
+		 * prend un le temps du rendu, et on le rend.
+		 */
+		$was   = get_current_user_id();
+		$admin = get_users( array( 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ) );
+		ts_assert( array() !== $admin, 'le miroir n’a aucun administrateur, donc cet écran ne peut pas être rendu' );
+		wp_set_current_user( (int) $admin[0] );
+
+		/*
+		 * LE CHEMIN PAR DÉFAUT EST DANS L'EXTENSION, et c'est la moitié de la
+		 * décision : le déploiement ne transporte que `wp-plugins/` et
+		 * `wp-themes/`, donc un document rangé dans `docs/` n'arrive jamais sur
+		 * un serveur.
+		 */
+		$defaut = Admin::debt_path();
+		ts_assert(
+			false !== strpos( $defaut, 'teeshoop-core' ) && str_ends_with( $defaut, 'data/dette-lancement.md' ),
+			'le document de dette ne voyage pas dans l’extension : ' . $defaut
+		);
+
+		/*
+		 * Le rendu se prouve ailleurs : le harnais tourne sous le compte du
+		 * serveur web et le répertoire de l'extension appartient au développeur.
+		 * C'est exactement la situation qu'un déploiement durci produit, et la
+		 * raison pour laquelle ce chemin est filtrable.
+		 */
+		$path  = rtrim( sys_get_temp_dir(), '/' ) . '/teeshoop-dette-sonde.md';
+		$point = static fn(): string => $path;
+		add_filter( 'teeshoop_dette_chemin', $point );
+
+		try {
+			if ( is_readable( $path ) ) {
+				unlink( $path );
+			}
+			ts_eq( Admin::debt_path(), $path, 'le chemin du document n’est pas filtrable' );
+			ob_start();
+			Admin::debt_screen();
+			$html = (string) ob_get_clean();
+
+			ts_assert( false !== strpos( $html, 'La dette de lancement' ), 'l’écran ne porte pas son titre' );
+			ts_assert( false !== strpos( $html, 'La porte argent' ), 'l’écran ne montre pas la porte argent' );
+			ts_assert(
+				false !== strpos( $html, 'n’est pas dans cette installation' ),
+				'un document absent produit un écran blanc au lieu d’un état dessiné'
+			);
+			ts_assert(
+				false !== strpos( $html, 'launch-gate.mjs --porte=publication' ),
+				'l’état vide ne dit pas quelle commande écrit le document'
+			);
+			// La porte argent refuse aujourd'hui, donc ses raisons sont à l'écran.
+			ts_assert( false !== strpos( $html, 'prix-plancher' ), 'l’écran ne nomme pas la condition du plancher' );
+
+			// Et le document, quand il est là, est rendu tel quel.
+			file_put_contents( $path, "# Dette de lancement\n\n- TVA : associé, 2026-09-05\n" );
+			ob_start();
+			Admin::debt_screen();
+			$html = (string) ob_get_clean();
+			ts_assert( false !== strpos( $html, 'TVA : associé, 2026-09-05' ), 'le document présent n’est pas affiché' );
+			ts_assert( false === strpos( $html, 'n’est pas dans cette installation' ), 'l’état vide s’affiche alors que le document est là' );
+
+			// Un fichier vide n'est pas une absence de dette.
+			file_put_contents( $path, "\n \n" );
+			ob_start();
+			Admin::debt_screen();
+			$html = (string) ob_get_clean();
+			ts_assert( false !== strpos( $html, 'présent et vide' ), 'un document vide passe pour une dette réglée' );
+		} finally {
+			if ( is_readable( $path ) ) {
+				unlink( $path );
+			}
+			remove_filter( 'teeshoop_dette_chemin', $point );
+			wp_set_current_user( $was );
+		}
 	} );
 }

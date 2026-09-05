@@ -12,6 +12,24 @@
  * @package Teeshoop\Core
  *
  * ─────────────────────────────────────────────────────────────────────────────
+ * LA LIGNE « Version » CI-DESSUS EST TAMPONNÉE AU DÉPLOIEMENT
+ *
+ * Elle vaut « 0.1.0 » dans le dépôt et « 0.1.0+g1a2b3c4 » sur le serveur, le
+ * suffixe étant le commit d'où l'envoi est parti (avec « .sale » quand la copie
+ * de travail portait des modifications non validées). C'est
+ * `scripts/version-tampon.mjs` qui l'écrit, juste avant l'envoi, et il refuse
+ * plutôt que d'inventer si git ne peut pas répondre.
+ *
+ * POURQUOI : « 0.1.0 » n'a pas bougé depuis six mois, donc l'écran des
+ * extensions ne répondait pas à la seule question qu'on lui pose devant une
+ * boutique qui se comporte mal, « quel code tourne là ». La préproduction et la
+ * production reçoivent le même envoi à des moments différents, et le commit est
+ * la seule chose qui les distingue.
+ *
+ * Le NUMÉRO, lui, ne bouge pas tout seul : décider que la boutique est en 1.0
+ * est une décision de produit et elle n'appartient pas à un script.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
  * WHAT THIS PLUGIN IS FOR
  *
  * The studio (React, served by the Cloudflare Worker) does the drawing. WooCommerce

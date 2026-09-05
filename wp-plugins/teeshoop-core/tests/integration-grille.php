@@ -72,6 +72,7 @@ use Teeshoop\Core\Cart;
 use Teeshoop\Core\Costing;
 use Teeshoop\Core\Gamme;
 use Teeshoop\Core\Garments;
+use Teeshoop\Core\Launch;
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Pricing;
 use Teeshoop\Core\Product;
@@ -773,6 +774,23 @@ if ( array() !== $skipped ) {
 	}
 	WP_CLI::log( '' );
 }
+
+/*
+ * LE VERDICT EST ENREGISTRÉ AVANT D'ÊTRE IMPRIMÉ, ET AVANT TOUT `WP_CLI::error`.
+ *
+ * `Launch::grid_blockers()` refuse la porte argent tant que personne n'a mesuré
+ * la grille contre son plancher, et c'est ici, et nulle part ailleurs, que cette
+ * mesure existe : elle a besoin d'une vraie commande par colonne et du moteur de
+ * coût réel, ce qu'aucune page ne peut faire à la demande. WordPress lit donc ce
+ * que ce fichier a trouvé, plutôt qu'une deuxième version moins chère de la même
+ * règle, qui divergerait la première semaine où un fournisseur bouge un prix.
+ *
+ * AVANT LES SORTIES EN ERREUR, parce qu'elles terminent le processus. Un contrôle
+ * rouge doit laisser un enregistrement rouge : sinon le lecteur suivant serait
+ * répondu par le dernier passage vert, ce qui est exactement l'inverse de ce que
+ * le refus vient de mesurer.
+ */
+Launch::record_grid_verdict( count( $fails ), count( $blocked ), count( $rows ) + count( $fails ) );
 
 /*
  * LES REFUS D'ABORD, ET C'EST DÉLIBÉRÉ.

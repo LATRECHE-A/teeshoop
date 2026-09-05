@@ -1394,6 +1394,20 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		 * gateway enabled without its keys is absent from it, and an alarm built
 		 * on that list reported a clean shop with zero problems.
 		 */
+		/*
+		 * LE GARDE D'ACTIVATION EST RETIRÉ LE TEMPS DE POSER LE DÉCOR, et c'est
+		 * délibérément explicite. Depuis le 5 septembre 2026 la porte argent
+		 * refuse l'écriture qui allume une passerelle (`Payment::refuse_enabling`),
+		 * donc ce `update_option` était réécrit en « no » et ce test échouait sur
+		 * « a gateway that is on was not listed at all » : il ne mesurait plus
+		 * rien du tout.
+		 *
+		 * Le sujet de ce test est `Payment::enabled()`, pas le garde. Le garde a
+		 * ses propres assertions, dans les deux directions, dans
+		 * `integration-lancement.php`. Poser le décor en le contournant nommément
+		 * vaut mieux que de le laisser réécrire le décor en silence.
+		 */
+		remove_filter( 'pre_update_option_woocommerce_cheque_settings', array( Payment::class, 'refuse_enabling' ), 10 );
 		$saved = get_option( 'woocommerce_cheque_settings', array() );
 		update_option( 'woocommerce_cheque_settings', array( 'enabled' => 'yes', 'title' => 'Chèque' ) );
 
@@ -1407,11 +1421,12 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		$listed = Payment::enabled();
 		ts_assert( isset( $listed['cheque'] ), 'a gateway that is on was not listed at all' );
 		ts_eq( $listed['cheque']['offered'], false, 'it was reported as offered to the customer' );
-		ts_assert( ts_ck_any( Payment::problems(), 'n’apparaît pas au paiement' ), 'and nothing was said about it' );
+		ts_assert( ts_ck_any( Payment::problems(), 'n’apparaît pas pour ce panier' ), 'and nothing was said about it' );
 		ts_assert( ! Payment::ready(), 'a shop with an unusable method reported itself ready' );
 
 		remove_filter( 'woocommerce_available_payment_gateways', $hide, 99 );
 		update_option( 'woocommerce_cheque_settings', $saved );
+		add_filter( 'pre_update_option_woocommerce_cheque_settings', array( Payment::class, 'refuse_enabling' ), 10, 2 );
 		WC()->payment_gateways()->init();
 	} );
 

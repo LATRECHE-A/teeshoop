@@ -29,22 +29,36 @@
 #
 #   LE CODE. L'extension et le thème sont dans git, qui est une meilleure
 #   sauvegarde que celle-ci. Les extensions tierces se réinstallent.
-#   R2. Les créations des clients vivent chez Cloudflare et R2 n'a pas
-#   d'instantané. Une commande dont l'artwork a disparu est une commande que
-#   l'atelier ne peut pas imprimer, et rien ici ne la protège. Voir
-#   docs/EXPLOITATION.md.
-#   L'HORS-SITE. Ceci écrit sur le même disque que le site. Cela protège d'une
-#   bêtise humaine et d'une mise à jour ratée, pas d'une perte du disque.
+#   R2. Les créations des clients vivent chez Cloudflare et R2 n'a ni
+#   instantané, ni corbeille. Elles ne sont PAS ici : elles ont leur propre
+#   coffre, `scripts/sauvegarde-r2.mjs`, qui tourne sur une machine qui a node
+#   (ce serveur n'en a pas). Voir docs/SAUVEGARDES.md.
 #
-# Sortie : 0 sauvegarde complète et vérifiée, 1 sinon. Rien n'est jamais laissé
-# à moitié écrit sous un nom définitif : le répertoire est monté sous un nom
-# temporaire et renommé à la toute fin.
+# L'HORS-SITE, LUI, EST TRAITÉ ICI depuis le 05/09/2026. Ce répertoire est sur
+# le MÊME DISQUE que la boutique : une perte de disque emportait le site et sa
+# seule copie. `scripts/sauvegarde-hors-site.sh` chiffre cette sauvegarde,
+# l'envoie dans R2 et la relit. Il n'est appelé que s'il est configuré, et le
+# manifeste dit lequel des deux cas s'applique, parce que « pas encore branché »
+# et « branché et cassé » ne se traitent pas pareil.
+#
+# Sorties : 0 sauvegarde locale complète et vérifiée, 1 elle ne l'est pas, 2 elle
+# l'est mais la copie hors site a échoué (la boutique est sauvegardée, elle ne
+# l'est qu'à un seul endroit, et quelqu'un doit regarder). Rien n'est jamais
+# laissé à moitié écrit sous un nom définitif : le répertoire est monté sous un
+# nom temporaire et renommé à la toute fin.
 
 set -euo pipefail
 
 WP_ROOT="${1:-$HOME/public_html}"
 DEST="${2:-$HOME/sauvegardes}"
 KEEP="${3:-7}"
+
+# La copie hors site, si elle est branchée. Le script voyage à côté de celui-ci
+# (les deux sont déposés dans ~ par scp), et il ne part que si sa configuration
+# existe : un jeton R2 et une phrase de passe.
+HORS_SITE="${TEESHOOP_HORS_SITE:-$(dirname "$0")/sauvegarde-hors-site.sh}"
+HORS_SITE_CONF="${TEESHOOP_R2_ENV:-$HOME/.config/teeshoop/r2.env}"
+HORS_SITE_KEEP="${TEESHOOP_HORS_SITE_KEEP:-$KEEP}"
 
 # LE CHEMIN DE CRON N'EST PAS LE CHEMIN D'UN SHELL DE CONNEXION, et ce script a
 # échoué cinq nuits de suite pour cette seule raison. Constaté le 02/09/2026 :
@@ -164,6 +178,13 @@ ORDERS="$(wp db query "SELECT COUNT(*) FROM ${PREFIX}wc_orders" --skip-column-na
   echo "THÈME"
   wp theme list --status=active --field=name --skip-plugins --skip-themes 2>/dev/null | sed 's/^/  /'
   echo ""
+  echo "COPIE HORS SITE"
+  if [ -x "$HORS_SITE" ] && [ -r "$HORS_SITE_CONF" ]; then
+    echo "  configurée, tentée juste après cette sauvegarde (voir RECU-HORS-SITE.txt)"
+  else
+    echo "  NON CONFIGURÉE : cette copie n'existe que sur le disque de la boutique"
+  fi
+  echo ""
   echo "EMPREINTES (sha256)"
   ( cd "$WORK" && sha256sum base.sql.gz uploads.tar.gz wp-config.php )
 } > "$WORK/MANIFESTE.txt"
@@ -189,3 +210,33 @@ if [ "$COUNT" -gt "$KEEP" ]; then
 fi
 
 df -h "$DEST" | tail -1 | sed 's/^/  disque: /'
+
+# LA COPIE HORS DU DISQUE. Elle vient APRÈS la rotation, donc après que la
+# sauvegarde locale est complète, vérifiée et rangée : si l'envoi échoue, il
+# reste une sauvegarde valide, et c'est la raison du code de sortie 2 plutôt
+# que 1.
+#
+# NON CONFIGURÉE N'EST PAS UN ÉCHEC, c'est un état que nous avons choisi et le
+# manifeste le dit. Ce qui serait un échec, et ce que 2 signale, c'est une copie
+# hors site branchée qui ne part plus. Confondre les deux ferait sonner la
+# sauvegarde toutes les nuits jusqu'à ce que plus personne ne l'écoute.
+#
+# DEUX APPELANTS TRAITENT ENCORE TOUT CE QUI N'EST PAS 0 COMME UN ÉCHEC :
+# `purge-demo.sh` (« la sauvegarde préalable a échoué, rien ne sera supprimé »)
+# et `verbe_sauvegarder` dans `deploiement.sh`. Sur un 2, ils refusent d'aller
+# plus loin, ce qui est le sens sûr, mais le message de purge-demo dit alors
+# quelque chose de faux. La ligne imprimée juste en dessous, elle, dit la vérité.
+# La correction leur appartient : accepter 0 et 2. Voir docs/SAUVEGARDES.md.
+if [ -x "$HORS_SITE" ] && [ -r "$HORS_SITE_CONF" ]; then
+  echo "sauvegarde: copie hors site ..."
+  if "$HORS_SITE" "$FINAL" "$HORS_SITE_KEEP"; then
+    echo "sauvegarde: la copie hors site est en place et relue."
+  else
+    echo "sauvegarde: LA COPIE HORS SITE A ÉCHOUÉ. La sauvegarde locale, elle, est complète." >&2
+    echo "sauvegarde: la boutique n'a donc qu'une seule copie, sur son propre disque." >&2
+    exit 2
+  fi
+else
+  echo "sauvegarde: pas de copie hors site ($HORS_SITE_CONF absent ou script non exécutable)."
+  echo "sauvegarde: cette sauvegarde est sur le même disque que la boutique. Voir docs/SAUVEGARDES.md."
+fi

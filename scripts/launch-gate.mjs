@@ -79,6 +79,55 @@
  * A plugin too old to have that subcommand makes wp-cli exit non-zero, which is
  * « we could not look », which refuses. Fail closed, as everywhere else here.
  *
+ * ── DEPUIS LE 5 SEPTEMBRE 2026, CE PORTAIL EST DEUX PORTES ───────────────────
+ *
+ * Décision du développeur, transcrite telle quelle dans
+ * `docs/decisions/2026-09-05-les-deux-portes.md` : les huit conditions ne pèsent
+ * pas le même poids, et un portail unique qui refuse une mise en ligne sur une
+ * relecture d'avocat manquante n'est pas obéi, il est contourné. Une porte qu'on
+ * enjambe ne garde rien.
+ *
+ * Alors le portail garde ce qu'il gardait, et il le répartit :
+ *
+ *   --porte=argent       TROIS conditions DURES, sans dérogation, parce que
+ *                        chacune coûte de l'argent ou trompe un acheteur sur un
+ *                        montant : un prix sous son plancher, un textile nu non
+ *                        déclaré sur un produit personnalisable en vente, une
+ *                        passerelle de paiement mal configurée. Elle sort
+ *                        non-zéro si l'une casse, et rien ne la neutralise :
+ *                        ni --ci, ni --depot, ni une option à écrire un jour.
+ *
+ *   --porte=publication  Sort 0, et ÉCRIT `docs/DETTE-LANCEMENT.md` : chaque
+ *                        condition non tenue, datée, avec le nom de qui peut la
+ *                        lever et le geste précis qui la lève. Publier n'est
+ *                        plus bloqué par une dette juridique ; la dette est
+ *                        écrite, nominative, et imprimée par l'intégration
+ *                        continue au lieu d'être un refus que personne ne lit.
+ *
+ * CE N'EST PAS UNE DÉROGATION ET IL N'Y EN A PAS. La porte de l'argent peut
+ * toujours refuser, et c'est le seul endroit où le mot « toujours » est employé
+ * ici. Ce qui change est le RÔLE de ce fichier : il cessait un déploiement,
+ * il tient maintenant une comptabilité de ce qui manque et il n'arrête plus que
+ * l'argent.
+ *
+ * SANS --porte, RIEN NE CHANGE. `scripts/deployer.sh` et
+ * `.github/workflows/ci.yml` appellent ce script sans porte et lisent le même
+ * verdict, les mêmes codes de sortie et le même JSON qu'avant.
+ *
+ * ── CE QUE LA PORTE DE L'ARGENT EXIGE DE LA BOUTIQUE ─────────────────────────
+ *
+ * Qu'elle DISE ce qu'elle a regardé. La réponse porcelaine
+ * (`wp teeshoop lancement --porcelaine`) porte `blockers`, et une liste vide y
+ * veut dire deux choses opposées : « j'ai regardé, rien à signaler » et « cette
+ * version de l'extension ne sait pas regarder ça ». Confondre les deux est
+ * exactement la faute que tout ce fichier existe pour refuser, et elle serait
+ * ici pire qu'ailleurs : elle autoriserait à encaisser.
+ *
+ * La boutique ajoute donc à sa réponse un champ `regarde` (ou `looked`), la
+ * liste des clés de condition qu'elle a réellement évaluées. La porte de
+ * l'argent exige d'y trouver ses trois conditions ; ce qu'elle n'y trouve pas
+ * est « on n'a pas pu regarder », donc sortie 2, donc refus.
+ *
  * Usage:
  *   node scripts/launch-gate.mjs              # the real thing; needs the shop
  *   node scripts/launch-gate.mjs --depot      # the register half only
@@ -86,6 +135,13 @@
  *                                             # fail only if the GATE is broken
  *   node scripts/launch-gate.mjs --self-test  # prove each condition can refuse
  *   node scripts/launch-gate.mjs --json       # the verdict as JSON, for a deploy
+ *   node scripts/launch-gate.mjs --porte=argent       # les trois conditions dures
+ *   node scripts/launch-gate.mjs --porte=publication  # écrit la dette, sort 0
+ *
+ * TEESHOOP_DETTE : où `--porte=publication` écrit. Par défaut
+ * `docs/DETTE-LANCEMENT.md`. Une intégration continue qui n'a pas de boutique à
+ * interroger écrit ailleurs, pour ne pas remplacer un relevé informé par un
+ * relevé aveugle.
  *
  * Exit: 0 go-live authorised (or, under --ci, the gate itself is trustworthy)
  *       1 refused, with reasons
@@ -101,7 +157,7 @@
  * is still 1, because that is a choice and not a failure.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -131,6 +187,7 @@ const SELF_TEST = ARGS.includes('--self-test')
 const JSON_OUT = ARGS.includes('--json')
 
 let TARGET_RAW = 'miroir'
+let PORTE = ''
 const badArgs = []
 for (const a of ARGS) {
   if (KNOWN.has(a)) continue
@@ -138,12 +195,46 @@ for (const a of ARGS) {
     TARGET_RAW = a.slice('--boutique='.length)
     continue
   }
+  if (a.startsWith('--porte=')) {
+    PORTE = a.slice('--porte='.length)
+    continue
+  }
   badArgs.push(a)
 }
 if (badArgs.length > 0) {
   console.error(
     `${RED}launch-gate: argument inconnu : ${badArgs.join(', ')}. ` +
-      `Attendus : --depot, --ci, --self-test, --json, --boutique=miroir|ssh:<hôte>:<chemin>.${OFF}`,
+      `Attendus : --depot, --ci, --self-test, --json, --boutique=miroir|ssh:<hôte>:<chemin>, --porte=argent|publication.${OFF}`,
+  )
+  process.exit(2)
+}
+if (PORTE !== '' && !['argent', 'publication'].includes(PORTE)) {
+  console.error(`${RED}launch-gate: --porte inconnue : « ${PORTE} ». Attendues : argent, publication.${OFF}`)
+  process.exit(2)
+}
+
+/*
+ * LES COMBINAISONS QUI NEUTRALISERAIENT UNE PORTE SONT REFUSÉES, ET C'EST LA
+ * PARTIE DE CE FICHIER À NE PAS ASSOUPLIR.
+ *
+ * `--ci` sort 0 quoi qu'il arrive, par construction : la question qu'il pose est
+ * « ce portail fonctionne-t-il », pas « peut-on lancer ». Combiné à
+ * `--porte=argent`, il produirait une porte de l'argent qui ne peut plus refuser,
+ * c'est-à-dire une décoration. `--depot` n'interroge délibérément pas la
+ * boutique, or les trois conditions de l'argent sont toutes chez elle : une
+ * porte de l'argent sans boutique n'aurait rien regardé du tout. Et
+ * `--self-test` prouve les portes lui-même, sur des réponses synthétiques : le
+ * mélanger à une porte réelle donnerait deux verdicts sur un seul code de
+ * sortie.
+ */
+if (PORTE !== '' && SELF_TEST) {
+  console.error(`${RED}launch-gate: --porte et --self-test ne se combinent pas. L'auto-test prouve les deux portes lui-même.${OFF}`)
+  process.exit(2)
+}
+if (PORTE === 'argent' && (CI || DEPOT_ONLY)) {
+  console.error(
+    `${RED}launch-gate: --porte=argent ne se combine ni avec --ci ni avec --depot. ` +
+      `L'un sort 0 quoi qu'il arrive, l'autre n'interroge pas la boutique, et les trois conditions de l'argent sont chez elle.${OFF}`,
   )
   process.exit(2)
 }
@@ -214,6 +305,108 @@ if (TARGET.kind === 'invalide') {
  */
 const OUTWARD = new Set(['customer', 'supplier', 'printer'])
 
+/**
+ * LES TROIS CONDITIONS DE LA PORTE DE L'ARGENT, ET RIEN D'AUTRE.
+ *
+ * Le critère d'entrée dans cette liste est étroit et il est écrit pour pouvoir
+ * être opposé à une demande d'y ajouter une quatrième ligne : une condition y
+ * figure si, cassée, elle fait perdre de l'argent à l'entreprise ou trompe un
+ * acheteur sur un montant. Pas si elle expose juridiquement, pas si elle est
+ * embarrassante, pas si elle est urgente.
+ *
+ *   - un prix sous son plancher : la vente se fait à perte, et personne ne le
+ *     voit avant la clôture comptable ;
+ *   - un textile nu non déclaré sur un produit personnalisable EN VENTE : la
+ *     boutique encaisse une commande qu'elle ne peut pas acheter, après paiement ;
+ *   - une passerelle de paiement mal configurée : l'argent n'arrive pas, ou
+ *     arrive sur le mauvais compte, ou dans la mauvaise devise.
+ *
+ * Les huit conditions du portail complet ne disparaissent pas : celles qui ne
+ * sont pas ici partent dans `docs/DETTE-LANCEMENT.md`, datées et nominatives.
+ *
+ * `alias` existe parce que les deux moitiés du portail sont écrites dans deux
+ * langages et que la clé de refus vient de la boutique. Reconnaître un nom de
+ * plus n'élargit JAMAIS un passage : une clé non reconnue est une condition non
+ * regardée, donc un refus. Elle évite seulement qu'un refus réel soit lu comme
+ * un silence.
+ */
+const ARGENT = [
+  {
+    id: 'prix-plancher',
+    label: 'un prix sous son plancher',
+    alias: ['prix-plancher', 'plancher', 'prix'],
+  },
+  {
+    id: 'textile-nu',
+    label: 'un textile nu non déclaré sur un produit personnalisable en vente',
+    alias: ['textile-nu', 'textile_nu', 'textilenu'],
+  },
+  {
+    id: 'paiement',
+    label: 'une passerelle de paiement mal configurée',
+    alias: ['paiement', 'passerelle', 'paiement-passerelle'],
+  },
+]
+
+/**
+ * Un refus relève-t-il de l'argent.
+ *
+ * UNION ET NON REMPLACEMENT, et c'est le sens de la lecture qui compte. Depuis
+ * le 5 septembre 2026 la boutique étiquette elle-même chaque refus avec sa porte
+ * (`Launch::PORTE_ARGENT`), ce qui est plus juste que de deviner d'après la clé :
+ * c'est le code qui produit le refus qui sait ce qu'il coûte. Mais faire
+ * CONFIANCE à cette étiquette pour RÉTRÉCIR la porte laisserait une erreur
+ * d'étiquetage faire passer de l'argent. Les deux lectures sont donc réunies :
+ * une clé connue OU une étiquette « argent » suffit. Une union ne peut
+ * qu'élargir un refus.
+ */
+function argentCondition(b) {
+  const cle = String(b?.cle ?? b ?? '')
+  const parCle = ARGENT.find((c) => c.alias.includes(cle)) ?? null
+  if (parCle !== null) return parCle
+  if (typeof b === 'object' && b !== null && String(b.porte ?? '') === 'argent') {
+    return { id: cle, label: cle, alias: [cle] }
+  }
+  return null
+}
+
+/**
+ * La boutique a-t-elle regardé les trois conditions de l'argent, et comment on
+ * le sait.
+ *
+ * DEUX SIGNAUX, DU PLUS FORT AU PLUS FAIBLE, et aucun n'est « la liste de refus
+ * est vide ».
+ *
+ *   1. `regarde` (ou `looked`) : la boutique énumère les conditions qu'elle a
+ *      évaluées. C'est le seul signal qui répond vraiment à la question, et le
+ *      seul qui permette à cette porte de dire OUI sur une boutique sans
+ *      reproche. Il tient en une ligne dans `Cli::launch()`.
+ *
+ *   2. À défaut, l'ÉTIQUETTE DE PORTE portée par les refus. Une extension
+ *      antérieure au 5 septembre 2026 ne connaît ni le plancher publié ni la
+ *      passerelle et n'étiquette rien ; si tous les refus reçus portent leur
+ *      porte, c'est cette version-ci qui répond, et elle évalue les trois. Ce
+ *      signal a un trou assumé : zéro refus n'apprend rien, donc une boutique
+ *      irréprochable sort quand même 2 tant que le signal 1 n'existe pas. Un
+ *      refus sur une boutique propre est gênant ; l'inverse serait d'autoriser
+ *      un encaissement sur une version qui n'a rien regardé.
+ *
+ * @returns {{regarde:boolean, comment:string}}
+ */
+function argentRegarde(shop) {
+  if (shop.regarde !== null) {
+    const manquantes = ARGENT.filter((c) => !c.alias.some((a) => shop.regarde.includes(a)))
+    return manquantes.length === 0
+      ? { regarde: true, comment: 'la boutique énumère ce qu’elle a regardé' }
+      : { regarde: false, comment: `la boutique déclare n'avoir pas regardé : ${manquantes.map((c) => c.id).join(', ')}` }
+  }
+  const etiquettes = shop.blockers.filter((b) => String(b?.porte ?? '') !== '')
+  if (shop.blockers.length > 0 && etiquettes.length === shop.blockers.length) {
+    return { regarde: true, comment: 'tous les refus reçus portent leur porte, donc l’extension est celle qui évalue les trois' }
+  }
+  return { regarde: false, comment: 'rien dans la réponse de la boutique ne dit ce qui a été regardé' }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. The register.
 
@@ -235,6 +428,14 @@ function registerBlockers(ledger) {
     out.push({
       cle: 'registre',
       pourquoi: `${entry.id} (question ${entry.question.slice(1)}) est une hypothèse bloquante que personne n'a confirmée, et elle atteint : ${reaches.join(', ')}. ${entry.statement_fr}`,
+      /*
+       * PORTÉ POUR LA DETTE, ET AJOUTÉ PLUTÔT QUE RECALCULÉ AILLEURS.
+       * `docs/DETTE-LANCEMENT.md` date chaque ligne et nomme la question à
+       * laquelle répondre ; les relire dans le registre une seconde fois serait
+       * deux lectures d'une même règle, et le jour où elles divergent le relevé
+       * de dette daterait une ligne que le portail ne refuse plus.
+       */
+      registre: { id: entry.id, question: entry.question, depuis: entry.since ?? '' },
     })
   }
   return out
@@ -434,7 +635,19 @@ function shopBlockers(target) {
       return { ok: false, why: String(parsed.why ?? 'la boutique a refusé de répondre sans dire pourquoi.') }
     }
     if (!Array.isArray(parsed.blockers)) throw new Error('blockers is not a list')
-    return { ok: true, blockers: parsed.blockers }
+    /*
+     * CE QUE LA BOUTIQUE DIT AVOIR REGARDÉ, et `null` quand elle ne le dit pas.
+     * `null` n'est pas une liste vide : une liste vide serait « j'ai regardé,
+     * rien », `null` est « cette version de l'extension ne répond pas à la
+     * question ». Seule la porte de l'argent s'en sert, et elle refuse sur
+     * `null`. Le verdict complet, lui, ne change pas de comportement.
+     */
+    const declared = Array.isArray(parsed.regarde)
+      ? parsed.regarde
+      : Array.isArray(parsed.looked)
+        ? parsed.looked
+        : null
+    return { ok: true, blockers: parsed.blockers, regarde: declared === null ? null : declared.map(String) }
   } catch (e) {
     return { ok: false, why: `la réponse de la boutique n'est pas du JSON exploitable : ${e.message}` }
   }
@@ -471,25 +684,38 @@ function gate({ ledger, shop }) {
   looked.push('médiation')
 
   /*
-   * THE SHOP'S FIVE, AND `éditeur` WAS MISSING FROM THIS LIST.
+   * THE SHOP'S SEVEN, AND THIS LIST HAS BEEN WRONG TWICE.
    *
-   * Launch.php emits it from Host::missing() for the site's own publisher under
-   * article 6 III of the LCEN, and it is four of the twenty-seven refusals the
-   * mirror prints today. It appeared in no label and in no self-test case, so
-   * the summary line under a refusal listed seven conditions while eight were
-   * being evaluated, and the count in the sentence below said « four of five »
-   * when four of the shop's own conditions were being skipped out of five.
-   * Counting wrong in the line that says what was NOT checked is the specific
-   * mistake this gate exists to make impossible.
+   * First `éditeur` was missing: Launch.php emits it from Host::missing() for
+   * the site's own publisher under article 6 III of the LCEN, and it was four of
+   * the twenty-seven refusals the mirror printed on 02/09/2026. It appeared in
+   * no label and in no self-test case, so the summary line under a refusal
+   * listed seven conditions while eight were being evaluated.
+   *
+   * Then `prix plancher` and `passerelle de paiement`: the shop's money door,
+   * added on 05/09/2026, evaluates them, and this list still said five. A shop
+   * that could not be asked was reported as five conditions unlooked when seven
+   * were. Counting wrong in the line that says what was NOT checked is the
+   * specific mistake this gate exists to make impossible, and it has now been
+   * made twice by the same list. Anything added to `Launch::blockers()` belongs
+   * here, on the same commit.
    */
-  const SHOP_CONDITIONS = ['identité', 'éditeur', 'tva (barème)', 'cgv', 'textile nu']
+  const SHOP_CONDITIONS = [
+    'identité',
+    'éditeur',
+    'tva (barème)',
+    'cgv',
+    'textile nu',
+    'prix plancher',
+    'passerelle de paiement',
+  ]
   if (shop.ok) {
     blockers.push(...shop.blockers)
     looked.push(...SHOP_CONDITIONS)
   } else {
     /*
-     * NOT A PASS. Five of the eight conditions are the shop's, so a shop that
-     * could not be asked is five conditions nobody looked at, and this script
+     * NOT A PASS. Seven of the ten conditions are the shop's, so a shop that
+     * could not be asked is seven conditions nobody looked at, and this script
      * says so as a refusal rather than counting them absent.
      */
     unlooked.push(...SHOP_CONDITIONS)
@@ -549,6 +775,462 @@ function report(result) {
       (result.unlooked.length > 0 ? ` · NON vérifié : ${result.unlooked.join(', ')}` : '') +
       `${OFF}`,
   )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LA PORTE DE L'ARGENT.
+
+/**
+ * Les trois conditions dures, et rien d'autre.
+ *
+ * Elle ne lit pas le registre : aucune de ses trois conditions n'y est. Une
+ * hypothèse de tarif que personne n'a confirmée est une DETTE, pas une vente à
+ * perte ; c'est le relevé de dette qui la porte, avec le nom de qui doit
+ * répondre. Confondre les deux est ce qui a rendu le portail unique
+ * inapplicable : il refusait la mise en ligne sur des lignes que seul l'associé
+ * pouvait trancher, et personne ne pouvait donc jamais le satisfaire.
+ *
+ * @returns {{code:number, blockers:Array, nonRegarde:string[], why?:string}}
+ */
+function porteArgent(shop) {
+  if (!shop.ok) {
+    return {
+      code: 2,
+      blockers: [],
+      nonRegarde: ARGENT.map((c) => c.id),
+      why: `${shop.why} Les trois conditions de l'argent sont chez elle, donc aucune n'a été regardée.`,
+    }
+  }
+  /*
+   * LES REFUS REÇUS SONT IMPRIMÉS MÊME QUAND LE COMPTE N'EST PAS BON.
+   *
+   * Une boutique qui n'a regardé qu'une des trois conditions sort quand même 2,
+   * parce que deux n'ont pas été regardées. Mais taire la refusée serait perdre
+   * la seule information qu'on ait : l'opérateur a deux choses à faire, pas une,
+   * et un portail qui n'en montre qu'une lui fait croire qu'il a fini.
+   */
+  const recus = shop.blockers.filter((b) => argentCondition(b) !== null)
+
+  /*
+   * LA CLÉ « porte » EST LA BOUTIQUE QUI DIT ELLE-MÊME QU'ELLE N'A PAS PU
+   * REGARDER. `Launch::money_hold()` l'émet quand une condition d'argent lève
+   * une exception, ou quand la porte est réinterrogée pendant son propre calcul.
+   * La compter comme un refus ordinaire sortirait 1, « la boutique a dit non »,
+   * alors que la vérité est « la boutique n'a pas pu répondre » : deux pannes
+   * différentes, deux endroits où chercher, et c'est la distinction pour
+   * laquelle la sortie 2 existe.
+   */
+  // Sur TOUS les refus et non sur ceux déjà reconnus : si une version future
+  // étiquetait cette panne « publication », la classer par étiquette la ferait
+  // disparaître, et une porte qui n'a pas pu s'évaluer serait lue comme muette.
+  const panne = shop.blockers.filter((b) => String(b?.cle ?? '') === 'porte')
+  if (panne.length > 0) {
+    return {
+      code: 2,
+      blockers: recus,
+      nonRegarde: ARGENT.map((c) => c.id),
+      why: `la boutique dit ne pas avoir pu évaluer sa porte de l'argent : ${panne.map((b) => b.pourquoi).join(' ')}`,
+    }
+  }
+
+  const vu = argentRegarde(shop)
+  if (!vu.regarde) {
+    return {
+      code: 2,
+      blockers: recus,
+      nonRegarde: ARGENT.map((c) => c.id),
+      why:
+        `${vu.comment}. Une liste de refus vide veut aussi bien dire « rien à signaler » que « cette version de l'extension ne sait regarder ni le plancher publié ni la passerelle de paiement », et cette porte refuse plutôt que de choisir la lecture qui autorise à encaisser. ` +
+        "Pour la rendre répondable : que « wp teeshoop lancement --porcelaine » ajoute, à côté de « blockers », un champ « regarde » listant les conditions réellement évaluées, dont prix-plancher, textile-nu et paiement.",
+    }
+  }
+  return { code: recus.length === 0 ? 0 : 1, blockers: recus, nonRegarde: [] }
+}
+
+function reportArgent(v) {
+  if (v.code === 0) {
+    console.log(
+      `${GREEN}porte de l'argent : RIEN NE REFUSE.${OFF} Les 3 conditions ont été regardées : ${ARGENT.map((c) => c.label).join(' ; ')}.`,
+    )
+    return
+  }
+  if (v.code === 2) {
+    console.error(
+      `${RED}${BOLD}porte de l'argent : REFUS. ${v.nonRegarde.length} des 3 conditions n'ont pas été regardées : ${v.nonRegarde.join(', ')}.${OFF}\n  ${v.why}`,
+    )
+    if (v.blockers.length > 0) {
+      const n = v.blockers.length
+      console.error(`\n  ${BOLD}Et ${n} refus d'argent ${n > 1 ? 'sont' : 'est'} déjà ${n > 1 ? 'arrivés' : 'arrivé'} de la boutique :${OFF}`)
+      for (const b of v.blockers) console.error(`    ${BOLD}[${b.cle}]${OFF} ${b.pourquoi}`)
+      console.error(
+        `\n  ${DIM}Deux choses à faire, donc, et non une : lever ${n > 1 ? 'ces refus' : 'ce refus'}, et rendre regardable${v.nonRegarde.length > 1 ? 's' : ''} ${v.nonRegarde.length > 1 ? `les ${v.nonRegarde.length} conditions` : 'la condition'} que la boutique n'a pas regardée${v.nonRegarde.length > 1 ? 's' : ''}.${OFF}`,
+      )
+    }
+    return
+  }
+  console.log(`${RED}${BOLD}porte de l'argent : REFUS, ${v.blockers.length} raison(s).${OFF}\n`)
+  for (const b of v.blockers) {
+    console.log(`  ${BOLD}[${b.cle}]${OFF} ${b.pourquoi}`)
+  }
+  console.log(
+    `\n${DIM}Aucune dérogation n'existe pour ces trois conditions et il ne faut pas en écrire une : chacune, cassée, coûte de l'argent réel.${OFF}`,
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LA PORTE DE PUBLICATION, et le relevé de dette qu'elle écrit.
+
+const DETTE = join(ROOT, 'docs/DETTE-LANCEMENT.md')
+const MOIS = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+]
+
+/** Un début de phrase, coupé sur un mot, pour un index qui doit tenir sur une ligne. */
+function abrege(texte, max) {
+  const t = String(texte ?? '').trim()
+  if (t.length <= max) return t
+  const coupe = t.slice(0, max)
+  const espace = coupe.lastIndexOf(' ')
+  return `${espace > 0 ? coupe.slice(0, espace) : coupe}…`
+}
+
+/** Une date ISO en français, ou la date brute si elle n'a pas la forme attendue. */
+function enFrancais(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? ''))
+  if (!m) return String(iso ?? '')
+  return `${Number(m[3])} ${MOIS[Number(m[2]) - 1]} ${m[1]}`
+}
+
+/**
+ * QUI PEUT LEVER QUOI, ET COMMENT.
+ *
+ * Un relevé de dette sans propriétaire nommé est une liste de regrets. Les trois
+ * noms possibles sont ceux des trois personnes qui peuvent agir : l'associé (une
+ * décision commerciale, un contrat, une adhésion, une identité d'entreprise), le
+ * développeur (un réglage, un champ, un accès), ou les deux quand la décision
+ * appartient à l'un et le geste à l'autre.
+ *
+ * LE RÉGIME DE TVA EST « LES DEUX », DÉLIBÉRÉMENT. Il ne se décide pas dans ce
+ * dépôt et il ne se coche pas dans le registre : la réponse du 1er septembre
+ * 2026 est « conserver l'hypothèse de TVA à 20 % ... sous réserve de validation
+ * comptable », qui est le mot à mot d'une hypothèse maintenue. L'associé fait
+ * trancher son comptable, le développeur écrit la période datée dans la
+ * boutique. Aucun des deux ne peut finir seul.
+ */
+const METIER = {
+  registre: {
+    condition: 'Registre des hypothèses',
+    proprietaire: 'associé',
+    lever: (b) =>
+      `Répondre à la question ${String(b.registre?.question ?? '').replace(/^Q/, '')} dans QUESTIONS-ASSOCIE.md, puis porter la date de la réponse sur la ligne ${b.registre?.id ?? '?'} de docs/hypotheses.json (champ « answered »). Tant qu'elle n'y est pas, ce chiffre part en ligne sous le nom d'un prix sans que personne l'ait confirmé.`,
+  },
+  tva: {
+    condition: 'Régime et barème de TVA',
+    proprietaire: 'les deux',
+    lever: () =>
+      "L'associé fait confirmer le régime par son comptable, dans un sens ou dans l'autre, et la réponse est datée sur H-Q17-TVA. Le développeur écrit ensuite la période datée dans le barème de la boutique. La boutique a déjà encaissé quinze commandes avec le calcul des taxes désactivé.",
+  },
+  mediation: {
+    condition: 'Médiation de la consommation',
+    proprietaire: 'les deux',
+    lever: () =>
+      "Adhérer à un médiateur de la consommation et publier ses coordonnées, OU fermer réellement le parcours grand public (question 62). L'une des deux suffit ; c'est l'associé qui choisit et le développeur qui applique. Article L612-1 du code de la consommation.",
+  },
+  identite: {
+    condition: 'Identité légale du vendeur',
+    proprietaire: 'associé',
+    lever: () =>
+      'Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.',
+  },
+  editeur: {
+    condition: 'Identité du site (article 6 III de la LCEN)',
+    proprietaire: 'développeur',
+    lever: () =>
+      "Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.",
+  },
+  cgv: {
+    condition: 'Conditions générales de vente',
+    proprietaire: 'associé',
+    lever: () =>
+      "Désigner l'avocat ou le cabinet annoncé en réponse à la question 58, lui faire relire la version en vigueur, puis enregistrer sur cette version le nom du relecteur et la date de sa relecture. Un état « validé » que personne ne signe ne vaut pas mieux qu'un projet.",
+  },
+  'textile-nu': {
+    condition: 'Textile nu déclaré',
+    proprietaire: 'développeur',
+    lever: () =>
+      "Poser la référence de textile nu et sa carte de coloris sur la fiche produit, ou retirer le produit de la vente. Sans elle l'atelier ne sait pas quoi acheter et le panier d'achat refuse la ligne par son nom, après que le client a payé.",
+  },
+  'prix-plancher': {
+    condition: 'Prix au-dessus de son plancher',
+    proprietaire: 'développeur',
+    lever: () =>
+      'Mesurer la grille publiée contre son plancher de coût (« npm run verify:grille »), puis, si une colonne vend sous le sien, remonter son prix ou corriger le coût qui fait monter ce plancher. Une vente sous le plancher se fait à perte et rien ne le montre avant la clôture comptable.',
+  },
+  paiement: {
+    condition: 'Passerelle de paiement',
+    proprietaire: 'développeur',
+    lever: () =>
+      "Configurer la passerelle avant d'encaisser : clés en mode réel, devise, et point de rappel (webhook) joignable. Une passerelle mal configurée encaisse ailleurs, ou n'encaisse pas.",
+  },
+  porte: {
+    condition: 'Porte de l’argent évaluable dans la boutique',
+    proprietaire: 'développeur',
+    lever: () =>
+      "La boutique n'a pas pu évaluer sa propre porte de l'argent : une condition a levé une exception, ou la porte s'est réinterrogée pendant son calcul. Corriger la panne dans wp-plugins/teeshoop-core/includes/Launch.php, puis redemander. Tant qu'elle dure, le plancher, le textile nu et la passerelle ne sont ni tenus ni non tenus : personne ne les a lus.",
+  },
+  boutique: {
+    condition: 'Boutique interrogeable',
+    proprietaire: 'développeur',
+    lever: () =>
+      'Rétablir l’accès à la boutique (extension déployée, wp-cli exécutable, clé SSH acceptée), puis régénérer ce relevé. Les conditions listées comme non regardées ne sont ni tenues ni non tenues : personne ne les a lues.',
+  },
+}
+
+/** Le poste de dette d'un refus, quelle que soit la moitié du portail qui l'a produit. */
+function ligneDeDette(b) {
+  const fiche = METIER[b.cle] ?? {
+    condition: `Condition « ${b.cle} », inconnue de ce relevé`,
+    proprietaire: 'développeur',
+    lever: () =>
+      "Cette condition est neuve et la table des propriétaires de scripts/launch-gate.mjs ne la connaît pas encore. La router vers son propriétaire réel, et compléter la table plutôt que de laisser une dette sans nom.",
+  }
+  /*
+   * LA TVA EST LA SEULE LIGNE DE REGISTRE QUI CHANGE DE PROPRIÉTAIRE. Elle n'est
+   * pas une décision commerciale de l'associé seul : le régime se fait trancher
+   * par un comptable et s'écrit ensuite dans la boutique. La ranger avec les
+   * tarifs enverrait le développeur attendre une réponse dont une moitié est la
+   * sienne.
+   */
+  const idRegistre = String(b.registre?.id ?? '')
+  const proprietaire = idRegistre.startsWith('H-Q17-TVA') || idRegistre === 'H-Q17-REGIME-DEPUIS' ? 'les deux' : fiche.proprietaire
+  return {
+    cle: String(b.cle ?? ''),
+    condition: fiche.condition,
+    proprietaire,
+    titre: idRegistre === '' ? fiche.condition : `${fiche.condition} · ${idRegistre}`,
+    depuis: b.registre?.depuis ?? '',
+    /*
+     * COERCÉ, parce que ce texte vient de PHP à travers un tuyau. Un refus sans
+     * raison écrirait « undefined » dans un document que l'associé va lire, et
+     * « undefined » est le mot qui fait douter de tout le reste de la page.
+     */
+    constat: String(b.pourquoi ?? '').trim() === '' ? 'La boutique refuse sans dire pourquoi.' : String(b.pourquoi),
+    lever: fiche.lever(b),
+    argent: argentCondition(b) !== null,
+  }
+}
+
+/**
+ * Le relevé, en Markdown simple parce qu'il est destiné à deux lecteurs qui ne
+ * savent pas lire la même chose : le journal d'intégration continue, qui
+ * l'imprime tel quel, et l'administration WordPress, qui le rend.
+ *
+ * L'ORDRE EST DÉTERMINISTE ET C'EST UNE PROPRIÉTÉ, PAS UN DÉTAIL. Ce fichier est
+ * suivi par git et régénéré ; un ordre qui bouge à chaque exécution rendrait
+ * illisible le seul diff qui compte, celui qui dit ce qui a été levé depuis la
+ * dernière fois.
+ */
+function reledette({ rows, target, reached, deliberate, looked, unlooked, aujourdhui }) {
+  const par = (nom) => rows.filter((r) => r.proprietaire === nom)
+  const bloc = (r) =>
+    [
+      `- **${r.titre}**${r.depuis ? ` (hypothèse tenue depuis le ${enFrancais(r.depuis)})` : ''}${r.argent ? ' · **refusée par la porte de l’argent**' : ''}`,
+      `  - Constat : ${r.constat}`,
+      `  - Pour lever : ${r.lever}`,
+    ].join('\n')
+
+  const argent = rows.filter((r) => r.argent)
+  const out = []
+  out.push('# Dette de lancement')
+  out.push('')
+  /*
+   * LA COMMANDE RÉELLE, ET NON UNE COMMANDE RECONSTITUÉE. La première version
+   * écrivait toujours « --boutique=miroir » dans l'entête, y compris sous
+   * `--depot`, qui n'interroge aucune boutique : le relevé annonçait donc une
+   * mesure qu'il n'avait pas faite, dans sa toute première ligne.
+   */
+  out.push(`Relevé le ${enFrancais(aujourdhui)} par \`node scripts/launch-gate.mjs ${ARGS.join(' ')}\`.`)
+  out.push('')
+  out.push(`- **${rows.length} ligne(s) de dette.**`)
+  out.push(
+    deliberate
+      ? '- Boutique **délibérément pas interrogée** (`--depot`) : seul le registre a été lu.'
+      : `- Boutique interrogée : ${target}, ${reached ? 'jointe' : '**non jointe**'}.`,
+  )
+  out.push(`- Conditions regardées : ${looked.join(', ') || 'aucune'}.`)
+  out.push(`- Conditions NON regardées : ${unlooked.join(', ') || 'aucune'}.`)
+  /*
+   * ZÉRO REFUS D'ARGENT SUR UNE BOUTIQUE QUI N'A PAS RÉPONDU NE VEUT RIEN DIRE,
+   * et l'écrire comme un compte le ferait lire comme « rien à signaler ». Les
+   * trois conditions de l'argent sont toutes dans la boutique.
+   */
+  out.push(
+    !reached
+      ? deliberate
+        ? "- La porte de l'argent n'a rien regardé : ses trois conditions sont dans la boutique, et `--depot` ne l'interroge pas."
+        : "- La porte de l'argent n'a RIEN pu regarder : ses trois conditions sont dans la boutique, et la boutique n'a pas répondu."
+      : argent.length === 1
+        ? "- Dont 1 que la porte de l'argent refuse, et qui bloque donc encore la mise en vente."
+        : argent.length === 0
+          ? "- Aucune de ces lignes n'est de la compétence de la porte de l'argent. Son verdict se demande à part, elle est la seule à le rendre : `node scripts/launch-gate.mjs --porte=argent`."
+          : `- Dont ${argent.length} que la porte de l'argent refuse, et qui bloquent donc encore la mise en vente.`,
+  )
+  out.push('')
+  /*
+   * Un relevé est une photographie, et une photographie du miroir prise pendant
+   * `npm run test:wp` contient les montages de la suite : mesuré cette nuit, le
+   * compte est monté de 19 à 29 puis redescendu à 19 en huit minutes. Le dire
+   * ici évite qu'un lecteur conclue à une régression sur un produit qui
+   * n'existait que le temps d'une suite d'intégration.
+   */
+  out.push(
+    "Ce relevé est une photographie de la boutique nommée ci-dessus, à la date ci-dessus. Il se",
+  )
+  out.push('régénère, et il faut le régénérer avant de conclure quoi que ce soit de son compte.')
+  out.push('')
+  out.push(
+    "Ce fichier n'est pas une dérogation et il n'en accorde aucune. Il existe parce qu'un portail",
+  )
+  out.push(
+    "unique, qui refusait la mise en ligne tant qu'un avocat n'avait pas relu les conditions",
+  )
+  out.push(
+    "générales, n'était pas obéi : il était contourné. La publication n'est plus bloquée par une",
+  )
+  out.push(
+    "dette juridique ou documentaire. Elle est écrite ici, datée, avec le nom de qui peut la lever",
+  )
+  out.push('et le geste exact qui la lève.')
+  out.push('')
+  out.push(
+    "Ce qui coûte de l'argent, lui, refuse toujours : `node scripts/launch-gate.mjs --porte=argent`",
+  )
+  out.push(
+    "sort non-zéro sur un prix sous son plancher, un textile nu non déclaré sur un produit en vente,",
+  )
+  out.push("ou une passerelle de paiement mal configurée. Il n'y a pas de dérogation pour ces trois-là.")
+  out.push('')
+  out.push('---')
+  out.push('')
+
+  if (rows.length === 0) {
+    out.push('## Rien')
+    out.push('')
+    out.push(
+      "Aucune condition du portail ne refuse aujourd'hui sur la boutique interrogée ci-dessus. Ce n'est",
+    )
+    out.push(
+      "pas une autorisation générale : les conditions non regardées listées en tête, s'il y en a, ne sont",
+    )
+    out.push('ni tenues ni non tenues.')
+    out.push('')
+    return out.join('\n')
+  }
+
+  if (argent.length > 0) {
+    out.push(`## Ce que la porte de l'argent refuse encore (${argent.length})`)
+    out.push('')
+    out.push(
+      "Ces lignes ne sont pas de la dette : ce sont des refus. Tant qu'elles sont là, la boutique ne doit",
+    )
+    out.push(
+      'pas vendre, quoi que dise le reste de ce fichier. Chacune est détaillée plus bas, sous son',
+    )
+    out.push('propriétaire ; cet index existe pour être lu en premier.')
+    out.push('')
+    /*
+     * L'INDEX PORTE DE QUOI DISTINGUER DEUX LIGNES DE MÊME CONDITION. Trois
+     * produits sans textile nu donnaient trois puces identiques, et une liste
+     * de refus où l'on ne peut pas dire lequel a été levé ne se relit pas.
+     */
+    for (const r of argent) out.push(`- ${r.titre} (${r.proprietaire}) : ${abrege(r.constat, 90)}`)
+    out.push('')
+  }
+
+  /*
+   * TROIS SECTIONS, PUIS UNE QUATRIÈME QUI RAMASSE LE RESTE.
+   *
+   * Sans elle, un poste dont le propriétaire ne serait aucun des trois noms
+   * serait compté dans l'entête et absent du corps : une entête qui annonce un
+   * compte que le corps ne porte pas est exactement le genre de document auquel
+   * ce dépôt a déjà cru. Elle ne devrait jamais rien contenir, et c'est
+   * précisément pour cela qu'elle existe.
+   */
+  const CONNUS = ['associé', 'les deux', 'développeur']
+  for (const nom of CONNUS) {
+    const lot = par(nom)
+    if (lot.length === 0) continue
+    out.push(`## ${nom} (${lot.length})`)
+    out.push('')
+    for (const r of lot) out.push(bloc(r))
+    out.push('')
+  }
+  const orphelins = rows.filter((r) => !CONNUS.includes(r.proprietaire))
+  if (orphelins.length > 0) {
+    out.push(`## Sans propriétaire nommé (${orphelins.length})`)
+    out.push('')
+    out.push(
+      "Ces lignes sont un défaut de ce relevé, pas de la boutique : leur propriétaire n'est aucun des",
+    )
+    out.push('trois noms prévus. Les router, et corriger la table de scripts/launch-gate.mjs.')
+    out.push('')
+    for (const r of orphelins) out.push(bloc(r))
+    out.push('')
+  }
+
+  out.push('---')
+  out.push('')
+  out.push(
+    'Régénéré par la porte de publication. Le diff de ce fichier est la seule preuve qu’une ligne a été levée.',
+  )
+  out.push('')
+  return out.join('\n')
+}
+
+/*
+ * LA PORTE DE L'ARGENT PART AVANT LE REGISTRE, ET C'EST VOULU.
+ *
+ * Aucune de ses trois conditions ne vit dans `docs/hypotheses.json`. Un registre
+ * illisible est un refus du portail complet, ce qu'il reste ci-dessous ; il
+ * n'apprend rien sur un prix sous son plancher. Une porte qui refuse pour une
+ * raison qui n'est pas la sienne apprend à son opérateur à ne pas la lire.
+ */
+if (PORTE === 'argent') {
+  const shopArgent = shopBlockers(TARGET)
+  const verdict = porteArgent(shopArgent)
+  if (JSON_OUT) {
+    console.log(
+      JSON.stringify(
+        {
+          porte: 'argent',
+          verdict: verdict.code === 0 ? 'autorisee' : 'refusee',
+          code: verdict.code,
+          boutique: TARGET.label,
+          conditions: ARGENT.map((c) => c.id),
+          non_regarde: verdict.nonRegarde,
+          blockers: verdict.blockers,
+          why: verdict.why ?? null,
+        },
+        null,
+        2,
+      ),
+    )
+    process.exit(verdict.code)
+  }
+  console.log(`${DIM}boutique interrogée : ${TARGET.label}${OFF}`)
+  reportArgent(verdict)
+  process.exit(verdict.code)
 }
 
 const loaded = loadLedger()
@@ -633,6 +1315,21 @@ if (SELF_TEST) {
       shop: () => ({ ok: true, blockers: [{ cle: 'editeur', pourquoi: 'raison sociale de l’hébergeur absente' }] }),
     },
     {
+      // Les deux conditions que la boutique évalue depuis le 05/09/2026. Elles
+      // sont tranchées en détail plus bas par la porte de l'argent ; elles sont
+      // ici parce que le portail COMPLET doit refuser dessus lui aussi.
+      name: 'prix-plancher',
+      why: 'une colonne publiée qui vend sous son plancher de coût',
+      ledger: () => clone(),
+      shop: () => ({ ok: true, blockers: [{ cle: 'prix-plancher', pourquoi: 'colonne sous son plancher', porte: 'argent' }] }),
+    },
+    {
+      name: 'paiement',
+      why: 'une passerelle de paiement qui n’est pas ce qu’elle annonce',
+      ledger: () => clone(),
+      shop: () => ({ ok: true, blockers: [{ cle: 'paiement', pourquoi: 'clés en mode test', porte: 'argent' }] }),
+    },
+    {
       name: 'boutique',
       why: 'une boutique qu’on n’a pas pu interroger du tout',
       ledger: () => clone(),
@@ -692,11 +1389,193 @@ if (SELF_TEST) {
     if (!good) allFired = false
   }
 
+  /*
+   * LA PORTE DE L'ARGENT, DANS LES DEUX SENS ET SUR LES TROIS CODES.
+   *
+   * Elle doit refuser sur chacune de ses trois conditions, refuser quand elle
+   * n'a pas pu les regarder, ET LAISSER PASSER une boutique qui n'a que de la
+   * dette juridique. Ce dernier cas est le plus important des six : c'est la
+   * différence entre une porte et un mur, et c'est la décision du 5 septembre
+   * 2026 qui la rend vraie. Sans lui, rien ne prouverait que le portail a
+   * vraiment été coupé en deux.
+   */
+  const DECLARE = ['prix-plancher', 'textile-nu', 'paiement']
+  const argentCases = [
+    {
+      label: 'un prix sous son plancher',
+      shop: { ok: true, regarde: DECLARE, blockers: [{ cle: 'prix-plancher', pourquoi: 'colonne M à 21,90 EUR pour un plancher à 23,80 EUR' }] },
+      want: 1,
+    },
+    {
+      label: 'un textile nu non déclaré sur un produit en vente',
+      shop: { ok: true, regarde: DECLARE, blockers: [{ cle: 'textile-nu', pourquoi: 'aucune référence' }] },
+      want: 1,
+    },
+    {
+      label: 'une passerelle de paiement mal configurée',
+      shop: { ok: true, regarde: DECLARE, blockers: [{ cle: 'paiement', pourquoi: 'clés en mode test' }] },
+      want: 1,
+    },
+    {
+      label: 'la boutique ne dit rien et ne refuse rien : on ne sait pas si elle a regardé',
+      shop: { ok: true, regarde: null, blockers: [] },
+      want: 2,
+    },
+    {
+      label: 'la boutique n’a regardé que deux des trois',
+      shop: { ok: true, regarde: ['prix-plancher', 'textile-nu'], blockers: [] },
+      want: 2,
+    },
+    {
+      label: 'une extension d’avant le 5 septembre : des refus sans étiquette de porte',
+      shop: { ok: true, regarde: null, blockers: [{ cle: 'cgv', pourquoi: 'version en projet' }] },
+      want: 2,
+    },
+    {
+      label: 'des refus tous étiquetés, dont un d’argent : elle a regardé, et elle refuse',
+      shop: {
+        ok: true,
+        regarde: null,
+        blockers: [
+          { cle: 'cgv', pourquoi: 'version en projet', porte: 'publication' },
+          { cle: 'prix-plancher', pourquoi: 'colonne sous son plancher', porte: 'argent' },
+        ],
+      },
+      want: 1,
+    },
+    {
+      label: 'des refus tous étiquetés, aucun d’argent : elle a regardé, et elle laisse passer',
+      shop: {
+        ok: true,
+        regarde: null,
+        blockers: [{ cle: 'cgv', pourquoi: 'version en projet', porte: 'publication' }],
+      },
+      want: 0,
+    },
+    {
+      label: 'une clé neuve que ce script ne connaît pas, étiquetée argent par la boutique',
+      shop: {
+        ok: true,
+        regarde: DECLARE,
+        blockers: [{ cle: 'commission-negative', pourquoi: 'la remise dépasse la marge', porte: 'argent' }],
+      },
+      want: 1,
+    },
+    {
+      label: 'une clé d’argent que la boutique étiquette « publication » : l’union refuse quand même',
+      shop: {
+        ok: true,
+        regarde: DECLARE,
+        blockers: [{ cle: 'textile-nu', pourquoi: 'aucune référence', porte: 'publication' }],
+      },
+      want: 1,
+    },
+    {
+      label: 'la boutique n’a pas répondu du tout',
+      shop: { ok: false, why: 'ssh a expiré' },
+      want: 2,
+    },
+    {
+      label: 'la boutique dit qu’elle n’a pas pu évaluer sa porte de l’argent',
+      shop: {
+        ok: true,
+        regarde: DECLARE,
+        blockers: [{ cle: 'porte', pourquoi: 'la porte argent a levé une exception', porte: 'argent' }],
+      },
+      want: 2,
+    },
+    {
+      label: 'de la dette juridique seule : cgv, médiation, identité',
+      shop: {
+        ok: true,
+        regarde: DECLARE,
+        blockers: [
+          { cle: 'cgv', pourquoi: 'version en projet' },
+          { cle: 'identite', pourquoi: 'SIRET absent' },
+          { cle: 'editeur', pourquoi: 'hébergeur absent' },
+        ],
+      },
+      want: 0,
+    },
+    {
+      label: 'rien du tout',
+      shop: { ok: true, regarde: DECLARE, blockers: [] },
+      want: 0,
+    },
+  ]
+  for (const c of argentCases) {
+    const got = porteArgent(c.shop).code
+    const good = got === c.want
+    console.log(`  ${good ? 'ARGENT OK ' : 'ARGENT FAUX'}  [sortie ${got}, attendu ${c.want}] ${c.label}`)
+    if (!good) allFired = false
+  }
+
+  /*
+   * LE RELEVÉ DE DETTE : chaque refus doit ressortir avec un propriétaire NOMMÉ
+   * et un geste. Une dette sans nom est une liste de regrets, et c'est
+   * précisément ce que ce fichier remplace. Le cas de la clé inconnue est là
+   * parce que la moitié PHP du portail peut en émettre une neuve : elle doit
+   * atterrir chez quelqu'un, pas dans le silence.
+   */
+  const NOMS = new Set(['associé', 'développeur', 'les deux'])
+  const detteCases = [
+    { b: { cle: 'registre', pourquoi: 'x', registre: { id: 'H-Q06-TARIF-TEE', question: 'Q06', depuis: '2026-08-12' } }, proprietaire: 'associé', argent: false },
+    { b: { cle: 'registre', pourquoi: 'x', registre: { id: 'H-Q17-TVA', question: 'Q17', depuis: '2026-08-12' } }, proprietaire: 'les deux', argent: false },
+    { b: { cle: 'cgv', pourquoi: 'x' }, proprietaire: 'associé', argent: false },
+    { b: { cle: 'editeur', pourquoi: 'x' }, proprietaire: 'développeur', argent: false },
+    { b: { cle: 'mediation', pourquoi: 'x' }, proprietaire: 'les deux', argent: false },
+    { b: { cle: 'textile-nu', pourquoi: 'x' }, proprietaire: 'développeur', argent: true },
+    { b: { cle: 'prix-plancher', pourquoi: 'x' }, proprietaire: 'développeur', argent: true },
+    { b: { cle: 'paiement', pourquoi: 'x' }, proprietaire: 'développeur', argent: true },
+    { b: { cle: 'condition-de-demain', pourquoi: 'x' }, proprietaire: 'développeur', argent: false },
+    { b: { cle: 'porte', pourquoi: 'x', porte: 'argent' }, proprietaire: 'développeur', argent: true },
+    // Un refus qui arrive sans raison : le relevé doit écrire une phrase, pas
+    // « undefined », dans un document que l'associé va lire.
+    { b: { cle: 'cgv' }, proprietaire: 'associé', argent: false },
+  ]
+  for (const c of detteCases) {
+    const r = ligneDeDette(c.b)
+    const good =
+      r.proprietaire === c.proprietaire &&
+      NOMS.has(r.proprietaire) &&
+      r.argent === c.argent &&
+      typeof r.lever === 'string' &&
+      r.lever.length > 40
+    console.log(`  ${good ? 'DETTE OK  ' : 'DETTE FAUX'}  [${c.b.cle} -> ${r.proprietaire}${r.argent ? ', argent' : ''}] geste de ${r.lever.length} caractère(s)`)
+    if (!good) allFired = false
+  }
+
+  /*
+   * ET LE RELEVÉ LUI-MÊME COMPTE JUSTE. Le nombre de lignes est la première
+   * chose qu'un lecteur croit, et une entête qui annonce un compte que le corps
+   * ne porte pas est exactement le genre de portail auquel ce dépôt a déjà cru.
+   */
+  const echantillon = detteCases.map((c) => ligneDeDette(c.b))
+  const rendu = reledette({
+    rows: echantillon,
+    target: 'auto-test',
+    reached: true,
+    looked: ['registre'],
+    unlooked: [],
+    aujourdhui: '2026-09-05',
+  })
+  const comptes = rendu.includes(`**${echantillon.length} ligne(s) de dette.**`)
+  const blocs = (rendu.match(/^ {2}- Pour lever :/gm) ?? []).length
+  const attendus = echantillon.length
+  const renduOk = comptes && blocs === attendus
+  console.log(
+    `  ${renduOk ? 'RELEVÉ OK ' : 'RELEVÉ FAUX'}  [${echantillon.length} ligne(s) annoncée(s), ${blocs} bloc(s) rendus pour ${attendus} attendus]`,
+  )
+  if (!renduOk) allFired = false
+
   if (!allFired) {
     console.error(`\n${RED}launch-gate --self-test: au moins un contrôle ne se déclenche pas. Il ne prouve rien.${OFF}`)
     process.exit(2)
   }
-  console.log(`\nlaunch-gate --self-test: les ${cases.length} conditions refusent, les ${exitCases.length} codes de sortie sont les bons, et un dépôt propre passe.`)
+  console.log(
+    `\nlaunch-gate --self-test: les ${cases.length} conditions refusent, les ${exitCases.length} codes de sortie sont les bons, ` +
+      `un dépôt propre passe, la porte de l'argent tranche les ${argentCases.length} cas, et les ${detteCases.length} postes de dette ont un propriétaire nommé.`,
+  )
   process.exit(0)
 }
 
@@ -706,6 +1585,91 @@ const shop = DEPOT_ONLY
 
 const result = gate({ ledger: loaded.data, shop })
 const code = exitCode(result)
+
+/*
+ * LA PORTE DE PUBLICATION : le même relevé, écrit au lieu d'être opposé.
+ *
+ * Elle lit `result` et ne recalcule rien : les mêmes huit conditions, la même
+ * liste de refus, le même ordre. Deux lectures divergeraient, et le jour où
+ * elles divergeraient le relevé de dette dirait « levé » sur une ligne que le
+ * portail refuse encore.
+ *
+ * ELLE SORT 0 SUR UNE DETTE, ET NON SUR UN ÉCHEC D'ÉCRITURE. Un relevé qu'on n'a
+ * pas pu écrire est un relevé que personne ne lira : la publication continue,
+ * la dette disparaît, et c'est exactement la situation que ce fichier remplace.
+ */
+if (PORTE === 'publication') {
+  const rows = result.blockers.map(ligneDeDette)
+  const aujourdhui = new Date().toISOString().slice(0, 10)
+  const texte = reledette({
+    rows,
+    target: TARGET.label,
+    reached: shop.ok === true,
+    deliberate: shop.deliberate === true,
+    looked: result.looked,
+    unlooked: result.unlooked,
+    aujourdhui,
+  })
+  /*
+   * TEESHOOP_DETTE existe pour une raison précise : une intégration continue qui
+   * tourne sans boutique produit un relevé où cinq conditions sur huit sont
+   * « non regardées ». L'écrire par-dessus un relevé informé remplacerait une
+   * mesure par une absence de mesure, dans un fichier suivi par git.
+   */
+  const dest = (process.env.TEESHOOP_DETTE ?? '').trim() !== '' ? process.env.TEESHOOP_DETTE.trim() : DETTE
+  try {
+    writeFileSync(dest, texte)
+  } catch (e) {
+    console.error(
+      `${RED}launch-gate --porte=publication : le relevé de dette n'a pas pu être écrit dans ${dest} : ${e.message}. ` +
+        `Sortie 2 : publier en perdant la liste de ce qui manque, c'est la situation que ce relevé remplace.${OFF}`,
+    )
+    process.exit(2)
+  }
+  const argent = rows.filter((r) => r.argent).length
+  if (JSON_OUT) {
+    console.log(
+      JSON.stringify(
+        {
+          porte: 'publication',
+          verdict: 'publication autorisee',
+          code: 0,
+          fichier: dest,
+          releve_le: aujourdhui,
+          lignes: rows.length,
+          dont_argent: argent,
+          boutique: TARGET.label,
+          jointe: shop.ok === true,
+          looked: result.looked,
+          unlooked: result.unlooked,
+          dette: rows.map((r) => ({ cle: r.cle, titre: r.titre, proprietaire: r.proprietaire, depuis: r.depuis, argent: r.argent })),
+        },
+        null,
+        2,
+      ),
+    )
+    process.exit(0)
+  }
+  console.log(`${DIM}boutique interrogée : ${TARGET.label}${OFF}`)
+  console.log(
+    `${GREEN}porte de publication : PUBLICATION AUTORISÉE.${OFF} ${rows.length} ligne(s) de dette écrite(s) dans ${dest}.`,
+  )
+  const parProprio = new Map()
+  for (const r of rows) parProprio.set(r.proprietaire, (parProprio.get(r.proprietaire) ?? 0) + 1)
+  for (const [nom, n] of parProprio) console.log(`  ${nom} : ${n}`)
+  if (argent > 0) {
+    console.log(
+      `\n${RED}${BOLD}${argent === 1 ? "1 de ces lignes est refusée" : `${argent} de ces lignes sont refusées`} par la porte de l'argent : la boutique ne doit pas vendre.${OFF}`,
+    )
+    console.log(`${DIM}node scripts/launch-gate.mjs --porte=argent --boutique=${TARGET_RAW}${OFF}`)
+  }
+  if (!shop.ok) {
+    console.log(
+      `\n${DIM}La boutique n'a pas répondu : ${result.unlooked.length} condition(s) sont écrites comme NON regardées. Ce relevé est moins informé qu'un relevé pris contre une boutique qui répond.${OFF}`,
+    )
+  }
+  process.exit(0)
+}
 
 /*
  * MACHINE-READABLE FIRST, and nothing else on stdout when it is asked for. The

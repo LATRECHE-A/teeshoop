@@ -1521,7 +1521,23 @@ final class Cli {
 	 * : Print only the marker-wrapped JSON. This is the form the gate reads.
 	 */
 	public static function launch( array $args, array $assoc_args = array() ): void {
-		$answer = array( 'ok' => true, 'blockers' => Launch::blockers() );
+		/*
+		 * `regarde` DIT CE QUI A ÉTÉ EXAMINÉ, et ce n'est pas une redite de
+		 * `blockers`. Une liste de refus vide veut dire deux choses opposées :
+		 * « j'ai regardé, rien à signaler » et « cette version de l'extension ne
+		 * sait pas regarder ça ». Sur la porte de l'argent, confondre les deux
+		 * autoriserait un encaissement, donc `scripts/launch-gate.mjs` exige
+		 * l'énumération et refuse (sortie 2) ce qu'il n'y trouve pas.
+		 *
+		 * La liste vient de `Launch`, jamais d'ici : une seconde table écrite à
+		 * la main dans la commande dirait un jour « regardé » d'une condition
+		 * que la classe a cessé d'évaluer.
+		 */
+		$answer = array(
+			'ok'       => true,
+			'blockers' => Launch::blockers(),
+			'regarde'  => Launch::evaluated(),
+		);
 		if ( isset( $assoc_args['porcelaine'] ) ) {
 			echo "\n<<<TEESHOOP-LAUNCH>>>", wp_json_encode( $answer, JSON_UNESCAPED_UNICODE ), "<<<END>>>\n";
 			return;

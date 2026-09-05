@@ -32,6 +32,9 @@ final class Admin {
 	private const SLUG   = 'teeshoop-facturation';
 	private const ACTION = 'teeshoop_reglages';
 
+	/** The launch-debt screen. See debt_screen(). */
+	private const SLUG_DETTE = 'teeshoop-dette';
+
 	public static function init(): void {
 		add_action( 'admin_menu', array( self::class, 'menu' ) );
 		add_action( 'admin_post_' . self::ACTION, array( self::class, 'save' ) );
@@ -46,6 +49,190 @@ final class Admin {
 			self::SLUG,
 			array( self::class, 'screen' )
 		);
+		add_submenu_page(
+			'woocommerce',
+			__( 'Dette de lancement Teeshoop', 'teeshoop' ),
+			__( 'Dette de lancement', 'teeshoop' ),
+			'manage_woocommerce',
+			self::SLUG_DETTE,
+			array( self::class, 'debt_screen' )
+		);
+	}
+
+	// ── The launch debt ──────────────────────────────────────────────────────
+
+	/**
+	 * Where the tracked debt document travels to, inside the plugin.
+	 *
+	 * ── WHY A COPY AND NOT A RE-DERIVATION, AND WHY BOTH ─────────────────────
+	 *
+	 * The brief asks for `docs/DETTE-LANCEMENT.md` to be visible in the
+	 * administration every day. The deploy carries `wp-plugins/` and
+	 * `wp-themes/` and nothing else, so `docs/` never reaches a server: on
+	 * production that path does not exist and never will.
+	 *
+	 * Two answers were possible and this screen uses both, split by what each
+	 * side actually knows.
+	 *
+	 * RE-DERIVED, the live half. What the SHOP can prove about itself today is
+	 * asked of `Launch`, which is the same authority the gate reads. That half
+	 * is never stale, needs no file, and cannot say something the deploy script
+	 * would contradict. Copying it into a document would create the second
+	 * implementation the project forbids.
+	 *
+	 * COPIED, the tracked half. The named owner of each line, the date it was
+	 * incurred, the register rows: none of that exists inside WordPress and no
+	 * amount of code can derive it. It is written once, in the repository, and
+	 * it travels as a file. `data/` is where this plugin already carries its
+	 * projections of repository facts (`data/hypotheses.php`), the `.htaccess`
+	 * in the plugin root already denies `*.md` over HTTP, and the bytes are the
+	 * same ones the CI prints, so nobody has to trust a transformation.
+	 *
+	 * The decision, with its date and its reasoning, is in
+	 * `docs/decisions/2026-09-05-la-porte-argent-tenue-par-wordpress.md`.
+	 *
+	 * FILTERABLE, because the plugin directory is not always writable by the
+	 * account that serves the site. `docs/DEPLOIEMENT.md` describes a hardened
+	 * deploy where the files arrive by rsync under a restricted key, and a shop
+	 * set up that way may prefer to carry this document somewhere it can be
+	 * refreshed without a full deploy. The harness uses the same seam, for the
+	 * same reason: it runs as the web user and cannot write into a directory the
+	 * developer owns.
+	 */
+	public static function debt_path(): string {
+		$default = ( defined( 'TEESHOOP_CORE_DIR' ) ? TEESHOOP_CORE_DIR : __DIR__ . '/../' ) . 'data/dette-lancement.md';
+		return (string) apply_filters( 'teeshoop_dette_chemin', $default );
+	}
+
+	/**
+	 * The debt, live and tracked, on one screen.
+	 *
+	 * Read-only, like the register screen and for the same reason: what is on it
+	 * is settled by doing the work, not by ticking a box on the page that
+	 * reports it.
+	 */
+	public static function debt_screen(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'Vous n’avez pas le droit de consulter cet écran.', 'teeshoop' ), '', array( 'response' => 403 ) );
+		}
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'La dette de lancement', 'teeshoop' ) . '</h1>';
+		echo '<p>' . esc_html__(
+			'Ce que la boutique sait d’elle-même, mesuré à l’instant où vous ouvrez cette page, puis le document suivi dans le dépôt, qui nomme un responsable par ligne. Les deux ne disent pas la même chose : le premier est vérifiable ici, le second porte ce que seul un humain peut trancher.',
+			'teeshoop'
+		) . '</p>';
+
+		if ( ! class_exists( __NAMESPACE__ . '\\Launch' ) ) {
+			echo '<div class="notice notice-error inline"><p>' . esc_html__(
+				'Le portail de mise en ligne n’a pas pu être chargé, donc cet écran ne peut rien affirmer sur l’état de la boutique. Ce n’est pas « tout va bien ».',
+				'teeshoop'
+			) . '</p></div></div>';
+			return;
+		}
+
+		$blockers = Launch::blockers();
+		$argent   = array_values( array_filter( $blockers, static fn( array $b ): bool => Launch::PORTE_ARGENT === ( $b['porte'] ?? '' ) ) );
+		$dette    = array_values( array_filter( $blockers, static fn( array $b ): bool => Launch::PORTE_ARGENT !== ( $b['porte'] ?? '' ) ) );
+
+		self::debt_block(
+			__( 'La porte argent', 'teeshoop' ),
+			__( 'Tant qu’une seule de ces lignes tient, aucun moyen de paiement n’est proposé au client et aucun ne peut être activé. Il n’y a pas de dérogation.', 'teeshoop' ),
+			__( 'La porte argent ne refuse rien aujourd’hui. Elle ne juge que ce que cette boutique sait d’elle-même : le registre des hypothèses est contrôlé à part, dans le dépôt.', 'teeshoop' ),
+			$argent
+		);
+
+		self::debt_block(
+			__( 'La dette de publication', 'teeshoop' ),
+			__( 'Ces points n’empêchent pas la boutique de servir ses pages. Ils sont dus, datés, et chacun a un responsable dans le document ci-dessous.', 'teeshoop' ),
+			__( 'La boutique ne se reproche rien sur ce volet.', 'teeshoop' ),
+			$dette
+		);
+
+		self::debt_document();
+		echo '</div>';
+	}
+
+	/**
+	 * One section of the debt screen, including its empty state.
+	 *
+	 * @param string                          $title Section heading.
+	 * @param string                          $lede  What the section means when it is not empty.
+	 * @param string                          $empty What it means when it is.
+	 * @param array<int,array<string,mixed>>  $rows  The refusals.
+	 */
+	private static function debt_block( string $title, string $lede, string $empty, array $rows ): void {
+		echo '<h2>' . esc_html( $title ) . '</h2>';
+		if ( array() === $rows ) {
+			echo '<p>' . esc_html( $empty ) . '</p>';
+			return;
+		}
+		echo '<p>' . esc_html( $lede ) . '</p>';
+		echo '<table class="widefat striped"><thead><tr>';
+		echo '<th scope="col" style="width:12em">' . esc_html__( 'Condition', 'teeshoop' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'Ce qui bloque', 'teeshoop' ) . '</th>';
+		echo '</tr></thead><tbody>';
+		foreach ( $rows as $row ) {
+			echo '<tr><td><code>' . esc_html( (string) ( $row['cle'] ?? '' ) ) . '</code></td>';
+			echo '<td>' . esc_html( (string) ( $row['pourquoi'] ?? '' ) ) . '</td></tr>';
+		}
+		echo '</tbody></table>';
+	}
+
+	/**
+	 * The tracked document, or the designed state of its absence.
+	 *
+	 * VERBATIM, IN A BLOCK, and not through a Markdown renderer. This screen has
+	 * no idea what shape the document takes, because it is written in the
+	 * repository by whoever last measured the debt, and a half-built renderer
+	 * that mangles a table is worse than the text. What is shown here is byte
+	 * for byte what the CI prints, which is the only version anybody can check.
+	 */
+	private static function debt_document(): void {
+		echo '<h2>' . esc_html__( 'Le document suivi', 'teeshoop' ) . '</h2>';
+
+		$path = self::debt_path();
+		if ( ! is_readable( $path ) ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__(
+				'Le document de dette n’est pas dans cette installation. Ce n’est pas « il n’y a pas de dette » : c’est que le fichier n’a pas été engendré, ou qu’il n’a pas été déployé avec l’extension.',
+				'teeshoop'
+			) . '</p><p>' . esc_html__(
+				'Il est écrit par « node scripts/launch-gate.mjs --porte=publication », qui le pose à la fois dans docs/DETTE-LANCEMENT.md et dans data/dette-lancement.md, à l’intérieur de l’extension. Seul le second voyage : le déploiement ne transporte que wp-plugins/ et wp-themes/.',
+				'teeshoop'
+			) . '</p></div>';
+			return;
+		}
+
+		$body = file_get_contents( $path );
+		if ( ! is_string( $body ) || '' === trim( $body ) ) {
+			echo '<div class="notice notice-error inline"><p>' . esc_html__(
+				'Le document de dette est présent et vide. Un fichier vide n’est pas une absence de dette : relancez « node scripts/launch-gate.mjs --porte=publication ».',
+				'teeshoop'
+			) . '</p></div>';
+			return;
+		}
+
+		/*
+		 * LA DATE DU FICHIER, ET PAS CELLE DU RELEVÉ, et la phrase le dit. Un
+		 * envoi par rsync conserve la date de modification, mais rien ne le
+		 * garantit, et le document porte de toute façon sa propre date de relevé
+		 * dans ses premières lignes. Annoncer « relevé le » à partir d'un
+		 * horodatage de fichier serait un chiffre fabriqué à côté d'un vrai.
+		 */
+		$stamp = filemtime( $path );
+		if ( is_int( $stamp ) ) {
+			echo '<p>' . esc_html(
+				sprintf(
+					/* translators: %s: a date and time. */
+					__( 'Fichier daté du %s ; la date du relevé lui-même est en tête du document. Il vit dans le dépôt et voyage avec l’extension : il ne se met pas à jour tout seul.', 'teeshoop' ),
+					wp_date( 'j F Y à H\hi', $stamp ) ?: (string) $stamp
+				)
+			) . '</p>';
+		}
+
+		echo '<pre style="white-space:pre-wrap;overflow-x:auto;max-width:60em;padding:1em;background:#fff;border:1px solid #c3c4c7;font-size:13px;line-height:1.6">';
+		echo esc_html( $body );
+		echo '</pre>';
 	}
 
 	public static function url(): string {

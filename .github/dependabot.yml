@@ -1,0 +1,75 @@
+version: 2
+
+# ── CE QUE CE FICHIER SURVEILLE, ET CE QU'IL LAISSE TRANQUILLE ───────────────
+#
+# Une boutique qui encaisse porte trois familles de dépendances, et elles n'ont
+# pas la même règle.
+#
+#   npm            Ce que le client télécharge et ce avec quoi on construit.
+#                  Surveillé, chaque semaine. `npm audit` dans l'intégration
+#                  continue dit quand une faille est là ; c'est ce fichier qui
+#                  propose le correctif au lieu d'attendre que quelqu'un pense à
+#                  le chercher.
+#
+#   github-actions Les actions tierces des travaux. Une action épinglée sur une
+#                  étiquette mouvante (`@v4`) est du code qu'on exécute sans le
+#                  choisir ; la faire remonter par une demande de fusion, c'est
+#                  au moins la voir passer.
+#
+#   docker         PAS SURVEILLÉ, et c'est une décision. `wp-local/Dockerfile`
+#                  est épinglé sur la version de WordPress que sert o2switch
+#                  (7.1) et `docker-compose.yml` explique en tête pourquoi : le
+#                  miroir doit être la boutique, pas la dernière image publiée.
+#                  Un robot qui pousserait `wordpress:7.2` ferait diverger le
+#                  miroir de la production dans une direction que personne n'a
+#                  choisie, et le rendrait vert sur du code qui casse en ligne.
+#                  Ces images bougent quand la production bouge, dans un commit
+#                  qui le dit, et `scripts/pin-verify.mjs` est la porte qui
+#                  compare les deux.
+#
+# LE JOUR CHOISI. Lundi tôt : les demandes de fusion attendent la semaine, pas
+# un vendredi soir où personne ne les regarde avant de partir.
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Paris
+    # Cinq, pas cinquante : une file que personne ne vide n'informe plus de rien.
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    groups:
+      # Trois lots plutôt qu'une demande par paquet. `three`, `@react-three/*`
+      # et les dix-sept polices bougent ensemble et cassent ensemble ; les
+      # séparer produit dix-sept demandes dont aucune n'est testable seule.
+      trois-d:
+        patterns:
+          - "three"
+          - "@react-three/*"
+          - "@types/three"
+      polices:
+        patterns:
+          - "@fontsource/*"
+      outillage:
+        patterns:
+          - "vite"
+          - "vitest"
+          - "typescript"
+          - "@vitejs/*"
+          - "@types/*"
+          - "tailwindcss"
+          - "@tailwindcss/*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"

@@ -250,11 +250,37 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 			)
 		)
 	);
+	/*
+	 * LE DÉCOR DÉCLARE SON TEXTILE NU, et ce n'est pas de la décoration.
+	 *
+	 * Depuis le 5 septembre 2026 la porte argent retire toute passerelle de
+	 * paiement tant qu'un produit personnalisable en vente ne dit pas quel
+	 * textile l'atelier achète : la commande serait payée et jamais servie.
+	 * Un décor qui ne le déclare pas fabrique donc lui-même la condition qui
+	 * ferme la caisse, et le harnais échouerait au passage en caisse sans
+	 * qu'aucune ligne du produit ne soit en cause.
+	 *
+	 * La référence est celle que le reste des harnais utilise. Elle décrit une
+	 * vraie référence du catalogue importé, pas un numéro inventé.
+	 */
+	$product->update_meta_data( Product::META_BLANK_REF, '18001' );
+	$product->update_meta_data( Product::META_BLANK_COLOURS, wp_json_encode( array( 'Noir' => 'Black' ) ) );
 	$product->save();
 
 	ts_e2e_out(
 		array(
 			'theme'           => $theme['theme'],
+			/*
+			 * RAPPORTÉ, JAMAIS AFFIRMÉ ICI, comme tout le reste de ce fichier.
+			 * Quand la porte argent refuse, WooCommerce ne propose aucun moyen
+			 * de paiement et le passage en caisse ne peut pas aboutir. Le
+			 * harnais a besoin de lire la cause plutôt que de constater une page
+			 * sans bouton.
+			 */
+			'porte_argent'    => array_map(
+				static fn( array $b ): string => (string) ( $b['pourquoi'] ?? '' ),
+				\Teeshoop\Core\Launch::money_blockers()
+			),
 			'theme_switched'  => (bool) ( $theme['switched'] ?? false ),
 			'need_classic'    => (bool) ( $theme['need_classic'] ?? false ),
 			'product_id'      => $product->get_id(),

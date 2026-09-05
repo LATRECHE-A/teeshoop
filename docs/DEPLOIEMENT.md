@@ -68,7 +68,14 @@ ne le dise.
 | Annuler la dernière livraison | `ssh teeshoop './deploiement.sh retour preprod'` · **3 secondes** |
 | Tout remettre comme avant-hier | §7, la restauration de base · **18 secondes** |
 | Savoir où en est une installation | `ssh teeshoop './deploiement.sh etat preprod'` |
+| Savoir quelle clé je présente au serveur | `./scripts/deployer.sh --sonde-cle teeshoop-deploy` · **moins d'une seconde**, ne déploie rien · §4 |
 | Le site est cassé, il est 19 h vendredi | §8 |
+
+**Deux choses doivent être vraies sur la machine qui lance ces commandes**, et le
+script refuse en le disant si elles ne le sont pas : la version majeure de `node`
+est celle de `.nvmrc` (`nvm use` à la racine du dépôt), et l'alias SSH employé est
+celui de la **clé de déploiement**. Le défaut est `teeshoop-deploy` ; pour en
+changer, `TEESHOOP_SSH_HOTE`.
 
 ---
 
@@ -122,9 +129,50 @@ lit, et `wp-content/plugins/` est servi par URL.
 - la base de données ;
 - un produit, une commande ou un client.
 
-Ce n'est pas une promesse, c'est une propriété : `scripts/deploiement.sh` n'a
-aucun verbe qui puisse le faire, et la clé de déploiement ne peut lancer que ce
-script.
+C'est une propriété et non une promesse, **à une condition qui n'était pas remplie
+jusqu'au 5 septembre 2026** : que la clé employée soit bien la clé de déploiement.
+`scripts/deploiement.sh` n'a aucun verbe qui puisse toucher ces quatre choses, et
+la clé de déploiement ne peut lancer que ce script ; mais l'autre clé du dossier,
+celle du développeur, ouvre un shell complet sur le compte, et rien de tout cela ne
+s'applique à elle.
+
+**Ce qui a été trouvé, et mesuré.** `scripts/deployer.sh` prenait `teeshoop` par
+défaut, c'est-à-dire précisément la clé qui ouvre un shell, alors que son étape
+d'envoi est un `rsync -az --delete`. La garantie ci-dessus était donc écrite pour
+un chemin que le script n'empruntait pas. Mesuré le 05/09/2026 contre le vrai
+serveur, `ssh teeshoop whoami` répond `dawe4500` et sort 0 : la commande demandée
+s'exécute pour de bon.
+
+**Ce qui est vrai depuis.** Deux changements, dans `scripts/deployer.sh` :
+
+1. **le défaut est `teeshoop-deploy`**, la clé à commande forcée. Le chemin sûr est
+   celui qu'on obtient sans rien taper ;
+2. **une sonde l'affirme avant tout envoi.** Elle demande `whoami` à l'alias
+   employé. Sous `command=`, cette demande ne s'exécute pas : le script forcé
+   tourne à sa place, répond « verbe inconnu » et sort 2. Sans commande forcée,
+   elle rend le nom du compte. Trois verdicts, jamais deux : `restreinte`,
+   `ouverte`, et `inconnue` quand la sonde n'a pas pu regarder. **La production
+   refuse sur `ouverte` comme sur `inconnue`**, parce que « on n'a pas pu
+   regarder » n'est pas « la clé est restreinte ». La préproduction avertit et
+   continue : elle ne porte ni commande réelle ni fichier de client, et un refus
+   dur sur l'environnement de répétition pousserait à contourner la sonde.
+
+Mesuré le 05/09/2026, contre le vrai serveur : `teeshoop-deploy` rend `restreinte`,
+`teeshoop` rend `ouverte`, et la sonde coûte de **616 à 927 ms** par déploiement.
+Vérifier soi-même, sans rien déployer :
+
+```bash
+./scripts/deployer.sh --sonde-cle teeshoop-deploy    # 0 si la clé est restreinte
+```
+
+**Ce que la sonde ne prouve pas :** la présence de `restrict` (ni agent, ni
+redirection de port, ni pseudo-terminal). Elle prouve `command=`, qui est la moitié
+qui compte pour un `rsync` et pour un shell.
+
+**Elle laisse une trace, et ce n'est pas un incident.** Côté serveur le refus est
+journalisé, donc `~/teeshoop-deploiements/journal.log` porte une ligne
+`REFUS verbe inconnu « whoami »` avant chaque déploiement. Cette ligne EST la
+sonde.
 
 **Le studio ne part pas d'ici non plus.** Il est servi par le Worker Cloudflare, et
 il n'y a **qu'un seul Worker pour les deux environnements** : le publier avec le
@@ -138,9 +186,16 @@ n'y a pas un second environnement Worker.
 
 ```
 push sur main  (ou ./scripts/deployer.sh preprod, qui est la même séquence)
-  └─ port 22 joignable ?  posé en premier, parce qu'un délai dépassé sur SSH
-  │                       pendant que le site répond en HTTPS ne ressemble pas
-  │                       à un problème d'autorisation
+  └─ node contre .nvmrc ?  local et instantané, donc posé avant tout le reste :
+  │                        les deux portes qui décident si la production reçoit
+  │                        un fichier sont des programmes node, et l'exécutant
+  │                        auto-hébergé ne pose pas setup-node. .nvmrc absent
+  │                        REFUSE : « rien regardé » n'est pas « rien trouvé »
+  └─ port 22 joignable ?   parce qu'un délai dépassé sur SSH pendant que le site
+  │                        répond en HTTPS ne ressemble pas à un problème
+  │                        d'autorisation
+  └─ la clé est-elle restreinte ?  la production refuse tout ce qui n'est pas
+  │                        « restreinte », la préproduction avertit · §4  0,9 s
   └─ CI (les mêmes contrôles que d'habitude, appelés et non recopiés)
        └─ pin-verify        la cible est-elle la version attendue          17 s
        └─ sauvegarder       base + fichiers + manifeste, avant tout        25 s
@@ -169,6 +224,22 @@ Elle ne couvre pas ce binaire-ci, avec ses extensions et son `php.ini`. Un fichi
 qui ne s'analyse pas là-bas est une page blanche, et il ne faut surtout pas
 l'installer pour s'en apercevoir.
 
+**Pourquoi la version de node est posée en garde, et pas seulement dans
+l'intégration continue.** Les deux portes qui décident si la production reçoit un
+fichier sont des programmes node : `pin-verify.mjs` et `launch-gate.mjs`. Le
+déploiement tourne sur l'exécutant auto-hébergé, qui ne pose **pas** `setup-node`,
+délibérément (« l'exécutant a le sien, et une action qui installerait une autre
+version changerait celle du développeur »). Rien ne fixait donc la version de node
+dans le chemin qui déploie vraiment. `deployer.sh` compare maintenant la **majeure**
+de `node --version` à celle de `.nvmrc`, et refuse si elles diffèrent. Le correctif
+n'est pas comparé : ce n'est pas la classe de changement qui casse un programme, et
+une règle stricte au correctif serait contournée dès le premier `nvm install`.
+
+**Si `.nvmrc` manque, le déploiement refuse**, et c'est voulu : un contrôle qui se
+saute tout seul quand son fichier de référence disparaît ne sert à rien le jour où
+quelqu'un le supprime. La correction tient en une ligne, elle est écrite dans le
+message de refus.
+
 **Mesuré le 02/09/2026 sur la préproduction :** 91 fichiers PHP analysés en
 8.1.34, extension activée, schéma 3/3, sonde répondue. Déploiement complet en
 **17 secondes** hors sauvegarde.
@@ -176,6 +247,18 @@ l'installer pour s'en apercevoir.
 ---
 
 ## 4. La clé de déploiement, et ce qu'elle ne peut pas faire
+
+**Il y a deux clés dans ce dossier, et la différence est tout ce chapitre.**
+
+| Alias `~/.ssh/config` | Fichier de clé | Ce qu'elle peut lancer sur le serveur |
+|---|---|---|
+| `teeshoop-deploy` | `~/.config/teeshoop/deploy_o2switch` | `~/deploiement.sh`, et rien d'autre |
+| `teeshoop` | `~/.ssh/teeshoop_o2switch` | **tout**, c'est un shell complet sur le compte |
+
+`scripts/deployer.sh` emploie `teeshoop-deploy` par défaut depuis le 05/09/2026, et
+une sonde l'affirme avant tout envoi (§2). `teeshoop` reste la clé du travail à la
+main, et elle est parfaitement légitime pour lire un journal ou annuler une
+livraison ; elle n'a simplement rien à faire dans un envoi automatique.
 
 Une paire dédiée (`teeshoop-deploy-actions-20260902`), posée dans
 `~/.ssh/authorized_keys` avec :
@@ -191,6 +274,7 @@ ce script est lancé à sa place. Essayé, avec la vraie clé contre le vrai ser
 |---|---|
 | un shell interactif | `verbe inconnu « »` |
 | `cat ~/.ssh/id_rsa` | `verbe inconnu « cat »` |
+| `whoami` | `verbe inconnu « whoami »`, sortie 2 · c'est la sonde du §2, mesurée le 05/09/2026 |
 | `etat prod; cat /etc/passwd` | `environnement inconnu « prod; »` |
 | `etat /etc` | `environnement inconnu « /etc »` |
 | `etat preprod` | l'état de la préproduction |
@@ -347,6 +431,8 @@ Dans cet ordre, sans réfléchir :
 
 1. **Est-ce qu'un déploiement vient de passer ?**
    `ssh teeshoop 'tail -20 ~/teeshoop-deploiements/journal.log'`
+   Les lignes `REFUS verbe inconnu « whoami »` sont la sonde de clé du §2, une par
+   déploiement. Ce ne sont pas des incidents ; ce qui se lit, c'est ce qui les suit.
 2. **Si oui :** `ssh teeshoop './deploiement.sh retour prod'` · 3 secondes.
    Rafraîchir le site. Si c'est réparé, on s'arrête là et on regarde demain.
 3. **Si ce n'est pas ça**, l'état :

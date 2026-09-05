@@ -1,26 +1,71 @@
 name: CI
 
-# Everything here runs headless in seconds and needs no secrets. The Playwright
-# harnesses in scripts/ deliberately stay OUT: they boot a dev server, several
-# need a human to look at a screenshot, and scripts/fr-verify.mjs talks to the
-# live Falk&Ross account. Same rule for the plugin's WooCommerce integration
-# test: it needs a real WordPress and a database, so it runs against wp-local/.
+# ── CE QUI TOURNE ICI, ET CE QUI N'Y TOURNE PAS ─────────────────────────────
 #
-# WHAT THAT LEAVES OUTSIDE, said here so nobody reads a green tick as more than
-# it is. These nine need a running mirror, a running Worker or a browser, and
-# must be run by hand before a release: verify:seo (what a crawler is served),
-# verify:consent (what a real browser writes to a visitor's machine before they
-# have chosen), verify:a11y (WCAG 2.2 AA over the buying path and the legal
-# pages), verify:focus (the studio's keyboard behaviour: the listbox and the
-# dialog focus trap, typed in a real browser against the real bundle),
-# verify:site (the screenshots), test:wp (the plugin against a real WooCommerce)
-# verify:admin-gate (that no admin JavaScript is served without credentials, and
-# that the admin studio still loads WITH them, in a real browser), verify:cache
-# (that two visitors cannot share a basket) and verify:csp (every page type
-# loaded under the real Content Security Policy, with every refusal read).
-# Between
-# them they hold the whole of session 12's compliance work and session 13's
-# bundle gate, and none of it is on push.
+# Le 5 septembre 2026, 8 des 43 scripts `verify:` et `bench:` du dépôt tournaient
+# dans un travail automatique. La suite d'intégration WooCommerce, que la
+# section 2 de `CLAUDE.md` rend OBLIGATOIRE pour tout ce qui touche au panier ou
+# à la commande, n'en faisait pas partie, alors que trois nuits venaient de
+# toucher le panier. L'en-tête de ce fichier disait pourquoi, poliment, depuis
+# des semaines : « must be run by hand before a release ». Personne ne les
+# lançait. Une porte que personne ne franchit n'est pas une porte.
+#
+# Ce fichier a donc deux travaux de plus, et l'en-tête ci-dessous ne promet
+# plus rien qu'il ne fasse.
+#
+#   verify      Tout ce qui tourne sans serveur : types, tests purs, la
+#               construction, les gardes de frontière, le registre des
+#               hypothèses, le portail, les deux audits de dépendances.
+#   plugin      Le PHP de l'extension, sur 8.1 (celui d'o2switch) et 8.3 (celui
+#               du miroir).
+#   wordpress   LE MIROIR, MONTÉ ICI, et la suite d'intégration WooCommerce
+#               dessus, avec un PLANCHER sur le nombre de cas.
+#   navigateur  Ce qu'un vrai navigateur voit : la porte d'administration, le
+#               CORS des routes ouvertes, le clavier du studio.
+#
+# ── CE QUI RESTE DEHORS, ET POURQUOI, NOMMÉMENT ─────────────────────────────
+#
+# Rien de tout cela n'est « à lancer à la main avant une livraison » : chacun a
+# une raison technique qu'un travail de CI ne peut pas lever.
+#
+#   verify:fr, verify:wp-catalogue   Ils appellent le webservice Falk&Ross avec
+#       les identifiants du compte. Un exécutant GitHub qui les porte est un
+#       endroit de plus d'où le catalogue et nos prix d'achat peuvent fuir, et
+#       `wp-catalogue` écrit 26 000 articles dans une base. Ils restent lancés à
+#       la main, contre le vrai service, quand le fournisseur bouge.
+#
+#   verify:a11y, verify:vitrine, verify:cache, verify:csp, verify:vendable,
+#   verify:bat, verify:invoice, verify:grille, verify:wp-e2e, bench:*
+#       Ils mesurent une BOUTIQUE GARNIE : des fiches produit, des photos, une
+#       grille de prix, des commandes. Le miroir monté ici est vide, parce que le
+#       seul moyen de le garnir est l'import fournisseur ci-dessus. Les brancher
+#       sur une boutique vide ne mesurerait rien, ou mesurerait la boutique vide,
+#       ce qui est pire : un vert qui ne veut rien dire. Ils tournent contre le
+#       miroir du développeur et contre la préproduction. Mesuré plutôt
+#       qu'affirmé : sur un miroir vide, `verify:vitrine` sort 1 (« l'archive
+#       contient au moins une fiche, vu : 0 ») et `verify:a11y` rend 392
+#       assertions sur 424. `verify:consent`, LUI, tient debout sans catalogue et
+#       il est donc branché : voir le travail `wordpress`.
+#
+#   verify:seo, verify:leak
+#       ROUGES aujourd'hui, mesurés ce soir. `seo` : 435 assertions sur 458, dont
+#       quatorze « manque Organization » (la boutique publie un noeud
+#       `LocalBusiness`, le harnais cherche `Organization`) et six sur l'adresse
+#       postale. `leak` : sortie 3, « city » et « sunset » ne retrouvent pas leur
+#       rendu après un aller-retour. Un travail rouge le premier jour n'apprend
+#       rien à personne ; ils se branchent le jour où ils sont verts.
+#
+#   verify:site, verify:product, verify:mockups, verify:achat,
+#   verify:editeur-shots, verify:render
+#       Ils produisent des captures qu'un humain regarde. Un travail sans oeil
+#       n'en tire aucun verdict.
+#
+#   verify:acces, verify:pin
+#       Ils sondent o2switch, qui filtre SSH par adresse IP. Un exécutant GitHub
+#       n'y arrivera jamais (mesuré le 02/09/2026 : « connect to host *** port
+#       22: Connection timed out »). Le déploiement les lance depuis l'exécutant
+#       auto-hébergé, dont l'adresse est autorisée. Ce qui est vérifiable ici est
+#       leur COMPARAISON, et c'est ce que fait `pin-verify.mjs --self-test`.
 on:
   push:
   pull_request:
@@ -31,6 +76,19 @@ on:
   # hand-kept copy inside a deploy workflow is how a deploy ships past a gate
   # somebody forgot to add there.
   workflow_call:
+  # ── L'EXÉCUTION NOCTURNE ──────────────────────────────────────────────────
+  #
+  # Elle ne relance pas les mêmes contrôles pour le plaisir. Elle attrape ce
+  # qu'une poussée ne peut pas attraper, parce que le dépôt n'a pas bougé et que
+  # le monde, lui, a bougé : un avis de sécurité publié cette nuit sur une
+  # dépendance déjà installée, une image docker retirée, un paquet npm dépublié,
+  # un service dont le certificat a expiré. C'est aussi le seul passage qui
+  # existe sur une semaine sans commit.
+  #
+  # 02:17 UTC, donc 04:17 à Paris l'été : après la fenêtre de sauvegarde et loin
+  # de l'heure ronde, que tout le monde choisit et où les exécutants sont pris.
+  schedule:
+    - cron: '17 2 * * *'
 
 jobs:
   verify:
@@ -38,9 +96,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # LA VERSION DE NODE VIENT DE `.nvmrc`, ET D'UN SEUL ENDROIT. Ce fichier
+      # épinglait `node-version: 22` pendant que la machine du développeur, sur
+      # laquelle chaque harnais a été mesuré, tournait en 26. Deux versions, deux
+      # comportements possibles, et celle qui décide est celle que personne ne
+      # regarde. `.nvmrc` est aussi ce que lisent `nvm`, `fnm` et `asdf`, donc
+      # une machine neuve tombe sur la même.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       # The hypotheses guard reads the price authority by RUNNING it, so this
@@ -74,12 +138,27 @@ jobs:
       - name: PHP guard
         run: npm run verify:php
 
+      # La troisième porte sur ce qui descend chez un client, et la plus récente :
+      # le personnalisateur est servi par WordPress depuis le 5 septembre 2026, il
+      # n'est plus derrière le cadre, et `editeur-guard.mjs` mesure sur DEUX
+      # parcours du graphe ce qu'il a le droit de porter et ce qu'il ne charge
+      # qu'après un clic. Il était dans `npm run ci` et dans aucun travail.
+      - name: Le personnalisateur ne porte que ce qu'il a le droit de porter
+        run: npm run verify:editeur
+
       # The shop's copy of the studio's print areas, size chart and colours is
       # generated. This proves it is not stale: change a print area, forget to
       # regenerate, and a customer measures a logo against a number we no
       # longer publish.
       - name: Garment data is current
         run: npm run verify:garments
+
+      # La police de la boutique, contrôlée sur les feuilles livrées. Elle était
+      # dans `npm run ci` et dans aucun travail, et sa propre garde a été
+      # resserrée le 5 septembre : une feuille listée et absente est désormais une
+      # panne, au lieu d'être filtrée en silence.
+      - name: Les polices du thème sont celles qui sont livrées
+        run: npm run verify:fonts
 
       # The register of assumed values. Fails when a value the associate has not
       # confirmed has a second copy, when its home has moved, when a Bloquant
@@ -162,6 +241,57 @@ jobs:
       - name: The pin guard's comparison can still fail
         run: node scripts/pin-verify.mjs --self-test
 
+      # LE TAMPON DE VERSION. Il ne tourne pas ici pour de vrai (il écrit dans
+      # l'en-tête de l'extension, et un dépôt de CI n'a rien à tamponner), mais sa
+      # décision, si : c'est elle qui refuse d'inventer un commit quand git ne
+      # peut pas répondre, et qui empêche deux tampons de s'empiler. Le
+      # déploiement en dépend, donc elle est contrôlée ici.
+      - name: Le tampon de version peut encore refuser
+        run: node scripts/version-tampon.mjs --self-test
+
+      # Et l'en-tête livré doit être celui du dépôt, pas un tampon oublié dans un
+      # commit. `--verifier` sort 1 quand la ligne est nue, ce qui est l'état
+      # attendu ICI : on inverse donc le verdict, une fois, en le disant.
+      # ── LES DEUX AUDITS DE DÉPENDANCES ──────────────────────────────────────
+      #
+      # Deux seuils et pas un, parce que les deux moitiés de l'arbre n'ont pas la
+      # même conséquence. Ce qui est en `dependencies` part dans le navigateur
+      # d'un client et dans le Worker ; ce qui est en `devDependencies` ne sort
+      # pas de cette machine et de celle du développeur.
+      #
+      # MESURÉ LE 05/09/2026, sur l'arbre du jour, pour que ces deux lignes
+      # soient vertes le premier jour et rouges seulement quand quelque chose
+      # arrive vraiment :
+      #
+      #   npm audit --omit=dev --audit-level=high   sortie 0 (une modérée,
+      #       fflate via three-stdlib, sous le seuil)
+      #   npm audit --audit-level=critical          sortie 0
+      #   npm audit --audit-level=high              sortie 1 : cinq hautes, TOUTES
+      #       dans undici via miniflare via wrangler, donc de l'outillage. Le
+      #       correctif est une montée de `wrangler` au-delà de 4.113.0 ; il n'est
+      #       pas fait ici parce que ce travail ne modifie pas package.json, et
+      #       dependabot le proposera lundi.
+      #
+      # Le jour où l'outillage sera à jour, la bonne ligne à écrire ici est
+      # `npm audit --audit-level=high` sans `--omit=dev`, et ces deux étapes se
+      # remplacent par elle.
+      - name: Rien de haut dans ce qu'un client télécharge
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Rien de critique nulle part, outillage compris
+        run: npm audit --audit-level=critical
+
+      - name: L'en-tête de l'extension n'est pas tamponnée dans le dépôt
+        run: |
+          set -uo pipefail
+          if node scripts/version-tampon.mjs --verifier; then
+            echo "L'en-tête porte un tampon de commit. Il est posé au déploiement, jamais validé :"
+            echo "un tampon dans le dépôt désigne un commit antérieur à lui-même."
+            echo "Retirez-le avec « node scripts/version-tampon.mjs --retirer »."
+            exit 1
+          fi
+          echo "En-tête nue, comme attendu dans le dépôt."
+
   # The WordPress plugin. Its pure classes (Money, Pricing, Margin) call no
   # WordPress function on purpose, so they need PHP and nothing else. The
   # runner exits 2 if it finds no tests, so "scanned nothing" cannot pass.
@@ -228,3 +358,405 @@ jobs:
 
       - name: The 8.1 guard can still fail
         run: php scripts/php81-guard.php --self-test
+
+  # ── LE MIROIR WORDPRESS, MONTÉ ICI ──────────────────────────────────────────
+  #
+  # `CLAUDE.md` section 2 : « Anything touching the cart or the order gets a test
+  # against a real WooCommerce (`npm run test:wp`), not only a pure one. » Cette
+  # phrase existe parce que `Pricing::quote()` était juste pendant tout le temps
+  # où un `did_action(...) > 1` recopié d'un tutoriel sautait chaque recalcul
+  # après le premier : un client qui changeait la quantité gardait l'ancien prix
+  # unitaire, et aucun test pur ne pouvait le voir.
+  #
+  # Ce travail est cette phrase, exécutable. Il monte `wp-local/` sur
+  # `ubuntu-latest`, qui a docker, et lance la suite dessus.
+  #
+  # ── CE QUE LE MIROIR NEUF N'A PAS, ET QUE LA SUITE SUPPOSE ──────────────────
+  #
+  # Mesuré le 05/09/2026 en montant un miroir vierge à côté de celui du
+  # développeur : 29 cas sur 241 échouaient, pour QUATRE raisons qui n'ont rien à
+  # voir avec le code et tout à voir avec l'état de la boutique. Chacune est une
+  # étape ci-dessous, et chacune est écrite ici plutôt que dans un commentaire
+  # parce qu'un miroir neuf est exactement ce qu'un nouvel arrivant monte. Avec
+  # les quatre étapes en place, le même miroir vierge rend « 253 passed », exit 0.
+  #
+  #   1. WP_ENVIRONMENT_TYPE. `docker-compose.yml` le pose dans
+  #      WORDPRESS_CONFIG_EXTRA, que `wp-config.php` ÉVALUE DEPUIS
+  #      L'ENVIRONNEMENT à chaque requête. Le service `wp` porte la variable, le
+  #      service `wpcli` NON : les deux conteneurs ne voient donc pas les mêmes
+  #      constantes, et `npm run test:wp` tourne sous wpcli. Sans la constante,
+  #      WordPress répond « production » et la boutique émet une vraie série de
+  #      factures au lieu de la série d'essai. C'est la même forme de défaut que
+  #      celui déjà écrit en tête de `docker-compose.yml` pour un secret. La
+  #      constante est donc écrite dans le fichier, où les deux la lisent.
+  #
+  #   2. L'IDENTITÉ LÉGALE. Le miroir du développeur la porte depuis le
+  #      1er septembre et elle ne vit dans aucun fichier suivi, ce qui est
+  #      correct : c'est l'identité réelle d'une société. La suite, elle, exige
+  #      une identité COMPLÈTE (« a gate that refuses whatever it is given is not
+  #      a gate »). Ce qui est posé ici est donc l'identité de vérification que
+  #      `tests/integration-checkout.php` invente déjà pour ses propres cas, aux
+  #      mêmes valeurs, et elle ne quitte jamais ce conteneur.
+  #
+  #   3. LES TAXONOMIES D'ATTRIBUTS. `tests/integration-purchase.php` appelle
+  #      `Importer::one()`, qui suppose que `pa_couleur` et `pa_taille` existent :
+  #      c'est `Importer::run()`, le parcours complet du catalogue, qui appelle
+  #      `Taxonomy::ensure_attributes()`, pas `one()`. Sur un miroir où le
+  #      catalogue a déjà été importé une fois, elles existent. Sur un miroir
+  #      neuf, non, et l'import écrit zéro article en rapportant « created » :
+  #      23 cas au rouge. Elles sont donc créées ici, PAR LE CODE LIVRÉ et dans
+  #      son propre processus, parce qu'une taxonomie créée après `init` n'existe
+  #      pour `wp_set_object_terms` qu'au processus suivant.
+  #
+  #   4. UNE PASSERELLE DE PAIEMENT ALLUMÉE, posée AVANT notre extension. Voir
+  #      l'étape, qui explique pourquoi l'ordre est la moitié de la règle.
+  wordpress:
+    runs-on: ubuntu-latest
+    # 25 minutes : la suite en met 3 min 15 s sur la machine du développeur et
+    # 3 min 37 s sur un miroir neuf ; le reste est la construction des deux
+    # images et l'installation de WooCommerce. Une borne, pour qu'un docker qui
+    # ne répond plus meure au lieu de tenir un exécutant six heures.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node pour le lanceur, et rien d'autre : `scripts/wp-suite-verify.mjs`
+      # n'importe aucun paquet, donc pas de `npm ci` ici. Cela retire deux
+      # minutes et une dépendance réseau d'un travail qui en a déjà assez.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Monter le miroir
+        run: docker compose -f wp-local/docker-compose.yml up -d --wait
+
+      # L'entrée du conteneur `wp` recopie WordPress dans un volume vide, ce qui
+      # prend quelques secondes, et `wp-cli` sur un volume à moitié rempli répond
+      # « this does not seem to be a WordPress installation ». On attend le
+      # fichier plutôt que de dormir un nombre de secondes choisi au hasard, et on
+      # ÉCHOUE au bout de deux minutes au lieu de continuer sans WordPress.
+      - name: Attendre que WordPress soit posé dans le volume
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            if docker compose -f wp-local/docker-compose.yml run --rm -T wpcli core version >/dev/null 2>&1; then
+              echo "WordPress présent après $i essai(s)."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "WordPress n'est jamais apparu dans le volume. Le miroir n'a pas démarré."
+          docker compose -f wp-local/docker-compose.yml logs --tail=80 wp
+          exit 1
+
+      - name: Installer WordPress
+        run: |
+          set -euo pipefail
+          # Un mot de passe tiré au sort et jamais réutilisé : ce conteneur vit le
+          # temps du travail, n'est joignable de nulle part, et rien de ce qui est
+          # écrit ici ne doit pouvoir servir ailleurs.
+          docker compose -f wp-local/docker-compose.yml run --rm -T wpcli core install \
+            --url=http://localhost:8080 --title="Miroir d'intégration" \
+            --admin_user=ci --admin_password="$(openssl rand -hex 24)" \
+            --admin_email=ci@teeshoop.invalid --skip-email
+
+      # LA VERSION EST CELLE DE LA PRODUCTION, ÉPINGLÉE. `--version=11.0.1` et
+      # pas la dernière : le miroir existe pour être la boutique, et une CI qui
+      # teste WooCommerce 11.1 pendant que la boutique tourne en 11.0.1 rend vert
+      # du code qui casse en ligne. Même règle que le pin de WordPress dans
+      # `wp-local/docker-compose.yml`.
+      - name: WooCommerce, à la version de la production
+        run: |
+          set -euo pipefail
+          docker compose -f wp-local/docker-compose.yml run --rm -T wpcli \
+            plugin install woocommerce --version=11.0.1 --activate
+
+      # CE MIROIR-CI RESTE EN en_US, ET C'EST DÉLIBÉRÉ. Le miroir du développeur
+      # parle français (`wp language core install fr_FR --activate`, voir l'en-tête
+      # de `wp-local/docker-compose.yml`) parce que la vraie boutique le fait, et
+      # cette divergence est réelle. Elle n'est pas comblée ici pour une raison
+      # nette : aucune des portes branchées dans ce travail ne lit une chaîne
+      # TRADUITE. La suite d'intégration a été mesurée verte sans le paquet de
+      # langue (253 cas), et `consent-verify` lit « Tout refuser » et « Tout
+      # accepter », qui sont des chaînes françaises de notre propre source. Ajouter
+      # deux téléchargements sur translate.wordpress.org que je n'ai pas pu mesurer
+      # sur un exécutant neuf, dans un travail dont tout l'intérêt est d'être
+      # digne de confiance, achèterait une fidélité que rien ici ne consomme.
+      # La séance qui branchera `verify:a11y` ou `verify:seo` devra les ajouter,
+      # parce que celles-là lisent bien ce que WooCommerce rend.
+
+      # ── UN MOYEN DE PAIEMENT ALLUMÉ, ET AVANT NOTRE EXTENSION ───────────────
+      #
+      # L'ORDRE EST LA MOITIÉ DE L'ÉTAPE. Depuis le 5 septembre 2026,
+      # `Payment::refuse_enabling()` accroche `pre_update_option_woocommerce_*`
+      # et REFUSE le passage d'une passerelle à « allumée » tant que la porte de
+      # l'argent refuse. Sur un miroir neuf elle refuse (aucun produit publié,
+      # aucune mesure de plancher), donc le virement bancaire ne peut plus être
+      # allumé une fois notre extension active : mesuré, `update_option` écrit
+      # « no » et rend « no ».
+      #
+      # Ce n'est pas un défaut à contourner, c'est la porte qui fait son travail.
+      # On pose donc l'état AVANT que l'extension soit là pour le refuser, ce qui
+      # est aussi l'ordre dans lequel une vraie boutique s'est constituée : le
+      # miroir du développeur porte « virement bancaire allumé » depuis bien
+      # avant que cette porte existe.
+      #
+      # POURQUOI C'EST NÉCESSAIRE : quatre cas de la suite mesurent ce que la
+      # porte fait à une passerelle ALLUMÉE (elle la retire au client sans la
+      # rendre invisible à l'exploitant, elle ne s'oppose jamais à l'extinction).
+      # Sans une passerelle allumée ils ne mesurent rien et le disent : « aucune
+      # passerelle activée sur le miroir : ce test ne mesure rien ».
+      - name: Un moyen de paiement allumé, avant que la porte puisse le refuser
+        run: |
+          set -euo pipefail
+          docker compose -f wp-local/docker-compose.yml run --rm -T wpcli \
+            option update woocommerce_bacs_settings --format=json \
+            '{"enabled":"yes","title":"Virement bancaire","description":"","instructions":"","account_details":""}'
+
+      - name: L'extension
+        run: docker compose -f wp-local/docker-compose.yml run --rm -T wpcli plugin activate teeshoop-core
+
+      # HPOS, ET IL N'EST PAS ACTIF PAR DÉFAUT. Mesuré sur un miroir neuf :
+      # `woocommerce_custom_orders_table_enabled` vaut « no » et la table
+      # `wp_wc_orders` n'existe même pas, alors que la production et le miroir du
+      # développeur sont tous les deux en HPOS. La suite interroge cette table
+      # directement. Sans cette ligne, le travail testerait un WooCommerce que
+      # personne ne sert. `wc hpos enable` crée la table et refuse si une
+      # extension installée n'est pas compatible, ce qui est le bon ordre : elle
+      # est donc appelée APRÈS l'activation de la nôtre.
+      - name: Les commandes en table dédiée, comme en production
+        run: docker compose -f wp-local/docker-compose.yml run --rm -T wpcli wc hpos enable
+
+      # LE CACHE OBJET, parce que o2switch en a un et qu'une boutique qui sert à
+      # un visiteur le panier d'un autre est le défaut que `verify:cache` existe
+      # pour attraper. Le préfixe n'est pas de la coquetterie : o2switch donne UN
+      # Redis au compte, pas au site.
+      - name: Le cache objet, comme en production
+        run: |
+          set -euo pipefail
+          C="docker compose -f wp-local/docker-compose.yml run --rm -T wpcli"
+          $C plugin install redis-cache --activate
+          $C config set WP_REDIS_HOST redis --type=constant
+          $C config set WP_REDIS_PORT 6379 --raw --type=constant
+          $C config set WP_REDIS_PREFIX teeshoop_ci --type=constant
+          $C redis enable
+
+      # Voir la raison 1 en tête de ce travail. La constante est écrite DANS
+      # wp-config.php, seul endroit que le conteneur web et wp-cli lisent tous
+      # les deux.
+      - name: Ce miroir n'est pas la production, et le dit aux deux conteneurs
+        run: |
+          set -euo pipefail
+          C="docker compose -f wp-local/docker-compose.yml run --rm -T wpcli"
+          $C config set WP_ENVIRONMENT_TYPE local --type=constant
+          # WP_DEBUG n'est PAS repris ici : le gabarit de l'image le définit déjà
+          # depuis WORDPRESS_DEBUG, et les trois lignes écrites ci-dessous sont
+          # exactement celles qui ont été mesurées sur un miroir vierge le
+          # 05/09/2026. Ajouter une quatrième non mesurée à une séquence qui rend
+          # « 253 passed » serait la seule chose imprudente de cette étape.
+          $C config set WP_DEBUG_LOG true --raw --type=constant
+          $C config set WP_DEBUG_DISPLAY false --raw --type=constant
+          test "$($C eval 'echo wp_get_environment_type();' | tr -d '\r')" = "local"
+
+      - name: Une boutique française qui peut prendre une commande
+        run: docker compose -f wp-local/docker-compose.yml run --rm -T wpcli teeshoop provisionner
+
+      # Voir la raison 3. Dans son propre processus, et vérifié : une étape qui
+      # crée huit taxonomies et n'en compte aucune ne doit pas être verte.
+      - name: Les attributs du catalogue, par le code livré
+        run: |
+          set -euo pipefail
+          C="docker compose -f wp-local/docker-compose.yml run --rm -T wpcli"
+          $C eval 'Teeshoop\Core\Taxonomy::ensure_attributes();'
+          N=$($C eval 'echo count(wc_get_attribute_taxonomies());' | tr -d '\r')
+          echo "$N taxonomie(s) d'attribut."
+          test "$N" -ge 8
+
+      # Voir la raison 2. Les mêmes valeurs que `ts_ck_identity()` dans
+      # `tests/integration-checkout.php`, qui les invente déjà pour ses propres
+      # cas : une identité de vérification, complète, qui ne quitte pas ce
+      # conteneur et ne ressemble à personne.
+      - name: Une identité légale complète, celle de la vérification
+        run: |
+          set -euo pipefail
+          docker compose -f wp-local/docker-compose.yml run --rm -T wpcli option update teeshoop_legal --format=json '{
+            "raison_sociale":"Teeshoop Verification",
+            "forme_juridique":"SAS",
+            "capital":"1 000 EUR",
+            "adresse":"1 rue de la Verification",
+            "code_postal":"93000",
+            "ville":"Bobigny",
+            "siret":"12345678900017",
+            "rcs_ville":"Bobigny",
+            "tva_intra":"FR00123456789"
+          }'
+
+      # ── LA SUITE, ET SON PLANCHER ───────────────────────────────────────────
+      #
+      # `wp-suite-verify.mjs` lance exactement ce que lance `npm run test:wp` et
+      # refuse trois choses : un code de sortie non nul, une sortie qui n'imprime
+      # AUCUN total (une suite tronquée ne se lit pas comme « zéro cas »), et un
+      # total sous le plancher. Le plancher vaut le nombre mesuré, 241, parce
+      # qu'il ne descend que si un des onze `require_once` de `integration.php` a
+      # cessé de se charger ou si des cas ont été retirés, et que le second
+      # mérite un commit qui le dise.
+      - name: La suite d'intégration WooCommerce, et son plancher
+        run: node scripts/wp-suite-verify.mjs
+
+      # Et le plancher peut encore refuser. Même raison que les deux self-tests du
+      # travail d'à côté : une porte que personne n'a vue échouer est une porte
+      # dont personne ne sait si elle marche.
+      - name: Le plancher peut encore refuser
+        run: node scripts/wp-suite-verify.mjs --self-test
+
+      # ── LE CONSENTEMENT, DANS UN VRAI NAVIGATEUR ────────────────────────────
+      #
+      # Le seul des six harnais de boutique qui tienne debout sur un miroir vide,
+      # et ce n'est pas un hasard : il mesure le bandeau et ce qu'un navigateur
+      # ÉCRIT sur la machine du visiteur, pas le catalogue. Mesuré le 05/09/2026
+      # contre un miroir sans un seul produit : 16 assertions sur 16, avec ses
+      # deux autotests tirés à chaque exécution (« un traceur écrit en JavaScript
+      # est vu », « un bouton refuser rapetissé est vu »), donc un vert ici ne
+      # peut pas être un vert qui n'a rien regardé.
+      #
+      # CE QU'IL NE MESURE PAS ICI, dit plutôt que tu : sans produit lisible par
+      # l'API, la règle d'exemption des cookies de panier n'est pas mise à
+      # l'épreuve, et le harnais l'imprime lui-même. Cette moitié-là se mesure
+      # contre le miroir garni du développeur ou contre la préproduction.
+      #
+      # Pourquoi il vaut ses trois minutes de dépendances : l'article 82 de la loi
+      # Informatique et Libertés porte sur tout ce qui est lu ou écrit sur le
+      # terminal du visiteur, WooCommerce 11 enfile sourcebuster sur chaque page
+      # publique, et le défaut que ce fichier a attrapé la première fois n'avait
+      # laissé aucune trace dans un en-tête HTTP : 459 coches vertes ailleurs, et
+      # sept cookies écrits avant toute question.
+      - name: Les dépendances du navigateur
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Rien n'est écrit chez le visiteur avant qu'il ait choisi
+        run: node scripts/consent-verify.mjs http://localhost:8080
+
+      # Ce que WordPress a écrit dans son journal pendant la suite. Seulement
+      # quand quelque chose a échoué : un avis PHP au milieu d'un cas rouge est
+      # souvent la vraie cause, et il n'apparaît nulle part dans la sortie de la
+      # suite.
+      - name: Le journal du miroir, si quelque chose a échoué
+        if: failure()
+        run: |
+          docker compose -f wp-local/docker-compose.yml run --rm -T wpcli \
+            eval 'echo @file_get_contents(WP_CONTENT_DIR."/debug.log");' || true
+          docker compose -f wp-local/docker-compose.yml logs --tail=120 wp || true
+
+      - name: Démonter le miroir
+        if: always()
+        run: docker compose -f wp-local/docker-compose.yml down -v || true
+
+  # ── CE QU'UN VRAI NAVIGATEUR VOIT ───────────────────────────────────────────
+  #
+  # Trois harnais que `docs/nuit-3-a-reprendre.md` section 2 nommait comme « dans
+  # aucun travail de CI », et qui y sont maintenant. Ils ont en commun de ne rien
+  # demander à la boutique : ils parlent au Worker et au paquet construit, donc
+  # ils tiennent debout sur un exécutant neuf, ce qui n'est pas le cas des six
+  # harnais de vitrine (voir l'en-tête de ce fichier).
+  #
+  # MESURÉ LE 05/09/2026 SUR CETTE MACHINE, dans la forme exacte de ce travail :
+  #
+  #   verify:cors        23 assertions, avec un `.dev.vars` de CI (deux jetons
+  #                      jetables, aucun identifiant fournisseur)
+  #   verify:focus       vert
+  #   verify:admin-gate  15 assertions, avec un jeton tiré au sort passé à la
+  #                      fois par `wrangler dev --var` et par l'environnement
+  #
+  # CE QUI N'Y EST PAS, et pourquoi, puisque le brief les nommait :
+  #
+  #   verify:leak   ROUGE aujourd'hui, sortie 3 : « city does not come back the
+  #                 same » et « sunset does not come back the same », deux décors
+  #                 sur cinq ne retrouvent pas leur rendu après un aller-retour.
+  #                 C'est un vrai constat, pas un caprice de machine (deux
+  #                 exécutions, la seconde seule sur la machine). Brancher un
+  #                 travail rouge le premier jour n'apprend rien à personne : il
+  #                 se branche le jour où les deux décors sont réparés.
+  #
+  #   verify:csp    Il lui faut à la fois un `wrangler dev` ET un miroir GARNI :
+  #                 sa liste de types de page contient une fiche produit, qui
+  #                 n'existe pas sur une boutique vide. Mesuré vert contre le
+  #                 miroir du développeur. Il rejoindra le travail `wordpress` le
+  #                 jour où celui-ci aura une fiche produit, ce qui suppose
+  #                 l'import fournisseur.
+  navigateur:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Chromium
+        run: npx playwright install --with-deps chromium
+
+      # `cors-verify` et `admin-gate-verify` lisent `dist/` : le premier sert les
+      # actifs réels depuis `wrangler dev`, le second vérifie que CHAQUE fichier
+      # sous /admin-assets/ répond 401 sans identifiants. Sur un `dist/` absent,
+      # le second n'aurait aucun fichier à énumérer et un vert ne voudrait rien
+      # dire ; il sort 2 dans ce cas, ce qui est le bon refus, mais autant lui
+      # donner ce qu'il doit examiner.
+      - name: Construire ce que le Worker sert
+        run: npm run build:only
+
+      # UN `.dev.vars` JETABLE, ET C'EST UNE VRAIE DÉCISION.
+      #
+      # `wrangler dev` lit ce fichier ; il n'existe pas sur un exécutant, et il ne
+      # doit surtout pas y exister avec les vraies valeurs : les identifiants du
+      # webservice Falk&Ross ouvrent le catalogue et nos prix d'achat. Ce qui est
+      # écrit ici est tiré au sort à chaque exécution, ne vaut que dans ce
+      # conteneur, et ne contient AUCUN identifiant fournisseur.
+      #
+      # Le jeton d'administration doit être le même des deux côtés, sinon la
+      # moitié « le studio se charge AVEC les identifiants » ne peut pas passer et
+      # le harnais dirait « la porte tient » sans avoir jamais prouvé qu'elle
+      # s'ouvre. Il est donc généré une fois et passé aux deux.
+      - name: Les routes ouvertes rendent le bon CORS, et rien de plus
+        run: |
+          set -euo pipefail
+          printf 'ADMIN_TOKEN=%s\nFR_ORDER_TOKEN=%s\n' \
+            "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" > .dev.vars
+          node scripts/cors-verify.mjs
+
+      - name: Le clavier du studio fait ce que ses rôles ARIA annoncent
+        run: node scripts/focus-verify.mjs
+
+      # Tout dans une seule étape : un `wrangler dev` lancé en arrière-plan dans
+      # une étape et utilisé dans la suivante est un processus que personne
+      # n'arrête si l'étape du milieu échoue. C'est aussi la forme exacte qui a
+      # été mesurée sur la machine du développeur.
+      - name: Aucun JavaScript d'administration sans identifiants, et le studio se charge avec
+        run: |
+          set -uo pipefail
+          JETON=$(openssl rand -hex 24)
+          npx wrangler dev --port 8788 --ip 127.0.0.1 --var ADMIN_TOKEN:"$JETON" > /tmp/wrangler-ci.log 2>&1 &
+          W=$!
+          pret=0
+          for i in $(seq 1 45); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8788/; then pret=1; break; fi
+            sleep 2
+          done
+          if [ "$pret" -ne 1 ]; then
+            echo "wrangler dev n'a jamais répondu. Rien n'a été mesuré, donc rien ne passe."
+            tail -60 /tmp/wrangler-ci.log
+            kill $W 2>/dev/null || true
+            exit 1
+          fi
+          set +e
+          ADMIN_TOKEN="$JETON" node scripts/admin-gate-verify.mjs
+          code=$?
+          set -e
+          kill $W 2>/dev/null || true
+          exit $code

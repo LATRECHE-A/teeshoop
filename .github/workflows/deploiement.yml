@@ -117,6 +117,23 @@ jobs:
       # sauvegarde, l'envoi vers un dépôt d'attente, l'installation (analyse avec
       # le PHP du serveur, échange, activation, migration, sonde, retour arrière
       # automatique si l'une échoue), puis l'état et ce que le portail en dit.
+      # ── LE COMMIT, DANS L'EN-TÊTE, AVANT L'ENVOI ────────────────────────────
+      #
+      # L'écran des extensions annonçait « Teeshoop Core 0.1.0 » sur les deux
+      # environnements depuis six mois, donc il ne répondait pas à la seule
+      # question qu'on lui pose devant une boutique qui se comporte mal : quel
+      # code tourne là. Après cette étape il annonce « 0.1.0+g1a2b3c4 », et ce
+      # suffixe est le commit d'où l'envoi est parti.
+      #
+      # AVANT `deployer.sh` et pas après : c'est le fichier envoyé qui doit le
+      # porter. `--verifier` sort 1 si rien n'a été tamponné, donc un tampon qui
+      # échoue arrête le déploiement au lieu de le laisser partir anonyme.
+      - name: Tamponner le commit dans l'en-tête de l'extension
+        run: |
+          set -euo pipefail
+          node scripts/version-tampon.mjs
+          node scripts/version-tampon.mjs --verifier
+
       - name: Déployer en préproduction
         run: ./scripts/deployer.sh preprod
 
@@ -193,6 +210,15 @@ jobs:
       # Le portail est posé PAR LE SCRIPT, avant tout envoi, et sans dérogation :
       # `deployer.sh prod` sort 2 et n'envoie rien si la boutique n'a pas le
       # droit d'ouvrir. Le refus mesuré le 02/09/2026 : 16 raisons, sortie 2.
+      # Même tampon qu'en préproduction, et pour la même raison : les deux
+      # environnements reçoivent le même envoi à des moments différents, et le
+      # commit est la seule chose qui les distingue.
+      - name: Tamponner le commit dans l'en-tête de l'extension
+        run: |
+          set -euo pipefail
+          node scripts/version-tampon.mjs
+          node scripts/version-tampon.mjs --verifier
+
       - name: Déployer en production
         run: ./scripts/deployer.sh prod
 
@@ -224,8 +250,10 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+      # La version vient de `.nvmrc`, comme dans `ci.yml` : une seule écriture de
+      # la version de node dans le dépôt, celle que lisent aussi nvm, fnm et asdf.
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+        with: { node-version-file: .nvmrc, cache: npm }
       - run: npm ci
       - name: Le jeton Cloudflare est-il posé
         env:

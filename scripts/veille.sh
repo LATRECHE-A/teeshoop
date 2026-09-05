@@ -5,6 +5,19 @@
 #   ./veille.sh --dest=quelquun@exemple.fr [--racine=~/public_html] [--boutique=https://…]
 #   ./veille.sh --dest=… --etat                 n'alerte pas, affiche l'état
 #
+# DEUX CANAUX, ET UN BATTEMENT. Le 28 août 2026 il n'y en avait qu'un, et il
+# était muet. Depuis :
+#
+#   - la destination est PROUVÉE avant qu'on lui écrive (scripts/destinataire.sh
+#     interroge le compte lui-même). Écrire à une boîte qui n'existe pas est
+#     exactement ce qui s'est passé, et cela ressemble à un succès ;
+#   - une alerte part par DEUX chemins qui ne partagent aucune pièce : le
+#     courrier local, et du HTTP sortant (scripts/battement.sh). L'état
+#     « déjà signalé » n'est écrit que si au moins l'un des deux a abouti ;
+#   - à chaque passage un BATTEMENT part vers un tiers, pour que le silence de
+#     cette machine soit lui-même l'alarme. Rien de ce qui part d'ici ne peut
+#     annoncer que cette machine est morte.
+#
 # ─────────────────────────────────────────────────────────────────────────────
 # LA RÈGLE QUI DÉCIDE DE TOUT LE RESTE : UNE ALERTE À LAQUELLE PERSONNE NE CROIT
 # EST PIRE QUE PAS D'ALERTE.
@@ -37,8 +50,14 @@
 #   les 5xx                  une erreur serveur qui se répète est une commande
 #                            qu'un client n'a pas pu passer.
 #   côté WordPress           un paiement sans facture, un bon à tirer en échec,
-#                            un achat fournisseur resté en « envoi incertain ».
-#                            Ces trois-là ne se voient nulle part ailleurs.
+#                            un achat fournisseur resté en « envoi incertain »,
+#                            et l'âge du dernier import de catalogue.
+#                            Ces quatre-là ne se voient nulle part ailleurs.
+#
+# L'ÂGE DU DERNIER IMPORT à 48 heures : le catalogue du fournisseur bouge, ses
+# prix d'achat et ses ruptures aussi. Un import arrêté laisse la boutique vendre
+# des références retirées au prix d'avant, et rien ne le montre à l'écran. Un
+# import commencé et jamais terminé compte comme un import qui n'a pas eu lieu.
 #
 # L'ACHAT EN « ENVOI INCERTAIN » vient de la séance 08 et rien ne l'avait jamais
 # surveillé : l'état se résout tout seul depuis « envoi en cours » au bout de
@@ -83,6 +102,13 @@ export PATH
 SEUIL_DISQUE=90
 SAUVEGARDE_MAX_H=36
 SEUIL_5XX=10
+IMPORT_MAX_H=48
+CONFIG_DIR="$HOME/.config/teeshoop"
+
+# Les deux compagnons de ce script vivent à côté de lui, dans ~ sur le serveur
+# comme dans scripts/ ici. Résolu par $0 et non par $PWD : cron ne se place nulle
+# part avant de lancer, et le PWD d'un cron est $HOME par hasard, pas par contrat.
+ICI="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 
 for a in "$@"; do
   case "$a" in
@@ -92,6 +118,8 @@ for a in "$@"; do
     --studio=*) STUDIO="${a#*=}" ;;
     --sauvegardes=*) SAUVEGARDES="${a#*=}" ;;
     --sauvegarde-max-h=*) SAUVEGARDE_MAX_H="${a#*=}" ;;
+    --import-max-h=*) IMPORT_MAX_H="${a#*=}" ;;
+    --config=*) CONFIG_DIR="${a#*=}" ;;
     --etat) ETAT_SEUL=1 ;;
     *) echo "veille: option inconnue $a" >&2; exit 2 ;;
   esac
@@ -110,6 +138,57 @@ VERIFIES=0
 
 note() { PROBLEMES+=("$1"); }
 verifie() { VERIFIES=$((VERIFIES + 1)); }
+
+# UNE SONDE QUI NE REND PAS LA MAIN EST UNE PANNE QU'ELLE A CRÉÉE. Sur du
+# mutualisé, une veille lancée toutes les dix minutes qui reste accrochée
+# épuise le quota de processus du compte, et c'est la boutique qui tombe : la
+# surveillance aurait causé l'incident qu'elle devait annoncer. `timeout` est
+# dans coreutils et se trouve partout ; s'il manquait, une sonde sans borne
+# vaut encore mieux que pas de sonde.
+avec_delai() {
+  local s="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$s" "$@"; else "$@"; fi
+}
+
+# ── à qui on écrit, et est-ce que cette boîte existe ────────────────────────
+#
+# CE CONTRÔLE PASSE AVANT D'ARMER QUOI QUE CE SOIT. Le 28 août, le canal visait
+# une adresse que personne n'avait vérifiée ; une adresse syntaxiquement valable
+# qui ne mène nulle part se comporte exactement comme une bonne adresse, jusqu'au
+# jour où on compte dessus. `destinataire.sh` pose la question au compte cPanel
+# lui-même, et distingue quatre réponses, dont deux ne sont pas des succès.
+DEST_VERDICT="non-verifie"
+DEST_MOT=""
+if [ -n "$DEST" ]; then
+  if [ -n "$ICI" ] && [ -x "$ICI/destinataire.sh" ]; then
+    DEST_MOT=$(avec_delai 20 "$ICI/destinataire.sh" --dest="$DEST" 2>&1)
+    case "$?" in
+      0) DEST_VERDICT="presente";   verifie ;;
+      1) DEST_VERDICT="absente";    verifie ;;
+      3) DEST_VERDICT="hors-compte"; verifie ;;
+      *) DEST_VERDICT="illisible" ;;
+    esac
+  else
+    DEST_MOT="destinataire.sh est absent d'à côté de la veille, la destination n'est pas vérifiée."
+  fi
+  # Une boîte PROUVÉE absente est un problème en soi, au même titre qu'un disque
+  # plein : elle rend muette la moitié du dispositif. Elle part donc dans la
+  # liste, ce qui la fait porter par le canal HTTP, qui lui fonctionne encore.
+  if [ "$DEST_VERDICT" = "absente" ]; then
+    # SANS L'ADRESSE. Ce texte part chez un tiers par le canal HTTP et dans le
+    # corps du battement ; le skill observability interdit une adresse
+    # électronique dans un journal, et celui-ci sort du compte. La ligne sur la
+    # sortie d'erreur, quelques lignes plus bas, la nomme en clair : elle, elle
+    # ne quitte pas la machine.
+    note "la boîte de destination des alertes n'existe pas sur le compte : aucune alerte par courrier ne peut arriver (l'adresse est dans la ligne de cron)"
+  fi
+  if [ "$ETAT_SEUL" -eq 1 ]; then
+    echo "destinataire : $DEST_VERDICT"
+    [ -n "$DEST_MOT" ] && echo "  $DEST_MOT"
+  elif [ "$DEST_VERDICT" != "presente" ]; then
+    echo "veille: destination $DEST_VERDICT : $(printf '%s' "$DEST_MOT" | head -1)" >&2
+  fi
+fi
 
 # ── la boutique et le studio ────────────────────────────────────────────────
 verifie_url() {
@@ -172,6 +251,16 @@ if [ -n "$LOG" ] && [ -r "$LOG" ]; then
 fi
 
 # ── ce que seul WordPress sait ──────────────────────────────────────────────
+#
+# WP-CLI ABSENT SUR UNE MACHINE QUI PORTE WORDPRESS EST UNE ALARME. C'est
+# littéralement la cause du 28 août : sous cron, PATH=/usr/bin:/bin et `wp` n'y
+# est pas. Le bloc ci-dessous se contentait de ne pas s'exécuter, donc quatre
+# contrôles disparaissaient sans que rien ne le dise.
+if [ -f "$RACINE/wp-config.php" ] && ! command -v wp >/dev/null; then
+  verifie
+  note "wp-cli est introuvable alors que $RACINE/wp-config.php existe : les contrôles WordPress sont aveugles (PATH=$PATH)"
+fi
+
 if command -v wp >/dev/null && [ -f "$RACINE/wp-config.php" ]; then
   verifie
   # LE PHP PASSE PAR UN HEREDOC ET NON PAR DES APOSTROPHES. La version
@@ -218,15 +307,46 @@ $out["achats_incertains"] = (int) $wpdb->get_var(
    WHERE p.post_type = 'ts_achat' AND m.meta_key = '_teeshoop_purchase_state'
      AND m.meta_value = 'envoi_incertain' AND p.post_modified_gmt < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 HOUR)"
 );
+
+// L'age du dernier import de catalogue. Importer.php ecrit sa course dans
+// l'option `teeshoop_catalogue_run` : `started` a l'ouverture, `finished` quand
+// la derniere reference est passee, tous deux en gmdate("c").
+//
+// UN IMPORT COMMENCE ET JAMAIS TERMINE N'EST PAS UN IMPORT. On date donc sur
+// `finished` quand il existe, et sur `started` sinon : une course interrompue
+// vieillit, au lieu de se faire passer pour fraiche parce qu'elle a commence.
+// -1 signale « je n'ai pas pu regarder », que le shell distingue de « frais ».
+$out["import_age_min"]  = -1;
+$out["import_en_cours"] = 0;
+$out["import_at"]       = -1;
+$run = get_option( "teeshoop_catalogue_run", array() );
+if ( is_array( $run ) ) {
+  $fini  = (string) ( $run["finished"] ?? "" );
+  $debut = (string) ( $run["started"] ?? "" );
+  if ( "" === $fini && "" !== $debut ) { $out["import_en_cours"] = 1; }
+  $repere = ( "" !== $fini ) ? $fini : $debut;
+  $ts     = ( "" !== $repere ) ? strtotime( $repere ) : false;
+  if ( false !== $ts ) { $out["import_age_min"] = (int) floor( ( time() - $ts ) / 60 ); }
+  // Le point d'avancement, pour que le shell sache distinguer un import qui
+  // AVANCE d'un import qui a commence puis s'est tu. Une option WordPress ne
+  // porte aucune date de derniere ecriture.
+  if ( isset( $run["at"] ) ) { $out["import_at"] = (int) $run["at"]; }
+}
 echo json_encode( $out );
 PHPEOF
 )
-  WP_JSON=$(cd "$RACINE" && wp eval "$VEILLE_PHP" 2>/dev/null | tail -1)
+  WP_JSON=$(cd "$RACINE" && avec_delai 60 wp eval "$VEILLE_PHP" 2>/dev/null | tail -1)
 
   if [ -z "$WP_JSON" ]; then
     note "WordPress n'a pas pu être interrogé : la moitié de la veille est aveugle"
   else
-    lire() { echo "$WP_JSON" | sed -n "s/.*\"$1\":\([0-9]*\).*/\1/p"; }
+    # LE MOINS UN N'ETAIT PAS LISIBLE, DONC L'ALARME NE POUVAIT PAS SONNER.
+    # `[0-9]*` accepte zero chiffre : sur `"bat_failed":-1`, sed capturait la
+    # chaine vide, `[ -n "$B" ]` etait faux, et la branche « on n'a pas pu
+    # regarder » du bon a tirer n'a jamais pu s'executer depuis qu'elle existe.
+    # Mesure le 05/09/2026. Il faut donc un signe optionnel ET au moins un
+    # chiffre.
+    lire() { echo "$WP_JSON" | sed -n "s/.*\"$1\":\(-\{0,1\}[0-9][0-9]*\).*/\1/p"; }
     [ "$(echo "$WP_JSON" | grep -c '"plugin":false')" -gt 0 ] && \
       echo "veille: l'extension Teeshoop n'est pas active ici, les trois contrôles boutique sont ignorés." >&2
     P=$(lire paid_without_invoice); B=$(lire bat_failed); A=$(lire achats_incertains)
@@ -234,34 +354,129 @@ PHPEOF
     [ -n "${B:-}" ] && [ "$B" -gt 0 ] && note "$B message(s) en échec d'envoi sur les 24 dernières heures"
     [ -n "${B:-}" ] && [ "$B" -lt 0 ] && note "le journal des envois n'a pas pu être interrogé : « on n'a pas pu regarder » n'est pas « rien à signaler »"
     [ -n "${A:-}" ] && [ "$A" -gt 0 ] && note "$A achat(s) fournisseur bloqué(s) en « envoi incertain » depuis plus d'une heure"
+
+    I=$(lire import_age_min); C=$(lire import_en_cours); AT=$(lire import_at)
+    REPERE_IMPORT="$ETAT_DIR/import-avancement"
+    if [ -z "${I:-}" ]; then
+      note "l'âge du dernier import de catalogue n'a pas été rendu par WordPress : « on n'a pas pu regarder » n'est pas « il est frais »"
+    elif [ "$I" -lt 0 ]; then
+      note "aucune date d'import de catalogue lisible : la boutique vend un catalogue dont personne ne sait l'âge"
+    elif [ "${C:-0}" = "1" ]; then
+      # UN IMPORT QUI AVANCE N'EST PAS UN IMPORT ARRÊTÉ, et dater sur `started`
+      # ferait sonner l'alarme presque toutes les nuits. La ligne de cron que
+      # documente Cli.php porte `--duree=1800` : l'import est reprenable et
+      # s'arrête au bout d'une demi-heure. Une passe complète mesurée à 2 h 31
+      # pour 2 302 références s'étale donc sur six nuits, pendant lesquelles
+      # `started` a six jours et `finished` est vide. On suit l'AVANCEMENT.
+      #
+      # Le repère est amorcé sur le DÉBUT de la course, jamais sur maintenant :
+      # sinon un import arrêté depuis une semaine repartirait muet pour un
+      # cycle entier au premier passage de la veille.
+      MAINTENANT=$(date +%s)
+      PREC_AT=""; PREC_T=""
+      [ -r "$REPERE_IMPORT" ] && read -r PREC_AT PREC_T < "$REPERE_IMPORT"
+      if [ -z "$PREC_T" ]; then
+        echo "$AT $((MAINTENANT - I * 60))" > "$REPERE_IMPORT"
+      elif [ "$PREC_AT" != "$AT" ]; then
+        echo "$AT $MAINTENANT" > "$REPERE_IMPORT"
+      fi
+      REPERE_T=""
+      read -r _ REPERE_T < "$REPERE_IMPORT"
+      IMMOBILE=$(( (MAINTENANT - ${REPERE_T:-$MAINTENANT}) / 60 ))
+      if [ "$IMMOBILE" -gt $((IMPORT_MAX_H * 60)) ]; then
+        note "l'import de catalogue n'avance plus depuis $((IMMOBILE / 60)) h (arrêté à la référence $AT, seuil $IMPORT_MAX_H h) : le catalogue est à moitié à jour"
+      fi
+    else
+      rm -f "$REPERE_IMPORT"
+      if [ "$I" -gt $((IMPORT_MAX_H * 60)) ]; then
+        note "le dernier import de catalogue date de $((I / 60)) h (seuil $IMPORT_MAX_H h) : références retirées et prix d'achat périmés restent en vente"
+      fi
+    fi
   fi
 fi
 
-# ── envoyer, et SAVOIR si c'est parti ───────────────────────────────────────
+# ── envoyer par les deux canaux, et SAVOIR lequel est parti ─────────────────
 #
-# Lit le corps sur son entrée standard. Sort 0 seulement si PHP a rendu `true`,
-# ce que les deux appels précédents ne regardaient pas : ils écrasaient la sortie
-# de php avec 2>/dev/null et concluaient au succès dans tous les cas, y compris
-# quand le binaire appelé était php-cgi et n'avait rien envoyé du tout.
+# Lit le corps sur son entrée standard. Sort 0 si AU MOINS UN canal a abouti,
+# ce dont dépend l'écriture de l'état « déjà signalé ».
 #
-# `mail()` qui rend true veut dire « remis au serveur local », pas « arrivé ». Ce
-# n'est pas la même garantie et il ne faut pas la lire pour plus qu'elle n'est ;
-# c'est en revanche exactement la différence entre « on a essayé » et « on n'a
-# même pas pu essayer », qui est celle qui manquait.
+# Deux canaux, et le mot important est « deux » : ils ne partagent aucune pièce.
+# Le HTTP n'a besoin ni de php, ni du MTA local, ni du DNS de messagerie ; le
+# courrier n'a besoin ni de curl, ni de la joignabilité du tiers. Le 28 août il
+# n'y en avait qu'un, et la seule pièce qui manquait (php sous cron était
+# php-cgi) suffisait à rendre la panne indicible.
+#
+# CE QUE VAUT CHAQUE SUCCÈS, et ils ne valent pas la même chose :
+#   - le HTTP rend 2xx : le tiers a accusé réception. C'est de bout en bout.
+#   - `mail()` rend true : le serveur LOCAL a pris le message. Ce n'est pas
+#     « arrivé », c'est « on a pu essayer », et c'est déjà la distinction qui
+#     manquait. C'est pour cela que la destination est vérifiée avant, et que le
+#     battement existe : ni l'un ni l'autre ne se contente de cette promesse.
+CANAUX=""
 envoyer() {
-  local sujet="$1" sortie
-  command -v php >/dev/null || { echo "veille: php est introuvable, aucune alerte ne peut partir. PATH=$PATH" >&2; return 1; }
-  sortie=$(V_DEST="$DEST" V_SUJET="$sujet" php -r \
-    '$m=stream_get_contents(STDIN); echo mail(getenv("V_DEST"), getenv("V_SUJET"), $m, "Content-Type: text/plain; charset=utf-8") ? "ENVOYE" : "REFUSE";' 2>&1) || true
-  case "$sortie" in
-    *ENVOYE*) return 0 ;;
-    *) echo "veille: l'envoi a échoué : $(printf '%s' "$sortie" | head -2 | tr '\n' ' ')" >&2; return 1 ;;
-  esac
+  local sujet="$1" corps sortie parti=0
+  corps=$(cat)
+  CANAUX=""
+
+  if [ -n "$ICI" ] && [ -x "$ICI/battement.sh" ]; then
+    if printf '%s\n' "$corps" | "$ICI/battement.sh" --canal=alerte --sujet="$sujet" \
+         --config="$CONFIG_DIR" --etat-dir="$ETAT_DIR" >/dev/null; then
+      parti=1
+      CANAUX="$CANAUX http"
+    fi
+  else
+    echo "veille: battement.sh n'est pas à côté de la veille, il n'y a pas de second canal." >&2
+  fi
+
+  # PAS DE COURRIER VERS UNE BOÎTE PROUVÉE ABSENTE. Le remettre au MTA rendrait
+  # « true », écrirait l'état, et le problème serait classé annoncé sans que
+  # personne ne l'ait lu : le 28 août, mot pour mot.
+  if [ "$DEST_VERDICT" = "absente" ]; then
+    echo "veille: pas de courrier vers $DEST, le compte a répondu que cette boîte n'existe pas." >&2
+  elif ! command -v php >/dev/null; then
+    echo "veille: php est introuvable, le courrier ne peut pas partir. PATH=$PATH" >&2
+  else
+    sortie=$(printf '%s\n' "$corps" | V_DEST="$DEST" V_SUJET="$sujet" php -r \
+      '$m=stream_get_contents(STDIN); echo mail(getenv("V_DEST"), getenv("V_SUJET"), $m, "Content-Type: text/plain; charset=utf-8") ? "ENVOYE" : "REFUSE";' 2>&1) || true
+    case "$sortie" in
+      *ENVOYE*) parti=1; CANAUX="$CANAUX courrier" ;;
+      *) echo "veille: le courrier n'est pas parti : $(printf '%s' "$sortie" | head -2 | tr '\n' ' ')" >&2 ;;
+    esac
+  fi
+
+  CANAUX="${CANAUX# }"
+  # C'est LA FONCTION qui le dit, pas l'appelant : le dernier maillon d'un
+  # pipeline s'exécute dans un sous-shell, donc aucune variable posée ici ne
+  # remonte. Mesuré, et c'est la raison de cette ligne à cet endroit.
+  [ "$parti" -eq 1 ] && echo "  (message parti par : $CANAUX)"
+  [ "$parti" -eq 1 ]
+}
+
+# ── le battement : dire « je suis vivante » à intervalle connu ──────────────
+#
+# Il part à CHAQUE passage, en panne comme en bonne santé, parce que ce qu'il
+# prouve n'est pas la santé de la boutique mais l'existence de la veille. Ce que
+# personne d'ici ne peut annoncer, c'est sa propre mort : machine éteinte, cron
+# désarmé, compte suspendu. Alors c'est l'ABSENCE de battement, vue d'ailleurs,
+# qui devient l'alarme.
+battre() {
+  local etat="$1" detail="$2" msg rc
+  [ -n "$ICI" ] && [ -x "$ICI/battement.sh" ] || return 0
+  msg=$("$ICI/battement.sh" --etat="$etat" --detail="$detail" \
+        --config="$CONFIG_DIR" --etat-dir="$ETAT_DIR" 2>&1 >/dev/null)
+  rc=$?
+  # rc valant 2, le canal n'est pas armé : le répéter toutes les dix minutes
+  # ferait 144 lignes par jour dans le journal pour une chose qui se règle une
+  # fois. `--etat` le dit, et docs/EXPLOITATION.md aussi. rc valant 1, le
+  # battement a été refusé ou n'est pas arrivé, et cela se dit.
+  [ "$rc" -eq 1 ] && echo "veille: le battement n'est pas parti : $(printf '%s' "$msg" | head -1)" >&2
+  return 0
 }
 
 # ── rien vérifié n'est pas un succès ────────────────────────────────────────
 if [ "$VERIFIES" -eq 0 ]; then
   echo "veille: aucun contrôle n'a pu s'exécuter." >&2
+  [ "$ETAT_SEUL" -eq 0 ] && battre "probleme" "aucun contrôle n'a pu s'exécuter"
   exit 2
 fi
 
@@ -279,13 +494,23 @@ if [ "${#PROBLEMES[@]}" -eq 0 ]; then
       echo "  (le message de retour à la normale n'est pas parti, l'état d'alerte est conservé)" >&2
     fi
   fi
+  if [ "$ETAT_SEUL" -eq 1 ]; then
+    [ -n "$ICI" ] && [ -x "$ICI/battement.sh" ] && \
+      "$ICI/battement.sh" --etat-canal --config="$CONFIG_DIR" --etat-dir="$ETAT_DIR"
+  else
+    battre "ok" "$VERIFIES contrôles, aucun problème"
+  fi
   exit 0
 fi
 
 echo "$HORODATAGE  PROBLEME  ($VERIFIES contrôles)"
 for p in "${PROBLEMES[@]}"; do echo "  - $p"; done
 
-if [ "$ETAT_SEUL" -eq 1 ]; then exit 1; fi
+if [ "$ETAT_SEUL" -eq 1 ]; then
+  [ -n "$ICI" ] && [ -x "$ICI/battement.sh" ] && \
+    "$ICI/battement.sh" --etat-canal --config="$CONFIG_DIR" --etat-dir="$ETAT_DIR"
+  exit 1
+fi
 
 # UN SEUL MESSAGE PAR PROBLÈME, pas un par passage. La signature est la liste
 # elle-même : si elle change, c'est un nouveau problème et il mérite un message.
@@ -310,12 +535,21 @@ if [ "$SIGNATURE" != "$PRECEDENTE" ]; then
     # suivants concluaient « déjà signalé ». Un problème qu'on n'a pas su annoncer
     # n'est pas un problème annoncé.
     echo "$SIGNATURE" > "$ETAT_DIR/en-alerte"
-    echo "  (message envoyé à $DEST)"
+    echo "  (enregistré : ce problème ne sera pas répété tant qu'il ne change pas)"
   else
-    echo "  (ENVOI IMPOSSIBLE vers $DEST : le problème sera réannoncé au prochain passage)" >&2
+    echo "  (AUCUN CANAL N'A ABOUTI : le problème sera réannoncé au prochain passage)" >&2
   fi
 else
   echo "  (déjà signalé, pas de second message)"
+  ENVOYE=1
 fi
+
+# LE BATTEMENT PORTE LE VERDICT, ET SURTOUT L'ÉCHEC DU CANAL D'ALERTE. C'est la
+# seule chose qu'un tiers puisse voir quand les deux canaux se taisent : un
+# battement qui arrive en disant « je n'ai pas pu prévenir » vaut mieux qu'un
+# silence de plus.
+DETAIL="$VERIFIES contrôles, ${#PROBLEMES[@]} problème(s) : ${PROBLEMES[0]:0:120}"
+[ "${ENVOYE:-0}" -eq 0 ] && DETAIL="$DETAIL | ALERTE NON DÉLIVRÉE"
+battre "probleme" "$DETAIL"
 
 exit 1
