@@ -12,7 +12,6 @@ import { useStore } from '@/state/store'
 import { useAdminSlots } from '@/app/adminSlots'
 import { LazyModal } from './lazyModal'
 import DesignsModal from './DesignsModal'
-import OrderModal from './OrderModal'
 import ShareModal from './ShareModal'
 import ShortcutsModal from './ShortcutsModal'
 import ArModal from './ArModal'
@@ -38,7 +37,6 @@ export default function Modals() {
           <CustomSetupModal />
         </LazyModal>
       )}
-      {modals.order && <OrderModal />}
       {modals.share && <ShareModal />}
       {modals.designs && <DesignsModal />}
       {modals.shortcuts && <ShortcutsModal />}

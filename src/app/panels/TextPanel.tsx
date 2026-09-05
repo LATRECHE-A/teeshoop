@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { Plus } from 'lucide-react'
 import { FONTS } from '@/lib/fonts'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import type { TextLayer } from '@/lib/types'
 
 const CATEGORIES = ['all', 'block', 'display', 'script', 'retro'] as const

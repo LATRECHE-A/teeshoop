@@ -58,7 +58,6 @@ export interface ToastItem {
 
 export interface ModalState {
   customSetup: boolean
-  order: boolean
   designs: boolean
   share: boolean
   shortcuts: boolean
@@ -366,7 +365,7 @@ export const useStore = create<StoreState>()(
       mode: '2d',
       selectedId: null,
       activePanel: bootMobile ? null : 'product',
-      modals: { customSetup: false, order: false, designs: false, share: false, shortcuts: false, ar: false, basket: false, cart: false, catalog: false, dtf: false, adminIngest: false },
+      modals: { customSetup: false, designs: false, share: false, shortcuts: false, ar: false, basket: false, cart: false, catalog: false, dtf: false, adminIngest: false },
       toasts: [],
       assets: [],
       savedDesigns: [],

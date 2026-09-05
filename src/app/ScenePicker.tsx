@@ -12,7 +12,7 @@ import {
 import clsx from 'clsx'
 import { useStore } from '@/state/store'
 import { SCENE_IDS, getScene, offeredScene, type SceneId } from '@/scenes'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 const SCENE_ICON: Record<SceneId, LucideIcon> = {
   studio: Aperture,

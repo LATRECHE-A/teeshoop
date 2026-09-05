@@ -1,26 +1,21 @@
 /**
  * Font registry + loader for Tshop Studio print fonts.
  *
- * All families are self-hosted via @fontsource packages (Google Fonts
- * builds, OFL / Apache-2.0, see docs/credits/A4.md); the side-effect CSS
- * imports below register the @font-face rules, so there are no runtime
- * network calls beyond the site's own assets.
+ * All families are self-hosted via @fontsource packages (Google Fonts builds,
+ * OFL / Apache-2.0, see docs/credits/A4.md), so there are no runtime network
+ * calls beyond the site's own assets.
+ *
+ * THE `@font-face` DECLARATIONS ARE NOT IMPORTED HERE ANY MORE. They live in
+ * `src/lib/fontFaces.ts` and `ensureFont` pulls that module in on first use.
+ * This file is reached from `renderDesign.ts`, therefore from `ink.ts`,
+ * therefore from anything that measures a printed area, including an editor
+ * that offers no text at all: the side-effect imports put thirteen families and
+ * their woff2 files into every customer's first load for a screen that never
+ * writes a word. Measured on the native package, 5 September 2026: the eager
+ * stylesheet fell from 27,73 ko to 4,0 ko.
  */
 import type { FontDef } from '@/lib/types'
 
-import '@fontsource/anton/400.css'
-import '@fontsource/archivo-black/400.css'
-import '@fontsource/bebas-neue/400.css'
-import '@fontsource/oswald/400.css'
-import '@fontsource/oswald/600.css'
-import '@fontsource/russo-one/400.css'
-import '@fontsource/alfa-slab-one/400.css'
-import '@fontsource/bangers/400.css'
-import '@fontsource/righteous/400.css'
-import '@fontsource/permanent-marker/400.css'
-import '@fontsource/pacifico/400.css'
-import '@fontsource/lobster/400.css'
-import '@fontsource/special-elite/400.css'
 
 /** The 12 print fonts, in display order. `family` is the exact CSS name. */
 export const FONTS: FontDef[] = [
@@ -55,10 +50,20 @@ function settleWithin(p: Promise<unknown>, ms: number): Promise<void> {
   })
 }
 
-function loadFamily(family: string): Promise<void> {
+async function loadFamily(family: string): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts) {
-    return Promise.resolve()
+    return
   }
+  /*
+   * THE DECLARATIONS FIRST, THEN THE LOAD, AND THE ORDER IS THE WHOLE POINT.
+   *
+   * `document.fonts.load()` resolves with an EMPTY list when no `@font-face`
+   * rule matches the family, and it resolves happily: the canvas then draws in
+   * a fallback face with nothing in the console. So the stylesheet module is
+   * awaited before anything is asked for, and a failure to fetch it is treated
+   * like every other failure in this file, by carrying on rather than throwing.
+   */
+  await import('./fontFaces').catch(() => undefined)
   const quoted = `"${family.replace(/"/g, '\\"')}"`
   const loads: Promise<unknown>[] = [document.fonts.load(`64px ${quoted}`)]
   // Oswald ships a semibold weight used for tracking-heavy sublines.

@@ -1,6 +1,6 @@
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import clsx from 'clsx'
 
 const ICONS = {

@@ -37,7 +37,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { Grid3x3, Wand2 } from 'lucide-react'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import { PAPER_IN, PLACEMENT_CM } from '@/content/zones'
 import { getCustomSideInfo } from '@/lib/custom'
 import {

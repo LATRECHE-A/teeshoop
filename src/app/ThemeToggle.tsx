@@ -1,6 +1,6 @@
 import { Moon, Sun } from 'lucide-react'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 /** Light ↔ dark theme toggle. Shows the icon of the theme you'll switch TO. */
 export default function ThemeToggle() {

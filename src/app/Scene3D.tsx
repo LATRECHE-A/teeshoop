@@ -9,7 +9,8 @@ import { useStore } from '@/state/store'
 import { RegMark } from './Brand'
 import { garmentColorHex } from '@/lib/renderDesign'
 import { stageBackground } from '@/scenes'
-import { t, useT } from '@/i18n'
+import { t } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 const loadGarment3D = () => lazy(() => import('@/three'))
 

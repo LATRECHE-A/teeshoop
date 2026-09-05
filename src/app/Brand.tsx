@@ -1,4 +1,4 @@
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 /** Print registration-mark brand icon. */
 export function RegMark({ size = 22, className }: { size?: number; className?: string }) {

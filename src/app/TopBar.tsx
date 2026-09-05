@@ -6,7 +6,7 @@ import LangToggle from './LangToggle'
 import { redo, undo, useHistoryDepth, useStore } from '@/state/store'
 import { useAdminSlots } from '@/app/adminSlots'
 import { renderAndSave } from '@/state/persist'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import { useBasketT } from './modals/basketI18n'
 import { useCartT } from './modals/cartI18n'
 import { useBoardT } from './board/boardI18n'
@@ -134,10 +134,23 @@ export default function TopBar() {
           <Share2 size={15} />
           <span className="hidden sm:inline">{t('topbar.share_export')}</span>
         </button>
-        <button className="btn btn-primary" onClick={() => openModal(canBuy ? 'cart' : 'order')}>
-          {canBuy ? cartT('cart.open') : t('topbar.continue')}
-          <span aria-hidden>→</span>
-        </button>
+        {/*
+          LE BOUTON N'EXISTE QUE QUAND IL Y A UN PANIER AU BOUT.
+
+          Il ouvrait `OrderModal` quand `canBuy` était faux, c'est-à-dire chaque
+          fois que la poignée de main avec la boutique échouait, et ce panneau
+          chiffrait la commande DANS LE NAVIGATEUR, en dollars. Un client
+          atteignait donc un prix que le serveur n'avait pas calculé, à l'endroit
+          exact où quelque chose venait de mal tourner. Le second moteur est
+          supprimé (nuit 3) ; sans boutique en face, il n'y a rien à proposer que
+          la boutique n'ait pas déjà refusé.
+        */}
+        {canBuy && (
+          <button className="btn btn-primary" onClick={() => openModal('cart')}>
+            {cartT('cart.open')}
+            <span aria-hidden>→</span>
+          </button>
+        )}
       </div>
     </header>
   )

@@ -3,12 +3,11 @@ import { Camera, Pencil } from 'lucide-react'
 import clsx from 'clsx'
 import { GARMENTS } from '@/garments'
 import { garmentPalette, paletteIsMeasured } from '@/content/garmentPalette'
-import { PRICING } from '@/content/pricing'
 import { useShopBridge } from '@/app/hooks/useShopBridge'
 import { SIZE_CHARTS, SIZE_IDS, type SizeId } from '@/content/sizeChart'
 import { useStore } from '@/state/store'
 import { useAdminSlots } from '@/app/adminSlots'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import { getAreaSizeIn } from '@/lib/renderDesign'
 import { gradableSizes, printScaleOf } from '@/lib/printScale'
 import { fmtCm, fmtInAsCm, fmtNum, fmtSizeCm, inToCm } from '@/lib/units'
@@ -130,22 +129,19 @@ export default function ProductPanel() {
             >
               <img src={thumbs[id]} alt="" className="h-[84px] w-[84px]" draggable={false} />
               <span className="text-[12px] font-medium text-tx">{t('garment.' + id)}</span>
-              {/* Silent when a real shop is on the other side of the frame: the
-                  shop's own "from" price is on the product page, computed by
-                  the price authority.
-                  IN EUROS, AND IT MATTERS SINCE 4 SEPTEMBER 2026. This said
-                  "dès 14,50 $" while PRICING was a demo table in dollars that
-                  deliberately disagreed with the server. That table is now a
-                  MIRROR of `Pricing::default_config()`, checked by running both
-                  (`scripts/hypotheses-guard.mjs`), so the number here is the
-                  shop's real EUR HT tariff. Leaving the dollar sign on it
-                  published 23,00 EUR as "23.00 $", with an English decimal
-                  point, on a URL anyone can open. */}
-              {!canOrder && (
-                <span className="mono-dim">
-                  {t('product.from_price', { price: fmtNum(PRICING[id].baseUsd, 2) })}
-                </span>
-              )}
+              {/*
+                PLUS DE PRIX SUR CE BOUTON, ET C'EST LA SUPPRESSION DU SECOND
+                MOTEUR.
+
+                Il affichait `PRICING[id].baseUsd`, une table qui vivait dans le
+                navigateur et qu'un client atteignait chaque fois que la poignée
+                de main avec la boutique échouait. Une table miroir reste une
+                seconde implémentation : elle se lit sans le serveur, donc elle
+                peut le contredire, et le jour où elle le fait c'est un chiffre
+                fabriqué qui atteint un client. `Pricing.php` est l'autorité, et
+                le seul endroit où un tarif s'affiche est la fiche produit, qui
+                le lui demande (nuit 3).
+              */}
             </button>
           ))}
         </div>

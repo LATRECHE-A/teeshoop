@@ -6,7 +6,7 @@
 import { CircleHelp, ImagePlus, Layers, Shapes, Shirt, Type } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore, type PanelId } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import { useBoardT } from './board/boardI18n'
 
 const TABS: { id: PanelId; labelKey: string; icon: typeof Shirt }[] = [

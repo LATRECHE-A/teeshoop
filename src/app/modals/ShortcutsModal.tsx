@@ -1,6 +1,6 @@
 import Modal from './Modal'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 export default function ShortcutsModal() {
   const t = useT()

@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { Search } from 'lucide-react'
 import { GRAPHIC_CATEGORIES, GRAPHICS } from '@/content/graphics'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 export default function GraphicsPanel() {
   const t = useT()

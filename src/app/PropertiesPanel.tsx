@@ -23,7 +23,7 @@ import { fmtInAsCm, fmtNum, inToCm } from '@/lib/units'
 import { measureLayer } from '@/lib/renderDesign'
 import { printScaleK, scaleLayer } from '@/lib/printScale'
 import { useIsMobile } from './hooks/useIsMobile'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 /**
  * "on size X" suffix for the physical-size readout. `messages.ts` is owned by

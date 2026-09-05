@@ -8,7 +8,7 @@ import { ASSET_DRAG_TYPE } from './panels/UploadsPanel'
 import type { AssetMeta } from '@/lib/types'
 import { fmtSizeCm } from '@/lib/units'
 import { stageBackground } from '@/scenes'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 export default function EditorCanvas() {
   const hostRef = useRef<HTMLDivElement>(null)

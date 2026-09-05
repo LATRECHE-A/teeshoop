@@ -16,6 +16,18 @@ import type { Lang } from './lang'
 
 export const messages: Record<Lang, Record<string, string>> = {
   fr: {
+    /*
+     * LES DEUX SEULES CHAÎNES `order.*` QUI SURVIVENT À `OrderModal`.
+     *
+     * Le reste du groupe décrivait un panneau de devis qui chiffrait la commande
+     * dans le navigateur, en dollars, et qui est supprimé avec son moteur
+     * (nuit 3). Celles-ci décrivent les maquettes que `CartModal` montre au
+     * client avant l'achat, ce qui n'a rien à voir avec un prix. Leur préfixe
+     * est resté parce que le renommer serait une modification de plus dans un
+     * diff qui en porte déjà assez.
+     */
+    'order.front_mockup_alt': 'Maquette du devant',
+    'order.back_mockup_alt': 'Maquette du dos',
     // -- common -----------------------------------------------------------
     'common.cancel': 'Annuler',
     'common.close': 'Fermer',
@@ -45,7 +57,6 @@ export const messages: Record<Lang, Record<string, string>> = {
     'topbar.my_designs': 'Mes designs',
     'topbar.save_design': 'Enregistrer le design',
     'topbar.share_export': 'Partager & exporter',
-    'topbar.continue': 'Continuer',
 
     // -- 2D/3D mode toggle ------------------------------------------------
     'mode.group': 'Mode d’aperçu',
@@ -104,7 +115,6 @@ export const messages: Record<Lang, Record<string, string>> = {
 
     // -- product panel ----------------------------------------------------
     'product.garment': 'Vêtement',
-    'product.from_price': 'dès {price} EUR HT',
     'product.your_garment': 'Votre propre vêtement',
     'product.your_garment_set':
       'Photos configurées. Envoyez-nous le vêtement, on imprime dessus.',
@@ -271,40 +281,6 @@ export const messages: Record<Lang, Record<string, string>> = {
     'share.design_file': 'Fichier de design',
     'share.open_file': 'Ouvrir un fichier de design',
     'share.photos_note': 'Ce design utilise des photos importées ; il se partage donc en fichier de design (photos intégrées) plutôt qu’en lien.',
-    'order.title': 'Vérifier et demander un devis',
-    'order.subtitle': 'Le paiement en ligne arrivera avec le site complet. Pour l\'instant, nous confirmons chaque commande personnellement.',
-    'order.front_mockup_alt': 'Maquette du devant',
-    'order.back_mockup_alt': 'Maquette du dos',
-    'order.color_line': 'Couleur : {name}',
-    'order.printed_side_one': '{n} face imprimée',
-    'order.printed_side_other': '{n} faces imprimées',
-    'order.element_one': '{n} élément',
-    'order.element_other': '{n} éléments',
-    'order.custom_note': 'Vous nous expédiez le vêtement ; le tarif couvre uniquement la décoration.',
-    'order.sizes_quantity': 'Tailles et quantité',
-    'order.fewer_size': 'Moins de {size}',
-    'order.quantity_size': 'Quantité {size}',
-    'order.more_size': 'Plus de {size}',
-    'order.estimate_note': 'Estimation. Devis définitif confirmé par e-mail.',
-    'order.print_area': 'Zone imprimée : {sqcm} cm² · {tier}',
-    'price.tier_std': 'standard (≤ A4)',
-    'price.tier_large': 'grand (≤ A3)',
-    'price.tier_xl': 'très grand',
-    'order.discount_applied': 'Remise quantité de {pct} % appliquée',
-    'order.discount_next': '{pct} % de remise dès {min}+',
-    'order.email_quote': 'Demander un devis par e-mail',
-    'order.copy_summary': 'Copier le récapitulatif',
-    'order.attach_note': 'Joignez votre fichier de design enregistré (Partager & exporter → fichier de design) à l\'e-mail pour que nous imprimions exactement ce que vous avez créé.',
-    'order.summary_design': 'Design : {name}',
-    'order.summary_garment': 'Vêtement : {name}',
-    'order.summary_garment_color': 'Vêtement : {name}, {color}',
-    'order.summary_printed_sides': 'Faces imprimées : {n}',
-    'order.summary_sizes': 'Tailles : {sizes}',
-    'order.summary_quantity': 'Quantité : {n}',
-    'order.summary_estimated': 'Estimé : ${unit}/pièce · ${total} au total',
-    'order.summary_estimated_discount': 'Estimé : ${unit}/pièce · ${total} au total ({pct} % de remise quantité)',
-    'order.mail_subject': 'Demande de devis : {name}',
-    'order.mail_body': 'Bonjour {business},\n\nJe souhaiterais un devis pour ce design :\n\n{summary}\n\n(Design créé dans {business} Studio. Je peux partager le fichier de design sur demande.)',
     'props.type_text': 'Texte',
     'props.type_image': 'Image',
     'props.type_graphic': 'Visuel',
@@ -507,6 +483,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     // @@SWEEP_FR@@
   },
   en: {
+    'order.front_mockup_alt': 'Front mockup',
+    'order.back_mockup_alt': 'Back mockup',
     // -- common -----------------------------------------------------------
     'common.cancel': 'Cancel',
     'common.close': 'Close',
@@ -536,7 +514,6 @@ export const messages: Record<Lang, Record<string, string>> = {
     'topbar.my_designs': 'My designs',
     'topbar.save_design': 'Save design',
     'topbar.share_export': 'Share & export',
-    'topbar.continue': 'Continue',
 
     // -- 2D/3D mode toggle ------------------------------------------------
     'mode.group': 'Preview mode',
@@ -595,7 +572,6 @@ export const messages: Record<Lang, Record<string, string>> = {
 
     // -- product panel ----------------------------------------------------
     'product.garment': 'Garment',
-    'product.from_price': 'from {price} EUR excl. VAT',
     'product.your_garment': 'Your own garment',
     'product.your_garment_set':
       'Photos configured. Send us the garment, we print on it.',
@@ -762,40 +738,6 @@ export const messages: Record<Lang, Record<string, string>> = {
     'share.design_file': 'Design file',
     'share.open_file': 'Open design file',
     'share.photos_note': 'This design uses uploaded photos, so it shares as a design file (photos embedded) rather than a link.',
-    'order.title': 'Review & request a quote',
-    'order.subtitle': 'Checkout is coming with the full site. For now we confirm every order personally.',
-    'order.front_mockup_alt': 'Front mockup',
-    'order.back_mockup_alt': 'Back mockup',
-    'order.color_line': 'Color: {name}',
-    'order.printed_side_one': '{n} printed side',
-    'order.printed_side_other': '{n} printed sides',
-    'order.element_one': '{n} element',
-    'order.element_other': '{n} elements',
-    'order.custom_note': 'You ship the garment to us; pricing covers decoration only.',
-    'order.sizes_quantity': 'Sizes & quantity',
-    'order.fewer_size': 'Fewer {size}',
-    'order.quantity_size': 'Quantity {size}',
-    'order.more_size': 'More {size}',
-    'order.estimate_note': 'Estimate. Final quote confirmed by email.',
-    'order.print_area': 'Print area: {sqcm} cm² · {tier}',
-    'price.tier_std': 'standard (≤ A4)',
-    'price.tier_large': 'large (≤ A3)',
-    'price.tier_xl': 'oversize',
-    'order.discount_applied': '{pct}% quantity discount applied',
-    'order.discount_next': '{pct}% off from {min}+',
-    'order.email_quote': 'Email quote request',
-    'order.copy_summary': 'Copy summary',
-    'order.attach_note': 'Attach your saved design file (Share & export → design file) to the email so we can print exactly what you made.',
-    'order.summary_design': 'Design: {name}',
-    'order.summary_garment': 'Garment: {name}',
-    'order.summary_garment_color': 'Garment: {name}, {color}',
-    'order.summary_printed_sides': 'Printed sides: {n}',
-    'order.summary_sizes': 'Sizes: {sizes}',
-    'order.summary_quantity': 'Quantity: {n}',
-    'order.summary_estimated': 'Estimated: ${unit}/pc · ${total} total',
-    'order.summary_estimated_discount': 'Estimated: ${unit}/pc · ${total} total ({pct}% qty discount)',
-    'order.mail_subject': 'Quote request: {name}',
-    'order.mail_body': 'Hi {business},\n\nI\'d like a quote for this design:\n\n{summary}\n\n(Design created in {business} Studio. I can share the design file on request.)',
     'props.type_text': 'Text',
     'props.type_image': 'Image',
     'props.type_graphic': 'Graphic',

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import clsx from 'clsx'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 /**
  * WHY THIS FILE HOLDS A FOCUS TRAP AND NOT JUST A LAYOUT.

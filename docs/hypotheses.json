@@ -34,13 +34,7 @@
 			"since": "2026-08-12",
 			"statement_fr": "Un t-shirt imprimé sur une face vaut 34,00 EUR HT à l'unité : 24,00 EUR de textile nu et de frais de commande, et 10,00 EUR de marquage.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.tee.base_ht+garments.tee.first_side_ht",
-			"mirrors": [
-				{
-					"ref": "ts:src/content/pricing.ts#PRICING.tee.baseUsd",
-					"relation": "eur-to-cents",
-					"why": "le studio hors boutique affiche sa propre table de démonstration ; elle ne peut pas être lue depuis PHP, elle est donc comparée en faisant tourner les deux."
-				}
-			],
+			"mirrors": [],
 			"literals": [
 				"2400"
 			],
@@ -79,7 +73,8 @@
 			"decided_by": "equipe",
 			"decided_on": "2026-09-04",
 			"decided_why": "le tarif publié vendait sous son propre plancher de coût, et le plancher lui-même lisait notre contribution de 25 % au lieu de la marge brute minimale de 50 % qu'il a répondue le 1er septembre ; il est maintenant dérivé de SON minimum, à la taille et au coloris les plus chers que l'offre vend. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md",
-			"literal_allow_why": "2400 y est un nombre de pièces à produire dans le test de l'ordonnancement d'atelier, pas de l'argent. Collision de chiffres."
+			"literal_allow_why": "2400 y est un nombre de pièces à produire dans le test de l'ordonnancement d'atelier, pas de l'argent. Collision de chiffres.",
+			"mirrors_removed": "Le miroir TypeScript est supprimé le 5 septembre 2026 avec `src/content/pricing.ts` : le studio hors boutique n'existe plus comme chemin client, et une table qui se lit sans le serveur est une seconde implémentation qui peut le contredire. `Pricing.php` reste seul, donc il n'y a plus rien à comparer, ce qui est le but."
 		},
 		{
 			"id": "H-Q06-TARIF-SWEAT",
@@ -89,13 +84,7 @@
 			"since": "2026-08-12",
 			"statement_fr": "Un sweat imprimé sur une face vaut 73,00 EUR HT à l'unité : 63,00 EUR de textile nu et de frais de commande, et 10,00 EUR de marquage.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.hoodie.base_ht+garments.hoodie.first_side_ht",
-			"mirrors": [
-				{
-					"ref": "ts:src/content/pricing.ts#PRICING.hoodie.baseUsd",
-					"relation": "eur-to-cents",
-					"why": "même table de démonstration que le t-shirt."
-				}
-			],
+			"mirrors": [],
 			"literals": [
 				"6300"
 			],
@@ -131,7 +120,8 @@
 			"literal_allow": [],
 			"decided_by": "equipe",
 			"decided_on": "2026-09-04",
-			"decided_why": "le tarif publié vendait sous son propre plancher de coût, et le plancher lui-même lisait notre contribution de 25 % au lieu de la marge brute minimale de 50 % qu'il a répondue le 1er septembre ; il est maintenant dérivé de SON minimum, à la taille et au coloris les plus chers que l'offre vend. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md"
+			"decided_why": "le tarif publié vendait sous son propre plancher de coût, et le plancher lui-même lisait notre contribution de 25 % au lieu de la marge brute minimale de 50 % qu'il a répondue le 1er septembre ; il est maintenant dérivé de SON minimum, à la taille et au coloris les plus chers que l'offre vend. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md",
+			"mirrors_removed": "Le miroir TypeScript est supprimé le 5 septembre 2026 avec `src/content/pricing.ts` : le studio hors boutique n'existe plus comme chemin client, et une table qui se lit sans le serveur est une seconde implémentation qui peut le contredire. `Pricing.php` reste seul, donc il n'y a plus rien à comparer, ce qui est le but."
 		},
 		{
 			"id": "H-Q06-TARIF-VETEMENT-CLIENT",
@@ -141,13 +131,7 @@
 			"since": "2026-08-12",
 			"statement_fr": "Quand le client fournit son propre vêtement, la décoration d'une face vaut 12,00 EUR HT et le textile ne nous coûte rien.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#garments.custom.base_ht+garments.custom.first_side_ht",
-			"mirrors": [
-				{
-					"ref": "ts:src/content/pricing.ts#PRICING.custom.baseUsd",
-					"relation": "eur-to-cents",
-					"why": "même table de démonstration que le t-shirt."
-				}
-			],
+			"mirrors": [],
 			"literals": [
 				"1200"
 			],
@@ -187,7 +171,8 @@
 					"as": "eur",
 					"text": "12,00 EUR"
 				}
-			]
+			],
+			"mirrors_removed": "Le miroir TypeScript est supprimé le 5 septembre 2026 avec `src/content/pricing.ts` : le studio hors boutique n'existe plus comme chemin client, et une table qui se lit sans le serveur est une seconde implémentation qui peut le contredire. `Pricing.php` reste seul, donc il n'y a plus rien à comparer, ce qui est le but."
 		},
 		{
 			"id": "H-Q06-MARQUAGE-FACE-SUP",
@@ -207,21 +192,6 @@
 					"ref": "php:Teeshoop\\Core\\Pricing::default_config()#garments.custom.extra_side_ht",
 					"relation": "equal",
 					"why": "et une troisième fois pour le vêtement fourni par le client."
-				},
-				{
-					"ref": "ts:src/content/pricing.ts#PRICING.tee.perExtraSideUsd",
-					"relation": "eur-to-cents",
-					"why": "la table de démonstration du studio la réécrit une fois par vêtement, elle aussi."
-				},
-				{
-					"ref": "ts:src/content/pricing.ts#PRICING.hoodie.perExtraSideUsd",
-					"relation": "eur-to-cents",
-					"why": "deuxième copie côté studio."
-				},
-				{
-					"ref": "ts:src/content/pricing.ts#PRICING.custom.perExtraSideUsd",
-					"relation": "eur-to-cents",
-					"why": "troisième copie côté studio."
 				}
 			],
 			"literals": [
@@ -269,7 +239,8 @@
 			"decided_by": "equipe",
 			"decided_on": "2026-09-04",
 			"decided_why": "le tarif publié vendait sous son propre plancher de coût, et le plancher lui-même lisait notre contribution de 25 % au lieu de la marge brute minimale de 50 % qu'il a répondue le 1er septembre ; il est maintenant dérivé de SON minimum, à la taille et au coloris les plus chers que l'offre vend. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md",
-			"literal_allow_why": "1000 est le littéral le plus banal du dépôt et cette liste est longue pour cette seule raison. Aucune de ces douze occurrences n'est un prix par face : ce sont des millisecondes de délai, des grammes de colis, des pixels, des cotes de bon à tirer, des tailles de lot d'import, et des montants ordinaires dans des tests qui chiffrent de vraies commandes. La valeur EST écrite six fois, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées comme miroirs et comparées en faisant tourner les deux moteurs, pas en cherchant une chaîne. La portée reste large exprès, pour qu'un NOUVEAU fichier qui écrirait un second prix par face sorte de cette liste et fasse rougir le garde."
+			"literal_allow_why": "1000 est le littéral le plus banal du dépôt et cette liste est longue pour cette seule raison. Aucune de ces douze occurrences n'est un prix par face : ce sont des millisecondes de délai, des grammes de colis, des pixels, des cotes de bon à tirer, des tailles de lot d'import, et des montants ordinaires dans des tests qui chiffrent de vraies commandes. La valeur EST écrite six fois, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées comme miroirs et comparées en faisant tourner les deux moteurs, pas en cherchant une chaîne. La portée reste large exprès, pour qu'un NOUVEAU fichier qui écrirait un second prix par face sorte de cette liste et fasse rougir le garde.",
+			"mirrors_removed": "Le miroir TypeScript est supprimé le 5 septembre 2026 avec `src/content/pricing.ts` : le studio hors boutique n'existe plus comme chemin client, et une table qui se lit sans le serveur est une seconde implémentation qui peut le contredire. `Pricing.php` reste seul, donc il n'y a plus rien à comparer, ce qui est le but."
 		},
 		{
 			"id": "H-Q08-PALIERS-SURFACE",
@@ -279,13 +250,7 @@
 			"since": "2026-08-12",
 			"statement_fr": "Le supplément de surface par face est de 0,00 EUR jusqu'à 625 cm², de 4,00 EUR HT jusqu'à 1 250 cm², puis de 9,00 EUR HT sans borne.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#area_tiers",
-			"mirrors": [
-				{
-					"ref": "ts:src/content/pricing.ts#PRICING.tee.areaTiers",
-					"relation": "area-tiers",
-					"why": "la table du studio a déjà divergé une fois : elle tenait 97 et 193 pouces carrés, soit 625,81 et 1245,16 cm², assez proches pour paraître identiques et assez différents pour qu'un visuel tombant dans l'écart soit chiffré ici et facturé là."
-				}
-			],
+			"mirrors": [],
 			"literals": [
 				"625",
 				"1250"
@@ -348,7 +313,8 @@
 					"text": "9,00 EUR",
 					"in": "9,00 EUR HT"
 				}
-			]
+			],
+			"mirrors_removed": "Le miroir TypeScript est supprimé le 5 septembre 2026 avec `src/content/pricing.ts` : le studio hors boutique n'existe plus comme chemin client, et une table qui se lit sans le serveur est une seconde implémentation qui peut le contredire. `Pricing.php` reste seul, donc il n'y a plus rien à comparer, ce qui est le but."
 		},
 		{
 			"id": "H-Q08-PALIERS-QUANTITE",
@@ -358,13 +324,7 @@
 			"since": "2026-08-12",
 			"statement_fr": "Les remises de quantité sont de 15 % à partir de 10 pièces, 25 % à partir de 25 et 35 % à partir de 50, appliquées au prix unitaire complet, et le palier se calcule sur la quantité d'une seule ligne de panier et non sur le panier entier.",
 			"home": "php:Teeshoop\\Core\\Pricing::default_config()#qty_breaks",
-			"mirrors": [
-				{
-					"ref": "ts:src/content/pricing.ts#QTY_BREAKS",
-					"relation": "qty-breaks",
-					"why": "la table du studio répète les trois paliers, seuils et taux compris."
-				}
-			],
+			"mirrors": [],
 			"literals": [
 				"0.15",
 				"0.25",
@@ -436,7 +396,8 @@
 					"text": "35 %",
 					"in": "35 % à partir de 50"
 				}
-			]
+			],
+			"mirrors_removed": "Le miroir TypeScript est supprimé le 5 septembre 2026 avec `src/content/pricing.ts` : le studio hors boutique n'existe plus comme chemin client, et une table qui se lit sans le serveur est une seconde implémentation qui peut le contredire. `Pricing.php` reste seul, donc il n'y a plus rien à comparer, ce qui est le but."
 		},
 		{
 			"id": "H-Q17-TVA",

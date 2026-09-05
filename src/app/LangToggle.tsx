@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useStore } from '@/state/store'
 import { LANGS, LANG_LABEL, LANG_SHORT } from '@/i18n/lang'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 /** FR / EN language selector: a compact segmented pill. */
 export default function LangToggle() {

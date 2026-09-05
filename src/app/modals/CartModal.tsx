@@ -32,7 +32,7 @@ import { useMockupUrl } from '../hooks/useMockup'
 import { useShopBridge } from '../hooks/useShopBridge'
 import { garmentPalette, paletteIsMeasured } from '@/content/garmentPalette'
 import { useCartT } from './cartI18n'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import { SIZE_IDS, type SizeId } from '@/content/sizeChart'
 import { sideLayers } from '@/lib/renderDesign'
 import {

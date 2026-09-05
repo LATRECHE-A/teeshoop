@@ -4,7 +4,8 @@ import Modal from './Modal'
 import { useStore } from '@/state/store'
 import { renderAndSave } from '@/state/persist'
 import { deleteSavedDesign, loadSavedDesign } from '@/state/savedDesigns'
-import { useT, type TParams } from '@/i18n'
+import { type TParams } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 function timeAgo(ts: number, t: (key: string, params?: TParams) => string): string {
   const s = Math.max(1, Math.round((Date.now() - ts) / 1000))

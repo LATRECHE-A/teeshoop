@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import Modal from './Modal'
 import PrintAreaPlacer from '@/app/PrintAreaPlacer'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import {
   addAsset,
   ensureAssetImage,

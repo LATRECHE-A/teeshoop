@@ -15,7 +15,7 @@ import { listAssets } from '@/state/assets'
 import { downloadBlob, downloadCanvasPng, slugify } from '@/lib/download'
 import { fmtSizeCm } from '@/lib/units'
 import type { Side } from '@/lib/types'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 const PRINT_DPI = 300
 const MIN_EFFECTIVE_DPI = 150

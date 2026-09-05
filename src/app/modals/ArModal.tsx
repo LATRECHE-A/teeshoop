@@ -5,7 +5,7 @@ import type { Gender } from '@/lib/arExport'
 import { useStore } from '@/state/store'
 import { makeQrDataUrl } from '@/lib/qr'
 import { useMockupUrl } from '../hooks/useMockup'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 
 type Phase = 'working' | 'ready' | 'error'
 

@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import { useStore, type PanelId } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import ProductPanel from './ProductPanel'
 import TextPanel from './TextPanel'
 import UploadsPanel from './UploadsPanel'

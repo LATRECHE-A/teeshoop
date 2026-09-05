@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, Copy, Image, Shapes, Trash2, Type } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import type { Layer } from '@/lib/types'
 
 const ICONS = { text: Type, image: Image, graphic: Shapes } as const

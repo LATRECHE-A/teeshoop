@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CloudUpload, Plus, Scissors, Trash2, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import {
   addAsset,
   ensureAssetImage,

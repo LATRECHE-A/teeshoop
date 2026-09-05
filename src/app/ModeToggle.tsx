@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Box, PencilRuler } from 'lucide-react'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import clsx from 'clsx'
 
 const SEEN_3D = 'tshop:3d-tried'

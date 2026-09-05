@@ -18,7 +18,7 @@
 import clsx from 'clsx'
 import { Sparkles } from 'lucide-react'
 import { useStore } from '@/state/store'
-import { useT } from '@/i18n'
+import { useT } from '@/i18n/useT'
 import type { Side } from '@/lib/types'
 import { useBackOriginT } from '@/app/backOriginI18n'
 
