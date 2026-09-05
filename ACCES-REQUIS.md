@@ -1352,3 +1352,47 @@ Imbretex (§6 decies A), le jeton à faire tourner (§6 decies B), et les répon
 l'associé. Deux questions se sont ajoutées à `QUESTIONS-ASSOCIE.md` : la 64,
 réécrite, sur le niveau de tarif que sa marge minimale produit, et la 65, sur le
 3XL Gildan.
+
+---
+
+## 14. Le 5 septembre 2026 au soir : SSH est refermé, et c'est ce qui bloque la mise en ligne
+
+**C'est la seule chose qui manque pour que `www.teeshoop.com` serve notre thème, notre
+catalogue et notre personnalisateur.** Tout le reste de la nuit du 4 est construit et
+prouvé en local. Le déploiement, lui, ne part pas.
+
+**Ce qui est mesuré, ce soir, pas supposé :**
+
+| Sonde | Résultat |
+|---|---|
+| Adresse IP publique de cette machine | `176.191.78.140` |
+| Adresse autorisée lors de la nuit du 3 (3 septembre, 19 h 21) | `176.140.195.150` |
+| `www.teeshoop.com` en HTTPS | **200**, le site répond normalement |
+| Port 22 de `ascaphus.o2switch.net` | **injoignable** (`ETIMEDOUT`) |
+| `ssh teeshoop` | `Network is unreachable` |
+
+Le site répond en HTTPS et le port 22 ne répond pas : ce n'est donc pas une panne de
+l'hébergeur. o2switch filtre SSH par adresse IP, l'adresse de cette machine a changé
+depuis la nuit du 3, et la nouvelle n'est pas dans la liste.
+
+**L'action humaine, exactement :**
+
+1. ouvrir cPanel o2switch, section **Accès SSH**, puis **Gérer les clés SSH** et la liste
+   des adresses autorisées (selon l'interface : *SSH Access* > *Manage SSH Access* ou le
+   pare-feu du compte) ;
+2. y ajouter **`176.191.78.140`** ;
+3. vérifier depuis cette machine avec `ssh teeshoop 'echo ok'`.
+
+Cette adresse est **dynamique** : elle changera de nouveau. `node scripts/acces-probe.mjs`
+la relit et l'écrit dans `docs/etat-acces.json` en une seconde, et `scripts/deployer.sh`
+l'affiche dans son message de refus quand le port 22 ne répond pas. Il n'y a rien à
+retenir, il y a une commande à lancer.
+
+**Une adresse fixe réglerait la question définitivement** et c'est la vraie demande : soit
+une IP fixe chez l'opérateur, soit un rebond (un petit serveur avec une adresse stable,
+autorisé une fois chez o2switch, depuis lequel le déploiement part). Tant que ce n'est pas
+fait, chaque changement d'adresse coûte une visite dans cPanel.
+
+**Ce que ce blocage n'empêche pas** : rien d'autre. Le miroir docker, la CI, les portes,
+les alarmes, les sauvegardes et toutes les vérifications de cette nuit tournent sans
+o2switch. Seul l'envoi des fichiers vers le serveur en dépend.
