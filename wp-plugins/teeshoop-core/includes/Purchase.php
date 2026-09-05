@@ -908,6 +908,24 @@ final class Purchase {
 			return 'unknown';
 		}
 		/*
+		 * ── ON NE PEUT PAS ÊTRE PLUS TARD QUE MAINTENANT ────────────────────
+		 *
+		 * Une date nue est étendue à 23:59:59 pour que « ce relevé était-il frais
+		 * le 3 septembre » se réponde sur la journée entière. Mais l'appelant
+		 * réel passe la date d'AUJOURD'HUI (`basket()` prend `Settings::today()`),
+		 * et un âge se mesure contre un instant, pas contre la fin d'un jour :
+		 * mesuré le 5 septembre 2026 à 00 h 06, un relevé pris une heure plus tôt
+		 * était daté du 4 et comparé au 5 à 23 h 59, donc lu comme vieux de
+		 * 24 h 53 et déclaré périmé. Pendant la première heure de chaque nuit, la
+		 * boutique annonçait « stock trop vieux pour être cru » sur un relevé
+		 * d'une heure, et l'acheteur commandait à l'aveugle.
+		 *
+		 * Le plafond ne change rien à une date passée, dont la fin de journée est
+		 * déjà derrière nous. Il ne fait que refuser un « maintenant » situé dans
+		 * l'avenir.
+		 */
+		$then = min( $then, time() );
+		/*
 		 * A READING FROM THE FUTURE IS NOT A FRESH READING. Two clocks are
 		 * involved and one of them is not ours; a stamp ahead of us means one of
 		 * the two is wrong, and « nous ne savons pas » is the only answer true

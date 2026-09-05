@@ -239,6 +239,47 @@ describe( 'Purchase::fresh : trois réponses, pas deux', function () {
 	} );
 
 	/*
+	 * ── LA PREMIÈRE HEURE DE CHAQUE NUIT ─────────────────────────────────────
+	 *
+	 * L'appelant réel passe une DATE (`basket()` prend `Settings::today()`), et
+	 * une date nue était étendue à 23:59:59 pour que « ce relevé était-il frais le
+	 * 3 septembre » se réponde sur la journée entière. Un âge, lui, se mesure
+	 * contre un instant. Mesuré le 5 septembre 2026 à 00 h 06 : un relevé pris une
+	 * heure plus tôt portait la date du 4, était comparé au 5 à 23 h 59, lu comme
+	 * vieux de 24 h 53, et déclaré périmé. Entre minuit et une heure, la boutique
+	 * annonçait « stock trop vieux pour être cru » sur un relevé d'une heure.
+	 *
+	 * Écrit contre l'horloge réelle et pas contre une date figée, parce que c'est
+	 * l'heure du jour qui décidait, et qu'une date figée est justement ce qui
+	 * cachait le défaut.
+	 */
+	it( 'répond pareil à un instant et à la date qui le contient', function () {
+		/*
+		 * L'invariant, écrit sans horloge figée : pour un relevé dans la fenêtre,
+		 * « sommes-nous le 5 » et « sommes-nous le 5 à 00 h 06 » doivent donner le
+		 * même verdict. Avant le plafond, la date nue était étendue à 23:59:59 et
+		 * les deux divergeaient pendant vingt-trois heures sur vingt-quatre.
+		 */
+		$now = new \DateTimeImmutable( 'now', new \DateTimeZone( 'Europe/Paris' ) );
+		foreach ( array( 1, 6, 12, 23, 26 ) as $ago ) {
+			$at = $now->modify( '-' . $ago . ' hours' )->format( 'Y-m-d H:i:s' );
+			eq(
+				Purchase::freshness( $at, $now->format( 'Y-m-d' ) ),
+				Purchase::freshness( $at, $now->format( 'Y-m-d H:i:s' ) ),
+				'relevé de ' . $ago . ' h : la date et l’instant divergent'
+			);
+		}
+		eq( Purchase::fresh( $now->modify( '-1 hour' )->format( 'Y-m-d H:i:s' ), $now->format( 'Y-m-d' ) ), true );
+	} );
+
+	it( 'garde la journée entière pour une date passée', function () {
+		// Une date d'hier reste étendue à sa fin de journée : la question « ce
+		// relevé était-il frais ce jour-là » ne doit pas changer de réponse.
+		eq( Purchase::freshness( '2026-05-19 00:30:00', '2026-05-19' ), 'fresh', '23 h 29' );
+		eq( Purchase::freshness( '2026-05-18 23:00:00', '2026-05-19' ), 'stale', '24 h 59' );
+	} );
+
+	/*
 	 * L'horodatage est lu dans le fuseau du FOURNISSEUR et non dans celui du
 	 * processus. Le contrôle est le même des deux côtés d'un changement de
 	 * fuseau du système : c'est ce qui a cassé quand il lisait wp_timezone().
