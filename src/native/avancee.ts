@@ -19,30 +19,28 @@
  * cette vue achète exactement comme avant, et un qui l'ouvre y trouve les
  * quatre autres.
  *
- *   LE DÉTOURAGE. Mesuré le 5 septembre 2026 en le construisant : `vite` copie
- *   13 480 ko de WebAssembly dans le répertoire du greffon, deux fois, parce
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LES SEPT POSTES SONT LÀ, ET LES TROIS DERNIERS ONT COÛTÉ UNE MESURE CHACUN
+ *
+ * Dos et manches, plusieurs calques, texte et polices, alignement au centimètre,
+ * DÉTOURAGE, APERÇU EN VOLUME et RÉALITÉ AUGMENTÉE.
+ *
+ *   LE DÉTOURAGE ne pouvait pas embarquer son runtime : `vite` copie 13 480 ko
+ *   de WebAssembly dans le répertoire du greffon, deux fois, parce
  *   qu'`onnxruntime-web` référence son binaire par `new URL(…, import.meta.url)`
- *   et qu'aucune option ne l'en empêche (`external` sur `.wasm` ne l'attrape
- *   pas : ce n'est pas un import, c'est un actif émis). Avec le modèle ONNX,
- *   4 600 ko, ça fait 18 Mo qui partiraient en rsync vers o2switch à chaque
- *   déploiement d'un greffon WordPress. Les servir depuis le Worker marche pour
- *   le TÉLÉCHARGEMENT (`connect-src` autorise déjà cette origine) et demande en
- *   plus `'wasm-unsafe-eval'` dans le `script-src` de la boutique, c'est-à-dire
- *   une modification de sa politique de sécurité. C'est petit, c'est faisable,
- *   et ça se mesure ; ça ne se décide pas à la fin d'une nuit dont le brief dit
- *   que le CORS du Worker est le seul changement d'infrastructure autorisé.
+ *   et qu'aucune option ne l'en empêche. Avec le modèle, 18 Mo partiraient en
+ *   rsync vers o2switch à chaque déploiement. Ils sont donc lus SUR LE WORKER,
+ *   qui les sert déjà publiquement, et `src/lib/bgremove/engine.ts` reçoit la
+ *   base au lieu de la coder en dur. Ce que ça a coûté à la boutique :
+ *   `'wasm-unsafe-eval'` dans son `script-src`, un jeton, mesuré et écrit dans
+ *   `includes/Csp.php`.
  *
- *   LA RÉALITÉ AUGMENTÉE est bloquée par une chose nommable : `uploadArModel`
- *   poste sur `POST /api/ar`, qui n'expose aucun en-tête CORS. Depuis la page
- *   de la boutique, l'envoi partirait et la réponse serait illisible. C'est une
- *   ligne dans `worker/index.ts` et elle appartient à une nuit qui a le droit
- *   de la faire.
- *
- *   L'APERÇU 3D est monté par React dans le studio (`src/app/Scene3D.tsx`) et
- *   le porter ici est un vrai poste, pas un déplacement : three.js, la scène,
- *   les textures et la caméra. Le faire à moitié produirait une SECONDE
- *   implémentation du rendu du vêtement, ce que `CLAUDE.md` section 1 interdit
- *   précisément parce que les deux divergent ensuite.
+ *   L'APERÇU EN VOLUME et LA RÉALITÉ AUGMENTÉE sont le MÊME objet, et c'est ce
+ *   qui les a rendus faisables : `buildArModel` construit un vêtement portant la
+ *   création, le GLB qu'il rend EST l'aperçu, et c'est le même octet que le
+ *   téléphone reçoit. Deux fonctionnalités séparées auraient été deux géométries
+ *   du même vêtement. La scène three.js est celle de la page du code QR
+ *   (`src/lib/glbStage.ts`), extraite plutôt que recopiée.
  */
 import type { Design, Layer, Side, TextLayer } from '@/lib/types'
 import { FONTS, ensureFont } from '@/lib/fonts'
@@ -81,18 +79,22 @@ const MOTS = {
   decalageX: 'Décalage horizontal',
   decalageY: 'Décalage vertical',
   centrerX: 'Centrer horizontalement',
-  /*
-   * L'ÉTAT VIDE DU DÉTOURAGE, DESSINÉ PLUTÔT QUE TU.
-   *
-   * Un client qui cherche « enlever le fond » et ne trouve rien croit que le
-   * site est cassé ; on lui dit ce qu'on ne sait pas encore faire et ce qu'il
-   * peut faire à la place, ce qui est ce que `CLAUDE.md` section 7 demande d'un
-   * état vide.
-   */
-  sansDetourage:
-    'Nous ne savons pas encore enlever le fond d’une image ici. Envoyez un PNG à fond transparent, ou écrivez-nous : nous détourons le visuel avant l’impression.',
+  detourer: 'Enlever le fond',
+  detourageEnCours: 'Détourage en cours.',
+  detourageFait: 'Fond enlevé. Le prix suit la nouvelle surface d’encre.',
+  detourageRate:
+    'Le fond n’a pas pu être enlevé. Votre visuel est intact : réessayez, ou envoyez-nous un fichier déjà détouré.',
+  detourageImpossible:
+    'Ce navigateur ne sait pas exécuter le détourage. Envoyez un PNG à fond transparent, ou écrivez-nous : nous détourons le visuel avant l’impression.',
+  detourageSansDepot:
+    'Cette boutique n’a pas d’espace de dépôt configuré, donc le modèle de détourage ne peut pas être téléchargé. Envoyez un PNG à fond transparent, ou écrivez-nous.',
   supprimer: 'Supprimer',
   selectionner: 'Sélectionner',
+  ouvrirApercu: 'Voir en volume et essayer chez vous',
+  fermerApercu: 'Fermer l’aperçu en volume',
+  chargementApercu: 'Chargement de l’aperçu.',
+  apercuIndisponible:
+    'L’aperçu en volume n’a pas pu être chargé. Vérifiez votre connexion, puis réessayez : votre visuel est conservé.',
 } as const
 
 export function ouvrir(zone: HTMLElement, hote: Hote): VueAvancee {
@@ -106,6 +108,9 @@ class Avancee {
   private face: Side = 'front'
   private selection: string | null = null
   private message = ''
+  private occupe = false
+  private apercu: { fermer(): void } | null = null
+  private zoneApercu: HTMLElement | null = null
 
   constructor(zone: HTMLElement, hote: Hote) {
     this.zone = zone
@@ -115,6 +120,9 @@ class Avancee {
   }
 
   fermer(): void {
+    this.apercu?.fermer()
+    this.apercu = null
+    this.zoneApercu = null
     vider(this.zone)
     this.zone.classList.remove('tshop-ed__avancee')
   }
@@ -122,10 +130,24 @@ class Avancee {
   // ------------------------------------------------------------------ rendu
 
   private rendre(): void {
+    /*
+     * L'APERÇU EN VOLUME SURVIT AU RE-RENDU DU PANNEAU.
+     *
+     * `rendre()` vide sa zone à chaque clic, et le canevas WebGL était dedans :
+     * changer de face pendant que le modèle tourne le détruisait sans le
+     * libérer, ce qui est la fuite de contextes GPU de la séance 10. Le
+     * conteneur de l'aperçu est donc SORTI de la zone re-rendue et réattaché
+     * après ; il n'est détruit que par son propre bouton, ou par `fermer()`.
+     */
+    const apercuDetache = this.zoneApercu
+    if (apercuDetache?.parentNode) apercuDetache.remove()
+
     vider(this.zone)
     this.zone.append(this.bandeFaces(), this.listeCalques(), this.actions())
     const calque = this.calqueSelectionne()
     if (calque) this.zone.append(this.reglages(calque))
+    this.zone.append(this.boutonApercu())
+    if (apercuDetache) this.zone.append(apercuDetache)
     if (this.message !== '') {
       const p = el('p', 'tshop-ed__note')
       p.setAttribute('role', 'status')
@@ -215,12 +237,71 @@ class Avancee {
 
     const calque = this.calqueSelectionne()
     if (calque && calque.type === 'image') {
-      const p = el('p', 'tshop-ed__note')
-      p.setAttribute('data-teeshoop', 'sans-detourage')
-      p.textContent = MOTS.sansDetourage
-      bloc.append(p)
+      const detourer = el('button', 'tshop-ed__outil')
+      detourer.type = 'button'
+      detourer.textContent = this.occupe ? MOTS.detourageEnCours : MOTS.detourer
+      detourer.disabled = this.occupe
+      detourer.setAttribute('data-teeshoop', 'detourer')
+      detourer.addEventListener('click', () => void this.detourer(calque))
+      bloc.append(detourer)
     }
     return bloc
+  }
+
+  /**
+   * LE DÉTOURAGE, revenu ici et chargé au clic.
+   *
+   * Il écrit une SECONDE variante sous le même identifiant d'actif, et le calque
+   * bascule dessus. Le fichier d'origine n'est jamais remplacé : un détourage
+   * raté doit laisser le client exactement où il était, et `assetRevision` fait
+   * que le dépôt renverra bien les nouveaux octets plutôt que de resservir la
+   * première découpe.
+   *
+   * `assets` est l'origine du Worker, qui sert `/ort/` et `/models/` : le
+   * greffon est servi sous `/wp-content/plugins/…` et sans cette base les 13,5
+   * et 4,6 Mo seraient cherchés à la racine du site.
+   */
+  private async detourer(calque: { id: string; assetId: string }): Promise<void> {
+    if (this.hote.contexte.workerUrl === '') {
+      this.message = MOTS.detourageSansDepot
+      this.rendre()
+      return
+    }
+    this.occupe = true
+    this.message = MOTS.detourageEnCours
+    this.rendre()
+    try {
+      const [mod, actifs] = await Promise.all([import('@/lib/bgremove'), import('@/state/assets')])
+      if (!mod.isBgRemovalSupported()) {
+        this.message = MOTS.detourageImpossible
+        return
+      }
+      const source = await actifs.getAssetBlob(calque.assetId)
+      if (!source) {
+        this.message = MOTS.detourageRate
+        return
+      }
+      const decoupe = await mod.removeBackground(source, { assets: this.hote.contexte.workerUrl })
+      await actifs.setAssetCutout(calque.assetId, decoupe)
+      this.message = MOTS.detourageFait
+      // `useCutout` fait basculer le calque, et `patch` rechiffre : la surface
+      // d'encre vient de changer, donc le prix aussi.
+      this.patch(calque.id, { useCutout: true } as Partial<Layer>)
+    } catch (e) {
+      /*
+       * LA PHRASE DU CLIENT RESTE GÉNÉRIQUE, LA CAUSE VA DANS LA CONSOLE.
+       *
+       * Un client n'a rien à faire d'un message d'ONNX ; celui qui répare, si.
+       * `warn` et pas `error` : `scripts/wp-e2e-verify.mjs` échoue sur une
+       * erreur de console de notre code, et un détourage refusé par un
+       * navigateur trop vieux n'est pas une panne de la boutique.
+       */
+      console.warn('teeshoop: détourage refusé', e)
+      this.message = MOTS.detourageRate
+    } finally {
+      this.occupe = false
+      this.rendre()
+    }
   }
 
   /**
@@ -336,6 +417,52 @@ class Avancee {
   }
 
   // --------------------------------------------------------------- actions
+
+  /**
+   * Le bouton qui charge l'aperçu en volume, et le morceau le plus lourd.
+   *
+   * three.js, le chargeur GLTF et les deux exportateurs sont derrière DEUX
+   * clics : ouvrir les réglages avancés, puis demander l'aperçu. Rien de tout
+   * cela n'atteint un client qui reste sur la vue simple, ce que
+   * `scripts/editeur-guard.mjs` mesure sur le graphe statique.
+   */
+  private boutonApercu(): HTMLElement {
+    const bloc = el('div', 'tshop-ed__bloc')
+    const b = el('button', 'tshop-ed__outil')
+    b.type = 'button'
+    b.setAttribute('data-teeshoop', 'apercu-volume')
+    b.setAttribute('aria-expanded', String(this.apercu !== null))
+    b.textContent = this.apercu ? MOTS.fermerApercu : MOTS.ouvrirApercu
+    b.addEventListener('click', () => {
+      if (this.apercu) {
+        this.apercu.fermer()
+        this.apercu = null
+        this.zoneApercu?.remove()
+        this.zoneApercu = null
+        this.rendre()
+        return
+      }
+      b.disabled = true
+      b.textContent = MOTS.chargementApercu
+      void import('./apercu3d')
+        .then((mod) => {
+          const hote = el('div', 'tshop-ed__zone-apercu')
+          this.zone.append(hote)
+          this.zoneApercu = hote
+          this.apercu = mod.ouvrirApercu(hote, this.hote.contexte, () => this.hote.creation())
+          this.rendre()
+        })
+        .catch(() => {
+          this.message = MOTS.apercuIndisponible
+          this.rendre()
+        })
+        .finally(() => {
+          b.disabled = false
+        })
+    })
+    bloc.append(b)
+    return bloc
+  }
 
   private calqueSelectionne(): Layer | null {
     return this.hote.creation().layers.find((l) => l.id === this.selection) ?? null

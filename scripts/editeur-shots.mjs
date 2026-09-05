@@ -169,6 +169,48 @@ async function serie(largeur, hauteur, prefixe, { avancee = false } = {}) {
     await page.locator('.tshop-ed__avancee').waitFor({ timeout: 30000 })
     await page.waitForTimeout(700)
     await cliche('4-vue-avancee')
+
+    /*
+     * 4 bis. L'APERÇU EN VOLUME, ET IL EST PHOTOGRAPHIÉ APRÈS AVOIR RENDU.
+     *
+     * `buildArModel` construit le vêtement puis three.js le charge : prendre la
+     * capture au clic donnerait un canevas noir, c'est-à-dire une preuve que
+     * rien ne marche présentée comme une preuve que tout marche. On attend que
+     * la phrase de chargement ait disparu, puis une seconde de rotation.
+     */
+    await page.locator('[data-teeshoop="apercu-volume"]').click()
+    const canvas3d = page.locator('[data-teeshoop="apercu-3d"]')
+    await canvas3d.waitFor({ timeout: 60000 }).catch(() => {})
+    await page
+      .waitForFunction(
+        () => {
+          const c = document.querySelector('[data-teeshoop="apercu-3d"]')
+          return c instanceof HTMLCanvasElement && c.width > 2 && c.height > 2
+        },
+        null,
+        { timeout: 90000 },
+      )
+      .catch(() => {})
+    await page.waitForTimeout(2500)
+    await cliche('5-apercu-volume')
+
+    // 4 ter. L'essayage : le modèle monte sur R2 et le client scanne.
+    const essai = page.locator('[data-teeshoop="essayer-ar"]')
+    if ((await essai.count()) > 0) {
+      await essai.click()
+      const pret = await page
+        .locator('[data-teeshoop="ar-pret"]')
+        .waitFor({ timeout: 120000 })
+        .then(() => true)
+        .catch(() => false)
+      if (pret) {
+        await page.waitForTimeout(600)
+        await cliche('6-essayage-ar')
+      } else {
+        console.log(`  ${prefixe} : l'essayage n'a pas abouti, pas de capture`)
+      }
+    }
+
     await page.locator('[data-teeshoop="vue-avancee"]').click()
     await page.waitForTimeout(400)
   }
@@ -183,12 +225,12 @@ async function serie(largeur, hauteur, prefixe, { avancee = false } = {}) {
     const quoi = await page.locator('[data-teeshoop="cart-error"]').textContent().catch(() => '')
     mourir(`l'ajout au panier a répondu « ${issue} » : ${quoi || 'rien'}`)
   }
-  await cliche('5-ajoute-au-panier')
+  await cliche('7-ajoute-au-panier')
 
   // 6. la ligne de panier, page entière : c'est la boutique qui parle
   await page.goto(`${new URL(URL_FICHE).origin}/panier/`, { waitUntil: 'domcontentloaded', timeout: 45000 })
   await page.waitForTimeout(3000)
-  const cheminPanier = `${OUT}/${prefixe}-6-ligne-de-panier.png`
+  const cheminPanier = `${OUT}/${prefixe}-8-ligne-de-panier.png`
   await page.screenshot({ path: cheminPanier, fullPage: true })
   fait.push(cheminPanier)
 

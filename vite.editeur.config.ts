@@ -73,11 +73,46 @@ import { fileURLToPath } from 'node:url'
  * la lisait vraiment, la requête partirait au lieu de disparaître en silence.
  */
 function sansBinaireWasm() {
+  let retires = 0
   return {
     name: 'teeshoop-sans-binaire-wasm',
-    enforce: 'pre' as const,
-    resolveId(source: string) {
-      return source.endsWith('.wasm') ? { id: source, external: true as const } : null
+    /*
+     * `generateBundle` ET PAS `resolveId`, parce que ce n'est pas un import.
+     *
+     * La première version marquait `.wasm` comme externe dans `resolveId`, et
+     * n'attrapait rien : le binaire arrive par le greffon d'actifs de vite, qui
+     * voit `new URL('…wasm', import.meta.url)` dans la distribution
+     * d'onnxruntime et appelle `emitFile`. Il n'y a donc rien à résoudre, il y a
+     * un actif déjà émis. Mesuré : 15,7 Mo écrits dans le répertoire du greffon.
+     *
+     * Ici il est retiré du bundle AVANT l'écriture, donc rien n'atteint le
+     * disque et rien n'est à nettoyer après coup. Un fichier qu'on efface après
+     * l'avoir construit est un fichier que le prochain build ramène.
+     */
+    generateBundle(_options: unknown, bundle: Record<string, { type: string }>) {
+      for (const nom of Object.keys(bundle)) {
+        if (bundle[nom].type === 'asset' && nom.endsWith('.wasm')) {
+          delete bundle[nom]
+          retires += 1
+        }
+      }
+    },
+    /*
+     * ET LA PORTE : si onnxruntime cesse un jour d'émettre ce binaire, ou si
+     * quelqu'un retire l'alias qui choisit la variante, ce greffon ne retire
+     * plus rien et personne ne s'en aperçoit. « Rien trouvé » et « rien
+     * regardé » ne sont pas le même résultat, donc il le dit.
+     */
+    closeBundle() {
+      if (retires === 0) {
+        throw new Error(
+          'teeshoop-sans-binaire-wasm : aucun .wasm retiré du bundle. ' +
+            'Soit onnxruntime a cessé d’en émettre un, soit ce greffon ne le voit plus. ' +
+            'Vérifiez avant de supprimer ce contrôle : le répertoire du greffon est déployé par rsync.',
+        )
+      }
+      console.log(`teeshoop-sans-binaire-wasm : ${retires} binaire(s) WebAssembly retiré(s) du paquet.`)
+      retires = 0
     },
   }
 }

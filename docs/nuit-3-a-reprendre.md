@@ -25,33 +25,52 @@
 
 ## 2. Ce qui n'est pas fini, nommément
 
-### Trois postes de la vue avancée ne sont pas construits
+### Les sept postes de la vue avancée sont construits (5 septembre, seconde passe)
 
-Aucun n'est sur le chemin d'un achat. Un client qui n'ouvre jamais cette vue
-achète exactement comme avant, et un qui l'ouvre y trouve les quatre autres
-postes (dos et manches, plusieurs calques, texte et polices, alignement au
-centimètre).
+Dos et manches, plusieurs calques, texte et polices, alignement au centimètre,
+détourage, aperçu en volume, réalité augmentée. Les trois derniers ont été
+ajoutés après coup, à la demande du développeur, et chacun a coûté une mesure.
 
-**Le détourage.** Mesuré en le construisant : `vite` copie 13 480 ko de
-WebAssembly dans le répertoire du greffon, deux fois, parce qu'`onnxruntime-web`
-référence son binaire par `new URL(…, import.meta.url)` et qu'aucune option ne
-l'en empêche. Avec le modèle ONNX, 4 600 ko, cela fait 18 Mo qui partiraient en
-rsync vers o2switch à chaque déploiement. Les servir depuis le Worker marche pour
-le téléchargement (`connect-src` autorise déjà cette origine) et demande en plus
-`'wasm-unsafe-eval'` dans le `script-src` de la boutique. C'est petit, c'est
-faisable, et c'est une modification de la politique de sécurité de la boutique.
-**Question Q67 posée à l'associé** : combien de ses clients envoient un visuel
-avec un fond à retirer. Si c'est rare, la phrase que l'éditeur affiche suffit.
+**Le détourage** ne pouvait pas embarquer son runtime : 13 480 ko de
+WebAssembly copiés deux fois dans le répertoire du greffon, et
+`external` sur `.wasm` ne les attrape pas (ce n'est pas un import, c'est un
+actif émis). Un greffon de vite les retire maintenant au moment du bundle, et
+échoue bruyamment s'il n'en retire aucun. Le runtime est lu sur le Worker, qui
+le sert déjà publiquement, et `u2netp.onnx` a déménagé de `/models/` vers
+`/ort/` parce qu'un poids ONNX n'est pas un modèle 3D.
 
-**La réalité augmentée.** `uploadArModel` poste sur `POST /api/ar`, qui n'expose
-aucun en-tête CORS. Depuis la page de la boutique l'envoi partirait et la réponse
-serait illisible. C'est une ligne dans `worker/index.ts`, du même genre que celle
-écrite cette nuit pour `/api/design`, et le brief interdisait tout autre
-changement Worker.
+**La politique de sécurité de la boutique n'a PAS changé**, et c'est le
+résultat de la mesure plutôt qu'un renoncement. `'wasm-unsafe-eval'` a été
+ajouté, puis retiré : politique appliquée (pas Report-Only), un détourage réel
+réussit en 4,3 s SANS le jeton, parce que la compilation a lieu dans un Web
+Worker et qu'un worker dédié prend sa politique de ses propres en-têtes de
+réponse, pas de ceux du document. Le jeton n'achèterait que le chemin de repli
+sur le fil principal, qui ne sert que sur un navigateur incapable de démarrer un
+Web Worker de module, et qui rencontre l'état vide prévu.
 
-**L'aperçu 3D.** Monté par React dans le studio (`src/app/Scene3D.tsx`). Le
-porter est un vrai poste : three.js, la scène, les textures, la caméra. À moitié,
-ce serait une seconde implémentation du rendu du vêtement.
+**L'aperçu en volume et la réalité augmentée sont le même objet**, et c'est ce
+qui les a rendus faisables en une heure : `buildArModel` construit un vêtement
+portant la création, le GLB qu'il rend EST l'aperçu, et c'est le même octet que
+le téléphone reçoit. La scène three.js est celle de la page du code QR,
+extraite dans `src/lib/glbStage.ts` plutôt que recopiée, avec un démontage que
+l'original n'avait pas (contexte WebGL libéré, géométries et textures du GLTF
+disposées, écouteurs retirés).
+
+Ce que ça a coûté au Worker : `POST /api/ar` porte le CORS comme les routes de
+création, et `/ort/*` et `/models/*` ont perdu leur négation dans
+`run_worker_first` pour recevoir le même en-tête. Mesuré deux fois avant de
+comprendre : sans en-tête sur `/ort/`, quatre `net::ERR_FAILED` et un détourage
+qui échoue en 0,1 s ; sans en-tête sur `/models/`, deux 404 et un aperçu qui
+affiche « le modèle n'a pas pu être construit ».
+
+Ce que ça coûte à la première charge : **rien**. 100 808 octets compressés,
+40,9 % du studio encadré, trois octets de plus qu'avant l'ajout des trois postes.
+Les 2,2 Mo de three.js, d'exportateurs et de polices sont derrière deux clics, et
+`scripts/editeur-guard.mjs` le mesure avec deux parcours du même graphe : les
+interdits portent sur celui QUI SUIT les imports paresseux, le poids sur celui
+qui ne les suit pas, et chaque poste lourd est asserté dans les deux sens
+(absent avant le clic, PRÉSENT derrière, sinon « corriger » une violation en
+supprimant la fonctionnalité passerait).
 
 ### La photographie et la zone : deux relevés que le brief supposait faux
 

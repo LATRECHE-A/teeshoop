@@ -50,7 +50,7 @@ import { arcAt, getArcTable } from '@/three/fabricUnwrap'
 import { armProfile, buildGarmentFrame, fabricFrameFor, printCentreYIn } from '@/three/garmentFrame'
 import { buildMannequin, type MannequinSide } from '@/three/mannequin'
 import { canvasTexture, MAX_TEX, nearestPow2, potCanvas } from '@/three/arTexture'
-import { garmentTint } from '@/three/textures'
+import { garmentTint } from '@/three/garmentTint'
 
 // Author decals at a power of two so potCanvas keeps full resolution (1400 was
 // silently snapped down to 1024). Sleeves stay 1024 to bound texture memory.
@@ -314,6 +314,24 @@ const AVATAR_URL: Record<Gender, Record<CatalogGarmentId, string>> = {
   female: { tee: '/models/avatar-tee-female.glb', hoodie: '/models/avatar-hoodie-female.glb' },
 }
 
+/**
+ * Où sont servis les avatars, quand ce n'est pas sur cette origine.
+ *
+ * MÊME FORME ET MÊME RAISON QUE `ArUploadOptions` et que la base d'actifs du
+ * détourage. Depuis le 5 septembre 2026 la boutique WordPress construit ce
+ * modèle dans sa propre page, et les GLB vivent sur le Worker : sans base, le
+ * chargeur demande `/models/avatar-tee.glb` à WordPress, reçoit une 404, et le
+ * bouton d'essayage n'apparaît jamais. Mesuré, deux 404 et un aperçu vide.
+ *
+ * Vide veut dire « ici », ce qui est le studio, servi par le Worker.
+ */
+let avatarBase = ''
+
+/** Poser la base des avatars. Sans effet sur un modèle déjà construit. */
+export function configureArAssets(base: string): void {
+  avatarBase = (base ?? '').replace(/\/+$/, '')
+}
+
 const AVATAR = {
   heightIn: 68, // normalise to a life-size figure
   // Usable flat front width as a fraction of the torso's full width: the print
@@ -404,7 +422,7 @@ async function buildAvatarFigure(
   gender: Gender,
   sizeId: SizeId,
 ): Promise<{ figure: THREE.Group; disposables: Disposable[] }> {
-  const url = AVATAR_URL[gender][garment]
+  const url = `${avatarBase}${AVATAR_URL[gender][garment]}`
   const gltf = await new GLTFLoader().loadAsync(url)
   gltf.scene.updateMatrixWorld(true)
   const src = firstMesh(gltf.scene)
@@ -1064,16 +1082,37 @@ export async function buildArModel(
 }
 
 /**
+ * Where `POST /api/ar` lives when it is not on this page's own origin.
+ *
+ * THE SAME SHAPE AS `UploadOptions` IN `src/lib/teeshoop/upload.ts`, and for the
+ * same reason: the studio is served by the Worker, so its fetch is same-origin
+ * and no browser ever asks for a CORS header, while the shop's product page is a
+ * different origin. Passed rather than set on a module variable, because a
+ * module-level setting is a setting one caller can change under another.
+ */
+export interface ArUploadOptions {
+  /** Origin (and optional path prefix) the AR route is served from. */
+  endpoint?: string
+}
+
+/**
  * Upload the model blobs to the AR blob store (Cloudflare Worker → R2) and
  * return the short id. Throws when the backend isn't reachable (e.g. plain
  * `vite dev` with no Worker) so the caller can show a helpful message.
  */
-export async function uploadArModel(blobs: ArModelBlobs): Promise<string> {
+export async function uploadArModel(blobs: ArModelBlobs, opts?: ArUploadOptions): Promise<string> {
   const form = new FormData()
   form.append('glb', blobs.glb, 'model.glb')
   form.append('usdz', blobs.usdz, 'model.usdz')
   form.append('poster', blobs.poster, 'poster.png')
-  const res = await fetch('/api/ar', { method: 'POST', body: form })
+  const base = (opts?.endpoint ?? '').replace(/\/+$/, '')
+  /*
+   * Relative from the studio, absolute from the shop's page. Cross-origin the
+   * multipart POST leaves on its own and it is READING the id back that needs
+   * `worker/cors.ts`; without it the QR has nothing to point at and the failure
+   * looks like a network error rather than a refusal.
+   */
+  const res = await fetch(base === '' ? '/api/ar' : `${base}/api/ar`, { method: 'POST', body: form })
   if (!res.ok) throw new Error(`AR upload failed (${res.status})`)
   const data = (await res.json()) as { id?: string }
   if (!data.id) throw new Error('AR upload returned no id')

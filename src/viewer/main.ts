@@ -8,8 +8,16 @@
  * and dependency-light: it reuses the app's own three.js. No model-viewer, no
  * CDN. The heavy native-AR rendering is done by the phone's OS.
  */
-import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+/*
+ * LA SCÈNE EST PARTAGÉE AVEC L'ÉDITEUR DE LA FICHE PRODUIT.
+ *
+ * `initPreview` et son dégradé d'environnement vivaient ici. Le
+ * personnalisateur natif (`src/native/apercu3d.ts`) a besoin exactement de la
+ * même chose, et deux éclairages seraient deux couleurs sur le même tissu. Ils
+ * sont dans `src/lib/glbStage.ts` ; cette page garde son propre DOM, ses propres
+ * phrases et son propre lancement de la réalité augmentée native.
+ */
+import { monterGlb } from '@/lib/glbStage'
 
 const ID_RE = /^[A-Za-z0-9_-]{6,40}$/
 
@@ -58,23 +66,6 @@ function idFromUrl(): string | null {
   return ID_RE.test(id) ? id : null
 }
 
-/** Soft equirectangular studio gradient for gentle ambient + reflections. */
-function gradientEnv(): THREE.Texture {
-  const c = document.createElement('canvas')
-  c.width = 32
-  c.height = 128
-  const ctx = c.getContext('2d')!
-  const g = ctx.createLinearGradient(0, 0, 0, 128)
-  g.addColorStop(0.0, '#eef3fb')
-  g.addColorStop(0.5, '#aeb9c8')
-  g.addColorStop(1.0, '#42484f')
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, 32, 128)
-  const tex = new THREE.CanvasTexture(c)
-  tex.mapping = THREE.EquirectangularReflectionMapping
-  tex.colorSpace = THREE.SRGBColorSpace
-  return tex
-}
 
 function renderError() {
   root.innerHTML = `
@@ -94,89 +85,6 @@ function launchAndroidAr(glbUrl: string, fallback: string) {
     `#Intent;scheme=https;package=com.google.ar.core;action=android.intent.action.VIEW;` +
     `S.browser_fallback_url=${encodeURIComponent(fallback)};end;`
   window.location.href = intent
-}
-
-function initPreview(canvas: HTMLCanvasElement, glbUrl: string, onReady: () => void, onFail: () => void) {
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true })
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
-  // Neutral (KHR_PBR_neutral) at reference exposure, the same as the studio
-  // canvas and the basket board. This viewer is the AR poster/fallback, i.e. the
-  // last thing a customer sees before they buy: it must not be the one surface
-  // that re-grades their colour (ACES at 1.05 lifted blacks and desaturated
-  // every strong hue).
-  renderer.toneMapping = THREE.NeutralToneMapping
-  renderer.toneMappingExposure = 1.0
-
-  const scene = new THREE.Scene()
-  scene.environment = gradientEnv()
-  scene.add(new THREE.HemisphereLight(0xf2f5ff, 0x3a3630, 0.55))
-  const key = new THREE.DirectionalLight(0xffffff, 2.0)
-  key.position.set(-6, 12, 10)
-  scene.add(key)
-  const fill = new THREE.DirectionalLight(0xbcd3ff, 0.5)
-  fill.position.set(8, 5, -6)
-  scene.add(fill)
-
-  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 4000)
-  const pivot = new THREE.Group()
-  scene.add(pivot)
-
-  const resize = () => {
-    const w = canvas.clientWidth
-    const h = canvas.clientHeight
-    if (w < 2 || h < 2) return
-    renderer.setSize(w, h, false)
-    camera.aspect = w / h
-    camera.updateProjectionMatrix()
-  }
-  window.addEventListener('resize', resize)
-
-  // Drag to rotate; idle auto-spin.
-  let auto = true
-  let dragging = false
-  let lastX = 0
-  let vel = 0.004
-  canvas.addEventListener('pointerdown', (e) => {
-    dragging = true
-    auto = false
-    lastX = e.clientX
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-  })
-  canvas.addEventListener('pointermove', (e) => {
-    if (!dragging) return
-    const dx = e.clientX - lastX
-    lastX = e.clientX
-    vel = dx * 0.01
-    pivot.rotation.y += vel
-  })
-  const stop = () => (dragging = false)
-  canvas.addEventListener('pointerup', stop)
-  canvas.addEventListener('pointercancel', stop)
-
-  new GLTFLoader().loadAsync(glbUrl).then(
-    (gltf) => {
-      const model = gltf.scene
-      const box = new THREE.Box3().setFromObject(model)
-      const size = box.getSize(new THREE.Vector3())
-      const center = box.getCenter(new THREE.Vector3())
-      model.position.sub(center) // centre at the origin so it spins in place
-      pivot.add(model)
-      const radius = Math.max(size.x, size.y, size.z) * 0.5 || 30
-      camera.position.set(0, size.y * 0.04, radius / Math.tan((camera.fov * Math.PI) / 360) * 1.15)
-      camera.lookAt(0, 0, 0)
-      resize()
-      renderer.setAnimationLoop(() => {
-        if (auto) pivot.rotation.y += 0.006
-        else if (!dragging) {
-          pivot.rotation.y += vel
-          vel *= 0.94
-        }
-        renderer.render(scene, camera)
-      })
-      onReady()
-    },
-    () => onFail(),
-  )
 }
 
 function renderViewer(id: string) {
@@ -213,7 +121,7 @@ function renderViewer(id: string) {
   } // desktop: no AR button. Hint tells them to open on a phone.
 
   const canvas = root.querySelector('#vw-canvas') as HTMLCanvasElement
-  initPreview(
+  monterGlb(
     canvas,
     `${base}.glb`,
     () => {

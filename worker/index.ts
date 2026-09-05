@@ -247,10 +247,29 @@ export default {
     const url = new URL(request.url)
     const path = url.pathname
 
+    /*
+     * L'ESSAYAGE EN RÉALITÉ AUGMENTÉE, et il porte le CORS pour la même raison
+     * que les routes de création : depuis le 5 septembre 2026 le client
+     * personnalise dans la page de la boutique, donc l'envoi du modèle est
+     * inter-origines. La requête part (un POST multipart est une requête
+     * simple) et le navigateur refuse à la page de LIRE l'identifiant qui
+     * revient, c'est-à-dire celui que le code QR doit porter.
+     *
+     * Même allow-list, même égalité de chaîne exacte, mêmes identifiants
+     * désactivés. `GET /r2/ar/{id}.{ext}` n'en gagne pas : ces octets sont
+     * chargés par Scene Viewer et par Quick Look, qui sont des navigateurs
+     * natifs suivant une URL, pas un `fetch` soumis à une politique d'origine.
+     */
+    if (path === '/api/ar' && request.method === 'OPTIONS') {
+      return preflight(request, env, 'POST, OPTIONS')
+    }
     if (path === '/api/ar' && request.method === 'POST') {
       const tooMany = await rateLimited(env.AR_UPLOAD_LIMIT, request, 'POST /api/ar')
-      if (tooMany) return tooMany
-      return uploadAr(request, env)
+      // Le refus est estampillé aussi : un 429 que la page ne peut pas lire est
+      // un essayage qui s'arrête sur « failed to fetch » au lieu de « trop
+      // d'envois, réessayez dans une minute ».
+      if (tooMany) return withCors(tooMany, request, env)
+      return withCors(await uploadAr(request, env), request, env)
     }
 
     /*
@@ -259,7 +278,7 @@ export default {
      * authenticate), and the read is what the WordPress plugin calls before it
      * will put a personalised line in a cart.
      *
-     * THESE TWO ROUTES, AND ONLY THESE TWO, CARRY CORS HEADERS (worker/cors.ts).
+     * CES DEUX ROUTES ET `POST /api/ar` PORTENT LE CORS (worker/cors.ts).
      * The customiser now runs inside the shop's own page rather than in a frame
      * served from here, so the fetch that stores a design is cross-origin and
      * the browser will not let the page read the id back without one. Exact
@@ -365,6 +384,42 @@ export default {
       const denied = await requireAdmin(request, env, 'page')
       if (denied) return denied
       return env.ASSETS.fetch(request)
+    }
+
+    /*
+     * LE RUNTIME DU DÉTOURAGE ET SON MODÈLE, LISIBLES PAR LA BOUTIQUE.
+     *
+     * `/ort/` porte le runtime ONNX et son modèle (13,5 Mo de WebAssembly et
+     * 4,6 Mo de poids) ; `/models/` porte les avatars GLB que l'aperçu en volume
+     * habille. Des actifs statiques publics, sans identifiants, que n'importe
+     * qui peut déjà télécharger en tapant l'URL. Ce que le CORS
+     * décide ici n'est pas QUI peut les obtenir, c'est si une PAGE a le droit de
+     * lire ce qu'elle a demandé, et depuis que le personnalisateur est dans la
+     * boutique cette page est sur une autre origine.
+     *
+     * Mesuré le 5 septembre 2026 sur le miroir, deux fois. Sans en-tête sur
+     * `/ort/`, quatre `net::ERR_FAILED` et un détourage qui échoue en 0,1 s sur
+     * une phrase qui ne nomme pas la cause. Sans en-tête sur `/models/`, deux
+     * 404 et un bouton d'essayage qui n'apparaît jamais, parce que
+     * `buildArModel` n'a pas pu charger d'avatar.
+     *
+     * LE PRÉFLIGHT N'EST PAS OPTIONNEL ICI, contrairement au dépôt d'une
+     * création : `sniffWasm` envoie un en-tête `Range` pour ne lire que quatre
+     * octets, et `Range` n'est pas dans la liste blanche des en-têtes simples.
+     * Le navigateur envoie donc un OPTIONS d'abord, qui tombait sur le repli
+     * monopage et rendait 200 avec du HTML.
+     *
+     * MÊME LISTE, MÊME ÉGALITÉ EXACTE, et rien d'autre du répertoire d'actifs :
+     * ces deux préfixes sont nommés un par un, parce que `dist/` porte aussi le
+     * catalogue et les morceaux de l'application, qui ne sont lus qu'en même
+     * origine par le studio et n'ont besoin d'aucun en-tête.
+     */
+    const runtimeOuvert = path.startsWith('/ort/') || path.startsWith('/models/')
+    if (runtimeOuvert && request.method === 'OPTIONS') {
+      return preflight(request, env, 'GET, HEAD, OPTIONS')
+    }
+    if (runtimeOuvert && (request.method === 'GET' || request.method === 'HEAD')) {
+      return withCors(await env.ASSETS.fetch(request), request, env)
     }
 
     // The Falk&Ross module memoises derived payloads (INCLUDING PURCHASE

@@ -33,7 +33,73 @@ export interface EngineProgress {
 /** Optional cooperative-yield hook for the main-thread fallback. */
 export type YieldFn = () => void | Promise<void>
 
-const MODEL_URL = '/models/u2netp.onnx'
+/*
+ * `/ort/` ET PAS `/models/`, depuis le 5 septembre 2026.
+ *
+ * Ce fichier est un poids ONNX, pas un modèle 3D : il appartient au runtime qui
+ * le charge, et `/models/` porte les avatars GLB de l'aperçu en volume. Le
+ * rangement a aussi une conséquence de déploiement, écrite dans
+ * `wrangler.jsonc` : `/ort/` passe par le Worker pour recevoir son en-tête
+ * CORS, et les 34 Mo d'avatars n'ont pas à le faire.
+ */
+const MODEL_PATH = '/ort/u2netp.onnx'
+
+/**
+ * Où sont servis le runtime ONNX et le modèle, quand ce n'est pas ici.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * UNE VALEUR DE MODULE, ET C'EST LA BONNE PORTÉE.
+ *
+ * Ce module tient DÉJÀ un état de module : `ortConfigured`, `modelReady`, la
+ * session mise en cache et les octets du modèle. Une session ONNX est une par
+ * document (ou une par Web Worker), et la base d'actifs est un champ de la
+ * configuration de cette session-là : lui donner une portée plus courte que la
+ * session qu'elle configure n'aurait aucun sens.
+ *
+ * Vide veut dire « ici », ce qui est le studio : le Worker Cloudflare sert la
+ * page ET `/ort/` ET `/models/`, donc les chemins relatifs suffisent et rien ne
+ * change. La boutique WordPress, elle, sert le paquet depuis
+ * `/wp-content/plugins/…` et doit dire où chercher, sinon les deux fichiers
+ * rendent 404 et `document.fonts`-style, ONNX échoue plus loin, sur un message
+ * qui ne nomme pas la cause.
+ */
+let assetBase = ''
+
+/*
+ * DÉCLARÉS ICI, AU-DESSUS DE `configureAssets`, qui les lit pour refuser un
+ * réglage arrivé après la création de la session. Ils vivaient plus bas, à côté
+ * de `createSession` ; les remonter ne change rien à leur portée et rend le
+ * refus possible.
+ */
+let ortConfigured = false
+let sessionPromise: Promise<ort.InferenceSession> | null = null
+
+/**
+ * Poser la base avant toute création de session. Idempotent.
+ *
+ * ELLE REFUSE BRUYAMMENT UN APPEL TROP TARD, plutôt que de l'ignorer.
+ *
+ * La première version l'ignorait, avec un commentaire disant que ça n'arrivait
+ * dans aucun appelant réel. C'était faux : `preloadBgModel` ne portait pas la
+ * base, donc un préchargement avant le premier détourage épinglait la base à
+ * « ici » pour la vie de la page, et l'`assets` du détourage suivant partait au
+ * silence. Le symptôme aurait été deux 404 sur 18 Mo puis une erreur ONNX qui
+ * ne nomme ni l'un ni l'autre. « Non » et « je n'ai pas regardé » sont deux
+ * réponses différentes (`CLAUDE.md` section 3), et un réglage qui s'applique
+ * parfois est la pire des trois.
+ */
+export function configureAssets(base: string): void {
+  const propre = (base ?? '').replace(/\/+$/, '')
+  if (propre === assetBase) return
+  if (ortConfigured || sessionPromise) {
+    throw new Error(
+      `configureAssets(${propre || 'ici'}) après la création de la session (base : ${assetBase || 'ici'})`,
+    )
+  }
+  assetBase = propre
+}
+
+const MODEL_URL = () => `${assetBase}${MODEL_PATH}`
 /** Sources larger than this on the long edge are downscaled first. */
 export const MAX_SOURCE_EDGE = 2048
 const ROW_CHUNK = 160
@@ -55,6 +121,9 @@ const WASM_BASE_CANDIDATES = [
   '/ort/node_modules/onnxruntime-web/dist/',
   '/node_modules/onnxruntime-web/dist/',
 ] as const
+
+/** Les mêmes candidats, préfixés par la base d'actifs quand il y en a une. */
+const wasmCandidates = (): string[] => WASM_BASE_CANDIDATES.map((c) => `${assetBase}${c}`)
 
 async function sniffWasm(url: string): Promise<boolean> {
   try {
@@ -91,14 +160,13 @@ async function sniffWasm(url: string): Promise<boolean> {
 }
 
 async function resolveWasmPaths(): Promise<string> {
-  for (const base of WASM_BASE_CANDIDATES) {
+  const candidats = wasmCandidates()
+  for (const base of candidats) {
     if (await sniffWasm(`${base}${WASM_FILE}`)) return base
   }
-  return WASM_BASE_CANDIDATES[0] // contracted default; ort surfaces the error
+  return candidats[0] // contracted default; ort surfaces the error
 }
 
-let ortConfigured = false
-let sessionPromise: Promise<ort.InferenceSession> | null = null
 let modelReady = false
 /** Listeners registered for the duration of one model load. */
 const modelListeners = new Set<(pct: number) => void>()
@@ -120,7 +188,7 @@ function notifyModelPct(pct: number): void {
 
 /** Download the model once, streaming progress when Content-Length allows. */
 async function fetchModel(onPct: (pct: number) => void): Promise<Uint8Array> {
-  const res = await fetch(MODEL_URL)
+  const res = await fetch(MODEL_URL())
   if (!res.ok) throw new Error(`Model download failed (HTTP ${res.status})`)
   // Content-Length counts encoded bytes; the stream yields decoded bytes, so
   // treat the ratio as an estimate and clamp below 100 until finished.

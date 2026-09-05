@@ -603,3 +603,62 @@
 	outline: 3px solid var(--tshop-accent);
 	outline-offset: 2px;
 }
+
+/* ════════════════════════════════════════════ l'aperçu en volume et l'AR ══ */
+
+.tshop-ed__apercu {
+	margin-top: 1rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--tshop-line);
+}
+
+/*
+ * LE CANEVAS EST DIMENSIONNÉ EN CSS ET THREE.JS SUIT.
+ *
+ * Sans hauteur déclarée un canevas fait 300 x 150 px, sa taille par défaut, et
+ * `resize()` la recopie dans le moteur de rendu : l'aperçu s'affichait dans un
+ * timbre-poste. Mesuré le 5 septembre 2026.
+ */
+.tshop-ed__scene3d {
+	margin-top: 0.5rem;
+	background: var(--tshop-surface);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+	overflow: hidden;
+}
+
+.tshop-ed__canvas3d {
+	display: block;
+	width: 100%;
+	height: 55vh;
+	max-height: 26rem;
+	/* Le doigt fait tourner le vêtement, il ne fait pas défiler la page. */
+	touch-action: none;
+}
+
+.tshop-ed__ar {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+}
+
+.tshop-ed__qr {
+	width: 160px;
+	height: 160px;
+	/*
+	 * `image-rendering: pixelated` : un code à scanner est une grille de
+	 * modules, et l'interpolation d'un navigateur qui l'agrandit brouille
+	 * exactement les bords dont l'appareil photo a besoin.
+	 */
+	image-rendering: pixelated;
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+	padding: 0.5rem;
+}
+
+.tshop-ed__zone-apercu:empty {
+	display: none;
+}

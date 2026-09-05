@@ -60,7 +60,7 @@ Dark press-room studio. Chrome recedes, garment is the hero.
 |---|---|---|
 | Core app, editor engine, state, rendering | main | `src/app`, `src/editor`, `src/state`, `src/lib/*` (except below), `index.html`, configs |
 | A1 Garment art | agent | `src/garments/**`, `dev/garments.html`, `src/dev/garmentsHarness.tsx` |
-| A2 Background removal | agent | `src/lib/bgremove/**`, `public/models/u2netp.onnx`, `dev/bgremove.html`, `src/dev/bgremoveHarness.tsx` |
+| A2 Background removal | agent | `src/lib/bgremove/**`, `public/ort/u2netp.onnx`, `dev/bgremove.html`, `src/dev/bgremoveHarness.tsx` |
 | A3 3D scene | agent | `src/three/**`, `public/models/*.glb`, `dev/three.html`, `src/dev/threeHarness.tsx` |
 | A4 Arc text + smart guides + fonts | agent | `src/lib/arcText.ts`, `src/lib/smartGuides.ts`, `src/lib/fonts.ts`, `dev/text.html`, `src/dev/textHarness.tsx` |
 | A5 Content (graphics/palettes/pricing/sample) | agent | `src/content/**` |
@@ -108,7 +108,7 @@ Rules:
 
 In-browser salient-object background removal. Model: **U²-Net small
 (`u2netp.onnx`, ~4.6 MB, Apache-2.0)**. Download once into
-`public/models/u2netp.onnx` (commit it) from
+`public/ort/u2netp.onnx` (commit it) from
 `https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx`
 (mirror: huggingface `tomjackson2023/rembg`). Runtime: `onnxruntime-web`
 (preinstalled), **wasm EP, `numThreads = 1`** (no COOP/COEP), simd ok,

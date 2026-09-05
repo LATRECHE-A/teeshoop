@@ -176,6 +176,7 @@ const yieldToUi = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
  */
 export async function preloadBgModel(
   onProgress?: (pct: number) => void,
+  assets?: string,
 ): Promise<void> {
   if (!isBgRemovalSupported()) {
     throw new Error('Background removal is not supported in this browser')
@@ -183,7 +184,7 @@ export async function preloadBgModel(
   if (canUseWorker()) {
     try {
       await submitToWorker(
-        (id) => ({ kind: 'preload', id }),
+        (id) => ({ kind: 'preload', id, assets }),
         (p) => {
           if (p.stage === 'model' && typeof p.pct === 'number') {
             onProgress?.(Math.min(99, p.pct))
@@ -197,6 +198,9 @@ export async function preloadBgModel(
     }
   }
   const engine = await loadEngine()
+  // Comme dans `removeBackground` : le repli sur le fil principal a besoin de
+  // la même base, sinon il cherche 18 Mo à la racine du site.
+  if (assets) engine.configureAssets(assets)
   await enqueueOnMain(() =>
     engine.ensureSession((pct) => onProgress?.(Math.min(99, pct))),
   )
@@ -210,7 +214,7 @@ export async function preloadBgModel(
  */
 export async function removeBackground(
   source: Blob,
-  opts?: { onProgress?: (p: RemoveBgProgress) => void },
+  opts?: { onProgress?: (p: RemoveBgProgress) => void; assets?: string },
 ): Promise<Blob> {
   if (!isBgRemovalSupported()) {
     throw new Error('Background removal is not supported in this browser')
@@ -219,7 +223,7 @@ export async function removeBackground(
   if (canUseWorker()) {
     try {
       const png = await submitToWorker(
-        (id) => ({ kind: 'remove', id, blob: source }),
+        (id) => ({ kind: 'remove', id, blob: source, assets: opts?.assets }),
         onProgress,
       )
       if (!(png instanceof Blob)) throw new Error('Worker returned no image')
@@ -230,6 +234,15 @@ export async function removeBackground(
     }
   }
   const engine = await loadEngine()
+  /*
+   * LE CHEMIN DE REPLI, SUR LE FIL PRINCIPAL, A BESOIN DE LA MÊME BASE.
+   *
+   * Il ne sert que quand le Web Worker meurt (modules non supportés), et c'est
+   * précisément le navigateur où l'on ne veut pas ajouter une seconde panne :
+   * sans cette ligne il chercherait le runtime à la racine du site et
+   * échouerait pour une raison différente de la première.
+   */
+  if (opts?.assets) engine.configureAssets(opts.assets)
   return enqueueOnMain(() =>
     engine.removeBackgroundImpl(source, onProgress, yieldToUi),
   )

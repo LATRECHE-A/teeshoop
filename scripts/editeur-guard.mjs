@@ -91,17 +91,14 @@ const FEUILLE = entree('css')
 const STUDIO_OCTETS_GZ = 246473
 
 /**
- * Modules interdits au graphe STATIQUE de la vue simple.
+ * Modules interdits au paquet, MORCEAUX PARESSEUX COMPRIS.
  *
  * Chacun avec la raison, parce qu'un jour quelqu'un voudra en retirer un et
  * doit pouvoir lire pourquoi il est là plutôt que deviner.
  */
 const BANNIS = [
-  ['src/lib/bgremove/', '13,5 Mo de WebAssembly et 4,6 Mo de modèle ONNX'],
   ['src/scenes/', 'les décors 3D, dont la vue simple n’a aucun usage'],
-  ['src/lib/arExport.ts', 'la réalité augmentée, qui tire three.js et l’export GLB/USDZ'],
   ['src/lib/dtf/', 'l’économie du film, qui est de l’atelier et pas du client'],
-  ['src/three/', 'three.js'],
   ['src/app/', 'le studio React, qui est justement ce que cette nuit remplace'],
   ['src/admin/', 'les outils d’atelier'],
   [
@@ -120,15 +117,40 @@ const BANNIS = [
  * donc le premier qu'un portage naïf ramènerait.
  */
 const PAQUETS_BANNIS = [
-  'three',
   '@react-three',
   'react',
   'react-dom',
   'react/jsx-runtime',
   'lucide-react',
-  'onnxruntime-web',
   'zustand',
   'zundo',
+]
+
+/**
+ * Paquets permis derrière un `import()` et interdits à la première charge.
+ *
+ * `three` et `onnxruntime-web` SONT l'aperçu en volume et le détourage. Les
+ * interdire partout reviendrait à interdire les fonctionnalités ; ce qu'il faut
+ * prouver est qu'ils ne descendent pas chez un client qui n'a rien demandé.
+ */
+const PAQUETS_PARESSEUX = ['three', 'onnxruntime-web']
+
+/**
+ * Modules interdits à la PREMIÈRE CHARGE, et permis derrière un `import()`.
+ *
+ * Ce sont les trois postes lourds de la vue avancée. Ils sont légitimes dans le
+ * paquet, parce qu'un client qui les demande doit pouvoir les obtenir ; ils
+ * seraient une faute dans ce qu'un client télécharge AVANT d'avoir cliqué. La
+ * distinction est mesurée par deux parcours du même graphe, l'un sans les
+ * imports dynamiques et l'autre avec, et c'est la seule raison pour laquelle
+ * les deux existent.
+ */
+const PARESSEUX_SEULEMENT = [
+  ['src/lib/bgremove/', '13,5 Mo de WebAssembly et 4,6 Mo de modèle ONNX'],
+  ['src/lib/arExport.ts', 'l’export GLB et USDZ, qui tire three.js'],
+  ['src/lib/glbStage.ts', 'la scène three.js partagée avec la page du code QR'],
+  ['src/three/', 'three.js'],
+  ['src/lib/qr.ts', 'le générateur de code à scanner'],
 ]
 
 /**
@@ -147,13 +169,27 @@ const OBLIGATOIRES = [
 ]
 
 /** Marqueurs qui ne doivent apparaître dans AUCUN octet de la première charge. */
-const MARQUEURS = [
+/**
+ * Marqueurs cherchés dans l'ENTRÉE seule, parce qu'ils sont légitimes ailleurs.
+ *
+ * three.js, le runtime ONNX et le modèle de détourage sont ce que la vue avancée
+ * charge au clic : les interdire dans tout le répertoire reviendrait à interdire
+ * la fonctionnalité. Ce qu'il faut prouver, c'est qu'ils ne sont pas dans le
+ * fichier qu'un visiteur télécharge en arrivant. La garde de graphe le dit déjà
+ * à la source ; ceci le dit sur les octets, parce que la minification renomme
+ * les symboles et jamais les chaînes.
+ */
+const MARQUEURS_ENTREE = [
   ['onnxruntime', 'le runtime ONNX'],
   ['u2netp', 'le modèle de détourage'],
   ['THREE.', 'three.js'],
-  ['react-dom', 'React'],
   ['/models/', 'un chemin d’actif absolu'],
   ['/ort/', 'un chemin d’actif absolu'],
+]
+
+/** Marqueurs qui ne doivent apparaître dans AUCUN octet du paquet. */
+const MARQUEURS = [
+  ['react-dom', 'React'],
   ['/catalog/', 'un chemin d’actif absolu'],
   ['baseUsd', 'le second moteur de prix, en dollars'],
   /*
@@ -210,14 +246,38 @@ ok(
   `${tout.size} modules avec les morceaux, ${graphe.size} sans`,
 )
 
-for (const [prefixe, pourquoi] of BANNIS) {
-  const fuites = [...tout.entries()]
+const atteint = (graphe, prefixe) =>
+  [...graphe.entries()]
     .filter(([f]) => (prefixe.endsWith('/') ? f.startsWith(prefixe) : f === prefixe))
     .map(([f, par]) => `${f} <- ${par}`)
+
+for (const [prefixe, pourquoi] of BANNIS) {
+  const fuites = atteint(tout, prefixe)
   ok(
     `le paquet n’atteint pas ${prefixe}, morceaux paresseux compris`,
     fuites.length === 0,
     fuites.length ? fuites.join(' | ') : pourquoi,
+  )
+}
+
+/*
+ * LES TROIS POSTES LOURDS : interdits à la première charge, exigés derrière un
+ * clic. Les deux moitiés comptent. Sans la seconde, « corriger » une violation
+ * en supprimant l'aperçu 3D passerait, et la garde resterait verte sur un
+ * éditeur qui a perdu une fonctionnalité.
+ */
+for (const [prefixe, pourquoi] of PARESSEUX_SEULEMENT) {
+  const eager = atteint(graphe, prefixe)
+  ok(
+    `${prefixe} ne descend pas avant un clic`,
+    eager.length === 0,
+    eager.length ? eager.join(' | ') : pourquoi,
+  )
+  const lazy = atteint(tout, prefixe)
+  ok(
+    `${prefixe} est bien là derrière un clic`,
+    lazy.length > 0,
+    lazy.length ? lazy[0] : 'ATTEIGNABLE NULLE PART : la fonctionnalité a disparu',
   )
 }
 
@@ -230,36 +290,54 @@ for (const [prefixe, pourquoi] of BANNIS) {
  * fichiers que le graphe a bien atteints, ce qui est la même question posée
  * autrement.
  */
-const paquetsVus = new Map()
-for (const rel of tout.keys()) {
-  /*
-   * LES COMMENTAIRES SONT RETIRÉS D'ABORD.
-   *
-   * La première version cherchait les spécificateurs dans le texte brut et a
-   * rapporté « the same id, different pixels » comme un paquet npm : c'est de
-   * la prose de `src/state/assets.ts`. Un scanner qui invente des dépendances
-   * est un scanner dont on cesse de lire la sortie.
-   */
-  const src = lire(join(ROOT, rel))
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '')
-  const specs = [
-    ...src.matchAll(/(?:^\s*(?:import|export)[\s\S]*?from|^\s*import)\s*['"]([^'"]+)['"]/gm),
-    // `import()` et `require()`, qui n'ont ni l'un ni l'autre la forme ci-dessus.
-    ...src.matchAll(/\b(?:import|require)\(\s*['"]([^'"]+)['"]\s*\)/g),
-  ]
-  for (const m of specs) {
-    const spec = m[1]
-    if (spec.startsWith('.') || spec.startsWith('@/') || spec.startsWith('/')) continue
-    const nom = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]
-    if (!paquetsVus.has(nom)) paquetsVus.set(nom, rel)
+function paquetsDe(graphe) {
+  const vus = new Map()
+  for (const rel of graphe.keys()) {
+    /*
+     * LES COMMENTAIRES SONT RETIRÉS D'ABORD.
+     *
+     * La première version cherchait les spécificateurs dans le texte brut et a
+     * rapporté « the same id, different pixels » comme un paquet npm : c'est de
+     * la prose de `src/state/assets.ts`. Un scanner qui invente des dépendances
+     * est un scanner dont on cesse de lire la sortie.
+     */
+    const src = lire(join(ROOT, rel))
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+    const specs = [
+      ...src.matchAll(/(?:^\s*(?:import|export)[\s\S]*?from|^\s*import)\s*['"]([^'"]+)['"]/gm),
+      // `import()` et `require()`, qui n'ont ni l'un ni l'autre la forme ci-dessus.
+      ...src.matchAll(/\b(?:import|require)\(\s*['"]([^'"]+)['"]\s*\)/g),
+    ]
+    for (const m of specs) {
+      const spec = m[1]
+      if (spec.startsWith('.') || spec.startsWith('@/') || spec.startsWith('/')) continue
+      const nom = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]
+      if (!vus.has(nom)) vus.set(nom, rel)
+    }
   }
+  return vus
 }
-const paquetsInterdits = PAQUETS_BANNIS.filter((n) => paquetsVus.has(n)).map((n) => `${n} <- ${paquetsVus.get(n)}`)
+
+const paquetsTout = paquetsDe(tout)
+const paquetsEager = paquetsDe(graphe)
+
+const paquetsInterdits = PAQUETS_BANNIS.filter((n) => paquetsTout.has(n)).map(
+  (n) => `${n} <- ${paquetsTout.get(n)}`,
+)
 ok(
-  'la vue simple n’importe aucun paquet interdit',
+  'le paquet n’importe aucun paquet interdit, morceaux compris',
   paquetsInterdits.length === 0,
-  paquetsInterdits.length ? paquetsInterdits.join(' | ') : [...paquetsVus.keys()].sort().join(', '),
+  paquetsInterdits.length ? paquetsInterdits.join(' | ') : [...paquetsTout.keys()].sort().join(', '),
+)
+
+const paquetsEnTrop = PAQUETS_PARESSEUX.filter((n) => paquetsEager.has(n)).map(
+  (n) => `${n} <- ${paquetsEager.get(n)}`,
+)
+ok(
+  'et aucun paquet lourd ne descend avant un clic',
+  paquetsEnTrop.length === 0,
+  paquetsEnTrop.length ? paquetsEnTrop.join(' | ') : PAQUETS_PARESSEUX.join(', '),
 )
 
 const manquants = OBLIGATOIRES.filter((f) => !graphe.has(f))
@@ -350,6 +428,10 @@ for (const [marqueur, quoi] of MARQUEURS) {
     porteurs.length === 0,
     porteurs.length ? porteurs.join(', ') : quoi,
   )
+}
+
+for (const [marqueur, quoi] of MARQUEURS_ENTREE) {
+  ok(`la première charge ne porte pas « ${marqueur} »`, !paquet.includes(marqueur), quoi)
 }
 
 /*

@@ -223,6 +223,41 @@ final class Csp {
 		 * le formulaire de carte de Stripe.
 		 */
 		$frame   = self::STRIPE_FRAME;
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * LE DÉTOURAGE NE COÛTE RIEN À CETTE POLITIQUE, ET C'EST UNE MESURE.
+		 *
+		 * Le personnalisateur compile un modèle ONNX, et `WebAssembly` sur des
+		 * octets téléchargés est gouverné par `script-src` : la conclusion
+		 * évidente était qu'il fallait ajouter `'wasm-unsafe-eval'` ici. Le
+		 * jeton a été ajouté, puis RETIRÉ, parce que la mesure dit non.
+		 *
+		 * Mesuré le 5 septembre 2026 sur le miroir, politique APPLIQUÉE (pas
+		 * Report-Only), un détourage réel d'une image de 400 x 400 :
+		 *
+		 *   avec `'wasm-unsafe-eval'`     : « Fond enlevé », 5,0 s
+		 *   SANS `'wasm-unsafe-eval'`     : « Fond enlevé », 4,3 s
+		 *   refus CSP dans les deux cas   : aucun qui concerne WebAssembly
+		 *
+		 * La raison est écrite dans `worker/index.ts` depuis longtemps, à propos
+		 * du studio : un worker dédié chargé depuis une URL http(s) prend sa
+		 * politique de SES PROPRES en-têtes de réponse, et pas du document qui
+		 * l'a démarré. Le détourage tourne dans un Web Worker de module servi
+		 * par le greffon, que WordPress sert sans en-tête CSP : la compilation
+		 * n'est donc gouvernée par rien de ce qui est écrit ici.
+		 *
+		 * CE QUE LE JETON ACHÈTERAIT QUAND MÊME : le chemin de repli sur le fil
+		 * principal (`src/lib/bgremove/index.ts`), qui ne sert que sur un
+		 * navigateur incapable de démarrer un Web Worker de module. Ces
+		 * navigateurs-là ne font pas tourner l'éditeur non plus, et ils
+		 * rencontrent l'état vide prévu, « ce navigateur ne sait pas exécuter le
+		 * détourage ». Élargir `script-src` de TOUTE la boutique, pour toujours,
+		 * pour ce cas-là, n'est pas un échange qu'on fait sans le mesurer.
+		 *
+		 * Si un jour ce repli doit marcher, c'est UN jeton, `'wasm-unsafe-eval'`
+		 * et surtout pas `'unsafe-eval'`, qui rouvrirait `eval()` et
+		 * `new Function()` partout.
+		 */
 		$script  = array_merge( array( "'self'", $nonce, "'unsafe-inline'" ), self::STRIPE_SCRIPT );
 
 		$directives = array(

@@ -67,11 +67,36 @@
 		// The negations are 71 Mo of hashed chunks, models, wasm and catalogue
 		// photographs. They are immutable and need no policy, and routing them
 		// through a Worker would buy an invocation per file for nothing.
+		//
+		// UNE NÉGATION A SAUTÉ LE 5 SEPTEMBRE 2026, ET ELLE COÛTAIT LE DÉTOURAGE.
+		//
+		// Le personnalisateur du client est servi par WordPress depuis cette
+		// nuit-là, donc sur une autre origine que ce Worker : les 13,5 Mo de
+		// runtime ONNX et les 4,6 Mo de modèle sont lus EN CROISÉ, et un actif
+		// servi par la couche statique ne porte aucun en-tête CORS. Mesuré sur le
+		// miroir : quatre `net::ERR_FAILED` et un détourage qui échoue en 0,1 s
+		// sur une phrase qui ne nomme pas la cause.
+		//
+		// `/ort/*` repasse donc par le Worker, qui y pose l'en-tête. C'est UN
+		// répertoire et DEUX fichiers, donc deux invocations par visiteur qui
+		// demande un détourage, et zéro pour tous les autres.
+		//
+		// `u2netp.onnx` A DÉMÉNAGÉ DE `/models/` VERS `/ort/` par la même occasion,
+		// et le rangement était de toute façon le bon : un fichier de poids ONNX
+		// n'est pas un modèle 3D.
+		//
+		// `/models/*` A PERDU SA NÉGATION POUR LA MÊME RAISON, une mesure plus
+		// tard : l'aperçu en volume de la fiche produit construit le vêtement avec
+		// `buildArModel`, qui charge un avatar GLB. Sans en-tête, deux 404 et un
+		// bouton d'essayage qui n'apparaît jamais. Une session en charge UN sur
+		// les quatre, donc une invocation par visiteur qui demande l'aperçu.
+		//
+		// `/assets/*` et `/catalog/*` gardent la leur : 71 Mo de morceaux hachés
+		// et de photographies, lus en même origine par le studio, qui n'ont besoin
+		// d'aucun en-tête.
 		"run_worker_first": [
 			"/*",
 			"!/assets/*",
-			"!/models/*",
-			"!/ort/*",
 			"!/catalog/*"
 		]
 	},

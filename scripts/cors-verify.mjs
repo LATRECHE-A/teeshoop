@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Le CORS des deux routes de création, contre un vrai Worker.
+ * Le CORS des routes ouvertes, contre un vrai Worker.
  *
  *   npm run verify:cors
  *
@@ -34,7 +34,10 @@
  *   `vary: origin` est là même sur les refus, sinon un cache intermédiaire sert
  *   à un inconnu l'en-tête calculé pour la boutique.
  *
- *   Les routes voisines (`/api/nest`, `/api/fr/*`, la suppression) n'en ont pas.
+ *   Les routes voisines (`/api/nest`, `/api/fr/*`, la suppression) n'en ont pas,
+ *   et les OCTETS non plus : les images de preuve et les modèles 3D sont chargés
+ *   par une balise, par Scene Viewer ou par Quick Look, qui suivent une URL et ne
+ *   sont soumis à aucune politique d'origine.
  *
  * Env :
  *   TSHOP_CORS_BASE=http://…   parler à un Worker déjà lancé au lieu d'en
@@ -223,12 +226,48 @@ try {
     String(postBad.headers.get('access-control-allow-origin')),
   )
 
+  // --- 4 bis. l'essayage en réalité augmentée -------------------------------
+  const preAr = await probe('/api/ar', {
+    method: 'OPTIONS',
+    headers: { origin: SHOP, 'access-control-request-method': 'POST' },
+  })
+  ok(
+    'OPTIONS /api/ar est traité par le Worker, corps vide',
+    preAr.body.length === 0 && !preAr.spa && (preAr.acam ?? '').includes('POST'),
+    `HTTP ${preAr.status}, ${preAr.acam}`,
+  )
+  const postAr = await fetch(`${BASE}/api/ar`, {
+    method: 'POST',
+    body: 'pas du multipart',
+    headers: { origin: SHOP },
+  })
+  const corpsAr = await postAr.text()
+  ok(
+    "POST /api/ar répond en JSON à une origine autorisée, et le corps est lisible",
+    postAr.headers.get('access-control-allow-origin') === SHOP && corpsAr.includes('"error"'),
+    `HTTP ${postAr.status} ${corpsAr.slice(0, 60)}`,
+  )
+  const postArBad = await fetch(`${BASE}/api/ar`, {
+    method: 'POST',
+    body: 'pas du multipart',
+    headers: { origin: LOOKALIKE },
+  })
+  await postArBad.text()
+  ok(
+    'POST /api/ar ne se laisse pas lire par le sosie',
+    postArBad.headers.get('access-control-allow-origin') === null,
+    String(postArBad.headers.get('access-control-allow-origin')),
+  )
+
   // --- 5. les routes voisines n'ont rien gagné ------------------------------
   for (const [label, path, init] of [
     ['/api/nest (économie du film)', '/api/nest', { method: 'POST', headers: { origin: SHOP } }],
     ['/api/fr/* (nos prix d’achat)', '/api/fr/catalog', { headers: { origin: SHOP } }],
     ['la suppression RGPD', '/api/design/aaaaaaaaaaaaaaaa', { method: 'DELETE', headers: { origin: SHOP } }],
     ['la preuve en image', '/r2/design/aaaaaaaaaaaaaaaa/preview.png', { headers: { origin: SHOP } }],
+    // Les octets du modèle : chargés par Scene Viewer et par Quick Look, qui
+    // suivent une URL et ne sont soumis à aucune politique d'origine.
+    ['le modèle 3D lui-même', '/r2/ar/aaaaaa.glb', { headers: { origin: SHOP } }],
   ]) {
     const r = await probe(path, init)
     ok(`${label} reste sans en-tête CORS`, r.acao === null, `acao=${r.acao}`)

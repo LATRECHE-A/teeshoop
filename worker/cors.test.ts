@@ -164,6 +164,23 @@ describe('the design routes, through worker.fetch', () => {
   const call = (path: string, init?: RequestInit) =>
     worker.fetch(new Request(`https://studio.example${path}`, init), routed(), ctx)
 
+  it('answers OPTIONS /api/ar, and stamps the upload', async () => {
+    const pre = await call('/api/ar', { method: 'OPTIONS', headers: { origin: SHOP } })
+    expect(pre.status).toBe(204)
+    expect(pre.headers.get('access-control-allow-methods')).toBe('POST, OPTIONS')
+    // Un corps qui n'est pas du multipart : la route refuse en 400 et la page
+    // doit pouvoir LIRE ce refus, sinon l'essayage s'arrête sur « failed to
+    // fetch » au lieu de dire ce qui manque.
+    const res = await call('/api/ar', { method: 'POST', headers: { origin: SHOP }, body: 'pas du multipart' })
+    expect(res.headers.get('access-control-allow-origin')).toBe(SHOP)
+    expect(res.status).toBe(400)
+  })
+
+  it('does not stamp the AR blobs, which no fetch ever reads', async () => {
+    const res = await call('/r2/ar/aaaaaa.glb', { headers: { origin: SHOP } })
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
   it('answers OPTIONS /api/design itself and not with the SPA page', async () => {
     const res = await call('/api/design', { method: 'OPTIONS', headers: { origin: SHOP } })
     expect(res.status).toBe(204)

@@ -7,6 +7,7 @@
  * waiting behind the first-ever run still surfaces download percentage.
  */
 import {
+  configureAssets,
   ensureSession,
   removeBackgroundImpl,
   setModelProgressBroadcast,
@@ -31,6 +32,16 @@ let queue: Promise<void> = Promise.resolve()
 
 async function run(msg: ClientToWorker): Promise<void> {
   try {
+    /*
+     * LA BASE D'ACTIFS AVANT LA SESSION, ET AVANT TOUT LE RESTE.
+     *
+     * `ensureSession` résout les chemins du runtime et va chercher le modèle ;
+     * poser la base après serait la poser trop tard, et le symptôme serait deux
+     * 404 sur des fichiers de 13,5 et 4,6 Mo suivis d'une erreur ONNX qui ne
+     * nomme ni l'un ni l'autre. Idempotent : la deuxième demande d'une même
+     * page ne fait rien.
+     */
+    if (msg.assets) configureAssets(msg.assets)
     if (msg.kind === 'preload') {
       await ensureSession()
       post({ kind: 'done', id: msg.id })
