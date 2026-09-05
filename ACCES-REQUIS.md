@@ -1392,3 +1392,78 @@ l'adresse dans cPanel > Accès SSH. `node scripts/acces-probe.mjs` la relit et l
 
 **Une adresse fixe ou un rebond stable** reste la demande de fond, pour que le déploiement
 ne dépende pas de l'adresse du moment. Ce n'est pas urgent : le canal fonctionne.
+
+---
+
+## 15. Le jeton du Worker : une seule valeur bloque les trois dernières étapes
+
+La boutique est en ligne avec son thème, son extension et son parcours. Ce qui
+manque tient à **un secret**, et il bloque trois choses en chaîne.
+
+**Mesuré le 5 septembre 2026 :** `wp teeshoop catalogue importer` sur la production
+répond `Le Worker a refusé le jeton du catalogue (401)`.
+
+**Pourquoi.** La constante `TEESHOOP_CATALOGUE_TOKEN` a été posée dans le
+`wp-config.php` de la production avec la valeur d'`ADMIN_TOKEN` lue dans
+`.dev.vars`. C'est le jeton de **développement**. Le Worker déployé
+(`tshop.abdellah-latreche04.workers.dev`) porte son propre secret `ADMIN_TOKEN`,
+posé par `wrangler secret put`, et un secret Cloudflare ne se relit pas : il
+n'existe en clair nulle part sur cette machine.
+
+**La chaîne, et c'est ce qui rend ce jeton prioritaire :**
+
+1. sans lui, **l'import du catalogue** refuse. La boutique publie 5 produits au
+   lieu de plusieurs centaines, et l'accueil affiche son état vide
+   (« Le catalogue n'est pas encore importé »), ce qui est correct mais vide ;
+2. sans import, **`npm run verify:grille`** ne peut pas mesurer la grille publiée
+   contre son plancher de coût ;
+3. sans cette mesure, `prix-plancher` reste le **dernier refus de la porte de
+   l'argent**, donc **aucun moyen de paiement ne peut être activé**, y compris en
+   mode d'essai. Vérifié sur la production : `Launch::activation_blockers()` rend
+   exactement un refus, et c'est celui-là.
+
+**Ce qu'il faut faire, au choix, et ça prend une minute :**
+
+- **soit** écrire la valeur actuelle du secret dans un fichier hors du dépôt,
+  `~/.config/teeshoop/worker.env`, sous la forme `ADMIN_TOKEN=...` (mode 600) ;
+- **soit** en poser une nouvelle des deux côtés, dans cet ordre :
+
+  ```
+  npx wrangler secret put ADMIN_TOKEN
+  ssh teeshoop "cd ~/public_html && wp config set TEESHOOP_CATALOGUE_TOKEN <la même valeur> --type=constant"
+  ```
+
+  Faire tourner le jeton **casse la console d'atelier** de qui détient l'ancien,
+  le temps qu'il reprenne le nouveau. C'est pour ça que ce n'a pas été fait sans
+  vous le demander.
+
+**Ne collez la valeur ni dans une conversation ni dans le dépôt.** Le fichier ou
+la commande, pas le chat.
+
+Ensuite, et dans cet ordre :
+
+```
+ssh teeshoop "cd ~/public_html && wp teeshoop catalogue importer --duree=0 --discret"
+npm run verify:grille
+```
+
+La tâche planifiée de l'import est déjà posée (3 h 07 chaque nuit) et le relevé
+de stock toutes les deux heures : les deux échoueront proprement dans
+`~/.teeshoop-veille/import.log` tant que le jeton ne correspond pas.
+
+### Le paiement, une fois le plancher mesuré
+
+Les clés Stripe de **test** sont déjà sur cette machine
+(`~/.config/teeshoop/stripe.env`, mode 600). L'extension Stripe pour WooCommerce
+n'est **pas installée** sur la production : la liste des extensions actives ne la
+contient pas. Il faudra donc l'installer avant de pouvoir encaisser, même en
+essai.
+
+Et le réglage qui assume le mode d'essai est à poser explicitement, sinon la
+porte de l'argent refuse une passerelle branchée sur un compte de test :
+
+```
+ssh teeshoop "cd ~/public_html && wp option update teeshoop_paiement_mode_essai oui"
+```
+
+Il fait lire au client, au panier et à la caisse, que rien ne sera prélevé.
