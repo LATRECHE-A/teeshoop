@@ -26,7 +26,7 @@ import { clamp } from '@/lib/units'
 import { setCurrentLang, type Lang } from '@/i18n/lang'
 import { DEFAULT_PRINT_SCALE_MODE, printScaleOf } from '@/lib/printScale'
 import type { SceneId } from '@/scenes'
-import { DEFAULT_SIZE, type SizeId } from '@/content/sizeChart'
+import { DEFAULT_SIZE, SIZE_IDS, type SizeId } from '@/content/sizeChart'
 import {
   applyLang,
   applyTheme,
@@ -159,6 +159,18 @@ interface StoreState {
 
   // --- design actions (undoable)
   setGarment(id: GarmentId): void
+  /**
+   * Poser sur la création la série de tailles du vêtement que la boutique vend.
+   *
+   * Voir `Design.shopSizeChart` : c'est ce par quoi le marquage grandit d'une
+   * taille à l'autre, et le document doit la porter parce que le film est
+   * découpé plus tard, à partir de lui.
+   */
+  applyShopSizeChart(
+    garmentId: GarmentId,
+    productId: number,
+    halfChestCm: Partial<Record<SizeId, number>>,
+  ): void
   setColor(colorId: string): void
   /** Grade artwork with the garment size, or keep one print for every size. */
   setPrintScaleMode(mode: PrintScaleMode): void
@@ -643,6 +655,76 @@ export const useStore = create<StoreState>()(
       },
       setColor: (colorId) =>
         set((s) => ({ design: touch({ ...s.design, colorId }) })),
+      /*
+       * PAS UN GESTE DE L'UTILISATEUR, donc ni `touch` ni entrée d'historique.
+       *
+       * Cette série vient de la fiche du fabricant via la passerelle, pas d'une
+       * action dans l'éditeur. `touch` daterait un document que le client n'a
+       * pas modifié, et l'enregistrement automatique le réécrirait.
+       *
+       * L'historique est mis en pause, et c'est le point qui compte : le
+       * comparateur de zundo est `past.design === current.design`, donc tout
+       * nouvel objet `design` fait une entrée. Sans cette pause, un client qui
+       * appuie sur annuler juste après l'ouverture de l'éditeur retirerait la
+       * charte du fabricant et repasserait au gradient du studio, sans que rien
+       * ne le dise et sans pouvoir revenir en arrière autrement qu'en rechargeant.
+       * `clear()` n'irait pas : la série peut arriver après l'ouverture d'une
+       * création enregistrée, et jetterait alors une histoire réelle.
+       *
+       * Ne fait rien quand la série posée est déjà la même, parce que l'effet
+       * qui l'appelle se redéclenche à chaque changement de création.
+       */
+      applyShopSizeChart: (garmentId, productId, halfChestCm) => {
+        /*
+         * UNE SÉRIE VIDE EFFACE, elle ne laisse pas la précédente en place.
+         *
+         * Trouvé par la passe adversariale du 5 septembre 2026, et c'était un
+         * défaut qui atteignait le film. Le studio est UNE origine, UN brouillon
+         * dans IndexedDB : un client qui décore un B&C puis ouvre un Gildan
+         * garde la même création. Sur dix-sept produits personnalisables, cinq
+         * seulement portent une fiche de tailles. Passer d'une offre qui en a une
+         * à une offre qui n'en a pas laissait la première série grader le
+         * marquage, la boutique validait le placement avec la fiche de la
+         * seconde (donc `garments.json`, rapport 1,2295), et l'atelier découpait
+         * à 1,4000 : 35,0 cm de transfert sur un film de 33 cm, payé et
+         * impressable.
+         */
+        const empty = SIZE_IDS.every((z) => !(Number(halfChestCm[z]) > 0))
+        const current = get().design.shopSizeChart
+        if (empty && !current) return
+        if (
+          !empty &&
+          current &&
+          current.garmentId === garmentId &&
+          current.productId === productId &&
+          SIZE_IDS.every((z) => current.halfChestCm[z] === halfChestCm[z])
+        ) {
+          return
+        }
+        const t = useStore.temporal.getState()
+        const tracking = t.isTracking
+        if (tracking) t.pause()
+        set((s) => {
+          const design = { ...s.design }
+          if (empty) delete design.shopSizeChart
+          else design.shopSizeChart = { garmentId, productId, halfChestCm }
+          /*
+           * LA DATE BOUGE, ET C'EST OBLIGATOIRE ICI.
+           *
+           * `src/app/board/mockupCache.ts` et `DtfModal` identifient tous deux
+           * une géométrie par `design.updatedAt` (« @T » dans la clé de rang), et
+           * ce champ vient de changer le facteur de gradation. Sans ce
+           * déplacement, deux lignes du panier faites sur deux vêtements
+           * différents portent la même clé et fusionnent : vingt transferts
+           * pressés au facteur de dix d'entre eux. `touch()` n'est pas utilisé
+           * parce qu'il n'est pas un geste du client, mais l'invalidation de
+           * cache, elle, n'est pas facultative.
+           */
+          design.updatedAt = Date.now()
+          return { design }
+        })
+        if (tracking) t.resume()
+      },
       // Grading policy lives ON the design, so both setters are undoable: one
       // set() per gesture is one zundo entry. Neither touches layer geometry:
       // the stored inches ARE the base-size truth. Changing the base size

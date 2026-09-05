@@ -35,7 +35,13 @@
  * modal surfaces this: it is a real trade-off, not an implementation detail.
  */
 import type { CustomGarment, Design, Layer, SizeIn, PrintScale, PrintScaleMode } from './types'
-import { DEFAULT_SIZE, SIZE_IDS, sizeSpecCm, type SizeId } from '@/content/sizeChart'
+import {
+  DEFAULT_SIZE,
+  readHalfChestSeries,
+  SIZE_IDS,
+  sizeSpecCm,
+  type SizeId,
+} from '@/content/sizeChart'
 
 /** New designs grade with the garment; override per design in the UI. */
 export const DEFAULT_PRINT_SCALE_MODE: PrintScaleMode = 'scaled'
@@ -54,8 +60,70 @@ export function printBaseSize(design: Design): SizeId {
   return printScaleOf(design).baseSize
 }
 
+/**
+ * La série du fabricant portée par le document, quand elle s'applique ICI.
+ *
+ * « Ici » veut dire : sur le vêtement que le champ décrit. Une charte de
+ * t-shirt ne dit rien d'un sweat, et l'éditeur laisse changer de vêtement à
+ * tout moment ; sans ce contrôle, une capuche serait gradée par la poitrine
+ * d'un t-shirt. Une série vide compte pour absente, sinon « la boutique n'a
+ * rien dit » et « la boutique a dit rien » seraient le même état, et le second
+ * rendrait le vêtement non gradable.
+ */
+function shopChart(design: Design): Partial<Record<SizeId, number>> | null {
+  const chart = design.shopSizeChart
+  if (!chart || chart.garmentId !== design.garmentId) return null
+  /*
+   * RELUE ICI, et pas seulement à l'entrée. Le document arrive aussi de R2, où
+   * il a été déposé par le navigateur du client sur une route ouverte : le
+   * contrôle de la passerelle est du côté que l'on ne tient pas. C'est ce
+   * chemin-là qui découpe le film (`src/lib/dtf/pieces.ts`).
+   */
+  const series = readHalfChestSeries(chart.halfChestCm)
+  return Object.keys(series).length > 0 ? series : null
+}
+
 /** Half-chest in cm for a garment size, or null when it is not knowable. */
 function halfChestCm(design: Design, size: SizeId): number | null {
+  /*
+   * LA CHARTE DU VÊTEMENT VENDU D'ABORD, quel que soit le `garmentId`.
+   *
+   * `sizeSpecCm` ne connaît qu'un vêtement par famille, le Stanley/Stella dont
+   * les 800 px de dessin sont calibrés. Une offre de la boutique déclare bien
+   * `tee` ou `hoodie` parce que c'est ce que l'éditeur sait dessiner, et ce
+   * n'est PAS ce qu'elle vend : mesuré le 5 septembre 2026, le marquage
+   * occupait 19,1 % de plus de la poitrine en S qu'en 3XL sur le Gildan Heavy
+   * Cotton, 12,1 % sur le Fruit of the Loom, et 0,0 % sur le Stanley/Stella
+   * lui-même, ce qui est le contrôle de la mesure.
+   */
+  /*
+   * ELLE EST LA SEULE SOURCE, OU ELLE N'EST PAS UNE SOURCE.
+   *
+   * Retomber taille par taille sur la charte du studio fabriquerait un rapport
+   * entre DEUX vêtements. Deux chemins mesurés le 5 septembre 2026, tous deux
+   * trouvés par la passe adversariale :
+   *
+   *  - une série honnête mais courte (le Fruit of the Loom Classic Hooded
+   *    s'arrête au 2XL) donnait k(3XL) = 64 / 50,8 = 1,2598, le 3XL du
+   *    Stanley/Stella divisé par le M du Fruit of the Loom ;
+   *  - une série fabriquée { S: 25, M: 26 }, que le contrôle de vraisemblance
+   *    accepte parce que chaque valeur et leur rapport sont crédibles, donnait
+   *    k(3XL) = 64 / 25 = 2,56 sur un document calé en S. La borne de rapport ne
+   *    voyait rien : le rapport tordu n'est pas DANS la série, il est entre la
+   *    série et la charte.
+   *
+   * Une taille que la série ne porte pas n'est donc pas mesurable : `null`, et
+   * `printScaleK` rend 1. C'est le même contrat que la branche « vêtement du
+   * client » juste en dessous, et c'est le sens conservateur : un marquage à sa
+   * taille de base plutôt qu'un marquage inventé. La boutique ne vend de toute
+   * façon que les tailles de la série (`ProductPage::sizes_for`), et
+   * `gradableSizes` retire celles-là de l'interface.
+   */
+  const shop = shopChart(design)
+  if (shop) {
+    const own = shop[size]
+    return typeof own === 'number' && own > 0 ? own : null
+  }
   if (design.garmentId === 'custom') {
     const chart = design.custom?.halfChestCmBySize
     const v = chart?.[size]
@@ -84,6 +152,7 @@ export function printScaleK(design: Design, size?: SizeId | null): number {
 /** True when this design grades AND the garment can actually be graded. */
 export function isGraded(design: Design): boolean {
   if (printScaleOf(design).mode !== 'scaled') return false
+  if (shopChart(design)) return gradableSizes(design).length > 1
   if (design.garmentId !== 'custom') return true
   const chart = design.custom?.halfChestCmBySize
   return !!chart && Object.keys(chart).length > 1
@@ -91,6 +160,17 @@ export function isGraded(design: Design): boolean {
 
 /** Sizes this design can be graded to, in chart order. */
 export function gradableSizes(design: Design): SizeId[] {
+  /*
+   * UNE TAILLE SANS MESURE N'EST PAS GRADABLE, même sur un vêtement du
+   * catalogue. La série du fabricant peut être plus courte que celle du studio
+   * (le Fruit of the Loom Classic Hooded s'arrête au 2XL), et grader une taille
+   * qu'elle ne contient pas ferait retomber `printScaleK` sur 1 en silence :
+   * un marquage à la taille du M sur un 3XL, sans que rien ne le dise.
+   */
+  const shop = shopChart(design)
+  if (shop) {
+    return SIZE_IDS.filter((s) => (shop[s] ?? 0) > 0)
+  }
   if (design.garmentId !== 'custom') return [...SIZE_IDS]
   const chart = design.custom?.halfChestCmBySize ?? {}
   return SIZE_IDS.filter((s) => (chart[s] ?? 0) > 0)

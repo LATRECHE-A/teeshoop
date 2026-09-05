@@ -38,7 +38,7 @@
  * area in cm² and the transfers they print as) and WordPress decides what that
  * costs.
  */
-import { SIZE_IDS } from '@/content/sizeChart'
+import { readHalfChestSeries, SIZE_IDS, type SizeId } from '@/content/sizeChart'
 import { setShopPalette, type GarmentDye } from '@/content/garmentPalette'
 // The dye id IS a `Design.colorId`, so its bound is the one the design document
 // already enforces. A second constant here would be a second bound.
@@ -121,6 +121,14 @@ export interface ShopContext {
    * purchase basket refuses, by name, one it cannot buy.
    */
   colours: GarmentDye[]
+  /**
+   * La demi-poitrine à plat du vêtement réellement vendu, taille par taille, cm.
+   *
+   * C'est ce par quoi le marquage doit grandir d'une taille à l'autre. Vide
+   * quand la boutique n'a pas lu la fiche du fabricant, et l'éditeur garde
+   * alors sa propre charte : voir `Design.halfChestCmBySize`.
+   */
+  sizeChart: Partial<Record<SizeId, number>>
 }
 
 /**
@@ -474,6 +482,19 @@ function asColours(raw: unknown): GarmentDye[] {
   return out
 }
 
+/**
+ * La grille de tailles de la boutique, revalidée ici.
+ *
+ * Le cadre ne croit rien de ce qu'on lui dit, y compris nous. La règle vit dans
+ * `readHalfChestSeries` et pas ici, parce que ce contrôle est contournable par
+ * construction (la boutique et le studio sont deux origines, mais le document
+ * part ensuite sur une route ouverte) et qu'il doit donc être rejoué là où le
+ * film est découpé. Une seule maison, deux appels.
+ */
+function asSizeChart(raw: unknown): Partial<Record<SizeId, number>> {
+  return readHalfChestSeries(raw)
+}
+
 function onContext(origin: string, data: Record<string, unknown>): void {
   parentOrigin = origin
   const colours = asColours(data.colours)
@@ -483,6 +504,7 @@ function onContext(origin: string, data: Record<string, unknown>): void {
     locale: typeof data.locale === 'string' ? data.locale : 'fr',
     preset: asPreset(data.preset),
     colours,
+    sizeChart: asSizeChart(data.sizeChart),
   }
   /*
    * Pushed rather than pulled, so the palette module has no import edge back

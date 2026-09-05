@@ -849,6 +849,14 @@ ts_lancement_suite();
 require_once __DIR__ . '/integration-schema.php';
 ts_schema_suite();
 
+/*
+ * Le gradient d'impression contre la série du fabricant. Ici et pas dans une
+ * suite pure : le verdict dépend du format de feuille du fournisseur, qui vit
+ * dans une option WordPress.
+ */
+require_once __DIR__ . '/integration-gradient.php';
+ts_gradient_suite();
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 

@@ -49,6 +49,8 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'Cette page vend un article « {product} » et votre création est sur un « {design} ». Ouvrez la fiche du bon produit pour commander celui-ci.',
     'cart.colour_gone':
       'Ce vêtement n’existe pas dans la couleur de votre création. Choisissez une des couleurs proposées sur cette page, puis réessayez.',
+    'cart.chart_gone':
+      'Cette création a été calée sur les mesures d’un autre article. Le marquage ne grandirait pas comme il faut d’une taille à l’autre. Rouvrez la page de l’article d’origine, ou repartez d’une nouvelle création sur celui-ci.',
 
     'cart.err.no_printable_side':
       'Il n’y a rien à imprimer. Ajoutez un visuel ou du texte sur une face, puis réessayez.',
@@ -115,6 +117,8 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
       'This page sells a “{product}” and your design is on a “{design}”. Open the right product page to order this one.',
     'cart.colour_gone':
       'This garment does not come in your design’s colour. Pick one of the colours offered on this page, then try again.',
+    'cart.chart_gone':
+      'This design was fitted to another item’s measurements, so the print would not grow correctly from one size to the next. Reopen that item’s page, or start a new design on this one.',
 
     'cart.err.no_printable_side':
       'There is nothing to print. Add artwork or text to a side, then try again.',

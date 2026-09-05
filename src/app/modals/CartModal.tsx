@@ -133,6 +133,25 @@ export default function CartModal() {
   const colourGone =
     paletteIsMeasured() && !garmentPalette().some((c) => c.id === design.colorId)
   /*
+   * LA SÉRIE DE TAILLES AUSSI, ET POUR LA MÊME RAISON QUE LA COULEUR.
+   *
+   * Le studio est une origine et un brouillon : une création faite sur un
+   * article en garde la série tant qu'on ne l'efface pas. Le magasin l'efface
+   * maintenant quand la page suivante n'en publie pas, mais deux articles qui en
+   * publient chacune une restent deux articles. Sans ce contrôle, la boutique
+   * vérifie le placement avec la fiche de la page ouverte pendant que l'atelier
+   * découpe le film avec celle qui est SUR le document : mesuré le 5 septembre
+   * 2026 entre un B&C et un Gildan, 13,75 % d'écart dans chaque direction, soit
+   * un transfert de 35,0 cm sur un film de 33 cm.
+   *
+   * Refusé ici, avant le téléversement, comme le vêtement et la couleur. Une
+   * page qui ne publie pas de série ne refuse rien : la série a déjà été effacée
+   * du document à ce moment-là.
+   */
+  const chartFrom = design.shopSizeChart?.productId ?? 0
+  const chartGone =
+    chartFrom > 0 && context?.productId !== undefined && context.productId !== chartFrom
+  /*
    * The shop's verdict, read before anything is uploaded.
    *
    * Refusing here rather than at the add is the whole point: by the time
@@ -176,7 +195,7 @@ export default function CartModal() {
   // a fresher one in the component's state either.
   const quoteSeq = useRef(0)
   useEffect(() => {
-    if (!sides || qty < 1 || mismatch || colourGone) return
+    if (!sides || qty < 1 || mismatch || colourGone || chartGone) return
     const mine = ++quoteSeq.current
     setQuoteFailed(false)
     requestShopQuote({ garment: design.garmentId, qty, sides })
@@ -193,7 +212,7 @@ export default function CartModal() {
         // permalinks every quote 404'd while add-to-cart worked.
         setQuoteFailed(true)
       })
-  }, [sides, qty, mismatch, colourGone, design.garmentId])
+  }, [sides, qty, mismatch, colourGone, chartGone, design.garmentId])
 
   /*
    * Ask the page for a taller frame if this modal does not fit in it.
@@ -322,6 +341,13 @@ export default function CartModal() {
             <p className="flex gap-2 rounded-lg border border-yl/40 bg-yl/10 p-3 text-[12.5px] leading-relaxed text-tx">
               <TriangleAlert size={15} className="mt-0.5 shrink-0 text-yl" />
               {ct('cart.colour_gone')}
+            </p>
+          )}
+
+          {chartGone && (
+            <p className="flex gap-2 rounded-lg border border-yl/40 bg-yl/10 p-3 text-[12.5px] leading-relaxed text-tx">
+              <TriangleAlert size={15} className="mt-0.5 shrink-0 text-yl" />
+              {ct('cart.chart_gone')}
             </p>
           )}
 
@@ -458,7 +484,7 @@ export default function CartModal() {
             <button
               className="btn btn-primary h-11 w-full justify-center"
               data-teeshoop="add-to-cart"
-              disabled={busy || qty < 1 || mismatch || colourGone || needsQuote || !sides || !quote}
+              disabled={busy || qty < 1 || mismatch || colourGone || chartGone || needsQuote || !sides || !quote}
               onClick={addToCart}
             >
               {busy ? (

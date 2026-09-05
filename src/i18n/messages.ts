@@ -494,6 +494,10 @@ export const messages: Record<Lang, Record<string, string>> = {
     'product.size': 'Taille',
     'product.size_dims': 'Poitrine à plat {chest} · Longueur {length} · Manche {sleeve}',
     'product.size_chart': 'Guide des tailles (cm)',
+    // La poitrine vient de la fiche du fabricant du vêtement vendu, la longueur
+    // et la manche de la charte du studio : la légende ne peut donc pas nommer
+    // une seule marque sans mentir sur l'autre moitié du tableau.
+    'product.size_chart_maker': 'mesures de l’article vendu',
     'product.chest': 'Poitrine',
     'product.length': 'Longueur',
     'product.sleeve': 'Manche',
@@ -981,6 +985,7 @@ export const messages: Record<Lang, Record<string, string>> = {
     'product.size': 'Size',
     'product.size_dims': 'Flat chest {chest} · Length {length} · Sleeve {sleeve}',
     'product.size_chart': 'Size guide (cm)',
+    'product.size_chart_maker': 'this item’s own measurements',
     'product.chest': 'Chest',
     'product.length': 'Length',
     'product.sleeve': 'Sleeve',

@@ -247,6 +247,23 @@ final class Shortcode {
 				 * correspondance par son nom.
 				 */
 				'colours'      => Product::blank_palette_of( $product_id ),
+				/*
+				 * LA GRILLE DE TAILLES DU VÊTEMENT RÉELLEMENT VENDU.
+				 *
+				 * Le gradient d'impression est un rapport de demi-poitrines, et
+				 * le studio n'en connaissait qu'une par famille : celle du
+				 * Stanley/Stella sur lequel son dessin est calibré. Mesuré le
+				 * 5 septembre 2026, le marquage occupait 19,1 % de plus de la
+				 * poitrine en S qu'en 3XL sur le Gildan Heavy Cotton et 12,1 %
+				 * sur le Fruit of the Loom, contre 0,0 % sur le Stanley/Stella.
+				 * Le même fichier, la même commande, un rendu visiblement
+				 * différent selon la taille, et c'est le FILM qui en hérite.
+				 *
+				 * Vide quand la fiche du fabricant n'a pas été lue ou a été
+				 * refusée : l'éditeur retombe alors sur sa propre charte, ce qui
+				 * est l'état d'avant et un état lisible.
+				 */
+				'sizeChart'    => ProductPage::maker_chart( $product_id ),
 				'cartUrl'      => function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' ),
 				'i18n'         => array(
 					'added'   => __( 'Ajouté au panier.', 'teeshoop' ),

@@ -57,6 +57,7 @@ if ( 'cli' !== PHP_SAPI ) {
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Pricing;
+use Teeshoop\Core\ProductPage;
 use Teeshoop\Core\Product;
 use Teeshoop\Core\Settings;
 
@@ -211,6 +212,29 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 	$product->set_weight( '0.18' );
 	$product->set_description( 'Un t-shirt personnalisable, pour la vérification de bout en bout.' );
 	$product->update_meta_data( Product::META, 'tee' );
+	/*
+	 * LA SÉRIE DU FABRICANT, pour que la boucle vérifie le gradient réel.
+	 *
+	 * Ce sont les vraies demi-poitrines du Gildan Heavy Cotton 18009, lues sur la
+	 * fiche du fournisseur et importées dans la boutique. Elles sont ici, et pas
+	 * inventées, parce que c'est la référence dont la série s'écarte le plus de
+	 * la charte du studio : 1,400 entre le M et le 3XL contre 1,2295 dans
+	 * `garments.json`. Le harnais peut donc distinguer, en regardant le document
+	 * que le studio a écrit, s'il a gradé par la fiche ou par sa propre charte.
+	 */
+	$product->update_meta_data(
+		'_teeshoop_demi_poitrine',
+		wp_json_encode(
+			array(
+				'S'   => 45.72,
+				'M'   => 50.8,
+				'L'   => 55.88,
+				'XL'  => 60.96,
+				'2XL' => 66.04,
+				'3XL' => 71.12,
+			)
+		)
+	);
 	$product->save();
 
 	ts_e2e_out(
@@ -228,6 +252,8 @@ function ts_e2e_setup( string $studio_origin, string $worker_url ) {
 			'cart_url'        => wc_get_cart_url(),
 			'checkout_url'    => wc_get_checkout_url(),
 			'garment'         => Product::garment_of( $product->get_id() ),
+			// Ce que la page doit publier au studio : le harnais compare.
+			'size_chart'      => ProductPage::maker_chart( $product->get_id() ),
 			'catalogue_price' => (float) $product->get_regular_price(),
 			'studio_origin'   => Settings::studio_origin(),
 			'worker_url'      => Settings::get( 'worker_url' ),

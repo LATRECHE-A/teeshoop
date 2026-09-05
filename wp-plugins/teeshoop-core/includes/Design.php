@@ -278,7 +278,7 @@ final class Design {
 	 * @param array<string,int>              $size_grid size => count, may be empty.
 	 * @return array<int,string> the offending sizes.
 	 */
-	public static function unprintable_sizes( string $garment, array $sides, array $size_grid ): array {
+	public static function unprintable_sizes( string $garment, array $sides, array $size_grid, array $chart = array() ): array {
 		if ( empty( $sides ) || empty( $size_grid ) ) {
 			return array();
 		}
@@ -288,9 +288,54 @@ final class Design {
 		}
 		$cost = Costing::config();
 
+		/*
+		 * UN MARQUAGE UNIQUE POUR TOUTES LES TAILLES NE GRANDIT PAS.
+		 *
+		 * `printScaleK` rend 1 partout quand le mode est « fixe » : le studio
+		 * découpe UN transfert à la taille de base et le presse sur toutes les
+		 * tailles. Le drapeau voyage déjà sur chaque face (`normalise_placement`),
+		 * et `BatPage` comme `Costing` le lisent. Sans lui, cette fonction gradait
+		 * quand même : mesuré le 5 septembre 2026, un carré de 25,0 cm en mode
+		 * fixe sur un Gildan était refusé en 3XL avec la phrase « le marquage
+		 * grandit avec le vêtement », qui est fausse pour cette création, et la
+		 * vente était perdue pour rien.
+		 *
+		 * Toutes les faces, pas une : une création dont une face grade et pas
+		 * l'autre grade, et c'est le sens prudent.
+		 */
+		$graded = false;
+		foreach ( $sides as $side ) {
+			if ( ! array_key_exists( 'graded', $side ) || ! empty( $side['graded'] ) ) {
+				$graded = true;
+				break;
+			}
+		}
+		if ( ! $graded ) {
+			return array();
+		}
+
+		$known = ProductPage::size_ids( $garment );
+
 		$bad = array();
 		foreach ( $size_grid as $size => $count ) {
 			if ( (int) $count <= 0 || (string) $size === $priced ) {
+				continue;
+			}
+			/*
+			 * UNE TAILLE QUE LE STUDIO NE DESSINE PAS EST REFUSÉE, quelle que soit
+			 * la branche.
+			 *
+			 * `garments.json` s'arrête au 3XL et le refusait déjà par son propre
+			 * `empty( $at )`. Les fiches fournisseur, elles, portent du XS au 5XL,
+			 * si bien qu'un 4XL passait par la branche « série du fabricant » et
+			 * atteignait ensuite `sizeSpecCm('tee','4XL')` côté studio, qui est
+			 * indéfini et fait tomber le rendu de TOUTE la fournée, pas seulement
+			 * de cette ligne. Trouvé par la passe adversariale du 5 septembre 2026,
+			 * et joignable par une requête REST fabriquée : `normalise_size_grid`
+			 * accepte n'importe quel jeton de quatre caractères.
+			 */
+			if ( ! in_array( (string) $size, $known, true ) ) {
+				$bad[ (string) $size ] = true;
 				continue;
 			}
 			foreach ( $sides as $side ) {
@@ -298,17 +343,60 @@ final class Design {
 				if ( empty( $pieces ) ) {
 					continue;
 				}
-				$by = Garments::area_by_size( $garment, (string) ( $side['id'] ?? '' ) );
-				$at = (array) ( $by[ (string) $size ] ?? array() );
-				$of = (array) ( $by[ $priced ] ?? array() );
-				$pw = (float) ( $of['wCm'] ?? 0 );
-				$ph = (float) ( $of['hCm'] ?? 0 );
-				if ( $pw <= 0 || $ph <= 0 || empty( $at ) ) {
+				/*
+				 * LA SÉRIE DU FABRICANT PASSE DEVANT, quand la fiche produit en
+				 * porte une.
+				 *
+				 * Depuis le 5 septembre 2026 le studio grade par la demi-poitrine
+				 * du vêtement RÉELLEMENT vendu et non plus par celle du
+				 * Stanley/Stella (voir `Design.shopSizeChart` côté studio). Les
+				 * deux ne montent pas pareil : mesuré sur le Gildan Heavy Cotton,
+				 * le rapport 3XL/M vaut 1,400 pour le fabricant contre 1,231 pour
+				 * la charte du studio. Continuer à vérifier le placement avec
+				 * `garments.json` reviendrait à mesurer une pièce de film 14 %
+				 * plus petite que celle que l'atelier découpera, et à vendre un
+				 * 3XL que le nid refusera ensuite comme trop grand pour la
+				 * feuille.
+				 *
+				 * Un seul facteur en largeur et en hauteur, parce que la gradation
+				 * du studio est uniforme (`printScaleK`), et deux facteurs ici en
+				 * seraient une seconde implémentation.
+				 */
+				/*
+				 * UNE FICHE QUI NE PORTE PAS LA TAILLE REFUSE LA TAILLE.
+				 *
+				 * Quand le produit déclare une série, elle est la seule source :
+				 * mélanger sa taille tarifée avec le 3XL de `garments.json`
+				 * fabriquerait un rapport entre DEUX vêtements. Le studio applique
+				 * la même règle et rend « non mesurable » (`src/lib/printScale.ts`),
+				 * si bien que sans ce refus la boutique vérifierait un marquage
+				 * gradé pendant que l'atelier en presserait un qui ne l'est pas.
+				 *
+				 * Un produit SANS série garde `garments.json` : c'est l'état de
+				 * tout le catalogue sauf dix références, et refuser là reviendrait
+				 * à fermer la boutique.
+				 */
+				$k = self::grading_factor( $chart, (string) $size, $priced );
+				if ( null === $k && array() !== $chart ) {
 					$bad[ (string) $size ] = true;
 					continue;
 				}
-				$kw     = (float) ( $at['wCm'] ?? 0 ) / $pw;
-				$kh     = (float) ( $at['hCm'] ?? 0 ) / $ph;
+				if ( null !== $k ) {
+					$kw = $k;
+					$kh = $k;
+				} else {
+					$by = Garments::area_by_size( $garment, (string) ( $side['id'] ?? '' ) );
+					$at = (array) ( $by[ (string) $size ] ?? array() );
+					$of = (array) ( $by[ $priced ] ?? array() );
+					$pw = (float) ( $of['wCm'] ?? 0 );
+					$ph = (float) ( $of['hCm'] ?? 0 );
+					if ( $pw <= 0 || $ph <= 0 || empty( $at ) ) {
+						$bad[ (string) $size ] = true;
+						continue;
+					}
+					$kw = (float) ( $at['wCm'] ?? 0 ) / $pw;
+					$kh = (float) ( $at['hCm'] ?? 0 ) / $ph;
+				}
 				$scaled = array();
 				foreach ( $pieces as $piece ) {
 					$scaled[] = array(
@@ -324,6 +412,26 @@ final class Design {
 			}
 		}
 		return array_keys( $bad );
+	}
+
+	/**
+	 * Le facteur de gradation d'une série de demi-poitrines, ou null.
+	 *
+	 * Null veut dire « cette série ne répond pas pour ces deux tailles », pas
+	 * « le facteur vaut un » : l'appelant retombe alors sur `garments.json`, et
+	 * confondre les deux ferait imprimer un marquage de M sur un 3XL sans que
+	 * rien ne le dise. La série arrive de `_teeshoop_demi_poitrine`, déjà bornée
+	 * à la lecture par `ProductPage::maker_chart()`.
+	 *
+	 * @param array<string,float|string> $chart Série demi-poitrine, cm.
+	 */
+	private static function grading_factor( array $chart, string $size, string $priced ): ?float {
+		$at = (float) ( $chart[ $size ] ?? 0 );
+		$of = (float) ( $chart[ $priced ] ?? 0 );
+		if ( $at <= 0 || $of <= 0 ) {
+			return null;
+		}
+		return $at / $of;
 	}
 
 	public static function normalise_sides( mixed $raw ): array {

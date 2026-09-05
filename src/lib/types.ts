@@ -176,6 +176,55 @@ export interface Design {
    * grading existed: migrateDesign fills it in.
    */
   printScale?: PrintScale
+  /**
+   * La grille de tailles DU VÊTEMENT RÉELLEMENT VENDU, demi-poitrine à plat en
+   * centimètres, quand la boutique l'a fournie.
+   *
+   * ── POURQUOI ELLE EST SUR LE DOCUMENT ET PAS DANS UN ÉTAT AMBIANT ─────────
+   *
+   * Le gradient d'impression est un rapport de demi-poitrines
+   * (`src/lib/printScale.ts`), et jusqu'au 5 septembre 2026 ce rapport venait
+   * toujours de `src/content/sizeChart.ts`, c'est-à-dire d'UN vêtement : le
+   * Stanley/Stella Creator pour le t-shirt, le Cruiser pour le sweat. Or la
+   * boutique vend des B&C, des Gildan et des Fruit of the Loom, dont les séries
+   * ne montent pas de la même façon. Mesuré sur les références de la gamme, la
+   * part de la demi-poitrine qu'occupe le marquage variait de 12,1 % entre le S
+   * et le 3XL sur le Fruit of the Loom Valueweight et de 19,1 % sur le Gildan
+   * Heavy Cotton, contre 0,0 % sur le vêtement dont la charte vient. La même
+   * commande, le même fichier, un rendu visiblement différent selon la taille.
+   *
+   * Elle vit ICI et pas dans un module poussé par la passerelle, parce que le
+   * FILM est découpé plus tard, par le module DTF, à partir du document stocké
+   * (`src/lib/dtf/pieces.ts` appelle `printScaleK`). Un état ambiant serait
+   * absent au moment où l'atelier découpe, et le film reprendrait la charte du
+   * studio sans que rien ne le dise. `buildDocument` recopie tout le design,
+   * donc ce champ part avec lui vers R2.
+   *
+   * Absente, le gradient retombe sur la charte du studio : c'est le studio hors
+   * boutique et le vêtement fourni par le client, deux états légitimes.
+   *
+   * Le vêtement est DANS le champ, et pas à côté, parce qu'une série de
+   * t-shirts ne dit rien d'un sweat : l'éditeur laisse changer de vêtement à
+   * tout moment, et un champ nu graderait alors une capuche par la poitrine
+   * d'un t-shirt. Ici, changer de vêtement suffit à faire retomber le gradient
+   * sur la charte du studio, sans rien effacer, et revenir au vêtement d'origine
+   * le remet en service.
+   */
+  shopSizeChart?: {
+    garmentId: GarmentId
+    /**
+     * L'offre qui a fourni la série. 0 quand elle n'est pas connue.
+     *
+     * Le vêtement ne suffit pas à reconnaître une série étrangère : deux offres
+     * sont des `tee` et n'ont pas la même fiche. Mesuré le 5 septembre 2026, une
+     * création faite sur un B&C puis rouverte sur un Gildan gardait la série du
+     * B&C, et la boutique validait le placement avec la fiche du Gildan pendant
+     * que le film était découpé avec celle du B&C : 13,75 % d'écart dans chaque
+     * direction. `CartModal` refuse la ligne sur ce champ.
+     */
+    productId: number
+    halfChestCm: Partial<Record<SizeId, number>>
+  }
   updatedAt: number
 }
 

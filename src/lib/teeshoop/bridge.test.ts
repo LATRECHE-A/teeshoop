@@ -108,6 +108,48 @@ describe('handshake', () => {
       locale: 'fr',
       preset: undefined,
       colours: [],
+      sizeChart: {},
+    })
+  })
+
+  describe('la grille de tailles du fabricant', () => {
+    // Ce que la boutique envoie vraiment : le Gildan Heavy Cotton 18009, en cm.
+    const GILDAN = { S: 45.72, M: 50.8, L: 55.88, XL: 60.96, '2XL': 66.04, '3XL': 71.12 }
+
+    it('la porte telle quelle', () => {
+      startShopBridge()
+      deliver({ type: 'teeshoop:context', productId: 42, garment: 'tee', sizeChart: GILDAN })
+      expect(shopContext()?.sizeChart).toEqual(GILDAN)
+    })
+
+    it("refuse une fiche restée en pouces, plutôt que de grader avec", () => {
+      startShopBridge()
+      deliver({
+        type: 'teeshoop:context',
+        productId: 42,
+        garment: 'tee',
+        sizeChart: { S: 18, M: 20, L: 22, XL: 24, '2XL': 26, '3XL': 28 },
+      })
+      expect(shopContext()?.sizeChart).toEqual({})
+    })
+
+    it("laisse tomber une taille que le studio ne dessine pas, sans refuser la série", () => {
+      startShopBridge()
+      deliver({
+        type: 'teeshoop:context',
+        productId: 42,
+        garment: 'tee',
+        sizeChart: { ...GILDAN, '5XL': 86.36, XS: 40.64 },
+      })
+      expect(shopContext()?.sizeChart).toEqual(GILDAN)
+    })
+
+    it("ne rend jamais autre chose qu'un objet, quoi qu'on lui envoie", () => {
+      for (const junk of [null, 'oui', 12, [1, 2], undefined]) {
+        startShopBridge()
+        deliver({ type: 'teeshoop:context', productId: 42, garment: 'tee', sizeChart: junk })
+        expect(shopContext()?.sizeChart).toEqual({})
+      }
     })
   })
 

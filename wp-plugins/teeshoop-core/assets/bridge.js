@@ -82,6 +82,10 @@
 			// maker's own name and the swatch the shop MEASURED. Empty means
 			// "this page restricts nothing", never "no colours".
 			colours: Array.isArray(cfg.colours) ? cfg.colours : [],
+			// The maker's own half-chest series, which is what the print grading
+			// must scale by. Empty means "we never read this maker's size sheet",
+			// and the studio then grades with its own chart, as it always did.
+			sizeChart: cfg.sizeChart && typeof cfg.sizeChart === 'object' ? cfg.sizeChart : {},
 		});
 	}
 

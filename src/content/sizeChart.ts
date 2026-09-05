@@ -105,3 +105,78 @@ export function sizeScale(garment: CatalogGarmentId, size: SizeId): SizeScale {
     sleeve: s.sleeveLengthCm / n.sleeveLengthCm,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Une série de demi-poitrines venue d'ailleurs
+// ---------------------------------------------------------------------------
+
+/**
+ * Une demi-poitrine à plat crédible, en centimètres.
+ *
+ * Bornes mesurées sur les dix séries de fabricants importées dans la boutique
+ * le 5 septembre 2026 : la plus petite valeur est 45,72 cm (Gildan Heavy Cotton
+ * en S) et la plus grande 86,36 cm (Gildan Heavy Blend en 5XL). Hors de [25, 95]
+ * ce n'est plus une demi-poitrine : c'est une fiche PDF mal lue, un tableau en
+ * pouces, ou un document fabriqué.
+ */
+const HALF_CHEST_MIN_CM = 25
+const HALF_CHEST_MAX_CM = 95
+
+/**
+ * Le plus grand rapport de gradation qu'une vraie série produit, plus de la marge.
+ *
+ * Mesuré sur les mêmes dix séries, restreintes aux six tailles que le studio
+ * dessine : le rapport 3XL/S va de 1,16 à 1,556 (le maximum est le Gildan Heavy
+ * Cotton 18009, 71,12 / 45,72). Deux est donc trente pour cent au-dessus du pire
+ * vêtement réel, ce qui laisse passer toute série honnête et refuse un rapport
+ * qui ferait imprimer un marquage au double de sa taille.
+ */
+const MAX_GRADING_RATIO = 2
+
+/**
+ * Lire une série de demi-poitrines, ou refuser.
+ *
+ * POURQUOI CE CONTRÔLE EXISTE, ET POURQUOI ICI. Cette série décide de la taille
+ * PHYSIQUE d'un marquage : `printScaleK` en fait un facteur d'échelle qui est
+ * appliqué au film. Elle voyage sur le document de création, et le document est
+ * envoyé par le navigateur du client sur une route ouverte, qui ne peut pas
+ * demander d'identité (`worker/design.ts`). Une série fabriquée qui passerait
+ * ici ferait couper un transfert à une taille que personne n'a commandée, et il
+ * serait imprimé : le nid refuse une pièce trop grande pour le film, mais un
+ * facteur de 1,5 tient sur la feuille et ressemble à du travail normal.
+ *
+ * Une seule maison pour cette règle, appelée par la passerelle en entrée
+ * (`src/lib/teeshoop/bridge.ts`) et par le gradient en lecture
+ * (`src/lib/printScale.ts`), parce que la première est contournable et que la
+ * seconde est le dernier point avant le film.
+ *
+ * Trois refus, tous constatés sur de vraies fiches par `scripts/zones-mesurer.mjs` :
+ * une valeur hors plage (fiche en pouces), une série qui ne monte pas (colonnes
+ * décalées à la lecture du PDF), un écart entre extrêmes qui n'est pas une
+ * gradation. Le refus est TOTAL : une série à demi crédible n'est pas à moitié
+ * utilisable, et grader trois tailles sur six ferait varier le marquage d'une
+ * taille à l'autre sans raison lisible.
+ *
+ * Rend un objet vide quand il n'y a rien à lire, ce qui n'est pas un refus :
+ * « la boutique n'a rien dit » laisse le gradient sur la charte du studio.
+ */
+export function readHalfChestSeries(raw: unknown): Partial<Record<SizeId, number>> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Partial<Record<SizeId, number>> = {}
+  for (const size of SIZE_IDS) {
+    const cm = Number((raw as Record<string, unknown>)[size])
+    if (!Number.isFinite(cm)) continue
+    if (cm < HALF_CHEST_MIN_CM || cm > HALF_CHEST_MAX_CM) return {}
+    out[size] = cm
+  }
+  const present = SIZE_IDS.filter((s) => out[s] !== undefined)
+  // Une seule taille ne grade rien : il faut deux points pour faire un rapport.
+  if (present.length < 2) return {}
+  for (let i = 1; i < present.length; i++) {
+    if ((out[present[i]] as number) <= (out[present[i - 1]] as number)) return {}
+  }
+  const lo = out[present[0]] as number
+  const hi = out[present[present.length - 1]] as number
+  if (hi / lo > MAX_GRADING_RATIO) return {}
+  return out
+}

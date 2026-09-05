@@ -170,6 +170,16 @@ const ALLOWED = new Map([
     { why: 'the tests for the scoped floors', needles: ['PriceRule::', 'Margin::', 'Costing::'] },
   ],
   [
+    'wp-plugins/teeshoop-core/tests/integration-gradient.php',
+    {
+      // Le format de feuille du fournisseur décide si une pièce gradée tient sur
+      // le film, donc la suite qui vérifie la gradation doit le lire. Elle ne
+      // rend rien : elle tourne en ligne de commande et n'imprime que ses ticks.
+      why: 'the print-grading suite reads the film sheet size to size its piece',
+      needles: ['Cost::', 'Costing::'],
+    },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/Costing.php',
     {
       why: 'the order-facing cost, floor and commission report; admin-only screens and order meta, never a customer surface',

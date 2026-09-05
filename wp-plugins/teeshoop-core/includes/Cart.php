@@ -398,11 +398,21 @@ final class Cart {
 		 * size IS the studio's grading factor. Deriving it here would be a second
 		 * implementation of the one rule that decides how big a print comes out.
 		 *
+		 * Depuis que le studio grade par la série du fabricant quand la boutique
+		 * en fournit une, c'est CETTE série qu'il faut lui passer, et pour la
+		 * même raison : la lire ici est la seule façon de vérifier le film que
+		 * l'atelier découpera vraiment. Voir `Design::unprintable_sizes`.
+		 *
 		 * IT REFUSES THE LINE AND NAMES THE SIZE, because « votre visuel est trop
 		 * grand » is not actionable: the same design is printable one size down,
 		 * and the customer can choose.
 		 */
-		$too_big = Design::unprintable_sizes( $garment, $sides, $size_grid );
+		$too_big = Design::unprintable_sizes(
+			$garment,
+			$sides,
+			$size_grid,
+			ProductPage::maker_chart( $product_id )
+		);
 		if ( ! empty( $too_big ) ) {
 			return new \WP_Error(
 				'teeshoop_design_too_large',

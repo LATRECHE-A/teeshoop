@@ -1,6 +1,6 @@
 # Nuit 2, ce qui reste à reprendre
 
-> Écrite à la fermeture de la nuit du 4 septembre 2026. Tout chiffre ici a été
+> Écrite à la fermeture de la nuit du 4 septembre 2026, complétée le 5. Tout chiffre ici a été
 > produit en faisant tourner la chose réelle contre le miroir docker. Ce qui n'a
 > pas été mesuré le dit.
 
@@ -13,15 +13,17 @@
 | Produits achetables | 9 | 9 |
 | dont montages de harnais | **8** | **0** |
 | dont offres réelles avec référence fournisseur | 0 | **9** |
-| Colonnes publiées **sous leur plancher de coût** | **102 sur 219**, puis 34 de plus | **0 sur 111** |
-| T-shirt, une face, 5 pièces | 14,50 EUR | **23,00 EUR** |
-| T-shirt, une face, 50 pièces | 9,42 EUR | **14,95 EUR** |
-| Sweat, une face, 5 pièces | 32,00 EUR | **49,00 EUR** |
+| Colonnes publiées **sous leur plancher de coût** | **102 sur 219**, puis 34 de plus | **0 sur 99** |
+| Plancher appliqué | contribution 25 % | **marge brute 50 %, sa réponse Q06** |
+| Gradient d'impression | la charte d'un dixième vêtement | **la fiche du fabricant vendu** |
+| T-shirt, une face, 5 pièces | 14,50 EUR | **34,00 EUR** |
+| T-shirt, une face, 50 pièces | 9,42 EUR | **22,10 EUR** |
+| Sweat, une face, 5 pièces | 32,00 EUR | **73,00 EUR** |
 | Refus « textile nu » du portail | **6** | **0** |
 | Refus du portail, tous motifs | 23 | **17** |
 | Sélecteurs de style pour panier, caisse, compte, commande reçue | **0** | 1 099 lignes |
 | Paires (coloris, taille) proposées et inachetables | **10** | **0** sur 894 |
-| `npm run test:wp` | 230 passées, 4 échouées | **235 passées** |
+| `npm run test:wp` | 230 passées, 4 échouées | **238 passées** |
 
 ## 2. Ce qui n'est pas fini, nommément
 
@@ -61,26 +63,60 @@ photographie), et ce qui manque est la remise de ce vêtement photographique de
 la boutique vers le studio. C'est le poste que le brief annonce comme « plus
 gros que la réécriture du personnalisateur », et il n'a pas été fait.
 
-### Deux défauts de géométrie trouvés par la passe adversariale et NON corrigés
+### Les deux défauts de géométrie sont corrigés (5 septembre)
 
-**Le gradient d'impression utilise la charte d'un dixième vêtement.** L'offre
-déclare `garment = 'tee'`, donc `printScaleK` lit la charte du studio
-(Stanley/Stella Creator STTU755) pour grader le visuel sur neuf vêtements
-d'autres fabricants. Mesuré sur le Gildan Heavy Cotton, dont la vraie série est
-maintenant sur le produit : la part de la poitrine qu'occupe le marquage est de
-0,629 en S contre 0,528 en 3XL, soit **19 % de plus en S**, là où elle est plate
-sur le vêtement dont la charte vient. Le même fichier, la même commande, un
-rendu visiblement différent selon la taille.
-Le correctif est de faire traverser `_teeshoop_demi_poitrine` vers le studio et
-de le donner à `printScaleK`, qui accepte déjà une charte par création
-(`design.custom.halfChestCmBySize`). Ce n'est pas une correction de seuil.
+**Le gradient suit maintenant la fiche du fabricant vendu.** Il lisait la charte
+du Stanley/Stella pour grader neuf vêtements d'autres marques. Mesuré, part de la
+demi-poitrine occupée par un marquage calé sur le M : 12,1 % d'écart entre S et
+3XL sur le Fruit of the Loom, 19,1 % sur le Gildan Heavy Cotton, 0,0 % sur le
+vêtement dont la charte vient, ce qui est le contrôle. `_teeshoop_demi_poitrine`
+traverse jusqu'au document de création, la boutique vérifie le placement avec la
+même série, et une seule maison (`readHalfChestSeries`) refuse une série
+invraisemblable aux deux bouts. Détail complet dans
+`docs/decisions/2026-09-05-le-gradient-suit-la-fiche-du-fabricant.md`.
 
-**La grille publie six colonnes que le panier refuse au marquage maximal.**
-`grid_rows()` décide « sur devis » à partir d'un prix calculé au palier de
-surface standard ; `Cart::add` décide sur le total réel de la ligne. À la plus
-grande surface imprimable, deux faces x cent pièces sur les six t-shirts
-franchissent les 2 000 EUR HT et sont refusées. Bonne nouvelle mesurée dans la
-même passe : à cette surface, **aucune colonne ne passe sous son plancher**.
+**La grille et le panier disent maintenant la même chose sur les colonnes « sur
+devis »**, et une assertion d'intégration compare les deux verdicts dans les deux
+sens. Le seuil est celui de l'associé (2 000 EUR HT de commande, réponse 02) ; au
+nouveau tarif il est franchi à cent t-shirts et cinquante sweats, donc ces
+colonnes ne portent plus de prix public. `Pricing.php` disait que la question 02
+était sans réponse : c'était faux depuis le 1er septembre, et le commentaire est
+corrigé.
+
+### Ce que la passe adversariale a trouvé, et qui est corrigé
+
+Dix-huit trouvailles ont survécu à la réfutation, sept défauts distincts, tous
+dans le travail de cette nuit et tous corrigés : une série de fabricant qui
+survivait au changement de produit (35,0 cm de transfert sur un film de 33), un
+rapport bâti sur deux vêtements (jusqu'à 2,56), une annulation qui retirait la
+série, deux caches qui identifiaient une géométrie par une date qui ne bougeait
+pas, un marquage fixe gradé quand même, une taille hors charte qui faisait tomber
+toute une fournée, et un garde du plancher qui avait cessé de surveiller la taille
+la plus chère. Le détail et les mesures sont dans
+`docs/decisions/2026-09-05-le-gradient-suit-la-fiche-du-fabricant.md`, section 6.
+
+Deux défauts hors sujet corrigés au passage : l'aperçu de plancher de l'écran des
+règles ne calculait que la jambe de contribution (333,33 EUR annoncés contre
+500,00 réels), et la fraîcheur d'un relevé de stock se mesurait contre la fin de la
+journée, si bien qu'entre minuit et une heure la boutique déclarait périmé un
+relevé d'une heure.
+
+### Ce qui reste ouvert sur le gradient
+
+**La boutique ne relit pas la série que porte le document.** `Cart::add` compare la
+fiche du produit ouvert, pas celle qui voyage sur la création : c'est le studio qui
+refuse une création calée sur un autre article (`CartModal`), et la boutique n'a
+pas de second verrou parce qu'elle ne lit pas le document R2. Le chemin honnête est
+fermé ; un document fabriqué à la main ne l'est que par les bornes de
+`readHalfChestSeries`, rejouées côté atelier.
+
+### Ce que le gradient corrigé a rendu visible
+
+Un marquage carré au maximum du palier standard (25,0 cm de côté) ne tient pas
+sur le film de 33 cm une fois gradé en 3XL sur les deux Gildan : 35,0 cm sur le
+Heavy Cotton, 34,1 cm sur le Heavy Blend. Les trois B&C tiennent à 30,7 cm. La
+boutique refuse la ligne avant le paiement et nomme la taille. C'est une
+contrainte physique, pas un défaut, et elle est posée en question 65.
 
 ### La TVA n'est toujours pas tranchée, et ce n'est pas à nous
 
@@ -90,12 +126,14 @@ pour cette raison, et il a raison. C'est de l'argent et du droit qui sortent de
 l'entreprise : ça appartient au développeur et à l'associé.
 `ACCES-REQUIS.md` et `QUESTIONS-ASSOCIE.md` le portent.
 
-### Trois questions attendent l'associé
+### Quatre questions attendent l'associé
 
-`QUESTIONS-ASSOCIE.md` Q64 (le tarif : gardons-nous le plancher, montons-nous à
-la marge de 50 % qu'il a nommée, la remise de quantité est-elle la sienne, et
-faut-il un supplément sur les grandes tailles plutôt que faire payer à un S ce
-que coûte un 3XL), plus Q62 et Q63 de la nuit 1 qui n'ont pas bougé.
+`QUESTIONS-ASSOCIE.md` Q64, réécrite : sa marge brute minimale de 50 % est
+appliquée, elle donne 34,00 EUR le t-shirt et 73,00 EUR le sweat, et ce niveau
+est au-dessus du marché relevé (mistertee entre 15,97 et 23,11 EUR). Confirme-t-il,
+ou nous demande-t-il de redescendre sous son propre minimum ? Plus la remise de
+quantité, qui est notre hypothèse. Q65, nouvelle : le 3XL Gildan. Plus Q62 et Q63
+de la nuit 1 qui n'ont pas bougé.
 
 ## 3. Ce qui a été trouvé en chemin et qui n'était pas le sujet
 
@@ -122,8 +160,11 @@ un panier entièrement gris comme preuve que le panier est habillé.
 
 | Garde | Ce qu'il refuse | Prouvé en cassant |
 |---|---|---|
-| `npm run verify:grille` | une colonne publiée sous son plancher, une colonne sans plancher calculable, un coût amputé du textile ou du port, une exécution qui n'a rien mesuré | `base_ht` 13,00 -> 6,00 : code 1, **80 refus nommés**, puis retour à « 111 colonnes, toutes au-dessus » |
+| `npm run verify:grille` | une colonne publiée sous son plancher, une colonne sans plancher calculable, un coût amputé du textile ou du port, une taille dont le marquage ne tient pas sur le film, une exécution qui n'a rien mesuré | `base_ht` 13,00 -> 6,00 : code 1, **80 refus nommés** ; toutes les tailles rendues non imprimables : code 1, neuf références nommées ; puis retour à « 99 colonnes, toutes au-dessus » |
 | `npm run zones:mesurer` | une fiche de mesures illisible, hors unité, non croissante ou incomplète ; une photo sans silhouette ; un col non trouvé ; un torse qui occupe plus des trois quarts de la boîte | les dix-huit photographies de la gamme, chacune avec sa raison |
+| `printScale.test.ts` + `integration-gradient.php` | un gradient qui ignore la série du fabricant, une série non relue avant le film, la série d'un t-shirt appliquée à un sweat, un rapport bâti sur deux vêtements, une boutique qui vérifie le placement sur `garments.json` | six casses volontaires, six rouges, tout remis |
+| `npm run verify:wp-e2e` | la chaîne complète du gradient dans un vrai navigateur : la page publie la fiche, `bridge.js` la poste, le studio la pose sur le document. **Il était mort depuis des semaines** (`frame-ancestors` de production servi au miroir) | la ligne de transmission retirée de `bridge.js` : code 1, `{"chart":null}` |
+| `test-purchase.php` | un âge de relevé mesuré contre la fin du jour au lieu d'un instant | le plafond retiré : rouge sur « relevé de 6 h : la date et l'instant divergent » |
 | `npm run verify:achat` | un panier vide, une caisse sans récapitulatif, un débordement latéral à 375 px, un courriel sans le navy ou avec une propriété personnalisée, **un total de caisse différent de celui du panier** | 32 assertions |
 | `hypotheses-guard --self-test` | trois cas de plus : `answered` et `decided_by` ensemble, une décision sans date, une décision signée « associe » | 14 cas, tous FIRED |
 
@@ -141,6 +182,7 @@ npx wrangler dev --port 8788 --ip 0.0.0.0       # le Worker, pour les fiches PDF
                                                 # et pour la création du garde
 docker compose -f wp-local/docker-compose.yml run --rm wpcli teeshoop gamme appliquer
 npm run zones:mesurer -- --refaire              # relit les fiches de mesures
+npm run wp:cli -- eval 'update_option("teeshoop_settings", array_merge((array) get_option("teeshoop_settings"), ["worker_url" => "http://host.docker.internal:8788"]));'
 npm run verify:grille                           # le plancher
 npm run test:wp                                 # 235 assertions
 npm run verify:achat                            # les captures et 32 assertions

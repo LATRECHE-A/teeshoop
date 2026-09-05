@@ -67,6 +67,7 @@ if ( 'cli' !== PHP_SAPI ) {
 	exit( 1 );
 }
 
+use Teeshoop\Core\Design;
 use Teeshoop\Core\Cart;
 use Teeshoop\Core\Costing;
 use Teeshoop\Core\Gamme;
@@ -170,10 +171,10 @@ function teeshoop_grille_dearest_colour( int $product_id, string $size ): ?array
  * c'est la taille la plus grande qui décide si le tarif tient. Voir le
  * commentaire au point d'appel.
  */
-function teeshoop_grille_dearest_size( int $product_id, string $garment ): string {
+function teeshoop_grille_sizes_by_cost( int $product_id, string $garment ): array {
 	$ref = Product::blank_ref_of( $product_id );
 	if ( '' === $ref ) {
-		return '';
+		return array();
 	}
 	$blank_ids = get_posts(
 		array(
@@ -186,11 +187,11 @@ function teeshoop_grille_dearest_size( int $product_id, string $garment ): strin
 		)
 	);
 	if ( array() === $blank_ids ) {
-		return '';
+		return array();
 	}
 	$blank = wc_get_product( (int) $blank_ids[0] );
 	if ( ! $blank instanceof \WC_Product ) {
-		return '';
+		return array();
 	}
 
 	/*
@@ -200,8 +201,7 @@ function teeshoop_grille_dearest_size( int $product_id, string $garment ): strin
 	 */
 	$known = array_map( 'strtolower', ProductPage::size_ids( $garment ) );
 
-	$best      = '';
-	$best_cost = 0;
+	$costs = array();
 	foreach ( $blank->get_children() as $child ) {
 		$variation = wc_get_product( (int) $child );
 		if ( ! $variation instanceof \WC_Product_Variation ) {
@@ -216,14 +216,26 @@ function teeshoop_grille_dearest_size( int $product_id, string $garment ): strin
 		if ( ! is_numeric( $cents ) || (int) $cents <= 0 ) {
 			continue;
 		}
-		// Strict, then alphabetical, so two sizes at one price do not make the
-		// answer depend on the order WooCommerce returned the children in.
-		if ( (int) $cents > $best_cost || ( (int) $cents === $best_cost && '' !== $best && strcmp( $size, $best ) < 0 ) ) {
-			$best_cost = (int) $cents;
-			$best      = $size;
-		}
+		$costs[ strtoupper( $size ) ] = (int) $cents;
 	}
-	return '' === $best ? '' : strtoupper( $best );
+	/*
+	 * Le plus cher d'abord, puis l'ordre alphabétique, pour que deux tailles au
+	 * même prix d'achat ne fassent pas dépendre la réponse de l'ordre dans lequel
+	 * WooCommerce a rendu les enfants.
+	 */
+	uksort(
+		$costs,
+		static function ( string $a, string $b ) use ( $costs ): int {
+			return $costs[ $b ] <=> $costs[ $a ] ?: strcmp( $a, $b );
+		}
+	);
+	return array_keys( $costs );
+}
+
+/** La plus chère seule, pour les appelants qui n'ont pas de repli à faire. */
+function teeshoop_grille_dearest_size( int $product_id, string $garment ): string {
+	$sizes = teeshoop_grille_sizes_by_cost( $product_id, $garment );
+	return array() === $sizes ? '' : (string) $sizes[0];
 }
 
 /**
@@ -372,6 +384,12 @@ $made    = array();
 $fails   = array();
 $blocked = array();
 $skipped = array();
+/*
+ * Les compromis assumés du garde, imprimés même quand tout est vert : une
+ * mesure prise autrement que ce que l'en-tête annonce doit se lire dans la
+ * sortie, sinon la sortie promet plus que ce qu'elle a fait.
+ */
+$notes   = array();
 $offers  = 0;
 
 foreach ( Gamme::RANGE as $ref => $garment ) {
@@ -417,11 +435,78 @@ foreach ( Gamme::RANGE as $ref => $garment ) {
 	 * Le garde mesure donc la commande la plus chère à servir que la page
 	 * publie : la taille la plus chère, dans le coloris le plus cher.
 	 */
-	$size = teeshoop_grille_dearest_size( $product_id, $garment );
-	if ( '' === $size ) {
+	/*
+	 * ── LA TAILLE LA PLUS CHÈRE, ET LE MARQUAGE RÉTRÉCIT S'IL LE FAUT ───────
+	 *
+	 * Le plancher est une question d'ARGENT, et ce qui le déplace est le prix
+	 * d'achat du textile, qui monte avec la taille. Mesuré sur la gamme : le
+	 * blanc passe de 4,28 à 6,06 EUR entre le 2XL et le 3XL sur le Gildan Heavy
+	 * Cotton, et de 14,92 à 21,07 sur le Heavy Blend, soit 3,56 et 12,30 EUR de
+	 * plancher par pièce puisque le plancher vaut deux fois le coût direct. Une
+	 * version de ce garde descendait d'une taille quand le marquage du palier
+	 * standard ne tenait plus sur le film une fois gradé ; elle cessait alors de
+	 * surveiller la seule colonne sur laquelle le tarif avait été résolu, et
+	 * l'annonçait poliment. La passe adversariale du 5 septembre 2026 l'a mesuré :
+	 * 29009, une face, vingt-cinq pièces, passait de 10,73 EUR de marge au-dessus
+	 * du plancher à 318,23 EUR annoncés, en mesurant un 2XL.
+	 *
+	 * Or le prix ne dépend PAS de la surface à l'intérieur du palier : un logo de
+	 * 15 cm et un carré de 25 cm sont dans la même cellule et au même prix. Un
+	 * 3XL avec un marquage un peu plus petit est donc une commande réelle, au
+	 * même prix publié, et plus chère à servir. C'est elle qu'il faut mesurer.
+	 *
+	 * Le garde garde donc la taille et rétrécit le carré jusqu'à ce qu'il tienne,
+	 * en restant dans le palier, et il dit de combien.
+	 */
+	$sizes = teeshoop_grille_sizes_by_cost( $product_id, $garment );
+	if ( array() === $sizes ) {
 		$fails[] = sprintf( '%s : aucune taille de l’offre ne se résout à un article fournisseur avec un prix d’achat.', $ref );
 		continue;
 	}
+	$size  = (string) $sizes[0];
+	$chart = ProductPage::maker_chart( $product_id );
+
+	$probe = static function ( float $side_cm ) use ( $garment, $chart, $size ): bool {
+		return array() === Design::unprintable_sizes(
+			$garment,
+			array(
+				array(
+					'id'         => 'front',
+					'area_sq_cm' => $side_cm * $side_cm,
+					'pieces'     => array( array( 'w_cm' => $side_cm, 'h_cm' => $side_cm ) ),
+				),
+			),
+			array( $size => 1 ),
+			$chart
+		);
+	};
+
+	$edge_here = $edge;
+	if ( ! $probe( $edge_here ) ) {
+		// Un dixième de centimètre à la fois, vers le bas : le marquage reste une
+		// commande que la page vend au même prix, et le pas est celui dans lequel
+		// `$edge` est déjà exprimé.
+		while ( $edge_here > 1.0 && ! $probe( $edge_here ) ) {
+			$edge_here = round( $edge_here - 0.1, 1 );
+		}
+		if ( $edge_here <= 1.0 ) {
+			$fails[] = sprintf(
+				'%s : aucun marquage, même minuscule, ne peut être imprimé en %s. La taille est vendue et rien n’y tient.',
+				$ref,
+				$size
+			);
+			continue;
+		}
+		$notes[] = sprintf(
+			'%s (%s) : mesuré en %s avec un marquage de %s cm de côté au lieu de %s, parce qu’au-delà le transfert gradé dépasse le film. Même palier, même prix publié, même taille la plus chère.',
+			$ref,
+			$garment,
+			$size,
+			number_format( $edge_here, 1, ',', ' ' ),
+			number_format( (float) $edge, 1, ',', ' ' )
+		);
+	}
+	$area_here = $edge_here * $edge_here;
 
 	/*
 	 * LA COULEUR LA PLUS CHÈRE DE LA RÉFÉRENCE, et c'est un choix de garde.
@@ -478,8 +563,8 @@ foreach ( Gamme::RANGE as $ref => $garment ) {
 	foreach ( range( 0, $faces - 1 ) as $ts_i ) {
 		$sides[] = array(
 			'id'         => $face_ids[ $ts_i ] ?? ( 'face' . $ts_i ),
-			'area_sq_cm' => $area,
-			'pieces'     => array( array( 'w_cm' => $edge, 'h_cm' => $edge ) ),
+			'area_sq_cm' => $area_here,
+			'pieces'     => array( array( 'w_cm' => $edge_here, 'h_cm' => $edge_here ) ),
 		);
 	}
 	foreach ( $qtys as $qty ) {
@@ -697,6 +782,14 @@ if ( array() !== $skipped ) {
  * quoi. Un garde qui ne publie pas ses raisons oblige à le relire pour le
  * comprendre, ce qui est exactement ce qu'il est censé éviter.
  */
+if ( array() !== $notes ) {
+	WP_CLI::log( sprintf( '%d mesure(s) prise(s) autrement, et pourquoi :', count( $notes ) ) );
+	foreach ( $notes as $why ) {
+		WP_CLI::log( '  ' . $why );
+	}
+	WP_CLI::log( '' );
+}
+
 if ( array() !== $fails ) {
 	WP_CLI::log( sprintf( '%d refus :', count( $fails ) ) );
 	foreach ( $fails as $why ) {

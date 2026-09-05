@@ -5,7 +5,7 @@ import { GARMENTS } from '@/garments'
 import { garmentPalette, paletteIsMeasured } from '@/content/garmentPalette'
 import { PRICING } from '@/content/pricing'
 import { useShopBridge } from '@/app/hooks/useShopBridge'
-import { SIZE_CHARTS, SIZE_IDS } from '@/content/sizeChart'
+import { SIZE_CHARTS, SIZE_IDS, type SizeId } from '@/content/sizeChart'
 import { useStore } from '@/state/store'
 import { useAdminSlots } from '@/app/adminSlots'
 import { useT } from '@/i18n'
@@ -265,18 +265,45 @@ export default function ProductPanel() {
           {(() => {
             const chart = SIZE_CHARTS[design.garmentId as CatalogGarmentId]
             const spec = chart.sizes[previewSize]
+            /*
+             * LA POITRINE AFFICHÉE EST CELLE QUI GRADE LE MARQUAGE.
+             *
+             * Ce panneau lisait la charte du studio pendant que le marquage était
+             * gradé par la fiche du fabricant : sur un Gildan Heavy Cotton, il
+             * annonçait 64 cm en 3XL là où la page de la boutique, juste à côté
+             * dans la même fenêtre, en annonçait 71,12 et où le transfert était
+             * découpé sur 71,12. Deux tours de poitrine pour un vêtement, à
+             * 7,12 cm l'un de l'autre, sur un seul écran. Trouvé par la passe
+             * adversariale du 5 septembre 2026.
+             *
+             * Seule la poitrine est remplacée : c'est la seule mesure que la
+             * boutique publie, et inventer une longueur ou une manche à partir
+             * d'elle serait un chiffre fabriqué qui atteint un client. Les deux
+             * autres restent celles du studio et la légende dit d'où vient
+             * chaque chose.
+             */
+            const shop =
+              design.shopSizeChart?.garmentId === design.garmentId
+                ? design.shopSizeChart.halfChestCm
+                : undefined
+            const chestOf = (sz: SizeId): number | null => {
+              if (shop) return typeof shop[sz] === 'number' ? (shop[sz] as number) : null
+              return chart.sizes[sz].halfChestCm
+            }
+            const chest = chestOf(previewSize)
             return (
               <>
                 <div className="mono-dim mt-2 text-[11px] leading-relaxed text-cy">
                   {t('product.size_dims', {
-                    chest: fmtCm(spec.halfChestCm),
+                    chest: chest === null ? '—' : fmtCm(chest),
                     length: fmtCm(spec.bodyLengthCm),
                     sleeve: fmtCm(spec.sleeveLengthCm),
                   })}
                 </div>
                 <details className="mt-2">
                   <summary className="cursor-pointer text-[11px] text-tx3 transition-colors hover:text-tx2">
-                    {t('product.size_chart')} · {chart.brandRef}
+                    {t('product.size_chart')} ·{' '}
+                    {shop ? t('product.size_chart_maker') : chart.brandRef}
                   </summary>
                   <table className="mono-dim mt-2 w-full text-left text-[10.5px]">
                     <thead>
@@ -290,10 +317,11 @@ export default function ProductPanel() {
                     <tbody>
                       {SIZE_IDS.map((sz) => {
                         const sp = chart.sizes[sz]
+                        const c = chestOf(sz)
                         return (
                           <tr key={sz} className={clsx(sz === previewSize ? 'text-cy' : 'text-tx2')}>
                             <td className="py-0.5 font-bold">{sz}</td>
-                            <td className="py-0.5">{sp.halfChestCm}</td>
+                            <td className="py-0.5">{c === null ? '—' : c}</td>
                             <td className="py-0.5">{sp.bodyLengthCm}</td>
                             <td className="py-0.5">{sp.sleeveLengthCm}</td>
                           </tr>

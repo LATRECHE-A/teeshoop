@@ -163,3 +163,117 @@ describe('chestChartFrom', () => {
     })
   })
 })
+
+/**
+ * La charte du vêtement RÉELLEMENT VENDU.
+ *
+ * Le défaut que ces tests tiennent : la boutique vend des Gildan et des Fruit of
+ * the Loom, et le gradient les gradait tous par la série du Stanley/Stella, seul
+ * vêtement que `sizeChart.ts` connaisse. Mesuré sur le catalogue importé, le
+ * rapport 3XL/S vaut 1,5556 sur le Gildan Heavy Cotton contre 1,3061 sur le
+ * Stanley/Stella : un marquage calé sur le M sortait 19 % trop petit en 3XL.
+ */
+describe('shopSizeChart, la série du fabricant portée par le document', () => {
+  // Gildan Heavy Cotton 18009, lue sur la fiche du fournisseur et importée
+  // dans la boutique. Les valeurs sont en cm (la fiche est en pouces).
+  const GILDAN = { S: 45.72, M: 50.8, L: 55.88, XL: 60.96, '2XL': 66.04, '3XL': 71.12 }
+
+  it('grade par la série du fabricant, pas par celle du studio', () => {
+    const studio = baseDesign()
+    const gildan = baseDesign({ shopSizeChart: { garmentId: 'tee', productId: 1, halfChestCm: GILDAN } })
+    // Le contrôle : la charte du studio donne 64/52, celle du Gildan 71,12/50,8.
+    expect(printScaleK(studio, '3XL')).toBeCloseTo(64 / 52, 6)
+    expect(printScaleK(gildan, '3XL')).toBeCloseTo(71.12 / 50.8, 6)
+    // Et l'écart est celui qui a motivé le correctif, pas un epsilon.
+    expect(printScaleK(gildan, '3XL') / printScaleK(studio, '3XL')).toBeGreaterThan(1.13)
+  })
+
+  it("ignore une série qui décrit un AUTRE vêtement que celui de la création", () => {
+    // Un client ouvre l'éditeur sur un t-shirt Gildan puis bascule sur le sweat :
+    // sans ce contrôle, la capuche serait gradée par la poitrine du t-shirt.
+    const d = baseDesign({
+      garmentId: 'hoodie',
+      shopSizeChart: { garmentId: 'tee', productId: 1, halfChestCm: GILDAN },
+    })
+    expect(printScaleK(d, '3XL')).toBeCloseTo(
+      SIZE_CHARTS.hoodie.sizes['3XL'].halfChestCm / SIZE_CHARTS.hoodie.sizes.M.halfChestCm,
+      6,
+    )
+  })
+
+  describe('elle est la seule source, ou elle n’est pas une source', () => {
+    /*
+     * Trouvé par la passe adversariale du 5 septembre 2026, et c'était un vrai
+     * défaut : `halfChestCm` retombait taille par taille sur la charte du
+     * studio, donc un rapport pouvait mélanger DEUX vêtements. La borne de
+     * vraisemblance ne le voyait pas, parce que le rapport tordu n'est pas dans
+     * la série, il est entre la série et la charte.
+     */
+    it('ne mélange pas une série courte avec la charte du studio', () => {
+      // Le Fruit of the Loom Classic Hooded s'arrête au 2XL. Avant le correctif,
+      // k(3XL) valait 64 / 50,8 = 1,2598 : le 3XL du Stanley/Stella divisé par
+      // le M du Fruit of the Loom.
+      const court = { S: 45.72, M: 50.8, L: 55.88, XL: 60.96, '2XL': 66.04 }
+      const d = baseDesign({ shopSizeChart: { garmentId: 'tee', productId: 1, halfChestCm: court } })
+      expect(printScaleK(d, '3XL')).toBe(1)
+      expect(printScaleK(d, '2XL')).toBeCloseTo(66.04 / 50.8, 6)
+    })
+
+    it('refuse un rapport fabriqué entre la série et la charte', () => {
+      // Chaque valeur est crédible, leur rapport aussi (1,04). Sur un document
+      // calé en S, le 3XL venait de la charte du studio : k valait 2,56, un
+      // transfert à deux fois et demie sa taille, découpé dans le film.
+      const d = baseDesign({
+        printScale: { mode: 'scaled', baseSize: 'S' },
+        shopSizeChart: { garmentId: 'tee', productId: 1, halfChestCm: { S: 25, M: 26 } },
+      })
+      expect(printScaleK(d, '3XL')).toBe(1)
+      expect(printScaleK(d, 'M')).toBeCloseTo(26 / 25, 6)
+    })
+  })
+
+  it("ne grade pas une taille que la série du fabricant ne porte pas", () => {
+    // Le Fruit of the Loom Classic Hooded s'arrête au 2XL. Grader un 3XL
+    // ferait retomber k sur 1 en silence : un marquage de M sur un 3XL.
+    const short = { S: 46, M: 51, L: 56, XL: 61, '2XL': 66 }
+    const d = baseDesign({ shopSizeChart: { garmentId: 'tee', productId: 1, halfChestCm: short } })
+    expect(gradableSizes(d)).toEqual(['S', 'M', 'L', 'XL', '2XL'])
+    expect(gradableSizes(d)).not.toContain('3XL')
+  })
+
+  describe('refuse une série qui ne peut pas être une série', () => {
+    const refused = (chart: Record<string, number>): boolean => {
+      const d = baseDesign({ shopSizeChart: { garmentId: 'tee', productId: 1, halfChestCm: chart } })
+      // Refusée veut dire : on retombe sur la charte du studio, à l'identique.
+      return printScaleK(d, '3XL') === printScaleK(baseDesign(), '3XL')
+    }
+
+    it('une fiche laissée en pouces', () => {
+      expect(refused({ S: 18, M: 20, L: 22, XL: 24, '2XL': 26, '3XL': 28 })).toBe(true)
+    })
+
+    it('des colonnes décalées à la lecture du PDF (la série ne monte pas)', () => {
+      expect(refused({ S: 46, M: 51, L: 49, XL: 61, '2XL': 66, '3XL': 71 })).toBe(true)
+    })
+
+    it("un écart entre extrêmes qui n'est pas une gradation", () => {
+      // Chaque valeur est plausible prise seule ; le rapport 3,3 ne l'est pas.
+      expect(refused({ S: 27, M: 40, L: 55, XL: 70, '2XL': 80, '3XL': 90 })).toBe(true)
+    })
+
+    it('une seule taille, qui ne fait pas un rapport', () => {
+      expect(refused({ M: 52 })).toBe(true)
+    })
+
+    it('et le refus est TOTAL, pas taille par taille', () => {
+      // Le 3XL est hors plage ; les cinq autres sont bonnes. Grader cinq tailles
+      // sur six ferait varier le marquage sans raison lisible.
+      const d = baseDesign({
+        shopSizeChart: { garmentId: 'tee', productId: 1, halfChestCm: { S: 46, M: 51, L: 56, XL: 61, '2XL': 66, '3XL': 210 },
+        },
+      })
+      expect(printScaleK(d, 'L')).toBeCloseTo(printScaleK(baseDesign(), 'L'), 6)
+      expect(gradableSizes(d)).toEqual([...SIZE_IDS])
+    })
+  })
+})

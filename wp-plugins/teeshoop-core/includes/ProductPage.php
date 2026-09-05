@@ -722,6 +722,19 @@ final class ProductPage {
 	}
 
 	/**
+	 * La série du fabricant, pour la passerelle.
+	 *
+	 * Publique parce que `Shortcode::enqueue()` la fait traverser vers le studio,
+	 * où elle décide du gradient d'impression. Même lecture, même garde-fou
+	 * d'unité : une seule maison pour « quelle est la vraie demi-poitrine ».
+	 *
+	 * @return array<string,float>
+	 */
+	public static function maker_chart( int $product_id ): array {
+		return self::maker_half_chest( $product_id );
+	}
+
+	/**
 	 * The maker's own half-chest series, size => cm, or an empty array.
 	 *
 	 * @return array<string,float>
