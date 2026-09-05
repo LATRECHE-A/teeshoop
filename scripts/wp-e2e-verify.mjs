@@ -250,9 +250,37 @@ try {
 
   // --- 2. the Worker: the studio's origin AND the design store ------------
   console.log(`starting wrangler dev on ${STUDIO_ORIGIN} ...`)
+  /*
+   * ── `SHOP_ORIGINS` EST DONNÉ AU WORKER, PAS SEULEMENT AU PAQUET ─────────
+   *
+   * Ce harnais passait l'origine de la boutique à `npm run build`, ce qui règle
+   * la liste blanche du STUDIO, et laissait le Worker prendre la sienne dans
+   * `wrangler.jsonc`. Depuis que ce fichier y porte les origines de production,
+   * le Worker répondait
+   * `frame-ancestors https://teeshoop.com ...`, le navigateur refusait
+   * d'encadrer `http://localhost:8788` depuis `http://localhost:8080`
+   * (ERR_BLOCKED_BY_RESPONSE), le cadre restait vide, et le harnais mourait sur
+   * « canvas jamais visible » après quatre-vingt-dix secondes, sans jamais dire
+   * pourquoi. Mesuré le 5 septembre 2026, et il était rouge depuis le jour où
+   * ces origines ont été écrites.
+   *
+   * Les deux réglages sont la même décision et doivent venir de la même
+   * variable, sinon ils divergent une deuxième fois.
+   */
   worker = spawn(
     'npx',
-    ['wrangler', 'dev', '--ip', '0.0.0.0', '--port', String(WORKER_PORT), '--log-level', 'warn'],
+    [
+      'wrangler',
+      'dev',
+      '--ip',
+      '0.0.0.0',
+      '--port',
+      String(WORKER_PORT),
+      '--log-level',
+      'warn',
+      '--var',
+      `SHOP_ORIGINS:${SHOP_ORIGIN}`,
+    ],
     { stdio: ['ignore', 'ignore', 'inherit'] },
   )
   await waitFor(`${STUDIO_ORIGIN}/api/design/aaaaaaaaaaaaaaaa`, 90000).catch(() =>
@@ -410,6 +438,60 @@ try {
   const frameBox = await frameEl.boundingBox()
   console.log(`studio frame: ${Math.round(frameBox?.width ?? 0)} x ${Math.round(frameBox?.height ?? 0)} px`)
   await shot('wp-e2e-2-artwork-placed')
+
+  /*
+   * ── LE GRADIENT SUIT-IL LA FICHE DU FABRICANT ? ─────────────────────────
+   *
+   * C'est le seul saut de la chaîne qu'aucun test unitaire ne peut faire :
+   * `assets/bridge.js` lit `TEESHOOP_BRIDGE.sizeChart`, le poste au cadre, et
+   * `src/lib/teeshoop/bridge.ts` le pose sur la création. Les deux bouts sont
+   * testés séparément ; entre les deux il y a un postMessage réel entre deux
+   * origines, et c'est là que ça se casse en silence.
+   *
+   * Lu dans le document que le studio a lui-même écrit dans IndexedDB, à travers
+   * `idb-keyval` (base `keyval-store`, magasin `keyval`, clé `tshop:current`),
+   * donc sans aucun crochet de débogage dans le code livré.
+   *
+   * La fiche est celle du Gildan Heavy Cotton, la référence dont la série
+   * s'écarte le plus de la charte du studio : 71,12 / 50,8 = 1,400 contre
+   * 64 / 52 = 1,2308. Le studio qui graderait encore par sa propre charte ne
+   * porterait tout simplement pas ce champ.
+   */
+  const published = await page.evaluate(() => window.TEESHOOP_BRIDGE?.sizeChart ?? null)
+  ok(
+    'the product page publishes the maker\'s series to the studio',
+    published !== null && Object.keys(published).length >= 2,
+    JSON.stringify(published),
+  )
+
+  const stored = await studio.locator('body').evaluate(
+    () =>
+      new Promise((resolve) => {
+        const open = indexedDB.open('keyval-store')
+        open.onerror = () => resolve({ error: 'idb refusée' })
+        open.onsuccess = () => {
+          const db = open.result
+          if (!db.objectStoreNames.contains('keyval')) return resolve({ error: 'pas de magasin keyval' })
+          const req = db.transaction('keyval', 'readonly').objectStore('keyval').get('tshop:current')
+          req.onerror = () => resolve({ error: 'lecture refusée' })
+          req.onsuccess = () =>
+            resolve({ chart: req.result?.shopSizeChart ?? null, garment: req.result?.garmentId ?? '' })
+        }
+      }),
+  )
+  const applied = stored?.chart ?? null
+  ok(
+    'the studio grades by the maker\'s series, not by its own chart',
+    Boolean(applied) &&
+      applied.garmentId === fixture.garment &&
+      Math.abs(Number(applied.halfChestCm?.['3XL']) - Number(fixture.size_chart?.['3XL'])) < 0.001,
+    JSON.stringify(stored),
+  )
+  if (applied) {
+    const k = Number(applied.halfChestCm['3XL']) / Number(applied.halfChestCm.M)
+    console.log(`grading 3XL/M: ${k.toFixed(4)} from the maker, 1.2308 from the studio chart`)
+    ok('and the factor is the maker\'s, measurably not the studio\'s', Math.abs(k - 1.4) < 0.001, k.toFixed(4))
+  }
 
   await order.click()
   const price = studio.locator('[data-teeshoop="price"]')
