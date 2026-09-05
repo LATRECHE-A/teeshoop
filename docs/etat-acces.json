@@ -1,43 +1,44 @@
 {
 	"_lisez_moi": "Écrit par scripts/acces-probe.mjs. Les nuits suivantes lisent ce fichier pour choisir leur branche. « ferme » et « indetermine » ne sont pas la même chose : voir l en-tête du script.",
-	"releve_le": "2026-09-03T19:21:10.264Z",
-	"canal_deploiement": "ouvert",
+	"releve_le": "2026-09-05T08:18:17.166Z",
+	"canal_deploiement": "indetermine",
 	"sondes": {
 		"ip_publique": {
 			"etat": "ouvert",
-			"adresse": "176.140.195.150",
+			"adresse": "176.191.78.140",
 			"sources": [
 				"ifconfig.me",
 				"icanhazip"
 			]
 		},
 		"tcp_22_o2switch": {
-			"etat": "ouvert",
+			"etat": "indetermine",
 			"hote": "ascaphus.o2switch.net",
 			"port": 22,
-			"ms": 282
+			"ms": 564,
+			"raison": "ETIMEDOUT"
 		},
 		"ssh_teeshoop": {
-			"etat": "ouvert",
+			"etat": "indetermine",
 			"alias": "teeshoop",
-			"hote_repondu": "ascaphus.o2switch.net",
-			"ms": 747
+			"raison": "ssh: connect to host ascaphus.o2switch.net port 22: Network is unreachable Command failed: ssh -o BatchMode=yes -o ConnectTimeout=12 -o StrictHostKeyChecking=ac",
+			"ms": 12038
 		},
 		"wrangler": {
 			"etat": "ouvert",
-			"ms": 8402
+			"ms": 4600
 		},
 		"http_production": {
 			"etat": "ouvert",
 			"url": "https://www.teeshoop.com/",
 			"code": 200,
-			"ms": 1127
+			"ms": 1057
 		},
 		"http_preproduction": {
 			"etat": "ouvert",
 			"url": "https://4bde-26076daa9357.wptiger.fr/",
 			"code": 401,
-			"ms": 316
+			"ms": 241
 		}
 	}
 }

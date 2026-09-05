@@ -73,7 +73,8 @@
     "build:editeur": "vite build --config vite.editeur.config.ts",
     "verify:editeur": "node scripts/editeur-guard.mjs",
     "verify:editeur-shots": "node scripts/editeur-shots.mjs",
-    "verify:vendable": "node scripts/fiche-vendable.mjs"
+    "verify:vendable": "node scripts/fiche-vendable.mjs",
+    "verify:retour": "bash scripts/deploiement-retour-verify.sh"
   },
   "keywords": [],
   "type": "module",
