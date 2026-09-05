@@ -1355,44 +1355,40 @@ réécrite, sur le niveau de tarif que sa marge minimale produit, et la 65, sur 
 
 ---
 
-## 14. Le 5 septembre 2026 au soir : SSH est refermé, et c'est ce qui bloque la mise en ligne
+## 14. Le 5 septembre 2026 au soir : une coupure réseau locale, prise à tort pour un filtre
 
-**C'est la seule chose qui manque pour que `www.teeshoop.com` serve notre thème, notre
-catalogue et notre personnalisateur.** Tout le reste de la nuit du 4 est construit et
-prouvé en local. Le déploiement, lui, ne part pas.
+**Correction.** Ce paragraphe a d'abord annoncé que SSH était refermé et qu'il fallait
+autoriser une adresse dans cPanel. **C'était faux, et rien n'est à faire.**
 
-**Ce qui est mesuré, ce soir, pas supposé :**
+Ce qui s'est passé, dans l'ordre :
 
-| Sonde | Résultat |
-|---|---|
-| Adresse IP publique de cette machine | `176.191.78.140` |
-| Adresse autorisée lors de la nuit du 3 (3 septembre, 19 h 21) | `176.140.195.150` |
-| `www.teeshoop.com` en HTTPS | **200**, le site répond normalement |
-| Port 22 de `ascaphus.o2switch.net` | **injoignable** (`ETIMEDOUT`) |
-| `ssh teeshoop` | `Network is unreachable` |
+| Moment | Mesure | Lecture |
+|---|---|---|
+| 10 h 21 | `ssh: connect to host ... port 22: Network is unreachable` | j'ai conclu « filtre IP » |
+| 10 h 21 | `scripts/acces-probe.mjs` écrit `indetermine` | le script, lui, n'a PAS conclu |
+| 11 h 00 | `ssh teeshoop whoami` rend `dawe4500` sur `ascaphus.o2switch.net` | le canal est ouvert |
 
-Le site répond en HTTPS et le port 22 ne répond pas : ce n'est donc pas une panne de
-l'hébergeur. o2switch filtre SSH par adresse IP, l'adresse de cette machine a changé
-depuis la nuit du 3, et la nouvelle n'est pas dans la liste.
+**L'adresse publique était la même aux deux moments** (`176.191.78.140`). Ce n'était donc
+pas un filtre : c'était une coupure réseau locale de quelques minutes.
 
-**L'action humaine, exactement :**
+**Comment les distinguer, la prochaine fois.** Les deux pannes ne rendent pas la même
+erreur, et c'est la seule chose à retenir :
 
-1. ouvrir cPanel o2switch, section **Accès SSH**, puis **Gérer les clés SSH** et la liste
-   des adresses autorisées (selon l'interface : *SSH Access* > *Manage SSH Access* ou le
-   pare-feu du compte) ;
-2. y ajouter **`176.191.78.140`** ;
-3. vérifier depuis cette machine avec `ssh teeshoop 'echo ok'`.
+- `Network is unreachable` vient de la pile réseau de **cette machine** : il n'y a pas de
+  route, donc aucun paquet n'est parti. C'est local, et ça se règle tout seul ou en
+  regardant le lien.
+- `Connection timed out` sur le port 22 alors que le site répond en HTTPS, **ça**, c'est la
+  signature du filtre par adresse d'o2switch.
 
-Cette adresse est **dynamique** : elle changera de nouveau. `node scripts/acces-probe.mjs`
-la relit et l'écrit dans `docs/etat-acces.json` en une seconde, et `scripts/deployer.sh`
-l'affiche dans son message de refus quand le port 22 ne répond pas. Il n'y a rien à
-retenir, il y a une commande à lancer.
+`scripts/acces-probe.mjs` avait raison contre moi : son en-tête dit en toutes lettres que
+« ferme » et « indetermine » ne sont pas la même chose, il a écrit `indetermine`, et j'ai lu
+« fermé ». La distinction existait, elle était écrite, et elle a été ignorée par le lecteur
+et non par l'outil.
 
-**Une adresse fixe réglerait la question définitivement** et c'est la vraie demande : soit
-une IP fixe chez l'opérateur, soit un rebond (un petit serveur avec une adresse stable,
-autorisé une fois chez o2switch, depuis lequel le déploiement part). Tant que ce n'est pas
-fait, chaque changement d'adresse coûte une visite dans cPanel.
+**Ce qui reste vrai et utile** : l'adresse de cette machine est dynamique. Le jour où elle
+change pour de bon, le symptôme sera `Connection timed out` et l'action sera d'ajouter
+l'adresse dans cPanel > Accès SSH. `node scripts/acces-probe.mjs` la relit et l'écrit dans
+`docs/etat-acces.json`, et `scripts/deployer.sh` l'affiche dans son message de refus.
 
-**Ce que ce blocage n'empêche pas** : rien d'autre. Le miroir docker, la CI, les portes,
-les alarmes, les sauvegardes et toutes les vérifications de cette nuit tournent sans
-o2switch. Seul l'envoi des fichiers vers le serveur en dépend.
+**Une adresse fixe ou un rebond stable** reste la demande de fond, pour que le déploiement
+ne dépende pas de l'adresse du moment. Ce n'est pas urgent : le canal fonctionne.
