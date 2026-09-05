@@ -1184,9 +1184,19 @@ function identifiant(): string {
   return Array.from(b, (x) => x.toString(36).padStart(2, '0')).join('').slice(0, 12)
 }
 
+/**
+ * Un bloc de l'éditeur, avec son titre.
+ *
+ * `h2` ET PAS `h3`, ET C'EST UNE MESURE. L'éditeur occupe la fente d'ajout au
+ * panier, donc le titre qui le précède sur une fiche produit est le `h1` du
+ * produit. Avec des `h3` la page sautait un niveau, `h1` puis « Couleur », et
+ * `npm run verify:a11y` l'a refusé aux deux largeurs le 5 septembre 2026 : un
+ * lecteur d'écran qui parcourt les titres perd la structure sur exactement
+ * l'écran où le client doit choisir. La vue avancée descend en `h3` derrière.
+ */
 function section(titre: string, ...contenu: (HTMLElement | Node)[]): HTMLElement {
   const s = el('section', 'tshop-ed__bloc')
-  const h = el('h3', 'tshop-ed__titre')
+  const h = el('h2', 'tshop-ed__titre')
   h.textContent = titre
   s.append(h, ...contenu)
   return s

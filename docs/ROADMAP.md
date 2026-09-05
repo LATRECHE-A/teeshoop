@@ -1305,6 +1305,15 @@ du studio en la compilant avec esbuild et en l'important. C'est ce qui permet de
 seule vraie duplication du prix, `src/content/pricing.ts`, qui répétait cinq nombres sans
 que rien ne les compare.
 
+> **5 septembre 2026 :** cette moitié-là de la machinerie est devenue sans objet. Le
+> second moteur de prix a été supprimé avec le chemin encadré, il ne reste plus de
+> référence `ts:` dans le registre, et `loadTsRoots([])` court-circuite : esbuild ne
+> tourne plus. Le code reste, parce qu'il redeviendra utile le jour où une valeur aura de
+> nouveau deux maisons dont une en TypeScript, et parce que les miroirs `php:`, `json:`
+> et `anchor:` continuent d'être comparés en faisant tourner PHP. Ce qui est prouvé
+> aujourd'hui est plus étroit que cette phrase, et c'est la bonne nouvelle : il n'y a plus
+> qu'un moteur.
+
 Trois copies réelles ont été supprimées au passage : le taux de TVA et le prix du t-shirt
 de démonstration étaient réécrits à la main dans la commande de provisionnement
 (`Cli.php`), qui les lit désormais depuis l'autorité, et deux notes d'administration

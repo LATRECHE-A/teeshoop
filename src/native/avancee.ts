@@ -143,7 +143,7 @@ class Avancee {
    */
   private bandeFaces(): HTMLElement {
     const bloc = el('div', 'tshop-ed__bloc')
-    const titre = el('h4', 'tshop-ed__titre')
+    const titre = el('h3', 'tshop-ed__titre')
     titre.textContent = MOTS.faces
     const groupe = el('div', 'tshop-ed__faces')
     groupe.setAttribute('role', 'radiogroup')
@@ -171,7 +171,7 @@ class Avancee {
 
   private listeCalques(): HTMLElement {
     const bloc = el('div', 'tshop-ed__bloc')
-    const titre = el('h4', 'tshop-ed__titre')
+    const titre = el('h3', 'tshop-ed__titre')
     titre.textContent = MOTS.calques
     bloc.append(titre)
 
@@ -235,7 +235,7 @@ class Avancee {
    */
   private reglages(calque: Layer): HTMLElement {
     const bloc = el('div', 'tshop-ed__bloc')
-    const titre = el('h4', 'tshop-ed__titre')
+    const titre = el('h3', 'tshop-ed__titre')
     titre.textContent = MOTS.alignement
     const grille = el('div', 'tshop-ed__champs')
 

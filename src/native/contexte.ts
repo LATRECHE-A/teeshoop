@@ -288,7 +288,16 @@ export function lireContexte(brut: unknown): Contexte | null {
   if (!brut || typeof brut !== 'object') return null
   const c = brut as Record<string, unknown>
 
-  const productId = entier(c.productId, 1, Number.MAX_SAFE_INTEGER, 0)
+  /*
+   * LE PLANCHER EST ZÉRO, PAS UN, ET C'EST LE TEST QUI L'A DIT.
+   *
+   * Avec un plancher à 1, un `productId` de 0 (une page mal configurée, un
+   * champ absent) était BORNÉ à 1, le refus juste en dessous ne se déclenchait
+   * jamais, et l'éditeur aurait posé chaque ajout au panier sur le billet
+   * numéro 1. Une borne qui remonte une valeur au-dessus du seuil de refus est
+   * une borne qui désarme le refus.
+   */
+  const productId = entier(c.productId, 0, Number.MAX_SAFE_INTEGER, 0)
   const garment = texte(c.garment, 40)
   const restUrl = texte(c.restUrl, 500)
   if (productId === 0 || !CLE.test(garment) || restUrl === '') return null

@@ -207,7 +207,7 @@ const textOf = (abs) => readFileSync(abs, 'utf8')
 //
 //   php:Teeshoop\Core\Pricing::default_config()#garments.tee.base_ht
 //   phpconst:Teeshoop\Core\Quote::KEEP_DAYS
-//   ts:src/content/pricing.ts#PRICING.tee.baseUsd
+//   ts:src/lib/some/module.ts#EXPORTED.path.to.value
 //   json:wp-plugins/teeshoop-core/data/garments.json#garments.tee.pricedSize
 //   anchor:src/lib/ink.ts#sideArtworkSqCm
 //   doc:docs/ROADMAP.md#17 € HT/mètre linéaire

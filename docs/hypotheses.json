@@ -239,7 +239,7 @@
 			"decided_by": "equipe",
 			"decided_on": "2026-09-04",
 			"decided_why": "le tarif publié vendait sous son propre plancher de coût, et le plancher lui-même lisait notre contribution de 25 % au lieu de la marge brute minimale de 50 % qu'il a répondue le 1er septembre ; il est maintenant dérivé de SON minimum, à la taille et au coloris les plus chers que l'offre vend. docs/decisions/2026-09-04-le-tarif-derive-du-plancher.md",
-			"literal_allow_why": "1000 est le littéral le plus banal du dépôt et cette liste est longue pour cette seule raison. Aucune de ces douze occurrences n'est un prix par face : ce sont des millisecondes de délai, des grammes de colis, des pixels, des cotes de bon à tirer, des tailles de lot d'import, et des montants ordinaires dans des tests qui chiffrent de vraies commandes. La valeur EST écrite six fois, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées comme miroirs et comparées en faisant tourner les deux moteurs, pas en cherchant une chaîne. La portée reste large exprès, pour qu'un NOUVEAU fichier qui écrirait un second prix par face sorte de cette liste et fasse rougir le garde.",
+			"literal_allow_why": "1000 est le littéral le plus banal du dépôt et cette liste est longue pour cette seule raison. Aucune de ces douze occurrences n'est un prix par face : ce sont des millisecondes de délai, des grammes de colis, des pixels, des cotes de bon à tirer, des tailles de lot d'import, et des montants ordinaires dans des tests qui chiffrent de vraies commandes. La valeur EST écrite six fois, trois en PHP et trois en TypeScript, une par vêtement : les cinq autres sont déclarées comme miroirs et comparées en faisant tourner les deux moteurs, pas en cherchant une chaîne. La portée reste large exprès, pour qu'un NOUVEAU fichier qui écrirait un second prix par face sorte de cette liste et fasse rougir le garde. MISE À JOUR DU 5 SEPTEMBRE 2026 : les trois écritures TypeScript ont disparu avec src/content/pricing.ts, supprimé en même temps que le chemin encadré. Il ne reste que les écritures PHP, et le registre ne porte plus aucun miroir « ts: ».",
 			"mirrors_removed": "Le miroir TypeScript est supprimé le 5 septembre 2026 avec `src/content/pricing.ts` : le studio hors boutique n'existe plus comme chemin client, et une table qui se lit sans le serveur est une seconde implémentation qui peut le contredire. `Pricing.php` reste seul, donc il n'y a plus rien à comparer, ce qui est le but."
 		},
 		{
@@ -256,7 +256,6 @@
 				"1250"
 			],
 			"literal_allow": [
-				"src/content/pricing.test.ts",
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
 				"wp-plugins/teeshoop-core/tests/test-margin.php",
 				"wp-plugins/teeshoop-core/includes/Margin.php",
@@ -351,7 +350,6 @@
 				"src/lib/teeshoop/"
 			],
 			"literal_allow": [
-				"src/content/pricing.test.ts",
 				"wp-plugins/teeshoop-core/tests/test-pricing.php",
 				"wp-plugins/teeshoop-core/tests/test-margin.php",
 				"wp-plugins/teeshoop-core/tests/test-catalogue.php",
