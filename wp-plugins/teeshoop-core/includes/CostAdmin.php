@@ -584,14 +584,31 @@ final class CostAdmin {
 				Money::format( (int) $plan['free_from_ht'] )
 			)
 		);
+		/*
+		 * LA LÉGENDE NOMME LA JAMBE QUI TIENT, et pas toujours la même.
+		 *
+		 * Le plancher est le maximum de deux contraintes depuis le 5 septembre
+		 * 2026 (`Margin::plan`), et dans la configuration livrée c'est la marge
+		 * brute minimale qui l'emporte. Cette ligne expliquait le chiffre par la
+		 * contribution quel que soit le cas : l'opérateur lisait un nombre sous
+		 * une raison qui ne le produisait pas, et baisser la contribution ne le
+		 * faisait pas bouger. `floor_basis` sait laquelle a gagné : elle est lue.
+		 */
+		$basis = (string) ( $plan['floor_basis'] ?? '' );
 		self::row(
 			__( 'Prix plancher', 'teeshoop' ),
 			Money::format( (int) $plan['floor_ht'] ),
-			sprintf(
-				/* translators: %s: a percentage of the selling price. */
-				__( 'Le prix le plus bas qui laisse encore %s du prix de vente APRÈS commission. En dessous, il faut une dérogation.', 'teeshoop' ),
-				self::pct_out( (float) $config['min_contribution_rate'] ) . "\u{00A0}%"
-			)
+			'marge_brute' === $basis
+				? sprintf(
+					/* translators: %s: a percentage of the selling price. */
+					__( 'Le prix le plus bas qui garde %s du prix de vente au-dessus des coûts directs. En dessous, il faut une dérogation.', 'teeshoop' ),
+					self::pct_out( (float) ( $config['min_margin_rate'] ?? 0 ) ) . "\u{00A0}%"
+				)
+				: sprintf(
+					/* translators: %s: a percentage of the selling price. */
+					__( 'Le prix le plus bas qui laisse encore %s du prix de vente APRÈS commission. En dessous, il faut une dérogation.', 'teeshoop' ),
+					self::pct_out( (float) $config['min_contribution_rate'] ) . "\u{00A0}%"
+				)
 		);
 		self::row( __( 'Zone de négociation', 'teeshoop' ), Money::format( (int) $plan['zone_ht'] ), __( 'Entre le prix conseillé et le plancher.', 'teeshoop' ) );
 
@@ -1056,14 +1073,43 @@ final class CostAdmin {
 			 * one screen that could have shown the operator what was wrong,
 			 * fatal on exactly that state.
 			 */
-			$shop = (float) $config['min_contribution_rate'];
-			$notes[] = sprintf(
+			/*
+			 * LES DEUX JAMBES, PARCE QUE LE PLANCHER EST LEUR MAXIMUM.
+			 *
+			 * Cet aperçu ne calculait que la contribution. Depuis que la marge
+			 * brute minimale de 50 % est appliquée, c'est elle qui tient le
+			 * plancher à tous les taux de commission que la boutique pratique :
+			 * l'écran promettait donc un mouvement qui n'aurait pas lieu. Mesuré
+			 * sur l'exemple à 250,00 EUR de coût direct et 40 % de commission,
+			 * une règle à 15 % de contribution annonçait 297,62 EUR quand le
+			 * plancher réel restait à 500,00 EUR.
+			 *
+			 * Le calcul passe par `Margin::plan`, la même fonction que
+			 * `Costing::compute`, pour qu'il n'existe pas deux façons de dire où
+			 * est le plancher.
+			 */
+			$shop  = (float) $config['min_contribution_rate'];
+			$floor = static function ( float $contribution, ?float $margin ) use ( $config, $worst ): int {
+				$plan = Margin::plan(
+					self::EXAMPLE_COST_HT,
+					array(
+						'commission_rate'       => $worst,
+						'min_contribution_rate' => $contribution,
+						'min_margin_rate'       => null === $margin ? (float) ( $config['min_margin_rate'] ?? 0 ) : $margin,
+						'target_margin_rate'    => (float) ( $config['target_margin_rate'] ?? 0 ),
+						'max_discount_rate'     => (float) ( $config['max_discount_rate'] ?? 0 ),
+					)
+				);
+				return (int) $plan['floor_ht'];
+			};
+			$rule_margin = null === $rule['min_margin_rate'] ? null : (float) $rule['min_margin_rate'];
+			$notes[]     = sprintf(
 				/* translators: 1: a floor price, 2: the shop's floor without any rule. */
 				__( 'plancher sur l’exemple : %1$s (sans règle : %2$s)', 'teeshoop' ),
-				Money::format( Margin::floor_price_rate( self::EXAMPLE_COST_HT, $k, $worst ) ),
+				Money::format( $floor( $k, $rule_margin ) ),
 				PriceRule::insoluble( $shop, $worst )
 					? __( 'aucun, les réglages généraux n’ont pas de solution', 'teeshoop' )
-					: Money::format( Margin::floor_price_rate( self::EXAMPLE_COST_HT, $shop, $worst ) )
+					: Money::format( $floor( $shop, null ) )
 			);
 		}
 
