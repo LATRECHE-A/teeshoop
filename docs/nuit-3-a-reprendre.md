@@ -11,7 +11,7 @@
 |---|---|---|
 | Le personnalisateur ouvre sur le produit cliqué | **non** | **oui** |
 | Origine du personnalisateur | `tshop.abdellah-latreche04.workers.dev` | la boutique |
-| Charge immédiate, compressée | 246 473 o | **114 385 o** (46,4 %) |
+| Charge immédiate, compressée | 246 473 o | **102 163 o** (41,4 %) |
 | Ce qui reste derrière un clic | 0 (tout était eager ou dans le cadre) | 1 362 187 o |
 | Stockage des fichiers du client | tiers, partitionné | même origine |
 | Worker en panne : la fiche dit quelque chose | **non** | **oui** |
@@ -19,7 +19,7 @@
 | Question « combien, quelles tailles » posée | **deux fois** | **une fois** |
 | `npm run verify:wp-e2e` | 109 (chemin encadré) | **109** (chemin natif) |
 | `npm run test:wp` | 241 | **241** |
-| Portes sur le paquet client | 2 | **3** (`verify:editeur`, 33 assertions) |
+| Portes sur le paquet client | 2 | **3** (`verify:editeur`, 35 assertions) |
 
 ---
 
@@ -115,6 +115,8 @@ tout ce qui suit était vert, typé et livré.
 | Les faces envoyées au panier prises du dépôt | le garde de divergence de `Cart::add` ne pouvait pas échouer | elles viennent du devis |
 | `photoSure` acceptait `/\evil.tld/x.png` | une image d'une autre origine dans la page (pas atteignable aujourd'hui) | un caractère |
 | `editeur-guard` ne lisait que le fichier d'entrée | `avancee.ts` et tout ce qu'il importe n'étaient dans aucun graphe gardé | les interdits sur le graphe qui suit les imports paresseux |
+| Le paquet portait la table de traduction et ses DEUX langues, pour trois étiquettes de canevas | 9 664 octets compressés d'anglais chez chaque client d'une boutique française, sous un commentaire qui affirmait le contraire | `EditorEngine` DEMANDE ses étiquettes ; 12 218 octets de moins, et deux portes (graphe + chaîne « Print area ») |
+| Le marcheur de graphe partagé lisait les commentaires | il voyait encore `@/i18n` dans un fichier qui ne l'importait plus, parce que le commentaire qui explique la suppression cite l'ancienne ligne | les commentaires retirés avant la recherche, dans `admin-boundary.mjs` |
 | Son détecteur de paquets lisait les commentaires | il rapportait « the same id, different pixels » comme une dépendance npm | les commentaires retirés d'abord |
 | `SCAN_SKIP` de `hypotheses-guard` comparait un NOM de répertoire | tout futur `src/editeur/` cessait d'être contrôlé en silence | comparaison sur le chemin |
 | `theme-fonts-check` filtrait ses feuilles par `existsSync` | `bridge.css` allait disparaître du contrôle sans un mot | une feuille listée et absente est une panne |

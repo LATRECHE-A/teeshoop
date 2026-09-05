@@ -25,7 +25,6 @@ import { uploadZonesFor, zonesFor } from '@/content/zones'
 import { DEFAULT_SIZE, type SizeId } from '@/content/sizeChart'
 import { printScaleK } from '@/lib/printScale'
 import { fmtInAsCm, fmtNum, inToCm } from '@/lib/units'
-import { t } from '@/i18n'
 
 export interface SelectionInfo {
   /** Screen-space bounding box of the selected node. */
@@ -38,6 +37,22 @@ export interface SelectionInfo {
 }
 
 export interface EngineCallbacks {
+  /**
+   * How this engine turns a key into a sentence.
+   *
+   * INJECTED RATHER THAN IMPORTED, and the reason is measured. It used to be
+   * `import { t } from '@/i18n'`, which reaches `src/i18n/messages.ts`, which
+   * carries BOTH languages: 9 664 octets compressés of translation table in
+   * every bundle that draws a canvas, for three labels, two of which the shop's
+   * editor never draws. The shop is French and offers no language switch, so
+   * its customers were downloading an English dictionary to read « Zone
+   * d'impression ». Measured on the native package, 5 September 2026.
+   *
+   * The studio passes its own `t`; `src/native/editeur.ts` passes four French
+   * sentences. Neither end changed behaviour, and one of them stopped shipping
+   * a dictionary.
+   */
+  t(key: string, params?: Record<string, string | number>): string
   onSelect(id: string | null): void
   onPatch(id: string, patch: Partial<Layer>, opts: { transient: boolean }): void
   onEditText(id: string): void
@@ -525,7 +540,7 @@ export class EditorEngine {
         // cm, and only cm. Two units on one label is a second chance to read
         // the wrong number, and the reader here is a customer with a tape
         // measure, not a print shop.
-        text: t('editor.print_area_label', {
+        text: this.cb.t('editor.print_area_label', {
           w: fmtNum(inToCm(wIn)),
           h: fmtInAsCm(hIn),
         }),
@@ -618,7 +633,7 @@ export class EditorEngine {
           // A4 label sits inside its top edge; the others sit ABOVE their rect
           // so labels don't pile up near the print-area top.
           y: accent ? z.y + 3 : z.y - 13,
-          text: accent ? `★ ${t(z.nameKey)}` : t(z.nameKey),
+          text: accent ? `★ ${this.cb.t(z.nameKey)}` : this.cb.t(z.nameKey),
           fontFamily: 'JetBrains Mono, monospace',
           fontSize: 10,
           letterSpacing: 0.4,
@@ -732,7 +747,7 @@ export class EditorEngine {
           y: z.y + z.h / 2 + 5,
           width: z.w,
           align: 'center',
-          text: t(z.nameKey),
+          text: this.cb.t(z.nameKey),
           fontSize: 9.5,
           letterSpacing: 0.3,
           fontFamily: 'JetBrains Mono, monospace',

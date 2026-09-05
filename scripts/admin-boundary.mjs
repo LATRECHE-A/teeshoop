@@ -113,8 +113,26 @@ function resolveSpecifier(spec, fromFile, srcDir) {
  * erases it, so no edge survives into the bundle. A dynamic `import()` is NOT
  * skipped, because a lazy chunk still ships and is still fetchable.
  */
-export function specifiersOf(src, { dynamic = true } = {}) {
+export function specifiersOf(source, { dynamic = true } = {}) {
   const out = []
+  /*
+   * LES COMMENTAIRES SONT RETIRÉS D'ABORD, ET CE N'EST PAS DE LA COSMÉTIQUE.
+   *
+   * Mesuré le 5 septembre 2026 : `src/editor/EditorEngine.ts` a cessé
+   * d'importer `@/i18n` et le parcours a continué de le voir, parce que le
+   * commentaire qui EXPLIQUE la suppression cite l'ancienne ligne entre
+   * apostrophes inverses. Un marcheur de graphe qui lit la prose invente des
+   * arêtes, et sur ce fichier-là les arêtes décident où un morceau est émis et
+   * ce qu'un client a le droit de télécharger.
+   *
+   * Le remplacement garde les sauts de ligne pour que le drapeau `m` des
+   * expressions régulières ci-dessous continue d'ancrer sur les vrais débuts de
+   * ligne. Une apostrophe dans un commentaire (« l'import ») ne gêne pas : ce
+   * qui est retiré l'est avant qu'on cherche quoi que ce soit.
+   */
+  const src = source
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/^([ \t]*)\/\/.*$/gm, '$1')
   for (const m of src.matchAll(/^\s*(?:import|export)\s+([\s\S]*?)\s*from\s*['"]([^'"]+)['"]/gm)) {
     if (/^type[\s{]/.test(m[1].trim())) continue
     out.push(m[2])

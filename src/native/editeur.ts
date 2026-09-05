@@ -328,6 +328,17 @@ class Instance implements Editeur {
 
   private demarrerMoteur(toile: HTMLDivElement): void {
     this.moteur = new EditorEngine(toile, {
+      /*
+       * QUATRE PHRASES, PAS UN DICTIONNAIRE.
+       *
+       * Le moteur écrivait ses étiquettes avec `t()` de `@/i18n`, qui tire
+       * `messages.ts` et ses DEUX langues : 9 664 octets compressés de table de
+       * traduction dans le paquet d'une boutique française qui ne propose pas
+       * d'en changer, pour trois étiquettes dont deux ne sont jamais dessinées
+       * ici (les repères et les emplacements sont coupés). Il les demande
+       * maintenant, et voici les seules qu'il puisse demander.
+       */
+      t: (cle, params) => COPIE.etiquetteMoteur(cle, params),
       onSelect: (id) => {
         this.selection = id
         this.rendreOutils()

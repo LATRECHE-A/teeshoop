@@ -104,6 +104,11 @@ const BANNIS = [
   ['src/three/', 'three.js'],
   ['src/app/', 'le studio React, qui est justement ce que cette nuit remplace'],
   ['src/admin/', 'les outils d’atelier'],
+  [
+    'src/i18n/messages.ts',
+    'la table de traduction et ses DEUX langues, 9 664 octets compressés d’anglais ' +
+      'dans le paquet d’une boutique française qui ne propose pas d’en changer',
+  ],
 ]
 
 /** Paquets tiers interdits, cherchés dans les spécificateurs nus du graphe. */
@@ -151,6 +156,14 @@ const MARQUEURS = [
   ['/ort/', 'un chemin d’actif absolu'],
   ['/catalog/', 'un chemin d’actif absolu'],
   ['baseUsd', 'le second moteur de prix, en dollars'],
+  /*
+   * UNE CHAÎNE ANGLAISE DE LA TABLE, cherchée dans les octets livrés en plus de
+   * l'interdit sur le graphe. La minification renomme les symboles et jamais les
+   * chaînes, ce qui est la raison d'être de `scripts/bundle-guard.mjs`, et
+   * « Print area » est ce que la passe adversariale a cherché pour prouver que
+   * la table était bien là malgré le commentaire qui disait le contraire.
+   */
+  ['Print area', 'la table de traduction anglaise'],
 ]
 
 const resultats = []

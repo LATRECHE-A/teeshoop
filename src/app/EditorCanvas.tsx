@@ -8,6 +8,7 @@ import { ASSET_DRAG_TYPE } from './panels/UploadsPanel'
 import type { AssetMeta } from '@/lib/types'
 import { fmtSizeCm } from '@/lib/units'
 import { stageBackground } from '@/scenes'
+import { t as translate } from '@/i18n'
 import { useT } from '@/i18n/useT'
 
 export default function EditorCanvas() {
@@ -40,6 +41,9 @@ export default function EditorCanvas() {
     const host = hostRef.current
     if (!host) return
     const engine = new EditorEngine(host, {
+      // Le `t` non réactif, qui lit la langue globale : le moteur est monté une
+      // fois et ne doit pas se reconstruire parce qu'un composant se rend.
+      t: translate,
       onSelect: (id) => useStore.getState().select(id),
       onPatch: (id, patch, opts) =>
         useStore.getState().patchLayer(id, patch, { transient: opts.transient }),

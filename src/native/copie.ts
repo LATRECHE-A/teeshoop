@@ -9,6 +9,14 @@
  * ne propose pas de changer de langue. Ce fichier est français et il n'a pas de
  * table : ce qui n'est pas ici n'est pas dit.
  *
+ * ÉCRIRE CETTE PHRASE NE SUFFISAIT PAS, ET ELLE A ÉTÉ FAUSSE PENDANT UNE NUIT.
+ * `EditorEngine` importait `t` de `@/i18n` pour trois étiquettes de canevas, ce
+ * qui ramenait la table entière : 9 664 octets compressés d'anglais dans un
+ * paquet de 112 340, mesurés par la passe adversariale du 5 septembre 2026 en
+ * cherchant « Print area » dans le fichier livré. Le moteur DEMANDE maintenant
+ * ses étiquettes (`etiquetteMoteur` plus bas), et le même grep ne trouve plus
+ * rien.
+ *
  * ─────────────────────────────────────────────────────────────────────────────
  * LES RÈGLES DE RÉDACTION, APPLIQUÉES, PAS SEULEMENT CITÉES
  *
@@ -112,6 +120,23 @@ export const COPIE = {
   chargementAvancee: 'Chargement des réglages avancés.',
   avanceeIndisponible:
     'Les réglages avancés n’ont pas pu être chargés. Vérifiez votre connexion, puis réessayez : votre visuel est conservé.',
+
+  /**
+   * Les étiquettes que `EditorEngine` dessine sur le canevas.
+   *
+   * Il les DEMANDE au lieu de les importer, ce qui garde `src/i18n/messages.ts`
+   * et ses deux langues hors du paquet. Une clé inconnue rend la chaîne vide et
+   * pas la clé : la vue simple ne dessine ni repères ni emplacements nommés,
+   * donc les seules clés qui arrivent ici sont celles de la zone d'impression,
+   * et un `editor.zone.chest_left` peint en travers d'un t-shirt serait pire
+   * qu'un blanc.
+   */
+  etiquetteMoteur: (cle: string, params?: Record<string, string | number>): string => {
+    if (cle === 'editor.print_area_label') {
+      return `Zone d’impression ${params?.w ?? ''} × ${params?.h ?? ''}`
+    }
+    return ''
+  },
 
   depot: DEPOT,
 } as const
