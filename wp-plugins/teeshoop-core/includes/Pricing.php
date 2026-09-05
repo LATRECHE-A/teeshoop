@@ -488,6 +488,10 @@ final class Pricing {
 	 *
 	 * $input:
 	 *   garment  string  key into $config['garments']
+	 *   blank_ht int     OPTIONAL, integer cents, the blank's selling price for
+	 *                    THIS supplier reference. Resolved on the server from
+	 *                    the reference's purchase price; never read from a
+	 *                    request. Absent, the family's `base_ht` applies.
 	 *   qty      int     clamped to [1, max_qty]
 	 *   sides    array   one entry per PRINTED side:
 	 *                      id         string  'front' | 'back' | 'sleeve_l' | …
@@ -526,7 +530,31 @@ final class Pricing {
 
 		$lines = array();
 
-		$subtotal_ht = (int) $rule['base_ht'];
+		/*
+		 * LE TEXTILE NU SE PAIE À LA RÉFÉRENCE, PAS À LA FAMILLE.
+		 *
+		 * POURQUOI CE PARAMÈTRE EXISTE. `base_ht` est un prix par vêtement du
+		 * studio : un seul pour tous les t-shirts. Mesuré le 5 septembre 2026 sur
+		 * le catalogue réellement importé, le prix d'achat du nu va de 0,93 à
+		 * 26,87 EUR sur 182 références de t-shirts, soit un rapport de 28,9. Un
+		 * tarif unique réglé sur le nu le plus cher surfacture le moins cher de
+		 * 26 EUR la pièce ; réglé sur le moins cher, il vend l'autre à perte.
+		 * C'est la raison pour laquelle la gamme de lancement ne comptait que
+		 * neuf références choisies dans une fourchette étroite, et c'est ce qui
+		 * empêchait d'ouvrir le catalogue entier à la personnalisation.
+		 *
+		 * IL NE VIENT JAMAIS DU NAVIGATEUR. La requête d'ajout au panier ne porte
+		 * aucun prix : pas ignoré, absent. Cette valeur est résolue côté serveur
+		 * à partir du prix d'achat de la référence, et un appelant qui la lirait
+		 * d'une entrée client ferait fixer son prix par le client. Elle est donc
+		 * bornée ici aussi : négative ou non finie, on retombe sur la famille.
+		 */
+		$blank_ht = $rule['base_ht'];
+		if ( isset( $input['blank_ht'] ) && is_int( $input['blank_ht'] ) && $input['blank_ht'] >= 0 ) {
+			$blank_ht = $input['blank_ht'];
+		}
+
+		$subtotal_ht = (int) $blank_ht;
 		if ( $subtotal_ht > 0 ) {
 			$lines[] = array(
 				'kind'   => 'blank',
