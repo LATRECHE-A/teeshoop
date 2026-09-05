@@ -392,13 +392,32 @@ esac
 titre "Version de la cible"
 node scripts/pin-verify.mjs --cible="$CIBLE" --hote="$HOTE" || refus "la cible a bougé. Corrigez docs/versions-cibles.json dans un commit qui dit pourquoi, ne contournez pas."
 
-# ── 5. LE PORTAIL, ET IL N'A PAS DE DÉROGATION ──────────────────────────────
+# ── 5. LE PORTAIL, ET C'EST LA PORTE DE PUBLICATION QUI GARDE L'ENVOI ───────
+#
+# CE QUI A CHANGÉ LE 5 SEPTEMBRE 2026, ET POURQUOI. Le portail unique refusait la
+# production sur vingt-sept motifs, dont treize lignes de registre que seul
+# l'associé peut trancher. Un portail qu'on ne peut pas satisfaire n'est pas
+# obéi, il est contourné, et un garde-fou contourné finit par être retiré.
+#
+# Il est donc devenu deux portes, et l'envoi de fichiers passe par celle qui
+# correspond à ce qu'un envoi de fichiers met en jeu :
+#
+#   - `--porte=publication` garde CET envoi. Elle sort 0 et écrit la dette dans
+#     docs/DETTE-LANCEMENT.md, datée, avec un propriétaire par ligne. Copier une
+#     extension et un thème ne fait pas payer un client.
+#   - `--porte=argent` garde L'ARGENT, et elle n'a pas de dérogation. Elle n'est
+#     pas ici parce que ce n'est pas ici que l'argent passe : elle est appliquée
+#     DANS WordPress, sur `woocommerce_available_payment_gateways` et à
+#     l'enregistrement des réglages de passerelle, donc aucun moyen de paiement
+#     ne peut être actif pendant qu'elle refuse, déployé ou pas.
+#
+# La décision, sa date et son auteur sont dans docs/decisions/.
 if [ "$CIBLE" = "prod" ]; then
   titre "Portail de mise en ligne"
-  if ! node scripts/launch-gate.mjs --boutique="deploy:$HOTE:prod"; then
-    rouge "Le portail refuse. Rien n'a été envoyé."
-    echo  "  Ce n'est pas une panne : c'est la règle du 18 août 2026, et elle n'a pas d'exception."
-    echo  "  Ce qu'il faut faire est écrit dans docs/MISE-EN-LIGNE.md, condition par condition."
+  if ! node scripts/launch-gate.mjs --porte=publication --boutique="deploy:$HOTE:prod"; then
+    rouge "La porte de publication refuse. Rien n'a été envoyé."
+    echo  "  Elle ne refuse que si elle n'a pas pu REGARDER : une boutique injoignable,"
+    echo  "  un registre illisible. Ce n'est pas une condition de contenu, c'est une panne."
     exit 2
   fi
 fi
