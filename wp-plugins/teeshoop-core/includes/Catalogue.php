@@ -156,6 +156,53 @@ final class Catalogue {
 	public const META_SUPPLY_CENTS = '_teeshoop_supply_cents';
 
 	/** Variation: the per-colour photo, on the Worker, never an attachment. */
+	/**
+	 * Ce que le textile nu de CETTE référence nous coûte, au centime, en prenant
+	 * la taille la plus chère.
+	 *
+	 * POURQUOI LE MAXIMUM ET PAS LA MOYENNE. Une référence n'a pas un prix
+	 * d'achat, elle en a un par taille et par coloris : mesuré sur ce catalogue,
+	 * un 2XL coûte 4,46 EUR là où le M coûte 3,37. Un prix publié pour la
+	 * référence doit tenir au-dessus du plancher pour la PLUS CHÈRE des tailles
+	 * qu'elle propose, sinon la vente d'un 3XL passe sous son coût pendant que
+	 * les M vont bien. C'est exactement la règle que `Gamme::RANGE` applique déjà
+	 * à la main entre références (« le tarif doit tenir au-dessus du plancher
+	 * pour le textile nu le PLUS CHER de sa famille ») ; ici elle s'applique
+	 * entre les tailles d'une même référence.
+	 *
+	 * Une moyenne inventerait un prix unitaire que personne ne paie, et c'est la
+	 * même faute que `Costing::blanks()` refuse de commettre en gardant un
+	 * composant par taille.
+	 *
+	 * NULL VEUT DIRE « ON NE SAIT PAS », ET PAS « C'EST GRATUIT ». L'appelant
+	 * retombe alors sur le tarif de la famille plutôt que de publier un prix
+	 * dérivé d'un coût absent.
+	 */
+	public static function blank_cost_ht( int $product_id ): ?int {
+		if ( $product_id <= 0 ) {
+			return null;
+		}
+		global $wpdb;
+
+		// Le prix vit sur les variations ; une référence sans variation peut le
+		// porter elle-même, donc les deux sont interrogées d'un coup.
+		$cents = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT MAX(CAST(pm.meta_value AS UNSIGNED))
+				   FROM {$wpdb->postmeta} pm
+				   JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				  WHERE pm.meta_key = %s
+				    AND CAST(pm.meta_value AS UNSIGNED) > 0
+				    AND ( p.ID = %d OR ( p.post_parent = %d AND p.post_type = 'product_variation' ) )",
+				self::META_SUPPLY_CENTS,
+				$product_id,
+				$product_id
+			)
+		);
+
+		return ( null === $cents || (int) $cents <= 0 ) ? null : (int) $cents;
+	}
+
 	public const META_COLOUR_PHOTO = '_teeshoop_colour_photo';
 
 	/**

@@ -469,10 +469,133 @@ final class Gamme {
 	 *
 	 * @return array<int,array<string,mixed>> one row per reference, in RANGE order.
 	 */
-	public static function apply( bool $dry_run = false ): array {
+	/** L'option qui dit jusqu'où la gamme va. Voir portee() et range(). */
+	public const OPTION_PORTEE = 'teeshoop_gamme_portee';
+
+	/**
+	 * La famille du catalogue vers le vêtement du studio qui l'imprime.
+	 *
+	 * `PriceRule::family_of_garment()` fait déjà le trajet inverse et c'est la
+	 * même table lue dans l'autre sens : un sweat à capuche s'imprime sur le
+	 * modèle « hoodie », un polo sur le gabarit du t-shirt faute de modèle
+	 * propre. Ce dernier point est une approximation ASSUMÉE et pas un oubli :
+	 * la zone d'impression d'un polo est plus étroite que celle d'un t-shirt à
+	 * cause du col, donc elle est bornée par le gabarit du studio et jamais
+	 * élargie. Cinq polos sont concernés.
+	 */
+	public const FAMILLES = array(
+		'tee'   => 'tee',
+		'sweat' => 'hoodie',
+		'polo'  => 'tee',
+	);
+
+	/** « lancement » (les neuf choisies) ou « catalogue » (tout ce qui tient). */
+	public static function portee(): string {
+		return 'catalogue' === (string) get_option( self::OPTION_PORTEE, 'lancement' ) ? 'catalogue' : 'lancement';
+	}
+
+	/**
+	 * Les références à ouvrir à la personnalisation, référence => vêtement.
+	 *
+	 * ── POURQUOI CE N'EST PLUS UNE CONSTANTE ────────────────────────────────
+	 *
+	 * `RANGE` compte neuf références choisies à la main, dans une fourchette de
+	 * prix d'achat étroite, parce que le tarif publié est UN PAR VÊTEMENT DU
+	 * STUDIO : un seul prix pour tous les t-shirts. La crainte était qu'ouvrir
+	 * le catalogue entier vende les nus chers à perte.
+	 *
+	 * MESURÉ LE 5 SEPTEMBRE 2026 SUR LE CATALOGUE RÉEL, et la mesure a démenti
+	 * la crainte : sur 319 références importées, CINQ seulement passent sous
+	 * leur plancher au tarif de leur famille (3 t-shirts Tee Jays, 1 polo
+	 * Spiro, 1 sweat Tee Jays). Les 314 autres tiennent. L'écart de prix
+	 * d'achat va bien de 1 à 29, mais il est porté par une poignée d'extrêmes.
+	 *
+	 * La règle est donc : on ouvre tout, et le PLANCHER exclut les rares
+	 * références qui ne peuvent pas se vendre à ce tarif. C'est un refus
+	 * mesuré par référence, pas une liste tenue à la main qui vieillit.
+	 *
+	 * ── CE QUI RESTE VRAI ET N'EST PAS RÉGLÉ ICI ────────────────────────────
+	 *
+	 * Un nu à 0,93 EUR et un nu à 6,14 se vendent au même prix, parce que le
+	 * tarif est par famille. Ce n'est pas une perte, c'est le modèle de la
+	 * boutique, et le changer est une décision commerciale et non technique.
+	 * `Pricing::quote()` sait depuis le 5 septembre recevoir un prix de nu par
+	 * référence ; personne ne le lui passe encore.
+	 *
+	 * @return array<string,string> référence fournisseur => vêtement du studio.
+	 */
+	public static function range( ?string $portee = null ): array {
+		// LA PORTÉE PEUT ÊTRE IMPOSÉE, pour qu'une SIMULATION simule ce qu'on lui
+		// demande et non ce qui est enregistré. Une simulation qui répond sur un
+		// autre périmètre que celui demandé ne prouve rien.
+		if ( 'catalogue' !== ( $portee ?? self::portee() ) ) {
+			return self::RANGE;
+		}
+
+		global $wpdb;
+		$config  = Settings::pricing();
+		$cc      = Cost::merge_config( (array) get_option( 'teeshoop_cost_config', array() ) );
+		$taux    = (float) ( $cc['min_contribution_rate'] ?? 0.25 );
+
+		/*
+		 * LE COÛT DU NU EST PRIS À LA TAILLE LA PLUS CHÈRE. Une référence a un
+		 * prix d'achat par taille ; publier un tarif qui ne tient que pour le M
+		 * vend le 3XL sous son coût. Voir Catalogue::blank_cost_ht(), qui porte
+		 * la même règle pour un produit unique ; ici elle est faite en une
+		 * requête parce que la boucle en ferait trois cents.
+		 */
+		$couts = array();
+		$lignes = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT v.post_parent AS ref_id, MAX(CAST(sc.meta_value AS UNSIGNED)) AS maxi
+				   FROM {$wpdb->postmeta} sc
+				   JOIN {$wpdb->posts} v ON v.ID = sc.post_id AND v.post_type = 'product_variation'
+				  WHERE sc.meta_key = %s AND CAST(sc.meta_value AS UNSIGNED) > 0
+				  GROUP BY v.post_parent",
+				Catalogue::META_SUPPLY_CENTS
+			)
+		);
+		foreach ( $lignes as $l ) {
+			$couts[ (int) $l->ref_id ] = (int) $l->maxi;
+		}
+
+		$refs = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.ID, r.meta_value AS ref, f.meta_value AS famille
+				   FROM {$wpdb->posts} p
+				   JOIN {$wpdb->postmeta} r ON r.post_id = p.ID AND r.meta_key = %s
+				   JOIN {$wpdb->postmeta} f ON f.post_id = p.ID AND f.meta_key = %s
+				  WHERE p.post_type = 'product' AND p.post_status = 'publish'",
+				Catalogue::META_REF,
+				Catalogue::META_FAMILY
+			)
+		);
+
+		$out = self::RANGE;
+		foreach ( $refs as $r ) {
+			$garment = self::FAMILLES[ (string) $r->famille ] ?? '';
+			if ( '' === $garment || ! isset( $config['garments'][ $garment ] ) ) {
+				continue;
+			}
+			// UN COÛT INCONNU NE S'OUVRE PAS. « On n'a pas pu lire » n'est pas
+			// « c'est gratuit » : sans prix d'achat, aucun plancher n'est
+			// calculable et la référence resterait invendable en silence.
+			if ( ! isset( $couts[ (int) $r->ID ] ) ) {
+				continue;
+			}
+			$plancher = Margin::floor_price_rate( $couts[ (int) $r->ID ], $taux, 0.0 );
+			if ( (int) $config['garments'][ $garment ]['base_ht'] < $plancher ) {
+				continue;
+			}
+			$out[ (string) $r->ref ] = $garment;
+		}
+		return $out;
+	}
+
+	public static function apply( bool $dry_run = false, ?string $portee = null ): array {
 		$rows = array();
 
-		foreach ( self::RANGE as $ref => $garment ) {
+		foreach ( self::range( $portee ) as $ref => $garment ) {
 			$ref = (string) $ref;
 			$row = array(
 				'ref'      => $ref,

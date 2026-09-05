@@ -1705,6 +1705,27 @@ final class Cli {
 	public static function range_apply( array $args, array $assoc_args = array() ): void {
 		$dry = ! empty( $assoc_args['simuler'] );
 
+		/*
+		 * LA PORTÉE SE POSE UNE FOIS ET RESTE, parce que la tâche planifiée qui
+		 * relance cette commande après un import n'a pas de drapeau à passer.
+		 * Une portée qui vivrait dans l'invocation rétrécirait la gamme à neuf
+		 * références la première nuit où l'automatisme tourne, sans rien dire.
+		 */
+		$portee_voulue = null;
+		if ( isset( $assoc_args['portee'] ) ) {
+			$voulue        = (string) $assoc_args['portee'];
+			$portee_voulue = $voulue;
+			if ( ! in_array( $voulue, array( 'lancement', 'catalogue' ), true ) ) {
+				\WP_CLI::error( 'portée inconnue : attendues « lancement » ou « catalogue ».' );
+			}
+			if ( ! $dry ) {
+				update_option( Gamme::OPTION_PORTEE, $voulue );
+			}
+			\WP_CLI::log( sprintf( 'portée : %s%s', $voulue, $dry ? ' (simulation, non enregistrée)' : '' ) );
+		}
+		\WP_CLI::log( sprintf( 'portée appliquée : %s, %d référence(s) visée(s).', $portee_voulue ?? Gamme::portee(), count( Gamme::range( $portee_voulue ) ) ) );
+		\WP_CLI::log( '' );
+
 		$retired = Gamme::retire( $dry );
 		foreach ( $retired as $row ) {
 			\WP_CLI::log( sprintf( '  hors vente : « %s » (#%d), prix %s effacé', $row['name'], $row['id'], $row['was'] ) );
@@ -1712,7 +1733,7 @@ final class Cli {
 		\WP_CLI::log( sprintf( '%d montage(s) de harnais sortis de la vente.', count( $retired ) ) );
 		\WP_CLI::log( '' );
 
-		$rows = Gamme::apply( $dry );
+		$rows = Gamme::apply( $dry, $portee_voulue );
 		$ok   = 0;
 		foreach ( $rows as $row ) {
 			if ( (int) $row['offer_id'] > 0 || ( $dry && '' === $row['why'] ) ) {
