@@ -616,7 +616,22 @@ final class Supply {
 			);
 		}
 
-		$live = Disponibilite::for_reference( $ref );
+		/*
+		 * ON DEMANDE LES CODES QU'ON A, EN LOTS, plutôt que la référence entière
+		 * en un appel : la raison chiffrée est dans `Disponibilite::for_codes()`.
+		 * Sans codes lisibles dans la charge utile, on retombe sur la route par
+		 * référence, qui répond quand même.
+		 */
+		$codes = array();
+		foreach ( (array) ( $product['variants'] ?? array() ) as $v ) {
+			$c = is_array( $v ) ? self::text( $v['variantReference'] ?? '' ) : '';
+			if ( '' !== $c ) {
+				$codes[] = $c;
+			}
+		}
+		$live = array() !== $codes
+			? Disponibilite::for_codes( $codes )
+			: Disponibilite::for_reference( $ref );
 
 		return array(
 			'ok'    => true,
@@ -713,7 +728,7 @@ final class Supply {
 
 			$attrs  = self::attributes_of( $v );
 			$colour = $attrs['colour'];
-			$size   = $attrs['size'];
+			$size   = self::shop_size( $attrs['size'] );
 			if ( '' === $colour || '' === $size ) {
 				continue;
 			}
@@ -1242,6 +1257,50 @@ final class Supply {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Le nom de taille du fournisseur, dit dans le vocabulaire de la boutique.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * « XXL » ET « 2XL » SONT LA MÊME TAILLE, ET C'EST MESURÉ, PAS SUPPOSÉ.
+	 *
+	 * La boutique dit `2XL` : c'est ce que porte `Catalogue::ADULT_SIZES`, ce
+	 * que l'éditeur offre (`SIZE_IDS`), et ce que la charte des tailles chiffre.
+	 * Le fournisseur dit `XXL`. Sans traduction, ces déclinaisons sortent du
+	 * vocabulaire, `Gamme` ne trouve aucun coloris présent dans toutes les
+	 * tailles, et la référence n'entre pas en vente : c'est ce qui bloquait les
+	 * huit références du nouveau catalogue.
+	 *
+	 * TROIS MESURES SUR SES 3 241 PRODUITS, ET ELLES CONCORDENT :
+	 *
+	 *   `XXL` apparaît 8 725 fois, `2XL` ZÉRO fois et `XXXL` zéro fois : il n'y
+	 *   a pas deux étiquettes en concurrence, il y en a une ;
+	 *
+	 *   AUCUN produit ne porte à la fois `XXL` et `2XL`, donc elles ne
+	 *   désignent jamais deux tailles différentes d'un même vêtement ;
+	 *
+	 *   1 001 produits portent `XL`, `XXL` et `3XL` ensemble, ce qui place
+	 *   `XXL` entre les deux dans mille séries réelles.
+	 *
+	 * POURQUOI ÇA MÉRITE TROIS MESURES pour une ligne : la taille ne décide pas
+	 * que d'une étiquette, elle décide de la GRADATION du marquage
+	 * (`Garments::sizes()`). Se tromper d'un cran, c'est un visuel à la mauvaise
+	 * taille sur un vêtement déjà pressé, découvert au déballage.
+	 *
+	 * `XXS` EST TRAITÉE PAREIL par symétrie, et le dépôt en porte 365.
+	 * `Catalogue::ADULT_SIZES` liste d'ailleurs `2XS` ET `XXS` comme deux rangs
+	 * distincts, ce qui est le même défaut sur l'autre bord ; il n'est pas
+	 * corrigé ici parce que toucher un ordre de tailles touche une gradation, et
+	 * que cette table sert aussi aux articles importés avant cette nuit.
+	 */
+	public static function shop_size( string $size ): string {
+		$alias = array(
+			'XXL' => '2XL',
+			'XXS' => '2XS',
+		);
+		$clef = strtoupper( trim( $size ) );
+		return $alias[ $clef ] ?? $size;
 	}
 
 	/**

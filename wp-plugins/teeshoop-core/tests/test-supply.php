@@ -185,6 +185,65 @@ describe(
 );
 
 describe(
+	'Supply: le vocabulaire des tailles',
+	static function (): void {
+
+		it(
+			'dit « 2XL » là où le fournisseur dit « XXL »',
+			static function (): void {
+				/*
+				 * MESURÉ SUR SES 3 241 PRODUITS, trois fois plutôt qu'une, parce
+				 * que la taille décide de la GRADATION du marquage et qu'un cran
+				 * d'écart est un visuel à la mauvaise taille sur un vêtement
+				 * déjà pressé :
+				 *
+				 *   « XXL » 8 725 fois, « 2XL » ZÉRO fois, « XXXL » zéro fois ;
+				 *   AUCUN produit ne porte les deux étiquettes ;
+				 *   1 001 produits portent XL, XXL et 3XL ensemble.
+				 */
+				eq( Supply::shop_size( 'XXL' ), '2XL' );
+				eq( Supply::shop_size( 'xxl' ), '2XL', 'la casse ne change rien' );
+				eq( Supply::shop_size( ' XXL ' ), '2XL', 'les espaces non plus' );
+				eq( Supply::shop_size( 'XXS' ), '2XS', 'et l’autre bord par symétrie' );
+			}
+		);
+
+		it(
+			'ne touche à aucune autre taille',
+			static function (): void {
+				// Une table d'alias qui traduirait au-delà de ce qu'elle a
+				// mesuré serait pire que pas de table du tout.
+				foreach ( array( 'XS', 'S', 'M', 'L', 'XL', '3XL', '4XL', '5XL', '0', 'S/M', '12/14', 'One Size' ) as $t ) {
+					eq( Supply::shop_size( $t ), $t, $t );
+				}
+			}
+		);
+
+		it(
+			'traduit les tailles que la cartographie produit, pas seulement la fonction',
+			static function (): void {
+				/*
+				 * La traduction doit avoir lieu DANS `to_entry`, sinon elle est
+				 * une fonction que personne n'appelle. Les cinq références
+				 * capturées portent des XXL réels.
+				 */
+				$vu = false;
+				foreach ( array_keys( ts_supply_products() ) as $ref ) {
+					$entry = Supply::to_entry( ts_supply_products()[ $ref ], ts_supply_live( $ref ) );
+					foreach ( $entry['style']['skus'] as $sku ) {
+						truthy( 'XXL' !== $sku['sizeName'], $ref . ' : aucune taille ne sort en « XXL »' );
+						if ( '2XL' === $sku['sizeName'] ) {
+							$vu = true;
+						}
+					}
+				}
+				truthy( $vu, 'et au moins une « 2XL » traverse, sinon ce test ne mesure rien' );
+			}
+		);
+	}
+);
+
+describe(
 	'Supply: la teinte déclarée',
 	static function (): void {
 

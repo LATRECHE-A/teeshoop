@@ -1513,6 +1513,75 @@ final class Disponibilite {
 	 *
 	 * @return array{ok:bool,rows:array<string,array{cents:?int,stock:?int,stock_supplier:?int,box_qty:?int}>,error:string}
 	 */
+	/**
+	 * Prix et stock d'une liste de codes connus, en lots bornés.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * POURQUOI PAS LA ROUTE PAR RÉFÉRENCE, QUAND ON CONNAÎT DÉJÀ LES CODES.
+	 *
+	 * `for_reference()` fait UN appel qui rend toutes les déclinaisons, et son
+	 * délai est dérivé du nombre de déclinaisons de la référence la plus fournie
+	 * qu'on avait mesurée : 228. Relevé sur le dépôt complet, la vraie plus
+	 * fournie en porte 726, et BC03T en porte 292, mesurée à 20,6 s le
+	 * 9 septembre 2026 : l'appel expirait et l'import annonçait « les tarifs
+	 * n'ont pas pu être lus », ce qui est vrai, honnête, et évitable.
+	 *
+	 * À 0,482 s de socle et 0,069 s par code, 726 déclinaisons font 51 s en un
+	 * seul appel et 53 s en cinq lots. Le total est le même ; ce qui change est
+	 * qu'un lot qui pend coûte un lot et pas la référence entière, et que chaque
+	 * délai est dérivé du nombre de codes qu'il porte au lieu d'être un pari.
+	 *
+	 * L'IMPORT CONNAÎT SES CODES : ils sont dans la charge utile déposée. Cette
+	 * méthode existe pour lui ; `for_reference()` reste pour qui ne les a pas.
+	 *
+	 * @param string[] $codes
+	 * @return array{ok:bool,rows:array<string,array<string,mixed>>,error:string}
+	 */
+	public static function for_codes( array $codes ): array {
+		$codes = self::clean_codes( $codes );
+		if ( array() === $codes ) {
+			return array(
+				'ok'    => false,
+				'rows'  => array(),
+				'error' => 'Aucun code à demander.',
+			);
+		}
+
+		$rows    = array();
+		$erreurs = array();
+		foreach ( self::batches( $codes ) as $batch ) {
+			$answer = self::ask( $batch );
+			if ( ! $answer['ok'] ) {
+				$erreurs[] = (string) ( $answer['error'] ?? 'lot en échec' );
+				continue;
+			}
+			$rows = array_replace( $rows, $answer['rows'] );
+			self::write_rows( $answer['rows'], $answer['missing'] );
+		}
+
+		/*
+		 * UN SEUL LOT EN ÉCHEC SUFFIT À REFUSER TOUTE LA RÉFÉRENCE, et ce n'est
+		 * pas de la prudence excessive : `Supply::to_entry()` lit `ok` pour
+		 * décider s'il a le droit de toucher aux prix déjà en base. Rendre
+		 * `ok = true` sur une réponse partielle ferait effacer le coût des
+		 * articles du lot manquant, ce que le commentaire de `Catalogue::map()`
+		 * raconte s'être déjà produit sur 366 déclinaisons.
+		 */
+		if ( array() !== $erreurs ) {
+			return array(
+				'ok'    => false,
+				'rows'  => array(),
+				'error' => $erreurs[0],
+			);
+		}
+
+		return array(
+			'ok'    => array() !== $rows,
+			'rows'  => $rows,
+			'error' => array() === $rows ? 'Le service n’a rendu aucune ligne pour ces codes.' : '',
+		);
+	}
+
 	public static function for_reference( string $ref ): array {
 		$ref = trim( $ref );
 
