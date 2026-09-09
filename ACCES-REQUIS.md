@@ -54,6 +54,51 @@ Le compte admin WordPress n'a jamais manqué en réalité : `LTHAbdou` est admin
 depuis le 22/07, ce qui est démontré par le fait que la clé API du 14/08 a été créée
 sous cet identifiant (`user_id = 30` dans `wp68_woocommerce_api_keys`).
 
+### Depuis le 9 septembre : le fournisseur a changé, et les sept constantes aussi
+
+L'associé a tranché : **un seul fournisseur**, et ce n'est plus le précédent. Toutes
+les valeurs ci-dessous vont dans `wp-config.php` de la boutique, **jamais dans le
+dépôt** : le nom de domaine du fournisseur porte son nom, et `scripts/php-guard.mjs`
+refuse tout nom de fournisseur dans le greffon. C'est pour cela qu'aucune de ces
+adresses n'est écrite dans le code.
+
+| Constante | Ce que c'est | Sans elle |
+|---|---|---|
+| `TEESHOOP_SUPPLY_BASE` | L'adresse du service catalogue et commandes, sans barre finale | Rien n'est importé, et le message le dit avec la ligne à écrire |
+| `TEESHOOP_SUPPLY_TOKEN` | La valeur ENTIÈRE de l'en-tête `Authorization`, préfixe compris | Le service renvoie vers sa page de connexion, et le client le traite comme un refus d'authentification, pas comme un catalogue vide |
+| `TEESHOOP_SUPPLY_V2_BASE` | L'adresse du service prix/stock de deuxième génération | Le balayage des disponibilités ne part pas |
+| `TEESHOOP_SUPPLY_CLIENT_ID` | L'identifiant OAuth2 de ce second service | Idem |
+| `TEESHOOP_SUPPLY_CLIENT_SECRET` | Son secret | Idem |
+| `TEESHOOP_SUPPLY_MEDIA_BASE` | L'hôte qui sert vraiment les photographies | Aucune photographie n'est copiée, et chaque fiche reste au brouillon. Mesuré : l'hôte que le service publie dans ses URL répond 404, les mêmes chemins répondent 200 ailleurs |
+| `TEESHOOP_SUPPLY_MODE` | `test` ou `live`, **déclaré à la main** | `unknown`, et **aucune commande fournisseur ne part**. Ce service n'a aucun point d'entrée qui dise dans quel mode il tourne : deviner d'après le nom d'hôte tiendrait jusqu'au jour où il renomme son domaine, et ce jour-là enverrait une vraie commande en croyant faire un essai |
+
+Les identifiants de **préproduction** sont dans le message du fournisseur du
+21 août 2026 (transmis le 8 septembre). Ceux de **production** n'ont pas encore été
+demandés : le fournisseur les envoie « si tout cela vous convient », donc c'est une
+phrase à lui écrire, pas un accès à obtenir.
+
+**Deux lignes de cron à poser** au déploiement :
+
+```
+17 3 * * *   cd <racine> && wp teeshoop catalogue synchroniser --discret
+7  * * * *   cd <racine> && wp teeshoop dispo balayer --budget=45
+```
+
+La première marche le catalogue du fournisseur : mesurée à 3 241 produits, 65 pages,
+102 s et 8,4 Mo déposés. La seconde rafraîchit les prix et les disponibilités des
+articles les plus anciens, dans un budget de temps, parce que le service coûte
+0,43 s de socle plus 0,068 s par article et que balayer les quarante-six mille
+d'un coup prendrait cinquante minutes.
+
+**Ce qui devient mort** avec l'ancien fournisseur : `FR_WS_USER`, `FR_WS_PASS`,
+`FR_CUSTOMER_NR`, `FR_ORDER_TOKEN` côté Worker, et `TEESHOOP_CATALOGUE_TOKEN` côté
+boutique, qui servait à parler au Worker pour le catalogue. Ne les retirer qu'après
+la suppression décrite dans `docs/decisions/2026-09-09-un-seul-fournisseur.md` :
+tant que le code de l'ancien fournisseur est là, retirer ses secrets fait échouer
+des gardes au lieu de nettoyer quoi que ce soit.
+
+---
+
 ### Depuis le 19 août : ce qu'il faut poser pour qu'une commande fournisseur puisse partir
 
 Rien de ce qui suit ne bloque une séance de développement. Tout bloque **l'envoi réel
