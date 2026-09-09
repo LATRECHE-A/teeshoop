@@ -46,14 +46,15 @@
 import type { Design, ImageLayer, Layer, Side, SizeId } from '@/lib/types'
 import { EditorEngine } from '@/editor/EditorEngine'
 import { addAsset } from '@/state/assets'
-import { setShopPalette } from '@/content/garmentPalette'
-import { getAreaSizeIn } from '@/lib/renderDesign'
+import { garmentHexOf, setShopPalette } from '@/content/garmentPalette'
+import { getAreaSizeIn, renderMockup, renderPrintArea } from '@/lib/renderDesign'
 import { layerInkBox } from '@/lib/ink'
 import { measureOrder, uploadDesign, DesignUploadError } from '@/lib/teeshoop/upload'
 import { inToCm, fmtNum } from '@/lib/units'
 import { setCurrentLang } from '@/i18n/lang'
 import { facesPermises, type Contexte } from './contexte'
 import { ajouterAuPanier, demanderDevis, RefusAtelier, type Devis, type FaceImprimee } from './atelier'
+import { fusionner, lisibiliteSur, recenser, type Encre, type Lisibilite } from './contraste'
 import { COPIE } from './copie'
 import { el, vider } from './dom'
 import { Historique } from './historique'
@@ -96,6 +97,55 @@ type PanneauAvance = {
 const QTE_MAX_CASE = 100000
 
 /**
+ * Les deux étapes, et la raison pour laquelle il n'y a pas de navigation.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * DEUX ÉCRANS, UNE PAGE, UN SEUL ÉTAT
+ *
+ * Créer puis choisir sont deux gestes différents : le premier se fait au doigt
+ * sur un canevas, le second se tape dans un tableau. Les mettre sur un seul
+ * écran donnait une colonne où le choix des tailles était à côté du choix de la
+ * police, et sur un téléphone la grille tombait sous la ligne de flottaison.
+ *
+ * Ce sont deux ÉTATS et pas deux pages : un aller-retour vers le serveur entre
+ * les deux perdrait la création, qui n'existe que dans ce navigateur (les
+ * octets du visuel sont dans IndexedDB et le document dans cette instance).
+ * Revenir en arrière ne coûte donc rien et ne perd rien, ce qui est la
+ * propriété que l'indicateur d'étapes promet.
+ */
+type Etape = 1 | 2
+
+/**
+ * Une ligne de la grille : un coloris, et ses quantités par taille.
+ *
+ * UN TABLEAU ET PAS UN OBJET INDEXÉ PAR COLORIS, parce que l'ORDRE des lignes
+ * est ce que le client vient de construire : retirer « noir » puis le remettre
+ * le renverrait en bas d'un objet, sous « blanc » qu'il avait ajouté après.
+ */
+interface LigneCommande {
+  couleur: string
+  qte: Record<string, number>
+}
+
+/**
+ * La définition à laquelle l'encre est recensée pour la mesure de contraste,
+ * pixels sur le plus grand côté de la zone d'impression.
+ *
+ * C'est une borne de COÛT et pas une prétention de mesure : la question posée à
+ * ces pixels est « de quelle couleur est cette encre », qui ne demande pas de
+ * géométrie. À 256 pixels sur une zone de 30 cm, un pixel vaut 1,2 mm, et le
+ * recensement d'une face coûte 65 000 pixels au lieu des 1,2 million qu'une
+ * mesure à 100 points par pouce demanderait. Ce que le rééchantillonnage change
+ * est décrit dans `src/native/contraste.ts` : il ramène les bords vers la
+ * transparence, donc vers l'échec du seuil, donc vers l'avertissement, qui est
+ * le côté prudent puisqu'un avertissement ne refuse rien.
+ */
+const COTE_RECENSEMENT_PX = 256
+
+/** La largeur d'un aperçu de coloris, en pixels CSS. */
+const APERCU_LARGEUR_CSS = 220
+
+/**
  * Ce qu'un fichier déposé a le droit d'être, décidé par le navigateur.
  *
  * Le Worker refait le contrôle sur le CONTENEUR entier (`worker/containers.ts`,
@@ -126,7 +176,21 @@ class Instance implements Editeur {
    */
   private face: Side
   private selection: string | null = null
-  private grille: Record<string, number> = {}
+  /** Où en est le client : créer, ou choisir. Voir `Etape`. */
+  private etape: Etape = 1
+  /**
+   * La grille coloris x taille, dans l'ordre où le client a ajouté les lignes.
+   *
+   * C'EST LA SEULE SAISIE DE QUANTITÉ DE L'ÉDITEUR. La vue simple avait une
+   * rangée de cases par taille, à côté du canevas ; elle ne pouvait porter
+   * qu'un coloris, donc trois coloris demandaient trois passages, trois
+   * créations, trois lignes de panier, et `Pricing::qty_discount` s'appliquant
+   * par ligne, le client payait plus cher POUR AVOIR CHOISI PLUSIEURS COULEURS
+   * (102,00 EUR mesurés sur trente pièces en trois coloris, voir `Cart::add`).
+   * Garder les deux saisies aurait été deux endroits où l'on tape une quantité,
+   * donc deux totaux possibles pour une commande.
+   */
+  private lignes: LigneCommande[] = []
   private readonly histoire = new Historique<Design>()
   private phase: Phase = 'repos'
   private echec = ''
@@ -140,6 +204,9 @@ class Instance implements Editeur {
   private annuleDevis: AbortController | null = null
   private sequenceDevis = 0
   private panierUrl = ''
+  /** Ce que la confirmation annonce : ce qui est VRAIMENT parti au panier. */
+  private ajoutePieces = 0
+  private ajouteColoris = 0
   private avancee: PanneauAvance | null = null
   /**
    * Le chargement du panneau en vol, pour qu'il n'y en ait qu'un.
@@ -154,6 +221,27 @@ class Instance implements Editeur {
   private attenteAvancee: Promise<PanneauAvance | null> | null = null
   /** Les boutons de face, construits une fois. Voir `rendreFaces`. */
   private readonly boutonsFace: { face: Side; bouton: HTMLButtonElement }[] = []
+  /** Les pastilles de l'indicateur d'étapes, construites une fois. */
+  private readonly boutonsEtape: { etape: Etape; bouton: HTMLButtonElement }[] = []
+  /**
+   * L'encre de la création, recensée une fois par état du document.
+   *
+   * `null` en valeur veut dire « on n'a pas pu regarder » et pas « il n'y en a
+   * pas » : c'est ce que `contraste.ts` distingue, et c'est ce qui fait dire à
+   * l'écran qu'il n'a pas mesuré plutôt que de se taire.
+   */
+  private encre: { signature: string; mesure: Encre | null } | null = null
+  /** La lisibilité par coloris, vidée en même temps que le recensement. */
+  private readonly lisibilite = new Map<string, Lisibilite>()
+  /**
+   * Ce que les aperçus montrent en ce moment : la création et les coloris.
+   *
+   * Un jeton suffirait à annuler un rendu périmé ; la signature sert à ne PAS
+   * relancer un rendu identique, ce qui est le cas courant (chaque frappe dans
+   * une case de quantité repasse par le rendu de l'étape 2).
+   */
+  private signatureApercus = ''
+  private jetonApercus = 0
 
   // Les noeuds que le rendu réécrit. Tenus plutôt que re-cherchés : une requête
   // par frappe sur un DOM que le thème peut avoir enveloppé coûte plus que six
@@ -165,7 +253,6 @@ class Instance implements Editeur {
     photo: HTMLImageElement
     photoLegende: HTMLElement
     couleurs: HTMLDivElement
-    tailles: HTMLDivElement
     prix: HTMLDivElement
     achat: HTMLButtonElement
     etat: HTMLDivElement
@@ -174,6 +261,12 @@ class Instance implements Editeur {
     retablir: HTMLButtonElement
     avance: HTMLButtonElement
     zoneAvancee: HTMLDivElement
+    creer: HTMLDivElement
+    choisir: HTMLDivElement
+    valider: HTMLButtonElement
+    validerNote: HTMLParagraphElement
+    matrice: HTMLDivElement
+    apercus: HTMLDivElement
   }
 
   constructor(hote: HTMLElement, ctx: Contexte) {
@@ -275,6 +368,16 @@ class Instance implements Editeur {
     vider(this.hote)
     this.hote.classList.add('tshop-ed')
     /*
+     * UNE CLASSE SÉPARE LA PAGE DÉDIÉE DE LA FICHE PRODUIT, ET C'EST TOUT.
+     *
+     * `atelier` ne change ni l'ordre des opérations, ni le document, ni une
+     * seule règle de prix : il change la place des blocs et fait apparaître le
+     * rappel du produit, parce qu'une page qui ne montre que l'éditeur doit dire
+     * sur quoi on travaille et comment revenir. Deux éditeurs auraient été deux
+     * endroits où corriger le prochain défaut de l'ajout au panier.
+     */
+    if (this.ctx.atelier) this.hote.classList.add('tshop-ed--atelier')
+    /*
      * Le conteneur prend le clavier, et les raccourcis y sont attachés.
      *
      * Cinquième raison de `Shortcode.php` : le studio posait trois écouteurs
@@ -375,7 +478,26 @@ class Instance implements Editeur {
     etiquetteFichier.textContent = COPIE.deposer
     fichier.addEventListener('change', this.surFichier)
 
-    const tailles = el('div', 'tshop-ed__tailles')
+    /*
+     * LE PASSAGE À L'ÉTAPE 2, ET LA PHRASE QUI DIT POURQUOI IL EST FERMÉ.
+     *
+     * Un bouton grisé sans explication est un bouton sur lequel on clique trois
+     * fois avant de partir. La note porte un identifiant et le bouton la
+     * DÉSIGNE (`aria-describedby`), donc un lecteur d'écran l'annonce en même
+     * temps que l'état désactivé, au lieu de dire « bouton, indisponible » et
+     * rien d'autre.
+     */
+    const valider = document.createElement('button')
+    valider.type = 'button'
+    valider.className = 'tshop-ed__valider'
+    valider.setAttribute('data-teeshoop', 'valider-creation')
+    valider.textContent = COPIE.valider
+    valider.addEventListener('click', () => this.allerA(2))
+    const validerNote = el('p', 'tshop-ed__note')
+    validerNote.id = `tshop-ed-valider-${this.ctx.productId}`
+    validerNote.textContent = COPIE.validerSansVisuel
+    valider.setAttribute('aria-describedby', validerNote.id)
+
     const prix = el('div', 'tshop-ed__prix')
     prix.setAttribute('aria-live', 'polite')
 
@@ -396,7 +518,31 @@ class Instance implements Editeur {
     avance.addEventListener('click', this.surAvancee)
     const zoneAvancee = el('div', 'tshop-ed__zone-avancee')
 
-    this.hote.append(
+    // ------------------------------------------------------------- étape 2
+    const retour = document.createElement('button')
+    retour.type = 'button'
+    retour.className = 'tshop-ed__outil'
+    retour.setAttribute('data-teeshoop', 'revenir-creation')
+    retour.textContent = COPIE.revenir
+    retour.addEventListener('click', () => this.allerA(1))
+
+    const matrice = el('div', 'tshop-ed__matrice')
+    const apercus = el('div', 'tshop-ed__apercus')
+
+    /*
+     * CHAQUE ÉCRAN EST UN GROUPE NOMMÉ ET PEUT RECEVOIR LE FOCUS.
+     *
+     * `tabIndex = -1` le rend atteignable par `focus()` sans l'ajouter à l'ordre
+     * de tabulation ; `role` et `aria-label` font qu'un lecteur d'écran annonce
+     * OÙ le focus vient d'arriver. Sans les deux, valider sa création renvoyait
+     * un client au clavier tabuler depuis le haut du document, vers un écran
+     * qu'il ne voit plus.
+     */
+    const creer = el('div', 'tshop-ed__etape tshop-ed__etape--creer')
+    creer.tabIndex = -1
+    creer.setAttribute('role', 'group')
+    creer.setAttribute('aria-label', COPIE.etapeCreerLong)
+    creer.append(
       scene,
       historique,
       outils,
@@ -404,13 +550,26 @@ class Instance implements Editeur {
       section(COPIE.couleurLegende, couleurs),
       blocFaces,
       section(COPIE.visuelLegende, etiquetteFichier, fichier),
-      section(COPIE.taillesLegende, tailles),
-      prix,
-      achat,
-      etat,
+      valider,
+      validerNote,
       avance,
       zoneAvancee,
     )
+
+    const choisir = el('div', 'tshop-ed__etape tshop-ed__etape--choisir')
+    choisir.tabIndex = -1
+    choisir.setAttribute('role', 'group')
+    choisir.setAttribute('aria-label', COPIE.etapeChoisirLong)
+    // Les deux blocs portent une classe pour que la grande largeur puisse les
+    // placer sans aller regarder ce qu'ils contiennent. Voir la feuille.
+    const blocGrille = section(COPIE.matriceLegende, matrice)
+    blocGrille.classList.add('tshop-ed__bloc--grille')
+    const blocApercus = section(COPIE.apercusLegende, apercus)
+    blocApercus.classList.add('tshop-ed__bloc--apercus')
+    choisir.append(retour, blocGrille, blocApercus, prix, achat, etat)
+
+    if (this.ctx.atelier) this.hote.append(this.entete())
+    this.hote.append(this.indicateurEtapes(), creer, choisir)
 
     this.noeuds = {
       scene: toile,
@@ -419,7 +578,6 @@ class Instance implements Editeur {
       photo,
       photoLegende,
       couleurs,
-      tailles,
       prix,
       achat,
       etat,
@@ -428,10 +586,104 @@ class Instance implements Editeur {
       retablir,
       avance,
       zoneAvancee,
+      creer,
+      choisir,
+      valider,
+      validerNote,
+      matrice,
+      apercus,
     }
 
     this.demarrerMoteur(toile)
     this.brancherDepot(scene)
+  }
+
+  /**
+   * L'en-tête de la page dédiée : d'où l'on vient, et sur quoi on travaille.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * LE TITRE DU PRODUIT N'EST PAS UN TITRE DE NIVEAU, ET C'EST DÉLIBÉRÉ
+   *
+   * Dans la fiche produit, l'éditeur occupe la fente d'ajout au panier et le
+   * `h1` juste au-dessus nomme déjà l'article : c'est la raison pour laquelle
+   * les blocs de cet éditeur sont des `h2` (voir `section`). Sur une page
+   * dédiée, le gabarit WordPress porte son propre `h1`, que ce module ne voit
+   * pas. Écrire un second `h1` ici en donnerait deux à la page ; écrire un `h2`
+   * mettrait le nom de l'article au même niveau que « Couleur ». Un paragraphe
+   * nommé dit la même chose sans inventer une structure qu'on ne peut pas
+   * vérifier d'ici, et `npm run verify:a11y` mesure l'ordre des titres sur la
+   * page réelle, pas sur l'intention de ce fichier.
+   */
+  private entete(): HTMLElement {
+    /*
+     * UN `div` ET PAS UN `header`, ET C'EST UNE MESURE.
+     *
+     * `<header>` hors d'un `article`, `aside`, `main`, `nav` ou `section` est un
+     * repère `banner`. La page de l'atelier en a déjà un, sa propre barre
+     * (`ts-atelier__bar`), donc celui-ci en faisait un SECOND : mesuré le
+     * 9 septembre 2026 par `npm run verify:a11y`, « 3 repères : 2 banner,
+     * plusieurs sans nom ». Deux bannières font que la navigation par repères,
+     * qui est la façon dont on saute le décor pour arriver au contenu, mène une
+     * fois sur deux au mauvais endroit. Ce bloc n'est pas la bannière de la
+     * page : c'est un rappel de ce sur quoi on travaille.
+     */
+    const bloc = el('div', 'tshop-ed__entete')
+    if (this.ctx.productUrl !== '') {
+      const a = document.createElement('a')
+      a.className = 'tshop-ed__retour'
+      a.href = this.ctx.productUrl
+      a.textContent = COPIE.retourProduit
+      bloc.append(a)
+    }
+    if (this.ctx.productImage !== '') {
+      const img = document.createElement('img')
+      img.className = 'tshop-ed__vignette'
+      img.src = this.ctx.productImage
+      img.alt = ''
+      img.loading = 'lazy'
+      img.decoding = 'async'
+      bloc.append(img)
+    }
+    if (this.ctx.titre !== '') {
+      const p = el('p', 'tshop-ed__produit')
+      p.textContent = this.ctx.titre
+      bloc.append(p)
+    }
+    return bloc
+  }
+
+  /**
+   * Les deux pastilles d'étape, construites une fois comme celles des faces.
+   *
+   * Ce sont des BOUTONS et pas des liens : rien ne change d'adresse, et un lien
+   * qui ne navigue pas est ce qu'un lecteur d'écran annonce comme une
+   * navigation qui n'arrive jamais. L'étape en cours porte `aria-current="step"`
+   * plutôt qu'une simple classe, parce que la couleur seule ne se lit ni au
+   * clavier ni en contraste forcé.
+   */
+  private indicateurEtapes(): HTMLElement {
+    const nav = el('nav', 'tshop-ed__etapes')
+    nav.setAttribute('aria-label', COPIE.etapesLegende)
+    const liste = el('ol', 'tshop-ed__etapes-liste')
+    for (const [etape, court, long] of [
+      [1, COPIE.etapeCreer, COPIE.etapeCreerLong],
+      [2, COPIE.etapeChoisir, COPIE.etapeChoisirLong],
+    ] as const) {
+      const li = el('li', 'tshop-ed__etapes-item')
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'tshop-ed__etape-pas'
+      b.textContent = court
+      b.setAttribute('aria-label', long)
+      b.setAttribute('data-teeshoop', `etape-${etape}`)
+      if (etape === 2) b.setAttribute('aria-describedby', `tshop-ed-valider-${this.ctx.productId}`)
+      b.addEventListener('click', () => this.allerA(etape))
+      li.append(b)
+      liste.append(li)
+      this.boutonsEtape.push({ etape, bouton: b })
+    }
+    nav.append(liste)
+    return nav
   }
 
   private demarrerMoteur(toile: HTMLDivElement): void {
@@ -485,7 +737,20 @@ class Instance implements Editeur {
     const suivre = (): void => {
       if (this.detruit || !this.moteur) return
       const r = toile.getBoundingClientRect()
-      this.moteur.setViewport(Math.round(r.width), Math.round(r.height))
+      /*
+       * ZÉRO N'EST PAS UNE TAILLE, C'EST « PAS MIS EN PAGE ».
+       *
+       * L'étape 1 est cachée par `hidden` pendant que le client remplit la
+       * grille, donc `ResizeObserver` émet un rectangle de 0 x 0 au moment du
+       * basculement. Recopier ce zéro dans le moteur ferait un canevas de 0 px,
+       * et le retour à l'étape 1 dépend alors d'une seconde notification pour
+       * réparer ce que la première a cassé. On ne l'écrit pas : la dernière
+       * taille connue reste bonne, et la prochaine mesure non nulle la remplace.
+       */
+      const w = Math.round(r.width)
+      const h = Math.round(r.height)
+      if (w <= 0 || h <= 0) return
+      this.moteur.setViewport(w, h)
     }
     if (typeof ResizeObserver === 'function') {
       this.observateur = new ResizeObserver(suivre)
@@ -517,6 +782,18 @@ class Instance implements Editeur {
   // ------------------------------------------------------------- interaction
 
   private surTouche = (e: KeyboardEvent): void => {
+    /*
+     * LES RACCOURCIS N'EXISTENT QUE SUR L'ÉCRAN QU'ILS COMMANDENT.
+     *
+     * Annuler et supprimer agissent sur le document, qui n'est visible qu'à
+     * l'étape 1. À l'étape 2, `Ctrl+Z` retirerait le dernier calque sans que
+     * rien ne bouge à l'écran, et le client s'en apercevrait sur le vêtement :
+     * c'est la même faute que la sélection qui traversait un changement de face
+     * (`choisirFace`), un contrôle qui agit là où personne ne regarde. La
+     * conséquence est que la création est FIGÉE pendant l'étape 2, ce dont les
+     * aperçus et le recensement d'encre dépendent pour être justes.
+     */
+    if (this.etape !== 1) return
     /*
      * JAMAIS QUAND LA FRAPPE VISE UN CHAMP, et la liste compte TEXTAREA.
      *
@@ -763,12 +1040,86 @@ class Instance implements Editeur {
     this.chiffrerBientot()
   }
 
-  private saisirQuantite(taille: string, brut: string): void {
+  private saisirQuantite(couleur: string, taille: string, brut: string): void {
+    const ligne = this.lignes.find((l) => l.couleur === couleur)
+    if (!ligne) return
     const n = Math.max(0, Math.min(QTE_MAX_CASE, Number.parseInt(brut, 10) || 0))
-    if (n === 0) delete this.grille[taille]
-    else this.grille[taille] = n
+    if (n === 0) delete ligne.qte[taille]
+    else ligne.qte[taille] = n
+    /*
+     * LES TOTAUX SUIVENT LA FRAPPE, LE RESTE DU TABLEAU NON.
+     *
+     * Redessiner la grille entière à chaque caractère détruirait la case que le
+     * client est en train de remplir, et le focus avec : c'est le défaut que la
+     * vue avancée a payé sur son champ de texte. Seuls les trois nombres qui
+     * dépendent de la saisie sont réécrits.
+     */
+    this.rendreTotaux()
     this.rendrePrix()
     this.chiffrerBientot()
+  }
+
+  // ------------------------------------------------------------- les étapes
+
+  /**
+   * Passer d'un écran à l'autre, sans rien perdre.
+   *
+   * L'étape 2 est FERMÉE tant qu'aucun calque n'est posé, et le contrôle le dit
+   * plutôt que de ne rien faire : `rendreEtapes` désactive les deux commandes et
+   * `validerNote` porte la phrase, que `aria-describedby` fait lire.
+   */
+  private allerA(etape: Etape): void {
+    if (etape === this.etape) return
+    if (etape === 2 && this.creation.layers.length === 0) return
+    /*
+     * LA PREMIÈRE VISITE SÈME LA GRILLE AVEC LE COLORIS QU'ON VIENT DE CHOISIR.
+     *
+     * Une grille vide à l'ouverture demanderait au client de rechoisir le
+     * coloris sur lequel il vient de travailler pendant cinq minutes, et une
+     * commande sans ligne n'a rien à chiffrer. Le coloris repris est celui du
+     * document, donc celui que le canevas montrait, et c'est aussi celui que
+     * `Cart::normalise_matrix` accepte quand le produit n'a pas de nuancier
+     * mesuré (`$fallback`).
+     */
+    if (etape === 2 && this.lignes.length === 0) this.ajouterLigne(this.creation.colorId)
+    this.etape = etape
+    this.rendre()
+    /*
+     * LE FOCUS SUIT L'ÉCRAN. Sans cela, un client au clavier qui valide se
+     * retrouve à tabuler depuis le haut du document vers un écran qu'il ne voit
+     * plus. Le conteneur porte déjà `tabindex`, donc il peut le recevoir.
+     */
+    const zone = etape === 2 ? this.noeuds.choisir : this.noeuds.creer
+    zone.focus()
+  }
+
+  /** Ajouter un coloris à la commande, si le plafond de la ligne le permet. */
+  private ajouterLigne(couleur: string): void {
+    if (couleur === '') return
+    if (this.lignes.some((l) => l.couleur === couleur)) return
+    if (this.lignes.length >= this.ctx.maxCouleurs) return
+    this.lignes.push({ couleur, qte: {} })
+  }
+
+  private retirerLigne(couleur: string): void {
+    const avant = this.quantite()
+    this.lignes = this.lignes.filter((l) => l.couleur !== couleur)
+    this.lisibilite.delete(couleur)
+    this.rendreMatrice()
+    this.rendreApercus()
+    // Le prix ne change que si la ligne portait des pièces : rechiffrer une
+    // commande identique ferait clignoter le montant pour rien.
+    if (this.quantite() !== avant) {
+      this.rendrePrix()
+      this.chiffrerBientot()
+    }
+  }
+
+  private choisirLigne(couleur: string): void {
+    if (this.lignes.some((l) => l.couleur === couleur)) return
+    this.ajouterLigne(couleur)
+    this.rendreMatrice()
+    this.rendreApercus()
   }
 
   private surAvancee = (): void => {
@@ -923,7 +1274,26 @@ class Instance implements Editeur {
     this.annuleDevis = null
     const seq = ++this.sequenceDevis
 
-    if (this.creation.layers.length === 0 || total === 0) {
+    /*
+     * ── ON NE DEMANDE PAS UN PRIX POUR UNE COMMANDE QU'ON NE PEUT PAS PRENDRE ─
+     *
+     * Trouvé par la passe adversariale du 9 septembre 2026, et c'est la grille
+     * coloris x taille qui l'a rendu atteignable : trois coloris de 5 000 pièces
+     * font 15 000 en trois frappes, là où une seule rangée de tailles demandait
+     * de le vouloir.
+     *
+     * `Pricing::quote()` BORNE la quantité à `max_qty` (« $qty = max(1, min($qty,
+     * max_qty)) »), ce qui est juste pour une estimation isolée et faux ici : la
+     * réponse aurait décrit 10 000 pièces, l'écran aurait imprimé « 94 200,00 EUR
+     * HT pour 10 000 pièces » sous une grille totalisant 15 000, et l'ajout au
+     * panier aurait ensuite refusé la ligne. C'est exactement le raisonnement
+     * écrit dans `Pricing::quote_matrix` (« ON REFUSE, ON NE RABOTE PAS ») ;
+     * l'écran doit le tenir aussi, parce que c'est lui qui montre le nombre.
+     *
+     * Zéro veut toujours dire « la page n'a pas publié de plafond ».
+     */
+    const auDelaDuPlafond = this.ctx.maxQty > 0 && total > this.ctx.maxQty
+    if (this.creation.layers.length === 0 || total === 0 || auDelaDuPlafond) {
       this.faces = []
       this.devis = null
       this.devisEtat = 'vide'
@@ -960,8 +1330,59 @@ class Instance implements Editeur {
     this.rendrePrix()
   }
 
+  /** Le nombre de pièces de toute la commande, coloris et tailles confondus. */
   private quantite(): number {
-    return Object.values(this.grille).reduce((s, n) => s + n, 0)
+    let total = 0
+    for (const ligne of this.lignes) for (const n of Object.values(ligne.qte)) total += n
+    return total
+  }
+
+  /** Ce que la ligne de ce coloris totalise. */
+  private quantiteDe(ligne: LigneCommande): number {
+    return Object.values(ligne.qte).reduce((s, n) => s + n, 0)
+  }
+
+  /** Ce que cette taille totalise, tous coloris confondus. */
+  private quantiteEn(taille: string): number {
+    return this.lignes.reduce((s, l) => s + (l.qte[taille] ?? 0), 0)
+  }
+
+  /**
+   * La matrice telle que `Cart::normalise_matrix` l'attend, lignes vides jetées.
+   *
+   * Une ligne sans quantité est un coloris que le client a ouvert puis laissé à
+   * zéro : l'envoyer ferait apparaître un coloris sans pièce sur le bon de
+   * commande fournisseur, et `Purchase` chercherait à l'acheter.
+   */
+  private matrice(): Record<string, Record<string, number>> {
+    const out: Record<string, Record<string, number>> = {}
+    for (const ligne of this.lignes) {
+      if (this.quantiteDe(ligne) > 0) out[ligne.couleur] = { ...ligne.qte }
+    }
+    return out
+  }
+
+  /**
+   * La grille agrégée, somme sur les coloris, DÉRIVÉE et jamais saisie.
+   *
+   * C'est la seule implémentation de « replier la matrice sur les tailles » de
+   * ce côté-ci, exactement comme `Cart::flatten_matrix` est la seule de l'autre.
+   * Tout ce qui grade un transfert travaille par taille et se moque du coloris :
+   * la même taille se presse pareil en noir et en blanc.
+   *
+   * ELLE REPLIE `matrice()` ET NE RELIT PAS `lignes`. Les deux versions
+   * parcouraient la même liste avec le même filtre écrit deux fois ; le jour où
+   * l'un des deux filtres change, `size_grid` cesse d'être la somme de `matrix`,
+   * et `Cart::add` tire la quantité facturée de l'une pendant que la production
+   * lit l'autre. La passe adversariale du 9 septembre 2026 l'a nommé avant que
+   * ça arrive.
+   */
+  private grille(): Record<string, number> {
+    const out: Record<string, number> = {}
+    for (const cases of Object.values(this.matrice())) {
+      for (const [taille, n] of Object.entries(cases)) out[taille] = (out[taille] ?? 0) + n
+    }
+    return out
   }
 
   // --------------------------------------------------------------- l'achat
@@ -984,6 +1405,13 @@ class Instance implements Editeur {
       this.montrerEchec(COPIE.riensurLeVetement)
       return
     }
+    // « Aucun coloris » et « aucune quantité » ne sont pas la même chose à
+    // corriger, et la phrase disait « indiquez une taille » à quelqu'un dont la
+    // grille n'avait aucune ligne où en indiquer une.
+    if (this.lignes.length === 0) {
+      this.montrerEchec(COPIE.aucunColoris)
+      return
+    }
     if (total === 0) {
       this.montrerEchec(COPIE.aucuneTaille)
       return
@@ -992,7 +1420,7 @@ class Instance implements Editeur {
     // `Cart::add` refuse de toute façon ; ce contrôle-ci n'existe que pour dire
     // non avant que le client ait attendu le téléversement de son fichier.
     if (this.ctx.maxQty > 0 && total > this.ctx.maxQty) {
-      this.montrerEchec(COPIE.tropDePieces(this.ctx.maxQty))
+      this.montrerEchec(COPIE.tropDePieces(fmtNum(this.ctx.maxQty, 0)))
       return
     }
     if (this.devis?.needs_quote) {
@@ -1023,7 +1451,17 @@ class Instance implements Editeur {
      * l'est pas.
      */
     const creation = this.creation
-    const grille = { ...this.grille }
+    /*
+     * LES DEUX FORMES SONT FIGÉES ENSEMBLE, ET L'UNE DÉRIVE DE L'AUTRE.
+     *
+     * `grille()` replie `matrice()` : prendre les deux instantanés à des moments
+     * différents, ou laisser le client saisir entre les deux, produirait un
+     * `size_grid` qui ne serait pas la somme de la matrice envoyée avec lui, et
+     * `Cart::add` déduirait alors la quantité de la matrice tandis que la
+     * production lirait l'autre. Deux chiffres pour une commande.
+     */
+    const matrice = this.matrice()
+    const grille = this.grille()
     const pieces = Object.values(grille).reduce((s, n) => s + n, 0)
 
     try {
@@ -1077,10 +1515,13 @@ class Instance implements Editeur {
         designId: depose.id,
         faces: this.faces,
         grille,
+        matrice,
       })
       if (this.detruit) return
 
       this.panierUrl = panier.cartUrl
+      this.ajoutePieces = pieces
+      this.ajouteColoris = Object.keys(matrice).length
       this.phase = 'ajoute'
       this.echec = ''
       this.rendreAchat()
@@ -1143,10 +1584,12 @@ class Instance implements Editeur {
 
   private rendre(): void {
     if (this.detruit) return
+    this.rendreEtapes()
     this.rendreCouleurs()
     this.rendreFaces()
     this.rendrePhoto()
-    this.rendreTailles()
+    this.rendreMatrice()
+    this.rendreApercus()
     this.rendreOutils()
     this.rendrePrix()
     this.rendreAchat()
@@ -1155,6 +1598,34 @@ class Instance implements Editeur {
     // porte un visuel devant, vue de dos, est une face vide et le dit.
     this.noeuds.vide.hidden = this.creation.layers.some((l) => l.side === this.face)
     void this.synchroniser()
+  }
+
+  /**
+   * Quel écran est visible, et ce que l'indicateur en dit.
+   *
+   * `hidden` et pas une classe : l'attribut retire l'écran caché de l'ordre de
+   * tabulation ET de l'arbre d'accessibilité, ce qu'une opacité ou un
+   * `visibility` ne font pas. La règle `.tshop-ed [hidden]` de la feuille est ce
+   * qui l'empêche d'être annulée par le `display: grid` ci-dessous, exactement
+   * comme pour la barre d'outils.
+   */
+  private rendreEtapes(): void {
+    const pret = this.creation.layers.length > 0
+    this.noeuds.creer.hidden = this.etape !== 1
+    this.noeuds.choisir.hidden = this.etape !== 2
+    this.noeuds.valider.disabled = !pret
+    /*
+     * LA PHRASE N'EST LÀ QUE QUAND ELLE EXPLIQUE QUELQUE CHOSE. Laissée en
+     * permanence, « posez un visuel » se lit comme une consigne sous un bouton
+     * qui marche, et le client la relit en cherchant ce qu'il a raté.
+     */
+    this.noeuds.validerNote.hidden = pret || this.etape !== 1
+    for (const { etape, bouton } of this.boutonsEtape) {
+      const courant = etape === this.etape
+      bouton.disabled = etape === 2 && !pret
+      if (courant) bouton.setAttribute('aria-current', 'step')
+      else bouton.removeAttribute('aria-current')
+    }
   }
 
   /** Cocher la face en cours. Les boutons, eux, sont posés par `construire`. */
@@ -1206,12 +1677,7 @@ class Instance implements Editeur {
       // la couleur. Montrer « Rose » en rose pâle sur un vêtement qui arrivera
       // fuchsia est un chiffre fabriqué qui atteint un client.
       b.setAttribute('aria-label', c.nom)
-      b.style.setProperty(
-        '--pastille',
-        c.teintes.length > 1
-          ? `linear-gradient(135deg, ${c.teintes[0]} 0 50%, ${c.teintes[1]} 50% 100%)`
-          : c.teintes[0],
-      )
+      b.style.setProperty('--pastille', fond(c.teintes))
       b.addEventListener('click', () => this.choisirCouleur(c.id))
       zone.append(b)
     }
@@ -1240,16 +1706,117 @@ class Instance implements Editeur {
     this.noeuds.photoLegende.textContent = src === '' ? COPIE.legendeSansPhoto : COPIE.legende
   }
 
-  private rendreTailles(): void {
-    const zone = this.noeuds.tailles
+  /**
+   * LA GRILLE COLORIS x TAILLE, l'écran le plus important de la boutique.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * UN VRAI TABLEAU, PARCE QUE C'EN EST UN
+   *
+   * Une grille de `div` avec des `aria-label` aurait la même apparence et
+   * serait illisible au lecteur d'écran : dans un `table`, l'en-tête de colonne
+   * et celui de ligne sont annoncés à l'entrée de chaque case, donc « M, noir,
+   * quantité, 10 » sans qu'on ait à écrire cette phrase trois cent fois. Les
+   * `scope` sont ce qui rend cela vrai ; sans eux le navigateur devine.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * IL DÉFILE DANS SON PROPRE CONTENEUR, JAMAIS LA PAGE
+   *
+   * Six tailles plus deux colonnes de service ne tiennent pas dans 375 px. Le
+   * conteneur porte `overflow-x: auto`, un `tabindex` (une région défilante
+   * doit être atteignable au clavier, WCAG 2.1.1) et un rôle de groupe nommé,
+   * pour que ce défilement soit annoncé au lieu d'être découvert.
+   */
+  private rendreMatrice(): void {
+    const zone = this.noeuds.matrice
     vider(zone)
+
     if (this.ctx.tailles.length === 0) {
-      const p = el('p', 'tshop-ed__note')
-      p.textContent = COPIE.aucuneTailleVendue
-      zone.append(p)
+      // ÉTAT VIDE DESSINÉ : sans taille vendable, il n'y a pas de colonne, donc
+      // pas de commande. On le dit et on ne montre pas un tableau à une colonne.
+      zone.append(note(COPIE.aucuneTailleVendue))
       return
     }
+
+    if (this.lignes.length > 0) zone.append(this.tableauMatrice())
+    else zone.append(note(COPIE.aucunColoris))
+
+    zone.append(this.choixColoris())
+  }
+
+  private tableauMatrice(): HTMLElement {
+    const cadre = el('div', 'tshop-ed__defile')
+    cadre.tabIndex = 0
+    cadre.setAttribute('role', 'group')
+    cadre.setAttribute('aria-label', COPIE.matriceLegende)
+
+    const table = el('table', 'tshop-ed__grille')
+    const thead = el('thead')
+    const entete = el('tr')
+    entete.append(cellule('th', COPIE.colonneColoris, 'col'))
+    for (const taille of this.ctx.tailles) entete.append(cellule('th', taille, 'col'))
+    entete.append(cellule('th', COPIE.colonneTotal, 'col'))
+    entete.append(el('td'))
+    thead.append(entete)
+
+    const tbody = el('tbody')
+    for (const ligne of this.lignes) {
+      tbody.append(this.ligneMatrice(ligne))
+    }
+
+    /*
+     * LE PIED PORTE LES SOMMES PAR TAILLE, et il est dans un `tfoot` : c'est ce
+     * qui dit à un lecteur d'écran que cette rangée résume les précédentes.
+     */
+    const tfoot = el('tfoot')
+    const total = el('tr')
+    total.append(cellule('th', COPIE.ligneTotal, 'row'))
     for (const taille of this.ctx.tailles) {
+      const td = el('td', 'tshop-ed__somme')
+      td.setAttribute('data-teeshoop', `total-taille-${taille}`)
+      td.textContent = fmtNum(this.quantiteEn(taille), 0)
+      total.append(td)
+    }
+    const grand = el('td', 'tshop-ed__somme tshop-ed__somme--grand')
+    grand.setAttribute('data-teeshoop', 'total-pieces')
+    grand.textContent = fmtNum(this.quantite(), 0)
+    total.append(grand, el('td'))
+    tfoot.append(total)
+
+    table.append(thead, tbody, tfoot)
+    cadre.append(table)
+    return cadre
+  }
+
+  private ligneMatrice(ligne: LigneCommande): HTMLElement {
+    const couleur = this.ctx.couleurs.find((c) => c.id === ligne.couleur)
+    const nom = couleur?.nom ?? ligne.couleur
+    const tr = el('tr')
+
+    /*
+     * LA MISE EN PAGE EST DANS UN ENFANT, ET LE `th` GARDE SON DISPLAY DE
+     * CELLULE.
+     *
+     * `display: flex` posé sur un `th` remplace son type d'affichage de tableau,
+     * et l'arbre d'accessibilité des navigateurs est construit depuis l'arbre de
+     * MISE EN PAGE : la cellule cesse alors d'être un `rowheader`, donc le
+     * lecteur d'écran n'annonce plus « noir » en entrant dans chaque case de la
+     * ligne, et une grille de trente cases devient une grille de trente champs
+     * « quantité ». C'est toute la raison pour laquelle cet écran est un vrai
+     * tableau. Écrit par la passe adversariale du 9 septembre 2026, avant que ça
+     * casse : à l'écran les deux versions sont identiques.
+     */
+    const tete = el('th')
+    tete.setAttribute('scope', 'row')
+    const boite = el('div', 'tshop-ed__coloris')
+    if (couleur) boite.append(pastille(couleur.teintes))
+    const etiquette = el('span')
+    etiquette.textContent = nom
+    boite.append(etiquette)
+    tete.append(boite)
+    tr.append(tete)
+
+    for (const taille of this.ctx.tailles) {
+      const td = el('td')
       const champ = document.createElement('input')
       champ.type = 'number'
       champ.min = '0'
@@ -1257,11 +1824,17 @@ class Instance implements Editeur {
       champ.step = '1'
       champ.inputMode = 'numeric'
       champ.className = 'tshop-ed__qte'
-      champ.id = `tshop-ed-qte-${this.ctx.productId}-${taille}`
-      champ.value = this.grille[taille] ? String(this.grille[taille]) : ''
+      champ.value = ligne.qte[taille] ? String(ligne.qte[taille]) : ''
       champ.placeholder = '0'
-      champ.setAttribute('aria-label', COPIE.quantiteEn(taille))
-      champ.addEventListener('input', () => this.saisirQuantite(taille, champ.value))
+      /*
+       * LE NOM ACCESSIBLE PORTE LA TAILLE ET LE COLORIS. Les deux en-têtes de
+       * table le disent déjà, et c'est la ceinture : `aria-label` gagne sur
+       * l'association d'en-tête dans les navigateurs qui la rendent mal, et une
+       * case de quantité qui s'annonce « quantité » dans une grille de trente
+       * cases ne se remplit pas au clavier.
+       */
+      champ.setAttribute('aria-label', COPIE.quantitePour(taille, nom))
+      champ.addEventListener('input', () => this.saisirQuantite(ligne.couleur, taille, champ.value))
       /*
        * Sur `change` et pas sur `input` : normaliser à chaque frappe mangerait
        * la touche suivante. La case pouvait afficher « 1e3 » ou « 999999 »
@@ -1269,18 +1842,329 @@ class Instance implements Editeur {
        * pas ce qui sera commandé.
        */
       champ.addEventListener('change', () => {
-        const n = this.grille[taille] ?? 0
+        const n = ligne.qte[taille] ?? 0
         champ.value = n > 0 ? String(n) : ''
       })
-
-      const etiquette = document.createElement('label')
-      etiquette.className = 'tshop-ed__taille'
-      etiquette.htmlFor = champ.id
-      const nom = el('span', 'tshop-ed__taille-nom')
-      nom.textContent = taille
-      etiquette.append(nom, champ)
-      zone.append(etiquette)
+      td.append(champ)
+      tr.append(td)
     }
+
+    const somme = el('td', 'tshop-ed__somme')
+    somme.setAttribute('data-teeshoop', `total-coloris-${ligne.couleur}`)
+    somme.textContent = fmtNum(this.quantiteDe(ligne), 0)
+    tr.append(somme)
+
+    const actions = el('td')
+    const oter = document.createElement('button')
+    oter.type = 'button'
+    oter.className = 'tshop-ed__outil tshop-ed__outil--retirer'
+    oter.textContent = COPIE.retirer
+    oter.setAttribute('aria-label', COPIE.retirerColoris(nom))
+    oter.addEventListener('click', () => this.retirerLigne(ligne.couleur))
+    actions.append(oter)
+    tr.append(actions)
+    return tr
+  }
+
+  /**
+   * Les coloris qu'on peut encore ajouter, et la phrase quand il n'y en a plus.
+   *
+   * LE PLAFOND EST DIT, PAS SUBI. `Cart::normalise_matrix` s'arrête au vingtième
+   * coloris et jette les suivants sans un mot : une ligne construite au-delà
+   * partirait au panier amputée. Voir `MAX_COULEURS_DEFAUT`.
+   */
+  private choixColoris(): HTMLElement {
+    const bloc = el('div', 'tshop-ed__ajout')
+    if (this.ctx.couleurs.length === 0) {
+      bloc.append(note(COPIE.aucuneCouleur))
+      return bloc
+    }
+    if (this.lignes.length >= this.ctx.maxCouleurs) {
+      bloc.append(note(COPIE.colorisPlein(this.ctx.maxCouleurs)))
+      return bloc
+    }
+    const titre = el('p', 'tshop-ed__champ-nom')
+    titre.id = `tshop-ed-ajout-${this.ctx.productId}`
+    titre.textContent = COPIE.ajouterColoris
+    const liste = el('div', 'tshop-ed__couleurs')
+    liste.setAttribute('role', 'group')
+    liste.setAttribute('aria-labelledby', titre.id)
+    let offert = 0
+    for (const c of this.ctx.couleurs) {
+      if (this.lignes.some((l) => l.couleur === c.id)) continue
+      offert += 1
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'tshop-ed__pastille'
+      b.title = c.nom
+      b.setAttribute('aria-label', c.nom)
+      b.style.setProperty('--pastille', fond(c.teintes))
+      b.addEventListener('click', () => this.choisirLigne(c.id))
+      liste.append(b)
+    }
+    // Tous les coloris de la référence sont déjà dans la commande : la rangée
+    // vide serait un contrôle sans option, donc rien du tout.
+    if (offert === 0) return bloc
+    bloc.append(titre, liste)
+    return bloc
+  }
+
+  /** Les seuls nombres du tableau qui bougent à la frappe. Voir `saisirQuantite`. */
+  private rendreTotaux(): void {
+    const zone = this.noeuds.matrice
+    for (const ligne of this.lignes) {
+      const c = zone.querySelector(`[data-teeshoop="total-coloris-${ligne.couleur}"]`)
+      if (c) c.textContent = fmtNum(this.quantiteDe(ligne), 0)
+    }
+    for (const taille of this.ctx.tailles) {
+      const c = zone.querySelector(`[data-teeshoop="total-taille-${taille}"]`)
+      if (c) c.textContent = fmtNum(this.quantiteEn(taille), 0)
+    }
+    const g = zone.querySelector('[data-teeshoop="total-pieces"]')
+    if (g) g.textContent = fmtNum(this.quantite(), 0)
+  }
+
+  // ------------------------------------------------- les aperçus par coloris
+
+  /**
+   * Le visuel sur chaque coloris commandé, et l'avertissement de contraste.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * LE MÊME CHEMIN DE PEINTURE QUE LE CANEVAS, ET IL N'Y EN A QU'UN
+   *
+   * `renderMockup` peint le gabarit avec `garmentColorHex`, qui est
+   * `garmentHexOf` de `src/content/garmentPalette.ts`. Ce module existe parce
+   * qu'il y a eu QUATRE copies de cette recherche de teinte, avec trois replis
+   * différents, et que le jour où elles divergent le canevas 2D, l'aperçu 3D et
+   * la vignette du panier montrent trois vêtements. Un second chemin ici, même
+   * « juste pour une vignette », serait la cinquième.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * UN RENDU PAR SIGNATURE, PAS UN PAR FRAPPE
+   *
+   * Chaque caractère tapé dans une case de quantité repasse par ici. Composer
+   * vingt vêtements à chaque touche serait vingt rastérisations de SVG et vingt
+   * rendus de zone d'impression. La signature (le document plus la liste des
+   * coloris) est ce qui distingue « il faut refaire » de « il ne s'est rien
+   * passé de visible ».
+   */
+  private rendreApercus(): void {
+    const zone = this.noeuds.apercus
+    const signature = `${this.creation.updatedAt}|${this.face}|${this.lignes
+      .map((l) => l.couleur)
+      .join(',')}`
+    if (signature === this.signatureApercus && zone.childElementCount > 0) return
+    this.signatureApercus = signature
+    const jeton = ++this.jetonApercus
+
+    vider(zone)
+    if (this.lignes.length === 0) {
+      zone.append(note(COPIE.apercusVides))
+      return
+    }
+    const attente = note(COPIE.apercuEnCours)
+    attente.setAttribute('role', 'status')
+    zone.append(attente)
+    void this.composerApercus(jeton)
+  }
+
+  /**
+   * La face montrée par les aperçus : celle qu'on regarde, si elle porte
+   * quelque chose.
+   *
+   * Un aperçu du dos vierge pendant que le visuel est devant ne répond à aucune
+   * question. La légende nomme la face dès que le vêtement en porte plus d'une
+   * décorée, parce qu'alors l'image ne montre pas tout ce qui sera imprimé.
+   */
+  private facesDecorees(): Side[] {
+    return facesPermises(this.ctx).filter((f) => this.creation.layers.some((l) => l.side === f))
+  }
+
+  private faceApercu(): Side | null {
+    const decorees = this.facesDecorees()
+    if (decorees.length === 0) return null
+    return decorees.includes(this.face) ? this.face : decorees[0]
+  }
+
+  private async composerApercus(jeton: number): Promise<void> {
+    const face = this.faceApercu()
+    if (face === null) {
+      /*
+       * AUCUNE FACE PERMISE NE PORTE DE CALQUE, ET ON LE DIT PLUTÔT QUE DE
+       * LAISSER « Composition des aperçus. » À L'ÉCRAN POUR TOUJOURS.
+       *
+       * L'étape 2 s'ouvre dès qu'un calque existe, et cette fonction ne dessine
+       * que les faces que le produit déclare imprimables : un document portant
+       * un calque sur une face retirée du produit entre les deux (ou construit
+       * ailleurs) passerait la porte et n'aurait rien à montrer. Une phrase
+       * d'attente qui ne finit jamais est le pire des états non dessinés,
+       * parce qu'elle ressemble à un chargement lent.
+       */
+      vider(this.noeuds.apercus)
+      this.noeuds.apercus.append(note(COPIE.apercusVides))
+      return
+    }
+    await this.recenserEncre()
+    if (this.detruit || jeton !== this.jetonApercus) return
+
+    const zone = this.noeuds.apercus
+    vider(zone)
+    const decorees = this.facesDecorees()
+    const largeur = Math.round(APERCU_LARGEUR_CSS * Math.min(2, window.devicePixelRatio || 1))
+
+    for (const ligne of this.lignes) {
+      const couleur = this.ctx.couleurs.find((c) => c.id === ligne.couleur)
+      const carte = el('figure', 'tshop-ed__apercu-carte')
+      const nom = el('figcaption', 'tshop-ed__apercu-nom')
+      nom.textContent = couleur?.nom ?? ligne.couleur
+
+      let visuel: HTMLElement
+      try {
+        const toile = await renderMockup(
+          { ...this.creation, colorId: ligne.couleur },
+          face,
+          largeur,
+          this.tailleTarif(),
+        )
+        if (this.detruit || jeton !== this.jetonApercus) return
+        toile.className = 'tshop-ed__apercu-image'
+        toile.setAttribute('role', 'img')
+        toile.setAttribute('aria-label', COPIE.photoAlt(this.ctx.titre, couleur?.nom ?? ''))
+        toile.setAttribute('data-teeshoop', `apercu-${ligne.couleur}`)
+        visuel = toile
+      } catch {
+        if (this.detruit || jeton !== this.jetonApercus) return
+        // ÉTAT D'ÉCHEC DESSINÉ, et il dit ce qui reste vrai : la pastille est la
+        // mesure, et la commande n'est pas touchée par un aperçu qui manque.
+        visuel = alerte(COPIE.apercuRate)
+      }
+
+      carte.append(visuel, nom)
+      if (decorees.length > 1) {
+        const quelle = el('p', 'tshop-ed__apercu-note')
+        quelle.textContent = COPIE.apercuFace(COPIE.face(face))
+        carte.append(quelle)
+      }
+
+      /*
+       * LA PHOTOGRAPHIE DU FABRICANT, QUAND ELLE EXISTE VRAIMENT.
+       *
+       * Relevé le 5 septembre 2026 : le Gildan Heavy Cotton porte 54 coloris et
+       * UNE seule photographie pour les 54, parce que `Editeur::couleurs()` y
+       * met la vignette du produit. Une image identique sous vingt noms de
+       * coloris n'est pas une photographie de coloris, et la légender comme
+       * telle serait du contenu fabriqué. Le test est donc mesurable et pas
+       * déclaratif : une photographie n'est propre à un coloris que si aucun
+       * autre coloris de la référence ne porte la même. Aujourd'hui cette
+       * branche ne s'exécute sur aucun produit de la boutique, et c'est la
+       * raison pour laquelle l'aperçu peint reste l'image principale : lui seul
+       * porte le visuel, qui est la question posée ici.
+       */
+      const propre = this.photoPropre(ligne.couleur)
+      if (propre !== '') {
+        const bande = el('div', 'tshop-ed__apercu-photo')
+        const img = document.createElement('img')
+        img.src = propre
+        img.alt = COPIE.photoAlt(this.ctx.titre, couleur?.nom ?? '')
+        img.loading = 'lazy'
+        img.decoding = 'async'
+        const legende = el('p', 'tshop-ed__apercu-note')
+        legende.textContent = COPIE.apercuPhoto
+        bande.append(img, legende)
+        carte.append(bande)
+      } else {
+        const legende = el('p', 'tshop-ed__apercu-note')
+        legende.textContent = COPIE.apercuGabarit
+        carte.append(legende)
+      }
+
+      const dit = this.lireContraste(ligne.couleur)
+      if (dit) {
+        /*
+         * UNE CARTE QUI AVERTIT PREND TOUTE LA LARGEUR.
+         *
+         * Mesuré le 9 septembre 2026 sur la page de l'atelier à 375 px : dans
+         * une colonne de 145 px, la phrase sortait à trois mots par ligne sur
+         * onze lignes, et sur 1440 px c'était pire parce que la colonne des
+         * aperçus est plus étroite que l'écran. Un avertissement qu'on renonce à
+         * lire ne sert à rien, et il est justement la seule chose de cet écran
+         * qui puisse éviter un retour de marchandise.
+         */
+        carte.classList.add('tshop-ed__apercu-carte--attention')
+        carte.append(dit)
+      }
+      zone.append(carte)
+    }
+  }
+
+  /**
+   * La photographie de CE coloris, ou rien.
+   *
+   * Rien quand elle est partagée avec un autre coloris de la référence : c'est
+   * alors la vignette du produit, pas une vue de cette teinte.
+   */
+  private photoPropre(id: string): string {
+    const photo = this.ctx.couleurs.find((c) => c.id === id)?.photo ?? ''
+    if (photo === '') return ''
+    return this.ctx.couleurs.some((c) => c.id !== id && c.photo === photo) ? '' : photo
+  }
+
+  /**
+   * Recenser l'encre de la création, une fois par état du document.
+   *
+   * TOUTES LES FACES DÉCORÉES, et pas seulement celle qu'on regarde : la
+   * question posée est « ce visuel se verra-t-il sur ce tissu », et un dos
+   * illisible reste un dos illisible. La mesure est prise à faible définition,
+   * voir `COTE_RECENSEMENT_PX`.
+   */
+  private async recenserEncre(): Promise<void> {
+    const signature = String(this.creation.updatedAt)
+    if (this.encre?.signature === signature) return
+    this.lisibilite.clear()
+    const parts: Encre[] = []
+    let vu = false
+    for (const face of this.facesDecorees()) {
+      const zone = getAreaSizeIn(this.creation, face, this.tailleTarif())
+      const cote = Math.max(zone.wIn, zone.hIn)
+      if (!(cote > 0)) continue
+      try {
+        const toile = await renderPrintArea(
+          this.creation,
+          face,
+          COTE_RECENSEMENT_PX / cote,
+          this.tailleTarif(),
+        )
+        if (this.detruit) return
+        if (!toile) continue
+        const part = recenser(toile)
+        // `null` veut dire « je n'ai pas pu relire ce canevas » : on ne le
+        // compte pas comme une face sans encre, sinon le silence deviendrait un
+        // feu vert. Voir `src/native/contraste.ts`.
+        if (part === null) continue
+        vu = true
+        parts.push(part)
+      } catch {
+        if (this.detruit) return
+      }
+    }
+    this.encre = { signature, mesure: vu ? fusionner(parts) : null }
+  }
+
+  /** L'avertissement de contraste de ce coloris, ou rien quand il se lit bien. */
+  private lireContraste(id: string): HTMLElement | null {
+    let verdict = this.lisibilite.get(id)
+    if (!verdict) {
+      verdict = lisibiliteSur(this.encre?.mesure ?? null, garmentHexOf(id))
+      this.lisibilite.set(id, verdict)
+    }
+    if (verdict.etat === 'lisible') return null
+    const p = el('p', 'tshop-ed__attention')
+    p.setAttribute('data-teeshoop', `contraste-${id}`)
+    p.textContent =
+      verdict.etat === 'faible'
+        ? COPIE.contrasteFaible(fmtNum(verdict.part * 100, 0))
+        : COPIE.contrasteInconnu
+    return p
   }
 
   /**
@@ -1331,8 +2215,18 @@ class Instance implements Editeur {
       zone.append(note(COPIE.prixSansVisuel))
       return
     }
+    if (this.lignes.length === 0) {
+      zone.append(note(COPIE.aucunColoris))
+      return
+    }
     if (total === 0) {
       zone.append(note(COPIE.prixSansTaille))
+      return
+    }
+    // Au-delà du plafond de la ligne, l'écran ne chiffre pas : voir `chiffrer`,
+    // qui n'a alors rien demandé au serveur. On dit combien, et où aller.
+    if (this.ctx.maxQty > 0 && total > this.ctx.maxQty) {
+      zone.append(this.blocDevis(COPIE.tropDePieces(fmtNum(this.ctx.maxQty, 0))))
       return
     }
     if (this.devisEtat === 'chargement') {
@@ -1352,16 +2246,7 @@ class Instance implements Editeur {
       // ÉTAT « TROP DE QUELQUE CHOSE », dessiné. Au-delà du seuil la boutique
       // cesse de chiffrer et un humain prend la main ; le dire ici évite au
       // client de téléverser son fichier pour se faire refuser après.
-      const bloc = el('div', 'tshop-ed__devis')
-      bloc.append(note(COPIE.surDevis))
-      if (this.ctx.devisUrl !== '') {
-        const a = document.createElement('a')
-        a.className = 'tshop-ed__lien'
-        a.href = this.ctx.devisUrl
-        a.textContent = COPIE.demanderDevis
-        bloc.append(a)
-      }
-      zone.append(bloc)
+      zone.append(this.blocDevis(COPIE.surDevis))
       return
     }
 
@@ -1401,7 +2286,7 @@ class Instance implements Editeur {
     const montantHt = el('span')
     montantHt.setAttribute('data-teeshoop', 'total-ht')
     montantHt.textContent = d.display.total_ht
-    totalHt.append(montantHt, texte(suffixe + ' '), texte(COPIE.pour(d.qty)))
+    totalHt.append(montantHt, texte(suffixe + ' '), texte(COPIE.pour(d.qty, fmtNum(d.qty, 0))))
     zone.append(ligne, totalHt)
 
     if (bases.deux) {
@@ -1423,6 +2308,30 @@ class Instance implements Editeur {
       zone.append(totalTtc)
     }
 
+    /*
+     * ── LA REMISE, DITE PAR SON TAUX ET PAS PAR UN MONTANT ────────────────
+     *
+     * `discount_rate` est une FRACTION, ce que la mention de TVA a déjà appris à
+     * ce fichier à ses dépens : affichée telle quelle, 0,15 s'écrivait
+     * « 0,15 % » sous un total qui en portait quinze. Elle est donc multipliée
+     * par cent ici, et par cent seulement : le MONTANT de la remise n'est pas
+     * recalculé, parce que ce serait une seconde arithmétique de l'argent à
+     * côté de `Money::pct`, et les totaux affichés au-dessus la contiennent
+     * déjà. Un taux n'est pas un prix payable ; ce total-là, si.
+     *
+     * Le taux est arrondi au dixième de point, puis écrit sans décimale quand
+     * il n'en a pas : les paliers de la boutique sont à 15, 25 et 35 %, et
+     * « 15,0 % » sous un chiffre rond se lit comme une précision qui cache
+     * quelque chose.
+     */
+    if (d.discount_rate > 0) {
+      const pourcent = Math.round(d.discount_rate * 1000) / 10
+      const remise = el('p', 'tshop-ed__remise')
+      remise.setAttribute('data-teeshoop', 'remise')
+      remise.textContent = COPIE.remise(fmtNum(pourcent, Number.isInteger(pourcent) ? 0 : 1))
+      zone.append(remise)
+    }
+
     // La phrase du régime, écrite par `Vat` et reprise telle quelle. Vide quand
     // le régime n'est pas connu, et l'écran se tait alors.
     if (bases.mention !== '') {
@@ -1431,6 +2340,27 @@ class Instance implements Editeur {
       mention.textContent = bases.mention
       zone.append(mention)
     }
+  }
+
+  /**
+   * « Nous ne chiffrons plus, un humain prend la main », avec le lien qui va.
+   *
+   * Les deux cas qui l'utilisent sont différents (le seuil de devis publié par
+   * la boutique, et le plafond d'une ligne de panier) et la sortie est la même :
+   * ce n'est pas un refus, c'est un autre guichet. Deux rédactions du même bloc
+   * auraient fini par en avoir une avec le lien et une sans.
+   */
+  private blocDevis(phrase: string): HTMLElement {
+    const bloc = el('div', 'tshop-ed__devis')
+    bloc.append(note(phrase))
+    if (this.ctx.devisUrl !== '') {
+      const a = document.createElement('a')
+      a.className = 'tshop-ed__lien'
+      a.href = this.ctx.devisUrl
+      a.textContent = COPIE.demanderDevis
+      bloc.append(a)
+    }
+    return bloc
   }
 
   private rendreAchat(): void {
@@ -1450,18 +2380,37 @@ class Instance implements Editeur {
     vider(zone)
     if (this.phase === 'ajoute') {
       // LE CONTRÔLE DIT CE QUI VA SE PASSER, LA CONFIRMATION DIT QUE C'EST
-      // FAIT. « Ajouter au panier », puis « Ajouté au panier ».
+      // FAIT. « Ajouter au panier », puis « Ajouté au panier », puis ce qui a
+      // été ajouté : deux nombres qui se comparent à la grille encore à l'écran.
       const p = el('p', 'tshop-ed__ok')
       p.setAttribute('data-teeshoop', 'cart-done')
-      p.textContent = COPIE.ajoute
+      p.textContent = `${COPIE.ajoute} ${COPIE.ajouteQuoi(this.ajoutePieces, fmtNum(this.ajoutePieces, 0), this.ajouteColoris)}`
       zone.append(p)
+      /*
+       * DEUX SORTIES, ET LA SECONDE N'EST PAS UN LIEN.
+       *
+       * « Voir le panier » quitte cette page. « Continuer la personnalisation »
+       * ne quitte rien : la création est encore là, les octets du visuel sont
+       * dans IndexedDB, et un client qui veut une seconde série (d'autres
+       * coloris, d'autres tailles) n'a pas à tout recommencer. En faire un lien
+       * aurait annoncé une navigation qui n'a pas lieu.
+       */
+      const sorties = el('div', 'tshop-ed__sorties')
       if (this.panierUrl !== '') {
         const a = document.createElement('a')
         a.className = 'tshop-ed__lien'
         a.href = this.panierUrl
         a.textContent = COPIE.voirPanier
-        zone.append(a)
+        sorties.append(a)
       }
+      const continuer = document.createElement('button')
+      continuer.type = 'button'
+      continuer.className = 'tshop-ed__outil'
+      continuer.setAttribute('data-teeshoop', 'continuer')
+      continuer.textContent = COPIE.continuer
+      continuer.addEventListener('click', () => this.allerA(1))
+      sorties.append(continuer)
+      zone.append(sorties)
       return
     }
     if (this.phase === 'echec' && this.echec !== '') {
@@ -1576,6 +2525,40 @@ function section(titre: string, ...contenu: (HTMLElement | Node)[]): HTMLElement
   h.textContent = titre
   s.append(h, ...contenu)
   return s
+}
+
+/**
+ * Le fond d'une pastille de coloris : une teinte, ou deux pour un chiné.
+ *
+ * Le dégradé à 135 degrés est deux moitiés franches et pas un fondu : un chiné
+ * est un tissu à deux fils, et la moyenne des deux est une couleur que le
+ * fournisseur ne vend pas. C'était écrit dans `rendreCouleurs` ; il fallait la
+ * même chose dans la grille et dans le choix des coloris, et trois copies d'une
+ * règle de peinture est exactement ce que `garmentPalette.ts` a été écrit pour
+ * supprimer, un étage plus bas.
+ */
+function fond(teintes: readonly string[]): string {
+  return teintes.length > 1
+    ? `linear-gradient(135deg, ${teintes[0]} 0 50%, ${teintes[1]} 50% 100%)`
+    : teintes[0]
+}
+
+/** Une pastille décorative : le nom du coloris est écrit à côté, en toutes lettres. */
+function pastille(teintes: readonly string[]): HTMLElement {
+  const p = el('span', 'tshop-ed__puce')
+  p.style.setProperty('--pastille', fond(teintes))
+  // `aria-hidden` parce que la couleur est déjà nommée par le texte voisin : un
+  // lecteur d'écran annoncerait sinon un élément vide entre chaque nom.
+  p.setAttribute('aria-hidden', 'true')
+  return p
+}
+
+/** Une cellule d'en-tête, avec sa portée déclarée plutôt que devinée. */
+function cellule(tag: 'th' | 'td', contenu: string, scope?: string): HTMLElement {
+  const c = el(tag)
+  c.textContent = contenu
+  if (scope) c.setAttribute('scope', scope)
+  return c
 }
 
 function note(phrase: string): HTMLParagraphElement {

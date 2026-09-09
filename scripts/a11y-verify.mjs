@@ -96,6 +96,22 @@ const PAGES = [
   ['catalogue', '/shop/'],
   ['categorie', '/categorie/t-shirts/'],
   ['produit', '/produit/bc-e150-t-shirt-a-personnaliser-01542/'],
+  /*
+   * L'ATELIER, parce que c'est LÀ qu'on achète depuis le 9 septembre 2026.
+   *
+   * La fiche produit ne porte plus le personnalisateur : elle porte un lien vers
+   * `/personnaliser/{produit}/` (`includes/Atelier.php`). Cette liste auditait
+   * donc toutes les pages du parcours SAUF celle où le client pose son visuel,
+   * choisit ses coloris et ses quantités, et clique « Ajouter au panier ».
+   *
+   * CE QUI EST COUVERT ET CE QUI NE L'EST PAS, dit plutôt que sous-entendu :
+   * cette page ouvre sur l'ÉTAPE 1, le canevas et ses contrôles. L'étape 2, la
+   * grille coloris x taille, exige un visuel déposé, ce que ce harnais ne sait
+   * pas faire ; elle est photographiée et pilotée par
+   * `scripts/wp-e2e-verify.mjs` et `scripts/editeur-shots.mjs`. Auditer la
+   * moitié atteignable vaut mieux que n'auditer aucune des deux.
+   */
+  ['atelier', '/personnaliser/bc-e150-t-shirt-a-personnaliser-01542/'],
   ['panier', '/cart/'],
   ['devis', '/devis/'],
   ['commande', '/checkout/'],

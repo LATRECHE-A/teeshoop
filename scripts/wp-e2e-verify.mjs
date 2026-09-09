@@ -393,10 +393,25 @@ try {
   // only that nothing was charged, which is right for a customer and useless
   // for a harness: a failed run cost a debugging cycle to learn the code.
   const cartReplies = []
+  /*
+   * CE QUE L'ÉDITEUR A VRAIMENT ENVOYÉ AU PANIER, et pas ce qu'il croit avoir
+   * envoyé. La matrice coloris x taille est la seule chose que `Cart::add` lise
+   * pour savoir quoi acheter chez le fournisseur : une régression qui la
+   * laisserait tomber donnerait un panier au bon prix, une facture juste, et un
+   * bon de commande sans coloris. Rien plus haut dans la pile ne le verrait.
+   */
+  let cartRequest = null
   page.on('response', async (res) => {
     if (!res.url().includes('teeshoop/v1/cart')) return
     const body = await res.text().catch(() => '')
     cartReplies.push(`HTTP ${res.status()} ${body.slice(0, 300)}`)
+    if (cartRequest === null) {
+      try {
+        cartRequest = JSON.parse(res.request().postData() ?? 'null')
+      } catch {
+        cartRequest = 'illisible'
+      }
+    }
   })
 
   page.on('requestfinished', (req) => {
@@ -434,9 +449,37 @@ try {
    * aux trois endroits qui doivent s'accorder, un identifiant fabriqué est
    * refusé, et la moitié privée reste privée.
    */
-  const editeur = page.locator('[data-teeshoop-editeur]')
-  ok('the product page carries exactly one editor', (await editeur.count()) === 1)
   ok('and no studio iframe at all', (await page.locator('iframe.teeshoop-studio__frame').count()) === 0)
+
+  /*
+   * ── L'ÉDITEUR A SA PAGE, ET LE HARNAIS SUIT LE MÊME LIEN QUE LE CLIENT ───
+   *
+   * Depuis le 9 septembre 2026 la fiche produit ne porte plus le
+   * personnalisateur dans sa fente d'achat : elle porte un lien vers
+   * `/personnaliser/{produit}/` (`includes/Atelier.php`, et la justification
+   * est dans `templates/teeshoop/product-cta.php`). Le harnais CLIQUE ce lien
+   * au lieu de connaître l'adresse : c'est le chemin du client, et un harnais
+   * qui composerait l'URL lui-même passerait encore le jour où le lien
+   * disparaît de la fiche, c'est-à-dire le jour où plus personne ne trouve
+   * l'atelier.
+   *
+   * L'ÉDITEUR EN LIGNE RESTE UN CAS VALABLE et il n'est pas retiré :
+   * `Editeur::rendre()` est toujours ce qui pose le point de montage, et un
+   * produit que l'atelier ne peut pas servir n'a pas de lien. Le harnais prend
+   * donc celui des deux qui est là.
+   */
+  const lienAtelier = page.locator('[data-teeshoop-atelier-link]')
+  // Compté sur la FICHE, avant de la quitter : c'est là que la double question
+  // pouvait exister, et l'assertion plus bas ne pourrait plus le voir après.
+  const estimateursSurLaFiche = await page.locator('[data-teeshoop-estimator]').count()
+  if ((await page.locator('[data-teeshoop-editeur]').count()) === 0) {
+    if (!ok('the product page offers a way into the customiser', (await lienAtelier.count()) === 1))
+      bail('the product page carries neither the editor nor a link to it')
+    await lienAtelier.first().click()
+    await page.waitForLoadState('domcontentloaded')
+  }
+  const editeur = page.locator('[data-teeshoop-editeur]')
+  ok('exactly one editor is mounted where the customiser lives', (await editeur.count()) === 1)
   await editeur.scrollIntoViewIfNeeded()
 
   /*
@@ -539,6 +582,22 @@ try {
   }
 
   /*
+   * ── DEUX ÉTAPES, ET LA SECONDE EST FERMÉE TANT QU'IL N'Y A RIEN À VENDRE ──
+   *
+   * Le passage n'est pas décoratif : `src/native/editeur.ts` refuse l'étape 2
+   * sans calque, et le contrôle DIT pourquoi au lieu de rester inerte. Les deux
+   * moitiés comptent, donc l'état fermé est lu avant le dépôt du visuel, plus
+   * haut, et ici on vérifie qu'il s'est ouvert.
+   */
+  const valider = page.locator('[data-teeshoop="valider-creation"]')
+  ok(
+    'the step that asks for quantities opens once artwork is placed',
+    (await valider.count()) === 1 && !(await valider.isDisabled()),
+  )
+  await valider.click()
+  await page.locator('.tshop-ed__grille').waitFor({ timeout: 20000 })
+
+  /*
    * UNE SEULE QUESTION, POSÉE UNE SEULE FOIS.
    *
    * La boîte d'achat demandait la quantité, les tailles et le nombre de faces,
@@ -546,15 +605,28 @@ try {
    * qu'une grille sur la page, et c'est celle de l'éditeur.
    */
   ok(
-    'the page asks for the size breakdown exactly once',
-    (await page.locator('[data-teeshoop-estimator]').count()) === 0 &&
+    'the size breakdown is asked for exactly once, on one screen',
+    estimateursSurLaFiche === 0 &&
+      (await page.locator('[data-teeshoop-estimator]').count()) === 0 &&
       (await page.locator('.tshop-ed__qte').count()) > 0,
-    `${await page.locator('.tshop-ed__qte').count()} cases de taille, ${await page
-      .locator('[data-teeshoop-estimator]')
-      .count()} formulaire(s) d'estimation`,
+    `${await page.locator('.tshop-ed__qte').count()} cases de quantité, ` +
+      `${estimateursSurLaFiche} formulaire(s) d'estimation sur la fiche`,
   )
 
-  const qtyField = page.getByLabel('Quantité en M')
+  /*
+   * ET ELLE PORTE LE COLORIS EN PLUS DE LA TAILLE. Avant le 9 septembre 2026,
+   * trois coloris demandaient trois lignes de panier, et `Pricing::qty_discount`
+   * s'appliquant par ligne, le client payait plus cher POUR AVOIR CHOISI
+   * PLUSIEURS COULEURS. La grille est ce qui supprime cela, donc sa deuxième
+   * dimension est une assertion et pas un détail d'écran.
+   */
+  ok(
+    'and the grid has a colour dimension, not only sizes',
+    (await page.locator('.tshop-ed__grille tbody .tshop-ed__coloris').count()) >= 1,
+    `${await page.locator('.tshop-ed__grille tbody tr').count()} ligne(s) de coloris`,
+  )
+
+  const qtyField = page.getByLabel('Quantité en M').first()
   await qtyField.fill(String(ORDER_QTY))
   await page.locator('[data-teeshoop="price"]').waitFor({ timeout: 30000 })
   const shownTtc = await settledText(page.locator('[data-teeshoop="total-ttc"]'))
@@ -591,6 +663,35 @@ try {
   }
   ok('the editor reports the line was added', true, `${Math.round((Date.now() - startedAt) / 100) / 10} s`)
   await shot('wp-e2e-4-added')
+
+  /*
+   * LA MATRICE EST DANS LE CORPS, ET SA SOMME EST `size_grid`.
+   *
+   * `Cart::add` lit `matrix` en priorité et en déduit la grille par
+   * `flatten_matrix` ; il ne retombe sur `size_grid` que si la matrice est vide.
+   * Les deux voyagent donc ensemble et doivent totaliser la même chose : si
+   * elles divergent, la quantité facturée vient de l'une et ce que l'atelier
+   * presse vient de l'autre. C'est le genre d'écart qu'aucun test pur ne peut
+   * voir, parce qu'il naît entre deux objets construits au même endroit.
+   */
+  const corps = cartRequest
+  const matrice = corps && typeof corps === 'object' ? corps.matrix : null
+  const sommeMatrice =
+    matrice && typeof matrice === 'object'
+      ? Object.values(matrice).reduce(
+          (s, cases) => s + Object.values(cases ?? {}).reduce((t, n) => t + Number(n), 0),
+          0,
+        )
+      : -1
+  const sommeGrille =
+    corps && typeof corps === 'object' && corps.size_grid
+      ? Object.values(corps.size_grid).reduce((t, n) => t + Number(n), 0)
+      : -2
+  ok(
+    'the request carries the colour x size matrix, and size_grid is its sum',
+    sommeMatrice > 0 && sommeMatrice === sommeGrille && sommeMatrice === Number(corps.qty),
+    JSON.stringify({ matrix: matrice, size_grid: corps?.size_grid, qty: corps?.qty }),
+  )
 
   if (upload)
     console.log(

@@ -15,7 +15,7 @@
  *   première phrase est une déclaration fiscale faite à un client.
  */
 import { describe, expect, it } from 'vitest'
-import { facesPermises, lireContexte } from './contexte'
+import { MAX_COULEURS_DEFAUT, facesPermises, lireContexte } from './contexte'
 
 /** Le minimum sans lequel `lireContexte` refuse tout. */
 const BASE = { productId: '169880', garment: 'tee', restUrl: 'http://x/wp-json/teeshoop/v1/' }
@@ -194,6 +194,130 @@ describe('les faces imprimables, qui décident où un calque peut aller', () => 
   it('écarte ce qui n’est pas une face que le dessin connaît', () => {
     expect(facesPermises({ faces: ['front', 'capuche', 'poche'] })).toEqual(['front'])
     expect(facesPermises({ faces: ['capuche'] })).toEqual([])
+  })
+})
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LA PAGE DÉDIÉE : UN BOOLÉEN ET DEUX URL, DONT UNE DEVIENT UN `href`
+ *
+ * `productUrl` est posée sur un lien que le client clique. C'est le seul champ
+ * de ce contrat qui devienne une destination, et c'est exactement la mise en
+ * garde écrite au-dessus de `devisUrl` : le jour où quelqu'un rend une adresse
+ * administrable, il faut la filtrer comme la photographie l'est, ou une adresse
+ * `javascript:` devient un lien cliquable sur une page de la boutique.
+ */
+describe('la page dédiée, et ses deux adresses', () => {
+  it('n’est pas une page dédiée tant que la page ne l’a pas dit', () => {
+    const c = lireContexte(BASE)
+    expect(c?.atelier).toBe(false)
+    expect(c?.productUrl).toBe('')
+    expect(c?.productImage).toBe('')
+  })
+
+  it('lit le booléen sous les trois formes que wp_localize_script produit', () => {
+    expect(lireContexte({ ...BASE, atelier: true })?.atelier).toBe(true)
+    expect(lireContexte({ ...BASE, atelier: '1' })?.atelier).toBe(true)
+    expect(lireContexte({ ...BASE, atelier: 1 })?.atelier).toBe(true)
+  })
+
+  it('et rien d’autre ne vaut vrai', () => {
+    for (const v of ['0', 0, 'oui', 'true', false, null, {}]) {
+      expect(lireContexte({ ...BASE, atelier: v })?.atelier).toBe(false)
+    }
+  })
+
+  it('garde une adresse de la boutique, absolue ou relative', () => {
+    const c = lireContexte({
+      ...BASE,
+      productUrl: 'https://boutique.test/produit/tee-noir/',
+      productImage: '/wp-content/uploads/tee.jpg',
+    })
+    expect(c?.productUrl).toBe('https://boutique.test/produit/tee-noir/')
+    expect(c?.productImage).toBe('/wp-content/uploads/tee.jpg')
+  })
+
+  it('jette une adresse `javascript:`, et le lien n’existe alors pas', () => {
+    const c = lireContexte({
+      ...BASE,
+      productUrl: 'javascript:alert(1)',
+      productImage: 'javascript:alert(1)',
+    })
+    expect(c?.productUrl).toBe('')
+    expect(c?.productImage).toBe('')
+  })
+
+  /*
+   * LE MÊME FILTRE QUE LA PHOTOGRAPHIE, DONC LES MÊMES REFUS. `//` et `/\` sont
+   * la même chose pour un navigateur, qui normalise la barre inverse : les deux
+   * repartent sur une autre origine, et le second passait un contrôle qui ne
+   * regardait que le premier.
+   */
+  it('jette tout ce qui repart sur une autre origine, et tout ce qui n’est pas http', () => {
+    const url = (v: unknown) => lireContexte({ ...BASE, productUrl: v })?.productUrl
+    expect(url('//evil.tld/')).toBe('')
+    expect(url('/\\evil.tld/')).toBe('')
+    expect(url('data:text/html,<script>alert(1)</script>')).toBe('')
+    expect(url('vbscript:msgbox(1)')).toBe('')
+    expect(url(42)).toBe('')
+  })
+})
+
+/*
+ * LE PLAFOND DE COLORIS N'A PAS DE « NON PUBLIÉ » UTILISABLE, contrairement à
+ * `maxQty` : sans borne, l'écran construirait plus de lignes que la matrice n'en
+ * porte et `Cart::normalise_matrix` jetterait les dernières en silence. L'en-tête
+ * de la constante écrit la différence entre les deux plafonds.
+ */
+describe('le plafond de coloris d’une ligne', () => {
+  it('vaut le défaut quand la page ne le publie pas', () => {
+    expect(lireContexte(BASE)?.maxCouleurs).toBe(MAX_COULEURS_DEFAUT)
+  })
+
+  it('et la valeur publiée quand elle l’est', () => {
+    expect(lireContexte({ ...BASE, maxColours: '3' })?.maxCouleurs).toBe(3)
+  })
+
+  it('borne une valeur absurde plutôt que de la croire', () => {
+    expect(lireContexte({ ...BASE, maxColours: '-5' })?.maxCouleurs).toBe(MAX_COULEURS_DEFAUT)
+    expect(lireContexte({ ...BASE, maxColours: '9999' })?.maxCouleurs).toBe(64)
+    expect(lireContexte({ ...BASE, maxColours: 'beaucoup' })?.maxCouleurs).toBe(MAX_COULEURS_DEFAUT)
+  })
+})
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LES TAILLES SONT NORMALISÉES COMME LE PANIER LES NORMALISE
+ *
+ * `Cart::normalise_size_grid` met en majuscules, retire le non alphanumérique,
+ * jette au-delà de quatre caractères et s'arrête à douze entrées. Offrir une
+ * taille que le panier réécrit, c'est faire saisir une quantité sous un nom que
+ * la commande ne portera pas ; en offrir une treizième, c'est la faire saisir
+ * pour rien. Et la clé devient un sélecteur d'attribut à chaque frappe.
+ */
+describe('les tailles offertes sont celles que le panier acceptera', () => {
+  const tailles = (v: unknown) => lireContexte({ ...BASE, sizes: v })?.tailles
+
+  it('met en majuscules et déduplique', () => {
+    expect(tailles(['s', 'M', 'm', 'l'])).toEqual(['S', 'M', 'L'])
+  })
+
+  it('écarte ce que le panier réécrirait plutôt que de l’offrir sous un autre nom', () => {
+    expect(tailles(['M', 'm-1', '3 XL', 'TAILLEUNIQUE', ''])).toEqual(['M', 'M1', '3XL'])
+  })
+
+  it('n’offre pas de treizième taille, que le panier jetterait en silence', () => {
+    const beaucoup = Array.from({ length: 20 }, (_, i) => `T${i}`)
+    expect(tailles(beaucoup)?.length).toBe(12)
+  })
+
+  /*
+   * LA CLÉ DEVIENT UN SÉLECTEUR. `rendreTotaux` cherche
+   * `[data-teeshoop="total-taille-<clé>"]` à chaque caractère tapé : un
+   * guillemet dedans faisait lever `querySelector` au milieu de la saisie.
+   */
+  it('ne laisse passer ni guillemet ni crochet dans une clé', () => {
+    expect(tailles(['M"]', "L']"])).toEqual(['M', 'L'])
   })
 })
 

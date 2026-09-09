@@ -62,11 +62,67 @@ export const COPIE = {
   // --------------------------------------------------------------- contrôles
   couleurLegende: 'Couleur',
   visuelLegende: 'Votre visuel',
-  taillesLegende: 'Tailles et quantités',
   deposer: 'Choisir un fichier',
   centrer: 'Centrer',
   retirer: 'Retirer',
-  quantiteEn: (taille: string): string => `Quantité en ${taille}`,
+
+  // ------------------------------------------------------------- les étapes
+  /*
+   * LE NOM ACCESSIBLE CONTIENT L'ÉTIQUETTE VISIBLE, WCAG 2.2 critère 2.5.3.
+   * « 2. Choisir » est ce qui est écrit sur la pastille et ce qu'une commande
+   * vocale prononcera ; la suite de la phrase est là parce que « Choisir »
+   * seul, dans une boutique, ne dit pas choisir quoi.
+   */
+  etapesLegende: 'Étapes de la personnalisation',
+  etapeCreer: '1. Créer',
+  etapeCreerLong: '1. Créer votre visuel sur le vêtement',
+  etapeChoisir: '2. Choisir',
+  etapeChoisirLong: '2. Choisir les coloris, les tailles et les quantités',
+  valider: 'Valider ma création',
+  /*
+   * LA COMMANDE DÉSACTIVÉE DIT POURQUOI, et cette phrase est aussi celle que
+   * `aria-describedby` fait lire. Un bouton grisé sans raison est un bouton sur
+   * lequel un client clique trois fois avant de partir.
+   */
+  validerSansVisuel:
+    'Posez un visuel sur le vêtement, puis passez aux coloris et aux quantités.',
+  revenir: 'Revenir à ma création',
+  retourProduit: 'Revenir à la fiche produit',
+
+  // ------------------------------------------------- coloris et quantités
+  matriceLegende: 'Coloris, tailles et quantités',
+  colonneColoris: 'Coloris',
+  colonneTotal: 'Total',
+  ligneTotal: 'Total par taille',
+  quantitePour: (taille: string, couleur: string): string =>
+    `Quantité en ${taille}, coloris ${couleur}`,
+  totalDuColoris: (couleur: string): string => `Total du coloris ${couleur}`,
+  ajouterColoris: 'Ajouter un coloris',
+  retirerColoris: (couleur: string): string => `Retirer le coloris ${couleur}`,
+  colorisPlein: (max: number): string =>
+    `Une commande porte au plus ${max} coloris. Pour en commander d’autres, ajoutez cette ligne au panier puis recommencez, ou demandez-nous un devis.`,
+  aucunColoris: 'Choisissez un premier coloris pour saisir vos quantités.',
+
+  // ------------------------------------------------------ aperçu par coloris
+  apercusLegende: 'Votre visuel sur chaque coloris',
+  apercusVides: 'Les aperçus s’affichent dès qu’un coloris est choisi.',
+  apercuEnCours: 'Composition des aperçus.',
+  apercuRate:
+    'Cet aperçu n’a pas pu être composé. Votre visuel et votre commande ne sont pas touchés : la pastille montre la couleur mesurée sur la puce du fabricant.',
+  apercuGabarit:
+    'Gabarit à l’échelle, peint avec la couleur mesurée sur la puce du fabricant.',
+  apercuPhoto: 'Photographie de ce coloris par le fabricant.',
+  apercuFace: (face: string): string => `Vue : ${face.toLowerCase()}`,
+  /*
+   * LE POURCENTAGE EST MESURÉ, PAS QUALIFIÉ. « Le contraste est faible » ne dit
+   * rien qu'un client puisse peser ; « 78 % de votre visuel » se regarde sur
+   * l'aperçu juste au-dessus. Le seuil de 3 pour 1 est celui de WCAG 2.2,
+   * critère 1.4.11, et sa dérivation est écrite dans `src/native/contraste.ts`.
+   */
+  contrasteFaible: (part: string): string =>
+    `Sur ce coloris, ${part} % de votre visuel reste sous un contraste de 3 pour 1 : le motif risque de ne pas se détacher du tissu. Choisissez un coloris plus clair ou plus foncé, ou donnez un contour à votre visuel.`,
+  contrasteInconnu:
+    'Nous n’avons pas pu mesurer le contraste de votre visuel sur ce coloris. Regardez l’aperçu ci-dessus : si le motif se confond avec le tissu, choisissez un autre coloris.',
 
   // ------------------------------------------------------------------ faces
   /*
@@ -103,14 +159,38 @@ export const COPIE = {
   aucuneTailleVendue:
     'Aucune taille n’est déclarée pour cette référence. Demandez-nous un devis, nous vérifions ce que le fabricant peut fournir.',
   prixSansVisuel: 'Le prix s’affiche dès qu’un visuel est posé.',
-  prixSansTaille: 'Indiquez au moins une taille pour voir le prix.',
+  prixSansTaille: 'Indiquez au moins une quantité pour voir le prix.',
   prixEnCours: 'Calcul du prix.',
 
   // ----------------------------------------------------------------- le prix
-  pour: (pieces: number): string => `pour ${pieces} ${pieces > 1 ? 'pièces' : 'pièce'}`,
+  /*
+   * LE NOMBRE ARRIVE DÉJÀ ÉCRIT, ET C'EST LA MÊME RÈGLE QUE POUR LES MONTANTS.
+   *
+   * `CLAUDE.md` section 6 : un nombre en prose française s'écrit à la française.
+   * Mesuré le 9 septembre 2026 sur l'atelier du miroir, la phrase de refus
+   * sortait « dépasse 10000 pièces » ; l'appelant passe maintenant
+   * `fmtNum(n, 0)`, qui est le formateur que le reste du paquet utilise déjà,
+   * plutôt qu'un second `Intl.NumberFormat` construit ici. Le COMPTE reste
+   * passé à part parce que c'est lui qui décide du pluriel, et pas la chaîne.
+   */
+  pour: (pieces: number, ecrit: string): string =>
+    `pour ${ecrit} ${pieces > 1 ? 'pièces' : 'pièce'}`,
   suffixeHt: ' HT',
   suffixeTtc: ' TTC',
-  laPiece: ' la pièce',
+  /*
+   * « EN MOYENNE », ET C'EST EXACT DANS LES DEUX MONDES.
+   *
+   * Aujourd'hui chaque case de la grille porte le même prix unitaire : le tarif
+   * de la boutique est celui de la FAMILLE, et `Cart::cells_for` laisse
+   * délibérément `blank_ht` absent, donc `Pricing::quote_matrix` chiffre toutes
+   * les cases avec le même nu. La moyenne de valeurs égales est cette valeur, et
+   * le mot reste juste. Le jour où l'associé répond « oui, un supplément par
+   * taille » (la question est dans `QUESTIONS-ASSOCIE.md`), les cases cessent
+   * d'être égales et cette étiquette est déjà la bonne, au lieu d'annoncer un
+   * prix unitaire que la moitié des pièces ne paierait pas.
+   */
+  laPiece: ' la pièce en moyenne',
+  remise: (pourcent: string): string => `Remise quantité incluse : ${pourcent} %`,
   prixIndisponible:
     'Le prix n’a pas pu être calculé. Rechargez la page, puis réessayez : rien n’a été facturé.',
   surDevis:
@@ -120,7 +200,16 @@ export const COPIE = {
   // ----------------------------------------------------------------- l'achat
   ajouter: 'Ajouter au panier',
   ajoute: 'Ajouté au panier.',
+  /*
+   * LA CONFIRMATION DIT CE QUI A ÉTÉ AJOUTÉ, et pas seulement que ça l'a été.
+   * « Ajouté au panier » sous une commande de 33 pièces en trois coloris ne
+   * permet pas de vérifier qu'on a bien commandé ce qu'on croit ; les deux
+   * nombres, eux, se comparent à la grille qui est encore à l'écran.
+   */
+  ajouteQuoi: (pieces: number, ecrit: string, coloris: number): string =>
+    `${ecrit} ${pieces > 1 ? 'pièces' : 'pièce'} en ${coloris} coloris.`,
   voirPanier: 'Voir le panier',
+  continuer: 'Continuer la personnalisation',
   phaseMesure: 'Mesure de votre visuel.',
   phaseDepot: 'Envoi de votre visuel.',
   phaseAjout: 'Ajout au panier.',
@@ -128,7 +217,7 @@ export const COPIE = {
     'L’article n’a pas pu être ajouté. Rien n’a été facturé : rechargez la page, puis réessayez.',
   riensurLeVetement: 'Posez d’abord un visuel sur le vêtement.',
   aucuneTaille: 'Indiquez au moins une taille et une quantité.',
-  tropDePieces: (max: number): string =>
+  tropDePieces: (max: string): string =>
     `Cette commande dépasse ${max} pièces sur une seule ligne. Demandez-nous un devis, nous la traitons à la main.`,
   depotNonConfigure:
     'Cette boutique n’a pas d’espace de dépôt configuré pour les créations, donc votre visuel ne peut pas être conservé. Écrivez-nous, nous prenons la commande à la main.',

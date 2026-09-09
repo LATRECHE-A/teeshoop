@@ -33,6 +33,18 @@
 	--tshop-accent-ink: var(--ts-accent-ink, #ffffff);
 	--tshop-ink: var(--ts-ink, #242424);
 	--tshop-muted: var(--ts-muted, #767676);
+	/*
+	 * LE GRIS QUI TIENT SUR LE FOND GRIS, ET C'EST UNE MESURE DE `tokens.css`.
+	 *
+	 * `--ts-muted` y est annoté « on paper 4,54:1. ON PAPER ONLY: 4,24:1 on
+	 * surface ». Les états désactivés de cette feuille sont posés sur
+	 * `--tshop-surface`, donc ils tombaient à 4,24:1 pour un seuil de 4,5:1 :
+	 * mesuré le 9 septembre 2026 par `npm run verify:a11y` sur « Valider ma
+	 * création », le jour où la page de l'atelier est entrée dans la liste des
+	 * pages auditées. `--ts-muted-strong` est la même teinte assombrie, mesurée
+	 * à 4,55:1 sur ce fond-là.
+	 */
+	--tshop-muted-strong: var(--ts-muted-strong, #717171);
 	--tshop-paper: var(--ts-paper, #ffffff);
 	--tshop-surface: var(--ts-surface, #f6f7f9);
 	--tshop-line: var(--ts-line, #dce0e5);
@@ -40,6 +52,18 @@
 	--tshop-bad: var(--ts-bad, #b3261e);
 	--tshop-bad-wash: var(--ts-bad-wash, #fdeeed);
 	--tshop-bad-ink: var(--ts-bad-ink, #8c1d18);
+	/*
+	 * L'AVERTISSEMENT A SA PROPRE COULEUR, SÉPARÉE DE L'ACCENT DE MARQUE.
+	 *
+	 * Le contraste faible d'un visuel sur un coloris n'est ni une erreur (rien
+	 * n'est refusé, et un marquage ton sur ton se vend) ni une réussite. Le
+	 * peindre en rouge ferait chercher au client ce qu'il a cassé ; le peindre
+	 * en navire de marque le rendrait invisible au milieu du reste.
+	 * `tokens.css` mesure `--ts-warn-ink` à 7,49:1 sur son propre fond.
+	 */
+	--tshop-warn: var(--ts-warn, #a85b00);
+	--tshop-warn-wash: var(--ts-warn-wash, #fdf6ec);
+	--tshop-warn-ink: var(--ts-warn-ink, #6b4a12);
 	--tshop-good-wash: var(--ts-good-wash, #eef7f2);
 	--tshop-good-ink: var(--ts-good-ink, #0b5c3b);
 	--tshop-radius: var(--ts-radius, 10px);
@@ -78,6 +102,103 @@
  */
 .tshop-ed [hidden] {
 	display: none;
+}
+
+/* ------------------------------------------- l'en-tête de la page dédiée */
+
+/*
+ * Il n'existe QUE sur la page dédiée : dans la fiche produit, le titre et
+ * l'image sont déjà au-dessus de l'éditeur, et les répéter serait dire deux
+ * fois la même chose à trois centimètres d'intervalle.
+ */
+.tshop-ed__entete {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+	padding-bottom: 0.75rem;
+	border-bottom: 1px solid var(--tshop-line);
+}
+
+.tshop-ed__retour {
+	color: var(--tshop-accent);
+	font-weight: var(--ts-weight-strong, 700);
+	/* Il passe devant le titre et prend toute la largeur : « d'où je viens »
+	   se lit avant « où je suis », et sur 375 px la ligne ne tient pas. */
+	flex: 1 0 100%;
+}
+
+.tshop-ed__vignette {
+	width: 48px;
+	height: 48px;
+	flex: 0 0 auto;
+	object-fit: contain;
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+}
+
+.tshop-ed__produit {
+	margin: 0;
+	font-family: var(--tshop-font-display);
+	font-weight: var(--ts-weight-display, 700);
+	font-size: var(--ts-display-xs, 1.3125rem);
+	line-height: var(--ts-leading-tight, 1.15);
+}
+
+/* --------------------------------------------------------------- étapes */
+
+.tshop-ed__etapes {
+	margin-bottom: 1rem;
+}
+
+.tshop-ed__etapes-liste {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	/*
+	 * La liste est remise à plat ICI et pas par une remise à zéro globale : le
+	 * thème donne aux `ol` une puce et un retrait, et la première raison de
+	 * `Shortcode.php` est justement qu'une remise à zéro non préfixée réécrivait
+	 * les éléments du thème. Deux propriétés nommées sous notre classe suffisent.
+	 */
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.tshop-ed__etape-pas {
+	font: inherit;
+	font-family: var(--tshop-font-display);
+	font-weight: var(--ts-weight-display, 700);
+	min-height: 2.75rem;
+	padding: 0.5rem 1rem;
+	color: var(--tshop-muted);
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+	cursor: pointer;
+}
+
+/*
+ * L'ÉTAPE EN COURS SE LIT SANS LA COULEUR. Le fond plein est doublé d'un trait
+ * de 3 px sous la pastille : en contraste forcé le fond est remplacé par celui
+ * du système et seul le trait survit.
+ */
+.tshop-ed__etape-pas[aria-current='step'] {
+	color: var(--tshop-accent-ink);
+	background: var(--tshop-accent);
+	border-color: var(--tshop-accent);
+	box-shadow: inset 0 -3px 0 0 var(--tshop-accent-ink);
+}
+
+/* Même mesure et même correction que `.tshop-ed__outil[disabled]` ci-dessus. */
+.tshop-ed__etape-pas[disabled] {
+	color: var(--tshop-muted-strong);
+	background: var(--tshop-surface);
+	border-color: var(--tshop-line);
+	cursor: default;
 }
 
 /* ------------------------------------------------------------------- scène */
@@ -171,14 +292,19 @@
 .tshop-ed__outil[disabled] {
 	/*
 	 * DÉSACTIVÉ VEUT DIRE « IL N'Y A RIEN À ANNULER », et ça doit se lire sans
-	 * la couleur : le trait revient au gris clair EN PLUS de l'opacité, parce
-	 * qu'une opacité seule est ignorée en contraste forcé, où le bouton
-	 * paraîtrait alors aussi cliquable que son voisin.
+	 * la couleur : le trait revient au gris clair, parce qu'une différence qui
+	 * ne tient qu'à la couleur du texte disparaît en contraste forcé.
+	 *
+	 * L'OPACITÉ A ÉTÉ RETIRÉE, ET C'EST UNE CORRECTION MESURÉE. Un `opacity:
+	 * 0.7` composait le texte avec son fond et faisait tomber le rapport
+	 * sous 4,5:1 ; il rendait surtout la mesure IMPOSSIBLE, et
+	 * `npm run verify:a11y` classait ces trois boutons « non mesurables » le
+	 * 9 septembre 2026, ce qui est un trou dans une porte plutôt qu'un test qui
+	 * passe. Le gris fort et le trait clair disent la même chose, en mesurable.
 	 */
-	color: var(--tshop-muted);
+	color: var(--tshop-muted-strong);
 	background: var(--tshop-surface);
 	border-color: var(--tshop-line);
-	opacity: 0.7;
 	cursor: default;
 }
 
@@ -332,24 +458,101 @@
 	outline-offset: 2px;
 }
 
-/* ---------------------------------------------------------------- tailles */
+/* ------------------------------------------- coloris, tailles, quantités */
 
-.tshop-ed__tailles {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr));
-	gap: 0.5rem;
+/*
+ * LA GRILLE DÉFILE DANS SON CONTENEUR, LA PAGE NON.
+ *
+ * Neuf colonnes (le coloris, six tailles, le total, le retrait) ne tiennent pas
+ * dans 375 px, et `CLAUDE.md` section 7 interdit que ce soit la page qui parte
+ * de travers. `min-width` sur le tableau est ce qui force le débordement à
+ * l'intérieur : sans elle, le tableau se comprime jusqu'à rendre les cases
+ * intapables plutôt que de déclencher le défilement.
+ */
+.tshop-ed__defile {
+	overflow-x: auto;
+	/* Le doigt fait défiler la grille horizontalement, la page verticalement. */
+	touch-action: pan-x pan-y;
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
 }
 
-.tshop-ed__taille {
+.tshop-ed__grille {
+	border-collapse: collapse;
+	width: 100%;
+	min-width: 34rem;
+	/* Une grille de quantités est un tableau de chiffres : ils s'alignent. */
+	font-variant-numeric: tabular-nums;
+}
+
+.tshop-ed__grille th,
+.tshop-ed__grille td {
+	padding: 0.375rem 0.5rem;
+	border-bottom: 1px solid var(--tshop-line);
+	text-align: center;
+	vertical-align: middle;
+}
+
+.tshop-ed__grille thead th {
+	font-family: var(--tshop-font-display);
+	font-weight: var(--ts-weight-display, 700);
+	font-size: var(--ts-text-xs, 0.8125rem);
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--tshop-muted);
+	background: var(--tshop-surface);
+}
+
+.tshop-ed__grille tfoot th,
+.tshop-ed__grille tfoot td {
+	border-top: 2px solid var(--tshop-line-strong);
+	border-bottom: 0;
+	font-weight: var(--ts-weight-strong, 700);
+	background: var(--tshop-surface);
+}
+
+/*
+ * Le nom du coloris et sa pastille, dans un enfant du `th`. La cellule garde
+ * son `display: table-cell`, sans quoi elle cesse d'être un `rowheader` pour
+ * un lecteur d'écran : voir `ligneMatrice`.
+ */
+.tshop-ed__grille tbody th,
+.tshop-ed__grille tfoot th {
+	text-align: left;
+}
+
+.tshop-ed__coloris {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	white-space: nowrap;
+	font-weight: var(--ts-weight-strong, 700);
+}
+
+.tshop-ed__puce {
+	display: inline-block;
+	width: 1.25rem;
+	height: 1.25rem;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	border: 1px solid var(--tshop-line-strong);
+	background: var(--pastille, #ffffff);
+}
+
+.tshop-ed__somme {
+	font-weight: var(--ts-weight-strong, 700);
+}
+
+.tshop-ed__somme--grand {
+	font-family: var(--tshop-font-display);
+	font-size: var(--ts-text-lg, 1.0625rem);
+}
+
+.tshop-ed__ajout {
+	margin-top: 0.75rem;
 	display: flex;
 	flex-direction: column;
-	gap: 0.25rem;
-}
-
-.tshop-ed__taille-nom {
-	font-size: var(--ts-text-xs, 0.8125rem);
-	font-weight: var(--ts-weight-strong, 700);
-	color: var(--tshop-muted);
+	gap: 0.375rem;
 }
 
 .tshop-ed__qte {
@@ -357,6 +560,13 @@
 	/* Les chiffres s'alignent en colonne : une grille de tailles est un tableau. */
 	font-variant-numeric: tabular-nums;
 	width: 100%;
+	/*
+	 * Une case de quantité tient trois chiffres et la cible du doigt fait
+	 * 44 px : WCAG 2.2 critère 2.5.8 « Target Size (Minimum) » demande 24 par
+	 * 24 px, et 44 est ce que la même norme recommande en AAA (2.5.5). Sous
+	 * 3,25rem la case affichait « 100 » tronqué à « 10 » pendant la frappe.
+	 */
+	min-width: 3.25rem;
 	min-height: 2.75rem;
 	padding: 0.375rem 0.5rem;
 	text-align: center;
@@ -414,8 +624,105 @@
 	align-items: flex-start;
 }
 
+.tshop-ed__remise {
+	margin: 0.25rem 0 0;
+	color: var(--tshop-good-ink);
+	font-weight: var(--ts-weight-strong, 700);
+}
+
+/* --------------------------------------------------- aperçus par coloris */
+
+.tshop-ed__apercus {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+	gap: 0.75rem;
+}
+
+.tshop-ed__apercu-carte {
+	margin: 0;
+	padding: 0.5rem;
+	background: var(--tshop-surface);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+}
+
+/*
+ * La carte qui porte un avertissement occupe toute la rangée : voir la mesure
+ * dans `composerApercus`, la phrase sortait à trois mots par ligne.
+ *
+ * L'IMAGE, ELLE, GARDE SA TAILLE. Sans cette borne le vêtement du coloris
+ * signalé était rendu deux fois plus grand que ses voisins, ce qui le faisait
+ * ressembler à une mise en avant alors que c'est un avertissement.
+ */
+.tshop-ed__apercu-carte--attention {
+	grid-column: 1 / -1;
+}
+
+.tshop-ed__apercu-carte--attention .tshop-ed__apercu-image {
+	max-width: 9rem;
+}
+
+.tshop-ed__ajout:empty {
+	display: none;
+}
+
+.tshop-ed__apercu-image {
+	display: block;
+	width: 100%;
+	height: auto;
+	background: var(--tshop-paper);
+	border-radius: calc(var(--tshop-radius) - 2px);
+}
+
+.tshop-ed__apercu-nom {
+	margin: 0.375rem 0 0;
+	font-weight: var(--ts-weight-strong, 700);
+}
+
+.tshop-ed__apercu-note {
+	margin: 0.25rem 0 0;
+	font-size: var(--ts-text-xs, 0.8125rem);
+	color: var(--tshop-muted);
+}
+
+.tshop-ed__apercu-photo {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+.tshop-ed__apercu-photo img {
+	width: 48px;
+	height: 48px;
+	flex: 0 0 auto;
+	object-fit: contain;
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line);
+	border-radius: var(--tshop-radius);
+}
+
+/*
+ * L'AVERTISSEMENT DE CONTRASTE. Ni une erreur ni une confirmation : il ne
+ * refuse rien et ne félicite de rien, donc ni le rouge ni le vert.
+ */
+.tshop-ed__attention {
+	margin: 0.5rem 0 0;
+	padding: 0.5rem 0.625rem;
+	color: var(--tshop-warn-ink);
+	background: var(--tshop-warn-wash);
+	border: 1px solid var(--tshop-warn);
+	border-radius: var(--tshop-radius);
+	font-size: var(--ts-text-sm, 0.875rem);
+}
+
 /* ------------------------------------------------------------------ achat */
 
+/*
+ * « Valider ma création » a le poids de « Ajouter au panier » : c'est l'action
+ * principale de son écran, et les deux ne sont jamais visibles ensemble.
+ */
+.tshop-ed__valider,
 .tshop-ed__acheter {
 	font: inherit;
 	font-family: var(--tshop-font-display);
@@ -435,6 +742,26 @@
 .tshop-ed__acheter[disabled] {
 	cursor: progress;
 	opacity: 0.72;
+}
+
+/*
+ * DÉSACTIVÉ PARCE QU'IL MANQUE QUELQUE CHOSE, ET PAS PARCE QUE ÇA TRAVAILLE :
+ * le curseur d'attente de l'achat mentirait ici, rien n'est en cours. La phrase
+ * juste en dessous dit ce qui manque.
+ */
+.tshop-ed__valider[disabled] {
+	color: var(--tshop-muted-strong);
+	background: var(--tshop-surface);
+	border-color: var(--tshop-line);
+	cursor: default;
+}
+
+.tshop-ed__sorties {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+	margin-top: 0.5rem;
 }
 
 .tshop-ed__etat {
@@ -502,16 +829,54 @@
 .tshop-ed__face:focus-visible,
 .tshop-ed__qte:focus-visible,
 .tshop-ed__acheter:focus-visible,
+.tshop-ed__valider:focus-visible,
+.tshop-ed__etape-pas:focus-visible,
+.tshop-ed__defile:focus-visible,
+.tshop-ed__etape:focus-visible,
 .tshop-ed__avance:focus-visible,
+.tshop-ed__retour:focus-visible,
 .tshop-ed__lien:focus-visible {
 	outline: 3px solid var(--tshop-accent);
 	outline-offset: 2px;
 }
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * UN ANNEAU BLEU MARINE SUR UN BOUTON BLEU MARINE NE SE VOIT PAS
+ *
+ * Mesuré le 9 septembre 2026 par `npm run verify:a11y` sur la page de
+ * l'atelier : « 27 anneaux mesurés, 1 sous 3:1, pire 1:1 (rgb(1, 0, 80) sur
+ * rgb(1, 0, 80)) » sur la pastille de l'étape en cours. WCAG 2.2 critère 1.4.11
+ * demande 3:1 à l'indicateur de focus contre les couleurs ADJACENTES, et ces
+ * trois contrôles sont peints avec l'accent quand ils sont actifs, donc l'anneau
+ * touchait sa propre couleur.
+ *
+ * Le liseré clair intercalé est la même idée que l'anneau de sélection des
+ * pastilles de coloris, quelques lignes plus haut : une bande de `--tshop-paper`
+ * entre le bouton et l'anneau, si bien que les deux se détachent quel que soit
+ * le fond. `box-shadow` plutôt qu'un second `outline`, parce qu'il n'y en a
+ * qu'un par élément.
+ */
+.tshop-ed__acheter:focus-visible,
+.tshop-ed__valider:focus-visible,
+.tshop-ed__etape-pas:focus-visible,
+.tshop-ed__face:focus-visible {
+	box-shadow: 0 0 0 2px var(--tshop-paper);
+}
+
 /* --------------------------------------------------------- grande largeur */
 
+/*
+ * LA GRILLE EST SUR L'ÉCRAN, PAS SUR L'ÉDITEUR, DEPUIS QU'IL Y EN A DEUX.
+ *
+ * Elle était portée par `.tshop-ed`, qui ne contenait qu'un écran. Avec deux
+ * conteneurs d'étape entre les deux, les zones nommées ne trouvaient plus leurs
+ * éléments : la scène, l'historique et les contrôles sont maintenant enfants de
+ * `.tshop-ed__etape--creer`, et c'est donc lui la grille. L'étape 2 a la sienne,
+ * qui ne se ressemble pas : à gauche la saisie et le prix, à droite les aperçus.
+ */
 @media (min-width: 56rem) {
-	.tshop-ed {
+	.tshop-ed__etape--creer {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
 		grid-template-areas:
@@ -544,17 +909,107 @@
 		grid-area: bande;
 	}
 
-	.tshop-ed__bloc,
-	.tshop-ed__prix,
-	.tshop-ed__acheter,
-	.tshop-ed__etat,
-	.tshop-ed__avance,
-	.tshop-ed__zone-avancee {
+	/*
+	 * `>` ET PAS UN DESCENDANT QUELCONQUE. `.tshop-ed__note` sert aussi aux
+	 * états vides à l'intérieur des blocs ; `grid-column` ne s'applique qu'aux
+	 * enfants directs d'une grille, donc la règle serait inerte pour eux, mais
+	 * une règle inerte est une règle qu'on croira active en la relisant.
+	 */
+	.tshop-ed__etape--creer > .tshop-ed__bloc,
+	.tshop-ed__etape--creer > .tshop-ed__valider,
+	.tshop-ed__etape--creer > .tshop-ed__note,
+	.tshop-ed__etape--creer > .tshop-ed__avance,
+	.tshop-ed__etape--creer > .tshop-ed__zone-avancee {
 		grid-column: 2;
 	}
 
 	.tshop-ed__toile {
 		max-height: 34rem;
+	}
+
+	/*
+	 * L'ÉTAPE 2 : LA GRILLE À GAUCHE, LES APERÇUS À DROITE ET SUR TOUTE LA
+	 * HAUTEUR. Le client tape dans une colonne et vérifie dans l'autre sans
+	 * remonter, ce qui est toute la raison pour laquelle les deux sont côte à
+	 * côte plutôt qu'empilées comme sur 375 px.
+	 */
+	.tshop-ed__etape--choisir {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+		grid-template-areas:
+			'retour apercus'
+			'grille apercus'
+			'prix apercus'
+			'achat apercus'
+			'etat apercus';
+		/*
+		 * LA COLONNE DES APERÇUS EST PLUS HAUTE, ET LE MOU VA EN BAS.
+		 *
+		 * Sans ces rangées explicites, la hauteur de la colonne de droite se
+		 * répartissait sur les cinq rangées de gauche : mesuré à 1440 px, il y
+		 * avait 80 px de blanc entre le prix et « Ajouter au panier », c'est-à-
+		 * dire entre les deux choses qui doivent se lire ensemble. Les quatre
+		 * premières rangées prennent ce qu'elles portent, la dernière prend le
+		 * reste, et l'écart part sous le bouton où il ne sépare rien.
+		 */
+		grid-template-rows: auto auto auto auto 1fr;
+		column-gap: 1.5rem;
+		align-items: start;
+	}
+
+	.tshop-ed__etape--choisir > .tshop-ed__outil {
+		grid-area: retour;
+		justify-self: start;
+	}
+
+	/*
+	 * Les deux blocs sont NOMMÉS par une classe et pas trouvés par `:has()` :
+	 * une grille qui repose sur le contenu de ses cellules se casse le jour où
+	 * quelqu'un ajoute un paragraphe, et `:has()` n'a de toute façon rien à
+	 * faire dans la feuille d'une première charge alors que la classe coûte
+	 * douze octets.
+	 */
+	.tshop-ed__bloc--grille {
+		grid-area: grille;
+	}
+
+	.tshop-ed__bloc--apercus {
+		grid-area: apercus;
+	}
+
+	.tshop-ed__etape--choisir .tshop-ed__prix {
+		grid-area: prix;
+	}
+
+	.tshop-ed__etape--choisir .tshop-ed__acheter {
+		grid-area: achat;
+	}
+
+	.tshop-ed__etape--choisir .tshop-ed__etat {
+		grid-area: etat;
+	}
+}
+
+/* ------------------------------------------------------------ page dédiée */
+
+/*
+ * LA MÊME MISE EN PAGE, AVEC DE LA PLACE. La page dédiée ne partage plus sa
+ * largeur avec une fiche produit, donc le canevas prend ce qu'il peut : c'est
+ * la seule chose que `atelier` change au dessin, et c'est pour cela que le
+ * commutateur tient en une classe plutôt qu'en un second éditeur.
+ */
+.tshop-ed--atelier {
+	max-width: 78rem;
+	margin-inline: auto;
+}
+
+@media (min-width: 56rem) {
+	.tshop-ed--atelier .tshop-ed__etape--creer {
+		grid-template-columns: minmax(0, 1.5fr) minmax(0, 24rem);
+	}
+
+	.tshop-ed--atelier .tshop-ed__toile {
+		max-height: 44rem;
 	}
 }
 

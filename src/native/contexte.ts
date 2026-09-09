@@ -57,6 +57,32 @@ export interface CouleurContexte {
   photo: string
 }
 
+/**
+ * Combien de coloris une seule ligne de panier accepte.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * L'AUTORITÉ EST `Cart::MAX_COLOURS`, ET CE NOMBRE EN EST UNE COPIE ASSUMÉE.
+ *
+ * `Editeur::contexte()` ne publie pas ce plafond, contrairement à `maxQty`. La
+ * différence de traitement n'est pas une négligence, elle vient de ce que les
+ * deux plafonds cassent différemment quand l'écran les ignore :
+ *
+ *   `maxQty` inconnu, le panier REFUSE et le dit, avec la phrase de
+ *   `teeshoop_qty_too_high`. Un défaut chiffré ici serait une seconde maison
+ *   pour une valeur qui n'en a qu'une, et le contrôle local n'est là que pour
+ *   dire non avant le téléversement. Zéro veut donc dire « non publié ».
+ *
+ *   Ce plafond-ci, inconnu, ne produit AUCUN refus : `normalise_matrix` s'arrête
+ *   au vingtième coloris et jette les suivants sans un mot. Une palette de 54
+ *   coloris construirait 54 lignes à l'écran, 54 aperçus, et le client verrait
+ *   partir au panier une commande à laquelle il manquerait 34 lignes. Une borne
+ *   absente ici est une perte silencieuse de quantités, pas un refus lisible.
+ *
+ * La page peut la publier sous `maxColours` et elle gagne alors ; c'est la
+ * ligne à écrire dans `Editeur::contexte()` le jour où ce nombre bouge.
+ */
+export const MAX_COULEURS_DEFAUT = 20
+
 /** La zone imprimable d'une face, centimètres, par taille. */
 export interface ZoneContexte {
   /** `front`, `back`, `sleeve`. */
@@ -126,10 +152,26 @@ export interface Contexte {
    * UNE ANCRE SUR CETTE PAGE, ET RIEN D'AUTRE. `Editeur::contexte()` y met la
    * constante `#teeshoop-devis` ; ce champ devient un `href`, donc le jour où
    * quelqu'un en fait un réglage administrable il devra le filtrer comme
-   * `photoSure` filtre le sien, ou une adresse `javascript:` deviendra un lien
+   * `urlSure` filtre le sien, ou une adresse `javascript:` deviendra un lien
    * cliquable sur la fiche produit.
    */
   devisUrl: string
+  /**
+   * Vrai quand l'éditeur occupe une page à lui, faux quand il est dans la fiche.
+   *
+   * UN SEUL ÉDITEUR, UNE COMMUTATION DE MISE EN PAGE. La page dédiée donne au
+   * canevas la largeur qu'il mérite et rappelle sur quel article on travaille ;
+   * dans la fiche produit, l'éditeur occupe la fente d'ajout au panier et ne
+   * répète ni le titre ni l'image, qui sont déjà au-dessus de lui. Deux
+   * éditeurs auraient été deux endroits où corriger le même défaut.
+   */
+  atelier: boolean
+  /** Le retour vers la fiche produit. Vide veut dire « pas de lien ». */
+  productUrl: string
+  /** L'image du produit, pour l'en-tête de la page dédiée. Vide = aucune. */
+  productImage: string
+  /** Le nombre de coloris qu'une ligne accepte. Voir `MAX_COULEURS_DEFAUT`. */
+  maxCouleurs: number
 }
 
 /**
@@ -205,21 +247,29 @@ function couleurs(raw: unknown): CouleurContexte[] {
     // pastille EST la mesure, et un carré neutre sous un vrai nom de coloris
     // est exactement le défaut que `Product::blank_palette_of` refuse déjà.
     if (teintes.length === 0) continue
-    out.push({ id, nom, teintes, photo: photoSure(e.photo) })
+    out.push({ id, nom, teintes, photo: urlSure(e.photo) })
     if (out.length >= 64) break
   }
   return out
 }
 
 /**
- * Une URL d'image, ou rien.
+ * Une URL vers la boutique, ou rien.
  *
  * Http(s) et rien d'autre : `javascript:` dans un `src` d'image ne s'exécute
  * pas, mais `data:` en accepterait un dans un SVG, et cette valeur traverse
  * depuis la base de données de la boutique. Relative acceptée parce que
  * WordPress sert ses médias sur la même origine.
+ *
+ * ELLE FILTRE TROIS CHAMPS ET PLUS UN SEUL, et c'est pour cela qu'elle a changé
+ * de nom : la photographie d'un coloris, le retour vers la fiche produit et
+ * l'image de cette fiche. Les deux derniers deviennent un `href` et un `src` de
+ * la page dédiée, donc exactement la même question, et une seconde fonction qui
+ * y répondrait presque pareil est ce que `CLAUDE.md` section 1 interdit : la
+ * connaissance du `/\` normalisé en `//` ne vivrait alors que dans l'une des
+ * deux.
  */
-function photoSure(v: unknown): string {
+function urlSure(v: unknown): string {
   const s = texte(v, 500).trim()
   if (s === '') return ''
   /*
@@ -300,6 +350,46 @@ function demiPoitrine(raw: unknown): Record<string, number> {
   return out
 }
 
+/**
+ * Les tailles vendables, normalisées EXACTEMENT comme le panier les normalise.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TROIS RAISONS, DONT DEUX ONT ÉTÉ ÉCRITES PAR LA PASSE ADVERSARIALE DU
+ * 9 SEPTEMBRE 2026
+ *
+ * `Cart::normalise_size_grid` fait trois choses à chaque clé qu'il reçoit : il
+ * la met en majuscules, il en retire tout ce qui n'est pas alphanumérique, et il
+ * la jette au-delà de quatre caractères ; puis il s'arrête à douze entrées.
+ * Cette fonction fait la même chose, à l'arrivée, et il fallait les trois :
+ *
+ *   UNE CLÉ QUE LE PANIER RÉÉCRIT est une taille offerte sous un nom que la
+ *   commande ne portera pas. Le client tape une quantité en « m-1 », la ligne
+ *   enregistre « M1 », et la production presse une taille que personne n'a
+ *   choisie.
+ *
+ *   AU-DELÀ DE LA DOUZIÈME, le panier jette en silence. C'est la même forme que
+ *   le plafond de coloris : une quantité saisie, disparue sans un mot. Ne pas
+ *   l'offrir est la seule façon honnête de ne pas la perdre.
+ *
+ *   ET LA CLÉ DEVIENT UN SÉLECTEUR. `rendreTotaux` retrouve la case de somme par
+ *   `[data-teeshoop="total-taille-<clé>"]` à chaque frappe. Une taille contenant
+ *   un guillemet faisait lever `querySelector` au milieu de la saisie, donc une
+ *   grille dont les totaux cessaient de suivre. Aujourd'hui `sizes` vient de
+ *   `data/garments.json` et ne peut pas contenir ça ; ce fichier est la
+ *   frontière, et une frontière qui borne tout sauf un champ ne borne rien.
+ */
+function tailles(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  for (const v of raw) {
+    const t = texte(v, 16).toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (t === '' || t.length > 4 || out.includes(t)) continue
+    out.push(t)
+    if (out.length >= 12) break
+  }
+  return out
+}
+
 function listeCles(raw: unknown, max: number): string[] {
   if (!Array.isArray(raw)) return []
   const out: string[] = []
@@ -346,7 +436,7 @@ export function lireContexte(brut: unknown): Contexte | null {
     cartUrl: texte(c.cartUrl, 500),
     workerUrl: texte(c.workerUrl, 500).replace(/\/+$/, ''),
     couleurs: couleurs(c.colours ?? c.couleurs),
-    tailles: listeCles(c.sizes ?? c.tailles, 24),
+    tailles: tailles(c.sizes ?? c.tailles),
     tailleTarif: texte(c.pricedSize ?? c.tailleTarif, 16),
     demiPoitrine: demiPoitrine(c.sizeChart ?? c.demiPoitrine),
     zones: zones(c.areas ?? c.zones),
@@ -357,5 +447,20 @@ export function lireContexte(brut: unknown): Contexte | null {
     devisDesHt: entier(c.quoteFromHt, 0, Number.MAX_SAFE_INTEGER, 0),
     bases: basesPrix(c.priceBases),
     devisUrl: texte(c.quoteUrl ?? c.devisUrl, 500),
+    /*
+     * LES TROIS CHAMPS DE LA PAGE DÉDIÉE, ET LE DÉFAUT EST « DANS LA FICHE ».
+     *
+     * `wp_localize_script` sérialise `true` en « 1 », donc le booléen est lu
+     * comme `priceBases` lit les siens : trois écritures acceptées, et tout le
+     * reste vaut faux. Un défaut à faux et pas à vrai parce que la fiche produit
+     * est le seul endroit d'où l'éditeur démarre aujourd'hui, et qu'une page qui
+     * n'a rien dit n'est pas une page dédiée.
+     */
+    atelier: c.atelier === true || c.atelier === '1' || c.atelier === 1,
+    productUrl: urlSure(c.productUrl),
+    productImage: urlSure(c.productImage),
+    // Publié, il gagne ; absent, `MAX_COULEURS_DEFAUT` sert, et l'en-tête de la
+    // constante dit pourquoi zéro n'est pas une option ici.
+    maxCouleurs: entier(c.maxColours, 0, 64, 0) || MAX_COULEURS_DEFAUT,
   }
 }

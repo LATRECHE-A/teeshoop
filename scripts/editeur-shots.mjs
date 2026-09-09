@@ -157,13 +157,15 @@ async function serie(largeur, hauteur, prefixe, { avancee = false } = {}) {
   await page.waitForTimeout(700)
   await cliche('2-visuel-pose')
 
-  // 3. les tailles, et le prix que le serveur a rendu
-  await page.getByLabel('Quantité en M').fill('25')
-  await page.locator('[data-teeshoop="price"]').waitFor({ timeout: 30000 })
-  await page.waitForTimeout(900)
-  await cliche('3-prix-serveur')
-
-  // 4. la vue avancée, ouverte, avec son morceau chargé à la demande
+  /*
+   * 3. LA VUE AVANCÉE PASSE AVANT LES QUANTITÉS, ET C'EST L'ORDRE DE L'ÉCRAN.
+   *
+   * Depuis le 9 septembre 2026 l'éditeur a deux étapes : on crée, puis on
+   * choisit. Les réglages avancés, l'aperçu en volume et l'essayage vivent avec
+   * le canevas, à l'étape 1 ; la grille coloris x taille et le prix vivent à
+   * l'étape 2. Photographier dans l'ancien ordre demandait des quantités sur un
+   * écran qui n'en porte plus.
+   */
   if (avancee) {
     await page.locator('[data-teeshoop="vue-avancee"]').click()
     await page.locator('.tshop-ed__avancee').waitFor({ timeout: 30000 })
@@ -215,7 +217,23 @@ async function serie(largeur, hauteur, prefixe, { avancee = false } = {}) {
     await page.waitForTimeout(400)
   }
 
-  // 5. l'ajout, et la confirmation, seulement si elle est vraiment arrivée
+  // 5. l'étape 2 : la grille coloris x taille et les aperçus par coloris
+  await page.locator('[data-teeshoop="valider-creation"]').click()
+  await page.locator('.tshop-ed__grille').waitFor({ timeout: 20000 })
+  // Deux coloris, parce qu'une grille à une ligne ne montre pas ce qui a changé.
+  const enPlus = page.locator('.tshop-ed__ajout .tshop-ed__pastille').first()
+  if ((await enPlus.count()) > 0) await enPlus.click()
+  await page.getByLabel('Quantité en M').first().fill('25')
+  const seconde = page.getByLabel('Quantité en L').nth(1)
+  if ((await seconde.count()) > 1) await seconde.fill('8')
+  await page.locator('[data-teeshoop="price"]').waitFor({ timeout: 30000 })
+  // Les aperçus sont composés dans le navigateur : les photographier au clic
+  // donnerait des cartes vides, ce qui prouverait le contraire de ce qu'on veut.
+  await page.locator('.tshop-ed__apercu-image').first().waitFor({ timeout: 60000 }).catch(() => {})
+  await page.waitForTimeout(900)
+  await cliche('3-coloris-tailles-prix')
+
+  // 6. l'ajout, et la confirmation, seulement si elle est vraiment arrivée
   await page.locator('[data-teeshoop="add-to-cart"]').click()
   const issue = await Promise.race([
     page.locator('[data-teeshoop="cart-done"]').waitFor({ timeout: 120000 }).then(() => 'ok'),

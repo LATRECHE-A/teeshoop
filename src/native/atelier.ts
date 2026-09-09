@@ -134,6 +134,28 @@ async function corps(res: Response): Promise<Record<string, unknown>> {
  * `signal` est là parce qu'un client qui tape une quantité en produit un par
  * frappe : sans annulation, la réponse d'un « 1 » arrive après celle d'un
  * « 12 » et l'écran affiche le prix d'une pièce sous une commande de douze.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LA MATRICE N'EST PAS ENVOYÉE ICI, ET LE TOTAL EST POURTANT LE BON
+ *
+ * `GET /quote` (`Rest::register`, argument `qty`) ne prend qu'une quantité et
+ * des faces : il ne connaît ni les coloris ni les tailles. La grille agrégée
+ * n'aurait donc rien à y faire, et ce qui est envoyé est sa SOMME, qui est
+ * exactement l'entrée que la route accepte.
+ *
+ * Cette somme donne le même montant que la matrice, et ce n'est pas une
+ * espérance, c'est un chemin de code : `Pricing::quote_matrix` appelle
+ * `quote()` une fois par prix de textile nu DISTINCT, avec la quantité TOTALE,
+ * et `Cart::cells_for` laisse délibérément `blank_ht` absent (son en-tête dit
+ * pourquoi : le tarif est celui de la famille, et le plancher de `Gamme::range`
+ * absorbe déjà l'écart de 42 % mesuré entre coloris). Il y a donc un seul nu,
+ * un seul appel, une seule remise, et le total de la ligne de panier est
+ * `Pricing::quote()` sur la quantité totale, c'est-à-dire ce que cette requête
+ * demande. Le jour où un supplément par case est décidé, c'est cette route
+ * qu'il faudra apprendre à recevoir une matrice, pas cet écran à calculer.
+ *
+ * RIEN N'EST CALCULÉ ICI. Ni remise, ni total, ni moyenne : les trois arrivent
+ * écrits par `Money::format`.
  */
 export async function demanderDevis(
   ctx: Contexte,
@@ -190,7 +212,13 @@ export async function demanderDevis(
  */
 export async function ajouterAuPanier(
   ctx: Contexte,
-  arg: { designId: string; faces: FaceImprimee[]; grille: Record<string, number> },
+  arg: {
+    designId: string
+    faces: FaceImprimee[]
+    grille: Record<string, number>
+    /** Coloris vers taille vers quantité, la forme de `Cart::normalise_matrix`. */
+    matrice: Record<string, Record<string, number>>
+  },
 ): Promise<PanierAjoute> {
   if (ctx.nonce === '') throw new RefusAtelier('sans_nonce', RAISONS.sans_nonce)
 
@@ -208,6 +236,20 @@ export async function ajouterAuPanier(
         qty,
         sides: arg.faces,
         design_id: arg.designId,
+        /*
+         * LES DEUX FORMES PARTENT, ET LA SECONDE EST LA SOMME DE LA PREMIÈRE.
+         *
+         * `Cart::add` lit `matrix` en priorité et en déduit `size_grid` par
+         * `flatten_matrix` ; il ne retombe sur `size_grid` que si la matrice est
+         * vide, ce qui est le chemin des paniers ouverts avant le 9 septembre
+         * 2026. Les envoyer tous les deux n'est donc PAS une seconde source de
+         * vérité : c'est la même donnée sous les deux formes que le serveur sait
+         * lire, et le serveur choisit. Ce qu'on ne peut pas se permettre, c'est
+         * de les laisser diverger, donc `grille` est calculée à partir de
+         * `matrice` par le seul endroit qui la calcule (`Instance.grille()`) et
+         * jamais saisie séparément.
+         */
+        matrix: arg.matrice,
         size_grid: arg.grille,
       }),
     })
