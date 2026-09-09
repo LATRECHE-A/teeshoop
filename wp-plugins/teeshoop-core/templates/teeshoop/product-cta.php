@@ -29,6 +29,7 @@
  * @var string $size        The size a single-size run is in.
  * @var int    $max_faces
  * @var bool   $needs_quote
+ * @var string $atelier_url    L'adresse de l'atelier, ou '' s'il ne peut pas servir.
  * @var bool   $editeur_natif  L'éditeur est dans la page : ce fichier ne pose
  *                             alors ni formulaire de quantité ni bouton
  *                             « Personnaliser », parce que l'éditeur les porte.
@@ -117,8 +118,58 @@ $ts_bases     = Settings::price_bases();
 	 * pouvoir lire quand même, et la grille de tarifs publiée plus bas est
 	 * rendue par le serveur dans les deux cas.
 	 */
-	if ( $editeur_natif ) :
-		\Teeshoop\Core\Editeur::rendre();
+	if ( $editeur_natif && '' !== $atelier_url ) :
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * L'ÉDITEUR N'EST PLUS DANS CETTE FENTE : IL A SA PAGE.
+		 *
+		 * Ce bloc appelait `Editeur::rendre()` et posait le personnalisateur ici
+		 * même. Le 9 septembre 2026 il devient un LIEN vers `/personnaliser/…`,
+		 * et il faut dire pourquoi, parce qu'un document de décision daté du
+		 * 5 septembre défend l'inverse.
+		 *
+		 * Ce document a raison sur tout ce qu'il reproche, et rien de cela n'est
+		 * une propriété de « une page dédiée ». Il reproche à l'ANCIENNE page :
+		 * une application React sur une AUTRE ORIGINE, dans un CADRE, qui
+		 * s'ouvrait sur un t-shirt noir d'exemple au lieu du produit cliqué, dont
+		 * les fichiers vivaient dans un stockage tiers cloisonné, et qui restait
+		 * muette quand le Worker tombait. La page d'aujourd'hui est rendue par
+		 * WordPress, sur la même origine, tient son propre nonce, s'ouvre sur le
+		 * produit dont on vient, et affiche un message écrit par PHP si rien ne
+		 * démarre. Les six réponses tiennent toutes.
+		 *
+		 * CE QU'ELLE AJOUTE, et qu'un bloc dans une colonne ne peut pas donner :
+		 * la largeur de l'écran pour le canevas, une adresse que le client peut
+		 * garder, et surtout DEUX ÉTAPES séparées, créer puis choisir combien et
+		 * en quelles couleurs. C'est ce parcours-là qui était demandé, et il ne
+		 * tient pas dans une fente à côté d'un fil d'Ariane.
+		 *
+		 * LA FICHE NE PERD RIEN. Ce qu'elle sait dire sans JavaScript reste
+		 * au-dessus et en dessous : ce qu'est le vêtement, ce qu'il coûte à la
+		 * quantité, jusqu'où on peut imprimer en centimètres, et le devis.
+		 */
+		?>
+		<div class="ts-actions ts-actions--atelier">
+			<a class="ts-cta ts-cta--atelier" href="<?php echo esc_url( $atelier_url ); ?>" data-teeshoop-atelier-link>
+				<?php esc_html_e( 'Personnaliser ce vêtement', 'teeshoop' ); ?>
+			</a>
+			<p class="ts-actions__hint">
+				<?php esc_html_e( 'Vous placez votre visuel, vous le voyez sur le vêtement, puis vous choisissez les tailles, les coloris et les quantités. Rien n’est commandé avant la dernière étape.', 'teeshoop' ); ?>
+			</p>
+		</div>
+		<?php
+	elseif ( $editeur_natif ) :
+		/*
+		 * L'ÉDITEUR EXISTE MAIS L'ATELIER NE PEUT PAS SERVIR CE PRODUIT.
+		 * `Atelier::etat()` dit pourquoi (pas de vêtement déclaré, paquet
+		 * absent). On ne pose pas de lien vers une page qui refusera : le
+		 * visiteur va au devis, qui lui, aboutit.
+		 */
+		?>
+		<p class="ts-actions__quote">
+			<?php esc_html_e( 'Le personnalisateur n’est pas disponible sur cet article pour le moment. Demandez-nous un devis et joignez votre visuel : nous prenons la commande à la main.', 'teeshoop' ); ?>
+		</p>
+		<?php
 	else :
 	?>
 	<form class="ts-buy__form" method="get" action="<?php echo esc_url( $ts_permalink ); ?>" data-teeshoop-estimator>

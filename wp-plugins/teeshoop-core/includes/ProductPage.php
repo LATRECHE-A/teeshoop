@@ -472,14 +472,31 @@ final class ProductPage {
 		);
 	}
 
-	/** The archive button opens the page instead of buying an undesigned garment. */
+	/**
+	 * Le bouton d'une vignette de catalogue mène à l'atelier, pas au panier.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * IL MÈNE À L'ATELIER ET PLUS À LA FICHE, DEPUIS LE 9 SEPTEMBRE 2026.
+	 *
+	 * Un vêtement personnalisable n'a rien à ajouter au panier tant qu'aucun
+	 * visuel n'a été posé, donc « Ajouter au panier » n'est pas une phrase vraie
+	 * sur cette vignette. Il menait à la fiche produit, où l'éditeur était en
+	 * ligne ; il mène maintenant directement à l'atelier, qui est ce que le
+	 * visiteur veut faire quand il clique sur « Personnaliser ».
+	 *
+	 * ET IL RETOMBE SUR LA FICHE SI L'ATELIER NE PEUT PAS SERVIR. Un lien vers
+	 * une page qui refusera est pire qu'un lien vers une page qui informe :
+	 * `verify:vendable` a déjà compté une ancre « Personnaliser » comme un
+	 * chemin d'achat jusqu'à ce qu'il aille voir derrière.
+	 */
 	public static function loop_link( string $html, $product ): string {
 		if ( ! $product instanceof \WC_Product || '' === Product::garment_of( $product->get_id() ) ) {
 			return $html;
 		}
+		$atelier = 'pret' === Atelier::etat( $product->get_id() ) ? Atelier::url( $product->get_id() ) : '';
 		return sprintf(
 			'<a href="%s" class="button teeshoop-loop-cta">%s</a>',
-			esc_url( $product->get_permalink() ),
+			esc_url( '' !== $atelier ? $atelier : $product->get_permalink() ),
 			esc_html__( 'Personnaliser', 'teeshoop' )
 		);
 	}
@@ -600,6 +617,16 @@ final class ProductPage {
 				 * configuration où aucune des deux n'est celle qu'on croit.
 				 */
 				'editeur_natif' => Editeur::paquet_present(),
+				/*
+				 * L'ATELIER EST UNE PAGE, ET LA FICHE Y MÈNE.
+				 *
+				 * Vide quand l'atelier ne peut pas servir ce produit, et le
+				 * gabarit retombe alors sur le devis. Une seule condition,
+				 * `Atelier::etat()`, pour la même raison que ci-dessus : deux
+				 * portes pour une question, c'est la configuration où aucune
+				 * des deux n'est celle qu'on croit.
+				 */
+				'atelier_url'   => 'pret' === Atelier::etat( $product_id ) ? Atelier::url( $product_id ) : '',
 			),
 			'',
 			TEESHOOP_CORE_DIR . 'templates/'

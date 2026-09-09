@@ -1042,23 +1042,44 @@ final class Purchase {
 	private const SUPPLIER_TZ = 'Europe/Paris';
 
 	/**
-	 * `Y-m-d H:i:s` in the supplier's zone, as a unix timestamp, or null.
+	 * Une observation de stock, comme horodatage unix, ou null.
 	 *
-	 * Strict: `DateTimeImmutable::createFromFormat` accepts a great deal that is
-	 * not a date, and a string this cannot read must come back as « we do not
-	 * know » rather than as the epoch, which is a reading forty years old and
-	 * would read on every screen as « trop ancien » instead of « illisible ».
+	 * ── DEUX ÉCRITURES, PARCE QUE LA BOUTIQUE EN PORTE DEUX ─────────────────
+	 *
+	 * `Y-m-d H:i:s` sans zone est ce que l'ANCIEN service publiait, et c'est ce
+	 * que portent les 46 572 déclinaisons déjà importées : il est lu dans la
+	 * zone du fournisseur, mesurée, pour la raison que `SUPPLIER_TZ` raconte.
+	 *
+	 * ISO 8601 AVEC DÉCALAGE est ce que `Supply::to_entry()` écrit depuis le
+	 * 9 septembre 2026, et il n'a besoin d'aucune hypothèse : l'instant est
+	 * dans la chaîne. Sans cette seconde lecture, chaque article réimporté
+	 * depuis cette date rendait « illisible », donc « Délai à confirmer » sur
+	 * la fiche et « relevé non cru » au panier d'achat, sur un stock lu à la
+	 * seconde. Trouvé en remettant la suite d'intégration au vert.
+	 *
+	 * STRICT DANS LES DEUX CAS : `createFromFormat` accepte beaucoup de choses
+	 * qui ne sont pas des dates, et une chaîne qu'on ne sait pas lire doit
+	 * revenir « on ne sait pas » plutôt que l'époque, qui est une lecture
+	 * vieille de quarante ans et s'afficherait « trop ancien » au lieu
+	 * d'« illisible ».
 	 */
 	private static function moment( string $value ): ?int {
 		$value = trim( $value );
 		if ( '' === $value ) {
 			return null;
 		}
+
 		$when = \DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $value, new \DateTimeZone( self::SUPPLIER_TZ ) );
-		if ( false === $when || array() !== array_filter( (array) \DateTimeImmutable::getLastErrors() ) ) {
-			return null;
+		if ( false !== $when && array() === array_filter( (array) \DateTimeImmutable::getLastErrors() ) ) {
+			return $when->getTimestamp();
 		}
-		return $when->getTimestamp();
+
+		$when = \DateTimeImmutable::createFromFormat( \DateTimeInterface::ATOM, $value );
+		if ( false !== $when && array() === array_filter( (array) \DateTimeImmutable::getLastErrors() ) ) {
+			return $when->getTimestamp();
+		}
+
+		return null;
 	}
 
 	// ── resolving an article ─────────────────────────────────────────────────
@@ -1675,6 +1696,35 @@ final class Purchase {
 		}
 
 		/*
+		 * ── OÙ LE FOURNISSEUR LIVRE, ET POURQUOI C'EST ICI QUE ÇA SE LIT ─────
+		 *
+		 * Le nouveau service exige l'adresse de livraison DANS le document de
+		 * commande : `Supply::place_order()` refuse sans elle, champ par champ.
+		 * Cet appelant, le seul du greffon, ne la passait pas, donc tout envoi
+		 * revenait « refusé, adresse incomplète » sans qu'un octet parte. Trouvé
+		 * en remettant la suite d'intégration au vert le 9 septembre 2026 : les
+		 * tests purs ne pouvaient pas le voir, puisqu'ils appellent
+		 * `place_order()` avec une adresse en main.
+		 *
+		 * Elle est LUE et jamais écrite à la main : `Legal::identity()` est
+		 * l'identité que la boutique imprime déjà sur ses factures, donc il n'y
+		 * a pas deux adresses de la même entreprise dans ce dépôt. Le pays vient
+		 * de WooCommerce, qui est l'endroit où un exploitant le règle.
+		 *
+		 * ELLE FERME : une adresse incomplète refuse l'envoi en nommant ce qui
+		 * manque. Une commande fournisseur est de l'argent qui part vers un
+		 * carton qui doit arriver quelque part, et deviner une ligne d'adresse
+		 * ferait livrer à une adresse que personne n'a validée.
+		 */
+		$ship = self::ship_to();
+		if ( ! $ship['ok'] ) {
+			return array(
+				'ok'     => false,
+				'reason' => $ship['error'],
+			);
+		}
+
+		/*
 		 * ── THE TRANSITION IS LOCKED, AND THE SUPPLIER CALL IS NOT ───────────
 		 *
 		 * `prepare()`, which spends nothing, took this lock from the start;
@@ -1718,7 +1768,7 @@ final class Purchase {
 		self::store( $id, $record );
 		Invoice::unlock( self::LOCK );
 
-		$answer = Supply::place_order( (string) $record['key'], $expect_mode, $lines );
+		$answer = Supply::place_order( (string) $record['key'], $expect_mode, $lines, $ship['ship'] );
 
 		$record['answer']  = $answer;
 		$record['sent_on'] = $today;
@@ -1769,6 +1819,74 @@ final class Purchase {
 			'ok'     => false,
 			'state'  => $record['state'],
 			'reason' => 'Le fournisseur n’a pas répondu. La commande a PEUT-ÊTRE été créée : vérifiez chez le fournisseur avant toute nouvelle tentative. Rien ne sera renvoyé automatiquement.',
+		);
+	}
+
+	/**
+	 * L'adresse où le fournisseur doit livrer : la nôtre, telle qu'elle est
+	 * déclarée une fois pour toute la boutique.
+	 *
+	 * `Legal::identity()` PLUTÔT QU'UN RÉGLAGE À PART. C'est déjà l'adresse que
+	 * la facture porte et que le portail de mise en ligne refuse de laisser
+	 * vide ; en ouvrir une seconde ferait deux adresses de la même entreprise
+	 * dans le même dépôt, et le jour où elles diffèrent les cartons partent à
+	 * l'ancienne.
+	 *
+	 * REFUSE PLUTÔT QUE DE COMPLÉTER. Un champ vide nomme le champ et arrête
+	 * l'envoi : le fournisseur, lui, refuserait la commande de toute façon
+	 * (`Supply::place_order()` liste les cinq champs), et un refus lu chez lui
+	 * coûte un aller-retour là où le nôtre coûte une phrase.
+	 *
+	 * @return array{ok:bool,ship:array<string,string>,error:string}
+	 */
+	private static function ship_to(): array {
+		$identity = Legal::identity();
+
+		/*
+		 * Le pays vient de WooCommerce et pas d'un littéral : c'est le seul
+		 * endroit où un exploitant règle le pays de la boutique, et l'atelier
+		 * peut déménager sans que ce fichier le sache. `get_base_country()`
+		 * rend déjà les deux lettres ISO que le service attend.
+		 */
+		$country = function_exists( 'WC' ) && WC()->countries instanceof \WC_Countries
+			? strtoupper( trim( (string) WC()->countries->get_base_country() ) )
+			: '';
+
+		$ship = array(
+			'name'         => trim( (string) ( $identity['raison_sociale'] ?? '' ) ),
+			'address'      => trim( (string) ( $identity['adresse'] ?? '' ) ),
+			'zip'          => trim( (string) ( $identity['code_postal'] ?? '' ) ),
+			'city'         => trim( (string) ( $identity['ville'] ?? '' ) ),
+			'country_code' => $country,
+		);
+
+		$labels = array(
+			'name'         => 'la raison sociale',
+			'address'      => 'l’adresse',
+			'zip'          => 'le code postal',
+			'city'         => 'la ville',
+			'country_code' => 'le pays de la boutique (réglages WooCommerce)',
+		);
+
+		$missing = array();
+		foreach ( $ship as $field => $value ) {
+			if ( '' === $value ) {
+				$missing[] = $labels[ $field ];
+			}
+		}
+
+		if ( array() !== $missing ) {
+			return array(
+				'ok'    => false,
+				'ship'  => array(),
+				'error' => 'L’adresse de livraison de la boutique est incomplète (' . implode( ', ', $missing ) . ') : rien n’a été transmis au fournisseur. Complétez l’identité légale dans les réglages Teeshoop.',
+			);
+		}
+
+		return array(
+			'ok'    => true,
+			'ship'  => $ship,
+			'error' => '',
 		);
 	}
 

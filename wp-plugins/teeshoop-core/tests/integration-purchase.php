@@ -65,184 +65,370 @@ use Teeshoop\Core\Settings;
 use Teeshoop\Core\Shelf;
 
 /**
- * One article of the fixture, in the shape the catalogue route hands back.
+ * ── LE GABARIT EST UN PRODUIT BRUT, PAS UNE ENTRÉE FINIE ────────────────────
+ *
+ * Jusqu'au 9 septembre 2026 cette suite injectait directement la forme de
+ * SORTIE de `Supply::to_entry()` : le gabarit rendait des `colourways`, des
+ * `skus`, des prix en euros et un bloc `stock`, c'est-à-dire exactement ce que
+ * la cartographie produit. Une erreur DANS cette cartographie était donc
+ * invisible d'ici, alors que c'est elle qui décide du numéro d'article que
+ * l'atelier achète et du prix auquel il est costé.
+ *
+ * Depuis, le gabarit est un produit du fournisseur tel qu'il le publie, déposé
+ * dans la table de dépôt comme `Supply::sync()` le déposerait, et c'est le VRAI
+ * `Supply::to_entry()` qui le transforme. La forme est copiée de
+ * `tests/fixtures/supply-products.json`, qui est une capture réelle du service :
+ * `variants[]` avec `variantReference`, `attributes` typées `color` / `sizes` /
+ * `material`, `categories` bilingues, `grammage`, `netWeight`,
+ * `countryOfOrigin`, et les titres en objet de langues.
+ *
+ * LES NUMÉROS RESTENT CEUX D'AVANT (référence 18001, articles 180010003 et
+ * suivants) : `e2e-support.php` et `integration-lancement.php` les nomment, et
+ * les renommer étendrait ce changement à des fichiers qui n'ont rien à y voir.
+ * Les vraies références du nouveau fournisseur sont alphanumériques, et
+ * `Catalogue::map` accepte les deux, donc une référence numérique reste valide.
  */
-function ts_ac_sku( string $sku, string $colour, string $size ): array {
+
+/**
+ * Une déclinaison brute du fournisseur.
+ *
+ * @param string $code   Le numéro d'article (`variantReference`).
+ * @param string $colour Le nom de coloris, qui devient le terme de la boutique.
+ * @param string $hex    La teinte déclarée, ou '' quand il n'y en a pas.
+ * @param string $size   Le nom de taille.
+ */
+function ts_ac_raw_variant( string $code, string $colour, string $hex, string $size ): array {
+	$attributes = array(
+		array( 'type' => 'sizes', 'value' => $size ),
+		array(
+			'type'      => 'color',
+			'value'     => $colour,
+			// `colorCode` est une FAMILLE chez ce fournisseur, jamais une
+			// identité : il est ici parce qu'il est dans la capture, et
+			// `Supply::colour_code()` ne le lit pas.
+			'colorCode' => array( strtoupper( $colour ) ),
+			'hex'       => $hex,
+			'cmyk'      => '0 0 0 0',
+		),
+		array(
+			'type'  => 'material',
+			'value' => array(
+				'fr' => '100% coton peigné pré-rétréci.',
+				'en' => '100% pre-shrunk combed cotton.',
+			),
+		),
+	);
+
 	return array(
-		'sku'        => $sku,
-		'colourCode' => $colour,
-		'sizeName'   => $size,
-		'ean'        => '',
-		'weightKg'   => 0.19,
-		'coo'        => 'BD',
-		'closeout'   => false,
+		'variantReference'  => $code,
+		'underConstruction' => 0,
+		'prepublication'    => false,
+		'deletedAt'         => null,
+		'createdAt'         => '2019-11-28 16:36:00',
+		'updatedAt'         => '2026-08-19 08:03:55',
+		'tags'              => array(),
+		'title'             => array( 'fr' => 'Heavy Cotton T', 'en' => 'Heavy Cotton T' ),
+		'longTitle'         => array( 'fr' => 'Tee-shirt homme col rond 195', 'en' => 'Men’s crew neck t-shirt 195' ),
+		'certifications'    => array( 'certifications' => array( 'OEKO TEX' ) ),
+		'attributes'        => $attributes,
+		'netWeight'         => array( 'unit' => 'kg', 'value' => 0.19 ),
+		'averageWeight'     => array( 'unit' => 'kg', 'value' => 0 ),
+		'countryOfOrigin'   => array( 'Bangladesh' ),
+		'grammage'          => array( 'unit' => 'g/m²', 'value' => 195 ),
+		'eanUpcCode'        => '',
+		'categories'        => array(
+			array(
+				'categories' => array( 'fr' => 'TEE-SHIRT', 'en' => '' ),
+				'families'   => array( 'fr' => 'MANCHES COURTES', 'en' => '' ),
+			),
+		),
+		/*
+		 * AUCUNE IMAGE, comme les quatre cinquièmes de la capture réelle.
+		 * Une URL ici ferait partir un vrai téléchargement depuis
+		 * `Importer::images()`, donc un appel réseau sortant depuis une suite
+		 * de tests, pour une photographie qu'aucun cas n'examine.
+		 */
+		'images'            => array(),
 	);
 }
 
 /**
- * The supplier payload for reference 18001, trimmed.
+ * Le produit brut de la référence 18001, tel que le service le publierait.
  *
- * Two colours and four sizes would be eight articles; the supplier sells seven,
- * because Black does not exist in 2XL. That asymmetry is in the real catalogue
- * (11,6 % of the cross product does not exist) and it is here on purpose: it is
- * what a basket has to refuse rather than approximate.
+ * Deux coloris et quatre tailles feraient huit articles ; le fournisseur en
+ * vend sept, parce que le noir n'existe pas en 2XL. Cette asymétrie est dans le
+ * vrai catalogue (11,6 % du produit croisé n'existe pas) et elle est ici
+ * exprès : c'est ce qu'un panier doit refuser plutôt qu'approcher.
+ *
+ * @param array $over Remplacements récursifs, pour un cas qui veut changer un
+ *                    champ sans réécrire le produit entier.
  */
-function ts_ac_entry( array $over = array() ): array {
-	$entry = array(
-		'style'       => array(
-			'styleNr'      => '18001',
-			'brand'        => 'Fruit of the Loom',
-			'supplierRef'  => '61-212-0',
-			'name'         => 'Heavy Cotton T',
-			'nameEn'       => 'Heavy Cotton T',
-			'description'  => '·195 g/m²' . "\n" . '·100% coton',
-			'categories'   => array( 'Tee-shirts' ),
-			'kind'         => 'tee',
-			'sleeve'       => 'short',
-			'gender'       => 'hommes',
-			'neckline'     => 'Crew Neck',
-			'fabric'       => array( 'Coton' ),
-			'certificates' => array(),
-			'sizespecPdf'  => '',
-			'front'        => '/media/blank/picture/180_01_000_f.jpg',
-			'back'         => '',
-			'hasBack'      => false,
-			'colourways'   => array(
-				array(
-					'code'   => '000',
-					'name'   => 'White',
-					'swatch' => '/media/blank/picto/180_01_000.jpg',
-					'photo'  => '/media/blank/picture/180_01_000_f.jpg',
-					'skus'   => array(),
-				),
-				array(
-					'code'   => '101',
-					'name'   => 'Black',
-					'swatch' => '/media/blank/picto/180_01_101.jpg',
-					'photo'  => '/media/blank/picture/180_01_101_f.jpg',
-					'skus'   => array(),
-				),
-			),
-			'sizes'        => array( 'S', 'M', 'L', '2XL' ),
-			'skus'         => array(
-				ts_ac_sku( '180010003', '000', 'S' ),
-				ts_ac_sku( '180010004', '000', 'M' ),
-				ts_ac_sku( '180010005', '000', 'L' ),
-				ts_ac_sku( '180010007', '000', '2XL' ),
-				ts_ac_sku( '180011013', '101', 'S' ),
-				ts_ac_sku( '180011014', '101', 'M' ),
-				ts_ac_sku( '180011015', '101', 'L' ),
-			),
-			'exportedAt'   => '2026-08-19 08:03:55',
+function ts_ac_raw( array $over = array() ): array {
+	$product = array(
+		'reference' => '18001',
+		'createdAt' => '2019-11-27 11:50:50',
+		'updatedAt' => '2026-08-19 08:03:55',
+		'deletedAt' => null,
+		'brands'    => array( 'name' => 'Fruit of the Loom' ),
+		'variants'  => array(
+			ts_ac_raw_variant( '180010003', 'White', '#ffffff', 'S' ),
+			ts_ac_raw_variant( '180010004', 'White', '#ffffff', 'M' ),
+			ts_ac_raw_variant( '180010005', 'White', '#ffffff', 'L' ),
+			ts_ac_raw_variant( '180010007', 'White', '#ffffff', '2XL' ),
+			ts_ac_raw_variant( '180011013', 'Black', '#101010', 'S' ),
+			ts_ac_raw_variant( '180011014', 'Black', '#101010', 'M' ),
+			ts_ac_raw_variant( '180011015', 'Black', '#101010', 'L' ),
 		),
-		// The real published costs, read from the live service on 2026-08-19.
-		'prices'      => array(
-			'currency' => 'EUR',
-			'prices'   => array(
-				'180010003' => array( 'cost' => 3.37, 'list' => 2.13 ),
-				'180010004' => array( 'cost' => 3.37, 'list' => 2.13 ),
-				'180010005' => array( 'cost' => 3.37, 'list' => 2.13 ),
-				'180010007' => array( 'cost' => 4.46, 'list' => 2.95 ),
-				'180011013' => array( 'cost' => 3.37, 'list' => 2.13 ),
-				'180011014' => array( 'cost' => 3.37, 'list' => 2.13 ),
-				'180011015' => array( 'cost' => 3.37, 'list' => 2.13 ),
-			),
-		),
-		'pricesError' => null,
-		'stock'       => array(
-			// Question 43: three numbers, only the first is treated as stock.
-			'at'    => ts_ac_stock_at(),
-			'stock' => array(
-				'180010003' => array( 444, 0, 576 ),
-				'180010004' => array( 900, 0, 0 ),
-				'180010005' => array( 900, 0, 0 ),
-				// Deliberately short: eight in stock against a basket that wants more.
-				'180010007' => array( 8, 0, 4000 ),
-				'180011013' => array( 120, 0, 0 ),
-				'180011014' => array( 120, 0, 0 ),
-				'180011015' => array( 120, 0, 0 ),
-			),
-		),
-		'stockError'  => null,
+		'images'    => array(),
+		'links'     => array(),
 	);
-	return array_replace_recursive( $entry, $over );
+	return array_replace_recursive( $product, $over );
 }
 
 /**
- * A stock timestamp inside the trust window, in the shop's own wall clock.
+ * Dépose un produit brut dans la table de dépôt, comme `Supply::sync()` le fait.
  *
- * `wp_date` and not `gmdate`: the supplier writes central European time and
- * `Purchase::fresh` reads it in the shop's timezone. A fixture stamped in UTC
- * would be two hours older than it looks in summer, which is exactly the bug
- * that function's docblock records.
+ * `Supply::store()` est privée, donc l'insertion est recopiée ici, colonne pour
+ * colonne. Le classement passe par `Supply::classify()`, qui est publique et
+ * qui est celle que la synchronisation appelle : la copie porte sur le SQL, pas
+ * sur la règle, sinon ce gabarit rangerait le vêtement à sa façon.
  */
-function ts_ac_stock_at(): string {
-	return wp_date( 'Y-m-d H:i:s', time() - 3600 );
+function ts_ac_seed_supply( array $product = array() ): void {
+	global $wpdb;
+
+	$product = array() === $product ? ts_ac_raw() : $product;
+	$facts   = \Teeshoop\Core\Supply::classify( $product );
+	$payload = gzcompress( (string) wp_json_encode( $product ), 6 );
+	ts_assert( false !== $payload, 'le gabarit brut ne se compresse pas' );
+
+	$wpdb->query(
+		$wpdb->prepare(
+			'INSERT INTO `' . \Teeshoop\Core\Supply::table() . '` (ref, kind, shelf, sleeve, updated_at, seen_at, gone, payload)
+			 VALUES (%s, %s, %s, %s, %s, %s, %d, %s)
+			 ON DUPLICATE KEY UPDATE kind = VALUES(kind), shelf = VALUES(shelf), sleeve = VALUES(sleeve),
+			   updated_at = VALUES(updated_at), seen_at = VALUES(seen_at), gone = VALUES(gone), payload = VALUES(payload)',
+			(string) $product['reference'],
+			$facts['kind'],
+			$facts['shelf'],
+			$facts['sleeve'],
+			gmdate( 'Y-m-d H:i:s', (int) strtotime( (string) $product['updatedAt'] ) ),
+			gmdate( 'Y-m-d H:i:s' ),
+			0,
+			$payload
+		)
+	);
 }
 
-/** Answer every Worker call this suite makes. See `$GLOBALS['ts_ac_order']`. */
+/**
+ * Retire du miroir tout ce que ce gabarit y a déposé.
+ *
+ * LES DEUX TABLES, et pas seulement celle du catalogue : `Disponibilite` écrit
+ * une ligne par code à CHAQUE lecture de prix ou de stock, y compris quand
+ * c'est le panier qui demande. Sans ce nettoyage, une seconde exécution
+ * trouverait sept lignes fraîches qu'elle n'a pas écrites, et « le relevé est
+ * cru » passerait pour une mesure alors que ce serait un reste.
+ *
+ * Nommément, jamais en vidant la table : le miroir porte 3 241 produits et
+ * 1 060 disponibilités réels, synchronisés depuis le service.
+ */
+function ts_ac_forget_supply(): void {
+	global $wpdb;
+
+	$wpdb->query(
+		$wpdb->prepare( 'DELETE FROM `' . \Teeshoop\Core\Supply::table() . '` WHERE ref = %s', '18001' )
+	);
+
+	$codes = array_keys( ts_ac_live_default() );
+	$wpdb->query(
+		$wpdb->prepare(
+			'DELETE FROM `' . \Teeshoop\Core\Disponibilite::table() . '` WHERE code IN ('
+				. implode( ', ', array_fill( 0, count( $codes ), '%s' ) ) . ')',
+			$codes
+		)
+	);
+}
+
+/**
+ * Prix et stock en direct, dans la forme EXACTE où le service les publie.
+ *
+ * Tout est une CHAÎNE, y compris les nombres, parce que c'est ce que
+ * `tests/fixtures/supply-pricestock.json` contient (« "price": "3.45" »,
+ * « "stock": "510" »). Écrire des entiers ici rendrait `parse_price_cents()` et
+ * `parse_count()` verts sur un cas qu'ils ne rencontrent jamais.
+ *
+ * Les montants sont ceux que le service publiait le 19 août 2026 sur cette
+ * référence : 3,37 EUR sur les petites tailles, 4,46 EUR sur le 2XL.
+ *
+ * @return array<string,array<string,string>>
+ */
+function ts_ac_live_default(): array {
+	$row = static fn( string $price, int $stock, int $maker ): array => array(
+		'quantity_unit'  => '1',
+		'quantity_box'   => '100',
+		'price'          => $price,
+		'price_box'      => $price,
+		'stock'          => (string) $stock,
+		// `stock_supplier` est ce que le FABRICANT a derrière le grossiste.
+		// On ne vend jamais contre lui ; il est ici parce que la réponse le
+		// porte et que `to_entry()` le range en troisième position.
+		'stock_supplier' => (string) $maker,
+	);
+
+	return array(
+		'180010003' => $row( '3.37', 444, 576 ),
+		'180010004' => $row( '3.37', 900, 0 ),
+		'180010005' => $row( '3.37', 900, 0 ),
+		// Volontairement court : huit en stock contre un panier qui en veut vingt.
+		'180010007' => $row( '4.46', 8, 4000 ),
+		'180011013' => $row( '3.37', 120, 0 ),
+		'180011014' => $row( '3.37', 120, 0 ),
+		'180011015' => $row( '3.37', 120, 0 ),
+	);
+}
+
+/** Ce que le service répondra, remplaçable par un cas. */
+function ts_ac_live(): array {
+	return $GLOBALS['ts_ac_live'] ?? ts_ac_live_default();
+}
+
+/** La valeur d'un paramètre de requête d'une URL, ou ''. */
+function ts_ac_query( string $url, string $key ): string {
+	$query = (string) wp_parse_url( $url, PHP_URL_QUERY );
+	$args  = array();
+	wp_parse_str( $query, $args );
+	return (string) ( $args[ $key ] ?? '' );
+}
+
+/**
+ * Answer every supplier and Worker call this suite makes.
+ *
+ * ── CE QUE LE GREFFON APPELLE VRAIMENT DEPUIS LE 9 SEPTEMBRE 2026 ───────────
+ *
+ * Les quatre routes de l'ancien service (`/catalogue/`, `/state`, `/order`,
+ * `/deliveries`) n'existent plus. Il en reste trois chez le fournisseur :
+ *
+ *   GET  …/api/products/price-stock?products=CSV   un OBJET indexé par code
+ *   GET  …/api/products/price-stock/{reference}    une LISTE portant « code »
+ *   POST …/api/orders/create-order                 la commande
+ *
+ * Les deux premières n'ont pas la même forme, et ce n'est pas un détail :
+ * `Disponibilite::parse_rows()` lit le code dans la ligne d'abord et dans la
+ * clé ensuite, donc un gabarit qui ne rendrait qu'une seule des deux formes
+ * laisserait la moitié de ce lecteur sans épreuve.
+ *
+ * Voir `$GLOBALS['ts_ac_order']` pour la réponse de la commande et
+ * `$GLOBALS['ts_ac_live']` pour le prix et le stock.
+ */
 function ts_ac_stub(): void {
 	remove_all_filters( 'pre_http_request' );
 	add_filter(
 		'pre_http_request',
 		function ( $pre, $args, $url ) {
 			$json = static fn( array $body, int $code = 200 ): array => array(
-				'headers'  => array(),
+				/*
+				 * LE TYPE DE CONTENU EST OBLIGATOIRE SUR CHAQUE RÉPONSE.
+				 *
+				 * `SupplyHttp::read()` refuse tout corps qui n'est pas annoncé
+				 * JSON avant même d'essayer de le décoder, parce que le vrai
+				 * service répond à un jeton faux par un 302 vers une page de
+				 * connexion HTML : un client qui lit du HTML comme du JSON lit
+				 * « aucun article » là où il faut lire « on nous a refusés ».
+				 * Un gabarit qui oublie cet en-tête fait donc échouer CHAQUE
+				 * appel avec le motif « parse », et on cherche le mauvais bogue.
+				 */
+				'headers'  => array( 'content-type' => 'application/json' ),
 				'body'     => wp_json_encode( $body ),
 				'response' => array( 'code' => $code ),
 				'cookies'  => array(),
 				'filename' => null,
 			);
 
-			if ( str_contains( (string) $url, '/deliveries' ) ) {
-				return $json(
-					array(
-						'at'    => '2026-08-19 08:00:00',
-						'items' => array(
-							// Two announcements for one article: the earlier wins.
-							array( 'sku' => '180010007', 'date' => '2026-09-30', 'qty' => 300, 'freeToSell' => 300 ),
-							array( 'sku' => '180010007', 'date' => '2026-09-08', 'qty' => 120, 'freeToSell' => 120 ),
-						),
-					)
-				);
+			$url  = (string) $url;
+			$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+
+			// ── le fournisseur : prix et stock ──────────────────────────────
+			if ( str_starts_with( $path, '/api/products/price-stock' ) ) {
+				$live = ts_ac_live();
+				$tail = trim( substr( $path, strlen( '/api/products/price-stock' ) ), '/' );
+
+				if ( '' !== $tail ) {
+					// PAR RÉFÉRENCE : une liste, chaque ligne portant son code.
+					$rows = array();
+					foreach ( $live as $code => $row ) {
+						if ( str_starts_with( (string) $code, rawurldecode( $tail ) ) ) {
+							$rows[] = array_merge( array( 'code' => (string) $code ), $row );
+						}
+					}
+					return $json( array( 'products' => $rows ) );
+				}
+
+				/*
+				 * PAR LOT : un objet indexé par code. Un code demandé qu'on ne
+				 * connaît pas est annoncé introuvable dans la PHRASE que le
+				 * service écrit, et pas passé sous silence : « il n'existe pas »
+				 * et « je n'en ai pas parlé » n'écrivent pas la même chose dans
+				 * la table des disponibilités.
+				 */
+				$asked   = array_filter( array_map( 'trim', explode( ',', ts_ac_query( $url, 'products' ) ) ) );
+				$out     = array();
+				$missing = array();
+				foreach ( $asked as $code ) {
+					if ( isset( $live[ $code ] ) ) {
+						$out[ $code ] = $live[ $code ];
+					} else {
+						$missing[] = $code;
+					}
+				}
+				$body = array( 'products' => $out );
+				if ( array() !== $missing ) {
+					$body['products_not_found'] = 'Les references produit suivantes sont introuvables : ' . implode( ', ', $missing );
+				}
+				return $json( $body );
 			}
-			if ( str_contains( (string) $url, '/catalogue/' ) ) {
-				return $json( $GLOBALS['ts_ac_entry'] ?? ts_ac_entry() );
-			}
-			if ( str_ends_with( (string) $url, '/state' ) ) {
-				return $json(
-					array(
-						'mode'     => $GLOBALS['ts_ac_mode'] ?? 'test',
-						'modeCode' => '1',
-						'modeName' => 'test',
-						'at'       => '2026-08-19 16:00:00',
-					)
-				);
-			}
-			if ( str_ends_with( (string) $url, '/order' ) ) {
+
+			// ── le fournisseur : la commande ────────────────────────────────
+			if ( str_ends_with( $path, '/api/orders/create-order' ) ) {
 				$answer = $GLOBALS['ts_ac_order'] ?? array( 'outcome' => 'accepted' );
 				if ( isset( $answer['transport'] ) ) {
 					return new \WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out' );
 				}
 				$GLOBALS['ts_ac_sent'][] = json_decode( (string) ( $args['body'] ?? '{}' ), true );
+
+				/*
+				 * UN REFUS EST UN 422 PORTANT CHAMP VERS PHRASES, et jamais un
+				 * 200 avec un drapeau : c'est la seule forme de refus que ce
+				 * service publie, et `Supply::place_order()` la lit comme telle.
+				 */
+				if ( 'rejected' === ( $answer['outcome'] ?? '' ) ) {
+					return $json(
+						(array) ( $answer['errors'] ?? array( 'order_lines' => array( 'Artno not found' ) ) ),
+						422
+					);
+				}
+				/*
+				 * UNE ACCEPTATION SANS NUMÉRO est ce que `place_order()` classe
+				 * « incertain » : le fournisseur a peut-être créé la commande et
+				 * rien ne permet de le savoir. Le gabarit le produit en
+				 * n'écrivant pas `order_id`, ce qui est exactement ce qu'une
+				 * réponse tronquée ferait.
+				 */
+				if ( 'unknown' === ( $answer['outcome'] ?? '' ) ) {
+					return $json( array( 'message' => (string) ( $answer['message'] ?? '' ) ) );
+				}
 				return $json(
-					array_merge(
-						array(
-							'ok'      => 'accepted' === $answer['outcome'],
-							'orderId' => 'accepted' === $answer['outcome'] ? '4412345' : '0',
-							'message' => '',
-							'lines'   => array(),
-							'mode'    => array( 'mode' => 'test' ),
-						),
-						$answer
+					array(
+						'order_id' => (string) ( $answer['orderId'] ?? '4412345' ),
+						'message'  => (string) ( $answer['message'] ?? '' ),
 					),
 					(int) ( $answer['status'] ?? 200 )
 				);
 			}
-			if ( str_contains( (string) $url, '/api/design/' ) ) {
+
+			// ── le Worker ───────────────────────────────────────────────────
+			if ( str_contains( $url, '/api/design/' ) ) {
 				return $json(
 					array(
-						'id'          => substr( (string) $url, strrpos( (string) $url, '/' ) + 1 ),
+						'id'          => substr( $url, strrpos( $url, '/' ) + 1 ),
 						'garment'     => 'tee',
 						/*
 						 * THE COLOUR COMES FROM THE MANIFEST, because that is where
@@ -260,7 +446,7 @@ function ts_ac_stub(): void {
 					)
 				);
 			}
-			if ( str_contains( (string) $url, '/api/nest' ) ) {
+			if ( str_contains( $url, '/api/nest' ) ) {
 				/*
 				 * The CEILING a browser-measured layout may not exceed, answered
 				 * with the SHIPPED bound and not with arithmetic of its own.
@@ -301,6 +487,19 @@ function ts_ac_stub(): void {
 					)
 				);
 			}
+
+			/*
+			 * TOUTE AUTRE ROUTE DU FOURNISSEUR EST UN ÉCHEC BRUYANT.
+			 *
+			 * Rendre `$pre` ferait partir une VRAIE requête vers le service de
+			 * préproduction depuis une suite de tests, avec les identifiants du
+			 * miroir : lente, dépendante du réseau, et capable de créer une
+			 * commande chez lui. Un refus nommé arrête net et dit lequel.
+			 */
+			if ( str_starts_with( $path, '/api/products/' ) || str_starts_with( $path, '/api/orders/' ) || str_starts_with( $path, '/oauth/' ) ) {
+				return new \WP_Error( 'ts_ac_non_prevu', 'Appel fournisseur non prévu par le gabarit : ' . $path );
+			}
+
 			return $pre;
 		},
 		10,
@@ -397,13 +596,49 @@ function ts_purchase_suite( int $product_id ): void {
 	$settings                = (array) get_option( 'teeshoop_settings', array() );
 	$settings['worker_url']  = 'https://worker.invalid';
 	update_option( 'teeshoop_settings', $settings );
-	if ( ! defined( 'TEESHOOP_CATALOGUE_TOKEN' ) ) {
-		define( 'TEESHOOP_CATALOGUE_TOKEN', str_repeat( 'k', 32 ) );
+
+	/*
+	 * ── LA CONFIGURATION FOURNISSEUR, DÉCLARÉE ET VÉRIFIÉE ──────────────────
+	 *
+	 * Le miroir porte déjà ces constantes, avec de vrais identifiants de
+	 * préproduction. Cette suite ne dépend PAS de leurs valeurs : tout part par
+	 * `pre_http_request` et rien ne sort sur le réseau. Elle dépend seulement du
+	 * fait qu'elles existent, parce que `SupplyHttp::unconfigured()` ferme avant
+	 * d'appeler quoi que ce soit : sans elles, `Supply::entry()` refuserait, le
+	 * gabarit ne serait jamais consulté, et la moitié de cette suite passerait à
+	 * côté de ce qu'elle croit mesurer.
+	 *
+	 * Elles sont donc posées si elles manquent (une constante ne se redéfinit
+	 * pas, donc c'est sans effet sur un miroir configuré) ET le cas ci-dessous
+	 * échoue si le greffon se dit malgré tout mal réglé. « Rien trouvé » et
+	 * « rien regardé » sont deux résultats différents, y compris ici.
+	 */
+	foreach ( array(
+		'TEESHOOP_SUPPLY_BASE'          => 'https://fournisseur.invalid',
+		'TEESHOOP_SUPPLY_TOKEN'         => 'Bearer ' . str_repeat( 'k', 32 ),
+		'TEESHOOP_SUPPLY_V2_BASE'       => 'https://fournisseur.invalid',
+		'TEESHOOP_SUPPLY_CLIENT_ID'     => str_repeat( 'c', 32 ),
+		'TEESHOOP_SUPPLY_CLIENT_SECRET' => str_repeat( 's', 32 ),
+		'TEESHOOP_SUPPLY_MEDIA_BASE'    => 'https://images.invalid',
+		/*
+		 * LE MODE NE S'IMPOSE PAS D'ICI, ET C'EST DÉLIBÉRÉ. `Supply::mode()`
+		 * lit cette constante et rien d'autre : lui ajouter un filtre ou une
+		 * statique modifiable donnerait à la production un moyen d'appeler
+		 * « essai » un compte réel, ce qui est exactement ce que la
+		 * déclaration existe pour empêcher. La suite la POSE quand elle
+		 * manque, et ÉCHOUE quand le miroir en déclare une autre.
+		 */
+		'TEESHOOP_SUPPLY_MODE'          => 'test',
+	) as $ts_ac_const => $ts_ac_value ) {
+		if ( ! defined( $ts_ac_const ) ) {
+			define( $ts_ac_const, $ts_ac_value );
+		}
 	}
-	// The money route needs its own secret, which the catalogue's does not open.
-	if ( ! defined( 'TEESHOOP_ORDER_TOKEN' ) ) {
-		define( 'TEESHOOP_ORDER_TOKEN', str_repeat( 'o', 32 ) );
-	}
+
+	ts_it( 'runs against a shop the plugin considers configured, or not at all', function () {
+		ts_eq( \Teeshoop\Core\Supply::unconfigured(), '', 'le greffon se dit mal réglé : les appels refuseraient avant d’atteindre le gabarit' );
+		ts_eq( \Teeshoop\Core\Supply::mode()['mode'], 'test', 'le compte fournisseur déclaré par ce miroir n’est pas « test » : corrigez TEESHOOP_SUPPLY_MODE dans wp-config.php' );
+	} );
 
 	ts_ac_stub();
 
@@ -419,12 +654,41 @@ function ts_purchase_suite( int $product_id ): void {
 	 * mirror's history, not the code.
 	 */
 	ts_ac_forget_blank();
+	ts_ac_forget_supply();
 
-	$GLOBALS['ts_ac_entry'] = ts_ac_entry();
-	$imported               = Importer::one( '18001' );
+	/*
+	 * LE PRODUIT BRUT EST DÉPOSÉ, PUIS L'IMPORT LE RELIT. `Importer::one()`
+	 * appelle `Supply::entry()`, qui lit le dépôt et demande le prix et le stock
+	 * au service ; le gabarit HTTP répond pour la seconde moitié seulement. La
+	 * cartographie `Supply::to_entry()` est donc EXERCÉE ici, ce qui n'était pas
+	 * le cas quand ce fichier injectait sa sortie.
+	 */
+	ts_ac_seed_supply();
+	$imported = Importer::one( '18001' );
 	ts_it( 'imports the blank the workshop will buy, through the real importer', function () use ( $imported ) {
 		ts_assert( 'failed' !== ( $imported['outcome'] ?? 'failed' ), 'import refusé : ' . implode( ' / ', (array) ( $imported['problems'] ?? array() ) ) );
 		ts_assert( null !== ts_ac_variation( '180010004' ), 'l’article 180010004 n’a pas été écrit' );
+	} );
+
+	ts_it( 'maps the supplier’s own payload into the article the workshop buys', function () {
+		/*
+		 * CE CAS N'EXISTAIT PAS, et il ne pouvait pas exister : le gabarit
+		 * rendait la SORTIE de la cartographie, donc un défaut dedans était
+		 * invisible. Les trois faits vérifiés sont ceux dont dépend de l'argent :
+		 * le coloris (qui désigne l'article), la taille (idem) et le prix
+		 * d'achat, qui est le plancher sous le prix de vente.
+		 */
+		$variation = ts_ac_variation( '180010004' );
+		ts_assert( $variation instanceof \WC_Product, 'l’article 180010004 est illisible' );
+		ts_eq( $variation->get_attribute( \Teeshoop\Core\Taxonomy::taxonomy( 'couleur' ) ), 'White', 'le coloris cartographié' );
+		ts_eq( $variation->get_attribute( \Teeshoop\Core\Taxonomy::taxonomy( 'taille' ) ), 'M', 'la taille cartographiée' );
+		ts_eq( (int) $variation->get_meta( Catalogue::META_SUPPLY_CENTS, true ), 337, 'le prix d’achat en centimes' );
+		ts_eq( (int) $variation->get_stock_quantity(), 900, 'le stock écrit sur l’article' );
+
+		// Et le 2XL, qui est le seul à un autre tarif : 4,46 EUR contre 3,37.
+		$big = ts_ac_variation( '180010007' );
+		ts_assert( $big instanceof \WC_Product, 'l’article 180010007 est illisible' );
+		ts_eq( (int) $big->get_meta( Catalogue::META_SUPPLY_CENTS, true ), 446, 'le prix d’achat du 2XL' );
 	} );
 
 	ts_it( 'writes the supplier’s own stock date on every article it wrote', function () {
@@ -631,14 +895,23 @@ function ts_purchase_suite( int $product_id ): void {
 		ts_assert( $basket['complete'], 'une rupture a bloqué un panier par ailleurs identifiable' );
 
 		/*
-		 * AND IT SAYS WHEN HE SAYS IT COMES BACK, which is the only forward date
-		 * in this whole file: nobody has measured how long he takes to deliver
-		 * (question 46), so the shop prints his announcement and computes none of
-		 * its own. The EARLIER of his two announcements, because the workshop
-		 * wants to know when it can press.
+		 * ── ET IL N'ANNONCE AUCUNE DATE, CE QUI EST LA RÉPONSE HONNÊTE ───────
+		 *
+		 * Ce cas exigeait « 2026-09-08 » et 120 pièces, lus sur une route de
+		 * réapprovisionnement de l'ANCIEN service. Le nouveau n'en publie
+		 * aucune : il donne `stock_supplier`, la quantité que le FABRICANT a
+		 * derrière le grossiste, et rien sur la date à laquelle elle arriverait
+		 * chez lui. `Supply::deliveries()` rend donc un tableau vide, exprès, et
+		 * la question est posée au fournisseur dans `QUESTIONS-ASSOCIE.md`.
+		 *
+		 * L'assertion n'est pas retirée, elle est retournée : ce qui doit être
+		 * vrai maintenant, c'est que la boutique n'INVENTE pas une date. Une
+		 * promesse de délai faite à un client sur une donnée qui n'existe pas
+		 * est plus chère qu'une absence de promesse, et ce cas échouera le jour
+		 * où quelqu'un dérivera une date de `stock_supplier`.
 		 */
-		ts_assert( '2026-09-08' === (string) $basket['stock']['short'][0]['back_on'], 'le réapprovisionnement annoncé est ' . (string) $basket['stock']['short'][0]['back_on'] );
-		ts_assert( 120 === (int) $basket['stock']['short'][0]['back_qty'], 'la quantité annoncée ne suit pas sa date' );
+		ts_eq( (string) $basket['stock']['short'][0]['back_on'], '', 'une date de réapprovisionnement est annoncée alors que le service n’en publie aucune' );
+		ts_eq( (int) $basket['stock']['short'][0]['back_qty'], 0, 'une quantité de réapprovisionnement est annoncée sans date' );
 	} );
 
 	// ── from a print run to a basket ─────────────────────────────────────────
@@ -793,12 +1066,32 @@ function ts_purchase_suite( int $product_id ): void {
 		ts_assert( ! empty( $sent['ok'] ), 'envoi refusé : ' . ( $sent['reason'] ?? '' ) );
 		ts_assert( 1 === count( $GLOBALS['ts_ac_sent'] ), 'le document n’est pas parti une fois et une seule' );
 		$body = $GLOBALS['ts_ac_sent'][0];
-		ts_assert( $body['idempotencyKey'] === $prepared['purchase']['key'], 'la clé envoyée n’est pas celle du dossier' );
-		ts_assert( 'test' === $body['mode'], 'le mode confirmé n’a pas voyagé avec la commande' );
+
+		/*
+		 * NOTRE CLÉ VOYAGE, TRONQUÉE À CE QUE LE SERVICE ACCEPTE. Vingt
+		 * caractères, imposés par son propre schéma : c'est comparé à
+		 * `substr(clé, 0, 20)` et pas à la clé entière, parce qu'un identifiant
+		 * d'achat à sept chiffres pousse la clé à vingt et un et que
+		 * l'assertion doit décrire ce qui part, pas ce qu'on aurait aimé.
+		 */
+		ts_eq( (string) $body['reference_internal'], substr( (string) $prepared['purchase']['key'], 0, 20 ), 'la clé envoyée n’est pas celle du dossier' );
+
+		/*
+		 * L'ADRESSE DE LIVRAISON EST DANS LE DOCUMENT, et elle est la nôtre.
+		 * Le nouveau service l'exige ligne par ligne ; sans elle, la commande
+		 * est refusée chez lui. Le cinq champs sont vérifiés non vides plutôt
+		 * que comparés à des littéraux : ils viennent de l'identité légale de
+		 * la boutique, qu'un exploitant peut changer sans casser ce test.
+		 */
+		$ship = (array) ( $body['shipping_address'] ?? array() );
+		foreach ( array( 'name', 'address', 'zip', 'city', 'country_code' ) as $field ) {
+			ts_assert( '' !== trim( (string) ( $ship[ $field ] ?? '' ) ), 'l’adresse de livraison ne porte pas « ' . $field . ' »' );
+		}
+
 		$qty = 0;
-		foreach ( $body['lines'] as $line ) {
-			ts_assert( 1 === preg_match( '/^\d{9}$/', (string) $line['sku'] ), 'une ligne ne porte pas un article à neuf chiffres' );
-			$qty += (int) $line['qty'];
+		foreach ( (array) $body['order_lines'] as $line ) {
+			ts_assert( 1 === preg_match( '/^\d{9}$/', (string) $line['reference'] ), 'une ligne ne porte pas un article à neuf chiffres' );
+			$qty += (int) $line['quantity'];
 		}
 		ts_assert( 30 === $qty, '30 vêtements préparés, ' . $qty . ' envoyés' );
 	} );
@@ -1062,6 +1355,33 @@ function ts_purchase_suite( int $product_id ): void {
 		$done     = Purchase::send( (int) $prepared['id'], '' );
 		ts_assert( empty( $done['ok'] ), 'un envoi sans mode confirmé est passé' );
 		ts_assert( count( $GLOBALS['ts_ac_sent'] ) === $before, 'un document est parti sans confirmation' );
+		Purchase::discard( (int) $prepared['id'] );
+	} );
+
+	ts_it( 'will not send against a mode that is not the one declared', function () use ( $product_id ) {
+		/*
+		 * ── CE QUI A REMPLACÉ « le mode a voyagé avec la commande » ──────────
+		 *
+		 * L'ancien service publiait son mode sur une route, et le document
+		 * partait avec, ce que cette suite vérifiait en lisant le corps envoyé.
+		 * Le nouveau n'a pas de route de ce genre : la préproduction et la
+		 * production sont deux ADRESSES, et rien dans une réponse ne dit
+		 * laquelle on interroge. Le mode est donc DÉCLARÉ dans
+		 * `TEESHOOP_SUPPLY_MODE`, et ce qui protège l'argent n'est plus un champ
+		 * dans le corps mais le refus de partir quand l'appelant croit autre
+		 * chose que ce qui est déclaré.
+		 *
+		 * C'est une assertion plus forte que celle qu'elle remplace : elle
+		 * mesure qu'AUCUN octet ne part, au lieu de mesurer ce qu'un octet
+		 * contenait.
+		 */
+		$order    = ts_ac_order( $product_id, array( 'M' => 2 ), 'white', 'qqqqqqqqqqqqqqqq1717' );
+		$prepared = Purchase::prepare( array( $order->get_id() ) );
+		$before   = count( $GLOBALS['ts_ac_sent'] );
+		$done     = Purchase::send( (int) $prepared['id'], 'live' );
+		ts_assert( empty( $done['ok'] ), 'un envoi en « réel » est passé sur un compte déclaré « essai »' );
+		ts_assert( count( $GLOBALS['ts_ac_sent'] ) === $before, 'un document est parti vers le mauvais compte' );
+		ts_assert( str_contains( (string) $done['reason'], 'essai' ) || str_contains( (string) $done['reason'], 'test' ), 'le refus ne nomme pas le mode : ' . $done['reason'] );
 		Purchase::discard( (int) $prepared['id'] );
 	} );
 
