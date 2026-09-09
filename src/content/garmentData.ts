@@ -183,3 +183,96 @@ export function buildGarmentData(): GarmentDataFile {
     })),
   }
 }
+
+// ---------------------------------------------------------------------------
+// The illustration
+// ---------------------------------------------------------------------------
+
+/**
+ * One side of one garment, drawn, with the rectangle we may print inside it.
+ *
+ * `body` is the flat product illustration authored in `src/garments/*.ts`,
+ * carrying the literal `__COLOR__` where the cloth fill goes. The shop
+ * substitutes a colour into it exactly as `src/app/panels/ProductPanel.tsx`
+ * already does, so there is one drawing of a t-shirt in this project and not
+ * two.
+ */
+export interface GarmentSideArtFile {
+  side: Side
+  /** SVG document, `viewBox="0 0 800 800"`, with `__COLOR__` for the cloth. */
+  body: string
+  /** The printable rectangle in that same viewBox, so the two cannot drift. */
+  printAreaPx: { x: number; y: number; w: number; h: number }
+}
+
+export interface GarmentArtFile {
+  schema: number
+  generatedFrom: string
+  garments: Record<
+    string,
+    {
+      id: string
+      /** viewBox px per real inch. The bridge between the drawing and the cm. */
+      pxPerInch: number
+      /** Real laid-flat width, inches. */
+      widthIn: number
+      sides: GarmentSideArtFile[]
+    }
+  >
+}
+
+/**
+ * The drawings, for a page that has to SHOW a garment rather than measure one.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY IT IS A SECOND FILE AND NOT MORE KEYS IN `garments.json`
+ *
+ * `garments.json` is read by `Garments::all()` on every product page, and it is
+ * read to answer "how many centimetres". These drawings are 48 kB of SVG and
+ * are wanted by one page. Folding them in would make every product page in the
+ * shop decode 48 kB of path data to print "30,5 × 40,6 cm". Two files, one
+ * generator, one guard.
+ *
+ * WHY THE SHADING LAYER IS LEFT OUT. `GarmentSideArt.shade` exists to be
+ * multiplied over a customer's artwork so the print takes the garment's own
+ * folds. Nothing on the shop composites artwork, the studio does that in the
+ * browser from this same module, so shipping it to WordPress would be bytes
+ * for a job nobody does there.
+ *
+ * THE PRINT RECTANGLE TRAVELS WITH THE DRAWING, in the drawing's own
+ * coordinates. That is the whole point of deriving this rather than drawing a
+ * garment by hand in a stylesheet: `printAreaPx` is the same rectangle the
+ * press is set to, so a homepage that draws it on the garment cannot advertise
+ * a print area the workshop does not print. `pxPerInch` is what turns it back
+ * into the centimetres `buildGarmentData()` publishes beside it.
+ */
+export function buildGarmentArt(): GarmentArtFile {
+  const garments: GarmentArtFile['garments'] = {}
+
+  for (const id of ['tee', 'hoodie'] as const) {
+    const art = GARMENTS[id]
+    garments[id] = {
+      id,
+      pxPerInch: art.pxPerInch,
+      widthIn: art.widthIn,
+      sides: SIDES.map((side) => ({
+        side,
+        body: art.sides[side].body,
+        printAreaPx: art.sides[side].printAreaPx,
+      })),
+    }
+  }
+
+  /*
+   * `custom` gets no drawing, for the same reason it gets no measurements: the
+   * garment is the customer's own photograph. An illustration of OUR t-shirt
+   * standing in for the shirt they are about to ship us would be a picture of
+   * the wrong object.
+   */
+
+  return {
+    schema: 1,
+    generatedFrom: 'src/content/garmentData.ts',
+    garments,
+  }
+}

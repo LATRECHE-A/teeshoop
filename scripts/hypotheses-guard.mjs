@@ -131,7 +131,26 @@ const SCAN_SKIP = new Set(['node_modules', 'dist', '.git'])
  * silence. Trouvé par la passe adversariale du 5 septembre 2026.
  */
 const SCAN_SKIP_PATHS = new Set(['wp-plugins/teeshoop-core/assets/editeur'])
-const SCAN_EXCLUDE_FILES = new Set(['wp-plugins/teeshoop-core/data/hypotheses.php'])
+/*
+ * `garment-art.json` REJOINT LA PROJECTION, ET POUR LA RAISON ÉCRITE PLUS HAUT.
+ *
+ * C'est le dessin des vêtements, ENGENDRÉ depuis `src/garments/*.ts` par
+ * `scripts/gen-garment-data.mjs` et recomparé octet pour octet par
+ * `npm run verify:garments` : il ne peut pas contenir une valeur que sa source
+ * ne contient pas, ce qui est exactement la propriété qui rend l'exclusion d'un
+ * fichier engendré sans danger.
+ *
+ * Ce qu'il contient, ce sont des coordonnées de tracé SVG sur une grille de
+ * 800 unités. Sur 52 ko de chemins, croiser « 250 » ou « 1200 » n'est pas une
+ * coïncidence, c'est une certitude : la première exécution a rendu 29
+ * violations, toutes sur des points de courbe de Bézier, dont aucune n'est un
+ * seuil de devis. Une garde qui crie sur des coordonnées est une garde qu'on
+ * apprend à ignorer.
+ */
+const SCAN_EXCLUDE_FILES = new Set([
+  'wp-plugins/teeshoop-core/data/hypotheses.php',
+  'wp-plugins/teeshoop-core/data/garment-art.json',
+])
 
 /**
  * The string tables a customer's French actually comes from.
