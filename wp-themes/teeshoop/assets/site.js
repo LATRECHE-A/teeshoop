@@ -1,11 +1,12 @@
 /*
- * The whole script. Three behaviours, no framework, no dependency.
+ * The whole script. Four behaviours, no framework, no dependency.
  *
  * EVERY ONE OF THEM IS AN ENHANCEMENT. With this file blocked the navigation is
- * a visible list, the filter panel is a visible form with a submit button, and
- * the long facets are simply long. Nothing on this site needs JavaScript to be
- * bought, which is not a purity argument: the studio is already a heavy page
- * and the surrounding site is not allowed to add to it.
+ * a visible list, the filter panel is a visible form with a submit button, the
+ * long facets are simply long, and the homepage's garment still changes colour
+ * because the stylesheet does that part on its own. Nothing on this site needs
+ * JavaScript to be bought, which is not a purity argument: the studio is
+ * already a heavy page and the surrounding site is not allowed to add to it.
  *
  * `has-js` is set inline in the document head so the stylesheet can collapse
  * the menu before it is painted. Without that the page would flash an open
@@ -70,6 +71,110 @@
       panel.classList.toggle('is-open', open)
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false')
     })
+  }
+
+  /* ------------------------------------------------ the garment demo -- */
+
+  /*
+   * TWO JOBS, AND BOTH ARE ENHANCEMENTS.
+   *
+   * 1. THE FALLBACK PAINT. The colour follows the checked radio through
+   *    `:has()` in the stylesheet, with no script at all. This sets the same
+   *    custom property directly, which is what keeps the swatches working in a
+   *    browser that has no `:has()`. Where both work, this simply writes the
+   *    value the stylesheet already computed.
+   *
+   * 2. THE UNPROMPTED DEMONSTRATION. A visitor who never touches the swatches
+   *    never learns that the garment comes in seventeen colours, which is the
+   *    one thing this block exists to say. So it advances on its own, slowly,
+   *    and stops for good the moment somebody takes over.
+   *
+   * IT STOPS FOR THREE REASONS, and every one of them is somebody saying no:
+   * the visitor picked a colour, the visitor asked their system for less
+   * motion, or the demonstration scrolled out of sight. The last one is not
+   * politeness, it is a timer that would otherwise repaint a page nobody is
+   * looking at for as long as the tab is open.
+   */
+  var demo = doc.querySelector('[data-teeshoop="demo-accueil"]')
+
+  if (demo) {
+    var stage = demo.querySelector('.ts-demo__stage')
+    var radios = Array.prototype.slice.call(demo.querySelectorAll('.ts-demo__radio'))
+
+    var paint = function () {
+      var picked = demo.querySelector('.ts-demo__radio:checked')
+      if (picked && stage && picked.dataset.tint) stage.style.setProperty('--ts-demo-tint', picked.dataset.tint)
+    }
+
+    if (radios.length > 0) {
+      paint()
+      radios.forEach(function (radio) {
+        radio.addEventListener('change', paint)
+      })
+
+      /*
+       * `matchMedia` and not a CSS-only guard: the stylesheet can refuse the
+       * transition, and only the script can refuse to START one. A reduced
+       * motion setting that still cycled the garment every 2,6 s would be the
+       * setting ignored, just without the fade.
+       */
+      var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)')
+      var timer = null
+
+      var halt = function () {
+        if (timer !== null) {
+          window.clearInterval(timer)
+          timer = null
+        }
+      }
+
+      var advance = function () {
+        var at = radios.indexOf(demo.querySelector('.ts-demo__radio:checked'))
+        var next = radios[(at + 1) % radios.length]
+        if (!next) return
+        /*
+         * `checked` and not `.click()`: a click would move the focus ring onto
+         * a control the visitor never touched, and on a phone that scrolls the
+         * page. Setting the property does not fire `change`, so the paint is
+         * called by hand.
+         */
+        next.checked = true
+        paint()
+      }
+
+      if (!(still && still.matches) && radios.length > 1) {
+        // Any deliberate act ends it: a pointer on the swatches, or a keyboard.
+        demo.addEventListener('pointerdown', halt)
+        demo.addEventListener('keydown', halt)
+        radios.forEach(function (radio) {
+          radio.addEventListener('change', halt)
+        })
+
+        /*
+         * AND IF THEY ASK FOR LESS MOTION WHILE THE PAGE IS OPEN, IT STOPS.
+         *
+         * The setting was read once, at load, which is right for deciding
+         * whether to start and wrong for everything after: a visitor who turns
+         * it on in their system preferences with this tab already open kept a
+         * garment cycling every 2,6 s. It is a system-wide accessibility
+         * setting, so honouring it only at load is honouring it by luck.
+         */
+        if (still && still.addEventListener) {
+          still.addEventListener('change', function (e) {
+            if (e.matches) halt()
+          })
+        }
+
+        if (window.IntersectionObserver) {
+          new window.IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+              if (entry.isIntersecting && timer === null) timer = window.setInterval(advance, 2600)
+              else if (!entry.isIntersecting) halt()
+            })
+          }).observe(demo)
+        }
+      }
+    }
   }
 
   /* --------------------------------------------- searching inside a facet -- */

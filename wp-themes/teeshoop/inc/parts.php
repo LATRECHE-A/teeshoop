@@ -150,7 +150,6 @@ function print_zone_figure( string $garment = 'tee' ): string {
 	}
 
 	$front = \Teeshoop\Core\Garments::area_by_size( $garment, 'front' );
-	$back  = \Teeshoop\Core\Garments::area_by_size( $garment, 'back' );
 	if ( empty( $front ) ) {
 		return '';
 	}
@@ -175,10 +174,7 @@ function print_zone_figure( string $garment = 'tee' ): string {
 	 * caption that names a side it did not measure is a print size a buyer can
 	 * be given for a face nobody checked.
 	 */
-	$back_ref  = $back[ $small ] ?? null;
-	$same_back = is_array( $back_ref )
-		&& (float) $back_ref['wCm'] === (float) $ref['wCm']
-		&& (float) $back_ref['hCm'] === (float) $ref['hCm'];
+	$sides = zone_sides( $garment, $small );
 
 	// A4, in centimetres. ISO 216, not a number anybody had to be told.
 	$a4_w = 21.0;
@@ -203,10 +199,6 @@ function print_zone_figure( string $garment = 'tee' ): string {
 	$d = static fn( float $cm ): float => round( $cm * $scale, 2 );
 
 	$cm = static fn( float $v ): string => \Teeshoop\Core\Garments::cm( $v );
-
-	$sides = $same_back
-		? __( 'devant et dos', 'teeshoop' )
-		: __( 'devant', 'teeshoop' );
 
 	ob_start();
 	?>
@@ -458,4 +450,475 @@ function editorial_body( array $page, string $id = 'ts-edito' ): void {
 		<?php endif; ?>
 	</div>
 	<?php
+}
+
+/**
+ * Les faces qu'un rectangle de devant décrit vraiment.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI C'EST UNE FONCTION ET PAS UNE PHRASE ÉCRITE DANS LE GABARIT.
+ *
+ * Trois endroits de la page d'accueil publient la zone d'impression : la tuile
+ * des chiffres, le dessin à l'échelle, et le vêtement du bandeau. Tous les
+ * trois mesurent le DEVANT, et la question « puis-je aussi dire "et le dos" »
+ * n'a qu'une bonne réponse : oui si le dos est le même rectangle, non sinon.
+ *
+ * MESURÉ LE 9 SEPTEMBRE 2026, la tuile des chiffres l'écrivait sans condition :
+ *
+ *   tee    taille M : devant 30,5 x 40,6   dos 30,5 x 40,6   identiques
+ *   sweat  taille M : devant 30,5 x 30,5   dos 30,5 x 35,6   NON identiques
+ *
+ * Sur une boutique dont le premier produit personnalisable est un sweat, la
+ * page d'accueil annonçait donc « 30,5 x 30,5 cm, devant et dos » alors que le
+ * dos accepte 5,1 cm de plus. Un acheteur qui dimensionne son marquage de dos
+ * sur ce chiffre perd 14 % de la hauteur qu'il paie, et personne ne le lui dit.
+ * Le dessin à l'échelle, lui, avait la bonne règle depuis le début, avec le
+ * commentaire qui l'explique : c'était la SECONDE implémentation qui était
+ * fausse, exactement la panne que la maison interdit.
+ *
+ * SANS MESURE DU DOS, ON NE PROMET QUE LE DEVANT. « Je n'ai pas pu regarder »
+ * n'est pas « c'est pareil ».
+ */
+function zone_sides( string $garment, string $size ): string {
+	$devant = __( 'devant', 'teeshoop' );
+	if ( ! class_exists( '\Teeshoop\Core\Garments' ) || '' === $garment || '' === $size ) {
+		return $devant;
+	}
+
+	// LA MESURE EST DANS L'EXTENSION, la phrase est ici. Ce fichier ne décide
+	// aucune valeur, c'est la règle de son en-tête.
+	return \Teeshoop\Core\Garments::same_back( $garment, $size )
+		? __( 'devant et dos', 'teeshoop' )
+		: $devant;
+}
+
+/**
+ * Le vêtement dont toute la page d'accueil parle, décidé UNE fois.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * DEUX APPELS DIFFÉRENTS POUR LA MÊME QUESTION, C'EST DÉJÀ UN DE TROP.
+ *
+ * Le gabarit lisait `personalisable_products( 8 )[0]` et `demo_source()` lisait
+ * `personalisable_products( 1 )[0]`. Ce n'est pas la même question : la fonction
+ * demande N lignes à la base PUIS jette celles qui n'ont pas de photographie,
+ * donc avec une limite de 1, un premier produit sans photo rend une liste VIDE,
+ * là où une limite de 8 rend le suivant. La démonstration disparaissait alors de
+ * la page sans un mot, sur une boutique qui avait pourtant un vêtement à
+ * montrer.
+ *
+ * Les deux ne se contredisaient pas sur l'IDENTITÉ du produit, et c'est le
+ * genre de chose qui n'est vraie que par chance : le prix, le bouton, la zone
+ * et le dessin doivent décrire le même vêtement, et la seule façon de s'en
+ * assurer est qu'une seule ligne de code choisisse.
+ */
+function hero_product(): ?\WC_Product {
+	return personalisable_products( 8 )[0] ?? null;
+}
+
+/* ──────────────────────────────────────────────────── la démonstration ── */
+
+/**
+ * Le vêtement de la page d'accueil, sa palette et sa zone d'impression.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * C'EST LE VÊTEMENT DU BANDEAU OU RIEN, ET JAMAIS UN AUTRE.
+ *
+ * Le prix affiché en haut de page, le bouton « Personnaliser » et la zone
+ * d'impression décrivent tous `hero_product()`, et c'est pour ça que cette
+ * fonction l'appelle au lieu de refaire la requête. Si elle
+ * cherchait « le premier produit qui sait porter une démonstration », un
+ * catalogue dont le premier article n'a pas de nuancier ferait dessiner le
+ * sweat pendant que le prix reste celui du t-shirt : c'est exactement la panne
+ * que l'en-tête de `front-page.php` raconte, et elle avait coûté à un acheteur
+ * un logo dimensionné sur le mauvais dessin. Donc on prend le premier, et s'il
+ * ne peut pas être dessiné on ne dessine pas.
+ *
+ * QUATRE CHOSES DOIVENT ÊTRE VRAIES EN MÊME TEMPS, et chacune est une raison
+ * suffisante de renoncer :
+ *   1. le produit déclare un vêtement du studio ;
+ *   2. ce vêtement a un dessin teintable (`Garments::art`) ;
+ *   3. le produit publie un nuancier MESURÉ d'au moins deux coloris, sinon le
+ *      sélecteur serait un contrôle qui ne change rien ;
+ *   4. la taille tarifée est mesurée, sinon la zone serait un rectangle sans
+ *      légende, c'est-à-dire une taille d'impression inventée.
+ *
+ * @return array{product:\WC_Product,garment:string,art:array,palette:array,area:array,size:string,tint:string}|array{}
+ */
+function demo_source(): array {
+	static $demo = null;
+	if ( null !== $demo ) {
+		return $demo;
+	}
+	$demo = array();
+
+	if ( ! class_exists( '\Teeshoop\Core\Garments' ) || ! class_exists( '\Teeshoop\Core\Product' ) ) {
+		return $demo;
+	}
+
+	$product = hero_product();
+	if ( ! $product instanceof \WC_Product ) {
+		return $demo;
+	}
+
+	$garment = \Teeshoop\Core\Product::garment_of( $product->get_id() );
+	if ( '' === $garment ) {
+		return $demo;
+	}
+
+	$art = \Teeshoop\Core\Garments::art( $garment, 'front' );
+	if ( array() === $art ) {
+		return $demo;
+	}
+
+	/*
+	 * LE NUANCIER MESURÉ, PAS CELUI DE L'ÉDITEUR.
+	 *
+	 * `META_BLANK_PALETTE` répond à « qu'est-ce que le client REGARDE » : ce
+	 * sont les pastilles relevées sur les puces du fabricant pour CE produit.
+	 * Les dix-huit teintes de démonstration du studio (`Garments::colors()`)
+	 * répondraient à une autre question, et le 4 septembre 2026 les deux
+	 * différaient assez pour qu'un client choisisse un rose qui n'existe pas.
+	 */
+	$palette = array_values(
+		array_filter(
+			\Teeshoop\Core\Product::blank_palette_of( $product->get_id() ),
+			static fn( array $c ): bool => '' !== (string) ( $c['id'] ?? '' )
+				&& '' !== (string) ( $c['name'] ?? '' )
+				&& '' !== (string) ( $c['stops'][0] ?? '' )
+		)
+	);
+	if ( count( $palette ) < 2 ) {
+		return $demo;
+	}
+
+	$size  = \Teeshoop\Core\Garments::priced_size( $garment );
+	$areas = \Teeshoop\Core\Garments::area_by_size( $garment, 'front' );
+	if ( ! isset( $areas[ $size ]['wCm'], $areas[ $size ]['hCm'] ) ) {
+		return $demo;
+	}
+
+	/*
+	 * LA TEINTE D'OUVERTURE, ET POURQUOI CE N'EST PAS « LA PREMIÈRE ».
+	 *
+	 * Il en faut une, et l'ordre du nuancier est celui du fournisseur : sur ce
+	 * catalogue il commence par « Red », ce qui ouvre la page d'accueil sur un
+	 * t-shirt rouge vif. On prend le premier des trois coloris sombres et
+	 * neutres qui est réellement proposé, parce que le tracé pointillé de la
+	 * zone se lit mieux dessus que sur un vif et que ce sont les trois teintes
+	 * qu'une entreprise commande le plus souvent. Si aucun des trois n'est au
+	 * catalogue de ce produit, on retombe sur le premier et la page reste juste.
+	 */
+	$tint = (string) $palette[0]['stops'][0];
+	foreach ( array( 'navy', 'black', 'white' ) as $prefere ) {
+		foreach ( $palette as $couleur ) {
+			if ( $prefere === $couleur['id'] ) {
+				$tint = (string) $couleur['stops'][0];
+				break 2;
+			}
+		}
+	}
+
+	$demo = array(
+		'product' => $product,
+		'garment' => $garment,
+		'art'     => $art,
+		'palette' => $palette,
+		'area'    => $areas[ $size ],
+		'size'    => $size,
+		'tint'    => $tint,
+	);
+	return $demo;
+}
+
+/**
+ * Une règle CSS par coloris, parce que le sélecteur doit marcher sans script.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI DU CSS ENGENDRÉ ET PAS UNE LIGNE DE JAVASCRIPT.
+ *
+ * CSS ne sait pas lire une valeur sur un élément voisin : pour peindre le
+ * vêtement avec la couleur du bouton coché, il faut une règle par couleur. Ce
+ * sont dix-sept règles d'environ soixante-dix octets, écrites une fois dans
+ * l'en-tête, et le prix à payer pour que le nuancier fonctionne sur une page
+ * dont le script est bloqué. `style-src` porte `'unsafe-inline'` (voir l'en-tête
+ * de `Csp.php`, qui explique pourquoi il ne partira pas) et les 442 pastilles de
+ * `facet-couleur.php` roulent déjà dessus, donc ceci ne relâche aucune règle.
+ *
+ * IL N'Y A PAS DE NONCE ICI, et c'est exact plutôt qu'oublié : la politique ne
+ * met de nonce que dans `script-src`. En poser un dans une balise de style
+ * n'ajouterait rien, et en ajouter un à la DIRECTIVE désactiverait
+ * `'unsafe-inline'` pour toute la boutique, donc les pastilles du filtre.
+ */
+function demo_css(): string {
+	$demo = demo_source();
+	if ( array() === $demo ) {
+		return '';
+	}
+
+	$css = array( ':root{--ts-demo-tint:' . $demo['tint'] . ';}' );
+	foreach ( $demo['palette'] as $couleur ) {
+		$id  = sanitize_html_class( (string) $couleur['id'] );
+		$hex = (string) $couleur['stops'][0];
+		if ( '' === $id || 1 !== preg_match( '/^#[0-9a-fA-F]{3,8}$/', $hex ) ) {
+			// Une valeur qu'on n'a pas su lire ne devient pas une déclaration.
+			continue;
+		}
+		$css[] = '.ts-demo:has(#ts-demo-c-' . $id . ':checked){--ts-demo-tint:' . $hex . ';}';
+	}
+	return implode( "\n", $css );
+}
+
+/**
+ * Le vêtement, sa zone d'impression à l'échelle et son nuancier.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CE QUE CE BLOC PROUVE, ET QUE NI MISTERTEE NI TOSTADORA NE PUBLIENT.
+ *
+ * Deux questions qu'un acheteur se pose avant tout le reste : « est-ce que mon
+ * logo rentre » et « à quoi ça ressemble sur un vêtement foncé ». Le rectangle
+ * répond à la première, en centimètres, sur le vêtement, à l'échelle ; le
+ * nuancier répond à la seconde. Relevé le 19 août 2026 : aucun des deux
+ * concurrents ne donne une seule dimension d'impression sur une fiche produit.
+ *
+ * RIEN ICI N'EST DESSINÉ À LA MAIN. Le vêtement vient de
+ * `src/garments/tee.ts`, la même définition qui sert à composer les aperçus de
+ * l'éditeur ; le rectangle vient du même fichier, dans le même repère, donc il
+ * ne peut pas montrer une zone que la presse n'imprime pas ; les centimètres
+ * viennent de `Garments::area_by_size()` et le test
+ * `tests/test-garments.php` refait la conversion des uns vers les autres.
+ *
+ * LES COTES SONT EN HTML ET PAS DANS LE SVG, pour la raison écrite dans
+ * `print_zone_figure()` : le dessin est tracé sur 800 unités et affiché à la
+ * largeur qu'on lui donne, donc un texte de 13 unités sortait à 6,9 px sur un
+ * téléphone. Le rectangle est positionné en pourcentages du repère, calculés
+ * ici, et sa légende est du texte à la taille du site.
+ */
+function garment_demo(): string {
+	$demo = demo_source();
+	if ( array() === $demo ) {
+		return '';
+	}
+
+	$art  = $demo['art'];
+	$rect = $art['printAreaPx'];
+
+	/*
+	 * Le repère du dessin fait 800 unités de côté (`GARMENT_VIEW`), et c'est le
+	 * dessin lui-même qui le déclare. On le relit dans son `viewBox` plutôt que
+	 * de l'écrire ici : le jour où le studio redessine sur un autre repère, un
+	 * nombre écrit en dur décalerait la zone sans que rien ne le dise.
+	 */
+	$view = 800.0;
+	if ( preg_match( '/viewBox="0 0 ([0-9.]+) ([0-9.]+)"/', $art['body'], $m ) ) {
+		$view = (float) $m[1];
+	}
+	if ( $view <= 0 ) {
+		return '';
+	}
+
+	$pct = static fn( float $v ): string => (string) round( $v / $view * 100, 4 );
+
+	// Le jeton de teinte devient la propriété que le nuancier fait varier.
+	$body = str_replace( '__COLOR__', 'var(--ts-demo-tint)', $art['body'] );
+
+	$cm     = static fn( float $v ): string => \Teeshoop\Core\Garments::cm( $v );
+	$w_cm   = $cm( (float) $demo['area']['wCm'] );
+	$h_cm   = $cm( (float) $demo['area']['hCm'] );
+	$titre  = $demo['product']->get_name();
+	$ouvert = studio_url( $demo['product']->get_id() );
+
+	ob_start();
+	?>
+	<figure class="ts-demo" data-teeshoop="demo-accueil">
+		<div class="ts-demo__stage">
+			<?php
+			/*
+			 * `aria-hidden` sur le dessin, et la description est portée par la
+			 * légende en dessous : un lecteur d'écran qui annonce « dessin d'un
+			 * t-shirt » puis lit la même chose en toutes lettres dit deux fois
+			 * la même tuile, ce que WCAG 1.1.1 appelle décoratif.
+			 */
+			?>
+			<svg class="ts-demo__svg" viewBox="0 0 <?php echo esc_attr( (string) $view ); ?> <?php echo esc_attr( (string) $view ); ?>" aria-hidden="true" focusable="false">
+				<?php echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- SVG engendré par scripts/gen-garment-data.mjs depuis les sources du studio, sans donnée extérieure. ?>
+			</svg>
+
+			<div
+				class="ts-demo__zone"
+				style="--z-x:<?php echo esc_attr( $pct( (float) $rect['x'] ) ); ?>%;--z-y:<?php echo esc_attr( $pct( (float) $rect['y'] ) ); ?>%;--z-w:<?php echo esc_attr( $pct( (float) $rect['w'] ) ); ?>%;--z-h:<?php echo esc_attr( $pct( (float) $rect['h'] ) ); ?>%"
+			>
+				<span class="ts-demo__dim ts-num">
+					<?php
+					printf(
+						/* translators: 1: largeur en cm, 2: hauteur en cm. */
+						esc_html__( '%1$s × %2$s', 'teeshoop' ),
+						esc_html( $w_cm ),
+						esc_html( $h_cm )
+					);
+					?>
+				</span>
+			</div>
+		</div>
+
+		<fieldset class="ts-demo__colours">
+			<legend class="ts-demo__legend">
+				<?php
+				printf(
+					/* translators: %s: nombre de coloris. */
+					esc_html( _n( '%s coloris au catalogue', '%s coloris au catalogue', count( $demo['palette'] ), 'teeshoop' ) ),
+					esc_html( num( (float) count( $demo['palette'] ) ) )
+				);
+				?>
+			</legend>
+			<div class="ts-demo__swatches">
+				<?php foreach ( $demo['palette'] as $ts_couleur ) : ?>
+					<?php
+					$ts_id  = sanitize_html_class( (string) $ts_couleur['id'] );
+					$ts_hex = (string) $ts_couleur['stops'][0];
+					if ( '' === $ts_id || 1 !== preg_match( '/^#[0-9a-fA-F]{3,8}$/', $ts_hex ) ) {
+						continue;
+					}
+					?>
+					<span class="ts-demo__swatch">
+						<input
+							class="ts-demo__radio"
+							type="radio"
+							name="ts-demo-coloris"
+							id="ts-demo-c-<?php echo esc_attr( $ts_id ); ?>"
+							value="<?php echo esc_attr( $ts_id ); ?>"
+							data-tint="<?php echo esc_attr( $ts_hex ); ?>"
+							<?php checked( $ts_hex, $demo['tint'] ); ?>
+						>
+						<label class="ts-demo__chip" for="ts-demo-c-<?php echo esc_attr( $ts_id ); ?>" style="--chip:<?php echo esc_attr( $ts_hex ); ?>">
+							<span class="ts-demo__chip-name"><?php echo esc_html( (string) $ts_couleur['name'] ); ?></span>
+						</label>
+					</span>
+				<?php endforeach; ?>
+			</div>
+		</fieldset>
+
+		<figcaption class="ts-demo__note">
+			<span class="ts-demo__who"><?php echo esc_html( $titre ); ?></span>
+			<?php
+			/*
+			 * LES DEUX PHRASES QUI EMPÊCHENT CE DESSIN DE MENTIR.
+			 *
+			 * La première dit à quelle taille le rectangle est mesuré : sans
+			 * elle, un acheteur en 3XL dimensionnerait son logo sur la zone du
+			 * M, qui est 7 cm plus étroite. La seconde dit que la couleur est
+			 * une mesure de la puce du fabricant et pas une photographie du
+			 * tissu, parce qu'un polyester satiné ne rend pas la teinte du
+			 * coton teint dans le même bain. C'est le vocabulaire que l'éditeur
+			 * emploie déjà (`COPIE.apercuGabarit`), et pas un second.
+			 */
+			printf(
+				/* translators: 1: les faces concernées, 2: la taille tarifée. */
+				esc_html__( 'Zone d’impression %1$s en taille %2$s, dessinée à l’échelle sur le vêtement. Le gabarit est peint avec la couleur mesurée sur la puce du fabricant : ce n’est pas une photographie du tissu.', 'teeshoop' ),
+				esc_html( zone_sides( $demo['garment'], $demo['size'] ) ),
+				esc_html( $demo['size'] )
+			);
+			?>
+			<?php if ( '' !== $ouvert ) : ?>
+				<a class="ts-demo__link" href="<?php echo esc_url( $ouvert ); ?>">
+					<?php esc_html_e( 'Ouvrir l’atelier sur ce vêtement', 'teeshoop' ); ?>
+				</a>
+			<?php endif; ?>
+		</figcaption>
+	</figure>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * Ce que la boutique prend réellement en charge, et rien d'autre.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CHAQUE LIGNE EST UNE CHOSE QUE LE CODE FAIT AUJOURD'HUI.
+ *
+ * Le chapitre 00 de la bible liste onze prises en charge (« la sélection du
+ * produit, la préparation du fichier, le devis, le paiement, le BAT,
+ * l'approvisionnement, la production, le contrôle, la livraison et le
+ * réassort »). Ce bloc n'en publie que six, et les absences sont des décisions :
+ *
+ *   LE RÉASSORT EN UN CLIC N'EST PAS PROPOSÉ. « Commander à nouveau » est
+ *   refusé exprès sur un produit personnalisable, parce que
+ *   `woocommerce_order_again_cart_item_data` rend un panier vide et remettrait
+ *   au panier un vêtement SANS son visuel (voir `ProductPage.php` et le README
+ *   du greffon). Ce que la boutique tient vraiment, c'est que la référence et
+ *   le nom de coloris du fabricant sont stables d'une année sur l'autre, et
+ *   c'est ce que dit déjà le bloc « Pour qui ».
+ *
+ *   L'URGENCE ET L'EXPRESS NE SONT PAS PUBLIÉS. `ProductionPage.php` est
+ *   explicite : « L'express et l'urgence ne le sont pas, précisément parce
+ *   qu'ils ne tiennent pas ». Seul le délai standard sort d'ici.
+ *
+ *   LA PRÉPARATION DU FICHIER n'est pas annoncée comme un service, parce que
+ *   rien dans la boutique ne la commande ni ne la facture : elle passe par le
+ *   devis, où un humain répond.
+ *
+ * @param array{references:int,lead:int,minimum:int} $faits Les chiffres déjà lus ailleurs.
+ * @return array<int,array{title:string,body:string,url:string,label:string}>
+ */
+function services( array $faits ): array {
+	$catalogue = function_exists( 'wc_get_page_permalink' ) ? (string) wc_get_page_permalink( 'shop' ) : '';
+	$demo      = demo_source();
+	$atelier   = array() !== $demo ? studio_url( $demo['product']->get_id() ) : '';
+
+	$liste = array();
+
+	if ( $faits['references'] > 0 ) {
+		$liste[] = array(
+			'title' => __( 'Le choix du vêtement', 'teeshoop' ),
+			'body'  => sprintf(
+				/* translators: %s: nombre de références publiées. */
+				__( '%s références de marques que vos salariés connaissent, avec leur matière, leur grammage, leurs coloris et leurs tailles. Vous filtrez par couleur mesurée, par matière et par grammage, pas par mot-clé.', 'teeshoop' ),
+				num( (float) $faits['references'] )
+			),
+			'url'   => $catalogue,
+			'label' => __( 'Parcourir le catalogue', 'teeshoop' ),
+		);
+	}
+
+	$liste[] = array(
+		'title' => __( 'Le dessin, en ligne', 'teeshoop' ),
+		'body'  => __( 'Vous déposez votre visuel, vous le placez au centimètre sur le devant, le dos ou la manche, et vous le voyez en 2D et en 3D. Le prix se met à jour pendant que vous placez, à votre quantité, et c’est le serveur qui le calcule.', 'teeshoop' ),
+		'url'   => $atelier,
+		'label' => __( 'Ouvrir l’atelier', 'teeshoop' ),
+	);
+
+	$liste[] = array(
+		'title' => __( 'Le devis, quand c’est plus simple à dire', 'teeshoop' ),
+		'body'  => __( 'Un projet mal défini, un logo à reprendre, une date à tenir, une répartition de tailles à décider : décrivez-le et nous revenons avec un chiffrage, la répartition et le délai que nous tenons.', 'teeshoop' ),
+		'url'   => quote_url(),
+		'label' => __( 'Demander un devis', 'teeshoop' ),
+	);
+
+	$liste[] = array(
+		'title' => __( 'Le bon à tirer', 'teeshoop' ),
+		'body'  => __( 'Avant impression, nous envoyons une maquette par face imprimée, avec les dimensions du marquage et sa hauteur sous l’encolure. Rien ne part en production tant que vous ne l’avez pas validé, et la validation se fait en ligne sans créer de compte.', 'teeshoop' ),
+		'url'   => '',
+		'label' => '',
+	);
+
+	$liste[] = array(
+		'title' => __( 'L’impression', 'teeshoop' ),
+		'body'  => $faits['lead'] > 0
+			? sprintf(
+				/* translators: %s: nombre de jours ouvrés. */
+				__( 'Transfert DTF pressé dans notre atelier, contrôlé pièce par pièce, %s jours ouvrés à partir de votre bon à tirer validé. Nous facturons la surface d’encre et pas la taille du fichier.', 'teeshoop' ),
+				num( (float) $faits['lead'] )
+			)
+			: __( 'Transfert DTF pressé dans notre atelier et contrôlé pièce par pièce. Nous facturons la surface d’encre et pas la taille du fichier.', 'teeshoop' ),
+		'url'   => '',
+		'label' => '',
+	);
+
+	$liste[] = array(
+		'title' => __( 'La livraison', 'teeshoop' ),
+		'body'  => __( 'Colissimo suivi en France métropolitaine, au tarif de la grille publique. Pour les DOM, la Corse hors métropole ou l’étranger, nous chiffrons le transport avec vous plutôt que d’afficher un prix que nous ne tiendrions pas.', 'teeshoop' ),
+		'url'   => '',
+		'label' => '',
+	);
+
+	return $liste;
 }

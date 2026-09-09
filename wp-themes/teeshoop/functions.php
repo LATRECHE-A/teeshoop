@@ -225,6 +225,25 @@ function assets(): void {
 	wp_enqueue_style( 'teeshoop-site', get_stylesheet_uri(), array( 'teeshoop-fonts' ), VERSION );
 
 	/*
+	 * LE NUANCIER DE LA PAGE D'ACCUEIL, DANS L'EN-TÊTE ET PAS DANS LE CORPS.
+	 *
+	 * Une règle par coloris, engendrée depuis le nuancier MESURÉ du produit
+	 * (voir `demo_css()` pour la raison pour laquelle CSS ne peut pas s'en
+	 * passer). Elle est posée ici, pendant `wp_enqueue_scripts`, parce que
+	 * `wp_add_inline_style()` n'a plus d'effet une fois `wp_head` passé et que
+	 * le gabarit s'exécute après : une balise `<style>` écrite au milieu du
+	 * corps aurait marché dans tous les navigateurs et ne serait conforme dans
+	 * aucun. `demo_source()` garde son résultat pour la requête, donc la
+	 * palette est lue une fois et pas deux.
+	 */
+	if ( is_front_page() ) {
+		$demo_css = demo_css();
+		if ( '' !== $demo_css ) {
+			wp_add_inline_style( 'teeshoop-site', $demo_css );
+		}
+	}
+
+	/*
 	 * One script, no framework, in the footer.
 	 *
 	 * It collapses the navigation into a drawer, collapses the filters on a
@@ -479,6 +498,20 @@ function lead_days(): array {
  * @return \WC_Product[]
  */
 function personalisable_products( int $limit = 12 ): array {
+	/*
+	 * GARDÉ POUR LA REQUÊTE, PAR LIMITE.
+	 *
+	 * La page d'accueil pose la même question deux fois : une fois pendant
+	 * `wp_enqueue_scripts`, pour engendrer le nuancier de la démonstration, et
+	 * une fois dans le gabarit. Sans ce cache c'est deux `get_posts` avec une
+	 * `meta_query` et une `tax_query`, plus un `wc_get_product` par ligne, pour
+	 * une réponse identique dans la même requête HTTP.
+	 */
+	static $cache = array();
+	if ( isset( $cache[ $limit ] ) ) {
+		return $cache[ $limit ];
+	}
+
 	if ( ! function_exists( 'wc_get_products' ) || ! class_exists( '\\Teeshoop\\Core\\Product' ) ) {
 		return array();
 	}
@@ -552,6 +585,8 @@ function personalisable_products( int $limit = 12 ): array {
 			$products[] = $product;
 		}
 	}
+
+	$cache[ $limit ] = $products;
 	return $products;
 }
 
@@ -566,6 +601,28 @@ function personalisable_products( int $limit = 12 ): array {
  * l'éditeur » sans avoir à savoir que c'est devenu le permalien.
  */
 function studio_url( int $product_id ): string {
+	/*
+	 * DEPUIS LE 9 SEPTEMBRE 2026 IL Y A DE NOUVEAU UNE PAGE, ET C'EST VOULU.
+	 *
+	 * Le parcours va maintenant : fiche produit, bouton « Personnaliser »,
+	 * puis `/personnaliser/{slug}/`, où le client dessine, valide, puis choisit
+	 * ses quantités par coloris et par taille. `Atelier::url()` est le seul
+	 * endroit qui sait fabriquer cette adresse (elle retombe sur un paramètre
+	 * quand les permaliens sont en clair), donc on la lui demande au lieu de
+	 * l'écrire une seconde fois ici.
+	 *
+	 * ON N'Y ENVOIE PERSONNE SI L'ATELIER NE SAIT PAS SERVIR CE PRODUIT.
+	 * `etat()` répond « sans-vetement », « indisponible » ou « sans-paquet »
+	 * quand la page ne peut pas s'ouvrir, et un bouton « Personnaliser » qui
+	 * mène à un atelier vide est pire que pas de bouton : la fiche produit, elle,
+	 * sait toujours quoi dire. Voir `Atelier::etat()`.
+	 */
+	if ( class_exists( '\\Teeshoop\\Core\\Atelier' ) && 'pret' === \Teeshoop\Core\Atelier::etat( $product_id ) ) {
+		$atelier = \Teeshoop\Core\Atelier::url( $product_id );
+		if ( '' !== $atelier ) {
+			return $atelier;
+		}
+	}
 	return (string) get_permalink( $product_id );
 }
 

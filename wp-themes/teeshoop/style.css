@@ -233,6 +233,24 @@ b {
 
 /* ───────────────────────────────────────────────────────────── layout ── */
 
+/*
+ * LA GOUTTIÈRE DE LA PAGE.
+ *
+ * ELLE SE FAIT ÉCRASER PAR UN RACCOURCI `padding`, ET C'EST ARRIVÉ CINQ FOIS.
+ * Mesuré le 9 septembre 2026 à 375 px, `padding-left` calculé sur chaque
+ * élément portant `ts-wrap` : le bandeau d'accueil, les cinq sections de
+ * l'accueil, l'entête de la boutique, la page de devis et la fiche produit
+ * rendaient tous 0 px. Le texte touchait le bord de l'écran sur quatre pages,
+ * y compris celle où le client tape son adresse.
+ *
+ * La cause n'est pas une gouttière absente, c'est que ces règles déclaraient
+ * `padding: <haut> 0 <bas>`, à la même spécificité et plus bas dans le fichier,
+ * donc leur `0` horizontal gagnait. Elles disent toutes `padding-block`
+ * maintenant, qui ne touche que ce qu'elles voulaient toucher.
+ *
+ * UNE RÈGLE QUI VEUT ESPACER LE HAUT ET LE BAS D'UN BLOC `ts-wrap` DOIT ÉCRIRE
+ * `padding-block`. C'est la seule chose à retenir de ce commentaire.
+ */
 .ts-wrap {
 	margin: 0 auto;
 	padding: 0 var(--ts-gutter);
@@ -250,7 +268,7 @@ b {
  * boxes are what every generated shop looks like.
  */
 .ts-section {
-	padding: var(--ts-space-7) 0;
+	padding-block: var(--ts-space-7);
 	border-top: 1px solid var(--ts-line);
 }
 
@@ -544,7 +562,7 @@ html {
 /* ──────────────────────────────────────────────────────────────── home ── */
 
 .ts-hero {
-	padding: var(--ts-space-6) 0 var(--ts-space-7);
+	padding-block: var(--ts-space-6) var(--ts-space-7);
 }
 
 .ts-hero__title {
@@ -1053,7 +1071,7 @@ ul.products li.product .price {
 
 .ts-shop {
 	display: block;
-	padding: var(--ts-space-6) 0 var(--ts-space-8);
+	padding-block: var(--ts-space-6) var(--ts-space-8);
 }
 
 .ts-shop__head {
@@ -2285,7 +2303,7 @@ a.ts-chip:hover {
 }
 
 .ts-single {
-	padding: var(--ts-space-5) 0 var(--ts-space-7);
+	padding-block: var(--ts-space-5) var(--ts-space-7);
 }
 
 .ts-postlist {
@@ -2349,7 +2367,7 @@ a.ts-chip:hover {
 .ts-devispage {
 	display: grid;
 	gap: var(--ts-space-6);
-	padding: var(--ts-space-6) 0 var(--ts-space-7);
+	padding-block: var(--ts-space-6) var(--ts-space-7);
 }
 
 /* ──────────────────────────────────────────────────────── shop internals ── */
@@ -2554,7 +2572,7 @@ a.ts-chip:hover {
 		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		align-items: center;
 		gap: var(--ts-space-7);
-		padding: var(--ts-space-8) 0;
+		padding-block: var(--ts-space-8);
 	}
 
 	.ts-hero__media {
@@ -2667,8 +2685,17 @@ a.ts-chip:hover {
 		gap: var(--ts-space-6);
 	}
 
+	/*
+	 * CINQ COLONNES POUR CINQ ÉTAPES, et le nombre suit la liste.
+	 *
+	 * Il y en avait quatre quand la séquence en comptait quatre. Le choix des
+	 * quantités par coloris est devenu une étape le 9 septembre 2026, et une
+	 * grille de quatre laissait la cinquième seule sur une deuxième rangée : un
+	 * déroulé qui se lit « 1 2 3 4 » puis « 5 » plus bas ressemble à une liste
+	 * tronquée, ce qui est exactement ce qu'un déroulé ne doit pas faire.
+	 */
 	.ts-steps {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(5, minmax(0, 1fr));
 	}
 
 	.woocommerce div.product {
@@ -3652,4 +3679,397 @@ a.ts-chip:hover {
 
 .wc-block-components-product-details__name {
 	font-weight: var(--ts-weight-strong);
+}
+
+/* ══════════════════════════════════════════════════ la démonstration ══ */
+
+/*
+ * LE VÊTEMENT DE LA PAGE D'ACCUEIL, ET LE SEUL MOUVEMENT DU SITE.
+ *
+ * ── CE QUI BOUGE, ET POURQUOI CE N'EST PAS DE LA DÉCORATION ──────────────────
+ *
+ * La règle §7 interdit « l'animation qui ne sert à rien », ce qui exclut le
+ * fondu au défilement sur chaque bloc qu'une page comme celle-ci reçoit
+ * d'habitude. Il reste UNE transition : la couleur du vêtement. Elle est
+ * l'information elle-même, puisque la question à laquelle ce bloc répond est
+ * « à quoi ça ressemble sur un vêtement foncé ». Rien d'autre ne bouge sur
+ * cette page.
+ *
+ * ── POURQUOI @property ET PAS UNE TRANSITION SUR `fill` ──────────────────────
+ *
+ * La teinte est portée par une propriété personnalisée, parce que le SVG vient
+ * du studio avec un jeton `__COLOR__` et que la boutique n'a pas le droit de le
+ * redécouper pour y accrocher une classe. Une propriété personnalisée n'est
+ * interpolable que si elle est DÉCLARÉE : sans `@property`, le vêtement change
+ * de couleur d'un seul coup. Un navigateur qui ne connaît pas `@property`
+ * l'ignore et obtient exactement ce saut, ce qui est une dégradation et pas une
+ * panne.
+ *
+ * Le bloc `prefers-reduced-motion` plus haut porte `!important` et couvre donc
+ * cette transition comme les autres : un visiteur qui a demandé moins
+ * d'animation voit le vêtement changer instantanément, et le nuancier marche
+ * toujours.
+ */
+/*
+ * `initial-value` EST OBLIGATOIRE ET N'EST JAMAIS PEINT.
+ *
+ * Une propriété enregistrée en `<color>` doit déclarer une valeur initiale, et
+ * `initial-value` n'accepte pas `var()` : c'est le seul littéral de couleur de
+ * cette feuille, et il ne peut pas venir de `tokens.css`. Il n'atteint jamais un
+ * écran : quand la démonstration existe, `demo_css()` écrit un `:root` avec la
+ * teinte d'ouverture juste après cette feuille ; quand elle n'existe pas, il n'y
+ * a pas de vêtement à peindre.
+ */
+@property --ts-demo-tint {
+	syntax: '<color>';
+	inherits: true;
+	initial-value: #f6f7f9;
+}
+
+/*
+ * LARGEUR PLAFONNÉE, PARCE QUE LE DESSIN EST CARRÉ.
+ *
+ * Le gabarit est un carré (repère 800 x 800), donc sa hauteur suit sa largeur :
+ * mesuré sans plafond, la colonne média faisait 676 px de côté à 1 440 px et
+ * 768 à 768 px, ce qui poussait le bandeau à 965 px puis à 1 418 px de haut et
+ * reléguait le titre et les deux boutons sous la ligne de flottaison. Un
+ * vêtement plus grand ne dit rien de plus qu'un vêtement lisible.
+ *
+ * 30 rem, et pas un pourcentage : au téléphone la valeur est plus large que
+ * l'écran et ne s'applique donc pas, ce qui laisse le dessin pleine largeur là
+ * où c'est le seul endroit disponible.
+ */
+.ts-demo {
+	margin: 0;
+	max-width: 30rem;
+	margin-inline: auto;
+}
+
+/*
+ * LE VÊTEMENT ET SA ZONE, DANS LE MÊME REPÈRE.
+ *
+ * Le rectangle est positionné en pourcentages du dessin (`--z-x` … `--z-h`,
+ * calculés en PHP depuis `printAreaPx`), donc il reste sur la même maille de
+ * tissu à toutes les largeurs, sans que le CSS ait à connaître un seul
+ * centimètre.
+ */
+.ts-demo__stage {
+	position: relative;
+	overflow: hidden;
+	border-radius: var(--ts-radius);
+	background: var(--ts-surface);
+	transition: --ts-demo-tint 380ms ease;
+}
+
+.ts-demo__svg {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+/*
+ * LE TRACÉ DE LA ZONE : UNE ENCRE ET UN HALO, comme l'anneau de focus.
+ *
+ * Un pointillé d'une seule couleur ne peut pas se voir sur dix-sept coloris :
+ * le blanc disparaît sur le blanc et le noir sur le noir, et il n'existe pas de
+ * gris qui tienne les deux. C'est le problème que `:focus-visible` a déjà résolu
+ * plus haut dans cette feuille, avec la technique que le document
+ * « Understanding » de WCAG décrit : un trait sombre doublé d'un halo clair. Sur
+ * un vêtement clair c'est le trait qui se lit, sur un foncé c'est le halo, et
+ * l'un des deux est toujours lisible.
+ */
+.ts-demo__zone {
+	position: absolute;
+	left: var(--z-x);
+	top: var(--z-y);
+	width: var(--z-w);
+	height: var(--z-h);
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	padding-bottom: var(--ts-space-2);
+	outline: 2px dashed rgba(255, 255, 255, 0.9);
+	outline-offset: 0;
+	box-shadow:
+		inset 0 0 0 2px rgba(0, 0, 0, 0.5),
+		0 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+/*
+ * La cote est du texte HTML et pas du texte SVG, pour la raison écrite dans
+ * `print_zone_figure()` : sur un repère de 800 unités affiché à 320 px, une
+ * étiquette dessinée dans le SVG sortait à 6,9 px.
+ */
+.ts-demo__dim {
+	padding: 2px var(--ts-space-2);
+	border: 1px solid var(--ts-line-strong);
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-size: var(--ts-text-xs);
+	line-height: 1.5;
+	white-space: nowrap;
+}
+
+.ts-demo__colours {
+	margin: var(--ts-space-4) 0 0;
+	padding: 0;
+	border: 0;
+}
+
+/* La même étiquette majuscule que `.ts-eyebrow`, aux mêmes jetons. */
+.ts-demo__legend {
+	margin: 0 0 var(--ts-space-2);
+	padding: 0;
+	color: var(--ts-muted-strong);
+	font-family: var(--ts-font-display);
+	font-size: var(--ts-eyebrow-size);
+	font-weight: var(--ts-weight-nav);
+	letter-spacing: var(--ts-eyebrow-tracking);
+	text-transform: uppercase;
+}
+
+.ts-demo__swatches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ts-space-2);
+}
+
+.ts-demo__swatch {
+	display: contents;
+}
+
+/*
+ * Le bouton radio est masqué À L'ŒIL et jamais au clavier ni au lecteur
+ * d'écran : `display:none` le sortirait de l'ordre de tabulation et de l'arbre
+ * d'accessibilité, et le nuancier deviendrait un ensemble d'étiquettes que
+ * personne ne peut atteindre sans souris.
+ */
+.ts-demo__radio {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	clip-path: inset(50%);
+}
+
+.ts-demo__chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	padding: 3px var(--ts-space-2) 3px 3px;
+	border: 1px solid var(--ts-line);
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-size: var(--ts-text-xs);
+	line-height: 1.6;
+	cursor: pointer;
+}
+
+/*
+ * LA PASTILLE PORTE UN LISERÉ, et c'est une exigence et pas un ornement. Le
+ * blanc du nuancier est #f6f6f6 : sans bord il n'aurait aucune frontière visible
+ * sur du papier, donc « Blanc » serait la seule couleur du nuancier qu'on ne
+ * peut pas voir. WCAG 1.4.11 demande 3:1 à ce qui délimite un contrôle, ce que
+ * `--ts-line-strong` a été dérivé pour tenir.
+ */
+.ts-demo__chip::before {
+	content: '';
+	flex: 0 0 auto;
+	width: 18px;
+	height: 18px;
+	border: 1px solid var(--ts-line-strong);
+	background: var(--chip);
+}
+
+.ts-demo__chip:hover {
+	border-color: var(--ts-line-strong);
+}
+
+.ts-demo__radio:checked + .ts-demo__chip {
+	border-color: var(--ts-accent);
+	box-shadow: inset 0 0 0 1px var(--ts-accent);
+}
+
+/* L'anneau du site, reporté sur l'étiquette, puisque la case est masquée. */
+.ts-demo__radio:focus-visible + .ts-demo__chip {
+	outline: var(--ts-focus-width) solid var(--ts-ink);
+	outline-offset: var(--ts-focus-offset);
+	box-shadow: 0 0 0 calc(var(--ts-focus-width) + var(--ts-focus-offset) + 2px) var(--ts-paper);
+}
+
+.ts-demo__note {
+	margin: var(--ts-space-3) 0 0;
+	max-width: none;
+	color: var(--ts-muted-strong);
+	font-size: var(--ts-text-xs);
+	line-height: var(--ts-leading);
+}
+
+/*
+ * Le nom du produit porte la légende, donc il se lit d'abord.
+ *
+ * EN URBANIST 600 ET PAS EN LATO GRAS, ET C'EST UNE MESURE. La première version
+ * disait `--ts-weight-strong`, c'est-à-dire Lato 700, qui n'était demandé nulle
+ * part ailleurs sur cette page : le banc a vu les polices passer de 47 à 70 ko,
+ * soit les 23 040 octets de `lato-latin-700.woff2`, pour mettre en gras cinq
+ * mots. Urbanist 600 est déjà chargé par `.ts-eyebrow`, porte la même
+ * distinction, et ne coûte pas une requête.
+ */
+.ts-demo__who {
+	display: block;
+	color: var(--ts-ink);
+	font-family: var(--ts-font-display);
+	font-weight: var(--ts-weight-nav);
+}
+
+/*
+ * Le lien prend sa propre ligne. Laissé dans le flux du paragraphe, il se
+ * lisait comme la fin de la phrase sur la mesure de la couleur.
+ */
+.ts-demo__link {
+	display: block;
+	margin-top: var(--ts-space-2);
+}
+
+/*
+ * LE CAS OÙ LE NUANCIER NE PEUT RIEN PEINDRE.
+ *
+ * La teinte suit le bouton coché grâce à `:has()`, parce qu'il faut lire un état
+ * qui est plus bas dans l'arbre que l'élément à repeindre. Un navigateur qui ne
+ * connaît ni `:has()` NI le script se retrouverait avec dix-sept boutons qui ne
+ * changent rien, c'est-à-dire un contrôle cassé, ce qui est pire qu'un contrôle
+ * absent. Dans ce cas précis le nuancier est retiré et le vêtement reste dans sa
+ * teinte d'ouverture, qui est une couleur réelle du catalogue. La légende, elle,
+ * reste : « dix-sept coloris » est vrai avec ou sans sélecteur.
+ *
+ * `html.has-js` est posé dans l'en-tête du document avant toute peinture, donc
+ * ce retrait n'a jamais lieu sur une page dont le script tournera.
+ */
+@supports not (selector(:has(*))) {
+	html:not(.has-js) .ts-demo__swatches {
+		display: none;
+	}
+}
+
+/*
+ * LE BLOC MÉDIA DU BANDEAU EST UN CADRE PHOTO, et la démonstration n'en est pas
+ * une : elle porte son propre fond sur la scène, plus un nuancier et une légende
+ * qui doivent rester sur le papier. On neutralise donc le cadre quand c'est la
+ * démonstration qui est dedans, sans toucher au cas de la photographie.
+ */
+.ts-hero:not(.ts-hero--photo) .ts-hero__media {
+	overflow: visible;
+	border-radius: 0;
+	background: none;
+}
+
+/* ══════════════════════════════════════════ ce que nous prenons en charge ══ */
+
+/*
+ * SIX PRISES EN CHARGE, EN LIGNES RÉGLÉES ET PAS EN CARTES.
+ *
+ * Le reste du site est une fiche technique : filets fins, pas d'ombre portée,
+ * pas de fond de carte. Six tuiles ombrées ici seraient le seul endroit du site
+ * qui ressemble à une page de modèle. Le titre porte le poids, le filet sépare,
+ * et c'est tout.
+ */
+.ts-serv {
+	display: grid;
+	gap: 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border-top: 1px solid var(--ts-line);
+}
+
+.ts-serv__item {
+	padding: var(--ts-space-4) 0;
+	border-bottom: 1px solid var(--ts-line);
+}
+
+.ts-serv__title {
+	margin: 0 0 var(--ts-space-2);
+	font-size: var(--ts-text-lg);
+	letter-spacing: -0.005em;
+}
+
+.ts-serv__body {
+	margin: 0;
+	color: var(--ts-muted);
+	max-width: var(--ts-measure);
+}
+
+.ts-serv__more {
+	margin: var(--ts-space-2) 0 0;
+	font-size: var(--ts-text-sm);
+}
+
+/*
+ * SA PHOTOGRAPHIE, EN BANDEAU SOUS LES SIX LIGNES.
+ *
+ * Le fichier est un 3:1 très large avec le sujet à environ 68 % de la largeur,
+ * donc il est recadré par `object-fit` et non par trois fichiers de plus. Il est
+ * en `loading="lazy"` ici : il est sous la ligne de flottaison sur toutes les
+ * largeurs mesurées, et le bandeau du haut n'a plus besoin de lui.
+ */
+.ts-serv__figure {
+	margin: var(--ts-space-6) 0 0;
+	overflow: hidden;
+	border-radius: var(--ts-radius);
+	background: var(--ts-surface);
+}
+
+.ts-serv__photo {
+	display: block;
+	width: 100%;
+	height: auto;
+	aspect-ratio: 5 / 3;
+	object-fit: cover;
+	object-position: 68% center;
+}
+
+@media (min-width: 45rem) {
+	.ts-serv {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		column-gap: var(--ts-space-6);
+	}
+
+	.ts-serv__photo {
+		aspect-ratio: 3 / 1;
+	}
+}
+
+@media (min-width: 75rem) {
+	.ts-serv {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+/* ══════════════════════════════════════════════ la grille des familles ══ */
+
+/*
+ * LA TUILE SANS PHOTOGRAPHIE GARDE LA HAUTEUR DE CELLE QUI EN A UNE.
+ *
+ * Mesuré sur ce miroir le 9 septembre 2026 : cinq des onze familles n'ont pas
+ * encore reçu leur photographie, et la vignette vivait dans le flux normal. Une
+ * rangée qui mélangeait les deux avait donc un trou, et sur deux ou trois
+ * colonnes la grille entière se décalait : elle ne se lisait pas comme « à
+ * moitié remplie », elle se lisait comme cassée.
+ *
+ * La boîte est maintenant toujours là. Vide, elle est peinte du lavis de la
+ * marque, ce qui est un état vide DESSINÉ : un aplat de couleur de marque ne se
+ * confond pas avec une image en cours de chargement, ce qu'un carré gris aurait
+ * fait. Le liseré à gauche que portait l'ancienne variante devient inutile et
+ * s'en va.
+ */
+.ts-fams__link--typeonly {
+	padding-left: 0;
+	border-left: 0;
+}
+
+.ts-fams__link--typeonly .ts-fams__media {
+	background: var(--ts-accent-wash);
 }

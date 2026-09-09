@@ -21,6 +21,30 @@
  * WordPress. The one thing a homepage is for is making promises, and every
  * promise here is one some other file already has to keep.
  *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE 9 SEPTEMBER 2026 REBUILD, AND WHAT MOVED
+ *
+ * The page was correct and it did not SHOW anything. It described an online
+ * editor in three paragraphs, published a print size as a number in a table, and
+ * illustrated itself with one photograph and a wireframe. A shop whose whole
+ * argument is "you can see it before you buy it" opened on a page where nothing
+ * could be seen.
+ *
+ * So the hero is now the garment itself: the studio's own illustration, tinted
+ * live from the product's measured colour chips, with the real print rectangle
+ * drawn on it to scale and captioned in centimetres. It answers the two
+ * questions a buyer asks first, "will my logo fit" and "what does it look like
+ * on a dark shirt", without them clicking anything. Neither mistertee.fr nor
+ * tostadora.fr publishes a single print dimension on a product page, checked
+ * again on 19 August 2026, so this is the one place we can be plainly better
+ * rather than differently arranged.
+ *
+ * THE MOTION IS THE DEMONSTRATION AND THERE IS NO OTHER. House rule §7 bans
+ * animation that serves nothing, which rules out the scroll-triggered fade on
+ * every block that a page like this usually gets. What is left moves because the
+ * movement IS the information: the garment changes colour. Everything else is
+ * still.
+ *
  * @package Teeshoop\Theme
  */
 
@@ -31,16 +55,17 @@ defined( 'ABSPATH' ) || exit;
 get_header();
 
 $ts_products = personalisable_products( 8 );
-$ts_first    = $ts_products[0] ?? null;
+$ts_first    = hero_product();
 /*
  * ONE GARMENT FOR THE WHOLE HERO.
  *
- * The price, the "Personnaliser" button and the print zone all describe the
- * SAME product, and the drawing used to be hardcoded to the tee while the other
- * two followed whatever product sorted first. On a shop whose first
+ * The price, the "Personnaliser" button, the print zone AND the drawing all
+ * describe the SAME product. The drawing used to be hardcoded to the tee while
+ * the other two followed whatever product sorted first: on a shop whose first
  * personalisable product is a sweat, the page offered a sweat at a sweat's price
  * beside a t-shirt's 30,5 x 40,6 cm, and a buyer who sized their logo from that
- * drawing would have paid for a reprint.
+ * drawing would have paid for a reprint. `demo_source()` is keyed to this same
+ * `[0]` for that reason and refuses rather than picking another product.
  */
 $ts_garment  = $ts_first instanceof \WC_Product && class_exists( '\Teeshoop\Core\Product' )
 	? \Teeshoop\Core\Product::garment_of( $ts_first->get_id() )
@@ -49,9 +74,10 @@ $ts_headline = '' !== $ts_garment ? headline( $ts_garment ) : array();
 $ts_min      = minimum();
 $ts_lead     = lead_days();
 $ts_cat      = catalogue_stats();
+$ts_demo     = garment_demo();
 ?>
 
-<section class="ts-hero ts-wrap">
+<section class="ts-hero ts-wrap<?php echo '' === $ts_demo ? ' ts-hero--photo' : ''; ?>">
 	<div class="ts-hero__text">
 		<p class="ts-eyebrow"><?php esc_html_e( 'Marquage textile, imprimé en France', 'teeshoop' ); ?></p>
 		<h1 class="ts-hero__title"><?php esc_html_e( 'Le textile personnalisé, pour les professionnels', 'teeshoop' ); ?></h1>
@@ -87,41 +113,40 @@ $ts_cat      = catalogue_stats();
 		</div>
 	</div>
 
-	<?php
-	/*
-	 * HIS PHOTOGRAPH, AND NOT A LINE DRAWING.
-	 *
-	 * What was here was `print_zone_figure()`, a diagram of three rectangles
-	 * giving the print area in centimetres. It is a good drawing and it was the
-	 * ONLY illustration on the homepage: measured 03/09/2026, this page rendered
-	 * zero `<img>` while teeshoop.com rendered fifty-one. A shop that sells
-	 * putting pictures on clothes cannot open with a wireframe. The drawing has
-	 * moved down to the section where somebody is actually choosing a print
-	 * size, which is where it helps.
-	 *
-	 * The file is his: `home-header-teeshoop-3-scaled.jpg`, on his home page
-	 * since April 2023, a person wearing a marked tee that reads « Votre design
-	 * ici ». Three widths are shipped and the browser picks; `sizes` says the
-	 * media column is the full width on a phone and about half of a 1400 px page
-	 * at a desk, so a 375 px screen fetches the 768 and not the 2048.
-	 *
-	 * The framing is done with `object-fit` rather than by cropping three more
-	 * files: the subject sits at about 68 % across a very wide frame, so a tall
-	 * box on a phone keeps her in it and a wide box at a desk shows the whole
-	 * composition. Width and height are on the tag so the hero does not jump
-	 * when it lands.
-	 */
-	$ts_img = get_template_directory_uri() . '/assets/images/accueil-teeshoop-';
-	?>
 	<div class="ts-hero__media">
-		<img
-			class="ts-hero__photo"
-			src="<?php echo esc_url( $ts_img . '1536.jpg' ); ?>"
-			srcset="<?php echo esc_attr( $ts_img . '768.jpg 768w, ' . $ts_img . '1536.jpg 1536w, ' . $ts_img . '2048.jpg 2048w' ); ?>"
-			sizes="(min-width: 60rem) 46vw, 100vw"
-			width="1536" height="512"
-			fetchpriority="high" decoding="async"
-			alt="<?php esc_attr_e( 'Une personne portant un t-shirt noir marqué « Votre design ici »', 'teeshoop' ); ?>">
+		<?php
+		if ( '' !== $ts_demo ) {
+			echo $ts_demo; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in garment_demo().
+		} else {
+			/*
+			 * THE FALLBACK, WHICH IS THE PHOTOGRAPH THIS BLOCK USED TO BE.
+			 *
+			 * `garment_demo()` returns nothing when the first personalisable
+			 * product has no drawing, no measured palette or no measured priced
+			 * size. That is a real state: a shop mid-import has products with a
+			 * garment and no colours yet. It is not a state to draw an invented
+			 * garment for, so the hero falls back to his own photograph rather
+			 * than to a diagram of a t-shirt nobody sells.
+			 *
+			 * The file is his: on his home page since April 2023, a person
+			 * wearing a marked tee that reads « Votre design ici ». Three widths
+			 * are shipped and the browser picks; `sizes` says the media column is
+			 * the full width on a phone and about half of a 1400 px page at a
+			 * desk, so a 375 px screen fetches the 768 and not the 2048.
+			 */
+			$ts_img = get_template_directory_uri() . '/assets/images/accueil-teeshoop-';
+			?>
+			<img
+				class="ts-hero__photo"
+				src="<?php echo esc_url( $ts_img . '1536.jpg' ); ?>"
+				srcset="<?php echo esc_attr( $ts_img . '768.jpg 768w, ' . $ts_img . '1536.jpg 1536w, ' . $ts_img . '2048.jpg 2048w' ); ?>"
+				sizes="(min-width: 60rem) 46vw, 100vw"
+				width="1536" height="512"
+				fetchpriority="high" decoding="async"
+				alt="<?php esc_attr_e( 'Une personne portant un t-shirt noir marqué « Votre design ici »', 'teeshoop' ); ?>">
+			<?php
+		}
+		?>
 	</div>
 </section>
 
@@ -213,9 +238,19 @@ $ts_cat      = catalogue_stats();
 					?>
 					<small>
 						<?php
+						/*
+						 * LES FACES SONT LUES, PAS AFFIRMÉES.
+						 *
+						 * Cette phrase disait « devant et dos » quoi qu'il
+						 * arrive, sous le rectangle du DEVANT. C'est vrai du
+						 * t-shirt et faux du sweat, dont le dos accepte 5,1 cm
+						 * de plus : voir `zone_sides()`, qui porte la règle et
+						 * la mesure.
+						 */
 						printf(
-							/* translators: %s: a garment size. */
-							esc_html__( 'devant et dos, en taille %s', 'teeshoop' ),
+							/* translators: 1: les faces concernées, 2: a garment size. */
+							esc_html__( '%1$s, en taille %2$s', 'teeshoop' ),
+							esc_html( zone_sides( $ts_garment, $ts_ref ) ),
 							esc_html( $ts_ref )
 						);
 						?>
@@ -249,6 +284,106 @@ $ts_cat      = catalogue_stats();
 		\Teeshoop\Core\Hypotheses::note( \Teeshoop\Core\Hypotheses::HOME_PRICING );
 	}
 	?>
+</section>
+
+<?php
+/*
+ * WHAT WE TAKE OFF YOUR HANDS.
+ *
+ * The homepage described the editor and the delivery and left everything
+ * between them unsaid, which is the half a professional buyer is actually
+ * buying. Every row of this block is something the code does today; the three
+ * things the brief lists that it does NOT do are named in the header of
+ * `services()`, with the reason each one is absent.
+ */
+$ts_services = services(
+	array(
+		'references' => (int) $ts_cat['references'],
+		'lead'       => (int) ( $ts_lead['standard'] ?? 0 ),
+		'minimum'    => null !== $ts_min ? (int) $ts_min['qty'] : 0,
+	)
+);
+?>
+<section class="ts-section ts-wrap" aria-labelledby="ts-services-title">
+	<div class="ts-section__head">
+		<p class="ts-eyebrow"><?php esc_html_e( 'Ce que nous prenons en charge', 'teeshoop' ); ?></p>
+		<h2 id="ts-services-title"><?php esc_html_e( 'Du choix du vêtement au carton livré', 'teeshoop' ); ?></h2>
+		<p class="ts-lead">
+			<?php esc_html_e( 'Vous pouvez tout faire vous-même en ligne, ou nous laisser la main à n’importe quelle étape. Les deux chemins arrivent au même atelier et au même contrôle.', 'teeshoop' ); ?>
+		</p>
+	</div>
+
+	<ul class="ts-serv">
+		<?php foreach ( $ts_services as $ts_service ) : ?>
+			<li class="ts-serv__item">
+				<h3 class="ts-serv__title"><?php echo esc_html( $ts_service['title'] ); ?></h3>
+				<p class="ts-serv__body"><?php echo esc_html( $ts_service['body'] ); ?></p>
+				<?php if ( '' !== $ts_service['url'] && '' !== $ts_service['label'] ) : ?>
+					<p class="ts-serv__more">
+						<a href="<?php echo esc_url( $ts_service['url'] ); ?>"><?php echo esc_html( $ts_service['label'] ); ?></a>
+					</p>
+				<?php endif; ?>
+			</li>
+		<?php endforeach; ?>
+	</ul>
+
+	<?php
+	/*
+	 * HIS PHOTOGRAPH, WHERE IT NOW EARNS ITS PLACE.
+	 *
+	 * It opened the page until today, beside the headline, as the only picture
+	 * on it. The hero shows the actual garment now, so the photograph is no
+	 * longer carrying "what is this shop", and a human wearing the thing we
+	 * make belongs next to the paragraph about people doing the work. It is not
+	 * `fetchpriority="high"` any more for the same reason: it is no longer the
+	 * largest element above the fold, and claiming priority for an image the
+	 * browser will not paint first costs the element that is.
+	 */
+	if ( '' !== $ts_demo ) :
+		$ts_img = get_template_directory_uri() . '/assets/images/accueil-teeshoop-';
+		?>
+		<figure class="ts-serv__figure">
+			<img
+				class="ts-serv__photo"
+				src="<?php echo esc_url( $ts_img . '1536.jpg' ); ?>"
+				srcset="<?php echo esc_attr( $ts_img . '768.jpg 768w, ' . $ts_img . '1536.jpg 1536w, ' . $ts_img . '2048.jpg 2048w' ); ?>"
+				sizes="(min-width: 60rem) 68rem, 100vw"
+				width="1536" height="512"
+				loading="lazy" decoding="async"
+				alt="<?php esc_attr_e( 'Une personne portant un t-shirt noir marqué « Votre design ici »', 'teeshoop' ); ?>">
+		</figure>
+	<?php endif; ?>
+</section>
+
+<?php /* A real sequence, so it is numbered. */ ?>
+<section class="ts-section ts-wrap" aria-labelledby="ts-steps-title">
+	<div class="ts-section__head">
+		<p class="ts-eyebrow"><?php esc_html_e( 'Le déroulé', 'teeshoop' ); ?></p>
+		<h2 id="ts-steps-title"><?php esc_html_e( 'De votre logo au carton', 'teeshoop' ); ?></h2>
+	</div>
+
+	<ol class="ts-steps">
+		<li class="ts-steps__item">
+			<h3 class="ts-steps__title"><?php esc_html_e( 'Vous choisissez le vêtement', 'teeshoop' ); ?></h3>
+			<p><?php esc_html_e( 'La matière, le grammage, le coloris et les tailles. Chaque fiche dit jusqu’où on peut imprimer, en centimètres.', 'teeshoop' ); ?></p>
+		</li>
+		<li class="ts-steps__item">
+			<h3 class="ts-steps__title"><?php esc_html_e( 'Vous placez votre visuel', 'teeshoop' ); ?></h3>
+			<p><?php esc_html_e( 'Dans l’éditeur, sur le devant, le dos ou la manche. Le prix se met à jour pendant que vous placez, à votre quantité.', 'teeshoop' ); ?></p>
+		</li>
+		<li class="ts-steps__item">
+			<h3 class="ts-steps__title"><?php esc_html_e( 'Vous choisissez les quantités', 'teeshoop' ); ?></h3>
+			<p><?php esc_html_e( 'Combien de pièces, dans quels coloris et dans quelles tailles. Un même visuel sur plusieurs coloris reste une seule ligne, donc la remise porte sur le total.', 'teeshoop' ); ?></p>
+		</li>
+		<li class="ts-steps__item">
+			<h3 class="ts-steps__title"><?php esc_html_e( 'Vous validez le bon à tirer', 'teeshoop' ); ?></h3>
+			<p><?php esc_html_e( 'Nous vous envoyons une maquette par face imprimée, avec les dimensions et la hauteur sous l’encolure. Rien ne part en production avant votre accord.', 'teeshoop' ); ?></p>
+		</li>
+		<li class="ts-steps__item">
+			<h3 class="ts-steps__title"><?php esc_html_e( 'Nous imprimons et nous livrons', 'teeshoop' ); ?></h3>
+			<p><?php esc_html_e( 'Transfert DTF pressé dans notre atelier, contrôle pièce par pièce, expédition en Colissimo suivi.', 'teeshoop' ); ?></p>
+		</li>
+	</ol>
 </section>
 
 <?php /* The catalogue, at its real size. */ ?>
@@ -292,6 +427,14 @@ $ts_cat      = catalogue_stats();
 		 * state on a category imported before the photographs were copied, and
 		 * it has to be designed rather than avoided.
 		 *
+		 * THE TILES ARE ALL THE SAME HEIGHT WHETHER OR NOT THEY HAVE A PICTURE,
+		 * which is what changed today. The photograph sat in normal flow, so a
+		 * row holding one tile with a picture and one without was a row with a
+		 * hole in it: measured on this mirror, five of the eleven families have
+		 * no photograph yet and the grid read as broken rather than as partly
+		 * filled. The type-only tile now fills the same box with its name on the
+		 * brand wash, which is a designed empty state instead of a gap.
+		 *
 		 * The count is the family's TOTAL, subcategories included, which is the
 		 * number a buyer means. `T-shirts` itself holds zero products directly:
 		 * everything is filed under `Manches courtes`.
@@ -302,11 +445,9 @@ $ts_cat      = catalogue_stats();
 				<?php $ts_media = category_media( $ts_term ); ?>
 				<li class="ts-fams__item">
 					<a class="ts-fams__link<?php echo '' === $ts_media ? ' ts-fams__link--typeonly' : ''; ?>" href="<?php echo esc_url( (string) get_term_link( $ts_term ) ); ?>">
-						<?php if ( '' !== $ts_media ) : ?>
-							<span class="ts-fams__media">
-								<?php echo $ts_media; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_get_attachment_image() escapes. ?>
-							</span>
-						<?php endif; ?>
+						<span class="ts-fams__media">
+							<?php echo $ts_media; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_get_attachment_image() escapes. ?>
+						</span>
 						<span class="ts-fams__text">
 							<span class="ts-fams__name"><?php echo esc_html( $ts_term->name ); ?></span>
 							<span class="ts-fams__n ts-num">
@@ -342,21 +483,6 @@ $ts_cat      = catalogue_stats();
 		<p class="ts-lead">
 			<?php esc_html_e( 'Vous déposez votre visuel, vous le placez, vous voyez le prix à votre quantité, et vous payez. Le bon à tirer arrive ensuite : rien n’est imprimé avant que vous l’ayez validé.', 'teeshoop' ); ?>
 		</p>
-
-		<?php
-		/*
-		 * The print area, drawn to scale. It opened the homepage until 03/09/2026
-		 * and it was the only picture on it; here it sits next to the paragraph
-		 * that tells somebody they are about to place a visual, which is the
-		 * moment the centimetres mean something. Every dimension comes from
-		 * `Garments::areas()`, generated from the studio, so the drawing and the
-		 * editor cannot disagree.
-		 */
-		$ts_figure = '' !== $ts_garment ? print_zone_figure( $ts_garment ) : '';
-		if ( '' !== $ts_figure ) {
-			echo '<div class="ts-zone-bloc">' . $ts_figure . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure().
-		}
-		?>
 	</div>
 
 	<?php if ( empty( $ts_products ) ) : ?>
@@ -389,6 +515,23 @@ $ts_cat      = catalogue_stats();
 			<?php endforeach; ?>
 		</ul>
 	<?php endif; ?>
+
+	<?php
+	/*
+	 * The print area, drawn to scale, against a sheet of A4.
+	 *
+	 * The hero draws the same rectangle ON the garment, which answers "where
+	 * does it sit". This one answers a different question, "how big is that
+	 * really", by putting the priced size, the largest size and an A4 sheet at
+	 * one scale side by side. A4 is there because "30,5 cm" means nothing to a
+	 * buyer and "wider than a sheet of paper" means everything. Every dimension
+	 * comes from `Garments::areas()`, so the two drawings cannot disagree.
+	 */
+	$ts_figure = '' !== $ts_garment ? print_zone_figure( $ts_garment ) : '';
+	if ( '' !== $ts_figure ) {
+		echo '<div class="ts-zone-bloc">' . $ts_figure . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure().
+	}
+	?>
 </section>
 
 <?php /* Who it is for, in the associate's own words. */ ?>
@@ -414,33 +557,6 @@ $ts_cat      = catalogue_stats();
 			<a href="<?php echo esc_url( $ts_pro ); ?>"><?php esc_html_e( 'Ce que nous demandons et ce que nous fournissons aux entreprises', 'teeshoop' ); ?></a>
 		</p>
 	<?php endif; ?>
-</section>
-
-<?php /* A real sequence, so it is numbered. */ ?>
-<section class="ts-section ts-wrap" aria-labelledby="ts-steps-title">
-	<div class="ts-section__head">
-		<p class="ts-eyebrow"><?php esc_html_e( 'Le déroulé', 'teeshoop' ); ?></p>
-		<h2 id="ts-steps-title"><?php esc_html_e( 'De votre logo au carton', 'teeshoop' ); ?></h2>
-	</div>
-
-	<ol class="ts-steps">
-		<li class="ts-steps__item">
-			<h3 class="ts-steps__title"><?php esc_html_e( 'Vous choisissez le vêtement', 'teeshoop' ); ?></h3>
-			<p><?php esc_html_e( 'La matière, le grammage, le coloris et les tailles. Chaque fiche dit jusqu’où on peut imprimer, en centimètres.', 'teeshoop' ); ?></p>
-		</li>
-		<li class="ts-steps__item">
-			<h3 class="ts-steps__title"><?php esc_html_e( 'Vous placez votre visuel', 'teeshoop' ); ?></h3>
-			<p><?php esc_html_e( 'Dans l’éditeur, sur le devant, le dos ou la manche. Le prix se met à jour pendant que vous placez, à votre quantité.', 'teeshoop' ); ?></p>
-		</li>
-		<li class="ts-steps__item">
-			<h3 class="ts-steps__title"><?php esc_html_e( 'Vous validez le bon à tirer', 'teeshoop' ); ?></h3>
-			<p><?php esc_html_e( 'Nous vous envoyons une maquette par face imprimée, avec les dimensions et la hauteur sous l’encolure. Rien ne part en production avant votre accord.', 'teeshoop' ); ?></p>
-		</li>
-		<li class="ts-steps__item">
-			<h3 class="ts-steps__title"><?php esc_html_e( 'Nous imprimons et nous livrons', 'teeshoop' ); ?></h3>
-			<p><?php esc_html_e( 'Transfert DTF pressé dans notre atelier, contrôle pièce par pièce, expédition en Colissimo suivi.', 'teeshoop' ); ?></p>
-		</li>
-	</ol>
 </section>
 
 <?php

@@ -701,6 +701,147 @@ for (const [name, path] of PAGES) {
   await context.close()
 }
 
+/* --------------------------------------------- la démonstration du vêtement -- */
+
+/*
+ * LE VÊTEMENT DE L'ACCUEIL CHANGE VRAIMENT DE COULEUR, ET SANS SCRIPT.
+ *
+ * ── CE QUI EST EN JEU ────────────────────────────────────────────────────────
+ *
+ * Le bandeau d'accueil dessine le gabarit du studio et le peint avec la
+ * pastille MESURÉE du coloris, avec un nuancier de dix-sept boutons. Trois
+ * pannes sont possibles et aucune ne se voit sur une capture d'écran :
+ *
+ *   1. le jeton `__COLOR__` disparaît du dessin engendré, et les dix-sept
+ *      boutons repeignent tous la même couleur ;
+ *   2. la règle `:has()` n'est pas écrite, et le nuancier ne marche que si le
+ *      script tourne, sur un site dont c'est justement la règle qu'il ne le
+ *      faut pas ;
+ *   3. la cote imprimée sous le rectangle cesse d'être celle que le studio
+ *      publie, et un acheteur dimensionne son logo sur un chiffre faux.
+ *
+ * Les trois sont mesurées ici. La deuxième l'est EN PIXELS, dans un contexte
+ * sans JavaScript : il n'y a pas d'`evaluate()` sans script, donc la seule
+ * preuve possible que le vêtement a changé est que l'image a changé.
+ *
+ * UNE BOUTIQUE SANS NUANCIER N'EST PAS UNE PANNE. `demo_source()` refuse de
+ * dessiner quand le premier produit personnalisable n'a pas de palette mesurée,
+ * et le bandeau retombe sur la photographie. C'est un SKIP nommé et jamais un
+ * succès silencieux.
+ */
+{
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'fr-FR' })
+  await decided(context)
+  const page = await context.newPage()
+  await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+
+  const present = (await page.locator('[data-teeshoop="demo-accueil"]').count()) > 0
+
+  if (!present) {
+    skip(
+      'le vêtement de l’accueil change de couleur',
+      'aucune démonstration sur cette boutique : le premier produit personnalisable n’a ni dessin ni nuancier mesuré, et le bandeau montre la photographie',
+    )
+  } else {
+    // 380 ms de transition, plus une marge : lue trop tôt, une propriété
+    // personnalisée enregistrée en <color> rend une teinte intermédiaire.
+    const settle = () => page.waitForTimeout(650)
+
+    const swatches = await page.evaluate(() =>
+      [...document.querySelectorAll('.ts-demo__radio')].map((r) => ({ id: r.id, tint: r.dataset.tint, checked: r.checked })),
+    )
+    ok('le nuancier propose plus d’un coloris, sinon ce n’est pas un choix', swatches.length > 1, `${swatches.length}`)
+    ok(
+      'chaque pastille porte un hexadécimal et pas un nom',
+      swatches.every((s) => /^#[0-9a-fA-F]{6}$/.test(s.tint || '')),
+      swatches.map((s) => s.tint).join(' '),
+    )
+
+    /*
+     * LA COULEUR PEINTE EST CELLE DU BOUTON COCHÉ. On lit le `fill` calculé de
+     * l'élément qui porte la variable, pas la variable : c'est ce qu'un visiteur
+     * a sous les yeux, et c'est la seule lecture qui attrape un dessin dont le
+     * jeton a disparu.
+     */
+    const clothFill = () =>
+      page.evaluate(() => {
+        const cloth = document.querySelector('.ts-demo__svg [fill*="--ts-demo-tint"]')
+        return cloth ? getComputedStyle(cloth).fill : ''
+      })
+    const asRgb = (hex) =>
+      `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`
+
+    await settle()
+    const opening = swatches.find((s) => s.checked)
+    ok('un coloris est coché à l’ouverture', Boolean(opening), JSON.stringify(opening ?? null))
+    if (opening) {
+      ok('le tissu est peint de la teinte du bouton coché', (await clothFill()) === asRgb(opening.tint), await clothFill())
+    }
+
+    /*
+     * DEUX BOUTONS DIFFÉRENTS DONNENT DEUX COULEURS DIFFÉRENTES. C'est la
+     * panne n° 1 : un dessin qui a perdu son jeton passe tout le reste.
+     */
+    const others = swatches.filter((s) => !s.checked)
+    if (others.length > 0) {
+      const target = others[others.length - 1]
+      await page.locator(`label[for="${target.id}"]`).click()
+      await settle()
+      ok(
+        'choisir un autre coloris repeint le vêtement de CETTE teinte',
+        (await clothFill()) === asRgb(target.tint),
+        `${target.id} attendu ${asRgb(target.tint)}, obtenu ${await clothFill()}`,
+      )
+    }
+
+    /*
+     * LA COTE EST CELLE QUE LE STUDIO PUBLIE. Le rectangle vient de
+     * `garment-art.json` et la légende de `garments.json` : deux fichiers, une
+     * seule vérité, et c'est ici qu'on le vérifie sur ce qu'un client lit.
+     */
+    const garments = JSON.parse(readFileSync(join(ROOT, 'wp-plugins/teeshoop-core/data/garments.json'), 'utf8'))
+    const tee = garments.garments?.tee
+    const front = (tee?.areas ?? []).find((a) => a.side === 'front')
+    const priced = front?.bySize?.[tee?.pricedSize]
+    if (priced) {
+      const cote = (await page.locator('.ts-demo__dim').innerText()).replace(/\s/g, ' ')
+      const attendu = [priced.wCm, priced.hCm].map((v) => String(v).replace('.', ','))
+      ok(
+        'la cote dessinée sur le vêtement est celle que le studio publie',
+        attendu.every((v) => cote.includes(v)),
+        `« ${cote.trim()} » doit contenir ${attendu.join(' et ')}`,
+      )
+    } else {
+      skip('la cote dessinée est celle du studio', 'garments.json ne publie pas la taille tarifée du tee')
+    }
+
+    await context.close()
+
+    /*
+     * ET MAINTENANT SANS SCRIPT. Contexte neuf, `javaScriptEnabled: false`.
+     * La preuve est photographique parce qu'elle ne peut pas être autre chose.
+     */
+    const muet = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'fr-FR', javaScriptEnabled: false })
+    const sansJs = await muet.newPage()
+    await sansJs.goto(BASE + '/', { waitUntil: 'load' })
+
+    const cible = swatches.filter((s) => !s.checked)
+    if (cible.length > 0) {
+      const stage = sansJs.locator('.ts-demo__stage')
+      const avant = await stage.screenshot()
+      await sansJs.locator(`label[for="${cible[0].id}"]`).click()
+      ok('une étiquette coche son bouton sans script', await sansJs.locator(`#${cible[0].id}`).isChecked())
+      const apres = await stage.screenshot()
+      ok(
+        'et le vêtement se repeint vraiment sans une ligne de script',
+        !avant.equals(apres),
+        `${avant.length} puis ${apres.length} octets`,
+      )
+    }
+    await muet.close()
+  }
+}
+
 await browser.close()
 
 const failed = results.filter((r) => !r.pass)
