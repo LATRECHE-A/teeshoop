@@ -37,6 +37,7 @@ use Teeshoop\Core\Launch;
 use Teeshoop\Core\Legal;
 use Teeshoop\Core\Payment;
 use Teeshoop\Core\Product;
+use Teeshoop\Core\Supply;
 use Teeshoop\Core\Terms;
 
 /** Reasons carrying this key, as plain sentences. */
@@ -72,20 +73,69 @@ function ts_lg_clear_money_door(): callable {
 			'meta_key'       => Product::META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- a test, not a page load.
 		)
 	);
+	/*
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * DEPUIS LE 9 SEPTEMBRE, UNE BOUTIQUE SAINE EST AUSSI UNE BOUTIQUE DONT LES
+	 * TEXTILES NUS EXISTENT ENCORE CHEZ LE FOURNISSEUR.
+	 *
+	 * `Launch::supply_blockers()` refuse quand un produit publié nomme une
+	 * référence absente du dépôt. C'est le contrôle qui empêche d'ouvrir une
+	 * boutique où l'on peut tout parcourir et rien commander. Ce décor doit donc
+	 * la satisfaire, sinon quatre cas testent une porte fermée en croyant la
+	 * tester ouverte.
+	 *
+	 * TOUS les produits publiés sont repointés, pas seulement ceux qui n'ont
+	 * rien : le miroir en porte vingt qui nomment des références de l'ancien
+	 * fournisseur, et ce sont précisément celles que le nouveau contrôle refuse.
+	 * L'ancienne valeur est mémorisée par produit et remise à la fin.
+	 */
 	foreach ( $ids as $id ) {
-		if ( '' !== Product::blank_ref_of( (int) $id ) ) {
+		$avant = Product::blank_ref_of( (int) $id );
+		if ( '18001' === $avant ) {
 			continue;
 		}
-		$touched[] = (int) $id;
+		$touched[ (int) $id ] = $avant;
 		update_post_meta( (int) $id, Product::META_BLANK_REF, '18001' );
+	}
+
+	// Et la référence du décor doit être DANS le dépôt, sinon le contrôle a
+	// raison de refuser. Semée ici seulement si elle n'y est pas déjà : la suite
+	// d'achat la sème aussi, et deux semis pour une ligne se marchent dessus.
+	global $wpdb;
+	$depot  = Supply::table();
+	$seeded = false;
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	if ( null === $wpdb->get_var( $wpdb->prepare( 'SELECT ref FROM `' . $depot . '` WHERE ref = %s', '18001' ) ) ) {
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->query(
+			$wpdb->prepare(
+				'INSERT INTO `' . $depot . '` (ref, kind, shelf, sleeve, updated_at, seen_at, gone, payload) VALUES (%s, %s, %s, %s, NULL, %s, 0, %s)',
+				'18001',
+				'tee',
+				'tshirt',
+				'short',
+				gmdate( 'Y-m-d H:i:s' ),
+				(string) gzcompress( (string) wp_json_encode( array( 'reference' => '18001', 'variants' => array() ) ), 6 )
+			)
+		);
+		$seeded = true;
 	}
 
 	$grid_before = get_option( Launch::OPTION_GRILLE, null );
 	Launch::record_grid_verdict( 0, 0, 219 );
 
-	return static function () use ( $touched, $grid_before ): void {
-		foreach ( $touched as $id ) {
-			delete_post_meta( $id, Product::META_BLANK_REF );
+	return static function () use ( $touched, $grid_before, $seeded ): void {
+		foreach ( $touched as $id => $avant ) {
+			if ( '' === (string) $avant ) {
+				delete_post_meta( (int) $id, Product::META_BLANK_REF );
+			} else {
+				update_post_meta( (int) $id, Product::META_BLANK_REF, (string) $avant );
+			}
+		}
+		if ( $seeded ) {
+			global $wpdb;
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query( $wpdb->prepare( 'DELETE FROM `' . Supply::table() . '` WHERE ref = %s', '18001' ) );
 		}
 		if ( null === $grid_before ) {
 			delete_option( Launch::OPTION_GRILLE );

@@ -3881,5 +3881,46 @@ minimale), ou rester **par ligne** ?
 
 ---
 
+### Q75. Le tarif publié ne couvre pas tout le catalogue, et il faut choisir lequel bouge (*Bloquant pour ouvrir le catalogue*)
+
+Le 5 septembre, la boutique est passée de neuf références choisies à la main à
+« on ouvre tout le catalogue, et le prix plancher exclut ce qui ne tient pas ».
+La mesure qui autorisait ce passage annonçait cinq références en défaut sur 319.
+
+**Elle était fausse**, et c'est mesuré : le plancher utilisé ne regardait que le
+textile nu, en ignorant le marquage, le film et l'emballage, et il ne calculait
+qu'une des deux jambes de la règle (la contribution minimale, jamais la marge
+brute de 50 %). Refaite avec le vrai calcul de coût, sur 25 pièces une face à la
+taille la plus chère : **202 des 280 offres se vendaient sous leur plancher**,
+dont une à 4,4 % de marge brute.
+
+Le catalogue est donc refermé sur les neuf références d'avant, qui sont mesurées
+une par une. Ce n'est pas une panne, c'est l'état sûr.
+
+**Ce que le tarif publié supporte réellement**, mesuré :
+
+| Vêtement | Prix d'achat maximal que le tarif couvre |
+|---|---|
+| T-shirt | **6,65 EUR** |
+| Sweat | **21,28 EUR** |
+
+*La question, et il y a trois façons d'ouvrir le catalogue :*
+
+1. **On garde le tarif et on n'ouvre que ce qui tient.** Combien de références
+   cela fait, on peut le compter précisément une fois la règle corrigée. C'est
+   l'option qui ne change aucun prix affiché.
+2. **On monte le tarif** pour couvrir une gamme plus large. Il faut alors dire de
+   combien, et accepter que les références bon marché deviennent plus chères
+   qu'aujourd'hui.
+3. **On facture le textile nu à son prix**, avec un tarif qui varie par référence
+   au lieu d'un tarif par famille. C'est la question Q68 vue d'un autre angle, et
+   c'est la seule qui ouvre tout le catalogue sans perdre d'argent.
+
+Aucune de ces trois n'est une décision technique. Le moteur sait faire les trois.
+
+*Votre réponse :*
+
+---
+
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site
 teeshoop.com en production et du code de l'outil de personnalisation.*

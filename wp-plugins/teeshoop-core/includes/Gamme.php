@@ -565,6 +565,52 @@ final class Gamme {
 			return self::RANGE;
 		}
 
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * LA PORTÉE « CATALOGUE » EST FERMÉE DEPUIS LE 9 SEPTEMBRE 2026, ET LA
+		 * RAISON EST QUE SA MESURE D'OUVERTURE ÉTAIT FAUSSE.
+		 *
+		 * Le 5 septembre, cette règle a remplacé neuf références choisies à la
+		 * main par « on ouvre tout, et le plancher exclut », sur une mesure qui
+		 * annonçait cinq références en défaut sur 319. Une passe adversariale a
+		 * refait la mesure le 9 septembre et le plancher utilisé n'est pas celui
+		 * de la boutique, deux fois plutôt qu'une :
+		 *
+		 *   il n'a QU'UNE JAMBE. `Margin::plan()` définit le plancher comme le
+		 *   MAXIMUM entre la contribution minimale et la marge brute minimale
+		 *   (50 %), et cette ligne ne calcule que la première ;
+		 *
+		 *   et il compare la moitié TEXTILE du prix à la moitié TEXTILE du coût,
+		 *   en ignorant le marquage, le film, l'emballage et les coûts par
+		 *   commande, que `Pricing` dit pourtant que `base_ht` doit porter aussi.
+		 *
+		 * Mesuré avec le vrai chemin de coût, sur 25 pièces une face à la taille
+		 * la plus chère : 202 des 280 offres publiées se vendaient SOUS leur
+		 * plancher, dont une à 4,4 % de marge brute contre 50 % exigés. Le tarif
+		 * publié supporte un textile nu jusqu'à 6,65 EUR sur un t-shirt et 21,28
+		 * sur un sweat ; cette règle en admettait 18,00 et 47,25.
+		 *
+		 * ET AUCUNE GARDE NE POUVAIT LE VOIR : `integration-grille.php` boucle
+		 * sur les neuf constantes tenues à la main, donc elle ne regarde aucune
+		 * des 448 références que cette règle ajoutait.
+		 *
+		 * ON REFUSE PLUTÔT QUE DE CORRIGER AU JUGÉ. Le bon plancher demande le
+		 * vrai chemin de coût, celui que la suite d'intégration interroge, et le
+		 * réécrire ici serait une SECONDE implémentation du modèle de coût,
+		 * c'est-à-dire exactement ce qui a produit ce défaut. La boutique
+		 * retombe donc sur les neuf références mesurées une par une, ce qui est
+		 * l'état d'avant le 5 septembre et un état sûr.
+		 *
+		 * CE QU'IL FAUT FAIRE POUR ROUVRIR, écrit pour la prochaine séance :
+		 * construire la colonne publiée la moins chère de chaque référence, à sa
+		 * taille et son coloris les plus chers, et refuser la référence quand sa
+		 * recette n'atteint pas le `floor_ht` de `Margin::plan()` sur le coût
+		 * direct COMPLET, en passant par `Costing` et non par une arithmétique
+		 * écrite ici. Puis pointer `integration-grille.php` sur `Gamme::range()`
+		 * pour que la correction soit gardée.
+		 */
+		return self::RANGE;
+
 		global $wpdb;
 		$config  = Settings::pricing();
 		$cc      = Cost::merge_config( (array) get_option( 'teeshoop_cost_config', array() ) );

@@ -150,6 +150,7 @@ final class Launch {
 		return array_values(
 			array_merge(
 				self::blank_blockers(),
+				self::supply_blockers(),
 				self::grid_blockers(),
 				self::payment_blockers()
 			)
@@ -394,6 +395,97 @@ final class Launch {
 	 *
 	 * @return array<int,array{cle:string,pourquoi:string,porte:string}>
 	 */
+	/**
+	 * Le textile nu de chaque produit publié existe-t-il encore chez le
+	 * fournisseur d'aujourd'hui.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * CE QUE CE CONTRÔLE EMPÊCHE : UNE BOUTIQUE OUVERTE QUI NE PEUT RIEN VENDRE.
+	 *
+	 * Depuis le 9 septembre 2026, `Cart::add` demande au fournisseur si les
+	 * articles existent avant d'accepter une ligne. C'est la bonne règle, et
+	 * elle a une conséquence que personne n'avait mesurée : les neuf produits
+	 * personnalisables publiés en production nomment des références de l'ANCIEN
+	 * fournisseur, et l'espace de noms du nouveau est disjoint. Vérifié sur le
+	 * dépôt : aucune des neuf n'y est, et le service prix/stock répond
+	 * `products_not_found` sur leurs articles.
+	 *
+	 * Donc, tel quel, un déploiement rend une boutique que l'on peut parcourir,
+	 * où l'éditeur fonctionne, et où le bouton « Ajouter au panier » refuse
+	 * chaque commande sans que rien sur le site n'en dise la raison.
+	 *
+	 * LA VRAIE RÉPARATION EST UN IMPORT COMPLET, qui dure des heures et ne peut
+	 * donc pas garder un déploiement. Ce contrôle-ci est ce qui empêche de
+	 * partir dans cet état : il nomme les produits fautifs, et `deploiement.sh`
+	 * refuse déjà sur la porte de lancement, sans dérogation.
+	 *
+	 * UNE REQUÊTE, PAS UNE BOUCLE. Le même argument que `blank_blockers()` juste
+	 * en dessous : hydrater deux mille produits pour répondre à une question
+	 * d'existence coûtait 5,6 s et 208 Mo.
+	 *
+	 * @return array<int,array<string,string>>
+	 */
+	private static function supply_blockers(): array {
+		global $wpdb;
+
+		if ( ! class_exists( __NAMESPACE__ . '\\Supply' ) ) {
+			return array( self::refuse( 'textile-nu-fournisseur', 'Le module fournisseur n’a pas pu être chargé, donc les textiles nus n’ont pas pu être vérifiés.' ) );
+		}
+
+		$depot = Supply::table();
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$total = $wpdb->get_var( 'SELECT COUNT(*) FROM `' . $depot . '`' );
+		if ( null === $total ) {
+			return array( self::refuse( 'textile-nu-fournisseur', 'Le dépôt du catalogue fournisseur n’a pas pu être lu, donc rien n’a été vérifié.' ) );
+		}
+		if ( (int) $total === 0 ) {
+			/*
+			 * UN DÉPÔT VIDE NE PROUVE RIEN, et surtout il ne prouve pas que les
+			 * références sont mauvaises. Même règle que « une boutique vide ne
+			 * prouve rien » juste en dessous : on refuse plutôt que de conclure.
+			 */
+			return array( self::refuse( 'textile-nu-fournisseur', 'Le dépôt du catalogue fournisseur est vide. Lancez « wp teeshoop catalogue synchroniser » : sans lui, on ne peut pas dire si les textiles nus vendus existent encore.' ) );
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$orphelins = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.ID AS id, p.post_title AS titre
+				   FROM {$wpdb->posts} p
+				   JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s AND m.meta_value <> ''
+				  WHERE p.post_type = 'product' AND p.post_status = 'publish'
+				    AND NOT EXISTS (
+				        SELECT 1 FROM `" . $depot . "` d WHERE d.ref = m.meta_value AND d.gone = 0
+				    )
+				  ORDER BY p.ID ASC
+				  LIMIT 20",
+				Product::META_BLANK_REF
+			)
+		);
+
+		if ( ! is_array( $orphelins ) || array() === $orphelins ) {
+			return array();
+		}
+
+		$noms = array();
+		foreach ( array_slice( $orphelins, 0, 5 ) as $o ) {
+			$noms[] = '« ' . (string) $o->titre . ' » (#' . (int) $o->id . ')';
+		}
+		$suite = count( $orphelins ) > 5 ? sprintf( ' et %d autre(s)', count( $orphelins ) - 5 ) : '';
+
+		return array(
+			self::refuse(
+				'textile-nu-fournisseur',
+				sprintf(
+					'%d produit(s) publié(s) sont vendus sur un textile nu que le fournisseur d’aujourd’hui ne connaît plus : %s%s. Le panier les refusera un par un, sans que le client comprenne pourquoi. Relancez un import complet avant d’ouvrir.',
+					count( $orphelins ),
+					implode( ', ', $noms ),
+					$suite
+				)
+			),
+		);
+	}
+
 	private static function blank_blockers(): array {
 		if ( ! function_exists( 'wc_get_products' ) || ! class_exists( __NAMESPACE__ . '\\Product' ) ) {
 			return array( self::refuse( 'textile-nu', 'WooCommerce ou le module produit n’a pas pu être chargé, donc les produits personnalisables n’ont pas pu être vérifiés.' ) );
