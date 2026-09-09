@@ -839,6 +839,19 @@ final class Disponibilite {
 		 * journaliser, et il n'est plus jamais imprimé.
 		 */
 		$quoi = '' !== trim( $label ) ? trim( $label ) : 'cet article';
+		/*
+		 * « DE LE » N'EXISTE PAS EN FRANÇAIS, et trois des six phrases
+		 * l'écrivaient. L'étiquette porte son article (« le Red en taille M »)
+		 * parce que la moitié des phrases la mettent en tête ; les autres la
+		 * font suivre de « de », et « de le » se contracte en « du ». Trouvé par
+		 * la passe adversariale du 9 septembre : « Il reste 3 exemplaires de le
+		 * Red en taille M » est la phrase que lisait un client.
+		 *
+		 * Une seule contraction ici plutôt que six phrases réécrites : « de la »
+		 * et « de l' » ne se contractent pas, et les étiquettes ne commencent
+		 * jamais par « les ».
+		 */
+		$de_quoi = str_starts_with( $quoi, 'le ' ) ? 'du ' . substr( $quoi, 3 ) : 'de ' . $quoi;
 		unset( $code );
 		/*
 		 * `$known` EST SÉPARÉ DE `$left`, ET C'EST UNE CORRECTION. Le stock
@@ -862,14 +875,14 @@ final class Disponibilite {
 
 			case 'unreachable':
 				return sprintf(
-					'Nous n’avons pas pu vérifier la disponibilité de %s auprès de notre fournisseur. Réessayez dans quelques minutes.',
-					$quoi
+					'Nous n’avons pas pu vérifier la disponibilité %s auprès de notre fournisseur. Réessayez dans quelques minutes.',
+					$de_quoi
 				);
 
 			case 'no_answer':
 				return sprintf(
-					'Notre fournisseur n’a rien répondu au sujet de %s. Réessayez dans quelques minutes, ou choisissez une autre taille.',
-					$quoi
+					'Notre fournisseur n’a rien répondu au sujet %s. Réessayez dans quelques minutes, ou choisissez une autre taille.',
+					$de_quoi
 				);
 
 			case 'unknown_article':
@@ -889,10 +902,10 @@ final class Disponibilite {
 					$phrase = sprintf( '%s n’est plus en stock. Choisissez une autre taille ou un autre coloris.', self::capitalise( $quoi ) );
 				} else {
 					$phrase = sprintf(
-						'Il reste %s %s de %s, et vous en demandez %s. Ramenez la quantité à %s, ou choisissez une autre taille.',
+						'Il reste %s %s %s, et vous en demandez %s. Ramenez la quantité à %s, ou choisissez une autre taille.',
 						Money::number( (float) $left ),
 						1 === $left ? 'exemplaire' : 'exemplaires',
-						$quoi,
+						$de_quoi,
 						Money::number( (float) $qty ),
 						Money::number( (float) $left )
 					);

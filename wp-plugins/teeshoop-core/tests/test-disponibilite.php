@@ -489,6 +489,35 @@ describe( 'Disponibilite : le verdict, qui est le moment de vérité', function 
 	);
 
 	it(
+		'écrit du français : « du Red » et jamais « de le Red »',
+		static function (): void {
+			/*
+			 * Trois des six phrases écrivaient « de le », qui n'existe pas.
+			 * Trouvé par la passe adversariale du 9 septembre 2026 : « Il reste
+			 * 3 exemplaires de le Red en taille M » est ce que lisait un client.
+			 * L'étiquette porte son article parce que la moitié des phrases la
+			 * mettent en tête ; la contraction est faite là où l'autre moitié la
+			 * fait suivre de « de ».
+			 */
+			$row = array(
+				'cents'          => 345,
+				'stock'          => 3,
+				'stock_supplier' => 0,
+				'box_qty'        => 1,
+			);
+			foreach ( array( 'ok', 'unreachable', 'no_answer', 'unknown_article', 'unpriced', 'short_stock' ) as $why ) {
+				$phrase = Disponibilite::line_message( 'BC01BSML', $why, 10, $row, 'le Red en taille M' );
+				truthy( ! str_contains( $phrase, 'de le ' ), $why . ' : « de le » ne se dit pas, vu : ' . $phrase );
+				truthy( ! str_contains( $phrase, 'au sujet de le' ), $why );
+				truthy( '' !== $phrase, $why . ' : une phrase vide n’est pas une phrase' );
+			}
+			// Et sans étiquette, « de cet article » est correct et doit rester.
+			$sans = Disponibilite::line_message( 'BC01BSML', 'no_answer', 1, $row, '' );
+			truthy( str_contains( $sans, 'de cet article' ), 'sans étiquette : ' . $sans );
+		}
+	);
+
+	it(
 		'nomme le coloris et la taille quand on les lui donne, et jamais le numéro d’article',
 		static function (): void {
 			/*
@@ -511,7 +540,12 @@ describe( 'Disponibilite : le verdict, qui est le moment de vérité', function 
 				array( 'BC01BSML' => 'le noir en taille M' )
 			);
 			$message = $v['message'];
-			truthy( str_contains( $message, 'le noir en taille M' ), "l’étiquette doit être dans la phrase, vue : {$message}" );
+			/*
+			 * LE COLORIS ET LA TAILLE, PAS L'ARTICLE EXACT DE L'ÉTIQUETTE : la
+			 * phrase contracte « de le » en « du », donc chercher « le noir »
+			 * asserterait une grammaire plutôt qu'une information.
+			 */
+			truthy( str_contains( $message, 'noir en taille M' ), "le coloris et la taille doivent être dans la phrase, vue : {$message}" );
 			truthy( ! str_contains( $message, 'BC01BSML' ), 'et le numéro d’article, jamais' );
 		}
 	);
