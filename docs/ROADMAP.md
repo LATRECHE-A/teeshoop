@@ -1567,6 +1567,69 @@ c'est une action à faire.
 
 ---
 
+## Le 9 septembre 2026 : un seul fournisseur, et un parcours en deux temps
+
+Deux décisions de l'associé, prises la même nuit, et ce qu'elles ont coûté en code.
+
+**La boutique n'achète plus qu'à un fournisseur, et ce n'est plus le précédent.**
+L'API du nouveau a été mesurée avant qu'une ligne soit écrite, et trois mesures ont
+décidé de l'architecture.
+
+Le catalogue complet fait **3 241 produits, 65 pages, 94 s et 250 Mo**, et il n'existe
+aucun point d'entrée par référence : « donne-moi BC01B » n'est pas une question que ce
+service sait entendre. Deux cent cinquante mégaoctets ne traversent pas un Worker
+plafonné à cinquante sous-requêtes, donc **le Worker sort du chemin du catalogue** et
+le catalogue est déposé dans une table locale, compressé et entier (mesuré :
+254,2 Mo deviennent 8,1 Mo, 2,5 ko par produit ; la marche réelle en a déposé 8,4).
+
+Le service publie **trois sources de prix et deux de stock**, et une seule vaut. Le flux
+de prix en masse ignore 31 847 des 75 088 articles (42 %) et contredit le service en
+direct sur 21 % des codes comparables, avec une valeur 10,80 répétée à l'identique sur
+des références sans rapport. Le flux de stock en masse date de quatre mois en
+préproduction. Seul `price-stock` répond pour tous les codes et répond juste.
+
+Et il coûte **0,43 s de socle plus 0,068 s par article**, mesuré sur sept points. Cela
+interdit de l'appeler au rendu d'une page de rayon, et cela autorise à l'appeler à
+l'ajout au panier et en caisse, où une commande ordinaire porte trois à douze articles,
+soit 0,6 à 1,3 s. C'est exactement ce qui est fait.
+
+**Ce que le nouveau fournisseur donne en plus**, et qui change le produit : une
+photographie PAR COLORIS, en quatre vues (devant, dos, côtés), là où l'ancien donnait
+une seule photographie pour 54 coloris. Et la composition, le grammage, le pays
+d'origine, les certifications et les consignes d'entretien comme des CHAMPS, là où il
+fallait les extraire d'un paragraphe par expression régulière.
+
+**Ce qu'il donne en moins :** aucune mesure de vêtement (ni demi-poitrine ni longueur),
+et une teinte déclarée sur 19 % des déclinaisons seulement. Le premier point veut dire
+que `scripts/zones-mesurer.mjs` reste le seul moyen de remplir la fiche du fabricant.
+Le second veut dire que la mesure de la pastille reste nécessaire.
+
+**Une création se commande en plusieurs coloris, sur une seule ligne.** Le coloris était
+une propriété du document de création, donc trois coloris faisaient trois lignes, et la
+remise par quantité s'applique par ligne. Mesuré en exécutant le moteur livré : trente
+pièces en trois coloris coûtaient **102,00 EUR de plus** que les trente mêmes en un seul.
+Une ligne porte maintenant une matrice coloris fois taille, la remise est celle de la
+création entière, et l'achat commande chaque coloris au terme fournisseur gelé à la
+vente.
+
+**Le personnalisateur a sa page**, `/personnaliser/{identifiant}/`, servie par WordPress
+sur la même origine. Le document du 5 septembre qui défend l'inverse a raison sur tout ce
+qu'il reproche, et rien de cela n'est une propriété d'une page dédiée : il reproche à
+l'ANCIENNE une application sur une autre origine, dans un cadre, ouverte sur un vêtement
+d'exemple. Ce que la page ajoute et qu'une fente dans une colonne ne peut pas donner : la
+largeur de l'écran, une adresse que le client garde, et deux étapes séparées.
+
+**Ce qui reste à faire, et qui est su :**
+
+| Ce qui manque | Ce que ça coûte | Ce qu'il faut |
+|---|---|---|
+| **Aucune photographie par coloris n'est publiée** | La fiche montre la photographie du produit et la pastille mesurée, ce qui est honnête mais moins bon que ce que le fournisseur permet. Mesuré : il publie bien un jeu d'images distinct par coloris sur 154 produits multicolores sur 154 | Une passe d'import qui les copie en pièces jointes WordPress. Elle coûte 64 Mo pour un produit à 40 coloris, donc elle se limite à la gamme publiée |
+| **La bascule du catalogue n'a pas été faite en entier** | Le miroir porte encore 2 302 références de l'ancien fournisseur à côté de 13 du nouveau. Un import complet les dépublierait, et c'est ce qu'il faut faire, mais il dure des heures | Un import complet, une fois, sur le miroir puis en production |
+| **La page d'atelier ne publie pas de canonique** vers la fiche | Elle est en `noindex`, donc rien n'est indexé de travers aujourd'hui | Une balise |
+| **Aucun rapprochement de la facture fournisseur** | La réponse de commande confirme le prix par ligne, et c'est remonté depuis le 9 septembre, mais personne ne le compare encore à ce sur quoi la marge a été calculée | Lire `confirmed` dans l'écran des achats |
+
+---
+
 ## Quatre choses à savoir avant de toucher au code
 
 1. **Le serveur calcule le prix.** Le studio affiche ce qu'on lui dit. Deux implémentations
