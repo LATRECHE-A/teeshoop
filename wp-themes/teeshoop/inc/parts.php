@@ -481,7 +481,20 @@ function editorial_body( array $page, string $id = 'ts-edito' ): void {
  */
 function zone_sides( string $garment, string $size ): string {
 	$devant = __( 'devant', 'teeshoop' );
-	if ( ! class_exists( '\Teeshoop\Core\Garments' ) || '' === $garment || '' === $size ) {
+	/*
+	 * `method_exists` ET PAS SEULEMENT `class_exists`, à cause d'une fenêtre du
+	 * déploiement. `deploiement.sh` échange l'extension puis le thème, ce qui est
+	 * le bon ordre à l'aller ; `retour` défait dans le même ordre, donc il
+	 * repose l'ANCIENNE extension avant l'ancien thème et laisse, le temps de
+	 * deux renommages, un thème neuf devant une extension qui n'a ni
+	 * `same_back()` ni `art()`. Une classe présente et une méthode absente est
+	 * une erreur fatale, c'est-à-dire une page blanche sur l'accueil pendant une
+	 * marche arrière, qui est exactement le moment où l'on ne veut pas d'une
+	 * seconde panne.
+	 */
+	if ( '' === $garment || '' === $size
+		|| ! class_exists( '\Teeshoop\Core\Garments' )
+		|| ! method_exists( '\Teeshoop\Core\Garments', 'same_back' ) ) {
 		return $devant;
 	}
 
@@ -551,7 +564,11 @@ function demo_source(): array {
 	}
 	$demo = array();
 
-	if ( ! class_exists( '\Teeshoop\Core\Garments' ) || ! class_exists( '\Teeshoop\Core\Product' ) ) {
+	// Même fenêtre de déploiement que `zone_sides()` : sans `art()` on ne dessine
+	// pas, et le bandeau retombe sur la photographie au lieu d'une page blanche.
+	if ( ! class_exists( '\Teeshoop\Core\Garments' )
+		|| ! method_exists( '\Teeshoop\Core\Garments', 'art' )
+		|| ! class_exists( '\Teeshoop\Core\Product' ) ) {
 		return $demo;
 	}
 
