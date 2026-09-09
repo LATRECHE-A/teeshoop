@@ -1469,11 +1469,38 @@ final class Supply {
 
 		$payload = (array) $read['body'];
 
-		if ( 422 === (int) ( $read['code'] ?? 0 ) ) {
+		$code = (int) ( $read['code'] ?? 0 );
+		if ( 422 === $code || 400 === $code ) {
+			/*
+			 * DEUX CODES, DEUX FORMES, ET AUCUNE COMMANDE CRÉÉE DANS LES DEUX.
+			 * 422 rend un objet champ vers phrases (un champ obligatoire
+			 * manque), 400 rend `{"errors":[...]}` (un numéro d'article est
+			 * inconnu chez lui). `validation_message()` aplatit les deux, parce
+			 * que ce que l'exploitant doit lire est la phrase, pas le code.
+			 */
 			return $refuse( 'Le fournisseur a refusé la commande : ' . self::validation_message( $payload ) );
 		}
 
-		$order_id = self::text( $payload['order_id'] ?? ( $payload['id'] ?? ( $payload['reference'] ?? '' ) ) );
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * LE NUMÉRO EST DANS `order_infos`, ET LA DOCUMENTATION DIT AUTRE CHOSE.
+		 *
+		 * Le schéma publié montre `reference` à la RACINE de la réponse. Vérifié
+		 * en passant une vraie commande d'essai le 9 septembre 2026
+		 * (« IMB260900012 ») : la racine porte `success`, `status_code`,
+		 * `message` et `order_infos`, et la référence est DANS `order_infos`.
+		 * Lire la racine seule aurait rendu « accepté sans numéro » sur chaque
+		 * commande réussie, c'est-à-dire l'état qui demande une vérification
+		 * manuelle chez le fournisseur, sur toutes les commandes.
+		 *
+		 * Les deux endroits sont lus, celui qui existe d'abord : la
+		 * documentation décrira peut-être un jour ce que le service fait.
+		 */
+		$infos    = is_array( $payload['order_infos'] ?? null ) ? $payload['order_infos'] : array();
+		$order_id = self::text( $infos['reference'] ?? '' );
+		if ( '' === $order_id ) {
+			$order_id = self::text( $payload['reference'] ?? ( $payload['order_id'] ?? ( $payload['id'] ?? '' ) ) );
+		}
 
 		return array(
 			'outcome' => '' !== $order_id ? 'accepted' : 'unknown',
@@ -1483,8 +1510,52 @@ final class Supply {
 				? 'Commande transmise.'
 				: 'Le fournisseur a répondu sans numéro de commande. Vérifiez chez lui avant de repasser quoi que ce soit.',
 			'lines'   => $order_lines,
+			/*
+			 * CE QUE LE FOURNISSEUR DIT NOUS FACTURER, ligne par ligne.
+			 *
+			 * La réponse renvoie le prix retenu pour chaque article. Sur la
+			 * commande d'essai, 3,45 EUR sur BC01BSML, soit exactement ce que
+			 * `price-stock` nous avait annoncé et ce sur quoi la marge a été
+			 * calculée. C'est la seule confirmation que le prix sur lequel on a
+			 * vendu est le prix qu'on paie, et personne ne la lisait : elle est
+			 * remontée pour que `Purchase` puisse rapprocher, et un écart est
+			 * une chose qu'un humain doit voir le jour même, pas au bilan.
+			 */
+			'confirmed' => self::confirmed_lines( $infos ),
 			'mode'    => $mode,
 		);
+	}
+
+	/**
+	 * Les prix que le fournisseur confirme, numéro d'article vers centimes.
+	 *
+	 * La forme imbriquée est la sienne : `order_lines` est un objet dont les
+	 * clés sont des identifiants internes, chacun portant un objet dont les clés
+	 * sont les numéros d'article. On ne suppose donc aucune profondeur : on
+	 * descend jusqu'à trouver un `price`, et on ignore le reste.
+	 *
+	 * @param array<string,mixed> $infos
+	 * @return array<string,int>
+	 */
+	private static function confirmed_lines( array $infos ): array {
+		$out   = array();
+		$lines = is_array( $infos['order_lines'] ?? null ) ? $infos['order_lines'] : array();
+		foreach ( $lines as $group ) {
+			if ( ! is_array( $group ) ) {
+				continue;
+			}
+			foreach ( $group as $sku => $line ) {
+				if ( ! is_array( $line ) || ! isset( $line['price'] ) || ! is_numeric( $line['price'] ) ) {
+					continue;
+				}
+				// `round` et non `(int)` : 4,55 EUR fois cent vaut 454,999... en
+				// double sur certaines valeurs, et un centime perdu par ligne
+				// sur un rapprochement de coûts est un rapprochement qui ne
+				// tombe jamais juste.
+				$out[ (string) $sku ] = (int) round( (float) $line['price'] * 100 );
+			}
+		}
+		return $out;
 	}
 
 	/**

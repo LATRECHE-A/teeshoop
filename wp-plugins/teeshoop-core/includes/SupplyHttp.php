@@ -260,7 +260,21 @@ final class SupplyHttp {
 			);
 		}
 
-		if ( 200 !== $code && 201 !== $code && 422 !== $code ) {
+		/*
+		 * 400 ET 422 SONT LUS, PAS SEULEMENT COMPTÉS.
+		 *
+		 * Mesuré le 9 septembre 2026 sur la route de commande : un champ
+		 * obligatoire manquant rend 422 avec un objet champ vers phrases ; un
+		 * NUMÉRO D'ARTICLE INCONNU rend 400 avec `{"errors":["Les références
+		 * produit suivantes sont introuvables : ZZZNOPE"]}`. Deux codes, deux
+		 * formes, une seule information utile : LAQUELLE.
+		 *
+		 * Traiter le 400 comme un refus opaque faisait dire à l'exploitant « le
+		 * fournisseur a répondu 400 » sur l'écran où il doit décider s'il
+		 * recommande à la main. Le corps est donc décodé et l'appelant compose
+		 * la phrase.
+		 */
+		if ( 200 !== $code && 201 !== $code && 422 !== $code && 400 !== $code ) {
 			return array(
 				'ok'     => false,
 				'reason' => $code >= 500 ? 'upstream' : 'bad_request',
