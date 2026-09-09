@@ -588,8 +588,36 @@ describe(
 		it(
 			'refuses a payload with no usable reference',
 			static function (): void {
-				$m = Catalogue::map( array( 'style' => array( 'styleNr' => 'abc' ) ) );
-				truthy( ! $m['ok'] );
+				/*
+				 * LA RAISON EST ASSERTÉE, PAS SEULEMENT LE REFUS.
+				 *
+				 * Ce test passait sur `styleNr => 'abc'` en ne regardant que
+				 * `ok`. Le 9 septembre 2026 le motif de référence est passé du
+				 * numérique à l'alphanumérique, et « abc » est devenu une
+				 * référence acceptable : le test serait resté vert en refusant
+				 * pour une tout autre raison (aucun article vendable), c'est
+				 *-a-dire en ne testant plus rien de ce que son nom annonce.
+				 */
+				foreach ( array( '', 'ab', 'a b', 'a/b', 'BC 01B', str_repeat( 'x', 65 ) ) as $bad ) {
+					$m = Catalogue::map( array( 'style' => array( 'styleNr' => $bad ) ) );
+					truthy( ! $m['ok'] );
+					eq( $m['reason'], 'malformed', 'reference « ' . $bad . ' »' );
+				}
+			}
+		);
+
+		it(
+			'accepts the alphanumeric references this catalogue actually publishes',
+			static function (): void {
+				/*
+				 * Six vraies références relevées le 9 septembre 2026 sur les
+				 * 3 241 produits du fournisseur. Aucune n'est purement
+				 * numérique : l'ancien motif les refusait toutes.
+				 */
+				foreach ( array( 'BC01B', '1500KC', 'BE3480', 'BY004', 'T6330113L', 'GNSF00D1' ) as $good ) {
+					$m = Catalogue::map( array( 'style' => array( 'styleNr' => $good ) ) );
+					truthy( 'malformed' !== ( $m['reason'] ?? '' ) );
+				}
 			}
 		);
 

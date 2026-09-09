@@ -399,9 +399,26 @@ final class Purchase {
 		}
 
 		// 2. A studio garment, with its blank declared on the product.
+		/*
+		 * ── LA MATRICE D'ABORD, LA GRILLE ENSUITE ───────────────────────────
+		 *
+		 * Depuis le 9 septembre 2026 une ligne porte une matrice coloris vers
+		 * taille vers quantité : une seule création peut être commandée en
+		 * plusieurs coloris, ce qui est ce qu'un acheteur demande et ce que la
+		 * facturation par ligne rendait plus cher qu'un coloris unique.
+		 *
+		 * `_teeshoop_size_grid` reste écrit à côté, agrégé par taille, parce que
+		 * tout ce qui PRESSE regarde la taille et pas le coloris. Ici, où l'on
+		 * ACHÈTE, la grille seule ne suffit pas : elle dit « dix M » sans dire
+		 * lesquels sont noirs. Une ligne antérieure n'en a pas, et le coloris
+		 * unique gelé sur la ligne fait alors office de matrice à une entrée.
+		 */
+		$matrix = json_decode( (string) $item->get_meta( '_teeshoop_matrix', true ), true );
+		$matrix = is_array( $matrix ) ? $matrix : array();
+
 		$grid = json_decode( (string) $item->get_meta( '_teeshoop_size_grid', true ), true );
 		$grid = is_array( $grid ) ? array_filter( array_map( 'intval', $grid ), static fn( $n ) => $n > 0 ) : array();
-		if ( array() === $grid ) {
+		if ( array() === $grid && array() === $matrix ) {
 			/*
 			 * A LINE WITH NO SIZE GRID CANNOT BE BOUGHT, and that is a fact about
 			 * the order rather than a limitation here: nobody knows which sizes
@@ -467,45 +484,104 @@ final class Purchase {
 		$term = $from_product
 			? (string) ( Product::blank_colours_of( $item->get_product_id() )[ $studio_colour ] ?? '' )
 			: $frozen_colour;
-		if ( '' === $term ) {
-			return array(
-				'garments' => $qty,
-				'claims'   => array(),
-				'refused'  => array( $reject( sprintf( 'Le coloris « %s » n’est associé à aucun coloris du fournisseur sur ce produit.', self::colour_name( $studio_colour ) ) ) ),
+
+		/*
+		 * ── LE PLAN : UN TERME FOURNISSEUR ET UNE GRILLE PAR COLORIS ────────
+		 *
+		 * `_teeshoop_blank_colours` est la carte gelée à la vente, coloris du
+		 * studio vers coloris du fournisseur, et elle est gelée pour exactement
+		 * la raison racontée sous `_teeshoop_blank_ref` : la fiche produit peut
+		 * avoir changé depuis, et acheter d'après elle a déjà coûté vingt polos
+		 * achetés pour une série de t-shirts.
+		 *
+		 * UNE LIGNE ANTÉRIEURE À LA MATRICE n'a ni matrice ni carte : elle a un
+		 * coloris unique et une grille, ce qui est exactement une matrice à une
+		 * entrée. Elle emprunte donc le même chemin, sans branche à part, parce
+		 * qu'une seconde branche est une seconde chance de diverger.
+		 */
+		$frozen_terms = json_decode( (string) $item->get_meta( '_teeshoop_blank_colours', true ), true );
+		$frozen_terms = is_array( $frozen_terms ) ? $frozen_terms : array();
+
+		$plan = array();
+		if ( array() !== $matrix ) {
+			foreach ( $matrix as $colour_id => $sizes ) {
+				if ( ! is_array( $sizes ) ) {
+					continue;
+				}
+				$sizes = array_filter( array_map( 'intval', $sizes ), static fn( $n ) => $n > 0 );
+				if ( array() === $sizes ) {
+					continue;
+				}
+				$colour_id = (string) $colour_id;
+				$plan[ $colour_id ] = array(
+					'term'  => $from_product
+						? (string) ( Product::blank_colours_of( $item->get_product_id() )[ $colour_id ] ?? '' )
+						: (string) ( $frozen_terms[ $colour_id ] ?? '' ),
+					'sizes' => $sizes,
+				);
+			}
+		}
+
+		if ( array() === $plan ) {
+			$plan = array(
+				$studio_colour => array(
+					'term'  => $term,
+					'sizes' => $grid,
+				),
 			);
 		}
 
 		$garments = 0;
-		foreach ( $grid as $size => $count ) {
-			$garments      += (int) $count;
-			$variation_id   = self::variation_of( $blank_id, $term, (string) $size );
-			if ( -1 === $variation_id ) {
+		foreach ( $plan as $studio_colour_id => $row ) {
+			$term = (string) $row['term'];
+			if ( '' === $term ) {
+				/*
+				 * UN COLORIS SANS TERME FOURNISSEUR EST REFUSÉ EN ÉTANT NOMMÉ,
+				 * et sa quantité est la sienne, pas celle de la ligne : sur une
+				 * ligne de trois coloris dont un seul manque, dire que tout est
+				 * bloqué envoie l'atelier attendre un réassort dont il n'a pas
+				 * besoin.
+				 */
 				$refused[] = $reject(
-					sprintf( 'La référence %s vend plusieurs articles en %s taille %s : le coloris ne désigne pas un article unique.', $ref, $term, $size ),
-					(string) $size,
-					(int) $count
+					sprintf( 'Le coloris « %s » n’est associé à aucun coloris du fournisseur sur ce produit.', self::colour_name( (string) $studio_colour_id ) ),
+					'',
+					(int) array_sum( $row['sizes'] )
 				);
+				$garments += (int) array_sum( $row['sizes'] );
 				continue;
 			}
-			if ( 0 === $variation_id ) {
-				$refused[] = $reject(
-					sprintf( 'Le fournisseur ne vend pas la taille %s en %s pour la référence %s.', $size, $term, $ref ),
-					(string) $size,
-					(int) $count
-				);
-				continue;
+
+			foreach ( $row['sizes'] as $size => $count ) {
+				$garments      += (int) $count;
+				$variation_id   = self::variation_of( $blank_id, $term, (string) $size );
+				if ( -1 === $variation_id ) {
+					$refused[] = $reject(
+						sprintf( 'La référence %s vend plusieurs articles en %s taille %s : le coloris ne désigne pas un article unique.', $ref, $term, $size ),
+						(string) $size,
+						(int) $count
+					);
+					continue;
+				}
+				if ( 0 === $variation_id ) {
+					$refused[] = $reject(
+						sprintf( 'Le fournisseur ne vend pas la taille %s en %s pour la référence %s.', $size, $term, $ref ),
+						(string) $size,
+						(int) $count
+					);
+					continue;
+				}
+				$variation = wc_get_product( $variation_id );
+				$sku       = $variation instanceof \WC_Product ? (string) $variation->get_meta( Catalogue::META_SUPPLY_SKU, true ) : '';
+				if ( '' === $sku ) {
+					$refused[] = $reject(
+						sprintf( 'L’article %s en %s n’a pas de référence fournisseur enregistrée.', $size, $term ),
+						(string) $size,
+						(int) $count
+					);
+					continue;
+				}
+				$claims[] = self::claim( $order, $item, $variation, $sku, (string) $size, (int) $count, $from_product );
 			}
-			$variation = wc_get_product( $variation_id );
-			$sku       = $variation instanceof \WC_Product ? (string) $variation->get_meta( Catalogue::META_SUPPLY_SKU, true ) : '';
-			if ( '' === $sku ) {
-				$refused[] = $reject(
-					sprintf( 'L’article %s en %s n’a pas de référence fournisseur enregistrée.', $size, $term ),
-					(string) $size,
-					(int) $count
-				);
-				continue;
-			}
-			$claims[] = self::claim( $order, $item, $variation, $sku, (string) $size, (int) $count, $from_product );
 		}
 
 		return array(

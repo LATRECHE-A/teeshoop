@@ -1,0 +1,534 @@
+{
+ "1500KC": {
+  "products": {
+   "1500KC000": {
+    "quantity_unit": "1",
+    "quantity_box": "180",
+    "price": "4",
+    "price_box": "4",
+    "stock": "178",
+    "stock_supplier": "1868"
+   },
+   "1500KC110": {
+    "quantity_unit": "1",
+    "quantity_box": "180",
+    "price": "4",
+    "price_box": "4",
+    "stock": "179",
+    "stock_supplier": "935"
+   },
+   "1500KC120": {
+    "quantity_unit": "1",
+    "quantity_box": "180",
+    "price": "4",
+    "price_box": "4",
+    "stock": "180",
+    "stock_supplier": "1921"
+   },
+   "1500KC130": {
+    "quantity_unit": "1",
+    "quantity_box": "180",
+    "price": "4",
+    "price_box": "4",
+    "stock": "173",
+    "stock_supplier": "6262"
+   },
+   "1500KC150": {
+    "quantity_unit": "1",
+    "quantity_box": "180",
+    "price": "4",
+    "price_box": "4",
+    "stock": "42",
+    "stock_supplier": "11706"
+   },
+   "1500KC1G0": {
+    "quantity_unit": "1",
+    "quantity_box": "180",
+    "price": "4",
+    "price_box": "4",
+    "stock": "63",
+    "stock_supplier": "3737"
+   },
+   "1500KC260": {
+    "quantity_unit": "1",
+    "quantity_box": "180",
+    "price": "4",
+    "price_box": "4",
+    "stock": "180",
+    "stock_supplier": "682"
+   },
+   "1500KCM80": {
+    "quantity_unit": "1",
+    "quantity_box": "180",
+    "price": "4",
+    "price_box": "4",
+    "stock": "23",
+    "stock_supplier": "6190"
+   }
+  }
+ },
+ "BC01B": {
+  "products": {
+   "BC01B11L": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "510",
+    "stock_supplier": "3300"
+   },
+   "BC01B12L": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "297",
+    "stock_supplier": "4200"
+   },
+   "BC01BN4L": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "132",
+    "stock_supplier": "200"
+   },
+   "BC01BOXL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "2337",
+    "stock_supplier": "58300"
+   },
+   "BC01BSM3XL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "4.3",
+    "price_box": "4.3",
+    "stock": "29",
+    "stock_supplier": "600"
+   },
+   "BC01BSML": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "463",
+    "stock_supplier": "1600"
+   },
+   "BC01BSMM": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "289",
+    "stock_supplier": "1400"
+   },
+   "BC01BSMS": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "119",
+    "stock_supplier": "500"
+   },
+   "BC01BSMXL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "323",
+    "stock_supplier": "1500"
+   },
+   "BC01BSMXS": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "94",
+    "stock_supplier": "300"
+   },
+   "BC01BSMXXL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "199",
+    "stock_supplier": "600"
+   },
+   "BC01BSYL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "424",
+    "stock_supplier": "3400"
+   },
+   "BC01BSZL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "160",
+    "stock_supplier": "800"
+   },
+   "BC01BVFL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.45",
+    "price_box": "3.45",
+    "stock": "317",
+    "stock_supplier": "4000"
+   }
+  }
+ },
+ "BC042": {
+  "products": {
+   "BC0420CS": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "12",
+    "stock_supplier": "150"
+   },
+   "BC042123XL": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "0",
+    "stock_supplier": "300"
+   },
+   "BC042203XL": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "38",
+    "stock_supplier": "0"
+   },
+   "BC04220L": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "108",
+    "stock_supplier": "50"
+   },
+   "BC042253XL": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "63",
+    "stock_supplier": "100"
+   },
+   "BC042273XL": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "28",
+    "stock_supplier": "200"
+   },
+   "BC04227L": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "783",
+    "stock_supplier": "1650"
+   },
+   "BC04227M": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "416",
+    "stock_supplier": "1550"
+   },
+   "BC04227S": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "148",
+    "stock_supplier": "700"
+   },
+   "BC04227XL": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "620",
+    "stock_supplier": "1200"
+   },
+   "BC04227XXL": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "122",
+    "stock_supplier": "600"
+   },
+   "BC0425BS": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "55",
+    "stock_supplier": "200"
+   },
+   "BC042O33XL": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "49",
+    "stock_supplier": "0"
+   },
+   "BC042UKS": {
+    "quantity_unit": "1",
+    "quantity_box": "50",
+    "price": "4.55",
+    "price_box": "4.55",
+    "stock": "51",
+    "stock_supplier": "0"
+   }
+  }
+ },
+ "BE3480": {
+  "products": {
+   "BE348000L": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "54",
+    "stock_supplier": "288"
+   },
+   "BE348000M": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "0",
+    "stock_supplier": "0"
+   },
+   "BE348000S": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "43",
+    "stock_supplier": "0"
+   },
+   "BE348000XL": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "121",
+    "stock_supplier": "0"
+   },
+   "BE348000XS": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "34",
+    "stock_supplier": "826"
+   },
+   "BE348000XXL": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "6.2",
+    "price_box": "6.2",
+    "stock": "74",
+    "stock_supplier": "0"
+   },
+   "BE34800KXS": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "76",
+    "stock_supplier": "415"
+   },
+   "BE348013S": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "55",
+    "stock_supplier": "480"
+   },
+   "BE348013XS": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "75",
+    "stock_supplier": "145"
+   },
+   "BE348015XS": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "6",
+    "stock_supplier": "411"
+   },
+   "BE34801LXS": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "4.9",
+    "price_box": "4.9",
+    "stock": "88",
+    "stock_supplier": "480"
+   },
+   "BE34802WXS": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "5.65",
+    "price_box": "5.65",
+    "stock": "0",
+    "stock_supplier": "808"
+   },
+   "BE34804PXS": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "5.65",
+    "price_box": "5.65",
+    "stock": "0",
+    "stock_supplier": "360"
+   },
+   "BE34805CXS": {
+    "quantity_unit": "1",
+    "quantity_box": "96",
+    "price": "5.65",
+    "price_box": "5.65",
+    "stock": "0",
+    "stock_supplier": "1269"
+   }
+  }
+ },
+ "BY004": {
+  "products": {
+   "BY00400XL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "1715",
+    "stock_supplier": "41267"
+   },
+   "BY004133XL": {
+    "quantity_unit": "1",
+    "quantity_box": "70",
+    "price": "4.4",
+    "price_box": "4.4",
+    "stock": "45",
+    "stock_supplier": "0"
+   },
+   "BY00415L": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "3682",
+    "stock_supplier": "92379"
+   },
+   "BY0041G3XL": {
+    "quantity_unit": "1",
+    "quantity_box": "70",
+    "price": "4.4",
+    "price_box": "4.4",
+    "stock": "15",
+    "stock_supplier": "409"
+   },
+   "BY0041G4XL": {
+    "quantity_unit": "1",
+    "quantity_box": "70",
+    "price": "4.4",
+    "price_box": "4.4",
+    "stock": "60",
+    "stock_supplier": "0"
+   },
+   "BY0041GL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "175",
+    "stock_supplier": "5012"
+   },
+   "BY0041GM": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "158",
+    "stock_supplier": "4982"
+   },
+   "BY0041GS": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "74",
+    "stock_supplier": "647"
+   },
+   "BY0041GXL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "122",
+    "stock_supplier": "4834"
+   },
+   "BY0041GXXL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "142",
+    "stock_supplier": "1418"
+   },
+   "BY00432L": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "151",
+    "stock_supplier": "1091"
+   },
+   "BY00438L": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "55",
+    "stock_supplier": "2583"
+   },
+   "BY004M8XL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "129",
+    "stock_supplier": "1063"
+   },
+   "BY004QYL": {
+    "quantity_unit": "1",
+    "quantity_box": "100",
+    "price": "3.85",
+    "price_box": "3.85",
+    "stock": "67",
+    "stock_supplier": "785"
+   }
+  }
+ }
+}

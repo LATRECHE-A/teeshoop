@@ -625,3 +625,347 @@ describe( 'Money: a field nobody could read is not a field holding zero', functi
 		eq( Money::from_eur( '14,50' ), 1450 );
 	} );
 } );
+
+// ---------------------------------------------------------------------------
+// La matrice : une création, plusieurs coloris, plusieurs tailles, un prix
+// ---------------------------------------------------------------------------
+
+describe(
+	'Pricing::quote_matrix',
+	static function (): void {
+
+		it(
+			'facture trois coloris exactement comme un seul, ce qui n’était pas le cas',
+			static function (): void {
+				/*
+				 * LE DÉFAUT, CHIFFRÉ, PUIS SA CORRECTION.
+				 *
+				 * Avec la configuration gelée ci-dessus (t-shirt, une face, nu à
+				 * 10,00 EUR, marquage 2,00 EUR, paliers 15 % à 10 et 25 % à 25) :
+				 *
+				 *   trente pièces sur UNE ligne         -> 25 %, 9,00 l’unité, 270,00
+				 *   trente pièces sur TROIS lignes de 10 -> 15 %, 10,20 l’unité, 306,00
+				 *
+				 * soit 36,00 EUR payés par le client pour avoir choisi trois
+				 * couleurs. La matrice rend le premier nombre.
+				 */
+				$config = ts_config();
+				$sides  = array( ts_side( 300.0 ) );
+
+				$un = Pricing::quote(
+					array(
+						'garment' => 'tee',
+						'qty'     => 30,
+						'sides'   => $sides,
+					),
+					$config
+				);
+
+				$trois = Pricing::quote_matrix(
+					array(
+						'garment' => 'tee',
+						'sides'   => $sides,
+						'cells'   => array(
+							array(
+								'colour' => 'noir',
+								'size'   => 'M',
+								'qty'    => 10,
+							),
+							array(
+								'colour' => 'blanc',
+								'size'   => 'M',
+								'qty'    => 10,
+							),
+							array(
+								'colour' => 'bleu',
+								'size'   => 'M',
+								'qty'    => 10,
+							),
+						),
+					),
+					$config
+				);
+
+				truthy( $trois['ok'], 'chiffré' );
+				eq( $trois['qty'], 30, 'la quantité est celle de la création entière' );
+				eq( $trois['discount_rate'], 0.25, 'le palier est celui des 30 pièces' );
+				eq( $trois['total_ht'], $un['total_ht'], 'trois coloris coûtent le prix d’un' );
+				eq( $trois['total_ttc'], $un['total_ttc'], 'et le TTC suit' );
+
+				/*
+				 * ET L'ANCIEN COMPORTEMENT EST GARDÉ À CÔTÉ, comme la Bible
+				 * l'exige pour toute formule corrigée : trois appels séparés
+				 * donnent bien le nombre plus élevé, donc le test échouerait si
+				 * quelqu'un remettait la remise par ligne.
+				 */
+				$ligne  = Pricing::quote(
+					array(
+						'garment' => 'tee',
+						'qty'     => 10,
+						'sides'   => $sides,
+					),
+					$config
+				);
+				$ancien = $ligne['total_ht'] * 3;
+				truthy( $ancien > $trois['total_ht'], 'l’ancien découpage coûtait plus cher' );
+				eq( $ancien - $trois['total_ht'], 3600, '36,00 EUR d’écart sur cette commande' );
+			}
+		);
+
+		it(
+			'fait franchir le palier à dix pièces réparties sur trois coloris',
+			static function (): void {
+				/*
+				 * Le cas qui fait le plus de mal : quatre plus trois plus trois.
+				 * Aucune ligne n'atteignait dix, donc aucune remise ne se
+				 * déclenchait, alors que le panier compte bien dix pièces pour
+				 * la commande minimale. Deux règles, deux portées, sur la même
+				 * quantité.
+				 */
+				$config = ts_config();
+				$m      = Pricing::quote_matrix(
+					array(
+						'garment' => 'tee',
+						'sides'   => array( ts_side( 300.0 ) ),
+						'cells'   => array(
+							array(
+								'colour' => 'noir',
+								'size'   => 'M',
+								'qty'    => 4,
+							),
+							array(
+								'colour' => 'blanc',
+								'size'   => 'L',
+								'qty'    => 3,
+							),
+							array(
+								'colour' => 'bleu',
+								'size'   => 'XL',
+								'qty'    => 3,
+							),
+						),
+					),
+					$config
+				);
+				eq( $m['qty'], 10, 'dix pièces' );
+				eq( $m['discount_rate'], 0.15, 'et le palier des dix est atteint' );
+			}
+		);
+
+		it(
+			'donne à chaque case le textile nu de son propre article',
+			static function (): void {
+				/*
+				 * Mesuré chez le fournisseur le 9 septembre 2026 : sur BC01B le
+				 * 3XL coûte 4,30 EUR d’achat quand le M coûte 3,45. Deux nus
+				 * distincts dans une même création, et la remise reste celle de
+				 * la quantité totale.
+				 */
+				$config = ts_config();
+				$m      = Pricing::quote_matrix(
+					array(
+						'garment' => 'tee',
+						'sides'   => array( ts_side( 300.0 ) ),
+						'cells'   => array(
+							array(
+								'colour'   => 'noir',
+								'size'     => 'M',
+								'qty'      => 20,
+								'blank_ht' => 1000,
+							),
+							array(
+								'colour'   => 'noir',
+								'size'     => '3XL',
+								'qty'      => 10,
+								'blank_ht' => 1500,
+							),
+						),
+					),
+					$config
+				);
+
+				truthy( $m['ok'], 'chiffré' );
+				truthy( ! $m['uniform_unit'], 'deux prix unitaires, et l’écran doit le dire' );
+				eq( $m['qty'], 30, 'trente pièces' );
+				eq( $m['discount_rate'], 0.25, 'un seul palier, celui du total' );
+
+				// 12,00 remisé de 25 % = 9,00 ; 17,00 remisé de 25 % = 12,75.
+				eq( $m['cells'][0]['unit_ht'], 900, 'le M à 9,00' );
+				eq( $m['cells'][1]['unit_ht'], 1275, 'le 3XL à 12,75' );
+				eq( $m['total_ht'], 900 * 20 + 1275 * 10, 'et le total est leur somme' );
+				eq( $m['total_vat'], Money::pct( $m['total_ht'], 0.20 ), 'la TVA porte sur le total, une fois' );
+			}
+		);
+
+		it(
+			'refuse au-delà du plafond au lieu de raboter',
+			static function (): void {
+				$config = ts_config();
+				$m      = Pricing::quote_matrix(
+					array(
+						'garment' => 'tee',
+						'sides'   => array( ts_side( 300.0 ) ),
+						'cells'   => array(
+							array(
+								'colour' => 'noir',
+								'size'   => 'M',
+								'qty'    => 9000,
+							),
+							array(
+								'colour' => 'blanc',
+								'size'   => 'M',
+								'qty'    => 2000,
+							),
+						),
+					),
+					$config
+				);
+				truthy( ! $m['ok'], 'refusé' );
+				eq( $m['reason'], 'over_cap', 'et pour la bonne raison' );
+				eq( $m['qty'], 11000, 'en disant la quantité demandée' );
+			}
+		);
+
+		it(
+			'ignore une case vide et refuse une matrice entièrement vide',
+			static function (): void {
+				$config = ts_config();
+				$m      = Pricing::quote_matrix(
+					array(
+						'garment' => 'tee',
+						'sides'   => array( ts_side( 300.0 ) ),
+						'cells'   => array(
+							array(
+								'colour' => 'noir',
+								'size'   => 'M',
+								'qty'    => 5,
+							),
+							array(
+								'colour' => 'blanc',
+								'size'   => 'M',
+								'qty'    => 0,
+							),
+							array(
+								'colour' => '',
+								'size'   => 'M',
+								'qty'    => 3,
+							),
+						),
+					),
+					$config
+				);
+				eq( $m['qty'], 5, 'la case à zéro et la case sans coloris ne comptent pas' );
+				eq( count( $m['cells'] ), 1, 'et ne sont pas facturées' );
+
+				$vide = Pricing::quote_matrix(
+					array(
+						'garment' => 'tee',
+						'sides'   => array( ts_side( 300.0 ) ),
+						'cells'   => array(),
+					),
+					$config
+				);
+				truthy( ! $vide['ok'], 'refusée' );
+				eq( $vide['reason'], 'empty', 'et pour la bonne raison' );
+			}
+		);
+
+		it(
+			'donne exactement le même total que quote() quand toutes les cases partagent le nu',
+			static function (): void {
+				/*
+				 * L'INVARIANT QUI AUTORISE DEUX POINTS D'ENTRÉE SANS DEUX RÈGLES.
+				 *
+				 * Le panier chiffre une ligne par `quote()` avec la quantité de
+				 * la ligne ; l'éditeur chiffre la matrice par `quote_matrix()`
+				 * pour pouvoir montrer chaque case. Tant que les cases partagent
+				 * un textile nu, les deux DOIVENT rendre le même total, sinon le
+				 * client voit un nombre dans l’éditeur et en paie un autre au
+				 * panier. Ce test est la seule chose qui l’empêche, et il balaie
+				 * les deux paliers plus les bords.
+				 */
+				$config = ts_config();
+				foreach ( array( 1, 4, 9, 10, 11, 24, 25, 26, 60, 500 ) as $n ) {
+					foreach ( array( array( ts_side( 300.0 ) ), array( ts_side( 300.0 ), ts_side( 900.0, 'back' ) ) ) as $sides ) {
+						$ref = Pricing::quote(
+							array(
+								'garment' => 'tee',
+								'qty'     => $n,
+								'sides'   => $sides,
+							),
+							$config
+						);
+						// Réparti sur autant de cases que possible, ce qui est le
+						// cas qui cassait : la remise doit rester celle du total.
+						$cells = array();
+						$left  = $n;
+						foreach ( array( 'noir', 'blanc', 'bleu', 'rouge' ) as $i => $c ) {
+							$take = ( 3 === $i ) ? $left : intdiv( $n, 4 );
+							if ( $take > 0 ) {
+								$cells[] = array(
+									'colour' => $c,
+									'size'   => 'M',
+									'qty'    => $take,
+								);
+								$left -= $take;
+							}
+						}
+						$m = Pricing::quote_matrix(
+							array(
+								'garment' => 'tee',
+								'sides'   => $sides,
+								'cells'   => $cells,
+							),
+							$config
+						);
+						truthy( $m['ok'], 'chiffré à ' . $n );
+						eq( $m['qty'], $n, 'quantité à ' . $n );
+						eq( $m['total_ht'], $ref['total_ht'], 'total HT à ' . $n . ' pièces, ' . count( $sides ) . ' face(s)' );
+						eq( $m['total_ttc'], $ref['total_ttc'], 'total TTC à ' . $n );
+						eq( $m['total_vat'], $ref['total_vat'], 'TVA à ' . $n );
+						eq( $m['discount_rate'], $ref['discount_rate'], 'palier à ' . $n );
+						eq( $m['needs_quote'], $ref['needs_quote'], 'seuil de devis à ' . $n );
+						truthy( $m['uniform_unit'], 'un seul prix unitaire à ' . $n );
+					}
+				}
+			}
+		);
+
+		it(
+			'refuse un nu venu de la requête, négatif ou fractionnaire',
+			static function (): void {
+				/*
+				 * `blank_ht` est en centimes entiers et résolu sur le serveur. Un
+				 * flottant ou un négatif ne peut venir que d'un chemin qui n'est
+				 * pas prévu, et retomber sur le tarif de la famille est le seul
+				 * comportement qui ne fasse pas fixer son prix par l'appelant.
+				 */
+				$config = ts_config();
+				$m      = Pricing::quote_matrix(
+					array(
+						'garment' => 'tee',
+						'sides'   => array( ts_side( 300.0 ) ),
+						'cells'   => array(
+							array(
+								'colour'   => 'noir',
+								'size'     => 'M',
+								'qty'      => 30,
+								'blank_ht' => -5000,
+							),
+						),
+					),
+					$config
+				);
+				$ref = Pricing::quote(
+					array(
+						'garment' => 'tee',
+						'qty'     => 30,
+						'sides'   => array( ts_side( 300.0 ) ),
+					),
+					$config
+				);
+				eq( $m['total_ht'], $ref['total_ht'], 'le nu négatif est ignoré, la famille s’applique' );
+			}
+		);
+	}
+);

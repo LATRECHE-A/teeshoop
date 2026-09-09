@@ -150,8 +150,62 @@ const ALLOWED = new Map([
   ['wp-plugins/teeshoop-core/tests/test-margin.php', { why: 'the tests for it', needles: null }],
   ['scripts/php-guard.mjs', { why: 'this file lists the needles', needles: null }],
   [
+    /*
+     * `Gamme` DERIVES THE RANGE FROM THE FLOOR, so it must ask the cost engine.
+     *
+     * Since 5 September 2026 the shipped range is no longer a hand-kept list of
+     * nine references: `Gamme::range()` reads every imported reference's worst
+     * purchase price and lets the FLOOR exclude the ones a family tariff cannot
+     * carry (measured: five of 319). Doing that means naming `Cost::`,
+     * `Margin::` and `Catalogue::blank_cost_ht`, which is why this entry
+     * exists. It renders nothing: it writes product meta and prints to WP-CLI.
+     *
+     * This gate was RED on this file from that day until 9 September 2026,
+     * because the exemption was never added when the rule changed. Four of the
+     * six hits were real calls and two were prose; a red gate that everyone has
+     * learned to expect is a gate that has stopped being read, which is the
+     * failure mode this project's harnesses are written against.
+     */
+    'wp-plugins/teeshoop-core/includes/Gamme.php',
+    {
+      why: 'derives the sellable range from the floor price; server-only, writes meta, renders nothing',
+      // `cost_ht` and not `blank_cost_ht`: the scanner matches the SHORTER
+      // needle, so exempting the long name exempts nothing. What is listed
+      // has to be the string the scan finds, or the entry is decoration.
+      needles: ['Cost::', 'Margin::', 'PriceRule::', 'Costing::', 'cost_ht'],
+    },
+  ],
+  [
+    /*
+     * `Catalogue::blank_cost_ht()` is the one function that answers "what does
+     * the dearest article of this reference cost us", which the floor needs. It
+     * is a name, and the file is the supplier-payload mapper: server-only, no
+     * echo, no template. Named alone so the file stays checked for supplier
+     * names, film tariffs and the other purchase-cost strings.
+     */
+    'wp-plugins/teeshoop-core/includes/Catalogue.php',
+    {
+      why: 'answers the floor with the dearest article of a reference; server-only mapper, renders nothing',
+      needles: ['cost_ht', 'Costing::'],
+    },
+  ],
+  [
+    /*
+     * THE OLD ROUTE IS GONE, AND THE EXEMPTION WITH IT.
+     *
+     * This entry read `needles: ['/api/fr/']` because the catalogue used to be
+     * fetched through the Worker. Since 9 September 2026 the adapter talks to
+     * the supplier directly and that path does not exist anywhere. Leaving the
+     * exemption would have left this file able to name a route nothing serves,
+     * which is how an allow-list stops describing the program.
+     *
+     * What it needs instead is nothing at all: the supplier's identity lives in
+     * wp-config constants, and this file names none of it. The entry stays,
+     * with an empty needle list, so that the next person to widen it has to say
+     * why in this comment rather than discover there was never an entry.
+     */
     'wp-plugins/teeshoop-core/includes/Supply.php',
-    { why: 'holds the one catalogue route path; server-only HTTP client, renders nothing', needles: ['/api/fr/'] },
+    { why: 'server-only adapter; the supplier identity is in wp-config, never here', needles: [] },
   ],
   [
     'wp-plugins/teeshoop-core/includes/Importer.php',

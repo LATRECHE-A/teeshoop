@@ -121,7 +121,67 @@ final class Schema {
 				'auto'  => true,
 				'run'   => array( self::class, 'step_fold_legacy_markers' ),
 			),
+			array(
+				'id'    => 4,
+				'label' => 'Dépôt local du catalogue fournisseur',
+				'auto'  => true,
+				'run'   => array( self::class, 'step_supply_table' ),
+			),
+			array(
+				'id'    => 5,
+				'label' => 'Table des prix et disponibilités par article',
+				'auto'  => true,
+				'run'   => array( self::class, 'step_dispo_table' ),
+			),
 		);
+	}
+
+	/**
+	 * Le dépôt local du catalogue fournisseur.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * POURQUOI UNE TABLE ET PAS DES APPELS À LA DEMANDE
+	 *
+	 * Mesuré le 9 septembre 2026 contre le service : le catalogue complet fait
+	 * 3 241 produits sur 65 pages, 94,1 s et 250,2 Mo, et il n'existe AUCUN point
+	 * d'entrée par référence. « Donne-moi BC01B » n'est pas une question que ce
+	 * service sait entendre : il faut marcher les 65 pages.
+	 *
+	 * La charge utile est stockée COMPRESSÉE et ENTIÈRE. Mesuré aussi : 254,2 Mo
+	 * de JSON deviennent 8,1 Mo compressés, soit 2,5 ko par produit. Garder tout
+	 * plutôt qu'un extrait coûte 2,8 Mo de plus et paie de ne jamais remarcher le
+	 * fournisseur quand la cartographie change.
+	 */
+	public static function step_supply_table(): string {
+		global $wpdb;
+		$table  = Supply::table();
+		$before = self::table_exists( $table );
+		Supply::install();
+		if ( ! self::table_exists( $table ) ) {
+			throw new \RuntimeException( sprintf( 'la table %s n’existe toujours pas après le CREATE : %s', $table, (string) $wpdb->last_error ) );
+		}
+		return $before ? 'déjà présente' : 'créée';
+	}
+
+	/**
+	 * Les prix et disponibilités par article, tenus à jour par balayage.
+	 *
+	 * Le service ne rend le prix ET le stock que sur une seule route, à 0,43 s
+	 * de socle plus 0,068 s par code (mesuré sur sept points, régression
+	 * linéaire). Une fiche produit ne peut donc pas l'appeler pendant qu'elle
+	 * s'affiche, et une liste encore moins. Cette table est ce qu'elle lit, et
+	 * `Disponibilite::assert_buyable()` est le seul endroit qui redemande au
+	 * fournisseur, au moment où l'on vend.
+	 */
+	public static function step_dispo_table(): string {
+		global $wpdb;
+		$table  = Disponibilite::table();
+		$before = self::table_exists( $table );
+		Disponibilite::install();
+		if ( ! self::table_exists( $table ) ) {
+			throw new \RuntimeException( sprintf( 'la table %s n’existe toujours pas après le CREATE : %s', $table, (string) $wpdb->last_error ) );
+		}
+		return $before ? 'déjà présente' : 'créée';
 	}
 
 	/**

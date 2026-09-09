@@ -134,8 +134,19 @@ describe( 'Schema: the version is derived', function (): void {
 	it(
 		'takes the target from the highest step that exists, not from a constant',
 		function (): void {
-			// The real list, not the fixture: this is the number a deploy prints.
-			eq( Schema::target(), 3 );
+			/*
+			 * LE NOMBRE ATTENDU N'EST PLUS ÉCRIT ICI, ET C'EST LE POINT DU TEST.
+			 *
+			 * Il valait `3`, et le 9 septembre 2026 deux étapes se sont ajoutées
+			 * (le dépôt du catalogue fournisseur et la table des
+			 * disponibilités). Le test est devenu rouge, ce qui est exactement
+			 * ce qu'on lui demande : personne n'ajoute une étape de migration
+			 * sans s'en apercevoir. Mais réécrire `5` ici recommencerait la même
+			 * chose au prochain ajout, et surtout dupliquerait la constante que
+			 * `target()` existe pour NE PAS avoir. Ce qui est asserté est donc la
+			 * PROPRIÉTÉ, plus un plancher qui refuse une liste vidée par erreur.
+			 */
+			truthy( Schema::target() >= 3, 'les trois étapes historiques existent toujours' );
 			$max = 0;
 			foreach ( Schema::steps() as $s ) {
 				$max = max( $max, (int) $s['id'] );

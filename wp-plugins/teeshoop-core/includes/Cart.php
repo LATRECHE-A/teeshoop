@@ -342,7 +342,50 @@ final class Cart {
 
 		$qty = max( 1, min( (int) ( $payload['qty'] ?? 1 ), (int) $config['max_qty'] ) );
 
-		$size_grid = self::normalise_size_grid( $payload['size_grid'] ?? array() );
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * UNE CRÉATION, PLUSIEURS COLORIS, UNE SEULE LIGNE.
+		 *
+		 * Avant le 9 septembre 2026 le coloris était une propriété du DOCUMENT
+		 * de création, donc trois coloris voulaient dire trois passages dans
+		 * l'éditeur, trois identifiants et trois lignes de panier. Et comme
+		 * `Pricing::qty_discount` s'applique par ligne, le client payait plus
+		 * cher POUR AVOIR CHOISI PLUSIEURS COULEURS : mesuré à 102,00 EUR sur
+		 * trente pièces en trois coloris, et à une remise entièrement perdue sur
+		 * dix pièces réparties en quatre, trois et trois.
+		 *
+		 * La matrice porte les deux dimensions, le prix est celui de la quantité
+		 * totale de la création, et `Pricing::quote_matrix` tient l'arithmétique.
+		 * `size_grid` reste accepté et vaut « tout ce coloris-là », parce que
+		 * c'est ce que l'éditeur envoyait et que des paniers vivent avec.
+		 */
+		$palette = Product::blank_palette_of( $product_id );
+		$design_colour = (string) ( $check['meta']['color'] ?? '' );
+		$matrix  = self::normalise_matrix(
+			$payload['matrix'] ?? array(),
+			$payload['size_grid'] ?? array(),
+			$design_colour,
+			$palette
+		);
+
+		if ( array() === $matrix ) {
+			return new \WP_Error(
+				'teeshoop_no_matrix',
+				__( 'Aucune quantité n’a été indiquée. Choisissez au moins un coloris et une taille.', 'teeshoop' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		/*
+		 * `size_grid` RESTE CALCULÉ, ET IL EST LA SOMME PAR TAILLE.
+		 *
+		 * Tout ce qui grade un transfert (`Design::unprintable_sizes`,
+		 * `Production`, `renderPieces`) travaille par TAILLE et se moque du
+		 * coloris : la même taille se presse pareil en noir et en blanc. Garder
+		 * la grille agrégée évite de réécrire ces chemins, et la matrice reste
+		 * la source pour tout ce qui achète.
+		 */
+		$size_grid = self::flatten_matrix( $matrix );
 		if ( ! empty( $size_grid ) ) {
 			// The grid IS the quantity when it is present: a customer who typed
 			// "10 M, 15 L" ordered 25 garments, whatever the qty field said.
@@ -512,6 +555,15 @@ final class Cart {
 			'sides_source' => $sides_source,
 			'design_id'    => $design_id,
 			'size_grid'    => $size_grid,
+			/*
+			 * LA MATRICE EST CE QUI SE PRESSE ET CE QUI S'ACHÈTE.
+			 *
+			 * `size_grid` en est la somme par taille, gardée parce que tout ce
+			 * qui GRADE un transfert travaille par taille et se moque du
+			 * coloris. Les deux ne peuvent pas diverger : la grille est dérivée
+			 * de la matrice quelques lignes plus haut, jamais saisie à côté.
+			 */
+			'matrix'       => $matrix,
 			'verified'     => (bool) ( $check['meta']['verified'] ?? false ),
 			/*
 			 * THE COLOUR THE DESIGN WAS MADE ON, frozen with everything else.
@@ -535,7 +587,21 @@ final class Cart {
 			 * refuses that line by name rather than the cart refusing the sale.
 			 */
 			'blank_ref'    => Product::blank_ref_of( $product_id ),
-			'blank_colour' => (string) ( Product::blank_colours_of( $product_id )[ (string) ( $check['meta']['color'] ?? '' ) ] ?? '' ),
+			'blank_colour' => (string) ( Product::blank_colours_of( $product_id )[ $design_colour ] ?? '' ),
+			/*
+			 * UN TERME FOURNISSEUR PAR COLORIS COMMANDÉ, gelé au moment de la
+			 * vente comme l'était le terme unique, et pour la même raison :
+			 * l'achat doit acheter ce qui a été VENDU, pas ce que la fiche
+			 * produit dit le jour où l'atelier prépare le lot. Le défaut que
+			 * cela ferme est raconté au complet sous `_teeshoop_blank_ref`, et
+			 * il a coûté vingt polos achetés pour une série de t-shirts.
+			 *
+			 * Un coloris sans terme est GARDÉ avec une valeur vide plutôt que
+			 * retiré : `Purchase` refuse alors cette case en la nommant, ce qui
+			 * est visible, là où une case disparue serait une quantité que
+			 * personne ne cherche.
+			 */
+			'blank_colours' => self::blank_terms_for( $product_id, $matrix ),
 			'files'        => array(
 				'print'    => (string) ( $check['meta']['print_file'] ?? '' ),
 				'preview'  => (string) ( $check['meta']['preview'] ?? '' ),
@@ -826,6 +892,19 @@ final class Cart {
 		// cannot parse would press every garment at the base size, so a 3XL would
 		// carry an M-sized chest print, 23 % narrow.
 		$line->add_meta_data( '_teeshoop_size_grid', wp_json_encode( $data['size_grid'] ?? array() ), true );
+		/*
+		 * ET LA MATRICE, qui porte la dimension que la grille a perdue.
+		 *
+		 * La grille dit « dix M », la matrice dit « six M noirs et quatre M
+		 * blancs ». Le premier suffit pour PRESSER (la gradation ne regarde que
+		 * la taille) et pas pour ACHETER : sans elle, `Purchase` ne saurait pas
+		 * quels vêtements commander, et l'atelier découvrirait la question en
+		 * ouvrant les cartons. Écrite à côté de la grille plutôt qu'à sa place
+		 * pour que rien de ce qui lit la grille depuis dix-huit mois n'ait à
+		 * changer.
+		 */
+		$line->add_meta_data( '_teeshoop_matrix', wp_json_encode( $data['matrix'] ?? array() ), true );
+		$line->add_meta_data( '_teeshoop_blank_colours', wp_json_encode( $data['blank_colours'] ?? array() ), true );
 		$line->add_meta_data( '_teeshoop_sides_source', (string) ( $data['sides_source'] ?? '' ), true );
 		$line->add_meta_data( '_teeshoop_couleur', (string) ( $data['colour'] ?? '' ), true );
 
@@ -923,6 +1002,171 @@ final class Cart {
 			}
 		}
 		return $out;
+	}
+
+	/**
+	 * Le nombre de coloris qu'une seule ligne accepte.
+	 *
+	 * Douze tailles fois vingt coloris font deux cent quarante cases, ce qui est
+	 * plus que ce qu'un écran montre et plus que ce qu'un atelier presse en une
+	 * fois. La borne n'est pas une politesse : la matrice est sérialisée sur la
+	 * ligne de commande et relue par l'achat, la production et le bon à tirer, et
+	 * une matrice sans borne est une méta de taille non bornée dans la base.
+	 */
+	private const MAX_COLOURS = 20;
+
+	/**
+	 * La matrice coloris vers taille vers quantité, validée contre le nuancier.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * LE COLORIS EST VÉRIFIÉ CONTRE LE PRODUIT, PAS CONTRE LA CRÉATION.
+	 *
+	 * C'est un déplacement d'autorité et il est délibéré. Le document de
+	 * création porte le coloris que le client REGARDAIT ; ce qu'il ACHÈTE est ce
+	 * que la fiche produit offre. Accepter un identifiant de coloris venu de la
+	 * requête sans le confronter au nuancier de ce produit-là laisserait
+	 * commander un vêtement que le fournisseur ne vend pas dans cette teinte, et
+	 * l'atelier le découvrirait au moment d'acheter.
+	 *
+	 * UN NUANCIER VIDE N'AUTORISE PAS TOUT. `Product::blank_palette_of` rend un
+	 * tableau vide quand le produit ne restreint rien, ce qui arrive sur une
+	 * boutique dont les coloris n'ont pas encore été mesurés. Dans ce cas on
+	 * garde le coloris de la création et lui seul : c'est le seul qu'un humain
+	 * ait effectivement vu.
+	 *
+	 * @param mixed                                          $raw       La matrice envoyée.
+	 * @param mixed                                          $grid      L'ancienne grille de tailles.
+	 * @param string                                         $fallback  Le coloris de la création.
+	 * @param array<int,array{id:string,name:string,stops:string[]}> $palette Le nuancier du produit.
+	 * @return array<string,array<string,int>>
+	 */
+	private static function normalise_matrix( mixed $raw, mixed $grid, string $fallback, array $palette ): array {
+		$allowed = array();
+		foreach ( $palette as $entry ) {
+			$id = sanitize_key( (string) ( $entry['id'] ?? '' ) );
+			if ( '' !== $id ) {
+				$allowed[ $id ] = true;
+			}
+		}
+		$fallback = sanitize_key( $fallback );
+
+		$out = array();
+
+		if ( is_array( $raw ) && array() !== $raw ) {
+			foreach ( $raw as $colour => $sizes ) {
+				$colour = sanitize_key( (string) $colour );
+				if ( '' === $colour ) {
+					continue;
+				}
+				if ( array() !== $allowed && ! isset( $allowed[ $colour ] ) ) {
+					// Un coloris que ce produit n'offre pas est ignoré, pas
+					// corrigé : le corriger vendrait une autre couleur que celle
+					// demandée, ce qui est pire qu'un refus.
+					continue;
+				}
+				if ( array() === $allowed && $colour !== $fallback ) {
+					continue;
+				}
+				$row = self::normalise_size_grid( $sizes );
+				if ( array() !== $row ) {
+					$out[ $colour ] = $row;
+				}
+				if ( count( $out ) >= self::MAX_COLOURS ) {
+					break;
+				}
+			}
+		}
+
+		if ( array() !== $out ) {
+			return $out;
+		}
+
+		/*
+		 * L'ANCIENNE FORME : une grille de tailles seule vaut « tout ce coloris ».
+		 * Le coloris est celui de la création, qui est ce que l'éditeur envoyait
+		 * avant la matrice et ce que les paniers déjà ouverts portent encore.
+		 */
+		$row = self::normalise_size_grid( $grid );
+		if ( array() === $row || '' === $fallback ) {
+			return array();
+		}
+		if ( array() !== $allowed && ! isset( $allowed[ $fallback ] ) ) {
+			return array();
+		}
+		return array( $fallback => $row );
+	}
+
+	/**
+	 * La matrice repliée sur les tailles, coloris confondus.
+	 *
+	 * @param array<string,array<string,int>> $matrix
+	 * @return array<string,int>
+	 */
+	private static function flatten_matrix( array $matrix ): array {
+		$out = array();
+		foreach ( $matrix as $sizes ) {
+			foreach ( $sizes as $size => $count ) {
+				$out[ $size ] = ( $out[ $size ] ?? 0 ) + (int) $count;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Les cases que `Pricing::quote_matrix` attend, à partir de la matrice.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * `blank_ht` RESTE ABSENT, ET C'EST UNE DÉCISION, PAS UN OUBLI.
+	 *
+	 * `Pricing::quote_matrix` sait recevoir un textile nu par case, et la mesure
+	 * du 9 septembre 2026 montre que le prix d'achat varie DANS une référence :
+	 * BC042 va de 4,10 à 4,55 EUR selon le coloris seul, et BE3480 de 4,90 à
+	 * 6,95 selon coloris et taille, soit 42 %. Il serait donc techniquement
+	 * possible de facturer chaque case à son coût.
+	 *
+	 * On ne le fait pas, parce que le tarif par FAMILLE est le modèle de la
+	 * boutique et qu'en changer est une décision commerciale, pas technique. Et
+	 * la boutique est déjà protégée : `Gamme::range()` calcule le plancher de
+	 * chaque référence sur `MAX(supply_cents)` de TOUTES ses déclinaisons,
+	 * coloris compris, et exclut celles qui ne tiennent pas. L'écart de 42 %
+	 * mesuré ci-dessus est donc déjà absorbé du côté sûr : personne ne vend sous
+	 * son plancher, et la seule conséquence est qu'un coloris bon marché est
+	 * vendu au prix du plus cher de sa référence.
+	 *
+	 * La question est posée à l'associé dans `QUESTIONS-ASSOCIE.md`. Le jour où
+	 * il répond « oui, un supplément par taille », il y a une ligne à écrire ici
+	 * et rien d'autre à bouger.
+	 *
+	 * @param array<string,array<string,int>> $matrix
+	 * @return array<int,array<string,mixed>>
+	 */
+	/**
+	 * Le terme fournisseur de chaque coloris de la matrice, à l'instant de la vente.
+	 *
+	 * @param array<string,array<string,int>> $matrix
+	 * @return array<string,string>
+	 */
+	private static function blank_terms_for( int $product_id, array $matrix ): array {
+		$map = Product::blank_colours_of( $product_id );
+		$out = array();
+		foreach ( array_keys( $matrix ) as $colour ) {
+			$out[ (string) $colour ] = (string) ( $map[ (string) $colour ] ?? '' );
+		}
+		return $out;
+	}
+
+	public static function cells_of( array $matrix ): array {
+		$cells = array();
+		foreach ( $matrix as $colour => $sizes ) {
+			foreach ( $sizes as $size => $count ) {
+				$cells[] = array(
+					'colour' => (string) $colour,
+					'size'   => (string) $size,
+					'qty'    => (int) $count,
+				);
+			}
+		}
+		return $cells;
 	}
 
 	/**

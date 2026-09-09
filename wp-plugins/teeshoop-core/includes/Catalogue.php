@@ -495,7 +495,24 @@ final class Catalogue {
 		$style = is_array( $entry['style'] ?? null ) ? $entry['style'] : array();
 		$ref   = self::text( $style['styleNr'] ?? '' );
 
-		if ( '' === $ref || ! preg_match( '/^\d{4,6}$/', $ref ) ) {
+		/*
+		 * LA RÉFÉRENCE EST ALPHANUMÉRIQUE DEPUIS LE 9 SEPTEMBRE 2026.
+		 *
+		 * Le motif était `^\d{4,6}$` parce que l'ancien fournisseur numérotait
+		 * ses modèles (18001, 00142). Le nouveau les nomme : BC01B, 1500KC,
+		 * BE3480, T6330113L. Relevé sur ses 3 241 produits, aucune référence
+		 * n'est purement numérique, donc l'ancien motif refusait le catalogue
+		 * entier avec le motif « mal formée ».
+		 *
+		 * Ce qui est GARDÉ de l'ancien motif, et c'est tout son intérêt : une
+		 * borne, un jeu de caractères fermé, et le refus d'une chaîne vide. Une
+		 * référence sert de clé d'import, de fragment d'URL et de nom de
+		 * fichier ; y laisser passer un espace, une barre oblique ou un point
+		 * la rendrait ambiguë dans les trois usages à la fois. Le tiret et le
+		 * point sont admis parce que ce catalogue en porte (« TRJ366R 800032 »
+		 * est un code fabricant, pas une référence produit).
+		 */
+		if ( '' === $ref || ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/', $ref ) ) {
 			return array(
 				'ok'       => false,
 				'reason'   => 'malformed',

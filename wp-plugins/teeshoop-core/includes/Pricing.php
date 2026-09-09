@@ -616,6 +616,216 @@ final class Pricing {
 	}
 
 	/**
+	 * Chiffre UNE création déclinée en plusieurs coloris et plusieurs tailles.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * LE DÉFAUT QUE CETTE MÉTHODE CORRIGE, MESURÉ AVANT D'ÊTRE CORRIGÉ
+	 *
+	 * Jusqu'ici, un coloris était une propriété du DOCUMENT de création, donc
+	 * trois coloris voulaient dire trois créations, trois identifiants et trois
+	 * lignes de panier. Et `qty_discount` s'applique par ligne. Conséquence
+	 * mesurée le 9 septembre 2026 en exécutant le `Pricing` livré avec sa
+	 * configuration livrée, sur un t-shirt une face :
+	 *
+	 *   30 pièces en 3 coloris (10 chacun) : 3 lignes à 15 %, 867,00 EUR ;
+	 *   les 30 mêmes pièces en un coloris  : 1 ligne à 25 %,  765,00 EUR.
+	 *   Le client paie 102,00 EUR de plus POUR AVOIR CHOISI TROIS COULEURS.
+	 *
+	 *   Pire à petite quantité : 10 pièces en 3 coloris (4/3/3) ne franchissent
+	 *   aucun palier, donc AUCUNE remise ne s'applique, 340,00 EUR contre
+	 *   289,00 EUR pour les 10 mêmes pièces d'un seul coloris, soit 51,00 EUR.
+	 *
+	 * Le sens est toujours contre le client, donc ce n'était pas une faille,
+	 * c'était une facture fausse. Et l'argument écrit qui justifie les paliers
+	 * (les paliers du fournisseur, et le film qui se répartit sur une feuille)
+	 * porte sur la COMMANDE, pas sur la ligne : le film est d'ailleurs déjà mis
+	 * en commun entre commandes par le moteur de coût.
+	 *
+	 * Ici, une création est une seule ligne, la remise est celle de la quantité
+	 * TOTALE de cette création, et le coloris ne coûte plus rien.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * POURQUOI CHAQUE CASE PORTE SON PROPRE TEXTILE NU
+	 *
+	 * Mesuré le 9 septembre 2026 sur le catalogue du fournisseur, en direct :
+	 * le prix d'achat varie DANS une même référence, et pas seulement d'une
+	 * taille à l'autre.
+	 *
+	 *   BC01B : 3,45 EUR jusqu'à XXL, 4,30 à partir de 3XL. La couleur ne joue
+	 *           pas (0 des 9 tailles).
+	 *   BC042 : la TAILLE ne joue pas, la COULEUR joue, de 4,10 à 4,55.
+	 *   BE3480: les deux jouent, de 4,90 à 6,95. Les chinés « triblend »
+	 *           coûtent 42 % de plus que les unis dans la même taille.
+	 *
+	 * Un prix unique par référence devrait donc être réglé sur la case la plus
+	 * chère, ce qui surfacture toutes les autres de 42 % dans le pire cas. Chaque
+	 * case porte le sien, résolu SUR LE SERVEUR à partir du prix d'achat de son
+	 * article ; aucun de ces nombres ne vient de la requête.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * UNE SEULE IMPLÉMENTATION DE LA RÈGLE
+	 *
+	 * Cette méthode ne recalcule rien : elle appelle `quote()` une fois par
+	 * textile nu distinct, AVEC LA QUANTITÉ TOTALE, et lit le prix unitaire
+	 * qu'elle rend. Le palier, l'arrondi de la remise, les paliers de surface et
+	 * la TVA restent écrits une seule fois, dans `quote()`. Une seconde
+	 * arithmétique ici serait exactement le « deux implémentations d'une règle »
+	 * que ce projet interdit, et le jour où les deux divergent, le client voit
+	 * un nombre et la facture en dit un autre.
+	 *
+	 * $input :
+	 *   garment  string
+	 *   sides    array   comme `quote()`
+	 *   cells    array   une par case remplie :
+	 *                      colour   string  identifiant du coloris
+	 *                      size     string  identifiant de la taille
+	 *                      qty      int     > 0
+	 *                      blank_ht ?int    centimes, le nu de CET article
+	 *
+	 * @throws \InvalidArgumentException sur un vêtement inconnu.
+	 * @return array<string,mixed>
+	 */
+	public static function quote_matrix( array $input, array $config ): array {
+		$cells = array();
+		$total = 0;
+
+		foreach ( (array) ( $input['cells'] ?? array() ) as $cell ) {
+			$qty = (int) ( $cell['qty'] ?? 0 );
+			if ( $qty < 1 ) {
+				continue;
+			}
+			$colour = (string) ( $cell['colour'] ?? '' );
+			$size   = (string) ( $cell['size'] ?? '' );
+			if ( '' === $colour || '' === $size ) {
+				continue;
+			}
+			$blank = ( isset( $cell['blank_ht'] ) && is_int( $cell['blank_ht'] ) && $cell['blank_ht'] >= 0 )
+				? $cell['blank_ht']
+				: null;
+
+			$cells[] = array(
+				'colour'   => $colour,
+				'size'     => $size,
+				'qty'      => $qty,
+				'blank_ht' => $blank,
+			);
+			$total  += $qty;
+		}
+
+		if ( array() === $cells ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'empty',
+				'qty'    => 0,
+			);
+		}
+
+		/*
+		 * ON REFUSE, ON NE RABOTE PAS.
+		 *
+		 * `quote()` borne la quantité à `max_qty`, ce qui est juste pour une
+		 * estimation isolée et faux ici : raboter afficherait « 10 000 pièces,
+		 * 94 200,00 EUR » sous une grille qui totalise 30 000, pour une série
+		 * que le panier refuse de toute façon. La fiche produit refuse déjà pour
+		 * cette raison exacte.
+		 */
+		$max = (int) $config['max_qty'];
+		if ( $total > $max ) {
+			return array(
+				'ok'     => false,
+				'reason' => 'over_cap',
+				'qty'    => $total,
+				'max'    => $max,
+			);
+		}
+
+		/*
+		 * UN APPEL PAR TEXTILE NU DISTINCT, ET PAS UN PAR CASE.
+		 *
+		 * Vingt coloris fois neuf tailles font cent quatre-vingts cases, et
+		 * `quote()` fait le même travail pour toutes celles qui partagent un
+		 * prix d'achat. Mesuré sur BC01B : 159 articles, deux prix distincts.
+		 * La clé est le nu, parce que c'est la seule entrée de `quote()` qui
+		 * change d'une case à l'autre.
+		 */
+		$by_blank = array();
+		foreach ( $cells as $cell ) {
+			$key = null === $cell['blank_ht'] ? 'famille' : (string) $cell['blank_ht'];
+			if ( ! isset( $by_blank[ $key ] ) ) {
+				$one = array(
+					'garment' => (string) ( $input['garment'] ?? '' ),
+					'qty'     => $total,
+					'sides'   => (array) ( $input['sides'] ?? array() ),
+				);
+				if ( null !== $cell['blank_ht'] ) {
+					$one['blank_ht'] = $cell['blank_ht'];
+				}
+				$by_blank[ $key ] = self::quote( $one, $config );
+			}
+		}
+
+		$total_ht = 0;
+		$rows     = array();
+		$rate     = 0.0;
+		foreach ( $cells as $cell ) {
+			$key   = null === $cell['blank_ht'] ? 'famille' : (string) $cell['blank_ht'];
+			$quote = $by_blank[ $key ];
+			$line  = (int) $quote['unit_ht'] * $cell['qty'];
+			$rate  = (float) $quote['discount_rate'];
+
+			$total_ht += $line;
+			$rows[]    = array(
+				'colour'   => $cell['colour'],
+				'size'     => $cell['size'],
+				'qty'      => $cell['qty'],
+				'unit_ht'  => (int) $quote['unit_ht'],
+				'total_ht' => $line,
+			);
+		}
+
+		$vat_rate  = (float) $config['vat_rate'];
+		/*
+		 * LA TVA SE CALCULE UNE FOIS, SUR LE TOTAL, ET PAS PAR CASE.
+		 *
+		 * Additionner des TVA arrondies case par case donne un total qui peut
+		 * s'écarter du montant que Stripe encaissera d'un centime par case, et
+		 * cent quatre-vingts cases font un euro quatre-vingts d'écart entre la
+		 * facture et le débit. `quote()` fait déjà le calcul sur le total pour
+		 * la même raison.
+		 */
+		$total_vat = Money::pct( $total_ht, $vat_rate );
+
+		/*
+		 * LE PRIX UNITAIRE MOYEN EST AFFICHÉ, DONC IL EST NOMMÉ COMME TEL.
+		 *
+		 * Quand deux cases n'ont pas le même nu, il n'y a pas UN prix unitaire,
+		 * il y en a deux. `unit_ht` ci-dessous est la division du total par la
+		 * quantité, ce qui est un indicateur et non un tarif ; l'écran qui
+		 * l'imprime doit dire « soit en moyenne ». Le nombre payable est
+		 * `total_ht`, et c'est lui que le panier enregistre.
+		 */
+		$unit_avg = intdiv( $total_ht, max( 1, $total ) );
+
+		return array(
+			'ok'            => true,
+			'currency'      => $config['currency'],
+			'garment'       => (string) ( $input['garment'] ?? '' ),
+			'qty'           => $total,
+			'cells'         => $rows,
+			'uniform_unit'  => count( $by_blank ) === 1,
+			'vat_rate'      => $vat_rate,
+			'discount_rate' => $rate,
+			'unit_ht'       => $unit_avg,
+			'unit_ttc'      => $unit_avg + Money::pct( $unit_avg, $vat_rate ),
+			'total_ht'      => $total_ht,
+			'total_vat'     => $total_vat,
+			'total_ttc'     => $total_ht + $total_vat,
+			'needs_quote'   => self::needs_quote( $total, $total_ht, $config ),
+			'sides'         => count( array_filter( (array) ( $input['sides'] ?? array() ), static fn ( $s ): bool => (float) ( $s['area_sq_cm'] ?? 0 ) > 0 ) ),
+		);
+	}
+
+	/**
 	 * The price grid the product page shows BEFORE the editor opens.
 	 *
 	 * Mistertee's best idea: a customer who wants "50 tees, one colour, front
