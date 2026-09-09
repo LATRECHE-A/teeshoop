@@ -114,8 +114,17 @@ includes/
   Notify.php          what the shop writes to people, and when
   Catalogue.php       supplier style -> WooCommerce product. Pure. Argues the
                       mapping, the 366-variation trade-off and the image cost
-  Supply.php          the HTTP client to our own Worker. The only file allowed
-                      to name a supplier route, and it fails closed
+  SupplyHttp.php      the transport to the supplier's two webservices, and the
+                      only file that reads their addresses. It reads them from
+                      wp-config, never from a literal, because their hostname
+                      carries their name. Fails closed on a 3xx, which is how
+                      that service says "your token is worthless"
+  Supply.php          the adapter: a local staging table of the supplier's
+                      catalogue, and the pure mapping into what Catalogue reads.
+                      Since 09/09/2026 it does not go through the Worker
+  Disponibilite.php   price and availability per article, the only thing that
+                      asks the supplier what is really in stock, and the only
+                      thing allowed to refuse a sale on that answer
   Importer.php        the idempotent, resumable, lockable import pass
   Taxonomy.php        pa_couleur and pa_taille, and the size ordering Woo needs
   Shelf.php           what an imported reference does once published: the seal
@@ -531,7 +540,7 @@ expensive mistake in this system: the film is printed before the boxes arrive.
 |---|---|
 | `studio_origin` | `https://studio.teeshoop.com`. **A security parameter.** Empty ⇒ the shortcode refuses to render rather than accepting messages from anywhere. |
 | `studio_path` | Path within that origin, default `/`. |
-| `worker_url` | Cloudflare Worker base URL. **It is now a browser-facing origin as well as a server-facing one**: the catalogue stores each colour photo as a path and the shop renders `worker_url + path` in an `<img src>`, so an address only the server can resolve (`host.docker.internal`, a private hostname) leaves every colour photo broken for customers while the importer works perfectly. It must be an address a visitor's browser can reach. |
+| `worker_url` | Cloudflare Worker base URL. It carries the design upload and the AR viewer, and it is browser-facing for those. **It is no longer on the catalogue path**: since 09/09/2026 the shop talks to the supplier directly, and no colour photo is rendered through it. `Shelf::photo_url()` still refuses anything that is not a Worker-relative `/media/` path, which now means no per-colour photo is published at all: the supplier's own URL in a customer's `src` would hand them the domain name of who we buy from. |
 | `design_verify_path` | Default `/api/design/`. |
 | `mail_from`, `mail_from_name`, `mail_reply_to` | Who the shop writes as. **Empty is a refusal, not a default**: Brevo will not send from an address nobody has verified in their account, and a plausible `contact@teeshoop.com` here would produce a 400 on the first real proof e-mail with nothing on screen to explain it. |
 | `mail_atelier` | Where the workshop's own alerts go. Falls back to the site administrator rather than to nowhere. |
@@ -560,7 +569,13 @@ Constants, in `wp-config.php` and never in an option:
 
 | Constant | Meaning |
 |---|---|
-| `TEESHOOP_CATALOGUE_TOKEN` | Bearer token for our Worker's catalogue routes. Absent ⇒ the importer refuses. It is a constant because options are dumped by every backup and editable from the admin, and this one opens a route that returns our purchase price for the whole catalogue. |
+| `TEESHOOP_SUPPLY_BASE` | The supplier's catalogue and order service, without a trailing slash. A constant and not an option because options are dumped by every backup and editable from the admin, and because **this value names the supplier**: their hostname carries their name, and `scripts/php-guard.mjs` refuses that string anywhere in this plugin. |
+| `TEESHOOP_SUPPLY_TOKEN` | The WHOLE `Authorization` header value, prefix included. Their token contains `+`, `#`, `|` and `%`, so it is stored as it is sent. |
+| `TEESHOOP_SUPPLY_V2_BASE` | Their second-generation price and stock service. |
+| `TEESHOOP_SUPPLY_CLIENT_ID`, `TEESHOOP_SUPPLY_CLIENT_SECRET` | OAuth2 client credentials for that second service. The token it returns lives 24 h and is cached in a transient, expired an hour early so it never dies mid-call. |
+| `TEESHOOP_SUPPLY_MEDIA_BASE` | The host that actually serves their photographs. Measured 09/09/2026: the host they publish in their own URLs answers 404, and the same paths answer 200 elsewhere. Absent ⇒ no photograph is copied and every reference stays a draft. |
+| `TEESHOOP_SUPPLY_MODE` | `test` or `live`, **declared by hand**. Anything else is `unknown` and **refuses every supplier order**. Their service has no endpoint that says which mode an account is in, and guessing from the hostname would hold until the day they rename their domain, when it would send a real order believing it was a trial. |
+| ~~`TEESHOOP_CATALOGUE_TOKEN`~~ | Dead since 09/09/2026. It opened the Worker's catalogue routes, which no longer exist on this path. Remove it only after the deletion described in `docs/decisions/2026-09-09-un-seul-fournisseur.md`. |
 | `TEESHOOP_ALLOW_UNVERIFIED_DESIGNS` | Development only. Never on production. |
 | `TEESHOOP_BREVO_KEY` | Transactional e-mail, **in production and nowhere else**. Absent in production sends nothing and records every message as failed, naming this constant. Everywhere else the key is ignored and the message goes through `wp_mail`, which is what the preproduction's `pre_wp_mail` circuit-breaker can stop: a `wp_remote_post` to api.brevo.com is not `wp_mail`, and the preproduction is a full copy of production with real customers on it. A constant and not an option for the same reason as the two above: it can send mail as us, to anybody. |
 
@@ -568,7 +583,12 @@ Constants, in `wp-config.php` and never in an option:
 
 | Command | |
 |---|---|
-| `wp teeshoop catalogue importer` | Import or refresh. Idempotent, resumable. |
+| `wp teeshoop catalogue synchroniser` | **Run this first.** Walks the supplier's catalogue into the local staging table. Measured: 3 241 products, 65 pages, 102 s, 8,4 MB stored. Resumable within a wall-clock budget. |
+| `wp teeshoop catalogue synchroniser --depuis=01-09-2026` | Only what moved. `jj-mm-aaaa`, which is the format their own schema imposes; an ISO date passes the type check and filters nothing. An incremental walk **never authorises a delisting**, because a reference absent from a delta is not a reference that is gone. |
+| `wp teeshoop dispo balayer --budget=45` | Refresh the price and availability of the stalest articles, inside a time budget derived from the measured cost (0,43 s + 0,068 s per article). An hourly cron slot. |
+| `wp teeshoop dispo etat` | What the shop knows, and how old the oldest observation is. |
+| `wp teeshoop catalogue importer` | Import or refresh from the staging table. Idempotent, resumable. |
+| `wp teeshoop catalogue importer --ref=BC03T` | One reference, and nothing is ever delisted by it. |
 | `wp teeshoop catalogue importer --duree=1800` | Do half an hour and stop cleanly. A cron slot. |
 | `wp teeshoop catalogue etat` | Where the current pass got to. |
 | `wp teeshoop catalogue purger` | Remove every imported reference. Local mirror only. |
