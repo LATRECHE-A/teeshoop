@@ -1064,6 +1064,67 @@ final class Purchase {
 	// ── resolving an article ─────────────────────────────────────────────────
 
 	/** The imported catalogue product carrying this reference, or 0. */
+	/**
+	 * Les numéros d'article du fournisseur pour une matrice coloris/taille.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * POURQUOI CETTE MÉTHODE EST ICI ET PAS DANS `Cart`
+	 *
+	 * Parce que la résolution « référence plus coloris plus taille donne un
+	 * article » existe déjà, dans `articles_for()`, et qu'une seconde copie
+	 * dériverait le jour où l'une des deux apprend une règle que l'autre
+	 * ignore. `Cart` a besoin de la MÊME réponse à l'ajout au panier que
+	 * l'atelier à l'achat : si les deux ne désignaient pas le même article, la
+	 * boutique vendrait ce qu'elle ne commanderait pas.
+	 *
+	 * Un coloris ou une taille qu'on ne sait pas résoudre n'est PAS dans le
+	 * retour, et l'appelant le voit en comparant les tailles. On ne met pas de
+	 * code inventé : `articles_for()` refusera cette case en la nommant, ce qui
+	 * est visible, alors qu'un code faux serait une commande fournisseur fausse.
+	 *
+	 * @param array<string,array<string,int>> $matrix coloris => taille => quantité.
+	 * @param array<string,string>            $terms  coloris du studio => coloris du fournisseur.
+	 * @return array<string,int> numéro d'article => quantité totale demandée.
+	 */
+	public static function codes_for_matrix( int $product_id, array $matrix, array $terms ): array {
+		$ref = Product::blank_ref_of( $product_id );
+		if ( '' === $ref ) {
+			return array();
+		}
+		$blank_id = self::blank_product_id( $ref );
+		if ( 0 === $blank_id ) {
+			return array();
+		}
+
+		$map = array() !== $terms ? $terms : Product::blank_colours_of( $product_id );
+		$out = array();
+
+		foreach ( $matrix as $colour => $sizes ) {
+			$term = (string) ( $map[ (string) $colour ] ?? '' );
+			if ( '' === $term || ! is_array( $sizes ) ) {
+				continue;
+			}
+			foreach ( $sizes as $size => $count ) {
+				$count = (int) $count;
+				if ( $count < 1 ) {
+					continue;
+				}
+				$variation_id = self::variation_of( $blank_id, $term, (string) $size );
+				if ( $variation_id <= 0 ) {
+					continue;
+				}
+				$variation = wc_get_product( $variation_id );
+				$sku       = $variation instanceof \WC_Product ? (string) $variation->get_meta( Catalogue::META_SUPPLY_SKU, true ) : '';
+				if ( '' === $sku ) {
+					continue;
+				}
+				$out[ $sku ] = ( $out[ $sku ] ?? 0 ) + $count;
+			}
+		}
+
+		return $out;
+	}
+
 	public static function blank_product_id( string $ref ): int {
 		$ref = trim( $ref );
 		if ( '' === $ref ) {

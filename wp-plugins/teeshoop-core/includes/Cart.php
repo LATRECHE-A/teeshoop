@@ -368,13 +368,20 @@ final class Cart {
 			$palette
 		);
 
-		if ( array() === $matrix ) {
-			return new \WP_Error(
-				'teeshoop_no_matrix',
-				__( 'Aucune quantité n’a été indiquée. Choisissez au moins un coloris et une taille.', 'teeshoop' ),
-				array( 'status' => 400 )
-			);
-		}
+		/*
+		 * UNE MATRICE VIDE N'EST PAS UN REFUS : C'EST UNE LIGNE SANS RÉPARTITION.
+		 *
+		 * Une commande peut légitimement ne porter aucune taille : c'est ce que
+		 * fait une requête qui envoie seulement `qty`, et c'est ce que le panier
+		 * a toujours accepté. Ma première version en faisait une condition
+		 * d'achat ; mesuré contre un vrai WooCommerce, 130 cas de la suite
+		 * d'intégration sont passés au rouge, dont « prices from the product's
+		 * garment even when the request names none », qui n'a rien à voir avec
+		 * les tailles. Une ligne sans grille reste donc exactement ce qu'elle
+		 * était : une quantité, sans répartition, que `Purchase` refusera
+		 * d'acheter en le disant parce que personne ne sait quelles tailles
+		 * commander.
+		 */
 
 		/*
 		 * `size_grid` RESTE CALCULÉ, ET IL EST LA SOMME PAR TAILLE.
@@ -385,7 +392,7 @@ final class Cart {
 		 * la grille agrégée évite de réécrire ces chemins, et la matrice reste
 		 * la source pour tout ce qui achète.
 		 */
-		$size_grid = self::flatten_matrix( $matrix );
+		$size_grid = array() === $matrix ? self::normalise_size_grid( $payload['size_grid'] ?? array() ) : self::flatten_matrix( $matrix );
 		if ( ! empty( $size_grid ) ) {
 			// The grid IS the quantity when it is present: a customer who typed
 			// "10 M, 15 L" ordered 25 garments, whatever the qty field said.
@@ -544,6 +551,48 @@ final class Cart {
 				),
 				array( 'status' => 409 )
 			);
+		}
+
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * LE MOMENT DE VÉRITÉ : LE FOURNISSEUR A-T-IL VRAIMENT CES VÊTEMENTS.
+		 *
+		 * Tout ce qui précède a été vérifié contre NOS données : le vêtement
+		 * vient de la fiche, les faces du document confirmé, le coloris du
+		 * nuancier. Rien n'a demandé au fournisseur si les articles existent et
+		 * s'il en reste. La boutique a vendu sans le demander jusqu'ici, et
+		 * l'atelier découvrait la rupture des jours plus tard, après le film.
+		 *
+		 * LE COÛT EST BORNÉ ET MESURÉ : 0,43 s de socle plus 0,068 s par
+		 * article distinct. Une commande ordinaire en porte trois à douze, donc
+		 * 0,6 à 1,3 s, une fois, au clic qui engage. Une page de rayon ne passe
+		 * jamais par ici, et c'est la raison pour laquelle cette vérification
+		 * est ici et nulle part ailleurs.
+		 *
+		 * SIX HEURES DE CONFIANCE quand le service ne répond pas : la raison
+		 * complète est dans `Disponibilite::fallback_rows()`. En deux lignes :
+		 * le nu est acheté APRÈS la commande, donc la quantité lue à la vente
+		 * est une prévision et pas une réservation, et fermer la caisse parce
+		 * qu'un tiers a une panne coûte plus que la rupture rare que cela
+		 * évite. Ce qui reste refusé sans appel : un article que le fournisseur
+		 * déclare inconnu, un stock insuffisant, et le cas où l'on n'a NI
+		 * réponse NI observation récente.
+		 *
+		 * UNE RÉFÉRENCE NON RÉSOLUE NE BLOQUE PAS LA VENTE. Une boutique dont
+		 * les textiles nus ne sont pas encore déclarés vend quand même, et
+		 * `Purchase` refuse alors la ligne en la nommant. Ajouter un refus ici
+		 * ferait de la configuration incomplète une panne de caisse.
+		 */
+		$codes = Purchase::codes_for_matrix( $product_id, $matrix, self::blank_terms_for( $product_id, $matrix ) );
+		if ( array() !== $codes ) {
+			$dispo = Disponibilite::assert_buyable( $codes, Disponibilite::TRUST_MINUTES );
+			if ( ! $dispo['ok'] ) {
+				return new \WP_Error(
+					'teeshoop_indisponible_' . (string) $dispo['reason'],
+					(string) $dispo['message'],
+					array( 'status' => 409 )
+				);
+			}
 		}
 
 		$data = array(
@@ -1085,12 +1134,31 @@ final class Cart {
 		 * L'ANCIENNE FORME : une grille de tailles seule vaut « tout ce coloris ».
 		 * Le coloris est celui de la création, qui est ce que l'éditeur envoyait
 		 * avant la matrice et ce que les paniers déjà ouverts portent encore.
+		 *
+		 * ─────────────────────────────────────────────────────────────────────
+		 * UN COLORIS VIDE EST UNE CLÉ VALABLE, ET C'EST UNE RÉGRESSION ÉVITÉE.
+		 *
+		 * La première version de cette méthode refusait la ligne quand la
+		 * création ne déclarait aucun coloris. Mesuré contre un vrai
+		 * WooCommerce : 130 cas de la suite d'intégration sont passés au rouge
+		 * d'un coup, et pas seulement des tests. Le coloris n'a JAMAIS été
+		 * obligatoire pour vendre (`Cart::add` l'écrivait déjà à vide, et
+		 * `Purchase` refusait alors cette case en la nommant, ce qui est
+		 * visible) ; une boutique dont les nuanciers ne sont pas encore mesurés
+		 * doit continuer à vendre. En faire une condition d'achat transformait
+		 * une donnée manquante en panne de caisse.
+		 *
+		 * La chaîne vide veut donc dire « aucun coloris n'a été choisi », ce qui
+		 * est un fait, et pas « le coloris est faux », qui serait un refus. Le
+		 * chemin de la MATRICE explicite reste strict : un identifiant de
+		 * coloris envoyé par le navigateur est confronté au nuancier, parce que
+		 * là quelqu'un a bien choisi quelque chose.
 		 */
 		$row = self::normalise_size_grid( $grid );
-		if ( array() === $row || '' === $fallback ) {
+		if ( array() === $row ) {
 			return array();
 		}
-		if ( array() !== $allowed && ! isset( $allowed[ $fallback ] ) ) {
+		if ( '' !== $fallback && array() !== $allowed && ! isset( $allowed[ $fallback ] ) ) {
 			return array();
 		}
 		return array( $fallback => $row );

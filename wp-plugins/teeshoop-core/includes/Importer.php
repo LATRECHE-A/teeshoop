@@ -1203,6 +1203,56 @@ final class Importer {
 	 * returned: a download that fails is a problem on the report and a product
 	 * with no picture, not a product that stops importing.
 	 */
+	/**
+	 * D'où télécharger une photographie, ou '' si nulle part.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * TÉLÉCHARGER ET AFFICHER SONT DEUX QUESTIONS, ET ELLES ÉTAIENT CONFONDUES.
+	 *
+	 * Tant que le Worker servait de mandataire, une seule fonction répondait aux
+	 * deux : `Shelf::photo_url()` fabriquait l'URL que l'import allait chercher
+	 * ET celle que le navigateur du client affichait. Depuis que le catalogue
+	 * vient directement du fournisseur, ce sont deux hôtes différents et deux
+	 * règles opposées :
+	 *
+	 *   TÉLÉCHARGER se fait sur l'hôte du fournisseur, côté serveur, une fois,
+	 *   et la photographie devient une pièce jointe WordPress ;
+	 *
+	 *   AFFICHER se fait depuis WordPress, et JAMAIS depuis l'hôte du
+	 *   fournisseur, dont le nom de domaine porte son identité.
+	 *
+	 * D'où cette fonction, qui ne répond qu'à la première, et le refus documenté
+	 * dans `Shelf::photo_url()`, qui ne répond qu'à la seconde.
+	 *
+	 * ELLE N'ACCEPTE QUE L'HÔTE CONFIGURÉ. Une URL arrive ici depuis une charge
+	 * utile fournisseur, donc depuis le réseau ; la laisser désigner n'importe
+	 * quel hôte ferait de cet import un outil pour faire émettre au serveur des
+	 * requêtes choisies par autrui. `wp_remote_get` est utilisé sans la
+	 * protection d'adresse privée de `wp_safe_remote_get` (la raison est au
+	 * point d'appel), donc la liste blanche est ici la seule barrière et elle
+	 * doit être exacte : comparaison d'hôte complète, jamais un `str_starts_with`.
+	 */
+	private static function fetchable( string $path ): string {
+		// Un chemin relatif reste résolu contre le Worker, pour tout ce qui a
+		// été importé avant le 9 septembre 2026 et dont la reprise passe encore
+		// par ici.
+		if ( str_starts_with( $path, '/' ) ) {
+			return Shelf::photo_url( $path );
+		}
+
+		$base = SupplyHttp::media_url( $path );
+		if ( '' === $base ) {
+			return '';
+		}
+
+		$allowed = wp_parse_url( SupplyHttp::media_base(), PHP_URL_HOST );
+		$host    = wp_parse_url( $base, PHP_URL_HOST );
+		if ( ! is_string( $allowed ) || ! is_string( $host ) || strtolower( $host ) !== strtolower( $allowed ) ) {
+			return '';
+		}
+		return $base;
+	}
+
 	private static function attachment( string $path, string $title, array &$problems, int &$downloads, string $as ): int {
 		if ( '' === $path ) {
 			return 0;
@@ -1228,7 +1278,7 @@ final class Importer {
 			return (int) $existing[0];
 		}
 
-		$url = Shelf::photo_url( $path );
+		$url = self::fetchable( $path );
 		if ( '' === $url ) {
 			return 0;
 		}
@@ -1491,7 +1541,7 @@ final class Importer {
 	// Run state
 	// -----------------------------------------------------------------------
 
-	private static function empty_stats(): array {
+	public static function empty_stats(): array {
 		return array(
 			'created'    => 0,
 			'updated'    => 0,
@@ -1524,7 +1574,7 @@ final class Importer {
 		);
 	}
 
-	private static function save_run( array $run ): void {
+	public static function save_run( array $run ): void {
 		update_option( self::OPTION_RUN, $run, false );
 	}
 

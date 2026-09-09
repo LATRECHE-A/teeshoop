@@ -152,6 +152,23 @@ final class Disponibilite {
 	// La table
 	// -----------------------------------------------------------------------
 
+	/**
+	 * Combien de temps une observation de stock reste utilisable quand le
+	 * service ne répond pas, minutes.
+	 *
+	 * Six heures, alignées sur la période de `sweep()` : une fenêtre plus courte
+	 * que le balayage refuserait des articles que la boutique vient justement de
+	 * vérifier. C'est une HYPOTHÈSE de délai et non une mesure, et elle est
+	 * posée à l'associé dans `QUESTIONS-ASSOCIE.md` : lui seul sait à partir de
+	 * quand une quantité affichée cesse d'être une promesse tenable.
+	 *
+	 * ELLE VIT ICI ET NULLE PART AILLEURS. Le panier et la caisse la lisent tous
+	 * les deux ; deux constantes pour une règle finissent par différer, et le
+	 * jour où elles diffèrent le panier accepte ce que la caisse refuse, ce qui
+	 * est la pire des deux incohérences puisque le client a déjà tout saisi.
+	 */
+	public const TRUST_MINUTES = 360;
+
 	public static function table(): string {
 		global $wpdb;
 		return $wpdb->prefix . 'teeshoop_dispo';
@@ -638,7 +655,7 @@ final class Disponibilite {
 		}
 
 		$lines = array();
-		foreach ( $wanted as $key => $ignored ) {
+		foreach ( array_keys( $wanted ) as $key ) {
 			$code = trim( (string) $key );
 			$up   = strtoupper( $code );
 			/*
@@ -1237,7 +1254,7 @@ final class Disponibilite {
 	 * @param array<string,int> $wanted code => quantité.
 	 * @return array{ok:bool,reason:string,lines:array<string,array{ok:bool,why:string,cents:?int,stock:?int,qty:int,message:string}>,message:string}
 	 */
-	public static function assert_buyable( array $wanted ): array {
+	public static function assert_buyable( array $wanted, int $trust_minutes = 0 ): array {
 		$codes = self::clean_codes( array_keys( $wanted ) );
 
 		if ( array() === $codes ) {
@@ -1288,7 +1305,82 @@ final class Disponibilite {
 			// `verdict()` le refuse en `no_answer` du seul fait de son absence.
 		}
 
+		if ( $trust_minutes > 0 && array() !== $unreachable ) {
+			$repli       = self::fallback_rows( $unreachable, $trust_minutes );
+			$rows        = array_replace( $repli['rows'], $rows );
+			$unreachable = $repli['still_mute'];
+		}
+
 		return self::verdict( $wanted, $rows, $missing, $unreachable );
+	}
+
+	/**
+	 * Ce que la table sait des codes dont le service n'a pas parlé, s'il est
+	 * assez récent pour être encore une observation.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * POURQUOI UNE PANNE DU FOURNISSEUR NE FERME PAS LA BOUTIQUE
+	 *
+	 * Le réflexe est de refuser : « nous n'avons pas pu demander » n'est pas
+	 * « il y en a ». C'est vrai, et c'est ce que fait `verdict()` sans ce
+	 * repli. Mais appliqué au STOCK il coûte plus qu'il ne protège, et la
+	 * raison tient à ce que la boutique vend.
+	 *
+	 * Le vêtement nu est acheté APRÈS la commande, avec un délai de plusieurs
+	 * jours. La quantité lue à l'instant de la vente n'est donc pas une
+	 * réservation : elle est une prévision, qu'un autre acheteur peut consommer
+	 * dix minutes plus tard, même quand elle est parfaitement fraîche. Ce que
+	 * le contrôle en direct apporte réellement, c'est d'attraper les cas nets
+	 * (article retiré du catalogue, stock à zéro) avant que le client paie. Il
+	 * n'apporte pas une garantie, et le traiter comme une garantie fait payer
+	 * la panne d'un tiers par la fermeture de la caisse.
+	 *
+	 * TROIS ÉTATS ET PAS DEUX, ce que demande la section 3 de `CLAUDE.md` :
+	 *
+	 *   le service a répondu             -> on obéit, refus compris ;
+	 *   il n'a pas répondu, et la table
+	 *   porte une observation récente    -> on s'en sert, et la ligne le dit ;
+	 *   il n'a pas répondu, et la table
+	 *   ne sait rien ou sait trop vieux  -> ON REFUSE.
+	 *
+	 * Le troisième est le vrai « nous ne savons pas », et c'est le seul qui
+	 * ferme. La fenêtre est un PARAMÈTRE et vaut zéro par défaut : tout
+	 * appelant qui ne se prononce pas garde le comportement strict, et les
+	 * tests écrits avant ce repli continuent de mesurer ce qu'ils mesuraient.
+	 *
+	 * UNE LIGNE `miss` N'EST PAS UN REPLI. Le fournisseur a dit que l'article
+	 * n'existe pas ; la garder ici la transformerait en disponibilité.
+	 *
+	 * @param string[] $codes
+	 * @return array{rows:array<string,array<string,mixed>>,still_mute:string[]}
+	 */
+	private static function fallback_rows( array $codes, int $trust_minutes ): array {
+		$known = self::known( $codes );
+		$limit = time() - ( $trust_minutes * 60 );
+
+		$rows = array();
+		$mute = array();
+		foreach ( $codes as $code ) {
+			$row = $known[ $code ] ?? null;
+			$at  = is_array( $row ) ? strtotime( (string) ( $row['at'] ?? '' ) . ' UTC' ) : false;
+
+			if ( ! is_array( $row ) || ! empty( $row['miss'] ) || false === $at || $at < $limit
+				|| null === $row['stock'] || null === $row['cents'] ) {
+				$mute[] = $code;
+				continue;
+			}
+			$rows[ $code ] = array(
+				'cents'          => $row['cents'],
+				'stock'          => $row['stock'],
+				'stock_supplier' => $row['stock_supplier'],
+				'box_qty'        => $row['box_qty'],
+			);
+		}
+
+		return array(
+			'rows'       => $rows,
+			'still_mute' => $mute,
+		);
 	}
 
 	/**

@@ -178,6 +178,112 @@ final class Checkout {
 		self::check_no_third_party_fee( $cart );
 		self::check_shop_can_sell( $cart );
 		self::check_order_needs_quote( $cart );
+		self::check_supplier_stock( $cart );
+	}
+
+	/**
+	 * Combien de temps un verdict de disponibilité vaut pour ce panier, secondes.
+	 *
+	 * `woocommerce_check_cart_items` est le seul crochet qui tire sur les quatre
+	 * chemins, ce qui est sa qualité et son coût : il tire aussi à chaque
+	 * affichage de la page panier. À 0,43 s de socle plus 0,068 s par article,
+	 * demander au fournisseur à chaque rendu ajouterait une seconde à chaque vue
+	 * et taperait sur son service pour rien. Quatre-vingt-dix secondes couvrent
+	 * la traversée du tunnel (le client remplit son adresse, choisit son
+	 * transport, paie) sans jamais laisser une commande partir sur un verdict
+	 * d'il y a une heure.
+	 */
+	private const STOCK_MEMO_SECONDS = 90;
+
+	/**
+	 * LE SECOND CONTRÔLE, CELUI QUI COMPTE, JUSTE AVANT QUE L'ARGENT BOUGE.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * POURQUOI DEUX FOIS, ET PAS UNE
+	 *
+	 * `Cart::add` demande déjà au fournisseur si les articles existent, au clic
+	 * qui ajoute la ligne. Entre ce clic et le paiement il peut s'écouler des
+	 * jours : un panier WooCommerce vit dans une session, un client le rouvre le
+	 * lendemain, et rien ne redemandait. C'est la même forme que le défaut
+	 * `did_action() > 1` que ce projet a déjà payé une fois : du code juste d'un
+	 * côté d'une couture WooCommerce, et rien qui regarde de l'autre.
+	 *
+	 * CE CONTRÔLE N'EMPÊCHE PAS DE REGARDER SON PANIER. Il ne tire qu'en caisse.
+	 * Un client qui consulte son panier n'a pas besoin qu'on interroge un
+	 * service tiers ; celui qui va payer, si.
+	 *
+	 * ET IL NE TIRE PAS DEUX FOIS POUR LA MÊME QUESTION. Le verdict est mémorisé
+	 * dans la session, avec l'EMPREINTE du panier : changer une quantité change
+	 * l'empreinte et redemande, recharger la page ne redemande pas.
+	 */
+	private static function check_supplier_stock( \WC_Cart $cart ): void {
+		if ( ! function_exists( 'is_checkout' ) ) {
+			return;
+		}
+		/*
+		 * La caisse en blocs passe par la Store API, où `is_checkout()` est
+		 * faux : elle se reconnaît à la constante que WooCommerce définit sur
+		 * ses propres requêtes REST. Les deux sont testées parce que la
+		 * boutique a les deux gabarits selon le thème.
+		 */
+		$en_caisse = is_checkout() || ( defined( 'REST_REQUEST' ) && REST_REQUEST );
+		if ( ! $en_caisse ) {
+			return;
+		}
+
+		$wanted = array();
+		foreach ( $cart->get_cart() as $item ) {
+			$data = $item['teeshoop'] ?? null;
+			if ( ! is_array( $data ) || empty( $data['matrix'] ) ) {
+				continue;
+			}
+			$codes = Purchase::codes_for_matrix(
+				(int) ( $item['product_id'] ?? 0 ),
+				(array) $data['matrix'],
+				(array) ( $data['blank_colours'] ?? array() )
+			);
+			foreach ( $codes as $sku => $qty ) {
+				$wanted[ $sku ] = ( $wanted[ $sku ] ?? 0 ) + (int) $qty;
+			}
+		}
+
+		if ( array() === $wanted ) {
+			return;
+		}
+
+		ksort( $wanted );
+		$empreinte = md5( (string) wp_json_encode( $wanted ) );
+		$session   = WC()->session;
+
+		if ( $session ) {
+			$memo = $session->get( 'teeshoop_dispo_memo' );
+			if ( is_array( $memo )
+				&& ( $memo['empreinte'] ?? '' ) === $empreinte
+				&& (int) ( $memo['at'] ?? 0 ) > ( time() - self::STOCK_MEMO_SECONDS ) ) {
+				if ( '' !== (string) ( $memo['message'] ?? '' ) ) {
+					wc_add_notice( (string) $memo['message'], 'error' );
+				}
+				return;
+			}
+		}
+
+		$verdict = Disponibilite::assert_buyable( $wanted, Disponibilite::TRUST_MINUTES );
+		$message = $verdict['ok'] ? '' : (string) $verdict['message'];
+
+		if ( $session ) {
+			$session->set(
+				'teeshoop_dispo_memo',
+				array(
+					'empreinte' => $empreinte,
+					'at'        => time(),
+					'message'   => $message,
+				)
+			);
+		}
+
+		if ( '' !== $message ) {
+			wc_add_notice( $message, 'error' );
+		}
 	}
 
 	/**

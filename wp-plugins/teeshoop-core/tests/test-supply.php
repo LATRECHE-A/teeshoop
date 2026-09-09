@@ -453,6 +453,32 @@ describe(
 				$mapped = Catalogue::map( Supply::to_entry( ts_supply_products()['BC01B'], ts_supply_live( 'BC01B' ) ) );
 				eq( $mapped['weight_gsm'], 145, 'le grammage publié par le fabricant' );
 				truthy( false !== stripos( (string) $mapped['material'], 'coton' ), 'la composition est lue : « ' . $mapped['material'] . ' »' );
+
+				/*
+				 * ET ELLE NE COMMENCE PAS PAR LE TITRE, ce qui était le défaut.
+				 *
+				 * `Catalogue::composition()` cherche la LIGNE qui porte un
+				 * pourcentage. La description assemblée joignait ses faits par
+				 * des espaces, donc tout tenait sur une ligne et le champ
+				 * Matière de la fiche BC03T affichait « Tee-shirt homme col rond
+				 * 190. 100% coton... ». Mesuré sur le miroir après un import
+				 * réel, le 9 septembre 2026.
+				 */
+				foreach ( array_keys( ts_supply_products() ) as $ref ) {
+					$m = Catalogue::map( Supply::to_entry( ts_supply_products()[ $ref ], ts_supply_live( $ref ) ) );
+					$matiere = (string) $m['material'];
+					if ( '' === $matiere ) {
+						continue;
+					}
+					truthy(
+						1 === preg_match( '/^\s*\d+\s*%/u', $matiere ),
+						$ref . ' : la matière commence par un pourcentage, pas par le titre (« ' . $matiere . ' »)'
+					);
+					truthy(
+						false === strpos( $matiere, "\n" ),
+						$ref . ' : et elle tient sur une ligne'
+					);
+				}
 			}
 		);
 	}

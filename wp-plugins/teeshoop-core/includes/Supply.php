@@ -587,9 +587,20 @@ final class Supply {
 				$colourways[ $ccode ]['swatch'] = $attrs['hex'];
 			}
 
+			/*
+			 * LES URL SONT RÉÉCRITES ICI, UNE FOIS, ET PAS AU MOMENT DE LIRE.
+			 *
+			 * Le service publie ses photographies sur un hôte qui répond 404 :
+			 * huit URL tirées au sort le 9 septembre 2026, huit 404. Les mêmes
+			 * chemins répondent 200 avec un JPEG de 1,6 Mo sur l'hôte public.
+			 * `SupplyHttp::media_url()` porte la correction et la raison ; si
+			 * elle n'était appliquée qu'au moment de télécharger, la même URL
+			 * serait stockée fausse dans la base et vraie dans le téléchargeur,
+			 * et un lecteur sur deux se tromperait.
+			 */
 			$photos = self::photos_of( $v );
 			if ( '' === $colourways[ $ccode ]['photo'] && '' !== $photos['front'] ) {
-				$colourways[ $ccode ]['photo'] = $photos['front'];
+				$colourways[ $ccode ]['photo'] = SupplyHttp::media_url( $photos['front'] );
 			}
 
 			$row  = $live['rows'][ $code ] ?? null;
@@ -606,8 +617,8 @@ final class Supply {
 				'coo'        => self::country( $v ),
 				'closeout'   => self::has_tag( $v, 'FIN DE SERIE' ),
 				'isNew'      => self::has_tag( $v, 'NOUVEAU' ),
-				'front'      => $photos['front'],
-				'back'       => $photos['back'],
+				'front'      => SupplyHttp::media_url( $photos['front'] ),
+				'back'       => SupplyHttp::media_url( $photos['back'] ),
 			);
 		}
 
@@ -1150,7 +1161,23 @@ final class Supply {
 		if ( null !== $gsm && $gsm > 0 ) {
 			$bits[] = $gsm . ' g/m².';
 		}
-		return implode( ' ', $bits );
+		/*
+		 * UN RETOUR À LA LIGNE ENTRE CHAQUE FAIT, ET C'EST LA CORRECTION D'UN
+		 * DÉFAUT VISIBLE SUR UNE FICHE PRODUIT.
+		 *
+		 * `Catalogue::composition()` cherche la LIGNE qui porte un pourcentage,
+		 * parce que l'ancien fournisseur écrivait une liste à puces. En joignant
+		 * par des espaces, tout tenait sur une ligne et l'extracteur rendait la
+		 * phrase entière : la fiche BC03T affichait « Tee-shirt homme col rond
+		 * 190. 100% coton pré-rétréci... » dans le champ Matière. Mesuré sur le
+		 * miroir le 9 septembre 2026, après import réel.
+		 *
+		 * Écrire une ligne par fait vaut mieux que d'ajouter un chemin qui
+		 * court-circuiterait l'extracteur : il y aurait alors deux façons de
+		 * lire une composition, et le jour où l'une des deux se trompe, la
+		 * fiche et l'export ne diraient pas la même chose.
+		 */
+		return implode( "\n", $bits );
 	}
 
 	/** Un code EAN à 8, 12, 13 ou 14 chiffres, ou ''. */

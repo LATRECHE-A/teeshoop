@@ -88,6 +88,19 @@ final class Shelf {
 		 */
 		Catalogue::META_SUPPLY_SOURCE,
 		/*
+		 * LA PHOTOGRAPHIE PAR COLORIS, SCELLÉE LE 9 SEPTEMBRE 2026.
+		 *
+		 * Elle était un CHEMIN (`/media/...`) résolu contre le Worker, donc elle
+		 * ne nommait personne. Depuis que le catalogue vient directement du
+		 * fournisseur, c'est une URL COMPLÈTE sur SON hôte, et cet hôte porte
+		 * son nom : elle sortait par `meta_data` sur chaque produit REST et
+		 * chaque export CSV, à côté des cinq valeurs que cette liste scelle
+		 * précisément pour cacher chez qui nous achetons.
+		 */
+		Catalogue::META_COLOUR_PHOTO,
+		// Même raison, même hôte : la pastille du fabricant est servie par lui.
+		Catalogue::META_COLOUR_CHIP,
+		/*
 		 * The blank a sellable product is printed on, and the colour map that
 		 * resolves it. Added the day they were: `META_BLANK_REF` IS the
 		 * supplier's style number, which is the first five digits of the article
@@ -467,6 +480,31 @@ final class Shelf {
 	 * ever been able to write to it.
 	 */
 	public static function photo_url( string $path ): string {
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * DEPUIS LE 9 SEPTEMBRE 2026, CE REFUS EST LA RÈGLE ET PLUS L'EXCEPTION.
+		 *
+		 * Le Worker ne sert plus de mandataire pour les photographies : le
+		 * catalogue vient directement du fournisseur, donc `META_COLOUR_PHOTO`
+		 * porte une URL COMPLÈTE sur l'hôte du fournisseur, qui ne commence pas
+		 * par `/media/` et qui est donc refusée ici. Conséquence voulue et
+		 * assumée : la fiche produit ne publie AUCUNE photographie par coloris,
+		 * elle publie la photographie du produit et la pastille MESURÉE.
+		 *
+		 * Ce n'est pas une régression. `Editeur::couleurs()` documente déjà le
+		 * même état pour l'ancien fournisseur, qui livrait une seule
+		 * photographie pour 54 coloris, et l'écran dit ce que la pastille est.
+		 * Publier l'URL du fournisseur donnerait au client, dans un attribut
+		 * `src` de sa page, le nom de domaine de qui nous fournit.
+		 *
+		 * CE QU'IL FAUDRA FAIRE, et c'est mesuré : le nouveau fournisseur publie
+		 * bien une photographie PAR coloris (154 produits multicolores vérifiés,
+		 * 154 avec un jeu d'images différent par coloris, zéro partagé). Les
+		 * importer comme pièces jointes WordPress est la bonne réponse, et elle
+		 * coûte : 40 coloris sur BC03T à 1,6 Mo la vue font 64 Mo pour un seul
+		 * produit. C'est une passe d'import à écrire, pas une ligne à changer
+		 * ici, et elle est inscrite dans `docs/ROADMAP.md`.
+		 */
 		if ( ! str_starts_with( $path, '/media/' ) || str_contains( $path, '..' ) ) {
 			return '';
 		}

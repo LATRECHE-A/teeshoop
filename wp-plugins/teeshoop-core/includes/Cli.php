@@ -37,6 +37,9 @@ final class Cli {
 		\WP_CLI::add_command( 'teeshoop catalogue purger', array( self::class, 'catalogue_purge' ) );
 		\WP_CLI::add_command( 'teeshoop marge', array( self::class, 'margin_report' ) );
 		\WP_CLI::add_command( 'teeshoop stock rafraichir', array( self::class, 'stock_refresh' ) );
+		\WP_CLI::add_command( 'teeshoop catalogue synchroniser', array( self::class, 'supply_sync' ) );
+		\WP_CLI::add_command( 'teeshoop dispo balayer', array( self::class, 'dispo_sweep' ) );
+		\WP_CLI::add_command( 'teeshoop dispo etat', array( self::class, 'dispo_state' ) );
 		\WP_CLI::add_command( 'teeshoop couleurs mesurer', array( self::class, 'colours_measure' ) );
 		\WP_CLI::add_command( 'teeshoop couleurs etat', array( self::class, 'colours_state' ) );
 		\WP_CLI::add_command( 'teeshoop couleurs reclasser', array( self::class, 'colours_reclassify' ) );
@@ -93,6 +96,206 @@ final class Cli {
 	 * [--discret]
 	 * : Print only the summary line, for a cron.
 	 */
+	/**
+	 * Marche le catalogue du fournisseur et le dépose localement.
+	 *
+	 *   wp teeshoop catalogue synchroniser
+	 *   wp teeshoop catalogue synchroniser --depuis=01-09-2026
+	 *   wp teeshoop catalogue synchroniser --budget=120
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * C'EST LA PREMIÈRE COMMANDE À LANCER, AVANT L'IMPORT.
+	 *
+	 * `catalogue importer` lit le DÉPÔT, il n'interroge plus le fournisseur :
+	 * mesuré le 9 septembre 2026, le catalogue complet fait 3 241 produits sur
+	 * 65 pages, 94 s et 250 Mo, et le service n'a aucun point d'entrée par
+	 * référence. Un import qui redemanderait le catalogue à chaque référence
+	 * ferait 3 241 fois cette marche.
+	 *
+	 * `--depuis` change tout le régime : sans lui, la marche est complète et
+	 * autorise l'import à dépublier ce qu'elle n'a pas croisé ; avec lui, le
+	 * service ne rend que ce qui a bougé, et rien ne peut être dépublié parce
+	 * qu'une référence absente d'un delta n'est pas une référence disparue.
+	 *
+	 * REPRENABLE. `--budget` borne le temps de mur (défaut 240 s) et la commande
+	 * reprend d'elle-même page suivante jusqu'au bout : un hébergement mutualisé
+	 * coupe à `max_execution_time` sans prévenir, et une marche coupée au milieu
+	 * doit pouvoir repartir sans tout refaire.
+	 */
+	public static function supply_sync( array $args, array $assoc_args ): void {
+		$why = Supply::unconfigured();
+		if ( '' !== $why ) {
+			\WP_CLI::error( $why );
+		}
+
+		$since  = (string) ( $assoc_args['depuis'] ?? '' );
+		$budget = max( 10, (int) ( $assoc_args['budget'] ?? 240 ) );
+		$quiet  = isset( $assoc_args['discret'] );
+
+		if ( '' !== $since && 1 !== preg_match( '/^\d{2}-\d{2}-\d{4}$/', $since ) ) {
+			// Le service impose ce format par un motif dans son propre schéma.
+			// Une date ISO passe le typage et ne filtre RIEN, ce qui rend une
+			// synchronisation incrémentale silencieusement complète : long, et
+			// qui ressemble à un succès.
+			\WP_CLI::error( 'La date « ' . $since . ' » n’est pas au format jj-mm-aaaa, qui est celui que le service impose.' );
+		}
+
+		$page    = 1;
+		$started = microtime( true );
+		$pages   = 0;
+		$written = 0;
+
+		while ( true ) {
+			$run = Supply::sync(
+				array(
+					'since'  => $since,
+					'page'   => $page,
+					'budget' => $budget,
+				)
+			);
+			$pages   += (int) $run['pages'];
+			$written += (int) $run['products'];
+
+			if ( ! $run['ok'] ) {
+				\WP_CLI::error( sprintf( 'Arrêt à la page %d après %d produits : %s', $page, $written, (string) $run['error'] ) );
+			}
+			if ( null === $run['next'] ) {
+				break;
+			}
+			$page = (int) $run['next'];
+			if ( ! $quiet ) {
+				\WP_CLI::log( sprintf( '  page %d sur %d, %d produits déposés (%.0f s)', $page, (int) $run['total'], $written, microtime( true ) - $started ) );
+			}
+		}
+
+		/*
+		 * LE DRAPEAU « COMPLET » EST CE QUI AUTORISE UNE DÉPUBLICATION.
+		 *
+		 * Il n'est posé que par une marche ENTIÈRE et non filtrée. Une marche
+		 * incrémentale, même terminée, ne prouve pas qu'une référence a disparu :
+		 * elle prouve qu'elle n'a pas bougé.
+		 */
+		if ( '' === $since ) {
+			update_option( 'teeshoop_supply_complete', true, false );
+			update_option( 'teeshoop_supply_synced_at', gmdate( 'c' ), false );
+		}
+
+		global $wpdb;
+		$table = Supply::table();
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows  = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM `' . $table . '`' );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$bytes = (int) $wpdb->get_var( 'SELECT SUM(LENGTH(payload)) FROM `' . $table . '`' );
+
+		\WP_CLI::success(
+			sprintf(
+				'%d pages, %d produits déposés en %.0f s. Le dépôt porte %d références et pèse %s.',
+				$pages,
+				$written,
+				microtime( true ) - $started,
+				$rows,
+				size_format( $bytes )
+			)
+		);
+		if ( '' !== $since ) {
+			\WP_CLI::log( 'Marche incrémentale : aucune référence ne sera dépubliée par l’import qui suivra.' );
+		}
+	}
+
+	/**
+	 * Rafraîchit les prix et disponibilités des articles les plus anciens.
+	 *
+	 *   wp teeshoop dispo balayer
+	 *   wp teeshoop dispo balayer --budget=60 --age=180
+	 *
+	 * À LANCER PAR CRON, toutes les heures. Le service coûte 0,43 s de socle plus
+	 * 0,068 s par code, mesuré, donc balayer les 46 000 articles importés d'un
+	 * coup prendrait cinquante minutes. La commande dépense un budget de temps et
+	 * s'arrête, en commençant par ce qu'elle sait le moins récemment ; la fois
+	 * suivante reprend là où l'ancienneté la mène.
+	 */
+	public static function dispo_sweep( array $args, array $assoc_args ): void {
+		$why = SupplyHttp::unconfigured();
+		if ( '' !== $why ) {
+			\WP_CLI::error( $why );
+		}
+		$budget = max( 5, (int) ( $assoc_args['budget'] ?? 20 ) );
+		$age    = max( 1, (int) ( $assoc_args['age'] ?? 360 ) );
+
+		$run = Disponibilite::sweep( $budget, $age );
+
+		/*
+		 * LES CLÉS SONT LUES SUR LE RETOUR RÉEL, ET C'EST UNE CORRECTION.
+		 *
+		 * Cette commande lisait `seconds` et `errors`, qui n'existent pas :
+		 * `sweep()` rend `elapsed` et `error`. Lancée en vrai le 9 septembre
+		 * 2026, elle a donc annoncé « 281 articles interrogés en 0.0 s » et
+		 * SUCCESS, sur un balayage qui aurait pu échouer sans que rien ne le
+		 * dise. Une commande qui imprime un succès qu'elle n'a pas vérifié est
+		 * pire qu'une commande qui n'imprime rien.
+		 */
+		$line = sprintf(
+			'%d articles interrogés en %d lots, %d écrits, %d déclarés inconnus, en %.1f s. Arrêt : %s.',
+			(int) ( $run['asked'] ?? 0 ),
+			(int) ( $run['batches'] ?? 0 ),
+			(int) ( $run['written'] ?? 0 ),
+			(int) ( $run['missing'] ?? 0 ),
+			(float) ( $run['elapsed'] ?? 0 ),
+			(string) ( $run['stopped'] ?? 'file vide' )
+		);
+
+		if ( empty( $run['ok'] ) ) {
+			\WP_CLI::error( $line . ' ' . (string) ( $run['error'] ?? '' ) );
+		}
+		\WP_CLI::success( $line );
+	}
+
+	/**
+	 * Ce que la boutique sait des prix et des disponibilités, et depuis quand.
+	 *
+	 * L'ÂGE EST LA COLONNE QUI COMPTE. Un stock affiché n'est pas faux parce
+	 * qu'il est vieux, il est invérifiable, et les deux se disent différemment à
+	 * un client. Cette commande existe pour qu'un exploitant voie l'ancienneté
+	 * avant qu'un acheteur la subisse.
+	 */
+	public static function dispo_state(): void {
+		global $wpdb;
+		$table = Disponibilite::table();
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$row = $wpdb->get_row(
+			'SELECT COUNT(*) AS n,
+			        SUM(miss) AS absents,
+			        SUM(cents IS NULL) AS sans_prix,
+			        SUM(stock IS NULL) AS sans_stock,
+			        MIN(checked_at) AS plus_vieux,
+			        MAX(checked_at) AS plus_recent
+			   FROM `' . $table . '`'
+		);
+
+		if ( ! $row || 0 === (int) $row->n ) {
+			\WP_CLI::warning( 'Aucun article n’a encore été interrogé. Lancez « wp teeshoop dispo balayer ».' );
+			return;
+		}
+
+		\WP_CLI::log( sprintf( 'Articles connus            : %d', (int) $row->n ) );
+		\WP_CLI::log( sprintf( 'Déclarés inconnus          : %d', (int) $row->absents ) );
+		\WP_CLI::log( sprintf( 'Sans prix utilisable       : %d', (int) $row->sans_prix ) );
+		\WP_CLI::log( sprintf( 'Sans quantité lisible      : %d', (int) $row->sans_stock ) );
+		\WP_CLI::log( sprintf( 'Observation la plus vieille : %s', (string) $row->plus_vieux ) );
+		\WP_CLI::log( sprintf( 'Observation la plus récente : %s', (string) $row->plus_recent ) );
+
+		$vieux = strtotime( (string) $row->plus_vieux . ' UTC' );
+		if ( false !== $vieux && ( time() - $vieux ) > Disponibilite::TRUST_MINUTES * 60 ) {
+			\WP_CLI::warning(
+				sprintf(
+					'La plus vieille observation dépasse %d minutes : au-delà, un article dont le service ne répond pas est refusé à la vente.',
+					Disponibilite::TRUST_MINUTES
+				)
+			);
+		}
+	}
+
 	public static function stock_refresh( array $args, array $assoc_args ): void {
 		$quiet     = isset( $assoc_args['discret'] );
 		$max_pages = max( 0, (int) ( $assoc_args['pages'] ?? 0 ) );
@@ -332,6 +535,9 @@ final class Cli {
 	 * [--recommencer]
 	 * : Throw away an unfinished run and re-list the catalogue.
 	 *
+	 * [--ref=<reference>]
+	 * : Reimport this one reference and nothing else. Never delists anything.
+	 *
 	 * [--discret]
 	 * : Only the summary, not one line per reference. What a cron wants.
 	 *
@@ -358,7 +564,39 @@ final class Cli {
 		$famille = (string) ( $assoc_args['famille'] ?? 'printable' );
 		$max     = (int) ( $assoc_args['max'] ?? 0 );
 
-		$plan = Importer::plan( $famille, ! empty( $assoc_args['recommencer'] ), $max );
+		/*
+		 * `--ref` REIMPORTE UNE SEULE RÉFÉRENCE, ET C'EST UN OUTIL D'ATELIER.
+		 *
+		 * Sans lui, corriger une fiche qui a mal importé demande de relancer la
+		 * marche entière ou de compter sur `--max` pour tomber sur la bonne
+		 * référence par ordre alphabétique. Les deux sont faux : le premier
+		 * coûte des heures, le second ne marche que sur la première lettre.
+		 *
+		 * IL FORCE `recommencer` ET INTERDIT LA DÉPUBLICATION. Une passe qui ne
+		 * regarde qu'une référence n'a rien vu du catalogue, donc elle n'a pas
+		 * le droit de conclure qu'une autre a disparu. C'est la même règle que
+		 * `complete` porte pour la marche, appliquée au cas d'une seule.
+		 */
+		$une = trim( (string) ( $assoc_args['ref'] ?? '' ) );
+		if ( '' !== $une ) {
+			if ( null === Supply::raw( $une ) ) {
+				\WP_CLI::error( 'La référence « ' . $une . ' » n’est pas dans le dépôt. Lancez « wp teeshoop catalogue synchroniser » d’abord.' );
+			}
+			Importer::save_run(
+				array(
+					'kind'     => $famille,
+					'refs'     => array( $une ),
+					'at'       => 0,
+					'complete' => false,
+					'started'  => gmdate( 'c' ),
+					'finished' => '',
+					'stats'    => Importer::empty_stats(),
+					'problems' => array(),
+				)
+			);
+		}
+
+		$plan = Importer::plan( $famille, '' === $une && ! empty( $assoc_args['recommencer'] ), $max );
 		if ( empty( $plan['ok'] ) ) {
 			\WP_CLI::error( (string) ( $plan['error'] ?? 'La planification a échoué.' ) );
 		}

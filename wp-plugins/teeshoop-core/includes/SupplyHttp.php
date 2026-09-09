@@ -540,7 +540,18 @@ final class SupplyHttp {
 		if ( '' === $url ) {
 			return '';
 		}
-		$parts = wp_parse_url( $url );
+		/*
+		 * `parse_url` ET NON `wp_parse_url`, parce que cette méthode est PURE.
+		 *
+		 * `Supply::to_entry()` l'appelle sur chaque photographie, et
+		 * `tests/run.php` exécute cette cartographie SANS WordPress : c'est la
+		 * règle de ce greffon, et c'est ce qui fait que la cartographie est
+		 * testée contre de vraies charges utiles. `wp_parse_url` n'y existe pas.
+		 * Il n'apporte ici qu'une compatibilité PHP 5.4 avec les URL sans
+		 * schéma, et une URL sans schéma est justement refusée deux lignes plus
+		 * bas.
+		 */
+		$parts = parse_url( $url );
 		if ( ! is_array( $parts ) || ! isset( $parts['scheme'], $parts['host'], $parts['path'] ) ) {
 			return '';
 		}

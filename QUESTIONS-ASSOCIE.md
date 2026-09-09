@@ -3644,6 +3644,88 @@ nous le ferons.
 
 ---
 
+### Q68. Un coloris ou une taille qui nous coûte plus cher doit-il coûter plus cher au client ? (*Important*)
+
+Le nouveau fournisseur nous facture **des prix différents à l'intérieur d'une
+même référence**. Mesuré chez lui le 9 septembre 2026, en direct :
+
+| Référence | Ce qui fait varier le prix | De | À | Écart |
+|---|---|---|---|---|
+| BC01B (t-shirt B&C) | la taille seule, à partir du 3XL | 3,45 EUR | 4,30 EUR | +25 % |
+| BC042 | le **coloris** seul, la taille ne joue pas | 4,10 EUR | 4,55 EUR | +11 % |
+| BE3480 | les deux ; les chinés « triblend » coûtent le plus cher | 4,90 EUR | 6,95 EUR | **+42 %** |
+
+Aujourd'hui la boutique publie **un seul prix par famille** (un pour tous les
+t-shirts). Elle ne vend jamais à perte : le prix plancher de chaque référence est
+calculé sur son article le PLUS cher, coloris compris, et les références qui ne
+tiennent pas à ce tarif sont simplement retirées de la vente. Mais cela veut dire
+qu'un client qui commande le coloris le moins cher paie le prix du plus cher.
+
+*La question, et il y a trois réponses possibles :*
+
+1. **On ne change rien.** Un prix, simple à lire, et on absorbe l'écart. C'est ce
+   qui tourne aujourd'hui, et c'est l'hypothèse par défaut.
+2. **Un supplément par taille**, affiché : « +1,00 EUR à partir du 3XL ». C'est ce
+   que font la plupart de nos concurrents, et un acheteur le trouve normal.
+3. **Un supplément par taille ET par coloris.** Le plus juste pour nous, le moins
+   lisible pour le client : deux colonnes de prix sur la même grille.
+
+Le moteur de prix sait déjà faire les trois ; il attend votre réponse pour
+brancher la deuxième ou la troisième. Rien à refaire, une ligne à écrire.
+
+*Votre réponse :*
+
+---
+
+### Q69. Au bout de combien de temps une quantité affichée cesse-t-elle d'être une promesse ? (*Important*)
+
+Le fournisseur ne nous laisse pas « réserver » un vêtement : il nous dit combien
+il en a **à l'instant où on lui demande**. Nous achetons après la commande du
+client, plusieurs jours plus tard. Une quantité lue à la vente est donc une
+prévision, pas une réservation, même quand elle est parfaitement fraîche.
+
+Nous demandons au fournisseur, en direct, **à chaque ajout au panier et à chaque
+passage en caisse**. Trois réponses possibles :
+
+- il répond « il en reste assez » : on vend ;
+- il répond « cet article n'existe plus » ou « il n'en reste pas assez » : on
+  refuse, en disant combien il en reste ;
+- **il ne répond pas** (panne chez lui, coupure réseau) : c'est le cas qui vous
+  concerne.
+
+Notre hypothèse actuelle : si sa dernière réponse connue a **moins de six heures**,
+on s'en sert et on vend. Au-delà, on refuse. Six heures parce que c'est le rythme
+auquel nous rafraîchissons le catalogue.
+
+*La question :* six heures vous paraissent-elles tenables ? Autrement dit,
+préférez-vous prendre une commande de plus au risque d'annoncer un jour de retard
+au client, ou refuser la vente dès qu'on n'est pas certain ? Le nombre est un
+réglage, pas une reconstruction.
+
+*Votre réponse :*
+
+---
+
+### Q70. Faut-il dire au client de quelle marque est le vêtement ? (*Utile*)
+
+Rien ne nous oblige à nommer notre **grossiste** : il n'est pas le fabricant, et
+aucune règle française n'impose de citer un intermédiaire. Nous ne le nommons
+donc nulle part, et un garde automatique refuse tout code qui écrirait son nom
+dans une page.
+
+En revanche le **fabricant** du textile (B&C, Gildan, Stanley/Stella, Beechfield)
+est une information réelle sur ce que le client reçoit, et c'est ce qu'un
+acheteur professionnel cherche : il connaît les références et sait ce qu'elles
+valent. Aujourd'hui la fiche produit affiche la marque et le nom de modèle du
+fabricant.
+
+*La question :* voulez-vous garder la marque du fabricant visible (notre
+hypothèse), ou vendre en marque blanche, sans jamais la citer ? La deuxième
+option se défend si vous craignez qu'un client compare directement avec un autre
+revendeur du même vêtement.
+
+*Votre réponse :*
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

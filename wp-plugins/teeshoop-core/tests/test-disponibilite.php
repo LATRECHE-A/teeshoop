@@ -515,6 +515,114 @@ describe( 'Disponibilite : le verdict, qui est le moment de vérité', function 
 			eq( $v['lines']['BC01BSML']['qty'], 1 );
 		}
 	);
+
+	it(
+		'TOTALISE deux lignes du même article au lieu de les vérifier séparément',
+		function () use ( $row ): void {
+			/*
+			 * LA SURVENTE QU'UNE RELECTURE ADVERSE A TROUVÉE. Les recherches
+			 * ignorent la casse parce que la clé primaire de la table l'ignore,
+			 * donc « BC01BSML » et « bc01bsml » sont le MÊME article. Vérifiées
+			 * séparément, deux demandes de 5 passaient toutes les deux devant un
+			 * stock de 7, et le client repartait avec 10 exemplaires dont il en
+			 * restait 7. Cette boutique vend du personnalisé : deux lignes du
+			 * même textile avec deux visuels est le cas normal.
+			 */
+			$v = Disponibilite::verdict(
+				array( 'BC01BSML' => 5, 'bc01bsml' => 5 ),
+				array( 'BC01BSML' => $row( 345, 7 ) ),
+				array(),
+				array()
+			);
+			truthy( ! $v['ok'], '10 exemplaires demandés sur 7 en stock doivent être refusés' );
+			eq( $v['reason'], 'short_stock' );
+			eq( $v['lines']['BC01BSML']['qty'], 10, 'la quantité jugée est le total de l’article' );
+			eq( $v['lines']['bc01bsml']['qty'], 10 );
+			truthy( str_contains( $v['message'], 'vous en demandez 10' ), $v['message'] );
+		}
+	);
+
+	it(
+		'laisse passer deux lignes du même article quand le total tient',
+		function () use ( $row ): void {
+			$v = Disponibilite::verdict(
+				array( 'BC01BSML' => 5, 'bc01bsml' => 2 ),
+				array( 'BC01BSML' => $row( 345, 7 ) ),
+				array(),
+				array()
+			);
+			truthy( $v['ok'], 'sept exemplaires pour sept en stock, cela tient exactement' );
+		}
+	);
+
+	it(
+		'ne fait pas disparaître une ligne de panier dont la clé est illisible',
+		function () use ( $row ): void {
+			// Elle passait par `continue`, donc elle n'était ni vérifiée ni
+			// visible : une ligne vendue sans avoir été regardée.
+			$v = Disponibilite::verdict(
+				array( '' => 3, 'BC01BSML' => 1 ),
+				array( 'BC01BSML' => $row( 345, 42 ) ),
+				array(),
+				array()
+			);
+			truthy( ! $v['ok'], 'une ligne qu’on n’a pas pu vérifier doit refuser le panier' );
+			eq( count( $v['lines'] ), 2, 'les deux lignes doivent être rendues' );
+			eq( $v['lines']['']['why'], 'no_answer' );
+		}
+	);
+
+	it(
+		'ne dit jamais « tout va bien » sur zéro ligne vérifiée',
+		function (): void {
+			$v = Disponibilite::verdict( array(), array(), array(), array() );
+			truthy( ! $v['ok'], '« rien trouvé » et « rien regardé » ne sont pas le même résultat' );
+			eq( $v['reason'], 'empty' );
+		}
+	);
+
+	it(
+		'n’annonce pas une rupture à partir d’un stock qu’on n’a pas su lire',
+		function (): void {
+			// `line_message` est publique. Un appelant qui lui passe un motif de
+			// stock court sans stock lisible ne doit pas recevoir « n'est plus
+			// en stock » : une rupture est un fait, elle s'annonce mesurée.
+			$sans = Disponibilite::line_message( 'BC01BSML', 'short_stock', 4, array( 'cents' => 345 ) );
+			truthy( ! str_contains( $sans, 'plus en stock' ), $sans );
+
+			$avec = Disponibilite::line_message( 'BC01BSML', 'short_stock', 4, array( 'cents' => 345, 'stock' => 0 ) );
+			truthy( str_contains( $avec, 'plus en stock' ), 'un vrai zéro, lui, s’annonce : ' . $avec );
+		}
+	);
+} );
+
+describe( 'Disponibilite : le balayeur ne doit affamer aucune des deux files', function (): void {
+
+	it(
+		'partage sa place entre les jamais vus et les périmés',
+		function (): void {
+			/*
+			 * « LES JAMAIS VUS D'ABORD » AFFAMAIT L'AUTRE FILE. 26 392
+			 * déclinaisons importées sans ligne, 281 par passage : 94 passages,
+			 * soit quatre jours de tâche horaire pendant lesquels aucune ligne
+			 * existante n'aurait été rafraîchie.
+			 */
+			$split = Disponibilite::queue_split( 281 );
+			eq( $split['unseen'] + $split['stale'], 281, 'la place ne doit pas se perdre en route' );
+			truthy( $split['unseen'] > 0, 'l’amorçage doit avancer' );
+			truthy( $split['stale'] > 0, 'le rafraîchissement aussi' );
+			eq( $split, array( 'unseen' => 140, 'stale' => 141 ) );
+		}
+	);
+
+	it(
+		'donne encore une place à chaque file sur un budget minuscule',
+		function (): void {
+			eq( Disponibilite::queue_split( 1 ), array( 'unseen' => 1, 'stale' => 0 ) );
+			eq( Disponibilite::queue_split( 2 ), array( 'unseen' => 1, 'stale' => 1 ) );
+			eq( Disponibilite::queue_split( 0 ), array( 'unseen' => 0, 'stale' => 0 ) );
+		}
+	);
 } );
 
 describe( 'Disponibilite : les codes, les lots et le budget', function (): void {
@@ -647,7 +755,10 @@ describe( 'Disponibilite : le vocabulaire des refus', function (): void {
 				truthy( '' !== $message, "le motif {$why} n’a pas de phrase" );
 				truthy( ! in_array( $message, $seen, true ), "le motif {$why} redit la phrase d’un autre motif" );
 				truthy( ! str_contains( $message, '!' ), "le motif {$why} porte un point d’exclamation" );
-				truthy( ! str_contains( $message, '—' ), "le motif {$why} porte un tiret cadratin" );
+				// Le tiret cadratin par son point de code, et pas en toutes
+				// lettres : la règle de la maison est qu'il n'y en a AUCUN dans
+				// le dépôt, y compris dans le test qui le cherche.
+				truthy( ! str_contains( $message, "\u{2014}" ), "le motif {$why} porte un tiret cadratin" );
 				$seen[] = $message;
 			}
 		}
