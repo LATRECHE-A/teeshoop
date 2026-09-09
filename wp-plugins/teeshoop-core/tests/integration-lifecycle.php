@@ -1243,6 +1243,13 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 	ts_it( 'renders an archive copy that names the version and its numbers', function () use ( $product_id ) {
 		$order  = ts_lc_order( $product_id );
 		$issued = Bat::issue( $order );
+		/*
+		 * LE MOTIF AVANT LE TYPAGE. Sans cette ligne, un BAT refusé faisait
+		 * mourir le cas sur « Bat::pdf(): Argument #1 must be of type array,
+		 * null given », qui dit où ça casse et jamais pourquoi. Le refus, lui,
+		 * porte une phrase.
+		 */
+		ts_assert( ! empty( $issued['ok'] ), 'BAT refusé : ' . ( $issued['reason'] ?? '?' ) );
 		// Without images: the mockups live on the Worker and this suite has no
 		// Worker. The image path has its own cases in tests/test-pdf.php.
 		$pdf = Bat::pdf( $issued['version'], false );

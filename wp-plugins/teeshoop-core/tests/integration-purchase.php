@@ -11,19 +11,28 @@
  *
  * ── THE CATALOGUE HERE IS REAL, AND IMPORTED BY THE SHIPPED IMPORTER ────────
  *
- * The fixture below is a trimmed copy of the live payload for reference 18001
- * (Fruit of the Loom Heavy Cotton T), with the purchase prices the supplier
- * actually published on 2026-08-19: 3,37 EUR for the small sizes and 4,46 EUR
- * for the 2XL. It goes in through `Importer::one()`, so the variations these
- * cases buy from are written by the same code that writes the shop's 26 399
- * articles, with the same article numbers, the same costs and the same stock.
+ * The fixture below is a RAW supplier product for reference 18001 (Fruit of the
+ * Loom Heavy Cotton T), in the shape `tests/fixtures/supply-products.json` was
+ * captured in, with the purchase prices the supplier actually published on
+ * 2026-08-19: 3,37 EUR for the small sizes and 4,46 EUR for the 2XL. It is
+ * deposited in `Supply::table()` the way `Supply::sync()` deposits one, and it
+ * goes in through `Importer::one()`, so the variations these cases buy from are
+ * written by the same code that writes the shop's 26 399 articles, with the
+ * same article numbers, the same costs and the same stock.
+ *
+ * Until 9 September 2026 the fixture was the OUTPUT of `Supply::to_entry()`,
+ * injected over HTTP. The mapping that turns a supplier payload into an article
+ * number and a purchase price was therefore never exercised by this file, which
+ * is the one file that buys things.
  *
  * ── AND THE SIZE GRID IS THE POINT ──────────────────────────────────────────
  *
- * A customer's line is « 12 M et 8 L », one product, one design. The supplier
- * sells one article per size. So a basket is where a size grid becomes article
- * numbers, and it is the only place in this system where getting a size wrong
- * is silent until a box arrives.
+ * A customer's line is « 12 M et 8 L », one product, one design, and since
+ * 9 September 2026 it can also be « 12 M blancs et 8 M noirs » on ONE line: the
+ * line carries a matrix, colour to size to quantity. The supplier sells one
+ * article per colour and size. So a basket is where that matrix becomes article
+ * numbers, and it is the only place in this system where getting a colour or a
+ * size wrong is silent until a box arrives.
  *
  * NO `declare(strict_types=1)`: required from integration.php, which is eval'd.
  *
@@ -546,6 +555,81 @@ function ts_ac_order( int $product_id, array $grid, string $colour, string $desi
 	return wc_get_order( $order->get_id() );
 }
 
+/**
+ * Une commande payée dont la ligne porte une MATRICE coloris vers taille.
+ *
+ * ── POURQUOI CE SECOND CONSTRUCTEUR EXISTE ──────────────────────────────────
+ *
+ * `ts_ac_order()` construit une ligne à un coloris, qui est ce que la boutique
+ * a vendu jusqu'au 9 septembre 2026 et ce que les lignes déjà en base portent.
+ * La matrice est un autre chemin dans `Cart::add()` : le nuancier du produit
+ * décide quels coloris sont acceptés, `size_grid` devient la SOMME par taille,
+ * et `_teeshoop_blank_colours` gèle un terme fournisseur par coloris. Faire
+ * passer les deux par une seule fonction à rallonge cacherait exactement ce qui
+ * diffère.
+ *
+ * Le nuancier est posé ici parce que sans lui `Cart::normalise_matrix()` ne
+ * garde que le coloris de la création : un identifiant que le produit n'offre
+ * pas est ignoré plutôt que corrigé, et c'est la bonne règle.
+ */
+function ts_ac_order_matrix( int $product_id, array $matrix, string $design ): \WC_Order {
+	$sides                   = array( array( 'id' => 'front', 'area_sq_cm' => 400.0, 'pieces' => array( array( 'w_cm' => 20.0, 'h_cm' => 20.0 ) ) ) );
+	$GLOBALS['ts_ac_sides']  = $sides;
+	$GLOBALS['ts_ac_colour'] = (string) array_key_first( $matrix );
+	ts_ac_stub();
+
+	$was_palette = get_post_meta( $product_id, Product::META_BLANK_PALETTE, true );
+	update_post_meta(
+		$product_id,
+		Product::META_BLANK_PALETTE,
+		wp_json_encode(
+			array(
+				array( 'id' => 'white', 'name' => 'Blanc', 'stops' => array( '#ffffff' ) ),
+				array( 'id' => 'black', 'name' => 'Noir', 'stops' => array( '#101010' ) ),
+			)
+		)
+	);
+
+	try {
+		WC()->cart->empty_cart();
+		$key = Cart::add(
+			array(
+				'product_id' => $product_id,
+				'qty'        => 1,
+				'sides'      => $sides,
+				'design_id'  => $design,
+				'matrix'     => $matrix,
+			)
+		);
+		if ( is_wp_error( $key ) ) {
+			throw new \RuntimeException( 'panier refusé : ' . $key->get_error_message() );
+		}
+		WC()->cart->calculate_totals();
+
+		$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		$order->set_billing_email( 'atelier@example.test' );
+		$order->set_billing_company( 'Client ' . $design );
+		$order->save();
+		$order->payment_complete( 'ts-ac-' . $order->get_id() );
+		$order = wc_get_order( $order->get_id() );
+
+		$issued = Bat::issue( $order );
+		if ( empty( $issued['ok'] ) ) {
+			throw new \RuntimeException( 'BAT refusé : ' . ( $issued['reason'] ?? '?' ) );
+		}
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+	} finally {
+		if ( '' === (string) $was_palette ) {
+			delete_post_meta( $product_id, Product::META_BLANK_PALETTE );
+		} else {
+			update_post_meta( $product_id, Product::META_BLANK_PALETTE, $was_palette );
+		}
+	}
+
+	$GLOBALS['ts_ac_made'][] = $order->get_id();
+	return wc_get_order( $order->get_id() );
+}
+
 /** Every article of the imported reference, by supplier article number. */
 function ts_ac_variation( string $sku ): ?\WC_Product {
 	$found = get_posts(
@@ -841,6 +925,92 @@ function ts_purchase_suite( int $product_id ): void {
 		ts_eq( $back->get_stock_quantity(), $was_qty, 'la variation partagée n’a pas été remise comme elle était' );
 	} );
 
+	// ── une création, deux coloris, une seule ligne ──────────────────────────
+
+	ts_it( 'buys both colours of one line, in the quantities each was sold in', function () use ( $product_id ) {
+		/*
+		 * ── LE CŒUR DU CHANGEMENT DU 9 SEPTEMBRE 2026, ET RIEN NE LE TESTAIT ─
+		 *
+		 * Une ligne portait un coloris. Depuis, elle porte une matrice, parce
+		 * qu'un acheteur qui veut douze blancs et huit noirs de la MÊME création
+		 * ne doit pas payer plus cher pour avoir choisi deux couleurs : la
+		 * remise de quantité s'applique par ligne, et trois coloris en trois
+		 * lignes ont été mesurés à 102,00 EUR de plus sur trente pièces.
+		 *
+		 * Ce que l'atelier doit acheter derrière est le point aveugle : le
+		 * numéro d'article dépend du COLORIS autant que de la taille, et
+		 * `_teeshoop_size_grid` seul dit « dix-sept M » sans dire lesquels sont
+		 * noirs. Se tromper ici ne se voit pas avant l'ouverture du carton.
+		 *
+		 * Les trois articles attendus, lus dans le gabarit brut :
+		 *   180010004  blanc M  12
+		 *   180011014  noir  M   5
+		 *   180011015  noir  L   3
+		 */
+		$order = ts_ac_order_matrix(
+			$product_id,
+			array(
+				'white' => array( 'M' => 12 ),
+				'black' => array( 'M' => 5, 'L' => 3 ),
+			),
+			'rrrrrrrrrrrrrrrr1818'
+		);
+
+		// La ligne porte bien les deux dimensions, et la grille en est la somme.
+		$item = null;
+		foreach ( $order->get_items() as $one ) {
+			$item = $one;
+			break;
+		}
+		ts_assert( $item instanceof \WC_Order_Item_Product, 'la commande ne porte aucune ligne' );
+		ts_eq(
+			json_decode( (string) $item->get_meta( '_teeshoop_matrix', true ), true ),
+			array( 'white' => array( 'M' => 12 ), 'black' => array( 'M' => 5, 'L' => 3 ) ),
+			'la matrice gelée sur la ligne'
+		);
+		ts_eq(
+			json_decode( (string) $item->get_meta( '_teeshoop_size_grid', true ), true ),
+			array( 'M' => 17, 'L' => 3 ),
+			'la grille agrégée, que tout ce qui presse continue de lire'
+		);
+
+		$basket = Purchase::basket( array( $order->get_id() ) );
+		ts_assert( $basket['complete'], 'le panier de deux coloris est incomplet : ' . wp_json_encode( $basket['unresolved'] ) );
+
+		$by = array();
+		foreach ( $basket['rows'] as $row ) {
+			$by[ (string) $row['sku'] ] = (int) $row['qty'];
+		}
+		ts_eq( $by['180010004'] ?? 0, 12, 'les M blancs achetés' );
+		ts_eq( $by['180011014'] ?? 0, 5, 'les M noirs achetés' );
+		ts_eq( $by['180011015'] ?? 0, 3, 'les L noirs achetés' );
+		ts_eq( count( $by ), 3, 'trois articles et pas un de plus : ' . wp_json_encode( array_keys( $by ) ) );
+		ts_eq( (int) $basket['garments'], 20, 'vingt vêtements au panier' );
+
+		// 20 x 3,37 EUR : les trois articles sont sur des petites tailles.
+		ts_eq( (int) $basket['blanks_ht'], 6740, 'attendu 67,40 EUR de textile' );
+
+		/*
+		 * ET LES DEUX COLORIS PARTENT VRAIMENT CHEZ LE FOURNISSEUR. Le panier
+		 * juste ne suffit pas : c'est le document transmis qui commande les
+		 * cartons, et c'est lui qu'un opérateur ne relit pas.
+		 */
+		$prepared = Purchase::prepare( array( $order->get_id() ) );
+		ts_assert( ! empty( $prepared['ok'] ), 'préparation refusée : ' . ( $prepared['reason'] ?? '' ) );
+		$GLOBALS['ts_ac_sent']  = array();
+		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'accepted' );
+		$done                   = Purchase::send( (int) $prepared['id'], 'test' );
+		ts_assert( ! empty( $done['ok'] ), 'envoi refusé : ' . ( $done['reason'] ?? '' ) );
+
+		$sent = array();
+		foreach ( (array) ( $GLOBALS['ts_ac_sent'][0]['order_lines'] ?? array() ) as $line ) {
+			$sent[ (string) $line['reference'] ] = (int) $line['quantity'];
+		}
+		ts_eq( $sent, array( '180010004' => 12, '180011014' => 5, '180011015' => 3 ), 'les lignes transmises au fournisseur' );
+
+		Purchase::receive( (int) $prepared['id'] );
+	} );
+
 	// ── what a basket must refuse ────────────────────────────────────────────
 
 	ts_it( 'refuses a colour nobody has mapped, instead of buying the nearest one', function () use ( $product_id ) {
@@ -885,8 +1055,36 @@ function ts_purchase_suite( int $product_id ): void {
 	} );
 
 	ts_it( 'says how short the supplier is, rather than ordering anyway', function () use ( $product_id ) {
-		// The fixture leaves eight 2XL white on the shelf; this asks for twenty.
-		$order  = ts_ac_order( $product_id, array( '2XL' => 20 ), 'white', 'eeeeeeeeeeeeeeee5555' );
+		/*
+		 * ── VENDU QUAND IL EN AVAIT, ACHETÉ QUAND IL N'EN A PLUS ────────────
+		 *
+		 * Ce cas commandait vingt 2XL contre huit en rayon et laissait
+		 * `Cart::add` passer, parce que le panier ne demandait rien au
+		 * fournisseur. Depuis le 9 septembre 2026 il le demande, et il refuse :
+		 * « Il reste 8 exemplaires, ramenez la quantité à 8 ». Une caisse qui
+		 * refuse de vendre ce qui n'existe pas est le comportement voulu, donc
+		 * l'ancienne mise en scène ne peut plus arriver.
+		 *
+		 * Celle-ci arrive tous les jours : le client a acheté quand le stock
+		 * était plein, et le fournisseur s'est vidé entre la vente et l'achat du
+		 * nu, qui a lieu APRÈS. C'est exactement le moment où l'atelier doit
+		 * l'apprendre, et c'est ce que ce cas mesure maintenant.
+		 *
+		 * Les deux états passent par le chemin livré : le stock du service est
+		 * remplacé, puis `Importer::one()` le réécrit sur l'article, comme un
+		 * rafraîchissement quotidien le ferait. Rien n'est poussé à la main dans
+		 * une méta, sinon le test prouverait ce qu'il a écrit lui-même.
+		 */
+		$plein = ts_ac_live_default();
+		$plein['180010007']['stock'] = '500';
+		$GLOBALS['ts_ac_live']       = $plein;
+
+		$order = ts_ac_order( $product_id, array( '2XL' => 20 ), 'white', 'eeeeeeeeeeeeeeee5555' );
+
+		unset( $GLOBALS['ts_ac_live'] );
+		Importer::one( '18001' );
+		ts_eq( (int) ts_ac_variation( '180010007' )->get_stock_quantity(), 8, 'le stock du fournisseur après réassort manqué' );
+
 		$basket = Purchase::basket( array( $order->get_id() ) );
 		ts_assert( 1 === count( $basket['stock']['short'] ), 'la rupture n’est pas signalée' );
 		ts_assert( 8 === (int) $basket['stock']['short'][0]['have'], 'le stock annoncé n’est pas celui du fournisseur' );
@@ -1174,7 +1372,12 @@ function ts_purchase_suite( int $product_id ): void {
 		$prepared = Purchase::prepare( array( $order->get_id() ) );
 		ts_assert( ! empty( $prepared['ok'] ), 'préparation refusée : ' . ( $prepared['reason'] ?? '' ) );
 
-		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'rejected', 'message' => 'Artno not found', 'lines' => array( array( 'sku' => '180010004', 'message' => 'Artno not found' ) ) );
+		// UN REFUS EST UN 422 PORTANT CHAMP VERS PHRASES, la seule forme de refus
+		// que ce service publie. Voir le gabarit, route `create-order`.
+		$GLOBALS['ts_ac_order'] = array(
+			'outcome' => 'rejected',
+			'errors'  => array( 'order_lines.0.reference' => array( 'La référence 180010004 est introuvable.' ) ),
+		);
 		$done                   = Purchase::send( (int) $prepared['id'], 'test' );
 		ts_assert( empty( $done['ok'] ), 'un refus a été rapporté comme un succès' );
 		ts_assert( Purchase::REFUSED === $done['state'], 'un refus a été classé ' . $done['state'] );
@@ -1242,39 +1445,62 @@ function ts_purchase_suite( int $product_id ): void {
 		wp_delete_post( $clone->get_id(), true );
 	} );
 
-	ts_it( 'never reports an order the supplier accepted with refused lines as fully ordered', function () use ( $product_id ) {
+	ts_it( 'never invents a partial acceptance the new service has never shown', function () use ( $product_id ) {
+		/*
+		 * ── LE SEUL CAS DE CE FICHIER QUI A CHANGÉ DE SUJET ─────────────────
+		 *
+		 * Il conduisait `Purchase::PARTIAL` avec une réponse de l'ANCIEN
+		 * service : un numéro de commande À CÔTÉ d'une liste de lignes
+		 * refusées. Le nouveau ne publie que deux formes de réponse à
+		 * `create-order`, et les deux ont été mesurées : un 2xx portant
+		 * `order_id`, ou un 422 portant champ vers phrases.
+		 * `Supply::place_order()` n'a donc AUCUN chemin vers `partial`, et
+		 * lui en fabriquer un demanderait de deviner à quoi ressemble une
+		 * commande servie à moitié chez lui.
+		 *
+		 * Ce cas mesure donc ce qui peut l'être sans inventer : l'état existe
+		 * toujours dans la machine (l'écran et le dossier savent l'exprimer),
+		 * et AUCUNE des deux réponses connues ne le produit. Il échouera le
+		 * jour où quelqu'un fera dire « partielle » à une réponse dont ce
+		 * n'est pas ce qu'elle dit.
+		 *
+		 * La question « à quoi ressemble une commande partiellement servie »
+		 * est posée dans `QUESTIONS-ASSOCIE.md`. Le jour où une vraie réponse
+		 * est capturée, ce cas redevient celui qu'il était.
+		 */
+		ts_assert( isset( Purchase::states()[ Purchase::PARTIAL ] ), 'l’état « partielle » a disparu de la machine, donc plus rien ne saurait l’exprimer' );
+
 		$order    = ts_ac_order( $product_id, array( 'M' => 2, 'L' => 2 ), 'white', 'mmmmmmmmmmmmmmmm1414' );
 		$prepared = Purchase::prepare( array( $order->get_id() ) );
 		ts_assert( ! empty( $prepared['ok'] ), 'préparation refusée : ' . ( $prepared['reason'] ?? '' ) );
 
-		// An order id AND a refused line: the run is short by exactly that line.
-		$GLOBALS['ts_ac_order'] = array(
-			'outcome' => 'partial',
-			'orderId' => '4412346',
-			'lines'   => array( array( 'sku' => '180010005', 'errorCode' => '30', 'message' => 'Artno not found' ) ),
-		);
-		$done = Purchase::send( (int) $prepared['id'], 'test' );
-		ts_assert( empty( $done['ok'] ), 'une commande servie à moitié a été rapportée comme un succès' );
-		ts_assert( Purchase::PARTIAL === $done['state'], 'état ' . $done['state'] . ' au lieu de ' . Purchase::PARTIAL );
-		ts_assert( str_contains( (string) $done['reason'], 'incomplète' ), 'le message ne dit pas que la série sera incomplète' );
-
-		// Money moved: the orders stay pinned and the carriage is still shared.
+		// Un 2xx qui nomme une commande : c'est une acceptation, entière.
+		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'accepted', 'orderId' => '4412346' );
+		$done                   = Purchase::send( (int) $prepared['id'], 'test' );
+		ts_assert( ! empty( $done['ok'] ), 'une commande acceptée a été rapportée comme un échec : ' . ( $done['reason'] ?? '' ) );
+		ts_eq( $done['state'], Purchase::SENT, 'une réponse portant un numéro de commande' );
 		ts_assert( null !== Purchase::part_of( wc_get_order( $order->get_id() ) ), 'une commande créée chez le fournisseur a été détachée' );
-		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'accepted' );
+
+		Purchase::receive( (int) $prepared['id'] );
 	} );
 
-	ts_it( 'never unpins orders on an answer that names an order the supplier created', function () use ( $product_id ) {
+	ts_it( 'never unpins orders on an answer that may have created one', function () use ( $product_id ) {
 		/*
-		 * `orders_id 4412347` beside a global error code used to read as
-		 * `rejected`, and a rejected purchase RELEASES its orders so they can be
-		 * bought again. An order the supplier had created would have been created
-		 * a second time, and the boxes arrive twice.
+		 * UNE ACCEPTATION SANS NUMÉRO, qui est ce qu'une réponse tronquée ou un
+		 * changement de schéma produit. Elle ne peut pas être lue comme un
+		 * refus : un refus RELÂCHE les commandes pour qu'on puisse les racheter,
+		 * et une commande que le fournisseur a peut-être créée serait alors
+		 * créée deux fois, donc les cartons arrivent deux fois.
+		 *
+		 * L'ancienne forme (« unknown » à côté d'un numéro de commande) n'existe
+		 * plus : chez ce service, un numéro EST une acceptation. Ce qui reste
+		 * incertain, c'est une réponse acceptée qui ne nomme rien.
 		 */
 		$order    = ts_ac_order( $product_id, array( 'M' => 2 ), 'white', 'nnnnnnnnnnnnnnnn1515' );
 		$prepared = Purchase::prepare( array( $order->get_id() ) );
-		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'unknown', 'orderId' => '4412347', 'message' => 'err 12' );
+		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'unknown', 'message' => 'err 12' );
 		$done = Purchase::send( (int) $prepared['id'], 'test' );
-		ts_assert( Purchase::UNCERTAIN === $done['state'], 'état ' . $done['state'] . ' pour une réponse qui nomme une commande créée' );
+		ts_assert( Purchase::UNCERTAIN === $done['state'], 'état ' . $done['state'] . ' pour une réponse qui ne nomme aucune commande' );
 		ts_assert( null !== Purchase::part_of( wc_get_order( $order->get_id() ) ), 'les commandes ont été libérées alors que le fournisseur en a peut-être créé une' );
 		$GLOBALS['ts_ac_order'] = array( 'outcome' => 'accepted' );
 	} );
@@ -1298,7 +1524,7 @@ function ts_purchase_suite( int $product_id ): void {
 		add_filter(
 			'pre_http_request',
 			function ( $pre, $args, $url ) {
-				if ( str_ends_with( (string) $url, '/order' ) ) {
+				if ( str_contains( (string) $url, '/api/orders/create-order' ) ) {
 					throw new \RuntimeException( 'process tué en plein envoi' );
 				}
 				return $pre;
@@ -1402,6 +1628,38 @@ function ts_purchase_suite( int $product_id ): void {
 	delete_post_meta( $product_id, Product::META_BLANK_COLOURS );
 
 	ts_ac_forget_blank();
+	ts_ac_forget_supply();
+
+	/*
+	 * ET LE NETTOYAGE EST LUI-MÊME VÉRIFIÉ, comme la balayeuse d'`integration.php`.
+	 *
+	 * Les deux tables du fournisseur portent de vraies données sur ce miroir
+	 * (3 241 produits, 1 060 disponibilités synchronisés depuis le service), donc
+	 * la question n'est pas « sont-elles vides » mais « nos lignes sont-elles
+	 * parties ». Une ligne de disponibilité laissée derrière est fraîche pendant
+	 * six heures, et la prochaine exécution croirait un relevé qu'elle n'a pas
+	 * fait : « le relevé est cru » passerait alors sans que rien ne l'ait écrit.
+	 */
+	ts_it( 'leaves neither a deposited product nor a stock row behind', function () {
+		global $wpdb;
+		$codes = array_keys( ts_ac_live_default() );
+		ts_eq(
+			(int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM `' . \Teeshoop\Core\Supply::table() . '` WHERE ref = %s', '18001' ) ),
+			0,
+			'le produit brut est resté dans le dépôt du catalogue'
+		);
+		ts_eq(
+			(int) $wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM `' . \Teeshoop\Core\Disponibilite::table() . '` WHERE code IN ('
+						. implode( ', ', array_fill( 0, count( $codes ), '%s' ) ) . ')',
+					$codes
+				)
+			),
+			0,
+			'des lignes de disponibilité de ce gabarit sont restées'
+		);
+	} );
 
 	$settings               = (array) get_option( 'teeshoop_settings', array() );
 	$settings['worker_url'] = $saved_worker;
