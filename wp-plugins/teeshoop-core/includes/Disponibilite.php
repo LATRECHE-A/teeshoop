@@ -529,10 +529,31 @@ final class Disponibilite {
 			 * `?products=CSV` rend un objet indexé par code ; la forme
 			 * `/price-stock/{reference}` rend une liste où le code est un champ.
 			 * Un seul lecteur pour les deux, sinon il y en aura deux à corriger.
+			 *
+			 * ─────────────────────────────────────────────────────────────────
+			 * LA CLÉ PEUT ÊTRE UN ENTIER, ET LA REFUSER PERDAIT TOUT LE LOT.
+			 *
+			 * `json_decode( …, true )` transforme une clé d'objet entièrement
+			 * numérique en clé de tableau ENTIÈRE : « "180010007": {…} » revient
+			 * avec la clé int(180010007). Le test `is_string( $key )` la
+			 * refusait donc, la ligne était sautée, et un lot dont TOUS les
+			 * codes sont numériques rendait zéro ligne, ce que la méthode lit
+			 * plus bas comme « le service n'a mentionné aucun des articles
+			 * demandés », donc comme un lot injoignable.
+			 *
+			 * La conséquence est exactement celle que ce fichier existe pour
+			 * empêcher : le panier retombait alors sur le repli de six heures et
+			 * vendait contre une observation d'hier, sans qu'aucune erreur
+			 * n'apparaisse nulle part. Trouvé le 9 septembre 2026 en faisant
+			 * passer la suite d'intégration par cette route.
+			 *
+			 * Les références du fournisseur d'aujourd'hui sont alphanumériques,
+			 * donc rien ne le déclenchait ; c'est ce qui rend le défaut cher, pas
+			 * ce qui le rend inoffensif.
 			 */
 			$code = isset( $row['code'] ) && ( is_string( $row['code'] ) || is_int( $row['code'] ) ) ? trim( (string) $row['code'] ) : '';
-			if ( '' === $code && is_string( $key ) ) {
-				$code = trim( $key );
+			if ( '' === $code && ( is_string( $key ) || is_int( $key ) ) ) {
+				$code = trim( (string) $key );
 			}
 			if ( ! self::valid_code( $code ) ) {
 				continue;
@@ -613,7 +634,7 @@ final class Disponibilite {
 	 * @param string[]                                                                     $unreachable Les codes dont le lot a échoué.
 	 * @return array{ok:bool,reason:string,lines:array<string,array{ok:bool,why:string,cents:?int,stock:?int,qty:int,message:string}>,message:string}
 	 */
-	public static function verdict( array $wanted, array $rows, array $missing, array $unreachable ): array {
+	public static function verdict( array $wanted, array $rows, array $missing, array $unreachable, array $labels = array() ): array {
 		$by_code = array();
 		foreach ( $rows as $code => $row ) {
 			$by_code[ strtoupper( (string) $code ) ] = $row;
@@ -692,7 +713,7 @@ final class Disponibilite {
 				'cents'   => is_array( $row ) ? $row['cents'] : null,
 				'stock'   => is_array( $row ) ? $row['stock'] : null,
 				'qty'     => $qty,
-				'message' => self::line_message( $code, $why, $qty, is_array( $row ) ? $row : array() ),
+				'message' => self::line_message( $code, $why, $qty, is_array( $row ) ? $row : array(), (string) ( $labels[ $code ] ?? '' ) ),
 			);
 		}
 
@@ -759,7 +780,47 @@ final class Disponibilite {
 	 *
 	 * @param array{cents?:?int,stock?:?int,stock_supplier?:?int,box_qty?:?int} $row
 	 */
-	public static function line_message( string $code, string $why, int $qty, array $row ): string {
+	/**
+	 * La première lettre en majuscule, pour une étiquette qui ouvre une phrase.
+	 *
+	 * `ucfirst` ne suffit pas : il travaille par octet et une étiquette peut
+	 * commencer par un caractère accentué (« Écru en taille M »). `mb_substr`
+	 * est disponible partout où ce greffon tourne, et le repli sur la chaîne
+	 * intacte vaut mieux qu'une lettre coupée en deux.
+	 */
+	private static function capitalise( string $s ): string {
+		if ( '' === $s || ! function_exists( 'mb_substr' ) ) {
+			return $s;
+		}
+		return mb_strtoupper( mb_substr( $s, 0, 1 ) ) . mb_substr( $s, 1 );
+	}
+
+	public static function line_message( string $code, string $why, int $qty, array $row, string $label = '' ): string {
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * LE NUMÉRO D'ARTICLE NE SORT JAMAIS, ET C'EST UNE CORRECTION MESURÉE.
+		 *
+		 * Ces phrases s'affichent au panier et en caisse. Elles nommaient
+		 * `$code`, qui est `Catalogue::META_SUPPLY_SKU`, exactement la valeur que
+		 * `Shelf::SEALED` retire de REST, de l'export CSV, du JSON de
+		 * déclinaison et de l'affichage d'une ligne de commande, parce que c'est
+		 * une empreinte de chez qui nous achetons. Reproduit de bout en bout par
+		 * la vraie route le 9 septembre 2026 : un visiteur anonyme demandant
+		 * cinquante pièces d'une taille qui en a trois recevait « Il reste 3
+		 * exemplaires de l'article 015421122 », d'où se déduisent la référence du
+		 * grossiste et donc son catalogue public.
+		 *
+		 * `scripts/php-guard.mjs` ne pouvait pas le voir : la chaîne est
+		 * composée à l'exécution, aucun littéral interdit n'est écrit ici.
+		 *
+		 * `$label` est ce qu'un client a choisi (« le noir en taille M »), fourni
+		 * par `Purchase::codes_for_matrix` qui tient la déclinaison. Vide, on dit
+		 * « cet article », qui est vague et vrai, plutôt que précis et interdit.
+		 * `$code` reste dans la signature parce que le SERVEUR en a besoin pour
+		 * journaliser, et il n'est plus jamais imprimé.
+		 */
+		$quoi = '' !== trim( $label ) ? trim( $label ) : 'cet article';
+		unset( $code );
 		/*
 		 * `$known` EST SÉPARÉ DE `$left`, ET C'EST UNE CORRECTION. Le stock
 		 * absent tombait sur `$left = 0` et faisait annoncer « n'est plus en
@@ -778,41 +839,41 @@ final class Disponibilite {
 
 		switch ( $why ) {
 			case 'ok':
-				return sprintf( 'L’article %s est disponible.', $code );
+				return sprintf( '%s est disponible.', self::capitalise( $quoi ) );
 
 			case 'unreachable':
 				return sprintf(
-					'La disponibilité de l’article %s n’a pas pu être vérifiée auprès de notre fournisseur. Réessayez dans quelques minutes.',
-					$code
+					'Nous n’avons pas pu vérifier la disponibilité de %s auprès de notre fournisseur. Réessayez dans quelques minutes.',
+					$quoi
 				);
 
 			case 'no_answer':
 				return sprintf(
-					'Notre fournisseur n’a rien répondu au sujet de l’article %s. Réessayez dans quelques minutes, ou choisissez une autre taille.',
-					$code
+					'Notre fournisseur n’a rien répondu au sujet de %s. Réessayez dans quelques minutes, ou choisissez une autre taille.',
+					$quoi
 				);
 
 			case 'unknown_article':
 				return sprintf(
-					'L’article %s n’est plus référencé chez notre fournisseur. Choisissez une autre taille ou un autre coloris.',
-					$code
+					'%s n’est plus disponible. Choisissez une autre taille ou un autre coloris.',
+					self::capitalise( $quoi )
 				);
 
 			case 'unpriced':
 				return sprintf(
-					'Nous n’avons pas de tarif pour l’article %s et nous ne pouvons donc pas le vendre. Choisissez une autre taille ou un autre coloris.',
-					$code
+					'Nous ne pouvons pas vendre %s pour le moment. Choisissez une autre taille ou un autre coloris, ou écrivez-nous.',
+					$quoi
 				);
 
 			case 'short_stock':
 				if ( $left <= 0 ) {
-					$phrase = sprintf( 'L’article %s n’est plus en stock. Choisissez une autre taille ou un autre coloris.', $code );
+					$phrase = sprintf( '%s n’est plus en stock. Choisissez une autre taille ou un autre coloris.', self::capitalise( $quoi ) );
 				} else {
 					$phrase = sprintf(
-						'Il reste %s %s de l’article %s, et vous en demandez %s. Ramenez la quantité à %s, ou choisissez une autre taille.',
+						'Il reste %s %s de %s, et vous en demandez %s. Ramenez la quantité à %s, ou choisissez une autre taille.',
 						Money::number( (float) $left ),
 						1 === $left ? 'exemplaire' : 'exemplaires',
-						$code,
+						$quoi,
 						Money::number( (float) $qty ),
 						Money::number( (float) $left )
 					);
@@ -829,7 +890,7 @@ final class Disponibilite {
 				return $phrase;
 		}
 
-		return sprintf( 'L’article %s ne peut pas être commandé. Écrivez-nous et nous regarderons.', $code );
+		return sprintf( '%s ne peut pas être commandé. Écrivez-nous et nous regarderons.', self::capitalise( $quoi ) );
 	}
 
 	/**
@@ -1254,7 +1315,7 @@ final class Disponibilite {
 	 * @param array<string,int> $wanted code => quantité.
 	 * @return array{ok:bool,reason:string,lines:array<string,array{ok:bool,why:string,cents:?int,stock:?int,qty:int,message:string}>,message:string}
 	 */
-	public static function assert_buyable( array $wanted, int $trust_minutes = 0 ): array {
+	public static function assert_buyable( array $wanted, int $trust_minutes = 0, array $labels = array() ): array {
 		$codes = self::clean_codes( array_keys( $wanted ) );
 
 		if ( array() === $codes ) {
@@ -1311,7 +1372,7 @@ final class Disponibilite {
 			$unreachable = $repli['still_mute'];
 		}
 
-		return self::verdict( $wanted, $rows, $missing, $unreachable );
+		return self::verdict( $wanted, $rows, $missing, $unreachable, $labels );
 	}
 
 	/**

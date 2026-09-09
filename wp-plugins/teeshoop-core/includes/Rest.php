@@ -265,6 +265,26 @@ final class Rest {
 				'sides'      => $body['sides'] ?? array(),
 				'design_id'  => (string) ( $body['design_id'] ?? '' ),
 				'size_grid'  => $body['size_grid'] ?? array(),
+				/*
+				 * LA MATRICE, ET SON ABSENCE ICI A COÛTÉ 44 VÊTEMENTS SUR 51.
+				 *
+				 * `Cart::add` la lit depuis le 9 septembre 2026, l'éditeur
+				 * l'envoie, et cette liste ne la recopiait pas. Un corps portant
+				 * trois coloris arrivait donc dans `Cart::add` sans matrice, le
+				 * repli d'avant la matrice reversait TOUTES les pièces sur le
+				 * coloris de la création, et la boutique achetait, pressait et
+				 * vérifiait la disponibilité d'articles que personne n'avait
+				 * commandés. Mesuré sur le miroir avec le corps exact que
+				 * `ajouterAuPanier` envoie : 7 blancs demandés en M, 13 noirs en
+				 * L et 31 rouges en XL sont devenus 51 blancs.
+				 *
+				 * INVISIBLE À LA SUITE D'INTÉGRATION parce que chacun de ses cas
+				 * appelle `Cart::add()` directement. C'est la couture entre du
+				 * code juste et WooCommerce, exactement là où ce projet a déjà
+				 * perdu de l'argent une fois, et la leçon est la même : ce qui
+				 * n'est pas traversé par un test n'est pas vérifié.
+				 */
+				'matrix'     => $body['matrix'] ?? array(),
 			)
 		);
 

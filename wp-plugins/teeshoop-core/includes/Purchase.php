@@ -1086,6 +1086,34 @@ final class Purchase {
 
 	/** The imported catalogue product carrying this reference, or 0. */
 	/**
+	 * Comment nommer un article à un CLIENT, sans rien lui apprendre sur nos achats.
+	 *
+	 * Le coloris et la taille, qui sont les deux choses qu'il a choisies et les
+	 * deux seules qui l'aident à corriger. Jamais le numéro d'article, jamais la
+	 * référence du grossiste, jamais la référence publique non plus : elle est
+	 * sans danger mais elle ne veut rien dire pour quelqu'un qui vient de cliquer
+	 * sur « noir, taille M ».
+	 *
+	 * Vide quand la déclinaison ne dit ni l'un ni l'autre : l'appelant écrit
+	 * alors « cet article », qui est vague mais vrai, plutôt qu'un identifiant
+	 * qui serait précis et interdit.
+	 */
+	private static function customer_label( \WC_Product $variation ): string {
+		$couleur = self::attribute_of( $variation, 'couleur' );
+		$taille  = self::attribute_of( $variation, 'taille' );
+		if ( '' !== $couleur && '' !== $taille ) {
+			return sprintf( 'le %1$s en taille %2$s', $couleur, $taille );
+		}
+		if ( '' !== $couleur ) {
+			return sprintf( 'le coloris %s', $couleur );
+		}
+		if ( '' !== $taille ) {
+			return sprintf( 'la taille %s', $taille );
+		}
+		return '';
+	}
+
+	/**
 	 * Les numéros d'article du fournisseur pour une matrice coloris/taille.
 	 *
 	 * ─────────────────────────────────────────────────────────────────────────
@@ -1107,7 +1135,8 @@ final class Purchase {
 	 * @param array<string,string>            $terms  coloris du studio => coloris du fournisseur.
 	 * @return array<string,int> numéro d'article => quantité totale demandée.
 	 */
-	public static function codes_for_matrix( int $product_id, array $matrix, array $terms ): array {
+	public static function codes_for_matrix( int $product_id, array $matrix, array $terms, ?array &$labels = null ): array {
+		$labels = array();
 		$ref = Product::blank_ref_of( $product_id );
 		if ( '' === $ref ) {
 			return array();
@@ -1140,6 +1169,22 @@ final class Purchase {
 					continue;
 				}
 				$out[ $sku ] = ( $out[ $sku ] ?? 0 ) + $count;
+				/*
+				 * ET UNE ÉTIQUETTE QU'UN CLIENT PEUT LIRE, remplie ici parce que
+				 * c'est ici qu'on tient la déclinaison et qu'une seconde
+				 * résolution serait une seconde chance de désigner un autre
+				 * article que celui qu'on achète.
+				 *
+				 * ELLE EXISTE PARCE QUE LE NUMÉRO D'ARTICLE EST SCELLÉ. Un refus
+				 * de disponibilité s'affiche au panier et en caisse ; il disait
+				 * « l'article 015421122 n'est plus référencé », c'est-à-dire la
+				 * clé d'approvisionnement que `Shelf::SEALED` retire de REST, de
+				 * l'export CSV et de la fiche, composée à l'exécution donc
+				 * invisible à `scripts/php-guard.mjs`. Trouvé par la passe
+				 * adversariale du 9 septembre 2026, reproduit de bout en bout par
+				 * la vraie route.
+				 */
+				$labels[ $sku ] = self::customer_label( $variation );
 			}
 		}
 

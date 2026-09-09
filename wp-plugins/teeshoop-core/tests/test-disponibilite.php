@@ -174,6 +174,50 @@ describe( 'Disponibilite : lire une réponse du service', function (): void {
 	);
 
 	it(
+		'lit un code entièrement numérique, que JSON rend en clé ENTIÈRE',
+		function (): void {
+			/*
+			 * `json_decode( …, true )` transforme « "180010007": {…} » en clé
+			 * int(180010007), et le lecteur testait `is_string( $key )` : la
+			 * ligne était sautée. Un lot dont TOUS les codes sont numériques
+			 * rendait donc zéro ligne, ce que la méthode lit comme « le service
+			 * n'a mentionné aucun des articles demandés », donc comme un lot
+			 * injoignable, donc comme un repli sur une observation de six heures.
+			 * Vendre contre un stock d'hier sans qu'aucune erreur n'apparaisse
+			 * est exactement le défaut que ce fichier existe pour empêcher.
+			 *
+			 * Le corps passe par un encodage/décodage RÉEL et pas par un tableau
+			 * PHP écrit à la main : c'est le décodage qui fabrique la clé
+			 * entière, donc un gabarit écrit directement en PHP prouverait un
+			 * cas que le service ne produit jamais.
+			 */
+			$body = json_decode(
+				(string) json_encode(
+					ts_dispo_body(
+						array(
+							'180010007' => ts_dispo_row( '4.46', '8', '4000' ),
+							'180010004' => ts_dispo_row( '3.37', '900' ),
+						)
+					)
+				),
+				true
+			);
+			foreach ( array_keys( $body['products'] ) as $key ) {
+				truthy( is_int( $key ), 'la clé décodée est bien un entier, sinon ce test ne mesure rien' );
+			}
+
+			$read = Disponibilite::parse_rows( $body, array( '180010007', '180010004' ) );
+
+			truthy( $read['ok'] );
+			eq( count( $read['rows'] ), 2 );
+			eq( $read['rows']['180010007']['cents'], 446 );
+			eq( $read['rows']['180010007']['stock'], 8 );
+			eq( $read['rows']['180010004']['cents'], 337 );
+			eq( $read['unanswered'], array() );
+		}
+	);
+
+	it(
 		'lit la forme en liste, où le code est un champ',
 		function (): void {
 			// C'est ce que rend `/price-stock/{reference}`, et le lecteur est le
@@ -388,7 +432,25 @@ describe( 'Disponibilite : le verdict, qui est le moment de vérité', function 
 
 			$message = $v['message'];
 			truthy( str_contains( $message, 'Il reste 3 exemplaires' ), "le reste doit être dans la phrase, vue : {$message}" );
-			truthy( str_contains( $message, 'BC01BSML' ), 'la phrase doit nommer l’article' );
+			/*
+			 * ─────────────────────────────────────────────────────────────
+			 * LA PHRASE NE DOIT SURTOUT PAS NOMMER L'ARTICLE.
+			 *
+			 * Cette assertion demandait l'inverse jusqu'au 9 septembre 2026,
+			 * et elle gardait donc un défaut au lieu d'une propriété. Le
+			 * numéro d'article est `Catalogue::META_SUPPLY_SKU`, la valeur que
+			 * `Shelf::SEALED` retire de REST, de l'export CSV et de la fiche
+			 * parce qu'elle est une empreinte de chez qui nous achetons. Ces
+			 * phrases-ci s'affichent au panier et en caisse, à un visiteur
+			 * anonyme. Reproduit de bout en bout par la vraie route : « Il
+			 * reste 3 exemplaires de l'article 015421122 » donne la référence
+			 * du grossiste, donc son catalogue public, donc notre prix d'achat.
+			 *
+			 * `scripts/php-guard.mjs` ne peut pas le voir : la chaîne est
+			 * composée à l'exécution.
+			 */
+			truthy( ! str_contains( $message, 'BC01BSML' ), "le numero d’article ne doit JAMAIS sortir, vue : {$message}" );
+			truthy( str_contains( $message, 'cet article' ), 'sans étiquette, la phrase dit « cet article »' );
 			truthy( str_contains( $message, 'Ramenez la quantité à 3' ), 'la phrase doit dire quoi faire' );
 			truthy( ! str_contains( $message, '!' ), 'pas de point d’exclamation dans une phrase client' );
 		}
@@ -427,12 +489,41 @@ describe( 'Disponibilite : le verdict, qui est le moment de vérité', function 
 	);
 
 	it(
+		'nomme le coloris et la taille quand on les lui donne, et jamais le numéro d’article',
+		static function (): void {
+			/*
+			 * L'étiquette vient de `Purchase::codes_for_matrix`, qui tient la
+			 * déclinaison au moment où il résout l'article : une seconde
+			 * résolution ailleurs pourrait désigner un autre vêtement que celui
+			 * qu'on achète.
+			 */
+			$row = static fn( int $cents, ?int $stock ): array => array(
+				'cents'          => $cents,
+				'stock'          => $stock,
+				'stock_supplier' => 0,
+				'box_qty'        => 1,
+			);
+			$v = Disponibilite::verdict(
+				array( 'BC01BSML' => 10 ),
+				array( 'BC01BSML' => $row( 345, 3 ) ),
+				array(),
+				array(),
+				array( 'BC01BSML' => 'le noir en taille M' )
+			);
+			$message = $v['message'];
+			truthy( str_contains( $message, 'le noir en taille M' ), "l’étiquette doit être dans la phrase, vue : {$message}" );
+			truthy( ! str_contains( $message, 'BC01BSML' ), 'et le numéro d’article, jamais' );
+		}
+	);
+
+	it(
 		'refuse un article que le service déclare introuvable',
 		function (): void {
 			$v = Disponibilite::verdict( array( 'BC01BSMX' => 1 ), array(), array( 'BC01BSMX' ), array() );
 			truthy( ! $v['ok'] );
 			eq( $v['reason'], 'unknown_article' );
-			truthy( str_contains( $v['message'], 'n’est plus référencé' ), $v['message'] );
+			truthy( str_contains( $v['message'], 'n’est plus disponible' ), $v['message'] );
+			truthy( ! str_contains( $v['message'], 'BC01BSML' ), 'et jamais le numéro d’article' );
 		}
 	);
 
@@ -442,7 +533,8 @@ describe( 'Disponibilite : le verdict, qui est le moment de vérité', function 
 			$v = Disponibilite::verdict( array( 'BC01BSML' => 1 ), array(), array(), array( 'BC01BSML' ) );
 			truthy( ! $v['ok'] );
 			eq( $v['reason'], 'unreachable' );
-			truthy( str_contains( $v['message'], 'n’a pas pu être vérifiée' ), $v['message'] );
+			truthy( str_contains( $v['message'], 'pas pu vérifier la disponibilité' ), $v['message'] );
+			truthy( ! str_contains( $v['message'], 'BC01BSML' ), 'et jamais le numéro d’article' );
 			truthy( ! str_contains( $v['message'], 'référencé' ), '« injoignable » ne doit pas se lire comme « supprimé »' );
 		}
 	);
@@ -462,7 +554,8 @@ describe( 'Disponibilite : le verdict, qui est le moment de vérité', function 
 			$v = Disponibilite::verdict( array( 'BC01BSML' => 1 ), array( 'BC01BSML' => $row( null, 500 ) ), array(), array() );
 			truthy( ! $v['ok'] );
 			eq( $v['reason'], 'unpriced' );
-			truthy( str_contains( $v['message'], 'pas de tarif' ), $v['message'] );
+			truthy( str_contains( $v['message'], 'ne pouvons pas vendre' ), $v['message'] );
+			truthy( ! str_contains( $v['message'], 'BC01BSML' ), 'et jamais le numéro d’article' );
 		}
 	);
 

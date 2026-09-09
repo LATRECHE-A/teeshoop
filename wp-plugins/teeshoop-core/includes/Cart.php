@@ -583,9 +583,10 @@ final class Cart {
 		 * `Purchase` refuse alors la ligne en la nommant. Ajouter un refus ici
 		 * ferait de la configuration incomplète une panne de caisse.
 		 */
-		$codes = Purchase::codes_for_matrix( $product_id, $matrix, self::blank_terms_for( $product_id, $matrix ) );
+		$etiquettes = array();
+		$codes      = Purchase::codes_for_matrix( $product_id, $matrix, self::blank_terms_for( $product_id, $matrix ), $etiquettes );
 		if ( array() !== $codes ) {
-			$dispo = Disponibilite::assert_buyable( $codes, Disponibilite::TRUST_MINUTES );
+			$dispo = Disponibilite::assert_buyable( $codes, Disponibilite::TRUST_MINUTES, $etiquettes );
 			if ( ! $dispo['ok'] ) {
 				return new \WP_Error(
 					'teeshoop_indisponible_' . (string) $dispo['reason'],

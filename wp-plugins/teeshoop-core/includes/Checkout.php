@@ -231,20 +231,26 @@ final class Checkout {
 			return;
 		}
 
-		$wanted = array();
+		$wanted     = array();
+		$etiquettes = array();
 		foreach ( $cart->get_cart() as $item ) {
 			$data = $item['teeshoop'] ?? null;
 			if ( ! is_array( $data ) || empty( $data['matrix'] ) ) {
 				continue;
 			}
+			$vus   = array();
 			$codes = Purchase::codes_for_matrix(
 				(int) ( $item['product_id'] ?? 0 ),
 				(array) $data['matrix'],
-				(array) ( $data['blank_colours'] ?? array() )
+				(array) ( $data['blank_colours'] ?? array() ),
+				$vus
 			);
 			foreach ( $codes as $sku => $qty ) {
 				$wanted[ $sku ] = ( $wanted[ $sku ] ?? 0 ) + (int) $qty;
 			}
+			// Les étiquettes lisibles, pour que le refus en caisse nomme un
+			// coloris et une taille et jamais un numéro d'article.
+			$etiquettes = array_replace( $etiquettes, $vus );
 		}
 
 		if ( array() === $wanted ) {
@@ -267,7 +273,7 @@ final class Checkout {
 			}
 		}
 
-		$verdict = Disponibilite::assert_buyable( $wanted, Disponibilite::TRUST_MINUTES );
+		$verdict = Disponibilite::assert_buyable( $wanted, Disponibilite::TRUST_MINUTES, $etiquettes );
 		$message = $verdict['ok'] ? '' : (string) $verdict['message'];
 
 		if ( $session ) {
