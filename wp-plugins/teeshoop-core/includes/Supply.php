@@ -255,6 +255,7 @@ final class Supply {
 		$products = 0;
 		$total    = 0;
 		$next     = null;
+		$au_bout  = false;
 
 		while ( true ) {
 			$query['page'] = $page;
@@ -284,7 +285,56 @@ final class Supply {
 
 			++$pages;
 
-			if ( $page >= $total || array() === $rows ) {
+			/*
+			 * ─────────────────────────────────────────────────────────────────
+			 * ARRIVER AU BOUT ET S'ARRÊTER SONT DEUX CHOSES, ET LES CONFONDRE
+			 * DÉPUBLIE LA BOUTIQUE.
+			 *
+			 * Ce test était `$page >= $total || array() === $rows`, et il posait
+			 * `complete` derrière. Deux façons de mentir, prouvées en exécutant
+			 * `sync()` contre un transport bouchonné le 9 septembre 2026 :
+			 *
+			 *   une page vide au milieu d'une marche de 65 pages arrêtait tout
+			 *   et déclarait la marche complète, 62 pages jamais demandées ;
+			 *
+			 *   un `totalNumberPage` absent ou renommé (ce que rend un document
+			 *   d'erreur JSON) donnait `$total = 0`, et `1 >= 0` est vrai.
+			 *
+			 * Ce que cela produit ensuite : `Importer::delist()` met au brouillon
+			 * chaque produit publié dont la référence manque au plan. Sur ce
+			 * miroir, 492 produits des familles imprimables, 2 309 avec
+			 * `--famille=all`, et son propre commentaire dit que « personne ne
+			 * défait ça à la main ».
+			 *
+			 * On ne déclare donc la fin QUE sur le compte de pages annoncé, et
+			 * une page vide sous ce compte est une reprise, pas une fin.
+			 */
+			$au_bout = $total > 0 && $page >= $total;
+			if ( $au_bout ) {
+				break;
+			}
+			/*
+			 * UN COMPTE DE PAGES ABSENT ARRÊTE LA MARCHE, IL NE LA FAIT PAS
+			 * TOURNER EN ROND.
+			 *
+			 * La première version de ce correctif ne testait que `$au_bout`, et
+			 * une réponse sans `totalNumberPage` (ce que rend un document
+			 * d'erreur JSON) donnait `$total = 0`, donc jamais la fin : la
+			 * sonde a compté 26 748 pages demandées avant que le budget de
+			 * temps ne coupe. Corriger « on s'arrête trop tôt » en « on ne
+			 * s'arrête jamais » aurait remplacé une dépublication de masse par
+			 * un martèlement du fournisseur.
+			 *
+			 * Sans compte de pages on ne sait pas où l'on est, donc on s'arrête
+			 * et on le dit : `next` non nul, `complete` faux, rien n'est
+			 * dépublié.
+			 */
+			if ( $total <= 0 ) {
+				$next = $page;
+				break;
+			}
+			if ( array() === $rows ) {
+				$next = $page;
 				break;
 			}
 			++$page;
@@ -319,8 +369,103 @@ final class Supply {
 			 * ne montre que ce qui a bougé. Les deux cas rendent `false`, et
 			 * `Importer` ne retire alors rien.
 			 */
-			'complete' => null === $next && '' === $since,
+			'complete' => null === $next && '' === $since && $au_bout,
 			'seconds'  => round( microtime( true ) - $start, 2 ),
+		);
+	}
+
+	/**
+	 * Marque comme disparues les références qu'une marche COMPLÈTE n'a pas revues.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * `seen_at` EXISTAIT ET PERSONNE NE LE LISAIT.
+	 *
+	 * La colonne et son index ont été créés pour ça, et rien ne les interrogeait :
+	 * `gone` ne pouvait être posé que par le fournisseur continuant à publier un
+	 * produit avec une date de suppression, ce qui est 1 ligne sur 3 241. Un
+	 * fournisseur qui retire simplement une référence de l'assortiment du compte,
+	 * sans pierre tombale, laissait la ligne à `gone = 0` pour toujours : la
+	 * fiche restait publiée avec son dernier prix et son dernier stock, et la
+	 * boutique ne refusait qu'à l'ajout au panier, après que le client a dessiné.
+	 *
+	 * SEULEMENT APRÈS UNE MARCHE COMPLÈTE. Une marche partielle ou incrémentale
+	 * n'a pas croisé le catalogue entier, donc une référence qu'elle n'a pas vue
+	 * n'est pas une référence disparue. C'est la même règle que `complete` porte
+	 * pour l'import, une couche plus bas.
+	 *
+	 * @param string $depuis Début de la marche, `Y-m-d H:i:s` UTC.
+	 * @return int Combien de références viennent d'être marquées.
+	 */
+	public static function mark_gone( string $depuis ): int {
+		global $wpdb;
+		if ( '' === $depuis ) {
+			return 0;
+		}
+		$n = $wpdb->query(
+			$wpdb->prepare(
+				'UPDATE `' . self::table() . '` SET gone = 1 WHERE gone = 0 AND seen_at < %s',
+				$depuis
+			)
+		);
+		return false === $n ? 0 : (int) $n;
+	}
+
+	/**
+	 * Reclasse le dépôt sans reparler au fournisseur.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * PARCE QUE LE CLASSEMENT EST FIGÉ DANS TROIS COLONNES.
+	 *
+	 * L'en-tête de ce fichier justifie de garder la charge utile ENTIÈRE en
+	 * disant que « changer la cartographie ne demande pas de remarcher les 65
+	 * pages ». C'était faux pour la seule partie du classement qui décide ce que
+	 * la boutique publie et à quel plancher : `kind`, `shelf` et `sleeve` sont
+	 * dérivés à l'écriture et `references()` filtre dessus.
+	 *
+	 * Conséquence, constatée en corrigeant le classement des vestes softshell :
+	 * rien ne bougeait, et une marche incrémentale ne bougeait rien non plus,
+	 * pendant que les deux moitiés avaient l'air saines.
+	 *
+	 * `wp teeshoop couleurs reclasser` existe depuis longtemps pour exactement
+	 * cette forme de problème.
+	 *
+	 * @return array{lus:int,changes:int}
+	 */
+	public static function reclassify(): array {
+		global $wpdb;
+		$table = self::table();
+		$refs  = $wpdb->get_col( 'SELECT ref FROM `' . $table . '`' );
+		$lus   = 0;
+		$chg   = 0;
+
+		foreach ( (array) $refs as $ref ) {
+			$product = self::raw( (string) $ref );
+			if ( null === $product ) {
+				continue;
+			}
+			++$lus;
+			$f = self::classify( $product );
+			$n = $wpdb->query(
+				$wpdb->prepare(
+					'UPDATE `' . $table . '` SET kind = %s, shelf = %s, sleeve = %s
+					  WHERE ref = %s AND ( kind <> %s OR shelf <> %s OR sleeve <> %s )',
+					$f['kind'],
+					$f['shelf'],
+					$f['sleeve'],
+					(string) $ref,
+					$f['kind'],
+					$f['shelf'],
+					$f['sleeve']
+				)
+			);
+			if ( false !== $n && $n > 0 ) {
+				++$chg;
+			}
+		}
+
+		return array(
+			'lus'     => $lus,
+			'changes' => $chg,
 		);
 	}
 
@@ -352,7 +497,15 @@ final class Supply {
 		 */
 		$gone = ( null !== ( $product['deletedAt'] ?? null ) && '' !== (string) $product['deletedAt'] ) ? 1 : 0;
 
-		$wpdb->query(
+		/*
+		 * LE RETOUR EST LU. `$wpdb->query()` rend `false` sur erreur, et il était
+		 * jeté : `sync()` comptait le produit comme déposé et la commande
+		 * imprimait « 3 241 produits déposés », une affirmation qu'elle n'avait
+		 * pas mesurée. C'est le seul endroit qui pouvait annoncer un dépôt
+		 * complet sur une table vide, ce qui est exactement l'entrée que le
+		 * défaut ci-dessus transforme en dépublication de masse.
+		 */
+		$ecrit = $wpdb->query(
 			$wpdb->prepare(
 				'INSERT INTO `' . self::table() . '` (ref, kind, shelf, sleeve, updated_at, seen_at, gone, payload)
 				 VALUES (%s, %s, %s, %s, %s, %s, %d, %s)
@@ -369,7 +522,7 @@ final class Supply {
 			)
 		);
 
-		return true;
+		return false !== $ecrit;
 	}
 
 	/**
@@ -452,11 +605,14 @@ final class Supply {
 	 * @return array{ok:bool,entry?:array<string,mixed>,error?:string}
 	 */
 	public static function entry( string $ref ): array {
-		$product = self::raw( $ref );
+		$illisible = false;
+		$product   = self::raw( $ref, $illisible );
 		if ( null === $product ) {
 			return array(
 				'ok'    => false,
-				'error' => 'La référence « ' . $ref . ' » n’est pas dans le dépôt du catalogue.',
+				'error' => $illisible
+					? 'La charge utile déposée pour « ' . $ref . ' » est illisible. Relancer la synchronisation ne la réparera pas si elle a été écrite corrompue : purgez cette ligne du dépôt.'
+					: 'La référence « ' . $ref . ' » n’est pas dans le dépôt du catalogue.',
 			);
 		}
 
@@ -473,7 +629,8 @@ final class Supply {
 	 *
 	 * @return array<string,mixed>|null
 	 */
-	public static function raw( string $ref ): ?array {
+	public static function raw( string $ref, ?bool &$illisible = null ): ?array {
+		$illisible = false;
 		global $wpdb;
 
 		$blob = $wpdb->get_var(
@@ -483,13 +640,26 @@ final class Supply {
 			return null;
 		}
 
+		/*
+		 * « ILLISIBLE » N'EST PAS « ABSENT », et l'appelant doit pouvoir le dire.
+		 * `entry()` annonçait « la référence n'est pas dans le dépôt » sur une
+		 * charge utile corrompue, ce qui envoie l'exploitant relancer une
+		 * synchronisation qui ne réparera rien. Le drapeau est posé pour que le
+		 * message soit juste ; le retour reste `null` dans les deux cas, donc
+		 * aucun appelant n'a à changer.
+		 */
 		$json = @gzuncompress( $blob );
 		if ( false === $json ) {
+			$illisible = true;
 			return null;
 		}
 
 		$product = json_decode( $json, true );
-		return is_array( $product ) ? $product : null;
+		if ( ! is_array( $product ) ) {
+			$illisible = true;
+			return null;
+		}
+		return $product;
 	}
 
 	// -----------------------------------------------------------------------
@@ -565,7 +735,16 @@ final class Supply {
 					'code'   => $ccode,
 					'name'   => $colour,
 					/*
-					 * LA PASTILLE N'EST PUBLIÉE QUE SI ELLE EST MESURÉE.
+					 * LA PASTILLE EST UNE IMAGE, ET CE SERVICE N'EN PUBLIE
+					 * AUCUNE. Le champ reste dans la forme parce que 46 572
+					 * déclinaisons importées avant le 9 septembre 2026 en
+					 * portent une et que `Colours` sait encore les mesurer ;
+					 * il sort vide d'ici plutôt que de porter un nombre, qui
+					 * n'est pas une image.
+					 */
+					'swatch' => '',
+					/*
+					 * LA TEINTE N'EST PUBLIÉE QUE SI ELLE EST DÉCLARÉE.
 					 *
 					 * Mesuré sur 75 088 déclinaisons : 14 568 portent un
 					 * hexadécimal (19 %), 55 664 n'ont que du CMJN. Et 63 noms
@@ -575,16 +754,22 @@ final class Supply {
 					 *
 					 * On rend ici la teinte déclarée quand elle existe, et rien
 					 * quand elle n'existe pas : `Colours` mesure alors la
-					 * photographie, ce qu'il sait déjà faire. Peindre du gris
-					 * sous un vrai nom de couleur est exactement le défaut que
-					 * `Product::blank_palette_of` refuse.
+					 * photographie de CE coloris, ce qu'il sait déjà faire.
+					 * Peindre du gris sous un vrai nom de couleur est exactement
+					 * le défaut que `Product::blank_palette_of` refuse.
+					 *
+					 * LE CMJN N'EST PAS UNE ROUTE, même à 99,98 % de couverture :
+					 * sans profil ICC les quatre nombres ne nomment aucune
+					 * couleur, et toute conversion serait une invention à l'air
+					 * plausible. Le raisonnement complet est en tête de
+					 * `Swatch.php`, et la question est posée à l'associé (Q71).
 					 */
-					'swatch' => $attrs['hex'],
+					'hex'    => $attrs['hex'],
 					'photo'  => '',
 				);
 			}
-			if ( '' === $colourways[ $ccode ]['swatch'] && '' !== $attrs['hex'] ) {
-				$colourways[ $ccode ]['swatch'] = $attrs['hex'];
+			if ( '' === $colourways[ $ccode ]['hex'] && '' !== $attrs['hex'] ) {
+				$colourways[ $ccode ]['hex'] = $attrs['hex'];
 			}
 
 			/*
@@ -704,7 +889,18 @@ final class Supply {
 				 * la fuite que `Catalogue::public_ref()` raconte avoir déjà
 				 * coûté une fois.
 				 */
-				'supplierRef' => '' !== $name ? $name : $ref,
+				/*
+				 * LA MARQUE EN SECOURS, JAMAIS LA RÉFÉRENCE DU GROSSISTE.
+				 *
+				 * Ce champ devient la référence PUBLIQUE, et il retombait sur
+				 * `$ref`, qui est le préfixe de chaque numéro d'article : le
+				 * publier rend la clé d'approvisionnement que `Shelf::SEALED`
+				 * existe pour cacher. Mesuré : zéro des 3 241 produits n'est
+				 * sans titre fabricant aujourd'hui, donc ce repli ne s'est
+				 * jamais déclenché. Il est fermé quand même, parce qu'un jour
+				 * où il se déclenche est un jour où personne ne regarde.
+				 */
+				'supplierRef' => '' !== $name ? $name : $brand,
 				'name'        => '' !== $long ? $long : $name,
 				'description' => self::description( $long, $material, $gsm ),
 				'kind'        => $facts['kind'],
@@ -813,6 +1009,30 @@ final class Supply {
 		'HOUSSE COUSSIN', 'PEIGNOIR', 'MASQUE', 'MASQUES', 'EPONGE',
 		'SOUS-VETEMENTS', 'SLIP - BOXER', 'BRASSIERE', 'PYJAMA', 'BODY',
 		'CASQUETTE', 'BONNET', 'CHAPEAU', 'TOQUE', 'TABLIER', 'CHASUBLE',
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * ET LE VÊTEMENT D'EXTÉRIEUR, QUI SE VENDAIT EN SWEAT.
+		 *
+		 * « CAPUCHE » est dans les mots du sweat, et une veste softshell à
+		 * capuche le porte aussi. `SOFTSHELL` n'existait que dans les mots du
+		 * RAYON, qui décide où l'on range et pas ce qu'on facture. Relevé sur le
+		 * dépôt le 9 septembre 2026 : 32 références rangées en veste avec un
+		 * `kind` de sweat, dont BC650 et BC660, « Veste Softshell homme à
+		 * capuche », entrées dans la gamme à 63,00 EUR au tarif du sweat.
+		 *
+		 * Ce que cela produit : le studio dessine un aperçu de sweat par-dessus
+		 * une veste trois couches, et place le visuel là où il y a une
+		 * fermeture éclair sur toute la hauteur du devant.
+		 *
+		 * `Catalogue.php` et le registre affirmaient tous les deux que « le
+		 * classificateur du Worker refuse le softshell ». Le Worker n'est plus
+		 * sur ce chemin, et la garde du registre ne pouvait pas le voir : son
+		 * ancre pointe sur du code mort, et une ancre morte dégrade en silence.
+		 */
+		'SOFTSHELL', 'VESTE', 'VESTE BLOUSON', 'BLOUSON', 'PARKA', 'DOUDOUNE',
+		'BODYWARMER', 'COUPE VENT', 'POLAIRE', 'MICROPOLAIRE', 'MATELASSE',
+		'BOMBER', 'GILET', 'GILET SECURITE', 'CARDIGAN', '3 EN 1', '7 EN 1',
+		'GRENOUILLERE', 'COMBINAISON', 'PEIGNOIR',
 	);
 
 	/** Le rayon, qui ne décide d'aucun montant. */

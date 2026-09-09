@@ -38,6 +38,7 @@ final class Cli {
 		\WP_CLI::add_command( 'teeshoop marge', array( self::class, 'margin_report' ) );
 		\WP_CLI::add_command( 'teeshoop stock rafraichir', array( self::class, 'stock_refresh' ) );
 		\WP_CLI::add_command( 'teeshoop catalogue synchroniser', array( self::class, 'supply_sync' ) );
+		\WP_CLI::add_command( 'teeshoop catalogue reclasser', array( self::class, 'supply_reclassify' ) );
 		\WP_CLI::add_command( 'teeshoop dispo balayer', array( self::class, 'dispo_sweep' ) );
 		\WP_CLI::add_command( 'teeshoop dispo etat', array( self::class, 'dispo_state' ) );
 		\WP_CLI::add_command( 'teeshoop couleurs mesurer', array( self::class, 'colours_measure' ) );
@@ -142,6 +143,9 @@ final class Cli {
 
 		$page    = 1;
 		$started = microtime( true );
+		// L'instant de départ, en UTC, pour que `mark_gone` sache ce que cette
+		// marche-ci n'a pas revu.
+		$debut   = gmdate( 'Y-m-d H:i:s' );
 		$pages   = 0;
 		$written = 0;
 
@@ -175,10 +179,26 @@ final class Cli {
 		 * incrémentale, même terminée, ne prouve pas qu'une référence a disparu :
 		 * elle prouve qu'elle n'a pas bougé.
 		 */
-		if ( '' === $since ) {
-			update_option( 'teeshoop_supply_complete', true, false );
-			update_option( 'teeshoop_supply_synced_at', gmdate( 'c' ), false );
-		}
+		/*
+		 * ON LIT LE VERDICT DE LA MARCHE, ON NE LE RECALCULE PAS.
+		 *
+		 * Cette commande écrivait `true` dès que `--depuis` était absent, sans
+		 * jamais regarder `$run['complete']` : deux implémentations d'une règle,
+		 * d'accord par accident. Corriger `sync()` seul n'aurait donc rien
+		 * changé, et c'est ce drapeau qui autorise `Importer::delist()` à mettre
+		 * au brouillon tout ce qu'il n'a pas croisé.
+		 */
+		$complete = ! empty( $run['complete'] );
+		update_option( 'teeshoop_supply_complete', $complete, false );
+		update_option( 'teeshoop_supply_synced_at', gmdate( 'c' ), false );
+
+		/*
+		 * ET SEULE UNE MARCHE COMPLÈTE A LE DROIT DE DÉCLARER DES DISPARUS.
+		 * `seen_at` existait depuis la création de la table et personne ne le
+		 * lisait : une référence retirée de l'assortiment restait publiée avec
+		 * son dernier prix, et le client ne l'apprenait qu'après avoir dessiné.
+		 */
+		$disparues = $complete ? Supply::mark_gone( $debut ) : 0;
 
 		global $wpdb;
 		$table = Supply::table();
@@ -197,9 +217,56 @@ final class Cli {
 				size_format( $bytes )
 			)
 		);
-		if ( '' !== $since ) {
-			\WP_CLI::log( 'Marche incrémentale : aucune référence ne sera dépubliée par l’import qui suivra.' );
+		if ( ! $complete ) {
+			\WP_CLI::warning(
+				'' !== $since
+					? 'Marche incrémentale : aucune référence ne sera dépubliée par l’import qui suivra.'
+					: 'Marche INCOMPLÈTE : le service n’a pas rendu toutes ses pages. Aucune référence ne sera dépubliée, et il faut relancer.'
+			);
+		} elseif ( $disparues > 0 ) {
+			\WP_CLI::log( sprintf( '%d référence(s) n’ont pas été revues par cette marche complète et sont marquées disparues.', $disparues ) );
 		}
+	}
+
+	/**
+	 * Reclasse le dépôt sans reparler au fournisseur.
+	 *
+	 *   wp teeshoop catalogue reclasser
+	 *
+	 * À LANCER APRÈS TOUTE CORRECTION DU CLASSEMENT. Le vêtement, le rayon et
+	 * les manches sont figés dans trois colonnes au moment du dépôt, et
+	 * `references()` filtre dessus : corriger la table des mots ne bouge rien
+	 * tant que les colonnes ne sont pas réécrites, et une marche incrémentale ne
+	 * les réécrit pas non plus. `wp teeshoop couleurs reclasser` existe pour
+	 * exactement cette raison depuis la séance 09.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--discret]
+	 * : Only the summary.
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Flags.
+	 */
+	public static function supply_reclassify( array $args, array $assoc_args ): void {
+		unset( $args );
+		$t0  = microtime( true );
+		$out = Supply::reclassify();
+
+		if ( 0 === $out['lus'] ) {
+			\WP_CLI::error( 'Le dépôt du catalogue est vide. Lancez « wp teeshoop catalogue synchroniser » d’abord.' );
+		}
+		if ( empty( $assoc_args['discret'] ) ) {
+			global $wpdb;
+			$table = Supply::table();
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			foreach ( (array) $wpdb->get_results( 'SELECT kind, COUNT(*) n FROM `' . $table . '` GROUP BY kind ORDER BY n DESC' ) as $r ) {
+				\WP_CLI::log( sprintf( '  %-8s %d', $r->kind, (int) $r->n ) );
+			}
+		}
+		\WP_CLI::success(
+			sprintf( '%d référence(s) relues, %d reclassée(s), en %.1f s.', $out['lus'], $out['changes'], microtime( true ) - $t0 )
+		);
 	}
 
 	/**
@@ -2097,6 +2164,12 @@ final class Cli {
 	 * supplier gave. There is no fallback value: the filter shows an unmeasured
 	 * colour as a name with no swatch, which is the truth.
 	 *
+	 * DEPUIS LE 9 SEPTEMBRE 2026 IL Y A UNE TROISIÈME SOURCE ET ELLE NE COÛTE
+	 * RIEN : le fournisseur déclare la teinte en chiffres sur 19,4 % de ses
+	 * déclinaisons, et `Colours` la prend telle quelle, sans ouvrir un fichier.
+	 * Les deux paragraphes ci-dessus sur le coût du balayage ne valent donc que
+	 * pour les coloris qu'il faut encore photographier.
+	 *
 	 * ## OPTIONS
 	 *
 	 * [--max=<n>]
@@ -2126,16 +2199,51 @@ final class Cli {
 	public static function colours_measure( array $args, array $assoc_args ): void {
 		$quiet = ! empty( $assoc_args['discret'] );
 
-		if ( ! function_exists( 'imagecreatefromstring' ) ) {
-			\WP_CLI::error( 'L’extension GD n’est pas installée : aucune photo ne peut être lue. Rien n’a été mesuré.' );
-		}
-		if ( '' === Shelf::photo_url( '/media/blank/picture/x.jpg' ) ) {
-			\WP_CLI::error( 'L’adresse du Worker n’est pas réglée (réglage « worker_url ») : les photos ne sont pas joignables.' );
-		}
-
 		$work = Colours::work_list( (int) ( $assoc_args['photos'] ?? Colours::PHOTOS_PER_COLOUR ) );
 		if ( empty( $work ) ) {
-			\WP_CLI::error( 'Aucun article importé ne porte de pastille ni de photo de coloris : il n’y a rien à mesurer. Lancez d’abord « wp teeshoop catalogue importer ».' );
+			\WP_CLI::error( 'Aucun article importé ne porte de teinte, de pastille ni de photo de coloris : il n’y a rien à mesurer. Lancez d’abord « wp teeshoop catalogue importer ».' );
+		}
+
+		/*
+		 * CE QUI MANQUE N'ARRÊTE QUE CE QUI EN DÉPEND.
+		 *
+		 * Ces deux refus étaient inconditionnels, et depuis que le fournisseur
+		 * déclare ses couleurs en chiffres ils arrêtaient une commande qui
+		 * n'avait besoin ni de GD ni du Worker : 52 des 84 coloris importés le
+		 * 9 septembre 2026 se mesurent sans ouvrir une seule image. Le travail
+		 * est donc regardé d'abord, et chaque manque n'arrête que s'il rend le
+		 * travail impossible.
+		 */
+		$images = 0;
+		$worker = 0;
+		foreach ( $work as $row ) {
+			foreach ( array_merge( $row['chips'], $row['photos'] ) as $path ) {
+				++$images;
+				if ( str_starts_with( (string) $path, '/' ) ) {
+					++$worker;
+				}
+			}
+		}
+
+		if ( ! function_exists( 'imagecreatefromstring' ) ) {
+			if ( $images > 0 && count( $work ) > 0 ) {
+				\WP_CLI::warning( 'L’extension GD n’est pas installée : seules les teintes déclarées seront mesurées, aucune image ne sera lue.' );
+			}
+			$declarees = 0;
+			foreach ( $work as $row ) {
+				$declarees += empty( $row['hex'] ) ? 0 : 1;
+			}
+			if ( 0 === $declarees ) {
+				\WP_CLI::error( 'L’extension GD n’est pas installée et aucun coloris ne porte de teinte déclarée : rien ne peut être mesuré.' );
+			}
+		}
+		if ( $worker > 0 && '' === Shelf::photo_url( '/media/blank/picture/x.jpg' ) ) {
+			\WP_CLI::warning(
+				sprintf(
+					'%d image(s) de coloris sont des chemins du Worker et son adresse n’est pas réglée (réglage « worker_url ») : ces coloris ne seront pas mesurés.',
+					$worker
+				)
+			);
 		}
 
 		$started = microtime( true );
@@ -2150,16 +2258,7 @@ final class Cli {
 						sprintf(
 							'  %-32s %s',
 							mb_substr( (string) $term->name, 0, 32 ),
-							empty( $verdict['ok'] )
-								? 'refusé : ' . (string) $verdict['why']
-								: implode( ' ', (array) $verdict['stops'] ) . '  ' . (string) $verdict['family']
-								  . sprintf(
-									  '  (%s, %d image%s%s)',
-									  (string) ( $verdict['source'] ?? 'pastille' ),
-									  (int) $verdict['photos'],
-									  (int) $verdict['photos'] > 1 ? 's' : '',
-									  isset( $verdict['photo_ecart'] ) ? sprintf( ', photo à %.3f', (float) $verdict['photo_ecart'] ) : ''
-								  )
+							self::colour_line( $verdict )
 						)
 					);
 				},
@@ -2168,10 +2267,11 @@ final class Cli {
 
 		\WP_CLI::log(
 			sprintf(
-				'%d coloris traités sur %d (%d mesurés dont %d repliés sur la photo, %d refusés, %d déjà connus, %d injoignables), %d images, %.1f s.%s',
+				'%d coloris traités sur %d (%d mesurés dont %d sur teinte déclarée et %d repliés sur la photo, %d refusés, %d déjà connus, %d injoignables), %d images, %.1f s.%s',
 				(int) $stats['colours'],
 				(int) $stats['total'],
 				(int) $stats['measured'],
+				(int) $stats['declaree'],
 				(int) $stats['fallback'],
 				(int) $stats['refused'],
 				(int) $stats['skipped'],
@@ -2220,6 +2320,54 @@ final class Cli {
 				\WP_CLI::log( sprintf( '  %-52s %d', mb_substr( (string) $why, 0, 52 ), (int) $n ) );
 			}
 		}
+	}
+
+	/**
+	 * Ce qu'une couleur est devenue, en une ligne de journal.
+	 *
+	 * TROIS ÉTATS ET TROIS PHRASES. « refusé » était imprimé pour les deux
+	 * derniers, et sur le miroir cela donnait 403 lignes annonçant un refus
+	 * pour des coloris qu'aucune décision n'a touchés : leur Worker ne répond
+	 * plus, donc `sweep()` n'écrit rien et laisse la mesure précédente en
+	 * place. Confondre « nous n'avons pas pu regarder » et « il n'y a rien »
+	 * est la faute que ce module a déjà payée une fois.
+	 */
+	private static function colour_line( array $verdict ): string {
+		if ( ! empty( $verdict['ok'] ) ) {
+			return implode( ' ', (array) $verdict['stops'] ) . '  ' . (string) $verdict['family']
+				. self::colour_provenance( $verdict );
+		}
+		if ( false === ( $verdict['stored'] ?? true ) ) {
+			return 'laissé tel quel : ' . (string) $verdict['why'];
+		}
+		return 'refusé : ' . (string) $verdict['why'];
+	}
+
+	/**
+	 * D'où vient une couleur, en une parenthèse, pour la ligne de progression.
+	 *
+	 * SANS COMPTER D'IMAGES QUAND IL N'Y EN A PAS EU. La ligne disait
+	 * « (pastille, 3 images) » et le compteur porte, sur le chemin de la teinte
+	 * déclarée, le nombre de DÉCLARATIONS du fabricant, jamais un
+	 * téléchargement : « (déclarée, 6 images) » sur un coloris mesuré sans
+	 * ouvrir un seul fichier serait un mensonge dans le journal d'une commande
+	 * dont c'est tout le sujet.
+	 */
+	private static function colour_provenance( array $verdict ): string {
+		$source = (string) ( $verdict['source'] ?? Colours::SOURCE_PASTILLE );
+		$n      = (int) ( $verdict['photos'] ?? 0 );
+
+		if ( Colours::SOURCE_DECLAREE === $source ) {
+			return sprintf( '  (%s, %d déclaration%s)', $source, $n, $n > 1 ? 's' : '' );
+		}
+
+		return sprintf(
+			'  (%s, %d image%s%s)',
+			$source,
+			$n,
+			$n > 1 ? 's' : '',
+			isset( $verdict['photo_ecart'] ) ? sprintf( ', photo à %.3f', (float) $verdict['photo_ecart'] ) : ''
+		);
 	}
 
 	/**
@@ -2310,11 +2458,21 @@ final class Cli {
 
 		$families = array();
 		$single   = 0;
+		$declared = 0;
 		foreach ( (array) $ledger['couleurs'] as $row ) {
 			if ( isset( $row['famille'] ) ) {
 				$families[ $row['famille'] ] = ( $families[ $row['famille'] ] ?? 0 ) + 1;
+				/*
+				 * `images` N'EXISTE PAS SUR UNE TEINTE DÉCLARÉE, et c'est ce qui
+				 * garde ce compteur honnête : « mesurés sur une seule photo »
+				 * est une réserve sur des coloris dont la valeur tient à un seul
+				 * cliché, et une teinte déclarée n'en a pas.
+				 */
 				if ( 1 === (int) ( $row['images'] ?? 0 ) ) {
 					++$single;
+				}
+				if ( isset( $row['declarations'] ) ) {
+					++$declared;
 				}
 			}
 		}
@@ -2323,7 +2481,8 @@ final class Cli {
 			\WP_CLI::log( sprintf( '  %-18s %4d', $label, (int) ( $families[ $slug ] ?? 0 ) ) );
 		}
 		\WP_CLI::log( '' );
-		\WP_CLI::log( sprintf( 'Mesurés sur une seule photo : %d', $single ) );
+		\WP_CLI::log( sprintf( 'Mesurés sur une seule photo   : %d', $single ) );
+		\WP_CLI::log( sprintf( 'Mesurés sur la teinte déclarée : %d', $declared ) );
 
 		if ( ! empty( $assoc_args['refus'] ) ) {
 			\WP_CLI::log( '' );
