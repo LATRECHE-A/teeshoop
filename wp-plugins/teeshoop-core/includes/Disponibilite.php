@@ -98,20 +98,39 @@ final class Disponibilite {
 	 * En millisecondes entières pour que l'arithmétique du budget ne passe pas
 	 * par des flottants là où elle décide d'arrêter.
 	 */
-	private const CALL_FIXED_MS = 430;
+	private const CALL_FIXED_MS = 482;
 
-	/** Le coût marginal d'un code. Voir CALL_FIXED_MS. */
-	private const CALL_PER_CODE_MS = 68;
+	/**
+	 * Le coût marginal d'un code. Voir CALL_FIXED_MS.
+	 *
+	 * REMESURÉ le 9 septembre 2026 sur le vrai service, six points de 1 à 150
+	 * codes, régression linéaire : 482 ms de socle et 69,1 ms par code, contre
+	 * 430 et 68 relevés plus tôt le même jour. La prédiction à 150 codes donne
+	 * 10,9 s pour 10,8 s mesurées, donc le modèle décrit bien le service ; les
+	 * deux constantes sont ramenées sur la mesure la plus récente plutôt que
+	 * gardées parce qu'elles étaient déjà écrites.
+	 */
+	private const CALL_PER_CODE_MS = 69;
 
 	/**
 	 * Le plafond de temps que la vérification d'un panier a le droit de prendre.
 	 *
-	 * HYPOTHÈSE ASSUMÉE, et la seule de ce fichier. `max_execution_time` vaut 0
-	 * en ligne de commande sur o2switch et pas côté web ; la valeur usuelle d'un
-	 * mutualisé est 30 s. Vingt secondes laissent donc un tiers de la requête au
-	 * reste du passage en caisse (WooCommerce, la TVA, la facture, Stripe). Le
-	 * nombre d'articles que cela autorise n'est PAS écrit à la main : il est
-	 * dérivé du modèle mesuré par `assert_cap()`, et il vaut 281.
+	 * HYPOTHÈSE ASSUMÉE, et la seule de ce fichier.
+	 *
+	 * CE N'EST PAS `max_execution_time` QUI BORNE, contrairement à ce que ce
+	 * commentaire affirmait : PHP ne compte pas l'attente sur une socket, donc
+	 * un appel qui pend ne déclenche jamais ce garde-fou. Ce qui borne
+	 * réellement, c'est le délai du serveur web devant PHP et la patience de
+	 * l'acheteur, et vingt secondes sont un choix sur ces deux-là.
+	 *
+	 * ET LA BORNE EST TENUE PAR UNE HORLOGE, pas par ce nombre seul :
+	 * `assert_buyable()` prend un instant limite au départ et n'engage aucun lot
+	 * qu'il ne peut pas finir dedans, sans reprise. Sans cela, deux lots au
+	 * délai maximal faisaient 42 s, et 82 avec les reprises.
+	 *
+	 * Le nombre d'articles autorisé n'est PAS écrit à la main : il est dérivé du
+	 * modèle mesuré par `assert_cap()`, et il vaut 275 avec les constantes
+	 * remesurées.
 	 */
 	private const ASSERT_MAX_SECONDS = 20.0;
 

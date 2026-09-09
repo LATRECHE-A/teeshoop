@@ -790,18 +790,36 @@ describe( 'Disponibilite : les codes, les lots et le budget', function (): void 
 	it(
 		'chiffre un appel avec le modèle mesuré, socle compris',
 		function (): void {
-			near( Disponibilite::call_seconds( 1 ), 0.498, 1e-9, 'un code' );
-			near( Disponibilite::call_seconds( 150 ), 10.63, 1e-9, 'un lot plein' );
-			near( Disponibilite::call_seconds( 0 ), 0.43, 1e-9, 'le socle seul' );
+			/*
+			 * LES NOMBRES SUIVENT LA MESURE, PAS L'INVERSE.
+			 *
+			 * Ils valaient 0,498 et 10,63, dérivés d'un socle de 430 ms et de
+			 * 68 ms par code. Le modèle a été remesuré le 9 septembre 2026 sur
+			 * le vrai service, six points de 1 à 150 codes : 482 ms et 69,1 ms,
+			 * pour une prédiction de 10,9 s contre 10,8 s mesurées. Ce qui est
+			 * asserté ici est que la FORME du modèle tient (un socle payé une
+			 * fois, un coût marginal par code), et les deux valeurs sont
+			 * recalculées depuis les constantes plutôt que recopiées, pour que
+			 * la prochaine remesure ne rende pas ce test rouge sans rien
+			 * apprendre à personne.
+			 */
+			$socle  = Disponibilite::call_seconds( 0 );
+			$unite  = Disponibilite::call_seconds( 1 ) - $socle;
+			truthy( $socle > 0.3 && $socle < 1.0, 'le socle reste dans l’ordre de grandeur mesuré : ' . $socle );
+			truthy( $unite > 0.03 && $unite < 0.15, 'et le coût par code aussi : ' . $unite );
+			near( Disponibilite::call_seconds( 150 ), $socle + 150 * $unite, 1e-9, 'un lot plein est linéaire' );
+			// Le socle est lu, pas recopié : il suit la remesure du modèle.
+			truthy( Disponibilite::call_seconds( 0 ) > 0.3, 'le socle seul reste un socle' );
 		}
 	);
 
 	it(
 		'paie le socle une fois par LOT et pas une fois pour toutes',
 		function (): void {
-			near( Disponibilite::plan_seconds( 150 ), 10.63, 1e-9 );
+			near( Disponibilite::plan_seconds( 150 ), Disponibilite::call_seconds( 150 ), 1e-9 );
 			// 151 codes, c'est deux appels, donc deux socles.
-			near( Disponibilite::plan_seconds( 151 ), 11.128, 1e-9 );
+			// Deux lots paient deux socles, et le nombre est dérivé et non recopié.
+			near( Disponibilite::plan_seconds( 151 ), Disponibilite::call_seconds( 150 ) + Disponibilite::call_seconds( 1 ), 1e-9 );
 			near( Disponibilite::plan_seconds( 0 ), 0.0, 1e-9 );
 		}
 	);
@@ -809,9 +827,11 @@ describe( 'Disponibilite : les codes, les lots et le budget', function (): void 
 	it(
 		'ne commence pas un lot qu’il ne peut pas finir',
 		function (): void {
-			eq( Disponibilite::codes_that_fit( 0.42 ), 0, 'même pas le socle' );
-			eq( Disponibilite::codes_that_fit( 0.50 ), 1, 'un code, mesuré à 0,50 s' );
-			eq( Disponibilite::codes_that_fit( 10.7 ), 150, 'un lot plein tient, et le plafond du service borne' );
+			// Bornes dérivées des constantes, pour la raison écrite plus haut.
+			$un = Disponibilite::call_seconds( 1 );
+			eq( Disponibilite::codes_that_fit( Disponibilite::call_seconds( 0 ) - 0.01 ), 0, 'même pas le socle' );
+			eq( Disponibilite::codes_that_fit( $un ), 1, 'un code' );
+			eq( Disponibilite::codes_that_fit( Disponibilite::call_seconds( 150 ) ), 150, 'un lot plein tient, et le plafond du service borne' );
 			eq( Disponibilite::codes_that_fit( 3600.0 ), 150, 'le plafond du service borne quel que soit le temps' );
 		}
 	);
@@ -820,7 +840,14 @@ describe( 'Disponibilite : les codes, les lots et le budget', function (): void 
 		'dérive le plus gros panier vérifiable du modèle, au lieu de l’écrire à la main',
 		function (): void {
 			$cap = Disponibilite::assert_cap( 20.0 );
-			eq( $cap, 281 );
+			/*
+			 * LE NOMBRE EXACT N'EST PLUS ÉCRIT ICI. Il valait 281, il vaut 275
+			 * depuis la remesure du modèle, et il rebougera à la prochaine.
+			 * Ce qui compte est la PROPRIÉTÉ, assertée juste en dessous : le
+			 * plafond tient dans le budget et un article de plus le dépasse.
+			 * Le plancher garde le test d'une dérive qui le viderait de sens.
+			 */
+			truthy( $cap > 100, 'le plafond reste utilisable : ' . $cap );
 			truthy( Disponibilite::plan_seconds( $cap ) <= 20.0, 'le plafond doit tenir dans le budget' );
 			truthy( Disponibilite::plan_seconds( $cap + 1 ) > 20.0, 'et un de plus doit le dépasser' );
 			eq( Disponibilite::assert_cap( 0.4 ), 0, 'un budget sous le socle ne permet aucun article' );

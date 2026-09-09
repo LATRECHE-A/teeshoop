@@ -194,9 +194,27 @@ final class ProductPage {
 		 * a plus qu'un écran, et `Editeur::rendre()` le pose depuis
 		 * `product-cta.php`.
 		 */
-		if ( Editeur::paquet_present() ) {
-			Editeur::enqueue();
-		}
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * LA FICHE NE CHARGE PLUS L'ÉDITEUR, PARCE QU'ELLE NE PEUT PLUS LE
+		 * MONTER.
+		 *
+		 * Depuis que le personnalisateur a sa page, ce gabarit ne rend plus
+		 * aucun conteneur : le module descendait, se parsait, ne trouvait rien
+		 * et s'arrêtait. Mesuré sur le HTML servi le 9 septembre 2026 : zéro
+		 * occurrence de `data-teeshoop-editeur`, mais un `editeur-*.js`, un
+		 * `editeur-*.css` et 3 576 octets de contexte en ligne, nonce compris.
+		 *
+		 * Ce que le retrait rend, mesuré sur deux séries de cinq dans les deux
+		 * ordres : 113 088 et 113 174 octets de moins sur le fil (-19,2 %) et
+		 * cinq requêtes de moins. Aucun gain de LCP n'est revendiqué : sur ce
+		 * miroir la variance écrase l'écart et le signe s'inverse entre les
+		 * deux séries, parce que l'élément le plus grand de cette page est le
+		 * bandeau de consentement, qui peint avant l'arrivée du module.
+		 *
+		 * `Atelier::assets()` fait déjà l'appel là où il sert, et le geste
+		 * symétrique dans l'autre sens en retirant le script de la fiche.
+		 */
 
 		self::enqueue();
 	}
@@ -602,11 +620,15 @@ final class ProductPage {
 				'needs_quote' => Pricing::needs_quote( $request['qty'], (int) $quote['total_ht'], $config )
 					|| $request['qty'] > self::self_serve_cap( wc_get_product( $product_id ) ),
 				/*
-				 * L'ÉDITEUR EST-IL DANS LA PAGE.
+				 * LE PAQUET DE L'ÉDITEUR EXISTE-T-IL, ce qui décide si la fiche
+				 * peut proposer l'atelier ou seulement le devis.
 				 *
-				 * Quand il l'est, il porte la grille de tailles, le prix et le
-				 * bouton d'achat, et ce gabarit n'en pose aucun : c'est la
-				 * « seule question posée une seule fois ».
+				 * CE COMMENTAIRE DISAIT AUTRE CHOSE ET IL ÉTAIT PÉRIMÉ : il
+				 * décrivait un éditeur dans cette page, portant la grille de
+				 * tailles, le prix et le bouton d'achat. Depuis que le
+				 * personnalisateur a sa page, ce gabarit ne pose plus que le
+				 * lien. Le nom du drapeau est gardé parce que le gabarit le lit
+				 * sous ce nom.
 				 *
 				 * UNE SEULE CONDITION, ET LA MÊME QUE CELLE QUI DÉCIDE DE
 				 * L'ENQUEUE. Il y en a eu deux pendant une heure, `est_actif()`

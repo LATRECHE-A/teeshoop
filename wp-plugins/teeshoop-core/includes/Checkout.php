@@ -216,17 +216,66 @@ final class Checkout {
 	 * dans la session, avec l'EMPREINTE du panier : changer une quantité change
 	 * l'empreinte et redemande, recharger la page ne redemande pas.
 	 */
+	/**
+	 * Sommes-nous sur une route de caisse de la Store API.
+	 *
+	 * `REST_REQUEST` est vrai pour toute requête REST, y compris celle qui
+	 * sérialise un panier après un clic sur « + ». WordPress publie le chemin
+	 * demandé dans `$GLOBALS['wp']->query_vars['rest_route']`, et le serveur
+	 * REST le tient aussi ; on lit le premier qui existe, et on n'invente rien
+	 * quand aucun ne répond : dans le doute, on ne tire pas, parce que
+	 * `Cart::add` a déjà vérifié à l'entrée et que la caisse classique passe par
+	 * `is_checkout()`.
+	 */
+	private static function sur_route_de_caisse(): bool {
+		if ( ! defined( 'REST_REQUEST' ) || ! REST_REQUEST ) {
+			return false;
+		}
+		$route = '';
+		if ( isset( $GLOBALS['wp'] ) && isset( $GLOBALS['wp']->query_vars['rest_route'] ) ) {
+			$route = (string) $GLOBALS['wp']->query_vars['rest_route'];
+		}
+		if ( '' === $route && isset( $_SERVER['REQUEST_URI'] ) ) {
+			$route = (string) wp_unslash( $_SERVER['REQUEST_URI'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- compared against fixed substrings, never printed.
+		}
+		if ( '' === $route ) {
+			return false;
+		}
+		/*
+		 * `/checkout` couvre `wc/store/v1/checkout` et ses sous-routes. `/batch`
+		 * est délibérément ABSENT : c'est exactement la route du bouton « + ».
+		 */
+		return false !== strpos( $route, '/checkout' );
+	}
+
 	private static function check_supplier_stock( \WC_Cart $cart ): void {
 		if ( ! function_exists( 'is_checkout' ) ) {
 			return;
 		}
 		/*
-		 * La caisse en blocs passe par la Store API, où `is_checkout()` est
-		 * faux : elle se reconnaît à la constante que WooCommerce définit sur
-		 * ses propres requêtes REST. Les deux sont testées parce que la
-		 * boutique a les deux gabarits selon le thème.
+		 * ─────────────────────────────────────────────────────────────────────
+		 * « TOUTE REQUÊTE REST » N'EST PAS « LA CAISSE », ET LE COMMENTAIRE
+		 * D'AU-DESSUS AFFIRMAIT LE CONTRAIRE DE CE QUE LE CODE FAISAIT.
+		 *
+		 * Le test était `is_checkout() || REST_REQUEST`. Mais
+		 * `CartSchema::get_item_response()` de WooCommerce appelle
+		 * `get_cart_errors()`, donc `validate_cart()`, donc
+		 * `woocommerce_check_cart_items`, sur TOUTE réponse de la Store API qui
+		 * sérialise un panier, et `REST_REQUEST` y est vrai.
+		 *
+		 * Mesuré : un clic sur « + » dans le panier en blocs part en
+		 * `POST /wp-json/wc/store/v1/batch` et déclenchait un appel fournisseur,
+		 * 1,9 s pour quinze articles, 2,4 s pour vingt-quatre. Et le mémo ne
+		 * protège pas ce cas : son empreinte contient les quantités, donc
+		 * changer une quantité est un défaut de cache garanti. Trois clics
+		 * faisaient trois appels sur un bouton dont on attend une réponse
+		 * immédiate.
+		 *
+		 * On regarde donc la ROUTE, pas la constante. `WP_REST_Request` porte
+		 * son chemin, et seules les routes de caisse doivent payer ce contrôle.
+		 * Un panier qu'on regarde ne réveille plus personne.
 		 */
-		$en_caisse = is_checkout() || ( defined( 'REST_REQUEST' ) && REST_REQUEST );
+		$en_caisse = is_checkout() || self::sur_route_de_caisse();
 		if ( ! $en_caisse ) {
 			return;
 		}

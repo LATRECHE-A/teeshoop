@@ -1098,9 +1098,9 @@ final class Purchase {
 	 * alors « cet article », qui est vague mais vrai, plutôt qu'un identifiant
 	 * qui serait précis et interdit.
 	 */
-	private static function customer_label( \WC_Product $variation ): string {
-		$couleur = self::attribute_of( $variation, 'couleur' );
-		$taille  = self::attribute_of( $variation, 'taille' );
+	private static function customer_label_from( string $couleur, string $taille ): string {
+		$couleur = trim( $couleur );
+		$taille  = trim( $taille );
 		if ( '' !== $couleur && '' !== $taille ) {
 			return sprintf( 'le %1$s en taille %2$s', $couleur, $taille );
 		}
@@ -1149,6 +1149,30 @@ final class Purchase {
 		$map = array() !== $terms ? $terms : Product::blank_colours_of( $product_id );
 		$out = array();
 
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * UNE SEULE REQUÊTE POUR TOUTE LA MATRICE, ET PAS UNE PAR CASE.
+		 *
+		 * Cette boucle faisait un `meta_query` à deux conditions PUIS un
+		 * `wc_get_product()` par case. Mesuré le 9 septembre 2026 sur une offre
+		 * de 18 coloris fois 9 tailles, cache objet froid : 7 518 ms et 766
+		 * requêtes SQL, soit 46,4 ms par case, AVANT même de parler au
+		 * fournisseur, qui prend encore dix secondes. Le bouton « Ajouter au
+		 * panier » ne répondait pas pendant dix-huit secondes, et la caisse
+		 * refaisait le calcul par ligne de panier.
+		 *
+		 * `Gamme::range()` a exactement le même problème résolu, avec le
+		 * commentaire qui le dit : « ici elle est faite en une requête parce que
+		 * la boucle en ferait trois cents ».
+		 *
+		 * CE QUI EST PRÉSERVÉ, et c'est le point délicat : `variation_of()`
+		 * rend -1 quand DEUX déclinaisons portent le même couple, parce qu'un
+		 * coloris qui ne désigne pas un article unique est un refus et pas un
+		 * choix. Le décompte ci-dessous garde cette règle : une paire vue deux
+		 * fois est écartée, elle n'est pas prise au hasard.
+		 */
+		$index = self::variation_index( $blank_id );
+
 		foreach ( $matrix as $colour => $sizes ) {
 			$term = (string) ( $map[ (string) $colour ] ?? '' );
 			if ( '' === $term || ! is_array( $sizes ) ) {
@@ -1159,15 +1183,14 @@ final class Purchase {
 				if ( $count < 1 ) {
 					continue;
 				}
-				$variation_id = self::variation_of( $blank_id, $term, (string) $size );
-				if ( $variation_id <= 0 ) {
+				$cle = self::index_key( $term, (string) $size );
+				$row = $index[ $cle ] ?? null;
+				// Absente, ou ambiguë (deux articles pour un couple) : on ne
+				// devine pas. `articles_for()` refusera la case en la nommant.
+				if ( ! is_array( $row ) || $row['ambigu'] || '' === $row['sku'] ) {
 					continue;
 				}
-				$variation = wc_get_product( $variation_id );
-				$sku       = $variation instanceof \WC_Product ? (string) $variation->get_meta( Catalogue::META_SUPPLY_SKU, true ) : '';
-				if ( '' === $sku ) {
-					continue;
-				}
+				$sku         = $row['sku'];
 				$out[ $sku ] = ( $out[ $sku ] ?? 0 ) + $count;
 				/*
 				 * ET UNE ÉTIQUETTE QU'UN CLIENT PEUT LIRE, remplie ici parce que
@@ -1184,7 +1207,7 @@ final class Purchase {
 				 * adversariale du 9 septembre 2026, reproduit de bout en bout par
 				 * la vraie route.
 				 */
-				$labels[ $sku ] = self::customer_label( $variation );
+				$labels[ $sku ] = self::customer_label_from( $row['couleur'], $row['taille'] );
 			}
 		}
 
@@ -1242,6 +1265,135 @@ final class Purchase {
 	 * `Taxonomy::terms()` matches on the name too. No normalisation, no
 	 * case-folding, no nearest match: a size that is not sold is refused.
 	 */
+	/**
+	 * Toutes les déclinaisons d'un textile nu, indexées par (coloris, taille).
+	 *
+	 * UNE REQUÊTE, TROIS JOINTURES, et le résultat porte déjà le numéro
+	 * d'article : la raison chiffrée est au point d'appel. Les objets
+	 * `WC_Product` sont chargés en une passe par `_prime_post_caches`, ce qui
+	 * évite les 162 requêtes que `wc_get_product()` ferait une par une.
+	 *
+	 * LES SLUGS, PAS LES NOMS. WooCommerce range le choix d'une déclinaison dans
+	 * `attribute_pa_couleur` sous forme de SLUG ; c'est ce que
+	 * `variation_of()` compare aussi, après avoir traduit le nom.
+	 *
+	 * @return array<string,array{sku:string,variation:?\WC_Product,ambigu:bool}>
+	 */
+	private static function variation_index( int $blank_id ): array {
+		global $wpdb;
+
+		$couleur = 'attribute_' . Taxonomy::taxonomy( 'couleur' );
+		$taille  = 'attribute_' . Taxonomy::taxonomy( 'taille' );
+
+		/*
+		 * LES NOMS SORTENT DE LA MÊME REQUÊTE, ET C'EST LA MOITIÉ DU GAIN.
+		 *
+		 * Une première version ne remontait que les identifiants et rappelait
+		 * `wc_get_product()` par déclinaison plus `get_term_by()` par case :
+		 * mesuré, 398 requêtes pour 119 cases, c'est-à-dire aucun gain sur les
+		 * 397 d'avant. Le `meta_query` n'était pas le coût principal.
+		 *
+		 * En joignant les tables de termes, une seule requête rend le numéro
+		 * d'article ET les deux noms, qui sont tout ce que l'appelant veut :
+		 * l'article à commander, et de quoi le nommer à un client. Aucun objet
+		 * `WC_Product` n'est construit.
+		 */
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT v.ID AS id,
+				        c.meta_value AS couleur_slug, t.meta_value AS taille_slug,
+				        tc.name AS couleur_nom, tt.name AS taille_nom,
+				        s.meta_value AS sku
+				   FROM {$wpdb->posts} v
+				   JOIN {$wpdb->postmeta} c  ON c.post_id = v.ID AND c.meta_key = %s
+				   JOIN {$wpdb->postmeta} t  ON t.post_id = v.ID AND t.meta_key = %s
+				   LEFT JOIN {$wpdb->postmeta} s ON s.post_id = v.ID AND s.meta_key = %s
+				   LEFT JOIN {$wpdb->terms} tc ON tc.slug = c.meta_value
+				   LEFT JOIN {$wpdb->term_taxonomy} xc ON xc.term_id = tc.term_id AND xc.taxonomy = %s
+				   LEFT JOIN {$wpdb->terms} tt ON tt.slug = t.meta_value
+				   LEFT JOIN {$wpdb->term_taxonomy} xt ON xt.term_id = tt.term_id AND xt.taxonomy = %s
+				  WHERE v.post_type = 'product_variation' AND v.post_parent = %d
+				  ORDER BY v.ID ASC",
+				$couleur,
+				$taille,
+				Catalogue::META_SUPPLY_SKU,
+				Taxonomy::taxonomy( 'couleur' ),
+				Taxonomy::taxonomy( 'taille' ),
+				$blank_id
+			)
+		);
+
+		$out = array();
+		foreach ( (array) $rows as $r ) {
+			$key = self::index_key_slug( (string) $r->couleur_slug, (string) $r->taille_slug );
+			if ( isset( $out[ $key ] ) ) {
+				// Deux déclinaisons pour un couple : ambiguïté, comme le -1 de
+				// `variation_of()`. On la marque, on ne choisit pas.
+				$out[ $key ]['ambigu'] = true;
+				continue;
+			}
+			$out[ $key ] = array(
+				'id'      => (int) $r->id,
+				'sku'     => (string) ( $r->sku ?? '' ),
+				'couleur' => (string) ( $r->couleur_nom ?? '' ),
+				'taille'  => (string) ( $r->taille_nom ?? '' ),
+				'ambigu'  => false,
+			);
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Le slug d'un nom de terme, dans une table construite une fois.
+	 *
+	 * `get_term_by( 'name', ... )` était appelé DEUX FOIS PAR CASE, soit 238
+	 * fois sur une matrice de 119 : c'était la moitié des requêtes restantes.
+	 * La table complète des deux taxonomies fait quelques centaines de lignes.
+	 *
+	 * @return array<string,string> nom vers slug.
+	 */
+	private static function slugs_of( string $attribute ): array {
+		static $cache = array();
+		if ( isset( $cache[ $attribute ] ) ) {
+			return $cache[ $attribute ];
+		}
+		$out   = array();
+		$terms = get_terms(
+			array(
+				'taxonomy'   => Taxonomy::taxonomy( $attribute ),
+				'hide_empty' => false,
+				'fields'     => 'id=>name',
+			)
+		);
+		if ( ! is_wp_error( $terms ) ) {
+			foreach ( $terms as $id => $name ) {
+				$t = get_term( (int) $id );
+				if ( $t instanceof \WP_Term ) {
+					$out[ (string) $name ] = (string) $t->slug;
+				}
+			}
+		}
+		$cache[ $attribute ] = $out;
+		return $out;
+	}
+
+	/** La clé d'index d'un couple (nom de coloris, nom de taille). */
+	private static function index_key( string $colour_term, string $size_name ): string {
+		$c = self::slugs_of( 'couleur' )[ $colour_term ] ?? '';
+		$t = self::slugs_of( 'taille' )[ $size_name ] ?? '';
+		if ( '' === $c || '' === $t ) {
+			return "\x00introuvable";
+		}
+		return self::index_key_slug( $c, $t );
+	}
+
+	/** La même clé, quand on tient déjà les slugs. */
+	private static function index_key_slug( string $colour_slug, string $size_slug ): string {
+		return $colour_slug . "\x00" . $size_slug;
+	}
+
 	public static function variation_of( int $blank_id, string $colour_term, string $size_name ): int {
 		$colour = get_term_by( 'name', $colour_term, Taxonomy::taxonomy( 'couleur' ) );
 		$size   = get_term_by( 'name', $size_name, Taxonomy::taxonomy( 'taille' ) );
