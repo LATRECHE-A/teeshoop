@@ -137,6 +137,15 @@ echo json_encode($out, JSON_UNESCAPED_UNICODE);
 const FLOOR = 0.5
 
 /**
+ * The three roads a published colour can have come down.
+ *
+ * Copied from `Colours::SOURCE_*` rather than read from it, like the needles in
+ * `scripts/php-guard.mjs`: a gate that takes its expectations from the code it
+ * is checking agrees with that code whatever the code does.
+ */
+const SOURCES = ['déclarée', 'pastille', 'photo']
+
+/**
  * Every check, over a record and what PHP said about it.
  *
  * Separated from the reading so the self-tests at the bottom can feed it a
@@ -215,8 +224,10 @@ function check(ledger, said, raw) {
     if ((row.ecart_photo ?? 0) > ecartMax) far++
     if (mine && row.famille && mine.nue !== row.famille) moved++
 
-    if (!['pastille', 'photo'].includes(row.source)) {
-      problems.push(`${where} is published with source ${JSON.stringify(row.source)}, which is neither`)
+    if (!SOURCES.includes(row.source)) {
+      problems.push(
+        `${where} is published with source ${JSON.stringify(row.source)}, which is none of ${SOURCES.join(', ')}`,
+      )
     }
     if (row.ecart_photo !== undefined && !Number.isFinite(row.ecart_photo)) {
       problems.push(`${where} has a photo distance that is not a number`)
@@ -228,6 +239,27 @@ function check(ledger, said, raw) {
      */
     if (row.source === 'photo' && row.ecart_photo !== undefined) {
       problems.push(`${where} fell back to the photograph and still records a distance to it`)
+    }
+    /*
+     * NOR CAN A DECLARED COLOUR. `Colours` does not fetch anything on that road,
+     * deliberately: `PHOTO_MAX` was fitted on the chip-against-photograph
+     * distribution and a declared number against a lit garment has neither the
+     * same distribution nor any measurement behind its threshold. A distance on
+     * such a row means the fetch came back, so the decision was undone without
+     * the number being refitted.
+     */
+    if (row.source === 'déclarée' && row.ecart_photo !== undefined) {
+      problems.push(`${where} was taken from the maker's declared hexadecimal and records a distance to a photograph`)
+    }
+    /*
+     * And the two counters are exclusive by construction: `images` is what was
+     * downloaded and `declarations` is what was read out of the payload.
+     */
+    if (row.images !== undefined && row.declarations !== undefined) {
+      problems.push(`${where} counts both images and declarations, and only one of them was the source`)
+    }
+    if (row.source === 'déclarée' && row.images !== undefined) {
+      problems.push(`${where} was declared, not photographed, and counts ${row.images} image(s)`)
     }
 
     const stops = row.pastille ?? []
@@ -283,7 +315,8 @@ function check(ledger, said, raw) {
   }
 
   const byPhoto = rows.filter((r) => r.source === 'photo').length
-  return { problems, published, waiting, total, far, byPhoto, moved, ecartMax }
+  const byHex = rows.filter((r) => r.source === 'déclarée').length
+  return { problems, published, waiting, total, far, byPhoto, byHex, moved, ecartMax }
 }
 
 function run() {
@@ -317,7 +350,7 @@ function run() {
     return 2
   }
 
-  const { problems, published, waiting, total, far, byPhoto, moved, ecartMax } = check(ledger, php.said, raw)
+  const { problems, published, waiting, total, far, byPhoto, byHex, moved, ecartMax } = check(ledger, php.said, raw)
 
   /*
    * THE SELF-TESTS. Break the record on purpose, twice, and require this same
@@ -339,6 +372,28 @@ function run() {
     fired.push(`a wrong family on « ${victim.nom} »`)
   }
 
+  /*
+   * A colour taken from the maker's declared number, carrying a distance to a
+   * photograph nobody fetched. It is the one rule this record cannot exercise
+   * on its own today: every row in it predates the declared road, so without
+   * this the branch would ship unproven.
+   */
+  const declaredWithGap = JSON.parse(raw)
+  const declared = declaredWithGap.couleurs.find((r) => r.pastille)
+  if (!declared) {
+    console.error(`${RED}No published colour to break: the declared-source self-test proved nothing.${OFF}`)
+    return 2
+  }
+  declared.source = 'déclarée'
+  declared.ecart_photo = 0.5
+  if (
+    check(declaredWithGap, php.said, JSON.stringify(declaredWithGap)).problems.some(
+      (p) => p.includes(declared.nom) && p.includes('declared hexadecimal'),
+    )
+  ) {
+    fired.push(`a declared colour carrying a photograph distance on « ${declared.nom} »`)
+  }
+
   // And a half-finished sweep, which every other check passes.
   const halfDone = JSON.parse(raw)
   halfDone.couleurs = halfDone.couleurs.map((r) =>
@@ -348,9 +403,9 @@ function run() {
     fired.push('a sweep that measured nothing')
   }
 
-  if (fired.length < 2) {
+  if (fired.length < 3) {
     console.error(
-      `${RED}Only ${fired.length} of 2 self-tests fired: this guard cannot be trusted to detect ${fired.length === 0 ? 'anything' : 'both faults'}.${OFF}`,
+      `${RED}Only ${fired.length} of 3 self-tests fired: this guard cannot be trusted to detect ${fired.length === 0 ? 'anything' : 'every fault'}.${OFF}`,
     )
     return 2
   }
@@ -367,7 +422,8 @@ function run() {
 
   const refused = total - published - waiting
   console.log(
-    `${GREEN}✓${OFF} ${published} colour(s) measured (${published - byPhoto} from a maker's chip, ` +
+    `${GREEN}✓${OFF} ${published} colour(s) measured (${byHex} from a maker's declared hexadecimal, ` +
+      `${published - byPhoto - byHex} from a maker's chip, ` +
       `${byPhoto} from a photograph), ${refused} refused, ${waiting} not looked at yet, ` +
       `${far} photograph(s) further than ${ecartMax} from their chip, ` +
       `${moved} grouped by their name because too pale to group by measurement, ` +

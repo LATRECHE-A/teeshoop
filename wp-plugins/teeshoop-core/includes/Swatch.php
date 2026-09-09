@@ -5,15 +5,25 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * WHY THIS EXISTS
  *
- * The supplier ships 442 colour names and not one colour value. « Navy »,
- * « Navy Blue », « French Navy », « Deep Navy » and « Midnight » are five
- * different articles, and the catalogue may never merge them: a buyer ordering
- * a re-run in eighteen months needs the name they bought. But a filter with 442
- * text labels in a scrolling box is not a colour filter, it is a dictionary.
+ * The supplier ships colour NAMES, and a colour value for one in five of them.
+ * « Navy », « Navy Blue », « French Navy », « Deep Navy » and « Midnight » are
+ * five different articles, and the catalogue may never merge them: a buyer
+ * ordering a re-run in eighteen months needs the name they bought. But a filter
+ * with 1 331 text labels in a scrolling box is not a colour filter, it is a
+ * dictionary. (442 names and none valued when this was written; 1 331 names on
+ * the mirror of 9 September 2026, of which 60 carry a declared value.)
  *
- * So the value is MEASURED, from two images the supplier ships per colourway.
+ * So the value is MEASURED, from what the supplier ships per colourway.
  *
- * THE CHIP IS THE VALUE (`Catalogue::META_COLOUR_CHIP`). It is a flat patch of
+ * THE DECLARED HEXADECIMAL IS THE VALUE WHEN THERE IS ONE
+ * (`Catalogue::META_COLOUR_HEX`, `declared()` below). Since 9 September 2026
+ * the supplier states the colour as a number rather than as a picture of one.
+ * That is the same statement as the chip with the JPEG, the lamp and the
+ * segmentation removed, so it wins over both images below. MEASURED on its
+ * catalogue: 14 568 of 75 088 variants carry one, so the two image roads are
+ * still the answer for four fifths of the shop.
+ *
+ * THE CHIP IS THE VALUE NEXT (`Catalogue::META_COLOUR_CHIP`). It is a flat patch of
  * the dye: MEASURED on eleven of them, between 99,2 % and 100 % of the frame is
  * a single colour and the 90th-centile distance from its own median is 0,0. So
  * it is the colour the maker DECLARES, delivered as an image rather than as
@@ -29,8 +39,26 @@
  * the chip is the half that is right. When no chip can be read the photograph
  * becomes the value, and the record says so on that colour's row.
  *
- * Both paths end at `centre()`. There is ONE rule for « what colour is this »,
- * the marginal median in OKLab, and two ways of bringing it pixels.
+ * All three paths end at `centre()`. There is ONE rule for « what colour is
+ * this », the marginal median in OKLab, and three ways of bringing it values.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE CMYK IS NOT A FOURTH ROAD, AND THAT IS A DECISION, NOT AN OVERSIGHT
+ *
+ * MEASURED on the supplier's catalogue: 75 074 of 75 088 variants carry a CMYK
+ * string (« 0 74 99 0 ») against 14 568 carrying a hexadecimal. It covers
+ * 99,98 % of the shop and it is the obvious way to fill the gap.
+ *
+ * It is refused. CMYK without an ICC profile names no colour: the same four
+ * numbers are a different ink on every press, paper and profile, and every
+ * published formula for converting them (the naive 1-min, Adobe's US Web
+ * Coated, a browser's) lands somewhere else. The result would look plausible on
+ * a filter and be an invention, which is exactly what a fabricated print size
+ * is: a number that reaches a customer and was not derived. The photograph of
+ * the actual garment IS a measurement of the actual dye, so the fallback that
+ * already exists is strictly better than a conversion of a device-dependent
+ * quadruple. If a profile ever arrives from the supplier (question Q71), this is
+ * where it would go, and it would go in as a cross-check first.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHAT THIS IS NOT
@@ -569,6 +597,137 @@ final class Swatch {
 	public static function hex( array $lab ): string {
 		list( $r, $g, $b ) = self::srgb( $lab );
 		return sprintf( '#%02x%02x%02x', $r, $g, $b );
+	}
+
+	/**
+	 * A hexadecimal the maker declares, read into OKLab. Null when it is not one.
+	 *
+	 * THE ROUND TRIP IS EXACT, AND THAT WAS MEASURED, not assumed. All
+	 * 16 777 216 sRGB colours were pushed through `oklab()` and back through
+	 * `srgb()`: zero of them came back different, on PHP 8.3, in 40 s. So a
+	 * declared colour survives being stored as OKLab and drawn again bit for
+	 * bit, which is what lets `scripts/couleurs-guard.mjs` demand that every
+	 * published swatch equal what its own stored triple converts to. Without
+	 * that property the declared road would have to keep the maker's string
+	 * beside the measurement, which is a second copy of one value.
+	 *
+	 * THE SHAPE IS CHECKED HERE, not at the call site, because the value comes
+	 * out of the database. `Supply::hex()` normalises it at import, and nothing
+	 * stops a hand or another plugin writing something else on the row
+	 * afterwards. Six digits and a croisillon, or nothing: a three-digit form
+	 * would be repaired by guessing, and a guessed colour is the defect this
+	 * whole file exists to remove.
+	 *
+	 * @return array{0:float,1:float,2:float}|null
+	 */
+	public static function from_hex( string $raw ): ?array {
+		$raw = trim( $raw );
+		if ( 1 !== preg_match( '/^#[0-9a-fA-F]{6}$/', $raw ) ) {
+			return null;
+		}
+		$n = (int) hexdec( substr( $raw, 1 ) );
+		return self::oklab( ( $n >> 16 ) & 255, ( $n >> 8 ) & 255, $n & 255 );
+	}
+
+	/**
+	 * One colour name, from the hexadecimals its maker declares for it.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * A DECLARATION IS A MEASUREMENT WITH THE MEASUREMENT ERROR REMOVED.
+	 *
+	 * The file header argues that the maker's chip is the declared colour,
+	 * delivered as an image, and that the photograph is the check. A numeric
+	 * declaration is that same statement with the JPEG, the lamp and the
+	 * segmentation taken out of it. It is therefore the best of the three
+	 * sources, not a shortcut past them, and it is tried first.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * ONE NAME CAN CARRY SEVERAL DECLARATIONS, AND THAT IS NOT A BUG.
+	 *
+	 * MEASURED on the supplier's full catalogue, 9 September 2026: 1 892 colour
+	 * names, of which 63 carry MORE than one hexadecimal across brands, and
+	 * « BLACK » carries six. The shop keeps one term per name, so those six
+	 * arrive here together. Averaging them blindly would invent a colour nobody
+	 * declared; refusing on the first disagreement would drop a name over one
+	 * brand's outlier.
+	 *
+	 * So they go through `aggregate()`, exactly as several photographs of one
+	 * colourway do: the median decides, a declaration further than `AGREE_MAX`
+	 * from it is dropped, and a name whose declarations have no majority is
+	 * refused with the spread on the record. ONE rule for « what colour is
+	 * this », now three ways of bringing it values.
+	 *
+	 * `AGREE_MAX` IS BORROWED, AND A REFUSAL HERE COSTS NOTHING. It was fitted
+	 * on photographs of one colourway, not on declarations from two brands, and
+	 * nothing has been measured that would set it for this road. What makes that
+	 * acceptable is where a refusal LEADS: `Colours::sweep()` then falls through
+	 * to the chip and to the garment photograph, which are measurements of the
+	 * real dye. The bar being wrong costs a fetch, never an invented colour.
+	 *
+	 * MEASURED on the local mirror, 9 September 2026: 14 colour names carry two
+	 * declarations, 12 are published and 2 refused (« Fuchsia » at 0,124 and
+	 * « Sky » at 0,131), and all 14 have BOTH declarations inside one family, so
+	 * no reference changes aisle over this.
+	 *
+	 * AT TWO VALUES THERE IS NO OUTLIER TO DROP. The median of two is their
+	 * midpoint and each sits at half their distance from it, so a pair passes up
+	 * to TWICE `AGREE_MAX` and the published colour is a midpoint neither brand
+	 * declared. That is the same arithmetic two photographs have always had; it
+	 * is written down because it surprises.
+	 *
+	 * @param string[] $hexes The maker's declarations, deduplicated by the caller.
+	 */
+	public static function declared( array $hexes ): array {
+		$labs      = array();
+		$unusable  = 0;
+		foreach ( $hexes as $raw ) {
+			$lab = self::from_hex( (string) $raw );
+			if ( null === $lab ) {
+				++$unusable;
+				continue;
+			}
+			$labs[] = $lab;
+		}
+
+		if ( array() === $labs ) {
+			/*
+			 * « Nothing was declared » and « what was declared is not a colour »
+			 * send an operator to two different places: the first to the
+			 * supplier's payload, the second to whatever wrote the row.
+			 */
+			return array_merge(
+				self::nothing( 0 === $unusable ? 'aucune teinte déclarée' : 'teinte déclarée illisible' ),
+				array( 'seen' => $unusable )
+			);
+		}
+
+		$out = self::aggregate(
+			array_map(
+				static fn( array $lab ): array => array(
+					'ok'      => true,
+					'why'     => '',
+					'stops'   => array( $lab ),
+					'share'   => 1.0,
+					'scatter' => 0.0,
+				),
+				$labs
+			)
+		);
+
+		if ( empty( $out['ok'] ) ) {
+			/*
+			 * Every entry handed to `aggregate()` above is a good one, so its
+			 * only remaining refusal is « they do not agree ». Said in the words
+			 * of THIS source: « photos discordantes » on a colour measured from
+			 * no photograph at all would send the reader looking for images.
+			 */
+			$out['why'] = sprintf(
+				'teintes déclarées discordantes (%d, écart %s)',
+				count( $labs ),
+				number_format( (float) ( $out['spread'] ?? 0.0 ), 3, ',', '' )
+			);
+		}
+		return $out;
 	}
 
 	/**

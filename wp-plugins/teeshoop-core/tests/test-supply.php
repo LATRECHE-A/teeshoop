@@ -211,18 +211,24 @@ describe(
 				 * Publier une pastille grise sous « BLACK » serait du contenu
 				 * fabriqué ; `Product::blank_palette_of` laisse d'ailleurs
 				 * tomber une pastille sans couleur mesurée. Le nuancier sort
-				 * donc VIDE ici, et `Colours` mesure la photographie.
+				 * donc VIDE ici, et `Colours` mesure la photographie DE CE
+				 * COLORIS, qui existe et qui est une mesure du vrai vêtement.
 				 */
 				$entry = Supply::to_entry( ts_supply_products()['1500KC'], ts_supply_live( '1500KC' ) );
 				$avec  = 0;
+				$photo = 0;
 				foreach ( $entry['style']['colourways'] as $cw ) {
 					truthy( '' !== $cw['name'], 'chaque coloris garde son nom' );
-					if ( '' !== $cw['swatch'] ) {
+					if ( '' !== $cw['hex'] ) {
 						++$avec;
+					}
+					if ( '' !== $cw['photo'] ) {
+						++$photo;
 					}
 				}
 				eq( $avec, 0, 'aucune teinte inventée sur une référence qui n’en publie pas' );
 				truthy( count( $entry['style']['colourways'] ) >= 8, 'et les coloris sont tous là' );
+				eq( $photo, count( $entry['style']['colourways'] ), 'chacun garde sa photographie, qui est ce qui sera mesuré' );
 			}
 		);
 
@@ -231,7 +237,31 @@ describe(
 			static function (): void {
 				$entry = Supply::to_entry( ts_supply_products()['BC01B'], ts_supply_live( 'BC01B' ) );
 				foreach ( $entry['style']['colourways'] as $cw ) {
-					eq( 1, preg_match( '/^#[0-9a-f]{6}$/', $cw['swatch'] ), $cw['name'] . ' porte une teinte normalisée' );
+					eq( 1, preg_match( '/^#[0-9a-f]{6}$/', $cw['hex'] ), $cw['name'] . ' porte une teinte normalisée' );
+				}
+			}
+		);
+
+		it(
+			'ne met jamais un nombre dans le champ qui porte une image',
+			static function (): void {
+				/*
+				 * `swatch` EST UNE IMAGE ET `hex` EST UN NOMBRE, et ils ont été
+				 * le même champ pendant une révision. `Catalogue::variations()`
+				 * écrit `swatch` dans `META_COLOUR_CHIP`, une meta que
+				 * `Shelf::SEALED` scelle parce qu'elle porte une URL nommant
+				 * notre fournisseur, et que son propre commentaire décrit comme
+				 * « un JPEG, pas un hexadécimal ». Deux sens dans un champ,
+				 * c'est un lecteur sur deux qui se trompe : `Colours` plafonne
+				 * les pastilles à cinq par coloris pour ne pas multiplier les
+				 * téléchargements, et une teinte déclarée pouvait être évincée
+				 * par cinq chemins d'images morts.
+				 */
+				foreach ( array( 'BC01B', '1500KC' ) as $ref ) {
+					$entry = Supply::to_entry( ts_supply_products()[ $ref ], ts_supply_live( $ref ) );
+					foreach ( $entry['style']['colourways'] as $cw ) {
+						eq( $cw['swatch'], '', $ref . ' / ' . $cw['name'] . ' : ce service ne publie aucune pastille' );
+					}
 				}
 			}
 		);

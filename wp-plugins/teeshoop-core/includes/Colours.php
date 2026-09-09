@@ -10,34 +10,49 @@
  * neither WordPress nor GD installed.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * TWO SOURCES, AND ONLY ONE OF THEM DECIDES
+ * TROIS SOURCES, DANS L'ORDRE DE LEUR ERREUR DE MESURE
  *
- * The supplier ships a COLOUR CHIP per colourway, `sku_color_swatch_url`: a flat
- * patch of the dye, measured at 99,2 % to 100 % uniform on eleven of them. That
- * is the declared colour and it is what the swatch shows.
+ * 1. LA TEINTE DÉCLARÉE (`Catalogue::META_COLOUR_HEX`). Depuis le 9 septembre
+ *    2026 le fournisseur énonce la couleur en chiffres et non plus en image.
+ *    C'est la même affirmation que la pastille ci-dessous, sans la compression
+ *    JPEG, sans la lampe et sans le détourage : donc la meilleure des trois, et
+ *    elle est essayée la première. AUCUN TÉLÉCHARGEMENT sur ce chemin.
  *
- * It also ships a PHOTOGRAPH of the garment in that colour. That one is not the
- * value; it is the check. The two are measured independently and their distance
- * is recorded, because the supplier is known to reuse one colourway's shot for
- * another (the Worker's supplier client records it, on `backColour`), and a
- * photograph that does not match its own chip is the shape that failure takes.
- * The disagreement is reported to the operator, not used to refuse the swatch:
- * the chip is right and it is the PHOTOGRAPH that is wrong, and hiding the
- * swatch would not fix it.
+ * 2. LA PASTILLE DU FABRICANT (`Catalogue::META_COLOUR_CHIP`), une image d'un
+ *    aplat de la teinture, mesurée entre 99,2 % et 100 % uniforme sur onze
+ *    d'entre elles. C'est ce que livrait l'ancien fournisseur, et c'est ce que
+ *    portent encore les 46 572 déclinaisons importées avant cette date.
  *
- * When there is no usable chip the photograph becomes the value, through the
- * segmentation `Swatch::measure()` exists for. Both roads end at the same
- * function, `Swatch::centre()`, so there is one rule for « what colour is this »
- * and two ways of getting pixels to it.
+ * 3. LA PHOTOGRAPHIE DU VÊTEMENT (`Catalogue::META_COLOUR_PHOTO`), par le
+ *    détourage que `Swatch::measure()` existe pour faire. Ce n'est pas un
+ *    pis-aller inventé : le nouveau fournisseur publie un jeu d'images PAR
+ *    coloris (mesuré sur 154 produits multicolores, 154 en ont un différent par
+ *    coloris, zéro le partagent), donc c'est une mesure du vrai vêtement.
+ *
+ * Quand la pastille répond, la photographie sert de CONTRÔLE et son écart est
+ * enregistré : le fournisseur est connu pour réutiliser la photo d'un coloris
+ * pour un autre, et c'est la forme que prend cette panne. Le désaccord est
+ * rapporté à l'opérateur, jamais utilisé pour refuser la pastille.
+ *
+ * CE CONTRÔLE NE TOURNE PAS SUR LA TEINTE DÉCLARÉE, et c'est délibéré.
+ * `PHOTO_MAX` a été réglé sur la distribution mesurée pastille contre photo ; la
+ * distance d'un nombre déclaré à un vêtement éclairé n'a pas la même
+ * distribution et n'a jamais été relevée. Publier ce nombre sous le même seuil
+ * serait un chiffre qu'on ne sait pas lire, et cela coûterait un
+ * téléchargement de 1,6 Mo par coloris pour l'obtenir.
+ *
+ * Si rien de tout cela n'existe, le coloris est REFUSÉ avec son motif. Peindre
+ * un gris sous un vrai nom de couleur est le défaut que tout ce fichier existe
+ * pour supprimer.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHERE THEY ARE
  *
  * Not on the term. WooCommerce puts the colour on a VARIATION as the plain
  * meta `attribute_pa_couleur` holding a term slug, and the importer puts that
- * colourway's chip and photograph beside it. So one grouped query over three
- * meta keys gives every (colour, chip, photograph) row in the shop, and the
- * parent product is never touched.
+ * colourway's declared hexadecimal, chip and photograph beside it. So one
+ * grouped query over four meta keys gives every (colour, hexadecimal, chip,
+ * photograph) row in the shop, and the parent product is never touched.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * NO CACHE, AND THAT IS A MEASURED DECISION
@@ -51,6 +66,14 @@
  * option that has to be invalidated the day a threshold in `Swatch` moves. The
  * cost of not having it is three minutes; the cost of having it is a stale
  * swatch nobody can explain.
+ *
+ * RE-MESURÉ LE 9 SEPTEMBRE 2026, sur un catalogue qui a quintuplé : 1 331
+ * coloris, `--recommencer`, 6 311 images, 181 s en tout. La conclusion tient.
+ * Ce qui a changé, et qui compte davantage, c'est que `work_list()` met 21,6 s
+ * à elle seule et qu'elle est appelée DEUX fois par commande (une fois par la
+ * commande pour savoir s'il y a du travail, une fois par `sweep()`). Ce coût
+ * est antérieur à la teinte déclarée : la même requête sans sa jointure met
+ * 20,3 s. C'est la taille du catalogue, pas le nombre de jointures.
  *
  * @package Teeshoop\Core
  */
@@ -81,8 +104,20 @@ final class Colours {
 	public const META_WHY    = '_teeshoop_swatch_refus';
 	public const META_AT     = '_teeshoop_swatch_date';
 
-	/** Which of the two sources answered: `pastille` or `photo`. */
+	/** Which of the three sources answered. */
 	public const META_SOURCE = '_teeshoop_swatch_source';
+
+	/**
+	 * The three answers `META_SOURCE` can hold, named once.
+	 *
+	 * `scripts/couleurs-guard.mjs` keeps its own copy of this list, on purpose
+	 * and not by importing it: it is a gate on the committed record, and a gate
+	 * that reads its expectations from the code it checks agrees with itself
+	 * whatever the code does.
+	 */
+	public const SOURCE_DECLAREE = 'déclarée';
+	public const SOURCE_PASTILLE = 'pastille';
+	public const SOURCE_PHOTO    = 'photo';
 
 	/** How far the garment photograph sat from the chip. Operator diagnostic. */
 	public const META_ECART  = '_teeshoop_swatch_ecart';
@@ -141,13 +176,13 @@ final class Colours {
 	public const PHOTO_MAX = 0.12;
 
 	/**
-	 * Every (colour term, chip, photograph) row the shop holds.
+	 * Every (colour term, declared hexadecimal, chip, photograph) row the shop holds.
 	 *
 	 * Sorted so a re-run measures the same images in the same order on every
 	 * machine: without that the ledger's diff is noise and the spread figure
 	 * moves for no reason.
 	 *
-	 * @return array<string,array{chips:string[],photos:string[]}>
+	 * @return array<string,array{hex:string[],chips:string[],photos:string[]}>
 	 */
 	public static function work_list( int $per_colour = self::PHOTOS_PER_COLOUR ): array {
 		global $wpdb;
@@ -160,22 +195,31 @@ final class Colours {
 		 * version of this query drove off the photograph meta and dropped those
 		 * on the floor, silently: the Worker returns '' for a picture URL whose
 		 * shape it does not recognise (`proxyImage()`), and that colourway then
-		 * had no row at all rather than a chip-only one.
+		 * had no row at all rather than a chip-only one. The declared
+		 * hexadecimal joined a third time for the same reason: a colourway with
+		 * a number and no picture at all is a colour we CAN measure, and it is
+		 * the only thing the supplier ships for 20 % of the catalogue.
 		 */
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT c.meta_value AS slug,
+				        COALESCE(h.meta_value, '') AS hex,
 				        COALESCE(p.meta_value, '') AS photo,
 				        COALESCE(k.meta_value, '') AS chip
 				 FROM {$wpdb->postmeta} c
+				 LEFT JOIN {$wpdb->postmeta} h
+				        ON h.post_id = c.post_id AND h.meta_key = %s
 				 LEFT JOIN {$wpdb->postmeta} p
 				        ON p.post_id = c.post_id AND p.meta_key = %s
 				 LEFT JOIN {$wpdb->postmeta} k
 				        ON k.post_id = c.post_id AND k.meta_key = %s
 				 WHERE c.meta_key = %s AND c.meta_value <> ''
-				   AND ( COALESCE(p.meta_value, '') <> '' OR COALESCE(k.meta_value, '') <> '' )
-				 GROUP BY c.meta_value, p.meta_value, k.meta_value
-				 ORDER BY c.meta_value ASC, k.meta_value ASC, p.meta_value ASC",
+				   AND ( COALESCE(h.meta_value, '') <> ''
+				      OR COALESCE(p.meta_value, '') <> ''
+				      OR COALESCE(k.meta_value, '') <> '' )
+				 GROUP BY c.meta_value, h.meta_value, p.meta_value, k.meta_value
+				 ORDER BY c.meta_value ASC, h.meta_value ASC, k.meta_value ASC, p.meta_value ASC",
+				Catalogue::META_COLOUR_HEX,
 				Catalogue::META_COLOUR_PHOTO,
 				Catalogue::META_COLOUR_CHIP,
 				'attribute_pa_couleur'
@@ -189,9 +233,24 @@ final class Colours {
 			$slug = (string) $row['slug'];
 			if ( ! isset( $out[ $slug ] ) ) {
 				$out[ $slug ] = array(
+					'hex'    => array(),
 					'chips'  => array(),
 					'photos' => array(),
 				);
+			}
+			/*
+			 * THE DECLARATIONS ARE NOT CAPPED, and the images are.
+			 *
+			 * `$cap` exists because every extra image is a fetch. A declaration
+			 * costs one string comparison, and truncating the list would make
+			 * `Swatch::declared()`'s agreement test depend on an arbitrary
+			 * limit: « BLACK » carries six hexadecimals across brands, and
+			 * whether a majority of six agrees must not be decided by which five
+			 * of them the database returned first.
+			 */
+			$hex = (string) $row['hex'];
+			if ( '' !== $hex && ! in_array( $hex, $out[ $slug ]['hex'], true ) ) {
+				$out[ $slug ]['hex'][] = $hex;
 			}
 			$chip = (string) $row['chip'];
 			if ( '' !== $chip && count( $out[ $slug ]['chips'] ) < $cap && ! in_array( $chip, $out[ $slug ]['chips'], true ) ) {
@@ -225,7 +284,28 @@ final class Colours {
 	}
 
 	private static function fetch_and_measure( string $path, bool $is_chip ): array {
-		$url = Shelf::photo_url( $path );
+		/*
+		 * `Importer::fetchable()`, ET SURTOUT PAS `Shelf::photo_url()`.
+		 *
+		 * TÉLÉCHARGER ET AFFICHER SONT DEUX QUESTIONS. `Shelf::photo_url()`
+		 * répond à la seconde, et depuis le 9 septembre 2026 elle refuse tout
+		 * ce qui n'est pas un chemin `/media/` du Worker, parce qu'une URL
+		 * fournisseur dans un attribut `src` publie chez qui nous achetons.
+		 * Ce refus est juste et il reste. Il n'a rien à faire ici : ce qui part
+		 * d'ici est une requête SERVEUR, une fois, dont le résultat est un
+		 * nombre et jamais une adresse rendue au navigateur.
+		 *
+		 * Mesuré : tant que cette fonction passait par l'affichage, les 84
+		 * coloris du nouveau fournisseur donnaient « adresse de photo refusée »
+		 * sur 100 % de leurs photographies, donc aucune couleur mesurable, donc
+		 * `wp teeshoop gamme appliquer` posait 9 références sur 449.
+		 *
+		 * `Importer::fetchable()` porte la liste blanche d'hôtes (comparaison
+		 * d'hôte complète, jamais un préfixe) et laisse encore passer les
+		 * chemins relatifs du Worker, qui sont ce que porte tout ce qui a été
+		 * importé avant cette date.
+		 */
+		$url = Importer::fetchable( $path );
 		if ( '' === $url ) {
 			return array(
 				'ok'      => false,
@@ -392,7 +472,10 @@ final class Colours {
 		if ( ! empty( $verdict['ok'] ) ) {
 			$write[ self::META_STOPS ]  = implode( ' ', $verdict['stops'] );
 			$write[ self::META_FAMILY ] = (string) $verdict['family'];
-			$write[ self::META_SOURCE ] = (string) ( $verdict['source'] ?? 'pastille' );
+			// La valeur par défaut est la pastille parce que c'était la seule
+			// source le jour où cette meta a été créée : les termes mesurés
+			// avant elle ne portent rien et sont bien des pastilles.
+			$write[ self::META_SOURCE ] = (string) ( $verdict['source'] ?? self::SOURCE_PASTILLE );
 			if ( isset( $verdict['photo_ecart'] ) ) {
 				$write[ self::META_ECART ] = (string) $verdict['photo_ecart'];
 			}
@@ -561,6 +644,7 @@ final class Colours {
 			'skipped'         => 0,
 			'injoignable'     => 0,
 			'images'          => 0,
+			'declaree'        => 0,
 			'fallback'        => 0,
 			'photo_verifiee'  => 0,
 			'photo_illisible' => 0,
@@ -591,19 +675,40 @@ final class Colours {
 			}
 
 			/*
-			 * THE CHIPS FIRST, AND THEY ARE THE ANSWER WHEN THERE IS ONE.
-			 * The photograph only becomes the value when no chip could be read,
-			 * because it is a lit garment and the chip is the dye.
+			 * ─── LES TROIS SOURCES, DANS L'ORDRE, ET LA PREMIÈRE QUI RÉPOND ───
+			 *
+			 * La teinte déclarée d'abord (aucune erreur de mesure), la pastille
+			 * ensuite (un aplat compressé), la photographie en dernier (un
+			 * vêtement éclairé qu'il faut détourer).
+			 *
+			 * QUI DONNE LE MOTIF QUAND AUCUNE NE RÉPOND : la PREMIÈRE qui a
+			 * réellement été essayée. C'est la règle qui existait déjà entre
+			 * pastille et photographie et elle se lit bien : un coloris qui a
+			 * une pastille illisible et pas de photo doit envoyer l'opérateur
+			 * vers la pastille, pas vers une photo qui n'existe pas.
 			 */
-			$chips = array();
-			foreach ( $row['chips'] as $path ) {
-				$chips[] = self::measure_chip( $path );
-				++$stats['images'];
-			}
-			$verdict = Swatch::aggregate( $chips );
-			$source  = 'pastille';
+			$verdict = null;
+			$source  = '';
 
-			if ( empty( $verdict['ok'] ) ) {
+			if ( ! empty( $row['hex'] ) ) {
+				$verdict = Swatch::declared( $row['hex'] );
+				$source  = self::SOURCE_DECLAREE;
+			}
+
+			if ( ( null === $verdict || empty( $verdict['ok'] ) ) && ! empty( $row['chips'] ) ) {
+				$chips = array();
+				foreach ( $row['chips'] as $path ) {
+					$chips[] = self::measure_chip( $path );
+					++$stats['images'];
+				}
+				$measured = Swatch::aggregate( $chips );
+				if ( ! empty( $measured['ok'] ) || null === $verdict ) {
+					$verdict = $measured;
+					$source  = self::SOURCE_PASTILLE;
+				}
+			}
+
+			if ( ( null === $verdict || empty( $verdict['ok'] ) ) && ! empty( $row['photos'] ) ) {
 				$photos = array();
 				foreach ( $row['photos'] as $path ) {
 					$photos[] = self::measure_photo( $path );
@@ -612,18 +717,35 @@ final class Colours {
 				$fallback = Swatch::aggregate( $photos );
 				if ( ! empty( $fallback['ok'] ) ) {
 					$verdict = $fallback;
-					$source  = 'photo';
-					++$stats['fallback'];
-				} elseif ( empty( $chips ) ) {
+					$source  = self::SOURCE_PHOTO;
+				} elseif ( null === $verdict ) {
 					/*
-					 * NO CHIP EXISTED, so the chip verdict's « aucune photo »
-					 * describes nothing that was tried and sends whoever reads
-					 * it to look for a missing chip. The photographs WERE tried;
-					 * their reason is the one an operator can act on.
+					 * NOTHING EARLIER EXISTED, so an earlier verdict's « aucune
+					 * photo » would describe nothing that was tried and send
+					 * whoever reads it to look for a missing chip. The
+					 * photographs WERE tried; their reason is the one an
+					 * operator can act on.
 					 */
 					$verdict = $fallback;
+					$source  = self::SOURCE_PHOTO;
 				}
-			} elseif ( ! empty( $row['photos'] ) ) {
+			}
+
+			if ( null === $verdict ) {
+				/*
+				 * `work_list()` only returns a row carrying at least one of the
+				 * three, so this cannot happen from it. Written anyway, and as a
+				 * STORED refusal rather than a `continue`, because the failure
+				 * that would produce it is a query that stopped filtering, and
+				 * that must be visible on the record instead of silently
+				 * shrinking the sweep.
+				 */
+				$verdict = array(
+					'ok'    => false,
+					'why'   => 'aucune teinte ni photographie pour ce coloris',
+					'stops' => array(),
+				);
+			} elseif ( self::SOURCE_PASTILLE === $source && ! empty( $verdict['ok'] ) && ! empty( $row['photos'] ) ) {
 				/*
 				 * ONE photograph, as a check and not as a value. The supplier is
 				 * known to reuse one colourway's shot for another, and a garment
@@ -685,7 +807,15 @@ final class Colours {
 			if ( empty( $verdict['ok'] ) && false === ( $verdict['reachable'] ?? true ) ) {
 				++$stats['injoignable'];
 				if ( is_callable( $progress ) ) {
-					$progress( $term, $verdict, $stats );
+					/*
+					 * `stored` DIT AU JOURNAL CE QUI S'EST PASSÉ, et il manquait.
+					 * Ces 403 lignes s'impriment « refusé : photo non
+					 * récupérée » alors que rien n'a été refusé et que rien n'a
+					 * été écrit : le terme est laissé exactement tel quel. Le
+					 * résumé le dit déjà en fin de commande ; la ligne par
+					 * coloris disait le contraire.
+					 */
+					$progress( $term, array_merge( $verdict, array( 'stored' => false ) ), $stats );
 				}
 				continue;
 			}
@@ -695,6 +825,21 @@ final class Colours {
 			++$stats['colours'];
 			if ( ! empty( $verdict['ok'] ) ) {
 				++$stats['measured'];
+				/*
+				 * COMPTÉ ICI ET PAS À LA SOURCE, POUR QUE LA LIGNE S'ADDITIONNE.
+				 *
+				 * Ces deux compteurs étaient incrémentés au moment où la source
+				 * répondait, donc avant `Swatch::verify()`, qui peut encore
+				 * refuser. Relevé sur le miroir : « 19 mesurés dont 2 sur teinte
+				 * déclarée et 18 repliés sur la photo », soit vingt sur
+				 * dix-neuf. Un rapport dont les nombres ne s'additionnent pas ne
+				 * se lit pas, il se devine.
+				 */
+				if ( self::SOURCE_DECLAREE === $source ) {
+					++$stats['declaree'];
+				} elseif ( self::SOURCE_PHOTO === $source ) {
+					++$stats['fallback'];
+				}
 				$family                        = (string) $verdict['family'];
 				$stats['families'][ $family ]  = ( $stats['families'][ $family ] ?? 0 ) + 1;
 			} else {
@@ -704,7 +849,7 @@ final class Colours {
 			}
 
 			if ( is_callable( $progress ) ) {
-				$progress( $term, $verdict, $stats );
+				$progress( $term, array_merge( $verdict, array( 'stored' => true ) ), $stats );
 			}
 		}
 
@@ -787,7 +932,7 @@ final class Colours {
 				'photos' => (int) $read['photos'],
 				'seen'   => (int) $read['photos'],
 				'spread' => (float) $read['spread'],
-				'source' => '' === $read['source'] ? 'pastille' : $read['source'],
+				'source' => '' === $read['source'] ? self::SOURCE_PASTILLE : $read['source'],
 			);
 			if ( '' !== $read['ecart'] ) {
 				$agg['photo_ecart'] = (float) $read['ecart'];
@@ -913,8 +1058,23 @@ final class Colours {
 				++$stats['mesurés'];
 				$row['pastille'] = $read['stops'];
 				$row['famille']  = $read['family'];
-				$row['source']   = '' === $read['source'] ? 'pastille' : $read['source'];
-				$row['images']   = $read['photos'];
+				$row['source']   = '' === $read['source'] ? self::SOURCE_PASTILLE : $read['source'];
+				/*
+				 * DEUX NOMS PARCE QUE CE SONT DEUX CHOSES.
+				 *
+				 * `META_PHOTOS` compte ce sur quoi la médiane a été prise : des
+				 * images sur les deux chemins photographiques, des déclarations
+				 * du fabricant sur le troisième, où rien n'a été téléchargé.
+				 * Écrire « images: 6 » sur un coloris mesuré sans image ferait
+				 * dire au relevé le contraire de ce qui s'est passé, et
+				 * `couleurs etat` compte les coloris tenant sur une SEULE photo,
+				 * ce qu'une teinte déclarée n'est jamais.
+				 */
+				if ( self::SOURCE_DECLAREE === $row['source'] ) {
+					$row['declarations'] = $read['photos'];
+				} else {
+					$row['images'] = $read['photos'];
+				}
 				if ( '' !== $read['ecart'] ) {
 					$row['ecart_photo'] = (float) $read['ecart'];
 				}
@@ -973,7 +1133,7 @@ final class Colours {
 
 		return array(
 			'mesuré_le' => gmdate( 'Y-m-d' ),
-			'méthode'   => 'médiane OKLab de la pastille du fabricant ; à défaut, du vêtement photographié, fond retiré par remplissage connecté depuis le bord',
+			'méthode'   => 'teinte hexadécimale déclarée par le fabricant ; à défaut médiane OKLab de sa pastille ; à défaut du vêtement photographié, fond retiré par remplissage connecté depuis le bord',
 			'largeur'   => Swatch::WORK_W,
 			// Exported rather than written down twice: the guard prints how many
 			// photographs are far from their chip and must use the threshold the
@@ -1003,7 +1163,15 @@ final class Colours {
 			if ( null === self::read( (int) $id ) ) {
 				continue;
 			}
-			foreach ( array( self::META_STOPS, self::META_FAMILY, self::META_LAB, self::META_PHOTOS, self::META_WHY, self::META_SOURCE, self::META_ECART, self::META_AT ) as $key ) {
+			/*
+			 * `META_VERDICT` ET NON UNE COPIE DE LA LISTE.
+			 *
+			 * La copie qui était écrite ici avait été oubliée le jour où
+			 * `META_SPREAD` a été ajoutée : un coloris oublié gardait son écart
+			 * entre images, seul reste d'une mesure que la commande dit avoir
+			 * effacée. La liste existe une fois, à un seul endroit.
+			 */
+			foreach ( self::META_VERDICT as $key ) {
 				delete_term_meta( (int) $id, $key );
 			}
 			++$n;

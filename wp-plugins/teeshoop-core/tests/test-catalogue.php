@@ -181,6 +181,33 @@ describe(
 		);
 
 		it(
+			'carries the declared hexadecimal and the chip image on two separate fields',
+			static function (): void {
+				/*
+				 * ILS ÉTAIENT LE MÊME CHAMP, et `META_COLOUR_CHIP` documente
+				 * qu'elle porte « un JPEG, pas un hexadécimal ». Un adaptateur
+				 * peut livrer l'un, l'autre, les deux ou aucun : l'ancien flux
+				 * ne donnait que des images d'aplat et le flux actuel ne donne
+				 * que des nombres. Les distinguer ici est ce qui évite à
+				 * `Colours` d'avoir à deviner la nature d'une valeur en
+				 * regardant sa première lettre.
+				 */
+				$entry = ts_entry();
+				$entry['style']['colourways'][0]['hex'] = '#eb5d0f';
+				$m = Catalogue::map( $entry );
+
+				$white = ts_var( $m, '180010003' );
+				eq( $white['hex'], '#eb5d0f', 'la teinte déclarée arrive sur l’article' );
+				eq( $white['chip'], '/media/blank/picto/180_01_000.jpg', 'et la pastille reste une image' );
+
+				// Le coloris qui n'en déclare pas ressort vide, jamais gris.
+				$black = ts_var( $m, '180011013' );
+				eq( $black['hex'], '', 'rien d’inventé pour le coloris sans teinte' );
+				eq( $black['chip'], '/media/blank/picto/180_01_101.jpg' );
+			}
+		);
+
+		it(
 			'drops a SKU whose colour is not in the colourway list',
 			static function (): void {
 				$entry = ts_entry();

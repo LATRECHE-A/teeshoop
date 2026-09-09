@@ -215,8 +215,42 @@ final class Catalogue {
 	 * own median is 0,0 on all eleven. It is therefore the supplier's DECLARED
 	 * colour, delivered as an image, and it is what `Swatch` measures. The
 	 * garment photograph beside it stays as an independent check on it.
+	 *
+	 * PLUS AUCUN ADAPTATEUR NE LA REMPLIT DEPUIS LE 9 SEPTEMBRE 2026 : le
+	 * service actuel ne publie aucune image d'aplat, il déclare la couleur en
+	 * chiffres (`META_COLOUR_HEX` ci-dessous). Cette meta n'est donc plus qu'un
+	 * héritage, sur les 46 572 déclinaisons importées avant cette date, et
+	 * `Colours` sait encore les mesurer. Elle n'est pas supprimée parce
+	 * qu'aucune de ces mesures ne peut être refaite autrement.
 	 */
 	public const META_COLOUR_CHIP = '_teeshoop_colour_chip';
+
+	/**
+	 * La teinte que le fabricant DÉCLARE pour ce coloris, en hexadécimal.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * POURQUOI UNE DEUXIÈME META ET PAS LA MÊME QUE LA PASTILLE
+	 *
+	 * Depuis le 9 septembre 2026 le fournisseur publie la couleur en chiffres et
+	 * n'édite plus aucune image d'aplat. Sa valeur est arrivée un temps dans
+	 * `META_COLOUR_CHIP`, qui est documentée juste au-dessus comme « un JPEG,
+	 * pas un hexadécimal », et que `Shelf::SEALED` scelle parce qu'elle porte
+	 * une URL nommant notre fournisseur. Deux sens dans un champ, c'est la
+	 * situation où un lecteur sur deux se trompe : `Colours::work_list()`
+	 * plafonne les pastilles à cinq par coloris pour ne pas multiplier les
+	 * téléchargements, et une teinte déclarée aurait pu être évincée par cinq
+	 * chemins d'images morts.
+	 *
+	 * CELLE-CI N'EST PAS SCELLÉE, et c'est délibéré : un nombre de six chiffres
+	 * ne nomme personne, il ne trace aucun chemin vers un catalogue fournisseur,
+	 * et c'est exactement la valeur que la pastille de la boutique affiche déjà
+	 * publiquement une fois mesurée.
+	 *
+	 * MESURÉ sur le catalogue complet du fournisseur, 75 088 déclinaisons :
+	 * 14 568 en portent une (19,4 %), sous deux formes (« #eb5d0f » et
+	 * « FFFFFF ») que `Supply::hex()` normalise en une seule.
+	 */
+	public const META_COLOUR_HEX = '_teeshoop_colour_hex';
 
 	/**
 	 * Variation: WHEN the supplier published the stock figure beside it.
@@ -806,6 +840,7 @@ final class Catalogue {
 		$colour_names  = array();
 		$colour_photos = array();
 		$colour_chips  = array();
+		$colour_hexes  = array();
 		foreach ( (array) ( $style['colourways'] ?? array() ) as $cw ) {
 			$code                   = self::text( $cw['code'] ?? '' );
 			$colour_names[ $code ]  = self::text( $cw['name'] ?? '' );
@@ -813,6 +848,16 @@ final class Catalogue {
 			// The Worker calls it `swatch`; the shop calls it a chip, to keep it
 			// apart from the coloured dot the filter draws from it.
 			$colour_chips[ $code ] = self::text( $cw['swatch'] ?? '' );
+			/*
+			 * LA TEINTE DÉCLARÉE VOYAGE À CÔTÉ DE LA PASTILLE, PAS DEDANS.
+			 *
+			 * Un adaptateur peut livrer l'une, l'autre, les deux ou aucune :
+			 * l'ancien flux ne donnait que des images d'aplat, le flux actuel ne
+			 * donne que des nombres, et `Colours` sait lire les trois sources
+			 * dans l'ordre de leur erreur de mesure. Les mélanger ferait dépendre
+			 * la lecture d'un test sur la première lettre de la valeur.
+			 */
+			$colour_hexes[ $code ] = self::text( $cw['hex'] ?? '' );
 		}
 
 		$ref  = self::text( $style['styleNr'] ?? '' );
@@ -927,6 +972,7 @@ final class Catalogue {
 				'stock'        => $quantity,
 				'photo'        => $colour_photos[ $code ] ?? '',
 				'chip'         => $colour_chips[ $code ] ?? '',
+				'hex'          => $colour_hexes[ $code ] ?? '',
 			);
 		}
 
@@ -1117,6 +1163,27 @@ final class Catalogue {
 			return min( 999, (int) $m[1] );
 		}
 
+		/*
+		 * ── CE 2000 N'EST PAS VIDE, IL COMPTE 8 861 DÉCLINAISONS ─────────────
+		 *
+		 * Relevé le 9 septembre 2026 sur le catalogue complet du fournisseur,
+		 * 3 241 produits et 75 087 déclinaisons, 230 libellés de taille
+		 * distincts : 15 libellés tombent ici, et 8 725 des 8 861 déclinaisons
+		 * concernées portent le seul libellé « XXL ». Le même catalogue écrit
+		 * « 3XL » 5 687 fois, « 2XL » zéro fois et « XXXL » zéro fois.
+		 *
+		 * Notre vocabulaire, `ADULT_SIZES` ci-dessus, dit « 2XL ». Conséquence
+		 * mesurée : les huit références de ce fournisseur déjà importées
+		 * n'entrent dans aucune gamme, parce que `Gamme::colours_in_every_size()`
+		 * cherche un coloris disponible en « 2XL » dans un catalogue qui ne
+		 * nomme jamais cette taille.
+		 *
+		 * L'équivalence n'est PAS écrite ici, et c'est délibéré : la taille
+		 * décide aussi de l'échelle du marquage imprimé (`Garments::sizes()`),
+		 * donc se tromper d'un cran est un visuel à la mauvaise taille sur un
+		 * vêtement déjà pressé. La question est posée à l'associé (Q72) avant
+		 * d'être inscrite dans le code.
+		 */
 		return 2000;
 	}
 

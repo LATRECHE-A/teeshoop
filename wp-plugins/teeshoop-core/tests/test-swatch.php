@@ -796,3 +796,176 @@ describe( 'Swatch: the last gate', function () {
 		eq( Swatch::verify( $refused, 'French Navy' )['why'], 'photos discordantes' );
 	} );
 } );
+
+describe( 'Swatch: la teinte que le fabricant déclare', function () {
+
+	it( 'ne lit que six chiffres précédés d’un croisillon', function () {
+		truthy( null !== Swatch::from_hex( '#eb5d0f' ), 'la forme que le service publie' );
+		truthy( null !== Swatch::from_hex( '#EB5D0F' ), 'et la même en capitales' );
+		truthy( null !== Swatch::from_hex( ' #eb5d0f ' ), 'les espaces autour sont rognés' );
+
+		/*
+		 * TOUT LE RESTE EST REFUSÉ PLUTÔT QUE RÉPARÉ. « #fff » est peut-être
+		 * « #ffffff », et c'est justement une hypothèse : une teinte devinée est
+		 * une couleur inventée sur une pastille qu'un acheteur regarde pour
+		 * choisir. `Supply::hex()` normalise à l'import ce que le service
+		 * publie, mais la valeur relue ici sort de la base et rien n'empêche une
+		 * main ou une extension d'y avoir écrit autre chose.
+		 */
+		eq( Swatch::from_hex( '#fff' ), null, 'trois chiffres ne sont pas six' );
+		eq( Swatch::from_hex( 'eb5d0f' ), null, 'sans croisillon' );
+		eq( Swatch::from_hex( '#eb5d0' ), null, 'cinq chiffres' );
+		eq( Swatch::from_hex( '#eb5d0ff' ), null, 'sept chiffres' );
+		eq( Swatch::from_hex( '#gggggg' ), null, 'six caractères qui ne sont pas hexadécimaux' );
+		eq( Swatch::from_hex( '0 74 99 0' ), null, 'du CMJN' );
+		eq( Swatch::from_hex( '19-4053 / 15-1157' ), null, 'un couple Pantone' );
+		eq( Swatch::from_hex( '' ), null );
+	} );
+
+	it( 'rend exactement la teinte déclarée, sans un huitième de bit d’écart', function () {
+		/*
+		 * C'est la propriété dont dépend `scripts/couleurs-guard.mjs`, qui exige
+		 * que toute pastille publiée soit ce que son propre triplet OKLab
+		 * reconvertit. Mesuré une fois sur les 16 777 216 couleurs sRGB : aucune
+		 * ne revient différente. Ces huit-là sont l'échantillon qui le garde vrai
+		 * à chaque exécution.
+		 */
+		foreach ( array( '#000000', '#ffffff', '#eb5d0f', '#2354c9', '#01fe80', '#8b4513', '#7f7f7f', '#010203' ) as $declared ) {
+			$out = Swatch::declared( array( $declared ) );
+			truthy( ! empty( $out['ok'] ), $declared . ' est mesurée' );
+			eq( $out['stops'], array( $declared ), $declared . ' ressort telle quelle' );
+			eq( $out['photos'], 1, 'une seule déclaration' );
+			near( (float) $out['spread'], 0.0, 1e-12, 'une déclaration seule ne peut être en désaccord avec rien' );
+		}
+	} );
+
+	it( 'publie la valeur qu’il a mesurée, pas la chaîne du fournisseur', function () {
+		/*
+		 * LA PASTILLE PUBLIÉE EST TOUJOURS RECONSTRUITE depuis le triplet OKLab,
+		 * jamais recopiée. C'est ce qui fait que rien de ce que le fournisseur
+		 * écrit dans ce champ ne peut ressortir tel quel dans un attribut de
+		 * style : il faut passer `from_hex()` pour entrer, et ce qui sort est
+		 * fabriqué par `hex()`. Les capitales sont ce qui le prouve ici, parce
+		 * qu'une simple recopie les garderait.
+		 */
+		eq( Swatch::declared( array( '#EB5D0F' ) )['stops'], array( '#eb5d0f' ) );
+	} );
+
+	it( 'reste soumis au dernier verrou : le nom doit dire ce que le nombre dit', function () {
+		/*
+		 * UNE TEINTE DÉCLARÉE N'EST PAS AU-DESSUS DE `verify()`. Un fabricant
+		 * qui écrit de l'orange saturé sur la ligne « Navy » se fait refuser
+		 * exactement comme une photographie qui montrerait de l'orange : nous ne
+		 * savons pas lequel des deux a tort, donc pas de pastille, et le
+		 * désaccord au relevé. C'est le seul contrôle gratuit dont ce chemin
+		 * dispose, puisqu'il ne télécharge rien.
+		 */
+		$orange = Swatch::declared( array( '#eb5d0f' ) );
+		eq( empty( Swatch::verify( $orange, 'Navy Blue' )['ok'] ), true, 'de l’orange déclaré sous « Navy Blue » est refusé' );
+		truthy( ! empty( Swatch::verify( $orange, 'Sunset Orange' )['ok'] ), 'et publié sous un nom d’orange' );
+	} );
+
+	it( 'laisse le nom décider du RAYON sous le seuil de flou, jamais de la pastille', function () {
+		/*
+		 * MESURÉ, et c'est la règle que `S_FLOU` porte : sous ce seuil de
+		 * saturation la mesure ne distingue plus « Pink » de « Grey Fog », et le
+		 * mot du fabricant en dit plus. Du noir pur déclaré sous « White » est
+		 * donc CLASSÉ dans les blancs, et sa pastille reste noire. Écrit ici
+		 * parce que la teinte déclarée est une nouvelle façon d'y arriver : la
+		 * pastille dessinée est toujours la valeur mesurée, jamais celle que le
+		 * nom suggère, et c'est ce qui empêche un nom de peindre une couleur.
+		 */
+		$noir = Swatch::declared( array( '#000000' ) );
+		$vu   = Swatch::verify( $noir, 'White' );
+		eq( $vu['stops'], array( '#000000' ), 'la pastille reste ce qui a été déclaré' );
+		eq( $vu['family'], 'blanc', 'seul le rayon suit le nom' );
+	} );
+
+	it( 'classe la teinte déclarée comme n’importe quelle mesure', function () {
+		eq( Swatch::declared( array( '#eb5d0f' ) )['family'], 'orange' );
+		eq( Swatch::declared( array( '#000000' ) )['family'], 'noir' );
+		eq( Swatch::declared( array( '#2354c9' ) )['family'], 'bleu' );
+	} );
+
+	it( 'prend la médiane quand plusieurs fabricants déclarent la même couleur', function () {
+		/*
+		 * MESURÉ sur le catalogue du fournisseur : 63 noms de couleur portent
+		 * plus d'un hexadécimal selon la marque, et « BLACK » en porte six. La
+		 * boutique garde un seul terme par nom, donc ils arrivent ensemble. Les
+		 * deux valeurs ci-dessous sont celles que « Black » porte réellement
+		 * dans le miroir local au 9 septembre 2026.
+		 */
+		$out = Swatch::declared( array( '#1d1d1b', '#292527' ) );
+		truthy( ! empty( $out['ok'] ) );
+		eq( $out['stops'], array( '#232121' ), 'la médiane des deux, pas la première' );
+		eq( $out['family'], 'noir', 'et les deux nommaient déjà cette famille' );
+		eq( $out['photos'], 2, 'les deux déclarations comptent' );
+		near( (float) $out['spread'], 0.0204, 5e-4, 'et leur écart est gardé, c’est la mesure de ce qu’on sait' );
+	} );
+
+	it( 'garde la majorité et laisse tomber la déclaration isolée', function () {
+		// « Kelly Green » tel qu'il est déclaré, plus le rouge de « Red ».
+		$out = Swatch::declared( array( '#008656', '#008762', '#00875c', '#cf0a2c' ) );
+		truthy( ! empty( $out['ok'] ) );
+		eq( $out['stops'], array( '#00875c' ), 'le rouge isolé ne déplace pas le vert' );
+		eq( $out['photos'], 3, 'et il ne compte pas dans la mesure' );
+	} );
+
+	it( 'refuse un nom qui recouvre deux teintures, dans les mots de sa source', function () {
+		/*
+		 * « Sky » : deux marques, deux bleus à 0,131 l'un de l'autre. Aucune
+		 * majorité ne peut se former à deux, donc la mesure est refusée, et
+		 * `Colours::sweep()` passe alors à la photographie du vêtement, qui est
+		 * une mesure de la vraie teinture. Refuser puis laisser la photographie
+		 * décider vaut mieux que publier un point milieu qu'aucun des deux
+		 * fabricants n'a déclaré.
+		 */
+		$out = Swatch::declared( array( '#8bb2d8', '#c0dae7' ) );
+		eq( empty( $out['ok'] ), true, 'aucune majorité ne s’accorde' );
+		truthy( str_contains( (string) $out['why'], 'teintes déclarées discordantes' ), 'le motif nomme des teintes' );
+		truthy( ! str_contains( (string) $out['why'], 'photo' ), 'et jamais des photos, dont aucune n’a été ouverte' );
+	} );
+
+	it( 'accepte deux déclarations jusqu’au double du seuil, et c’est une propriété de la médiane', function () {
+		/*
+		 * À DEUX VALEURS IL N'Y A PAS D'ABERRATION POSSIBLE : la médiane est le
+		 * milieu, chacune en est à la moitié de leur distance, donc la paire
+		 * passe tant que cette distance ne dépasse pas DEUX fois `AGREE_MAX`, et
+		 * la mesure publiée est un point milieu. C'est la même arithmétique que
+		 * pour deux photographies, et elle est écrite ici parce qu'elle surprend.
+		 *
+		 * MESURÉ sur les 14 noms du miroir qui portent deux déclarations : 12
+		 * passent, 2 sont refusés, et les 14 ont leurs DEUX déclarations dans la
+		 * même famille. La famille est ce que `Gamme` lit pour composer un
+		 * nuancier, donc le point milieu ne déplace aucune référence de rayon.
+		 */
+		$close = Swatch::declared( array( '#483729', '#64483c' ) ); // « Chocolate », 0,079.
+		truthy( ! empty( $close['ok'] ), 'deux bruns à 0,079 restent un brun' );
+		eq( $close['family'], 'brun' );
+
+		$far = Swatch::declared( array( '#bb378c', '#fa1ea5' ) ); // « Fuchsia », 0,124.
+		eq( empty( $far['ok'] ), true, 'deux roses à 0,124 ne le sont plus' );
+	} );
+
+	it( 'distingue « rien de déclaré » de « ce qui est déclaré n’est pas une couleur »', function () {
+		eq( Swatch::declared( array() )['why'], 'aucune teinte déclarée' );
+		eq( Swatch::declared( array( '0 74 99 0' ) )['why'], 'teinte déclarée illisible' );
+
+		/*
+		 * ET AUCUNE DES DEUX N'EST UNE PANNE. `Colours::sweep()` n'écrit pas de
+		 * verdict quand `reachable` est faux, pour qu'une coupure de réseau
+		 * n'efface pas les mesures de la semaine dernière. Une déclaration
+		 * illisible, elle, a été lue : c'est une décision, elle doit être écrite
+		 * sur le terme, sinon le coloris est réexaminé indéfiniment sans que rien
+		 * ne dise pourquoi.
+		 */
+		eq( Swatch::declared( array( '#fff' ) )['reachable'] ?? true, true );
+	} );
+
+	it( 'répond avec ce qui est lisible quand une seule ligne est cassée', function () {
+		$out = Swatch::declared( array( 'FFFFFF', '#eb5d0f' ) );
+		truthy( ! empty( $out['ok'] ), 'la teinte lisible répond' );
+		eq( $out['stops'], array( '#eb5d0f' ) );
+		eq( $out['photos'], 1, 'et la ligne sans croisillon n’est pas comptée comme une mesure' );
+	} );
+} );

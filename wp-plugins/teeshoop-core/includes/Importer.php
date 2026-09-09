@@ -810,6 +810,7 @@ final class Importer {
 				Catalogue::META_SUPPLY_SOURCE => Supply::SOURCE,
 				Catalogue::META_COLOUR_PHOTO  => (string) $row['photo'],
 				Catalogue::META_COLOUR_CHIP   => (string) ( $row['chip'] ?? '' ),
+				Catalogue::META_COLOUR_HEX    => (string) ( $row['hex'] ?? '' ),
 				Catalogue::META_ORIGIN        => (string) $row['origin'],
 				Catalogue::META_CLOSEOUT      => $row['closeout'] ? '1' : '',
 			);
@@ -1231,8 +1232,15 @@ final class Importer {
 	 * protection d'adresse privée de `wp_safe_remote_get` (la raison est au
 	 * point d'appel), donc la liste blanche est ici la seule barrière et elle
 	 * doit être exacte : comparaison d'hôte complète, jamais un `str_starts_with`.
+	 *
+	 * PUBLIQUE PARCE QUE `Colours::fetch_and_measure()` POSE LA MÊME QUESTION.
+	 * Mesurer une photographie de coloris est un téléchargement serveur, une
+	 * fois, dont il ne sort qu'un nombre : c'est la première question, pas la
+	 * seconde. Elle passait par `Shelf::photo_url()`, donc par la règle de
+	 * l'affichage, et refusait donc 100 % des photographies du fournisseur
+	 * actuel. Une seule liste blanche pour les deux appelants, ici.
 	 */
-	private static function fetchable( string $path ): string {
+	public static function fetchable( string $path ): string {
 		// Un chemin relatif reste résolu contre le Worker, pour tout ce qui a
 		// été importé avant le 9 septembre 2026 et dont la reprise passe encore
 		// par ici.
