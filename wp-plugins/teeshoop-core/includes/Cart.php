@@ -292,6 +292,40 @@ final class Cart {
 		}
 
 		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * ON COMPARE CE QUE LE WORKER A CONFIRMÉ, PAS SEULEMENT CE QUE LA
+		 * REQUÊTE ANNONCE, ET C'EST POUR CELA QUE CE BLOC EST ICI ET PAS
+		 * TRENTE LIGNES PLUS HAUT AVEC L'AUTRE.
+		 *
+		 * Le refus au-dessus ne tire que si `$payload['garment']` est non vide
+		 * et différent : omettre le champ suffisait à ne rien vérifier du tout.
+		 * Une garde qui ne peut pas échouer, alors que `Design::verify` rend le
+		 * vêtement du MANIFESTE, écrit par le Worker au moment du dépôt et hors
+		 * de portée de l'appelant.
+		 *
+		 * Mesuré le 9 septembre 2026 : une création dont le manifeste dit
+		 * « hoodie », envoyée sur un article t-shirt sans clé `garment`, était
+		 * acceptée et facturée 289,00 EUR au tarif du t-shirt, pour un visuel
+		 * dessiné sur un sweat. Pas de perte sèche (la boutique facture et
+		 * achète le vêtement de sa fiche), mais la série produite est un
+		 * vêtement que personne n'a choisi.
+		 *
+		 * ÉCRIT UNE PREMIÈRE FOIS AU-DESSUS DE `Design::verify`, où `$check`
+		 * n'existe pas encore : la garde neuve était elle-même vide, et les 675
+		 * tests sont restés verts. Trouvée en lisant les numéros de ligne, pas
+		 * en lisant le code. C'est le défaut que ce fichier corrige ci-dessus,
+		 * commis en le corrigeant.
+		 */
+		$confirme = sanitize_key( (string) ( $check['meta']['garment'] ?? '' ) );
+		if ( '' !== $confirme && $confirme !== $garment ) {
+			return new \WP_Error(
+				'teeshoop_garment_mismatch',
+				__( 'Cette création a été faite sur un autre vêtement que celui vendu ici.', 'teeshoop' ),
+				array( 'status' => 409 )
+			);
+		}
+
+		/*
 		 * The printed areas come from the DESIGN, not from the request.
 		 *
 		 * The Worker recorded them when the studio uploaded the artwork, so they
@@ -1204,7 +1238,13 @@ final class Cart {
 	 *
 	 * La question est posée à l'associé dans `QUESTIONS-ASSOCIE.md`. Le jour où
 	 * il répond « oui, un supplément par taille », il y a une ligne à écrire ici
-	 * et rien d'autre à bouger.
+	 * ET `Pricing::quote_matrix` à brancher sur les quatre sites qui chiffrent
+	 * une ligne, d'un seul coup : la raison chiffrée est dans son en-tête.
+	 *
+	 * ET RIEN N'APPELLE CETTE MÉTHODE AUJOURD'HUI. Elle est écrite d'avance
+	 * parce que la matrice existe déjà et qu'elle sera la forme de l'appel ;
+	 * elle est dite inutilisée ici plutôt que présentée comme le chemin vivant,
+	 * ce qu'un message de commit de cette nuit a fait à tort.
 	 *
 	 * @param array<string,array<string,int>> $matrix
 	 * @return array<int,array<string,mixed>>

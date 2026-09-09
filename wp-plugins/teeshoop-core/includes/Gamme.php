@@ -391,7 +391,23 @@ final class Gamme {
 		if ( ! $blank instanceof \WC_Product ) {
 			return array();
 		}
-		$garment = self::RANGE[ (string) get_post_meta( $blank_id, '_teeshoop_ref', true ) ] ?? '';
+		/*
+		 * ── LA RÈGLE « QUEL VÊTEMENT EST CETTE RÉFÉRENCE » N'EXISTE QU'UNE FOIS ─
+		 *
+		 * Cette ligne lisait `RANGE`, la liste de neuf tenue à la main, alors que
+		 * `range()` DÉRIVE la gamme du catalogue depuis le 9 septembre 2026.
+		 * Conséquence mesurée sur le miroir : pour les 448 références dérivées,
+		 * `$garment` sortait vide, donc aucune taille, donc AUCUN coloris
+		 * n'existait « dans toutes les tailles », donc nuancier vide, et la
+		 * commande annonçait « aucune couleur du studio ne correspond à un
+		 * coloris mesuré » sur des références dont 37 coloris sur 40 étaient
+		 * parfaitement mesurés. Un message qui envoie chercher la mesure quand
+		 * c'est la taille qui manque coûte une soirée à celui qui le lit.
+		 */
+		$garment = self::garment_for(
+			(string) get_post_meta( $blank_id, Catalogue::META_REF, true ),
+			(string) get_post_meta( $blank_id, Catalogue::META_FAMILY, true )
+		);
 		$sizes   = '' === $garment ? array() : array_map( 'strtolower', ProductPage::size_ids( $garment ) );
 		if ( array() === $sizes ) {
 			return array();
@@ -489,6 +505,23 @@ final class Gamme {
 		'polo'  => 'tee',
 	);
 
+	/**
+	 * Le vêtement du studio sous lequel une référence se vend, ou ''.
+	 *
+	 * ÉCRITE UNE FOIS PARCE QUE DEUX LECTURES ONT DÉJÀ DIVERGÉ. `range()`
+	 * dérivait le vêtement du rayon du catalogue pendant que
+	 * `colours_in_every_size()` le cherchait encore dans la liste de neuf tenue
+	 * à la main, et la deuxième répondait '' pour les 448 références que la
+	 * première venait d'ouvrir. Le rayon décide ; la liste tenue à la main ne
+	 * sert plus qu'aux références qu'aucun rayon connu ne couvre.
+	 *
+	 * @param string $ref     La référence fournisseur.
+	 * @param string $famille Le rayon écrit par l'import.
+	 */
+	public static function garment_for( string $ref, string $famille ): string {
+		return self::FAMILLES[ $famille ] ?? ( self::RANGE[ $ref ] ?? '' );
+	}
+
 	/** « lancement » (les neuf choisies) ou « catalogue » (tout ce qui tient). */
 	public static function portee(): string {
 		return 'catalogue' === (string) get_option( self::OPTION_PORTEE, 'lancement' ) ? 'catalogue' : 'lancement';
@@ -544,19 +577,38 @@ final class Gamme {
 		 * la même règle pour un produit unique ; ici elle est faite en une
 		 * requête parce que la boucle en ferait trois cents.
 		 */
-		$couts = array();
-		$lignes = $wpdb->get_results(
+		/*
+		 * ON COMPTE AUSSI LES ARTICLES SANS COÛT, ET C'EST UNE CORRECTION.
+		 *
+		 * Le `> 0` filtrait les déclinaisons sans prix d'achat enregistré, donc
+		 * le plancher se calculait sur un SOUS-ENSEMBLE de la référence, et une
+		 * référence dont l'article le plus cher est justement celui qu'on n'a pas
+		 * su lire s'ouvrait à la vente sur la foi des autres. Le garde-fou deux
+		 * paragraphes plus bas ne couvrait que le cas d'une référence sans AUCUN
+		 * coût. Relevé sur le miroir le 9 septembre 2026 : JKJT150 (103
+		 * déclinaisons dont 97 chiffrées) et JKST150 (162 dont 158) étaient
+		 * ouvertes ainsi. Inoffensif à leur niveau de prix, réel comme mécanisme.
+		 *
+		 * « On n'a pas su lire » n'est pas « c'est gratuit », et la réponse
+		 * conservatrice est de ne pas ouvrir la référence du tout.
+		 */
+		$couts   = array();
+		$trous   = array();
+		$lignes  = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT v.post_parent AS ref_id, MAX(CAST(sc.meta_value AS UNSIGNED)) AS maxi
+				"SELECT v.post_parent AS ref_id,
+				        MAX(CAST(sc.meta_value AS UNSIGNED)) AS maxi,
+				        SUM(CASE WHEN CAST(sc.meta_value AS UNSIGNED) > 0 THEN 0 ELSE 1 END) AS sans_cout
 				   FROM {$wpdb->postmeta} sc
 				   JOIN {$wpdb->posts} v ON v.ID = sc.post_id AND v.post_type = 'product_variation'
-				  WHERE sc.meta_key = %s AND CAST(sc.meta_value AS UNSIGNED) > 0
+				  WHERE sc.meta_key = %s
 				  GROUP BY v.post_parent",
 				Catalogue::META_SUPPLY_CENTS
 			)
 		);
 		foreach ( $lignes as $l ) {
 			$couts[ (int) $l->ref_id ] = (int) $l->maxi;
+			$trous[ (int) $l->ref_id ] = (int) $l->sans_cout;
 		}
 
 		$refs = $wpdb->get_results(
@@ -573,14 +625,20 @@ final class Gamme {
 
 		$out = self::RANGE;
 		foreach ( $refs as $r ) {
-			$garment = self::FAMILLES[ (string) $r->famille ] ?? '';
+			$garment = self::garment_for( (string) $r->ref, (string) $r->famille );
 			if ( '' === $garment || ! isset( $config['garments'][ $garment ] ) ) {
 				continue;
 			}
 			// UN COÛT INCONNU NE S'OUVRE PAS. « On n'a pas pu lire » n'est pas
 			// « c'est gratuit » : sans prix d'achat, aucun plancher n'est
 			// calculable et la référence resterait invendable en silence.
-			if ( ! isset( $couts[ (int) $r->ID ] ) ) {
+			if ( ! isset( $couts[ (int) $r->ID ] ) || $couts[ (int) $r->ID ] <= 0 ) {
+				continue;
+			}
+			// Et une seule déclinaison sans coût suffit à refermer la référence :
+			// le plancher se calcule sur le pire article, et on ne connaît pas
+			// celui-là.
+			if ( ( $trous[ (int) $r->ID ] ?? 0 ) > 0 ) {
 				continue;
 			}
 			$plancher = Margin::floor_price_rate( $couts[ (int) $r->ID ], $taux, 0.0 );

@@ -550,7 +550,23 @@ final class Pricing {
 		 * bornée ici aussi : négative ou non finie, on retombe sur la famille.
 		 */
 		$blank_ht = $rule['base_ht'];
-		if ( isset( $input['blank_ht'] ) && is_int( $input['blank_ht'] ) && $input['blank_ht'] >= 0 ) {
+		/*
+		 * `> 0` ET NON `>= 0`, ET C'EST LA DIFFÉRENCE ENTRE « GRATUIT » ET
+		 * « ON N'A PAS SU LIRE ».
+		 *
+		 * Le commentaire ci-dessus disait qu'on retombe sur la famille pour une
+		 * valeur « négative ou non finie ». Zéro n'est ni l'un ni l'autre, et
+		 * zéro est exactement ce que rend une recherche de prix qui n'a rien
+		 * trouvé. Mesuré le 9 septembre 2026 sur la configuration livrée : un
+		 * sweat, dix pièces, une face, avec `blank_ht = 0` se vend 8,50 EUR
+		 * l'unité au lieu de 62,05, soit 86 % de moins. C'est la confusion que
+		 * `CLAUDE.md` section 3 nomme, appliquée à un montant.
+		 *
+		 * Un textile nu réellement gratuit existe (`custom`, quand le client
+		 * fournit le sien), et il est déclaré par `base_ht = 0` sur la famille,
+		 * pas par une entrée qui vaut zéro.
+		 */
+		if ( isset( $input['blank_ht'] ) && is_int( $input['blank_ht'] ) && $input['blank_ht'] > 0 ) {
 			$blank_ht = $input['blank_ht'];
 		}
 
@@ -663,6 +679,27 @@ final class Pricing {
 	 * article ; aucun de ces nombres ne vient de la requête.
 	 *
 	 * ─────────────────────────────────────────────────────────────────────────
+	 * CE QUI CHIFFRE LA LIGNE PAYABLE AUJOURD'HUI N'EST PAS CETTE MÉTHODE.
+	 *
+	 * À dire clairement, parce qu'un message de commit de cette nuit a annoncé
+	 * l'inverse et qu'un lecteur le croira. Le prix payable sort de `quote()`,
+	 * appelée par `Cart::recompute_prices`, `Cart::persist_to_order` et
+	 * `Checkout::assert_total_block`. `quote_matrix` sert l'écran : elle sait
+	 * montrer chaque case et refuser le dépassement de plafond.
+	 *
+	 * LES DEUX RENDENT LE MÊME EURO TANT QUE LES CASES PARTAGENT LEUR TEXTILE
+	 * NU, et c'est prouvé plutôt qu'espéré : un test balaie dix quantités autour
+	 * des deux paliers et deux nombres de faces. Personne ne passe `blank_ht`
+	 * aujourd'hui, donc la condition tient partout.
+	 *
+	 * LE JOUR OÙ QUELQU'UN LE PASSERA, il faudra brancher `quote_matrix` sur les
+	 * QUATRE sites d'un coup. Mesuré sur l'écart réel du fournisseur (BE3480,
+	 * 4,90 à 6,95 EUR) : un panier chiffré ici à 552,64 EUR est chiffré 1 127,10
+	 * par `quote()` au tarif de la famille, et `assert_total_block` refuserait la
+	 * commande de 574,46 EUR d'écart. Brancher un seul site est donc pire que
+	 * n'en brancher aucun.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
 	 * UNE SEULE IMPLÉMENTATION DE LA RÈGLE
 	 *
 	 * Cette méthode ne recalcule rien : elle appelle `quote()` une fois par
@@ -699,7 +736,9 @@ final class Pricing {
 			if ( '' === $colour || '' === $size ) {
 				continue;
 			}
-			$blank = ( isset( $cell['blank_ht'] ) && is_int( $cell['blank_ht'] ) && $cell['blank_ht'] >= 0 )
+			// `> 0` pour la même raison qu'au-dessus : zéro est le retour d'une
+			// recherche qui n'a rien trouvé, pas le prix d'un vêtement gratuit.
+			$blank = ( isset( $cell['blank_ht'] ) && is_int( $cell['blank_ht'] ) && $cell['blank_ht'] > 0 )
 				? $cell['blank_ht']
 				: null;
 

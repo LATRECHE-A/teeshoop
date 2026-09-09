@@ -3728,5 +3728,158 @@ revendeur du même vêtement.
 
 ---
 
+## Ce que la nuit du 9 septembre a trouvé en mesurant les couleurs du nouveau fournisseur
+
+### Q71. Le fournisseur peut-il publier une teinte pour tous ses coloris, ou son profil couleur ? (*Important*)
+
+Le nouveau service ne publie plus d'image de pastille. Il donne la couleur en
+chiffres, ce qui est mieux : c'est la teinte déclarée par le fabricant, sans
+compression, sans lampe et sans détourage. Nous la reprenons telle quelle.
+
+Le relevé du 9 septembre 2026 sur son catalogue complet, 75 088 déclinaisons :
+
+| Ce qu'il publie | Déclinaisons | Part |
+|---|---:|---:|
+| une teinte hexadécimale (« #eb5d0f » ou « FFFFFF ») | 14 568 | 19,4 % |
+| une valeur CMJN (« 0 74 99 0 ») | 75 074 | 99,98 % |
+
+Les 80 % restants n'ont donc aucune teinte, et nous mesurons alors la
+photographie du vêtement dans ce coloris, qui est une vraie mesure de la vraie
+teinture. Ça marche, mais c'est moins précis et ça coûte un téléchargement de
+1,6 Mo par coloris.
+
+Le CMJN couvrirait tout, et nous ne l'utilisons pas : sans le profil ICC de sa
+presse, quatre nombres CMJN ne désignent aucune couleur précise. Toute
+conversion serait une couleur inventée à l'air convaincant, sur une pastille
+qu'un client regarde pour choisir.
+
+*La question :* pouvez-vous demander à votre fournisseur soit une teinte
+hexadécimale sur tous ses coloris, soit le profil ICC de son CMJN ? Avec l'un
+des deux, chaque coloris de son catalogue devient mesurable exactement, sans
+téléchargement.
+
+*Votre réponse :*
+
+---
+
+### Q72. Le fournisseur écrit « XXL » là où nous écrivons « 2XL » : est-ce la même taille ? (*Bloquant*)
+
+Relevé le 9 septembre 2026 sur son catalogue complet, 75 087 déclinaisons et
+230 libellés de taille distincts :
+
+| Libellé | Déclinaisons |
+|---|---:|
+| XXL | 8 725 |
+| 3XL | 5 687 |
+| 2XL | 0 |
+| XXXL | 0 |
+
+Notre boutique, notre éditeur et notre grille de prix disent tous « 2XL ». Le
+fournisseur ne dit jamais « 2XL » : il dit « XXL » puis « 3XL ». Tout indique
+donc que son XXL est notre 2XL, mais nous ne l'écrivons pas dans le code sur une
+déduction, parce que la taille décide aussi de la TAILLE DU MARQUAGE imprimé :
+se tromper d'un cran, c'est un visuel à la mauvaise échelle sur un vêtement déjà
+imprimé.
+
+Conséquence aujourd'hui : les huit références du nouveau fournisseur déjà
+importées n'entrent pas dans la gamme, parce qu'aucun de leurs coloris n'existe
+dans « 2XL », une taille que le fournisseur ne nomme pas.
+
+*La question :* confirmez-vous que le « XXL » de ce fournisseur est bien la
+taille que nous appelons « 2XL », c'est-à-dire celle juste au-dessus du XL ?
+Si oui nous l'inscrivons comme équivalence, une fois, à l'import.
+
+*Votre réponse :*
+
+### Q73. À quoi ressemble une commande que le fournisseur ne sert qu'à moitié ? (*Important*)
+
+*Le contexte :* l'ancien fournisseur répondait à une commande par un numéro de
+commande ET, le cas échéant, la liste des lignes qu'il refusait. La boutique
+savait donc dire « la commande est passée mais la série sera incomplète », ce
+qui est l'information dont l'atelier a besoin avant d'imprimer le film : une
+série incomplète se replanifie, elle ne se rattrape pas après coup.
+
+Le nouveau service ne nous a montré que deux réponses, mesurées le 9 septembre
+2026 : un succès portant `order_id`, et un refus 422 portant les erreurs champ
+par champ. Nous n'avons jamais vu ce qu'il répond quand une seule ligne sur cinq
+est indisponible.
+
+Nous n'inventons pas la forme : le code garde l'état « commande partielle » dans
+sa machine, et refuse de le produire tant que personne n'a vu une vraie réponse
+de ce genre. Conséquence aujourd'hui : si le fournisseur sert une commande à
+moitié en répondant quand même un `order_id`, la boutique l'enregistre comme
+entièrement passée, et l'atelier ne l'apprend qu'à la livraison.
+
+*La question :* pouvez-vous lui demander ce que renvoie `create-order` quand une
+ligne de la commande est indisponible ou refusée ? Si possible, une réponse
+réelle copiée telle quelle nous suffit : nous en tirerons la lecture, une fois.
+
+*Votre réponse :*
+
+### Q74. Le nouveau service n'annonce plus aucune date de réassort (*Important*)
+
+*Le contexte :* l'ancien fournisseur publiait, article par article, une date de
+retour en stock et la quantité attendue. Nous les affichions telles quelles à
+côté d'une rupture, sans jamais calculer de délai nous-mêmes. C'était la seule
+date d'avenir de toute la boutique.
+
+Le nouveau service ne publie rien de tel. Il donne `stock_supplier`, c'est-à-dire
+la quantité que le FABRICANT a derrière lui, et rien sur la date à laquelle elle
+arriverait chez le grossiste. Nous rendons donc désormais « aucune date
+annoncée » plutôt que d'en déduire une : une promesse de délai faite à un client
+sur une donnée qui n'existe pas est plus chère qu'une absence de promesse.
+
+Conséquence aujourd'hui : quand le nu manque, l'écran d'achat dit combien il en
+reste et rien sur le retour, et l'acheteur doit téléphoner.
+
+*La question :* le fournisseur publie-t-il ses réassorts quelque part (une autre
+route, un fichier, un extranet) ? À défaut, quel délai voulez-vous que nous
+annoncions quand `stock_supplier` est non nul, et sur quelle base ?
+
+*Votre réponse :*
+
+---
+
+### Q71. La remise par quantité porte-t-elle sur la commande ou sur chaque ligne ? (*Bloquant pour le lancement*)
+
+Un client qui commande **cinquante t-shirts en deux fois** paie plus cher que
+s'il les avait commandés en une seule. Mesuré en exécutant le moteur de prix
+livré, sur le miroir, le 9 septembre 2026 :
+
+| Ce que le client fait | Ce qu'il paie |
+|---|---|
+| deux ajouts de 25 pièces du **même** visuel | 1 275,00 EUR HT (deux lignes à 25 %) |
+| un seul ajout de 50 pièces du même visuel | 1 105,00 EUR HT (une ligne à 35 %) |
+| **écart** | **170,00 EUR de plus pour avoir cliqué deux fois** |
+
+Rien ne fusionne les deux lignes, rien ne prévient, et l'écart est toujours dans
+le même sens : contre le client. Une commande de trente pièces en trois coloris
+avait exactement le même défaut, il a été corrigé cette nuit (une création est
+maintenant une seule ligne, quel que soit le nombre de coloris et de tailles). Il
+reste le cas de **deux créations différentes**, ou du même visuel ajouté deux
+fois.
+
+*L'argument écrit dans le code pour justifier les paliers* parle des paliers du
+fournisseur et du film qui se répartit sur une feuille. Les deux sont des
+propriétés de la COMMANDE, pas de la ligne : le film est d'ailleurs déjà mis en
+commun entre commandes différentes. Et la commande minimale de cinq pièces, elle,
+se compte déjà sur le panier entier. Deux règles, deux portées, sur la même
+quantité.
+
+*La question :* la remise doit-elle se calculer sur **le total des pièces
+personnalisées du panier** (notre recommandation, et ce que fait la commande
+minimale), ou rester **par ligne** ?
+
+- **Sur le panier** : plus juste, plus simple à expliquer, et cela encourage à
+  regrouper. Coût : les commandes multi-visuels descendent d'un palier de remise,
+  ce qui se chiffre le jour où vous le demandez.
+- **Par ligne** : ce qui tourne aujourd'hui. Il faut alors l'écrire noir sur
+  blanc sur la fiche produit, parce qu'un acheteur qui découvre l'écart après
+  coup a raison de le trouver anormal.
+
+*Votre réponse :*
+
+---
+
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site
 teeshoop.com en production et du code de l'outil de personnalisation.*
