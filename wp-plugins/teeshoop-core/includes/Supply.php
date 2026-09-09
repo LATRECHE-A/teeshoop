@@ -717,6 +717,37 @@ final class Supply {
 				'front'       => $first['front'],
 				'back'        => $first['back'],
 				'hasBack'     => '' !== $first['back'],
+				/*
+				 * AUCUNE FICHE TECHNIQUE N'EST PUBLIÉE, ET C'EST MESURÉ.
+				 *
+				 * Le service publie des PDF (type 30) sur 1 173 des 3 241
+				 * produits, nommés `{REF}.pdf`, `{REF}_SP.pdf`, `{REF}_EN.pdf`,
+				 * `{REF}_DE.pdf`. Deux raisons de n'en publier aucun, et la
+				 * seconde suffirait seule :
+				 *
+				 *   ILS NE RÉPONDENT PAS. Essayés le 9 septembre 2026 sur les
+				 *   deux hôtes connus : 404 des deux côtés. Publier le lien
+				 *   donnerait au client un lien mort sur une fiche produit.
+				 *
+				 *   ET CE SONT LES DOCUMENTS DU GROSSISTE. Ils portent sa
+				 *   marque, ses coordonnées, et le suffixe `_SP` (« sans prix »)
+				 *   sur la moitié d'entre eux dit assez clairement que ceux qui
+				 *   ne le portent pas en ont. Notre tarif d'achat sur une fiche
+				 *   produit est exactement ce que `Shelf::SEALED` et
+				 *   `scripts/php-guard.mjs` existent pour empêcher, et un PDF
+				 *   n'est pas moins public parce qu'il faut cliquer.
+				 *
+				 * CE QUE ÇA COÛTE, dit plutôt que caché : le service ne publie
+				 * AUCUNE mesure de vêtement (relevé sur toutes les clés de
+				 * toutes les déclinaisons : ni demi-poitrine, ni longueur ; les
+				 * seules dimensions sont celles du carton). La fiche du
+				 * fabricant que `Design::unprintable_sizes` consulte pour
+				 * refuser une taille qu'un film ne peut pas porter n'a donc
+				 * toujours pas de source automatique, et `scripts/zones-mesurer.mjs`
+				 * reste le seul moyen de la remplir. Le champ
+				 * `SizeSource = 'reference-chart'` du studio garde donc sa
+				 * raison d'être, contrairement à ce qu'on pouvait espérer.
+				 */
 				'sizespecPdf' => '',
 				'exportedAt'  => $updated,
 			),
