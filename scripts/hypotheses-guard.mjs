@@ -200,6 +200,55 @@ const rel = (abs) => relative(ROOT, abs).split('\\').join('/')
  */
 const textOf = (abs) => readFileSync(abs, 'utf8')
 
+/**
+ * The same text with WHOLE-COMMENT LINES blanked out, offsets preserved.
+ *
+ * WHY THIS EXISTS, measured on 2026-09-09. The second-copy check hunts a bare
+ * literal, so it cannot tell a rule from a coincidence. The supplier swap wrote
+ * its measurements into doc comments ("65 pages, 94 s et 250,2 Mo") and the
+ * guard reported fifteen disagreements, none of them a second implementation of
+ * anything. A guard that goes red every time somebody records a measurement is a
+ * guard that gets muted, and this project's rule is that measurements belong in
+ * comments.
+ *
+ * A COMMENT CANNOT BE A SECOND IMPLEMENTATION. Nothing executes, nothing is
+ * rendered, nothing can drift out of step with the home. That is the whole
+ * justification, and it is why this narrows the check without weakening it.
+ *
+ * WHOLE LINES ONLY, AND THAT IS NOT LAZINESS. A general comment stripper needs
+ * to know where strings are, and this one would be wrong twice over without it:
+ * `#` opens a comment in PHP and a COLOUR in CSS, so `--ts-accent: #010050`
+ * vanished and H-Q31 reported that its own home no longer held its value; and
+ * `//` inside `https://…` would blank whatever follows a URL on the same line.
+ * Both were reproduced here before this shape was chosen. A line whose first
+ * non-space character opens a comment is unambiguous in every language this
+ * guard reads, and it is exactly where the false positives were: all fifteen sat
+ * on ` * ` continuation lines.
+ *
+ * BLANKED, NOT REMOVED, so the line number a failure prints is still the line
+ * the reader has to open.
+ */
+const codeOf = (abs) => {
+  const php = abs.endsWith('.php')
+  let inBlock = false
+  return textOf(abs)
+    .split('\n')
+    .map((line) => {
+      const t = line.trimStart()
+      const wasInBlock = inBlock
+      if (inBlock && t.includes('*/')) inBlock = false
+      else if (!inBlock && (t.startsWith('/*') || t.startsWith('/**')) && !t.includes('*/')) inBlock = true
+      const opens =
+        wasInBlock ||
+        t.startsWith('*') ||
+        t.startsWith('//') ||
+        t.startsWith('/*') ||
+        (php && t.startsWith('#') && !t.startsWith('#['))
+      return opens ? line.replace(/[^\s]/g, ' ') : line
+    })
+    .join('\n')
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // References
 //
@@ -712,13 +761,13 @@ function checkNoSecondCopy(entries, files) {
       const re = literalRegex(literal)
       for (const [path, abs] of byPath) {
         if (scope.length > 0 && !scope.some((prefix) => path.startsWith(prefix)) && !allowed.has(path)) continue
-        const hits = [...textOf(abs).matchAll(re)]
+        const hits = [...codeOf(abs).matchAll(re)]
         if (hits.length === 0) continue
         if (allowed.has(path)) {
           if (homes.has(path)) foundAtHome += hits.length
           continue
         }
-        const text = textOf(abs)
+        const text = codeOf(abs)
         for (const hit of hits) {
           fails.push({
             check: 'second-copy',
