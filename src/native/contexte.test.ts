@@ -15,7 +15,7 @@
  *   première phrase est une déclaration fiscale faite à un client.
  */
 import { describe, expect, it } from 'vitest'
-import { lireContexte } from './contexte'
+import { facesPermises, lireContexte } from './contexte'
 
 /** Le minimum sans lequel `lireContexte` refuse tout. */
 const BASE = { productId: '169880', garment: 'tee', restUrl: 'http://x/wp-json/teeshoop/v1/' }
@@ -161,6 +161,39 @@ describe('la photographie', () => {
     expect(url('/\\evil.tld/x.png')).toBe('')
     expect(url('javascript:alert(1)')).toBe('')
     expect(url('data:image/svg+xml,<svg onload=alert(1)>')).toBe('')
+  })
+})
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LES FACES : LA SEULE PORTE, DONC UNE PORTE TESTÉE
+ *
+ * Rien côté serveur ne revérifie qu'une face décorée était permise
+ * (`Design::unprintable_sizes` contrôle les tailles, pas les faces), donc cette
+ * liste décide seule sur quoi un client peut poser un visuel. Elle est lue par
+ * le sélecteur de face de la vue simple ET par la face de départ de l'éditeur,
+ * et les deux passent par cette fonction : une seule implémentation de « quelles
+ * faces ce produit accepte ».
+ */
+describe('les faces imprimables, qui décident où un calque peut aller', () => {
+  it('rend les trois du dessin quand la page n’a rien publié', () => {
+    expect(facesPermises({ faces: [] })).toEqual(['front', 'back', 'sleeve'])
+  })
+
+  it('rend exactement celles que le produit déclare, dans l’ordre du dessin', () => {
+    expect(facesPermises({ faces: ['sleeve', 'front'] })).toEqual(['front', 'sleeve'])
+    expect(facesPermises({ faces: ['back'] })).toEqual(['back'])
+  })
+
+  /*
+   * UNE FACE QUE LE DESSIN NE SAIT PAS TRACER N'EST PAS UNE FACE. Il y a un
+   * gabarit par face dans `src/garments/*.ts` ; une quatrième publiée par la
+   * boutique n'aurait ni zone d'impression ni image, et la proposer serait
+   * proposer un achat que l'atelier ne peut pas produire.
+   */
+  it('écarte ce qui n’est pas une face que le dessin connaît', () => {
+    expect(facesPermises({ faces: ['front', 'capuche', 'poche'] })).toEqual(['front'])
+    expect(facesPermises({ faces: ['capuche'] })).toEqual([])
   })
 })
 

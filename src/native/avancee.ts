@@ -51,27 +51,46 @@ import { el, vider } from './dom'
 
 export interface Hote {
   creation(): Design
-  remplacer(d: Design): void
+  /**
+   * La face que le canevas montre, et celle qui reçoit un nouveau calque.
+   *
+   * ELLE APPARTIENT À L'ÉDITEUR, PAS À CE PANNEAU, et c'était le défaut. Ce
+   * fichier tenait son propre `face` avec son propre sélecteur : cliquer
+   * « Dos » n'y changeait que la liste de calques, le canevas restait sur le
+   * devant, et un client décorait une face qu'il ne voyait pas. Le sélecteur
+   * est maintenant dans la vue simple, à côté du canevas qu'il commande, et
+   * c'est le seul.
+   */
+  face(): Side
+  /**
+   * Poser un document.
+   *
+   * `geste` nomme le mouvement en cours (une frappe dans le champ de texte)
+   * pour que l'historique n'en garde qu'un pas au lieu d'un par caractère.
+   */
+  remplacer(d: Design, geste?: string): void
+  /** Refermer le geste : la modification suivante sera un pas d'historique à part. */
+  finGeste(): void
+  /** Abandonner le geste en cours et revenir à l'état d'avant : la touche Échap. */
+  abandonnerGeste(): void
   contexte: Contexte
 }
 
 export interface VueAvancee {
   fermer(): void
+  /** Redessiner après un changement venu d'ailleurs : annuler, rétablir, une face. */
+  rafraichir(): void
+  /** Ouvrir le champ de texte de ce calque et y poser le curseur. */
+  modifierTexte(id: string): void
 }
-
-const FACES: { id: Side; nom: string }[] = [
-  { id: 'front', nom: 'Devant' },
-  { id: 'back', nom: 'Dos' },
-  { id: 'sleeve', nom: 'Manche' },
-]
 
 /** Les phrases de cette vue, en français, comme celles de la vue simple. */
 const MOTS = {
-  faces: 'Face imprimée',
   calques: 'Calques',
   aucunCalque: 'Aucun élément sur cette face.',
   ajouterTexte: 'Ajouter du texte',
   texteDefaut: 'Votre texte',
+  texte: 'Votre texte, tel qu’il sera imprimé',
   police: 'Police',
   alignement: 'Position et taille, en centimètres',
   largeur: 'Largeur',
@@ -99,18 +118,27 @@ const MOTS = {
 
 export function ouvrir(zone: HTMLElement, hote: Hote): VueAvancee {
   const vue = new Avancee(zone, hote)
-  return { fermer: () => vue.fermer() }
+  return {
+    fermer: () => vue.fermer(),
+    rafraichir: () => vue.rafraichir(),
+    modifierTexte: (id) => vue.modifierTexte(id),
+  }
 }
 
 class Avancee {
   private readonly zone: HTMLElement
   private readonly hote: Hote
-  private face: Side = 'front'
   private selection: string | null = null
   private message = ''
   private occupe = false
   private apercu: { fermer(): void } | null = null
   private zoneApercu: HTMLElement | null = null
+  /**
+   * Les boutons de la liste, par calque, pour suivre une frappe sans tout
+   * redessiner : reconstruire le panneau à chaque caractère détruirait le champ
+   * de texte sous le curseur du client.
+   */
+  private readonly noms = new Map<string, HTMLElement>()
 
   constructor(zone: HTMLElement, hote: Hote) {
     this.zone = zone
@@ -125,6 +153,36 @@ class Avancee {
     this.zoneApercu = null
     vider(this.zone)
     this.zone.classList.remove('tshop-ed__avancee')
+  }
+
+  /**
+   * Redessiner parce que le document a changé ailleurs.
+   *
+   * Une annulation peut avoir supprimé le calque que ce panneau montre, ou
+   * l'éditeur avoir changé de face : ce qui est sélectionné ici doit exister
+   * là-bas, sinon les réglages porteraient sur un calque qui n'est plus.
+   */
+  rafraichir(): void {
+    if (!this.hote.creation().layers.some((l) => l.id === this.selection)) this.selection = null
+    this.rendre()
+  }
+
+  /**
+   * Ouvrir le champ de texte sur ce calque, curseur dedans, contenu sélectionné.
+   *
+   * Appelé par le double-clic sur le texte du canevas (`onEditText`). Tout est
+   * sélectionné parce qu'un client qui double-clique un texte pour le changer
+   * veut le remplacer, pas insérer au milieu.
+   */
+  modifierTexte(id: string): void {
+    const calque = this.hote.creation().layers.find((l) => l.id === id)
+    if (!calque || calque.type !== 'text') return
+    this.selection = id
+    this.rendre()
+    const champ = this.zone.querySelector<HTMLTextAreaElement>('[data-teeshoop="texte"]')
+    if (!champ) return
+    champ.focus()
+    champ.select()
   }
 
   // ------------------------------------------------------------------ rendu
@@ -143,7 +201,8 @@ class Avancee {
     if (apercuDetache?.parentNode) apercuDetache.remove()
 
     vider(this.zone)
-    this.zone.append(this.bandeFaces(), this.listeCalques(), this.actions())
+    this.noms.clear()
+    this.zone.append(this.listeCalques(), this.actions())
     const calque = this.calqueSelectionne()
     if (calque) this.zone.append(this.reglages(calque))
     this.zone.append(this.boutonApercu())
@@ -157,47 +216,18 @@ class Avancee {
   }
 
   /**
-   * LE DOS ET LES MANCHES, qui étaient l'une des raisons d'ouvrir cette vue.
+   * Les calques de la face que le canevas montre, et rien d'autre.
    *
-   * Les faces proposées sont celles que le PRODUIT déclare imprimables, jamais
-   * les trois par défaut : une référence sans manche imprimable proposerait
-   * sinon une face que l'atelier refuserait au bon de commande.
+   * `hote.face()` et non un état local : le sélecteur de face vit dans la vue
+   * simple depuis que le canevas le suit. Voir `Hote.face`.
    */
-  private bandeFaces(): HTMLElement {
-    const bloc = el('div', 'tshop-ed__bloc')
-    const titre = el('h3', 'tshop-ed__titre')
-    titre.textContent = MOTS.faces
-    const groupe = el('div', 'tshop-ed__faces')
-    groupe.setAttribute('role', 'radiogroup')
-    groupe.setAttribute('aria-label', MOTS.faces)
-
-    const permises = FACES.filter(
-      (f) => this.hote.contexte.faces.length === 0 || this.hote.contexte.faces.includes(f.id),
-    )
-    for (const f of permises) {
-      const b = el('button', 'tshop-ed__face')
-      b.type = 'button'
-      b.setAttribute('role', 'radio')
-      b.setAttribute('aria-checked', String(f.id === this.face))
-      b.textContent = f.nom
-      b.addEventListener('click', () => {
-        this.face = f.id
-        this.selection = null
-        this.rendre()
-      })
-      groupe.append(b)
-    }
-    bloc.append(titre, groupe)
-    return bloc
-  }
-
   private listeCalques(): HTMLElement {
     const bloc = el('div', 'tshop-ed__bloc')
     const titre = el('h3', 'tshop-ed__titre')
     titre.textContent = MOTS.calques
     bloc.append(titre)
 
-    const surCetteFace = this.hote.creation().layers.filter((l) => l.side === this.face)
+    const surCetteFace = this.hote.creation().layers.filter((l) => l.side === this.hote.face())
     if (surCetteFace.length === 0) {
       const p = el('p', 'tshop-ed__note')
       p.textContent = MOTS.aucunCalque
@@ -216,6 +246,7 @@ class Avancee {
         this.selection = this.selection === l.id ? null : l.id
         this.rendre()
       })
+      this.noms.set(l.id, choisir)
       const oter = el('button', 'tshop-ed__outil tshop-ed__outil--retirer')
       oter.type = 'button'
       oter.textContent = MOTS.supprimer
@@ -320,7 +351,7 @@ class Avancee {
     titre.textContent = MOTS.alignement
     const grille = el('div', 'tshop-ed__champs')
 
-    const zone = getAreaSizeIn(this.hote.creation(), this.face)
+    const zone = getAreaSizeIn(this.hote.creation(), this.hote.face())
 
     if (calque.type !== 'text') {
       grille.append(
@@ -363,8 +394,83 @@ class Avancee {
     centrer.addEventListener('click', () => this.patch(calque.id, { xIn: 0 }))
 
     bloc.append(titre, grille, centrer)
-    if (calque.type === 'text') bloc.append(this.choixPolice(calque))
+    if (calque.type === 'text') bloc.append(this.champTexte(calque), this.choixPolice(calque))
     return bloc
+  }
+
+  /**
+   * LE CHAMP DE TEXTE, ET SANS LUI CETTE VUE NE SAVAIT PAS VENDRE DU TEXTE.
+   *
+   * `ajouterTexte` posait la phrase « Votre texte » et RIEN ne permettait de la
+   * changer : chaque calque de texte créé depuis cette vue portait la même, le
+   * client s'en apercevait sur le vêtement, et `onEditText` de la vue simple
+   * était une fonction vide accompagnée d'un commentaire disant que cette vue
+   * la brancherait.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * LA FRAPPE MET À JOUR SANS REDESSINER, ET C'EST OBLIGATOIRE
+   *
+   * `rendre()` vide le panneau : appelé à chaque caractère, il détruirait le
+   * champ que le client est en train de remplir et le focus avec. Une frappe
+   * pose donc le document (le canevas et le prix suivent, ils sont ailleurs) et
+   * met à jour la seule chose de CE panneau qui dépend du texte, l'étiquette de
+   * la liste des calques.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * ÉCHAP REVIENT EN ARRIÈRE, LE DÉPART DU FOCUS VALIDE
+   *
+   * Les deux passent par l'historique : une frappe continue est UN geste, donc
+   * un seul pas d'annulation, et Échap abandonne ce geste-là au lieu d'en
+   * laisser un qui ne ferait rien de visible. Voir `src/native/historique.ts`.
+   *
+   * Un `textarea` et pas un `input` : `TextLayer` porte plusieurs lignes (le
+   * tracé les centre selon `align`), et un champ d'une ligne aurait rendu
+   * impossible d'écrire ce que le moteur sait déjà dessiner.
+   */
+  private champTexte(calque: TextLayer): HTMLElement {
+    const enveloppe = el('label', 'tshop-ed__champ')
+    const nom = el('span', 'tshop-ed__champ-nom')
+    nom.textContent = MOTS.texte
+    const champ = el('textarea', 'tshop-ed__texte')
+    champ.rows = 2
+    champ.value = calque.text
+    champ.setAttribute('data-teeshoop', 'texte')
+
+    const poser = (valeur: string): void => {
+      const d = this.hote.creation()
+      this.hote.remplacer(
+        {
+          ...d,
+          layers: d.layers.map((l) => (l.id === calque.id ? { ...l, text: valeur } : l)),
+          updatedAt: Date.now(),
+        },
+        `texte:${calque.id}`,
+      )
+      const bouton = this.noms.get(calque.id)
+      if (bouton) bouton.textContent = valeur.slice(0, 40) || calque.name
+    }
+
+    champ.addEventListener('input', () => poser(champ.value))
+    champ.addEventListener('blur', () => this.hote.finGeste())
+    champ.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      this.hote.abandonnerGeste()
+      /*
+       * LE CHAMP SUIT LE DOCUMENT, il ne décide pas. L'état d'avant est celui
+       * que l'historique vient de rendre ; relire le calque plutôt que garder
+       * une copie locale évite que les deux disent deux choses différentes le
+       * jour où l'abandon échoue (aucun geste en cours, par exemple).
+       */
+      const revenu = this.hote.creation().layers.find((l) => l.id === calque.id)
+      if (!revenu || revenu.type !== 'text') return
+      champ.value = revenu.text
+      const bouton = this.noms.get(calque.id)
+      if (bouton) bouton.textContent = nomDe(revenu)
+    })
+
+    enveloppe.append(nom, champ)
+    return enveloppe
   }
 
   private champCm(
@@ -491,12 +597,17 @@ class Avancee {
 
   private ajouterTexte(): void {
     const d = this.hote.creation()
-    const zone = getAreaSizeIn(d, this.face)
+    // La face de l'éditeur, donc une de celles que le produit déclare
+    // imprimables : `facesPermises` est la seule liste, et elle borne déjà le
+    // sélecteur. Poser un calque sur une face interdite est impossible, pas
+    // refusé après coup.
+    const face = this.hote.face()
+    const zone = getAreaSizeIn(d, face)
     const famille = FONTS[0]?.family ?? 'Anton'
     const calque: TextLayer = {
       id: identifiantLocal(),
       type: 'text',
-      side: this.face,
+      side: face,
       name: MOTS.texteDefaut,
       xIn: 0,
       yIn: 0,
@@ -521,8 +632,15 @@ class Avancee {
         layers: [...courant.layers, calque],
         updatedAt: Date.now(),
       })
-      this.selection = calque.id
-      this.rendre()
+      /*
+       * ET LE CHAMP S'OUVRE TOUT DE SUITE, contenu sélectionné.
+       *
+       * « Votre texte » n'est pas une proposition, c'est un texte de départ que
+       * le client doit remplacer : le laisser sans curseur, c'est le laisser
+       * partir avec cette phrase sur son vêtement, ce qui est exactement ce que
+       * cette nuit corrige.
+       */
+      this.modifierTexte(calque.id)
     })
   }
 

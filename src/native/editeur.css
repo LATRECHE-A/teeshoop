@@ -61,6 +61,25 @@
 	box-sizing: border-box;
 }
 
+/*
+ * `hidden` DOIT VRAIMENT CACHER, ET IL NE LE FAISAIT PAS.
+ *
+ * `[hidden] { display: none }` vient de la feuille du NAVIGATEUR, et n'importe
+ * quelle règle d'auteur la bat, quel que soit son poids : le `display: flex` de
+ * `.tshop-ed__outils` annulait donc l'attribut. Mesuré le 9 septembre 2026 sur
+ * la fiche produit du miroir local, sans rien de sélectionné : attribut
+ * `hidden` posé, `display` calculé `flex`, hauteur 18 px. Autrement dit une
+ * barre grise vide sous le canevas sur CHAQUE fiche produit, et une ligne
+ * d'outils que le lecteur d'écran annonçait, pendant que le commentaire de la
+ * section « contrôles de l'objet » affirmait le contraire.
+ *
+ * La règle est portée par la classe de portée et un sélecteur d'attribut, donc
+ * elle bat les règles nommées de cette feuille sans sortir de l'éditeur.
+ */
+.tshop-ed [hidden] {
+	display: none;
+}
+
 /* ------------------------------------------------------------------- scène */
 
 .tshop-ed__scene {
@@ -110,7 +129,9 @@
 /*
  * Ils n'existent que quand un objet est sélectionné : le noeud est `hidden`,
  * donc absent de l'ordre de tabulation et de l'arbre d'accessibilité, et pas
- * seulement transparent.
+ * seulement transparent. Ce que cette phrase décrit n'a été vrai qu'à partir de
+ * la règle `.tshop-ed [hidden]` en haut de cette feuille : le `display: flex`
+ * ci-dessous battait la feuille du navigateur et l'attribut ne cachait rien.
  */
 .tshop-ed__outils {
 	display: flex;
@@ -145,6 +166,28 @@
 .tshop-ed__outil--retirer {
 	color: var(--tshop-bad-ink);
 	border-color: var(--tshop-bad);
+}
+
+.tshop-ed__outil[disabled] {
+	/*
+	 * DÉSACTIVÉ VEUT DIRE « IL N'Y A RIEN À ANNULER », et ça doit se lire sans
+	 * la couleur : le trait revient au gris clair EN PLUS de l'opacité, parce
+	 * qu'une opacité seule est ignorée en contraste forcé, où le bouton
+	 * paraîtrait alors aussi cliquable que son voisin.
+	 */
+	color: var(--tshop-muted);
+	background: var(--tshop-surface);
+	border-color: var(--tshop-line);
+	opacity: 0.7;
+	cursor: default;
+}
+
+/* ------------------------------------------------------------- historique */
+
+.tshop-ed__historique {
+	display: flex;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
 }
 
 /* ------------------------------------------------------------ photographie */
@@ -213,6 +256,37 @@
 	 * contraste forcé ; l'anneau est une différence de forme.
 	 */
 	box-shadow: 0 0 0 2px var(--tshop-paper), 0 0 0 4px var(--tshop-accent);
+}
+
+/* ------------------------------------------------------------------ faces */
+
+/*
+ * Ces deux règles habillaient la vue avancée, qui portait le sélecteur de face.
+ * Il est passé dans la vue simple, avec le canevas qu'il commande, donc elles
+ * sont remontées ici : la feuille de la première charge doit porter ce que la
+ * première charge dessine, sinon le bloc apparaît nu le temps d'un clic.
+ */
+.tshop-ed__faces {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.tshop-ed__face {
+	font: inherit;
+	min-height: 2.5rem;
+	padding: 0.375rem 0.875rem;
+	color: var(--tshop-ink);
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+	cursor: pointer;
+}
+
+.tshop-ed__face[aria-checked='true'] {
+	color: var(--tshop-accent-ink);
+	background: var(--tshop-accent);
+	border-color: var(--tshop-accent);
 }
 
 /* --------------------------------------------------------------- fichier */
@@ -425,6 +499,7 @@
  */
 .tshop-ed__outil:focus-visible,
 .tshop-ed__pastille:focus-visible,
+.tshop-ed__face:focus-visible,
 .tshop-ed__qte:focus-visible,
 .tshop-ed__acheter:focus-visible,
 .tshop-ed__avance:focus-visible,
@@ -441,6 +516,7 @@
 		grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
 		grid-template-areas:
 			'scene controles'
+			'historique controles'
 			'outils controles'
 			'bande controles';
 		column-gap: 1.5rem;
@@ -449,6 +525,15 @@
 
 	.tshop-ed__scene {
 		grid-area: scene;
+	}
+
+	/*
+	 * NOMMÉE, PARCE QU'UNE GRILLE PLACE CE QU'ELLE NE CONNAÎT PAS TOUTE SEULE.
+	 * Sans cette ligne, la barre d'annulation tombait dans la première cellule
+	 * libre de la colonne des contrôles, entre la couleur et les tailles.
+	 */
+	.tshop-ed__historique {
+		grid-area: historique;
 	}
 
 	.tshop-ed__outils {
@@ -508,29 +593,6 @@
 	background: var(--tshop-surface);
 	border: 1px solid var(--tshop-line);
 	border-radius: var(--tshop-radius);
-}
-
-.tshop-ed__faces {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.5rem;
-}
-
-.tshop-ed__face {
-	font: inherit;
-	min-height: 2.5rem;
-	padding: 0.375rem 0.875rem;
-	color: var(--tshop-ink);
-	background: var(--tshop-paper);
-	border: 1px solid var(--tshop-line-strong);
-	border-radius: var(--tshop-radius);
-	cursor: pointer;
-}
-
-.tshop-ed__face[aria-checked='true'] {
-	color: var(--tshop-accent-ink);
-	background: var(--tshop-accent);
-	border-color: var(--tshop-accent);
 }
 
 .tshop-ed__calques {
@@ -597,9 +659,27 @@
 	border-radius: var(--tshop-radius);
 }
 
-.tshop-ed__face:focus-visible,
+/*
+ * Le champ de texte d'un calque.
+ *
+ * `resize: vertical` et pas `none` : le client peut écrire quatre lignes, et
+ * `TextLayer` les dessine. `field-sizing` ferait mieux, il n'est pas partout.
+ */
+.tshop-ed__texte {
+	font: inherit;
+	width: 100%;
+	min-height: 4rem;
+	padding: 0.5rem;
+	color: var(--tshop-ink);
+	background: var(--tshop-paper);
+	border: 1px solid var(--tshop-line-strong);
+	border-radius: var(--tshop-radius);
+	resize: vertical;
+}
+
 .tshop-ed__calque-nom:focus-visible,
-.tshop-ed__select:focus-visible {
+.tshop-ed__select:focus-visible,
+.tshop-ed__texte:focus-visible {
 	outline: 3px solid var(--tshop-accent);
 	outline-offset: 2px;
 }

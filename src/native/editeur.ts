@@ -48,13 +48,15 @@ import { EditorEngine } from '@/editor/EditorEngine'
 import { addAsset } from '@/state/assets'
 import { setShopPalette } from '@/content/garmentPalette'
 import { getAreaSizeIn } from '@/lib/renderDesign'
+import { layerInkBox } from '@/lib/ink'
 import { measureOrder, uploadDesign, DesignUploadError } from '@/lib/teeshoop/upload'
 import { inToCm, fmtNum } from '@/lib/units'
 import { setCurrentLang } from '@/i18n/lang'
-import type { Contexte } from './contexte'
+import { facesPermises, type Contexte } from './contexte'
 import { ajouterAuPanier, demanderDevis, RefusAtelier, type Devis, type FaceImprimee } from './atelier'
 import { COPIE } from './copie'
 import { el, vider } from './dom'
+import { Historique } from './historique'
 
 /** Ce qu'une instance montée rend à qui l'a montée. */
 export interface Editeur {
@@ -73,7 +75,22 @@ export interface Editeur {
  */
 type Phase = 'repos' | 'mesure' | 'depot' | 'ajout' | 'ajoute' | 'echec'
 
-const FACE_SIMPLE: Side = 'front'
+/**
+ * Ce que la vue avancée rend à l'éditeur qui l'a ouverte.
+ *
+ * DÉCRIT PAR SA FORME, PAS IMPORTÉ. `import type { VueAvancee } from
+ * './avancee'` serait effacé par TypeScript et par `scripts/admin-boundary.mjs`
+ * (qui saute les imports de type), donc la garde resterait verte ; c'est
+ * l'écriture qui compte : ce fichier ne doit avoir aucune raison de nommer le
+ * module paresseux ailleurs que dans son `import()`.
+ */
+type PanneauAvance = {
+  fermer(): void
+  /** Redessiner après un changement venu d'ailleurs (annuler, rétablir). */
+  rafraichir(): void
+  /** Ouvrir le champ de texte sur ce calque et y poser le curseur. */
+  modifierTexte(id: string): void
+}
 
 /** Combien de pièces au maximum une case de taille accepte à la frappe. */
 const QTE_MAX_CASE = 100000
@@ -98,8 +115,19 @@ class Instance implements Editeur {
   private readonly hote: HTMLElement
   private moteur: EditorEngine | null = null
   private creation: Design
+  /**
+   * La face que le canevas montre, et celle qui reçoit le prochain calque.
+   *
+   * ELLE EST DANS L'ÉTAT DE L'ÉDITEUR ET PLUS DANS CELUI DU PANNEAU. La vue
+   * avancée avait son propre `face`, si bien que cliquer « Dos » n'y changeait
+   * que la liste de calques : le canevas continuait de montrer le devant, le
+   * dépôt de fichier continuait d'y poser, et un client qui décorait le dos
+   * achetait un vêtement qu'il n'avait jamais vu.
+   */
+  private face: Side
   private selection: string | null = null
   private grille: Record<string, number> = {}
+  private readonly histoire = new Historique<Design>()
   private phase: Phase = 'repos'
   private echec = ''
   private devis: Devis | null = null
@@ -112,7 +140,20 @@ class Instance implements Editeur {
   private annuleDevis: AbortController | null = null
   private sequenceDevis = 0
   private panierUrl = ''
-  private avancee: { fermer(): void } | null = null
+  private avancee: PanneauAvance | null = null
+  /**
+   * Le chargement du panneau en vol, pour qu'il n'y en ait qu'un.
+   *
+   * Deux demandes avant la première réponse (un double-clic sur un texte
+   * pendant que le bouton charge déjà) montaient DEUX panneaux sur le même
+   * noeud : le second vidait le DOM du premier, `this.avancee` désignait le
+   * second, et le premier restait vivant sans que personne puisse le fermer.
+   * C'est la forme exacte du défaut que `vite.editeur.config.ts` raconte avec
+   * « Several Konva instances detected ».
+   */
+  private attenteAvancee: Promise<PanneauAvance | null> | null = null
+  /** Les boutons de face, construits une fois. Voir `rendreFaces`. */
+  private readonly boutonsFace: { face: Side; bouton: HTMLButtonElement }[] = []
 
   // Les noeuds que le rendu réécrit. Tenus plutôt que re-cherchés : une requête
   // par frappe sur un DOM que le thème peut avoir enveloppé coûte plus que six
@@ -129,6 +170,8 @@ class Instance implements Editeur {
     achat: HTMLButtonElement
     etat: HTMLDivElement
     fichier: HTMLInputElement
+    annuler: HTMLButtonElement
+    retablir: HTMLButtonElement
     avance: HTMLButtonElement
     zoneAvancee: HTMLDivElement
   }
@@ -136,6 +179,14 @@ class Instance implements Editeur {
   constructor(hote: HTMLElement, ctx: Contexte) {
     this.hote = hote
     this.ctx = ctx
+    /*
+     * LA FACE DE DÉPART EST LA PREMIÈRE QUE LE PRODUIT DÉCLARE, pas « devant ».
+     *
+     * Une référence dont le fabricant refuse le marquage devant existerait
+     * alors sans que l'écran propose une face que le bon de commande
+     * refuserait. `facesPermises` porte la règle et son test.
+     */
+    this.face = facesPermises(ctx)[0] ?? 'front'
 
     /*
      * LE FRANÇAIS, POSÉ AVANT LE PREMIER TRACÉ.
@@ -256,9 +307,62 @@ class Instance implements Editeur {
     const bandePhoto = el('div', 'tshop-ed__bande')
     bandePhoto.append(photo, photoLegende)
 
+    /*
+     * ANNULER ET RÉTABLIR, AVEC DEUX BOUTONS EN PLUS DES DEUX RACCOURCIS.
+     *
+     * Le raccourci seul ne se découvre pas, et sur un téléphone il n'existe
+     * pas : la moitié des visiteurs d'une fiche produit n'a pas de clavier. Un
+     * état désactivé dit en plus ce qui est possible sans qu'on ait à essayer,
+     * ce qu'un bouton qui ne fait rien ne dit pas.
+     */
+    const historique = el('div', 'tshop-ed__historique')
+    historique.setAttribute('role', 'group')
+    historique.setAttribute('aria-label', COPIE.historiqueLegende)
+    const annuler = boutonHistorique(COPIE.annuler, COPIE.annulerLong, 'Control+Z', 'annuler')
+    annuler.addEventListener('click', () => this.defaire())
+    const retablir = boutonHistorique(
+      COPIE.retablir,
+      COPIE.retablirLong,
+      'Control+Shift+Z',
+      'retablir',
+    )
+    retablir.addEventListener('click', () => this.refaire())
+    historique.append(annuler, retablir)
+
     const couleurs = el('div', 'tshop-ed__couleurs')
     couleurs.setAttribute('role', 'radiogroup')
     couleurs.setAttribute('aria-label', COPIE.couleurLegende)
+
+    /*
+     * LES FACES SONT CONSTRUITES UNE FOIS, ET LE RENDU NE FAIT QUE COCHER.
+     *
+     * La liste ne bouge pas : elle vient de `ctx`, qui est figé pour la vie de
+     * l'instance. Les reconstruire à chaque rendu coûtait le FOCUS : cliquer
+     * « Dos » au clavier détruisait le bouton qu'on venait d'activer, et le
+     * focus retombait sur le corps de la page, donc la tabulation repartait du
+     * haut du document. Le même rendu tourne à chaque frappe du champ de texte.
+     */
+    const faces = el('div', 'tshop-ed__faces')
+    faces.setAttribute('role', 'radiogroup')
+    faces.setAttribute('aria-label', COPIE.faceLegende)
+    const permises = facesPermises(this.ctx)
+    for (const f of permises) {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'tshop-ed__face'
+      b.setAttribute('role', 'radio')
+      b.setAttribute('data-teeshoop', `face-${f}`)
+      b.textContent = COPIE.face(f)
+      b.addEventListener('click', () => this.choisirFace(f))
+      faces.append(b)
+      this.boutonsFace.push({ face: f, bouton: b })
+    }
+    const blocFaces = section(COPIE.faceLegende, faces)
+    /*
+     * UN GROUPE À UNE SEULE OPTION EST DU BRUIT QUI RESSEMBLE À UN RÉGLAGE : sur
+     * une référence sans dos ni manche imprimables, le bloc entier disparaît.
+     */
+    blocFaces.hidden = permises.length < 2
 
     const fichier = document.createElement('input')
     fichier.type = 'file'
@@ -294,9 +398,11 @@ class Instance implements Editeur {
 
     this.hote.append(
       scene,
+      historique,
       outils,
       bandePhoto,
       section(COPIE.couleurLegende, couleurs),
+      blocFaces,
       section(COPIE.visuelLegende, etiquetteFichier, fichier),
       section(COPIE.taillesLegende, tailles),
       prix,
@@ -318,6 +424,8 @@ class Instance implements Editeur {
       achat,
       etat,
       fichier,
+      annuler,
+      retablir,
       avance,
       zoneAvancee,
     }
@@ -345,13 +453,22 @@ class Instance implements Editeur {
         void this.synchroniser()
       },
       onPatch: (id, patch, opts) => {
-        this.appliquerPatch(id, patch)
-        if (!opts.transient) this.chiffrerBientot()
+        /*
+         * UN GLISSEMENT EST UN SEUL PAS D'HISTORIQUE, ET C'EST CE QUE LE NOM DU
+         * GESTE ACHÈTE. Le moteur émet un correctif toutes les 66 ms tant que
+         * le doigt bouge, puis un dernier, non transitoire, au relâchement :
+         * sans regroupement, un déplacement demanderait une quinzaine
+         * d'annulations. Le dernier porte le MÊME nom, donc il n'ouvre pas un
+         * second pas, et `fin()` referme le geste juste après.
+         */
+        this.appliquerPatch(id, patch, `deplacer:${id}`)
+        if (!opts.transient) {
+          this.histoire.fin()
+          this.chiffrerBientot()
+        }
         this.rendreOutils()
       },
-      onEditText: () => {
-        /* la vue simple n'a pas de texte ; la vue avancée le branche */
-      },
+      onEditText: (id) => this.modifierTexte(id),
       onZoom: () => {},
       onSelection: () => this.rendreOutils(),
     })
@@ -400,12 +517,35 @@ class Instance implements Editeur {
   // ------------------------------------------------------------- interaction
 
   private surTouche = (e: KeyboardEvent): void => {
+    /*
+     * JAMAIS QUAND LA FRAPPE VISE UN CHAMP, et la liste compte TEXTAREA.
+     *
+     * Elle ne comptait qu'INPUT, ce qui suffisait tant que le seul champ était
+     * une quantité. Le champ de texte d'un calque est un `textarea` : sans
+     * cette ligne, effacer un caractère au clavier supprimait le calque qu'on
+     * était en train d'écrire. Et `Ctrl+Z` dans un champ est l'annulation DU
+     * CHAMP, que le navigateur fait mieux que nous ; l'événement `input`
+     * qu'elle émet remet le document d'accord avec ce qui est écrit.
+     */
+    const cible = e.target as HTMLElement | null
+    const champ =
+      cible !== null &&
+      (cible.tagName === 'INPUT' ||
+        cible.tagName === 'TEXTAREA' ||
+        cible.tagName === 'SELECT' ||
+        cible.isContentEditable)
+
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'z') {
+      if (champ) return
+      e.preventDefault()
+      if (e.shiftKey) this.refaire()
+      else this.defaire()
+      return
+    }
+
     if (!this.selection) return
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      // Jamais quand la frappe vise un champ : une quantité qu'on efface ne
-      // doit pas supprimer le visuel.
-      const cible = e.target as HTMLElement | null
-      if (cible && (cible.tagName === 'INPUT' || cible.isContentEditable)) return
+      if (champ) return
       e.preventDefault()
       this.supprimerSelection()
     }
@@ -430,7 +570,18 @@ class Instance implements Editeur {
     }
     try {
       const meta = await addAsset(fichier, fichier.name)
-      const zone = getAreaSizeIn(this.creation, FACE_SIMPLE)
+      /*
+       * SUR LA FACE CHOISIE, ET LA ZONE EST CELLE DE CETTE FACE.
+       *
+       * Les deux chemins de dépôt passent ici : le glisser-déposer sur la scène
+       * (`brancherDepot`) et le champ de fichier (`surFichier`). Il n'y avait
+       * qu'une constante `front`, donc une image ne pouvait aller que devant,
+       * et la vue avancée n'offrait aucun moyen d'en poser une ailleurs : dos
+       * et manche ne pouvaient porter que du texte. La manche fait 10,2 cm de
+       * côté en M contre 30,5 sur le devant, donc la taille de départ change
+       * d'une face à l'autre et se lit ici.
+       */
+      const zone = getAreaSizeIn(this.creation, this.face)
       /*
        * 72 % de la largeur et 60 % de la hauteur de la zone, comme le studio.
        * Ce n'est pas une mesure, c'est une taille de DÉPART que le client
@@ -441,7 +592,7 @@ class Instance implements Editeur {
       const calque: ImageLayer = {
         id: identifiant(),
         type: 'image',
-        side: FACE_SIMPLE,
+        side: this.face,
         name: meta.name,
         assetId: meta.id,
         xIn: 0,
@@ -453,10 +604,15 @@ class Instance implements Editeur {
         flipX: false,
         useCutout: meta.hasCutout,
       }
-      this.creation = { ...this.creation, layers: [...this.creation.layers, calque], updatedAt: Date.now() }
+      this.poser({
+        ...this.creation,
+        layers: [...this.creation.layers, calque],
+        updatedAt: Date.now(),
+      })
       this.selection = calque.id
       this.echec = ''
       this.rendre()
+      this.avancee?.rafraichir()
       this.chiffrerBientot()
     } catch (e) {
       /*
@@ -479,24 +635,28 @@ class Instance implements Editeur {
     }
   }
 
-  private appliquerPatch(id: string, patch: Partial<Layer>): void {
-    this.creation = {
-      ...this.creation,
-      layers: this.creation.layers.map((l) => (l.id === id ? ({ ...l, ...patch } as Layer) : l)),
-      updatedAt: Date.now(),
-    }
+  private appliquerPatch(id: string, patch: Partial<Layer>, geste?: string): void {
+    this.poser(
+      {
+        ...this.creation,
+        layers: this.creation.layers.map((l) => (l.id === id ? ({ ...l, ...patch } as Layer) : l)),
+        updatedAt: Date.now(),
+      },
+      geste,
+    )
     void this.synchroniser()
   }
 
   private supprimerSelection(): void {
     if (!this.selection) return
-    this.creation = {
+    this.poser({
       ...this.creation,
       layers: this.creation.layers.filter((l) => l.id !== this.selection),
       updatedAt: Date.now(),
-    }
+    })
     this.selection = null
     this.rendre()
+    this.avancee?.rafraichir()
     this.chiffrerBientot()
   }
 
@@ -508,9 +668,99 @@ class Instance implements Editeur {
 
   private choisirCouleur(id: string): void {
     if (this.creation.colorId === id) return
-    this.creation = { ...this.creation, colorId: id, updatedAt: Date.now() }
+    this.poser({ ...this.creation, colorId: id, updatedAt: Date.now() })
     this.rendre()
     // Pas de nouveau devis : la couleur ne change ni la surface ni le prix.
+  }
+
+  /**
+   * LA FACE QUE LE CANEVAS MONTRE, ET CELLE QUI REÇOIT LE PROCHAIN CALQUE.
+   *
+   * Pas de nouveau devis : changer de face ne change rien à ce qui est imprimé.
+   * `measureOrder` mesure DÉJÀ toutes les faces portant un calque, donc le prix
+   * couvrait le dos avant que l'écran sache le montrer ; ce qui manquait était
+   * l'écran, pas le chiffre.
+   */
+  private choisirFace(face: Side): void {
+    if (face === this.face || !facesPermises(this.ctx).includes(face)) return
+    this.face = face
+    /*
+     * ET LA SÉLECTION NE TRAVERSE PAS. Un calque sélectionné sur une autre face
+     * garderait ses poignées de transformation et sa ligne « Retirer » sur un
+     * objet que personne ne voit : un contrôle qui agit hors de l'écran.
+     */
+    if (!this.creation.layers.some((l) => l.id === this.selection && l.side === face)) {
+      this.selection = null
+    }
+    this.rendre()
+    this.avancee?.rafraichir()
+  }
+
+  // ---------------------------------------------------------- l'historique
+
+  /**
+   * Poser un document, en retenant celui qu'il remplace.
+   *
+   * TOUTES LES MODIFICATIONS PASSENT PAR ICI, y compris celles que la vue
+   * avancée demande (`remplacer`). C'est la seule raison pour laquelle annuler
+   * marche sur tout : un chemin d'écriture qui contourne ce point produirait un
+   * pas d'historique manquant, c'est-à-dire une annulation qui saute
+   * silencieusement par-dessus une modification que le client a faite.
+   *
+   * `geste` regroupe les modifications d'un même mouvement (un glissement, une
+   * frappe continue) en un seul pas. Voir `src/native/historique.ts`.
+   */
+  private poser(suivant: Design, geste?: string): void {
+    this.histoire.avant(this.creation, geste)
+    this.creation = suivant
+    /*
+     * UNE SÉLECTION QUI NE DÉSIGNE PLUS RIEN EST EFFACÉE ICI, une fois, pour
+     * tous les chemins. La vue avancée peut supprimer le calque que la vue
+     * simple tient pour sélectionné : la barre d'outils disparaissait bien
+     * (elle cherche le calque), mais la touche Suppr continuait de viser un
+     * identifiant qui n'existait plus.
+     */
+    if (!suivant.layers.some((l) => l.id === this.selection)) this.selection = null
+    this.rendreHistorique()
+  }
+
+  private defaire(): void {
+    const precedent = this.histoire.annuler(this.creation)
+    if (!precedent) return
+    this.creation = precedent
+    this.apresHistorique(true)
+  }
+
+  private refaire(): void {
+    const suivant = this.histoire.retablir(this.creation)
+    if (!suivant) return
+    this.creation = suivant
+    this.apresHistorique(true)
+  }
+
+  /**
+   * Abandonner le geste en cours, ce qu'Échap fait dans le champ de texte.
+   *
+   * `panneau` est faux ici, et c'est la raison d'être du drapeau : le panneau
+   * est l'appelant, son champ a le focus, et le redessiner le détruirait sous
+   * le curseur du client au moment précis où il appuie sur Échap.
+   */
+  private abandonnerGeste(): void {
+    const avant = this.histoire.abandonner()
+    if (!avant) return
+    this.creation = avant
+    this.apresHistorique(false)
+  }
+
+  private apresHistorique(panneau: boolean): void {
+    // Un calque qui n'existe plus ne peut pas rester sélectionné : les poignées
+    // du moteur porteraient sur un identifiant que `sync` ne retrouve pas.
+    if (!this.creation.layers.some((l) => l.id === this.selection)) this.selection = null
+    this.rendre()
+    if (panneau) this.avancee?.rafraichir()
+    // Le prix suit : annuler peut retirer un visuel, en remettre un, ou rendre
+    // à un texte la longueur qu'il avait. Les trois changent la surface d'encre.
+    this.chiffrerBientot()
   }
 
   private saisirQuantite(taille: string, brut: string): void {
@@ -529,6 +779,30 @@ class Instance implements Editeur {
       this.noeuds.avance.setAttribute('aria-expanded', 'false')
       return
     }
+    void this.ouvrirPanneau()
+  }
+
+  /**
+   * Le double-clic sur un texte du canevas ouvre son champ.
+   *
+   * C'est ce que `onEditText` sert, et il ne servait rien : la vue simple le
+   * laissait vide avec un commentaire disant que la vue avancée le brancherait,
+   * ce qu'elle ne faisait pas. Un client qui posait un texte lisait « Votre
+   * texte » et n'avait aucun moyen d'en écrire un autre.
+   *
+   * Le panneau s'ouvre s'il ne l'est pas : c'est là que vit le champ, et le
+   * client vient de demander à modifier ce texte, donc il a demandé le panneau
+   * sans le savoir.
+   */
+  private modifierTexte(id: string): void {
+    this.selection = id
+    this.rendreOutils()
+    void this.ouvrirPanneau().then((vue) => vue?.modifierTexte(id))
+  }
+
+  private ouvrirPanneau(): Promise<PanneauAvance | null> {
+    if (this.avancee) return Promise.resolve(this.avancee)
+    if (this.attenteAvancee) return this.attenteAvancee
     this.noeuds.avance.disabled = true
     this.noeuds.avance.textContent = COPIE.chargementAvancee
     /*
@@ -542,29 +816,36 @@ class Instance implements Editeur {
      * de l'atelier (un morceau paresseux se télécharge quand même) mais pas pour
      * celle-ci, dont la question est ce que la PREMIÈRE charge pèse.
      */
-    void import('./avancee')
+    this.attenteAvancee = import('./avancee')
       .then((mod) => {
-        if (this.detruit) return
+        if (this.detruit) return null
         this.avancee = mod.ouvrir(this.noeuds.zoneAvancee, {
           creation: () => this.creation,
-          remplacer: (d) => {
-            this.creation = d
+          face: () => this.face,
+          remplacer: (d, geste) => {
+            this.poser(d, geste)
             this.rendre()
             this.chiffrerBientot()
           },
+          finGeste: () => this.histoire.fin(),
+          abandonnerGeste: () => this.abandonnerGeste(),
           contexte: this.ctx,
         })
         this.noeuds.avance.textContent = COPIE.fermerAvancee
         this.noeuds.avance.setAttribute('aria-expanded', 'true')
+        return this.avancee
       })
       .catch(() => {
-        if (this.detruit) return
+        if (this.detruit) return null
         this.noeuds.avance.textContent = COPIE.ouvrirAvancee
         this.montrerEchec(COPIE.avanceeIndisponible)
+        return null
       })
       .finally(() => {
+        this.attenteAvancee = null
         if (!this.detruit) this.noeuds.avance.disabled = false
       })
+    return this.attenteAvancee
   }
 
   // -------------------------------------------------------------- le chiffre
@@ -847,7 +1128,7 @@ class Instance implements Editeur {
     if (this.detruit || !this.moteur) return
     await this.moteur.sync({
       design: this.creation,
-      side: FACE_SIMPLE,
+      side: this.face,
       selectedId: this.selection,
       // Pas de repères ni de grille dans la vue simple : la zone imprimable
       // est le seul repère dont un acheteur a besoin, et les zones nommées
@@ -863,13 +1144,44 @@ class Instance implements Editeur {
   private rendre(): void {
     if (this.detruit) return
     this.rendreCouleurs()
+    this.rendreFaces()
     this.rendrePhoto()
     this.rendreTailles()
     this.rendreOutils()
     this.rendrePrix()
     this.rendreAchat()
-    this.noeuds.vide.hidden = this.creation.layers.length > 0
+    this.rendreHistorique()
+    // L'invite du canevas parle de CE que le canevas montre : une création qui
+    // porte un visuel devant, vue de dos, est une face vide et le dit.
+    this.noeuds.vide.hidden = this.creation.layers.some((l) => l.side === this.face)
     void this.synchroniser()
+  }
+
+  /** Cocher la face en cours. Les boutons, eux, sont posés par `construire`. */
+  private rendreFaces(): void {
+    for (const { face, bouton } of this.boutonsFace) {
+      bouton.setAttribute('aria-checked', String(face === this.face))
+    }
+  }
+
+  private rendreHistorique(): void {
+    if (this.detruit) return
+    const { annuler, retablir } = this.noeuds
+    /*
+     * QUI A LE FOCUS EST LU AVANT DE DÉSACTIVER, ET PAS APRÈS.
+     *
+     * Désactiver l'élément qui a le focus le fait perdre au corps de la page :
+     * un client au clavier qui annule jusqu'au bout se retrouvait à tabuler
+     * depuis le haut du document, et le raccourci ne l'atteignait plus non plus
+     * (l'écouteur est sur le conteneur, donc il faut le focus dedans). Lu
+     * après, `document.activeElement` vaut déjà `body` et le contrôle ne
+     * pourrait pas se déclencher.
+     */
+    const actif = document.activeElement
+    annuler.disabled = !this.histoire.peutAnnuler
+    retablir.disabled = !this.histoire.peutRetablir
+    if (actif === annuler && annuler.disabled && !retablir.disabled) retablir.focus()
+    else if (actif === retablir && retablir.disabled && !annuler.disabled) annuler.focus()
   }
 
   private rendreCouleurs(): void {
@@ -985,13 +1297,14 @@ class Instance implements Editeur {
     zone.hidden = false
     vider(zone)
 
+    const mesure = mesureDe(calque)
     const taille = el('span', 'tshop-ed__mesure')
-    const w = 'wIn' in calque ? calque.wIn : 0
-    const h = 'hIn' in calque ? calque.hIn : 0
-    // Centimètres, jamais de pouces : c'est l'unité que lit un acheteur
-    // français, et `CLAUDE.md` section 7 l'exige.
-    taille.textContent = `${fmtNum(inToCm(w))} × ${fmtNum(inToCm(h))} cm`
-    taille.setAttribute('data-teeshoop', 'taille-visuel')
+    if (mesure) {
+      // Centimètres, jamais de pouces : c'est l'unité que lit un acheteur
+      // français, et `CLAUDE.md` section 7 l'exige.
+      taille.textContent = `${fmtNum(inToCm(mesure.w))} × ${fmtNum(inToCm(mesure.h))} cm`
+      taille.setAttribute('data-teeshoop', 'taille-visuel')
+    }
 
     const centrer = document.createElement('button')
     centrer.type = 'button'
@@ -1005,7 +1318,8 @@ class Instance implements Editeur {
     retirer.textContent = COPIE.retirer
     retirer.addEventListener('click', () => this.supprimerSelection())
 
-    zone.append(taille, centrer, retirer)
+    if (mesure) zone.append(taille)
+    zone.append(centrer, retirer)
   }
 
   private rendrePrix(): void {
@@ -1193,6 +1507,57 @@ function identifiant(): string {
   const b = new Uint8Array(9)
   c.getRandomValues(b)
   return Array.from(b, (x) => x.toString(36).padStart(2, '0')).join('').slice(0, 12)
+}
+
+/**
+ * Ce que ce calque occupe, en pouces, ou rien quand il n'occupe rien.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * UN TEXTE NE DÉCLARE PAS DE RECTANGLE, IL EN OCCUPE UN
+ *
+ * `TextLayer` n'a ni `wIn` ni `hIn` : il a une taille de police, et ce qu'il
+ * couvre dépend des glyphes. La ligne d'outils lisait donc `'wIn' in calque`,
+ * qui est faux pour un texte, et affichait « 0,0 × 0,0 cm » dès qu'un client
+ * cliquait sur son texte, c'est-à-dire un chiffre fabriqué montré à un client.
+ * `layerInkBox` est la mesure d'encre que le prix ET le film lisent, donc il
+ * n'y en a qu'une, et c'est celle qui est vraie.
+ *
+ * ZÉRO N'EST PAS UNE MESURE : un texte vide n'occupe rien, et la ligne se tait
+ * plutôt que d'écrire zéro.
+ */
+function mesureDe(calque: Layer): { w: number; h: number } | null {
+  if (calque.type !== 'text') return { w: calque.wIn, h: calque.hIn }
+  /*
+   * ET « VIDE » SE TESTE SUR LE TEXTE, PAS SUR LA MESURE.
+   *
+   * `measureTextLayer` borne sa boîte à 1 px pour ne jamais rendre une boîte
+   * nulle à un tracé, donc un texte vide mesure 0,01 pouce et pas zéro : un
+   * contrôle écrit sur « la largeur est-elle nulle » aurait laissé passer
+   * « 0,0 × 0,0 cm », qui est le chiffre fabriqué qu'on veut supprimer.
+   */
+  if (calque.text.trim() === '') return null
+  const boite = layerInkBox(calque)
+  const w = boite.x1 - boite.x0
+  const h = boite.y1 - boite.y0
+  return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 ? { w, h } : null
+}
+
+/** Un bouton d'historique : étiquette courte à l'écran, phrase entière au lecteur. */
+function boutonHistorique(
+  etiquette: string,
+  nom: string,
+  raccourci: string,
+  marqueur: string,
+): HTMLButtonElement {
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.className = 'tshop-ed__outil'
+  b.textContent = etiquette
+  b.disabled = true
+  b.setAttribute('aria-label', nom)
+  b.setAttribute('aria-keyshortcuts', raccourci)
+  b.setAttribute('data-teeshoop', marqueur)
+  return b
 }
 
 /**

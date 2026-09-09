@@ -42,6 +42,7 @@
  * la zone au client, en centimètres, telle que la boutique la publie, et à ce
  * que l'écran refuse de la dessiner si les deux venaient à diverger.
  */
+import type { Side } from '@/lib/types'
 import { MAX_PIECE_CM } from '@/lib/teeshoop/designDoc'
 
 /** Une couleur que l'atelier peut réellement acheter dans cette référence. */
@@ -129,6 +130,40 @@ export interface Contexte {
    * cliquable sur la fiche produit.
    */
   devisUrl: string
+}
+
+/**
+ * Les trois faces que le dessin sait tracer, dans l'ordre où on les propose.
+ *
+ * `EditorEngine` en connaît exactement trois (`src/garments/*.ts` porte un
+ * gabarit par face), donc une quatrième publiée par la boutique ne serait pas
+ * dessinable. Cette liste est l'ordre d'affichage et rien d'autre : ce qui dit
+ * ce qu'un produit accepte, c'est `facesPermises`.
+ */
+export const FACES_DESSINABLES: readonly Side[] = ['front', 'back', 'sleeve']
+
+/**
+ * Les faces que CE produit accepte, et sur lesquelles on peut donc poser un
+ * calque.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POSER UN CALQUE SUR UNE FACE INTERDITE DOIT ÊTRE IMPOSSIBLE, PAS REFUSÉ APRÈS
+ *
+ * `Editeur::faces()` publie `printableSides` de `data/garments.json`, la même
+ * source que le bon de commande fournisseur. Rien côté serveur ne revérifie
+ * ENSUITE qu'une face décorée était permise (`Design::unprintable_sizes`
+ * contrôle les tailles, pas les faces), donc cette liste est la seule porte :
+ * elle décide ce que l'écran propose, et l'écran ne propose rien d'autre.
+ *
+ * UNE LISTE VIDE VEUT DIRE « LA PAGE NE L'A PAS PUBLIÉE », comme `maxQty`, et
+ * on retombe alors sur les trois faces du dessin, qui est ce que l'éditeur a
+ * toujours fait. Une liste publiée qui ne nomme aucune face dessinable est une
+ * configuration que personne ne peut dessiner : elle rend une liste vide, et
+ * l'appelant n'affiche alors aucun choix.
+ */
+export function facesPermises(ctx: Pick<Contexte, 'faces'>): Side[] {
+  if (ctx.faces.length === 0) return [...FACES_DESSINABLES]
+  return FACES_DESSINABLES.filter((f) => ctx.faces.includes(f))
 }
 
 /** Un entier borné, quelle que soit la forme sous laquelle il est arrivé. */

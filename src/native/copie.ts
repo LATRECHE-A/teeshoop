@@ -68,6 +68,35 @@ export const COPIE = {
   retirer: 'Retirer',
   quantiteEn: (taille: string): string => `Quantité en ${taille}`,
 
+  // ------------------------------------------------------------------ faces
+  /*
+   * LES NOMS DES FACES SONT ICI ET PLUS DANS LA VUE AVANCÉE.
+   *
+   * Ils y étaient tant que le sélecteur de face était un réglage avancé. Il est
+   * maintenant dans la vue simple, parce qu'un client qui veut imprimer le dos
+   * ne devrait pas avoir à ouvrir des « réglages avancés » pour le voir, et
+   * surtout parce que le canevas suit désormais la face choisie : la refermer
+   * en laissant le client sur le dos, sans moyen de revenir devant, serait un
+   * piège. Il n'y a donc qu'un seul contrôle de face, et il est ici.
+   */
+  faceLegende: 'Face à décorer',
+  face: (id: string): string =>
+    id === 'back' ? 'Dos' : id === 'sleeve' ? 'Manche' : 'Devant',
+
+  // ------------------------------------------------------------- historique
+  historiqueLegende: 'Annuler et rétablir',
+  annuler: 'Annuler',
+  retablir: 'Rétablir',
+  /*
+   * LE NOM ACCESSIBLE CONTIENT L'ÉTIQUETTE VISIBLE, ET C'EST UNE RÈGLE, PAS UN
+   * GOÛT : WCAG 2.2 critère 2.5.3. Une commande vocale qui dit « Annuler » doit
+   * atteindre le bouton qui affiche « Annuler ». Le reste de la phrase est là
+   * parce que « Annuler » seul, à dix centimètres de « Ajouter au panier », se
+   * lit comme l'annulation de la commande.
+   */
+  annulerLong: 'Annuler la dernière modification',
+  retablirLong: 'Rétablir la modification annulée',
+
   // ------------------------------------------------------------- états vides
   aucuneCouleur:
     'Aucun coloris n’est déclaré pour cette référence. Le vêtement est dessiné en blanc, et nous confirmerons la couleur avant de lancer la production.',
