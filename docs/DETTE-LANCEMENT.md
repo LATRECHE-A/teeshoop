@@ -1,12 +1,12 @@
 # Dette de lancement
 
-Relevé le 5 septembre 2026 par `node scripts/launch-gate.mjs --porte=publication --boutique=deploy:teeshoop-deploy:prod`.
+Relevé le 9 septembre 2026 par `node scripts/launch-gate.mjs --porte=publication --boutique=deploy:teeshoop-deploy:prod`.
 
-- **16 ligne(s) de dette.**
-- Boutique interrogée : teeshoop-deploy (clé de déploiement, prod), **non jointe**.
-- Conditions regardées : registre, tva (confirmation), médiation.
-- Conditions NON regardées : identité, éditeur, tva (barème), cgv, textile nu, prix plancher, passerelle de paiement.
-- La porte de l'argent n'a RIEN pu regarder : ses trois conditions sont dans la boutique, et la boutique n'a pas répondu.
+- **35 ligne(s) de dette.**
+- Boutique interrogée : teeshoop-deploy (clé de déploiement, prod), jointe.
+- Conditions regardées : registre, tva (confirmation), médiation, identité, éditeur, tva (barème), cgv, textile nu, prix plancher, passerelle de paiement.
+- Conditions NON regardées : aucune.
+- Dont 2 que la porte de l'argent refuse, et qui bloquent donc encore la mise en vente.
 
 Ce relevé est une photographie de la boutique nommée ci-dessus, à la date ci-dessus. Il se
 régénère, et il faut le régénérer avant de conclure quoi que ce soit de son compte.
@@ -23,7 +23,16 @@ ou une passerelle de paiement mal configurée. Il n'y a pas de dérogation pour 
 
 ---
 
-## associé (11)
+## Ce que la porte de l'argent refuse encore (2)
+
+Ces lignes ne sont pas de la dette : ce sont des refus. Tant qu'elles sont là, la boutique ne doit
+pas vendre, quoi que dise le reste de ce fichier. Chacune est détaillée plus bas, sous son
+propriétaire ; cet index existe pour être lu en premier.
+
+- Prix au-dessus de son plancher (développeur) : 3 colonne(s) publiée(s) sur 102 se vendent sous leur plancher : la boutique perd de…
+- Passerelle de paiement (développeur) : Aucun moyen de paiement n’est actif : la boutique ne peut rien encaisser. Activez une…
+
+## associé (22)
 
 - **Registre des hypothèses · H-Q06-TARIF-TEE** (hypothèse tenue depuis le 12 août 2026)
   - Constat : H-Q06-TARIF-TEE (question 06) est une hypothèse bloquante que personne n'a confirmée, et elle atteint : customer. Un t-shirt imprimé sur une face vaut 34,00 EUR HT à l'unité : 24,00 EUR de textile nu et de frais de commande, et 10,00 EUR de marquage.
@@ -58,6 +67,39 @@ ou une passerelle de paiement mal configurée. Il n'y a pas de dérogation pour 
 - **Registre des hypothèses · H-Q18-RENONCIATION-TEXTE** (hypothèse tenue depuis le 19 août 2026)
   - Constat : H-Q18-RENONCIATION-TEXTE (question 18) est une hypothèse bloquante que personne n'a confirmée, et elle atteint : customer. La phrase par laquelle un client renonce au droit de rétractation sur les articles personnalisés est rédigée par nous, affichée avant le paiement et non à la validation du bon à tirer, et figée sur la commande avec la version des conditions générales en vigueur.
   - Pour lever : Répondre à la question 18 dans QUESTIONS-ASSOCIE.md, puis porter la date de la réponse sur la ligne H-Q18-RENONCIATION-TEXTE de docs/hypotheses.json (champ « answered »). Tant qu'elle n'y est pas, ce chiffre part en ligne sous le nom d'un prix sans que personne l'ait confirmé.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : Raison sociale. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : Forme juridique. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : Capital social. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : Adresse. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : Code postal. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : Ville. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : SIRET. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : Ville du greffe (RCS). Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Identité légale du vendeur**
+  - Constat : Mention légale obligatoire absente ou invalide : TVA intracommunautaire. Aucun document ne peut être émis au nom du vendeur sans elle, la page des mentions légales publie la liste de ce qui manque, et le service comptable ne pourra pas établir la facture correspondante (article 242 nonies A de l’annexe II au code général des impôts).
+  - Pour lever : Fournir la mention manquante (raison sociale, forme juridique, adresse, SIRET, TVA intracommunautaire, capital) et la saisir dans les réglages Teeshoop. Sans elle aucune facture conforme ne peut être émise : article 242 nonies A de l’annexe II au code général des impôts.
+- **Conditions générales de vente**
+  - Constat : Les conditions générales en vigueur (version 2026-09-01) sont un projet rédigé en interne que personne dont c’est le métier n’a relu. Question 58.
+  - Pour lever : Désigner l'avocat ou le cabinet annoncé en réponse à la question 58, lui faire relire la version en vigueur, puis enregistrer sur cette version le nom du relecteur et la date de sa relecture. Un état « validé » que personne ne signe ne vaut pas mieux qu'un projet.
+- **Conditions générales de vente**
+  - Constat : La version 2026-09-01 des conditions générales n’enregistre ni le nom du juriste qui l’a relue ni la date de sa relecture. Un état « validé » que personne ne signe ne vaut pas mieux qu’un projet.
+  - Pour lever : Désigner l'avocat ou le cabinet annoncé en réponse à la question 58, lui faire relire la version en vigueur, puis enregistrer sur cette version le nom du relecteur et la date de sa relecture. Un état « validé » que personne ne signe ne vaut pas mieux qu'un projet.
 
 ## les deux (4)
 
@@ -74,11 +116,35 @@ ou une passerelle de paiement mal configurée. Il n'y a pas de dérogation pour 
   - Constat : Aucun médiateur de la consommation n'est désigné ET rien ne refuse un particulier. Prises une par une les deux lignes sont des refus assumés ; ensemble elles sont une infraction à l'article L612-1 du code de la consommation, parce que l'exemption annoncée en réponse à la question 57 suppose un parcours qui refuse effectivement un consommateur. Répondre à l'une des deux suffit : désigner un médiateur, ou fermer le parcours grand public (question 62).
   - Pour lever : Adhérer à un médiateur de la consommation et publier ses coordonnées, OU fermer réellement le parcours grand public (question 62). L'une des deux suffit ; c'est l'associé qui choisit et le développeur qui applique. Article L612-1 du code de la consommation.
 
-## développeur (1)
+## développeur (9)
 
-- **Boutique interrogeable**
-  - Constat : 7 conditions sur 10 n'ont pas pu être vérifiées : la boutique n'a pas répondu : Command failed: ssh -o BatchMode=yes -o ConnectTimeout=20 teeshoop-deploy ./deploiement.sh verdict prod (Error: 'teeshoop' is not a registered wp command. See 'wp help' for available commands.) « On n'a pas pu regarder » n'est pas « il n'y a rien ».
-  - Pour lever : Rétablir l’accès à la boutique (extension déployée, wp-cli exécutable, clé SSH acceptée), puis régénérer ce relevé. Les conditions listées comme non regardées ne sont ni tenues ni non tenues : personne ne les a lues.
+- **Identité du site (article 6 III de la LCEN)**
+  - Constat : Mention obligatoire du site absente : Nom ou raison sociale (article 6 III de la LCEN).
+  - Pour lever : Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.
+- **Identité du site (article 6 III de la LCEN)**
+  - Constat : Mention obligatoire du site absente : Adresse (article 6 III de la LCEN).
+  - Pour lever : Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.
+- **Identité du site (article 6 III de la LCEN)**
+  - Constat : Mention obligatoire du site absente : Code postal et ville (article 6 III de la LCEN).
+  - Pour lever : Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.
+- **Identité du site (article 6 III de la LCEN)**
+  - Constat : Mention obligatoire du site absente : hébergeur : Téléphone (article 6 III de la LCEN).
+  - Pour lever : Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.
+- **Identité du site (article 6 III de la LCEN)**
+  - Constat : Mention obligatoire du site absente : Directeur de la publication (article 6 III de la LCEN).
+  - Pour lever : Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.
+- **Identité du site (article 6 III de la LCEN)**
+  - Constat : Mention obligatoire du site absente : Adresse de contact (article 6 III de la LCEN).
+  - Pour lever : Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.
+- **Identité du site (article 6 III de la LCEN)**
+  - Constat : Mention obligatoire du site absente : éditeur : Téléphone (article 6 III de la LCEN).
+  - Pour lever : Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.
+- **Prix au-dessus de son plancher** · **refusée par la porte de l’argent**
+  - Constat : 3 colonne(s) publiée(s) sur 102 se vendent sous leur plancher : la boutique perd de l’argent à chaque vente de ces lignes.
+  - Pour lever : Mesurer la grille publiée contre son plancher de coût (« npm run verify:grille »), puis, si une colonne vend sous le sien, remonter son prix ou corriger le coût qui fait monter ce plancher. Une vente sous le plancher se fait à perte et rien ne le montre avant la clôture comptable.
+- **Passerelle de paiement** · **refusée par la porte de l’argent**
+  - Constat : Aucun moyen de paiement n’est actif : la boutique ne peut rien encaisser. Activez une passerelle dans WooCommerce, Réglages, Paiements.
+  - Pour lever : Configurer la passerelle avant d'encaisser : clés en mode réel, devise, et point de rappel (webhook) joignable. Une passerelle mal configurée encaisse ailleurs, ou n'encaisse pas.
 
 ---
 
