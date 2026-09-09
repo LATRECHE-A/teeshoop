@@ -203,6 +203,26 @@ final class Editeur {
 		}
 
 		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * UN ARTICLE PROTÉGÉ PAR MOT DE PASSE NE PUBLIE PAS SON CONTEXTE.
+		 *
+		 * `Editeur::rendre()` ne pose pas le conteneur quand WordPress affiche
+		 * le formulaire de mot de passe, mais `enqueue()` continuait de publier
+		 * `TEESHOOP_EDITEUR` : le nonce REST, les noms de coloris du fabricant,
+		 * la charte des tailles en centimètres et les zones d'impression. Mesuré
+		 * dans un navigateur le 9 septembre 2026, mot de passe posé : le
+		 * formulaire s'affichait et l'objet était dans la page, complet.
+		 *
+		 * Un mot de passe est la façon dont une boutique prépare un article pour
+		 * un client ou un revendeur avant de l'ouvrir. Ce qu'il protège n'est pas
+		 * seulement le bouton d'achat, c'est la fiche : les coloris qu'on
+		 * proposera et les cotes qu'on imprimera en font partie.
+		 */
+		if ( post_password_required( $product_id ) ) {
+			return;
+		}
+
+		/*
 		 * `null` EN VERSION, ET C'EST LE POINT DE TOUT CE QUI PRÉCÈDE.
 		 *
 		 * WordPress ajoute `?ver=…` quand on lui donne une version, et cette

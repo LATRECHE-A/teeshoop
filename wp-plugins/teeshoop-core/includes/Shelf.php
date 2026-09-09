@@ -135,6 +135,31 @@ final class Shelf {
 		// does, it does not print our margin on a customer's invoice.
 		add_filter( 'woocommerce_hidden_order_itemmeta', array( self::class, 'hide_order_itemmeta' ), 10, 1 );
 
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * ET LA COMMANDE, QUI EST LA FUITE LA PLUS GRAVE ET LA DERNIÈRE TROUVÉE.
+		 *
+		 * Ce fichier filtrait le produit et la déclinaison, et son propre en-tête
+		 * énonce la menace : « une clé WooCommerce en lecture seule, du genre
+		 * qu'on confie à un outil d'analyse ou à un greffon de stock, lit notre
+		 * marge sur chaque article ». Il s'arrêtait à une couture près, parce que
+		 * ces clés lisent AUSSI les commandes.
+		 *
+		 * Mesuré le 9 septembre 2026 en exécutant `GET /wc/v3/orders` à travers
+		 * la vraie pile de filtres du miroir : 5 680 octets et 239 champs par
+		 * commande, dont le coût total, le meilleur prix, le prix d'achat de
+		 * chaque textile nu, notre taux horaire, et le détail du film (montant,
+		 * seul, économisé, mètres facturés). Une seule requête
+		 * `?per_page=100` rend le modèle de coût entier de l'entreprise.
+		 *
+		 * `hide_order_itemmeta` ne suffisait pas : il alimente
+		 * `woocommerce_hidden_order_itemmeta`, qui cache à l'AFFICHAGE (écrans
+		 * d'administration, e-mails) et ne touche pas la représentation REST.
+		 * Deux clés déjà scellées sortaient donc par les lignes de commande,
+		 * dont `META_BLANK_REF`, qui EST la référence du grossiste.
+		 */
+		add_filter( 'woocommerce_rest_prepare_shop_order_object', array( self::class, 'strip_order' ), 10, 1 );
+
 		add_action( 'wp', array( self::class, 'unpriced_notice' ) );
 
 		/*
@@ -385,6 +410,78 @@ final class Shelf {
 		$data['meta_data'] = $kept;
 		$response->set_data( $data );
 		return $response;
+	}
+
+	/**
+	 * Everything sealed, plus the costing report, off a REST order and off each
+	 * of its line items.
+	 *
+	 * TWO LEVELS, AND THE SECOND IS THE ONE THAT WAS MISSING EVERYWHERE ELSE.
+	 * An order carries meta and its LINE ITEMS carry meta, and the line items
+	 * are where the blank reference and the supplier colour map are written at
+	 * the moment of sale. Filtering only the top level would have hidden the
+	 * margin and published the procurement key.
+	 *
+	 * `array_values` ON BOTH, for the reason `strip_rest` records: a PHP array
+	 * with holes serialises as a JSON object rather than a list, and a client
+	 * that iterates it stops seeing an array at all.
+	 *
+	 * @param mixed $response
+	 * @return mixed
+	 */
+	public static function strip_order( $response ) {
+		if ( ! $response instanceof \WP_REST_Response ) {
+			return $response;
+		}
+		$data = $response->get_data();
+		if ( ! is_array( $data ) ) {
+			return $response;
+		}
+
+		$data = self::strip_meta_list( $data );
+
+		if ( isset( $data['line_items'] ) && is_array( $data['line_items'] ) ) {
+			$lines = array();
+			foreach ( $data['line_items'] as $line ) {
+				$lines[] = is_array( $line ) ? self::strip_meta_list( $line ) : $line;
+			}
+			$data['line_items'] = array_values( $lines );
+		}
+
+		$response->set_data( $data );
+		return $response;
+	}
+
+	/**
+	 * One `meta_data` list, minus everything that must not leave.
+	 *
+	 * `Costing::META_REPORT` is added here rather than to `SEALED` on purpose:
+	 * `SEALED` is the PROCUREMENT identity, and three other filters read it for
+	 * that meaning (the exporter, the variation JSON, the order-item display).
+	 * The costing report is a different secret with the same rule, and merging
+	 * the two lists would make the next reader of `SEALED` believe the margin is
+	 * an article number.
+	 *
+	 * @param array<string,mixed> $node
+	 * @return array<string,mixed>
+	 */
+	private static function strip_meta_list( array $node ): array {
+		if ( ! isset( $node['meta_data'] ) || ! is_array( $node['meta_data'] ) ) {
+			return $node;
+		}
+		$forbidden = array_merge( self::SEALED, array( Costing::META_REPORT ) );
+		$kept      = array();
+		foreach ( $node['meta_data'] as $meta ) {
+			$key = is_object( $meta ) && method_exists( $meta, 'get_data' )
+				? (string) ( $meta->get_data()['key'] ?? '' )
+				: (string) ( is_array( $meta ) ? ( $meta['key'] ?? '' ) : '' );
+			if ( in_array( $key, $forbidden, true ) ) {
+				continue;
+			}
+			$kept[] = $meta;
+		}
+		$node['meta_data'] = array_values( $kept );
+		return $node;
 	}
 
 	/** @param mixed $keys Array of meta keys the exporter will not write. */

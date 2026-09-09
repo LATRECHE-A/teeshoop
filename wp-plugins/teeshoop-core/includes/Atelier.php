@@ -381,8 +381,33 @@ final class Atelier {
 	 * qui doit répondre. Écrire la nôtre serait une seconde page d'erreur qui
 	 * ne ressemble à rien d'autre sur la boutique.
 	 */
+	/**
+	 * Cet article est-il protégé par un mot de passe que le visiteur n'a pas.
+	 *
+	 * ─────────────────────────────────────────────────────────────────────────
+	 * `is_singular()` EST VRAI POUR UN ARTICLE PROTÉGÉ, ET C'ÉTAIT LA FAILLE.
+	 *
+	 * Un mot de passe est la façon dont une boutique prépare un article pour un
+	 * client ou un revendeur avant de l'ouvrir à tout le monde. Mesuré sur le
+	 * miroir le 9 septembre 2026, mot de passe posé sur un article : la FICHE
+	 * répondait 200 avec le seul formulaire de mot de passe, et l'ATELIER
+	 * répondait 200 avec la page entière, l'éditeur monté, le nonce REST, les
+	 * dix-huit noms de coloris du fabricant, la charte des tailles en
+	 * centimètres et les zones d'impression. `Cart::add` ne regarde que
+	 * `is_purchasable()`, qui ignore le mot de passe : qui devinait l'adresse
+	 * pouvait donc dessiner et acheter.
+	 *
+	 * `post_password_required()` est la fonction que WordPress publie pour cette
+	 * question exacte, et elle n'apparaissait nulle part dans ce greffon. En
+	 * rendant la main, on laisse le gabarit de WordPress répondre par son propre
+	 * formulaire, ce qui est la même réponse que la fiche produit donne.
+	 */
+	private static function protege(): bool {
+		return post_password_required( (int) get_queried_object_id() );
+	}
+
 	public static function serve(): void {
-		if ( ! self::is_request() || ! is_singular( 'product' ) ) {
+		if ( ! self::is_request() || ! is_singular( 'product' ) || self::protege() ) {
 			return;
 		}
 
@@ -414,7 +439,7 @@ final class Atelier {
 	// -----------------------------------------------------------------------
 
 	public static function assets(): void {
-		if ( ! self::is_request() || ! is_singular( 'product' ) ) {
+		if ( ! self::is_request() || ! is_singular( 'product' ) || self::protege() ) {
 			return;
 		}
 

@@ -1044,7 +1044,7 @@ final class Disponibilite {
 	 * @param string[] $batch Au plus LIVE_BATCH_MAX codes, déjà nettoyés.
 	 * @return array{ok:bool,rows:array<string,array<string,?int>>,missing:string[],unanswered:string[],error:string,reason:string}
 	 */
-	private static function ask( array $batch ): array {
+	private static function ask( array $batch, ?int $timeout = null, bool $retry = true ): array {
 		$refusal = static fn( string $error, string $reason ): array => array(
 			'ok'         => false,
 			'rows'       => array(),
@@ -1065,7 +1065,8 @@ final class Disponibilite {
 		$answer = SupplyHttp::get(
 			self::ROUTE,
 			array( 'products' => implode( ',', $batch ) ),
-			self::timeout_for( count( $batch ) )
+			$timeout ?? self::timeout_for( count( $batch ) ),
+			$retry
 		);
 
 		if ( empty( $answer['ok'] ) ) {
@@ -1353,8 +1354,42 @@ final class Disponibilite {
 		$missing     = array();
 		$unreachable = array();
 
+		/*
+		 * ─────────────────────────────────────────────────────────────────────
+		 * LA BORNE EST UNE HORLOGE MURALE SUR TOUTE L'ASSERTION, PAS PAR LOT.
+		 *
+		 * `ASSERT_MAX_SECONDS` bornait le cas SAIN, déduit du modèle de latence
+		 * mesuré. Elle ne bornait rien quand le fournisseur pend, ce qui est
+		 * exactement le cas pour lequel le repli de six heures existe. Mesuré en
+		 * exécutant les fonctions livrées : au plafond, 281 codes font deux
+		 * lots, chacun avec un délai de 20 à 21 s et une reprise, soit
+		 * 82 secondes de travailleur PHP bloqué contre une borne annoncée à 20.
+		 * `max_execution_time` ne compte pas l'attente sur une socket, donc rien
+		 * ne tue la requête.
+		 *
+		 * Deux déclencheurs anonymes : l'ajout au panier, et un simple
+		 * affichage de la caisse (mémorisé 90 s par empreinte de panier, donc
+		 * une quantité changée repart). Ni plafond par adresse, ni disjoncteur.
+		 *
+		 * Ce qui reste des codes quand le temps est dépensé tombe dans
+		 * `unreachable`, un état que `verdict()` et le repli traitent déjà : on
+		 * ne perd donc pas la sécurité, on cesse seulement de la payer en
+		 * travailleurs bloqués.
+		 */
+		$deadline = microtime( true ) + self::ASSERT_MAX_SECONDS;
+
 		foreach ( self::batches( $codes ) as $batch ) {
-			$answer = self::ask( $batch );
+			$reste = (int) floor( $deadline - microtime( true ) );
+			if ( $reste < 1 ) {
+				$unreachable = array_merge( $unreachable, $batch );
+				continue;
+			}
+			/*
+			 * PAS DE REPRISE ICI. Un contrôle de panier n'est pas un balayage
+			 * de catalogue : la reprise appartient à `refresh()` et `sweep()`,
+			 * qui tournent en cron et dont personne n'attend la réponse.
+			 */
+			$answer = self::ask( $batch, min( $reste, self::timeout_for( count( $batch ) ) ), false );
 			if ( ! $answer['ok'] ) {
 				$unreachable = array_merge( $unreachable, $batch );
 				continue;

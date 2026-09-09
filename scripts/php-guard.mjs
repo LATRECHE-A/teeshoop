@@ -126,6 +126,25 @@ const FORBIDDEN = [
   { s: 'consumerSecret', cat: 'woo-credentials' },
   { s: 'consumer_secret', cat: 'woo-credentials' },
   { s: 'tshop:woo:cred', cat: 'woo-credentials' },
+
+  /*
+   * FIVE NEEDLES THAT ONLY `bundle-guard.mjs` CARRIED, and the drift mattered.
+   *
+   * That file's group 1 says it is copied here deliberately, and that a needle
+   * added there should be added here. These five never were. Found on
+   * 2026-09-09 by an adversarial pass, and the consequence is not theoretical:
+   * `bundle-guard` scans `dist/` only, while the bundle a CUSTOMER actually
+   * downloads today is `wp-plugins/teeshoop-core/assets/editeur/`, which only
+   * this guard walks. `editeur-guard.mjs` does not look for them either, its 43
+   * assertions being about weight, scoping and CSS. So the WooCommerce
+   * credential path and the three admin entry points were unchecked in the one
+   * bundle that ships to a visitor.
+   */
+  { s: '/wp-json/wc/v3/products', cat: 'woo-credentials' },
+  { s: 'X-WP-TotalPages', cat: 'woo-credentials' },
+  { s: 'admin.menu', cat: 'admin-entry' },
+  { s: 'admin.dtf', cat: 'admin-entry' },
+  { s: 'admin.products', cat: 'admin-entry' },
 ]
 
 /**
@@ -188,6 +207,23 @@ const ALLOWED = new Map([
       why: 'answers the floor with the dearest article of a reference; server-only mapper, renders nothing',
       needles: ['cost_ht', 'Costing::'],
     },
+  ],
+  [
+    /*
+     * `Shelf` IS THE SEAL, so it has to name what it seals.
+     *
+     * Since 2026-09-09 it also strips the costing report off a REST order,
+     * which means naming `Costing::META_REPORT`. Measured before that fix, by
+     * running GET /wc/v3/orders through the real filter stack: 5 680 bytes and
+     * 239 fields of cost model per order, readable by any holder of a read-only
+     * WooCommerce key, of which two already exist on the production shop.
+     *
+     * The needle is listed alone so this file stays checked for supplier names
+     * and for every purchase-cost string. It renders nothing: it is a set of
+     * filters that REMOVE fields.
+     */
+    'wp-plugins/teeshoop-core/includes/Shelf.php',
+    { why: 'the seal itself; it names the meta it strips, and it renders nothing', needles: ['Costing::'] },
   ],
   [
     /*

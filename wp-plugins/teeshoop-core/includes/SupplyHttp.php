@@ -327,7 +327,7 @@ final class SupplyHttp {
 	 * @param int|null             $timeout Délai, secondes. Défaut : le délai catalogue.
 	 * @return array{ok:bool,body?:array<mixed>,error?:string,reason?:string,code?:int}
 	 */
-	public static function get( string $path, array $query = array(), ?int $timeout = null ): array {
+	public static function get( string $path, array $query = array(), ?int $timeout = null, bool $retry = true ): array {
 		$why = self::unconfigured();
 		if ( '' !== $why ) {
 			return array(
@@ -351,8 +351,19 @@ final class SupplyHttp {
 			),
 		);
 
-		$last = array();
-		for ( $attempt = 0; $attempt < 2; $attempt++ ) {
+		/*
+		 * LA REPRISE EST UN CHOIX DE L'APPELANT DEPUIS LE 9 SEPTEMBRE 2026.
+		 *
+		 * Elle est juste pour une marche de catalogue, où une coupure passagère
+		 * coûterait une page à refaire. Elle est fausse sur le contrôle de
+		 * disponibilité au panier : elle DOUBLE le pire cas d'un appel qu'un
+		 * visiteur anonyme déclenche, et ce pire cas se paie en travailleurs PHP
+		 * bloqués. Mesuré : 281 codes au plafond faisaient deux lots, chacun
+		 * repris une fois, 82 s de socket bloquée contre une borne annoncée à 20.
+		 */
+		$tries = $retry ? 2 : 1;
+		$last  = array();
+		for ( $attempt = 0; $attempt < $tries; $attempt++ ) {
 			$last = self::read( wp_remote_get( $url, $args ), $path );
 			if ( $last['ok'] ) {
 				return $last;
