@@ -106,7 +106,7 @@ jobs:
     if: github.event_name == 'push' || github.event.inputs.cible == 'preprod'
     runs-on: [self-hosted, o2switch-autorise]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Pas de setup-node : l'exécutant auto-hébergé a le sien, et une action qui
       # installerait une autre version changerait celle du développeur.
@@ -177,7 +177,7 @@ jobs:
           fi
           echo "Confirmation reçue. La suite reste soumise au portail de mise en ligne."
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - run: npm ci
 
@@ -249,7 +249,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # La version vient de `.nvmrc`, comme dans `ci.yml` : une seule écriture de
       # la version de node dans le dépôt, celle que lisent aussi nvm, fnm et asdf.
       - uses: actions/setup-node@v4
