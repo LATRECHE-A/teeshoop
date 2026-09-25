@@ -42,9 +42,11 @@
 import { execFile } from 'node:child_process'
 import { writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { connect } from 'node:net'
+import { devNull } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { NODE, WRANGLER } from './bin.mjs'
 
 const execFileP = promisify(execFile)
 
@@ -197,7 +199,7 @@ async function sshRepond() {
 async function wranglerAuth() {
   const debut = Date.now()
   try {
-    const { stdout, stderr } = await execFileP('npx', ['--no-install', 'wrangler', 'whoami'], {
+    const { stdout, stderr } = await execFileP(NODE, [WRANGLER, 'whoami'], {
       timeout: 90000,
       cwd: ROOT,
       env: { ...process.env, WRANGLER_SEND_METRICS: 'false' },
@@ -234,7 +236,7 @@ async function codeHttp(url) {
   try {
     const { stdout } = await execFileP(
       'curl',
-      ['-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '20', url],
+      ['-s', '-o', devNull, '-w', '%{http_code}', '--max-time', '20', url],
       { timeout: 30000 },
     )
     const code = Number.parseInt(stdout.trim(), 10)

@@ -49,6 +49,7 @@
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = Number(process.env.BENCH_PORT || 5193)
 const BASE = `http://localhost:${PORT}`
@@ -167,7 +168,7 @@ const stat = (a) => {
   }
 }
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
 let browser
 const rows = []
 const done = (code) => {

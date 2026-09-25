@@ -39,6 +39,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { NODE, WRANGLER } from './bin.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PORT = Number(process.env.TSHOP_NEST_PORT ?? 8791)
@@ -207,8 +208,8 @@ async function waitFor(url, ms) {
 }
 
 const worker = spawn(
-  'npx',
-  ['wrangler', 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--log-level', 'error'],
+  NODE,
+  [WRANGLER, 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--log-level', 'error'],
   { cwd: ROOT, stdio: ['ignore', 'ignore', 'pipe'] },
 )
 let workerErr = ''

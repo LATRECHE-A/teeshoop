@@ -200,7 +200,13 @@ function annulerLeRetrait() {
   }
   dit(`  remise en état 2/2 : git revert --no-edit ${sha.slice(0, 10)} ...`)
   execFileSync('git', ['revert', '--no-edit', sha], { cwd: ROOT, stdio: 'inherit' })
-  execFileSync('npm', ['run', 'build:editeur'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] })
+  // npm est npm.cmd sous Windows ; execFileSync ne le lance pas sans shell,
+  // et les arguments sont constants, donc le shell n'interprète rien.
+  execFileSync('npm', ['run', 'build:editeur'], {
+    cwd: ROOT,
+    stdio: ['ignore', 'ignore', 'inherit'],
+    shell: process.platform === 'win32',
+  })
   return true
 }
 

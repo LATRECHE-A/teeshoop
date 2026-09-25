@@ -46,6 +46,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { writeFileSync, unlinkSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { NODE, WRANGLER } from './bin.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const COMPOSE = ['compose', '-f', 'wp-local/docker-compose.yml']
@@ -228,8 +229,8 @@ async function main() {
   // --- 1. the Worker ------------------------------------------------------
   console.log(`starting wrangler dev on ${WORKER_LOCAL} ...`)
   worker = spawn(
-    'npx',
-    ['wrangler', 'dev', '--ip', '0.0.0.0', '--port', String(WORKER_PORT), '--log-level', 'warn'],
+    NODE,
+    [WRANGLER, 'dev', '--ip', '0.0.0.0', '--port', String(WORKER_PORT), '--log-level', 'warn'],
     { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] },
   )
   /*

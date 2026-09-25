@@ -13,6 +13,7 @@
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = 5190
 const BASE = `http://localhost:${PORT}`
@@ -57,7 +58,7 @@ const READBACK = ({ selector, bg }) =>
     )
   })
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
 const browser = await chromium.launch({
   args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader', '--disable-gpu-sandbox'],
 })

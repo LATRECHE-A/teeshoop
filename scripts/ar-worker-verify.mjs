@@ -17,6 +17,7 @@
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { NODE, WRANGLER } from './bin.mjs'
 
 const PORT = 8799
 const BASE = `http://127.0.0.1:${PORT}`
@@ -109,8 +110,8 @@ const signatureOnlyPng = () => {
 }
 
 const server = spawn(
-  'npx',
-  ['wrangler', 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--log-level', 'error'],
+  NODE,
+  [WRANGLER, 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--log-level', 'error'],
   { cwd: process.cwd(), stdio: 'ignore' },
 )
 const done = (code) => {

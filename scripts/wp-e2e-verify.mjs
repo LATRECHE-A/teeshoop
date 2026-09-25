@@ -60,6 +60,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deflateSync } from 'node:zlib'
 import { chromium } from 'playwright'
+import { NODE, WRANGLER } from './bin.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -246,7 +247,12 @@ try {
    */
   console.log('building the in-page editor into the plugin ...')
   try {
-    execFileSync('npm', ['run', 'build:editeur'], { stdio: ['ignore', 'ignore', 'inherit'] })
+    // npm est npm.cmd sous Windows ; execFileSync ne le lance pas sans shell,
+    // et les arguments sont constants, donc le shell n'interprète rien.
+    execFileSync('npm', ['run', 'build:editeur'], {
+      stdio: ['ignore', 'ignore', 'inherit'],
+      shell: process.platform === 'win32',
+    })
   } catch {
     bail('npm run build:editeur failed')
   }
@@ -256,9 +262,12 @@ try {
   } else {
     console.log(`building the studio with the shop origin ${SHOP_ORIGIN} allowed ...`)
     try {
+      // npm est npm.cmd sous Windows ; execFileSync ne le lance pas sans shell,
+      // et les arguments sont constants, donc le shell n'interprète rien.
       execFileSync('npm', ['run', 'build'], {
         stdio: ['ignore', 'ignore', 'inherit'],
         env: { ...process.env, VITE_TEESHOOP_SHOP_ORIGINS: SHOP_ORIGIN },
+        shell: process.platform === 'win32',
       })
     } catch {
       bail('npm run build failed')
@@ -285,9 +294,9 @@ try {
    * variable, sinon ils divergent une deuxième fois.
    */
   worker = spawn(
-    'npx',
+    NODE,
     [
-      'wrangler',
+      WRANGLER,
       'dev',
       '--ip',
       '0.0.0.0',

@@ -32,6 +32,7 @@ import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = Number(process.env.MOCKUP_PORT || 5192)
 const BASE = `http://localhost:${PORT}`
@@ -179,7 +180,7 @@ const COMPOSE = ({ width, height }) =>
     bg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
   })
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
 let browser
 let written = 0
 let verdict = 'PASS'

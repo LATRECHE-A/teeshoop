@@ -40,9 +40,10 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
-const ROOT = new URL('..', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BASE = process.env.TEESHOOP_SHOP ?? 'http://localhost:8080'
 const OUT = process.env.ACHAT_OUT ?? 'docs/screens/nuit-2'
 const WIDTHS = [375, 1440]

@@ -21,7 +21,16 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
+
+/*
+ * The three readers of this module (the boundary test, vite.config.ts,
+ * bundle-guard.mjs) all write their lists with POSIX separators, per the
+ * contract documented on `isAdminOnly` below. `relative()` returns the native
+ * separator, which is `\` on Windows, so every path this module hands back
+ * is normalised to `/` here, once, rather than in each caller.
+ */
+const toPosix = (p) => p.split(sep).join('/')
 
 /**
  * Modules that must never be reachable from the customer entry, and whose
@@ -193,15 +202,22 @@ export function closureFrom(entry, repoRoot, opts = {}) {
       queue.push(target)
     }
   }
-  return new Map([...reached].map(([f, by]) => [relative(repoRoot, f), relative(repoRoot, by)]))
+  return new Map(
+    [...reached].map(([f, by]) => [toPosix(relative(repoRoot, f)), toPosix(relative(repoRoot, by))]),
+  )
 }
 
 /**
- * Absolute paths of every module the ADMIN entry reaches and neither of the two
- * public entries does. This is what decides where a chunk is emitted.
+ * Absolute paths (POSIX separators) of every module the ADMIN entry reaches
+ * and neither of the two public entries does. This is what decides where a
+ * chunk is emitted.
  *
  * The viewer counts as public: it is the page a QR code opens on a customer's
  * phone, and it is served without any gate at all.
+ *
+ * POSIX separators, even in the absolute paths, because the one caller
+ * (vite.config.ts) tests membership against Rollup's own module ids, and
+ * Rollup writes those with `/` on every platform, Windows included.
  */
 export function adminOnlyModules(repoRoot) {
   const src = join(repoRoot, 'src')
@@ -211,13 +227,13 @@ export function adminOnlyModules(repoRoot) {
   ])
   const admin = closureFrom(join(src, 'admin', 'main.tsx'), repoRoot)
   const out = new Set()
-  for (const rel of admin.keys()) if (!publicSet.has(rel)) out.add(join(repoRoot, rel))
+  for (const rel of admin.keys()) if (!publicSet.has(rel)) out.add(toPosix(join(repoRoot, rel)))
   /*
    * And the HTML entry itself, which rollup counts as a module of the entry
    * chunk. Without it that chunk has one module the walk never saw, `every`
    * fails, and the file that imports all the others is the one left in the open
    * directory. index.html and v.html are deliberately absent: they are public.
    */
-  out.add(join(repoRoot, 'admin.html'))
+  out.add(toPosix(join(repoRoot, 'admin.html')))
   return out
 }

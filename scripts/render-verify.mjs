@@ -71,6 +71,7 @@ import { chromium } from 'playwright'
 import { offeredScenes } from './offered-scenes.mjs'
 import { spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = Number(process.env.RENDER_PORT || 5196)
 const BASE = `http://localhost:${PORT}`
@@ -563,7 +564,7 @@ const waitServer = (url, ms = 240000) =>
     t()
   })
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
 let browser
 const results = []
 let verdict = 'PASS'

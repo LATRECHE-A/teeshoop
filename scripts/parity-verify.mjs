@@ -23,11 +23,14 @@
  */
 import { spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { chromium } from 'playwright'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = 5196
 const BASE = `http://localhost:${PORT}`
-const OUT = process.env.PARITY_OUT || '/tmp/tshop-parity'
+const OUT = process.env.PARITY_OUT || join(tmpdir(), 'tshop-parity')
 // S and 3XL bracket the chart; L is the nominal art size (identity transform).
 const SIZES = (process.env.PARITY_SIZES || 'S,L,3XL').split(',').map((s) => s.trim()).filter(Boolean)
 
@@ -81,7 +84,7 @@ window.__parity = {
 }
 `
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
 let browser
 const done = (code) => { try { browser?.close() } catch {} try { server.kill('SIGTERM') } catch {} process.exit(code) }
 

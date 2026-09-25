@@ -39,6 +39,7 @@
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { offeredScenes } from './offered-scenes.mjs'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = Number(process.env.LEAK_PORT || 5298)
 const BASE = `http://localhost:${PORT}`
@@ -76,7 +77,7 @@ const fail = (m) => {
   console.error(`  FAIL ${m}`)
 }
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { stdio: 'ignore' })
 let browser
 const done = (c) => {
   try { browser?.close() } catch {}

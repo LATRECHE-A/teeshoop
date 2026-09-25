@@ -13,6 +13,7 @@
 import { spawn, execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
+import { NODE, VITE } from './bin.mjs'
 
 /**
  * The film tariff this shop is actually quoted on, read out of the PRICE
@@ -89,7 +90,7 @@ const waitFor = (url, ms = 40000) =>
     t()
   })
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], {
   cwd: process.cwd(),
   stdio: 'ignore',
 })

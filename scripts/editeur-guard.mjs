@@ -54,8 +54,9 @@ import { join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { closureFrom } from './admin-boundary.mjs'
+import { NODE, VITE } from './bin.mjs'
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
+const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[\\/]$/, '')
 const ENTREE = join(ROOT, 'src', 'native', 'main.ts')
 const SORTIE = join(ROOT, 'wp-plugins', 'teeshoop-core', 'assets', 'editeur')
 /**
@@ -605,7 +606,7 @@ ok(
 const temp = mkdtempSync(join(tmpdir(), 'teeshoop-editeur-'))
 let compare = { egaux: true, details: '' }
 try {
-  execFileSync('npx', ['vite', 'build', '--config', 'vite.editeur.config.ts', '--outDir', temp, '--emptyOutDir'], {
+  execFileSync(NODE, [VITE, 'build', '--config', 'vite.editeur.config.ts', '--outDir', temp, '--emptyOutDir'], {
     cwd: ROOT,
     stdio: ['ignore', 'ignore', 'pipe'],
   })

@@ -16,6 +16,7 @@
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = Number(process.env.SHOT_PORT || 5195)
 const BASE = `http://localhost:${PORT}`
@@ -94,7 +95,7 @@ const READBACK = ({ selector, bg }) =>
 const DARK_BG = { grad: [[0, '#171b22'], [0.55, '#101318'], [1, '#0a0c10']] }
 const LIGHT_BG = { grad: [[0, '#f4f6f9'], [0.55, '#e8ecf1'], [1, '#d9dee6']] }
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
 const browser = await chromium.launch({
   args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader', '--disable-gpu-sandbox'],
 })

@@ -1,0 +1,4 @@
+# LF partout, quel que soit le core.autocrlf de la machine : les CGV figées, garments.json et le registre des hypothèses se comparent à l'octet, et le miroir docker lit ces fichiers tels quels.
+* text=auto eol=lf
+# Octets du fournisseur, fins de ligne mixtes comprises : jamais convertis.
+worker/__fixtures__/** -text

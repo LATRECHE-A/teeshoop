@@ -30,6 +30,7 @@ import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = 5195
 const BASE = `http://localhost:${PORT}`
@@ -212,7 +213,7 @@ const waitFor = (url, ms = 40000) =>
     t()
   })
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], {
   cwd: process.cwd(),
   stdio: 'ignore',
 })

@@ -17,6 +17,7 @@
  */
 import { spawn } from 'node:child_process'
 import process from 'node:process'
+import { NODE, VITE, WRANGLER } from './bin.mjs'
 
 const CYAN = '\x1b[36m'
 const MAGENTA = '\x1b[35m'
@@ -76,14 +77,14 @@ function start(tag, color, cmd, args, { fatal }) {
 }
 
 if (!process.env.TSHOP_NO_WORKER) {
-  start('api', MAGENTA, 'npx', ['wrangler', 'dev', '--port', '8787', '--ip', '127.0.0.1'], {
+  start('api', MAGENTA, NODE, [WRANGLER, 'dev', '--port', '8787', '--ip', '127.0.0.1'], {
     fatal: false,
   })
 } else {
   process.stdout.write(`${MAGENTA}[api]${RESET} skipped (TSHOP_NO_WORKER=1)\n`)
 }
 // Forward any extra args to vite (e.g. `npm run dev -- --port 5174`).
-start('web', CYAN, 'npx', ['vite', ...process.argv.slice(2)], { fatal: true })
+start('web', CYAN, NODE, [VITE, ...process.argv.slice(2)], { fatal: true })
 
 process.on('SIGINT', () => shutdown(0))
 process.on('SIGTERM', () => shutdown(0))

@@ -23,6 +23,7 @@
 import { spawn } from 'node:child_process'
 import http from 'node:http'
 import { chromium } from 'playwright'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = 5193
 const BASE = `http://localhost:${PORT}`
@@ -168,7 +169,7 @@ const snapshotStored = (page, kind, q = '') =>
 
 // --- run --------------------------------------------------------------------
 
-const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
+const vite = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], {
   cwd: process.cwd(),
   stdio: 'ignore',
 })

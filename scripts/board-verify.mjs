@@ -43,6 +43,7 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import { chromium } from 'playwright'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = 5196
 const BASE = `http://localhost:${PORT}`
@@ -840,7 +841,7 @@ async function inPage() {
 }
 
 // ---------------------------------------------------------------------------
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], {
   cwd: process.cwd(),
   stdio: 'ignore',
 })

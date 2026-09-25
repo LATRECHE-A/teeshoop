@@ -57,7 +57,9 @@ import {
   chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync,
   rmSync, statSync, writeFileSync,
 } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
+import { NODE, WRANGLER } from './bin.mjs'
 
 const FORMAT = 'teeshoop-inventaire-1'
 const SEAU_PRODUCTION = 'tshop-ar'
@@ -84,7 +86,7 @@ const PAGES_MAX = 10000
  */
 function identifiants() {
   const env = {}
-  const fichier = join(process.env.HOME ?? '', '.config', 'teeshoop', 'r2.env')
+  const fichier = join(homedir(), '.config', 'teeshoop', 'r2.env')
   if (existsSync(fichier)) {
     for (const ligne of readFileSync(fichier, 'utf8').split('\n')) {
       const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(ligne)
@@ -96,7 +98,7 @@ function identifiants() {
   let provenance = jeton ? (process.env.CF_API_TOKEN ? "la variable CF_API_TOKEN" : `le fichier ${fichier}`) : ''
 
   if (!jeton) {
-    const conf = join(process.env.HOME ?? '', '.config', '.wrangler', 'config', 'default.toml')
+    const conf = join(homedir(), '.config', '.wrangler', 'config', 'default.toml')
     if (existsSync(conf)) {
       const m = /oauth_token\s*=\s*"([^"]+)"/.exec(readFileSync(conf, 'utf8'))
       if (m && m[1]) {
@@ -107,7 +109,7 @@ function identifiants() {
   }
   if (!compte && jeton) {
     try {
-      const sortie = execFileSync('npx', ['--no-install', 'wrangler', 'whoami'], {
+      const sortie = execFileSync(NODE, [WRANGLER, 'whoami'], {
         encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 60000,
       })
       const m = /\b([0-9a-f]{32})\b/.exec(sortie)

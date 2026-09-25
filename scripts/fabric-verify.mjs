@@ -29,6 +29,7 @@
  */
 import { spawn } from 'node:child_process'
 import { chromium } from 'playwright'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = 5199
 const BASE = `http://localhost:${PORT}`
@@ -45,7 +46,7 @@ const waitFor = (url, ms = 45000) =>
     t()
   })
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
 let browser
 const done = (code) => {
   try { browser?.close() } catch {}

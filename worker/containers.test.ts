@@ -14,12 +14,13 @@
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { deflateRawSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { imageContainer, isGlb, isJpeg, isPng, isUsdz } from './containers'
 import worker from './index'
 
-const repo = new URL('..', import.meta.url).pathname
+const repo = fileURLToPath(new URL('..', import.meta.url))
 
 function walk(dir: string, ext: string): string[] {
   const out: string[] = []

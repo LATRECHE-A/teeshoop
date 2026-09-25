@@ -46,6 +46,7 @@
  */
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { NODE, WRANGLER } from './bin.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PORT = 8791
@@ -108,8 +109,8 @@ try {
   if (!EXTERNAL) {
     console.log(`démarrage de wrangler dev sur ${BASE} ...`)
     worker = spawn(
-      'npx',
-      ['wrangler', 'dev', '--ip', '127.0.0.1', '--port', String(PORT), '--log-level', 'warn',
+      NODE,
+      [WRANGLER, 'dev', '--ip', '127.0.0.1', '--port', String(PORT), '--log-level', 'warn',
        '--var', `SHOP_ORIGINS:${SHOP}`],
       { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] },
     )

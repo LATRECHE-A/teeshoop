@@ -9,8 +9,10 @@
  */
 import { chromium } from 'playwright'
 import fs from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-const [base = 'http://localhost:4173', outDir = '/tmp/e2e'] = process.argv.slice(2)
+const [base = 'http://localhost:4173', outDir = join(tmpdir(), 'e2e')] = process.argv.slice(2)
 fs.mkdirSync(outDir, { recursive: true })
 const out = (n) => `${outDir}/${n}.png`
 const results = []

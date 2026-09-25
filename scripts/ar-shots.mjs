@@ -11,6 +11,7 @@
 import { spawn } from 'node:child_process'
 import { writeFileSync, existsSync } from 'node:fs'
 import { chromium } from 'playwright'
+import { NODE, WRANGLER } from './bin.mjs'
 
 const PORT = 8790
 const BASE = `http://127.0.0.1:${PORT}`
@@ -55,7 +56,7 @@ const READBACK_GRAD = (selector) =>
     )
   })
 
-const server = spawn('npx', ['wrangler', 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--log-level', 'error'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [WRANGLER, 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--log-level', 'error'], { cwd: process.cwd(), stdio: 'ignore' })
 const browser = await chromium.launch({
   args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader', '--disable-gpu-sandbox'],
 })

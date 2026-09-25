@@ -46,6 +46,7 @@
  */
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = Number(process.env.FOCUS_PORT ?? 5183)
 const BASE = `http://localhost:${PORT}`
@@ -64,7 +65,7 @@ const fail = (m) => {
 const is = (actual, expected, what) =>
   actual === expected ? ok(`${what}: ${actual}`) : fail(`${what}: ${actual}, expected ${expected}`)
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { stdio: 'ignore' })
 let browser
 const done = (c) => {
   try { browser?.close() } catch {}

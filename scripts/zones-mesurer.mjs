@@ -85,9 +85,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { NODE, VITE } from './bin.mjs'
 
-const ROOT = new URL('..', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PORT = 5199
 const BASE = `http://localhost:${PORT}`
 const WORKER = process.env.TEESHOOP_WORKER ?? 'http://127.0.0.1:8788'
@@ -472,7 +474,7 @@ async function fetchSpec(path) {
 // ---------------------------------------------------------------------------
 
 async function boot() {
-  const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
+  const vite = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], {
     cwd: ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
   })

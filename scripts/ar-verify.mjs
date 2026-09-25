@@ -19,6 +19,7 @@
 import { spawn } from 'node:child_process'
 import { chromium } from 'playwright'
 import { validateBytes } from 'gltf-validator'
+import { NODE, VITE } from './bin.mjs'
 
 const PORT = 5198
 const BASE = `http://localhost:${PORT}`
@@ -76,7 +77,7 @@ async function validate(buf, name) {
   return r.issues
 }
 
-const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
+const server = spawn(NODE, [VITE, '--port', String(PORT), '--strictPort'], { cwd: process.cwd(), stdio: 'ignore' })
 let browser
 const done = (code) => {
   try { browser?.close() } catch {}

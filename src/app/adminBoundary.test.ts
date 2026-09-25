@@ -31,11 +31,17 @@ import { describe, expect, it } from 'vitest'
 // it did). Three copies of a security boundary is two too many.
 import { ADMIN_ONLY, MUST_REACH } from '../../scripts/admin-boundary.mjs'
 import { readFileSync, existsSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SRC = fileURLToPath(new URL('..', import.meta.url))
 const REPO = resolve(SRC, '..')
+
+// `relative()` returns the native separator, which is `\` on Windows, while
+// ADMIN_ONLY and MUST_REACH above (scripts/admin-boundary.mjs) are written
+// with `/`. Every repo-relative path this file produces is normalised here so
+// the comparisons below hold on both platforms.
+const toPosix = (p: string) => p.split(sep).join('/')
 
 const EXTS = ['.ts', '.tsx', '.d.ts']
 
@@ -84,7 +90,9 @@ function closureFrom(entry: string): Map<string, string> {
       queue.push(target)
     }
   }
-  return new Map([...reached].map(([f, by]) => [relative(REPO, f), relative(REPO, by)]))
+  return new Map(
+    [...reached].map(([f, by]) => [toPosix(relative(REPO, f)), toPosix(relative(REPO, by))]),
+  )
 }
 
 describe('admin/customer bundle boundary', () => {
