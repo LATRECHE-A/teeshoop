@@ -64,40 +64,81 @@ function tagIs(b: Uint8Array, i: number, tag: string): boolean {
 
 const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
+/*
+ * THE CHUNKS A PICTURE CAN CARRY (SEC-02). The walk alone let a 1 x 1 PNG carry
+ * a private chunk of 39 000 bytes of shell script, served back as image/png
+ * from the Worker's origin: the length arithmetic closed, and the payload sat
+ * in plain bytes any extractor reads. Every chunk registered by the PNG
+ * specification (third edition, including APNG's three) is accepted, and one
+ * private chunk that real files carry: Apple's iDOT, written into every macOS
+ * screenshot. Anything else is refused.
+ *
+ * A PICTURE STILL HOLDS ANY BYTES IN ITS PIXELS, and nothing short of decoding
+ * it can stop that. What this closes is the payload that needs no decoder: a
+ * chunk of raw bytes, or a text chunk, read straight off the file.
+ *
+ * NOT A REFUSAL A CUSTOMER MEETS. `src/lib/teeshoop/upload.ts` runs this same
+ * function before sending, trims what follows the image, and re-encodes through
+ * a canvas whatever still fails, so a file with a chunk nobody registered
+ * reaches the Worker as a plain PNG instead of a 415.
+ */
+const PNG_CHUNKS = new Set([
+  'IHDR', 'PLTE', 'IDAT', 'IEND',
+  'tRNS', 'cHRM', 'gAMA', 'iCCP', 'sBIT', 'sRGB', 'cICP', 'mDCV', 'cLLI',
+  'tEXt', 'zTXt', 'iTXt', 'bKGD', 'hIST', 'pHYs', 'sPLT', 'eXIf', 'tIME',
+  'acTL', 'fcTL', 'fdAT',
+  'iDOT',
+])
+
+/*
+ * The chunks whose content is free text or an opaque blob. A colour profile is
+ * a few kilobytes and metadata rarely more; 256 KiB between them is two orders
+ * of magnitude above what a camera, an editor or a canvas writes, and far
+ * below what is worth hosting.
+ */
+const PNG_FREE_CHUNKS = new Set(['tEXt', 'zTXt', 'iTXt', 'eXIf', 'iCCP', 'sPLT'])
+const PNG_MAX_FREE_BYTES = 256 * 1024
+
 /**
- * A PNG whose chunk arithmetic closes exactly on IEND at the end of the file.
+ * Where a PNG ends: the byte after IEND, or -1 when the bytes are not one.
  *
  * The walk is the security property. Signature, then a sequence of
  * (u32 length, 4-byte type, length bytes, u32 CRC). The first chunk must be
- * IHDR, and the file ends the moment IEND ends: any byte after that is an
- * attacker's payload, not a picture.
+ * IHDR, every chunk must be one a picture carries, and the picture ends the
+ * moment IEND ends.
  *
  * The loop advances by at least 12 bytes per iteration, so it is bounded by
  * size/12 with no per-byte work.
  */
-export function isPng(b: Uint8Array): boolean {
+export function pngEnd(b: Uint8Array): number {
   try {
     // Signature (8) + the shortest possible IHDR (12 + 13) + IEND (12).
-    if (b.length < 8 + 25 + 12) return false
-    for (let i = 0; i < 8; i++) if (b[i] !== PNG_SIG[i]) return false
+    if (b.length < 8 + 25 + 12) return -1
+    for (let i = 0; i < 8; i++) if (b[i] !== PNG_SIG[i]) return -1
 
     let off = 8
     let first = true
+    let free = 0
     while (off + 12 <= b.length) {
       const len = be32(b, off)
       const end = off + 12 + len
-      if (end > b.length) return false
-      if (first) {
-        if (!tagIs(b, off + 4, 'IHDR')) return false
-        first = false
-      }
-      if (tagIs(b, off + 4, 'IEND')) return end === b.length
+      if (end > b.length) return -1
+      const type = String.fromCharCode(b[off + 4], b[off + 5], b[off + 6], b[off + 7])
+      if (first ? type !== 'IHDR' : !PNG_CHUNKS.has(type)) return -1
+      first = false
+      if (PNG_FREE_CHUNKS.has(type) && (free += len) > PNG_MAX_FREE_BYTES) return -1
+      if (type === 'IEND') return end
       off = end
     }
-    return false
+    return -1
   } catch {
-    return false
+    return -1
   }
+}
+
+/** A PNG that closes exactly on IEND at the end of the file: any byte after it is a payload. */
+export function isPng(b: Uint8Array): boolean {
+  return pngEnd(b) === b.length
 }
 
 /** SOFn: 0xC0..0xCF minus DHT (C4), the reserved JPG marker (C8) and DAC (CC). */
@@ -118,31 +159,34 @@ function isSof(marker: number): boolean {
  *
  * At least one SOFn is required, because a file with no frame header describes
  * no image whatever its markers say.
+ *
+ * Returns the byte after EOI, or -1. What follows EOI is not the picture: an
+ * iPhone writes a second, gain-map JPEG there, which is why the studio trims
+ * at this offset rather than refusing the customer's photo (SEC-05).
  */
-export function isJpeg(b: Uint8Array): boolean {
+export function jpegEnd(b: Uint8Array): number {
   try {
-    if (b.length < 4) return false
-    if (b[0] !== 0xff || b[1] !== 0xd8) return false
-    if (b[b.length - 2] !== 0xff || b[b.length - 1] !== 0xd9) return false
+    if (b.length < 4) return -1
+    if (b[0] !== 0xff || b[1] !== 0xd8) return -1
 
     let pos = 2
     let sawSof = false
     for (;;) {
-      if (pos >= b.length) return false
-      if (b[pos] !== 0xff) return false
+      if (pos >= b.length) return -1
+      if (b[pos] !== 0xff) return -1
       // Fill bytes: any number of FFs may precede a marker.
       while (pos < b.length && b[pos] === 0xff) pos++
-      if (pos >= b.length) return false
+      if (pos >= b.length) return -1
       const marker = b[pos]
       pos++
 
-      if (marker === 0xd9) return pos === b.length && sawSof
+      if (marker === 0xd9) return sawSof ? pos : -1
       if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) continue
-      if (marker === 0x00) return false // FF 00 is stuffed data, never a marker here
+      if (marker === 0x00) return -1 // FF 00 is stuffed data, never a marker here
 
-      if (pos + 2 > b.length) return false
+      if (pos + 2 > b.length) return -1
       const segLen = be16(b, pos)
-      if (segLen < 2 || pos + segLen > b.length) return false
+      if (segLen < 2 || pos + segLen > b.length) return -1
       if (isSof(marker)) sawSof = true
       const afterHeader = pos + segLen
       pos = afterHeader
@@ -150,7 +194,7 @@ export function isJpeg(b: Uint8Array): boolean {
       if (marker === 0xda) {
         let i = pos
         for (;;) {
-          if (i + 1 >= b.length) return false
+          if (i + 1 >= b.length) return -1
           if (b[i] !== 0xff) {
             i++
             continue
@@ -170,8 +214,13 @@ export function isJpeg(b: Uint8Array): boolean {
       }
     }
   } catch {
-    return false
+    return -1
   }
+}
+
+/** A JPEG ending on EOI as its last two bytes. */
+export function isJpeg(b: Uint8Array): boolean {
+  return jpegEnd(b) === b.length
 }
 
 /** The format, by its container rather than by what the client called the part. */
@@ -179,6 +228,63 @@ export function imageContainer(b: Uint8Array): 'png' | 'jpeg' | null {
   if (isPng(b)) return 'png'
   if (isJpeg(b)) return 'jpeg'
   return null
+}
+
+/**
+ * The same picture as bytes this module accepts, or null when there is no
+ * picture to recover. For the studio, which must send the Worker a file it
+ * will take rather than one it will refuse at « Ajouter au panier ».
+ *
+ * Lossless, and untouched when nothing needs doing. What FOLLOWS the picture
+ * is cut off (an iPhone's gain-map JPEG after EOI). In a PNG, an ANCILLARY
+ * chunk this module does not accept is left out, which the PNG specification
+ * says any decoder may do: the bit that marks a chunk ancillary is the promise
+ * that the pixels do not depend on it. Free text beyond the cap goes the same
+ * way. An unknown CRITICAL chunk cannot be dropped, so that file is null and
+ * the studio re-encodes it through a canvas.
+ */
+export function acceptedImage(b: Uint8Array): Uint8Array | null {
+  const jpeg = jpegEnd(b)
+  if (jpeg > 0) return b.subarray(0, jpeg)
+  try {
+    if (b.length < 8 + 25 + 12) return null
+    for (let i = 0; i < 8; i++) if (b[i] !== PNG_SIG[i]) return null
+    const keep: [number, number][] = [[0, 8]]
+    let off = 8
+    let free = 0
+    let dropped = false
+    while (off + 12 <= b.length) {
+      const len = be32(b, off)
+      const end = off + 12 + len
+      if (end > b.length) return null
+      const type = String.fromCharCode(b[off + 4], b[off + 5], b[off + 6], b[off + 7])
+      if (keep.length === 1 && type !== 'IHDR') return null
+      const known = PNG_CHUNKS.has(type)
+      const ancillary = (b[off + 4] & 0x20) !== 0
+      if (!known && !ancillary) return null
+      const over = known && PNG_FREE_CHUNKS.has(type) && free + len > PNG_MAX_FREE_BYTES
+      if (known && !over) {
+        if (PNG_FREE_CHUNKS.has(type)) free += len
+        keep.push([off, end])
+      } else {
+        dropped = true
+      }
+      if (type === 'IEND') {
+        if (!dropped) return b.subarray(0, end)
+        const out = new Uint8Array(keep.reduce((n, [a, z]) => n + z - a, 0))
+        let at = 0
+        for (const [a, z] of keep) {
+          out.set(b.subarray(a, z), at)
+          at += z - a
+        }
+        return isPng(out) ? out : null
+      }
+      off = end
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 /*
@@ -202,6 +308,12 @@ const GLB_MAX_JSON_BYTES = 4 * 1024 * 1024
  * an `asset` member: that is the one field glTF 2.0 makes mandatory, so it is
  * the cheapest proof that the bytes are a scene and not a container shell
  * wrapped round a payload.
+ *
+ * AND NOTHING BUT JSON THEN ONE BIN (SEC-02). The specification allows chunks
+ * of unknown type and says a reader skips them, which made a third chunk a
+ * place to park any bytes at all. The BIN chunk has to be the buffer the JSON
+ * declares, to within its padding, so it cannot be a larger box either. Our
+ * exporter (three's GLTFExporter, binary) writes exactly this shape.
  */
 export function isGlb(b: Uint8Array): boolean {
   try {
@@ -211,7 +323,8 @@ export function isGlb(b: Uint8Array): boolean {
     if (le32(b, 8) !== b.length) return false
 
     let off = 12
-    let first = true
+    let chunk = 0
+    let declared = -1
     while (off + 8 <= b.length) {
       const len = le32(b, off)
       const payload = off + 8
@@ -220,7 +333,7 @@ export function isGlb(b: Uint8Array): boolean {
       // the padded end to stay inside the file.
       const end = payload + ((len + 3) & ~3)
       if (end > b.length) return false
-      if (first) {
+      if (chunk === 0) {
         if (!tagIs(b, off + 4, 'JSON')) return false
         if (len === 0 || len > GLB_MAX_JSON_BYTES) return false
         let parsed: unknown
@@ -230,12 +343,30 @@ export function isGlb(b: Uint8Array): boolean {
           return false
         }
         if (typeof parsed !== 'object' || parsed === null) return false
-        const asset = (parsed as Record<string, unknown>).asset
+        const root = parsed as Record<string, unknown>
+        const asset = root.asset
         if (typeof asset !== 'object' || asset === null || Array.isArray(asset)) return false
-        first = false
+        const buffers = root.buffers
+        if (buffers !== undefined) {
+          // One buffer at most, and it is the BIN chunk: no uri, a length.
+          if (!Array.isArray(buffers) || buffers.length > 1) return false
+          if (buffers.length === 1) {
+            const buf = buffers[0] as Record<string, unknown> | null
+            if (typeof buf !== 'object' || buf === null || buf.uri !== undefined) return false
+            const n = buf.byteLength
+            if (typeof n !== 'number' || !Number.isInteger(n) || n < 1) return false
+            declared = n
+          }
+        }
+      } else if (chunk === 1) {
+        if (!tagIs(b, off + 4, 'BIN\x00')) return false
+        if (declared < 0 || len < declared || len > declared + 3) return false
+      } else {
+        return false
       }
+      chunk++
       off = end
-      if (off === b.length) return !first
+      if (off === b.length) return chunk === 2 || (chunk === 1 && declared < 0)
     }
     return false
   } catch {
@@ -246,9 +377,24 @@ export function isGlb(b: Uint8Array): boolean {
 const EOCD_LEN = 22
 const CD_ENTRY_LEN = 46
 
+/*
+ * What a USDZ may contain, by its specification: USD layers and the images they
+ * reference. The audio the specification also lists is never written by our
+ * exporter, and a sound file is exactly the kind of opaque box this refuses.
+ */
+const USD_LAYER = ['.usda', '.usdc', '.usd']
+const USD_JPEG = ['.jpg', '.jpeg']
+
+/*
+ * An extra field is where the specification's 64-byte alignment padding goes
+ * (three's exporter writes at most 4 + 63 bytes there). Anything much larger
+ * is room for a payload that no reader lists.
+ */
+const ZIP_MAX_EXTRA = 256
+
 /**
  * A USDZ: an UNCOMPRESSED zip whose central directory closes, every entry of
- * which is stored, and which contains at least one .usdc or .usda.
+ * which is stored, and which starts with a USD layer.
  *
  * Compression method 0 is not a nicety, it is what the USDZ specification
  * requires (Quick Look memory-maps the crate straight out of the archive), and
@@ -259,6 +405,16 @@ const CD_ENTRY_LEN = 46
  * zip can carry arbitrary trailing bytes, and 22 is the length of an End Of
  * Central Directory record, so a comment that long can hide a second EOCD and
  * make two readers disagree about what the archive contains.
+ *
+ * EVERY ENTRY IS A USD LAYER OR A PICTURE, AND IS WHAT IT SAYS (SEC-02). The
+ * first version only asked for ONE layer and let anything ride beside it: a
+ * stored zip of `payload.sh` and an empty `a.usda` was served from R2 and
+ * `unzip` handed the script straight back. Now each entry's name is one the
+ * specification allows, its bytes are checked as that format (a layer by its
+ * header, a picture by the walks above), its local header agrees with the
+ * directory, and the entries tile the archive end to end: no gap between two
+ * of them where bytes no reader lists could sit. The first entry is a layer,
+ * as the specification requires of the default layer.
  *
  * The walk is bounded by the entry count, which the EOCD stores in 16 bits.
  */
@@ -287,37 +443,62 @@ export function isUsdz(b: Uint8Array): boolean {
     if (cdOffset + cdSize !== eocd) return false
 
     let off = cdOffset
-    let sawUsd = false
+    let next = 0 // where the next entry's local header has to start
     for (let n = 0; n < entries; n++) {
       if (off + CD_ENTRY_LEN > eocd) return false
       if (!tagIs(b, off, 'PK\x01\x02')) return false
+      if (le16(b, off + 8) & 0x0008) return false // sizes after the data: not a stored USDZ
       if (le16(b, off + 10) !== 0) return false // stored only
+      const size = le32(b, off + 20)
+      if (le32(b, off + 24) !== size) return false
       const nameLen = le16(b, off + 28)
       const extraLen = le16(b, off + 30)
       const commentLen = le16(b, off + 32)
+      const local = le32(b, off + 42)
       const nameAt = off + CD_ENTRY_LEN
       const end = nameAt + nameLen + extraLen + commentLen
       if (end > eocd) return false
-      if (nameLen >= 5 && endsWithUsd(b, nameAt, nameLen)) sawUsd = true
+      if (nameLen === 0 || extraLen > ZIP_MAX_EXTRA || commentLen !== 0) return false
+
+      // The local header: where the previous entry stopped, and the same name.
+      if (local !== next || !tagIs(b, local, 'PK\x03\x04')) return false
+      const localName = le16(b, local + 26)
+      const localExtra = le16(b, local + 28)
+      if (localName !== nameLen || localExtra > ZIP_MAX_EXTRA) return false
+      for (let k = 0; k < nameLen; k++) if (b[local + 30 + k] !== b[nameAt + k]) return false
+      const data = local + 30 + nameLen + localExtra
+      if (data + size > cdOffset) return false
+
+      const kind = entryKind(b, nameAt, nameLen)
+      if (kind === null || (n === 0 && kind !== 'layer')) return false
+      const bytes = b.subarray(data, data + size)
+      if (kind === 'layer' ? !isUsdLayer(bytes) : kind === 'png' ? !isPng(bytes) : !isJpeg(bytes)) return false
+
+      next = data + size
       off = end
     }
-    return off === eocd && sawUsd
+    return off === eocd && next === cdOffset
   } catch {
     return false
   }
 }
 
 /**
- * Case-insensitive suffix test on the raw name bytes. The specification writes
- * the extension lowercase, but refusing a customer's archive over the case of
- * five bytes buys no security at all: a payload named .USDC is still refused by
- * the stored-method and the walk.
+ * The kind an entry's name promises, case-insensitively: the specification
+ * writes extensions lowercase, but refusing a customer's archive over the case
+ * of a few bytes buys no security, since the content is checked as that kind.
  */
-function endsWithUsd(b: Uint8Array, at: number, len: number): boolean {
-  const i = at + len - 5
-  if (b[i] !== 0x2e) return false // '.'
-  const lower = (c: number) => (c >= 0x41 && c <= 0x5a ? c + 32 : c)
-  if (lower(b[i + 1]) !== 0x75 || lower(b[i + 2]) !== 0x73 || lower(b[i + 3]) !== 0x64) return false
-  const last = lower(b[i + 4])
-  return last === 0x63 || last === 0x61 // 'c' or 'a'
+function entryKind(b: Uint8Array, at: number, len: number): 'layer' | 'png' | 'jpeg' | null {
+  let name = ''
+  for (let k = 0; k < len; k++) name += String.fromCharCode(b[at + k])
+  name = name.toLowerCase()
+  if (USD_LAYER.some((e) => name.endsWith(e))) return 'layer'
+  if (name.endsWith('.png')) return 'png'
+  if (USD_JPEG.some((e) => name.endsWith(e))) return 'jpeg'
+  return null
+}
+
+/** A USD layer by its own header: the crate's magic, or the text form's first line. */
+function isUsdLayer(b: Uint8Array): boolean {
+  return tagIs(b, 0, 'PXR-USDC') || tagIs(b, 0, '#usda ')
 }

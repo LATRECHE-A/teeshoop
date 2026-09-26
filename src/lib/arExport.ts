@@ -41,6 +41,7 @@ import { areaOffsetYIn, garmentColorHex, getAreaSizeIn, renderMockup, renderPrin
 import { DEFAULT_SIZE, type SizeId } from '@/content/sizeChart'
 import { printScaleK } from '@/lib/printScale'
 import { canvasToBlob } from '@/lib/download'
+import { acceptedImage } from '../../worker/containers'
 import { registerBackPanel } from '@/lib/backRegister'
 import { buildDelitMaps, buildInflatedShell, canvasToSilhouette } from '@/lib/silhouette'
 import { GARMENTS } from '@/garments'
@@ -1069,7 +1070,10 @@ export async function buildArModel(
         : sideLayers(design, 'front').length
           ? 'front'
           : 'back'
-    const poster = await renderMockup(design, posterSide, 720, sizeId).then((c) => canvasToBlob(c))
+    const drawn = new Uint8Array(await (await renderMockup(design, posterSide, 720, sizeId).then((c) => canvasToBlob(c))).arrayBuffer())
+    // The Worker refuses a PNG chunk it does not know (SEC-02); an engine that
+    // writes one gets it left out here, losslessly, rather than a 415.
+    const poster = new Blob([(acceptedImage(drawn) ?? drawn) as BlobPart], { type: 'image/png' })
 
     return {
       glb: new Blob([glbData], { type: 'model/gltf-binary' }),

@@ -18,6 +18,7 @@
  */
 import { spawn } from 'node:child_process'
 import { chromium } from 'playwright'
+import { isGlb, isPng, isUsdz } from '../worker/containers.ts'
 import { validateBytes } from 'gltf-validator'
 import { NODE, VITE } from './bin.mjs'
 
@@ -172,6 +173,8 @@ try {
       }
       return {
         glb: await b64(blobs.glb),
+        usdz: await b64(blobs.usdz),
+        poster: await b64(blobs.poster),
         glbSize: blobs.glb.size,
         usdzSize: blobs.usdz.size,
         posterSize: blobs.poster.size,
@@ -215,6 +218,11 @@ try {
     if (r.usdzMagic[0] !== 0x50 || r.usdzMagic[1] !== 0x4b) fail(`${gid}: USDZ not a zip`)
     if (r.pngMagic[0] !== 137 || r.pngMagic[1] !== 80) fail(`${gid}: poster not a PNG`)
     if (r.posterSize < 1000) fail(`${gid}: poster too small`)
+    // The Worker's own container checks on what a real browser really exported
+    // (SEC-02 made them strict: every USDZ entry is checked as what it says).
+    if (!isGlb(new Uint8Array(buf))) fail(`${gid}: the Worker would refuse this GLB`)
+    if (!isUsdz(new Uint8Array(Buffer.from(r.usdz, 'base64')))) fail(`${gid}: the Worker would refuse this USDZ`)
+    if (!isPng(new Uint8Array(Buffer.from(r.poster, 'base64')))) fail(`${gid}: the Worker would refuse this poster`)
 
     // 2) Khronos validator: 0 errors
     const iss = await validate(buf, `${gid}.glb`)

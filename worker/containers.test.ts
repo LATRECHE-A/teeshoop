@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deflateRawSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import { imageContainer, isGlb, isJpeg, isPng, isUsdz } from './containers'
+import { imageContainer, isGlb, isJpeg, isPng, isUsdz, acceptedImage } from './containers'
 import worker from './index'
 
 const repo = fileURLToPath(new URL('..', import.meta.url))
@@ -94,6 +94,51 @@ function glb(json: string, opts: { declaredLength?: number } = {}): Uint8Array {
     0x4a, 0x53, 0x4f, 0x4e, // 'JSON'
     ...chunk,
   ])
+}
+
+/** A GLB whose JSON chunk is followed by the given chunks, each padded to 4. */
+function glbWith(json: string, chunks: [string, Uint8Array][]): Uint8Array {
+  const parts: number[] = []
+  const push = (type: string, data: Uint8Array, fill: number) => {
+    const pad = (4 - (data.length % 4)) % 4
+    parts.push(...u32le(data.length + pad), ...[...type].map((c) => c.charCodeAt(0)), ...data, ...new Array(pad).fill(fill))
+  }
+  push('JSON', new TextEncoder().encode(json), 0x20)
+  for (const [type, data] of chunks) push(type, data, 0)
+  return new Uint8Array([0x67, 0x6c, 0x54, 0x46, ...u32le(2), ...u32le(12 + parts.length), ...parts])
+}
+
+/** A PNG with one more chunk just before IEND. The CRC is not checked, so zeros. */
+function withChunk(png: Uint8Array, type: string, data: Uint8Array): Uint8Array {
+  const iend = png.length - 12
+  const chunk = [...u32be(data.length), ...[...type].map((c) => c.charCodeAt(0)), ...data, 0, 0, 0, 0]
+  return new Uint8Array([...png.subarray(0, iend), ...chunk, ...png.subarray(iend)])
+}
+
+function u32be(n: number): number[] {
+  return [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]
+}
+
+/**
+ * The same archive with `n` bytes pushed in before its second local header,
+ * every offset after it moved to match: a well-formed zip, as far as `unzip`
+ * is concerned, with a hole nobody lists.
+ */
+function withGap(z: Uint8Array, n: number): Uint8Array {
+  const dv = new DataView(z.buffer, z.byteOffset, z.byteLength)
+  const eocd = z.length - 22
+  const cd = dv.getUint32(eocd + 16, true)
+  const second = dv.getUint32(cd + 46 + dv.getUint16(cd + 28, true) + dv.getUint16(cd + 30, true) + dv.getUint16(cd + 32, true) + 42, true)
+  const out = new Uint8Array(z.length + n)
+  out.set(z.subarray(0, second))
+  out.set(randomBytes(n), second)
+  out.set(z.subarray(second), second + n)
+  const o = new DataView(out.buffer)
+  const cd2 = cd + n
+  const firstLen = 46 + o.getUint16(cd2 + 28, true) + o.getUint16(cd2 + 30, true) + o.getUint16(cd2 + 32, true)
+  o.setUint32(cd2 + firstLen + 42, second + n, true)
+  o.setUint32(eocd + n + 16, cd2, true)
+  return out
 }
 
 /* ----------------------------------------------------------------- USDZ */
@@ -177,12 +222,28 @@ const usdc = new TextEncoder().encode('PXR-USDC-not-really-but-the-walk-does-not
  */
 import { strToU8, zipSync } from 'three/examples/jsm/libs/fflate.module.js'
 
+import { Mesh, MeshStandardMaterial, PlaneGeometry, Scene } from 'three'
+import { USDZExporter } from 'three/examples/jsm/exporters/USDZExporter.js'
+
+/** A genuine PNG from the repository, so a texture entry is a real picture. */
+const genuinePng = () => read(walk(join(repo, 'docs/screens'), '.png')[0])
+
 describe('the real exporter output', () => {
-  it('accepts what three USDZExporter actually writes', () => {
+  it('accepts what three USDZExporter actually writes', async () => {
+    // The exporter itself, alignment padding and all. No texture: turning one
+    // into bytes needs a canvas, which is what the stored-texture case below
+    // stands in for, with a real PNG.
+    const scene = new Scene()
+    scene.add(new Mesh(new PlaneGeometry(1, 1), new MeshStandardMaterial({ color: 0x336699 })))
+    const out = await new USDZExporter().parseAsync(scene)
+    expect(isUsdz(new Uint8Array(out))).toBe(true)
+  })
+
+  it('accepts its layout with a real texture beside the layer', () => {
     const out = zipSync(
       {
         'model.usda': strToU8('#usda 1.0\n(\n    defaultPrim = "Root"\n)\n'),
-        'textures/0.png': new Uint8Array(1024),
+        'textures/Texture_0.png': genuinePng(),
       },
       { level: 0 },
     )
@@ -289,6 +350,73 @@ describe('negatives, one per attack', () => {
   it('refuses the JPEG signature followed by arbitrary bytes ending in EOI', () => {
     const evil = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...randomBytes(20_000), 0xff, 0xd9])
     expect(isJpeg(evil)).toBe(false)
+  })
+
+  /*
+   * SEC-02. Each of these was accepted before, and each carries a payload a
+   * reader hands back without decoding anything: measured on a 1 x 1 PNG with
+   * a 39 000-byte private chunk, and on a stored zip of payload.sh + a.usda.
+   */
+  it('refuses a PNG carrying a chunk no picture carries', () => {
+    expect(isPng(withChunk(genuinePng(), 'prVt', randomBytes(39_000)))).toBe(false)
+  })
+
+  it('accepts the chunks real files carry, iDOT included, and caps free text', () => {
+    expect(isPng(withChunk(genuinePng(), 'tEXt', new TextEncoder().encode('Software\0GIMP')))).toBe(true)
+    expect(isPng(withChunk(genuinePng(), 'iDOT', new Uint8Array(28)))).toBe(true)
+    expect(isPng(withChunk(genuinePng(), 'tEXt', randomBytes(300 * 1024)))).toBe(false)
+  })
+
+  it('refuses a stored zip that puts a script beside a layer, in either order', () => {
+    const layer = strToU8('#usda 1.0\n')
+    const script = strToU8('#!/bin/sh\necho payload\n')
+    expect(isUsdz(new Uint8Array(zipSync({ 'payload.sh': script, 'a.usda': layer }, { level: 0 })))).toBe(false)
+    expect(isUsdz(new Uint8Array(zipSync({ 'a.usda': layer, 'payload.sh': script }, { level: 0 })))).toBe(false)
+  })
+
+  it('refuses an entry that is not what its name says', () => {
+    const layer = strToU8('#usda 1.0\n')
+    expect(isUsdz(new Uint8Array(zipSync({ 'a.usda': layer, 'textures/0.png': randomBytes(1024) }, { level: 0 })))).toBe(false)
+    expect(isUsdz(new Uint8Array(zipSync({ 'a.usda': randomBytes(1024) }, { level: 0 })))).toBe(false)
+    expect(isUsdz(new Uint8Array(zipSync({ 'textures/0.png': genuinePng(), 'a.usda': layer }, { level: 0 })))).toBe(false)
+  })
+
+  it('refuses bytes hidden between two entries, where no reader lists them', () => {
+    const tight = new Uint8Array(zipSync({ 'a.usda': strToU8('#usda 1.0\n'), 'b.usda': strToU8('#usda 1.0\n') }, { level: 0 }))
+    expect(isUsdz(tight)).toBe(true)
+    expect(isUsdz(withGap(tight, 4096))).toBe(false)
+  })
+
+  it('refuses a GLB with a third chunk, or a BIN larger than its buffer', () => {
+    const json = '{"asset":{"version":"2.0"},"buffers":[{"byteLength":8}]}'
+    expect(isGlb(glbWith(json, [['BIN\0', new Uint8Array(8)]]))).toBe(true)
+    expect(isGlb(glbWith(json, [['BIN\0', new Uint8Array(8)], ['XTRA', randomBytes(4096)]]))).toBe(false)
+    expect(isGlb(glbWith(json, [['BIN\0', new Uint8Array(4096)]]))).toBe(false)
+    expect(isGlb(glbWith('{"asset":{"version":"2.0"}}', [['XTRA', randomBytes(64)]]))).toBe(false)
+  })
+
+  /*
+   * SEC-05, and SEC-02 from the customer's side. What the studio does with a
+   * picture the Worker would refuse: recover the picture, losslessly.
+   */
+  it('recovers the picture from what follows it, and from chunks the Worker refuses', () => {
+    const png = genuinePng()
+    const jpeg = read(walk(join(repo, 'public/catalog/imbretex/img'), '.jpg').find((f) => isJpeg(read(f)))!)
+    const tail = new Uint8Array([0, 0, 0x50, 0x4b])
+    // Untouched when nothing needs doing: the same bytes, not a copy.
+    expect(acceptedImage(png)!.buffer).toBe(png.buffer)
+    expect(acceptedImage(new Uint8Array([...png, ...tail]))).toEqual(png)
+    expect(acceptedImage(new Uint8Array([...jpeg, ...tail]))).toEqual(jpeg)
+    expect(isJpeg(new Uint8Array([...jpeg, ...tail]))).toBe(false)
+    // A private ancillary chunk is dropped; the rest is the picture, byte for byte.
+    expect(acceptedImage(withChunk(png, 'prVt', randomBytes(64)))).toEqual(png)
+    expect(acceptedImage(withChunk(png, 'tEXt', randomBytes(300 * 1024)))).toEqual(png)
+    // A critical chunk nobody knows cannot be dropped: that one goes through a canvas.
+    expect(acceptedImage(withChunk(png, 'QRVT', randomBytes(64)))).toBe(null)
+    expect(acceptedImage(randomBytes(4096))).toBe(null)
+    for (const out of [acceptedImage(withChunk(png, 'prVt', randomBytes(64)))!, acceptedImage(new Uint8Array([...jpeg, ...tail]))!]) {
+      expect(imageContainer(out)).not.toBe(null)
+    }
   })
 
   it('refuses empty and tiny inputs without throwing', () => {

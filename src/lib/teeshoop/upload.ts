@@ -48,6 +48,9 @@ import { printScaleK, printScaleOf } from '@/lib/printScale'
 import { assetRevision, getAssetBlob, type AssetVariant } from '@/state/assets'
 import { canvasToBlob } from '@/lib/download'
 import { readDesignDoc } from './designDoc'
+// The Worker's own validator, not a copy of it: what this side sends is what
+// that side accepts, by construction (SEC-02, SEC-05).
+import { acceptedImage, imageContainer } from '../../../worker/containers'
 
 /** Sides the studio can print. The wire ids are these, verbatim. */
 const PRINTABLE_SIDES: Side[] = ['front', 'back', 'sleeve']
@@ -332,10 +335,6 @@ function buildDocument(design: Design, sides: BridgeSide[]): Record<string, unkn
   }
 }
 
-const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
-const JPEG_SIG = [0xff, 0xd8, 0xff]
-const startsWith = (b: Uint8Array, sig: number[]): boolean => sig.every((v, i) => b[i] === v)
-
 /**
  * A raster the Worker will accept, from a raster the browser accepted.
  *
@@ -347,12 +346,23 @@ const startsWith = (b: Uint8Array, sig: number[]): boolean => sig.every((v, i) =
  * PNG or JPEG with a 415. Re-encoding here is what keeps a legitimate customer
  * upload from being refused at the last step of a purchase.
  *
- * PNG and JPEG pass through UNTOUCHED. Re-encoding a 6 MB photo to PNG for no
- * reason would triple the upload on the connection least able to carry it.
+ * A PNG OR A JPEG THE WORKER TAKES passes through UNTOUCHED. Re-encoding a 6 MB
+ * photo to PNG for no reason would triple the upload on the connection least
+ * able to carry it.
+ *
+ * THE SIGNATURE WAS NOT THE WORKER'S TEST (SEC-05). A JPEG with bytes after its
+ * end (an iPhone writes a second, gain-map image there) passed this side on
+ * its first three bytes and was refused by the Worker as « not a png or jpeg »
+ * at « Ajouter au panier ». Asked with the Worker's own function now: what
+ * follows the picture is cut off and a PNG chunk the Worker refuses (SEC-02)
+ * is left out, both losslessly, and only what still cannot be sent goes
+ * through the canvas like a GIF does.
  */
 async function sendableRaster(blob: Blob): Promise<Blob> {
-  const head = new Uint8Array(await blob.slice(0, 8).arrayBuffer())
-  if (startsWith(head, PNG_SIG) || startsWith(head, JPEG_SIG)) return blob
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  if (imageContainer(bytes)) return blob
+  const picture = acceptedImage(bytes)
+  if (picture) return new Blob([picture as BlobPart], { type: imageContainer(picture) === 'png' ? 'image/png' : 'image/jpeg' })
 
   const bitmap = await createImageBitmap(blob)
   try {
@@ -631,7 +641,9 @@ export async function uploadDesign(
           // For a graded design the print really is a different size on the two,
           // so the picture and the numbers described two different garments.
           const canvas = await renderMockup(design, side, PREVIEW_PX, PRICED_SIZE)
-          perSide.push({ side, blob: await canvasToBlob(canvas, 'image/png') })
+          // Through the Worker's own test as well: Chromium's canvas writes only
+          // IHDR, IDAT and IEND (measured), and no other engine was measured.
+          perSide.push({ side, blob: await sendableRaster(await canvasToBlob(canvas, 'image/png')) })
         }
       } catch {
         throw new DesignUploadError('preview_failed')
