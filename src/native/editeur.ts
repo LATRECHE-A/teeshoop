@@ -45,10 +45,10 @@
  */
 import type { Design, ImageLayer, Layer, Side, SizeId } from '@/lib/types'
 import { EditorEngine } from '@/editor/EditorEngine'
-import { addAsset } from '@/state/assets'
+import { addAsset, removeAsset, sweepAssets } from '@/state/assets'
 import { garmentHexOf, setShopPalette } from '@/content/garmentPalette'
 import { clampLayersToArea, getAreaSizeIn, renderMockup, renderPrintArea } from '@/lib/renderDesign'
-import { layerInkBox } from '@/lib/ink'
+import { ensureInkProbes, layerInkSize } from '@/lib/ink'
 import { measureOrder, uploadDesign, DesignUploadError } from '@/lib/teeshoop/upload'
 import { inToCm, fmtNum } from '@/lib/units'
 import { setCurrentLang } from '@/i18n/lang'
@@ -104,6 +104,8 @@ type PanneauAvance = {
   fermer(): void
   /** Redessiner après un changement venu d'ailleurs (annuler, rétablir). */
   rafraichir(): void
+  /** Remettre à jour les seuls champs en centimètres (EDI-09). */
+  rafraichirCotes(): void
   /** Ouvrir le champ de texte sur ce calque et y poser le curseur. */
   modifierTexte(id: string): void
 }
@@ -170,6 +172,8 @@ const APERCU_LARGEUR_CSS = 220
  */
 const TYPES_ACCEPTES = 'image/png,image/jpeg,image/webp,image/svg+xml'
 const OCTETS_MAX = 12 * 1024 * 1024
+/** Au-delà, un fichier laissé par une page fermée sans prévenir est effacé (EDI-08). */
+const ACTIFS_DUREE_MS = 24 * 60 * 60 * 1000
 
 export function monter(hote: HTMLElement, ctx: Contexte): Editeur {
   return new Instance(hote, ctx)
@@ -274,6 +278,10 @@ class Instance implements Editeur {
    */
   private signatureApercus = ''
   private jetonApercus = 0
+  /** Un rechiffrage demandé à l'étape 1, où aucun prix n'est montré (EDI-12). */
+  private devisPerime = false
+  /** Les fichiers que CETTE instance a rangés dans IndexedDB, à effacer en partant (EDI-08). */
+  private readonly actifs = new Set<string>()
 
   // Les noeuds que le rendu réécrit. Tenus plutôt que re-cherchés : une requête
   // par frappe sur un DOM que le thème peut avoir enveloppé coûte plus que six
@@ -312,6 +320,17 @@ class Instance implements Editeur {
   constructor(hote: HTMLElement, ctx: Contexte) {
     this.hote = hote
     this.ctx = ctx
+    /*
+     * LES FICHIERS D'UN CLIENT NE RESTENT PAS DANS CE NAVIGATEUR (EDI-08).
+     * L'éditeur ne restaure aucune création, et chaque visuel déposé restait
+     * dans l'IndexedDB de la boutique pour toujours : lisible par le suivant
+     * sur un poste partagé, jusqu'à remplir le quota. Ceux de cette instance
+     * partent avec la page ; un balayage à l'ouverture reprend ceux d'une page
+     * fermée sans prévenir, par l'âge, parce qu'un autre onglet ou un second
+     * éditeur de la page tiennent peut-être encore les leurs.
+     */
+    void sweepAssets(ACTIFS_DUREE_MS).catch(() => undefined)
+    window.addEventListener('pagehide', this.surDepart)
     /*
      * LA FACE DE DÉPART EST LA PREMIÈRE QUE LE PRODUIT DÉCLARE, pas « devant ».
      *
@@ -810,6 +829,7 @@ class Instance implements Editeur {
           this.chiffrerBientot()
         }
         this.rendreOutils()
+        this.avancee?.rafraichirCotes()
       },
       onEditText: (id) => this.modifierTexte(id),
       onZoom: () => {},
@@ -938,6 +958,7 @@ class Instance implements Editeur {
     }
     try {
       const meta = await addAsset(fichier, fichier.name)
+      this.actifs.add(meta.id)
       /*
        * SUR LA FACE CHOISIE, ET LA ZONE EST CELLE DE CETTE FACE.
        *
@@ -1169,6 +1190,7 @@ class Instance implements Editeur {
       const images = new Map<string, string>()
       for (const asset of imagesDuModele(doc)) {
         const meta = await addAsset(await lireImageModele(this.ctx, m.id, asset), m.nom || 'Modèle')
+        this.actifs.add(meta.id)
         images.set(asset, meta.id)
       }
       if (this.detruit) return
@@ -1248,6 +1270,7 @@ class Instance implements Editeur {
   private centrerSelection(): void {
     if (!this.selection) return
     this.appliquerPatch(this.selection, { xIn: 0 } as Partial<Layer>)
+    this.avancee?.rafraichirCotes()
     this.chiffrerBientot()
   }
 
@@ -1392,6 +1415,8 @@ class Instance implements Editeur {
     if (etape === 2 && this.lignes.length === 0) this.ajouterLigne(this.creation.colorId)
     this.etape = etape
     this.rendre()
+    // Ce qui a changé à l'étape 1 n'a pas été chiffré : on le chiffre maintenant.
+    if (etape === 2 && this.devisPerime) this.chiffrerBientot()
     /*
      * LE FOCUS SUIT L'ÉCRAN. Sans cela, un client au clavier qui valide se
      * retrouve à tabuler depuis le haut du document vers un écran qu'il ne voit
@@ -1564,6 +1589,20 @@ class Instance implements Editeur {
       this.rendreAchat()
     }
     if (this.timerDevis !== null) window.clearTimeout(this.timerDevis)
+    this.timerDevis = null
+    /*
+     * PAS DE DEVIS QU'AUCUN ÉCRAN NE MONTRE (EDI-12). L'étape 1 n'affiche pas
+     * de prix, et chaque frappe dans la vue avancée relançait une mesure de
+     * l'encre et un GET /quote, du travail de fil principal pendant la frappe,
+     * sur un téléphone. Il est fait en entrant à l'étape 2.
+     */
+    if (this.etape !== 2) {
+      this.annuleDevis?.abort()
+      this.annuleDevis = null
+      this.devisPerime = true
+      return
+    }
+    this.devisPerime = false
     this.timerDevis = window.setTimeout(() => void this.chiffrer(), 250)
   }
 
@@ -2372,6 +2411,9 @@ class Instance implements Editeur {
    * passé de visible ».
    */
   private rendreApercus(): void {
+    // Les aperçus sont un écran de l'étape 2 ; les composer derrière l'étape 1
+    // refaisait un rendu par face et par coloris à chaque frappe (EDI-12).
+    if (this.etape !== 2) return
     const zone = this.noeuds.apercus
     const signature = `${this.creation.updatedAt}|${this.face}|${this.lignes
       .map((l) => l.couleur)
@@ -2541,9 +2583,26 @@ class Instance implements Editeur {
    * voir `COTE_RECENSEMENT_PX`.
    */
   private async recenserEncre(): Promise<void> {
-    const signature = String(this.creation.updatedAt)
-    if (this.encre?.signature === signature) return
-    this.lisibilite.clear()
+    /*
+     * RECOMMENCÉ QUAND LA CRÉATION CHANGE PENDANT LA MESURE (EDI-12). Deux
+     * recensements concurrents pouvaient finir dans le désordre, et le plus
+     * lent écrivait l'encre de la création PRÉCÉDENTE sous la signature
+     * courante : un avertissement de contraste calculé sur un autre dessin.
+     */
+    for (;;) {
+      const signature = String(this.creation.updatedAt)
+      if (this.encre?.signature === signature) return
+      const mesure = await this.mesurerEncre(signature)
+      if (mesure === 'detruit') return
+      if (mesure === 'perime') continue
+      this.lisibilite.clear()
+      this.encre = { signature, mesure }
+      return
+    }
+  }
+
+  /** L'encre de la création telle qu'elle était à `signature`, ou pourquoi on s'est arrêté. */
+  private async mesurerEncre(signature: string): Promise<Encre | null | 'perime' | 'detruit'> {
     const parts: Encre[] = []
     let vu = false
     for (const face of this.facesDecorees()) {
@@ -2557,7 +2616,8 @@ class Instance implements Editeur {
           COTE_RECENSEMENT_PX / cote,
           this.tailleTarif(),
         )
-        if (this.detruit) return
+        if (this.detruit) return 'detruit'
+        if (String(this.creation.updatedAt) !== signature) return 'perime'
         if (!toile) continue
         const part = recenser(toile)
         // `null` veut dire « je n'ai pas pu relire ce canevas » : on ne le
@@ -2567,10 +2627,11 @@ class Instance implements Editeur {
         vu = true
         parts.push(part)
       } catch {
-        if (this.detruit) return
+        if (this.detruit) return 'detruit'
+        if (String(this.creation.updatedAt) !== signature) return 'perime'
       }
     }
-    this.encre = { signature, mesure: vu ? fusionner(parts) : null }
+    return vu ? fusionner(parts) : null
   }
 
   /** L'avertissement de contraste de ce coloris, ou rien quand il se lit bien. */
@@ -2609,6 +2670,19 @@ class Instance implements Editeur {
     vider(zone)
 
     const mesure = mesureDe(calque)
+    /*
+     * L'encre d'une image n'est connue qu'une fois le fichier relu. À l'étape 1
+     * rien d'autre ne le demande (EDI-12), donc on le demande ici, et la ligne
+     * se redessine si la mesure a changé ; une seconde fois, rien ne change et
+     * la boucle s'arrête.
+     */
+    if (calque.type === 'image') {
+      void ensureInkProbes([calque]).then(() => {
+        if (this.detruit || this.selection !== calque.id) return
+        const apres = mesureDe(calque)
+        if (apres?.w !== mesure?.w || apres?.h !== mesure?.h) this.rendreOutils()
+      })
+    }
     const taille = el('span', 'tshop-ed__mesure')
     if (mesure) {
       // Centimètres, jamais de pouces : c'est l'unité que lit un acheteur
@@ -2855,9 +2929,21 @@ class Instance implements Editeur {
 
   // --------------------------------------------------------------- démontage
 
+  /** La page part pour de bon (pas vers le cache arrière) : ses fichiers aussi. */
+  private surDepart = (e: PageTransitionEvent): void => {
+    if (!e.persisted) this.effacerActifs()
+  }
+
+  private effacerActifs(): void {
+    for (const id of this.actifs) void removeAsset(id).catch(() => undefined)
+    this.actifs.clear()
+  }
+
   detruire(): void {
     if (this.detruit) return
     this.detruit = true
+    window.removeEventListener('pagehide', this.surDepart)
+    this.effacerActifs()
     if (this.timerDevis !== null) window.clearTimeout(this.timerDevis)
     this.annuleDevis?.abort()
     this.observateur?.disconnect()
@@ -2908,7 +2994,6 @@ function identifiant(): string {
  * plutôt que d'écrire zéro.
  */
 function mesureDe(calque: Layer): { w: number; h: number } | null {
-  if (calque.type !== 'text') return { w: calque.wIn, h: calque.hIn }
   /*
    * ET « VIDE » SE TESTE SUR LE TEXTE, PAS SUR LA MESURE.
    *
@@ -2917,10 +3002,14 @@ function mesureDe(calque: Layer): { w: number; h: number } | null {
    * contrôle écrit sur « la largeur est-elle nulle » aurait laissé passer
    * « 0,0 × 0,0 cm », qui est le chiffre fabriqué qu'on veut supprimer.
    */
-  if (calque.text.trim() === '') return null
-  const boite = layerInkBox(calque)
-  const w = boite.x1 - boite.x0
-  const h = boite.y1 - boite.y0
+  if (calque.type === 'text' && calque.text.trim() === '') return null
+  /*
+   * L'ENCRE, PAS LA BOÎTE DU FICHIER, ET SANS ROTATION (EDI-14). Une image
+   * affichait sa boîte, marges transparentes comprises, là où le transfert
+   * imprimé et facturé mesure l'encre ; un texte tourné affichait sa boîte
+   * englobante tournée. Une seule règle, celle que le prix et le film lisent.
+   */
+  const { w, h } = layerInkSize(calque)
   return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 ? { w, h } : null
 }
 

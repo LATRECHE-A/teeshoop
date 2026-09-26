@@ -80,6 +80,8 @@ export interface VueAvancee {
   fermer(): void
   /** Redessiner après un changement venu d'ailleurs : annuler, rétablir, une face. */
   rafraichir(): void
+  /** Remettre à jour les seuls champs en centimètres, après un geste ou « Centrer ». */
+  rafraichirCotes(): void
   /** Ouvrir le champ de texte de ce calque et y poser le curseur. */
   modifierTexte(id: string): void
 }
@@ -121,6 +123,7 @@ export function ouvrir(zone: HTMLElement, hote: Hote): VueAvancee {
   return {
     fermer: () => vue.fermer(),
     rafraichir: () => vue.rafraichir(),
+    rafraichirCotes: () => vue.rafraichirCotes(),
     modifierTexte: (id) => vue.modifierTexte(id),
   }
 }
@@ -174,6 +177,26 @@ class Avancee {
   rafraichir(): void {
     if (!this.hote.creation().layers.some((l) => l.id === this.selection)) this.selection = null
     this.rendre()
+  }
+
+  /**
+   * Les cotes du calque montré, telles qu'elles sont maintenant (EDI-09).
+   *
+   * Un glisser au doigt ou « Centrer » déplaçaient le calque et les champs
+   * gardaient les anciennes valeurs : un client qui travaille au centimètre
+   * lisait une position fausse. Seules les valeurs changent, pas le panneau,
+   * pour ne détruire ni le texte en cours de frappe ni le champ qui a le focus.
+   */
+  rafraichirCotes(): void {
+    if (this.ferme) return
+    const calque = this.hote.creation().layers.find((l) => l.id === this.selection)
+    if (!calque) return
+    for (const champ of this.zone.querySelectorAll<HTMLInputElement>('input[data-cote]')) {
+      if (champ === document.activeElement) continue
+      const cle = champ.dataset.cote as 'wIn' | 'hIn' | 'xIn' | 'yIn'
+      const valeur = (calque as unknown as Record<string, unknown>)[cle]
+      if (typeof valeur === 'number') champ.value = fmtNum(inToCm(valeur)).replace(',', '.')
+    }
   }
 
   /**
@@ -365,10 +388,10 @@ class Avancee {
 
     if (calque.type !== 'text') {
       grille.append(
-        this.champCm(MOTS.largeur, calque.wIn, 0.2, inToCm(zone.wIn), (cm) =>
+        this.champCm('wIn', MOTS.largeur, calque.wIn, 0.2, inToCm(zone.wIn), (cm) =>
           this.patch(calque.id, { wIn: cmToIn(cm) } as Partial<Layer>),
         ),
-        this.champCm(MOTS.hauteur, calque.hIn, 0.2, inToCm(zone.hIn), (cm) =>
+        this.champCm('hIn', MOTS.hauteur, calque.hIn, 0.2, inToCm(zone.hIn), (cm) =>
           this.patch(calque.id, { hIn: cmToIn(cm) } as Partial<Layer>),
         ),
       )
@@ -390,10 +413,10 @@ class Avancee {
     const demiW = inToCm(zone.wIn) / 2
     const demiH = inToCm(zone.hIn) / 2
     grille.append(
-      this.champCm(MOTS.decalageX, calque.xIn, -demiW, demiW, (cm) =>
+      this.champCm('xIn', MOTS.decalageX, calque.xIn, -demiW, demiW, (cm) =>
         this.patch(calque.id, { xIn: cmToIn(cm) }),
       ),
-      this.champCm(MOTS.decalageY, calque.yIn, -demiH, demiH, (cm) =>
+      this.champCm('yIn', MOTS.decalageY, calque.yIn, -demiH, demiH, (cm) =>
         this.patch(calque.id, { yIn: cmToIn(cm) }),
       ),
     )
@@ -484,6 +507,7 @@ class Avancee {
   }
 
   private champCm(
+    cote: 'wIn' | 'hIn' | 'xIn' | 'yIn',
     etiquette: string,
     valeurIn: number,
     minCm: number,
@@ -499,6 +523,7 @@ class Avancee {
     champ.min = String(Math.round(minCm * 10) / 10)
     champ.max = String(Math.round(maxCm * 10) / 10)
     champ.inputMode = 'decimal'
+    champ.dataset.cote = cote
     champ.value = fmtNum(inToCm(valeurIn)).replace(',', '.')
     champ.addEventListener('change', () => {
       const cm = Number.parseFloat(champ.value.replace(',', '.'))

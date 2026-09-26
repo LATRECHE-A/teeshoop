@@ -241,6 +241,50 @@ async function auClavier(cible) {
   await page.keyboard.press('Enter')
   await page.waitForTimeout(400)
 }
+// Un point du canevas qui ATTRAPE le premier calque, ou null : sans lui, un
+// test de glisser passerait à vide. Chaque essai déplace le calque de 25 px.
+async function attraper() {
+  const lire = () => page.evaluate(() => window.teeshoopEditeur?.creation?.layers?.[0]?.xIn ?? null)
+  const cadre = await page.locator('[data-teeshoop-editeur] canvas').first().boundingBox()
+  for (let fy = 0.3; fy <= 0.7; fy += 0.1) {
+    for (let fx = 0.3; fx <= 0.7; fx += 0.1) {
+      const x = cadre.x + cadre.width * fx
+      const y = cadre.y + cadre.height * fy
+      const avant = await lire()
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x + 25, y, { steps: 5 })
+      await page.mouse.up()
+      await page.waitForTimeout(150)
+      if ((await lire()) !== avant) return { x: x + 25, y }
+    }
+  }
+  return null
+}
+// La table d'`idb-keyval`, lue et écrite sans lui : ce que le navigateur GARDE.
+const idb = (action, cle, valeur) =>
+  page.evaluate(
+    ([action, cle, valeur]) =>
+      new Promise((fin) => {
+        const r = indexedDB.open('keyval-store', 1)
+        r.onupgradeneeded = () => r.result.createObjectStore('keyval')
+        r.onerror = () => fin({ erreur: String(r.error) })
+        r.onsuccess = () => {
+          const db = r.result
+          const tx = db.transaction('keyval', action === 'lire' ? 'readonly' : 'readwrite')
+          const magasin = tx.objectStore('keyval')
+          const q = action === 'lire' ? magasin.get(cle) : magasin.put(valeur, cle)
+          q.onsuccess = () => {
+            const v = action === 'lire' ? q.result : true
+            db.close()
+            fin({ valeur: v ?? null })
+          }
+          q.onerror = () => fin({ erreur: String(q.error) })
+        }
+      }),
+    [action, cle, valeur],
+  )
+const ids = async () => ((await idb('lire', 'tshop:assets:index')).valeur ?? []).map((a) => a.id)
 
 try {
   await page.goto(PAGE)
@@ -395,6 +439,88 @@ try {
   })
   ok('un panneau fermé pendant un chargement ne se rouvre pas', zoneAvancee === 0, `${zoneAvancee} élément(s)`)
   ok('et ne laisse aucune scène 3D tourner', (await vivants()) === 0, `${await vivants()} contexte(s) vivant(s)`)
+
+  // ── EDI-12 : l'étape 1 ne demande pas de devis, l'étape 2 le redemande ──
+  await page.waitForFunction(() => {
+    const b = document.querySelector('[data-teeshoop="valider-creation"]')
+    return b instanceof HTMLButtonElement && !b.disabled
+  }, null, { timeout: 30000 })
+  await page.locator('[data-teeshoop="valider-creation"]').click()
+  await qte.waitFor({ timeout: 20000 })
+  await qte.fill('40')
+  ok('une quantité posée à l’étape 2 est chiffrée', await attendreTotal(40), await ttc())
+  await page.locator('[data-teeshoop="revenir-creation"]').click()
+  const avantEtape1 = devisDemandes.length
+  const saisie = await attraper()
+  ok('le harnais attrape le calque à l’étape 1', !!saisie)
+  await page.waitForTimeout(1500)
+  ok('un geste à l’étape 1, qui ne montre aucun prix, ne demande aucun devis', devisDemandes.length === avantEtape1, `${devisDemandes.length - avantEtape1} devis demandé(s)`)
+  await page.locator('[data-teeshoop="valider-creation"]').click()
+  ok('revenu à l’étape 2, la création changée est rechiffrée', await attendreTotal(40) && devisDemandes.length > avantEtape1, `${devisDemandes.length - avantEtape1} devis, ${await ttc()}`)
+  await page.locator('[data-teeshoop="revenir-creation"]').click()
+
+  // ── EDI-09 : les champs en centimètres suivent le geste et « Centrer » ──
+  await page.locator('[data-teeshoop="vue-avancee"]').click()
+  const champX = page.locator('.tshop-ed__avancee input[data-cote="xIn"]')
+  if ((await champX.count()) === 0) {
+    // Le panneau montre la liste des calques : on choisit le premier.
+    await page.locator('.tshop-ed__avancee').getByRole('button').filter({ hasText: /logo/i }).first().click().catch(() => {})
+  }
+  const coteLue = () => champX.inputValue().then(Number).catch(() => NaN)
+  const coteVraie = () => page.evaluate(() => Math.round(((window.teeshoopEditeur?.creation?.layers?.[0]?.xIn ?? NaN) * 2.54) * 10) / 10)
+  ok('la vue avancée montre le décalage du visuel', (await champX.count()) === 1)
+  await attraper()
+  await page.waitForTimeout(300)
+  ok('après un glisser, le champ dit la position réelle', Math.abs((await coteLue()) - (await coteVraie())) <= 0.11 && (await coteVraie()) !== 0, `champ ${await coteLue()}, visuel ${await coteVraie()}`)
+  await outil('Centrer').click()
+  await page.waitForTimeout(300)
+  ok('après « Centrer », le champ dit 0', (await coteLue()) === 0, `champ ${await coteLue()}`)
+  await page.locator('[data-teeshoop="vue-avancee"]').click()
+
+  // ── EDI-14 : la taille affichée est celle de l'encre ─────────────────────
+  // Un PNG de 400 px dont le motif n'occupe que le carré central de 100 px.
+  const marges = Buffer.from(
+    await page.evaluate(async () => {
+      const c = document.createElement('canvas')
+      c.width = 400
+      c.height = 400
+      const g = c.getContext('2d')
+      g.fillStyle = '#10204a'
+      g.fillRect(150, 150, 100, 100)
+      const b = await new Promise((r) => c.toBlob(r, 'image/png'))
+      return Array.from(new Uint8Array(await b.arrayBuffer()))
+    }),
+  )
+  await page.setInputFiles('input.tshop-ed__fichier', { name: 'marges.png', mimeType: 'image/png', buffer: marges })
+  await page.waitForFunction(() => window.teeshoopEditeur?.creation?.layers?.length > 1, null, { timeout: 30000 })
+  const largeurBoite = await page.evaluate(() => (window.teeshoopEditeur.creation.layers.at(-1).wIn ?? 0) * 2.54)
+  const lireTaille = async () => {
+    const t = await page.locator('[data-teeshoop="taille-visuel"]').innerText().catch(() => '')
+    return Number.parseFloat((t.split('×')[0] ?? '').replace(',', '.'))
+  }
+  const fin14 = Date.now() + 10000
+  while (Date.now() < fin14 && !((await lireTaille()) < largeurBoite / 2)) await page.waitForTimeout(200)
+  const taille = await lireTaille()
+  ok('la taille affichée est celle de l’encre, pas celle du fichier', Math.abs(taille - largeurBoite / 4) < 0.3, `${taille} cm affichés, fichier ${largeurBoite.toFixed(1)} cm, encre ${(largeurBoite / 4).toFixed(1)} cm`)
+
+  // ── EDI-08 : les fichiers du client ne restent pas dans le navigateur ────
+  const deposes = await page.evaluate(() => window.teeshoopEditeur.creation.layers.filter((l) => l.type === 'image').map((l) => l.assetId))
+  const tenus = await ids()
+  ok('les fichiers déposés sont bien rangés, sinon ce qui suit ne prouve rien', deposes.length >= 2 && deposes.every((id) => tenus.includes(id)), `${deposes.length} déposé(s), ${tenus.length} rangé(s)`)
+  await page.evaluate(() => window.teeshoopEditeur.detruire())
+  await page.waitForTimeout(800)
+  const restes = (await ids()).filter((id) => deposes.includes(id))
+  ok('l’éditeur démonté efface les fichiers qu’il a rangés', restes.length === 0, `${restes.length} reste(nt)`)
+
+  // Un fichier laissé il y a deux jours par une page fermée sans prévenir.
+  await idb('ecrire', 'tshop:assets:index', [
+    { id: 'vieuxfichier', name: 'Oublié', width: 10, height: 10, hasCutout: false, createdAt: Date.now() - 2 * 86400000 },
+  ])
+  await idb('ecrire', 'tshop:asset:vieuxfichier', 'octets')
+  await page.goto(PAGE)
+  await page.locator('[data-teeshoop-editeur][data-teeshoop-editeur-etat="pret"]').waitFor({ timeout: 30000 })
+  await page.waitForTimeout(800)
+  ok('un fichier de plus de 24 h est effacé à l’ouverture', !(await ids()).includes('vieuxfichier') && (await idb('lire', 'tshop:asset:vieuxfichier')).valeur === null, JSON.stringify(await ids()))
 } catch (e) {
   ok('le parcours va au bout', false, String(e?.message ?? e).split('\n')[0])
 } finally {

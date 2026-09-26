@@ -498,22 +498,39 @@ export function resetInkProbes(): void {
  */
 export function layerInkBox(l: Layer): InkBox {
   const m = measureLayer(l, 100)
-  const wIn = m.w / 100
-  const hIn = m.h / 100
-  if (l.type === 'text') {
-    // Glyph metrics, not pixels: `measureTextInk` composes the ink from the same
-    // per-line measurement the renderer draws with, so a stack's leading is
-    // excluded without a raster and without a way for the two to disagree.
-    const ink = measureTextInk(getMeasureCtx(), l, 100)
-    const unit: UnitRect = {
-      x0: (ink.cx - ink.w / 2) / m.w + 0.5,
-      x1: (ink.cx + ink.w / 2) / m.w + 0.5,
-      y0: (ink.cy - ink.h / 2) / m.h + 0.5,
-      y1: (ink.cy + ink.h / 2) / m.h + 0.5,
-    }
-    return placedInkBox(l, wIn, hIn, unit)
+  const unit = inkUnitOf(l, m)
+  return placedInkBox(l, m.w / 100, m.h / 100, unit, l.type === 'text' ? false : l.flipX)
+}
+
+/** The ink of a layer as fractions of its measured box, for both readers below. */
+function inkUnitOf(l: Layer, m: { w: number; h: number }): UnitRect {
+  if (l.type !== 'text') return layerInkUnit(l)
+  // Glyph metrics, not pixels: `measureTextInk` composes the ink from the same
+  // per-line measurement the renderer draws with, so a stack's leading is
+  // excluded without a raster and without a way for the two to disagree.
+  const ink = measureTextInk(getMeasureCtx(), l, 100)
+  return {
+    x0: (ink.cx - ink.w / 2) / m.w + 0.5,
+    x1: (ink.cx + ink.w / 2) / m.w + 0.5,
+    y0: (ink.cy - ink.h / 2) / m.h + 0.5,
+    y1: (ink.cy + ink.h / 2) / m.h + 0.5,
   }
-  return placedInkBox(l, wIn, hIn, layerInkUnit(l), l.flipX)
+}
+
+/**
+ * The width and height of a layer's ink, inches, NOT rotated.
+ *
+ * What a customer reads as « the size of my visual » (EDI-14). The toolbar
+ * showed the file's box for an image, transparent margins included, so a logo
+ * filling a third of its PNG read 21,9 cm where the transfer printed and billed
+ * measures about 7; and it showed the ROTATED ink box for a text, so the same
+ * label meant two different rules. The same unit rect as `layerInkBox`, which
+ * the price and the film read, without the rotation.
+ */
+export function layerInkSize(l: Layer): { w: number; h: number } {
+  const m = measureLayer(l, 100)
+  const u = inkUnitOf(l, m)
+  return { w: ((u.x1 - u.x0) * m.w) / 100, h: ((u.y1 - u.y0) * m.h) / 100 }
 }
 
 /** The layer's declared rectangle, rotation-expanded: what this module replaced. */

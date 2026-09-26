@@ -133,6 +133,23 @@ export async function setAssetCutout(
   )
 }
 
+/**
+ * Remove every stored asset created more than `maxAgeMs` ago. Returns how many.
+ *
+ * FOR THE CUSTOMER'S EDITOR ONLY (EDI-08). It restores no creation, so every
+ * file a customer dropped stayed in this origin's IndexedDB for good, readable
+ * by the next person at a shared computer, until the quota filled and uploads
+ * failed. The admin studio keeps a library on purpose and never calls this.
+ * By age and not by « nothing references it », because a second editor on the
+ * same page, or another tab, holds live references this one cannot see.
+ */
+export async function sweepAssets(maxAgeMs: number, now: number = Date.now()): Promise<number> {
+  const cutoff = now - maxAgeMs
+  const old = (await listAssets()).filter((a) => !(a.createdAt >= cutoff))
+  for (const a of old) await removeAsset(a.id)
+  return old.length
+}
+
 export async function removeAsset(id: string): Promise<AssetMeta[]> {
   await del(blobKey(id, false))
   await del(blobKey(id, true))
