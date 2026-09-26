@@ -65,7 +65,25 @@ export async function importDesignFile(blob: Blob): Promise<Design> {
   for (const [id, a] of Object.entries(file.assets ?? {})) {
     await importAsset({ ...a.meta, id }, a.dataUrl, a.cutoutDataUrl)
   }
-  return migrateDesign(file.design)
+  /*
+   * A COPY, WITH A FRESH ID, like the share link below (STU-05). « Mes
+   * designs » is keyed by design.id, and a file keeps the id it was exported
+   * with: reopening last week's export and pressing Enregistrer replaced the
+   * library's current version with last week's, silently.
+   */
+  return migrateDesign({ ...file.design, id: nanoid(10), updatedAt: Date.now() })
+}
+
+/**
+ * The design « Enregistrer » writes to the library.
+ *
+ * A basket line opened on the board is a CLONE of the draft and carries the
+ * draft's id (STU-05): saving it overwrote the saved design with the line's
+ * snapshot. It is saved under the line's own id instead, so the draft's entry
+ * is left alone and saving the same line twice updates one entry, not two.
+ */
+export function designToSave(design: Design, focusedLineId: string | null): Design {
+  return focusedLineId ? { ...design, id: focusedLineId } : design
 }
 
 // --- boot + autosave -----------------------------------------------------

@@ -6,6 +6,7 @@
  * Pixels are a rendering concern only. This is what keeps 2D editing, 3D
  * preview and 300-DPI print export dimensionally identical.
  */
+import type { GarmentShape } from './garmentShape'
 import type { SceneId } from '@/scenes'
 
 export type Side = 'front' | 'back' | 'sleeve'
@@ -128,6 +129,13 @@ export interface CustomGarment {
    * (k = 1), never a guess. `widthIn` above is this chart read at `baseSize`.
    */
   halfChestCmBySize?: Partial<Record<SizeId, number>>
+  /**
+   * The garment's shape as the customer stated it in the setup modal; absent
+   * means "detect it from the photograph". ON THE DOCUMENT and not in a global
+   * slot (STU-02): the library, design files and basket lines each carry their
+   * own custom garment, and one stored answer was applied to all of them.
+   */
+  shape?: GarmentShape
 }
 
 /**

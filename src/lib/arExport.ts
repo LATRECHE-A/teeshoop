@@ -864,7 +864,7 @@ async function buildCustomFigure(
   const disposables: Disposable[] = []
 
   const sil = canvasToSilhouette(frontCanvas, wIn, hIn)
-  const shell = sil ? buildInflatedShell(frontCanvas, sil, wIn, hIn, { photo: frontPhoto }) : null
+  const shell = sil ? buildInflatedShell(frontCanvas, sil, wIn, hIn, { photo: frontPhoto, shape: design.custom?.shape }) : null
 
   if (shell) {
     sanitizeGarmentGeometry(shell.front, true)

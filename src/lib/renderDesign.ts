@@ -299,6 +299,27 @@ export function measureLayer(layer: Layer, ppi: number): { w: number; h: number 
  */
 
 /**
+ * The names of the image layers on `side` whose picture cannot be loaded.
+ *
+ * `prepareSide` swallows a failed image on purpose (a preview with one missing
+ * logo is still worth drawing) and `drawImageLayerContent` then draws nothing,
+ * so a print file rendered over a deleted upload came out at 300 PPI WITHOUT
+ * the logo and nothing said so (STU-03). A file for a printer asks this first.
+ */
+export async function missingImageLayers(design: Design, side: Side): Promise<string[]> {
+  const out: string[] = []
+  for (const layer of sideLayers(design, side)) {
+    if (layer.type !== 'image') continue
+    const ok = await ensureAssetImage(layer.assetId, layer.useCutout ? 'cutout' : 'original').then(
+      () => true,
+      () => false,
+    )
+    if (!ok) out.push(layer.name)
+  }
+  return out
+}
+
+/**
  * Render the full print area (transparent) at `ppi`. This canvas IS the
  * physical transfer, so it is where grading has to be real rather than a
  * preview trick. With a `size`, both the area and every layer are scaled by the

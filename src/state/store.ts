@@ -337,6 +337,36 @@ applyLang(initialPrefs.lang)
 const bootMobile =
   typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767.98px)').matches
 
+/**
+ * `design` with every use of one library image removed, from both design
+ * contexts (it is a global deletion), or null when nothing referenced it.
+ * Dropping the custom garment's last photo reverts to the tee, across the
+ * garment boundary. Pure: `purgeAsset` runs it on the live design AND on every
+ * state in the undo history.
+ */
+function purgedDesign(design: Design, assetId: string): Design | null {
+  const keep = (l: Layer) => l.type !== 'image' || l.assetId !== assetId
+  const layers = design.layers.filter(keep)
+  const stashedLayers = design.stashedLayers.filter(keep)
+  let custom = design.custom
+  if (custom?.front?.assetId === assetId || custom?.back?.assetId === assetId) {
+    custom = {
+      ...custom,
+      front: custom.front?.assetId === assetId ? null : custom.front,
+      back: custom.back?.assetId === assetId ? null : custom.back,
+    }
+    if (!custom.front) custom = null
+  }
+  if (
+    layers.length === design.layers.length &&
+    stashedLayers.length === design.stashedLayers.length &&
+    custom === design.custom
+  )
+    return null
+  const nextGarment: GarmentId = design.garmentId === 'custom' && !custom ? 'tee' : design.garmentId
+  return switchGarment({ ...design, layers, stashedLayers, custom }, nextGarment)
+}
+
 export const useStore = create<StoreState>()(
   temporal(
     (set, get) => ({
@@ -956,41 +986,36 @@ export const useStore = create<StoreState>()(
 
       /** Remove every layer (and custom-garment reference) using an asset. */
       purgeAsset: (assetId: string) => {
+        /*
+         * A LIBRARY DELETION IS NOT AN UNDOABLE EDIT, AND IT REACHES THE HISTORY
+         * (STU-03). The blob is gone the moment UploadsPanel calls removeAsset,
+         * so Ctrl+Z used to bring back a layer with nothing behind it, which
+         * drew nothing and exported a 300 PPI print file without the logo.
+         * The live change is not recorded, and every undo and redo state is
+         * purged the same way: the rest of the history survives, the deleted
+         * image never comes back.
+         */
+        const t = useStore.temporal.getState()
+        const scrub = <S extends { design?: Design }>(states: S[]): S[] =>
+          states.map((st) => {
+            const d = st.design ? purgedDesign(st.design, assetId) : null
+            return d ? { ...st, design: d } : st
+          })
+        useStore.temporal.setState({ pastStates: scrub(t.pastStates), futureStates: scrub(t.futureStates) })
+
         const s = get()
-        // Purge the asset from BOTH design contexts (it's a global deletion).
-        const keep = (l: Layer) => l.type !== 'image' || l.assetId !== assetId
-        const layers = s.design.layers.filter(keep)
-        const stashedLayers = s.design.stashedLayers.filter(keep)
-        let custom = s.design.custom
-        if (custom?.front?.assetId === assetId || custom?.back?.assetId === assetId) {
-          custom = {
-            ...custom,
-            front: custom.front?.assetId === assetId ? null : custom.front,
-            back: custom.back?.assetId === assetId ? null : custom.back,
-          }
-          if (!custom.front) custom = null
-        }
-        if (
-          layers.length === s.design.layers.length &&
-          stashedLayers.length === s.design.stashedLayers.length &&
-          custom === s.design.custom
-        )
-          return
-        // Dropping the custom garment reverts to the tee: cross the boundary.
-        const nextGarment: GarmentId =
-          s.design.garmentId === 'custom' && !custom ? 'tee' : s.design.garmentId
-        const next = switchGarment(
-          { ...s.design, layers, stashedLayers, custom },
-          nextGarment,
-        )
+        const next = purgedDesign(s.design, assetId)
+        if (!next) return
+        t.pause()
         set({
           design: touch(clampLayersToArea(next)),
           selectedId: null,
           // Deleting the back photo locks that side. Don't leave the user on it.
-          ...(nextGarment === 'custom' && s.activeSide === 'back' && !custom?.back
+          ...(next.garmentId === 'custom' && s.activeSide === 'back' && !next.custom?.back
             ? { activeSide: 'front' as Side }
             : {}),
         })
+        t.resume()
       },
 
       duplicateLayer: (id) => {

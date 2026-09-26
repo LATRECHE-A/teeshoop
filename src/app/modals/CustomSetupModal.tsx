@@ -17,8 +17,6 @@ import { defaultCustomPrintArea, invalidateCustomBBox } from '@/lib/custom'
 import { invalidateGarmentAnatomy } from '@/lib/garmentAnatomy'
 import {
   GARMENT_SHAPES,
-  getShapeOverride,
-  setShapeOverride,
   type GarmentShape,
 } from '@/lib/garmentShape'
 import { detectGarmentShape, type ShapeDetection } from '@/lib/silhouette'
@@ -206,7 +204,7 @@ export default function CustomSetupModal() {
   const [widthIn, setWidthIn] = useState(design.custom?.widthIn ?? 20)
   const [front, setFront] = useState<SideDraft | null>(design.custom?.front ?? null)
   const [back, setBack] = useState<SideDraft | null>(design.custom?.back ?? null)
-  const [shape, setShape] = useState<GarmentShape | 'auto'>(getShapeOverride() ?? 'auto')
+  const [shape, setShape] = useState<GarmentShape | 'auto'>(design.custom?.shape ?? 'auto')
   const [detected, setDetected] = useState<ShapeDetection | null>(null)
   const [genBack, setGenBack] = useState(false)
   const removeSupported = isBgRemovalSupported()
@@ -386,11 +384,9 @@ export default function CustomSetupModal() {
             ...(d.origin ? { origin: d.origin } : {}),
           }
         : null
-    // Commit the shape BEFORE setCustom: that call rebuilds the design, which
-    // is what makes the 3D preview (and the AR bake behind it) re-read the
-    // override. Writing it afterwards would leave one stale frame.
-    setShapeOverride(shape === 'auto' ? null : shape)
-    setCustom({ widthIn, front: stripped(front), back: stripped(back) })
+    // The shape goes ON the garment it describes (STU-02), where the 3D
+    // preview and the AR bake both read it.
+    setCustom({ widthIn, front: stripped(front), back: stripped(back), ...(shape === 'auto' ? {} : { shape }) })
     closeModal('customSetup')
     const hasBackLayers = design.layers.some((l) => l.side === 'back')
     if (!back && hasBackLayers) {

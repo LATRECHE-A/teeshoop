@@ -1487,7 +1487,8 @@ export function buildInflatedShell(
   // A CUSTOMER'S EXPLICIT CHOICE OVERRULES THE TEST. The structural tells are
   // evidence, not authority: someone who has told the setup modal "this is a
   // hoodie" knows something the outline does not carry, and refusing them on a
-  // heuristic would be the wrong kind of confident.
+  // heuristic would be the wrong kind of confident. That choice is `opts.shape`,
+  // read off the design by both callers.
   const measure = measureMask(m, sil, wIn, hIn)
   const structure = measure?.structure ?? null
   let depth: DepthField | null = null
@@ -1495,7 +1496,7 @@ export function buildInflatedShell(
   if (!opts?.forcePoisson && measure) {
     const resolved = resolveShape(measure.profile, measure.armholes)
     shape = opts?.shape ?? resolved.shape
-    if (measure.structure.isGarment || opts?.shape || resolved.source === 'user') {
+    if (measure.structure.isGarment || opts?.shape) {
       // Preference order, not a set: the family's own donor first, the other
       // as a rescue (see buildTemplateDepth). With two donors this is simply
       // "mine, then the other one".

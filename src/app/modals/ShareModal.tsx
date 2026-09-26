@@ -9,7 +9,7 @@ import {
   exportDesignFile,
   importDesignFile,
 } from '@/state/persist'
-import { getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
+import { getAreaSizeIn, missingImageLayers, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { printScaleK } from '@/lib/printScale'
 import { listAssets } from '@/state/assets'
 import { downloadBlob, downloadCanvasPng, slugify } from '@/lib/download'
@@ -138,6 +138,12 @@ export default function ShareModal() {
                         disabled={busy !== null}
                         onClick={() =>
                           run(`print-${sd}`, async () => {
+                            // A file for a printer is refused, not sent without a layer (STU-03).
+                            const manquants = await missingImageLayers(design, sd)
+                            if (manquants.length > 0) {
+                              toast('error', t('share.missing_images', { names: manquants.join(', ') }))
+                              return
+                            }
                             const c = await renderPrintArea(design, sd, PRINT_DPI, previewSize)
                             if (!c) return
                             // Grading makes the physical size size-dependent:

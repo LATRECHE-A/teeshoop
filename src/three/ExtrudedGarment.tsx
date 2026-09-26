@@ -36,6 +36,7 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { useStore } from '@/state/store'
+import type { GarmentShape } from '@/lib/garmentShape'
 import type { CardSource } from '@/lib/types'
 import {
   buildDelitMaps,
@@ -125,14 +126,19 @@ const LINING_TINT = '#adadad'
 const CLOTH = { roughness: 0.9, sheen: 0.45, sheenRoughness: 0.93 } as const
 
 /** Build (and dispose) an inflated shell from the front cutout; null when ungated. */
-function useInflatedShell(front: CardSource | null, wIn: number, hIn: number): InflatedShell | null {
+function useInflatedShell(
+  front: CardSource | null,
+  wIn: number,
+  hIn: number,
+  shape: GarmentShape | undefined,
+): InflatedShell | null {
   const canvas = front?.canvas ?? null
   const photo = front?.photo ?? null
   const version = front?.version ?? 0
   const shell = useMemo<InflatedShell | null>(() => {
     if (!canvas) return null
     const sil = canvasToSilhouette(canvas, wIn, hIn)
-    const built = sil ? buildInflatedShell(canvas, sil, wIn, hIn, { photo }) : null
+    const built = sil ? buildInflatedShell(canvas, sil, wIn, hIn, { photo, shape }) : null
     // Explicit tangents for the wrinkle map. Without them three derives a
     // tangent frame per fragment from screen-space derivatives, which swims as
     // the garment turns, the folds appear to crawl over the cloth. The sheets
@@ -144,7 +150,7 @@ function useInflatedShell(front: CardSource | null, wIn: number, hIn: number): I
         g?.computeTangents()
     return built
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvas, photo, version, wIn, hIn])
+  }, [canvas, photo, version, wIn, hIn, shape])
 
   useEffect(
     () => () => {
@@ -585,7 +591,9 @@ export function CustomGarment({ front, back, envIntensity = 1, onMeasured }: Cus
   const rev = front ? back : null
   const wIn = fwd?.wIn ?? 20
   const hIn = fwd?.hIn ?? 24
-  const shell = useInflatedShell(fwd, wIn, hIn)
+  // Read from the design for the same reason as `backGenerated` below.
+  const shape = useStore((s) => s.design.custom?.shape)
+  const shell = useInflatedShell(fwd, wIn, hIn, shape)
   // Provenance of the REVERSE panel, read from the design rather than passed:
   // a CardSource is a canvas and a size, and widening it (or the props of
   // src/three/index.tsx) to carry one boolean would touch the shared 3D

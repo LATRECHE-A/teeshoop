@@ -5,7 +5,7 @@ import ThemeToggle from './ThemeToggle'
 import LangToggle from './LangToggle'
 import { redo, undo, useHistoryDepth, useStore } from '@/state/store'
 import { useAdminSlots } from '@/app/adminSlots'
-import { renderAndSave } from '@/state/persist'
+import { designToSave, renderAndSave } from '@/state/persist'
 import { useT } from '@/i18n/useT'
 import { useBasketT } from './modals/basketI18n'
 import { useBoardT } from './board/boardI18n'
@@ -42,7 +42,7 @@ export default function TopBar() {
 
   const saveNow = async () => {
     try {
-      useStore.getState().setSavedDesigns(await renderAndSave(design))
+      useStore.getState().setSavedDesigns(await renderAndSave(designToSave(design, useStore.getState().board.focusedId)))
       toast('ok', t('toast.saved', { name: design.name }))
     } catch {
       toast('error', t('toast.save_failed'))

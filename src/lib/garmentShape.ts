@@ -587,52 +587,7 @@ export function classifyShape(p: MaskProfile, armholes: number): ShapeGuess {
   return { shape: 'longsleeve', margin: clamp01((HOOD_DROP - hoodDrop) / 0.04), ...feat }
 }
 
-// -------------------------------------------------------------- user override
-
-/**
- * The customer's explicit choice, when they made one.
- *
- * ONE SLOT, ON PURPOSE. A design carries exactly one custom garment, and the
- * setup modal is the only place one is ever defined, so a single stored value
- * is enough, and it is the only design that keeps the 3D preview and the AR
- * bake in lockstep. The preview is handed a composited canvas and nothing else
- * (no asset id reaches it), so any per-asset keying would be readable by the AR
- * path and not by the preview, and the two would disagree about the shape of
- * the same garment. The modal clears the slot whenever a new photo is uploaded,
- * which is the moment the previous answer stops being about this garment.
- *
- * Persisted so the choice survives a reload; a storage failure (private mode,
- * quota) degrades to automatic detection rather than throwing.
- */
-const STORE_KEY = 'tshop.customShape'
-let overrideCache: GarmentShape | null | undefined
-
-function readOverride(): GarmentShape | null {
-  if (overrideCache !== undefined) return overrideCache
-  let v: string | null = null
-  try {
-    v = globalThis.localStorage?.getItem(STORE_KEY) ?? null
-  } catch {
-    v = null
-  }
-  overrideCache = (GARMENT_SHAPES as readonly string[]).includes(v ?? '') ? (v as GarmentShape) : null
-  return overrideCache
-}
-
-export function getShapeOverride(): GarmentShape | null {
-  return readOverride()
-}
-
-/** Set (or clear, with null) the customer's explicit garment shape. */
-export function setShapeOverride(shape: GarmentShape | null): void {
-  overrideCache = shape
-  try {
-    if (shape) globalThis.localStorage?.setItem(STORE_KEY, shape)
-    else globalThis.localStorage?.removeItem(STORE_KEY)
-  } catch {
-    /* detection still works without persistence */
-  }
-}
+// -------------------------------------------------------------- classification
 
 /** Last automatic classification, a UI hint and a harness probe, never logic. */
 let lastGuess: ShapeGuess | null = null
@@ -643,17 +598,14 @@ export function getLastShapeGuess(): ShapeGuess | null {
   return lastGuess
 }
 
-export interface ResolvedShape extends ShapeGuess {
-  /** Where the answer came from. */
-  source: 'user' | 'auto'
-}
-
-/** The shape to build with: the customer's choice if they made one, else the
- *  classifier's. Both callers (3D preview, AR bake) go through here, so they
- *  cannot disagree. */
-export function resolveShape(p: MaskProfile, armholes: number): ResolvedShape {
+/**
+ * The classifier's answer, remembered for the setup modal's hint. The
+ * customer's own choice is not read here: it travels on the design
+ * (`CustomGarment.shape`) and reaches `buildInflatedShell` as `opts.shape`,
+ * from the 3D preview and from the AR bake alike, so the two cannot disagree.
+ */
+export function resolveShape(p: MaskProfile, armholes: number): ShapeGuess {
   const guess = classifyShape(p, armholes)
   lastGuess = guess
-  const chosen = readOverride()
-  return chosen ? { ...guess, shape: chosen, source: 'user' } : { ...guess, source: 'auto' }
+  return guess
 }
