@@ -133,10 +133,19 @@ final class Notify {
 
 	private static function spec_bat( \WC_Order $order, array $version, string $token ): array {
 		$number = (string) ( $version['order']['number'] ?? $order->get_order_number() );
-		$lines  = array(
+		/*
+		 * « AVEC LES MODIFICATIONS QUE VOUS NOUS AVEZ DEMANDÉES » ONLY WHEN THEY
+		 * DID (CMD-06). A version remade for a reprint, or because a link was
+		 * lost, told a customer they had asked for changes they never asked for.
+		 */
+		$all      = Bat::versions( $order );
+		$previous = $all[ (int) $version['version'] - 2 ] ?? array();
+		$lines    = array(
 			1 === (int) $version['version']
 				? 'Votre bon à tirer est prêt. Regardez-le, puis validez-le : nous n’imprimons rien avant.'
-				: sprintf( 'Voici la version %d de votre bon à tirer, avec les modifications que vous nous avez demandées.', (int) $version['version'] ),
+				: ( ! empty( $previous['changes'] )
+					? sprintf( 'Voici la version %d de votre bon à tirer, avec les modifications que vous nous avez demandées.', (int) $version['version'] )
+					: sprintf( 'Voici la version %d de votre bon à tirer. Regardez-la, puis validez-la : nous n’imprimons rien avant.', (int) $version['version'] ) ),
 			'Vérifiez le visuel, sa taille, sa position, la couleur du vêtement, les tailles et les quantités.',
 		);
 		if ( '' !== trim( (string) ( $version['note'] ?? '' ) ) ) {

@@ -687,6 +687,28 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		$order->delete( true );
 	} );
 
+	ts_it( 'only says the customer asked for changes when they did, and re-sends a link without a new version', function () use ( $product_id ) {
+		// CMD-06.
+		ts_lc_capture_http( 201, array( 'messageId' => 'm' ) );
+		$order = ts_lc_order( $product_id );
+		ts_lc_send_bat( $order, Bat::issue( $order ) );
+		$order = wc_get_order( $order->get_id() );
+		ts_lc_capture_http( 201, array( 'messageId' => 'm2' ) );
+		ts_lc_send_bat( $order, Bat::issue( $order ) );
+		$courriel = wp_json_encode( ts_lc_brevo_calls()[0]['body'] ?? array(), JSON_UNESCAPED_UNICODE );
+		ts_assert( str_contains( (string) $courriel, 'Voici la version 2' ), 'the second version was not announced: ' . substr( (string) $courriel, 0, 160 ) );
+		ts_assert( ! str_contains( (string) $courriel, 'modifications que vous nous avez demandées' ), 'a version nobody asked to change was sold as their changes' );
+
+		$order  = wc_get_order( $order->get_id() );
+		$avant  = count( Bat::versions( $order ) );
+		$renvoi = Bat::resend( $order );
+		ts_assert( ! empty( $renvoi['ok'] ), 'the link could not be re-sent: ' . ( $renvoi['reason'] ?? '' ) );
+		ts_eq( count( Bat::versions( wc_get_order( $order->get_id() ) ) ), $avant, 're-sending the link made a version' );
+
+		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
 	ts_it( 'retries a failed proof with a new link, and never twice a sent one', function () use ( $product_id ) {
 		ts_lc_capture_http( 502, array( 'message' => 'oops' ) );
 		$order  = ts_lc_order( $product_id );
@@ -913,6 +935,36 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		);
 		ts_eq( Mail::stuck(), $before + 1, 'un envoi resté en attente n’est pas compté' );
 		ts_assert( ! empty( Mail::stalled() ), 'un envoi resté en attente n’est pas listé' );
+
+		/*
+		 * CMD-05 : une ligne prise en charge (`sending`) dont le processus est
+		 * mort pendant l'appel réseau. Comptée et reprise quand la prise en
+		 * charge a plus de cinq minutes ; jamais doublée tant qu'elle est vivante.
+		 */
+		$ligne = static function ( int $il_y_a ) use ( $wpdb, $order ): int {
+			$wpdb->insert(
+				Mail::table(),
+				array(
+					'created_at' => gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ),
+					'sent_at'    => gmdate( 'Y-m-d H:i:s', time() - $il_y_a ),
+					'kind'       => Notify::KIND_CONFIRM,
+					'order_id'   => $order->get_id(),
+					'recipient'  => 'client@example.test',
+					'subject'    => 'un envoi interrompu',
+					'status'     => Mail::SENDING,
+					'attempts'   => 0,
+				),
+				array( '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%d' )
+			);
+			return (int) $wpdb->insert_id;
+		};
+		$morte  = $ligne( HOUR_IN_SECONDS );
+		$vivante = $ligne( 5 );
+		$ids = array_map( static fn( $r ): int => (int) $r->id, Mail::stalled( 200 ) );
+		ts_assert( in_array( $morte, $ids, true ), 'un envoi mort pendant l’appel n’est pas listé' );
+		ts_assert( ! in_array( $vivante, $ids, true ), 'un envoi en cours est pris pour mort' );
+		ts_eq( Mail::stuck(), $before + 2, 'un envoi mort pendant l’appel n’est pas compté' );
+		ts_eq( Mail::retry( $vivante )['reason'], 'Ce message est déjà en cours de renvoi.', 'un envoi en cours a été doublé' );
 		$order->delete( true );
 	} );
 
@@ -1161,6 +1213,18 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		);
 
 		update_option( 'teeshoop_pricing', $config );
+		wp_delete_post( $devis, true );
+	} );
+
+	ts_it( 'exports every devis issued to a person when they ask what we hold', function () use ( $product_id ) {
+		// CMD-07 : l'export lisait les versions comme un tableau alors qu'elles
+		// sont en JSON, donc aucun devis émis n'en sortait jamais.
+		$devis  = ts_lc_devis( $product_id, 40, 1 );
+		$issued = Quote::issue( $devis );
+		$numero = (string) ( $issued['version']['number'] ?? '' );
+		ts_assert( '' !== $numero, 'the fixture issued no devis' );
+		$texte = wp_json_encode( Quote::export_personal_data( 'camille@example.test' ), JSON_UNESCAPED_UNICODE );
+		ts_assert( str_contains( (string) $texte, $numero ), 'the export does not name the devis that was sent' );
 		wp_delete_post( $devis, true );
 	} );
 

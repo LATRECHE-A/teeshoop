@@ -322,23 +322,24 @@ final class Quote {
 			 * date and its lines. A person asking what we hold about them is
 			 * asking for those, not only for the form they filled in.
 			 */
-			$versions = get_post_meta( (int) $id, '_ts_versions', true );
-			if ( is_array( $versions ) ) {
-				foreach ( $versions as $i => $version ) {
-					if ( ! is_array( $version ) ) {
-						continue;
-					}
-					$rows[] = array(
-						'name'  => sprintf(
-							/* translators: %d: the index of the quote document, from 1. */
-							__( 'Devis émis n°%d', 'teeshoop' ),
-							(int) $i + 1
-						),
-						'value' => trim(
-							(string) ( $version['numero'] ?? '' ) . ' ' . (string) ( $version['date'] ?? '' )
-						),
-					);
+			// Read through `versions()`, which decodes the JSON they are stored
+			// as: read raw, this was a string, so no devis was ever exported, and
+			// the key it looked for (`numero`) is not the one stored (CMD-07).
+			foreach ( self::versions( (int) $id ) as $i => $version ) {
+				if ( ! is_array( $version ) ) {
+					continue;
 				}
+				$rows[] = array(
+					'name'  => sprintf(
+						/* translators: %d: the index of the quote document, from 1. */
+						__( 'Devis émis n°%d', 'teeshoop' ),
+						(int) $i + 1
+					),
+					'value' => trim(
+						(string) ( $version['number'] ?? '' ) . ' ' . (string) ( $version['date'] ?? '' )
+						. ( isset( $version['total_ht'] ) ? ', ' . Money::format( (int) $version['total_ht'] ) . ' HT' : '' )
+					),
+				);
 			}
 
 			$data[] = array(
@@ -926,7 +927,10 @@ final class Quote {
 		 * a browser history, a proxy log and an analytics referrer.
 		 */
 		if ( ! empty( $sent ) ) {
-			$token = wp_generate_password( 20, false, false );
+			// Lower case, because `resume()` reads it through `sanitize_key()`,
+			// which lowers it, and a Redis key is case-sensitive: a mixed-case
+			// token was never found again and the typed brief was lost (CMD-08).
+			$token = strtolower( wp_generate_password( 20, false, false ) );
 			set_transient(
 				'ts_devis_back_' . $token,
 				array(

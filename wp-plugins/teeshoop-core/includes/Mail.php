@@ -232,13 +232,24 @@ final class Mail {
 	 */
 	public static function stalled( int $limit = 50 ): array {
 		global $wpdb;
+		$before = gmdate( 'Y-m-d H:i:s', time() - 5 * MINUTE_IN_SECONDS );
+		/*
+		 * AND A ROW LEFT AT `sending`, for the same reason (CMD-05). `retry()`
+		 * claims a row by setting it to `sending` before the network call; a
+		 * process cut during that call left it there, and nothing read that
+		 * status again: a proof the customer never received became invisible.
+		 * The claim stamps `sent_at`, so a `sending` row older than five minutes
+		 * is one whose sender is dead, not one still talking to Brevo.
+		 */
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return (array) $wpdb->get_results(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				'SELECT * FROM ' . self::table() . ' WHERE status = %s AND created_at < %s ORDER BY id ASC LIMIT %d',
+				'SELECT * FROM ' . self::table() . ' WHERE ( status = %s AND created_at < %s ) OR ( status = %s AND ( sent_at IS NULL OR sent_at < %s ) ) ORDER BY id ASC LIMIT %d',
 				self::QUEUED,
-				gmdate( 'Y-m-d H:i:s', time() - 5 * MINUTE_IN_SECONDS ),
+				$before,
+				self::SENDING,
+				$before,
 				max( 1, min( 200, $limit ) )
 			)
 		);
@@ -523,14 +534,23 @@ final class Mail {
 		 * whoever changes a row from its own status wins, and the loser is told
 		 * nothing happened rather than sending a second copy.
 		 */
+		/*
+		 * `sent_at` IS STAMPED WITH THE CLAIM, so `stalled()` can tell a dead
+		 * claim from a live one, and a `sending` row is taken over only once its
+		 * claim is five minutes old: a live sender is never overtaken.
+		 */
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$claimed = $wpdb->query(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				'UPDATE ' . self::table() . ' SET status = %s WHERE id = %d AND status = %s',
+				'UPDATE ' . self::table() . ' SET status = %s, sent_at = %s WHERE id = %d AND ( ( status = %s AND status <> %s ) OR ( status = %s AND ( sent_at IS NULL OR sent_at < %s ) ) )',
 				self::SENDING,
+				gmdate( 'Y-m-d H:i:s' ),
 				$id,
-				(string) $row->status
+				(string) $row->status,
+				self::SENDING,
+				self::SENDING,
+				gmdate( 'Y-m-d H:i:s', time() - 5 * MINUTE_IN_SECONDS )
 			)
 		);
 		if ( 1 !== (int) $claimed ) {

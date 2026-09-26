@@ -55,6 +55,7 @@ final class Bat {
 	/** The admin actions. */
 	public const ACTION_ISSUE  = 'teeshoop_bat_envoyer';
 	public const ACTION_WAIVER = 'teeshoop_bat_renonciation';
+	public const ACTION_RESEND = 'teeshoop_bat_renvoyer';
 
 	/** How long a customer's comment may be. Bounded because the route is open. */
 	private const COMMENT_MAX = 4000;
@@ -162,6 +163,7 @@ final class Bat {
 
 		add_action( 'admin_post_' . self::ACTION_ISSUE, array( self::class, 'handle_issue' ) );
 		add_action( 'admin_post_' . self::ACTION_WAIVER, array( self::class, 'handle_waiver' ) );
+		add_action( 'admin_post_' . self::ACTION_RESEND, array( self::class, 'handle_resend' ) );
 		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
 	}
 
@@ -1435,6 +1437,33 @@ final class Bat {
 		echo '</form>';
 
 		/*
+		 * THE SAME VERSION, A NEW LINK (CMD-06). A customer whose link expired,
+		 * or who deleted the e-mail, is told on the proof page « répondez au
+		 * message, nous vous en renvoyons un tout de suite », and the only button
+		 * here made a new version: a copy, counted, and announced as their
+		 * changes. `resend()` already did the right thing; it had no button.
+		 */
+		$last = empty( $versions ) ? array() : $versions[ count( $versions ) - 1 ];
+		if ( array() !== $last && empty( $last['approval'] ) && empty( $last['waiver'] ) && empty( $last['changes'] ) ) {
+			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+			wp_nonce_field( self::ACTION_RESEND );
+			printf( '<input type="hidden" name="action" value="%s">', esc_attr( self::ACTION_RESEND ) );
+			printf( '<input type="hidden" name="order_id" value="%d">', (int) $order->get_id() );
+			printf(
+				'<p><button type="submit" class="button">%s</button> <span class="description">%s</span></p>',
+				esc_html(
+					sprintf(
+						/* translators: %d: a version number. */
+						__( 'Renvoyer le lien de la version %d', 'teeshoop' ),
+						(int) $last['version']
+					)
+				),
+				esc_html__( 'Même BAT, nouveau lien valable à nouveau jusqu’à son échéance. Aucune version n’est créée, aucune correction n’est comptée.', 'teeshoop' )
+			);
+			echo '</form>';
+		}
+
+		/*
 		 * THE WAIVER, which is question 26's own written default: « aucune
 		 * production sans bon à tirer validé, SAUF accord écrit du client
 		 * indiquant qu'il renonce au bon à tirer et en assume le risque ».
@@ -1525,6 +1554,42 @@ final class Bat {
 			);
 		}
 
+		wp_safe_redirect( Lifecycle::order_url( $order_id ) );
+		exit;
+	}
+
+	public static function handle_resend(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'Vous n’avez pas le droit de faire cela.', 'teeshoop' ), '', array( 'response' => 403 ) );
+		}
+		check_admin_referer( self::ACTION_RESEND );
+
+		$order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
+		$order    = $order_id > 0 ? wc_get_order( $order_id ) : null;
+		if ( ! $order instanceof \WC_Order ) {
+			wp_die( esc_html__( 'Cette commande n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
+		}
+
+		$again = self::resend( $order );
+		if ( empty( $again['ok'] ) ) {
+			$message = (string) $again['reason'];
+		} else {
+			$sent    = Notify::bat( $order, $again['version'], (string) $again['token'] );
+			$message = $sent['ok']
+				? sprintf(
+					/* translators: 1: a version number, 2: an e-mail address. */
+					__( 'Nouveau lien de la version %1$d envoyé à %2$s.', 'teeshoop' ),
+					(int) $again['version']['version'],
+					(string) ( $again['version']['customer']['email'] ?? '' )
+				)
+				: sprintf(
+					/* translators: 1: a version number, 2: why the send failed. */
+					__( 'Nouveau lien de la version %1$d établi, mais l’e-mail n’est pas parti : %2$s. Il est dans la file d’envoi, réessayable.', 'teeshoop' ),
+					(int) $again['version']['version'],
+					(string) $sent['reason']
+				);
+		}
+		set_transient( 'teeshoop_bat_' . get_current_user_id(), $message, 60 );
 		wp_safe_redirect( Lifecycle::order_url( $order_id ) );
 		exit;
 	}
