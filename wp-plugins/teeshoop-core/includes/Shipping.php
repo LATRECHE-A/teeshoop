@@ -397,7 +397,7 @@ final class Shipping {
 					Money::number( self::max_parcel_g( $config ) / 1000, 0 )
 				);
 			case self::OFF_ZONE:
-				return __( 'Nous livrons aujourd’hui en France métropolitaine. Pour les DOM, la Corse hors métropole ou l’étranger, demandez un devis : nous chiffrons le transport avec vous.', 'teeshoop' );
+				return __( 'Nous livrons aujourd’hui en France métropolitaine, Corse comprise. Pour l’outre-mer ou l’étranger, demandez un devis : nous chiffrons le transport avec vous.', 'teeshoop' );
 			case self::NO_WEIGHT:
 			default:
 				return __( 'Le poids d’un des articles du panier n’est pas renseigné, donc la livraison ne peut pas être calculée. Demandez un devis, nous chiffrons le transport à la main.', 'teeshoop' );

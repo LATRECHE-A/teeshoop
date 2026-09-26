@@ -486,7 +486,7 @@ ts_it( 'refuses a size grid that sums past the shop’s cap, rather than clampin
 	ts_eq( count( WC()->cart->get_cart() ), 0, 'cart line count' );
 } );
 
-ts_it( 'drops the size breakdown when the quantity stops matching it', function () use ( $product_id, $sides, $design ) {
+ts_it( 'keeps the quantity on the breakdown whatever tries to change it, down to the order', function () use ( $product_id, $sides, $design, $config ) {
 	WC()->cart->empty_cart();
 	$key = Cart::add(
 		array(
@@ -501,14 +501,41 @@ ts_it( 'drops the size breakdown when the quantity stops matching it', function 
 	WC()->cart->calculate_totals();
 	ts_eq( (int) WC()->cart->get_cart_item( $key )['quantity'], 30, 'quantity from the grid' );
 
-	// The customer types 1 in the cart page's quantity box. Before this rule the
-	// line was billed for 1 and the order still said "10 × M · 15 × L · 5 × XL",
-	// so 29 garments would have been pressed and never invoiced.
-	WC()->cart->set_quantity( $key, 1, true );
-	WC()->cart->calculate_totals();
+	/*
+	 * ARG-01. The customer types 1, or 60. The first fix let the quantity win
+	 * and dropped only the size grid, so the MATRIX kept 30 and `Purchase`
+	 * bought 30 for a line billed 1 (or 60). Both directions are tried, and the
+	 * matrix, the grid, the price and the order line must all still say 30.
+	 */
+	$matrix = WC()->cart->get_cart_item( $key )['teeshoop']['matrix'];
+	foreach ( array( 1, 60 ) as $tape ) {
+		WC()->cart->set_quantity( $key, $tape, true );
+		WC()->cart->calculate_totals();
+		$item = WC()->cart->get_cart_item( $key );
+		ts_eq( (int) $item['quantity'], 30, "quantité remise à la répartition après {$tape}" );
+		ts_eq( $item['teeshoop']['matrix'], $matrix, "matrice intacte après {$tape}" );
+		ts_eq( $item['teeshoop']['size_grid'], array( 'M' => 10, 'L' => 15, 'XL' => 5 ), "grille intacte après {$tape}" );
+	}
+	$want = Pricing::quote( array( 'garment' => 'tee', 'qty' => 30, 'sides' => $sides ), $config );
+	ts_eq_cents( WC()->cart->get_subtotal(), (int) $want['total_ht'], 'facturé pour 30' );
+
+	// The block cart draws no stepper on this line, and still draws one on a
+	// line without a breakdown.
 	$item = WC()->cart->get_cart_item( $key );
-	ts_eq( (int) $item['quantity'], 1, 'quantity after the change' );
-	ts_eq( $item['teeshoop']['size_grid'], array(), 'stale grid dropped' );
+	ts_eq( apply_filters( 'woocommerce_store_api_product_quantity_editable', true, $item['data'], $item ), false, 'pas de sélecteur sur une ligne répartie' );
+	$libre = Cart::add( array( 'product_id' => $product_id, 'qty' => 5, 'garment' => 'tee', 'sides' => $sides, 'design_id' => $design ) );
+	$l     = WC()->cart->get_cart_item( $libre );
+	ts_eq( apply_filters( 'woocommerce_store_api_product_quantity_editable', true, $l['data'], $l ), true, 'un sélecteur sur une ligne sans répartition' );
+	WC()->cart->remove_cart_item( $libre );
+
+	$order_id = WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) );
+	ts_assert( ! is_wp_error( $order_id ) && $order_id > 0, 'the order was not created' );
+	$order = wc_get_order( $order_id );
+	$line  = array_values( $order->get_items() )[0];
+	$bought = json_decode( (string) $line->get_meta( '_teeshoop_matrix', true ), true );
+	ts_eq( (int) $line->get_quantity(), 30, 'quantité de la commande' );
+	ts_eq( (int) array_sum( array_map( 'array_sum', (array) $bought ) ), 30, 'la matrice achetée égale la quantité facturée' );
+	$order->delete( true );
 } );
 
 ts_it( 'writes the workshop hand-off onto the order line', function () use ( $product_id, $sides, $design ) {

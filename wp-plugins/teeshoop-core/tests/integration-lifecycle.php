@@ -1164,6 +1164,17 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		wp_delete_post( $devis, true );
 	} );
 
+	ts_it( 'refuses to price or issue a devis past the public grid instead of pricing it at the cap', function () use ( $product_id ) {
+		// ARG-02 : 30 000 pièces étaient chiffrées comme 10 000 et figées sous un
+		// numéro avec les 30 000 sur la ligne.
+		$devis = ts_lc_devis( $product_id, 30000, 1 );
+		$prix  = Quote::price( $devis );
+		ts_assert( empty( $prix['ok'] ), 'un devis au-delà de la grille a reçu un prix' );
+		ts_assert( false !== strpos( (string) ( $prix['reason'] ?? '' ), 'à la main' ), 'le refus ne dit pas quoi faire' );
+		ts_assert( empty( Quote::issue( $devis )['ok'] ), 'un devis au-delà de la grille a été émis' );
+		wp_delete_post( $devis, true );
+	} );
+
 	ts_it( 'costs a devis with the ONE engine, without writing an order', function () use ( $product_id ) {
 		/*
 		 * This is chapter 1's `POST /pricing/quotes/calculate`. `Costing::compute`

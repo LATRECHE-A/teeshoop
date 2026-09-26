@@ -1291,7 +1291,7 @@ return array(
 			'decided_on' => null,
 			'decided_why' => null,
 			'statement_fr' => 'Les mentions légales, les conditions générales de vente, la politique de confidentialité et la déclaration d\'accessibilité sont des projets rédigés en interne à partir du fonctionnement réel de la boutique, publiés en portant l\'état « projet » et un avertissement de relecture, et aucun avocat ne les a lus.',
-			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#\'etat\'   => \'projet\',',
+			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#\'etat\'   => \'projet\',',
 			'reaches' => array(
 				'customer',
 				'operator',
@@ -1379,7 +1379,7 @@ return array(
 			'decided_on' => null,
 			'decided_why' => null,
 			'statement_fr' => 'L\'autorisation de publier les réalisations d\'un client est une clause des conditions générales de vente, refusable à tout moment par simple demande écrite, avec retrait des publications déjà en ligne.',
-			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Publication des réalisations',
+			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#Publication des réalisations',
 			'reaches' => array(
 				'customer',
 			),
@@ -1422,7 +1422,7 @@ return array(
 			'decided_on' => null,
 			'decided_why' => null,
 			'statement_fr' => 'Aucun médiateur de la consommation n\'est désigné, et les conditions générales de vente disent en toutes lettres que cette obligation n\'est pas satisfaite plutôt que de laisser la ligne vide.',
-			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Le médiateur retenu par Teeshoop et ses coordonnées seront indiqués ici dès sa désignation.',
+			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#Le médiateur retenu par Teeshoop et ses coordonnées seront indiqués ici dès sa désignation.',
 			'reaches' => array(
 				'customer',
 			),
@@ -1443,7 +1443,7 @@ return array(
 			'decided_on' => null,
 			'decided_why' => null,
 			'statement_fr' => 'Rien ne refuse un particulier : le SIRET est demandé et non exigé, aucune déclaration d\'achat professionnel n\'est recueillie, et les conditions de vente s\'appliquent en toutes lettres à un consommateur comme à un professionnel.',
-			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Elles s’appliquent aussi bien à un acheteur professionnel qu’à un consommateur.',
+			'home' => 'anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#Elles s’appliquent aussi bien à un acheteur professionnel qu’à un consommateur.',
 			'reaches' => array(
 				'customer',
 				'operator',

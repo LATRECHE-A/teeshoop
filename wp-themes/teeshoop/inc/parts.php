@@ -932,7 +932,7 @@ function services( array $faits ): array {
 
 	$liste[] = array(
 		'title' => __( 'La livraison', 'teeshoop' ),
-		'body'  => __( 'Colissimo suivi en France métropolitaine, au tarif de la grille publique. Pour les DOM, la Corse hors métropole ou l’étranger, nous chiffrons le transport avec vous plutôt que d’afficher un prix que nous ne tiendrions pas.', 'teeshoop' ),
+		'body'  => __( 'Colissimo suivi en France métropolitaine, Corse comprise, au tarif de la grille publique. Pour l’outre-mer ou l’étranger, nous chiffrons le transport avec vous plutôt que d’afficher un prix que nous ne tiendrions pas.', 'teeshoop' ),
 		'url'   => '',
 		'label' => '',
 	);

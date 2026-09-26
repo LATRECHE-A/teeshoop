@@ -27,4 +27,7 @@ return array(
 	// Périmée le 1er septembre 2026, remplacée par 2026-09-01 (questions 01, 07,
 	// 14 et 16 : le minimum en euros, le franco, le délai et l'acompte).
 	'2026-08-26' => 'c5c42aabb170a5a60ef6d51b77f7d42ccc02293d52d7d91c8d90b9873745adf7',
+	// Périmée le 26 septembre 2026, remplacée par 2026-09-26 : le seuil de devis
+	// en montant porte sur la commande entière, pas sur une ligne (question 02).
+	'2026-09-01' => 'efbf2c1d90a68c6764f11f975831e0ec2e6c55913c2de1b69fa3a26aef196da2',
 );

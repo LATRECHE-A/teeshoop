@@ -10,8 +10,9 @@
  * today all resolve to today's correct number rather than to whatever was
  * cached.
  *
- * It also means the customer's own quantity controls keep working: Woo owns the
- * quantity, quantity drives the discount tier, and the unit price follows.
+ * Quantity drives the discount tier and the unit price follows. On a line that
+ * carries a breakdown by colour and size, the BREAKDOWN owns the quantity: see
+ * `recompute_prices`.
  *
  * @package Teeshoop\Core
  */
@@ -28,17 +29,21 @@ final class Cart {
 	private const KEY = 'teeshoop';
 
 	/**
-	 * Shown once when a changed quantity invalidates a size breakdown.
+	 * Shown once when something tried to change the quantity of a line that
+	 * carries a breakdown.
 	 *
 	 * A constant because `wc_has_notice` matches on the message itself, and the
 	 * alternative is the same sentence repeated for every line and every pass.
 	 */
-	private const GRID_DROPPED = 'La quantité a changé, donc la répartition par taille a été retirée de cette ligne. Indiquez-la de nouveau dans le studio avant de commander.';
+	private const QTY_KEPT = 'La quantité d’une création se change dans l’atelier, où elle est répartie par coloris et par taille. Cette ligne garde sa quantité.';
 
 	public static function init(): void {
 		add_filter( 'woocommerce_add_cart_item_data', array( self::class, 'keep_items_distinct' ), 10, 3 );
 		add_action( 'woocommerce_before_calculate_totals', array( self::class, 'recompute_prices' ), 20 );
 		add_filter( 'woocommerce_get_item_data', array( self::class, 'show_in_cart' ), 10, 2 );
+		// The block cart and checkout draw no quantity stepper on a line whose
+		// breakdown owns its quantity. `recompute_prices` holds it on every path.
+		add_filter( 'woocommerce_store_api_product_quantity_editable', array( self::class, 'quantity_editable' ), 10, 3 );
 		add_action( 'woocommerce_checkout_create_order_line_item', array( self::class, 'persist_to_order' ), 10, 4 );
 
 		/*
@@ -755,28 +760,32 @@ final class Cart {
 			$data = $item[ self::KEY ];
 
 			/*
-			 * THE QUANTITY AND THE SIZE GRID MAY NEVER DISAGREE.
+			 * THE QUANTITY AND THE BREAKDOWN MAY NEVER DISAGREE, AND THE
+			 * BREAKDOWN WINS.
 			 *
-			 * Nothing stops WooCommerce rendering its own quantity box for a
-			 * personalised line, and a customer who typed 1 over a grid of 30 got
-			 * a line billed 14,50 EUR carrying the visible meta
-			 * "Tailles : 10 × M · 15 × L · 5 × XL". Whichever number the workshop
-			 * believed, one of them was wrong, and the expensive direction is 29
-			 * garments printed and never invoiced.
+			 * A customer who typed 1 over a grid of 30 was once billed for 1 while
+			 * the order said "10 × M · 15 × L · 5 × XL". The first fix dropped the
+			 * size grid and let the quantity win, but it left the colour-by-size
+			 * MATRIX in place, and the matrix is what `Purchase` buys and what
+			 * `Checkout` asks the supplier's stock about: 30 brought down to 10
+			 * billed 10 and bought 30, 30 raised to 60 billed 60 and bought 30.
 			 *
-			 * The quantity wins, because it is what the customer last chose, and
-			 * the stale breakdown is DROPPED rather than kept as a wrong one. It
-			 * is enforced here rather than in a cart-page filter because this hook
-			 * is the one path every quantity change goes through: the classic
-			 * cart, the Store API the block cart uses, and the checkout.
+			 * A bare number cannot say which colour and which size to add or take
+			 * away, so it is the one thing that must not move on its own. The
+			 * quantity is put back to the sum of the breakdown, and the customer
+			 * is told where to change it. This hook is the one path every quantity
+			 * change goes through (the classic cart, the Store API the block cart
+			 * uses, the checkout), so it holds even against a crafted request;
+			 * `quantity_editable` only spares the customer a stepper that cannot
+			 * do anything. A line with no breakdown keeps a free quantity.
 			 */
-			$grid_sum = (int) array_sum( array_map( 'intval', (array) ( $data['size_grid'] ?? array() ) ) );
-			if ( $grid_sum > 0 && $grid_sum !== (int) $item['quantity'] ) {
-				$cart->cart_contents[ $item['key'] ][ self::KEY ]['size_grid'] = array();
-				$data['size_grid'] = array();
-				self::log( 'size grid dropped: quantity ' . (int) $item['quantity'] . ' vs grid ' . $grid_sum );
-				if ( function_exists( 'wc_add_notice' ) && ! wc_has_notice( self::GRID_DROPPED, 'notice' ) ) {
-					wc_add_notice( self::GRID_DROPPED, 'notice' );
+			$voulu = self::breakdown_total( $data );
+			if ( $voulu > 0 && $voulu !== (int) $item['quantity'] ) {
+				self::log( 'quantity ' . (int) $item['quantity'] . ' put back to its breakdown ' . $voulu );
+				$cart->cart_contents[ $item['key'] ]['quantity'] = $voulu;
+				$item['quantity']                                = $voulu;
+				if ( function_exists( 'wc_add_notice' ) && ! wc_has_notice( self::QTY_KEPT, 'notice' ) ) {
+					wc_add_notice( self::QTY_KEPT, 'notice' );
 				}
 			}
 
@@ -822,6 +831,23 @@ final class Cart {
 			$item['data']->set_sale_price( '' );
 			$item['data']->set_price( $unit );
 		}
+	}
+
+	/**
+	 * How many pieces a line's breakdown orders: the matrix when there is one,
+	 * the older size grid otherwise, 0 for a line that carries neither.
+	 */
+	private static function breakdown_total( array $data ): int {
+		$matrix = (array) ( $data['matrix'] ?? array() );
+		$grid   = array() !== $matrix ? self::flatten_matrix( $matrix ) : (array) ( $data['size_grid'] ?? array() );
+		return (int) array_sum( array_map( 'intval', $grid ) );
+	}
+
+	/** `woocommerce_store_api_product_quantity_editable`: no stepper on a line whose breakdown owns its quantity. */
+	public static function quantity_editable( mixed $editable, mixed $product, mixed $cart_item ): mixed {
+		return is_array( $cart_item ) && ! empty( $cart_item[ self::KEY ] ) && self::breakdown_total( (array) $cart_item[ self::KEY ] ) > 0
+			? false
+			: $editable;
 	}
 
 	/**
@@ -913,25 +939,51 @@ final class Cart {
 			);
 		}
 
-		if ( ! empty( $data['size_grid'] ) ) {
-			$parts = array();
-			foreach ( $data['size_grid'] as $size => $count ) {
-				$parts[] = $count . ' × ' . strtoupper( $size );
-			}
+		// The design itself is the line's image; its identifier means nothing to
+		// the customer here and stays on the order, where support can quote it.
+		$repartition = self::breakdown_label( $data, (int) ( $item['product_id'] ?? 0 ) );
+		if ( '' !== $repartition ) {
 			$rows[] = array(
 				'key'   => __( 'Tailles', 'teeshoop' ),
-				'value' => implode( ' · ', $parts ),
-			);
-		}
-
-		if ( ! empty( $data['design_id'] ) ) {
-			$rows[] = array(
-				'key'   => __( 'Création', 'teeshoop' ),
-				'value' => '<code>' . esc_html( $data['design_id'] ) . '</code>',
+				'value' => $repartition,
 			);
 		}
 
 		return $rows;
+	}
+
+	/**
+	 * « Noir : 10 × M · 5 × L ; Blanc : 10 × L », or '' when there is no breakdown.
+	 *
+	 * THE COLOURS ARE PART OF WHAT WAS BOUGHT. The line used to print the size
+	 * grid only, which is the breakdown with the colours added together, so a
+	 * customer who ordered three colours could not check any of them in the
+	 * cart, on the order or on the invoice (which reprints this very meta). The
+	 * name is the product's own swatch name; a colour the swatch list no longer
+	 * knows shows its identifier rather than disappearing.
+	 */
+	private static function breakdown_label( array $data, int $product_id ): string {
+		$noms = array();
+		foreach ( Product::blank_palette_of( $product_id ) as $entry ) {
+			$noms[ $entry['id'] ] = $entry['name'];
+		}
+		$matrix = (array) ( $data['matrix'] ?? array() );
+		if ( array() === $matrix ) {
+			$matrix = array( '' => (array) ( $data['size_grid'] ?? array() ) );
+		}
+		$lignes = array();
+		foreach ( $matrix as $colour => $sizes ) {
+			$parts = array();
+			foreach ( (array) $sizes as $size => $count ) {
+				$parts[] = (int) $count . ' × ' . strtoupper( (string) $size );
+			}
+			if ( array() === $parts ) {
+				continue;
+			}
+			$nom      = $noms[ (string) $colour ] ?? (string) $colour;
+			$lignes[] = ( '' !== $nom ? $nom . ' : ' : '' ) . implode( ' · ', $parts );
+		}
+		return implode( ' ; ', $lignes );
 	}
 
 	/**
@@ -958,12 +1010,9 @@ final class Cart {
 			$line->add_meta_data( __( 'Faces imprimées', 'teeshoop' ), implode( ', ', $sides ), true );
 		}
 
-		if ( ! empty( $data['size_grid'] ) ) {
-			$parts = array();
-			foreach ( $data['size_grid'] as $size => $count ) {
-				$parts[] = $count . ' × ' . strtoupper( $size );
-			}
-			$line->add_meta_data( __( 'Tailles', 'teeshoop' ), implode( ' · ', $parts ), true );
+		$repartition = self::breakdown_label( $data, (int) $line->get_product_id() );
+		if ( '' !== $repartition ) {
+			$line->add_meta_data( __( 'Tailles', 'teeshoop' ), $repartition, true );
 		}
 
 		// Hidden: the production hand-off.

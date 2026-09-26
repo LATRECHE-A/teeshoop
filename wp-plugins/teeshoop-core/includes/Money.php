@@ -108,11 +108,21 @@ final class Money {
 	}
 
 	/**
-	 * Apply a rate (0.0–1.0) to an amount, rounding once.
+	 * Apply a rate (0.0–1.0) to an amount, rounding once, half away from zero.
 	 *
 	 * `pct( $c, 0.15 )` is the discount, not the discounted price.
+	 *
+	 * IN INTEGERS, because the float product lies exactly on the half cent the
+	 * rule is about: 2 750 × 0,35 is 962,5, and `2750 * 0.35` is
+	 * 962,49999999999988 in binary, so `round()` gave 962 and the 35 % tier
+	 * charged a cent more a piece than it announced (146 amounts under 200,00 EUR
+	 * measured; PHP 8.4 also dropped the pre-rounding that sometimes hid it, so
+	 * the answer depended on the host's PHP). The rate is taken to the millionth,
+	 * which holds every rate this shop sets (35 %, 5,5 %, 2,1 %) exactly.
 	 */
 	public static function pct( int $cents, float $rate ): int {
-		return self::round( $cents * $rate );
+		$produit = $cents * (int) round( $rate * 1000000 );
+		$arrondi = intdiv( abs( $produit ) + 500000, 1000000 );
+		return $produit < 0 ? -$arrondi : $arrondi;
 	}
 }

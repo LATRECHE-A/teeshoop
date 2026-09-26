@@ -467,7 +467,7 @@
       "home": "php:Teeshoop\\Core\\Pricing::default_config()#quote_from_qty",
       "mirrors": [
         {
-          "ref": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Au-delà de 250 pièces",
+          "ref": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#Au-delà de 250 pièces",
           "relation": "equal",
           "why": "les conditions générales en vigueur gèlent le seuil qu'elles publient ; Terms::checked() le redérive."
         }
@@ -514,7 +514,8 @@
         "wp-plugins/teeshoop-core/tests/test-pricerule.php",
         "wp-plugins/teeshoop-core/includes/Swatch.php",
         "wp-plugins/teeshoop-core/tests/test-swatch.php",
-        "wp-plugins/teeshoop-core/data/cgv/2026-08-26.php"
+        "wp-plugins/teeshoop-core/data/cgv/2026-08-26.php",
+        "wp-plugins/teeshoop-core/data/cgv/2026-09-01.php"
       ],
       "literal_allow_why": "La version périmée du 26 août 2026 écrit le même seuil, et c'est le contraire d'une seconde copie : c'est un contrat gelé qui dit ce qui était en vigueur ce jour-là. Il ne se corrige pas, son empreinte est enregistrée dans data/cgv/figees.php et un test la vérifie.",
       "literal_scope_why": "250 apparaît dans vingt-huit fichiers comme dimension, comme seuil d'image et comme longueur de rouleau, soixante et une fois en tout. Le seuil de devis ne peut se recopier que dans l'extension : le studio reçoit le verdict déjà calculé et product.js ne le recalcule volontairement pas.",
@@ -3393,7 +3394,7 @@
       "status": "assumption",
       "since": "2026-08-26",
       "statement_fr": "Les mentions légales, les conditions générales de vente, la politique de confidentialité et la déclaration d'accessibilité sont des projets rédigés en interne à partir du fonctionnement réel de la boutique, publiés en portant l'état « projet » et un avertissement de relecture, et aucun avocat ne les a lus.",
-      "home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#'etat'   => 'projet',",
+      "home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#'etat'   => 'projet',",
       "mirrors": [
         {
           "ref": "anchor:wp-plugins/teeshoop-core/includes/LegalPage.php#Projet, non validé par un juriste.",
@@ -3536,7 +3537,7 @@
       "answered": "2026-09-01",
       "answer_fr": "Question 36 : « autorisation prévue contractuellement et possibilité pour le client de refuser ». Confirmé, avec une exigence en plus : « prévoir cette information dans le devis/CGV afin que la gestion soit traçable », donc la trace est par commande et elle n'est pas construite.",
       "statement_fr": "L'autorisation de publier les réalisations d'un client est une clause des conditions générales de vente, refusable à tout moment par simple demande écrite, avec retrait des publications déjà en ligne.",
-      "home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Publication des réalisations",
+      "home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#Publication des réalisations",
       "mirrors": [],
       "literals": [],
       "literals_why": "La valeur est une clause. Il n'y a aucun chiffre dedans.",
@@ -3592,7 +3593,7 @@
       "answered": "2026-09-01",
       "answer_fr": "Question 57 : « Teeshoop est conçu actuellement comme un service B2B destiné aux professionnels. La médiation de la consommation n'est pas intégrée comme condition de lancement du parcours B2B. » SOUS CONDITION, et la condition est exécutable : l'exemption ne tombe que si la boutique refuse effectivement un consommateur, ce que rien ne fait. Question 62.",
       "statement_fr": "Aucun médiateur de la consommation n'est désigné, et les conditions générales de vente disent en toutes lettres que cette obligation n'est pas satisfaite plutôt que de laisser la ligne vide.",
-      "home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Le médiateur retenu par Teeshoop et ses coordonnées seront indiqués ici dès sa désignation.",
+      "home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#Le médiateur retenu par Teeshoop et ses coordonnées seront indiqués ici dès sa désignation.",
       "mirrors": [],
       "literals": [],
       "literals_why": "La valeur est l'absence d'un nom et d'une adresse. Il n'y a rien à chercher.",
@@ -3615,7 +3616,7 @@
       "status": "refused",
       "since": "2026-09-01",
       "statement_fr": "Rien ne refuse un particulier : le SIRET est demandé et non exigé, aucune déclaration d'achat professionnel n'est recueillie, et les conditions de vente s'appliquent en toutes lettres à un consommateur comme à un professionnel.",
-      "home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-01.php#Elles s’appliquent aussi bien à un acheteur professionnel qu’à un consommateur.",
+      "home": "anchor:wp-plugins/teeshoop-core/data/cgv/2026-09-26.php#Elles s’appliquent aussi bien à un acheteur professionnel qu’à un consommateur.",
       "mirrors": [],
       "literals": [],
       "literals_why": "Il n'y a pas de valeur : c'est l'absence d'un mécanisme. Ce qui est chassable est la phrase du contrat en vigueur qui dit que la boutique vend aussi à un consommateur, et c'est elle que le `home` désigne.",

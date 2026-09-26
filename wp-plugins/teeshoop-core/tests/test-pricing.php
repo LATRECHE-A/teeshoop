@@ -93,6 +93,18 @@ function ts_side( float $area, string $id = 'front' ): array {
 }
 
 describe( 'Money', function () {
+	it( 'rounds a rate that lands on the half cent up, which the float product did not', function () {
+		// ARG-04. 2 750 × 0,35 = 962,5 exactly; the float product was 962,4999…
+		// and rounded to 962, a cent a piece too much on the 35 % tier.
+		eq( Money::pct( 2750, 0.35 ), 963 );
+		eq( Money::pct( 90, 0.35 ), 32 );
+		eq( Money::pct( 350, 0.35 ), 123 );
+		eq( Money::pct( 2210, 0.20 ), 442 );
+		eq( Money::pct( 1000, 0.055 ), 55 );
+		eq( Money::pct( -2750, 0.35 ), -963, 'half away from zero on a credit too' );
+		eq( Money::pct( 2750, 0.0 ), 0 );
+	} );
+
 	it( 'reads a French decimal comma', function () {
 		eq( Money::from_eur( '14,50' ), 1450 );
 		eq( Money::from_eur( '14.50' ), 1450 );
@@ -507,6 +519,31 @@ describe( 'Pricing: config merge', function () {
 	it( 'ignores a key that is not part of the schema', function () {
 		$merged = Pricing::merge_config( array( 'wp_admin_password' => 'hunter2' ) );
 		truthy( ! array_key_exists( 'wp_admin_password', $merged ) );
+	} );
+
+	it( 'keeps the default prices a stored garment does not restate, and never prints a face for free', function () {
+		// A stored rule naming only `base_ht` replaced the whole rule, and the
+		// absent `first_side_ht` was read as 0: the first face cost nothing.
+		$defaults = Pricing::default_config();
+		$merged   = Pricing::merge_config( array( 'garments' => array( 'tee' => array( 'base_ht' => 4000 ) ) ) );
+		eq( $merged['garments']['tee']['base_ht'], 4000, 'the stored field wins' );
+		eq( $merged['garments']['tee']['first_side_ht'], $defaults['garments']['tee']['first_side_ht'], 'the missing field keeps its default' );
+		truthy( ! isset( $merged['garments']['hoodie'] ), 'a garment left out of the stored map stays removed' );
+
+		$q = Pricing::quote( array( 'garment' => 'tee', 'qty' => 1, 'sides' => array( ts_side( 100 ) ) ), $merged );
+		truthy( $q['unit_ht'] > 4000, 'the face is charged on top of the blank' );
+	} );
+
+	it( 'refuses a rule without its prices rather than pricing it at zero', function () {
+		// A garment the defaults do not know inherits nothing, so it must say.
+		throws(
+			function () {
+				Pricing::quote(
+					array( 'garment' => 'casquette', 'qty' => 1, 'sides' => array( ts_side( 100 ) ) ),
+					Pricing::merge_config( array( 'garments' => array( 'casquette' => array( 'base_ht' => 900 ) ) ) )
+				);
+			}
+		);
 	} );
 } );
 

@@ -361,13 +361,28 @@ final class Pricing {
 	 * must not silently inherit a default garment the admin thought they had
 	 * removed, but `vat_rate` alone must be settable without restating the whole
 	 * structure.
+	 *
+	 * ONE LEVEL DEEPER FOR A GARMENT THAT IS KEPT. A stored rule that names only
+	 * `base_ht` used to REPLACE the default rule, so `first_side_ht` was simply
+	 * absent and `quote()` read it as 0: the first face printed for free, with a
+	 * PHP warning as the only trace (seen in `npm run test:wp`). A missing field
+	 * of a garment that stays now keeps its default; a garment left out of the
+	 * map is still gone.
 	 */
 	public static function merge_config( array $stored ): array {
 		$config = self::default_config();
 		foreach ( $stored as $key => $value ) {
-			if ( array_key_exists( $key, $config ) ) {
-				$config[ $key ] = $value;
+			if ( ! array_key_exists( $key, $config ) ) {
+				continue;
 			}
+			if ( 'garments' === $key && is_array( $value ) ) {
+				foreach ( $value as $garment => $rule ) {
+					if ( is_array( $rule ) && isset( $config['garments'][ $garment ] ) ) {
+						$value[ $garment ] = array_merge( $config['garments'][ $garment ], $rule );
+					}
+				}
+			}
+			$config[ $key ] = $value;
 		}
 		return $config;
 	}
@@ -513,6 +528,13 @@ final class Pricing {
 			throw new \InvalidArgumentException( 'unknown_garment' );
 		}
 		$rule = $config['garments'][ $garment_key ];
+		// A rule without its three prices is refused, never priced: an absent
+		// `first_side_ht` read as 0 is a free face. See `merge_config`.
+		foreach ( array( 'base_ht', 'first_side_ht', 'extra_side_ht' ) as $champ ) {
+			if ( ! isset( $rule[ $champ ] ) || ! is_numeric( $rule[ $champ ] ) ) {
+				throw new \InvalidArgumentException( 'incomplete_garment' );
+			}
+		}
 
 		$qty = (int) ( $input['qty'] ?? 1 );
 		$qty = max( 1, min( $qty, (int) $config['max_qty'] ) );

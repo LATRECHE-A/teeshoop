@@ -1474,6 +1474,22 @@ final class Quote {
 		$out    = array();
 		$total  = 0;
 		foreach ( $read['lines'] as $line ) {
+			/*
+			 * PAST THE PUBLIC GRID, NO PRICE. `Pricing::quote` brings any quantity
+			 * back to `max_qty`, so a devis for 30 000 pieces was priced as 10 000
+			 * and frozen under a number with the 30 000 still on its lines. The
+			 * submission already refuses to estimate past the grid (see `submit`);
+			 * this is the same refusal where the operator reads the figure.
+			 */
+			if ( (int) $line['qty'] > (int) $config['max_qty'] ) {
+				return array(
+					'ok'     => false,
+					'reason' => sprintf(
+						'Au-delà de %d pièces sur une ligne, la grille publique ne s’applique plus : ce devis se chiffre à la main.',
+						(int) $config['max_qty']
+					),
+				);
+			}
 			try {
 				$quote = Pricing::quote(
 					array(

@@ -155,10 +155,17 @@ final class Settings {
 		 * tax, which is the truth. The basket refuses the sale anyway, so nobody
 		 * can act on it.
 		 */
+		$two = $vat['known'] && (float) $vat['rate'] > 0;
 		return array(
 			'known'   => (bool) $vat['known'],
-			'two'     => $vat['known'] && (float) $vat['rate'] > 0,
-			'lead'    => 'ttc_first' === self::get( 'price_display' ) ? 'ttc' : 'ht',
+			'two'     => $two,
+			/*
+			 * WITH ONE BASIS, IT LEADS. Under an unknown regime `unit_ttc` is the
+			 * HT plus a DEFAULT 20 %, and the grid printed it under its own
+			 * « hors taxes » heading because it read `lead` alone. Normalised here
+			 * so no template has to remember to check `two` first.
+			 */
+			'lead'    => $two && 'ttc_first' === self::get( 'price_display' ) ? 'ttc' : 'ht',
 			'mention' => $vat['known'] ? (string) $vat['mention'] : '',
 		);
 	}

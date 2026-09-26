@@ -654,6 +654,13 @@ final class Checkout {
 			return __( 'La boutique est déclarée assujettie à la TVA et le calcul des taxes est désactivé dans WooCommerce. Le client paierait le montant hors taxes.', 'teeshoop' );
 		}
 
+		// `Cart::recompute_prices` hands WooCommerce HT prices. Read as TTC, the
+		// tax is taken out of them a second time: the cart shows a lower HT than
+		// the product page, and `assert_total` then refuses every order.
+		if ( 'yes' === get_option( 'woocommerce_prices_include_tax' ) ) {
+			return __( 'WooCommerce est réglé sur des prix saisis toutes taxes comprises, alors que la boutique lui remet des prix hors taxes : il en retirerait la TVA une seconde fois. Dans WooCommerce, Réglages, Taxe, choisissez « Non, je saisirai les prix hors taxes ».', 'teeshoop' );
+		}
+
 		$base    = wc_get_base_location();
 		$charged = 0.0;
 		foreach ( \WC_Tax::find_rates( array( 'country' => $base['country'] ?? '', 'state' => $base['state'] ?? '' ) ) as $rate ) {

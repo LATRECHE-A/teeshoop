@@ -501,10 +501,16 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		 * customer, on no evidence.
 		 */
 		update_option( 'teeshoop_vat', array() );
+		$reglages = get_option( 'teeshoop_settings', array() );
+		// ARG-06 : « TTC en tête » demandé, mais une seule base : c'est le HT qui
+		// mène, sinon la grille imprime le HT majoré de 20 % sous « hors taxes ».
+		update_option( 'teeshoop_settings', array_merge( (array) $reglages, array( 'price_display' => 'ttc_first' ) ) );
 		$bases = Settings::price_bases();
+		update_option( 'teeshoop_settings', $reglages );
 		ts_eq( $bases['known'], false, 'an empty timeline was read as known' );
 		ts_eq( $bases['two'], false, 'two bases under an unknown regime' );
 		ts_eq( $bases['mention'], '', 'the franchise mention was printed under an unknown regime' );
+		ts_eq( $bases['lead'], 'ht', 'a TTC lead with no known VAT' );
 
 		ts_ck_regime( Vat::FRANCHISE );
 		$franchise = Settings::price_bases();
@@ -1458,6 +1464,18 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 
 		update_option( 'teeshoop_pricing', $saved_pricing );
 		WC()->cart->empty_cart();
+	} );
+
+	ts_it( 'refuses to sell while WooCommerce reads the HT prices it is handed as TTC', function () {
+		// ARG-05 : sous « prix saisis TTC », WooCommerce retire la TVA d'un prix
+		// qui n'en contient pas, et `assert_total` refuse ensuite chaque commande.
+		ts_ck_regime( Vat::STANDARD );
+		$avant = get_option( 'woocommerce_prices_include_tax' );
+		ts_eq( Checkout::woo_tax_mismatch( Settings::vat() ), '', 'le réglage attendu passe' );
+		update_option( 'woocommerce_prices_include_tax', 'yes' );
+		ts_assert( false !== strpos( Checkout::woo_tax_mismatch( Settings::vat() ), 'toutes taxes comprises' ), 'le réglage TTC n’a pas été vu' );
+		ts_assert( ts_ck_any( Checkout::selling_problems( null, 'staging' ), 'toutes taxes comprises' ), 'et la vente n’est pas refusée' );
+		update_option( 'woocommerce_prices_include_tax', $avant );
 	} );
 
 	// ── put it back ──────────────────────────────────────────────────────────
