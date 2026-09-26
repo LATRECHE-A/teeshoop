@@ -632,7 +632,8 @@ final class CostAdmin {
 		echo '</tbody></table></div>';
 	}
 
-	private static function verdict_sentence( ?array $verdict ): string {
+	/** @param string[] $unknown the cost components nobody could price. */
+	private static function verdict_sentence( ?array $verdict, array $unknown = array() ): string {
 		/*
 		 * A GUARD ON THE HELPER, not the fix. What actually stopped a green
 		 * "Vendable sans validation" appearing under a red warning is that
@@ -653,6 +654,17 @@ final class CostAdmin {
 		}
 		if ( ! empty( $verdict['needs_approval'] ) ) {
 			return __( 'Au-dessus du plancher, mais la remise dépasse ce qu’un commercial peut accorder seul.', 'teeshoop' );
+		}
+		/*
+		 * NOT ON A FLOOR BUILT WITHOUT THE GARMENT OR THE FILM (COU-04). An unknown
+		 * component counts for zero, so the floor under it is too low by exactly
+		 * the part nobody priced: thirty sweats with no known purchase price read
+		 * « vendable » at 400 EUR against a real floor above 860. `Cost.php`
+		 * promises that an incomplete cost authorises nothing; this is where it
+		 * was said anyway.
+		 */
+		if ( array() !== array_intersect( array( 'textile', 'marquage' ), $unknown ) ) {
+			return __( 'Plancher à confirmer : le coût du textile ou du film n’est pas connu et compte pour zéro, donc ce plancher est trop bas. Chiffrez-le avant de vendre sous le prix conseillé.', 'teeshoop' );
 		}
 		return __( 'Vendable sans validation.', 'teeshoop' );
 	}
@@ -1412,7 +1424,7 @@ final class CostAdmin {
 		echo '<h4 style="margin-bottom:.4em">' . esc_html__( 'Ce qu’elle rapporte', 'teeshoop' ) . '</h4>';
 		echo '<div style="overflow-x:auto;max-width:100%"><table class="widefat striped"><tbody>';
 
-		self::row( __( 'Vendue HT', 'teeshoop' ), Money::format( (int) $report['revenue']['total_ht'] ), self::verdict_sentence( $verdict ) );
+		self::row( __( 'Vendue HT', 'teeshoop' ), Money::format( (int) $report['revenue']['total_ht'] ), self::verdict_sentence( $verdict, (array) ( $cost['unknown'] ?? array() ) ) );
 		self::row(
 			__( 'Prix conseillé', 'teeshoop' ),
 			Money::format( (int) $plan['recommended_ht'] ),

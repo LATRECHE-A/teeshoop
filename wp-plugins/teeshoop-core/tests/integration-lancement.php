@@ -388,7 +388,19 @@ function ts_porte_argent_suite(): void {
 			$stored['signature'] = 'ceci-n-est-pas-la-signature';
 			update_option( Launch::OPTION_GRILLE, $stored, false );
 			Launch::forget();
-			ts_assert( ts_lg_says( 'prix-plancher', 'tarif publié a changé' ), 'une mesure périmée par un changement de tarif ne refuse pas' );
+			ts_assert( ts_lg_says( 'prix-plancher', 'ont changé depuis la dernière mesure' ), 'une mesure périmée par un changement de tarif ne refuse pas' );
+
+			// 4b. A COST moved, the tariff did not (COU-03). The floor is made of
+			// costs, rules and commission, and a new sheet price is a new floor.
+			Launch::record_grid_verdict( 0, 0, 219 );
+			Launch::forget();
+			ts_eq( ts_lg_reasons( 'prix-plancher' ), array(), 'the fresh measurement does not pass' );
+			$couts = get_option( \Teeshoop\Core\OPTION_COSTING, null );
+			update_option( \Teeshoop\Core\OPTION_COSTING, array_merge( (array) $couts, array( 'ts_cou03' => time() ) ) );
+			Launch::forget();
+			$moved = ts_lg_says( 'prix-plancher', 'ont changé depuis la dernière mesure' );
+			null === $couts ? delete_option( \Teeshoop\Core\OPTION_COSTING ) : update_option( \Teeshoop\Core\OPTION_COSTING, $couts );
+			ts_assert( $moved, 'a floor measured before a cost changed still opens the money door' );
 
 			// 5. Stale: older than the window, tariff untouched.
 			$stored              = get_option( Launch::OPTION_GRILLE );

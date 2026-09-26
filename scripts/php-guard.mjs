@@ -248,6 +248,18 @@ const ALLOWED = new Map([
     { why: 'asks the cost engine for a selling price; server-only, renders nothing', needles: ['Margin::'] },
   ],
   [
+    /*
+     * THE FLOOR VERDICT HAS TO KNOW WHEN THE FLOOR MOVED (COU-03, 26/09/2026).
+     * `Launch::grid_signature()` fingerprints the costing settings through
+     * `Costing::settings_stamp()`, an md5, so a changed film price or margin
+     * rule makes the recorded floor measurement stale. Only the hash crosses:
+     * no amount is read, and nothing of it is rendered. Named alone, so the file
+     * stays checked for every other cost and supplier string.
+     */
+    'wp-plugins/teeshoop-core/includes/Launch.php',
+    { why: 'fingerprints the cost settings as a hash to date the floor verdict; renders no amount', needles: ['Costing::'] },
+  ],
+  [
     'wp-plugins/teeshoop-core/includes/Commission.php',
     { why: 'what a salesperson earns; server-only, never rendered, and it reads the cost confidences', needles: ['Cost::'] },
   ],

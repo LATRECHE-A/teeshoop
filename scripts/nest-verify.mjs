@@ -144,6 +144,17 @@ const CORPUS = [
       { id: 'back', w_cm: 24.0, h_cm: 8.5, qty: 40 },
     ],
   },
+  /*
+   * THREE STANDING SERIES, from the bug hunt (COU-01 and COU-02). The packer
+   * scored an orientation as if the sheet were endless and stood these up,
+   * which took up to 67 % more sheets than lying them down, and put the real
+   * packing ABOVE the PHP bound that is supposed to cap it: 8 sheets packed
+   * for 6 bounded. A fuzz of 20 000 mixed orders found 166 such cases; the
+   * sheet-aware score brings it to 0.
+   */
+  { name: 'un texte vertical au dos, trente pièces', pieces: [{ id: 'v1', w_cm: 8.0, h_cm: 24.0, qty: 30 }] },
+  { name: 'une bande de 10 × 25, trente pièces', pieces: [{ id: 'v2', w_cm: 10.0, h_cm: 25.0, qty: 30 }] },
+  { name: 'une bande mesurée, vingt-quatre pièces', pieces: [{ id: 'v3', w_cm: 8.18, h_cm: 23.78, qty: 24 }] },
 ]
 
 /**

@@ -109,6 +109,19 @@ function ts_margin_suite( int $product_id ): void {
 
 	// ── the reconciliation ───────────────────────────────────────────────────
 
+	ts_it( 'never says « vendable » over a floor built without the garment or the film', function () {
+		// COU-04 : un composant inconnu compte pour zéro, donc le plancher est
+		// trop bas de ce que personne n'a chiffré.
+		$phrase = new \ReflectionMethod( CostAdmin::class, 'verdict_sentence' );
+		$ok     = array( 'below_cost' => false, 'below_floor' => false, 'needs_approval' => false );
+		ts_eq( $phrase->invoke( null, $ok, array() ), 'Vendable sans validation.', 'a complete cost above its floor' );
+		ts_assert( str_contains( (string) $phrase->invoke( null, $ok, array( 'textile' ) ), 'à confirmer' ), 'an unknown garment read as sellable' );
+		ts_assert( str_contains( (string) $phrase->invoke( null, $ok, array( 'marquage' ) ), 'à confirmer' ), 'an unknown film read as sellable' );
+		// The shipped settings never price consumables or the defect provision:
+		// those alone must not hold every order.
+		ts_eq( $phrase->invoke( null, $ok, array( 'consommables', 'defaut' ) ), 'Vendable sans validation.', 'the always-unknown components hold every order' );
+	} );
+
 	ts_it( 'reports the same HT as the invoice it will be checked against', function () use ( $product_id ) {
 		$order = ts_mg_order( $product_id, 12, ts_mg_sides() );
 		$order->payment_complete( 'ts-marge-1' );

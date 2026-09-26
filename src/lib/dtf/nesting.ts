@@ -377,7 +377,25 @@ export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
     )
       run++
 
+    /*
+     * SHEETS FIRST, LENGTH SECOND. The score used to be the strip length the run
+     * would take on an endless roll, `rows × shelf height`, and on a bounded
+     * sheet that is the wrong quantity: 30 transfers of 8 × 24 cm stood up three
+     * to a row (194 cm of strip) beat lying down one to a row (208 cm), but a
+     * 46 cm sheet takes ONE standing row and FIVE lying ones, so it bought 10
+     * sheets where 6 did it (COU-01). The run is now counted in the sheets it
+     * opens beyond the room left on the current one.
+     *
+     * ONLY WHERE SHEETS ARE WHAT IS BILLED, that is where every file costs the
+     * full sheet length (`step ≥ maxLen`). On a roll the bill is the length,
+     * and ranking by files first made `dtf-verify`'s pooled run longer (120 cm
+     * became 150): there every orientation opens « 0 » and the strip length
+     * decides, exactly as before.
+     */
+    const bySheet = step >= maxLen - EPS
+    const rowsOn = (room: number, inflH: number): number => Math.max(0, Math.floor((room + gap - 2 * margin + EPS) / inflH))
     let chosen: { flipped: boolean; w: number; h: number } | null = null
+    let chosenSheets = Infinity
     let chosenScore = Infinity
     for (const o of orientations) {
       const inflW = o.w + gap
@@ -385,12 +403,19 @@ export function nestRoll(pieces: DtfPiece[], options: NestOptions): NestResult {
       if (inflW > usableW + EPS) continue
       if (rawLengthOf(inflH, gap, margin) > maxLen + EPS) continue
       const perRow = Math.max(1, Math.floor((usableW + EPS) / inflW))
-      const score = Math.ceil(run / perRow) * inflH
+      const rows = Math.ceil(run / perRow)
+      const left = cur ? rowsOn(maxLen - cur.totalInflH, inflH) : 0
+      const perSheet = Math.max(1, rowsOn(maxLen, inflH))
+      const sheetsOpened = !bySheet || rows <= left ? 0 : Math.ceil((rows - left) / perSheet)
+      const score = rows * inflH
       if (
-        score < chosenScore - EPS ||
-        (Math.abs(score - chosenScore) <= EPS && chosen !== null && inflH < chosen.h + gap - EPS)
+        sheetsOpened < chosenSheets ||
+        (sheetsOpened === chosenSheets &&
+          (score < chosenScore - EPS ||
+            (Math.abs(score - chosenScore) <= EPS && chosen !== null && inflH < chosen.h + gap - EPS)))
       ) {
         chosen = o
+        chosenSheets = sheetsOpened
         chosenScore = score
       }
     }

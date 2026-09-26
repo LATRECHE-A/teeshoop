@@ -107,6 +107,29 @@ describe('nestRoll billing', () => {
   })
 })
 
+describe('nestRoll on bounded sheets', () => {
+  /*
+   * COU-01. The run's orientation was chosen for an endless roll, so on a 46 cm
+   * sheet a standing series bought up to 67 % more sheets than lying it down:
+   * 8 × 24 × 30 took 10 sheets where 6 did it. Allowing rotation must never
+   * cost more sheets than the better of the two forced orientations.
+   */
+  // A sheet supplier bills every file at the full sheet: step = length.
+  const SHEET: NestOptions = { printableWidthCm: 33, maxLengthCm: 46, gapCm: 0.5, edgeMarginCm: 0, billingStepCm: 46 }
+  for (const [w, h, n] of [
+    [8, 24, 30],
+    [10, 25, 30],
+    [8.18, 23.78, 24],
+  ] as const) {
+    it(`never buys more sheets for ${n} × ${w} × ${h} cm than the better forced orientation`, () => {
+      const free = nestRoll([piece('s', w, h, n, true)], SHEET).sheets.length
+      const standing = nestRoll([piece('s', w, h, n, false)], SHEET).sheets.length
+      const lying = nestRoll([piece('s', h, w, n, false)], SHEET).sheets.length
+      expect(free).toBeLessThanOrEqual(Math.min(standing, lying))
+    })
+  }
+})
+
 describe('nestRoll bookkeeping', () => {
   it('places every copy or reports it: nothing is silently dropped', () => {
     const r = nestRoll(MIXED, OPTS)

@@ -213,7 +213,10 @@ function checkZip(buf, result, info) {
   return fails
 }
 
-const waitFor = (url, ms = 30000) =>
+// 90 s: Vite measured at 35 s to start on a loaded machine (26/09/2026), and a
+// gate that fails on a slow start says nothing about the packer it guards. The
+// bound only exists so a server that never comes up is not waited on for ever.
+const waitFor = (url, ms = 90000) =>
   new Promise((res, rej) => {
     const s = Date.now()
     const t = async () => {

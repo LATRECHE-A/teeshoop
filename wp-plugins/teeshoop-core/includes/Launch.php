@@ -713,7 +713,7 @@ final class Launch {
 		if ( (string) ( $raw['signature'] ?? '' ) !== self::grid_signature() ) {
 			$out[] = self::refuse(
 				'prix-plancher',
-				__( 'Le tarif publié a changé depuis la dernière mesure du plancher, donc cette mesure porte sur des prix que la boutique ne pratique plus. Relancez « npm run verify:grille ».', 'teeshoop' )
+				__( 'Le tarif publié, les coûts, les règles de marge, la commission ou le port ont changé depuis la dernière mesure du plancher, donc cette mesure ne décrit plus la boutique. Relancez « npm run verify:grille ».', 'teeshoop' )
 			);
 		}
 
@@ -780,7 +780,17 @@ final class Launch {
 	 */
 	public static function grid_signature(): string {
 		$config = class_exists( __NAMESPACE__ . '\\Settings' ) ? Settings::pricing() : array();
-		return substr( sha1( (string) wp_json_encode( $config ) ), 0, 12 );
+		/*
+		 * AND WHAT THE FLOOR IS MADE OF, not only the tariff (COU-03). The floor
+		 * is the cost (film, labour, consumables), the margin rules and the
+		 * commission; an operator raising the sheet price from 3 to 5 EUR or
+		 * adding a 60 % minimum margin kept the old verdict and the money door
+		 * open for up to thirty days, over columns now selling under their new
+		 * floor. `Costing::settings_stamp()` already fingerprints exactly those.
+		 */
+		$floor = class_exists( __NAMESPACE__ . '\\Costing' ) ? Costing::settings_stamp() : '';
+		$ship  = class_exists( __NAMESPACE__ . '\\Shipping' ) ? Shipping::config() : array();
+		return substr( sha1( (string) wp_json_encode( array( $config, $floor, $ship ) ) ), 0, 12 );
 	}
 
 	/**
