@@ -30,28 +30,36 @@ const LANG: Lang = (() => {
   }
 })()
 
+/*
+ * LE LIEN DE RETOUR MÈNE À LA BOUTIQUE, et plus au studio servi à la racine de
+ * ce Worker : le client arrive ici depuis l'atelier de teeshoop.com, et c'est là
+ * qu'il commande. Le studio n'a pas de caisse.
+ */
+const BOUTIQUE = 'https://www.teeshoop.com/'
+const LOGO = '<img class="brand" src="/logo-teeshoop.png" width="122" height="22" alt="Teeshoop" />'
+
 const T = {
   fr: {
-    sub: 'Réalité augmentée',
+    sub: 'Essayage en réalité augmentée',
     arButton: 'Voir dans votre espace',
     loading: 'Chargement du modèle 3D…',
     hint: 'Faites glisser pour tourner. Touchez « Voir dans votre espace » pour le placer, à taille réelle, dans votre pièce.',
     desktop: 'Ouvrez ce lien sur votre téléphone pour l’essayer en réalité augmentée. Vous pouvez déjà faire tourner le modèle 3D ci-dessus.',
     download: 'Enregistrer l’image',
-    create: 'Créer le vôtre',
-    errTitle: 'Modèle AR introuvable',
-    errBody: 'Ce lien a peut-être expiré. Créez un nouveau design dans le studio pour réessayer.',
+    create: 'Retour à la boutique',
+    errTitle: 'Modèle introuvable',
+    errBody: 'Ce lien a expiré ou n’existe pas. Rouvrez votre vêtement dans l’atelier de teeshoop.com pour obtenir un nouveau lien d’essayage.',
   },
   en: {
-    sub: 'Augmented reality',
+    sub: 'Augmented reality try-on',
     arButton: 'View in your space',
     loading: 'Loading 3D model…',
     hint: 'Drag to rotate. Tap “View in your space” to place it, life-size, in your room.',
     desktop: 'Open this link on your phone to try it in augmented reality. You can already spin the 3D model above.',
     download: 'Save image',
-    create: 'Create your own',
-    errTitle: 'AR model not found',
-    errBody: 'This link may have expired. Create a new design in the studio to try again.',
+    create: 'Back to the shop',
+    errTitle: 'Model not found',
+    errBody: 'This link has expired or does not exist. Reopen your garment in the teeshoop.com workshop to get a new try-on link.',
   },
 }[LANG]
 
@@ -69,11 +77,11 @@ function idFromUrl(): string | null {
 
 function renderError() {
   root.innerHTML = `
-    <div class="vw-head"><span class="brand">Tshop</span></div>
+    <div class="vw-head">${LOGO}</div>
     <div class="vw-center">
       <div class="big">${T.errTitle}</div>
       <div class="muted">${T.errBody}</div>
-      <div class="vw-links"><a href="/">${T.create} →</a></div>
+      <div class="vw-links"><a href="${BOUTIQUE}">${T.create}</a></div>
     </div>`
 }
 
@@ -81,7 +89,7 @@ function renderError() {
 function launchAndroidAr(glbUrl: string, fallback: string) {
   const intent =
     `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(glbUrl)}` +
-    `&mode=ar_preferred&title=${encodeURIComponent('Tshop')}` +
+    `&mode=ar_preferred&title=${encodeURIComponent('Teeshoop')}` +
     `#Intent;scheme=https;package=com.google.ar.core;action=android.intent.action.VIEW;` +
     `S.browser_fallback_url=${encodeURIComponent(fallback)};end;`
   window.location.href = intent
@@ -93,14 +101,14 @@ function renderViewer(id: string) {
   const isAndroid = /android/i.test(navigator.userAgent)
 
   root.innerHTML = `
-    <div class="vw-head"><span class="brand">Tshop</span><span class="sub">· ${T.sub}</span></div>
+    <div class="vw-head">${LOGO}<span class="sub">${T.sub}</span></div>
     <div class="vw-stage"><canvas id="vw-canvas"></canvas></div>
     <div class="vw-foot">
       <div id="vw-arbtn"></div>
       <div class="vw-hint" id="vw-hint">${T.loading}</div>
       <div class="vw-links">
         <button id="vw-dl">${T.download}</button>
-        <a href="/">${T.create} →</a>
+        <a href="${BOUTIQUE}">${T.create}</a>
       </div>
     </div>`
 
@@ -137,7 +145,7 @@ function renderViewer(id: string) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'tshop-ar.png'
+      a.download = 'teeshoop-essayage.png'
       a.click()
       URL.revokeObjectURL(url)
     } catch {

@@ -25,7 +25,7 @@ export function makeSampleDesign(): Design {
     type: 'text',
     side: 'front',
     name: 'Arch text',
-    text: 'TSHOP',
+    text: 'TEESHOOP',
     xIn: 0,
     yIn: -4.2,
     rotation: 0,
@@ -94,7 +94,7 @@ export function makeSampleDesign(): Design {
 
   return {
     id: nanoid(10),
-    name: 'TSHOP classic',
+    name: 'TEESHOOP classique',
     garmentId: 'tee',
     colorId: 'black',
     custom: null,

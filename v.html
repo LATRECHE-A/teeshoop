@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="fr" data-theme="dark">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#0C0F13" />
-    <meta name="description" content="Voir ce design Tshop en réalité augmentée : placez-le porté sur un mannequin 3D, à taille réelle, dans votre pièce." />
-    <title>Tshop AR, voir en réalité augmentée</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230C0F13'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%2335C7FF' stroke-width='2'/%3E%3Cpath d='M16 3v6M16 23v6M3 16h6M23 16h6' stroke='%23FF3D8F' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <meta name="theme-color" content="#010050" />
+    <meta name="description" content="Votre vêtement Teeshoop en réalité augmentée : posez-le dans votre pièce, à taille réelle, avant de le commander." />
+    <title>Teeshoop, essayage en réalité augmentée</title>
+    <link rel="icon" href="/icone-teeshoop.png" />
     <script>
       (function () {
         try {
@@ -16,49 +16,59 @@
       })()
     </script>
     <style>
+      /* Les jetons de la boutique (wp-plugins/teeshoop-core/assets/tokens.css),
+         recopiés parce que le Worker ne sert pas la feuille du thème. */
+      :root {
+        --ts-accent: #010050;
+        --ts-ink: #242424;
+        --ts-muted: #717171;
+        --ts-surface: #f6f7f9;
+        --ts-line: #dce0e5;
+      }
       html, body, #ar-root { height: 100%; margin: 0; }
       body {
-        background: radial-gradient(120% 80% at 50% 0%, #171b22 0%, #0c0f13 60%);
-        color: #eef1f5; overflow: hidden; overscroll-behavior: none;
-        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        background: var(--ts-surface);
+        color: var(--ts-ink); overflow: hidden; overscroll-behavior: none;
+        font-family: 'Lato', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
       }
       #ar-root { display: flex; flex-direction: column; }
       .vw-head {
-        display: flex; align-items: center; gap: 8px; padding: 14px 16px;
+        display: flex; align-items: center; gap: 10px; padding: 14px 16px;
         padding-top: max(14px, env(safe-area-inset-top));
+        background: #ffffff; border-bottom: 1px solid var(--ts-line);
       }
-      .vw-head .brand { font-weight: 800; letter-spacing: .04em; font-size: 15px; }
-      .vw-head .sub { color: #9aa5b4; font-size: 12px; }
+      .vw-head .brand { display: block; height: 22px; width: auto; }
+      .vw-head .sub { color: var(--ts-muted); font-size: 13px; }
       .vw-stage { flex: 1; min-height: 0; position: relative; }
       #vw-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
       .vw-foot {
         display: flex; flex-direction: column; align-items: center; gap: 10px;
         padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
       }
-      .vw-hint { color: #9aa5b4; font-size: 12.5px; text-align: center; max-width: 24rem; line-height: 1.5; }
+      .vw-hint { color: var(--ts-muted); font-size: 13px; text-align: center; max-width: 24rem; line-height: 1.5; }
       .ar-btn {
         display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-        border: none; cursor: pointer; border-radius: 999px; text-decoration: none;
-        padding: 15px 26px; font-size: 15.5px; font-weight: 700; color: #06121a;
-        background: linear-gradient(100deg, #35c7ff, #7ad9ff);
-        box-shadow: 0 8px 30px -8px rgba(53, 199, 255, .6);
+        border: 1px solid var(--ts-accent); cursor: pointer; border-radius: 10px; text-decoration: none;
+        padding: 15px 26px; font-size: 15px; font-weight: 700; color: #ffffff;
+        background: var(--ts-accent);
       }
-      .ar-btn:active { transform: translateY(1px); }
+      .ar-btn:focus-visible, .vw-links a:focus-visible, .vw-links button:focus-visible {
+        outline: 3px solid var(--ts-accent); outline-offset: 2px;
+      }
       .ar-btn svg { width: 20px; height: 20px; }
       .ql-img { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
       .vw-links { display: flex; gap: 18px; margin-top: 2px; }
       .vw-links a, .vw-links button {
-        background: none; border: none; cursor: pointer;
-        color: #cbd3dd; font-size: 13px; font-weight: 600; text-decoration: none;
-        display: inline-flex; align-items: center; gap: 6px;
+        background: none; border: none; cursor: pointer; font: inherit;
+        color: var(--ts-accent); font-size: 14px; font-weight: 700; text-decoration: underline;
+        display: inline-flex; align-items: center; gap: 6px; padding: 8px 0;
       }
-      .vw-links a:hover, .vw-links button:hover { color: #fff; }
       .vw-center {
         flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
         gap: 14px; padding: 24px; text-align: center;
       }
-      .vw-center .big { font-size: 17px; font-weight: 700; }
-      .vw-center .muted { color: #9aa5b4; font-size: 13.5px; line-height: 1.5; max-width: 22rem; }
+      .vw-center .big { font-size: 18px; font-weight: 700; }
+      .vw-center .muted { color: var(--ts-muted); font-size: 14px; line-height: 1.5; max-width: 22rem; }
     </style>
   </head>
   <body>

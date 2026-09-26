@@ -93,7 +93,7 @@ export default function ShareModal() {
                     onClick={() =>
                       run(`mock-${sd}`, async () => {
                         const c = await renderMockup(design, sd, 1600, previewSize)
-                        await downloadCanvasPng(c, `tshop-${slugify(design.name)}-${sd}-mockup.png`)
+                        await downloadCanvasPng(c, `teeshoop-${slugify(design.name)}-${sd}-mockup.png`)
                       })
                     }
                   >
@@ -146,7 +146,7 @@ export default function ShareModal() {
                             // on the printer's desk.
                             await downloadCanvasPng(
                               c,
-                              `tshop-${slugify(design.name)}-${sd}-${previewSize}-${area.wIn.toFixed(1)}x${area.hIn.toFixed(1)}in-300dpi.png`,
+                              `teeshoop-${slugify(design.name)}-${sd}-${previewSize}-${area.wIn.toFixed(1)}x${area.hIn.toFixed(1)}in-300dpi.png`,
                             )
                             toast('ok', t('toast.print_saved'))
                           })
@@ -204,7 +204,7 @@ export default function ShareModal() {
                 onClick={() =>
                   run('file', async () => {
                     const blob = await exportDesignFile(design)
-                    downloadBlob(blob, `${slugify(design.name)}.tshop.json`)
+                    downloadBlob(blob, `${slugify(design.name)}.teeshoop.json`)
                   })
                 }
               >

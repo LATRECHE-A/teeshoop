@@ -6,7 +6,7 @@ import { garmentWidthInFor, type SizeId } from '@/content/sizeChart'
 import { getAreaSizeIn, renderMockup, renderPrintArea, sideLayers } from '@/lib/renderDesign'
 import { printScaleK } from '@/lib/printScale'
 import { useStore } from '@/state/store'
-import { RegMark } from './Brand'
+import { BrandMark } from './Brand'
 import { garmentColorHex } from '@/lib/renderDesign'
 import { stageBackground } from '@/scenes'
 import { t } from '@/i18n'
@@ -180,7 +180,7 @@ function Fallback({
 }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
-      <RegMark size={40} className="opacity-70" />
+      <BrandMark size={40} className="opacity-70" />
       <div className="font-display text-[15px] font-bold text-tx">{title}</div>
       <div className="max-w-sm text-[13px] leading-relaxed text-tx2">{body}</div>
       {children}
@@ -233,7 +233,7 @@ export default function Scene3D() {
       <Suspense
         fallback={
           <div className="flex h-full flex-col items-center justify-center gap-4">
-            <RegMark size={44} className="spin-slow" />
+            <BrandMark size={44} className="spin-slow" />
             <div className="text-[13px] text-tx2">{tr('three.warming')}</div>
           </div>
         }

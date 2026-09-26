@@ -160,6 +160,14 @@ final class Schema {
 				'auto'  => false,
 				'run'   => array( self::class, 'step_page_devis' ),
 			),
+			// Même raison que 7 et 8, plus une : désactiver une extension demande
+			// les fonctions d'administration de WordPress, chargées après `init`.
+			array(
+				'id'    => 9,
+				'label' => 'Restes de l’ancienne installation : Rank Math et trois pages',
+				'auto'  => false,
+				'run'   => array( self::class, 'step_restes_ancienne_installation' ),
+			),
 		);
 	}
 
@@ -252,18 +260,79 @@ final class Schema {
 			if ( ! $elementor && mb_strlen( $texte ) >= 200 ) {
 				continue;
 			}
-			$fait = wp_update_post( array( 'ID' => $page->ID, 'post_status' => 'draft' ), true );
-			if ( is_wp_error( $fait ) ) {
-				throw new \RuntimeException( sprintf( 'la page %s n’a pas pu passer en brouillon : %s', $slug, $fait->get_error_message() ) );
-			}
-			foreach ( wp_get_associated_nav_menu_items( $page->ID, 'post_type', 'page' ) as $item ) {
-				wp_delete_post( (int) $item, true );
-			}
+			self::retirer_page( $page );
 			$retirees[] = $slug;
 		}
 		return array() === $retirees
 			? 'aucune page vide à retirer'
 			: sprintf( '%d page(s) en brouillon et retirée(s) des menus : %s', count( $retirees ), implode( ', ', $retirees ) );
+	}
+
+	/**
+	 * Ce que l'ancienne installation publie encore et qui n'est pas Teeshoop.
+	 *
+	 * RANK MATH, gratuit et PRO. Mesuré en production le 26/09/2026 : il émet un
+	 * premier jeu de balises de partage avant le nôtre, avec « TeeShoop » pour
+	 * nom, une photographie de 2025 pour image et la vidéo de démonstration de
+	 * meubles du thème d'origine (`wd-furniture-hotspot-video.mp4`), et un graphe
+	 * JSON-LD qui nomme une personne « adminder ». Les réseaux retiennent en
+	 * général la première balise. `Seo.php` a été écrit pour se passer de lui (voir
+	 * son en-tête) et tient déjà titres, descriptions, canonique, robots, graphe et
+	 * plan du site. Reconnu par le nom de son en-tête et non par un chemin, qui
+	 * diffère entre la version gratuite et la PRO.
+	 *
+	 * TROIS PAGES qui ne sont pas vides mais contredisent les nôtres, ou promettent
+	 * ce que la boutique ne vend pas : une politique de remboursement générique
+	 * (« 14 jours, article inutilisé ») face à des articles personnalisés, que
+	 * nos conditions générales traitent ; une seconde politique de cookies, face à
+	 * celle que `LegalPage` publie ; des cartes cadeaux, que la boutique ne vend
+	 * pas. En brouillon, comme à l'étape 7.
+	 */
+	public static function step_restes_ancienne_installation(): string {
+		$fait = array();
+
+		if ( ! function_exists( 'get_plugins' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+		$extensions = array();
+		foreach ( get_plugins() as $fichier => $entete ) {
+			if ( str_starts_with( (string) ( $entete['Name'] ?? '' ), 'Rank Math' ) && is_plugin_active( $fichier ) ) {
+				$extensions[] = $fichier;
+			}
+		}
+		if ( array() !== $extensions ) {
+			deactivate_plugins( $extensions );
+			$fait[] = 'extension(s) désactivée(s) : ' . implode( ', ', $extensions );
+		}
+
+		$pages = array();
+		foreach ( array( 'remboursement', 'cookies', 'cartes-cadeaux' ) as $slug ) {
+			$page = get_page_by_path( $slug );
+			if ( $page instanceof \WP_Post && 'publish' === $page->post_status ) {
+				self::retirer_page( $page );
+				$pages[] = $slug;
+			}
+		}
+		if ( array() !== $pages ) {
+			$fait[] = 'page(s) en brouillon et retirée(s) des menus : ' . implode( ', ', $pages );
+		}
+
+		return array() === $fait ? 'rien de l’ancienne installation à retirer' : implode( ' ; ', $fait );
+	}
+
+	/**
+	 * Une page en brouillon, et ses entrées de menu supprimées : un menu WordPress
+	 * continue d'afficher le lien vers une page en brouillon, qui rend une 404 à
+	 * chaque visiteur. Le contenu, lui, reste en base pour être repris.
+	 */
+	private static function retirer_page( \WP_Post $page ): void {
+		$fait = wp_update_post( array( 'ID' => $page->ID, 'post_status' => 'draft' ), true );
+		if ( is_wp_error( $fait ) ) {
+			throw new \RuntimeException( sprintf( 'la page %s n’a pas pu passer en brouillon : %s', $page->post_name, $fait->get_error_message() ) );
+		}
+		foreach ( wp_get_associated_nav_menu_items( $page->ID, 'post_type', 'page' ) as $item ) {
+			wp_delete_post( (int) $item, true );
+		}
 	}
 
 	/**

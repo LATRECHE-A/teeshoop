@@ -1,18 +1,20 @@
 import { useT } from '@/i18n/useT'
 
-/** Print registration-mark brand icon. */
-export function RegMark({ size = 22, className }: { size?: number; className?: string }) {
+/**
+ * La marque Teeshoop en icône : l'en-tête du studio et ses écrans de chargement.
+ * C'était une mire d'imprimeur cyan et magenta, l'identité « Tshop » du prototype,
+ * qui n'est pas celle de la boutique.
+ */
+export function BrandMark({ size = 22, className }: { size?: number; className?: string }) {
   return (
-    <svg viewBox="0 0 54 54" width={size} height={size} fill="none" className={className} aria-hidden>
-      <circle cx="27" cy="27" r="16" stroke="#35C7FF" strokeWidth="3" />
-      <path
-        d="M27 2v12M27 40v12M2 27h12M40 27h12"
-        stroke="#FF3D8F"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      <circle cx="27" cy="27" r="3.2" fill="#EEF1F5" />
-    </svg>
+    <img
+      src="/icone-teeshoop.png"
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden
+      className={['rounded-[4px]', className].filter(Boolean).join(' ')}
+    />
   )
 }
 
@@ -20,10 +22,10 @@ export function Brand() {
   const t = useT()
   return (
     <div className="flex items-center gap-2.5 select-none">
-      <RegMark />
+      <BrandMark />
       <div className="leading-none max-sm:hidden">
         <div className="font-display text-[15px] font-bold tracking-[0.24em] text-tx">
-          TSHOP
+          TEESHOOP
         </div>
         <div className="mt-0.5 hidden text-[10px] tracking-[0.08em] text-tx3 sm:block">
           {t('brand.tagline').toUpperCase()}

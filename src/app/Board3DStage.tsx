@@ -16,7 +16,7 @@ import { useStore } from '@/state/store'
 import { BOARD_MAX_2D, boardCap3D, boardTextureTargetPx } from '@/state/board'
 import { stageBackground } from '@/scenes'
 import type { Board3DProps } from '@/three/Board3D'
-import { RegMark } from './Brand'
+import { BrandMark } from './Brand'
 import { useIsMobile } from './hooks/useIsMobile'
 import { useBoardT } from './board/boardI18n'
 import {
@@ -115,7 +115,7 @@ export default function Board3DStage() {
         <Suspense
           fallback={
             <div className="flex h-full flex-col items-center justify-center gap-4">
-              <RegMark size={44} className="spin-slow" />
+              <BrandMark size={44} className="spin-slow" />
             </div>
           }
         >

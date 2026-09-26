@@ -344,7 +344,7 @@ function readmeText(i: OrderZipInput, m: DtfManifest): string {
     '='.repeat(60),
     (fr ? 'Généré le ' : 'Generated ') +
       i.date.toLocaleString(fr ? 'fr-FR' : 'en-GB') +
-      ` · Tshop Studio ${i.appVersion}`,
+      ` · Teeshoop ${i.appVersion}`,
   )
 
   rule(fr ? 'Fournisseur' : 'Supplier')

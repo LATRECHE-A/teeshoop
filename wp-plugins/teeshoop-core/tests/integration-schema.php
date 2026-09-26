@@ -196,7 +196,7 @@ function ts_schema_suite(): void {
 			 * et des menus, qui n'existent qu'après `init` (voir Schema::steps()).
 			 */
 			$cli_only = array_values( array_map( static fn( array $s ): int => (int) $s['id'], array_filter( Schema::steps(), static fn( array $s ): bool => empty( $s['auto'] ) ) ) );
-			ts_eq( $cli_only, array( 7, 8 ), 'seules les étapes qui écrivent des pages et des menus attendent la ligne de commande' );
+			ts_eq( $cli_only, array( 7, 8, 9 ), 'seules les étapes qui écrivent des pages, des menus ou l’état des extensions attendent la ligne de commande' );
 		}
 	);
 
@@ -235,6 +235,40 @@ function ts_schema_suite(): void {
 			wp_delete_post( $vide, true );
 			wp_delete_post( $ecrite, true );
 			wp_delete_nav_menu( $menu );
+		}
+	);
+
+	ts_it(
+		'deactivates Rank Math by its name and unpublishes the three pages that contradict ours',
+		function (): void {
+			$dossier = WP_PLUGIN_DIR . '/ts-faux-rank-math';
+			$fichier = 'ts-faux-rank-math/ts-faux-rank-math.php';
+			wp_mkdir_p( $dossier );
+			file_put_contents( WP_PLUGIN_DIR . '/' . $fichier, "<?php\n/**\n * Plugin Name: Rank Math SEO (témoin de test)\n */\n" );
+			if ( ! function_exists( 'activate_plugin' ) ) {
+				require_once ABSPATH . 'wp-admin/includes/plugin.php';
+			}
+			wp_clean_plugins_cache( false );
+			ts_assert( null === activate_plugin( $fichier ) && is_plugin_active( $fichier ), 'l’extension témoin n’a pas pu être activée : ce test ne prouverait rien' );
+
+			$ids = array();
+			foreach ( array( 'remboursement', 'cookies', 'cartes-cadeaux' ) as $slug ) {
+				$ids[ $slug ] = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => $slug, 'post_name' => $slug, 'post_content' => str_repeat( 'Texte hérité. ', 40 ) ) );
+			}
+
+			$dit = Schema::step_restes_ancienne_installation();
+			ts_assert( ! is_plugin_active( $fichier ), 'une extension nommée « Rank Math » doit être désactivée : ' . $dit );
+			foreach ( $ids as $slug => $id ) {
+				ts_eq( get_post_status( $id ), 'draft', "la page {$slug} doit passer en brouillon" );
+			}
+			ts_eq( Schema::step_restes_ancienne_installation(), 'rien de l’ancienne installation à retirer', 'la seconde passe ne doit rien faire' );
+
+			foreach ( $ids as $id ) {
+				wp_delete_post( $id, true );
+			}
+			unlink( WP_PLUGIN_DIR . '/' . $fichier );
+			rmdir( $dossier );
+			wp_clean_plugins_cache( false );
 		}
 	);
 

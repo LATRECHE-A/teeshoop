@@ -53,6 +53,7 @@ const MOTS = {
   ar: 'Voir chez vous, à taille réelle',
   arEnvoi: 'Préparation de l’essayage.',
   arPret: 'Scannez ce code avec votre téléphone pour poser le vêtement dans votre pièce, à taille réelle.',
+  arLien: 'Ou ouvrir l’essayage sur cet appareil',
   arEchec:
     'L’essayage n’a pas pu être préparé. Vérifiez votre connexion et réessayez : votre commande n’est pas touchée.',
   arSansDepot:
@@ -264,7 +265,9 @@ class Apercu3d {
       a.href = ar.lien
       a.rel = 'noopener'
       a.target = '_blank'
-      a.textContent = ar.lien
+      // Une phrase et pas l'adresse : celle du Worker n'est pas un nom que la
+      // boutique porte, et le client n'a rien à en lire.
+      a.textContent = MOTS.arLien
       const bloc = el('div', 'tshop-ed__ar')
       bloc.setAttribute('data-teeshoop', 'ar-pret')
       bloc.append(img, p, a)
