@@ -333,8 +333,6 @@ final class Lifecycle {
 		 */
 		add_filter( 'woocommerce_analytics_excluded_order_statuses', array( self::class, 'out_of_reports' ) );
 
-		add_filter( 'woocommerce_valid_order_statuses_for_payment_complete', array( self::class, 'completable' ) );
-
 		// The guard. Priority 5, before anything that writes to the order in
 		// the same pass, so a refused status is put back before it is read.
 		add_action( 'woocommerce_before_order_object_save', array( self::class, 'guard' ), 5, 1 );
@@ -389,18 +387,6 @@ final class Lifecycle {
 	/** @param string[] $statuses */
 	public static function out_of_reports( $statuses ): array {
 		$statuses = array_merge( (array) $statuses, self::ours() );
-		return array_values( array_unique( $statuses ) );
-	}
-
-	/**
-	 * `payment_complete()` must be able to act from a status the order can
-	 * legitimately be sitting in when the balance lands: an order can be waiting
-	 * on artwork or on a proof with only a deposit banked.
-	 *
-	 * @param string[] $statuses
-	 */
-	public static function completable( $statuses ): array {
-		$statuses = array_merge( (array) $statuses, array( self::WAIT, self::PROOF, self::CHANGES, self::APPROVED ) );
 		return array_values( array_unique( $statuses ) );
 	}
 

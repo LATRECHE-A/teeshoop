@@ -46,6 +46,7 @@ final class Ledger {
 
 	private const ACTION_AUTHORISE = 'teeshoop_acompte_autoriser';
 	private const ACTION_RECORD    = 'teeshoop_encaissement';
+	private const ACTION_ISSUE     = 'teeshoop_recapitulatifs';
 
 	public static function init(): void {
 		/*
@@ -110,6 +111,7 @@ final class Ledger {
 		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
 		add_action( 'admin_post_' . self::ACTION_AUTHORISE, array( self::class, 'handle_authorise' ) );
 		add_action( 'admin_post_' . self::ACTION_RECORD, array( self::class, 'handle_record' ) );
+		add_action( 'admin_post_' . self::ACTION_ISSUE, array( self::class, 'handle_issue' ) );
 	}
 
 	// ── the status ───────────────────────────────────────────────────────────
@@ -349,17 +351,53 @@ final class Ledger {
 			return;
 		}
 
-		if ( Settlement::PAID === $state && ! $order->is_paid() ) {
-			/*
-			 * WHATEVER IT WAS SITTING ON. This used to fire only for an order
-			 * already at `ts-acompte`, so an order settled in one go through the
-			 * box, which is every bank transfer on an order nobody authorised a
-			 * deposit for, stayed `pending` for ever: never marked paid, and
-			 * therefore never given the final invoice the law requires.
-			 * `payment_complete` is WooCommerce's own way of saying the money is
-			 * in, and it is what makes the invoice issue.
-			 */
+		if ( Settlement::PAID !== $state || $order->is_paid() ) {
+			return;
+		}
+
+		/*
+		 * FROM A STATUS THAT PRECEDES PAYMENT. This used to fire only for an order
+		 * already at `ts-acompte`, so an order settled in one go through the box,
+		 * which is every bank transfer on an order nobody authorised a deposit
+		 * for, stayed `pending` for ever: never marked paid, and therefore never
+		 * given the final invoice the law requires. `payment_complete` is
+		 * WooCommerce's own way of saying the money is in.
+		 */
+		if ( in_array( $order->get_status(), array( Lifecycle::PENDING, Lifecycle::HOLD, Lifecycle::FAILED, Lifecycle::DEPOSIT ), true ) ) {
 			$order->payment_complete();
+			return;
+		}
+
+		/*
+		 * THE BALANCE OF A DEPOSIT ORDER ALREADY UNDER WAY (CMD-01). An order can
+		 * wait for artwork, be at its proof or in production with only its deposit
+		 * banked. `payment_complete()` from there asked for « Payée », which the
+		 * graph refuses: the guard put the status back with a « Statut refusé »
+		 * note, the invoice saw an unpaid order and was not issued, and the
+		 * customer was told « c'est réglé, nous préparons votre bon à tirer »
+		 * about a proof they already had. The status stays where it is; the date
+		 * of payment and the closing document are what the balance changes.
+		 */
+		if ( ! $order->get_date_paid() ) {
+			$order->set_date_paid( time() );
+			$order->save();
+		}
+		$order->add_order_note(
+			sprintf(
+				/* translators: %s: total received. */
+				__( 'Solde reçu : la commande est réglée (%s encaissés). Son statut ne change pas.', 'teeshoop' ),
+				Money::format( self::received( $order ) )
+			)
+		);
+		$document = Invoice::issue( $order );
+		if ( is_wp_error( $document ) ) {
+			$order->add_order_note(
+				sprintf(
+					/* translators: %s: why the document was refused. */
+					__( 'Le récapitulatif de commande n’a pas pu être émis : %s', 'teeshoop' ),
+					$document->get_error_message()
+				)
+			);
 		}
 	}
 
@@ -423,15 +461,16 @@ final class Ledger {
 		 * recorded as the second event it is, with its own date and reference,
 		 * through the box.
 		 */
+		$missing = Settlement::remaining( self::due( $order ), self::received( $order ) );
+		// Nothing missing, nothing to say: a fully paid order reaching
+		// « Livrée » used to be told its balance was not in (CMD-02).
+		if ( $missing <= 0 ) {
+			return;
+		}
 		if ( ! empty( self::receipts( $order ) ) ) {
 			$order->add_order_note(
 				__( 'Statut passé à un état payé alors que le solde n’est pas encaissé. Rien n’a été ajouté aux encaissements : enregistrez le versement pour que l’expédition s’ouvre.', 'teeshoop' )
 			);
-			return;
-		}
-
-		$missing = Settlement::remaining( self::due( $order ), self::received( $order ) );
-		if ( $missing <= 0 ) {
 			return;
 		}
 		/*
@@ -569,6 +608,44 @@ final class Ledger {
 			printf( '<button type="submit" class="button button-primary">%s</button>', esc_html__( 'Enregistrer l’encaissement', 'teeshoop' ) );
 			echo '</form>';
 		}
+
+		/*
+		 * EVERYTHING IS IN AND THE CLOSING DOCUMENT IS NOT (CMD-04). Documents are
+		 * issued when money is recorded, and only then: one refused at that moment
+		 * (identity incomplete, a busy lock) had no second chance, and an acompte
+		 * document refused once blocked the closing one for ever. The operator
+		 * fixes the cause, then asks here.
+		 */
+		if ( $remaining <= 0 && ! empty( $receipts ) && null === Invoice::stored( $order ) ) {
+			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+			wp_nonce_field( self::ACTION_ISSUE . $order->get_id() );
+			echo '<input type="hidden" name="action" value="' . esc_attr( self::ACTION_ISSUE ) . '">';
+			echo '<input type="hidden" name="order_id" value="' . esc_attr( (string) $order->get_id() ) . '">';
+			printf( '<button type="submit" class="button">%s</button>', esc_html__( 'Émettre les récapitulatifs manquants', 'teeshoop' ) );
+			echo '<p class="description">' . esc_html__( 'La commande est réglée et son récapitulatif n’a pas été émis. Corrigez d’abord ce qui l’a empêché (le motif est affiché sous « Récapitulatif »), puis émettez-le ici.', 'teeshoop' ) . '</p>';
+			echo '</form>';
+		}
+	}
+
+	public static function handle_issue(): void {
+		$order = self::order_from_request();
+		if ( ! $order instanceof \WC_Order ) {
+			wp_die( esc_html__( 'Cette commande n’existe pas.', 'teeshoop' ), '', array( 'response' => 404 ) );
+		}
+		check_admin_referer( self::ACTION_ISSUE . $order->get_id() );
+
+		$document = Invoice::issue( $order );
+		if ( is_wp_error( $document ) ) {
+			$order->add_order_note(
+				sprintf(
+					/* translators: %s: why the document was refused. */
+					__( 'Le récapitulatif de commande n’a pas pu être émis : %s', 'teeshoop' ),
+					$document->get_error_message()
+				)
+			);
+		}
+		wp_safe_redirect( $order->get_edit_order_url() );
+		exit;
 	}
 
 	/** Where the order stands, in a sentence an operator can act on. */

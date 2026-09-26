@@ -29,6 +29,7 @@ use Teeshoop\Core\Invoice;
 use Teeshoop\Core\Ledger;
 use Teeshoop\Core\Settlement;
 use Teeshoop\Core\Legal;
+use Teeshoop\Core\Lifecycle;
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Payment;
 use Teeshoop\Core\Pricing;
@@ -1293,6 +1294,92 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		ts_assert( null !== Invoice::stored( $order ), 'and it never got its invoice' );
 		ts_eq( count( Invoice::deposits( $order ) ), 0, 'a single settlement produced an acompte invoice' );
 
+		$order->delete( true );
+	} );
+
+	ts_it( 'settles the balance of an order already at its proof without moving it or restarting the paid flow', function () use ( $product_id, $big_order ) {
+		/*
+		 * CMD-01. The proof went out on the deposit alone, then the balance
+		 * arrives. `payment_complete()` asked for « Payée », which the graph
+		 * refuses from « BAT envoyé »: a « Statut refusé » note, no closing
+		 * document, and the « c'est réglé, nous préparons votre bon à tirer »
+		 * e-mail about a proof the customer already had.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		$config = Ledger::config();
+		$order  = $big_order( $product_id, (int) $config['deposit_from_ht'] + 100000 );
+		Ledger::authorise( $order );
+		$order = wc_get_order( $order->get_id() );
+		$due   = Ledger::due( $order );
+		Ledger::record( $order, Settlement::deposit_due( $due, $config ), 'Virement bancaire', 'VIR-ACOMPTE-BAT' );
+		$order = wc_get_order( $order->get_id() );
+		$order->update_status( Lifecycle::PROOF );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( $order->get_status(), Lifecycle::PROOF, 'the fixture did not reach the proof' );
+
+		$avant = did_action( 'woocommerce_payment_complete' );
+		Ledger::record( $order, Settlement::remaining( $due, Ledger::received( $order ) ), 'Virement bancaire', 'VIR-SOLDE-BAT' );
+		$order = wc_get_order( $order->get_id() );
+
+		ts_eq( $order->get_status(), Lifecycle::PROOF, 'the balance moved the order off its proof' );
+		ts_eq( did_action( 'woocommerce_payment_complete' ), $avant, 'the paid flow (and its « nous préparons votre BAT ») ran again' );
+		ts_assert( (bool) $order->get_date_paid(), 'the order has no date of payment' );
+		ts_assert( null !== Invoice::stored( $order ), 'the balance did not issue the closing document' );
+		$refus = array_filter(
+			wc_get_order_notes( array( 'order_id' => $order->get_id() ) ),
+			static fn( $n ): bool => str_contains( (string) $n->content, 'Statut refusé' )
+		);
+		ts_eq( count( $refus ), 0, 'a status change was refused on the way' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'issues the acompte document it could not issue earlier, then closes the order', function () use ( $product_id, $big_order ) {
+		/*
+		 * CMD-04. An acompte document refused when its money arrived (here the
+		 * lock, held by another request; in production an incomplete identity)
+		 * had no road back, and the closing document refused to be issued over
+		 * the gap, for ever.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		$config = Ledger::config();
+		$order  = $big_order( $product_id, (int) $config['deposit_from_ht'] + 100000 );
+		Ledger::authorise( $order );
+		$order = wc_get_order( $order->get_id() );
+		$due   = Ledger::due( $order );
+		$nom   = 'teeshoop_invoice_' . $order->get_id();
+
+		$autre = new \wpdb( DB_USER, DB_PASSWORD, DB_NAME, DB_HOST );
+		$autre->get_var( $autre->prepare( 'SELECT GET_LOCK(%s, 0)', $nom ) );
+		Ledger::record( $order, Settlement::deposit_due( $due, $config ), 'Virement bancaire', 'VIR-ACOMPTE-VERROU' );
+		$autre->get_var( $autre->prepare( 'SELECT RELEASE_LOCK(%s)', $nom ) );
+		$autre->close();
+
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( count( Invoice::deposits( $order ) ), 0, 'the fixture did not lose the acompte document' );
+
+		Ledger::record( $order, Settlement::remaining( $due, Ledger::received( $order ) ), 'Virement bancaire', 'VIR-SOLDE-VERROU' );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( count( Invoice::deposits( $order ) ), 1, 'the missing acompte document was not issued' );
+		ts_assert( null !== Invoice::stored( $order ), 'the closing document is still blocked by the gap' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'tells a fully paid order nothing about a missing balance when it is delivered', function () use ( $product_id, $big_order ) {
+		// CMD-02 : chaque commande réglée recevait, au passage à « Livrée », la
+		// note « le solde n'est pas encaissé ».
+		ts_ck_regime( Vat::STANDARD );
+		$order = $big_order( $product_id, 400000 );
+		Ledger::record( $order, Ledger::due( $order ), 'Virement bancaire', 'VIR-LIVREE' );
+		$order = wc_get_order( $order->get_id() );
+		$phrase = 'alors que le solde n’est pas encaissé';
+		$compte = static fn(): int => count(
+			array_filter(
+				wc_get_order_notes( array( 'order_id' => $order->get_id() ) ),
+				static fn( $n ): bool => str_contains( (string) $n->content, $phrase )
+			)
+		);
+		Ledger::on_status( $order->get_id(), 'processing', 'completed', $order );
+		ts_eq( $compte(), 0, 'une commande réglée a reçu la note du solde manquant' );
 		$order->delete( true );
 	} );
 

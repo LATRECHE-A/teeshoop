@@ -348,11 +348,30 @@ final class Invoice {
 		 * `wc_get_is_paid_statuses`), which is the same definition the shop's
 		 * reports use, so this cannot drift away from what an operator sees.
 		 */
-		if ( ! $order->is_paid() ) {
+		// Or the ledger says so: the balance of a deposit order settles it while
+		// its status stays at the proof or in production (`Ledger::follow`).
+		if ( ! $order->is_paid() && Settlement::PAID !== Ledger::state( $order ) ) {
 			return new \WP_Error(
 				'teeshoop_not_paid',
 				__( 'Cette commande n’est pas réglée : rien n’est facturé tant qu’elle ne l’est pas.', 'teeshoop' )
 			);
+		}
+
+		/*
+		 * THE ACOMPTE DOCUMENTS FIRST, when one is missing (CMD-04). Every receipt
+		 * but the one that settled the order carries its own, and `compose` refuses
+		 * to close over a gap. A document refused when its money arrived (the legal
+		 * identity was incomplete, the lock was busy) had no other road back, so
+		 * the closing one could never be issued. `issue_deposit` is idempotent on
+		 * the receipt's reference, so this issues the missing ones and nothing
+		 * twice; one still refused leaves `compose` below to say why.
+		 */
+		$receipts = Ledger::receipts( $order );
+		foreach ( array_slice( $receipts, 0, -1 ) as $receipt ) {
+			self::issue_deposit( $order, $receipt );
+		}
+		if ( count( $receipts ) > 1 ) {
+			$order = wc_get_order( $order->get_id() ) ?: $order;
 		}
 
 		$doc = self::compose( $order );

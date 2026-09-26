@@ -217,6 +217,22 @@ function ts_schema_suite(): void {
 	);
 
 	ts_it(
+		'names the Paris time zone over a fixed offset, and leaves a chosen one alone',
+		function (): void {
+			// CMD-03 : la production tournait en UTC+1 fixe, sans heure d'été.
+			$avant = (string) get_option( 'timezone_string', '' );
+			update_option( 'timezone_string', '' );
+			update_option( 'gmt_offset', 1 );
+			ts_eq( Schema::step_fuseau(), 'Europe/Paris', 'le fuseau n’a pas été posé' );
+			ts_eq( wp_timezone_string(), 'Europe/Paris', 'WordPress ne lit pas le fuseau posé' );
+			update_option( 'timezone_string', 'Europe/Brussels' );
+			Schema::step_fuseau();
+			ts_eq( (string) get_option( 'timezone_string' ), 'Europe/Brussels', 'un fuseau choisi a été réécrit' );
+			update_option( 'timezone_string', $avant );
+		}
+	);
+
+	ts_it(
 		'unpublishes an empty Elementor page and its menu entry, and leaves a written page alone',
 		function (): void {
 			$vide = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'Services', 'post_name' => 'services', 'post_content' => '' ) );

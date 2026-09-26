@@ -168,7 +168,35 @@ final class Schema {
 				'auto'  => false,
 				'run'   => array( self::class, 'step_restes_ancienne_installation' ),
 			),
+			// Une option, rien d'autre : l'API des options existe dès `plugins_loaded`.
+			array(
+				'id'    => 10,
+				'label' => 'Fuseau horaire de Paris, heure d’été comprise',
+				'auto'  => true,
+				'run'   => array( self::class, 'step_fuseau' ),
+			),
 		);
+	}
+
+	/**
+	 * Le fuseau du site : Europe/Paris, quand aucun fuseau nommé n'est choisi.
+	 *
+	 * LA PRODUCTION TOURNAIT EN UTC+1 FIXE (« gmt_offset »: 1, « timezone_string »
+	 * vide, lu sur /wp-json/ le 26/09/2026), donc sans heure d'été : un bon à tirer
+	 * validé à 15 h 30 à Paris était daté 14 h 30 sur la page, dans le courriel et
+	 * sur la copie PDF qui sert de preuve, et un encaissement saisi entre minuit et
+	 * une heure l'était de la veille (CMD-03). Tout le domaine passe par
+	 * `wp_date()`, donc la cause est ce réglage et c'est lui qu'on pose.
+	 *
+	 * UN FUSEAU NOMMÉ DÉJÀ CHOISI N'EST PAS RÉÉCRIT : il a été décidé par quelqu'un.
+	 * Un décalage fixe ou rien du tout ne l'a été par personne.
+	 */
+	public static function step_fuseau(): string {
+		if ( '' !== (string) get_option( 'timezone_string', '' ) ) {
+			return 'déjà nommé : ' . (string) get_option( 'timezone_string' );
+		}
+		update_option( 'timezone_string', 'Europe/Paris' );
+		return 'Europe/Paris';
 	}
 
 	/**
