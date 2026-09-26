@@ -75,6 +75,20 @@ class Apercu3d {
   private readonly ctx: Contexte
   private readonly creation: () => Design
   private scene: { arreter(): void } | null = null
+  /**
+   * LE CANEVAS DE LA SCÈNE EN COURS, gardé d'un rendu à l'autre (EDI-03).
+   *
+   * `rendre()` recréait un canevas à chaque appel : « Voir chez vous » montait
+   * alors une seconde scène sur le nouveau pendant que la première tournait
+   * toujours sur l'ancien, détaché, avec son contexte WebGL et son GLB de
+   * plusieurs mégaoctets ; un échec du dépôt laissait un canevas vide à la place
+   * de l'aperçu. Le même noeud est maintenant rattaché, donc la scène qu'on
+   * regarde continue. Il n'est remplacé qu'avec la scène : `arreter()` perd son
+   * contexte exprès, et un canevas arrêté ne resert pas.
+   */
+  private canvas: HTMLCanvasElement | null = null
+  /** Chaque construction a son numéro ; une réponse d'une autre ne pose rien. */
+  private sequence = 0
   private urlBlob = ''
   private silhouette: 'male' | 'female' = 'male'
   private ferme = false
@@ -107,6 +121,7 @@ class Apercu3d {
   private arreterScene(): void {
     this.scene?.arreter()
     this.scene = null
+    this.canvas = null
     if (this.urlBlob !== '') {
       URL.revokeObjectURL(this.urlBlob)
       this.urlBlob = ''
@@ -114,6 +129,13 @@ class Apercu3d {
   }
 
   private async construire(): Promise<void> {
+    /*
+     * FEMME PUIS HOMME PENDANT LA CONSTRUCTION faisait deux constructions et deux
+     * montages, le second par-dessus le premier sans l'arrêter, et le modèle
+     * affiché pouvait être celui de la silhouette non cochée.
+     */
+    const seq = ++this.sequence
+    const perimee = (): boolean => this.ferme || seq !== this.sequence
     this.arreterScene()
     this.modele = null
     this.message = MOTS.construction
@@ -123,7 +145,7 @@ class Apercu3d {
         import('@/lib/arExport'),
         import('@/content/sizeChart'),
       ])
-      if (this.ferme) return
+      if (perimee()) return
       /*
        * LES AVATARS SONT SUR LE WORKER, PAS SUR LA BOUTIQUE.
        *
@@ -135,27 +157,30 @@ class Apercu3d {
        */
       configureArAssets(this.ctx.workerUrl)
       const taille = (this.ctx.tailleTarif || DEFAULT_SIZE) as never
-      this.modele = await buildArModel(this.creation(), this.silhouette, taille)
-      if (this.ferme) return
+      const modele = await buildArModel(this.creation(), this.silhouette, taille)
+      if (perimee()) return
+      this.modele = modele
       this.message = ''
       this.rendre()
-      this.monterScene()
+      this.monterScene(perimee)
     } catch {
-      if (this.ferme) return
+      if (perimee()) return
       this.message = MOTS.echecConstruction
       this.rendre()
     }
   }
 
-  private monterScene(): void {
-    const canvas = this.zone.querySelector<HTMLCanvasElement>('.tshop-ed__canvas3d')
-    if (!canvas || !this.modele) return
-    this.urlBlob = URL.createObjectURL(this.modele.glb)
+  /** Monte la scène sur le canevas que `rendre()` vient de rattacher, une fois. */
+  private monterScene(perimee: () => boolean): void {
+    const canvas = this.canvas
+    if (!canvas || !this.modele || this.scene) return
+    const url = URL.createObjectURL(this.modele.glb)
+    this.urlBlob = url
     void import('@/lib/glbStage').then(({ monterGlb }) => {
-      if (this.ferme) return
+      if (perimee() || this.canvas !== canvas) return
       this.scene = monterGlb(
         canvas,
-        this.urlBlob,
+        url,
         () => {},
         () => {
           this.message = MOTS.echecRendu
@@ -175,6 +200,9 @@ class Apercu3d {
    */
   private async essayer(): Promise<void> {
     if (!this.modele) return
+    const modele = this.modele
+    const seq = this.sequence
+    const perimee = (): boolean => this.ferme || seq !== this.sequence
     if (this.ctx.workerUrl === '') {
       this.message = MOTS.arSansDepot
       this.rendre()
@@ -187,17 +215,17 @@ class Apercu3d {
         import('@/lib/arExport'),
         import('@/lib/qr'),
       ])
-      if (this.ferme) return
-      const id = await uploadArModel(this.modele, { endpoint: this.ctx.workerUrl })
-      if (this.ferme) return
+      if (perimee()) return
+      const id = await uploadArModel(modele, { endpoint: this.ctx.workerUrl })
+      if (perimee()) return
       const lien = `${this.ctx.workerUrl}/v/${id}`
       const qr = await makeQrDataUrl(lien)
-      if (this.ferme) return
+      if (perimee()) return
       this.message = ''
+      // La scène tourne déjà sur le canevas que ce rendu rattache.
       this.rendre({ qr, lien })
-      this.monterScene()
     } catch {
-      if (this.ferme) return
+      if (perimee()) return
       this.message = MOTS.arEchec
       this.rendre()
     }
@@ -237,9 +265,11 @@ class Apercu3d {
     this.zone.append(groupe)
 
     const scene = el('div', 'tshop-ed__scene3d')
-    const canvas = el('canvas', 'tshop-ed__canvas3d')
-    canvas.setAttribute('data-teeshoop', 'apercu-3d')
-    scene.append(canvas)
+    if (!this.canvas) {
+      this.canvas = el('canvas', 'tshop-ed__canvas3d')
+      this.canvas.setAttribute('data-teeshoop', 'apercu-3d')
+    }
+    scene.append(this.canvas)
     this.zone.append(scene)
 
     if (this.message !== '') {

@@ -1411,9 +1411,13 @@ class Instance implements Editeur {
 
   private retirerLigne(couleur: string): void {
     const avant = this.quantite()
+    const i = this.lignes.findIndex((l) => l.couleur === couleur)
+    const voisine = this.lignes[i + 1] ?? this.lignes[i - 1]
     this.lignes = this.lignes.filter((l) => l.couleur !== couleur)
     this.lisibilite.delete(couleur)
-    this.rendreMatrice()
+    // Le bouton cliqué n'existe plus : le focus va au « Retirer » de la ligne
+    // voisine, puis aux coloris à ajouter.
+    this.rendreMatrice(voisine ? [`retirer:${voisine.couleur}`] : [])
     this.rendreApercus()
     // Le prix ne change que si la ligne portait des pièces : rechiffrer une
     // commande identique ferait clignoter le montant pour rien.
@@ -1426,7 +1430,8 @@ class Instance implements Editeur {
   private choisirLigne(couleur: string): void {
     if (this.lignes.some((l) => l.couleur === couleur)) return
     this.ajouterLigne(couleur)
-    this.rendreMatrice()
+    // La pastille cliquée a quitté la liste ; la suite est de remplir la ligne.
+    this.rendreMatrice([`qte:${couleur}:${this.ctx.tailles[0] ?? ''}`])
     this.rendreApercus()
   }
 
@@ -2028,7 +2033,44 @@ class Instance implements Editeur {
     else if (actif === retablir && retablir.disabled && !annuler.disabled) annuler.focus()
   }
 
+  /**
+   * LE FOCUS SURVIT AU RENDU QUI DÉTRUIT SON BOUTON (EDI-05).
+   *
+   * Les pastilles, la barre d'outils et la grille sont recréées à chaque rendu.
+   * Un client au clavier qui choisissait un coloris, centrait, retirait ou
+   * ajoutait une ligne voyait le bouton activé détruit sous lui : le focus
+   * tombait sur le corps du document, loin de là où il était, et les raccourcis
+   * de l'éditeur (écoutés sur son conteneur) cessaient de répondre. Les faces
+   * avaient eu le même défaut, réglé en construisant leurs boutons une fois.
+   *
+   * Ici chaque commande porte une clé (`data-focus`) ; si le focus était dans la
+   * zone, il revient à la commande de même clé, sinon à la première des clés de
+   * repli qui existe, sinon à la première commande de la zone, sinon au
+   * conteneur de l'éditeur. Il n'est jamais DÉPLACÉ s'il n'était pas dans la zone.
+   */
+  private garderFocus(zone: HTMLElement, dessiner: () => void, repli: string[] = []): void {
+    const actif = document.activeElement
+    const dedans = actif instanceof HTMLElement && zone.contains(actif)
+    const cle = dedans ? (actif.dataset.focus ?? '') : ''
+    dessiner()
+    if (!dedans || zone.contains(document.activeElement)) return
+    for (const k of [cle, ...repli]) {
+      if (k === '') continue
+      const cible = zone.querySelector<HTMLElement>(`[data-focus="${CSS.escape(k)}"]`)
+      if (cible && !cible.closest('[hidden]')) {
+        cible.focus()
+        return
+      }
+    }
+    const premier = zone.hidden ? null : zone.querySelector<HTMLElement>('button, input, [tabindex="0"]')
+    ;(premier ?? this.hote).focus()
+  }
+
   private rendreCouleurs(): void {
+    this.garderFocus(this.noeuds.couleurs, () => this.dessinerCouleurs())
+  }
+
+  private dessinerCouleurs(): void {
     const zone = this.noeuds.couleurs
     vider(zone)
     if (this.ctx.couleurs.length === 0) {
@@ -2050,6 +2092,7 @@ class Instance implements Editeur {
       // la couleur. Montrer « Rose » en rose pâle sur un vêtement qui arrivera
       // fuchsia est un chiffre fabriqué qui atteint un client.
       b.setAttribute('aria-label', c.nom)
+      b.dataset.focus = `couleur:${c.id}`
       b.style.setProperty('--pastille', fond(c.teintes))
       b.addEventListener('click', () => this.choisirCouleur(c.id))
       zone.append(b)
@@ -2099,7 +2142,11 @@ class Instance implements Editeur {
    * doit être atteignable au clavier, WCAG 2.1.1) et un rôle de groupe nommé,
    * pour que ce défilement soit annoncé au lieu d'être découvert.
    */
-  private rendreMatrice(): void {
+  private rendreMatrice(repli: string[] = []): void {
+    this.garderFocus(this.noeuds.matrice, () => this.dessinerMatrice(), repli)
+  }
+
+  private dessinerMatrice(): void {
     const zone = this.noeuds.matrice
     vider(zone)
 
@@ -2207,6 +2254,7 @@ class Instance implements Editeur {
        * cases ne se remplit pas au clavier.
        */
       champ.setAttribute('aria-label', COPIE.quantitePour(taille, nom))
+      champ.dataset.focus = `qte:${ligne.couleur}:${taille}`
       champ.addEventListener('input', () => this.saisirQuantite(ligne.couleur, taille, champ.value))
       /*
        * Sur `change` et pas sur `input` : normaliser à chaque frappe mangerait
@@ -2233,6 +2281,7 @@ class Instance implements Editeur {
     oter.className = 'tshop-ed__outil tshop-ed__outil--retirer'
     oter.textContent = COPIE.retirer
     oter.setAttribute('aria-label', COPIE.retirerColoris(nom))
+    oter.dataset.focus = `retirer:${ligne.couleur}`
     oter.addEventListener('click', () => this.retirerLigne(ligne.couleur))
     actions.append(oter)
     tr.append(actions)
@@ -2271,6 +2320,7 @@ class Instance implements Editeur {
       b.className = 'tshop-ed__pastille'
       b.title = c.nom
       b.setAttribute('aria-label', c.nom)
+      b.dataset.focus = `ajout:${c.id}`
       b.style.setProperty('--pastille', fond(c.teintes))
       b.addEventListener('click', () => this.choisirLigne(c.id))
       liste.append(b)
@@ -2544,6 +2594,10 @@ class Instance implements Editeur {
    * Les contrôles d'un objet n'existent que quand cet objet est sélectionné.
    */
   private rendreOutils(): void {
+    this.garderFocus(this.noeuds.outils, () => this.dessinerOutils())
+  }
+
+  private dessinerOutils(): void {
     const zone = this.noeuds.outils
     const calque = this.creation.layers.find((l) => l.id === this.selection)
     if (!calque) {
@@ -2567,12 +2621,14 @@ class Instance implements Editeur {
     centrer.type = 'button'
     centrer.className = 'tshop-ed__outil'
     centrer.textContent = COPIE.centrer
+    centrer.dataset.focus = 'centrer'
     centrer.addEventListener('click', () => this.centrerSelection())
 
     const retirer = document.createElement('button')
     retirer.type = 'button'
     retirer.className = 'tshop-ed__outil tshop-ed__outil--retirer'
     retirer.textContent = COPIE.retirer
+    retirer.dataset.focus = 'retirer'
     retirer.addEventListener('click', () => this.supprimerSelection())
 
     if (mesure) zone.append(taille)

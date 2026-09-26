@@ -12,7 +12,9 @@
  * couture, dans l'ordre des clics et des réponses : un second clic sur
  * « Ajouter au panier » qui déposait une seconde ligne (EDI-01), un devis en
  * retard qui écrasait celui de l'écran (EDI-02), un focus qui tombait en haut de
- * la page à la fin de l'achat. Pour les voir il faut maîtriser QUAND chaque
+ * la page à la fin de l'achat, une scène WebGL qui continuait de tourner
+ * derrière l'aperçu en volume (EDI-03), des boutons détruits sous le focus du
+ * clavier (EDI-05). Pour les voir il faut maîtriser QUAND chaque
  * réponse arrive, et c'est ce que ce harnais fait : il sert le paquet construit
  * sur une origine inventée et répond lui-même, au fil, à la boutique et au
  * Worker. Le code qui tourne est celui que la fiche produit charge.
@@ -31,6 +33,7 @@ import { chromium } from 'playwright'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const ASSETS = join(ROOT, 'wp-plugins/teeshoop-core/assets/editeur')
+const MODELES = join(ROOT, 'public/models')
 const ORIGINE = 'http://boutique.test'
 const WORKER = 'http://worker.test'
 const PAGE = `${ORIGINE}/produit/harnais/`
@@ -115,6 +118,21 @@ const inconnues = []
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
 const erreurs = []
+/*
+ * CHAQUE CONTEXTE WebGL CRÉÉ EST RETENU, pour pouvoir compter ceux qui vivent
+ * encore. Une scène arrêtée perd le sien exprès (`glbStage`, `forceContextLoss`) ;
+ * une scène oubliée garde le sien et sa boucle de rendu.
+ */
+await page.addInitScript(() => {
+  const avant = HTMLCanvasElement.prototype.getContext
+  window.__gl = []
+  HTMLCanvasElement.prototype.getContext = function (type, ...reste) {
+    const c = avant.call(this, type, ...reste)
+    if (c && /webgl/.test(String(type)) && !window.__gl.includes(c)) window.__gl.push(c)
+    return c
+  }
+})
+const vivants = () => page.evaluate(() => window.__gl.filter((c) => !c.isContextLost()).length)
 page.on('pageerror', (e) => erreurs.push(`pageerror: ${e.message}`))
 page.on('console', (m) => {
   if (m.type() === 'error') erreurs.push(`console: ${m.text()}`)
@@ -155,6 +173,23 @@ await page.route('**/*', async (route) => {
       body: JSON.stringify({ cart_count: panier.length, cart_url: `${ORIGINE}/panier/` }),
     })
   }
+  if (url.origin === WORKER && url.pathname.startsWith('/models/')) {
+    try {
+      const corps = readFileSync(join(MODELES, url.pathname.slice('/models/'.length)))
+      return route.fulfill({ status: 200, contentType: 'model/gltf-binary', headers: { 'access-control-allow-origin': '*' }, body: corps })
+    } catch {
+      inconnues.push(req.url())
+      return route.fulfill({ status: 404, body: '' })
+    }
+  }
+  if (url.origin === WORKER && url.pathname === '/api/ar' && req.method() === 'POST') {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': ORIGINE },
+      body: JSON.stringify({ id: 'arharnais00000001' }),
+    })
+  }
   if (url.origin === WORKER && url.pathname === '/api/design' && req.method() === 'POST') {
     depots++
     if (lentDepot > 0) await new Promise((r) => setTimeout(r, lentDepot))
@@ -182,6 +217,23 @@ async function attendreTotal(qty, delai = 20000) {
 const bouton = page.locator('[data-teeshoop="add-to-cart"]')
 const etatBouton = () => bouton.evaluate((b) => ({ disabled: b.disabled, texte: (b.textContent ?? '').trim() }))
 const qte = page.locator('input.tshop-ed__qte').first()
+// Ce qui a le focus, nommé comme un lecteur d'écran le nommerait.
+const focusSur = () =>
+  page.evaluate(() => {
+    const a = document.activeElement
+    if (!a || a === document.body) return 'BODY'
+    const nom = a.getAttribute('aria-label') || (a.textContent ?? '').trim().slice(0, 30)
+    return `${a.tagName} ${nom}${a.closest('[data-teeshoop-editeur]') ? '' : ' (hors éditeur)'}`.trim()
+  })
+// Les commandes sont visées par leur rôle et leur nom, comme un utilisateur.
+const pastilleAjout = (nom) => page.locator('.tshop-ed__ajout').getByRole('button', { name: nom, exact: true })
+const pastille = (nom) => page.locator('.tshop-ed__couleurs[role="radiogroup"], .tshop-ed__couleurs').first().getByRole('radio', { name: nom, exact: true })
+const outil = (nom) => page.locator('.tshop-ed__outils').getByRole('button', { name: nom, exact: true })
+async function auClavier(cible) {
+  await cible.focus()
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(400)
+}
 
 try {
   await page.goto(PAGE)
@@ -196,6 +248,12 @@ try {
   }, null, { timeout: 30000 })
   await valider.click()
   await qte.waitFor({ timeout: 20000 })
+
+  // ── EDI-05 : la grille au clavier ──────────────────────────────────────
+  await auClavier(pastilleAjout('Blanc'))
+  ok('ajouter un coloris au clavier mène à sa première case', /^INPUT .*S.*Blanc/.test(await focusSur()), await focusSur())
+  await auClavier(page.getByRole('button', { name: 'Retirer le coloris Blanc', exact: true }))
+  ok('le retirer rend le focus au « Retirer » de la ligne voisine', (await focusSur()) === 'BUTTON Retirer le coloris Noir', await focusSur())
 
   // ── un premier achat ───────────────────────────────────────────────────
   await qte.fill('40')
@@ -240,6 +298,45 @@ try {
   )
   const pendant = await etatBouton()
   ok('et l’écran, qui n’est pas ce qui a été ajouté, reste achetable', !pendant.disabled && pendant.texte === 'Ajouter au panier', JSON.stringify(pendant))
+
+  // ── EDI-05 : les pastilles et la barre d'outils au clavier ─────────────
+  await page.locator('[data-teeshoop="revenir-creation"]').click()
+  await auClavier(pastille('Blanc'))
+  ok('choisir un coloris au clavier garde le focus sur sa pastille', (await focusSur()) === 'BUTTON Blanc', await focusSur())
+  await auClavier(outil('Centrer'))
+  ok('« Centrer » au clavier garde le focus sur « Centrer »', (await focusSur()) === 'BUTTON Centrer', await focusSur())
+
+  // ── EDI-03 : l'aperçu en volume, une scène à la fois ────────────────────
+  await page.locator('[data-teeshoop="vue-avancee"]').click()
+  await page.locator('[data-teeshoop="apercu-volume"]').click()
+  await page.locator('[data-teeshoop="essayer-ar"]').waitFor({ timeout: 120000 })
+  await page.waitForFunction(() => window.__gl.some((c) => !c.isContextLost()), null, { timeout: 60000 })
+  ok('l’aperçu en volume tourne sur une scène', (await vivants()) === 1, `${await vivants()} contexte(s) vivant(s)`)
+
+  await page.locator('[data-teeshoop="essayer-ar"]').click()
+  await page.locator('[data-teeshoop="ar-pret"]').waitFor({ timeout: 60000 })
+  await page.waitForTimeout(2000)
+  ok('« Voir chez vous » n’en monte pas une seconde derrière la première', (await vivants()) === 1, `${await vivants()} contexte(s) vivant(s)`)
+  const memeScene = await page.evaluate(() => {
+    const c = document.querySelector('[data-teeshoop="apercu-3d"]')
+    return !!c && window.__gl.some((g) => g.canvas === c && !g.isContextLost())
+  })
+  ok('et l’aperçu visible est la scène qui tourne', memeScene)
+
+  // Femme puis Homme pendant la construction : une seule scène au bout.
+  const silhouettes = page.locator('.tshop-ed__apercu [role="radio"]')
+  await silhouettes.nth(1).click()
+  await silhouettes.nth(0).click()
+  await page.locator('[data-teeshoop="essayer-ar"]').waitFor({ timeout: 120000 })
+  await page.waitForFunction(() => window.__gl.some((c) => !c.isContextLost()), null, { timeout: 60000 })
+  await page.waitForTimeout(4000)
+  ok('deux changements de silhouette rapides laissent une seule scène', (await vivants()) === 1, `${await vivants()} contexte(s) vivant(s)`)
+
+  // En dernier, parce qu'il retire le visuel : le focus reste dans l'éditeur.
+  await page.locator('[data-teeshoop="vue-avancee"]').click()
+  await auClavier(outil('Retirer'))
+  const apresRetrait = await focusSur()
+  ok('« Retirer » au clavier laisse le focus dans l’éditeur', apresRetrait !== 'BODY' && !apresRetrait.endsWith('(hors éditeur)'), apresRetrait)
 } catch (e) {
   ok('le parcours va au bout', false, String(e?.message ?? e).split('\n')[0])
 } finally {
