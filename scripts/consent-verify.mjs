@@ -266,6 +266,25 @@ const main = async () => {
     await context.close()
   }
 
+  /* ----------------------------------------- changing one's mind ends somewhere */
+
+  {
+    /*
+     * DON-04. The footer control opens the panel on `?cookies=1`, and that URL
+     * was the return address: every save sent the visitor back to the open
+     * panel, so a withdrawal looked like it had not been taken.
+     */
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    await load(page, BASE + '/?cookies=1')
+    ok('le lien du pied de page ouvre le panneau', (await page.locator('#ts-consent').count()) > 0)
+    await page.click('#ts-consent button[name="rien"]')
+    await page.waitForLoadState('load')
+    ok('après le retrait, le retour ne porte plus le drapeau', !new URL(page.url()).searchParams.has('cookies'), page.url())
+    ok('et le panneau ne se rouvre pas', !(await page.locator('#ts-consent').count()))
+    await context.close()
+  }
+
   /* ------------------------------------------- a visitor who already carries them */
 
   {

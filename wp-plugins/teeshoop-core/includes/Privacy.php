@@ -256,10 +256,10 @@ final class Privacy {
 				 * actually reads.
 				 */
 				'duree'         => sprintf(
-					'Conservée %s jours après le dernier échange, soit trois ans, puis supprimée automatiquement.',
+					'Conservée %s jours après le dernier échange, soit trois ans, puis supprimée automatiquement avec la création qui y était jointe. Une demande acceptée n’est pas concernée : elle est la pièce d’origine de la commande et suit la conservation de celle-ci.',
 					Money::number( (float) Quote::KEEP_DAYS )
 				),
-				'mecanisme'     => 'Suppression automatique quotidienne (Quote::purge).',
+				'mecanisme'     => 'Suppression automatique quotidienne (Quote::purge), la création d’abord ; une demande dont la création n’a pas pu être supprimée est gardée et reprise le lendemain.',
 			),
 			array(
 				'cle'           => 'sav',

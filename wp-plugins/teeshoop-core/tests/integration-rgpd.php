@@ -31,6 +31,7 @@ if ( 'cli' !== PHP_SAPI ) {
 }
 
 use Teeshoop\Core\Privacy;
+use Teeshoop\Core\Quote;
 use Teeshoop\Core\Waiver;
 use Teeshoop\Core\Terms;
 use Teeshoop\Core\Legal;
@@ -753,6 +754,98 @@ function ts_rgpd_suite( int $product_id ): void {
 		}
 	);
 
+	ts_it(
+		'deletes the artwork of an expired quote request before the request, and keeps the request when it cannot',
+		function () {
+			/*
+			 * DON-06. The daily purge deleted the post and nothing else: the
+			 * artwork stayed on R2 with nothing left pointing at it, while the
+			 * register promised the person it was deleted.
+			 */
+			update_option(
+				'teeshoop_settings',
+				array_merge( (array) get_option( 'teeshoop_settings', array() ), array( 'worker_url' => 'https://worker.test' ) )
+			);
+			if ( ! defined( 'TEESHOOP_WORKER_TOKEN' ) ) {
+				define( 'TEESHOOP_WORKER_TOKEN', 'jeton-de-test' );
+			}
+			$design = 'purgedevis0000000001';
+			$id     = ts_rgpd_old_quote( 'ts-refuse', $design );
+
+			ts_rgpd_worker( 0 );
+			Quote::purge();
+			ts_assert( null !== get_post( $id ), 'la demande a été supprimée alors que sa création est toujours en ligne' );
+			ts_assert(
+				in_array( $design, array_map( static fn( array $c ): string => basename( $c['url'] ), ts_rgpd_calls() ), true ),
+				'la purge n’a même pas demandé la suppression de la création'
+			);
+
+			ts_rgpd_worker( 200 );
+			Quote::purge();
+			ts_eq( get_post( $id ), null, 'le lendemain, la création partie, la demande devait partir aussi' );
+			ts_eq( count( ts_rgpd_calls() ), 1, 'une seule suppression de création' );
+		}
+	);
+
+	ts_it(
+		'keeps an accepted quote, and counts a sent version as the last exchange',
+		function () {
+			/*
+			 * DON-07. The purge took accepted quotes, the firm offer an order was
+			 * made from, and ignored a version sent after the last edit, deleting
+			 * such a request months before its three years.
+			 */
+			ts_rgpd_worker( 200 );
+			$accepted = ts_rgpd_old_quote( 'ts-accepte', '' );
+			$binned   = ts_rgpd_old_quote( 'ts-accepte', '' );
+			wp_trash_post( $binned );
+			ts_rgpd_age( $binned );
+			$answered = ts_rgpd_old_quote( 'ts-envoye', '' );
+			$sent_at  = gmdate( 'c', time() - 30 * DAY_IN_SECONDS );
+			update_post_meta( $answered, Quote::META_VERSIONS, wp_json_encode( array( array( 'version' => 1, 'number' => 'ESSAIDE-1', 'date' => substr( $sent_at, 0, 10 ), 'at' => $sent_at ) ) ) );
+			$silent = ts_rgpd_old_quote( 'ts-refuse', '' );
+
+			Quote::purge();
+
+			ts_assert( null !== get_post( $accepted ), 'un devis accepté a été supprimé comme une demande restée sans suite' );
+			ts_assert( null !== get_post( $binned ), 'et un devis accepté mis à la corbeille aussi' );
+			ts_assert( null !== get_post( $answered ), 'une demande à laquelle un devis a répondu il y a un mois a été supprimée' );
+			ts_eq(
+				get_post( $answered )->post_modified_gmt,
+				gmdate( 'Y-m-d H:i:s', (int) strtotime( $sent_at ) ),
+				'et sa date de dernier échange n’a pas été rattrapée'
+			);
+			ts_eq( get_post( $silent ), null, 'la demande vraiment périmée est restée' );
+
+			foreach ( array( $accepted, $binned, $answered ) as $id ) {
+				wp_delete_post( $id, true );
+			}
+		}
+	);
+
 	remove_all_filters( 'pre_http_request' );
 	update_option( 'teeshoop_settings', $saved_settings );
+}
+
+/** A quote request last touched four years ago, past the three of the retention. */
+function ts_rgpd_old_quote( string $status, string $design ): int {
+	$id = wp_insert_post(
+		array(
+			'post_type'   => Quote::POST_TYPE,
+			'post_status' => $status,
+			'post_title'  => 'Demande périmée du harnais',
+		),
+		true
+	);
+	update_post_meta( $id, '_ts_email', 'perime@example.test' );
+	update_post_meta( $id, '_ts_design_id', $design );
+	ts_rgpd_age( $id );
+	return (int) $id;
+}
+
+function ts_rgpd_age( int $id ): void {
+	global $wpdb;
+	$old = gmdate( 'Y-m-d H:i:s', time() - 4 * YEAR_IN_SECONDS );
+	$wpdb->update( $wpdb->posts, array( 'post_modified' => $old, 'post_modified_gmt' => $old ), array( 'ID' => $id ) );
+	clean_post_cache( $id );
 }

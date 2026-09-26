@@ -1168,6 +1168,10 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		ts_assert( '' !== (string) $first['version']['number'], 'aucun numéro' );
 		ts_assert( (int) $first['version']['total_ht'] > 0, 'aucun prix' );
 
+		// Aged first, or the check below passes on a request created this second.
+		global $wpdb;
+		$wpdb->update( $wpdb->posts, array( 'post_modified' => '2022-01-01 00:00:00', 'post_modified_gmt' => '2022-01-01 00:00:00' ), array( 'ID' => $devis ) );
+		clean_post_cache( $devis );
 		$second = Quote::issue( $devis );
 		ts_eq( $second['version']['version'], 2, 'deuxième version' );
 		ts_assert(
@@ -1175,6 +1179,12 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 			'deux versions portent le même numéro'
 		);
 		ts_eq( count( Quote::versions( $devis ) ), 2, 'la chaîne garde les deux' );
+		// DON-07: an issued version is an exchange, and the retention runs from it.
+		ts_eq(
+			get_post( $devis )->post_modified_gmt,
+			gmdate( 'Y-m-d H:i:s', (int) strtotime( (string) $second['version']['at'] ) ),
+			'l’envoi d’un devis n’a pas daté le dernier échange'
+		);
 
 		/*
 		 * AND NOT OUT OF THE INVOICE'S COUNTER. Both series are a rehearsal one

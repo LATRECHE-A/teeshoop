@@ -532,7 +532,14 @@ final class Consent {
 	 * a page with the banner already dismissed would look like it worked.
 	 */
 	private static function back_to( string $back, bool $reopen ): string {
-		$url = '' !== $back ? $back : home_url( '/' );
+		/*
+		 * THE FLAG IS DROPPED FIRST (DON-04). The panel opened from the footer
+		 * sits on `?cookies=1`, that URL is the return field, and sending a
+		 * recorded choice back to it reopened the panel after every save: the
+		 * visitor who withdrew saw the same question again and had every reason
+		 * to think the withdrawal had not been taken.
+		 */
+		$url = remove_query_arg( 'cookies', '' !== $back ? $back : home_url( '/' ) );
 		return $reopen ? add_query_arg( 'cookies', '1', $url ) . '#ts-consent' : $url;
 	}
 

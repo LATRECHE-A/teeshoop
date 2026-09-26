@@ -180,34 +180,134 @@ final class Quote {
 	 * Delete requests nobody has touched for the retention period.
 	 *
 	 * Keyed on `post_modified`, which is the last time anyone changed the state
-	 * or the notes, so "our last exchange" is what it measures. Bounded per run
-	 * because this is shared hosting and a cron that times out half way through
-	 * deletes half a batch and never records that it did.
+	 * or the notes, and which `issue()` now moves too, so "our last exchange" is
+	 * what it measures. Bounded per run because this is shared hosting and a
+	 * cron that times out half way through deletes half a batch and never
+	 * records that it did.
+	 *
+	 * THE CREATION FIRST, AS THE ERASER DOES (DON-06). This deleted the post
+	 * and nothing else, so the artwork a prospect had attached stayed on R2
+	 * with nothing left pointing at it: impossible to find, impossible to
+	 * erase, while the register told that person it was « supprimée
+	 * automatiquement ». The post meta is the only index; it goes last, and
+	 * only once the file is really gone. A request whose file could not be
+	 * deleted stays, and tomorrow's run tries again.
+	 *
+	 * AN ACCEPTED QUOTE IS NOT A REQUEST « RESTÉE SANS SUITE » (DON-07). It is
+	 * the firm offer an order was made from, and the conditions of sale only
+	 * promise the three years to a request that went nowhere. It is left to
+	 * the order's own retention.
 	 */
 	public static function purge(): void {
-		$cutoff = gmdate( 'Y-m-d H:i:s', time() - self::KEEP_DAYS * DAY_IN_SECONDS );
+		$cutoff  = gmdate( 'Y-m-d H:i:s', time() - self::KEEP_DAYS * DAY_IN_SECONDS );
+		$budget  = 200;
+		$kept    = 0;
+		$failed  = array();
 
-		$stale = get_posts(
-			array(
-				'post_type'      => self::POST_TYPE,
-				// The bin included: see `by_email()`. A request somebody binned
-				// is still a request we hold about a person, and it was escaping
-				// this sweep as well as the eraser.
-				'post_status'    => array_merge( array_keys( self::STATUSES ), array( 'trash' ) ),
-				'posts_per_page' => 200,
-				'fields'         => 'ids',
-				'date_query'     => array(
-					array(
-						'column' => 'post_modified_gmt',
-						'before' => $cutoff,
+		while ( $budget > 0 ) {
+			$stale = get_posts(
+				array(
+					'post_type'        => self::POST_TYPE,
+					// The bin included: see `by_email()`. A request somebody binned
+					// is still a request we hold about a person, and it was escaping
+					// this sweep as well as the eraser.
+					'post_status'      => array_merge( array_keys( self::STATUSES ), array( 'trash' ) ),
+					/*
+					 * PAST WHAT IS KEPT, because it stays in this window: an
+					 * accepted quote, or a file the Worker would not delete, would
+					 * otherwise fill the first page every night and the requests
+					 * behind it would never be reached.
+					 */
+					'offset'           => $kept,
+					'posts_per_page'   => min( 50, $budget ),
+					'fields'           => 'ids',
+					'orderby'          => array(
+						'modified' => 'ASC',
+						'ID'       => 'ASC',
 					),
-				),
-			)
-		);
+					'date_query'       => array(
+						array(
+							'column' => 'post_modified_gmt',
+							'before' => $cutoff,
+						),
+					),
+				)
+			);
+			if ( empty( $stale ) ) {
+				break;
+			}
 
-		foreach ( $stale as $id ) {
-			wp_delete_post( (int) $id, true );
+			foreach ( $stale as $id ) {
+				$id = (int) $id;
+				--$budget;
+
+				$status = (string) get_post_status( $id );
+				if ( 'trash' === $status ) {
+					$status = (string) get_post_meta( $id, '_wp_trash_meta_status', true );
+				}
+				if ( 'ts-accepte' === $status ) {
+					++$kept;
+					continue;
+				}
+
+				/*
+				 * A VERSION SENT AFTER THE LAST EDIT IS AN EXCHANGE. `issue()`
+				 * moves the date now; a request whose last version predates that
+				 * fix carries it only in the chain, and is moved here rather than
+				 * deleted months before its time.
+				 */
+				$sent = self::last_sent_gmt( $id );
+				if ( '' !== $sent && $sent >= $cutoff ) {
+					self::touch( $id, $sent );
+					continue;
+				}
+
+				$design = (string) get_post_meta( $id, '_ts_design_id', true );
+				if ( '' !== $design ) {
+					$r = Privacy::delete_design( $design );
+					if ( ! $r['ok'] ) {
+						++$kept;
+						$failed[] = $id . ' (' . $design . ' : ' . $r['reason'] . ')';
+						continue;
+					}
+				}
+
+				wp_delete_post( $id, true );
+			}
 		}
+
+		if ( ! empty( $failed ) ) {
+			// Not behind WP_DEBUG: a retention the site announces and could not
+			// keep is something the operator has to be able to find.
+			error_log( '[teeshoop] purge des devis : création non supprimée, demande gardée pour le prochain passage : ' . implode( ', ', $failed ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		}
+	}
+
+	/** The GMT time the last version was sent, 'Y-m-d H:i:s', or ''. */
+	private static function last_sent_gmt( int $post_id ): string {
+		$current = self::current( $post_id );
+		$at      = is_array( $current ) ? strtotime( (string) ( $current['at'] ?? '' ) ) : false;
+		return false === $at ? '' : gmdate( 'Y-m-d H:i:s', $at );
+	}
+
+	/**
+	 * Move a request's last-exchange date without saving it through WordPress.
+	 *
+	 * Written directly because `wp_update_post` would run every `save_post`
+	 * hook for a change that is only a date, and the date is the whole point.
+	 */
+	private static function touch( int $post_id, string $gmt = '' ): void {
+		global $wpdb;
+		$gmt = '' === $gmt ? gmdate( 'Y-m-d H:i:s' ) : $gmt;
+		$wpdb->update(
+			$wpdb->posts,
+			array(
+				'post_modified'     => get_date_from_gmt( $gmt ),
+				'post_modified_gmt' => $gmt,
+			),
+			array( 'ID' => $post_id )
+		);
+		clean_post_cache( $post_id );
 	}
 
 	/** WordPress's own export tool must find these rows. */
@@ -1585,6 +1685,9 @@ final class Quote {
 
 		$versions[] = $version;
 		update_post_meta( $post_id, self::META_VERSIONS, wp_json_encode( $versions ) );
+		// Sending a quote is an exchange, and the retention runs from the last
+		// one (DON-07): leaving the date alone deleted a request months early.
+		self::touch( $post_id, gmdate( 'Y-m-d H:i:s', (int) strtotime( (string) $version['at'] ) ) );
 
 		return array(
 			'ok'      => true,
