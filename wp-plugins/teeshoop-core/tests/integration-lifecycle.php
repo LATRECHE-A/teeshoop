@@ -668,6 +668,38 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 	} );
 
 	/*
+	 * THE SHOP'S OWN MAILBOX, BEFORE ANY BREVO KEY: a constant cannot be
+	 * undefined, and once the key below exists it takes precedence.
+	 */
+	ts_it( 'sends through the shop’s mailbox when there is no Brevo key, and only in production', function () use ( $product_id ) {
+		foreach ( array( 'HOST' => 'mail.teeshoop.test', 'USER' => 'commandes@teeshoop.test', 'PASSWORD' => 'mot-de-passe-de-verification' ) as $k => $v ) {
+			if ( ! defined( 'TEESHOOP_SMTP_' . $k ) ) {
+				define( 'TEESHOOP_SMTP_' . $k, $v );
+			}
+		}
+		ts_assert( Mail::smtp_configured(), 'the three constants do not configure the mailbox' );
+
+		// The message goes out, and the outbox says by which road.
+		add_filter( 'pre_wp_mail', '__return_true' );
+		$order  = ts_lc_order( $product_id );
+		$sent   = ts_lc_send_bat( $order, Bat::issue( $order ) );
+		remove_filter( 'pre_wp_mail', '__return_true' );
+		ts_assert( $sent['ok'], 'production refused a configured mailbox: ' . $sent['reason'] );
+		$rows = Mail::for_order( $order->get_id() );
+		ts_eq( $rows[ count( $rows ) - 1 ]->transport, 'smtp', 'the transport is not said' );
+		$order->delete( true );
+
+		// PHPMailer is pointed at the mailbox in production, and nowhere else.
+		require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+		$prod = new \PHPMailer\PHPMailer\PHPMailer();
+		Mail::configure_smtp( $prod, 'production' );
+		ts_eq( array( $prod->Mailer, $prod->Host, $prod->Port, $prod->SMTPSecure, $prod->SMTPAuth, $prod->Username, $prod->Sender ), array( 'smtp', 'mail.teeshoop.test', 465, 'ssl', true, 'commandes@teeshoop.test', 'commandes@teeshoop.test' ), 'the production mailer' );
+		$copy = new \PHPMailer\PHPMailer\PHPMailer();
+		Mail::configure_smtp( $copy, 'staging' );
+		ts_eq( $copy->Mailer, 'mail', 'the preproduction was pointed at the real mailbox' );
+	} );
+
+	/*
 	 * FROM HERE ON THERE IS A KEY. `Mail::api_key()` reads a wp-config constant,
 	 * which is how the real secret is held (never an option: those are dumped by
 	 * every backup and editable from the admin). A constant cannot be undefined,

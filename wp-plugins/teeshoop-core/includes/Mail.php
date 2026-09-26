@@ -81,6 +81,7 @@ final class Mail {
 		add_action( 'admin_post_' . self::ACTION_RETRY, array( self::class, 'handle_retry' ) );
 		add_action( 'admin_notices', array( self::class, 'stuck_notice' ) );
 		add_action( 'admin_menu', array( self::class, 'menu' ) );
+		add_action( 'phpmailer_init', array( self::class, 'configure_smtp' ) );
 	}
 
 	public static function table(): string {
@@ -194,6 +195,11 @@ final class Mail {
 			return self::brevo( $message, $key );
 		}
 
+		// The shop's own mailbox, when there is no Brevo key. See `configure_smtp`.
+		if ( self::smtp_configured() ) {
+			return self::wp_mail_fallback( $message, $environment, 'smtp' );
+		}
+
 		if ( 'production' === $environment ) {
 			/*
 			 * FAIL CLOSED, and loudly. An unset secret denies everything: the
@@ -204,7 +210,7 @@ final class Mail {
 			 */
 			return array(
 				'ok'         => false,
-				'reason'     => 'TEESHOOP_BREVO_KEY n’est pas définie dans wp-config.php : rien n’a été envoyé.',
+				'reason'     => 'TEESHOOP_BREVO_KEY n’est pas définie dans wp-config.php, ni les constantes TEESHOOP_SMTP_* : rien n’a été envoyé.',
 				'transport'  => '',
 				'message_id' => '',
 			);
@@ -354,20 +360,66 @@ final class Mail {
 	 *
 	 * @return array{ok:bool,reason:string,transport:string,message_id:string}
 	 */
-	private static function wp_mail_fallback( array $message, string $environment ): array {
+	private static function wp_mail_fallback( array $message, string $environment, string $transport = 'wp_mail' ): array {
 		$from = self::sender();
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 		if ( '' !== $from['email'] ) {
 			$headers[] = sprintf( 'From: %s <%s>', $from['name'], $from['email'] );
 		}
+		if ( '' !== $from['reply_to'] ) {
+			$headers[] = 'Reply-To: ' . $from['reply_to'];
+		}
 		$ok = wp_mail( (string) $message['to'], (string) $message['subject'], (string) $message['html'], $headers );
 
 		return array(
 			'ok'         => (bool) $ok,
-			'reason'     => $ok ? '' : sprintf( 'wp_mail a échoué (environnement %s, aucune clé Brevo).', $environment ),
-			'transport'  => 'wp_mail',
+			'reason'     => $ok ? '' : sprintf( 'wp_mail a échoué (environnement %1$s, transport %2$s).', $environment, $transport ),
+			'transport'  => $transport,
 			'message_id' => '',
 		);
+	}
+
+	/*
+	 * ── THE SHOP'S OWN MAILBOX ──────────────────────────────────────────────
+	 *
+	 * Without a Brevo key, production sent nothing at all, and WooCommerce's
+	 * own messages (« commande reçue ») left through PHP's `mail()` as a Gmail
+	 * address the server cannot sign. The domain's mail is hosted on the same
+	 * account, with SPF, DKIM and DMARC valid (checked in cPanel on
+	 * 26/09/2026), so the authenticated mailbox is the natural carrier.
+	 *
+	 * CONSTANTS AND NEVER OPTIONS, for the reason `api_key()` gives: a mailbox
+	 * password can send mail as the shop to anybody. PRODUCTION ONLY, so the
+	 * preproduction's circuit-breaker on `pre_wp_mail` stays the only thing a
+	 * copied order can reach. Every `wp_mail` in production goes this way, the
+	 * shop's messages and WooCommerce's alike.
+	 */
+	public static function smtp_configured(): bool {
+		return '' !== self::smtp( 'HOST' ) && '' !== self::smtp( 'USER' ) && '' !== self::smtp( 'PASSWORD' );
+	}
+
+	private static function smtp( string $key ): string {
+		$name = 'TEESHOOP_SMTP_' . $key;
+		return defined( $name ) ? trim( (string) constant( $name ) ) : '';
+	}
+
+	/**
+	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer
+	 * @param string|null                    $environment for the suite; the hook passes none.
+	 */
+	public static function configure_smtp( $phpmailer, ?string $environment = null ): void {
+		if ( 'production' !== ( $environment ?? Legal::environment() ) || ! self::smtp_configured() ) {
+			return;
+		}
+		$phpmailer->isSMTP();
+		$phpmailer->Host       = self::smtp( 'HOST' );
+		$phpmailer->Port       = (int) ( '' !== self::smtp( 'PORT' ) ? self::smtp( 'PORT' ) : 465 );
+		$phpmailer->SMTPSecure = 465 === $phpmailer->Port ? 'ssl' : 'tls';
+		$phpmailer->SMTPAuth   = true;
+		$phpmailer->Username   = self::smtp( 'USER' );
+		$phpmailer->Password   = self::smtp( 'PASSWORD' );
+		// The envelope sender is the mailbox that authenticated: SPF aligns on it.
+		$phpmailer->Sender = self::smtp( 'USER' );
 	}
 
 	/**
@@ -679,9 +731,11 @@ final class Mail {
 		printf(
 			'<p class="description" style="max-width:46em">%s</p>',
 			esc_html(
-				'' === $key
-					? 'Aucune clé Brevo n’est définie. En production, plus rien ne part et chaque message est enregistré ici comme échoué ; ailleurs, WordPress les envoie lui-même. La clé se pose dans wp-config.php : define( \'TEESHOOP_BREVO_KEY\', \'…\' );'
-					: 'Les messages partent par Brevo. Un envoi refusé garde le code et le message de Brevo, et se retente depuis cette page.'
+				'' !== $key
+					? 'Les messages partent par Brevo. Un envoi refusé garde le code et le message de Brevo, et se retente depuis cette page.'
+					: ( self::smtp_configured()
+						? 'Les messages partent par la boîte de la boutique (SMTP, constantes TEESHOOP_SMTP_* de wp-config.php). Un envoi refusé se retente depuis cette page.'
+						: 'Ni clé Brevo ni boîte SMTP. En production, plus rien ne part et chaque message est enregistré ici comme échoué ; ailleurs, WordPress les envoie lui-même. Posez dans wp-config.php soit TEESHOOP_BREVO_KEY, soit TEESHOOP_SMTP_HOST, TEESHOOP_SMTP_USER et TEESHOOP_SMTP_PASSWORD.' )
 			)
 		);
 
