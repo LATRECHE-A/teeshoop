@@ -2,23 +2,23 @@
   "_pourquoi": "Les versions que le dépôt SUPPOSE de chaque installation. Un déploiement les revérifie sur la cible avant d'installer quoi que ce soit, et refuse si elles ont bougé. Voir scripts/pin-verify.mjs.",
   "_comment_les_remesurer": "node scripts/pin-verify.mjs --cible=prod --relever",
   "_pourquoi_ce_fichier_existe": "Le miroir a dérivé d'une version majeure de WordPress sans que personne le décide, ce que wp-local/docker-compose.yml raconte. Le 02/09/2026 on a constaté que la dérive vient de la production elle-même : les mises à jour majeures automatiques sont ACTIVÉES (auto_update_core_major = enabled) sur la boutique et sur la préproduction. La production est passée en 7.1 le 20/08 et la préproduction pendant la séance 14, à 14 h 38, entre deux relevés faits à une heure d'intervalle. Un chiffre écrit dans un commentaire ne peut pas voir ça arriver ; celui-ci est relu par un contrôle.",
-  "mesure_le": "2026-09-02",
+  "mesure_le": "2026-09-26",
   "cibles": {
     "prod": {
       "_racine": "~/public_html",
-      "wordpress": "7.1",
+      "wordpress": "7.1.2",
       "woocommerce": "11.0.1",
       "php": "8.1"
     },
     "preprod": {
       "_racine": "~/myTiger-Preprod/4bde-26076daa9357.wptiger.fr",
-      "wordpress": "7.1",
+      "wordpress": "7.1.2",
       "woocommerce": "11.0.1",
       "php": "8.1"
     },
     "miroir": {
       "_racine": "wp-local/docker-compose.yml",
-      "wordpress": "7.1",
+      "wordpress": "7.1.2",
       "woocommerce": "11.0.1",
       "php": "8.3"
     }
