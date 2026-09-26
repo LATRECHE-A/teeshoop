@@ -52,8 +52,21 @@ defined( 'ABSPATH' ) || exit;
 require_once __DIR__ . '/inc/parts.php';
 require_once __DIR__ . '/inc/filters.php';
 
-/** Bumped when an asset changes, so a cached stylesheet is not served over a new one. */
+/** The theme's version, the base of every `?ver=` below. */
 const VERSION = '1.0.0';
+
+/**
+ * The `?ver=` of a theme file: the version and the file's mtime.
+ *
+ * `VERSION` was meant to be bumped by hand whenever an asset changed, and it
+ * never was: every deployment served `style.css?ver=1.0.0`, so a browser or the
+ * host's page cache kept the old sheet under the new markup. The mtime changes
+ * whenever a deployment replaces the file.
+ */
+function asset_version( string $relative ): string {
+	$mtime = @filemtime( get_stylesheet_directory() . '/' . $relative ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- a missing file keeps the plain version.
+	return false === $mtime ? VERSION : VERSION . '.' . $mtime;
+}
 
 /** The plugin class the whole site's numbers come from. */
 const CORE = '\\Teeshoop\\Core\\Pricing';
@@ -215,14 +228,14 @@ function assets(): void {
 	 * the browser would synthesise a counterfeit and nothing would say so.
 	 * `scripts/theme-fonts-check.mjs` is what makes that a rule and not a hope.
 	 */
-	wp_enqueue_style( 'teeshoop-fonts', $dir . '/assets/fonts.css', array(), VERSION );
+	wp_enqueue_style( 'teeshoop-fonts', $dir . '/assets/fonts.css', array(), asset_version( 'assets/fonts.css' ) );
 
 	if ( wp_style_is( 'teeshoop-components', 'registered' ) ) {
 		// Pulls `teeshoop-tokens` in with it, in the right order.
 		wp_enqueue_style( 'teeshoop-components' );
 	}
 
-	wp_enqueue_style( 'teeshoop-site', get_stylesheet_uri(), array( 'teeshoop-fonts' ), VERSION );
+	wp_enqueue_style( 'teeshoop-site', get_stylesheet_uri(), array( 'teeshoop-fonts' ), asset_version( 'style.css' ) );
 
 	/*
 	 * LE NUANCIER DE LA PAGE D'ACCUEIL, DANS L'EN-TÊTE ET PAS DANS LE CORPS.
@@ -253,7 +266,7 @@ function assets(): void {
 	 * that still sells. The `has-js` class set inline in `header.php` is what
 	 * lets the stylesheet collapse them with no flash of an open menu.
 	 */
-	wp_enqueue_script( 'teeshoop-site', $dir . '/assets/site.js', array(), VERSION, true );
+	wp_enqueue_script( 'teeshoop-site', $dir . '/assets/site.js', array(), asset_version( 'assets/site.js' ), true );
 
 	/*
 	 * THE QUOTE PAGE RENDERS A PLUGIN TEMPLATE, SO IT NEEDS THE PLUGIN'S SHEET.
@@ -271,7 +284,7 @@ function assets(): void {
 			'teeshoop-product',
 			TEESHOOP_CORE_URL . 'assets/product.css',
 			array( 'teeshoop-components' ),
-			\Teeshoop\Core\VERSION
+			function_exists( '\\Teeshoop\\Core\\asset_version' ) ? \Teeshoop\Core\asset_version( 'assets/product.css' ) : \Teeshoop\Core\VERSION
 		);
 	}
 }

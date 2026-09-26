@@ -220,8 +220,8 @@ final class ProductPage {
 	}
 
 	private static function enqueue(): void {
-		wp_enqueue_style( 'teeshoop-product', TEESHOOP_CORE_URL . 'assets/product.css', array( 'teeshoop-components' ), VERSION );
-		wp_enqueue_script( 'teeshoop-product', TEESHOOP_CORE_URL . 'assets/product.js', array(), VERSION, true );
+		wp_enqueue_style( 'teeshoop-product', TEESHOOP_CORE_URL . 'assets/product.css', array( 'teeshoop-components' ), asset_version( 'assets/product.css' ) );
+		wp_enqueue_script( 'teeshoop-product', TEESHOOP_CORE_URL . 'assets/product.js', array(), asset_version( 'assets/product.js' ), true );
 
 		$config = Settings::pricing();
 		wp_localize_script(

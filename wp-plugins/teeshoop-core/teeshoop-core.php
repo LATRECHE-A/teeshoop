@@ -283,10 +283,24 @@ function boot(): void {
  * enqueued, so an enqueue that names this handle earlier still resolves.
  */
 function register_tokens(): void {
-	wp_register_style( 'teeshoop-tokens', TEESHOOP_CORE_URL . 'assets/tokens.css', array(), VERSION );
-	wp_register_style( 'teeshoop-components', TEESHOOP_CORE_URL . 'assets/components.css', array( 'teeshoop-tokens' ), VERSION );
+	wp_register_style( 'teeshoop-tokens', TEESHOOP_CORE_URL . 'assets/tokens.css', array(), asset_version( 'assets/tokens.css' ) );
+	wp_register_style( 'teeshoop-components', TEESHOOP_CORE_URL . 'assets/components.css', array( 'teeshoop-tokens' ), asset_version( 'assets/components.css' ) );
 }
 add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\register_tokens', 0 );
+
+/**
+ * The `?ver=` of one of our own files: the plugin version and the file's mtime.
+ *
+ * `VERSION` alone never moves (0.1.0 since the first commit), so a browser or the
+ * host's page cache kept `product.css?ver=0.1.0` across every deployment and
+ * served a stylesheet older than the markup it was styling. The mtime changes
+ * whenever a deployment replaces the file, and only then. The editor bundle does
+ * not need this: its file names carry a content hash.
+ */
+function asset_version( string $relative ): string {
+	$mtime = @filemtime( TEESHOOP_CORE_DIR . $relative ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- a missing file keeps the plain version.
+	return false === $mtime ? VERSION : VERSION . '.' . $mtime;
+}
 
 /**
  * Say so when WooCommerce and the price authority disagree about the currency.
