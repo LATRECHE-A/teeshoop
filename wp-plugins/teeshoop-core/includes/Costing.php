@@ -805,7 +805,7 @@ final class Costing {
 		 * member of one whose share is zero has not been attributed, and the order
 		 * falls back to its own nesting rather than to a free lunch.
 		 */
-		$lot   = Production::lot_of( $order );
+		$lot   = Production::sale_lot( $order );
 		$bought = null !== $lot
 			&& in_array( (string) ( $lot['state'] ?? '' ), array( Production::SENT, Production::RECEIVED, Production::DONE ), true )
 			&& (int) ( $lot['share_ht'] ?? 0 ) > 0;
@@ -1243,6 +1243,9 @@ final class Costing {
 			$commission
 		);
 
+		if ( array() !== Production::past_lots( $order ) ) {
+			$warnings[] = __( 'Cette commande a été réimprimée : le film de la réimpression n’est pas compté dans cette marge, qui reste celle de la vente. Son coût relève de la réclamation.', 'teeshoop' );
+		}
 		if ( ! $cost['complete'] ) {
 			$warnings[] = __( 'Le coût est incomplet : le plancher affiché est un plancher MINIMUM, le vrai est au moins celui-là.', 'teeshoop' );
 		}

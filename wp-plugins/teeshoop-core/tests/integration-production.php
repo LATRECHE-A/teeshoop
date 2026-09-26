@@ -878,6 +878,48 @@ function ts_production_suite( int $product_id ): void {
 		ts_assert( ! in_array( $a->get_id(), $ids, true ), 'une commande déjà imbriquée reviendrait sur une seconde planche' );
 	} );
 
+	ts_it( 'lets a delivered order sent back for a reprint into a new lot, and keeps the sale on its first', function () use ( $product_id, $today ) {
+		/*
+		 * CMD-16. « Livrée » -> « En production » is the reprint under SAV, and
+		 * the order then never reached the queue: `lot_of()` still named the lot
+		 * it was pressed in, and `create_lot` answered « déjà dans un lot ».
+		 */
+		ts_pr_stub_nest();
+		$a    = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0110' );
+		$b    = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0111' );
+		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', ts_pr_layout( $a->get_id(), $b->get_id() ), $today );
+		ts_assert( $made['ok'], $made['reason'] );
+		$first = (int) $made['lot']['lot_id'];
+		ts_assert( Production::send_lot( $first, $today )['ok'], 'le film n’a pas pu être commandé' );
+		ts_assert( Production::advance_lot( $first, Production::RECEIVED )['ok'], 'réception refusée' );
+		ts_assert( Production::advance_lot( $first, Production::DONE )['ok'], 'clôture refusée' );
+
+		ts_eq(
+			has_action( 'woocommerce_order_status_changed', array( Production::class, 'on_status_changed' ) ),
+			10,
+			'le passage de statut n’est pas branché'
+		);
+		Production::on_status_changed( $a->get_id(), 'completed', 'ts-prod', wc_get_order( $a->get_id() ) );
+
+		$ids = array_column( Production::queue( $today ), 'id' );
+		ts_assert( in_array( $a->get_id(), $ids, true ), 'la réimpression n’est pas dans la file « À imprimer »' );
+		ts_assert( ! in_array( $b->get_id(), $ids, true ), 'l’autre commande du lot, livrée sans réclamation, est revenue dans la file' );
+
+		// Pressed with the next order that comes along, as a real reprint would be.
+		$c     = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0112' );
+		$again = Production::create_lot( array( $a->get_id(), $c->get_id() ), 'fr', ts_pr_layout( $a->get_id(), $c->get_id() ), $today );
+		ts_assert( $again['ok'], 'le film de la réimpression ne peut pas être acheté : ' . ( $again['reason'] ?? '' ) );
+
+		$order = wc_get_order( $a->get_id() );
+		ts_eq( (int) Production::sale_lot( $order )['lot_id'], $first, 'la marge de la vente a changé de film' );
+		ts_eq( (int) Production::lot_of( $order )['lot_id'], (int) $again['lot']['lot_id'], 'la réimpression ne porte pas son nouveau lot' );
+		$report = Costing::compute( $order );
+		ts_assert(
+			array() !== array_filter( (array) $report['warnings'], static fn( $w ): bool => str_contains( (string) $w, 'réimprimée' ) ),
+			'le rapport de marge ne dit pas qu’une réimpression n’y est pas comptée'
+		);
+	} );
+
 	remove_all_filters( 'pre_http_request' );
 
 	/*

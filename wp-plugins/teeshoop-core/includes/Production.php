@@ -81,6 +81,12 @@ final class Production {
 	public const META_ORDER_LOT = '_teeshoop_lot_part';
 
 	/**
+	 * ORDER meta: the parts of lots this order LEFT for a reprint, oldest
+	 * first, JSON. The first is the film of the sale (see `sale_lot`).
+	 */
+	public const META_ORDER_PAST_LOTS = '_teeshoop_lots_passes';
+
+	/**
 	 * Bounds on a posted layout. They are the Worker's own
 	 * (`worker/nest.ts`: MAX_PIECES, MAX_INSTANCES, MAX_PIECE_CM), restated here
 	 * because this end has to refuse a body the other end would refuse anyway, and
@@ -629,6 +635,76 @@ final class Production {
 	public static function init(): void {
 		add_action( 'init', array( self::class, 'register' ) );
 		add_action( 'rest_api_init', array( self::class, 'register_rest' ) );
+		add_action( 'woocommerce_order_status_changed', array( self::class, 'on_status_changed' ), 10, 4 );
+	}
+
+	/**
+	 * A delivered order sent back to production leaves its old lot (CMD-16).
+	 *
+	 * The graph allows « Livrée » -> « En production » for a reprint under SAV,
+	 * and the order then never reached the queue: `lot_of()` still named the
+	 * lot it was pressed in, so the queue skipped it and `create_lot` answered
+	 * « déjà dans un lot ». The film of that reprint could not be bought
+	 * through the tool. The part is kept, in the order's history, because the
+	 * margin of the sale was made on it.
+	 *
+	 * @param int            $order_id
+	 * @param string         $from Without the `wc-` prefix.
+	 * @param string         $to   Without the `wc-` prefix.
+	 * @param \WC_Order|null $order
+	 */
+	public static function on_status_changed( $order_id, $from, $to, $order = null ): void {
+		if ( Lifecycle::DELIVERED !== (string) $from || Lifecycle::PRODUCTION !== (string) $to ) {
+			return;
+		}
+		$order = $order instanceof \WC_Order ? $order : wc_get_order( (int) $order_id );
+		if ( $order instanceof \WC_Order ) {
+			self::reopen_for_reprint( $order );
+		}
+	}
+
+	/**
+	 * Free an order from a lot whose film was bought, so a reprint can join a
+	 * new one. A draft lot is left alone: nothing was bought, the order is still
+	 * being assembled into it, and that lot is the reprint's.
+	 */
+	public static function reopen_for_reprint( \WC_Order $order ): bool {
+		$part = self::lot_of( $order );
+		if ( null === $part || ! in_array( (string) ( $part['state'] ?? '' ), array( self::SENT, self::RECEIVED, self::DONE ), true ) ) {
+			return false;
+		}
+		$past   = self::past_lots( $order );
+		$past[] = $part;
+		$order->update_meta_data( self::META_ORDER_PAST_LOTS, wp_json_encode( $past ) );
+		$order->delete_meta_data( self::META_ORDER_LOT );
+		$order->save();
+		$order->add_order_note(
+			sprintf(
+				/* translators: %d: the lot the order was printed in. */
+				__( 'Réimpression : la commande quitte le lot %d, où elle a été imprimée, et peut entrer dans un nouveau lot de film.', 'teeshoop' ),
+				(int) $part['lot_id']
+			)
+		);
+		return true;
+	}
+
+	/** The lot parts this order left for a reprint, oldest first. */
+	public static function past_lots( \WC_Order $order ): array {
+		$raw = json_decode( (string) $order->get_meta( self::META_ORDER_PAST_LOTS, true ), true );
+		return is_array( $raw ) ? array_values( array_filter( $raw, static fn( $p ): bool => is_array( $p ) && isset( $p['lot_id'] ) ) ) : array();
+	}
+
+	/**
+	 * The lot the SALE was printed in: the first one, even after a reprint.
+	 *
+	 * The margin of an order is the margin of what was sold. A reprint's film
+	 * is a separate cost, decided by the claim's cause (who pays), and costing
+	 * it in the sale's place would have replaced one film by another without
+	 * saying so. `Costing` names the reprint instead.
+	 */
+	public static function sale_lot( \WC_Order $order ): ?array {
+		$past = self::past_lots( $order );
+		return array() !== $past ? $past[0] : self::lot_of( $order );
 	}
 
 	/** The lot post type. Non-public: it names customers and their artwork. */
@@ -1015,7 +1091,7 @@ final class Production {
 	 * teaches an operator to ignore the word.
 	 */
 	public static function cost_stamp( \WC_Order $order ): string {
-		$lot = self::lot_of( $order );
+		$lot = self::sale_lot( $order );
 		if ( null === $lot ) {
 			return '';
 		}
