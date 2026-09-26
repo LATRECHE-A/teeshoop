@@ -144,7 +144,9 @@ final class ProductPage {
 				'lowPrice'      => Money::to_eur( (int) $headline['best']['unit_ttc'] ),
 				'highPrice'     => Money::to_eur( (int) $headline['unit']['unit_ttc'] ),
 				'priceCurrency' => (string) $config['currency'],
-				'availability'  => 'https://schema.org/InStock',
+				// What the shop can take, not a constant (THE-12): a garment out of
+				// stock in every variation was published to search engines in stock.
+				'availability'  => $product->is_in_stock() ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
 				'offerCount'    => count( Pricing::grid_qtys( $config ) ),
 				'url'           => $product->get_permalink(),
 			),

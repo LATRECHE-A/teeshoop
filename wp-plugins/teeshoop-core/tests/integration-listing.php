@@ -108,6 +108,62 @@ function ts_listing_suite(): void {
 	 * inherited others from the old site: /categorie/sweatshirts/ rendered its
 	 * bare name, and the shop page lost its links to polos and sweats.
 	 */
+	/*
+	 * THE-09. The sort posted to the current URL, so a sort chosen on page 3
+	 * opened page 3 of the new order. Both listing forms submit to page one.
+	 */
+	ts_it(
+		'sends a sort or a filter chosen on page 3 back to the first page',
+		function () {
+			$kept                   = $_SERVER['REQUEST_URI'] ?? '';
+			$_SERVER['REQUEST_URI'] = '/categorie/t-shirts/page/3/?orderby=date';
+			$action                 = \Teeshoop\Theme\listing_action();
+			$_SERVER['REQUEST_URI'] = $kept;
+			ts_eq( $action, home_url( '/categorie/t-shirts/' ), 'the listing form kept the page number' );
+		}
+	);
+
+	/*
+	 * THE-07 and THE-12. A garment retired from the range has no price: it must
+	 * not be the homepage's reference garment, and a garment out of stock must
+	 * not be published to search engines as in stock.
+	 */
+	ts_it(
+		'keeps a retired garment off the homepage, and says out of stock to search engines',
+		function () {
+			$make = static function ( string $name, string $price, int $order ): \WC_Product_Simple {
+				$p = new WC_Product_Simple();
+				$p->set_name( $name );
+				$p->set_status( 'publish' );
+				$p->set_catalog_visibility( 'visible' );
+				$p->set_menu_order( $order );
+				$p->set_regular_price( $price );
+				$p->set_image_id( 1 );
+				// A weight, or no piece ships and no offer is published at all.
+				$p->set_weight( '0.18' );
+				$p->save();
+				update_post_meta( $p->get_id(), \Teeshoop\Core\Product::META, 'tee' );
+				return $p;
+			};
+			$retired = $make( 'Vêtement retiré du harnais', '', -700 );
+			$sold    = $make( 'Vêtement en vente du harnais', '9.00', -699 );
+			try {
+				$hero = \Teeshoop\Theme\hero_product();
+				ts_assert( $hero instanceof \WC_Product, 'no reference garment at all' );
+				ts_eq( $hero->get_id(), $sold->get_id(), 'the homepage described a garment the checkout refuses' );
+
+				$sold->set_stock_status( 'outofstock' );
+				$sold->save();
+				$markup = \Teeshoop\Core\ProductPage::structured_data( array(), wc_get_product( $sold->get_id() ) );
+				ts_assert( isset( $markup['offers'][0] ), 'no offer was published, so this proves nothing' );
+				ts_eq( $markup['offers'][0]['availability'], 'https://schema.org/OutOfStock', 'an out-of-stock garment was published in stock' );
+			} finally {
+				wp_delete_post( $retired->get_id(), true );
+				wp_delete_post( $sold->get_id(), true );
+			}
+		}
+	);
+
 	ts_it(
 		'finds a family text and its link by the family name when the slug is the old site one',
 		function () {

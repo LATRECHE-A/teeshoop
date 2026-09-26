@@ -120,6 +120,13 @@
        */
       var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)')
       var timer = null
+      /*
+       * A DELIBERATE ACT ENDS IT FOR THE REST OF THE VISIT (THE-04). Pausing
+       * was not enough: the observer below restarted the cycle when the garment
+       * came back into view, and a visitor who had picked Navy, read on and
+       * scrolled back found their choice gone.
+       */
+      var stopped = false
 
       var halt = function () {
         if (timer !== null) {
@@ -142,12 +149,17 @@
         paint()
       }
 
+      var stop = function () {
+        stopped = true
+        halt()
+      }
+
       if (!(still && still.matches) && radios.length > 1) {
         // Any deliberate act ends it: a pointer on the swatches, or a keyboard.
-        demo.addEventListener('pointerdown', halt)
-        demo.addEventListener('keydown', halt)
+        demo.addEventListener('pointerdown', stop)
+        demo.addEventListener('keydown', stop)
         radios.forEach(function (radio) {
-          radio.addEventListener('change', halt)
+          radio.addEventListener('change', stop)
         })
 
         /*
@@ -161,14 +173,14 @@
          */
         if (still && still.addEventListener) {
           still.addEventListener('change', function (e) {
-            if (e.matches) halt()
+            if (e.matches) stop()
           })
         }
 
         if (window.IntersectionObserver) {
           new window.IntersectionObserver(function (entries) {
             entries.forEach(function (entry) {
-              if (entry.isIntersecting && timer === null) timer = window.setInterval(advance, 2600)
+              if (entry.isIntersecting && timer === null && !stopped) timer = window.setInterval(advance, 2600)
               else if (!entry.isIntersecting) halt()
             })
           }).observe(demo)
@@ -206,6 +218,14 @@
     // screen reader announcing a control nobody can see.
     var shell = input.closest('[data-ts-facet-shell]') || input
     shell.hidden = false
+    /*
+     * ENTER FILTERS THE LIST, IT DOES NOT SUBMIT THE PAGE (THE-13). The box sits
+     * inside the filter form, so the key everyone presses in a search field
+     * reloaded the listing, lost the text and gave back every colour.
+     */
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') e.preventDefault()
+    })
 
     var groups = Array.prototype.slice.call(facet.querySelectorAll('.ts-fam__group'))
 

@@ -147,8 +147,8 @@ $ts_bases = price_bases();
  * product page prints, from `Pricing::grid()`, because a B2B page carrying its
  * own copy of a price list is how the two stop agreeing.
  */
-$ts_products = personalisable_products( 1 );
-$ts_first    = $ts_products[0] ?? null;
+// The same garment as the homepage, not the first row of a one-row query (THE-06).
+$ts_first    = hero_product();
 $ts_garment  = $ts_first instanceof \WC_Product && class_exists( '\\Teeshoop\\Core\\Product' )
 	? \Teeshoop\Core\Product::garment_of( $ts_first->get_id() )
 	: '';

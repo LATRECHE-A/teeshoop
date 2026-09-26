@@ -52,8 +52,7 @@ foreach ( array( 's', 'post_type', 'product_cat', 'orderby' ) as $ts_key ) {
  * buyer got a 404 with no filter panel on it and no way back except the browser
  * button. Narrowing a list always starts it again from the top.
  */
-$ts_action = (string) strtok( (string) home_url( add_query_arg( array() ) ), '?' );
-$ts_action = (string) preg_replace( '#/page/\d+/?$#', '/', $ts_action );
+$ts_action = listing_action();
 ?>
 <form class="ts-filters" method="get" action="<?php echo esc_url( $ts_action ); ?>">
 	<?php foreach ( $ts_carry as $ts_key => $ts_value ) : ?>

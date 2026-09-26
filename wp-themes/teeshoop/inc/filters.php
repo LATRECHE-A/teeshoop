@@ -478,6 +478,17 @@ function family_counts(): array {
 }
 
 /**
+ * Where a listing form submits: this listing, from its first page.
+ *
+ * Shared by the filters and the sort (THE-09): the sort posted to the current
+ * URL, so « Les plus récents » chosen on page 3 opened page 3 of the new order.
+ */
+function listing_action(): string {
+	$here = (string) strtok( (string) home_url( add_query_arg( array() ) ), '?' );
+	return (string) preg_replace( '#/page/\d+/?$#', '/', $here );
+}
+
+/**
  * The colour facet, grouped into the eleven families and dressed with swatches.
  *
  * WHY THIS ONE FACET HAS ITS OWN FUNCTION. Every other facet is a handful of
@@ -578,9 +589,17 @@ function colour_groups(): array {
 		}
 	}
 
-	$out = array();
+	$out    = array();
+	$picked = applied_filters()['families'];
 	foreach ( $groups as $group ) {
-		if ( empty( $group['terms'] ) ) {
+		/*
+		 * A TICKED FAMILY KEEPS ITS GROUP, EMPTY OR NOT (THE-05). The template
+		 * renders its checkbox at zero for exactly this reason, but the group
+		 * was dropped here first: « Bleus » plus a brand with no blue left no
+		 * « Bleus » in the form, and unticking the brand silently widened the
+		 * search to every colour.
+		 */
+		if ( empty( $group['terms'] ) && ! in_array( $group['family'], $picked, true ) ) {
 			continue;
 		}
 		// Light to dark inside a family, which is how a swatch grid is read.

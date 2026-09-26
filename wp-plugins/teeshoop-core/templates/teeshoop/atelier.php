@@ -163,7 +163,7 @@ wp_head();
 			<?php if ( 'sans-vetement' === $ts_etat ) : ?>
 
 				<p><?php esc_html_e( 'Cette référence n’est pas préparée pour l’impression : la zone imprimable et les tailles ne sont pas renseignées, donc nous ne savons ni la dessiner ici ni la chiffrer.', 'teeshoop' ); ?></p>
-				<p><?php esc_html_e( 'La fiche reste ouverte, et le devis aussi. Envoyez-nous votre visuel et nous chiffrons à la main.', 'teeshoop' ); ?></p>
+				<p><?php esc_html_e( 'Le devis reste ouvert : envoyez-nous votre visuel et nous chiffrons à la main.', 'teeshoop' ); ?></p>
 
 			<?php elseif ( 'indisponible' === $ts_etat ) : ?>
 

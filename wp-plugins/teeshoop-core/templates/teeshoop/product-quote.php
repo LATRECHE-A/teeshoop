@@ -60,13 +60,27 @@ $ts_tailles  = (array) ( $ts_back['tailles'] ?? array() );
 $ts_modele   = (string) ( $ts_back['design_id'] ?? '' );
 $ts_qte      = (string) (int) ( $ts_back['qte'] ?? $request['typed'] );
 
+/*
+ * A CHANNEL IS OFFERED ONLY WHEN IT EXISTS (THE-10). « Appelez-nous » and « en
+ * nous écrivant » sent a blocked or refused client to a number and an address
+ * no page gave. They come from the legal identity, the one place the shop
+ * states them, and the sentence is shorter when they are missing.
+ */
+$ts_legal = class_exists( '\Teeshoop\Core\Legal' ) ? \Teeshoop\Core\Legal::identity() : array();
+$ts_tel   = (string) ( $ts_legal['contact_tel'] ?? '' );
+$ts_mail  = (string) ( $ts_legal['contact_email'] ?? '' );
+$ts_call  = '' !== $ts_tel
+	/* translators: %s: the shop's phone number. */
+	? sprintf( __( ' Vous pouvez aussi nous appeler au %s.', 'teeshoop' ), $ts_tel )
+	: '';
+
 $ts_errors = array(
 	'email'            => __( 'L’adresse e-mail n’est pas valide. Nous ne pourrions pas vous répondre.', 'teeshoop' ),
 	'contact'          => __( 'Indiquez le nom de la personne à qui répondre.', 'teeshoop' ),
 	'expire'           => __( 'Le formulaire est resté ouvert trop longtemps. Rechargez la page, puis renvoyez-le.', 'teeshoop' ),
 	'stamp'            => __( 'Le formulaire n’a pas été reconnu. Rechargez la page, puis renvoyez-le.', 'teeshoop' ),
 	'trop_rapide'      => __( 'Le formulaire est parti trop vite pour avoir été rempli. Réessayez.', 'teeshoop' ),
-	'trop_de_demandes' => __( 'Plusieurs demandes sont déjà parties depuis cette connexion. Réessayez dans une heure, ou appelez-nous.', 'teeshoop' ),
+	'trop_de_demandes' => __( 'Plusieurs demandes sont déjà parties depuis cette connexion. Réessayez dans une heure.', 'teeshoop' ) . $ts_call,
 	'robot'            => __( 'La demande a été prise pour un envoi automatique. Rechargez la page, puis réessayez.', 'teeshoop' ),
 	'enregistrement'   => __( 'La demande n’a pas pu être enregistrée. Rien n’a été envoyé. Réessayez dans un instant.', 'teeshoop' ),
 );
@@ -81,7 +95,7 @@ $ts_errors = array(
 	<?php else : ?>
 		<?php if ( 'erreur' === $ts_result ) : ?>
 			<p class="ts-msg ts-msg--bad" role="alert">
-				<?php echo esc_html( $ts_errors[ $ts_reason ] ?? __( 'La demande n’a pas pu être envoyée. Réessayez, ou appelez-nous.', 'teeshoop' ) ); ?>
+				<?php echo esc_html( $ts_errors[ $ts_reason ] ?? __( 'La demande n’a pas pu être envoyée. Réessayez dans un instant.', 'teeshoop' ) . $ts_call ); ?>
 			</p>
 		<?php endif; ?>
 
@@ -234,6 +248,12 @@ $ts_errors = array(
 
 			<p class="ts-form__legal">
 				<?php esc_html_e( 'Ces informations servent uniquement à établir votre devis et à vous répondre : c’est la base contractuelle, nous ne vous demandons pas de consentement pour cela. Elles ne sont ni vendues ni utilisées pour de la prospection. Elles sont conservées trois ans après notre dernier échange, puis supprimées automatiquement. Vous pouvez à tout moment demander à les consulter, les corriger, les recevoir ou les supprimer en nous écrivant, et saisir la CNIL si notre réponse ne vous convient pas.', 'teeshoop' ); ?>
+				<?php
+				if ( '' !== $ts_mail ) {
+					/* translators: %s: the address to write to. */
+					printf( ' ' . esc_html__( 'Adresse : %s.', 'teeshoop' ), '<a href="mailto:' . esc_attr( $ts_mail ) . '">' . esc_html( $ts_mail ) . '</a>' );
+				}
+				?>
 			</p>
 		</form>
 	<?php endif; ?>

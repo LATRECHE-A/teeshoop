@@ -594,7 +594,14 @@ function personalisable_products( int $limit = 12 ): array {
 		 * a garment becomes personalisable when a product declares which studio
 		 * model it is printed on. It now also has to be one somebody can see.
 		 */
-		if ( $product instanceof \WC_Product && (int) $product->get_image_id() > 0 ) {
+		/*
+		 * AND IT MUST BE FOR SALE (THE-07). `Gamme::retire()` empties a
+		 * product's price without hiding it, and a retired garment with a
+		 * photograph stayed in « À personnaliser et à commander en ligne »,
+		 * could even become the homepage's reference garment: a price, a zone
+		 * and a button for an article the checkout refuses.
+		 */
+		if ( $product instanceof \WC_Product && (int) $product->get_image_id() > 0 && $product->is_purchasable() ) {
 			$products[] = $product;
 		}
 	}
@@ -1060,7 +1067,7 @@ function sort_control(): void {
 		$current = (string) get_option( 'woocommerce_default_catalog_orderby', 'menu_order' );
 	}
 
-	echo '<form class="ts-sort" method="get">';
+	printf( '<form class="ts-sort" method="get" action="%s">', esc_url( listing_action() ) );
 	printf(
 		'<label class="ts-sort__label" for="ts-sort">%s</label>',
 		esc_html__( 'Trier les articles', 'teeshoop' )

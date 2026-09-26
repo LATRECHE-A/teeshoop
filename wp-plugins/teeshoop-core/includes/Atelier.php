@@ -421,11 +421,11 @@ final class Atelier {
 				'product_id'  => $product_id,
 				'titre'       => (string) get_the_title( $product_id ),
 				'produit_url' => $produit,
-				// L'ancre du formulaire de devis de la fiche produit
-				// (`templates/teeshoop/product-quote.php`). Une adresse
-				// complète et pas « #teeshoop-devis » : ce formulaire n'est pas
-				// sur cette page-ci.
-				'devis_url'   => '' !== $produit ? $produit . '#teeshoop-devis' : '',
+				// La page devis, ouverte sur cet article (THE-08) : l'ancre du
+				// formulaire de la fiche n'existe pas sur une fiche qui n'est
+				// pas prête, et le client arrivait en haut d'une page sans
+				// formulaire.
+				'devis_url'   => self::quote_link( $product_id ),
 				'ancre'       => self::ANCRE,
 			),
 			'',
@@ -533,12 +533,15 @@ final class Atelier {
 		 * page dédiée n'a pas : le lien ne menait nulle part. Sans page devis
 		 * publiée, il retombe sur le formulaire de la fiche.
 		 */
+		return self::extra_context( is_string( $image ) ? $image : '', self::quote_link( $product_id ) );
+	}
+
+	/** The quote page, open on this product; the product's own form when there is no page. */
+	private static function quote_link( int $product_id ): string {
 		$devis = get_page_by_path( 'devis' );
-		$quote = $devis instanceof \WP_Post && 'publish' === $devis->post_status
+		return $devis instanceof \WP_Post && 'publish' === $devis->post_status
 			? add_query_arg( 'produit', $product_id, (string) get_permalink( $devis ) )
 			: (string) get_permalink( $product_id ) . '#teeshoop-devis';
-
-		return self::extra_context( is_string( $image ) ? $image : '', $quote );
 	}
 
 	/**
