@@ -1258,6 +1258,34 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 
 	// ── the devis as a document ──────────────────────────────────────────────
 
+	ts_it( 'acknowledges a quote request without repeating a word the sender typed', function () use ( $product_id ) {
+		/*
+		 * SEC-07. The salutation echoed the « contact » field to whatever
+		 * address the form was given, so a robot could make the shop mail its
+		 * own text to a stranger under the shop's name.
+		 */
+		$devis = ts_lc_devis( $product_id, 40, 1 );
+		$meta  = array_map( static fn( $v ) => $v[0], get_post_meta( $devis ) );
+		$meta['_ts_contact'] = "Votre colis est bloqué\nPayez ici : http://leurre.example/";
+		$meta['_ts_email']   = 'victime@example.test';
+		$sent = array();
+		$grab = static function ( $pre, $atts ) use ( &$sent ) {
+			$sent[] = $atts;
+			return true;
+		};
+		add_filter( 'pre_wp_mail', $grab, 10, 2 );
+		$m = new \ReflectionMethod( Quote::class, 'notify' );
+		$m->setAccessible( true );
+		$m->invoke( null, $devis, $meta );
+		remove_filter( 'pre_wp_mail', $grab, 10 );
+
+		$ack = array_values( array_filter( $sent, static fn( $a ) => 'victime@example.test' === $a['to'] ) );
+		ts_eq( count( $ack ), 1, 'the acknowledgement was not sent, so this proves nothing' );
+		ts_assert( ! str_contains( (string) $ack[0]['message'], 'leurre' ), 'the sender’s text went out under the shop’s name' );
+		ts_assert( str_starts_with( (string) $ack[0]['message'], 'Bonjour,' ), 'the salutation' );
+		wp_delete_post( $devis, true );
+	} );
+
 	ts_it( 'gives a devis a number from the ONE sequence, and freezes what it says', function () use ( $product_id ) {
 		/*
 		 * Chapitre 2: « chaque envoi crée une version [...] le client doit

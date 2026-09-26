@@ -172,6 +172,37 @@ function ts_schema_suite(): void {
 	);
 
 	ts_it(
+		'refuses a migration when the lock is in the database but the cache says it is not',
+		function (): void {
+			/*
+			 * DON-08, la course elle-même. Deux requêtes lisent « absent » à la
+			 * même seconde ; ce que voit la seconde, c'est un verrou posé en base
+			 * par la première et un cache qui ne le sait pas encore. `add_option`
+			 * écrivait alors par INSERT … ON DUPLICATE KEY UPDATE et répondait
+			 * « pris » aux deux.
+			 */
+			global $wpdb;
+			delete_option( Schema::OPTION );
+			delete_option( 'teeshoop_schema_lock' );
+			$wpdb->insert( $wpdb->options, array( 'option_name' => 'teeshoop_schema_lock', 'option_value' => (string) time(), 'autoload' => 'off' ) );
+			wp_cache_delete( 'teeshoop_schema_lock', 'options' );
+			$absent                          = (array) wp_cache_get( 'notoptions', 'options' );
+			$absent['teeshoop_schema_lock'] = true;
+			wp_cache_set( 'notoptions', $absent, 'options' );
+
+			$report = Schema::migrate( array( 'cli' => true ) );
+			ts_assert( ! $report['ok'], 'une migration a pris un verrou que la base tenait déjà' );
+			ts_eq( Schema::current(), 0, 'la version ne doit pas bouger sous le verrou' );
+
+			delete_option( 'teeshoop_schema_lock' );
+			$wpdb->delete( $wpdb->options, array( 'option_name' => 'teeshoop_schema_lock' ) );
+			wp_cache_delete( 'notoptions', 'options' );
+			Schema::migrate( array( 'cli' => true ) );
+			ts_eq( Schema::current(), Schema::target(), 'le verrou levé, la migration repasse' );
+		}
+	);
+
+	ts_it(
 		'STOPS at a step that may not run in a web request instead of running past it',
 		function (): void {
 			/*

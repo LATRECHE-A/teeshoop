@@ -554,7 +554,8 @@ describe('GET /r2/design/{id}/…: who may read what', () => {
     const { e, id } = await stored()
     const res = await serveDesignFile(admin(), e, id, 'preview.png')
     expect(res.status).toBe(200)
-    expect(res.headers.get('cache-control')).toContain('immutable')
+    // A day at the edge, not a year (DON-12): what outlives an erasure is bounded.
+    expect(res.headers.get('cache-control')).toBe('public, max-age=86400')
     // Held to the type we stored. No content-disposition: this is an <img> on
     // the cart page, and attachment would turn it into a download prompt.
     expect(res.headers.get('x-content-type-options')).toBe('nosniff')

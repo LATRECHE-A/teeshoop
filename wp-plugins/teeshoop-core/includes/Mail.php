@@ -82,6 +82,14 @@ final class Mail {
 		add_action( 'admin_notices', array( self::class, 'stuck_notice' ) );
 		add_action( 'admin_menu', array( self::class, 'menu' ) );
 		add_action( 'phpmailer_init', array( self::class, 'configure_smtp' ) );
+		/*
+		 * WHO A PLAIN `wp_mail` IS FROM. Without these, the quote acknowledgement
+		 * and every notice sent with no headers left as « WordPress
+		 * <wordpress@…> », a mailbox nobody reads, under a message that says
+		 * « répondez simplement à ce message ». The shop's sender, when set.
+		 */
+		add_filter( 'wp_mail_from', array( self::class, 'from_address' ) );
+		add_filter( 'wp_mail_from_name', array( self::class, 'from_name' ) );
 	}
 
 	public static function table(): string {
@@ -432,6 +440,17 @@ final class Mail {
 	 */
 	public static function api_key(): string {
 		return defined( 'TEESHOOP_BREVO_KEY' ) ? trim( (string) constant( 'TEESHOOP_BREVO_KEY' ) ) : '';
+	}
+
+	/** @param string $default WordPress's own `wordpress@` address. */
+	public static function from_address( $default ): string {
+		$set = self::sender()['email'];
+		return '' !== $set ? $set : (string) $default;
+	}
+
+	/** @param string $default « WordPress ». */
+	public static function from_name( $default ): string {
+		return '' !== self::sender()['email'] ? self::sender()['name'] : (string) $default;
 	}
 
 	/** Who the shop writes as. */

@@ -481,10 +481,20 @@ final class Privacy {
 
 	/** @param array<string,array> $erasers */
 	public static function register_erasers( array $erasers ): array {
-		$erasers['teeshoop-commandes'] = array(
-			'eraser_friendly_name' => __( 'Commandes Teeshoop', 'teeshoop' ),
-			'callback'             => array( self::class, 'erase_orders' ),
-		);
+		/*
+		 * THE ORDERS FIRST, BEFORE WOOCOMMERCE'S OWN (DON-10). With « Supprimer
+		 * les données personnelles des commandes » ticked, WooCommerce's eraser
+		 * anonymises the billing address; ours ran after it and looked the
+		 * orders up by that address, found none, and left their artwork on R2
+		 * while the request was closed as done. Prepended, whoever registers
+		 * first.
+		 */
+		$erasers = array(
+			'teeshoop-commandes' => array(
+				'eraser_friendly_name' => __( 'Commandes Teeshoop', 'teeshoop' ),
+				'callback'             => array( self::class, 'erase_orders' ),
+			),
+		) + $erasers;
 		$erasers['teeshoop-messages'] = array(
 			'eraser_friendly_name' => __( 'Messages envoyés par Teeshoop', 'teeshoop' ),
 			'callback'             => array( self::class, 'erase_outbox' ),
@@ -819,7 +829,9 @@ final class Privacy {
 		$table = $wpdb->prefix . 'teeshoop_mail';
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$rows = $wpdb->get_results(
-			$wpdb->prepare( "SELECT id, created_at, subject, status FROM {$table} WHERE recipient = %s ORDER BY id ASC LIMIT 200", $email )
+			// Every row, not the first 200 (DON-13): an export that stops without saying so
+			// is an incomplete answer to article 15. The rows are four short columns.
+			$wpdb->prepare( "SELECT id, created_at, subject, status FROM {$table} WHERE recipient = %s ORDER BY id ASC", $email )
 		);
 		// phpcs:enable
 		return is_array( $rows ) ? $rows : array();
@@ -1018,7 +1030,8 @@ final class Privacy {
 		self::forget_notes( $order );
 		self::forget_recipient( $email );
 
-		$messages[] = __( 'Les coordonnées, le bon à tirer, la réclamation éventuelle et les créations de cette commande ont été effacés.', 'teeshoop' );
+		// DON-12 : ce que le cache du réseau de diffusion garde encore est dit, pas passé sous silence.
+		$messages[] = __( 'Les coordonnées, le bon à tirer, la réclamation éventuelle et les créations de cette commande ont été effacés. Une copie d’aperçu peut encore être servie par le cache du réseau de diffusion pendant 24 heures au plus.', 'teeshoop' );
 		$messages[] = sprintf(
 			/* translators: %s: the order number. */
 			__( 'La facture de la commande %s est conservée dix ans au titre de l’article L123-22 du code de commerce. Elle porte le nom et l’adresse qui y figuraient : une facture dont l’acheteur est caviardé n’est plus une pièce comptable.', 'teeshoop' ),
@@ -1117,7 +1130,12 @@ final class Privacy {
 			'shipping_phone',
 			'customer_ip_address',
 			'customer_user_agent',
-			'transaction_id',
+			/*
+			 * NOT `transaction_id` (DON-11). It is the payment's reference at
+			 * the gateway, kept with the receipts under the same accounting
+			 * retention, and without it a refund owed under the two-year
+			 * warranty could no longer go back through the gateway.
+			 */
 		);
 	}
 
@@ -1168,10 +1186,25 @@ final class Privacy {
 		if ( ! is_array( $doc ) ) {
 			return $raw;
 		}
-		$doc = self::scrub_deep(
+		$lines = $doc['lines'] ?? null;
+		$doc   = self::scrub_deep(
 			$doc,
 			array( 'nom', 'name', 'email', 'courriel', 'societe', 'company', 'ip', 'ua', 'commentaire', 'comment', 'note', 'by_name' )
 		);
+		/*
+		 * THE GARMENT KEEPS ITS NAME (DON-09). `name` is a person on the
+		 * customer block and an article on a line, and scrubbing it at every
+		 * depth left a proof kept « to show who approved what » that no longer
+		 * said what was approved: the regenerated PDF printed a line with no
+		 * name. A product's name is not personal data.
+		 */
+		if ( is_array( $lines ) ) {
+			foreach ( $lines as $i => $line ) {
+				if ( is_array( $line ) && isset( $line['name'] ) ) {
+					$doc['lines'][ $i ]['name'] = $line['name'];
+				}
+			}
+		}
 		return (string) wp_json_encode( $doc );
 	}
 

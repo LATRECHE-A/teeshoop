@@ -372,7 +372,14 @@ export async function serveDesignFile(
   // The bytes under one id never change (a re-uploaded design is a new id),
   // but the DOCUMENT and the rasters are private, so they must not be held by a
   // shared cache on the way back.
-  headers.set('cache-control', isPreview ? 'public, max-age=31536000, immutable' : 'private, no-store')
+  /*
+   * A DAY, NOT A YEAR (DON-12). A deleted design's preview stayed in
+   * Cloudflare's edge cache for up to a year under `immutable`, while the shop
+   * told the customer it was erased; emptying that cache needs a zone
+   * credential this Worker does not hold. A day still serves a proof e-mail
+   * and a cart thumbnail from the edge, and bounds what outlives an erasure.
+   */
+  headers.set('cache-control', isPreview ? 'public, max-age=86400' : 'private, no-store')
   /*
    * These bytes are customer-supplied and this origin also serves the studio,
    * so the browser must never be allowed to talk itself into a different type
@@ -631,7 +638,7 @@ async function listPrefix(
  * with the partial count instead of a 200 that reads as done.
  *
  * WHAT THIS DOES NOT REACH, and the erasure record must say so: the CDN. A
- * preview is served `public, max-age=31536000, immutable` because a bon a tirer
+ * preview is served `public, max-age=86400` (a day) because a bon a tirer
  * e-mail and a cart thumbnail load it repeatedly, so a copy can sit in
  * Cloudflare's edge cache after the R2 object is gone. Emptying that needs a
  * zone purge through the Cloudflare API, which is a credential this Worker does

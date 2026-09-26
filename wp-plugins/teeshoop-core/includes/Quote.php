@@ -1142,13 +1142,21 @@ final class Quote {
 			implode( "\n", $lines )
 		);
 
+		/*
+		 * NO WORD OF THE SENDER'S IN A MESSAGE WE SEND TO ANY ADDRESS (SEC-07).
+		 * The salutation echoed the « contact » field, free text with line
+		 * breaks, to whatever address the form was given: a robot could make
+		 * the shop mail « Votre colis est bloqué, payez ici » to a stranger
+		 * under its own name. The acknowledgement says only what we wrote.
+		 */
+		$reply = Mail::sender()['reply_to'];
 		wp_mail(
 			(string) $meta['_ts_email'],
 			__( 'Votre demande de devis Teeshoop', 'teeshoop' ),
 			implode(
 				"\n",
 				array(
-					sprintf( __( 'Bonjour %s,', 'teeshoop' ), $meta['_ts_contact'] ),
+					__( 'Bonjour,', 'teeshoop' ),
 					'',
 					__( 'Nous avons bien reçu votre demande. Un chiffrage vous parvient par retour, avec le délai de fabrication et les conditions de paiement.', 'teeshoop' ),
 					'',
@@ -1158,7 +1166,8 @@ final class Quote {
 					'',
 					get_bloginfo( 'name' ),
 				)
-			)
+			),
+			'' !== $reply ? array( 'Reply-To: ' . $reply ) : array()
 		);
 	}
 

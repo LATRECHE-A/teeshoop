@@ -185,10 +185,22 @@ final class Csp {
 		if ( is_admin() || headers_sent() ) {
 			return;
 		}
-		$header = defined( 'TEESHOOP_CSP_ENFORCE' ) && TEESHOOP_CSP_ENFORCE
-			? 'Content-Security-Policy'
-			: 'Content-Security-Policy-Report-Only';
-		header( $header . ': ' . self::policy(), true );
+		$enforced = defined( 'TEESHOOP_CSP_ENFORCE' ) && TEESHOOP_CSP_ENFORCE;
+		header( ( $enforced ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only' ) . ': ' . self::policy(), true );
+
+		/*
+		 * NOBODY FRAMES THE SHOP, EVEN WHILE THE POLICY ONLY REPORTS (SEC-04).
+		 * `frame-ancestors` has no effect in a report-only header, so the
+		 * comment below was true only once somebody enforced: until then any
+		 * site could frame the basket or the checkout and lay a decoy over it.
+		 * A second, ENFORCED header carries that one directive and nothing
+		 * else, so it cannot break Stripe or anything the report is still
+		 * measuring. `'self'` and not `'none'`: WordPress's own Customizer
+		 * previews the site in a frame of the same origin.
+		 */
+		if ( ! $enforced ) {
+			header( "Content-Security-Policy: frame-ancestors 'self'", false );
+		}
 
 		/*
 		 * The three that cost nothing and are not a policy.
@@ -197,9 +209,8 @@ final class Csp {
 		 * `Referrer-Policy` keeps a full URL off third-party servers, which
 		 * matters because a proof URL is a capability (Bat.php already sets
 		 * `no-referrer` on the proof page itself; this is the site-wide floor).
-		 * `X-Frame-Options` is deliberately ABSENT: `frame-ancestors` below says
-		 * the same thing and says it better, and an XFO value is a blunt
-		 * instrument with no working cross-origin form.
+		 * `X-Frame-Options` is deliberately ABSENT: `frame-ancestors` says the
+		 * same thing and says it better, and it is always enforced (above).
 		 */
 		header( 'X-Content-Type-Options: nosniff', true );
 		header( 'Referrer-Policy: strict-origin-when-cross-origin', true );

@@ -283,6 +283,28 @@ ts_it( 'refuses a product that does not exist', function () use ( $sides, $desig
 	ts_assert( is_wp_error( $r ), 'a missing product was accepted' );
 } );
 
+// SEC-06. The password guarded the page and nothing else: the cart API sold the
+// article to anyone who knew its id and held the anonymous REST nonce.
+ts_it( 'refuses a password-protected article through the cart API', function () use ( $product_id, $sides, $design ) {
+	wp_update_post( array( 'ID' => $product_id, 'post_password' => 'client-prive' ) );
+	try {
+		$r = Cart::add(
+			array(
+				'product_id' => $product_id,
+				'qty'        => 10,
+				'garment'    => 'tee',
+				'sides'      => $sides,
+				'design_id'  => $design,
+			)
+		);
+		ts_assert( is_wp_error( $r ), 'a password-protected article went into the basket' );
+		ts_eq( $r->get_error_code(), 'teeshoop_bad_product', 'refusal reason' );
+	} finally {
+		wp_update_post( array( 'ID' => $product_id, 'post_password' => '' ) );
+		WC()->cart->empty_cart();
+	}
+} );
+
 ts_it( 'refuses a product that declares no garment', function () use ( $bare_id, $sides, $design ) {
 	$r = Cart::add(
 		array(

@@ -690,12 +690,23 @@ final class Schema {
 			 * la base de données qui tranche. Le test qui couvrait ce verrou ne
 			 * pouvait pas voir la différence, parce qu'il est séquentiel.
 			 *
-			 * `autoload` à false : ce verrou ne doit pas être chargé sur chaque
+			 * `autoload` à off : ce verrou ne doit pas être chargé sur chaque
 			 * requête alors qu'il n'existe que quelques secondes par an.
+			 *
+			 * ET PAS `add_option()`, QUI N'EN EST PAS UN (DON-08). Il lit
+			 * l'option, puis écrit par INSERT … ON DUPLICATE KEY UPDATE : deux
+			 * requêtes qui lisent « absent » réussissent toutes les deux, et la
+			 * première qui finit supprimait le verrou de l'autre. `INSERT IGNORE`
+			 * dit par son nombre de lignes qui a gagné, et le cache d'objets
+			 * n'entre pas dans la décision.
 			 */
+			global $wpdb;
 			$maintenant = time();
-			if ( ! add_option( self::LOCK, $maintenant, '', false ) ) {
-				$tenu = (int) get_option( self::LOCK, 0 );
+			$pris       = 1 === (int) $wpdb->query(
+				$wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'off')", self::LOCK, (string) $maintenant )
+			);
+			if ( ! $pris ) {
+				$tenu = (int) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::LOCK ) );
 				if ( $tenu > 0 && ( $maintenant - $tenu ) < self::LOCK_SECONDS ) {
 					return array(
 						'ok'      => false,
@@ -709,14 +720,26 @@ final class Schema {
 				}
 				/*
 				 * Le verrou est plus vieux que la plus longue migration possible :
-				 * le processus qui le tenait est mort. On le reprend. Il reste ici
-				 * une fenêtre théorique entre le constat et la reprise, bien plus
-				 * étroite que celle qu'on vient de fermer, et le pire qu'elle
-				 * produise est ce que le paragraphe suivant décrit : deux passages
-				 * d'étapes idempotentes.
+				 * le processus qui le tenait est mort. On le reprend, par
+				 * comparaison et échange : seul celui qui remplace la valeur qu'il
+				 * a lue le reprend, un second repreneur ne touche aucune ligne.
 				 */
-				update_option( self::LOCK, $maintenant, false );
+				$repris = 1 === (int) $wpdb->query(
+					$wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s", (string) $maintenant, self::LOCK, (string) $tenu )
+				);
+				if ( ! $repris ) {
+					return array(
+						'ok'      => false,
+						'from'    => $from,
+						'to'      => $from,
+						'dry'     => false,
+						'ran'     => array(),
+						'skipped' => array(),
+						'error'   => 'une migration est déjà en cours (verrou ' . self::LOCK . ' repris par un autre processus). Rien n’a été fait.',
+					);
+				}
 			}
+			wp_cache_delete( self::LOCK, 'options' );
 		}
 
 		$at    = $from;
@@ -752,7 +775,9 @@ final class Schema {
 			$error = sprintf( 'étape %d interrompue : %s', $doing, $e->getMessage() );
 		} finally {
 			if ( ! $dry ) {
-				delete_option( self::LOCK );
+				// Le sien seulement : un verrou repris entre-temps par un autre reste à lui.
+				$wpdb->delete( $wpdb->options, array( 'option_name' => self::LOCK, 'option_value' => (string) $maintenant ) );
+				wp_cache_delete( self::LOCK, 'options' );
 			}
 		}
 

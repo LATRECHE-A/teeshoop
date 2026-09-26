@@ -252,7 +252,14 @@ final class Cart {
 		$product_id = (int) ( $payload['product_id'] ?? 0 );
 		$product    = $product_id > 0 ? wc_get_product( $product_id ) : null;
 
-		if ( ! $product || ! $product->is_purchasable() ) {
+		/*
+		 * A PASSWORD-PROTECTED ARTICLE IS NOT SOLD THROUGH THE API (SEC-06).
+		 * `is_purchasable()` ignores the password, and the page is the only
+		 * place it was enforced: anyone with the anonymous REST nonce (the same
+		 * for every visitor) and the product id could put an article prepared
+		 * for one client in their own basket.
+		 */
+		if ( ! $product || ! $product->is_purchasable() || post_password_required( $product->get_id() ) ) {
 			return new \WP_Error( 'teeshoop_bad_product', __( 'Cet article ne peut pas être personnalisé.', 'teeshoop' ), array( 'status' => 400 ) );
 		}
 

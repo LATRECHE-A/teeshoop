@@ -1951,7 +1951,12 @@ final class Cli {
 		 */
 		foreach ( array( 'privacy-policy', 'refund_returns' ) as $slug ) {
 			$post = get_page_by_path( $slug );
-			if ( ! $post instanceof \WP_Post || 'trash' === $post->post_status ) {
+			/*
+			 * THE UNTOUCHED DRAFT ONLY (DON-14). One somebody wrote and
+			 * published is a page links point to (e-mails, the footer, Google),
+			 * and binning it put them all on a 404 without asking.
+			 */
+			if ( ! $post instanceof \WP_Post || 'draft' !== $post->post_status ) {
 				continue;
 			}
 			if ( $privacy instanceof \WP_Post && $post->ID === $privacy->ID ) {

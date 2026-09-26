@@ -195,6 +195,10 @@ function ts_rgpd_suite( int $product_id ): void {
 			Waiver::freeze( $order );
 			$order->save();
 
+			// DON-11 : la référence de paiement survit, pour qu'un remboursement dû passe par la passerelle.
+			$order->set_transaction_id( 'pi_verification_harnais' );
+			$order->save();
+
 			// The proof, issued by the real code, so the blob this test scrubs is
 			// the blob a real order carries.
 			\Teeshoop\Core\Bat::issue( $order );
@@ -217,6 +221,7 @@ function ts_rgpd_suite( int $product_id ): void {
 			ts_eq( $after->get_billing_email(), '', 'l’adresse est restée sur la commande' );
 			ts_eq( $after->get_billing_address_1(), '', 'l’adresse postale est restée' );
 			ts_eq( $after->get_customer_ip_address(), '', 'l’adresse IP est restée' );
+			ts_eq( $after->get_transaction_id(), 'pi_verification_harnais', 'la référence de paiement a été effacée : plus de remboursement par la passerelle' );
 			ts_eq( (string) $after->get_meta( '_billing_siret', true ), '', 'le SIRET est resté' );
 			ts_eq( count( Privacy::design_ids_of_order( $after ) ), 0, 'la commande pointe encore vers une création' );
 
@@ -724,6 +729,18 @@ function ts_rgpd_suite( int $product_id ): void {
 	);
 
 	ts_it(
+		'erases the orders before WooCommerce anonymises the address it finds them by',
+		function () {
+			// DON-10. WooCommerce's eraser ran first and ours found no order afterwards.
+			$keys = array_keys( apply_filters( 'wp_privacy_personal_data_erasers', array() ) );
+			$ours = array_search( 'teeshoop-commandes', $keys, true );
+			$woo  = array_search( 'woocommerce-customer-orders', $keys, true );
+			ts_assert( false !== $ours && false !== $woo, 'both erasers must be registered, or this proves nothing' );
+			ts_assert( $ours < $woo, 'the Teeshoop orders eraser runs after WooCommerce has anonymised the address' );
+		}
+	);
+
+	ts_it(
 		'takes a person out of a proof without taking the proof apart',
 		function () {
 			$before = wp_json_encode(
@@ -733,7 +750,7 @@ function ts_rgpd_suite( int $product_id ): void {
 						'email'   => 'camille@example.test',
 						'societe' => 'Atelier Roux',
 					),
-					'lines'    => array( array( 'garment' => 'tee', 'quantity' => 6 ) ),
+					'lines'    => array( array( 'garment' => 'tee', 'quantity' => 6, 'name' => 'B&C #E150 T-Shirt à personnaliser' ) ),
 					'approval' => array(
 						'at' => '2026-08-01T10:00:00+00:00',
 						'ip' => '198.51.100.9',
@@ -751,6 +768,8 @@ function ts_rgpd_suite( int $product_id ): void {
 			ts_eq( $after['approval']['at'], '2026-08-01T10:00:00+00:00', 'la date de validation a été perdue' );
 			ts_eq( $after['approval']['by'], 'client', 'qui a validé a été perdu' );
 			ts_eq( (int) $after['lines'][0]['quantity'], 6, 'la commande elle-même a été abîmée' );
+			// DON-09 : le vêtement validé garde son nom, qui n'est pas une personne.
+			ts_eq( $after['lines'][0]['name'], 'B&C #E150 T-Shirt à personnaliser', 'la preuve ne dit plus quel vêtement a été validé' );
 		}
 	);
 
