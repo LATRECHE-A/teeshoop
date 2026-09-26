@@ -132,6 +132,14 @@ class Avancee {
   private message = ''
   private occupe = false
   private apercu: { fermer(): void } | null = null
+  /**
+   * FERMÉ, C'EST POUR DE BON (EDI-04). Un chargement de l'aperçu ou un détourage
+   * qui finissait après « Fermer les réglages avancés » redessinait tout le
+   * panneau dans la zone fermée, avec un aperçu WebGL que plus rien ne fermait.
+   */
+  private ferme = false
+  /** L'aperçu se charge : l'état et non le bouton, que `rendre()` recrée. */
+  private chargeApercu = false
   private zoneApercu: HTMLElement | null = null
   /**
    * Les boutons de la liste, par calque, pour suivre une frappe sans tout
@@ -148,6 +156,7 @@ class Avancee {
   }
 
   fermer(): void {
+    this.ferme = true
     this.apercu?.fermer()
     this.apercu = null
     this.zoneApercu = null
@@ -188,6 +197,7 @@ class Avancee {
   // ------------------------------------------------------------------ rendu
 
   private rendre(): void {
+    if (this.ferme) return
     /*
      * L'APERÇU EN VOLUME SURVIT AU RE-RENDU DU PANNEAU.
      *
@@ -538,7 +548,8 @@ class Avancee {
     b.type = 'button'
     b.setAttribute('data-teeshoop', 'apercu-volume')
     b.setAttribute('aria-expanded', String(this.apercu !== null))
-    b.textContent = this.apercu ? MOTS.fermerApercu : MOTS.ouvrirApercu
+    b.textContent = this.chargeApercu ? MOTS.chargementApercu : this.apercu ? MOTS.fermerApercu : MOTS.ouvrirApercu
+    b.disabled = this.chargeApercu
     b.addEventListener('click', () => {
       if (this.apercu) {
         this.apercu.fermer()
@@ -548,10 +559,13 @@ class Avancee {
         this.rendre()
         return
       }
+      if (this.chargeApercu) return
+      this.chargeApercu = true
       b.disabled = true
       b.textContent = MOTS.chargementApercu
       void import('./apercu3d')
         .then((mod) => {
+          if (this.ferme || this.apercu) return
           const hote = el('div', 'tshop-ed__zone-apercu')
           this.zone.append(hote)
           this.zoneApercu = hote
@@ -563,6 +577,7 @@ class Avancee {
           this.rendre()
         })
         .finally(() => {
+          this.chargeApercu = false
           b.disabled = false
         })
     })

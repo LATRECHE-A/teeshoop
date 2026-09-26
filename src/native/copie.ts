@@ -35,6 +35,10 @@ const DEPOT: Record<string, string> = {
     'Il n’y a rien à imprimer sur ce vêtement. Ajoutez un visuel, puis réessayez.',
   unmeasurable:
     'Nous n’avons pas pu mesurer votre visuel, donc pas le chiffrer. Réessayez avec un PNG ou un JPEG exporté depuis votre logiciel.',
+  unreachable:
+    'Le service qui reçoit votre visuel ne répond pas en ce moment, votre connexion n’y est pour rien. Réessayez dans quelques minutes, ou demandez un devis : rien n’a été facturé.',
+  font_unavailable:
+    'La police d’un de vos textes ne s’est pas chargée, donc nous ne pouvons ni le mesurer ni le chiffrer. Vérifiez votre connexion, puis réessayez.',
   missing_artwork:
     'Le fichier de votre visuel n’est plus dans ce navigateur. Déposez-le à nouveau, puis réessayez.',
   preview_failed:

@@ -980,6 +980,7 @@ export class EditorEngine {
 
     node.on('dragmove', () => {
       this.applyDragSnapping(node)
+      this.keepCentreInArea(node)
       this.updateGhost(node)
       this.emitSelection()
       const now = performance.now()
@@ -1003,6 +1004,7 @@ export class EditorEngine {
     })
 
     node.on('transformend', () => {
+      this.keepCentreInArea(node)
       const layer = node.getAttr('layerRef') as Layer
       const { ppi } = this.layout
       const scaleX = Math.abs(node.scaleX())
@@ -1027,6 +1029,18 @@ export class EditorEngine {
       this.ghost.visible(false)
       this.cb.onPatch(node.getAttr('layerId') as string, patch, { transient: false })
     })
+  }
+
+  /**
+   * THE CENTRE STAYS IN THE PRINT AREA (EDI-13), the rule `avancee.ts` applies
+   * to typed positions. Dragged entirely out on a phone (or swept while trying
+   * to scroll), a layer was clipped to nothing and could not be caught again,
+   * and a lone one left « Valider ma création » active on an empty-looking zone.
+   */
+  private keepCentreInArea(node: Konva.Shape): void {
+    const { area } = this.layout
+    node.x(Math.min(area.x + area.w, Math.max(area.x, node.x())))
+    node.y(Math.min(area.y + area.h, Math.max(area.y, node.y())))
   }
 
   private positionPatch(node: Konva.Shape): Partial<Layer> {

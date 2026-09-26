@@ -6,6 +6,7 @@
 import { get, set, del, update } from 'idb-keyval'
 import { nanoid } from 'nanoid'
 import type { AssetMeta } from '@/lib/types'
+import { withSvgSize } from '@/lib/rasterCache'
 
 const INDEX_KEY = 'tshop:assets:index'
 const blobKey = (id: string, cutout: boolean) =>
@@ -36,21 +37,34 @@ async function mutateIndex(
 }
 
 /** Decode an svg blob via HTMLImageElement (createImageBitmap rejects svgs). */
-async function decodeSvg(file: Blob): Promise<HTMLImageElement> {
+function loadSvg(file: Blob): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(file)
-  try {
-    const img = new Image()
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve()
-      img.onerror = () => reject(new Error('Could not decode SVG'))
-      img.src = url
-    })
-    if (!img.naturalWidth || !img.naturalHeight)
-      throw new Error('SVG has no intrinsic size')
-    return img
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
-  }
+  const img = new Image()
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('Could not decode SVG'))
+    img.src = url
+  }).finally(() => setTimeout(() => URL.revokeObjectURL(url), 1000))
+}
+
+async function decodeSvg(file: Blob): Promise<HTMLImageElement> {
+  const img = await loadSvg(file)
+  if (img.naturalWidth && img.naturalHeight) return img
+  /*
+   * A VIEWBOX AND NO WIDTH OR HEIGHT (EDI-15), which is how most logos are
+   * exported for the web. Firefox gives such an image no intrinsic size, and the
+   * customer was told the file could not be read. The viewBox states the
+   * proportions; it is drawn at the 2048 px long edge every raster is kept at.
+   */
+  const text = await file.text()
+  const vb = /viewBox\s*=\s*["']\s*[-\d.eE]+[\s,]+[-\d.eE]+[\s,]+([\d.eE]+)[\s,]+([\d.eE]+)/.exec(text)
+  const w = vb ? Number(vb[1]) : 0
+  const h = vb ? Number(vb[2]) : 0
+  if (!(w > 0 && h > 0)) throw new Error('SVG has no intrinsic size')
+  const k = 2048 / Math.max(w, h)
+  const sized = await loadSvg(new Blob([withSvgSize(text, w * k, h * k)], { type: 'image/svg+xml' }))
+  if (!sized.naturalWidth || !sized.naturalHeight) throw new Error('SVG has no intrinsic size')
+  return sized
 }
 
 /** Decode, downscale to ≤2048px long edge, store, return updated meta. */

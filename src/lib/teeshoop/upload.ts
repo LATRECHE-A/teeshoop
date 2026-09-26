@@ -86,6 +86,8 @@ const CACHE_MAX = 4
 export type UploadFailure =
   | 'no_printable_side'
   | 'unmeasurable'
+  | 'font_unavailable'
+  | 'unreachable'
   | 'missing_artwork'
   | 'preview_failed'
   | 'too_large'
@@ -281,16 +283,19 @@ export async function measureOrder(design: Design): Promise<MeasuredOrder> {
    * the upload is measured after, so the customer is charged for a different
    * box than the one they were shown, in steps of 4,00 EUR HT per garment.
    */
-  const [{ unmeasured }] = await Promise.all([
+  const families = [...new Set(layers.filter((l) => l.type === 'text').map((l) => l.fontFamily))]
+  const [{ unmeasured }, loaded] = await Promise.all([
     ensureInkProbes(layers),
-    Promise.all(
-      [...new Set(layers.filter((l) => l.type === 'text').map((l) => l.fontFamily))].map((f) =>
-        ensureFont(f),
-      ),
-    ),
+    Promise.all(families.map((f) => ensureFont(f))),
   ] as const)
   if (unmeasured.length > 0)
     throw new DesignUploadError('unmeasurable', unmeasured.map(layerLabel).join(', '))
+  // A text measured in a face that never arrived is a wrong area on the bill (EDI-11).
+  const missing = families.filter((_, i) => !loaded[i])
+  if (missing.length > 0) {
+    const texts = layers.filter((l) => l.type === 'text' && missing.includes(l.fontFamily))
+    throw new DesignUploadError('font_unavailable', texts.map(layerLabel).join(', '))
+  }
 
   const sides: BridgeSide[] = []
   for (const side of drawn) {
@@ -539,7 +544,12 @@ async function send(
      */
     res = await fetch(designUrl(opts), { method: 'POST', body: form })
   } catch {
-    throw new DesignUploadError('network')
+    /*
+     * « YOUR CONNECTION » ONLY WHEN IT IS (EDI-16). A Worker that is down, or an
+     * origin the shop's policy blocks, fails the same way as a dropped line,
+     * and the customer went to check a wifi that was fine.
+     */
+    throw new DesignUploadError(typeof navigator !== 'undefined' && navigator.onLine === false ? 'network' : 'unreachable')
   }
 
   if (!res.ok) {

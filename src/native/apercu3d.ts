@@ -94,6 +94,8 @@ class Apercu3d {
   private ferme = false
   private message = ''
   private modele: { glb: Blob; usdz: Blob; poster: Blob } | null = null
+  /** `updatedAt` of the creation `modele` was built from. See `essayer`. */
+  private modeleDe = 0
 
   constructor(zone: HTMLElement, ctx: Contexte, creation: () => Design) {
     this.zone = zone
@@ -157,9 +159,11 @@ class Apercu3d {
        */
       configureArAssets(this.ctx.workerUrl)
       const taille = (this.ctx.tailleTarif || DEFAULT_SIZE) as never
-      const modele = await buildArModel(this.creation(), this.silhouette, taille)
+      const creation = this.creation()
+      const modele = await buildArModel(creation, this.silhouette, taille)
       if (perimee()) return
       this.modele = modele
+      this.modeleDe = creation.updatedAt
       this.message = ''
       this.rendre()
       this.monterScene(perimee)
@@ -200,6 +204,16 @@ class Apercu3d {
    */
   private async essayer(): Promise<void> {
     if (!this.modele) return
+    /*
+     * THE MODEL THAT LEAVES IS THE ONE ON SCREEN NOW (EDI-06). A text added or
+     * a visual moved after the preview opened left the old model in place, and
+     * the QR code showed the customer's phone a garment that was no longer
+     * their order. It is rebuilt first.
+     */
+    if (this.creation().updatedAt !== this.modeleDe) {
+      await this.construire()
+      if (!this.modele) return
+    }
     const modele = this.modele
     const seq = this.sequence
     const perimee = (): boolean => this.ferme || seq !== this.sequence

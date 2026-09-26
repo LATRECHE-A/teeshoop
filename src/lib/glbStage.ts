@@ -53,7 +53,19 @@ function initPreview(
 ): { arreter(): void } {
   const aLiberer: { dispose(): void }[] = []
   let vivant = true
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true })
+  /*
+   * NO WEBGL, SAID (EDI-07). Without hardware acceleration the renderer throws
+   * here, the model had already been built without it, and the page kept an
+   * empty canvas under « Faites glisser pour tourner le vêtement ». The caller's
+   * failure sentence is the one that describes this case.
+   */
+  let renderer: THREE.WebGLRenderer
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true })
+  } catch {
+    onFail()
+    return { arreter() {} }
+  }
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
   // Neutral (KHR_PBR_neutral) at reference exposure, the same as the studio
   // canvas and the basket board. This viewer is the AR poster/fallback, i.e. the

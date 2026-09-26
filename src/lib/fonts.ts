@@ -36,7 +36,7 @@ export const FONTS: FontDef[] = [
 const LOAD_TIMEOUT_MS = 3000
 
 /** Cached load promises, one per family. */
-const pending = new Map<string, Promise<void>>()
+const pending = new Map<string, Promise<boolean>>()
 
 /** Resolve when `p` settles (either way) or after `ms`, never reject. */
 function settleWithin(p: Promise<unknown>, ms: number): Promise<void> {
@@ -50,9 +50,10 @@ function settleWithin(p: Promise<unknown>, ms: number): Promise<void> {
   })
 }
 
-async function loadFamily(family: string): Promise<void> {
+async function loadFamily(family: string): Promise<boolean> {
+  // No document, no font loading to wait for: nothing here can be checked.
   if (typeof document === 'undefined' || !document.fonts) {
-    return
+    return true
   }
   /*
    * THE DECLARATIONS FIRST, THEN THE LOAD, AND THE ORDER IS THE WHOLE POINT.
@@ -68,18 +69,30 @@ async function loadFamily(family: string): Promise<void> {
   const loads: Promise<unknown>[] = [document.fonts.load(`64px ${quoted}`)]
   // Oswald ships a semibold weight used for tracking-heavy sublines.
   if (family === 'Oswald') loads.push(document.fonts.load(`600 64px ${quoted}`))
-  return settleWithin(Promise.all(loads), LOAD_TIMEOUT_MS)
+  await settleWithin(Promise.all(loads), LOAD_TIMEOUT_MS)
+  /*
+   * ASKED, NOT ASSUMED (EDI-11). Settling within the timeout says the wait is
+   * over, not that the face arrived: on a slow mobile line the canvas then
+   * measured the text in the browser's default face, and that area went into
+   * the document the shop bills. `check` is true for a face that is loaded and
+   * for a family no `@font-face` names (a system font), false otherwise.
+   */
+  return document.fonts.check(`64px ${quoted}`)
 }
 
 /**
- * Ensure a family is ready for canvas use. Resolves once loaded, after a
- * 3s timeout, or immediately for unknown families: it never rejects.
- * Promises are cached, so repeat calls are free.
+ * Ensure a family is ready for canvas use, and say whether it is: true once
+ * loaded (or for a family no stylesheet declares), false when the 3s wait ran
+ * out first. Never rejects. A success is cached; a timeout is not, so the next
+ * call tries again instead of inheriting the failure.
  */
-export function ensureFont(family: string): Promise<void> {
+export function ensureFont(family: string): Promise<boolean> {
   let p = pending.get(family)
   if (!p) {
-    p = loadFamily(family)
+    p = loadFamily(family).then((ready) => {
+      if (!ready) pending.delete(family)
+      return ready
+    })
     pending.set(family, p)
   }
   return p

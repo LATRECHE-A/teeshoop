@@ -303,4 +303,23 @@
     suivre()
   }
 
+  /*
+   * LA PASTILLE DU PANIER SUIT L'AJOUT (EDI-10). L'éditeur disait « Ajouté au
+   * panier » pendant que l'en-tête gardait l'ancien nombre, ou aucun, jusqu'au
+   * prochain chargement : de quoi douter de l'ajout et cliquer une seconde fois.
+   * Le nombre est celui de la boutique (`get_cart_contents_count`, comme ici).
+   */
+  doc.body.addEventListener('teeshoop:added', function (e) {
+    var n = Number(e.detail && e.detail.cart_count)
+    var cart = doc.querySelector('.ts-mast__cart')
+    if (!cart || !(n > 0)) return
+    var badge = cart.querySelector('.ts-mast__cart-n')
+    if (!badge) {
+      badge = doc.createElement('span')
+      badge.className = 'ts-mast__cart-n ts-num'
+      cart.appendChild(badge)
+    }
+    badge.textContent = String(n)
+  })
+
 })()

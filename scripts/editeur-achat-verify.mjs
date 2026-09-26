@@ -14,7 +14,8 @@
  * retard qui écrasait celui de l'écran (EDI-02), un focus qui tombait en haut de
  * la page à la fin de l'achat, une scène WebGL qui continuait de tourner
  * derrière l'aperçu en volume (EDI-03), des boutons détruits sous le focus du
- * clavier (EDI-05). Pour les voir il faut maîtriser QUAND chaque
+ * clavier (EDI-05), un visuel glissé hors d'atteinte (EDI-13), un panneau fermé
+ * qui se rouvrait tout seul (EDI-04). Pour les voir il faut maîtriser QUAND chaque
  * réponse arrive, et c'est ce que ce harnais fait : il sert le paquet construit
  * sur une origine inventée et répond lui-même, au fil, à la boutique et au
  * Worker. Le code qui tourne est celui que la fiche produit charge.
@@ -112,6 +113,7 @@ const panier = []
 const devisDemandes = []
 let lentProchainDevis = 0
 let lentDepot = 0
+let lentApercu = 0
 let depots = 0
 const inconnues = []
 
@@ -146,6 +148,11 @@ await page.route('**/*', async (route) => {
   }
   if (url.origin === ORIGINE && url.pathname.startsWith(CHEMIN_ACTIFS)) {
     const nom = url.pathname.slice(CHEMIN_ACTIFS.length)
+    if (lentApercu > 0 && nom.startsWith('morceau-apercu3d')) {
+      const attente = lentApercu
+      lentApercu = 0
+      await new Promise((r) => setTimeout(r, attente))
+    }
     try {
       const corps = readFileSync(join(ASSETS, nom))
       const type = nom.endsWith('.js') ? 'text/javascript' : nom.endsWith('.css') ? 'text/css' : nom.endsWith('.woff2') ? 'font/woff2' : 'application/octet-stream'
@@ -241,6 +248,39 @@ try {
   ok('l’éditeur construit démarre sur la page', true)
 
   await page.setInputFiles('input.tshop-ed__fichier', { name: 'logo.png', mimeType: 'image/png', buffer: logo })
+  // ── EDI-13 : un visuel glissé très loin reste dans la zone ─────────────
+  const xIn = () => page.evaluate(() => window.teeshoopEditeur?.creation?.layers?.[0]?.xIn ?? null)
+  const toile = page.locator('[data-teeshoop-editeur] canvas').first()
+  await toile.waitFor({ timeout: 20000 })
+  const boite = await toile.boundingBox()
+  let prise = null
+  // Trouver un point qui ATTRAPE le calque, sinon le test passerait à vide.
+  for (let fy = 0.3; fy <= 0.7 && !prise; fy += 0.1) {
+    for (let fx = 0.3; fx <= 0.7 && !prise; fx += 0.1) {
+      const x = boite.x + boite.width * fx
+      const y = boite.y + boite.height * fy
+      const avant = await xIn()
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x + 25, y, { steps: 5 })
+      await page.mouse.up()
+      await page.waitForTimeout(150)
+      if ((await xIn()) !== avant) prise = { x: x + 25, y }
+    }
+  }
+  ok('le harnais attrape le calque sur le canevas', !!prise)
+  if (prise) {
+    await page.mouse.move(prise.x, prise.y)
+    await page.mouse.down()
+    await page.mouse.move(prise.x + 3000, prise.y, { steps: 20 })
+    await page.mouse.up()
+    await page.waitForTimeout(300)
+    // La zone du gabarit du t-shirt fait 30,5 cm (12 in) : un centre borné reste
+    // à 6 in du milieu au plus, là où 3 000 px de glisser l'emmenaient bien au-delà.
+    const x = await xIn()
+    ok('un visuel glissé très loin garde son centre dans la zone', x !== null && Math.abs(x) <= 6.01, `xIn = ${x}`)
+  }
+
   const valider = page.locator('[data-teeshoop="valider-creation"]')
   await page.waitForFunction(() => {
     const b = document.querySelector('[data-teeshoop="valider-creation"]')
@@ -333,10 +373,28 @@ try {
   ok('deux changements de silhouette rapides laissent une seule scène', (await vivants()) === 1, `${await vivants()} contexte(s) vivant(s)`)
 
   // En dernier, parce qu'il retire le visuel : le focus reste dans l'éditeur.
-  await page.locator('[data-teeshoop="vue-avancee"]').click()
   await auClavier(outil('Retirer'))
   const apresRetrait = await focusSur()
   ok('« Retirer » au clavier laisse le focus dans l’éditeur', apresRetrait !== 'BODY' && !apresRetrait.endsWith('(hors éditeur)'), apresRetrait)
+
+  // ── EDI-04 : fermer pendant le chargement de l'aperçu, c'est fermé ──────
+  // Sur une page neuve : le morceau 3D ne doit pas déjà être en mémoire.
+  await page.goto(PAGE)
+  await page.locator('[data-teeshoop-editeur][data-teeshoop-editeur-etat="pret"]').waitFor({ timeout: 30000 })
+  await page.setInputFiles('input.tshop-ed__fichier', { name: 'logo.png', mimeType: 'image/png', buffer: logo })
+  await page.waitForFunction(() => window.teeshoopEditeur?.creation?.layers?.length > 0, null, { timeout: 30000 })
+  // Le morceau 3D arrive APRÈS la fermeture : c'est la course du défaut.
+  lentApercu = 4000
+  await page.locator('[data-teeshoop="vue-avancee"]').click()
+  await page.locator('[data-teeshoop="apercu-volume"]').click()
+  await page.locator('[data-teeshoop="vue-avancee"]').click()
+  await page.waitForTimeout(12000)
+  const zoneAvancee = await page.evaluate(() => {
+    const z = document.querySelector('.tshop-ed__avancee')
+    return z ? z.childElementCount : 0
+  })
+  ok('un panneau fermé pendant un chargement ne se rouvre pas', zoneAvancee === 0, `${zoneAvancee} élément(s)`)
+  ok('et ne laisse aucune scène 3D tourner', (await vivants()) === 0, `${await vivants()} contexte(s) vivant(s)`)
 } catch (e) {
   ok('le parcours va au bout', false, String(e?.message ?? e).split('\n')[0])
 } finally {
