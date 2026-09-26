@@ -199,6 +199,8 @@ export const COPIE = {
   // ----------------------------------------------------------------- l'achat
   ajouter: 'Ajouter au panier',
   ajoute: 'Ajouté au panier.',
+  /** Le bouton, tant que l'écran montre ce qui vient d'être ajouté (EDI-01). */
+  ajouteBouton: 'Ajouté au panier',
   /*
    * LA CONFIRMATION DIT CE QUI A ÉTÉ AJOUTÉ, et pas seulement que ça l'a été.
    * « Ajouté au panier » sous une commande de 33 pièces en trois coloris ne

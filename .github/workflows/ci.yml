@@ -740,6 +740,13 @@ jobs:
       - name: Le clavier du studio fait ce que ses rôles ARIA annoncent
         run: node scripts/focus-verify.mjs
 
+      # Le paquet VERSIONNÉ de l'éditeur, celui que la fiche charge (verify:editeur
+      # prouve qu'il est celui que la source produit), avec la boutique et le
+      # Worker répondus au fil : un clic, une ligne ; le prix affiché est celui de
+      # la grille à l'écran ; le focus ne tombe pas en haut de la page.
+      - name: L'achat dans l'éditeur, clic par clic
+        run: node scripts/editeur-achat-verify.mjs
+
       # Tout dans une seule étape : un `wrangler dev` lancé en arrière-plan dans
       # une étape et utilisé dans la suivante est un processus que personne
       # n'arrête si l'étape du milieu échoue. C'est aussi la forme exacte qui a

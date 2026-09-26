@@ -728,6 +728,15 @@
 	opacity: 0.72;
 }
 
+/* Ajouté, et rien ne travaille : ni curseur d'attente ni bouton éteint. */
+.tshop-ed__acheter[data-ajoute] {
+	cursor: default;
+	opacity: 1;
+	color: var(--tshop-ink);
+	background: var(--tshop-surface);
+	border-color: var(--tshop-line);
+}
+
 /*
  * DÉSACTIVÉ PARCE QU'IL MANQUE QUELQUE CHOSE, ET PAS PARCE QUE ÇA TRAVAILLE :
  * le curseur d'attente de l'achat mentirait ici, rien n'est en cours. La phrase

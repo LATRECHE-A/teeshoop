@@ -218,6 +218,12 @@ class Instance implements Editeur {
   private timerDevis: number | null = null
   private annuleDevis: AbortController | null = null
   private sequenceDevis = 0
+  /**
+   * Ce qui est parti au panier au dernier ajout réussi : la création (immuable,
+   * donc son identité suffit) et la matrice sérialisée. Voir `dejaAjoute()`.
+   */
+  private ajouteCreation: Design | null = null
+  private ajouteMatrice = ''
   private panierUrl = ''
   /** Ce que la confirmation annonce : ce qui est VRAIMENT parti au panier. */
   private ajoutePieces = 0
@@ -1701,6 +1707,14 @@ class Instance implements Editeur {
      * synchroniquement, plus bas, avant `measureOrder`.
      */
     if (this.phase === 'mesure' || this.phase === 'depot' || this.phase === 'ajout') return
+    /*
+     * CE QUI EST DÉJÀ AU PANIER N'Y RETOURNE PAS (EDI-01). Après « Ajouté au
+     * panier », le bouton restait actif sous son libellé d'origine : un second
+     * clic, pour être sûr, déposait une seconde ligne identique, et trente
+     * pièces voulues en faisaient soixante chiffrées à part. Toute modification
+     * de la création ou de la grille rouvre l'achat (`chiffrerBientot`).
+     */
+    if (this.dejaAjoute()) return
 
     const total = this.quantite()
     if (this.creation.layers.length === 0) {
@@ -1765,6 +1779,23 @@ class Instance implements Editeur {
     const matrice = this.matrice()
     const grille = this.grille()
     const pieces = Object.values(grille).reduce((s, n) => s + n, 0)
+    const signature = JSON.stringify(matrice)
+    /*
+     * L'ÉCRAN NE REÇOIT QUE CE QUI LE DÉCRIT ENCORE (EDI-02). Les champs de la
+     * grille et la scène restent vivants pendant l'achat : un client qui passe
+     * de 40 à 50 pendant l'envoi fait rechiffrer l'écran, et le devis de 40 que
+     * cet achat reçoit ensuite écrasait celui de 50, sous une grille à 50.
+     */
+    const inchange = (): boolean => this.creation === creation && JSON.stringify(this.matrice()) === signature
+    /*
+     * ET UN CHIFFRAGE DÉJÀ PARTI N'A PLUS À ÉCRIRE : celui-ci mesure et chiffre
+     * le même état, une seconde fois, à la même seconde.
+     */
+    if (this.timerDevis !== null) window.clearTimeout(this.timerDevis)
+    this.timerDevis = null
+    this.annuleDevis?.abort()
+    this.annuleDevis = null
+    ++this.sequenceDevis
 
     try {
       // 1. LA MESURE se stabilise. Refaite ici et non reprise du devis : entre
@@ -1774,16 +1805,20 @@ class Instance implements Editeur {
       this.rendreAchat()
       const mesure = await measureOrder(creation)
       if (this.detruit) return
-      this.faces = mesure.sides
+      const faces = mesure.sides
 
       // 2. LE SERVEUR CHIFFRE, sur ces surfaces. Le refus d'un devis (au-delà
       //    du seuil, vêtement inconnu) arrive AVANT le dépôt, donc avant qu'un
       //    client ait attendu le téléversement de son fichier pour rien.
-      const devis = await demanderDevis(this.ctx, this.faces, pieces)
+      const devis = await demanderDevis(this.ctx, faces, pieces)
       if (this.detruit) return
-      this.devis = devis
-      this.devisEtat = 'ok'
-      this.rendrePrix()
+      if (inchange()) {
+        this.faces = faces
+        this.devis = devis
+        this.devisEtat = 'ok'
+        this.devisEchec = ''
+        this.rendrePrix()
+      }
       if (devis.needs_quote) {
         this.phase = 'echec'
         this.echec = COPIE.surDevis
@@ -1815,7 +1850,7 @@ class Instance implements Editeur {
        */
       const panier = await ajouterAuPanier(this.ctx, {
         designId: depose.id,
-        faces: this.faces,
+        faces,
         grille,
         matrice,
       })
@@ -1824,9 +1859,12 @@ class Instance implements Editeur {
       this.panierUrl = panier.cartUrl
       this.ajoutePieces = pieces
       this.ajouteColoris = Object.keys(matrice).length
+      this.ajouteCreation = creation
+      this.ajouteMatrice = signature
       this.phase = 'ajoute'
       this.echec = ''
       this.rendreAchat()
+      this.rendreFocusAchat()
       /*
        * Le même événement que `bridge.js` émettait, sur le même noeud.
        *
@@ -1842,7 +1880,39 @@ class Instance implements Editeur {
       this.phase = 'echec'
       this.echec = this.phraseDe(e, COPIE.achatEchoue)
       this.rendreAchat()
+      this.rendreFocusAchat()
+      // Le chiffrage annulé plus haut n'a pas été remplacé : l'écran le refait.
+      if (this.devisEtat === 'chargement') void this.chiffrer()
     }
+  }
+
+  /**
+   * Ce que l'écran montre est-il exactement ce que le dernier ajout a envoyé ?
+   * Tant que oui, « Ajouter au panier » achèterait la même chose une seconde
+   * fois (EDI-01).
+   */
+  private dejaAjoute(): boolean {
+    return (
+      this.phase === 'ajoute' &&
+      this.creation === this.ajouteCreation &&
+      JSON.stringify(this.matrice()) === this.ajouteMatrice
+    )
+  }
+
+  /**
+   * LE FOCUS NE TOMBE PAS EN HAUT DE LA PAGE À LA FIN D'UN ACHAT.
+   *
+   * Le bouton est désactivé pendant l'achat, et un élément désactivé perd le
+   * focus : un client au clavier se retrouvait sur le corps du document, loin
+   * de la confirmation et de « Voir le panier ». Il est rendu à la première
+   * commande de la confirmation, ou au bouton quand il est de nouveau utilisable.
+   */
+  private rendreFocusAchat(): void {
+    const actif = document.activeElement
+    if (actif instanceof HTMLElement && actif !== document.body && this.hote.contains(actif) && actif !== this.noeuds.achat) return
+    const suite = this.noeuds.etat.querySelector<HTMLElement>('a, button')
+    if (suite) suite.focus()
+    else if (!this.noeuds.achat.disabled) this.noeuds.achat.focus()
   }
 
   /**
@@ -2669,7 +2739,9 @@ class Instance implements Editeur {
   private rendreAchat(): void {
     const b = this.noeuds.achat
     const occupe = this.phase === 'mesure' || this.phase === 'depot' || this.phase === 'ajout'
-    b.disabled = occupe
+    const deja = this.dejaAjoute()
+    b.disabled = occupe || deja
+    b.toggleAttribute('data-ajoute', deja)
     b.textContent =
       this.phase === 'mesure'
         ? COPIE.phaseMesure
@@ -2677,7 +2749,9 @@ class Instance implements Editeur {
           ? COPIE.phaseDepot
           : this.phase === 'ajout'
             ? COPIE.phaseAjout
-            : COPIE.ajouter
+            : deja
+              ? COPIE.ajouteBouton
+              : COPIE.ajouter
 
     const zone = this.noeuds.etat
     vider(zone)
