@@ -176,11 +176,10 @@ function ts_schema_suite(): void {
 		function (): void {
 			/*
 			 * Driven through plan() with a synthetic list rather than through
-			 * migrate(), because the three real steps are all `auto` today and
-			 * an assertion that cannot be exercised proves nothing. The pure
-			 * suite covers the same branch; this repeats it here so that the day
-			 * a real CLI-only step is added, the integration run reads as a
-			 * statement about the shipped list and not about a fixture.
+			 * migrate(), so that the stop is observed without running the real
+			 * CLI-only steps, which write pages. The pure suite covers the same
+			 * branch; this repeats it here so the integration run also reads as a
+			 * statement about the shipped list and not only about a fixture.
 			 */
 			$synthetic = array_merge(
 				Schema::steps(),
@@ -191,8 +190,64 @@ function ts_schema_suite(): void {
 			ts_assert( is_array( $plan['stopped'] ), 'l’arrêt doit être signalé' );
 			ts_eq( (int) $plan['stopped']['id'], 9999, 'et doit nommer l’étape qui bloque' );
 
-			$auto_only = array_filter( Schema::steps(), static fn( array $s ): bool => empty( $s['auto'] ) );
-			ts_eq( count( $auto_only ), 0, 'les trois étapes livrées sont toutes O(1) et doivent le rester tant qu’aucune ne parcourt de lignes' );
+			/*
+			 * Les étapes réservées à la ligne de commande sont nommées, pour qu'une
+			 * nouvelle ne le devienne pas par accident : 7 et 8 écrivent des pages
+			 * et des menus, qui n'existent qu'après `init` (voir Schema::steps()).
+			 */
+			$cli_only = array_values( array_map( static fn( array $s ): int => (int) $s['id'], array_filter( Schema::steps(), static fn( array $s ): bool => empty( $s['auto'] ) ) ) );
+			ts_eq( $cli_only, array( 7, 8 ), 'seules les étapes qui écrivent des pages et des menus attendent la ligne de commande' );
+		}
+	);
+
+	ts_it(
+		'fills only the empty fields of the legal identity, and never overwrites one',
+		function (): void {
+			$avant = get_option( 'teeshoop_legal', null );
+			update_option( 'teeshoop_legal', array( 'raison_sociale' => 'Saisie opérateur', 'ville' => '' ) );
+			$dit = Schema::step_identite();
+			$lu  = get_option( 'teeshoop_legal' );
+			ts_eq( $lu['raison_sociale'], 'Saisie opérateur', 'un champ rempli ne doit jamais être réécrit' );
+			ts_eq( $lu['siret'], '93059298500012', 'un champ vide reçoit la valeur du registre' );
+			ts_eq( $lu['hebergeur_nom'], 'o2switch', 'l’hébergeur fait partie de la même option' );
+			ts_assert( ! str_contains( $dit, 'raison_sociale' ), 'le rapport ne doit pas annoncer un champ qu’il n’a pas posé : ' . $dit );
+			ts_eq( Schema::step_identite(), 'identité déjà renseignée, rien de réécrit', 'la seconde passe ne doit rien changer' );
+			null === $avant ? delete_option( 'teeshoop_legal' ) : update_option( 'teeshoop_legal', $avant );
+		}
+	);
+
+	ts_it(
+		'unpublishes an empty Elementor page and its menu entry, and leaves a written page alone',
+		function (): void {
+			$vide = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'Services', 'post_name' => 'services', 'post_content' => '' ) );
+			update_post_meta( $vide, '_elementor_edit_mode', 'builder' );
+			$ecrite = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'Contact', 'post_name' => 'contact', 'post_content' => str_repeat( 'Un vrai texte de page, écrit à la main. ', 8 ) ) );
+			$menu   = wp_create_nav_menu( 'ts-test-menu-' . wp_generate_password( 6, false ) );
+			$item   = wp_update_nav_menu_item( $menu, 0, array( 'menu-item-object-id' => $vide, 'menu-item-object' => 'page', 'menu-item-type' => 'post_type', 'menu-item-status' => 'publish' ) );
+			ts_assert( ! is_wp_error( $item ) && $item > 0, 'l’entrée de menu témoin n’a pas pu être posée : ce test ne prouverait rien' );
+
+			$dit = Schema::step_pages_vides();
+			ts_eq( get_post_status( $vide ), 'draft', 'la page Elementor vide doit passer en brouillon : ' . $dit );
+			ts_eq( get_post( $item ), null, 'son entrée de menu doit être supprimée' );
+			ts_eq( get_post_status( $ecrite ), 'publish', 'une page qui a un vrai texte ne doit pas être touchée' );
+			ts_eq( Schema::step_pages_vides(), 'aucune page vide à retirer', 'la seconde passe ne doit rien faire' );
+
+			wp_delete_post( $vide, true );
+			wp_delete_post( $ecrite, true );
+			wp_delete_nav_menu( $menu );
+		}
+	);
+
+	ts_it(
+		'publishes the quote page the « Devis » buttons open',
+		function (): void {
+			$page = get_page_by_path( 'devis' );
+			ts_assert( $page instanceof WP_Post, 'le miroir doit avoir une page devis pour que ce test prouve quelque chose' );
+			$avant = $page->post_status;
+			wp_update_post( array( 'ID' => $page->ID, 'post_status' => 'draft' ) );
+			$dit = Schema::step_page_devis();
+			ts_eq( get_post_status( $page->ID ), 'teeshoop' === get_template() ? 'publish' : 'draft', 'la page devis doit être publiée sous notre thème : ' . $dit );
+			wp_update_post( array( 'ID' => $page->ID, 'post_status' => $avant ) );
 		}
 	);
 

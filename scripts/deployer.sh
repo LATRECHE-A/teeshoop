@@ -314,13 +314,41 @@ vert "  node $NODE_BRUT, .nvmrc demande $NVMRC_BRUT : même majeure ($NODE_MAJEU
 # passant que sur la machine du développeur. Un banc qui ne tourne qu'à un endroit
 # n'est pas un banc.
 titre "Accès au serveur"
-if ! timeout 15 bash -c "cat < /dev/null > /dev/tcp/${TEESHOOP_SSH_HOST_TCP:-ascaphus.o2switch.net}/${TEESHOOP_SSH_PORT_TCP:-22}" 2>/dev/null; then
+SERVEUR_TCP="${TEESHOOP_SSH_HOST_TCP:-ascaphus.o2switch.net}"
+port22() { timeout 15 bash -c "cat < /dev/null > /dev/tcp/${SERVEUR_TCP}/${TEESHOOP_SSH_PORT_TCP:-22}" 2>/dev/null; }
+
+# L'ADRESSE S'AUTORISE ELLE-MÊME QUAND UN JETON cPanel EST FOURNI. Celle de
+# l'exécutant est dynamique (176.191.78.140 le 05/09, 176.140.196.202 le 25/09),
+# et chaque changement fermait le déploiement jusqu'à un passage dans cPanel.
+# o2switch expose la même liste blanche en API, avec un jeton d'API cPanel :
+# https://faq.o2switch.fr/cpanel/outils/exception-parefeu/ . Sans jeton, rien ne
+# change et le test ci-dessous refuse comme avant. L'ajout prend une vingtaine de
+# secondes à atteindre le pare-feu, d'où les nouvelles tentatives.
+if [ -n "${O2SWITCH_CPANEL_TOKEN:-}" ] && [ -n "${O2SWITCH_USER:-}" ] && ! port22; then
+  IP_ICI="$(curl -s -m 10 https://api.ipify.org || true)"
+  if printf '%s' "$IP_ICI" | grep -Eqx '([0-9]{1,3}\.){3}[0-9]{1,3}'; then
+    REPONSE="$(curl -s -m 45 -H "Authorization: cpanel ${O2SWITCH_USER}:${O2SWITCH_CPANEL_TOKEN}" \
+      "https://${SERVEUR_TCP}:2083/execute/SshWhitelist/add?address=${IP_ICI}&port=22" || true)"
+    if printf '%s' "$REPONSE" | grep -q '"status":1'; then
+      vert "  $IP_ICI ajoutée à la liste blanche SSH d'o2switch"
+      for _ in 1 2 3 4; do port22 && break; sleep 10; done
+    else
+      orange "  la liste blanche a refusé $IP_ICI : ${REPONSE:-aucune réponse} (cinq adresses au plus par compte)"
+    fi
+  else
+    orange "  adresse publique de cette machine illisible, la liste blanche n'a pas été touchée"
+  fi
+fi
+
+if ! port22; then
   rouge "Le port 22 de l'hébergeur ne répond pas depuis cette machine."
   echo   "  Le site, lui, répond en HTTPS : ce n'est donc pas l'hébergeur qui est en panne."
   echo   "  o2switch filtre SSH par adresse IP. Deux causes possibles :"
   echo   "    - cette adresse n'est pas autorisée : cPanel > Accès SSH > autoriser"
   echo   "      $(curl -s -m 10 https://api.ipify.org 2>/dev/null || echo '(adresse non déterminée)')"
   echo   "    - ou elle vient d'être bloquée après trop de connexions : attendre une heure."
+  echo   "  Pour ne plus y revenir : un jeton d'API cPanel dans O2SWITCH_CPANEL_TOKEN (et le"
+  echo   "  compte dans O2SWITCH_USER), et ce script autorise lui-même son adresse du moment."
   exit 2
 fi
 vert "  port 22 joignable"

@@ -28,6 +28,8 @@ name: Déploiement
 #   O2SWITCH_KNOWN_HOSTS   la clé d'hôte, pour ne pas accepter n'importe quel
 #                          serveur qui répond à ce nom
 #   CLOUDFLARE_API_TOKEN   seulement pour le travail « studio », tout en bas
+#   O2SWITCH_CPANEL_TOKEN  facultatif : un jeton d'API cPanel, avec lequel
+#                          deployer.sh autorise lui-même l'adresse de l'exécutant
 #
 # Aucun n'est dans le dépôt et aucun ne doit y arriver. Comment les poser :
 # docs/DEPLOIEMENT.md.
@@ -134,7 +136,13 @@ jobs:
           node scripts/version-tampon.mjs
           node scripts/version-tampon.mjs --verifier
 
+      # Le jeton cPanel laisse le script autoriser lui-même l'adresse du moment de
+      # cet exécutant, qui change (voir l'étape 2 de scripts/deployer.sh). Absent,
+      # le script refuse comme avant et nomme l'adresse à autoriser à la main.
       - name: Déployer en préproduction
+        env:
+          O2SWITCH_CPANEL_TOKEN: ${{ secrets.O2SWITCH_CPANEL_TOKEN }}
+          O2SWITCH_USER: ${{ secrets.O2SWITCH_USER }}
         run: ./scripts/deployer.sh preprod
 
   production:
@@ -220,6 +228,9 @@ jobs:
           node scripts/version-tampon.mjs --verifier
 
       - name: Déployer en production
+        env:
+          O2SWITCH_CPANEL_TOKEN: ${{ secrets.O2SWITCH_CPANEL_TOKEN }}
+          O2SWITCH_USER: ${{ secrets.O2SWITCH_USER }}
         run: ./scripts/deployer.sh prod
 
   # ── LE STUDIO, SÉPARÉMENT ET À LA MAIN ──────────────────────────────────────

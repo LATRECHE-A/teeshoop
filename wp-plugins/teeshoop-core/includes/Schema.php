@@ -133,7 +133,178 @@ final class Schema {
 				'auto'  => true,
 				'run'   => array( self::class, 'step_dispo_table' ),
 			),
+			array(
+				'id'    => 6,
+				'label' => 'Identité légale de PHARAON SAS et de l’hébergeur',
+				'auto'  => true,
+				'run'   => array( self::class, 'step_identite' ),
+			),
+			/*
+			 * 7 ET 8 NE SONT PAS `auto`, et ce n'est pas une question de durée : ils
+			 * écrivent des pages et des menus, et `auto()` tourne sur
+			 * `plugins_loaded`, avant `init`, donc avant que WordPress ait enregistré
+			 * le type « page » et la taxonomie des menus, et avant que les autres
+			 * extensions aient posé leurs crochets de sauvegarde. `wp teeshoop
+			 * migrer`, que l'installation d'un déploiement lance, les joue une fois
+			 * WordPress entièrement chargé.
+			 */
+			array(
+				'id'    => 7,
+				'label' => 'Pages vides de l’ancienne installation, retirées du site et des menus',
+				'auto'  => false,
+				'run'   => array( self::class, 'step_pages_vides' ),
+			),
+			array(
+				'id'    => 8,
+				'label' => 'Page de demande de devis',
+				'auto'  => false,
+				'run'   => array( self::class, 'step_page_devis' ),
+			),
 		);
+	}
+
+	/**
+	 * L'identité que les mentions légales, le pied de page et les factures lisent.
+	 *
+	 * POURQUOI UNE MIGRATION. Personne n'a accès à l'administration de la
+	 * production (décision du 26/09/2026) : l'écran qui écrit cette option n'a donc
+	 * pas d'utilisateur, et chaque page du site affichait « Identité légale non
+	 * renseignée » alors que l'associé l'avait fournie le 01/09.
+	 *
+	 * D'OÙ VIENT CHAQUE VALEUR, pour qu'aucune ne soit reconstituée :
+	 *   - l'éditeur : réponse 17 de l'associé, recoupée le 26/09/2026 avec le
+	 *     registre SIRENE (recherche-entreprises.api.gouv.fr, SIREN 930 592 985) :
+	 *     PHARAON, SAS, un seul établissement, son siège, 97 avenue de Castelnau à
+	 *     Drancy. Le siège est celui du registre et pas l'atelier de Bobigny : un
+	 *     SIRET désigne une adresse, et en publier une autre rendrait la mention
+	 *     fausse. Bobigny est la ville du greffe, ce que dit `rcs_ville` ;
+	 *   - le directeur de la publication, l'e-mail et le téléphone publics :
+	 *     réponse 56 ;
+	 *   - l'hébergeur : ce qu'o2switch demande lui-même de publier
+	 *     (blog.o2switch.fr, « Que renseigner dans la page Mentions légales »).
+	 *
+	 * UN CHAMP DÉJÀ REMPLI N'EST JAMAIS RÉÉCRIT : ce qu'un opérateur a saisi gagne,
+	 * et c'est aussi ce qui rend l'étape idempotente.
+	 */
+	public static function step_identite(): string {
+		$voulu = array(
+			'raison_sociale'        => 'PHARAON',
+			'forme_juridique'       => 'SAS',
+			'capital'               => '100 EUR',
+			'adresse'               => '97 avenue de Castelnau',
+			'code_postal'           => '93700',
+			'ville'                 => 'Drancy',
+			'siret'                 => '93059298500012',
+			'rcs_ville'             => 'Bobigny',
+			'tva_intra'             => 'FR45930592985',
+			'directeur_publication' => 'SINGH Simran',
+			'contact_email'         => 'legales@teeshoop.fr',
+			'contact_tel'           => '07 58 48 83 98',
+			'hebergeur_nom'         => 'o2switch',
+			'hebergeur_adresse'     => 'Chemin des Pardiaux',
+			'hebergeur_ville'       => '63000 Clermont-Ferrand',
+			'hebergeur_tel'         => '04 44 44 60 40',
+		);
+		$actuel = get_option( OPTION_LEGAL, array() );
+		if ( ! is_array( $actuel ) ) {
+			$actuel = array();
+		}
+		$poses = array();
+		foreach ( $voulu as $cle => $valeur ) {
+			if ( '' === trim( (string) ( $actuel[ $cle ] ?? '' ) ) ) {
+				$actuel[ $cle ] = $valeur;
+				$poses[]        = $cle;
+			}
+		}
+		if ( array() === $poses ) {
+			return 'identité déjà renseignée, rien de réécrit';
+		}
+		update_option( OPTION_LEGAL, $actuel );
+		return sprintf( '%d champ(s) posé(s) : %s', count( $poses ), implode( ', ', $poses ) );
+	}
+
+	/**
+	 * Les pages de l'ancienne installation qui ne s'affichent plus.
+	 *
+	 * Mesuré en production le 26/09/2026 : sous notre thème, Services, Suivi de
+	 * commande, À propos, Contact et Devis gratuit n'affichent que leur titre, et
+	 * les trois premières sont dans le menu principal. Décision de l'utilisateur :
+	 * les retirer pour l'instant, elles seront refaites.
+	 *
+	 * EN BROUILLON, PAS À LA CORBEILLE : leur contenu reste en base pour être
+	 * repris. Leurs entrées de menu, elles, sont supprimées, parce qu'un menu
+	 * WordPress continue d'afficher le lien vers une page en brouillon, et ce lien
+	 * rend une 404 à chaque visiteur.
+	 *
+	 * UNE PAGE QUI A UN VRAI TEXTE N'EST PAS TOUCHÉE, sauf si c'est une page
+	 * Elementor, dont le contenu ne passe pas par notre thème : sur un autre
+	 * environnement, une page « contact » écrite à la main reste en ligne.
+	 */
+	public static function step_pages_vides(): string {
+		$retirees = array();
+		foreach ( array( 'services', 'suivi', 'a-propos', 'contact', 'devis-gratuit' ) as $slug ) {
+			$page = get_page_by_path( $slug );
+			if ( ! $page instanceof \WP_Post || 'publish' !== $page->post_status ) {
+				continue;
+			}
+			$texte     = trim( wp_strip_all_tags( strip_shortcodes( (string) $page->post_content ) ) );
+			$elementor = 'builder' === get_post_meta( $page->ID, '_elementor_edit_mode', true );
+			if ( ! $elementor && mb_strlen( $texte ) >= 200 ) {
+				continue;
+			}
+			$fait = wp_update_post( array( 'ID' => $page->ID, 'post_status' => 'draft' ), true );
+			if ( is_wp_error( $fait ) ) {
+				throw new \RuntimeException( sprintf( 'la page %s n’a pas pu passer en brouillon : %s', $slug, $fait->get_error_message() ) );
+			}
+			foreach ( wp_get_associated_nav_menu_items( $page->ID, 'post_type', 'page' ) as $item ) {
+				wp_delete_post( (int) $item, true );
+			}
+			$retirees[] = $slug;
+		}
+		return array() === $retirees
+			? 'aucune page vide à retirer'
+			: sprintf( '%d page(s) en brouillon et retirée(s) des menus : %s', count( $retirees ), implode( ', ', $retirees ) );
+	}
+
+	/**
+	 * La page que les boutons « Devis » ouvrent.
+	 *
+	 * Son contenu vient du gabarit `page-devis.php` du thème, que WordPress lui
+	 * applique par son adresse. Sans elle, `quote_url()` retombait sur la boutique,
+	 * et en production chaque bouton « Devis » menait au catalogue.
+	 *
+	 * Même titre et même règle que `Cli::ensure_site_pages()` : publiée sous notre
+	 * thème, en brouillon sous un autre, où elle ne serait qu'un titre.
+	 */
+	public static function step_page_devis(): string {
+		$statut = 'teeshoop' === get_template() ? 'publish' : 'draft';
+		$page   = get_page_by_path( 'devis' );
+		if ( $page instanceof \WP_Post ) {
+			if ( 'publish' === $page->post_status || 'publish' !== $statut ) {
+				return 'page devis déjà présente';
+			}
+			$fait = wp_update_post( array( 'ID' => $page->ID, 'post_status' => 'publish' ), true );
+			if ( is_wp_error( $fait ) ) {
+				throw new \RuntimeException( 'la page devis n’a pas pu être publiée : ' . $fait->get_error_message() );
+			}
+			return 'page devis publiée';
+		}
+		$id = wp_insert_post(
+			array(
+				'post_type'      => 'page',
+				'post_status'    => $statut,
+				'post_title'     => 'Un devis pour votre projet',
+				'post_name'      => 'devis',
+				'post_content'   => '',
+				'comment_status' => 'closed',
+				'ping_status'    => 'closed',
+			),
+			true
+		);
+		if ( is_wp_error( $id ) ) {
+			throw new \RuntimeException( 'la page devis n’a pas pu être créée : ' . $id->get_error_message() );
+		}
+		return 'publish' === $statut ? 'page devis créée' : 'page devis créée en brouillon, le thème actif n’est pas teeshoop';
 	}
 
 	/**
@@ -554,7 +725,16 @@ final class Schema {
 			return;
 		}
 
-		$rapport = self::migrate( array( 'cli' => defined( 'WP_CLI' ) && \WP_CLI ) );
+		/*
+		 * `auto` SEULEMENT, MÊME SOUS WP-CLI. C'était `'cli' => WP_CLI` : sous
+		 * WP-CLI, ce filet jouait aussi les étapes réservées à la ligne de
+		 * commande, sur `plugins_loaded`, c'est-à-dire avant `init`. Tant que
+		 * toutes les étapes créaient des tables, personne ne le voyait. Mais
+		 * `wp teeshoop migrer`, le chemin du déploiement, charge WordPress avant
+		 * de s'exécuter : ce filet passait le premier, jouait tout avant `init`,
+		 * et la commande ne trouvait plus rien à faire.
+		 */
+		$rapport = self::migrate( array() );
 		if ( ! $rapport['ok'] ) {
 			self::note_echec( (string) $rapport['error'] );
 		} elseif ( $dernier > 0 ) {

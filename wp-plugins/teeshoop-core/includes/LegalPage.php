@@ -104,7 +104,7 @@ final class LegalPage {
 	}
 
 	/**
-	 * @param string $content whatever an editor typed into the page, which we keep.
+	 * @param string $content whatever an editor typed into the page, which a legal page does not show.
 	 */
 	public static function render( $content ) {
 		$slug = self::current();
@@ -130,11 +130,16 @@ final class LegalPage {
 		}
 
 		/*
-		 * WHATEVER SOMEBODY TYPED STAYS, ABOVE. Same contract as `page.php` for
-		 * the editorial pages: the repository owns the body, the editor can add
-		 * to it, and nothing an operator wrote is silently discarded.
+		 * WHAT SOMEBODY TYPED IS NOT SHOWN, and this was the opposite until
+		 * 26/09/2026. The editorial pages keep an editor's text above the
+		 * repository's; a legal page cannot. Production proved it: the old page
+		 * body, « édité par Ayurcomfort », SIRET 904 602 901 00012, sat above our
+		 * block, so the mentions légales named two publishers. A legal notice
+		 * that contradicts itself is worse than one that is missing, and the one
+		 * that follows the code is the one an invoice agrees with. The typed text
+		 * stays in the database, untouched, for whoever wants to read it back.
 		 */
-		return $content . $out;
+		return $out;
 	}
 
 	// ── the shared furniture ─────────────────────────────────────────────────
