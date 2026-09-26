@@ -334,6 +334,13 @@ function buildDocument(design: Design, sides: BridgeSide[]): Record<string, unkn
   return {
     v: 1,
     ...design,
+    /*
+     * AN IMAGE LAYER IS NAMED BY ITS PLACE, NOT BY THE CUSTOMER'S FILE (IMG-02).
+     * The name was the file name from the customer's disk (« IMG_2034 »,
+     * « facture-client-dupont »), sent and kept with the design for nothing
+     * the workshop needs. Texts keep theirs: they are the printed words.
+     */
+    layers: design.layers.map((l, i) => (l.type === 'image' ? { ...l, name: `Image ${i + 1}` } : l)),
     stashedLayers: [],
     custom: design.garmentId === 'custom' ? design.custom : null,
     sides,

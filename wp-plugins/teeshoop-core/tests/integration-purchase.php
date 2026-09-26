@@ -773,6 +773,18 @@ function ts_purchase_suite( int $product_id ): void {
 
 	ts_ac_stub();
 
+	ts_it( 'reads a photo address it may not fetch as « could not look », not as a colour', function () {
+		/*
+		 * IMG-03. Sans `reachable`, un refus de configuration passait pour une
+		 * photo regardée : le balayage effaçait la pastille mesurée et ne
+		 * re-mesurait plus jamais ce coloris.
+		 */
+		$verdict = \Teeshoop\Core\Colours::measure_photo( 'ftp://ailleurs.invalid/x/ZZIMG03.jpg' );
+		ts_eq( $verdict['ok'] ?? null, false, 'une adresse refusée a été mesurée' );
+		ts_assert( array_key_exists( 'reachable', $verdict ), 'le refus ne dit pas s’il a pu regarder' );
+		ts_eq( $verdict['reachable'], false, 'un refus de configuration a été lu comme un verdict sur la couleur' );
+	} );
+
 	ts_it( 'never calls a walk complete over a row the table refused', function () {
 		/*
 		 * FOU-11. Une écriture refusée par MySQL n'était comptée ni comme

@@ -115,6 +115,7 @@ let lentProchainDevis = 0
 let lentDepot = 0
 let lentApercu = 0
 let depots = 0
+let dernierDepot = Buffer.alloc(0)
 const inconnues = []
 
 const browser = await chromium.launch()
@@ -199,6 +200,7 @@ await page.route('**/*', async (route) => {
   }
   if (url.origin === WORKER && url.pathname === '/api/design' && req.method() === 'POST') {
     depots++
+    dernierDepot = req.postDataBuffer() ?? Buffer.alloc(0)
     if (lentDepot > 0) await new Promise((r) => setTimeout(r, lentDepot))
     return route.fulfill({
       status: 200,
@@ -521,6 +523,41 @@ try {
   await page.locator('[data-teeshoop-editeur][data-teeshoop-editeur-etat="pret"]').waitFor({ timeout: 30000 })
   await page.waitForTimeout(800)
   ok('un fichier de plus de 24 h est effacé à l’ouverture', !(await ids()).includes('vieuxfichier') && (await idb('lire', 'tshop:asset:vieuxfichier')).valeur === null, JSON.stringify(await ids()))
+
+  // ── IMG-02 : ni la position de l'appareil, ni le nom du fichier ─────────
+  // Un JPEG de navigateur, auquel on greffe un segment EXIF reconnaissable.
+  const jpegNu = Buffer.from(
+    await page.evaluate(async () => {
+      const c = document.createElement('canvas')
+      c.width = 300
+      c.height = 200
+      const g = c.getContext('2d')
+      g.fillStyle = '#b3261e'
+      g.fillRect(40, 40, 220, 120)
+      const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9))
+      return Array.from(new Uint8Array(await b.arrayBuffer()))
+    }),
+  )
+  const temoin = Buffer.from('Exif\u0000\u0000GPS-TEMOIN-TEESHOOP-48.8566N', 'latin1')
+  const app1 = Buffer.concat([Buffer.from([0xff, 0xe1, (temoin.length + 2) >> 8, (temoin.length + 2) & 0xff]), temoin])
+  const jpegExif = Buffer.concat([jpegNu.subarray(0, 2), app1, jpegNu.subarray(2)])
+  await page.setInputFiles('input.tshop-ed__fichier', { name: 'facture-dupont.jpg', mimeType: 'image/jpeg', buffer: jpegExif })
+  await page.waitForFunction(() => window.teeshoopEditeur?.creation?.layers?.length > 0, null, { timeout: 30000 })
+  await page.waitForFunction(() => {
+    const b = document.querySelector('[data-teeshoop="valider-creation"]')
+    return b instanceof HTMLButtonElement && !b.disabled
+  }, null, { timeout: 30000 })
+  await page.locator('[data-teeshoop="valider-creation"]').click()
+  await qte.waitFor({ timeout: 20000 })
+  await qte.fill('12')
+  await attendreTotal(12)
+  const avantDepot = depots
+  await bouton.click()
+  await page.locator('[data-teeshoop="cart-done"]').waitFor({ timeout: 60000 })
+  const envoye = dernierDepot.toString('latin1')
+  ok('le dépôt a bien eu lieu, sinon ce qui suit ne prouve rien', depots > avantDepot && envoye.length > 1000, `${envoye.length} octets`)
+  ok('la position EXIF de la photo ne part pas avec la création', !envoye.includes('GPS-TEMOIN-TEESHOOP'))
+  ok('le nom du fichier du client non plus', !envoye.includes('facture-dupont'))
 } catch (e) {
   ok('le parcours va au bout', false, String(e?.message ?? e).split('\n')[0])
 } finally {

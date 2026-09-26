@@ -185,6 +185,37 @@ for (const [name, path] of PAGES) {
     const res = await page.goto(BASE + path, { waitUntil: 'networkidle', timeout: 60000 })
     ok(`[${width}] ${name} answers 200`, res && res.status() === 200, String(res && res.status()))
 
+    /*
+     * EVERY IMAGE PAINTED BEFORE THE PICTURE IS TAKEN (IMG-06). `networkidle`
+     * does not wait for `loading="lazy"` images below the fold, so the 1440 px
+     * home page shot showed an empty grey box where its photograph goes, and a
+     * shot that shows a defect the page does not have would equally hide one it
+     * does. Scroll to the bottom, wait for each image, and fail on one that
+     * never loads: that makes the grey box a test.
+     */
+    await page.evaluate(async () => {
+      for (let y = 0; y < document.documentElement.scrollHeight; y += window.innerHeight / 2) {
+        window.scrollTo(0, y)
+        await new Promise((r) => setTimeout(r, 60))
+      }
+      window.scrollTo(0, 0)
+    })
+    const unpainted = await page
+      .waitForFunction(
+        () => [...document.images].filter((i) => i.getClientRects().length > 0).every((i) => i.complete),
+        null,
+        { timeout: 20000 },
+      )
+      .then(() =>
+        page.evaluate(() =>
+          [...document.images]
+            .filter((i) => i.getClientRects().length > 0 && i.complete && i.naturalWidth === 0)
+            .map((i) => i.currentSrc || i.src),
+        ),
+      )
+      .catch(() => ['(des images ne finissent pas de charger)'])
+    ok(`[${width}] ${name} paints every image it shows`, unpainted.length === 0, unpainted.slice(0, 2).join(' | '))
+
     await page.screenshot({ path: `${OUT}/${name}-${width}.png`, fullPage: true })
 
     /*

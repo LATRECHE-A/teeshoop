@@ -307,13 +307,15 @@ final class Colours {
 		 */
 		$url = Importer::fetchable( $path );
 		if ( '' === $url ) {
-			return array(
-				'ok'      => false,
-				'why'     => 'adresse de photo refusée',
-				'stops'   => array(),
-				'share'   => 0.0,
-				'scatter' => 0.0,
-			);
+			/*
+			 * UN REFUS DE CONFIGURATION N'EST PAS UN VERDICT SUR LA COULEUR
+			 * (IMG-03). Sans `reachable`, le balayage lisait ce refus comme une
+			 * photo regardée et sans couleur : `store()` effaçait la pastille
+			 * mesurée, et le coloris n'était plus jamais re-mesuré, même une
+			 * fois TEESHOOP_SUPPLY_MEDIA_BASE réglée. « Je n'ai pas pu
+			 * regarder » ne s'écrit pas.
+			 */
+			return self::unread( 'adresse de photo refusée' );
 		}
 
 		$response = wp_remote_get(

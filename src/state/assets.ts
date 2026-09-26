@@ -68,6 +68,41 @@ async function decodeSvg(file: Blob): Promise<HTMLImageElement> {
 }
 
 /** Decode, downscale to ≤2048px long edge, store, return updated meta. */
+/**
+ * Whether an image's bytes carry camera metadata: a JPEG APP1 segment (EXIF,
+ * XMP: position GPS, appareil, date) or a PNG `eXIf` chunk. PURE, for its test.
+ *
+ * Only the header is walked: a JPEG up to its first scan, a PNG up to its first
+ * image data, which is where both formats keep their metadata.
+ */
+export function carriesExif(bytes: Uint8Array): boolean {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let i = 2
+    while (i + 3 < bytes.length && bytes[i] === 0xff) {
+      const marker = bytes[i + 1]
+      if (marker === 0xe1) return true
+      if (marker === 0xda || marker === 0xd9) return false
+      if (marker === 0xff) {
+        i += 1
+        continue
+      }
+      i += 2 + ((bytes[i + 2] << 8) | bytes[i + 3])
+    }
+    return false
+  }
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    let i = 8
+    while (i + 8 <= bytes.length) {
+      const len = ((bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]) >>> 0
+      const type = String.fromCharCode(bytes[i + 4], bytes[i + 5], bytes[i + 6], bytes[i + 7])
+      if (type === 'eXIf') return true
+      if (type === 'IDAT' || type === 'IEND') return false
+      i += 12 + len
+    }
+  }
+  return false
+}
+
 export async function addAsset(file: Blob, name: string): Promise<AssetMeta> {
   const isSvg = file.type === 'image/svg+xml'
   const source: ImageBitmap | HTMLImageElement = isSvg
@@ -77,9 +112,18 @@ export async function addAsset(file: Blob, name: string): Promise<AssetMeta> {
   let height = 'naturalHeight' in source ? source.naturalHeight : source.height
   let stored: Blob = file
 
+  /*
+   * A PHOTO THAT CARRIES ITS CAMERA'S METADATA IS REDRAWN (IMG-02). The original
+   * bytes were kept up to 2048 px, so an EXIF position went to R2 with the
+   * design and stayed there, of no use to a printer (RGPD art. 5.1.c). Redrawn
+   * through the canvas, the picture is the one the screen shows, orientation
+   * included, and nothing else.
+   */
+  const exif = !isSvg && carriesExif(new Uint8Array(await file.slice(0, 512 * 1024).arrayBuffer()))
+
   // svgs are rasterized crisply at up to MAX_EDGE so the rest of the
   // pipeline (cutouts, print export, thumbnails) sees plain bitmaps.
-  if (isSvg || Math.max(width, height) > MAX_EDGE || file.type === 'image/webp') {
+  if (isSvg || exif || Math.max(width, height) > MAX_EDGE || file.type === 'image/webp') {
     const scale = isSvg
       ? MAX_EDGE / Math.max(width, height)
       : Math.min(1, MAX_EDGE / Math.max(width, height))

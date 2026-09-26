@@ -1962,6 +1962,28 @@ async function placeOrder(
  * is refused so this cannot be turned into an open proxy for the rest of the
  * internet: the path is validated, never merely concatenated.
  */
+/**
+ * The ONE type this proxy may serve a file as, or null to refuse it (IMG-05).
+ *
+ * The upstream content-type used to be copied as is, without nosniff, with a
+ * year of immutable cache, on the origin that serves /admin.html: a soft error
+ * page, a captive portal or a compromised host answering 200 text/html for a
+ * photo path became our HTML, cached for a year. The type now comes from the
+ * file's own extension, from a closed list per directory, and an upstream that
+ * announces something else is refused.
+ */
+export function mediaType(kind: string, file: string, upstream: string | null): string | null {
+  const ext = /\.([a-z0-9]+)$/i.exec(file)?.[1]?.toLowerCase() ?? ''
+  const byExt: Record<string, string> =
+    kind === 'sizespecs' ? { pdf: 'application/pdf' } : { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }
+  const type = byExt[ext]
+  if (!type) return null
+  const said = (upstream ?? '').split(';')[0].trim().toLowerCase()
+  const compatible =
+    said === '' || said === 'application/octet-stream' || (type === 'application/pdf' ? said === type : said.startsWith('image/'))
+  return compatible ? type : null
+}
+
 async function serveImage(kind: string, file: string): Promise<Response> {
   // `sizespecs` is the maker's own size table, a PDF. It joins the two photo
   // directories here rather than getting its own handler because the rule is
@@ -1972,13 +1994,14 @@ async function serveImage(kind: string, file: string): Promise<Response> {
     return new Response('not found', { status: 404 })
   }
   const upstream = await fetchUpstream(`${DOWNLOAD}/ws/${kind}/${file}`, { cacheTtl: TTL.image })
+  const type = mediaType(kind, file, upstream.headers.get('content-type'))
+  if (!type) {
+    await upstream.body?.cancel()
+    return new Response('not found', { status: 404 })
+  }
   const headers = new Headers()
-  // The fallback follows the DIRECTORY, not the majority case. Serving a size
-  // chart as image/jpeg because that is what photos are makes the browser
-  // download a file it will not open, and the operator sees a broken link
-  // rather than a wrong header.
-  const fallback = kind === 'sizespecs' ? 'application/pdf' : 'image/jpeg'
-  headers.set('content-type', upstream.headers.get('content-type') ?? fallback)
+  headers.set('content-type', type)
+  headers.set('x-content-type-options', 'nosniff')
   // Filenames are versioned by the supplier (…-2019_01.jpg), so a given URL's
   // bytes never change: cache hard, both at the edge and in the browser.
   headers.set('cache-control', `public, max-age=${TTL.image}, immutable`)

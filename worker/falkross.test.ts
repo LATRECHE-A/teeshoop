@@ -43,7 +43,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { classifyShelf, parseStyle, type FrKind, type FrShelf } from './falkross'
+import { classifyShelf, mediaType, parseStyle, type FrKind, type FrShelf } from './falkross'
 
 const DIR = join(fileURLToPath(new URL('.', import.meta.url)), '__fixtures__/falkross')
 const xml = (nr: string) => readFileSync(join(DIR, `${nr}.xml`), 'utf8')
@@ -137,5 +137,21 @@ describe('the aisle is a second question, not a second name for the family', () 
   /* Nothing is guessed from a name: the trap this file records twice. */
   it('never reads the style name', () => {
     expect(classifyShelf('other', [], [])).toBe('autre')
+  })
+})
+
+describe('the photo proxy serves one type per file, from a closed list (IMG-05)', () => {
+  it('takes the type from the extension, not from the supplier', () => {
+    expect(mediaType('picture', '18001_09_front.jpg', 'image/jpeg')).toBe('image/jpeg')
+    expect(mediaType('picture', '18001_09_front.jpg', 'image/jpg')).toBe('image/jpeg')
+    expect(mediaType('picture', 'x.png', null)).toBe('image/png')
+    expect(mediaType('sizespecs', 'table.pdf', 'application/pdf')).toBe('application/pdf')
+  })
+
+  it('refuses an HTML answer on a photo path, and anything off the list', () => {
+    expect(mediaType('picture', '18001_09_front.jpg', 'text/html; charset=utf-8')).toBeNull()
+    expect(mediaType('picture', 'page.html', 'text/html')).toBeNull()
+    expect(mediaType('picture', 'x.svg', 'image/svg+xml')).toBeNull()
+    expect(mediaType('sizespecs', 'table.jpg', 'image/jpeg')).toBeNull()
   })
 })
