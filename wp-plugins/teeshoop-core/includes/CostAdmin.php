@@ -226,10 +226,21 @@ final class CostAdmin {
 			'waste_rate'    => self::pct_in( $posted['film']['waste_rate'] ?? '', (float) $defaults['film']['waste_rate'] ),
 			'gap_cm'        => self::float_in( $posted['film']['gap_cm'] ?? '', (float) $defaults['film']['gap_cm'] ),
 			'max_length_cm' => $height,
-			// Derived, never typed. See the note above.
+			// Derived, never typed, on a sheet. See the note above.
 			'billing_step_cm' => 'sheet' === $billing
 				? $height
-				: self::float_in( $posted['film']['billing_step_cm'] ?? '', (float) $defaults['film']['billing_step_cm'], 0.1 ),
+				/*
+				 * ON A ROLL, TYPED, AND NEVER THE OLD SHEET'S HEIGHT (COU-07). The
+				 * form posted no such field and the fallback was the value in force,
+				 * so switching from sheet to roll kept a 46 cm step: every file was
+				 * rounded up to 46 or 92 cm instead of 10, up to 84 % more film.
+				 * From a sheet, the fallback is the 10 cm a roll is billed by.
+				 */
+				: self::float_in(
+					$posted['film']['billing_step_cm'] ?? '',
+					'sheet' === (string) ( $defaults['film']['billing'] ?? 'sheet' ) ? 10.0 : (float) $defaults['film']['billing_step_cm'],
+					0.1
+				),
 		);
 
 		/*
@@ -769,6 +780,10 @@ final class CostAdmin {
 		self::input_row( __( 'Tarif rouleau France, par mètre linéaire', 'teeshoop' ), 'couts[film][rate_fr_ht]', Money::number( Money::to_eur( (int) $film['rate_fr_ht'] ), 2 ), 'EUR' );
 		self::input_row( __( 'Tarif rouleau Espagne, par mètre linéaire', 'teeshoop' ), 'couts[film][rate_es_ht]', Money::number( Money::to_eur( (int) $film['rate_es_ht'] ), 2 ), 'EUR' );
 		self::input_row( __( 'Métrage minimum facturé, au rouleau', 'teeshoop' ), 'couts[film][min_m]', Money::number( (float) $film['min_m'], 2 ), 'm' );
+		// Au rouleau seulement : à la feuille, le pas EST la hauteur (voir `persist`).
+		if ( ! $sheet ) {
+			self::input_row( __( 'Pas de facturation d’un fichier, au rouleau', 'teeshoop' ), 'couts[film][billing_step_cm]', Money::number( (float) $film['billing_step_cm'], 1 ), 'cm' );
+		}
 		echo '</tbody></table>';
 	}
 
@@ -1438,14 +1453,29 @@ final class CostAdmin {
 				: __( 'Calculé sur un coût incomplet : le vrai plancher est au moins celui-là.', 'teeshoop' ) )
 				. ' ' . self::rule_sentence( $report )
 		);
+		/*
+		 * NET OF WHAT WAS GIVEN BACK (COU-06). The warning above says the margin
+		 * and the commission are computed on what remains, and these two lines
+		 * showed the margin before the refund: « Ce qui reste » was over by the
+		 * whole refunded HT. The figure before the refund stays, in the note.
+		 */
+		$refunded_ht = (int) ( $report['refunded_ht'] ?? 0 );
+		$net_margin  = (int) $verdict['margin_ht'] - $refunded_ht;
 		self::row(
 			__( 'Marge contributive', 'teeshoop' ),
-			Money::format( (int) $verdict['margin_ht'] ),
-			sprintf(
-				/* translators: %s: the margin as a percentage of the selling price. */
-				__( '%s du prix de vente. C’est la base de la commission, jamais le chiffre d’affaires.', 'teeshoop' ),
-				Money::number( (float) $verdict['margin_rate'] * 100, 1 ) . "\u{00A0}%"
-			)
+			Money::format( $net_margin ),
+			$refunded_ht > 0
+				? sprintf(
+					/* translators: 1: the margin before the refund, 2: the refunded amount excl. VAT. */
+					__( 'Après remboursement : %1$s avant, moins %2$s HT rendus. C’est la base de la commission, jamais le chiffre d’affaires.', 'teeshoop' ),
+					Money::format( (int) $verdict['margin_ht'] ),
+					Money::format( $refunded_ht )
+				)
+				: sprintf(
+					/* translators: %s: the margin as a percentage of the selling price. */
+					__( '%s du prix de vente. C’est la base de la commission, jamais le chiffre d’affaires.', 'teeshoop' ),
+					Money::number( (float) $verdict['margin_rate'] * 100, 1 ) . "\u{00A0}%"
+				)
 		);
 		self::row(
 			__( 'Commission', 'teeshoop' ),
@@ -1457,7 +1487,7 @@ final class CostAdmin {
 				self::state_fr( (string) $report['state']['state'], (array) $report['state']['open'] )
 			)
 		);
-		self::row( __( 'Ce qui reste à Teeshoop', 'teeshoop' ), Money::format( (int) $verdict['margin_ht'] - (int) $report['commission']['full_ht'] ), __( 'Marge contributive moins la commission, avant frais fixes.', 'teeshoop' ) );
+		self::row( __( 'Ce qui reste à Teeshoop', 'teeshoop' ), Money::format( $net_margin - (int) $report['commission']['full_ht'] ), __( 'Marge contributive moins la commission, avant frais fixes.', 'teeshoop' ) );
 
 		echo '</tbody></table></div>';
 

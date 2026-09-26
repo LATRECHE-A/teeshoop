@@ -1194,11 +1194,18 @@ final class Costing {
 			? (int) $totals['total_ht'] - (int) $cost['total_ht']
 			: (int) $verdict['margin_ht'];
 
+		/*
+		 * THE SHARE COLLECTED IS OF WHAT IS STILL DUE (COU-05). The refund was
+		 * taken out of the kept money and out of the margin, and dividing by the
+		 * ORIGINAL total took it out a third time: a 600 EUR order refunded 120
+		 * and otherwise fully paid read 80 % collected, « Solde non encaissé »
+		 * for ever, and the seller was paid a fifth short on a margin already cut.
+		 */
 		$accrued = Commission::accrue(
 			$margin_ht - $refunded_ht,
 			$rate ?? 0.0,
 			$kept_ttc,
-			(int) $totals['total_ttc'],
+			max( 0, (int) $totals['total_ttc'] - $refunded_ttc ),
 			$cost['complete'] && ! $cost['estimated'] ? Cost::REAL : Cost::ESTIMATED
 		);
 

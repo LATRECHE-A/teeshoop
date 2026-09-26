@@ -663,6 +663,37 @@ function ts_margin_suite( int $product_id ): void {
 		);
 	} );
 
+	ts_it( 'bills a roll by its own step, not by the height of the sheet it replaced', function () {
+		/*
+		 * COU-07. The form posted no step on a roll and the fallback was the
+		 * value in force: switching from the 46 cm sheet kept 46 cm, and every
+		 * file was billed at 46 or 92 cm of roll instead of the next 10.
+		 */
+		$kept = get_option( 'teeshoop_costing' );
+		ts_eq( Costing::config()['film']['billing'], 'sheet', 'the mirror starts on the sheet' );
+
+		// Exactly what the form posts when somebody picks the roll and saves.
+		CostAdmin::persist( array( 'couts' => array( 'film' => array( 'billing' => 'roll' ) ) ) );
+		ts_eq( Costing::config()['film']['billing'], 'roll', 'the switch was not saved' );
+		ts_eq( (float) Costing::config()['film']['billing_step_cm'], 10.0, 'the roll kept the sheet height as its step' );
+
+		// Once on a roll, the field the form now renders is the one that counts.
+		CostAdmin::persist( array( 'couts' => array( 'film' => array( 'billing' => 'roll', 'billing_step_cm' => '25' ) ) ) );
+		ts_eq( (float) Costing::config()['film']['billing_step_cm'], 25.0, 'a typed step was ignored' );
+		CostAdmin::persist( array( 'couts' => array( 'film' => array( 'billing' => 'roll' ) ) ) );
+		ts_eq( (float) Costing::config()['film']['billing_step_cm'], 25.0, 'and an absent one must keep it, not reset it' );
+
+		// Back on a sheet, the step is the height again, whatever was posted.
+		CostAdmin::persist( array( 'couts' => array( 'film' => array( 'billing' => 'sheet', 'billing_step_cm' => '25' ) ) ) );
+		ts_eq(
+			(float) Costing::config()['film']['billing_step_cm'],
+			(float) Costing::config()['film']['max_length_cm'],
+			'a sheet is bought whole'
+		);
+
+		update_option( 'teeshoop_costing', $kept );
+	} );
+
 	ts_it( 'keeps an apostrophe in a rule name through two saves', function () {
 		// WordPress addslashes every superglobal. Stored raw, "Réassort d'un
 		// client" grows a backslash on every save until a selector containing one
@@ -788,6 +819,42 @@ function ts_margin_suite( int $product_id ): void {
 		ts_assert(
 			(int) $after['commission']['earned_ht'] < (int) $before['commission']['earned_ht'],
 			'money given back was still earning a commission'
+		);
+		/*
+		 * COU-05. The rest of the order is paid: what was refunded is not a
+		 * balance still to come. Dividing what was kept by the ORIGINAL total
+		 * read 75 % collected here, so the commission sat at « Solde non
+		 * encaissé » for ever and paid three quarters of an already cut margin.
+		 */
+		ts_eq( (float) $after['commission']['collected'], 1.0, 'a refund was read as an unpaid balance' );
+		ts_eq(
+			(int) $after['commission']['earned_ht'],
+			(int) $after['commission']['full_ht'],
+			'and the commission on what remains is earned in full'
+		);
+		ts_assert(
+			! in_array( 'Solde non encaissé', (array) $after['state']['open'], true ),
+			'the state still waits for money nobody owes'
+		);
+
+		/*
+		 * COU-06. The panel says the margin is computed on what remains, and its
+		 * « Ce qui reste à Teeshoop » was the margin BEFORE the refund minus the
+		 * commission AFTER it: over by the whole refunded HT.
+		 */
+		$stored = Costing::refresh( wc_get_order( $order->get_id() ) );
+		ts_assert( null !== $stored['verdict'], 'this order must have a floor for the panel to show a margin' );
+		ob_start();
+		CostAdmin::render_meta_box( wc_get_order( $order->get_id() ) );
+		$html = (string) ob_get_clean();
+		ts_assert(
+			1 === preg_match( '~Ce qui reste à Teeshoop</th><td[^>]*>([^<]*)</td>~u', $html, $m ),
+			'the panel has no « Ce qui reste » row'
+		);
+		ts_eq(
+			html_entity_decode( $m[1], ENT_QUOTES, 'UTF-8' ),
+			Money::format( (int) $stored['verdict']['margin_ht'] - (int) $stored['refunded_ht'] - (int) $stored['commission']['full_ht'] ),
+			'what is left to the shop still counted the money given back'
 		);
 		ts_eq(
 			(int) $after['revenue']['total_ht'],
