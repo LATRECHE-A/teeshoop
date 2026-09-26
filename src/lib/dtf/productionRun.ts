@@ -173,6 +173,8 @@ export function layoutReport(input: {
   posesByOrder: ReadonlyMap<string, number>
   /** order id to metres that order alone would have been billed. */
   soloByOrder: ReadonlyMap<string, number>
+  /** order id to its lines' measured sides; see `LayoutReport`. */
+  measuredByOrder: ReadonlyMap<string, LayoutReport['orders'][string]['measured_sides']>
 }): LayoutReport {
   const orders: LayoutReport['orders'] = {}
   for (const [orderId, pieces] of input.piecesByOrder)
@@ -180,6 +182,7 @@ export function layoutReport(input: {
       solo_m: input.soloByOrder.get(orderId) ?? 0,
       poses: input.posesByOrder.get(orderId) ?? 0,
       pieces: pieces.map((p) => ({ ...p, w_cm: r2(p.w_cm), h_cm: r2(p.h_cm) })),
+      measured_sides: input.measuredByOrder.get(orderId) ?? {},
     }
   const geometry = input.result.options
   return {

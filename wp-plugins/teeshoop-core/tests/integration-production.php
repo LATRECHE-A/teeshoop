@@ -140,6 +140,29 @@ function ts_pr_ready( int $product_id, int $qty, array $sides, string $design ):
  * of a nesting, which is `scripts/dtf-bench.mjs` and `scripts/nest-verify.mjs`
  * against the real packer.
  */
+/**
+ * The ink a studio measures on an HONEST order: exactly the sides it was billed
+ * for, line by line, in the report's `measured_sides` shape. Shared with
+ * `integration-purchase.php`, which builds a lot of its own.
+ */
+function ts_measured_as_billed( \WC_Order $order ): array {
+	$out = array();
+	foreach ( $order->get_items() as $item ) {
+		$sides = json_decode( (string) $item->get_meta( '_teeshoop_sides', true ), true );
+		if ( ! is_array( $sides ) ) {
+			continue;
+		}
+		$out[ (string) $item->get_id() ] = array_map(
+			static fn( array $s ): array => array(
+				'id'         => (string) $s['id'],
+				'area_sq_cm' => (float) $s['area_sq_cm'],
+			),
+			$sides
+		);
+	}
+	return $out;
+}
+
 function ts_pr_layout( int $a, int $b, array $over = array() ): array {
 	$film    = (array) ( \Teeshoop\Core\Costing::config()['film'] ?? array() );
 	$cost    = \Teeshoop\Core\Costing::config();
@@ -188,14 +211,16 @@ function ts_pr_layout( int $a, int $b, array $over = array() ): array {
 		'flip'         => false,
 		'orders'       => array(
 			(string) $a => array(
-				'solo_m' => $length( $pieces_a ),
-				'poses'  => 4,
-				'pieces' => $pieces_a,
+				'solo_m'         => $length( $pieces_a ),
+				'poses'          => 4,
+				'pieces'         => $pieces_a,
+				'measured_sides' => ( $oa = wc_get_order( $a ) ) instanceof \WC_Order ? ts_measured_as_billed( $oa ) : array(),
 			),
 			(string) $b => array(
-				'solo_m' => $length( $pieces_b ),
-				'poses'  => 2,
-				'pieces' => $pieces_b,
+				'solo_m'         => $length( $pieces_b ),
+				'poses'          => 2,
+				'pieces'         => $pieces_b,
+				'measured_sides' => ( $ob = wc_get_order( $b ) ) instanceof \WC_Order ? ts_measured_as_billed( $ob ) : array(),
 			),
 		),
 	);
@@ -420,6 +445,41 @@ function ts_production_suite( int $product_id ): void {
 		);
 		$made = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $tiny, $today );
 		ts_eq( $made['ok'], false, 'une planche portant une autre création a été acceptée' );
+	} );
+
+	ts_it( 'refuses a lot whose measured ink sits in a dearer tier than the one billed, and only then', function () use ( $product_id, $today ) {
+		/*
+		 * SEC-01. The tier a side is billed at comes from an area the customer's
+		 * browser declared on an open route; the studio measures the stored layers
+		 * again when it builds the lot. Billed 288 cm² (std) and really 1 400 cm²
+		 * (xl) is the forgery; a printed side nobody billed is its variant.
+		 */
+		ts_pr_stub_nest();
+		$a  = ts_pr_ready( $product_id, 4, ts_pr_sides_a(), 'aaaaaaaaaaaaaaaa0036' );
+		$b  = ts_pr_ready( $product_id, 2, ts_pr_sides_b(), 'aaaaaaaaaaaaaaaa0037' );
+		$ka = (string) $a->get_id();
+		$avec = static function ( callable $change ) use ( $a, $b, $ka ): array {
+			$layout = ts_pr_layout( $a->get_id(), $b->get_id() );
+			foreach ( array_keys( $layout['orders'][ $ka ]['measured_sides'] ) as $item ) {
+				$layout['orders'][ $ka ]['measured_sides'][ $item ] = $change( $layout['orders'][ $ka ]['measured_sides'][ $item ] );
+			}
+			return $layout;
+		};
+
+		$plus = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $avec( static fn( array $s ): array => array( array( 'id' => $s[0]['id'], 'area_sq_cm' => 1400.0 ) ) ), $today );
+		ts_eq( $plus['ok'], false, 'une face pressée au palier xl a été acceptée au palier facturé' );
+		ts_assert( str_contains( (string) $plus['reason'], 'plus d’encre' ), 'le refus ne dit pas pourquoi : ' . $plus['reason'] );
+
+		$dos = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $avec( static fn( array $s ): array => array_merge( $s, array( array( 'id' => 'back', 'area_sq_cm' => 100.0 ) ) ) ), $today );
+		ts_eq( $dos['ok'], false, 'un dos imprimé sans être facturé a été accepté' );
+
+		$muet = ts_pr_layout( $a->get_id(), $b->get_id() );
+		unset( $muet['orders'][ $ka ]['measured_sides'] );
+		ts_eq( Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $muet, $today )['ok'], false, 'un rapport sans encre mesurée a été accepté' );
+
+		// Measurement noise inside the same tier is not a refusal.
+		$bruit = Production::create_lot( array( $a->get_id(), $b->get_id() ), 'fr', $avec( static fn( array $s ): array => array( array( 'id' => $s[0]['id'], 'area_sq_cm' => 300.0 ) ) ), $today );
+		ts_assert( $bruit['ok'], 'un écart de mesure dans le même palier a été refusé : ' . ( $bruit['reason'] ?? '' ) );
 	} );
 
 	ts_it( 'refuses a layout packed on a roll the shop is not buying', function () use ( $product_id, $today ) {

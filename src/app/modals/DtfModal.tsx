@@ -117,6 +117,7 @@ import {
   type ManifestPiece,
 } from '@/lib/dtf/sheet'
 import { CM_PER_IN } from '@/lib/units'
+import { measureOrder } from '@/lib/teeshoop/upload'
 import { useDtfT } from './dtfI18n'
 import type { Design, SavedDesignMeta, Side, SizeId } from '@/lib/types'
 
@@ -947,6 +948,26 @@ export default function DtfModal() {
           ),
         )
 
+      /*
+       * THE INK, MEASURED AGAIN HERE (SEC-01).
+       *
+       * The surcharge tier each side was billed at came from an area the
+       * customer's browser declared, on an open route. This is the one place
+       * that holds the stored layers decoded, so each line is measured with the
+       * same function that priced it, and the shop compares the tiers.
+       */
+      const measuredByOrder = new Map<string, Record<string, { id: string; area_sq_cm: number }[]>>()
+      for (const order of prodOrders) {
+        const lines: Record<string, { id: string; area_sq_cm: number }[]> = {}
+        for (const line of order.lines) {
+          const kept = designsRef.current.get(line.design_id)
+          if (!kept) continue
+          const { sides } = await measureOrder(kept.design)
+          lines[String(line.item_id)] = sides.map((s) => ({ id: s.id, area_sq_cm: s.area_sq_cm }))
+        }
+        measuredByOrder.set(String(order.id), lines)
+      }
+
       setShopBusy(t('dtf.prod.busy_lot'))
       const stored = await createLot(shopCredentials(), {
         orders: prodOrders.map((o) => o.id),
@@ -959,6 +980,7 @@ export default function DtfModal() {
           piecesByOrder,
           posesByOrder,
           soloByOrder: solo,
+          measuredByOrder,
         }),
         today: shop.today,
       })

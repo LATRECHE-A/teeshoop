@@ -923,9 +923,23 @@ describe( 'Disponibilite : le vocabulaire des refus', function (): void {
 		function (): void {
 			// Un motif que `verdict()` peut rendre et que `REASONS` ne nomme pas
 			// est un motif qu'aucun appelant ne saura traiter.
-			foreach ( array( 'unreachable', 'no_answer', 'unknown_article', 'unpriced', 'short_stock', 'empty', 'too_many' ) as $why ) {
+			foreach ( array( 'unreachable', 'no_answer', 'unknown_article', 'unpriced', 'short_stock', 'empty', 'too_many', 'unconfigured' ) as $why ) {
 				truthy( in_array( $why, Disponibilite::REASONS, true ), "le motif {$why} manque à REASONS" );
 			}
+		}
+	);
+
+	it(
+		'refuse sans accès fournisseur, et ne demande pas de réessayer ce qui ne passera jamais',
+		function (): void {
+			// FOU-02 : « Réessayez dans quelques minutes » sur une boutique sans
+			// constantes, où aucun ajout ne passerait jamais.
+			truthy( '' !== SupplyHttp::unconfigured(), 'le test tourne sans accès fournisseur' );
+			$verdict = Disponibilite::assert_buyable( array( 'BC01BSML' => 3 ), 360 );
+			truthy( ! $verdict['ok'], 'fermé par défaut' );
+			eq( $verdict['reason'], 'unconfigured' );
+			truthy( ! str_contains( $verdict['message'], 'Réessayez' ), 'pas de « réessayez »' );
+			truthy( str_contains( $verdict['message'], 'devis' ), 'la seule issue qui existe' );
 		}
 	);
 } );

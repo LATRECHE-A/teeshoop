@@ -355,7 +355,7 @@ export default {
           status: 200,
           headers: { ...Object.fromEntries(res.headers), 'cache-control': 'no-store' },
         }),
-        studioPolicy(nonce, env),
+        studioPolicy(nonce, env, { admin: true }),
         nonce,
       )
     }

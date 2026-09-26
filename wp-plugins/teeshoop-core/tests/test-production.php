@@ -283,9 +283,10 @@ describe( 'Production: reading a layout the shop did not compute', function () {
 				'gap_cm'   => 0.5,
 				'orders'   => array(
 					'12' => array(
-						'solo_m' => 2.5,
-						'poses'  => 10,
-						'pieces' => array( array( 'key' => 'front', 'w_cm' => 20.0, 'h_cm' => 25.0, 'qty' => 10 ) ),
+						'solo_m'         => 2.5,
+						'poses'          => 10,
+						'pieces'         => array( array( 'key' => 'front', 'w_cm' => 20.0, 'h_cm' => 25.0, 'qty' => 10 ) ),
+						'measured_sides' => array( '7' => array( array( 'id' => 'front', 'area_sq_cm' => 480.0 ) ) ),
 					),
 				),
 			),
@@ -333,6 +334,19 @@ describe( 'Production: reading a layout the shop did not compute', function () {
 		$mute = $layout();
 		unset( $mute['orders']['12']['poses'] );
 		eq( Production::read_layout( $mute, array( 12 ) )['ok'], false );
+	} );
+
+	it( 'refuses a layout that does not say what ink the studio measured, and reads it when it does', function () use ( $layout ) {
+		// SEC-01 : sans cette mesure, la face est pressée au palier que le
+		// navigateur du client a déclaré.
+		$r = Production::read_layout( $layout(), array( 12 ) );
+		eq( $r['orders']['12']['measured'], array( '7' => array( 'front' => 480.0 ) ) );
+		$mute = $layout();
+		unset( $mute['orders']['12']['measured_sides'] );
+		eq( Production::read_layout( $mute, array( 12 ) )['ok'], false );
+		$bad = $layout();
+		$bad['orders']['12']['measured_sides']['7'][0]['area_sq_cm'] = 'beaucoup';
+		eq( Production::read_layout( $bad, array( 12 ) )['ok'], false );
 	} );
 
 	it( 'refuses a layout carrying an order that is NOT in the lot', function () use ( $layout ) {

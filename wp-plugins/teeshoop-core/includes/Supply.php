@@ -1645,6 +1645,30 @@ final class Supply {
 	}
 
 	/**
+	 * L'issue d'un envoi de commande dont la réponse n'a pas pu être lue. PURE.
+	 *
+	 * `rejected` SEULEMENT SUR UN REFUS PROUVÉ, `unknown` pour tout le reste.
+	 * `rejected` rend les commandes clients de nouveau préparables, donc il veut
+	 * dire « aucune commande n'a été créée chez lui ». Ce n'est prouvé que par
+	 * `config` (rien n'est parti), `auth` (le jeton a été refusé avant tout
+	 * traitement) ou un 400 / 422 (le service a refusé la commande en le
+	 * disant). Un 201 dont le corps est illisible (un avertissement PHP imprimé
+	 * avant le JSON, un type text/html) ou un 409 étaient lus « refusé » : les
+	 * commandes repartaient à l'achat, et le second envoi créait une seconde
+	 * commande réelle, livrée et facturée deux fois (FOU-01). `unknown` laisse
+	 * `Purchase` demander une vérification manuelle, sans jamais repasser la
+	 * commande.
+	 *
+	 * @param array{reason?:string,code?:int} $read Ce que `SupplyHttp` a rendu.
+	 */
+	public static function issue_sans_lecture( array $read ): string {
+		$code = (int) ( $read['code'] ?? 0 );
+		return in_array( (string) ( $read['reason'] ?? '' ), array( 'config', 'auth' ), true ) || 400 === $code || 422 === $code
+			? 'rejected'
+			: 'unknown';
+	}
+
+	/**
 	 * Transmet une commande au fournisseur.
 	 *
 	 * ─────────────────────────────────────────────────────────────────────────
@@ -1729,15 +1753,8 @@ final class Supply {
 		$read = SupplyHttp::post_json( '/api/orders/create-order', $body );
 
 		if ( ! $read['ok'] ) {
-			/*
-			 * UNE PANNE DE TRANSPORT N'EST PAS UN REFUS, et c'est la
-			 * distinction qui décide si un humain doit aller regarder.
-			 * `unknown` veut dire « la commande est peut-être partie » : on ne
-			 * la repasse pas, et `Purchase` demande une vérification manuelle.
-			 */
-			$reason = (string) ( $read['reason'] ?? '' );
 			return array(
-				'outcome' => in_array( $reason, array( 'transport', 'upstream' ), true ) ? 'unknown' : 'rejected',
+				'outcome' => self::issue_sans_lecture( $read ),
 				'ok'      => false,
 				'orderId' => '',
 				'message' => (string) $read['error'],

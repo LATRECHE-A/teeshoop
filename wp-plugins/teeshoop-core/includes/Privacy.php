@@ -76,12 +76,16 @@ final class Privacy {
 	public const META_ERASED = '_teeshoop_creations_effacees';
 
 	/**
-	 * Whether this request left something it could not do.
+	 * Whether the eraser that just ran left something it could not do.
 	 *
-	 * Per-process, because WordPress serves one eraser page per HTTP request and
-	 * the decision below is made in the same one.
+	 * Per-process, and only for the length of one eraser page: `hold_open()`
+	 * turns it into `META_UNFINISHED` on the request, which is what outlives the
+	 * ajax request it was raised in.
 	 */
 	private static bool $unfinished = false;
+
+	/** Request meta: an eraser of ours could not finish this erasure. */
+	public const META_UNFINISHED = '_teeshoop_effacement_incomplet';
 
 	/**
 	 * How many records one page of an export or an erasure handles.
@@ -441,8 +445,20 @@ final class Privacy {
 		 * pulled two ways, and the answer is to end the pass and REOPEN the
 		 * request, which leaves it on the screen with its reason instead of
 		 * telling a person something untrue.
+		 *
+		 * THE FAILURE IS WRITTEN ON THE REQUEST, NOT KEPT IN THE PROCESS. The
+		 * admin screen runs ONE eraser per ajax request, and WordPress closes the
+		 * request and sends the letter in the request of the LAST eraser, which
+		 * is never one of ours. A static flag and a `remove_action` made in the
+		 * failing eraser's request were therefore gone by then, and the customer
+		 * was told « completed » with their files still online (DON-01). So:
+		 * priority 5, before WordPress's own handler at 10, records the failure
+		 * as meta on the request; and a permanent handler on the closing action,
+		 * at priority 1, reads it in whichever request closes, withholds the
+		 * letter and reopens the request.
 		 */
-		add_filter( 'wp_privacy_personal_data_erasure_page', array( self::class, 'hold_open' ), 999, 5 );
+		add_filter( 'wp_privacy_personal_data_erasure_page', array( self::class, 'hold_open' ), 5, 5 );
+		add_action( 'wp_privacy_personal_data_erased', array( self::class, 'reopen_if_unfinished' ), 1 );
 
 		if ( ! wp_next_scheduled( self::CRON ) ) {
 			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', self::CRON );
@@ -542,48 +558,50 @@ final class Privacy {
 	public static function hold_open( $response, $index = 0, $email = '', $page = 1, $request_id = 0 ) {
 		/*
 		 * READ ONCE AND CLEARED, because this filter runs once per eraser per
-		 * page and the answer belongs to the pass that just ran.
-		 *
-		 * Without the reset the flag was a static that nothing ever lowered: the
-		 * first order that failed held every later pass in the same process open,
-		 * including ones that erased everything they were asked to. In a web
-		 * request that is one ajax call, so it was nearly invisible; under WP-CLI
-		 * and in the integration suite it is one long process, and the test wrote
-		 * for the opposite direction is what found it.
-		 *
-		 * Lowering it does NOT put the notification back. Once a pass has failed,
-		 * the removal stands for the rest of the request, which is right: a later
-		 * eraser succeeding does not undo the one that could not.
+		 * page and the answer belongs to the pass that just ran. Without the
+		 * reset, the first order that failed held every later pass in the same
+		 * long process open (WP-CLI, the integration suite).
 		 */
 		$unfinished       = self::$unfinished;
 		self::$unfinished = false;
 
-		if ( ! $unfinished ) {
+		$request_id = (int) $request_id;
+		if ( $request_id <= 0 ) {
 			return $response;
 		}
-
-		remove_action( 'wp_privacy_personal_data_erased', '_wp_privacy_send_erasure_fulfillment_notification' );
-
-		add_action(
-			'wp_privacy_personal_data_erased',
-			static function ( $id ): void {
-				/*
-				 * Back to « confirmée » and not to « complétée ». The operator's
-				 * screen keeps the request, keeps our messages under it, and the
-				 * one thing that has to be true is that nobody was told their data
-				 * was erased while it was not.
-				 */
-				wp_update_post(
-					array(
-						'ID'          => (int) $id,
-						'post_status' => 'request-confirmed',
-					)
-				);
-			},
-			1
-		);
-
+		// A new pass starts at the first eraser's first page: a failure from an
+		// earlier pass is judged again, not inherited for ever.
+		if ( 1 === (int) $index && 1 === (int) $page ) {
+			delete_post_meta( $request_id, self::META_UNFINISHED );
+		}
+		// Written, never lowered within the pass: a later eraser succeeding
+		// does not undo the one that could not.
+		if ( $unfinished ) {
+			update_post_meta( $request_id, self::META_UNFINISHED, gmdate( 'c' ) );
+		}
 		return $response;
+	}
+
+	/**
+	 * `wp_privacy_personal_data_erased`, priority 1: withhold the letter and
+	 * reopen a request one of our erasers could not finish.
+	 *
+	 * Back to « confirmée » and not to « complétée ». The operator's screen keeps
+	 * the request, keeps our messages under it, and the one thing that has to be
+	 * true is that nobody was told their data was erased while it was not.
+	 */
+	public static function reopen_if_unfinished( $request_id ): void {
+		$request_id = (int) $request_id;
+		if ( $request_id <= 0 || '' === (string) get_post_meta( $request_id, self::META_UNFINISHED, true ) ) {
+			return;
+		}
+		remove_action( 'wp_privacy_personal_data_erased', '_wp_privacy_send_erasure_fulfillment_notification', 10 );
+		wp_update_post(
+			array(
+				'ID'          => $request_id,
+				'post_status' => 'request-confirmed',
+			)
+		);
 	}
 
 	/**

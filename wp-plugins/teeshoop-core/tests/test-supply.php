@@ -616,5 +616,21 @@ describe(
 				eq( $out['orderId'], '' );
 			}
 		);
+
+		it(
+			'ne dit « refusée » qu’au vu d’un refus, jamais d’une réponse illisible après l’envoi',
+			static function (): void {
+				// FOU-01 : « refusée » rend les commandes clients de nouveau
+				// préparables, donc un second envoi repasse commande.
+				eq( Supply::issue_sans_lecture( array( 'reason' => 'config' ) ), 'rejected', 'rien n’est parti' );
+				eq( Supply::issue_sans_lecture( array( 'reason' => 'auth', 'code' => 302 ) ), 'rejected', 'jeton refusé' );
+				eq( Supply::issue_sans_lecture( array( 'reason' => 'parse', 'code' => 422 ) ), 'rejected', '422 illisible' );
+				eq( Supply::issue_sans_lecture( array( 'reason' => 'parse', 'code' => 201 ) ), 'unknown', '201 illisible : la commande existe peut-être' );
+				eq( Supply::issue_sans_lecture( array( 'reason' => 'parse', 'code' => 200 ) ), 'unknown', '200 en text/html' );
+				eq( Supply::issue_sans_lecture( array( 'reason' => 'bad_request', 'code' => 409 ) ), 'unknown', '409 conflit' );
+				eq( Supply::issue_sans_lecture( array( 'reason' => 'upstream', 'code' => 504 ) ), 'unknown', '504' );
+				eq( Supply::issue_sans_lecture( array( 'reason' => 'transport' ) ), 'unknown', 'réseau' );
+			}
+		);
 	}
 );

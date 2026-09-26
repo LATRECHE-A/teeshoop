@@ -75,11 +75,22 @@ function ancestors(env: CspEnv, what: string): string | null {
   return `frame-ancestors ${raw}`
 }
 
-/** The customer and admin studio. */
-export function studioPolicy(nonce: string, env: CspEnv): string {
+/**
+ * The customer and admin studio.
+ *
+ * `admin` opens `connect-src` to the shop (`SHOP_ORIGINS`), and only for
+ * `/admin.html`. The admin bundle is the one that talks to WordPress: the DTF
+ * production queue (`src/lib/dtf/shopQueue.ts`) and the product import
+ * (`src/lib/ingest/woo.ts`) fetch the shop's REST API cross-origin. Under the
+ * shared policy the browser refused both, and the screen blamed the shop:
+ * « La boutique n'a pas répondu » (STU-01). The customer studio still reaches
+ * its own origin only.
+ */
+export function studioPolicy(nonce: string, env: CspEnv, opts: { admin?: boolean } = {}): string {
+  const shop = opts.admin ? (env.SHOP_ORIGINS ?? '').trim() : ''
   return [
-    // Achievable here, unlike on the WordPress side: every fetch this bundle
-    // makes is a relative path on its own origin.
+    // Achievable here, unlike on the WordPress side: every fetch the customer
+    // bundle makes is a relative path on its own origin.
     "default-src 'none'",
     // 'wasm-unsafe-eval' and NOT 'unsafe-eval': the narrow token is enough.
     // onnxruntime-web instantiates the background-removal model, and drei's
@@ -97,7 +108,7 @@ export function studioPolicy(nonce: string, env: CspEnv): string {
     // would think to report.
     "font-src 'self' data:",
     // data: because reopening a shared design fetches its own data URL.
-    "connect-src 'self' data: blob:",
+    `connect-src 'self' data: blob:${shop === '' ? '' : ` ${shop}`}`,
     // Vite starts module workers from a blob: in some browsers, and worker-src
     // does NOT fall back to script-src: it falls back to child-src and then to
     // default-src, which is 'none'. Omitting this line stops the background

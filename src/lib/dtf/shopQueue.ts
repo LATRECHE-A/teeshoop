@@ -79,6 +79,16 @@ export interface LayoutReport {
       solo_m: number
       poses: number
       pieces: { key: string; w_cm: number; h_cm: number; qty: number }[]
+      /**
+       * The ink of every printed side, measured HERE from the stored layers by
+       * `measureOrder`, the very function whose answer priced the order in the
+       * customer's browser. Keyed by order line (`item_id`). The shop refuses a
+       * lot where a side lands in a dearer surcharge tier than the one billed,
+       * or is printed without having been billed at all: the area the price
+       * came from was declared by a browser, and this is the one place that can
+       * measure it again (SEC-01).
+       */
+      measured_sides: Record<string, { id: string; area_sq_cm: number }[]>
     }
   >
 }

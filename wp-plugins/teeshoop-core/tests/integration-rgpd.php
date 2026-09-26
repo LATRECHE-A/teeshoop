@@ -581,7 +581,8 @@ function ts_rgpd_suite( int $product_id ): void {
 			 * still on somebody's disk. This is the half that stops the letter.
 			 */
 			$hook  = 'wp_privacy_personal_data_erased';
-			$saved = $GLOBALS['wp_filter'][ $hook ] ?? null;
+			// A COPY, because `remove_action` mutates the `WP_Hook` object in place.
+			$saved = isset( $GLOBALS['wp_filter'][ $hook ] ) ? clone $GLOBALS['wp_filter'][ $hook ] : null;
 
 			ts_assert(
 				(bool) has_action( $hook, '_wp_privacy_send_erasure_fulfillment_notification' ),
@@ -600,34 +601,56 @@ function ts_rgpd_suite( int $product_id ): void {
 			);
 			ts_assert( ! is_wp_error( $request_id ), 'la demande de test n’a pas été créée' );
 
+			/*
+			 * TWO REQUESTS, AS THE ADMIN SCREEN MAKES THEM (DON-01). The first
+			 * eraser fails in its own ajax request; the LAST eraser, a later
+			 * request where nothing of the first survives in memory, is where
+			 * WordPress closes and writes the letter. The earlier version of this
+			 * case ran both halves in one process and so shared the bug.
+			 */
 			Privacy::hold_request_open();
 			Privacy::hold_open( array( 'done' => true ), 1, 'ouverte@example.test', 1, (int) $request_id );
 
-			ts_assert(
-				false === has_action( $hook, '_wp_privacy_send_erasure_fulfillment_notification' ),
-				'l’accusé d’effacement partirait alors que la demande n’a pas pu être exécutée'
-			);
+			// …the next request, a fresh process: the closing action carries only
+			// WordPress's letter and what `Privacy::init()` registers, and the
+			// eraser that runs there raised nothing.
+			$GLOBALS['wp_filter'][ $hook ] = new \WP_Hook();
+			add_action( $hook, '_wp_privacy_send_erasure_fulfillment_notification', 10 );
+			Privacy::init();
+			Privacy::hold_open( array( 'done' => true ), 4, 'ouverte@example.test', 1, (int) $request_id );
 
+			$lettres = 0;
+			$compte  = static function ( $pre ) use ( &$lettres ) {
+				++$lettres;
+				return true;
+			};
+			add_filter( 'pre_wp_mail', $compte, 1 );
+			update_post_meta( (int) $request_id, '_wp_user_request_confirmed_timestamp', time() );
 			do_action( $hook, (int) $request_id );
+			remove_filter( 'pre_wp_mail', $compte, 1 );
 
+			ts_eq( $lettres, 0, 'l’accusé d’effacement est parti alors que la demande n’a pas pu être exécutée' );
 			ts_eq(
 				get_post_status( (int) $request_id ),
 				'request-confirmed',
 				'la demande a été close alors qu’il restait quelque chose à faire'
 			);
 
+			// And a later pass that erases everything closes it normally.
+			Privacy::hold_open( array( 'done' => true ), 1, 'ouverte@example.test', 1, (int) $request_id );
+			ts_eq( get_post_meta( (int) $request_id, Privacy::META_UNFINISHED, true ), '', 'un nouveau passage hérite de l’échec de l’ancien' );
+
 			wp_delete_post( (int) $request_id, true );
 
 			/*
-			 * PUT IT BACK BY ADDING IT, NOT BY RESTORING A REFERENCE. `$wp_filter`
-			 * holds a `WP_Hook` OBJECT and `remove_action` mutates it in place, so
-			 * assigning the variable captured beforehand restores the already
-			 * emptied object. The first version of this cleanup did that and the
-			 * next case failed for a reason that had nothing to do with the code
-			 * it was testing.
+			 * PUT BACK FROM THE COPY. `$wp_filter` holds a `WP_Hook` OBJECT and
+			 * `remove_action` mutates it in place, so restoring a reference taken
+			 * beforehand restored the already emptied object; the clone above is
+			 * the state before this case.
 			 */
-			add_action( $hook, '_wp_privacy_send_erasure_fulfillment_notification', 10 );
-			unset( $saved );
+			if ( null !== $saved ) {
+				$GLOBALS['wp_filter'][ $hook ] = $saved;
+			}
 		}
 	);
 
@@ -646,11 +669,23 @@ function ts_rgpd_suite( int $product_id ): void {
 			$r = Privacy::erase_orders( 'close@example.test' );
 			ts_assert( true === $r['items_removed'], 'rien n’a été effacé, le cas ne prouve rien' );
 
-			Privacy::hold_open( array( 'done' => true ), 1, 'close@example.test', 1, 0 );
+			$request_id = wp_insert_post(
+				array(
+					'post_type'   => 'user_request',
+					'post_name'   => 'remove_personal_data',
+					'post_title'  => 'close@example.test',
+					'post_status' => 'request-completed',
+				),
+				true
+			);
+			Privacy::hold_open( array( 'done' => true ), 1, 'close@example.test', 1, (int) $request_id );
+			Privacy::reopen_if_unfinished( (int) $request_id );
 			ts_assert(
 				(bool) has_action( $hook, '_wp_privacy_send_erasure_fulfillment_notification' ),
 				'un effacement réussi empêche quand même l’accusé de partir'
 			);
+			ts_eq( get_post_status( (int) $request_id ), 'request-completed', 'un effacement réussi a été rouvert' );
+			wp_delete_post( (int) $request_id, true );
 		}
 	);
 

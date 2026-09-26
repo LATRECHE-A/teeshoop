@@ -1174,6 +1174,8 @@ function ts_purchase_suite( int $product_id ): void {
 				'pieces'     => array(
 					array( 'key' => 'front', 'w_cm' => 20.0, 'h_cm' => 20.0, 'qty' => $garments ),
 				),
+				// What the studio measures on an honest order: the ink it was billed for.
+				'measured_sides' => ts_measured_as_billed( $order ),
 			);
 		}
 

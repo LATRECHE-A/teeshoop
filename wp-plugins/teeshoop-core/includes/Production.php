@@ -905,6 +905,60 @@ final class Production {
 		return $total;
 	}
 
+	/**
+	 * The printed sides whose ink, measured by the studio, falls in a dearer
+	 * surcharge tier than the one billed, or that were printed without being
+	 * billed at all. Named for the operator: « ligne 1, Dos ».
+	 *
+	 * THE SURCHARGE TIER, NOT THE RAW AREA. The billed area was measured in the
+	 * customer's browser and this one in the workshop's, by the same code, but a
+	 * text layer's glyph box moves by a few per cent between two systems' fonts.
+	 * Comparing areas would refuse honest orders on that noise; comparing tiers
+	 * refuses exactly what loses money. A document forged at 1 cm² per face paid
+	 * « std » and presses « xl »: 422,50 EUR HT under-billed on fifty shirts,
+	 * measured on the mirror (SEC-01).
+	 *
+	 * @param array<string,array<string,float>> $measured order item id => side id => cm².
+	 * @return string[]
+	 */
+	public static function underbilled_sides( \WC_Order $order, array $measured, array $pricing ): array {
+		$out = array();
+		$n   = 0;
+		foreach ( $order->get_items() as $item ) {
+			if ( ! $item instanceof \WC_Order_Item_Product ) {
+				continue;
+			}
+			$raw = json_decode( (string) $item->get_meta( '_teeshoop_sides', true ), true );
+			if ( ! is_array( $raw ) ) {
+				continue;
+			}
+			++$n;
+			$billed = array();
+			foreach ( $raw as $side ) {
+				if ( is_array( $side ) && isset( $side['id'], $side['area_sq_cm'] ) ) {
+					$billed[ (string) $side['id'] ] = (float) $side['area_sq_cm'];
+				}
+			}
+			$seen = $measured[ (string) $item->get_id() ] ?? null;
+			if ( null === $seen ) {
+				$out[] = sprintf( 'ligne %d, non mesurée', $n );
+				continue;
+			}
+			foreach ( $seen as $side => $area ) {
+				if ( $area <= 0 ) {
+					continue;
+				}
+				$nom = Cart::side_label( (string) $side );
+				if ( ! isset( $billed[ $side ] ) ) {
+					$out[] = sprintf( 'ligne %d, %s imprimé sans être facturé', $n, $nom );
+				} elseif ( (int) Pricing::area_tier( $area, $pricing )['add_ht'] > (int) Pricing::area_tier( $billed[ $side ], $pricing )['add_ht'] ) {
+					$out[] = sprintf( 'ligne %d, %s', $n, $nom );
+				}
+			}
+		}
+		return $out;
+	}
+
 	/** Every design id this order carries, in line order, deduplicated. */
 	public static function designs( \WC_Order $order ): array {
 		$out = array();
@@ -1188,6 +1242,18 @@ final class Production {
 					sprintf(
 						'Les visuels imbriqués pour la commande %s portent moins de surface que l’encre enregistrée sur elle. La planche ne vient pas de cette création.',
 						$order->get_order_number()
+					)
+				);
+			}
+
+			// 5. THE TIER THAT WAS PAID, against the ink really there (SEC-01).
+			$sous_factures = self::underbilled_sides( $order, $posted['measured'], Settings::pricing() );
+			if ( array() !== $sous_factures ) {
+				return $fail(
+					sprintf(
+						'La commande %1$s porte plus d’encre que ce qui a été facturé (%2$s). Ne la pressez pas telle quelle : refacturez l’écart ou refaites le bon à tirer avec le client.',
+						$order->get_order_number(),
+						implode( ', ', $sous_factures )
 					)
 				);
 			}
@@ -1759,12 +1825,33 @@ final class Production {
 			if ( $poses <= 0 || $poses > self::MAX_INSTANCES ) {
 				return $fail( sprintf( 'La planche ne dit pas combien de poses elle porte pour la commande %d.', $id ) );
 			}
+			/*
+			 * THE INK THE STUDIO MEASURED, line by line and side by side. Required:
+			 * a report without it comes from a studio older than the check, and a
+			 * lot it described would be pressed at whatever tier the customer's
+			 * browser declared. See `underbilled_sides()`.
+			 */
+			$measured = array();
+			foreach ( is_array( $row['measured_sides'] ?? null ) ? $row['measured_sides'] : array() as $item => $sides ) {
+				foreach ( is_array( $sides ) ? $sides : array() as $side ) {
+					$sid  = is_array( $side ) ? substr( (string) ( $side['id'] ?? '' ), 0, 16 ) : '';
+					$sarea = is_array( $side ) && isset( $side['area_sq_cm'] ) && is_numeric( $side['area_sq_cm'] ) ? (float) $side['area_sq_cm'] : -1.0;
+					if ( '' === $sid || ! is_finite( $sarea ) || $sarea < 0 ) {
+						return $fail( sprintf( 'L’encre mesurée d’une ligne de la commande %d n’est pas lisible.', $id ) );
+					}
+					$measured[ (string) $item ][ $sid ] = $sarea;
+				}
+			}
+			if ( array() === $measured ) {
+				return $fail( sprintf( 'La planche ne dit pas quelle encre le studio a mesurée pour la commande %d. Mettez le studio à jour, puis refaites le lot.', $id ) );
+			}
 			$out[ $key ] = array(
 				'solo_m'     => $solo,
 				'pieces'     => $clean,
 				'copies'     => $copies,
 				'poses'      => $poses,
 				'area_sq_cm' => $area,
+				'measured'   => $measured,
 			);
 		}
 

@@ -147,6 +147,9 @@ final class Disponibilite {
 	public const REASONS = array(
 		'empty',
 		'too_many',
+		// La boutique n'a pas d'accès fournisseur : un état de déploiement, pas
+		// une panne passagère, donc jamais « réessayez » (FOU-02).
+		'unconfigured',
 		'unreachable',
 		'no_answer',
 		'unknown_article',
@@ -1357,6 +1360,24 @@ final class Disponibilite {
 				'reason'  => 'empty',
 				'lines'   => array(),
 				'message' => 'Aucun article à vérifier.',
+			);
+		}
+
+		/*
+		 * SANS ACCÈS FOURNISSEUR, LE REFUS RESTE, ET IL DIT LA VÉRITÉ.
+		 *
+		 * `ask()` rendait `config`, le lot tombait en `unreachable`, et le client
+		 * lisait « Réessayez dans quelques minutes » sur une boutique où aucun
+		 * ajout ne passerait jamais, puisque les constantes manquent. Fermé par
+		 * défaut comme avant (on ne vend pas ce qu'on ne peut pas vérifier), mais
+		 * la phrase donne la seule issue qui existe : le devis.
+		 */
+		if ( '' !== SupplyHttp::unconfigured() ) {
+			return array(
+				'ok'      => false,
+				'reason'  => 'unconfigured',
+				'lines'   => array(),
+				'message' => 'Nous ne pouvons pas encore vérifier en ligne la disponibilité de cet article, donc nous ne le prenons pas par le panier. Demandez-nous un devis : nous vérifions le stock et nous vous répondons.',
 			);
 		}
 
