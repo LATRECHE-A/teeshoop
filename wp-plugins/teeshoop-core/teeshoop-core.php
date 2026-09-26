@@ -140,6 +140,7 @@ require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Garments.php';
 require_once __DIR__ . '/includes/Hypotheses.php';
 require_once __DIR__ . '/includes/Design.php';
+require_once __DIR__ . '/includes/Modeles.php';
 require_once __DIR__ . '/includes/Product.php';
 require_once __DIR__ . '/includes/Catalogue.php';
 require_once __DIR__ . '/includes/SupplyHttp.php';

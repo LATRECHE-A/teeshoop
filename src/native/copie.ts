@@ -87,7 +87,6 @@ export const COPIE = {
   validerSansVisuel:
     'Posez un visuel sur le vêtement, puis passez aux coloris et aux quantités.',
   revenir: 'Revenir à ma création',
-  retourProduit: 'Revenir à la fiche produit',
 
   // ------------------------------------------------- coloris et quantités
   matriceLegende: 'Coloris, tailles et quantités',
@@ -255,6 +254,44 @@ export const COPIE = {
     }
     return ''
   },
+
+  /*
+   * LES MODÈLES SAUVEGARDÉS (`includes/Modeles.php`). Les refus du serveur
+   * (plus de place, pas connecté, modèle inconnu) arrivent écrits par lui et
+   * sont montrés tels quels ; ce qui suit est ce que l'écran dit de lui-même.
+   */
+  modelesLegende: 'Mes modèles',
+  modelesConnexion:
+    'Connectez-vous à votre compte pour enregistrer cette création comme modèle et la réappliquer sur un autre vêtement du même type.',
+  modelesSeConnecter: 'Se connecter',
+  modelesChargement: 'Chargement de vos modèles.',
+  modelesAucun: 'Aucun modèle enregistré pour ce type de vêtement.',
+  modelesCompte: (n: number, max: number): string => `${n} modèle${n > 1 ? 's' : ''} enregistré${n > 1 ? 's' : ''} sur ${max}.`,
+  modeleNom: 'Nom du modèle',
+  modeleNomAide: 'Par exemple « Club, maillot 2026 ».',
+  modeleEnregistrer: 'Enregistrer comme modèle',
+  modeleEnregistrement: 'Enregistrement du modèle.',
+  modeleEnregistre: (nom: string): string => `Modèle « ${nom} » enregistré.`,
+  modeleSansVisuel: 'Posez d’abord un visuel pour l’enregistrer comme modèle.',
+  modeleSansNom: 'Donnez un nom à ce modèle pour le retrouver.',
+  modeleAppliquer: 'Appliquer',
+  modeleAppliquerLong: (nom: string): string => `Appliquer le modèle « ${nom} » sur ce vêtement`,
+  modeleApplication: 'Application du modèle.',
+  modeleApplique: (nom: string): string =>
+    `Modèle « ${nom} » appliqué. « Annuler » revient à la création précédente.`,
+  modeleEcartes: (n: number): string =>
+    `${n} élément${n > 1 ? 's' : ''} du modèle n’${n > 1 ? 'ont' : 'a'} pas pu être repris sur ce vêtement.`,
+  modeleVide: 'Ce modèle ne contient rien que ce vêtement puisse imprimer. Votre création n’a pas changé.',
+  modeleSupprimer: 'Supprimer',
+  modeleSupprimerLong: (nom: string): string => `Supprimer le modèle « ${nom} »`,
+  modeleSupprime: (nom: string): string => `Modèle « ${nom} » supprimé.`,
+  modeleApercuAlt: (nom: string): string => `Aperçu du modèle « ${nom} »`,
+  modelesChargementEchec: 'Vos modèles n’ont pas pu être chargés. Rechargez la page pour réessayer.',
+  modeleAutreType:
+    'Le modèle demandé a été fait pour un autre type de vêtement. Choisissez-en un dans la liste ci-dessous.',
+  modeleEchec: 'Ce modèle n’a pas pu être appliqué. Votre création n’a pas changé.',
+  modeleEchecEnregistrement: 'Ce modèle n’a pas pu être enregistré. Votre création n’a pas changé, réessayez dans un instant.',
+  modeleEchecSuppression: 'Ce modèle n’a pas pu être supprimé. Réessayez dans un instant.',
 
   depot: DEPOT,
 } as const

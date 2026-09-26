@@ -199,19 +199,16 @@ describe('les faces imprimables, qui décident où un calque peut aller', () => 
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
- * LA PAGE DÉDIÉE : UN BOOLÉEN ET DEUX URL, DONT UNE DEVIENT UN `href`
+ * LA PAGE DÉDIÉE : UN BOOLÉEN ET UNE URL
  *
- * `productUrl` est posée sur un lien que le client clique. C'est le seul champ
- * de ce contrat qui devienne une destination, et c'est exactement la mise en
- * garde écrite au-dessus de `devisUrl` : le jour où quelqu'un rend une adresse
- * administrable, il faut la filtrer comme la photographie l'est, ou une adresse
- * `javascript:` devient un lien cliquable sur une page de la boutique.
+ * `productImage` devient la source d'une vignette. Elle passe par le même
+ * filtre que la photographie : une adresse administrable se filtre avant de
+ * toucher la page, quel que soit l'attribut qui la reçoit.
  */
-describe('la page dédiée, et ses deux adresses', () => {
+describe('la page dédiée, et son adresse', () => {
   it('n’est pas une page dédiée tant que la page ne l’a pas dit', () => {
     const c = lireContexte(BASE)
     expect(c?.atelier).toBe(false)
-    expect(c?.productUrl).toBe('')
     expect(c?.productImage).toBe('')
   })
 
@@ -228,23 +225,13 @@ describe('la page dédiée, et ses deux adresses', () => {
   })
 
   it('garde une adresse de la boutique, absolue ou relative', () => {
-    const c = lireContexte({
-      ...BASE,
-      productUrl: 'https://boutique.test/produit/tee-noir/',
-      productImage: '/wp-content/uploads/tee.jpg',
-    })
-    expect(c?.productUrl).toBe('https://boutique.test/produit/tee-noir/')
-    expect(c?.productImage).toBe('/wp-content/uploads/tee.jpg')
+    const image = (v: string) => lireContexte({ ...BASE, productImage: v })?.productImage
+    expect(image('https://boutique.test/wp-content/uploads/tee.jpg')).toBe('https://boutique.test/wp-content/uploads/tee.jpg')
+    expect(image('/wp-content/uploads/tee.jpg')).toBe('/wp-content/uploads/tee.jpg')
   })
 
-  it('jette une adresse `javascript:`, et le lien n’existe alors pas', () => {
-    const c = lireContexte({
-      ...BASE,
-      productUrl: 'javascript:alert(1)',
-      productImage: 'javascript:alert(1)',
-    })
-    expect(c?.productUrl).toBe('')
-    expect(c?.productImage).toBe('')
+  it('jette une adresse `javascript:`, et la vignette n’existe alors pas', () => {
+    expect(lireContexte({ ...BASE, productImage: 'javascript:alert(1)' })?.productImage).toBe('')
   })
 
   /*
@@ -254,7 +241,7 @@ describe('la page dédiée, et ses deux adresses', () => {
    * regardait que le premier.
    */
   it('jette tout ce qui repart sur une autre origine, et tout ce qui n’est pas http', () => {
-    const url = (v: unknown) => lireContexte({ ...BASE, productUrl: v })?.productUrl
+    const url = (v: unknown) => lireContexte({ ...BASE, productImage: v })?.productImage
     expect(url('//evil.tld/')).toBe('')
     expect(url('/\\evil.tld/')).toBe('')
     expect(url('data:text/html,<script>alert(1)</script>')).toBe('')
@@ -336,5 +323,42 @@ describe('la demi-poitrine et les zones, bornées à la lecture aussi', () => {
       ],
     })
     expect(c?.zones).toEqual([{ face: 'front', parTaille: { M: { largeurCm: 30.5, hauteurCm: 40.6 } } }])
+  })
+})
+
+describe('lireContexte : les modèles sauvegardés et le lien de devis', () => {
+  it('lit le compte, son adresse, le plafond et le modèle demandé', () => {
+    const c = lireContexte({
+      ...BASE,
+      loggedIn: '1',
+      accountUrl: 'https://boutique.test/mon-compte/',
+      maxModels: '7',
+      model: 'aZ09_-aZ09_-aZ09_-',
+    })
+    expect(c?.connecte).toBe(true)
+    expect(c?.compteUrl).toBe('https://boutique.test/mon-compte/')
+    expect(c?.maxModeles).toBe(7)
+    expect(c?.modele).toBe('aZ09_-aZ09_-aZ09_-')
+  })
+
+  it('tait les modèles quand la boutique n’a rien publié, et n’invente pas de compte', () => {
+    const c = lireContexte(BASE)
+    expect(c?.connecte).toBe(false)
+    expect(c?.maxModeles).toBe(0)
+    expect(c?.modele).toBe('')
+  })
+
+  it('ne demande pas au serveur un modèle qui n’a pas la forme d’une création', () => {
+    for (const model of ['court', '../../wp-admin', 'a b c d e f g h i j', '<script>alert(1)</script>xxxxxxxx'])
+      expect(lireContexte({ ...BASE, model })?.modele).toBe('')
+  })
+
+  it('garde l’ancre de la fiche et filtre une adresse, pour qu’un lien javascript: ne devienne jamais cliquable', () => {
+    expect(lireContexte({ ...BASE, quoteUrl: '#teeshoop-devis' })?.devisUrl).toBe('#teeshoop-devis')
+    expect(lireContexte({ ...BASE, quoteUrl: 'https://boutique.test/devis/?produit=7' })?.devisUrl).toBe(
+      'https://boutique.test/devis/?produit=7',
+    )
+    expect(lireContexte({ ...BASE, quoteUrl: 'javascript:alert(1)' })?.devisUrl).toBe('')
+    expect(lireContexte({ ...BASE, quoteUrl: '//ailleurs.test/devis/' })?.devisUrl).toBe('')
   })
 })

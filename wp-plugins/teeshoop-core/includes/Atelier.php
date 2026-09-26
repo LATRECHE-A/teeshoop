@@ -527,10 +527,18 @@ final class Atelier {
 		 */
 		$image = get_the_post_thumbnail_url( $product_id, 'woocommerce_single' );
 
-		return self::extra_context(
-			(string) get_permalink( $product_id ),
-			is_string( $image ) ? $image : ''
-		);
+		/*
+		 * LE DEVIS OUVRE LA PAGE DEVIS SUR CE PRODUIT. Le contexte de la fiche dit
+		 * `#teeshoop-devis`, une ancre du formulaire de la fiche produit, que cette
+		 * page dédiée n'a pas : le lien ne menait nulle part. Sans page devis
+		 * publiée, il retombe sur le formulaire de la fiche.
+		 */
+		$devis = get_page_by_path( 'devis' );
+		$quote = $devis instanceof \WP_Post && 'publish' === $devis->post_status
+			? add_query_arg( 'produit', $product_id, (string) get_permalink( $devis ) )
+			: (string) get_permalink( $product_id ) . '#teeshoop-devis';
+
+		return self::extra_context( is_string( $image ) ? $image : '', $quote );
 	}
 
 	/**
@@ -540,15 +548,18 @@ final class Atelier {
 	 * clés : la fiche produit et l'atelier remettent le même contrat à
 	 * l'éditeur, qui demande chaque montant au serveur.
 	 *
+	 * PAS D'ADRESSE DE RETOUR : la barre du gabarit porte « Retour à la fiche
+	 * produit », et l'éditeur qui la répétait posait deux fois le même lien.
+	 *
 	 * @return array<string,mixed>
 	 */
-	public static function extra_context( string $product_url, string $image_url ): array {
+	public static function extra_context( string $image_url, string $quote_url = '' ): array {
 		return array(
 			// L'éditeur lit ce drapeau pour basculer sur la mise en page pleine
 			// page. Un booléen, pas « 1 » : voir `assets()`.
 			'atelier'      => true,
-			'productUrl'   => $product_url,
 			'productImage' => $image_url,
+			'quoteUrl'     => $quote_url,
 		);
 	}
 

@@ -52,6 +52,26 @@ async function secretEquals(a: string, b: string): Promise<boolean> {
 }
 
 /**
+ * Proof that the caller is the one who uploaded design `id`: HMAC-SHA256 of
+ * `teeshoop-modele:<id>` under `ADMIN_TOKEN`, in lowercase hex. '' when the
+ * token is unset or too short, which the shop refuses (fail closed).
+ *
+ * WHY IT EXISTS. The id travels (share links, the public preview URL), and the
+ * shop's saved-models routes relay a design's ORIGINALS back to the account
+ * that saved it. Without this, anyone who knew an id could save someone else's
+ * design and read their source images through the shop. Only the response to
+ * the upload carries the proof; WordPress holds the same token and recomputes
+ * it (`Modeles::preuve`) without a round trip.
+ */
+export async function ownerProof(env: AdminEnv, id: string): Promise<string> {
+  const token = env.ADMIN_TOKEN ?? ''
+  if (token.length < MIN_TOKEN_LEN) return ''
+  const key = await crypto.subtle.importKey('raw', enc.encode(token), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`teeshoop-modele:${id}`)))
+  return Array.from(mac, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
  * The presented token, or '' when the header is absent or malformed.
  *
  * TWO encodings of the SAME secret, because two different clients need it:

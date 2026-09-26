@@ -2,11 +2,14 @@
 /**
  * The REST surface: /wp-json/teeshoop/v1/*
  *
- * Three endpoints, two permission models.
+ * Three permission models.
  *
- *   GET  /quote   public   pure computation, no writes, no secrets
- *   GET  /grid    public   the price table on the product page
- *   POST /cart    nonce    mutates the caller's own cart
+ *   GET  /quote             public          pure computation, no writes, no secrets
+ *   GET  /grid              public          the price table on the product page
+ *   POST /cart              nonce           mutates the caller's own cart
+ *   GET|POST /modeles       nonce + compte  the caller's saved designs (Modeles)
+ *   DELETE /modeles/{id}, GET /modeles/{id}/document, /fichier/{asset}
+ *                           nonce + compte, and the model must be the caller's
  *
  * `/quote` and `/grid` are public because the product page and the studio both
  * need a price before anyone has logged in or accepted a cookie. They return
@@ -107,6 +110,176 @@ final class Rest {
 				'permission_callback' => array( self::class, 'check_nonce' ),
 			)
 		);
+
+		/*
+		 * LES MODÈLES SAUVEGARDÉS, et un troisième modèle de permission : le nonce
+		 * ET un compte. Une route qui porte un identifiant vérifie en plus que ce
+		 * modèle est à ce client, dans son rappel, parce que c'est là qu'on sait
+		 * qui il est. Voir `Modeles`.
+		 */
+		$modele = '(?P<id>[A-Za-z0-9_-]{16,64})';
+		register_rest_route(
+			self::NS,
+			'/modeles',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( self::class, 'modeles_liste' ),
+					'permission_callback' => array( self::class, 'check_compte' ),
+					'args'                => array(
+						'garment' => array(
+							'type'              => 'string',
+							'default'           => '',
+							'sanitize_callback' => 'sanitize_key',
+						),
+					),
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( self::class, 'modeles_ajout' ),
+					'permission_callback' => array( self::class, 'check_compte' ),
+				),
+			)
+		);
+		register_rest_route(
+			self::NS,
+			'/modeles/' . $modele,
+			array(
+				'methods'             => \WP_REST_Server::DELETABLE,
+				'callback'            => array( self::class, 'modeles_suppression' ),
+				'permission_callback' => array( self::class, 'check_compte' ),
+			)
+		);
+		register_rest_route(
+			self::NS,
+			'/modeles/' . $modele . '/document',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'modeles_document' ),
+				'permission_callback' => array( self::class, 'check_compte' ),
+			)
+		);
+		register_rest_route(
+			self::NS,
+			'/modeles/' . $modele . '/fichier/(?P<asset>[A-Za-z0-9_-]{1,64})',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'modeles_fichier' ),
+				'permission_callback' => array( self::class, 'check_compte' ),
+			)
+		);
+	}
+
+	/** Le nonce, puis un compte : un visiteur anonyme n'a pas de modèles. */
+	public static function check_compte( \WP_REST_Request $request ): bool|\WP_Error {
+		$nonce = self::check_nonce( $request );
+		if ( true !== $nonce ) {
+			return $nonce;
+		}
+		if ( ! is_user_logged_in() ) {
+			return new \WP_Error(
+				'teeshoop_compte',
+				__( 'Connectez-vous à votre compte pour retrouver vos modèles.', 'teeshoop' ),
+				array( 'status' => 401 )
+			);
+		}
+		return true;
+	}
+
+	/** GET /modeles : les modèles du client, pour ce vêtement s'il est nommé. */
+	public static function modeles_liste( \WP_REST_Request $request ): \WP_REST_Response {
+		return self::modeles_reponse( (string) $request->get_param( 'garment' ), 200 );
+	}
+
+	/** POST /modeles : enregistrer une création déjà déposée sur le Worker. */
+	public static function modeles_ajout( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$body = $request->get_json_params();
+		if ( ! is_array( $body ) ) {
+			return new \WP_Error( 'teeshoop_bad_body', __( 'Requête incorrecte.', 'teeshoop' ), array( 'status' => 400 ) );
+		}
+		// Un tableau à la place d'une chaîne vaut la chaîne vide, pas « Array ».
+		$champ = static fn( string $k ): string => is_string( $body[ $k ] ?? null ) ? $body[ $k ] : '';
+		$fait  = Modeles::enregistrer( get_current_user_id(), $champ( 'design_id' ), $champ( 'nom' ), $champ( 'preuve' ) );
+		if ( is_wp_error( $fait ) ) {
+			return $fait;
+		}
+		return self::modeles_reponse( sanitize_key( (string) ( $body['garment'] ?? '' ) ), 201 );
+	}
+
+	/** DELETE /modeles/{id} */
+	public static function modeles_suppression( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$id = (string) $request->get_param( 'id' );
+		if ( ! Modeles::possede( get_current_user_id(), $id ) ) {
+			return self::modele_inconnu();
+		}
+		Modeles::supprimer( get_current_user_id(), $id );
+		return self::modeles_reponse( sanitize_key( (string) $request->get_param( 'garment' ) ), 200 );
+	}
+
+	/** GET /modeles/{id}/document : les calques, relus sur le Worker pour leur propriétaire. */
+	public static function modeles_document( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$id = (string) $request->get_param( 'id' );
+		if ( ! Modeles::possede( get_current_user_id(), $id ) ) {
+			return self::modele_inconnu();
+		}
+		$doc = Modeles::document( $id );
+		return is_wp_error( $doc ) ? $doc : new \WP_REST_Response( array( 'document' => $doc ) );
+	}
+
+	/**
+	 * GET /modeles/{id}/fichier/{asset} : une image du modèle, en base64 dans du
+	 * JSON. Pas de flux binaire : la REST de WordPress sérialise en JSON, et les
+	 * images d'une création font au plus 2 048 pixels de côté.
+	 */
+	public static function modeles_fichier( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$id = (string) $request->get_param( 'id' );
+		if ( ! Modeles::possede( get_current_user_id(), $id ) ) {
+			return self::modele_inconnu();
+		}
+		$fichier = Modeles::fichier( $id, (string) $request->get_param( 'asset' ) );
+		if ( is_wp_error( $fichier ) ) {
+			return $fichier;
+		}
+		return new \WP_REST_Response(
+			array(
+				'type'   => $fichier['type'],
+				'base64' => base64_encode( $fichier['octets'] ),
+			)
+		);
+	}
+
+	/**
+	 * La liste telle que l'atelier et la page devis la montrent : l'aperçu en
+	 * adresse complète (il est public sur le Worker, comme sur le panier), et le
+	 * nombre total de modèles du compte, pour dire combien de places il reste
+	 * même quand la liste est filtrée sur un vêtement.
+	 */
+	private static function modeles_reponse( string $garment, int $status ): \WP_REST_Response {
+		$uid    = get_current_user_id();
+		$worker = rtrim( Settings::get( 'worker_url' ), '/' );
+		$liste  = array_map(
+			static fn( array $m ): array => array(
+				'id'      => $m['id'],
+				'nom'     => $m['nom'],
+				'garment' => $m['garment'],
+				'apercu'  => '' !== $worker && '' !== $m['apercu'] ? $worker . $m['apercu'] : '',
+				'cree'    => $m['cree'],
+			),
+			Modeles::lister( $uid, $garment )
+		);
+		return new \WP_REST_Response(
+			array(
+				'modeles' => $liste,
+				'total'   => count( Modeles::lister( $uid ) ),
+				'max'     => Modeles::MAX,
+			),
+			$status
+		);
+	}
+
+	/** Un modèle qui n'est pas à ce client est un modèle qui n'existe pas pour lui. */
+	private static function modele_inconnu(): \WP_Error {
+		return new \WP_Error( 'teeshoop_modele_inconnu', __( 'Ce modèle n’est pas, ou plus, dans votre compte.', 'teeshoop' ), array( 'status' => 404 ) );
 	}
 
 	/**

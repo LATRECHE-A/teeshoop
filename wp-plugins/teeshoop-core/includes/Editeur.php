@@ -362,7 +362,24 @@ final class Editeur {
 			'quoteFromQty'  => (int) $config['quote_from_qty'],
 			'quoteFromHt'   => (int) $config['quote_from_ht'],
 			'quoteUrl'      => '#teeshoop-devis',
+			/*
+			 * LES MODÈLES SAUVEGARDÉS (voir `Modeles`). `model` est celui que
+			 * l'adresse demande (`?modele=`, depuis la page devis), et il n'est
+			 * remis que s'il est à ce client : un identifiant copié d'un autre
+			 * compte ne fait rien, sans le dire, comme s'il n'existait pas.
+			 */
+			'loggedIn'      => is_user_logged_in(),
+			'accountUrl'    => function_exists( 'wc_get_page_permalink' ) ? (string) wc_get_page_permalink( 'myaccount' ) : wp_login_url(),
+			'maxModels'     => Modeles::MAX,
+			'model'         => self::modele_demande(),
 		);
+	}
+
+	/** Le modèle que l'adresse demande, s'il appartient au client connecté, sinon ''. */
+	private static function modele_demande(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- une lecture, vérifiée contre le compte.
+		$id = isset( $_GET['modele'] ) && is_string( $_GET['modele'] ) ? sanitize_text_field( wp_unslash( $_GET['modele'] ) ) : '';
+		return Design::valid_id( $id ) && Modeles::possede( get_current_user_id(), $id ) ? $id : '';
 	}
 
 	/**

@@ -857,6 +857,14 @@ ts_schema_suite();
 require_once __DIR__ . '/integration-gradient.php';
 ts_gradient_suite();
 
+/*
+ * Les modèles sauvegardés : placés après toutes les suites qui lisent le Worker,
+ * parce qu'ils définissent `TEESHOOP_WORKER_TOKEN` pour ce processus et qu'une
+ * constante ne se retire pas.
+ */
+require_once __DIR__ . '/integration-modeles.php';
+ts_modeles_suite();
+
 require_once __DIR__ . '/concurrency.php';
 ts_concurrency_suite();
 

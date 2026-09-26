@@ -20,6 +20,7 @@ if ( 'cli' !== PHP_SAPI ) {
 }
 
 require_once __DIR__ . '/../includes/Privacy.php';
+require_once __DIR__ . '/../includes/Modeles.php';
 
 use Teeshoop\Core\Privacy;
 

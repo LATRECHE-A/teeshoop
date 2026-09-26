@@ -19,7 +19,7 @@ import { GARMENTS } from '@/garments'
 import { garmentHexOf } from '@/content/garmentPalette'
 import { GRAPHICS } from '@/content/graphics'
 import { makeSampleDesign } from '@/content/sampleDesign'
-import { getAreaSizeIn, measureLayer } from '@/lib/renderDesign'
+import { clampLayersToArea, getAreaSizeIn, measureLayer } from '@/lib/renderDesign'
 import { migrateDesign } from '@/lib/migrate'
 import { zonesFor } from '@/content/zones'
 import { clamp } from '@/lib/units'
@@ -206,26 +206,6 @@ function isDark(hex: string): boolean {
   const g = parseInt(n.slice(2, 4), 16)
   const b = parseInt(n.slice(4, 6), 16)
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 140
-}
-
-/**
- * Keep layer centers inside the print area when the area changes.
- *
- * Deliberately calls getAreaSizeIn WITHOUT a size: stored geometry is
- * base-space inches, so every WRITE clamps against the UNGRADED area. Passing
- * previewSize here would let a 3XL preview push coordinates outside the base
- * area (and shrink them back on an S). See src/lib/printScale.ts.
- */
-function clampLayersToArea(design: Design): Design {
-  const layers = design.layers.map((l) => {
-    const area = getAreaSizeIn(design, l.side)
-    return {
-      ...l,
-      xIn: clamp(l.xIn, -area.wIn / 2, area.wIn / 2),
-      yIn: clamp(l.yIn, -area.hIn / 2, area.hIn / 2),
-    }
-  })
-  return { ...design, layers }
 }
 
 /**

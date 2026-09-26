@@ -786,11 +786,18 @@ function page_url( string $slug ): string {
 	return $cache[ $slug ];
 }
 
-/** Where "Devis" goes: the standalone request page, or the shop if it is missing. */
-function quote_url(): string {
+/**
+ * Where "Devis" goes: the standalone request page, on the product being looked at
+ * when there is one, or the shop if the page is missing.
+ *
+ * The product travels as `?produit=`, which `Quote::page_args()` validates: the
+ * page then opens on that article, with its sizes, its workshop and the
+ * customer's saved designs. Decision of 26/09/2026.
+ */
+function quote_url( int $product_id = 0 ): string {
 	$url = page_url( 'devis' );
 	if ( '' !== $url ) {
-		return $url;
+		return $product_id > 0 ? add_query_arg( 'produit', $product_id, $url ) : $url;
 	}
 	return function_exists( 'wc_get_page_permalink' ) ? (string) wc_get_page_permalink( 'shop' ) : home_url( '/' );
 }

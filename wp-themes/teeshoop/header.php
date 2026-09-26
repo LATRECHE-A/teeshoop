@@ -113,7 +113,7 @@ defined( 'ABSPATH' ) || exit;
 		</nav>
 
 		<div class="ts-mast__tools">
-			<a class="ts-mast__quote" href="<?php echo esc_url( quote_url() ); ?>">
+			<a class="ts-mast__quote" href="<?php echo esc_url( quote_url( function_exists( 'is_product' ) && is_product() ? (int) get_queried_object_id() : 0 ) ); ?>">
 				<?php esc_html_e( 'Devis', 'teeshoop' ); ?>
 			</a>
 			<?php if ( function_exists( 'wc_get_cart_url' ) ) : ?>

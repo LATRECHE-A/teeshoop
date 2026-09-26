@@ -15,7 +15,7 @@ import { ensureAssetImage, getCachedAssetImage } from '@/state/assets'
 import { ensureRaster, getRaster, sizeBucket, withSvgSize } from '@/lib/rasterCache'
 import { drawTextLayer, getMeasureCtx, measureTextLayer } from '@/lib/textRender'
 import { getCustomSideInfo, getCachedCustomImage } from '@/lib/custom'
-import { degToRad } from '@/lib/units'
+import { clamp, degToRad } from '@/lib/units'
 import { printScaleK, scaleAreaIn, scaleLayers } from '@/lib/printScale'
 
 export function sideLayers(design: Design, side: Side): Layer[] {
@@ -56,6 +56,30 @@ export function getAreaSizeIn(design: Design, side: Side, size?: SizeId): SizeIn
     return area ? scaleAreaIn({ wIn: area.wIn, hIn: area.hIn }, k) : { wIn: 0, hIn: 0 }
   }
   return scaleAreaIn(GARMENTS[design.garmentId].printAreasIn[side], k)
+}
+
+/**
+ * Keep layer centers inside the print area when the area changes.
+ *
+ * Deliberately calls getAreaSizeIn WITHOUT a size: stored geometry is
+ * base-space inches, so every WRITE clamps against the UNGRADED area. Passing
+ * previewSize here would let a 3XL preview push coordinates outside the base
+ * area (and shrink them back on an S). See src/lib/printScale.ts.
+ *
+ * Moved here from src/state/store.ts on 26/09/2026 so that the shop's own editor
+ * applies a saved design to another garment by THIS rule rather than a copy of
+ * it: the studio's garment switch and the saved-design path are the same move.
+ */
+export function clampLayersToArea(design: Design): Design {
+  const layers = design.layers.map((l) => {
+    const area = getAreaSizeIn(design, l.side)
+    return {
+      ...l,
+      xIn: clamp(l.xIn, -area.wIn / 2, area.wIn / 2),
+      yIn: clamp(l.yIn, -area.hIn / 2, area.hIn / 2),
+    }
+  })
+  return { ...design, layers }
 }
 
 /**

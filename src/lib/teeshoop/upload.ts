@@ -404,6 +404,12 @@ export interface UploadedDesign {
   /** What was actually sent, bytes. Measured, so a slow upload can be explained. */
   bytes: number
   sides: BridgeSide[]
+  /**
+   * The Worker's proof that THIS browser uploaded the design (`ownerProof` in
+   * worker/auth.ts). The shop asks for it before saving the design as a model.
+   * '' when the Worker has no token, and the shop then refuses.
+   */
+  proof: string
 }
 
 /**
@@ -537,10 +543,11 @@ async function send(
     throw new DesignUploadError(failureFor(res.status), detail)
   }
 
-  const body = (await res.json().catch(() => null)) as { id?: unknown } | null
+  const body = (await res.json().catch(() => null)) as { id?: unknown; proof?: unknown } | null
   const id = body && typeof body.id === 'string' ? body.id : ''
   if (!id) throw new DesignUploadError('server', 'the upload returned no identifier')
-  return { id, bytes, sides }
+  const proof = typeof body?.proof === 'string' ? body.proof : ''
+  return { id, bytes, sides, proof }
 }
 
 /**

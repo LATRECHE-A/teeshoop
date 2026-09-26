@@ -32,6 +32,7 @@
  * c'est-à-dire la moins à jour. `RAISONS` ne couvre que ce que le serveur ne
  * peut pas dire : le réseau, le nonce, et une réponse illisible.
  */
+import type { Layer } from '@/lib/types'
 import type { Contexte } from './contexte'
 
 /** Un devis, tel que `Rest::quote()` le rend. Les centimes font foi. */
@@ -276,6 +277,181 @@ export async function ajouterAuPanier(
     cartCount: Number(body.cart_count) || 0,
     cartUrl: typeof body.cart_url === 'string' && body.cart_url !== '' ? body.cart_url : ctx.cartUrl,
   }
+}
+
+// ─────────────────────────────────────────────────────────── modèles sauvegardés
+
+/** Un modèle, tel que `Rest::modeles_reponse` le rend. */
+export interface Modele {
+  id: string
+  nom: string
+  garment: string
+  /** L'aperçu public sur le Worker, ou '' quand il n'y en a pas. */
+  apercu: string
+  cree: string
+}
+
+/** Les modèles de ce vêtement, et combien le compte en a en tout sur combien. */
+export interface ListeModeles {
+  modeles: Modele[]
+  total: number
+  max: number
+}
+
+const ID_CREATION = /^[A-Za-z0-9_-]{16,64}$/
+
+/**
+ * Un appel aux routes des modèles : le nonce ET le cookie du compte, et la
+ * phrase du serveur quand il refuse (plus de place, pas connecté, modèle
+ * inconnu). Toutes ces routes répondent la liste à jour, sauf les deux lectures.
+ */
+async function appelModeles(
+  ctx: Contexte,
+  chemin: string,
+  init: { method?: string; corps?: Record<string, unknown>; params?: Record<string, string> } = {},
+): Promise<Record<string, unknown>> {
+  if (ctx.nonce === '') throw new RefusAtelier('sans_nonce', RAISONS.sans_nonce)
+  const url = route(ctx, chemin)
+  for (const [k, v] of Object.entries(init.params ?? {})) url.searchParams.set(k, v)
+
+  let res: Response
+  try {
+    res = await fetch(url.toString(), {
+      method: init.method ?? 'GET',
+      credentials: 'same-origin',
+      headers: {
+        accept: 'application/json',
+        'X-WP-Nonce': ctx.nonce,
+        ...(init.corps ? { 'content-type': 'application/json' } : {}),
+      },
+      body: init.corps ? JSON.stringify(init.corps) : undefined,
+    })
+  } catch {
+    throw new RefusAtelier('reseau', 'La boutique n’a pas répondu. Vérifiez votre connexion, puis réessayez.')
+  }
+
+  const body = await corps(res)
+  if (!res.ok) {
+    throw new RefusAtelier(
+      typeof body.code === 'string' ? body.code : 'modele_refuse',
+      messageDe(body, res.status === 403 ? RAISONS.teeshoop_bad_nonce : 'Vos modèles n’ont pas pu être lus. Rechargez la page, puis réessayez.'),
+    )
+  }
+  return body
+}
+
+/** La liste relue comme une donnée venue d'ailleurs : une entrée malformée est écartée. */
+export function lireListe(body: Record<string, unknown>): ListeModeles {
+  const brut = Array.isArray(body.modeles) ? body.modeles : []
+  const modeles: Modele[] = []
+  for (const m of brut) {
+    if (!m || typeof m !== 'object') continue
+    const e = m as Record<string, unknown>
+    const id = typeof e.id === 'string' ? e.id : ''
+    if (!ID_CREATION.test(id)) continue
+    modeles.push({
+      id,
+      nom: typeof e.nom === 'string' ? e.nom.slice(0, 60) : '',
+      garment: typeof e.garment === 'string' ? e.garment : '',
+      apercu: typeof e.apercu === 'string' && /^https?:\/\//i.test(e.apercu) ? e.apercu : '',
+      cree: typeof e.cree === 'string' ? e.cree : '',
+    })
+  }
+  return { modeles, total: Number(body.total) || 0, max: Number(body.max) || 0 }
+}
+
+export async function listerModeles(ctx: Contexte): Promise<ListeModeles> {
+  return lireListe(await appelModeles(ctx, 'modeles', { params: { garment: ctx.garment } }))
+}
+
+/** `preuve` : celle que le Worker a rendue au dépôt (`UploadedDesign.proof`), sans quoi la boutique refuse. */
+export async function enregistrerModele(
+  ctx: Contexte,
+  designId: string,
+  preuve: string,
+  nom: string,
+): Promise<ListeModeles> {
+  return lireListe(
+    await appelModeles(ctx, 'modeles', {
+      method: 'POST',
+      corps: { design_id: designId, preuve, nom, garment: ctx.garment },
+    }),
+  )
+}
+
+export async function supprimerModele(ctx: Contexte, id: string): Promise<ListeModeles> {
+  return lireListe(
+    await appelModeles(ctx, `modeles/${encodeURIComponent(id)}`, { method: 'DELETE', params: { garment: ctx.garment } }),
+  )
+}
+
+/** Les calques du modèle, tels que le Worker les a stockés, relus par la boutique. */
+export async function lireModele(ctx: Contexte, id: string): Promise<Record<string, unknown>> {
+  const body = await appelModeles(ctx, `modeles/${encodeURIComponent(id)}/document`)
+  const doc = body.document
+  if (!doc || typeof doc !== 'object') throw new RefusAtelier('illisible', RAISONS.illisible)
+  return doc as Record<string, unknown>
+}
+
+/** Une image du modèle. Le serveur la rend en base64 dans du JSON. */
+export async function lireImageModele(ctx: Contexte, id: string, asset: string): Promise<Blob> {
+  const body = await appelModeles(ctx, `modeles/${encodeURIComponent(id)}/fichier/${encodeURIComponent(asset)}`)
+  const type = body.type === 'image/png' || body.type === 'image/jpeg' ? body.type : ''
+  if (type === '' || typeof body.base64 !== 'string') throw new RefusAtelier('illisible', RAISONS.illisible)
+  const octets = Uint8Array.from(atob(body.base64), (c) => c.charCodeAt(0))
+  return new Blob([octets], { type })
+}
+
+/**
+ * Les calques d'un modèle, prêts à poser sur le vêtement ouvert. PURE.
+ *
+ * `images` associe chaque image du modèle à sa copie locale (un NOUVEL
+ * identifiant, voir `Instance.appliquerModele`) : ses octets sont ceux que la
+ * création utilisait, détourage compris, d'où `useCutout` à faux. Un calque qui
+ * n'est pas d'un type connu, qui n'a pas de coordonnées, qui vise une face que
+ * ce produit n'accepte pas, ou dont l'image n'a pas été rapatriée, est écarté et
+ * COMPTÉ, pour que l'écran puisse le dire au lieu de le taire.
+ */
+export function calquesDuModele(
+  doc: Record<string, unknown>,
+  images: ReadonlyMap<string, string>,
+  faces: readonly string[],
+): { calques: Layer[]; ecartes: number } {
+  const brut = Array.isArray(doc.layers) ? doc.layers : []
+  const calques: Layer[] = []
+  let ecartes = 0
+  for (const l of brut) {
+    const e = l && typeof l === 'object' ? (l as Record<string, unknown>) : null
+    const ok =
+      e !== null &&
+      (e.type === 'text' || e.type === 'image' || e.type === 'graphic') &&
+      typeof e.id === 'string' &&
+      typeof e.side === 'string' &&
+      faces.includes(e.side) &&
+      Number.isFinite(e.xIn) &&
+      Number.isFinite(e.yIn) &&
+      (e.type !== 'image' || (typeof e.assetId === 'string' && images.has(e.assetId)))
+    if (!ok || e === null) {
+      ecartes++
+      continue
+    }
+    calques.push(
+      (e.type === 'image'
+        ? { ...e, assetId: images.get(e.assetId as string), useCutout: false }
+        : { ...e }) as unknown as Layer,
+    )
+  }
+  return { calques, ecartes }
+}
+
+/** Les images qu'un document de modèle nomme, une fois chacune. PURE. */
+export function imagesDuModele(doc: Record<string, unknown>): string[] {
+  const ids = new Set<string>()
+  for (const l of Array.isArray(doc.layers) ? doc.layers : []) {
+    const e = l && typeof l === 'object' ? (l as Record<string, unknown>) : null
+    if (e && e.type === 'image' && typeof e.assetId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(e.assetId)) ids.add(e.assetId)
+  }
+  return [...ids]
 }
 
 /**

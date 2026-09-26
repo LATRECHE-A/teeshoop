@@ -13,13 +13,17 @@
  * (Both read on 2026-08-19.)
  *
  * THE FORM IS THE PLUGIN'S, NOT A COPY. It is exactly the template the product
- * page renders, `teeshoop/product-quote.php`, with `product_id` set to 0. There
+ * page renders, `teeshoop/product-quote.php`, fed by `Quote::page_args()`. There
  * is therefore one set of fields, one HMAC stamp, one honeypot, one rate limit,
  * one privacy notice and one handler, and no chance of the standalone page
- * drifting from the one attached to a product. `Quote::submit()` already treats
- * a product id of 0 correctly: no garment, no size list, and no self-serve
- * estimate frozen onto the record, which is right, because there is no product
- * to estimate.
+ * drifting from the one attached to a product.
+ *
+ * SINCE 26/09/2026 THE PAGE OPENS ON AN ARTICLE: `?produit=` names it, and the
+ * page then adds the quantity per size, the button to that article's workshop
+ * and the customer's saved designs. Without one, it offers the articles that can
+ * be personalised, and the form still takes a request about anything else, with
+ * `product_id` at 0: no garment, no size list and no estimate, which
+ * `Quote::submit()` already handles.
  *
  * @package Teeshoop\Theme
  */
@@ -113,21 +117,18 @@ $ts_lead = lead_days();
 		 * win here as it does on a product page.
 		 */
 		if ( function_exists( 'wc_get_template' ) && class_exists( '\\Teeshoop\\Core\\Quote' ) && defined( 'TEESHOOP_CORE_DIR' ) ) {
+			/*
+			 * L'ARTICLE DEMANDÉ, `?produit=`, que les boutons « Devis » d'une fiche
+			 * et de l'atelier portent. C'est l'extension qui décide s'il est
+			 * valable et ce que la page montre en plus (`Quote::page_args`) ; le
+			 * minimum de la boutique ouvre la case de quantité sur un nombre
+			 * commandable plutôt que sur 0.
+			 */
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- quel article afficher ; rien n'est écrit.
+			$ts_demande = isset( $_GET['produit'] ) && is_string( $_GET['produit'] ) ? absint( wp_unslash( $_GET['produit'] ) ) : 0;
 			wc_get_template(
 				'teeshoop/product-quote.php',
-				array(
-					'product_id' => 0,
-					'garment'    => '',
-					'config'     => pricing_config(),
-					'request'    => array(
-						'faces' => 1,
-						'grid'  => array(),
-						// The shop's own minimum, so the quantity box opens on a
-						// number that can actually be ordered rather than on 0.
-						'typed' => null !== $ts_min ? $ts_min['qty'] : 1,
-					),
-					'sizes'      => array(),
-				),
+				\Teeshoop\Core\Quote::page_args( $ts_demande, null !== $ts_min ? (int) $ts_min['qty'] : 1 ),
 				'',
 				// A global constant defined with define(), so it is not in the
 				// plugin's namespace however much it looks like it.

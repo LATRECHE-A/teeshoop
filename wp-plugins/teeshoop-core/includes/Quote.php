@@ -806,6 +806,81 @@ final class Quote {
 		self::back( $back, 'ok', '' );
 	}
 
+	/**
+	 * Ce que la page devis remet au formulaire.
+	 *
+	 * LE FORMULAIRE RESTE CELUI DE LA FICHE (`teeshoop/product-quote.php`) : un
+	 * seul traitement, `submit`, et une seule validation des tailles, contre
+	 * `ProductPage::size_ids()`. Cette méthode dit seulement quel produit est
+	 * demandé (`?produit=`) et ce que la page montre en plus de la fiche : les
+	 * quantités par taille, l'atelier de ce produit et les modèles du client. Un
+	 * produit qui n'est pas personnalisable ou pas publié vaut « aucun », et la
+	 * page propose alors de choisir parmi ceux qui le sont.
+	 *
+	 * @return array<string,mixed> les variables du gabarit
+	 */
+	public static function page_args( int $demande, int $typed ): array {
+		$garment = Product::garment_of( $demande );
+		$pid     = '' !== $garment && 'publish' === get_post_status( $demande ) ? $demande : 0;
+		$garment = $pid > 0 ? $garment : '';
+		$image   = $pid > 0 ? get_the_post_thumbnail_url( $pid, 'woocommerce_thumbnail' ) : '';
+
+		return array(
+			'product_id'  => $pid,
+			'garment'     => $garment,
+			'config'      => Settings::pricing(),
+			'request'     => array(
+				'faces' => 1,
+				'grid'  => array(),
+				'typed' => $typed,
+			),
+			'sizes'       => $pid > 0 ? ProductPage::size_ids( $garment ) : array(),
+			'grille'      => $pid > 0,
+			'titre'       => $pid > 0 ? get_the_title( $pid ) : '',
+			'image'       => is_string( $image ) ? $image : '',
+			'atelier_url' => $pid > 0 ? Atelier::url( $pid ) : '',
+			'modeles'     => $pid > 0 ? Modeles::lister( get_current_user_id(), $garment ) : null,
+			'connecte'    => is_user_logged_in(),
+			'compte_url'  => function_exists( 'wc_get_page_permalink' ) ? (string) wc_get_page_permalink( 'myaccount' ) : wp_login_url(),
+			'choix'       => $pid > 0 ? array() : self::personnalisables(),
+		);
+	}
+
+	/**
+	 * Les produits publiés qu'on peut personnaliser, par titre : exactement ceux
+	 * que l'atelier sait ouvrir, puisque c'est la même méta qui en décide.
+	 *
+	 * @return array<int,string> identifiant => titre
+	 */
+	private static function personnalisables(): array {
+		$ids = get_posts(
+			array(
+				'post_type'      => 'product',
+				'post_status'    => 'publish',
+				'posts_per_page' => 100,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- une page, cent produits au plus.
+				'meta_query'     => array(
+					array(
+						'key'     => Product::META,
+						'value'   => '',
+						'compare' => '!=',
+					),
+				),
+			)
+		);
+		$out = array();
+		foreach ( $ids as $id ) {
+			if ( '' !== Product::garment_of( (int) $id ) ) {
+				$out[ (int) $id ] = get_the_title( (int) $id );
+			}
+		}
+		return $out;
+	}
+
 	private static function text( mixed $raw, int $max ): string {
 		$value = sanitize_textarea_field( (string) $raw );
 		return mb_substr( trim( $value ), 0, $max );
@@ -861,6 +936,11 @@ final class Quote {
 					'telephone' => self::text( $sent['telephone'] ?? '', 40 ),
 					'siret'     => self::text( $sent['siret'] ?? '', 20 ),
 					'qte'       => (int) ( $sent['qte'] ?? 1 ),
+					// Les quantités par taille et le modèle choisi, que la page devis
+					// demande depuis le 26/09/2026 : les perdre sur une adresse mal
+					// tapée, c'est les faire retaper.
+					'tailles'   => array_map( 'intval', array_filter( (array) ( $sent['tailles'] ?? array() ), 'is_numeric' ) ),
+					'design_id' => Design::valid_id( (string) ( $sent['design_id'] ?? '' ) ) ? (string) $sent['design_id'] : '',
 					'echeance'  => self::date( (string) ( $sent['echeance'] ?? '' ) ),
 					'message'   => self::text( $sent['message'] ?? '', 4000 ),
 				),
@@ -904,6 +984,20 @@ final class Quote {
 	 * request. The reverse arrangement (mail first, record if it worked) is
 	 * how quote requests disappear.
 	 */
+	/** « Tailles : M 5, L 10 », dans l'ordre saisi, ou « non détaillées ». */
+	private static function tailles_lisibles( string $json ): string {
+		$grille = json_decode( $json, true );
+		if ( ! is_array( $grille ) || array() === $grille ) {
+			return __( 'Tailles : non détaillées', 'teeshoop' );
+		}
+		$parts = array();
+		foreach ( $grille as $taille => $n ) {
+			$parts[] = $taille . ' ' . (int) $n;
+		}
+		/* translators: %s: sizes and counts, e.g. "M 5, L 10". */
+		return sprintf( __( 'Tailles : %s', 'teeshoop' ), implode( ', ', $parts ) );
+	}
+
 	private static function notify( int $post_id, array $meta ): void {
 		$edit = admin_url( 'post.php?post=' . $post_id . '&action=edit' );
 
@@ -912,8 +1006,17 @@ final class Quote {
 			sprintf( __( 'Contact : %s', 'teeshoop' ), $meta['_ts_contact'] ),
 			sprintf( __( 'E-mail : %s', 'teeshoop' ), $meta['_ts_email'] ),
 			sprintf( __( 'Téléphone : %s', 'teeshoop' ), '' !== $meta['_ts_telephone'] ? $meta['_ts_telephone'] : __( 'non renseigné', 'teeshoop' ) ),
+			(int) $meta['_ts_product_id'] > 0
+				/* translators: 1: product title, 2: product id. */
+				? sprintf( __( 'Article : %1$s (produit %2$d)', 'teeshoop' ), get_the_title( (int) $meta['_ts_product_id'] ), (int) $meta['_ts_product_id'] )
+				: __( 'Article : non choisi, voir le message', 'teeshoop' ),
 			sprintf( __( 'Quantité : %d', 'teeshoop' ), $meta['_ts_qty'] ),
+			self::tailles_lisibles( (string) $meta['_ts_tailles'] ),
 			sprintf( __( 'Faces imprimées : %d', 'teeshoop' ), $meta['_ts_faces'] ),
+			'' !== $meta['_ts_design_id']
+				/* translators: %s: the public preview of the design attached to the request. */
+				? sprintf( __( 'Création jointe : %s', 'teeshoop' ), rtrim( Settings::get( 'worker_url' ), '/' ) . '/r2/design/' . $meta['_ts_design_id'] . '/preview.png' )
+				: __( 'Création jointe : aucune', 'teeshoop' ),
 			(int) $meta['_ts_estimate_ht'] > 0
 				? sprintf( __( 'Estimation libre-service : %s HT', 'teeshoop' ), Money::format( (int) $meta['_ts_estimate_ht'] ) )
 				: sprintf(

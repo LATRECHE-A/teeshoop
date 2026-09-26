@@ -174,16 +174,23 @@ describe( 'Atelier: le repli laid ?teeshoop_atelier={id}', function () {
 
 describe( 'Atelier: les trois clés remises à l’éditeur', function () {
 
-	it( 'publie exactement atelier, productUrl et productImage', function () {
-		$extras = Atelier::extra_context( 'https://x.fr/produit/tee/', 'https://x.fr/img.jpg' );
-		eq( array_keys( $extras ), array( 'atelier', 'productUrl', 'productImage' ) );
+	it( 'publie exactement atelier, productImage et quoteUrl', function () {
+		$extras = Atelier::extra_context( 'https://x.fr/img.jpg', 'https://x.fr/devis/?produit=7' );
+		eq( array_keys( $extras ), array( 'atelier', 'productImage', 'quoteUrl' ) );
+	} );
+
+	it( 'remplace l’ancre de la fiche, que cette page n’a pas, par la page devis', function () {
+		// Le contexte de la fiche dit `#teeshoop-devis` ; l'atelier est une page
+		// sans ce formulaire, et le lien ne menait nulle part.
+		$extras = Atelier::extra_context( '', 'https://x.fr/devis/?produit=7' );
+		eq( $extras['quoteUrl'], 'https://x.fr/devis/?produit=7' );
 	} );
 
 	it( 'garde un vrai booléen, ce qui est la raison du script en ligne', function () {
 		// `wp_localize_script` sérialise tout en chaîne : `true` en ressortirait
 		// « 1 », et `src/native/contexte.ts` existe entièrement pour réparer ça.
 		// La fusion passe par `wp_json_encode`, donc le type survit.
-		$extras = Atelier::extra_context( 'https://x.fr/p/', '' );
+		$extras = Atelier::extra_context( '' );
 		eq( $extras['atelier'], true );
 		truthy( str_contains( Atelier::inline_merge( $extras ), '"atelier":true' ), 'booléen dans le JSON' );
 	} );
@@ -191,7 +198,7 @@ describe( 'Atelier: les trois clés remises à l’éditeur', function () {
 	it( 'laisse une photographie absente valoir la chaîne vide', function () {
 		// '' veut dire « la boutique n'en a pas ». `false` ou `null` seraient
 		// une deuxième forme de vide que l'éditeur devrait distinguer.
-		$extras = Atelier::extra_context( 'https://x.fr/p/', '' );
+		$extras = Atelier::extra_context( '' );
 		eq( $extras['productImage'], '' );
 	} );
 
@@ -202,7 +209,7 @@ describe( 'Atelier: les trois clés remises à l’éditeur', function () {
 		 * serait un second moteur de prix atteignable par un client, ce que le
 		 * document de décision du 5 septembre compte comme revenu de 2 à 1.
 		 */
-		$extras = Atelier::extra_context( 'https://x.fr/p/', '' );
+		$extras = Atelier::extra_context( '' );
 		foreach ( array_keys( $extras ) as $cle ) {
 			foreach ( array( 'price', 'prix', 'tarif', 'total', 'ht', 'ttc', 'cost', 'cout' ) as $interdit ) {
 				truthy(
@@ -223,7 +230,7 @@ describe( 'Atelier: la fusion dans le contexte', function () {
 		 * vêtement, le nuancier, les tailles et le nonce, et l'éditeur
 		 * refuserait l'ajout au panier sans savoir pourquoi.
 		 */
-		$js = Atelier::inline_merge( Atelier::extra_context( 'https://x.fr/p/', '' ) );
+		$js = Atelier::inline_merge( Atelier::extra_context( '' ) );
 		truthy( str_contains( $js, 'Object.assign' ), 'Object.assign' );
 		truthy( str_contains( $js, 'window.TEESHOOP_EDITEUR || {}' ), 'l’objet existant est la base' );
 	} );
@@ -231,20 +238,20 @@ describe( 'Atelier: la fusion dans le contexte', function () {
 	it( 'écrit sous le nom que l’éditeur lit', function () {
 		// Le même global que `Editeur::contexte()` publie, pour qu'une seule
 		// entrée d'éditeur serve les deux montages.
-		$js = Atelier::inline_merge( Atelier::extra_context( 'https://x.fr/p/', '' ) );
+		$js = Atelier::inline_merge( Atelier::extra_context( '' ) );
 		truthy( str_contains( $js, 'window.TEESHOOP_EDITEUR = ' ), 'TEESHOOP_EDITEUR' );
 	} );
 
 	it( 'ne peut pas fermer sa propre balise script', function () {
 		/*
-		 * Le contenu vient de `get_permalink()` et de la médiathèque, donc pas
+		 * Le contenu vient de la médiathèque et de `get_permalink()`, donc pas
 		 * d'un visiteur ; ce test tient quand même parce que la propriété qui
 		 * protège est une option d'encodage par défaut, et qu'une option par
 		 * défaut se change sans y penser. `wp_json_encode` échappe `/`, donc
 		 * `</script>` ressort `<\/script>`.
 		 */
 		$js = Atelier::inline_merge(
-			Atelier::extra_context( 'https://x.fr/</script><script>alert(1)</script>', '' )
+			Atelier::extra_context( 'https://x.fr/</script><script>alert(1)</script>' )
 		);
 		truthy( false === stripos( $js, '</script' ), 'aucune fermeture de balise' );
 	} );

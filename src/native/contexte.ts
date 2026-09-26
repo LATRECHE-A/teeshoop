@@ -166,12 +166,21 @@ export interface Contexte {
    * éditeurs auraient été deux endroits où corriger le même défaut.
    */
   atelier: boolean
-  /** Le retour vers la fiche produit. Vide veut dire « pas de lien ». */
-  productUrl: string
   /** L'image du produit, pour l'en-tête de la page dédiée. Vide = aucune. */
   productImage: string
   /** Le nombre de coloris qu'une ligne accepte. Voir `MAX_COULEURS_DEFAUT`. */
   maxCouleurs: number
+  /**
+   * LES MODÈLES SAUVEGARDÉS (`includes/Modeles.php`). Ils sont dans le compte
+   * du client : `connecte` décide si l'atelier les propose ou invite à se
+   * connecter, `compteUrl` est où se connecter, `maxModeles` le plafond publié
+   * (0 = la boutique n'en a pas parlé, la section se tait), et `modele` celui
+   * que l'adresse demande, déjà vérifié par la boutique comme étant à ce client.
+   */
+  connecte: boolean
+  compteUrl: string
+  maxModeles: number
+  modele: string
 }
 
 /**
@@ -446,9 +455,16 @@ export function lireContexte(brut: unknown): Contexte | null {
     devisDesQte: entier(c.quoteFromQty, 0, Number.MAX_SAFE_INTEGER, 0),
     devisDesHt: entier(c.quoteFromHt, 0, Number.MAX_SAFE_INTEGER, 0),
     bases: basesPrix(c.priceBases),
-    devisUrl: texte(c.quoteUrl ?? c.devisUrl, 500),
     /*
-     * LES TROIS CHAMPS DE LA PAGE DÉDIÉE, ET LE DÉFAUT EST « DANS LA FICHE ».
+     * UNE ANCRE, OU UNE ADRESSE FILTRÉE. La fiche produit publie
+     * `#teeshoop-devis` ; l'atelier dédié publie depuis le 26/09/2026 la page
+     * devis sur ce produit, une vraie adresse, qui passe donc par `urlSure`
+     * comme ce champ l'annonçait : sinon une adresse `javascript:` deviendrait
+     * un lien cliquable.
+     */
+    devisUrl: ((s: string) => (/^#[A-Za-z0-9_-]+$/.test(s) ? s : urlSure(s)))(texte(c.quoteUrl ?? c.devisUrl, 500)),
+    /*
+     * LES DEUX CHAMPS DE LA PAGE DÉDIÉE, ET LE DÉFAUT EST « DANS LA FICHE ».
      *
      * `wp_localize_script` sérialise `true` en « 1 », donc le booléen est lu
      * comme `priceBases` lit les siens : trois écritures acceptées, et tout le
@@ -457,10 +473,15 @@ export function lireContexte(brut: unknown): Contexte | null {
      * n'a rien dit n'est pas une page dédiée.
      */
     atelier: c.atelier === true || c.atelier === '1' || c.atelier === 1,
-    productUrl: urlSure(c.productUrl),
     productImage: urlSure(c.productImage),
     // Publié, il gagne ; absent, `MAX_COULEURS_DEFAUT` sert, et l'en-tête de la
     // constante dit pourquoi zéro n'est pas une option ici.
     maxCouleurs: entier(c.maxColours, 0, 64, 0) || MAX_COULEURS_DEFAUT,
+    connecte: c.loggedIn === true || c.loggedIn === '1' || c.loggedIn === 1,
+    compteUrl: urlSure(c.accountUrl),
+    maxModeles: entier(c.maxModels, 0, 50, 0),
+    // Le même alphabet que `Design::valid_id` : ce qui n'en a pas la forme n'est
+    // pas un modèle, et n'est pas demandé au serveur.
+    modele: /^[A-Za-z0-9_-]{16,64}$/.test(texte(c.model, 64)) ? texte(c.model, 64) : '',
   }
 }

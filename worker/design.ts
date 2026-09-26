@@ -42,7 +42,7 @@
  * file count cap, and a document that has to parse as the shape we expect
  * before anything is written.
  */
-import { requireAdmin, type AdminEnv } from './auth'
+import { ownerProof, requireAdmin, type AdminEnv } from './auth'
 import { imageContainer } from './containers'
 import {
   ASSET_ID_RE,
@@ -303,7 +303,15 @@ export async function createDesign(request: Request, env: DesignEnv): Promise<Re
     return json({ error: 'storage write failed' }, 502)
   }
 
-  return json({ id, preview: manifest.preview, previews: manifest.previews, sides: manifest.sides })
+  // `proof` goes to the uploader and nowhere else: it is what lets the shop
+  // save this design as THEIR model. See `ownerProof`.
+  return json({
+    id,
+    preview: manifest.preview,
+    previews: manifest.previews,
+    sides: manifest.sides,
+    proof: await ownerProof(env, id),
+  })
 }
 
 /**

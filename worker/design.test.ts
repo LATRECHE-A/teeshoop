@@ -19,6 +19,7 @@ import {
   serveDesignFile,
   type DesignEnv,
 } from './design'
+import { ownerProof } from './auth'
 import worker from './index'
 
 /**
@@ -402,6 +403,35 @@ describe('POST /api/design', () => {
         `design/${body.id}/preview.png`,
       ].sort(),
     )
+  })
+
+  /*
+   * THE PROOF OF CREATION. The shop saves a design as a customer's model only
+   * with it (`Modeles::preuve`), because a model relays the design's originals
+   * back to that account. The vector is the one `tests/test-modeles.php`
+   * checks on the PHP side: both ends must compute the same bytes.
+   */
+  it('hands the uploader a proof of creation the shop can recompute', async () => {
+    expect(await ownerProof({ ADMIN_TOKEN: TOKEN }, 'modeletest00000001')).toBe(
+      '78a7b7ae12e6d90896185650cd2bf1521e2456eb8850dc2acdea71e7e4190057',
+    )
+    const e = env()
+    const body = (await (await createDesign(post({ design: doc(), preview: png(), 'asset:up1': png() }), e)).json()) as {
+      id: string
+      proof: string
+    }
+    expect(body.proof).toBe(await ownerProof(e, body.id))
+    expect(body.proof).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('gives no proof without a token, so the shop saves nothing (fail closed)', async () => {
+    expect(await ownerProof({}, 'modeletest00000001')).toBe('')
+    expect(await ownerProof({ ADMIN_TOKEN: 'court' }, 'modeletest00000001')).toBe('')
+    const e = env()
+    delete e.ADMIN_TOKEN
+    const res = await createDesign(post({ design: doc(), preview: png(), 'asset:up1': png() }), e)
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { proof: string }).proof).toBe('')
   })
 
   it('REFUSES a design whose artwork was not uploaded', async () => {

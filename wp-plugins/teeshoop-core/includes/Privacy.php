@@ -215,6 +215,23 @@ final class Privacy {
 				'mecanisme'     => 'Effacement à la demande par appel au service qui les héberge. Aucun balayage périodique n’est en service : l’outil existe, la durée reste à décider.',
 			),
 			array(
+				'cle'           => 'modeles',
+				'nom'           => 'Modèles sauvegardés',
+				'finalite'      => 'Retrouver une création et la réappliquer sur un autre vêtement du même type, à la demande du client.',
+				'base'          => 'Exécution du contrat (article 6.1.b du RGPD) : un service que le client demande depuis son compte',
+				'personnes'     => 'Clients qui ont un compte',
+				'donnees'       => array(
+					'Le nom donné au modèle, le vêtement pour lequel il a été fait et sa date',
+					'Le lien vers la création, dont le contenu est décrit sous « Créations et fichiers d’impression »',
+				),
+				'destinataires' => array( 'o2switch', 'cloudflare' ),
+				'duree'         => sprintf(
+					'Tant que le compte existe, %d modèles au plus. Supprimés par le client quand il le veut, avec son compte, ou sur demande d’effacement.',
+					Modeles::MAX
+				),
+				'mecanisme'     => 'Suppression par le client dans l’atelier ; effacement à la demande (Privacy::erase_modeles).',
+			),
+			array(
 				'cle'           => 'devis',
 				'nom'           => 'Demandes de devis',
 				'finalite'      => 'Répondre à une demande de prix et la suivre.',
@@ -439,6 +456,10 @@ final class Privacy {
 			'exporter_friendly_name' => __( 'Commandes Teeshoop', 'teeshoop' ),
 			'callback'               => array( self::class, 'export_orders' ),
 		);
+		$exporters['teeshoop-modeles'] = array(
+			'exporter_friendly_name' => __( 'Modèles sauvegardés Teeshoop', 'teeshoop' ),
+			'callback'               => array( self::class, 'export_modeles' ),
+		);
 		return $exporters;
 	}
 
@@ -452,7 +473,57 @@ final class Privacy {
 			'eraser_friendly_name' => __( 'Messages envoyés par Teeshoop', 'teeshoop' ),
 			'callback'             => array( self::class, 'erase_outbox' ),
 		);
+		$erasers['teeshoop-modeles'] = array(
+			'eraser_friendly_name' => __( 'Modèles sauvegardés Teeshoop', 'teeshoop' ),
+			'callback'             => array( self::class, 'erase_modeles' ),
+		);
 		return $erasers;
+	}
+
+	/**
+	 * Article 15 : les modèles d'un compte. Le compte est retrouvé par son adresse,
+	 * et une adresse sans compte n'a pas de modèle.
+	 */
+	public static function export_modeles( string $email, int $page = 1 ): array {
+		$user = get_user_by( 'email', $email );
+		$data = array();
+		foreach ( $user instanceof \WP_User ? Modeles::lister( (int) $user->ID ) : array() as $m ) {
+			$data[] = array(
+				'group_id'    => 'teeshoop-modeles',
+				'group_label' => __( 'Modèles sauvegardés', 'teeshoop' ),
+				'item_id'     => 'modele-' . $m['id'],
+				'data'        => array(
+					array( 'name' => __( 'Nom', 'teeshoop' ), 'value' => $m['nom'] ),
+					array( 'name' => __( 'Vêtement', 'teeshoop' ), 'value' => $m['garment'] ),
+					array( 'name' => __( 'Enregistré le', 'teeshoop' ), 'value' => $m['cree'] ),
+					array( 'name' => __( 'Création', 'teeshoop' ), 'value' => $m['id'] ),
+				),
+			);
+		}
+		return array(
+			'data' => $data,
+			'done' => true,
+		);
+	}
+
+	/**
+	 * Article 17 : le lien entre le compte et ses créations est supprimé. Les
+	 * créations elles-mêmes, jamais commandées, ne sont alors plus rattachées à
+	 * personne, ce qui est l'état que le registre décrit pour elles ; une création
+	 * commandée est effacée avec la commande, par `erase_orders`.
+	 */
+	public static function erase_modeles( string $email, int $page = 1 ): array {
+		$user = get_user_by( 'email', $email );
+		$n    = $user instanceof \WP_User ? count( Modeles::lister( (int) $user->ID ) ) : 0;
+		if ( $n > 0 ) {
+			delete_user_meta( (int) $user->ID, Modeles::META );
+		}
+		return array(
+			'items_removed'  => $n > 0,
+			'items_retained' => false,
+			'messages'       => array(),
+			'done'           => true,
+		);
 	}
 
 	/**
@@ -1173,7 +1244,7 @@ final class Privacy {
 		}
 
 		$worker = Settings::get( 'worker_url' );
-		$token  = defined( 'TEESHOOP_WORKER_TOKEN' ) ? (string) constant( 'TEESHOOP_WORKER_TOKEN' ) : '';
+		$token  = Nest::token();
 
 		if ( '' === $worker || '' === $token ) {
 			return array(

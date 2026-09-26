@@ -47,13 +47,28 @@ import type { Design, ImageLayer, Layer, Side, SizeId } from '@/lib/types'
 import { EditorEngine } from '@/editor/EditorEngine'
 import { addAsset } from '@/state/assets'
 import { garmentHexOf, setShopPalette } from '@/content/garmentPalette'
-import { getAreaSizeIn, renderMockup, renderPrintArea } from '@/lib/renderDesign'
+import { clampLayersToArea, getAreaSizeIn, renderMockup, renderPrintArea } from '@/lib/renderDesign'
 import { layerInkBox } from '@/lib/ink'
 import { measureOrder, uploadDesign, DesignUploadError } from '@/lib/teeshoop/upload'
 import { inToCm, fmtNum } from '@/lib/units'
 import { setCurrentLang } from '@/i18n/lang'
 import { facesPermises, type Contexte } from './contexte'
-import { ajouterAuPanier, demanderDevis, RefusAtelier, type Devis, type FaceImprimee } from './atelier'
+import {
+  ajouterAuPanier,
+  calquesDuModele,
+  demanderDevis,
+  enregistrerModele,
+  imagesDuModele,
+  lireImageModele,
+  lireModele,
+  listerModeles,
+  RefusAtelier,
+  supprimerModele,
+  type Devis,
+  type FaceImprimee,
+  type ListeModeles,
+  type Modele,
+} from './atelier'
 import { fusionner, lisibiliteSur, recenser, type Encre, type Lisibilite } from './contraste'
 import { COPIE } from './copie'
 import { el, vider } from './dom'
@@ -219,6 +234,17 @@ class Instance implements Editeur {
    * « Several Konva instances detected ».
    */
   private attenteAvancee: Promise<PanneauAvance | null> | null = null
+  /**
+   * Les modèles du compte pour ce type de vêtement (`includes/Modeles.php`).
+   *
+   * `null` tant que la liste n'est pas arrivée. `travail` pendant qu'un
+   * enregistrement, une application ou une suppression est en vol : un double
+   * clic ne part pas deux fois, et deux gestes ne se croisent pas.
+   */
+  private modeles: ListeModeles | null = null
+  private modelesEtat: 'repos' | 'chargement' | 'travail' = 'repos'
+  private modelesMessage = ''
+  private modelesErreur = false
   /** Les boutons de face, construits une fois. Voir `rendreFaces`. */
   private readonly boutonsFace: { face: Side; bouton: HTMLButtonElement }[] = []
   /** Les pastilles de l'indicateur d'étapes, construites une fois. */
@@ -267,6 +293,14 @@ class Instance implements Editeur {
     validerNote: HTMLParagraphElement
     matrice: HTMLDivElement
     apercus: HTMLDivElement
+    modelesConnexion: HTMLParagraphElement
+    modelesListe: HTMLUListElement
+    modelesNote: HTMLParagraphElement
+    modeleNomEtiquette: HTMLLabelElement
+    modeleNom: HTMLInputElement
+    modeleNomAide: HTMLParagraphElement
+    modeleEnregistrer: HTMLButtonElement
+    modelesEtat: HTMLParagraphElement
   }
 
   constructor(hote: HTMLElement, ctx: Contexte) {
@@ -310,6 +344,8 @@ class Instance implements Editeur {
     this.creation = this.creationVide()
     this.construire()
     this.rendre()
+    // Les modèles du compte, quand il y a un compte et que la boutique en propose.
+    if (this.ctx.connecte && this.ctx.maxModeles > 0) void this.chargerModeles()
   }
 
   // ------------------------------------------------------------- la création
@@ -530,6 +566,66 @@ class Instance implements Editeur {
     const apercus = el('div', 'tshop-ed__apercus')
 
     /*
+     * MES MODÈLES. Construits une fois, comme les faces : le champ du nom doit
+     * garder son texte et son focus pendant que le reste de l'écran se
+     * redessine à chaque frappe ailleurs. Seule la liste est reconstruite, et
+     * seulement quand elle change (`rendreModelesListe`).
+     */
+    const modelesConnexion = el('p', 'tshop-ed__note')
+    modelesConnexion.append(texte(COPIE.modelesConnexion + ' '))
+    if (this.ctx.compteUrl !== '') {
+      const lien = document.createElement('a')
+      lien.className = 'tshop-ed__lien'
+      lien.href = this.ctx.compteUrl
+      lien.textContent = COPIE.modelesSeConnecter
+      modelesConnexion.append(lien)
+    }
+    const modelesListe = el('ul', 'tshop-ed__modeles')
+    const modelesNote = el('p', 'tshop-ed__note')
+    const modeleNom = document.createElement('input')
+    modeleNom.type = 'text'
+    modeleNom.maxLength = 60
+    modeleNom.autocomplete = 'off'
+    modeleNom.className = 'tshop-ed__nom-modele'
+    modeleNom.id = `tshop-ed-modele-${this.ctx.productId}`
+    modeleNom.setAttribute('data-teeshoop', 'nom-modele')
+    const modeleNomEtiquette = document.createElement('label')
+    modeleNomEtiquette.className = 'tshop-ed__champ-nom'
+    modeleNomEtiquette.htmlFor = modeleNom.id
+    modeleNomEtiquette.textContent = COPIE.modeleNom
+    const modeleNomAide = el('p', 'tshop-ed__note')
+    modeleNomAide.id = `tshop-ed-modele-aide-${this.ctx.productId}`
+    modeleNomAide.textContent = COPIE.modeleNomAide
+    modeleNom.setAttribute('aria-describedby', modeleNomAide.id)
+    modeleNom.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return
+      e.preventDefault()
+      void this.enregistrerModele()
+    })
+    const modeleEnregistrer = document.createElement('button')
+    modeleEnregistrer.type = 'button'
+    modeleEnregistrer.className = 'tshop-ed__outil'
+    modeleEnregistrer.setAttribute('data-teeshoop', 'enregistrer-modele')
+    modeleEnregistrer.textContent = COPIE.modeleEnregistrer
+    modeleEnregistrer.addEventListener('click', () => void this.enregistrerModele())
+    const modelesEtat = el('p', 'tshop-ed__note')
+    modelesEtat.setAttribute('role', 'status')
+    const blocModeles = section(
+      COPIE.modelesLegende,
+      modelesConnexion,
+      modelesListe,
+      modelesNote,
+      modeleNomEtiquette,
+      modeleNom,
+      modeleNomAide,
+      modeleEnregistrer,
+      modelesEtat,
+    )
+    blocModeles.setAttribute('data-teeshoop', 'modeles')
+    // La boutique n'a pas publié de plafond : elle ne propose pas de modèles.
+    blocModeles.hidden = this.ctx.maxModeles === 0
+
+    /*
      * CHAQUE ÉCRAN EST UN GROUPE NOMMÉ ET PEUT RECEVOIR LE FOCUS.
      *
      * `tabIndex = -1` le rend atteignable par `focus()` sans l'ajouter à l'ordre
@@ -550,6 +646,7 @@ class Instance implements Editeur {
       section(COPIE.couleurLegende, couleurs),
       blocFaces,
       section(COPIE.visuelLegende, etiquetteFichier, fichier),
+      blocModeles,
       valider,
       validerNote,
       avance,
@@ -568,7 +665,7 @@ class Instance implements Editeur {
     blocApercus.classList.add('tshop-ed__bloc--apercus')
     choisir.append(retour, blocGrille, blocApercus, prix, achat, etat)
 
-    if (this.ctx.atelier) this.hote.append(this.entete())
+    if (this.ctx.atelier && this.ctx.productImage !== '') this.hote.append(this.entete())
     this.hote.append(this.indicateurEtapes(), creer, choisir)
 
     this.noeuds = {
@@ -592,6 +689,14 @@ class Instance implements Editeur {
       validerNote,
       matrice,
       apercus,
+      modelesConnexion,
+      modelesListe,
+      modelesNote,
+      modeleNomEtiquette,
+      modeleNom,
+      modeleNomAide,
+      modeleEnregistrer,
+      modelesEtat,
     }
 
     this.demarrerMoteur(toile)
@@ -599,20 +704,14 @@ class Instance implements Editeur {
   }
 
   /**
-   * L'en-tête de la page dédiée : d'où l'on vient, et sur quoi on travaille.
+   * L'en-tête de la page dédiée : la vignette de l'article, et rien d'autre.
    *
-   * ─────────────────────────────────────────────────────────────────────────
-   * LE TITRE DU PRODUIT N'EST PAS UN TITRE DE NIVEAU, ET C'EST DÉLIBÉRÉ
-   *
-   * Dans la fiche produit, l'éditeur occupe la fente d'ajout au panier et le
-   * `h1` juste au-dessus nomme déjà l'article : c'est la raison pour laquelle
-   * les blocs de cet éditeur sont des `h2` (voir `section`). Sur une page
-   * dédiée, le gabarit WordPress porte son propre `h1`, que ce module ne voit
-   * pas. Écrire un second `h1` ici en donnerait deux à la page ; écrire un `h2`
-   * mettrait le nom de l'article au même niveau que « Couleur ». Un paragraphe
-   * nommé dit la même chose sans inventer une structure qu'on ne peut pas
-   * vérifier d'ici, et `npm run verify:a11y` mesure l'ordre des titres sur la
-   * page réelle, pas sur l'intention de ce fichier.
+   * LE RETOUR ET LE NOM SONT DANS LA BARRE DE LA PAGE, PAS ICI. Le gabarit de
+   * l'atelier (`templates/teeshoop/atelier.php`) pose « Retour à la fiche
+   * produit » comme premier élément focalisable et le `h1` « Personnaliser :
+   * <article> ». Ce bloc les répétait juste en dessous, relevé sur la capture à
+   * 375 px du 26 septembre 2026 : deux liens de retour et deux fois le nom avant
+   * le canevas. Reste la vignette, que la barre n'a pas.
    */
   private entete(): HTMLElement {
     /*
@@ -628,27 +727,13 @@ class Instance implements Editeur {
      * page : c'est un rappel de ce sur quoi on travaille.
      */
     const bloc = el('div', 'tshop-ed__entete')
-    if (this.ctx.productUrl !== '') {
-      const a = document.createElement('a')
-      a.className = 'tshop-ed__retour'
-      a.href = this.ctx.productUrl
-      a.textContent = COPIE.retourProduit
-      bloc.append(a)
-    }
-    if (this.ctx.productImage !== '') {
-      const img = document.createElement('img')
-      img.className = 'tshop-ed__vignette'
-      img.src = this.ctx.productImage
-      img.alt = ''
-      img.loading = 'lazy'
-      img.decoding = 'async'
-      bloc.append(img)
-    }
-    if (this.ctx.titre !== '') {
-      const p = el('p', 'tshop-ed__produit')
-      p.textContent = this.ctx.titre
-      bloc.append(p)
-    }
+    const img = document.createElement('img')
+    img.className = 'tshop-ed__vignette'
+    img.src = this.ctx.productImage
+    img.alt = ''
+    img.loading = 'lazy'
+    img.decoding = 'async'
+    bloc.append(img)
     return bloc
   }
 
@@ -909,6 +994,223 @@ class Instance implements Editeur {
         e instanceof DOMException &&
         /Quota|NO_DEVICE_SPACE|NS_ERROR_FILE_NO_DEVICE_SPACE/i.test(e.name + ' ' + e.message)
       this.montrerEchec(plein ? COPIE.stockagePlein : COPIE.fichierIllisible)
+    }
+  }
+
+  // ----------------------------------------------------- les modèles sauvegardés
+
+  private async chargerModeles(): Promise<void> {
+    this.modelesEtat = 'chargement'
+    this.rendreModeles()
+    try {
+      this.modeles = await listerModeles(this.ctx)
+      this.modelesMessage = ''
+      this.modelesErreur = false
+    } catch (e) {
+      this.modelesMessage = this.phraseDe(e, COPIE.modelesChargementEchec)
+      this.modelesErreur = true
+    } finally {
+      this.modelesEtat = 'repos'
+      this.rendreModelesListe()
+      this.rendreModeles()
+    }
+    /*
+     * LE MODÈLE QUE L'ADRESSE DEMANDE (`?modele=`, depuis la page devis), une
+     * fois la liste arrivée. La boutique a déjà vérifié qu'il est à ce client ;
+     * la liste, elle, ne porte que les modèles de ce type de vêtement, donc un
+     * modèle absent d'ici est un modèle fait pour autre chose, et l'écran le dit.
+     */
+    if (this.ctx.modele === '' || !this.modeles || this.detruit) return
+    const demande = this.modeles.modeles.find((m) => m.id === this.ctx.modele)
+    if (demande) {
+      void this.appliquerModele(demande)
+    } else {
+      this.modelesMessage = COPIE.modeleAutreType
+      this.modelesErreur = true
+      this.rendreModeles()
+    }
+  }
+
+  /**
+   * Ce qui change à chaque rendu : l'état des boutons et la phrase. Le champ du
+   * nom n'est jamais recréé ici, pour qu'il garde son texte et son focus.
+   */
+  private rendreModeles(): void {
+    const n = this.noeuds
+    if (this.ctx.maxModeles === 0) return
+    const connecte = this.ctx.connecte
+    n.modelesConnexion.hidden = connecte
+    for (const x of [n.modelesListe, n.modelesNote, n.modeleNomEtiquette, n.modeleNom, n.modeleNomAide, n.modeleEnregistrer])
+      x.hidden = !connecte
+    const occupe = this.modelesEtat !== 'repos'
+    n.modeleEnregistrer.disabled = occupe || this.creation.layers.length === 0
+    n.modelesEtat.textContent =
+      this.modelesEtat === 'chargement' && !this.modeles ? COPIE.modelesChargement : this.modelesMessage
+    n.modelesEtat.className = this.modelesErreur ? 'tshop-ed__alerte' : 'tshop-ed__note'
+    for (const b of Array.from(n.modelesListe.querySelectorAll('button'))) b.disabled = occupe
+  }
+
+  /** La liste elle-même, reconstruite quand elle change et seulement alors. */
+  private rendreModelesListe(): void {
+    const n = this.noeuds
+    vider(n.modelesListe)
+    const liste = this.modeles
+    if (!liste) {
+      n.modelesNote.textContent = ''
+      return
+    }
+    for (const m of liste.modeles) {
+      const li = el('li', 'tshop-ed__modele')
+      if (m.apercu !== '') {
+        const img = document.createElement('img')
+        img.className = 'tshop-ed__modele-apercu'
+        img.src = m.apercu
+        img.alt = COPIE.modeleApercuAlt(m.nom)
+        img.width = 56
+        img.height = 56
+        img.loading = 'lazy'
+        img.decoding = 'async'
+        li.append(img)
+      }
+      const nom = el('span', 'tshop-ed__modele-nom')
+      nom.textContent = m.nom
+      const appliquer = document.createElement('button')
+      appliquer.type = 'button'
+      appliquer.className = 'tshop-ed__outil'
+      appliquer.textContent = COPIE.modeleAppliquer
+      appliquer.setAttribute('aria-label', COPIE.modeleAppliquerLong(m.nom))
+      appliquer.setAttribute('data-teeshoop', 'appliquer-modele')
+      appliquer.addEventListener('click', () => void this.appliquerModele(m))
+      const supprimer = document.createElement('button')
+      supprimer.type = 'button'
+      supprimer.className = 'tshop-ed__outil tshop-ed__outil--retirer'
+      supprimer.textContent = COPIE.modeleSupprimer
+      supprimer.setAttribute('aria-label', COPIE.modeleSupprimerLong(m.nom))
+      supprimer.addEventListener('click', () => void this.supprimerModele(m))
+      li.append(nom, appliquer, supprimer)
+      n.modelesListe.append(li)
+    }
+    const compte = COPIE.modelesCompte(liste.total, liste.max)
+    n.modelesNote.textContent = liste.modeles.length === 0 ? `${COPIE.modelesAucun} ${compte}` : compte
+  }
+
+  /**
+   * Enregistrer la création comme modèle : elle part sur le Worker exactement
+   * comme pour un achat (`uploadDesign`, idempotent : une création déjà déposée
+   * pour le panier n'est pas renvoyée), puis la boutique la range dans le compte,
+   * sur la preuve que le Worker a rendue à ce navigateur au dépôt.
+   */
+  private async enregistrerModele(): Promise<void> {
+    if (this.modelesEtat !== 'repos') return
+    const nom = this.noeuds.modeleNom.value.trim()
+    const refus =
+      this.creation.layers.length === 0
+        ? COPIE.modeleSansVisuel
+        : nom === ''
+          ? COPIE.modeleSansNom
+          : this.ctx.workerUrl === ''
+            ? COPIE.depotNonConfigure
+            : ''
+    if (refus !== '') {
+      this.modelesMessage = refus
+      this.modelesErreur = true
+      this.rendreModeles()
+      if (nom === '') this.noeuds.modeleNom.focus()
+      return
+    }
+    this.modelesEtat = 'travail'
+    this.modelesMessage = COPIE.modeleEnregistrement
+    this.modelesErreur = false
+    this.rendreModeles()
+    try {
+      const depose = await uploadDesign(this.creation, { endpoint: this.ctx.workerUrl })
+      this.modeles = await enregistrerModele(this.ctx, depose.id, depose.proof, nom)
+      this.noeuds.modeleNom.value = ''
+      this.modelesMessage = COPIE.modeleEnregistre(nom)
+    } catch (e) {
+      this.modelesMessage = this.phraseDe(e, COPIE.modeleEchecEnregistrement)
+      this.modelesErreur = true
+    } finally {
+      this.modelesEtat = 'repos'
+      this.rendreModelesListe()
+      this.rendreModeles()
+    }
+  }
+
+  /**
+   * Poser un modèle sur le vêtement ouvert.
+   *
+   * CHAQUE IMAGE EST RAPATRIÉE SOUS UN NOUVEL IDENTIFIANT (`addAsset`), jamais
+   * sous le sien : ce navigateur peut déjà porter cette image avec son
+   * détourage, et l'importer sous le même identifiant écraserait l'original par
+   * les octets détourés, pour toute autre création qui s'en sert. Les octets
+   * rapatriés sont ceux que le modèle utilisait, d'où `useCutout` à faux.
+   *
+   * LE VÊTEMENT, LE COLORIS ET LE BARÈME RESTENT CEUX DU PRODUIT OUVERT ; seuls
+   * les calques changent, et leurs centres sont ramenés dans la zone de ce
+   * vêtement par LA règle du studio (`clampLayersToArea`), celle qu'il applique
+   * quand on passe d'un t-shirt à un sweat. Le tout passe par `poser`, donc
+   * « Annuler » revient à la création d'avant.
+   */
+  private async appliquerModele(m: Modele): Promise<void> {
+    if (this.modelesEtat !== 'repos') return
+    this.modelesEtat = 'travail'
+    this.modelesMessage = COPIE.modeleApplication
+    this.modelesErreur = false
+    this.rendreModeles()
+    try {
+      const doc = await lireModele(this.ctx, m.id)
+      const images = new Map<string, string>()
+      for (const asset of imagesDuModele(doc)) {
+        const meta = await addAsset(await lireImageModele(this.ctx, m.id, asset), m.nom || 'Modèle')
+        images.set(asset, meta.id)
+      }
+      if (this.detruit) return
+      const { calques, ecartes } = calquesDuModele(doc, images, facesPermises(this.ctx))
+      if (calques.length === 0) {
+        this.modelesMessage = COPIE.modeleVide
+        this.modelesErreur = true
+        return
+      }
+      this.poser(clampLayersToArea({ ...this.creation, layers: calques, updatedAt: Date.now() }))
+      this.selection = null
+      this.echec = ''
+      this.modelesMessage = COPIE.modeleApplique(m.nom) + (ecartes > 0 ? ` ${COPIE.modeleEcartes(ecartes)}` : '')
+      // Le canevas montre une face qui porte le modèle, pas une face restée vide.
+      if (!calques.some((l) => l.side === this.face)) this.choisirFace(calques[0].side)
+      this.rendre()
+      this.avancee?.rafraichir()
+      this.chiffrerBientot()
+    } catch (e) {
+      const plein =
+        e instanceof DOMException &&
+        /Quota|NO_DEVICE_SPACE|NS_ERROR_FILE_NO_DEVICE_SPACE/i.test(e.name + ' ' + e.message)
+      this.modelesMessage = plein ? COPIE.stockagePlein : this.phraseDe(e, COPIE.modeleEchec)
+      this.modelesErreur = true
+    } finally {
+      this.modelesEtat = 'repos'
+      this.rendreModeles()
+    }
+  }
+
+  private async supprimerModele(m: Modele): Promise<void> {
+    if (this.modelesEtat !== 'repos') return
+    this.modelesEtat = 'travail'
+    this.modelesErreur = false
+    this.rendreModeles()
+    try {
+      this.modeles = await supprimerModele(this.ctx, m.id)
+      this.modelesMessage = COPIE.modeleSupprime(m.nom)
+    } catch (e) {
+      this.modelesMessage = this.phraseDe(e, COPIE.modeleEchecSuppression)
+      this.modelesErreur = true
+    } finally {
+      this.modelesEtat = 'repos'
+      this.rendreModelesListe()
+      this.rendreModeles()
+      // Le bouton cliqué n'existe plus : le focus va au champ du nom plutôt qu'au
+      // haut du document.
+      this.noeuds.modeleNom.focus()
     }
   }
 
@@ -1594,6 +1896,7 @@ class Instance implements Editeur {
     this.rendrePrix()
     this.rendreAchat()
     this.rendreHistorique()
+    this.rendreModeles()
     // L'invite du canevas parle de CE que le canevas montre : une création qui
     // porte un visuel devant, vue de dos, est une face vide et le dit.
     this.noeuds.vide.hidden = this.creation.layers.some((l) => l.side === this.face)

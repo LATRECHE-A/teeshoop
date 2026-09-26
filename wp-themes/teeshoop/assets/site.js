@@ -262,4 +262,25 @@
     })
   })
 
+  /* -------------------------------------------------- modèles sauvegardés -- */
+
+  /*
+   * « Personnalisation » ouvre l'atelier avec le modèle choisi sur la page devis.
+   * Sans ce script, le lien ouvre l'atelier sur une création vide, et le modèle
+   * part quand même avec la demande : c'est le formulaire qui l'envoie.
+   */
+  var atelier = doc.querySelector('[data-ts-atelier]')
+  var modele = doc.querySelector('[data-ts-modele]')
+
+  if (atelier && modele) {
+    var base = atelier.getAttribute('href')
+    var suivre = function () {
+      var u = new URL(base, location.href)
+      if (modele.value) u.searchParams.set('modele', modele.value)
+      atelier.setAttribute('href', u.toString())
+    }
+    modele.addEventListener('change', suivre)
+    suivre()
+  }
+
 })()
