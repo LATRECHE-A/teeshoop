@@ -6,7 +6,7 @@
  * Nesting it onto a transfer roll is workshop tooling and lives in the admin
  * build (src/admin/AdminSlots.tsx).
  */
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LayoutGrid, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react'
 import Modal from './Modal'
 import { useStore } from '@/state/store'
@@ -29,7 +29,20 @@ function BasketRow({
   const toast = useStore((s) => s.toast)
 
   const sides = linePrintedSides(line.design)
-  const thumb = useMockupUrl(line.design, sides[0] ?? 'front', 220)
+  const thumb = useMockupUrl(line.design, sides[0] ?? 'front', 220, line.size)
+  /*
+   * THE FIELD HOLDS WHAT IS TYPED, THE LINE WHAT WAS MEANT (STU-08). Pushing
+   * every keystroke through `Number(value) || 1` put « 1 » back the moment the
+   * field was cleared, so typing 20 over it gave 120. The quantity is committed
+   * on blur or Entrée; the buttons still act at once.
+   */
+  const [draft, setDraft] = useState(String(line.qty))
+  useEffect(() => setDraft(String(line.qty)), [line.qty])
+  const commit = () => {
+    const n = Number.parseInt(draft, 10)
+    if (Number.isFinite(n) && n >= 1) setBasketQty(line.id, n)
+    else setDraft(String(line.qty))
+  }
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line bg-bg1 p-2.5">
@@ -72,8 +85,14 @@ function BasketRow({
         <input
           aria-label={t('basket.qty', { name: line.label })}
           className="w-9 bg-transparent text-center font-mono text-[12.5px] text-tx"
-          value={line.qty}
-          onChange={(e) => setBasketQty(line.id, Number(e.target.value) || 1)}
+          type="text"
+          inputMode="numeric"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.replace(/\D+/g, ''))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit()
+          }}
         />
         <button
           className="iconbtn h-7 w-7"

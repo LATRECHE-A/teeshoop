@@ -25,9 +25,17 @@ export function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): 
   return canvasToBlob(canvas).then((b) => downloadBlob(b, filename))
 }
 
+/**
+ * A file-name slug. Accents are TRANSLITERATED first (STU-18): « Équipe Noël »
+ * used to download as « quipe-no-l », « Crème brûlée » as « cr-me-br-l-e ».
+ */
 export function slugify(s: string): string {
   return (
     s
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .replace(/[œŒ]/g, 'oe')
+      .replace(/[æÆ]/g, 'ae')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')

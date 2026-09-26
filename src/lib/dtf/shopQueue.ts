@@ -127,10 +127,10 @@ function auth(cred: WooCredentials): Record<string, string> {
  * WHAT THIS SESSION ASKED OF THAT KEY, said out loud because it went up.
  * `src/lib/ingest/woo.ts` needed a key that could read products, to match the
  * catalogue. These routes are gated on `manage_woocommerce`, so the key now has
- * to belong to a user who can manage the whole shop, and it lives in
- * localStorage in plain text on whatever machine the workshop uses. Anything
- * that can run script on that origin can read it and then read every order and
- * every customer.
+ * to belong to a user who can manage the whole shop. Its secret no longer
+ * lives in localStorage (STU-20): it is kept in sessionStorage for the life of
+ * the tab, so a new tab asks for it again through the import screen. Anything
+ * that can run script on that origin during that tab can still read it.
  *
  * It is not fixed here because the fix is not local: it is a scoped credential
  * the plugin mints and can revoke, which is a piece of work of its own.
@@ -141,7 +141,9 @@ function auth(cred: WooCredentials): Record<string, string> {
  */
 export function shopCredentials(): WooCredentials {
   const cred = loadWooCredentials()
-  if (!cred) throw new ShopError('no-credentials')
+  // No secret in this tab is no credential: sending an empty one would read as a
+  // refused key (« auth ») when the truth is « type it again ».
+  if (!cred || cred.consumerSecret === '') throw new ShopError('no-credentials')
   return cred
 }
 
@@ -226,7 +228,7 @@ export function shopFailureFr(err: unknown): string {
   if (!(err instanceof ShopError)) return 'La boutique n’a pas répondu comme prévu.'
   switch (err.code) {
     case 'no-credentials':
-      return 'Aucune clé WooCommerce enregistrée dans ce navigateur. Ouvrez le catalogue et renseignez l’adresse de la boutique, la clé et le secret.'
+      return 'Aucune clé WooCommerce pour cet onglet : le secret n’est gardé que le temps d’un onglet. Ouvrez le catalogue et renseignez l’adresse de la boutique, la clé et le secret.'
     case 'auth':
       return 'La boutique a refusé la clé WooCommerce. Vérifiez qu’elle est en lecture et écriture et que le compte a le droit de gérer WooCommerce.'
     case 'network':

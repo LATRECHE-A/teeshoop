@@ -18,6 +18,7 @@
  * phrases et son propre lancement de la réalité augmentée native.
  */
 import { monterGlb } from '@/lib/glbStage'
+import { downloadBlob } from '@/lib/download'
 
 const ID_RE = /^[A-Za-z0-9_-]{6,40}$/
 
@@ -46,6 +47,7 @@ const T = {
     hint: 'Faites glisser pour tourner. Touchez « Voir dans votre espace » pour le placer, à taille réelle, dans votre pièce.',
     desktop: 'Ouvrez ce lien sur votre téléphone pour l’essayer en réalité augmentée. Vous pouvez déjà faire tourner le modèle 3D ci-dessus.',
     download: 'Enregistrer l’image',
+    dlFailed: 'L’image n’a pas pu être enregistrée : ce lien a peut-être expiré. Rouvrez votre vêtement sur teeshoop.com pour en obtenir un nouveau.',
     create: 'Retour à la boutique',
     errTitle: 'Modèle introuvable',
     errBody: 'Ce lien a expiré ou n’existe pas. Rouvrez votre vêtement dans l’atelier de teeshoop.com pour obtenir un nouveau lien d’essayage.',
@@ -57,6 +59,7 @@ const T = {
     hint: 'Drag to rotate. Tap “View in your space” to place it, life-size, in your room.',
     desktop: 'Open this link on your phone to try it in augmented reality. You can already spin the 3D model above.',
     download: 'Save image',
+    dlFailed: 'The image could not be saved: this link may have expired. Reopen your garment on teeshoop.com to get a new one.',
     create: 'Back to the shop',
     errTitle: 'Model not found',
     errBody: 'This link has expired or does not exist. Reopen your garment in the teeshoop.com workshop to get a new try-on link.',
@@ -138,18 +141,21 @@ function renderViewer(id: string) {
     renderError,
   )
 
+  /*
+   * AN ERROR PAGE IS NOT SAVED AS A PICTURE, AND THE DOWNLOAD IS NOT CANCELLED
+   * UNDER ITSELF (STU-11). An expired poster (30 days in R2) answered 404 and its
+   * body was saved as teeshoop-essayage.png; the blob URL was revoked in the
+   * same task, which Safari iOS and Firefox read as « cancel »; and a failure
+   * said nothing. `downloadBlob` revokes later, and a failure is said.
+   */
   root.querySelector('#vw-dl')!.addEventListener('click', async () => {
     try {
       const res = await fetch(`${base}.png`)
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'teeshoop-essayage.png'
-      a.click()
-      URL.revokeObjectURL(url)
+      if (!res.ok || blob.type !== 'image/png') throw new Error(`HTTP ${res.status} ${blob.type}`)
+      downloadBlob(blob, 'teeshoop-essayage.png')
     } catch {
-      /* ignore */
+      hint.textContent = T.dlFailed
     }
   })
 }

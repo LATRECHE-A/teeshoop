@@ -475,8 +475,10 @@ function WooSection({
   const doFetch = async (p: number) => {
     setLoading(true)
     setPage(p)
-    saveWooCredentials(cred)
-    setResult(await fetchWooProducts({ ...cred, page: p }))
+    const r = await fetchWooProducts({ ...cred, page: p })
+    // Kept only once the shop has accepted them (STU-20).
+    if (r.ok) saveWooCredentials(cred)
+    setResult(r)
     setLoading(false)
   }
 

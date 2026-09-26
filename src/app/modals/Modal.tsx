@@ -66,7 +66,17 @@ export default function Modal({
     const opener = document.activeElement as HTMLElement | null
     stack.push(panel)
 
-    const first = panel.querySelector<HTMLElement>('input, textarea, button:not([data-close])')
+    /*
+     * THE FIRST FIELD THAT CAN TAKE FOCUS (STU-15). The raw first `input` was the
+     * hidden file input of « Votre vêtement »: focus() on a display:none element
+     * does nothing, so the keyboard stayed on the page behind an aria-modal box
+     * and a screen reader never announced it. Same filter as the Tab trap.
+     */
+    const stops = focusable(panel)
+    const first =
+      stops.find((el) => el.matches('input, textarea, select')) ??
+      stops.find((el) => !el.hasAttribute('data-close')) ??
+      null
     ;(first ?? panel).focus({ preventScroll: true })
 
     const mine = () => stack[stack.length - 1] === panel

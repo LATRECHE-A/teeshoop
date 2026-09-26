@@ -11,9 +11,10 @@
  * catch it and return a typed `cors` error the UI must explain instead of a
  * generic failure.
  *
- * Credentials are NEVER hard-coded; they persist in
- * localStorage['tshop:woo:cred'] only, i.e. stored locally on this device,
- * and the UI says so explicitly (see ingest.woo_local_notice).
+ * Credentials are NEVER hard-coded. The shop address and the consumer key
+ * persist in localStorage['tshop:woo:cred']; the SECRET lives in
+ * sessionStorage only, for the life of the tab (STU-20), and the UI says so
+ * (see ingest.woo.local_notice).
  */
 
 export interface WooCredentials {
@@ -49,19 +50,28 @@ export type WooFetchResult =
   | { ok: false; error: WooError }
 
 const CRED_KEY = 'tshop:woo:cred'
+const SECRET_KEY = 'tshop:woo:secret'
 
+/*
+ * THE SECRET IS NOT KEPT ON THE DEVICE (STU-20). A read-write WooCommerce key,
+ * one that writes orders and customers, sat in clear in localStorage on the
+ * Worker's origin, which also serves the public studio and the /v page anyone
+ * opens: one injection or one compromised dependency on those pages read it,
+ * for ever. The secret now lives for the life of the tab, and a secret written
+ * by an older build is moved out of localStorage the first time this runs.
+ */
 export function loadWooCredentials(): WooCredentials | null {
   try {
     const raw = localStorage.getItem(CRED_KEY)
     if (!raw) return null
     const c = JSON.parse(raw) as Partial<WooCredentials>
-    if (
-      typeof c.baseUrl !== 'string' ||
-      typeof c.consumerKey !== 'string' ||
-      typeof c.consumerSecret !== 'string'
-    )
-      return null
-    return { baseUrl: c.baseUrl, consumerKey: c.consumerKey, consumerSecret: c.consumerSecret }
+    if (typeof c.baseUrl !== 'string' || typeof c.consumerKey !== 'string') return null
+    if (typeof c.consumerSecret === 'string') {
+      if (c.consumerSecret !== '') sessionStorage.setItem(SECRET_KEY, c.consumerSecret)
+      localStorage.setItem(CRED_KEY, JSON.stringify({ baseUrl: c.baseUrl, consumerKey: c.consumerKey }))
+    }
+    const secret = sessionStorage.getItem(SECRET_KEY) ?? ''
+    return { baseUrl: c.baseUrl, consumerKey: c.consumerKey, consumerSecret: secret }
   } catch {
     return null
   }
@@ -69,15 +79,17 @@ export function loadWooCredentials(): WooCredentials | null {
 
 export function saveWooCredentials(cred: WooCredentials): void {
   try {
-    localStorage.setItem(CRED_KEY, JSON.stringify(cred))
+    localStorage.setItem(CRED_KEY, JSON.stringify({ baseUrl: cred.baseUrl, consumerKey: cred.consumerKey }))
+    sessionStorage.setItem(SECRET_KEY, cred.consumerSecret)
   } catch {
-    /* private mode: session-only credentials */
+    /* private mode: nothing kept, the fields are typed again */
   }
 }
 
 export function clearWooCredentials(): void {
   try {
     localStorage.removeItem(CRED_KEY)
+    sessionStorage.removeItem(SECRET_KEY)
   } catch {
     /* ignore */
   }

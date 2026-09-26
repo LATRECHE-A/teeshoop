@@ -135,6 +135,13 @@ export async function hydrateStore(): Promise<void> {
       /* storage unavailable: still load the shared design */
     }
     s.loadDesign({ ...shared, id: nanoid(10), updatedAt: Date.now() })
+    /*
+     * WRITTEN NOW, NOT ON THE FIRST EDIT (STU-10). The hash is removed just
+     * below and autosave only follows a change, so a shared design looked at
+     * and not touched was gone on reload, the old draft back in its place,
+     * after a toast saying « il est à vous ».
+     */
+    await set(CURRENT_KEY, useStore.getState().design).catch(() => undefined)
     history.replaceState(null, '', location.pathname + location.search)
     s.toast('ok', t('toast.shared_loaded'))
     s.markHydrated()

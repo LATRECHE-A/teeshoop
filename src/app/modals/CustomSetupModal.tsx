@@ -388,7 +388,10 @@ export default function CustomSetupModal() {
     // preview and the AR bake both read it.
     setCustom({ widthIn, front: stripped(front), back: stripped(back), ...(shape === 'auto' ? {} : { shape }) })
     closeModal('customSetup')
-    const hasBackLayers = design.layers.some((l) => l.side === 'back')
+    // The layers of the garment NOW active (STU-13): read before `setCustom`,
+    // this was the tee's set, which does not follow, and the custom garment's
+    // own back layers went locked without a word.
+    const hasBackLayers = useStore.getState().design.layers.some((l) => l.side === 'back')
     if (!back && hasBackLayers) {
       toast('warn', t('toast.back_elements'))
     } else {
@@ -499,7 +502,8 @@ export default function CustomSetupModal() {
           <button className="btn btn-ghost" onClick={() => closeModal('customSetup')}>
             {t('common.cancel')}
           </button>
-          <button className="btn btn-primary" onClick={save} disabled={!front || front.processing}>
+          {/* Not while EITHER side is still being cut out (STU-14): saved mid-cutout, the back kept its background. */}
+          <button className="btn btn-primary" onClick={save} disabled={!front || front.processing || (back?.processing ?? false)}>
             {t('custom.use_garment')}
           </button>
         </div>

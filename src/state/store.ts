@@ -24,6 +24,7 @@ import { migrateDesign } from '@/lib/migrate'
 import { zonesFor } from '@/content/zones'
 import { clamp } from '@/lib/units'
 import { setCurrentLang, type Lang } from '@/i18n/lang'
+import { t } from '@/i18n'
 import { DEFAULT_PRINT_SCALE_MODE, printScaleOf } from '@/lib/printScale'
 import type { SceneId } from '@/scenes'
 import { DEFAULT_SIZE, SIZE_IDS, type SizeId } from '@/content/sizeChart'
@@ -241,7 +242,7 @@ function crossesCustomBoundary(from: GarmentId, to: GarmentId): boolean {
  * does not exist cannot be drawn or edited, and leaving `activeSide` on one
  * strands the user on a locked side with a disabled way back.
  */
-function hasSide(design: Design, side: Side): boolean {
+export function hasSide(design: Design, side: Side): boolean {
   if (design.garmentId !== 'custom') return true
   if (side === 'sleeve') return false
   return side === 'front' || !!design.custom?.back
@@ -251,6 +252,8 @@ let layerCounter = 1
 
 /** Pre-gesture design snapshot (drag / slider scrub); see patchLayer. */
 let gestureStart: Design | null = null
+/** The layer the gesture in `gestureStart` is moving (STU-04). */
+let gestureLayer: string | null = null
 
 /**
  * The user's own document, parked while a basket line is focused on the board.
@@ -585,6 +588,7 @@ export const useStore = create<StoreState>()(
         // guard cannot tell them apart. Leaving this set is a real corruption
         // path, not a tidiness issue.
         gestureStart = null
+        gestureLayer = null
         const t = useStore.temporal.getState()
         t.pause()
         set({
@@ -610,6 +614,7 @@ export const useStore = create<StoreState>()(
         // focus would then park (and later restore) a superseded snapshot.
         boardStash = null
         gestureStart = null
+        gestureLayer = null
         // The other direction, same single swap: the line's stacks go back to
         // the registry (re-focusing it in this board session restores them) and
         // the draft gets its own back, which is what makes Ctrl+Z after the
@@ -769,7 +774,9 @@ export const useStore = create<StoreState>()(
         })
       },
 
-      addTextLayer: (text = 'YOUR TEXT', overrides, maxWidthIn) => {
+      // The defaults speak the interface's language (STU-17): « YOUR TEXT » was
+      // printed as is on a French customer's garment when left unchanged.
+      addTextLayer: (text = t('defaults.text'), overrides, maxWidthIn) => {
         const s = get()
         const dark = s.design.garmentId === 'custom' ? true : isDark(
           garmentHexOf(s.design.colorId),
@@ -778,7 +785,7 @@ export const useStore = create<StoreState>()(
           id: nanoid(8),
           type: 'text',
           side: s.activeSide,
-          name: `Text ${layerCounter++}`,
+          name: t('defaults.text_layer', { n: layerCounter++ }),
           text,
           xIn: 0,
           yIn: 0,
@@ -883,7 +890,7 @@ export const useStore = create<StoreState>()(
         })
       },
 
-      addTextLayerInZone: (zoneId, text = 'YOUR TEXT') => {
+      addTextLayerInZone: (zoneId, text = t('defaults.text')) => {
         const s = get()
         const zone = zonesFor(s.design, s.activeSide).find((z) => z.id === zoneId)
         if (!zone) {
@@ -931,6 +938,16 @@ export const useStore = create<StoreState>()(
       },
 
       patchLayer: (id, patch, opts) => {
+        // A commit that changes nothing (the slider's blur after its pointerup)
+        // is not a step: it would sit in the history as an undo that does nothing.
+        const cur = get().design.layers.find((l) => l.id === id)
+        if (
+          !opts?.transient &&
+          !gestureStart &&
+          cur &&
+          Object.entries(patch).every(([k, v]) => (cur as unknown as Record<string, unknown>)[k] === v)
+        )
+          return
         const apply = () =>
           set((s) => ({
             design: touch({
@@ -941,16 +958,41 @@ export const useStore = create<StoreState>()(
             }),
           }))
         const t = useStore.temporal.getState()
+        /*
+         * A GESTURE THAT NEVER ENDED IS KEPT, NOT REWOUND (STU-04). A slider
+         * scrub whose pointerup never came (pointercancel when the panel
+         * scrolls on a phone, a screen reader that only sends `input`) left
+         * `gestureStart` set, and the next commit on ANOTHER layer rewound to
+         * it: A's opacity went silently back while B moved. The orphan is
+         * recorded as its own step first.
+         */
+        const promoteOrphan = () => {
+          if (!gestureStart) return
+          const current = get().design
+          if (gestureStart.id === current.id) {
+            t.pause()
+            set({ design: gestureStart })
+            t.resume()
+            set({ design: current })
+          }
+          gestureStart = null
+          gestureLayer = null
+        }
         if (opts?.transient) {
           // Gesture in progress (drag / slider scrub): remember the state the
           // gesture STARTED from, and keep the intermediate frames out of
           // history.
-          gestureStart ??= get().design
+          if (gestureStart && gestureLayer !== id) promoteOrphan()
+          if (!gestureStart) {
+            gestureStart = get().design
+            gestureLayer = id
+          }
           t.pause()
           apply()
           t.resume()
         } else if (
           gestureStart &&
+          gestureLayer === id &&
           gestureStart.id === get().design.id &&
           gestureStart.layers.some((l) => l.id === id)
         ) {
@@ -961,9 +1003,10 @@ export const useStore = create<StoreState>()(
           set({ design: gestureStart })
           t.resume()
           gestureStart = null
+          gestureLayer = null
           apply()
         } else {
-          gestureStart = null
+          promoteOrphan()
           apply()
         }
       },
@@ -1025,7 +1068,7 @@ export const useStore = create<StoreState>()(
         const copy: Layer = {
           ...src,
           id: nanoid(8),
-          name: `${src.name} copy`,
+          name: t('defaults.copy', { name: src.name }),
           xIn: src.xIn + 0.4,
           yIn: src.yIn + 0.4,
         }
@@ -1050,14 +1093,20 @@ export const useStore = create<StoreState>()(
         set({ design: touch({ ...s.design, layers: all }) })
       },
 
-      renameDesign: (name) =>
-        set((s) => ({ design: touch({ ...s.design, name: name || 'Untitled' }) })),
+      /*
+       * EMPTY IS ALLOWED WHILE TYPING (STU-07). The English « Untitled » was
+       * written the instant the field was cleared, the cursor jumped to the end
+       * and typing gave « UntitledMon tee ». The translated fallback is applied
+       * on blur, by the field (TopBar).
+       */
+      renameDesign: (name) => set((s) => ({ design: touch({ ...s.design, name }) })),
 
       loadDesign: (design) => {
         // Loading an unrelated document while a basket line is focused would
         // let the line silently absorb it on the next write-back.
         if (get().board.on) get().exitBoard()
         gestureStart = null
+        gestureLayer = null
         set({ design: migrateDesign(design), selectedId: null, activeSide: 'front' })
         useStore.temporal.getState().clear()
       },
@@ -1065,9 +1114,10 @@ export const useStore = create<StoreState>()(
       newDesign: () => {
         if (get().board.on) get().exitBoard()
         gestureStart = null
+        gestureLayer = null
         const fresh: Design = {
           id: nanoid(10),
-          name: 'Untitled design',
+          name: t('topbar.untitled'),
           garmentId: 'tee',
           colorId: 'white',
           custom: null,
@@ -1114,7 +1164,7 @@ void loadBasket().then((stored) => {
  * FOCUSED is not browsing: that document IS on screen, and its own stack is
  * live (src/state/history.ts).
  */
-function browsingBoard(s: StoreState): boolean {
+export function browsingBoard(s: StoreState): boolean {
   return s.board.on && !s.board.focusedId
 }
 

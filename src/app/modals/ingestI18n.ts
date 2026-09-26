@@ -77,7 +77,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'ingest.woo.key': 'Consumer key',
     'ingest.woo.secret': 'Consumer secret',
     'ingest.woo.local_notice':
-      'Identifiants conservés uniquement sur cet appareil (localStorage). Ils ne sont jamais envoyés ailleurs qu’à votre boutique.',
+      'L’adresse et la clé restent sur cet appareil ; le secret n’est gardé que le temps de cet onglet, et seulement une fois accepté par la boutique. Rien n’est envoyé ailleurs qu’à votre boutique.',
     'ingest.woo.fetch': 'Charger les produits',
     'ingest.woo.fetching': 'Chargement…',
     'ingest.woo.use': 'Utiliser les photos',
@@ -169,7 +169,7 @@ export const I18N: Record<'fr' | 'en', Record<string, string>> = {
     'ingest.woo.key': 'Consumer key',
     'ingest.woo.secret': 'Consumer secret',
     'ingest.woo.local_notice':
-      'Credentials are stored locally on this device only (localStorage). They are never sent anywhere but your store.',
+      'The address and key stay on this device; the secret is kept for this tab only, and only once the store has accepted it. Nothing is sent anywhere but your store.',
     'ingest.woo.fetch': 'Load products',
     'ingest.woo.fetching': 'Loading…',
     'ingest.woo.use': 'Use the photos',

@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import Modal from './Modal'
+import { getLang } from '@/i18n/lang'
 import { APP_VERSION } from '@/config'
 import { useStore } from '@/state/store'
 import { listSavedMetas, loadSavedDesign } from '@/state/savedDesigns'
@@ -156,6 +157,17 @@ const frShort = (iso: string): string => {
  */
 const eurOf = (cents: number): string =>
   `${(cents / 100).toFixed(2).replace('.', ',')} EUR`
+
+/**
+ * A supplier cost in euros, as this screen's other amounts are written (STU-22):
+ * rounded to the cent ONCE, then a comma in French. `toFixed(2)` printed
+ * « 12.50 € » beside « 12,50 EUR » on the same screen.
+ */
+const eurNum = (v: number): string => {
+  const cents = Math.round(v * 100)
+  const s = (Math.abs(cents) / 100).toFixed(2)
+  return `${cents < 0 ? '-' : ''}${getLang() === 'fr' ? s.replace('.', ',') : s}`
+}
 
 /** Restart counts offered. A COUNT, never a time budget. See trueshape.ts. */
 const RESTART_CHOICES = [6, 12, 24]
@@ -2059,21 +2071,21 @@ export default function DtfModal() {
                     {cost.vatBasis === 'HT' ? t('dtf.stats.vat_ht') : t('dtf.stats.vat_ttc')}
                   </span>
                   <span className="font-mono text-[15px] font-semibold text-tx">
-                    {cost.totalEur.toFixed(2)} €
+                    {eurNum(cost.totalEur)} €
                   </span>
                   <span className="block font-mono text-[10px] text-tx3">
                     {fixed
                       ? t('dtf.stats.cost_sheets', {
-                          print: cost.printEur.toFixed(2),
-                          ship: cost.shippingEur.toFixed(2),
+                          print: eurNum(cost.printEur),
+                          ship: eurNum(cost.shippingEur),
                         })
                       : t('dtf.stats.cost_detail', {
-                          print: cost.printEur.toFixed(2),
-                          ship: cost.shippingEur.toFixed(2),
+                          print: eurNum(cost.printEur),
+                          ship: eurNum(cost.shippingEur),
                           tier: cost.tierLabel,
                         })}
                     {cost.perPieceEur !== null && (
-                      <> · {t('dtf.stats.per_piece', { v: cost.perPieceEur.toFixed(2) })}</>
+                      <> · {t('dtf.stats.per_piece', { v: eurNum(cost.perPieceEur) })}</>
                     )}
                   </span>
                 </span>
@@ -2094,8 +2106,8 @@ export default function DtfModal() {
                   <>
                     {' '}
                     {t('dtf.grade.cost', {
-                      graded: cost.totalEur.toFixed(2),
-                      single: tradeoff.cost.totalEur.toFixed(2),
+                      graded: eurNum(cost.totalEur),
+                      single: eurNum(tradeoff.cost.totalEur),
                       delta: signedEur(cost.totalEur - tradeoff.cost.totalEur),
                     })}
                   </>
@@ -2118,7 +2130,7 @@ export default function DtfModal() {
                     key={l.formatId}
                     className="rounded-md border border-line bg-bg1 px-2 py-1 font-mono text-[11px] text-tx2"
                   >
-                    {l.count} × {l.label} = {l.totalEur.toFixed(2)} €
+                    {l.count} × {l.label} = {eurNum(l.totalEur)} €
                   </span>
                 ))}
               </div>
@@ -2757,7 +2769,7 @@ export default function DtfModal() {
 // ---------------------------------------------------------------------------
 
 /** €-delta with an explicit sign: "+3.40" reads as a surcharge, "3.40" does not. */
-const signedEur = (v: number): string => (v > 0 ? '+' : '') + v.toFixed(2)
+const signedEur = (v: number): string => (v > 0 ? '+' : '') + eurNum(v)
 
 /**
  * Render-cache key. A row's transfers depend on how the side is split, so the

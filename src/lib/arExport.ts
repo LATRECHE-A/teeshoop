@@ -181,7 +181,7 @@ async function buildCatalogFigure(
   sizeId: SizeId,
 ): Promise<{ figure: THREE.Group; disposables: Disposable[] }> {
   const calib = CALIBRATION[garment]
-  const gltf = await new GLTFLoader().loadAsync(calib.url)
+  const gltf = await new GLTFLoader().loadAsync(modelUrl(calib.url))
   gltf.scene.updateMatrixWorld(true)
   const src = firstMesh(gltf.scene, calib.meshName) ?? firstMesh(gltf.scene)
   if (!src) throw new Error(`No mesh in ${calib.url}`)
@@ -333,6 +333,16 @@ export function configureArAssets(base: string): void {
   avatarBase = (base ?? '').replace(/\/+$/, '')
 }
 
+/**
+ * L'adresse d'un modèle, TOUJOURS par la base (STU-12). Seuls les avatars la
+ * prenaient : le repli sur le vêtement seul et l'avatar du vêtement personnel
+ * demandaient `/models/…` à WordPress, 404, et le client lisait « le modèle
+ * n'a pas pu être construit » là où le repli existait pour lui.
+ */
+function modelUrl(path: string): string {
+  return path.startsWith('/') ? `${avatarBase}${path}` : path
+}
+
 const AVATAR = {
   heightIn: 68, // normalise to a life-size figure
   // Usable flat front width as a fraction of the torso's full width: the print
@@ -423,7 +433,7 @@ async function buildAvatarFigure(
   gender: Gender,
   sizeId: SizeId,
 ): Promise<{ figure: THREE.Group; disposables: Disposable[] }> {
-  const url = `${avatarBase}${AVATAR_URL[gender][garment]}`
+  const url = modelUrl(AVATAR_URL[gender][garment])
   const gltf = await new GLTFLoader().loadAsync(url)
   gltf.scene.updateMatrixWorld(true)
   const src = firstMesh(gltf.scene)
@@ -730,7 +740,7 @@ async function buildCustomAvatarFigure(
   if (!hasFront && !hasBack) throw new Error('custom garment has no sides')
   const widthIn = design.custom?.widthIn ?? 20
 
-  const url = AVATAR_URL[gender].tee // a generic body in a plain tee
+  const url = modelUrl(AVATAR_URL[gender].tee) // a generic body in a plain tee
   const gltf = await new GLTFLoader().loadAsync(url)
   gltf.scene.updateMatrixWorld(true)
   const src = firstMesh(gltf.scene)

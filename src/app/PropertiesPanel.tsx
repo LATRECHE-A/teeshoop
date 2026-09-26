@@ -68,6 +68,10 @@ function Slider({
         value={value}
         onChange={(e) => onChange(Number(e.target.value), false)}
         onPointerUp={(e) => onChange(Number((e.target as HTMLInputElement).value), true)}
+        // A scrub interrupted by the page scrolling, or driven by a screen reader
+        // that sends only `input`, ends here instead (STU-04).
+        onPointerCancel={(e) => onChange(Number((e.target as HTMLInputElement).value), true)}
+        onBlur={(e) => onChange(Number(e.target.value), true)}
         onKeyUp={(e) => onChange(Number((e.target as HTMLInputElement).value), true)}
       />
       <span className="mono-dim w-14 shrink-0 text-right">

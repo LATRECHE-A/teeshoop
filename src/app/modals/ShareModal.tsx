@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { FileDown, FileUp, Image as ImageIcon, Link2, Printer, Smartphone, TriangleAlert } from 'lucide-react'
 import Modal from './Modal'
-import { useStore } from '@/state/store'
+import { hasSide, useStore } from '@/state/store'
 import { useMockupUrl } from '../hooks/useMockup'
 import {
   canShareAsLink,
@@ -84,7 +84,9 @@ export default function ShareModal() {
             <div className="panel-title mb-2">{t('share.mockups')}</div>
             <div className="flex flex-wrap gap-2">
               {(['front', 'back', 'sleeve'] as Side[])
-                .filter((sd) => sd !== 'sleeve' || sideLayers(design, sd).length > 0)
+                // A side the garment does not have (STU-19): a custom garment
+                // without a back photo downloaded 1600 transparent pixels.
+                .filter((sd) => hasSide(design, sd) && (sd !== 'sleeve' || sideLayers(design, sd).length > 0))
                 .map((sd) => (
                   <button
                     key={sd}

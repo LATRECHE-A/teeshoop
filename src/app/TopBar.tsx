@@ -3,7 +3,7 @@ import { Brand } from './Brand'
 import ModeToggle from './ModeToggle'
 import ThemeToggle from './ThemeToggle'
 import LangToggle from './LangToggle'
-import { redo, undo, useHistoryDepth, useStore } from '@/state/store'
+import { browsingBoard, redo, undo, useHistoryDepth, useStore } from '@/state/store'
 import { useAdminSlots } from '@/app/adminSlots'
 import { designToSave, renderAndSave } from '@/state/persist'
 import { useT } from '@/i18n/useT'
@@ -20,6 +20,7 @@ export default function TopBar() {
   const { canUndo, canRedo } = useHistoryDepth()
   const boardOn = useStore((s) => s.board.on)
   const boardFocused = useStore((s) => s.board.focusedId !== null)
+  const browsing = useStore(browsingBoard)
   const exitBoard = useStore((s) => s.exitBoard)
   const admin = useAdminSlots()
   const t = useT()
@@ -125,7 +126,8 @@ export default function TopBar() {
             </span>
           )}
         </button>
-        <button className="btn" onClick={() => openModal('share')}>
+        {/* Not while browsing the board (STU-06): it would share the parked draft, not what is on screen. */}
+        <button className="btn" onClick={() => openModal('share')} disabled={browsing}>
           <Share2 size={15} />
           <span className="hidden sm:inline">{t('topbar.share_export')}</span>
         </button>
