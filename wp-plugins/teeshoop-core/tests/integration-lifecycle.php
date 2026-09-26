@@ -47,6 +47,7 @@ use Teeshoop\Core\Ledger;
 use Teeshoop\Core\Lifecycle;
 use Teeshoop\Core\Mail;
 use Teeshoop\Core\Notify;
+use Teeshoop\Core\Production;
 use Teeshoop\Core\Quote;
 use Teeshoop\Core\Settlement;
 use Teeshoop\Core\Vat;
@@ -534,6 +535,46 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		$order->delete( true );
 	} );
 
+	ts_it( 'refuses a waiver on a version the customer sent back', function () use ( $product_id ) {
+		// CMD-14. The waiver was recorded, « production autorisée » was said,
+		// and `refusal()` kept the press shut because the changes win.
+		$order = ts_lc_order( $product_id );
+		Bat::issue( $order );
+		Bat::record_decision( wc_get_order( $order->get_id() ), 1, 'modifier', 'trop bas', '203.0.113.7', 'suite' );
+
+		$waiver = Bat::record_waiver( wc_get_order( $order->get_id() ), 'Courriel du 12/09 : « lancez sans BAT, je prends le risque. »' );
+		ts_eq( $waiver['ok'], false, 'a waiver was recorded on a version the customer refused' );
+		ts_assert( str_contains( $waiver['reason'], 'modifications' ), 'the refusal does not say why: ' . $waiver['reason'] );
+		ts_assert( empty( Bat::current( wc_get_order( $order->get_id() ) )['waiver'] ), 'the waiver was written anyway' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'freezes on a claim the version the customer approved, not a later one', function () use ( $product_id ) {
+		// CMD-17. A corrected version prepared for the reprint is the newest and
+		// was never approved; the claim lost the evidence that decides the cause.
+		$order  = ts_lc_order( $product_id );
+		$issued = Bat::issue( $order );
+		ts_lc_approve( $order, 1, (string) $issued['token'] );
+		$second = Bat::issue( wc_get_order( $order->get_id() ), 'version corrigée pour la réimpression' );
+		ts_assert( ! empty( $second['ok'] ), 'the second version could not be issued: ' . ( $second['reason'] ?? '' ) );
+
+		$opened = Claim::open( wc_get_order( $order->get_id() ), 'position', 'Le logo est 4 cm plus bas que sur le bon à tirer.', 3 );
+		ts_assert( $opened['ok'], 'ouverture refusée : ' . ( $opened['reason'] ?? '' ) );
+		ts_eq( $opened['claim']['bat']['version'], 1, 'the claim froze a version nobody approved' );
+		ts_assert( '' !== (string) $opened['claim']['bat']['approved'], 'the approval is not on the claim' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'dates an approval on the shop’s calendar, not on UTC', function () {
+		// CMD-15. 00:45 in Paris on the 15th is 22:45 UTC on the 14th, and the
+		// lead time used to start on the 14th.
+		ts_eq( wp_timezone_string(), 'Europe/Paris', 'the mirror is not on the shop’s timezone, so this proves nothing' );
+		$on = Production::approval( array( 'version' => 1, 'approval' => array( 'at' => '2026-09-14T22:45:00+00:00' ) ) )['on'];
+		ts_eq( $on, '2026-09-15', 'the approval was dated on UTC' );
+		$waived = Production::approval( array( 'version' => 1, 'waiver' => array( 'at' => '2026-09-14T22:45:00+00:00' ) ) )['on'];
+		ts_eq( $waived, '2026-09-15', 'and so was a waiver' );
+	} );
+
 	ts_it( 'walks a whole order from payment to delivery, and only in that order', function () use ( $product_id ) {
 		$order  = ts_lc_order( $product_id );
 		$issued = Bat::issue( $order );
@@ -739,6 +780,39 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		$before = count( ts_lc_brevo_calls() );
 		Mail::retry( (int) $sent['id'] );
 		ts_eq( count( ts_lc_brevo_calls() ), $before, 'un message déjà parti a été renvoyé' );
+
+		remove_all_filters( 'pre_http_request' );
+		$order->delete( true );
+	} );
+
+	ts_it( 'retries a failed workshop alert instead of abandoning it', function () use ( $product_id ) {
+		/*
+		 * CMD-12. The queue keeps no body, the first retry of a workshop alert
+		 * found nothing to rebuild and marked it abandoned, off the banner: a
+		 * Brevo outage at the moment of payment meant nobody was ever told.
+		 */
+		global $wpdb;
+		$order = ts_lc_order( $product_id );
+		$wpdb->insert(
+			Mail::table(),
+			array(
+				'created_at' => gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ),
+				'kind'       => Notify::KIND_WORKSHOP,
+				'order_id'   => $order->get_id(),
+				'recipient'  => 'atelier@example.test',
+				'subject'    => sprintf( '[Teeshoop] Commande payée, bon à tirer à établir, commande %s', $order->get_order_number() ),
+				'status'     => Mail::FAILED,
+				'attempts'   => 1,
+			),
+			array( '%s', '%s', '%d', '%s', '%s', '%s', '%d' )
+		);
+		$id = (int) $wpdb->insert_id;
+
+		ts_lc_capture_http( 201 );
+		$again = Mail::retry( $id, 'production' );
+		ts_assert( $again['ok'], 'the workshop alert was not retried: ' . $again['reason'] );
+		$calls = ts_lc_brevo_calls();
+		ts_assert( ! empty( $calls ) && str_contains( (string) ( end( $calls )['body']['subject'] ?? '' ), 'Commande payée, bon à tirer à établir' ), 'the retried alert does not say which alert it is' );
 
 		remove_all_filters( 'pre_http_request' );
 		$order->delete( true );

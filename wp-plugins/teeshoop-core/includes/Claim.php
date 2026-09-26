@@ -195,7 +195,7 @@ final class Claim {
 			);
 		}
 
-		$approved = Bat::current( $order );
+		$approved = Bat::last_cleared( $order ) ?? Bat::current( $order );
 		$claims   = self::all( $order );
 
 		$claim = array(
@@ -326,7 +326,7 @@ final class Claim {
 		 * exists to answer is whether we owe a reprint, and half the answer is
 		 * whether the customer approved what we pressed.
 		 */
-		$current = Bat::current( $order );
+		$current = Bat::last_cleared( $order ) ?? Bat::current( $order );
 		echo '<p>';
 		if ( null === $current ) {
 			esc_html_e( 'Aucun bon à tirer sur cette commande : rien n’a été approuvé, donc « erreur validée dans le BAT » ne peut pas s’appliquer.', 'teeshoop' );

@@ -47,6 +47,9 @@ final class Notify {
 	public const KIND_SHIPPED  = 'expedition';
 	public const KIND_WORKSHOP = 'atelier';
 
+	/** Order meta: when the first money in was announced. See `on_paid`. */
+	public const META_ANNOUNCED = '_teeshoop_annonce';
+
 	/** Order meta: what an operator typed off the carrier's label. */
 	public const META_TRACKING = '_teeshoop_suivi';
 	public const META_CARRIER  = '_teeshoop_transporteur';
@@ -59,6 +62,13 @@ final class Notify {
 		 * is printed before they answer it.
 		 */
 		add_action( 'woocommerce_payment_complete', array( self::class, 'on_paid' ), 30, 1 );
+		/*
+		 * AND ON AN ACOMPTE, which never passes through `payment_complete` (it is
+		 * an `update_status` in `Ledger::follow`). A deposit order used to be
+		 * announced to nobody: no confirmation to the customer, no « bon à tirer
+		 * à établir » to the workshop, until the balance arrived (CMD-18).
+		 */
+		add_action( 'woocommerce_order_status_' . Lifecycle::DEPOSIT, array( self::class, 'on_paid' ), 10, 1 );
 		add_action( 'teeshoop_bat_approved', array( self::class, 'on_approved' ), 10, 2 );
 		add_action( 'teeshoop_bat_changes', array( self::class, 'on_changes' ), 10, 2 );
 		// Three arguments, and the third is the point. See `on_shipped`.
@@ -106,6 +116,10 @@ final class Notify {
 	 * to act is not sitting in the admin waiting for something to appear.
 	 */
 	public static function workshop( \WC_Order $order, string $heading, array $lines ): array {
+		return Mail::send( self::workshop_message( $order, $heading, $lines ) );
+	}
+
+	private static function workshop_message( \WC_Order $order, string $heading, array $lines ): array {
 		$spec = array(
 			'subject' => sprintf( '[Teeshoop] %s, commande %s', $heading, $order->get_order_number() ),
 			'heading' => $heading,
@@ -116,16 +130,14 @@ final class Notify {
 			),
 		);
 
-		return Mail::send(
-			array(
-				'kind'     => self::KIND_WORKSHOP,
-				'order_id' => $order->get_id(),
-				'to'       => Mail::workshop_address(),
-				'to_name'  => '',
-				'subject'  => (string) $spec['subject'],
-				'html'     => self::html( $spec ),
-				'text'     => self::text( $spec ),
-			)
+		return array(
+			'kind'     => self::KIND_WORKSHOP,
+			'order_id' => $order->get_id(),
+			'to'       => Mail::workshop_address(),
+			'to_name'  => '',
+			'subject'  => (string) $spec['subject'],
+			'html'     => self::html( $spec ),
+			'text'     => self::text( $spec ),
 		);
 	}
 
@@ -166,11 +178,17 @@ final class Notify {
 	}
 
 	private static function spec_confirmation( \WC_Order $order ): array {
+		// An acompte is not « c'est réglé »: the balance is owed before dispatch.
+		$deposit = self::balance_due( $order );
 		return array(
-			'subject' => sprintf( 'Commande %s : c’est réglé, voici la suite', $order->get_order_number() ),
+			'subject' => $deposit
+				? sprintf( 'Commande %s : acompte reçu, voici la suite', $order->get_order_number() )
+				: sprintf( 'Commande %s : c’est réglé, voici la suite', $order->get_order_number() ),
 			'heading' => 'Merci, votre commande est enregistrée',
 			'lines'   => array(
-				'Votre paiement est bien arrivé.',
+				$deposit
+					? 'Votre acompte est bien arrivé. Le solde sera à régler avant l’expédition.'
+					: 'Votre paiement est bien arrivé.',
 				'Nous préparons maintenant votre bon à tirer : une image de votre vêtement avec votre visuel à sa vraie place, et les dimensions en centimètres.',
 				'Vous le recevrez par courriel. Rien n’est imprimé tant que vous ne l’avez pas validé.',
 			),
@@ -242,21 +260,39 @@ final class Notify {
 
 	// ── the events ───────────────────────────────────────────────────────────
 
-	/** @param int $order_id */
+	/**
+	 * The first money in: a confirmation to the customer, an alert to the
+	 * workshop. ONCE PER ORDER, because an order paid by acompte then balance
+	 * reaches here twice, and the second « voici la suite, un bon à tirer
+	 * arrive » would reach a customer who may already have approved it.
+	 *
+	 * @param int $order_id
+	 */
 	public static function on_paid( $order_id ): void {
 		$order = wc_get_order( $order_id );
-		if ( ! $order instanceof \WC_Order ) {
+		if ( ! $order instanceof \WC_Order || '' !== (string) $order->get_meta( self::META_ANNOUNCED ) ) {
 			return;
 		}
+		$order->update_meta_data( self::META_ANNOUNCED, gmdate( 'c' ) );
+		$order->save();
+
+		$deposit = self::balance_due( $order );
 		self::confirmation( $order );
 		self::workshop(
 			$order,
-			'Commande payée, bon à tirer à établir',
+			$deposit ? 'Acompte reçu, bon à tirer à établir' : 'Commande payée, bon à tirer à établir',
 			array(
-				sprintf( 'La commande %s est payée et attend son bon à tirer.', $order->get_order_number() ),
+				$deposit
+					? sprintf( 'Un acompte est encaissé sur la commande %s : elle attend son bon à tirer. Le solde est dû avant l’expédition.', $order->get_order_number() )
+					: sprintf( 'La commande %s est payée et attend son bon à tirer.', $order->get_order_number() ),
 				'Rien ne peut partir en production avant que le client l’ait validé.',
 			)
 		);
+	}
+
+	/** Whether money is still owed on this order: it was paid by acompte. */
+	private static function balance_due( \WC_Order $order ): bool {
+		return Settlement::remaining( Ledger::due( $order ), Ledger::received( $order ) ) > 0;
 	}
 
 	/** @param mixed $order */
@@ -352,10 +388,10 @@ final class Notify {
 	 * `Mail::retry` needs to tell them apart to know whether to keep trying.
 	 */
 	public static function rebuildable( string $kind ): bool {
-		return in_array( $kind, array( self::KIND_BAT, self::KIND_CONFIRM, self::KIND_SHIPPED, self::KIND_RECEIPT, self::KIND_CHANGES ), true );
+		return in_array( $kind, array( self::KIND_BAT, self::KIND_CONFIRM, self::KIND_SHIPPED, self::KIND_RECEIPT, self::KIND_CHANGES, self::KIND_WORKSHOP ), true );
 	}
 
-	public static function rebuild( string $kind, int $order_id ): array {
+	public static function rebuild( string $kind, int $order_id, string $subject = '' ): array {
 		$order = $order_id > 0 ? wc_get_order( $order_id ) : null;
 		if ( ! $order instanceof \WC_Order ) {
 			return array(
@@ -375,6 +411,26 @@ final class Notify {
 			return array(
 				'ok'      => true,
 				'message' => self::message( self::spec_bat( $order, (array) $again['version'], (string) $again['token'] ), $order, $kind ),
+			);
+		}
+
+		/*
+		 * A WORKSHOP ALERT IS REBUILT FROM ITS OWN SUBJECT (CMD-12). The queue
+		 * keeps no body, so the first retry of a failed « Commande payée, bon à
+		 * tirer à établir » found nothing to rebuild, marked it abandoned and
+		 * took it off the banner: a Brevo outage at the moment of payment meant
+		 * nobody was ever told. The subject carries what matters, which alert
+		 * and which order, and the order is one click away.
+		 */
+		if ( self::KIND_WORKSHOP === $kind ) {
+			$heading = 1 === preg_match( '~^\[Teeshoop\] (.+), commande ~u', $subject, $m ) ? $m[1] : 'Alerte atelier';
+			return array(
+				'ok'      => true,
+				'message' => self::workshop_message(
+					$order,
+					$heading,
+					array( 'Renvoi d’une alerte dont le premier envoi a échoué : son détail n’a pas été conservé. Ouvrez la commande pour le retrouver.' )
+				),
 			);
 		}
 

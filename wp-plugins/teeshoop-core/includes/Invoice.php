@@ -1177,12 +1177,41 @@ final class Invoice {
 			$y += 6.5;
 		}
 
+		/*
+		 * THE TOTALS DO NOT RUN OFF THE PAGE (CMD-09). The line loop breaks at
+		 * 232 mm and the block below it had no check of its own: thirteen lines,
+		 * a delivery, a discount and two acomptes put « Net à payer » at 297,5 mm
+		 * on a 297 mm page, measured by reading the Td coordinates back. The
+		 * block is measured from what it will print and moves as one.
+		 */
+		$extras = ( 0 !== (int) $doc['shipping_ht'] ? 1 : 0 ) + ( 0 !== (int) ( $doc['fees_ht'] ?? 0 ) ? 1 : 0 ) + ( 0 !== (int) $doc['discount_ht'] ? 1 : 0 );
+		$block  = 6.5 * $extras + 9 + ( $franchise ? 9 : 21 )
+			+ ( empty( $doc['deducted'] ) ? 0 : 5.5 * count( (array) $doc['deducted'] ) + 10 );
+		if ( $y + $block > 280 ) {
+			$pdf->page_break();
+			$y = 24;
+		}
+
 		if ( 0 !== (int) $doc['shipping_ht'] ) {
 			$pdf->text( $left, $y, __( 'Livraison', 'teeshoop' ) );
 			if ( ! $franchise ) {
 				$pdf->text_right( $col_rate, $y, self::rate_label( (float) $doc['rate'] ) );
 			}
 			$pdf->text_right( $col_total, $y, Money::format( (int) $doc['shipping_ht'] ) );
+			$y += 6.5;
+		}
+		/*
+		 * FEES ARE IN THE TOTAL, SO THEY ARE ON THE PAGE (CMD-11). A fee line an
+		 * operator adds in the admin (a file fee, a proof correction billed by
+		 * hand) was counted in « Total HT » and printed nowhere, so the total was
+		 * higher than the lines above it by an amount nothing explained.
+		 */
+		if ( 0 !== (int) ( $doc['fees_ht'] ?? 0 ) ) {
+			$pdf->text( $left, $y, __( 'Frais', 'teeshoop' ) );
+			if ( ! $franchise ) {
+				$pdf->text_right( $col_rate, $y, self::rate_label( (float) $doc['rate'] ) );
+			}
+			$pdf->text_right( $col_total, $y, Money::format( (int) $doc['fees_ht'] ) );
 			$y += 6.5;
 		}
 		if ( 0 !== (int) $doc['discount_ht'] ) {
@@ -1776,8 +1805,8 @@ final class Invoice {
 						sprintf(
 							/* translators: %d: a number of characters. */
 							_n(
-								'%d caractère du document ne peut pas être écrit dans un PDF et sort en point d’interrogation. Corrigez le nom ou l’adresse dans la commande, puis rééditez.',
-								'%d caractères du document ne peuvent pas être écrits dans un PDF et sortent en points d’interrogation. Corrigez le nom ou l’adresse dans la commande, puis rééditez.',
+								'%d caractère du document ne peut pas être écrit dans un PDF et sort en point d’interrogation. Ce récapitulatif est figé : corriger la commande ne le change pas. Transmettez l’orthographe exacte au service comptable, qui établit la facture.',
+								'%d caractères du document ne peuvent pas être écrits dans un PDF et sortent en points d’interrogation. Ce récapitulatif est figé : corriger la commande ne le change pas. Transmettez l’orthographe exacte au service comptable, qui établit la facture.',
 								$lost,
 								'teeshoop'
 							),

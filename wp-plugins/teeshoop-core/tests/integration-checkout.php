@@ -30,7 +30,9 @@ use Teeshoop\Core\Ledger;
 use Teeshoop\Core\Settlement;
 use Teeshoop\Core\Legal;
 use Teeshoop\Core\Lifecycle;
+use Teeshoop\Core\Mail;
 use Teeshoop\Core\Money;
+use Teeshoop\Core\Notify;
 use Teeshoop\Core\Payment;
 use Teeshoop\Core\Pricing;
 use Teeshoop\Core\Settings;
@@ -651,6 +653,65 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		update_option( 'teeshoop_legal', ts_ck_identity() );
 	} );
 
+	ts_it( 'keeps every figure of a long document on its page, and prints the fees it counts', function () use ( $product_id, $sides, $design ) {
+		/*
+		 * CMD-09 and CMD-11, on the shipped renderer. Thirteen lines, a delivery,
+		 * a fee, a discount and two acomptes: « Net à payer » used to be drawn at
+		 * 297,5 mm on a 297 mm page, and the fee was in the total and nowhere else.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		update_option( 'teeshoop_legal', ts_ck_identity() );
+		ts_ck_fill( $product_id, 10, $sides, $design );
+		$order = wc_get_order( WC()->checkout()->create_order( array( 'payment_method' => 'bacs' ) ) );
+		$doc   = Invoice::compose( $order, 'production' );
+		ts_assert( ! is_wp_error( $doc ), 'the document could not be composed' );
+
+		$line = $doc['lines'][0];
+		$doc['shipping_ht'] = 990;
+		$doc['fees_ht']     = 1500;
+		$doc['discount_ht'] = 500;
+		$doc['deducted']    = array(
+			array( 'number' => 'ESSAI2026-0001', 'date' => '2026-09-01', 'ttc' => 10100 ),
+			array( 'number' => 'ESSAI2026-0002', 'date' => '2026-09-08', 'ttc' => 5000 ),
+		);
+		$doc['net_to_pay']  = 12345;
+
+		// Every page stream of a rendered document, decompressed.
+		$streams = static function ( string $pdf ): string {
+			$out  = '';
+			$at   = 0;
+			$mark = "/Filter /FlateDecode >>\nstream\n";
+			while ( false !== ( $at = strpos( $pdf, $mark, $at ) ) ) {
+				$from = $at + strlen( $mark );
+				$out .= (string) gzuncompress( substr( $pdf, $from, strpos( $pdf, "\nendstream", $from ) - $from ) );
+				$at   = $from;
+			}
+			return $out;
+		};
+
+		/*
+		 * EVERY LENGTH ACROSS THE PAGE BOUNDARY, because where the block lands
+		 * depends on how tall a line is, and a single length proves only itself.
+		 */
+		$lowest  = 1000.0;
+		$no_fees = array();
+		for ( $n = 8; $n <= 18; $n++ ) {
+			$doc['lines'] = array_fill( 0, $n, $line );
+			$ops          = $streams( Invoice::pdf( $doc ) );
+			preg_match_all( '~ (-?[0-9.]+) Td \(~', $ops, $m );
+			ts_assert( count( $m[1] ) > 30, "no text was read back at {$n} lines, so this proves nothing" );
+			$lowest = min( $lowest, min( array_map( 'floatval', $m[1] ) ) );
+			if ( false === strpos( $ops, '(Frais)' ) ) {
+				$no_fees[] = $n;
+			}
+		}
+		// 8 mm from the bottom edge, in points.
+		ts_assert( $lowest >= 8 / 25.4 * 72, 'a figure was drawn at ' . round( $lowest / 72 * 25.4, 1 ) . ' mm from the bottom edge' );
+		ts_eq( $no_fees, array(), 'the fee counted in the total is not printed' );
+
+		$order->delete( true );
+	} );
+
 	ts_it( 'issues once the identity is filled in, in production too', function () use ( $product_id, $sides, $design ) {
 		ts_ck_regime( Vat::STANDARD );
 		update_option( 'teeshoop_legal', ts_ck_identity() );
@@ -1202,6 +1263,89 @@ function ts_checkout_suite( int $product_id, int $hoodie_id, int $bare_id ): voi
 		}
 
 		$order->delete( true );
+	} );
+
+	ts_it( 'announces an acompte to the customer and the workshop, and only once', function () use ( $product_id, $big_order ) {
+		/*
+		 * CMD-18. An acompte never passes through `payment_complete`, so a
+		 * deposit order was announced to nobody until the balance arrived.
+		 */
+		ts_ck_regime( Vat::STANDARD );
+		$config = Ledger::config();
+		$order  = $big_order( $product_id, (int) $config['deposit_from_ht'] + 100000 );
+		Ledger::authorise( $order );
+		$order = wc_get_order( $order->get_id() );
+		Ledger::record( $order, Settlement::deposit_due( Ledger::due( $order ), $config ), 'Virement bancaire', 'VIR-ANNONCE-1' );
+		$order = wc_get_order( $order->get_id() );
+		ts_eq( $order->get_status(), 'ts-acompte', 'the order is not on its acompte' );
+
+		$rows  = Mail::for_order( $order->get_id() );
+		$kinds = array_count_values( array_column( $rows, 'kind' ) );
+		ts_eq( $kinds[ Notify::KIND_CONFIRM ] ?? 0, 1, 'the customer was not told the acompte arrived' );
+		ts_eq( $kinds[ Notify::KIND_WORKSHOP ] ?? 0, 1, 'the workshop was not told a proof is due' );
+		$confirm = array_values( array_filter( $rows, static fn( $r ): bool => Notify::KIND_CONFIRM === $r->kind ) )[0];
+		ts_assert( false !== strpos( (string) $confirm->subject, 'acompte' ), 'an acompte was confirmed as « c’est réglé »: ' . $confirm->subject );
+
+		// The balance: a second « voici la suite » would reach someone who may have approved already.
+		Ledger::record( $order, Ledger::due( $order ) - Ledger::received( $order ), 'Virement bancaire', 'VIR-ANNONCE-2' );
+		$kinds = array_count_values( array_column( Mail::for_order( $order->get_id() ), 'kind' ) );
+		ts_eq( $kinds[ Notify::KIND_CONFIRM ] ?? 0, 1, 'the balance announced the order a second time' );
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'says why an encashment was not recorded, instead of coming back as if it had been', function () use ( $product_id, $big_order ) {
+		/*
+		 * CMD-13. An empty amount, « 2.736,00 » as a bank statement writes it,
+		 * or a reference already recorded were dropped, and the page came back
+		 * as though it had worked. The handler is driven for real; wp_die and
+		 * the redirect are turned into exceptions so the run survives either.
+		 */
+		$order = $big_order( $product_id, 50000 );
+		$admin = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
+		ts_assert( ! empty( $admin ), 'no administrator on the mirror to act as the operator' );
+		$previous = get_current_user_id();
+		wp_set_current_user( (int) $admin[0]->ID );
+		Ledger::record( $order, 1000, 'Virement bancaire', 'VIR-DEJA-VU' );
+
+		$die      = static fn() => static function ( $message ) {
+			throw new \RuntimeException( 'die: ' . ( is_string( $message ) ? $message : '' ) );
+		};
+		$redirect = static function () {
+			throw new \RuntimeException( 'redirect' );
+		};
+		add_filter( 'wp_die_handler', $die );
+		add_filter( 'wp_redirect', $redirect, 1 );
+		$post = static function ( string $amount, string $reference ) use ( $order ): string {
+			$_POST    = array(
+				'order_id'  => (string) $order->get_id(),
+				'montant'   => $amount,
+				'moyen'     => 'Virement bancaire',
+				'reference' => $reference,
+				'_wpnonce'  => wp_create_nonce( 'teeshoop_encaissement' . $order->get_id() ),
+			);
+			$_REQUEST = $_POST;
+			try {
+				Ledger::handle_record();
+			} catch ( \RuntimeException $e ) {
+				return $e->getMessage();
+			}
+			return 'fell through';
+		};
+		try {
+			ts_assert( str_contains( $post( '', 'VIR-NEUF' ), 'Montant illisible' ), 'an empty amount came back without a word' );
+			ts_assert( str_contains( $post( '2.736,00', 'VIR-NEUF' ), 'Montant illisible' ), 'a thousands separator came back without a word' );
+			ts_assert( str_contains( $post( '10,00', 'VIR-DEJA-VU' ), 'déjà enregistrée' ), 'a reference already recorded came back without a word' );
+			ts_eq( $post( '10,00', 'VIR-NEUF' ), 'redirect', 'a real encashment did not go through' );
+			ts_eq( Ledger::received( wc_get_order( $order->get_id() ) ), 2000, 'what was recorded' );
+		} finally {
+			remove_filter( 'wp_die_handler', $die );
+			remove_filter( 'wp_redirect', $redirect, 1 );
+			$_POST    = array();
+			$_REQUEST = array();
+			wp_set_current_user( $previous );
+			$order->delete( true );
+		}
 	} );
 
 	ts_it( 'promises a firm order only where somebody authorised the deposit', function () use ( $product_id, $big_order ) {

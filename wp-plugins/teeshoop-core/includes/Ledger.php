@@ -694,7 +694,7 @@ final class Ledger {
 		check_admin_referer( self::ACTION_RECORD . $order->get_id() );
 
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- checked above.
-		$cents     = Money::from_eur( sanitize_text_field( wp_unslash( (string) ( $_POST['montant'] ?? '' ) ) ) );
+		$cents     = Money::parse_eur( sanitize_text_field( wp_unslash( (string) ( $_POST['montant'] ?? '' ) ) ) );
 		$method    = sanitize_text_field( wp_unslash( (string) ( $_POST['moyen'] ?? '' ) ) );
 		$reference = sanitize_text_field( wp_unslash( (string) ( $_POST['reference'] ?? '' ) ) );
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
@@ -707,7 +707,27 @@ final class Ledger {
 			);
 		}
 
-		self::record( $order, $cents, $method, $reference );
+		/*
+		 * NOTHING RECORDED, AND THE OPERATOR IS TOLD (CMD-13). An empty amount
+		 * (the grey figure in the box is a hint, not a value), « 2.736,00 » as a
+		 * bank statement writes it, or a reference already on this order were
+		 * all dropped by `record()`, and the page came back as if it had worked:
+		 * the order stayed unpaid and production stayed blocked.
+		 */
+		if ( null === $cents || $cents <= 0 ) {
+			wp_die(
+				esc_html__( 'Montant illisible ou nul : rien n’a été enregistré. Écrivez le montant reçu, sans séparateur de milliers, par exemple 2736,00.', 'teeshoop' ),
+				'',
+				array( 'response' => 400, 'back_link' => true )
+			);
+		}
+		if ( ! self::record( $order, $cents, $method, $reference ) ) {
+			wp_die(
+				esc_html__( 'Cette référence est déjà enregistrée sur cette commande : ce versement a déjà été compté, rien n’a été ajouté. Si c’est un second virement, reprenez son propre libellé.', 'teeshoop' ),
+				'',
+				array( 'response' => 409, 'back_link' => true )
+			);
+		}
 		wp_safe_redirect( $order->get_edit_order_url() );
 		exit;
 	}

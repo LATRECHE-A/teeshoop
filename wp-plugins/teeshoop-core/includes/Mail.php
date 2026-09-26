@@ -560,7 +560,7 @@ final class Mail {
 			);
 		}
 
-		$rebuilt = Notify::rebuild( (string) $row->kind, (int) $row->order_id );
+		$rebuilt = Notify::rebuild( (string) $row->kind, (int) $row->order_id, (string) ( $row->subject ?? '' ) );
 		if ( empty( $rebuilt['ok'] ) ) {
 			/*
 			 * A REFUSAL THAT WILL NEVER CHANGE IS NOT A FAILURE TO RETRY. An

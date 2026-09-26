@@ -190,6 +190,22 @@ final class Bat {
 	}
 
 	/**
+	 * The last version the customer approved or waived, or null.
+	 *
+	 * Not `current()`: a corrected version prepared for a reprint is the most
+	 * recent one and was never approved, and a claim that read it lost the
+	 * evidence that decides « erreur validée dans le BAT » (CMD-17).
+	 */
+	public static function last_cleared( \WC_Order $order ): ?array {
+		foreach ( array_reverse( self::versions( $order ) ) as $version ) {
+			if ( ! empty( $version['approval'] ) || ! empty( $version['waiver'] ) ) {
+				return $version;
+			}
+		}
+		return null;
+	}
+
+	/**
 	 * Whether THIS order may be produced, on the proof's evidence alone.
 	 *
 	 * Reads the approval on the CURRENT version, never the order's status, for
@@ -1650,6 +1666,24 @@ final class Bat {
 		}
 
 		$last = count( $versions ) - 1;
+		/*
+		 * NOT ON A VERSION THE CUSTOMER SENT BACK (CMD-14). `refusal()` puts a
+		 * request for changes before any waiver, so one recorded here left the
+		 * press closed while the screen said « La production est autorisée ».
+		 * Their « imprimez quand même » is about the version they will receive:
+		 * that one is established first.
+		 */
+		if ( ! empty( $versions[ $last ]['changes'] ) ) {
+			Invoice::unlock( self::lock_name( $order ) );
+			return array(
+				'ok'     => false,
+				'reason' => sprintf(
+					/* translators: %d: a proof version number. */
+					__( 'Le client a demandé des modifications sur le BAT version %d : une renonciation ne peut pas porter sur une version qu’il a refusée. Établissez la version corrigée, puis faites-la valider ou recopiez sa renonciation sur celle-là.', 'teeshoop' ),
+					(int) $versions[ $last ]['version']
+				),
+			);
+		}
 		$versions[ $last ]['waiver'] = array(
 			'at'   => gmdate( 'c' ),
 			'by'   => function_exists( 'get_current_user_id' ) ? get_current_user_id() : 0,

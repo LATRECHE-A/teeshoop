@@ -862,14 +862,14 @@ final class Production {
 		$no = (int) ( $version['version'] ?? 0 );
 		if ( ! empty( $version['approval']['at'] ) ) {
 			return array(
-				'on'      => substr( (string) $version['approval']['at'], 0, 10 ),
+				'on'      => self::local_day( (string) $version['approval']['at'] ),
 				'version' => $no,
 				'by'      => 'client',
 			);
 		}
 		if ( ! empty( $version['waiver']['at'] ) ) {
 			return array(
-				'on'      => substr( (string) $version['waiver']['at'], 0, 10 ),
+				'on'      => self::local_day( (string) $version['waiver']['at'] ),
 				'version' => $no,
 				'by'      => 'atelier',
 			);
@@ -1028,6 +1028,23 @@ final class Production {
 				(string) (int) ( $lot['share_ht'] ?? 0 ),
 			)
 		);
+	}
+
+	/**
+	 * The shop's calendar day of an instant written by `gmdate( 'c' )`.
+	 *
+	 * NOT ITS FIRST TEN CHARACTERS (CMD-15): those are the UTC day, so a proof
+	 * approved on Tuesday at 00:45 in Paris started its lead time on Monday,
+	 * and the target date and the film and blank deadlines all came one
+	 * working day early. `Settings::today()` counts in the site's timezone,
+	 * and so does this.
+	 */
+	private static function local_day( string $iso ): string {
+		$ts = strtotime( $iso );
+		if ( false === $ts ) {
+			return substr( $iso, 0, 10 );
+		}
+		return function_exists( 'wp_date' ) ? (string) wp_date( 'Y-m-d', $ts ) : gmdate( 'Y-m-d', $ts );
 	}
 
 	/** The lot record this order belongs to, or null. */
