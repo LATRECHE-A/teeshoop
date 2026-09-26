@@ -369,7 +369,7 @@ final class Seo {
 		if ( 0 === (int) $term->parent ) {
 			return true;
 		}
-		return Content::has( 'categorie:' . $term->slug );
+		return Content::has( Content::category_key( $term ) );
 	}
 
 	/** Whether this request has been marked `noindex` by anyone at all. */
@@ -780,7 +780,7 @@ final class Seo {
 		}
 		if ( is_tax( 'product_cat' ) ) {
 			$term = get_queried_object();
-			return $term instanceof \WP_Term ? 'categorie:' . $term->slug : '';
+			return $term instanceof \WP_Term ? Content::category_key( $term ) : '';
 		}
 		if ( is_page() ) {
 			$post = get_post();

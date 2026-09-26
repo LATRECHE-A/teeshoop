@@ -37,7 +37,10 @@ $ts_chips = applied_chips();
  * `noindex` anyway, and a buyer who has narrowed to three references has left
  * the reading part behind.
  */
-$ts_key   = $ts_term instanceof \WP_Term ? 'categorie:' . $ts_term->slug : ( is_shop() ? 'boutique' : '' );
+// The family's text by the key the plugin resolves, not by the slug (THE-03).
+$ts_key   = $ts_term instanceof \WP_Term
+	? ( class_exists( '\\Teeshoop\\Core\\Content' ) ? \Teeshoop\Core\Content::category_key( $ts_term ) : 'categorie:' . $ts_term->slug )
+	: ( is_shop() ? 'boutique' : '' );
 /*
  * A SORTED LISTING IS ONE OF THOSE VIEWS TOO, and it was missing from this
  * test. `?orderby=price` is `noindex` like a filtered one, so rendering the

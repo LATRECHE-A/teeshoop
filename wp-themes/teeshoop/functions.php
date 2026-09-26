@@ -819,26 +819,28 @@ function quote_url( int $product_id = 0 ): string {
  * The top-level product categories that actually have something in them,
  * counting what is filed UNDER them and not only what is filed directly on them.
  *
- * `hide_empty` stays true, and for the reason it was written: a navigation that
- * offers a category leading to "aucun produit" is the shop telling a buyer it
- * is unfinished.
+ * A navigation that offers a category leading to "aucun produit" is the shop
+ * telling a buyer it is unfinished, so an empty family is left out.
  *
- * WHAT WAS WRONG WITH IT. `get_terms( 'hide_empty' => true )` reads
- * `term_taxonomy.count`, which WooCommerce fills with the products filed on
- * THAT term exactly. The importer files a t-shirt under « T-shirts > Manches
- * courtes », so on 03/09/2026 the mirror measured:
+ * WHAT WAS WRONG WITH IT, TWICE. `hide_empty => true` filtered on
+ * `term_taxonomy.count`, the products filed on THAT term exactly, and the
+ * importer files a t-shirt under « T-shirts > Manches courtes ». On 03/09/2026
+ * the mirror measured « T-shirts » at 0 over a child at 139, and the family
+ * vanished from the navigation.
  *
- *     T-shirts   count 0    child « Manches courtes » count 139
- *     Polos      count 2    children 88 + 14
- *     Sweats     count 168  no child
+ * The first fix added each child's count to the parent's, and that counted
+ * twice (THE-01). On the front end WooCommerce's `wc_change_term_counts`
+ * (hooked on `get_terms`) already replaces `count` with the figure
+ * `_wc_term_recount()` keeps in `product_count_product_cat`: descendants rolled
+ * up, products hidden from the catalogue left out, which is the number the
+ * category page itself prints. `get_term()` does not pass through that filter,
+ * so the children were added RAW on top. Production showed a T-shirts tile at
+ * 368 references over a category page that says 190: 190 rolled up, plus 178
+ * again.
  *
- * and this function returned two families out of three. A shop with 184
- * t-shirts in it did not have « T-shirts » in its navigation, and nothing said
- * so: the category was not broken, it was invisible.
- *
- * The fix counts descendants. `get_term_children()` is cheap here (one cached
- * option-like read per taxonomy) and the whole result is memoised for the
- * request, because the masthead and the homepage both ask.
+ * So the count is WooCommerce's, read once, with `hide_empty => false` so that
+ * the stale raw figure is not what decides. Memoised for the request, because
+ * the masthead and the homepage both ask.
  *
  * @return \WP_Term[]
  */
@@ -861,34 +863,22 @@ function top_categories(): array {
 		return $cache = array();
 	}
 
-	$kept = array();
-	foreach ( $terms as $term ) {
-		if ( ! $term instanceof \WP_Term ) {
-			continue;
-		}
-		$total = (int) $term->count;
-		foreach ( (array) get_term_children( $term->term_id, 'product_cat' ) as $child_id ) {
-			$child  = get_term( (int) $child_id, 'product_cat' );
-			$total += $child instanceof \WP_Term ? (int) $child->count : 0;
-		}
-		if ( $total > 0 ) {
-			// Carried on the term so the caller does not count twice; `count`
-			// itself is left alone, because it is WooCommerce's field and a
-			// theme writing to it would be a second bookkeeping.
-			$term->ts_total = $total;
-			$kept[]         = $term;
-		}
-	}
-	return $cache = $kept;
+	return $cache = array_values(
+		array_filter(
+			$terms,
+			static fn( $term ): bool => $term instanceof \WP_Term && (int) $term->count > 0
+		)
+	);
 }
 
 /**
- * How many references a family holds, itself and everything under it.
+ * How many references a family holds, itself and everything under it: the
+ * number its own category page prints. See `top_categories()`.
  *
- * @param \WP_Term $term A product category.
+ * @param \WP_Term $term A product category, as `get_terms()` returned it.
  */
 function family_count( \WP_Term $term ): int {
-	return isset( $term->ts_total ) ? (int) $term->ts_total : (int) $term->count;
+	return (int) $term->count;
 }
 
 /**
@@ -1058,8 +1048,6 @@ function sort_control(): void {
 			'menu_order' => __( 'Tri par défaut', 'teeshoop' ),
 			'popularity' => __( 'Les plus commandés', 'teeshoop' ),
 			'date'       => __( 'Les plus récents', 'teeshoop' ),
-			'price'      => __( 'Prix croissant', 'teeshoop' ),
-			'price-desc' => __( 'Prix décroissant', 'teeshoop' ),
 		)
 	);
 	if ( ! is_array( $options ) || count( $options ) < 2 ) {
@@ -1099,6 +1087,40 @@ function sort_control(): void {
 	wc_query_string_form_fields( null, array( 'orderby', 'submit', 'paged', 'product-page' ) );
 	echo '</form>';
 }
+
+/**
+ * NO SORT BY PRICE, IN THE CONTROL OR IN THE ADDRESS (THE-02).
+ *
+ * WooCommerce sorts « Prix croissant » on `min_price` in its lookup table, and
+ * that is the wrong number in both of the states this shop is in. A reference
+ * imported without a tariff has none, so it sorts FIRST: measured on the
+ * production T-shirts listing, the default order showed nine priced cards on
+ * page one and « Prix croissant » showed none. And a personalisable product's
+ * `_price` is the blank's base cost, which `ProductPage` already calls « not a
+ * price anyone pays »: the price a buyer sees is `Pricing::headline()`, which
+ * the lookup table knows nothing about. A sort that orders by a number nobody
+ * is shown is a sort that lies.
+ *
+ * So the control does not offer it, and an address that still asks for it (an
+ * old link, a crawler, `woocommerce_default_catalog_orderby` set to price) gets
+ * the default order. WooCommerce reads the query string first and the query
+ * variable second (`WC_Query::get_catalog_ordering_args`), and splits
+ * « price-desc » on its dash, so both are cleared on anything starting « price ».
+ */
+function no_price_sort( \WP $wp ): void {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a public listing's sort, cleared, never trusted.
+	$asked = isset( $_GET['orderby'] ) ? $_GET['orderby'] : ( $wp->query_vars['orderby'] ?? '' );
+	$asked = is_array( $asked ) ? (string) reset( $asked ) : (string) $asked;
+	if ( str_starts_with( strtolower( trim( $asked ) ), 'price' ) ) {
+		unset( $_GET['orderby'], $wp->query_vars['orderby'] );
+	}
+}
+add_action( 'parse_request', __NAMESPACE__ . '\\no_price_sort' );
+
+function no_price_default( $orderby ) {
+	return str_starts_with( strtolower( (string) $orderby ), 'price' ) ? 'menu_order' : $orderby;
+}
+add_filter( 'woocommerce_default_catalog_orderby', __NAMESPACE__ . '\\no_price_default' );
 
 /**
  * A product with no photograph says so, instead of showing a picture frame.

@@ -178,10 +178,57 @@ final class Content {
 		return $out;
 	}
 
+	/**
+	 * The content key of a product category: `categorie:{slug}` when the
+	 * repository has text under its slug, else, for a top-level family, under
+	 * its NAME.
+	 *
+	 * BY NAME BECAUSE THAT IS WHAT THE SHOP ALREADY IDENTIFIES A FAMILY BY
+	 * (THE-03). The texts are keyed `categorie:t-shirts`, `categorie:polos`,
+	 * `categorie:sweats`, which are the mirror's slugs; production's, inherited
+	 * from the old site, are `t-shirts`, `blog-polos-personnalises` and
+	 * `sweatshirts`. Measured: the Sweats page rendered its bare name with no
+	 * introduction, text or FAQ, and the shop page lost two of its three family
+	 * links. The names are « T-Shirts », « Polos », « Sweats » on both, and
+	 * `Taxonomy::category_id()` files every import under a family BY THAT NAME,
+	 * so a family renamed would stop receiving products before it stopped
+	 * receiving text. Top level only: « Manches courtes » is the name of a
+	 * child of two different families.
+	 */
+	public static function category_key( \WP_Term $term ): string {
+		$by_slug = 'categorie:' . $term->slug;
+		if ( self::has( $by_slug ) || 0 !== (int) $term->parent ) {
+			return $by_slug;
+		}
+		$by_name = 'categorie:' . sanitize_title( $term->name );
+		return self::has( $by_name ) ? $by_name : $by_slug;
+	}
+
+	/** The category a `categorie:` key names on this site, or null. See `category_key()`. */
+	private static function category_for( string $key ): ?\WP_Term {
+		$term = get_term_by( 'slug', substr( $key, 10 ), 'product_cat' );
+		if ( $term instanceof \WP_Term ) {
+			return $term;
+		}
+		$families = get_terms(
+			array(
+				'taxonomy'   => 'product_cat',
+				'parent'     => 0,
+				'hide_empty' => false,
+			)
+		);
+		foreach ( is_array( $families ) ? $families : array() as $family ) {
+			if ( $family instanceof \WP_Term && self::category_key( $family ) === $key ) {
+				return $family;
+			}
+		}
+		return null;
+	}
+
 	/** Where a content key lives on this site, or '' when it does not exist. */
 	public static function url_for( string $key ): string {
 		if ( str_starts_with( $key, 'categorie:' ) ) {
-			$term = get_term_by( 'slug', substr( $key, 10 ), 'product_cat' );
+			$term = self::category_for( $key );
 			if ( ! $term instanceof \WP_Term ) {
 				return '';
 			}
@@ -396,12 +443,20 @@ final class Content {
 			return $counts;
 		}
 
+		/*
+		 * `hide_empty => false` and the count read below, for the reason
+		 * `Theme\top_categories()` gives: `hide_empty` filters on the RAW count
+		 * of products filed on the family itself, and an import files them one
+		 * level down, so a family of 190 t-shirts can have a raw count of 0.
+		 * The count WooCommerce puts on the term on the front end is the rolled
+		 * up one, the number its own page prints.
+		 */
 		$counts = array();
 		$terms  = get_terms(
 			array(
 				'taxonomy'   => 'product_cat',
 				'parent'     => 0,
-				'hide_empty' => true,
+				'hide_empty' => false,
 			)
 		);
 		if ( is_wp_error( $terms ) || ! is_array( $terms ) ) {
@@ -423,17 +478,18 @@ final class Content {
 
 		$total = 0;
 		$by    = array(
-			't-shirts' => 'NB_TSHIRTS',
-			'polos'    => 'NB_POLOS',
-			'sweats'   => 'NB_SWEATS',
+			'categorie:t-shirts' => 'NB_TSHIRTS',
+			'categorie:polos'    => 'NB_POLOS',
+			'categorie:sweats'   => 'NB_SWEATS',
 		);
 		foreach ( $terms as $term ) {
-			if ( ! $term instanceof \WP_Term || (int) $term->term_id === $default ) {
+			if ( ! $term instanceof \WP_Term || (int) $term->term_id === $default || (int) $term->count <= 0 ) {
 				continue;
 			}
 			$total += (int) $term->count;
-			if ( isset( $by[ $term->slug ] ) ) {
-				$counts[ $by[ $term->slug ] ] = (int) $term->count;
+			$key    = self::category_key( $term );
+			if ( isset( $by[ $key ] ) ) {
+				$counts[ $by[ $key ] ] = (int) $term->count;
 			}
 		}
 		$counts['NB_REFERENCES'] = $total;
@@ -676,8 +732,8 @@ final class Content {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- reading which term is on screen.
 			$term_id = isset( $_GET['tag_ID'] ) ? absint( wp_unslash( $_GET['tag_ID'] ) ) : 0;
 			$term    = $term_id > 0 ? get_term( $term_id, 'product_cat' ) : null;
-			if ( $term instanceof \WP_Term && self::has( 'categorie:' . $term->slug ) ) {
-				$key = 'categorie:' . $term->slug;
+			if ( $term instanceof \WP_Term && self::has( self::category_key( $term ) ) ) {
+				$key = self::category_key( $term );
 			}
 		} elseif ( 'page' === $screen->id && 'post' === $screen->base ) {
 			$post = get_post();

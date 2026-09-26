@@ -29,6 +29,7 @@ if ( 'cli' !== PHP_SAPI ) {
 	exit( 1 );
 }
 
+use Teeshoop\Core\Content;
 use Teeshoop\Core\Listing;
 use Teeshoop\Core\VariableProduct;
 
@@ -78,7 +79,146 @@ function ts_listing_delete( int $parent_id ): void {
 	wp_delete_post( $parent_id, true );
 }
 
+/** The family, the sub-family and the references the counting case files. */
+function ts_listing_family_cleanup(): void {
+	foreach ( get_posts( array( 'post_type' => 'product', 'post_status' => 'any', 's' => 'Référence du harnais', 'fields' => 'ids', 'posts_per_page' => 50 ) ) as $id ) {
+		wp_delete_post( (int) $id, true );
+	}
+	foreach ( array( 'ts-sous-famille-harnais', 'ts-famille-harnais' ) as $slug ) {
+		$term = get_term_by( 'slug', $slug, 'product_cat' );
+		if ( $term instanceof \WP_Term ) {
+			wp_delete_term( (int) $term->term_id, 'product_cat' );
+		}
+	}
+}
+
 function ts_listing_suite(): void {
+	/*
+	 * THE-01. The homepage tile of a family added each child's raw count to a
+	 * parent count WooCommerce had already rolled up, so a reference filed under
+	 * a sub-category was counted twice: 368 on the tile, 190 on the page.
+	 */
+	/*
+	 * THE-02. « Prix croissant » sorted on a price nobody is shown, and put
+	 * every unpriced reference first. Neither the control nor an old address
+	 * may reach it now.
+	 */
+	/*
+	 * THE-03. The family texts are keyed by the mirror's slugs, and production
+	 * inherited others from the old site: /categorie/sweatshirts/ rendered its
+	 * bare name, and the shop page lost its links to polos and sweats.
+	 */
+	ts_it(
+		'finds a family text and its link by the family name when the slug is the old site one',
+		function () {
+			// Production's own slug. An existing « Sweats » is borrowed and put back.
+			$existing = null;
+			foreach ( get_terms( array( 'taxonomy' => 'product_cat', 'parent' => 0, 'hide_empty' => false ) ) as $t ) {
+				if ( 'Sweats' === $t->name ) {
+					$existing = $t;
+				}
+			}
+			if ( $existing ) {
+				$kept_slug = $existing->slug;
+				wp_update_term( $existing->term_id, 'product_cat', array( 'slug' => 'sweatshirts-harnais' ) );
+				$id = (int) $existing->term_id;
+			} else {
+				$made = wp_insert_term( 'Sweats', 'product_cat', array( 'slug' => 'sweatshirts-harnais' ) );
+				ts_assert( ! is_wp_error( $made ), 'the family could not be created' );
+				$id = (int) $made['term_id'];
+			}
+			// A child of another family that happens to carry a family's name.
+			$host  = wp_insert_term( 'Hôte du harnais', 'product_cat', array( 'slug' => 'ts-hote-harnais' ) );
+			$child = wp_insert_term( 'Polos', 'product_cat', array( 'slug' => 'ts-polos-enfant-harnais', 'parent' => $host['term_id'] ) );
+
+			try {
+				$term = get_term( $id, 'product_cat' );
+				ts_eq( Content::url_for( 'categorie:sweats' ), (string) get_term_link( $term ), 'the link to the family went missing' );
+				ts_eq( Content::category_key( $term ), 'categorie:sweats', 'the family was not recognised by its name' );
+				ts_eq(
+					Content::category_key( get_term( (int) $child['term_id'], 'product_cat' ) ),
+					'categorie:ts-polos-enfant-harnais',
+					'a sub-category took a family text because of its name'
+				);
+				$tshirts = get_term_by( 'slug', 't-shirts', 'product_cat' );
+				if ( $tshirts instanceof \WP_Term ) {
+					ts_eq( Content::category_key( $tshirts ), 'categorie:t-shirts', 'a slug that matches must keep matching' );
+				}
+			} finally {
+				wp_delete_term( (int) $child['term_id'], 'product_cat' );
+				wp_delete_term( (int) $host['term_id'], 'product_cat' );
+				if ( $existing ) {
+					wp_update_term( $id, 'product_cat', array( 'slug' => $kept_slug ) );
+				} else {
+					wp_delete_term( $id, 'product_cat' );
+				}
+			}
+		}
+	);
+
+	ts_it(
+		'offers no sort by price, and gives an address that asks for one the default order',
+		function () {
+			ob_start();
+			\Teeshoop\Theme\sort_control();
+			$form = (string) ob_get_clean();
+			ts_assert( false !== strpos( $form, 'value="date"' ), 'the sort control did not render, so it proves nothing' );
+			ts_assert( false === strpos( $form, 'value="price' ), 'the control still offers a sort by price' );
+
+			foreach ( array( 'price', 'price-desc', 'PRICE' ) as $asked ) {
+				$_GET['orderby'] = $asked;
+				$wp              = new \WP();
+				$wp->query_vars  = array( 'orderby' => $asked );
+				do_action( 'parse_request', $wp );
+				$args = WC()->query->get_catalog_ordering_args();
+				WC()->query->remove_ordering_args();
+				ts_assert( ! isset( $_GET['orderby'] ) && ! isset( $wp->query_vars['orderby'] ), "« {$asked} » survived the request" );
+				ts_assert( false === strpos( (string) $args['orderby'], 'price' ), "« {$asked} » still sorted by price" );
+			}
+			unset( $_GET['orderby'] );
+
+			// A default somebody set to price in WooCommerce's settings is the same lie.
+			$kept = get_option( 'woocommerce_default_catalog_orderby' );
+			update_option( 'woocommerce_default_catalog_orderby', 'price' );
+			$args = WC()->query->get_catalog_ordering_args();
+			WC()->query->remove_ordering_args();
+			update_option( 'woocommerce_default_catalog_orderby', $kept );
+			ts_assert( false === strpos( (string) $args['orderby'], 'price' ), 'a default set to price still sorted by price' );
+		}
+	);
+
+	ts_it(
+		'counts a family once, as its own category page does, however its references are filed',
+		function () {
+			// A run that died before its clean-up must not fail the next one.
+			ts_listing_family_cleanup();
+			$parent = wp_insert_term( 'Famille du harnais', 'product_cat', array( 'slug' => 'ts-famille-harnais' ) );
+			$child  = wp_insert_term( 'Sous-famille du harnais', 'product_cat', array( 'slug' => 'ts-sous-famille-harnais', 'parent' => $parent['term_id'] ) );
+			foreach ( array( $child['term_id'], $child['term_id'], $parent['term_id'] ) as $n => $term_id ) {
+				$p = new WC_Product_Simple();
+				$p->set_name( 'Référence du harnais ' . $n );
+				$p->set_status( 'publish' );
+				$p->set_catalog_visibility( 'visible' );
+				$p->set_category_ids( array( (int) $term_id ) );
+				$p->save();
+			}
+			// What the deferred count at the end of an import runs.
+			wc_recount_all_terms();
+
+			$page = count( wc_get_products( array( 'category' => array( 'ts-famille-harnais' ), 'status' => 'publish', 'limit' => -1, 'return' => 'ids' ) ) );
+			ts_eq( $page, 3, 'the category page itself must see the three references' );
+
+			$tile = null;
+			foreach ( \Teeshoop\Theme\top_categories() as $term ) {
+				if ( 'ts-famille-harnais' === $term->slug ) {
+					$tile = \Teeshoop\Theme\family_count( $term );
+				}
+			}
+			ts_listing_family_cleanup();
+			ts_eq( $tile, $page, 'the family tile and its category page disagree' );
+		}
+	);
+
 	global $wpdb;
 
 	$unpriced = ts_listing_product( 'Banc de listing, sans prix', false );
