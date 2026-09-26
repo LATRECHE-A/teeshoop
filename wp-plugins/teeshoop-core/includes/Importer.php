@@ -396,6 +396,8 @@ final class Importer {
 			$product->set_status( 'draft' );
 			$product->update_meta_data( self::META_DELISTED, '1' );
 			$product->save();
+			// And the offer sold on it, which delisting did not know about (FOU-06).
+			Gamme::withdraw_offer_of( $ref );
 			++$count;
 		}
 		return $count;
@@ -1151,7 +1153,9 @@ final class Importer {
 		 * <img src>. The name we choose carries the maker's code instead, which
 		 * is public information and is what a buyer recognises.
 		 */
-		$base      = '' !== $public ? $public : 'ref-' . $mapped['ref'];
+		// Without a maker's code, the product id: `ref-<référence>` published the
+		// wholesaler's reference in the file name the seal hides (FOU-07).
+		$base      = '' !== $public ? $public : 'produit-' . $product_id;
 		$front     = self::attachment( (string) $mapped['front'], $mapped['name'], $problems, $downloads, $base );
 		$back      = self::attachment( (string) $mapped['back'], $mapped['name'] . ' (dos)', $problems, $downloads, $base . '-dos' );
 

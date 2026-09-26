@@ -385,6 +385,8 @@ final class Product {
 				$map[ $studio ] = $term;
 			}
 		}
+		$before = json_decode( (string) $product->get_meta( self::META_BLANK_COLOURS, true ), true );
+		$before = is_array( $before ) ? $before : array();
 		$product->update_meta_data( self::META_BLANK_COLOURS, array() === $map ? '' : (string) wp_json_encode( $map ) );
 
 		/*
@@ -400,12 +402,36 @@ final class Product {
 		 * couleur que personne n'a choisie. Trouvé par la passe adversariale du
 		 * 4 septembre 2026.
 		 *
-		 * EFFACÉ ET PAS RECALCULÉ, parce que le nuancier vient d'une mesure de
+		 * RÉDUIT ET PAS RECALCULÉ, parce que le nuancier vient d'une mesure de
 		 * pastilles et pas d'une saisie : le recalculer ici mettrait une
 		 * deuxième implémentation de `Gamme::palette()` dans un gestionnaire de
-		 * formulaire. Sans lui, l'éditeur retombe sur ses propres teintes, ce
-		 * qui est un état lisible, et « teeshoop gamme appliquer » le réécrit.
+		 * formulaire. « teeshoop gamme appliquer » le réécrit en entier.
+		 *
+		 * ET SEULEMENT CE QUI A BOUGÉ (FOU-08). Il était effacé à CHAQUE
+		 * enregistrement de l'offre, correction de description comprise, et le
+		 * commentaire promettait que l'éditeur retomberait sur ses propres
+		 * teintes : l'éditeur natif n'en a pas, il annonce « Aucun coloris n'est
+		 * déclaré » et crée tout en blanc, et le panier n'accepte plus que le
+		 * blanc. Une carte inchangée garde son nuancier ; une carte modifiée perd
+		 * les seules pastilles dont la correspondance a changé.
 		 */
-		$product->delete_meta_data( self::META_BLANK_PALETTE );
+		if ( $map === $before ) {
+			return;
+		}
+		$palette = json_decode( (string) $product->get_meta( self::META_BLANK_PALETTE, true ), true );
+		$gardees = array_values(
+			array_filter(
+				is_array( $palette ) ? $palette : array(),
+				static function ( $entry ) use ( $map, $before ): bool {
+					$id = is_array( $entry ) ? sanitize_key( (string) ( $entry['id'] ?? '' ) ) : '';
+					return '' !== $id && isset( $map[ $id ], $before[ $id ] ) && $map[ $id ] === $before[ $id ];
+				}
+			)
+		);
+		if ( array() === $gardees ) {
+			$product->delete_meta_data( self::META_BLANK_PALETTE );
+		} else {
+			$product->update_meta_data( self::META_BLANK_PALETTE, (string) wp_json_encode( $gardees ) );
+		}
 	}
 }

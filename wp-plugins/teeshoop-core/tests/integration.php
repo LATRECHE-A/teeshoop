@@ -538,6 +538,64 @@ ts_it( 'keeps the quantity on the breakdown whatever tries to change it, down to
 	$order->delete( true );
 } );
 
+ts_it( 'keeps the measured swatches when an offer is saved, and drops only a swatch whose mapping moved', function () use ( $product_id ) {
+	/*
+	 * FOU-08. Every save of the offer in the admin erased its palette, and the
+	 * native editor has no colours of its own to fall back on: « aucun coloris
+	 * n'est déclaré », everything white, and the cart accepting white only.
+	 */
+	$keys  = array( Product::META, Product::META_BLANK_REF, Product::META_BLANK_COLOURS, Product::META_BLANK_PALETTE );
+	$avant = array();
+	foreach ( $keys as $k ) {
+		$avant[ $k ] = get_post_meta( $product_id, $k, true );
+	}
+	$map = array( 'white' => 'White', 'black' => 'Black' );
+	update_post_meta( $product_id, Product::META_BLANK_COLOURS, wp_json_encode( $map ) );
+	update_post_meta(
+		$product_id,
+		Product::META_BLANK_PALETTE,
+		wp_json_encode(
+			array(
+				array( 'id' => 'white', 'name' => 'White', 'stops' => array( '#ffffff' ) ),
+				array( 'id' => 'black', 'name' => 'Black', 'stops' => array( '#101010' ) ),
+			)
+		)
+	);
+	$enregistre = static function ( array $carte ) use ( $product_id, $avant ): void {
+		$_POST[ Product::META ]               = (string) $avant[ Product::META ];
+		$_POST[ Product::META_BLANK_REF ]     = (string) $avant[ Product::META_BLANK_REF ];
+		$_POST[ Product::META_BLANK_COLOURS ] = $carte;
+		$product = wc_get_product( $product_id );
+		Product::save( $product );
+		$product->save();
+		unset( $_POST[ Product::META ], $_POST[ Product::META_BLANK_REF ], $_POST[ Product::META_BLANK_COLOURS ] );
+	};
+
+	$enregistre( $map );
+	ts_eq( array_column( Product::blank_palette_of( $product_id ), 'id' ), array( 'white', 'black' ), 'saving an unchanged offer erased its swatches' );
+	$enregistre( array( 'white' => 'White', 'black' => 'Jet Black' ) );
+	ts_eq( array_column( Product::blank_palette_of( $product_id ), 'id' ), array( 'white' ), 'only the swatch whose mapping moved should go' );
+
+	foreach ( $avant as $k => $v ) {
+		'' === $v ? delete_post_meta( $product_id, $k ) : update_post_meta( $product_id, $k, $v );
+	}
+} );
+
+ts_it( 'takes the offer off sale when the importer unpublishes its blank', function () {
+	// FOU-06 : `Importer::delist()` appelle ceci pour chaque référence dépubliée.
+	$offre = new \WC_Product_Simple();
+	$offre->set_name( 'Offre sur un textile retiré' );
+	$offre->set_status( 'publish' );
+	$offre->set_regular_price( '12' );
+	$offre->update_meta_data( \Teeshoop\Core\Gamme::META_SOURCE, 'ZZFOU06REF' );
+	$offre->save();
+	ts_assert( \Teeshoop\Core\Gamme::withdraw_offer_of( 'ZZFOU06REF' ), 'the offer was not withdrawn' );
+	$offre = wc_get_product( $offre->get_id() );
+	ts_eq( (string) $offre->get_regular_price(), '', 'the offer still has a price' );
+	ts_assert( ! $offre->is_purchasable(), 'the offer can still be bought' );
+	$offre->delete( true );
+} );
+
 ts_it( 'writes the workshop hand-off onto the order line', function () use ( $product_id, $sides, $design ) {
 	WC()->cart->empty_cart();
 	Cart::add(

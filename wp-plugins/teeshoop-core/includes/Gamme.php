@@ -743,6 +743,19 @@ final class Gamme {
 				$rows[]     = $row;
 				continue;
 			}
+			/*
+			 * UN TEXTILE NU DÉPUBLIÉ RETIRE SON OFFRE (FOU-06). `blank_product()`
+			 * trouve aussi un brouillon, donc une référence que l'import a
+			 * dépubliée (le fournisseur ne la liste plus) gardait son offre en
+			 * vente, avec son prix et son nuancier d'avant : le client dessinait,
+			 * puis le panier refusait.
+			 */
+			if ( 'publish' !== $blank->get_status() ) {
+				$row['why']     = 'le textile nu n’est plus en vente (dépublié par l’import)';
+				$row['retired'] = self::withdraw( $ref, $dry_run );
+				$rows[]         = $row;
+				continue;
+			}
 
 			$image = (int) $blank->get_image_id();
 			if ( $image <= 0 ) {
@@ -977,6 +990,17 @@ final class Gamme {
 		return true;
 	}
 
+	/**
+	 * Withdraw the offer sold on a blank the importer has just unpublished.
+	 *
+	 * Called by `Importer::delist()` for each reference it takes off the shop,
+	 * so an offer stops selling the moment its blank does, not at the next
+	 * « teeshoop gamme appliquer » somebody remembers to run (FOU-06).
+	 */
+	public static function withdraw_offer_of( string $ref ): bool {
+		return self::withdraw( $ref, false );
+	}
+
 	/** The offer for a reference, or null. */
 	private static function find_offer( string $ref ): ?\WC_Product {
 		$found = get_posts(
@@ -1016,22 +1040,24 @@ final class Gamme {
 	}
 
 	/**
-	 * Le slug porte la référence, et c'est ce qui le rend stable.
+	 * Le slug de l'offre : le nom du textile, jamais la référence du grossiste.
 	 *
-	 * La référence garantit l'UNICITÉ, pas la stabilité, et il faut le dire
-	 * parce que le commentaire précédent promettait la seconde. `apply()`
-	 * réécrit le slug à CHAQUE exécution, donc un fournisseur qui renomme son
-	 * style plus un « teeshoop gamme appliquer » déplace toutes les adresses
-	 * indexées, et casse le slug que trois harnais écrivent en dur
-	 * (`a11y-verify`, `site-shots`, `product-shots`).
+	 * LA RÉFÉRENCE EN EST SORTIE LE 26/09/2026 (FOU-07). Elle garantissait
+	 * l'unicité, et elle publiait dans chaque adresse de fiche, d'atelier, du plan
+	 * de site et de chaque lien, la valeur que `Shelf::SEALED` retire partout
+	 * ailleurs : la référence du grossiste, qui est le préfixe littéral de ses
+	 * numéros d'article. Le nom du textile porte déjà la référence du FABRICANT
+	 * (« B&C #E150 »), qui est publique ; l'unicité restante est celle que
+	 * WordPress assure lui-même (`wp_unique_post_slug`).
 	 *
-	 * C'est un compromis assumé pour le référencement : un slug qui ne porte que
-	 * la référence serait stable et illisible. Le jour où une adresse doit
-	 * survivre à un renommage, c'est ici qu'il faut cesser de réécrire le slug
-	 * quand le produit existe déjà.
+	 * UNE ADRESSE QUI CHANGE REDIRIGE. `apply()` réécrit le slug, WooCommerce
+	 * enregistre par `wp_update_post`, et WordPress garde l'ancien dans
+	 * `_wp_old_slug` : l'ancienne adresse d'une fiche répond par une redirection
+	 * permanente vers la nouvelle.
 	 */
 	private static function offer_slug( string $ref, \WC_Product $blank ): string {
-		return sanitize_title( $blank->get_name() . '-a-personnaliser-' . $ref );
+		unset( $ref );
+		return sanitize_title( $blank->get_name() . '-a-personnaliser' );
 	}
 
 	/** Une phrase, sans point d'exclamation, qui dit ce que la page vend. */
