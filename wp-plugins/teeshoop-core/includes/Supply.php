@@ -93,6 +93,9 @@ final class Supply {
 	/** La table de dépôt, sans le préfixe de la base. */
 	private const TABLE = 'teeshoop_supply_raw';
 
+	/** Le début de la dernière marche complète, `Y-m-d H:i:s` UTC (voir `mark_gone`). */
+	public const OPTION_LAST_COMPLETE = 'teeshoop_supply_last_complete';
+
 	/**
 	 * Produits par page de la marche du catalogue.
 	 *
@@ -221,16 +224,17 @@ final class Supply {
 	 * suivante soit demandée, et `next` dit où reprendre.
 	 *
 	 * @param array{since?:string,page?:int,budget?:int,full?:bool} $opts
-	 * @return array{ok:bool,pages:int,products:int,next:?int,total:int,complete:bool,seconds:float,error?:string}
+	 * @return array{ok:bool,pages:int,products:int,unwritten:int,next:?int,total:int,complete:bool,seconds:float,error?:string}
 	 */
 	public static function sync( array $opts = array() ): array {
 		$why = self::unconfigured();
 		if ( '' !== $why ) {
 			return array(
-				'ok'       => false,
-				'pages'    => 0,
-				'products' => 0,
-				'next'     => null,
+				'ok'        => false,
+				'pages'     => 0,
+				'products'  => 0,
+				'unwritten' => 0,
+				'next'      => null,
 				'total'    => 0,
 				'complete' => false,
 				'seconds'  => 0.0,
@@ -251,9 +255,10 @@ final class Supply {
 			$query['sinceUpdated'] = $since;
 		}
 
-		$pages    = 0;
-		$products = 0;
-		$total    = 0;
+		$pages     = 0;
+		$products  = 0;
+		$unwritten = 0;
+		$total     = 0;
 		$next     = null;
 		$au_bout  = false;
 
@@ -262,10 +267,11 @@ final class Supply {
 			$read          = SupplyHttp::get( '/api/products/products', $query );
 			if ( ! $read['ok'] ) {
 				return array(
-					'ok'       => false,
-					'pages'    => $pages,
-					'products' => $products,
-					'next'     => $page,
+					'ok'        => false,
+					'pages'     => $pages,
+					'products'  => $products,
+					'unwritten' => $unwritten,
+					'next'      => $page,
 					'total'    => $total,
 					'complete' => false,
 					'seconds'  => round( microtime( true ) - $start, 2 ),
@@ -277,9 +283,22 @@ final class Supply {
 			$total = (int) ( $body['totalNumberPage'] ?? 0 );
 			$rows  = is_array( $body['products'] ?? null ) ? $body['products'] : array();
 
+			/*
+			 * A ROW THE TABLE REFUSED IS A ROW THIS WALK DID NOT SEE (FOU-11).
+			 * Its `seen_at` stays old, so a walk that ends « complete » over
+			 * one passing MySQL error marked a reference on sale as gone, and
+			 * the next import put its product in draft. The walk that lost a
+			 * write is not complete.
+			 */
 			foreach ( $rows as $product ) {
-				if ( is_array( $product ) && self::store( $product ) ) {
+				if ( ! is_array( $product ) ) {
+					continue;
+				}
+				$stored = self::store( $product );
+				if ( 'written' === $stored ) {
 					++$products;
+				} elseif ( 'failed' === $stored ) {
+					++$unwritten;
 				}
 			}
 
@@ -355,10 +374,11 @@ final class Supply {
 		}
 
 		return array(
-			'ok'       => true,
-			'pages'    => $pages,
-			'products' => $products,
-			'next'     => $next,
+			'ok'        => true,
+			'pages'     => $pages,
+			'products'  => $products,
+			'unwritten' => $unwritten,
+			'next'      => $next,
 			'total'    => $total,
 			/*
 			 * `complete` DÉCIDE SI L'IMPORT A LE DROIT DE DÉRÉFÉRENCER.
@@ -369,7 +389,7 @@ final class Supply {
 			 * ne montre que ce qui a bougé. Les deux cas rendent `false`, et
 			 * `Importer` ne retire alors rien.
 			 */
-			'complete' => null === $next && '' === $since && $au_bout,
+			'complete' => null === $next && '' === $since && $au_bout && 0 === $unwritten,
 			'seconds'  => round( microtime( true ) - $start, 2 ),
 		);
 	}
@@ -393,6 +413,16 @@ final class Supply {
 	 * n'est pas une référence disparue. C'est la même règle que `complete` porte
 	 * pour l'import, une couche plus bas.
 	 *
+	 * ET DEUX MARCHES COMPLÈTES DE SUITE (FOU-11). La marche pagine par
+	 * décalage, sans ordre demandé : une référence qui quitte l'assortiment
+	 * pendant les 94 secondes d'une marche fait reculer les suivantes d'un
+	 * rang, et la première de la page suivante n'est jamais lue. Une seule
+	 * marche « complète » la déclarait disparue et l'import la dépubliait
+	 * jusqu'au lendemain. Il faut maintenant qu'elle manque à la marche
+	 * complète précédente ET à celle-ci : `seen_at` antérieur au début de la
+	 * précédente. Un vrai retrait se voit donc un jour plus tard, ce qui coûte
+	 * moins qu'une fiche en vente retirée à tort.
+	 *
 	 * @param string $depuis Début de la marche, `Y-m-d H:i:s` UTC.
 	 * @return int Combien de références viennent d'être marquées.
 	 */
@@ -401,10 +431,15 @@ final class Supply {
 		if ( '' === $depuis ) {
 			return 0;
 		}
+		$precedente = (string) get_option( self::OPTION_LAST_COMPLETE, '' );
+		update_option( self::OPTION_LAST_COMPLETE, $depuis, false );
+		if ( '' === $precedente || $precedente >= $depuis ) {
+			return 0;
+		}
 		$n = $wpdb->query(
 			$wpdb->prepare(
 				'UPDATE `' . self::table() . '` SET gone = 1 WHERE gone = 0 AND seen_at < %s',
-				$depuis
+				$precedente
 			)
 		);
 		return false === $n ? 0 : (int) $n;
@@ -473,18 +508,20 @@ final class Supply {
 	 * Écrit un produit dans le dépôt.
 	 *
 	 * @param array<string,mixed> $product La charge utile telle que reçue.
+	 * @return string `written`, `skipped` (pas une référence qu'on peut garder)
+	 *                ou `failed` (la table l'a refusée).
 	 */
-	private static function store( array $product ): bool {
+	private static function store( array $product ): string {
 		global $wpdb;
 
 		$ref = self::text( $product['reference'] ?? '' );
 		if ( '' === $ref || strlen( $ref ) > 64 ) {
-			return false;
+			return 'skipped';
 		}
 
 		$payload = gzcompress( (string) wp_json_encode( $product ), 6 );
 		if ( false === $payload ) {
-			return false;
+			return 'failed';
 		}
 
 		$facts = self::classify( $product );
@@ -522,7 +559,7 @@ final class Supply {
 			)
 		);
 
-		return false !== $ecrit;
+		return false !== $ecrit ? 'written' : 'failed';
 	}
 
 	/**

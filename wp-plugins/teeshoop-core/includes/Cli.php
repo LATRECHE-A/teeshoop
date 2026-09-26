@@ -146,8 +146,9 @@ final class Cli {
 		// L'instant de départ, en UTC, pour que `mark_gone` sache ce que cette
 		// marche-ci n'a pas revu.
 		$debut   = gmdate( 'Y-m-d H:i:s' );
-		$pages   = 0;
-		$written = 0;
+		$pages     = 0;
+		$written   = 0;
+		$unwritten = 0;
 
 		while ( true ) {
 			$run = Supply::sync(
@@ -157,8 +158,9 @@ final class Cli {
 					'budget' => $budget,
 				)
 			);
-			$pages   += (int) $run['pages'];
-			$written += (int) $run['products'];
+			$pages     += (int) $run['pages'];
+			$written   += (int) $run['products'];
+			$unwritten += (int) ( $run['unwritten'] ?? 0 );
 
 			if ( ! $run['ok'] ) {
 				\WP_CLI::error( sprintf( 'Arrêt à la page %d après %d produits : %s', $page, $written, (string) $run['error'] ) );
@@ -197,7 +199,12 @@ final class Cli {
 		 * changé, et c'est ce drapeau qui autorise `Importer::delist()` à mettre
 		 * au brouillon tout ce qu'il n'a pas croisé.
 		 */
-		$complete = ! empty( $run['complete'] );
+		// Every call of the walk, not only the last: a write lost on page 3 of
+		// a walk resumed over several calls is a reference it did not see (FOU-11).
+		$complete = ! empty( $run['complete'] ) && 0 === $unwritten;
+		if ( $unwritten > 0 ) {
+			\WP_CLI::warning( sprintf( '%d produit(s) refusé(s) par la base pendant la marche : elle n’est pas comptée complète, rien ne sera déclaré disparu.', $unwritten ) );
+		}
 		update_option( 'teeshoop_supply_complete', $complete, false );
 		update_option( 'teeshoop_supply_synced_at', gmdate( 'c' ), false );
 

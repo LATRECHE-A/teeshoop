@@ -724,7 +724,149 @@ function ts_purchase_suite( int $product_id ): void {
 		ts_eq( \Teeshoop\Core\Supply::mode()['mode'], 'test', 'le compte fournisseur déclaré par ce miroir n’est pas « test » : corrigez TEESHOOP_SUPPLY_MODE dans wp-config.php' );
 	} );
 
+	ts_it( 'copies a re-shot photograph, and says why a photograph was not copied', function () {
+		/*
+		 * FOU-10 : la pièce jointe était retrouvée par le seul nom de fichier,
+		 * que le fournisseur garde d'une prise de vue à l'autre ; la fiche
+		 * gardait l'ancienne photo pour toujours. FOU-09 : une photo refusée
+		 * par la configuration rendait 0 sans rien écrire au rapport.
+		 */
+		$m = new \ReflectionMethod( \Teeshoop\Core\Importer::class, 'attachment' );
+		$m->setAccessible( true );
+		$fetched = array();
+		$http    = static function ( $pre, $args, $url ) use ( &$fetched ) {
+			$fetched[] = $url;
+			return array(
+				'headers'  => array(),
+				'body'     => '',
+				'response' => array( 'code' => 404, 'message' => 'Not Found' ),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		};
+		add_filter( 'pre_http_request', $http, 10, 3 );
+
+		$legacy = wp_insert_attachment( array( 'post_title' => 'ZZFOU10', 'post_mime_type' => 'image/jpeg', 'post_status' => 'inherit' ) );
+		update_post_meta( $legacy, '_teeshoop_source', 'ZZFOU10_15_FRONT.jpg' );
+		try {
+			$problems  = array();
+			$downloads = 0;
+			$first     = $m->invokeArgs( null, array( 'https://fournisseur.invalid/media-produit/1/ZZFOU10_15_FRONT.jpg', 'ZZ', &$problems, &$downloads, 'zz' ) );
+			ts_eq( $first, $legacy, 'la photographie déjà copiée doit être reprise, pas retéléchargée' );
+			ts_eq( $fetched, array(), 'une photographie déjà copiée a été retéléchargée' );
+
+			$problems = array();
+			$reshoot  = $m->invokeArgs( null, array( 'https://fournisseur.invalid/media-produit/2/ZZFOU10_15_FRONT.jpg', 'ZZ', &$problems, &$downloads, 'zz' ) );
+			ts_assert( $reshoot !== $legacy, 'une nouvelle prise de vue sous le même nom a gardé l’ancienne photographie' );
+			ts_eq( count( $fetched ), 1, 'la nouvelle prise de vue n’a pas été demandée' );
+			ts_assert( str_contains( implode( ' ', $problems ), 'HTTP 404' ), 'l’échec du téléchargement n’est pas au rapport' );
+
+			$problems = array();
+			$refused  = $m->invokeArgs( null, array( 'ftp://ailleurs.invalid/x/ZZFOU09.jpg', 'ZZ', &$problems, &$downloads, 'zz' ) );
+			ts_eq( $refused, 0, 'une photographie hors de l’hôte configuré ne doit pas être copiée' );
+			ts_assert( ! empty( $problems ), 'une photographie refusée par la configuration n’a rien laissé au rapport' );
+		} finally {
+			remove_filter( 'pre_http_request', $http, 10 );
+			wp_delete_attachment( $legacy, true );
+		}
+	} );
+
 	ts_ac_stub();
+
+	ts_it( 'never calls a walk complete over a row the table refused', function () {
+		/*
+		 * FOU-11. Une écriture refusée par MySQL n'était comptée ni comme
+		 * produit ni comme échec : la marche finissait « complète », la
+		 * référence gardait un vieux `seen_at` et `mark_gone` la retirait.
+		 */
+		global $wpdb;
+		$page = static function ( $pre, $args, $url ) {
+			if ( ! str_contains( (string) $url, '/api/products/products' ) ) {
+				return $pre;
+			}
+			return array(
+				'headers'  => array( 'content-type' => 'application/json' ),
+				'body'     => wp_json_encode(
+					array(
+						'totalNumberPage' => 1,
+						'products'        => array(
+							ts_ac_raw( array( 'reference' => 'ZZFOU11A' ) ),
+							ts_ac_raw( array( 'reference' => 'ZZFOU11B' ) ),
+						),
+					)
+				),
+				'response' => array( 'code' => 200 ),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		};
+		$refuse = static function ( $query ) {
+			return str_starts_with( ltrim( (string) $query ), 'INSERT' ) && str_contains( (string) $query, 'ZZFOU11B' )
+				? 'INSERT INTO `ts_table_absente_fou11` VALUES (1)'
+				: $query;
+		};
+		add_filter( 'pre_http_request', $page, 99, 3 );
+		add_filter( 'query', $refuse );
+		$suppress = $wpdb->suppress_errors( true );
+		try {
+			$lost = \Teeshoop\Core\Supply::sync( array( 'page' => 1, 'budget' => 30 ) );
+			ts_assert( $lost['ok'], 'la marche bouchonnée a échoué : ' . (string) ( $lost['error'] ?? '' ) );
+			ts_eq( (int) $lost['products'], 1, 'une ligne écrite' );
+			ts_eq( (int) $lost['unwritten'], 1, 'la ligne refusée n’est pas comptée' );
+			ts_assert( ! $lost['complete'], 'une marche qui a perdu une écriture se dit complète' );
+
+			remove_filter( 'query', $refuse );
+			$whole = \Teeshoop\Core\Supply::sync( array( 'page' => 1, 'budget' => 30 ) );
+			ts_assert( $whole['complete'], 'la même marche sans perte doit être complète, sinon ce cas ne prouve rien' );
+		} finally {
+			remove_filter( 'query', $refuse );
+			remove_filter( 'pre_http_request', $page, 99 );
+			$wpdb->suppress_errors( $suppress );
+			$wpdb->query( $wpdb->prepare( 'DELETE FROM `' . \Teeshoop\Core\Supply::table() . '` WHERE ref IN (%s, %s)', 'ZZFOU11A', 'ZZFOU11B' ) );
+		}
+	} );
+
+	ts_it( 'declares a reference gone only when two complete walks in a row missed it', function () {
+		/*
+		 * FOU-11. La marche pagine par décalage sans ordre : une référence
+		 * sautée par une seule marche complète était dépubliée jusqu'au
+		 * lendemain. Dates de l'an 2000 : aucune vraie ligne du dépôt n'est
+		 * aussi vieille, donc rien d'autre n'est touché.
+		 */
+		global $wpdb;
+		$table  = \Teeshoop\Core\Supply::table();
+		$before = get_option( \Teeshoop\Core\Supply::OPTION_LAST_COMPLETE, null );
+		$put    = static function ( string $ref, string $seen ) use ( $wpdb, $table ): void {
+			$wpdb->query(
+				$wpdb->prepare(
+					'INSERT INTO `' . $table . '` (ref, kind, shelf, sleeve, updated_at, seen_at, gone, payload) VALUES (%s, %s, %s, %s, NULL, %s, 0, %s)',
+					$ref,
+					'tee',
+					'',
+					'',
+					$seen,
+					gzcompress( '{}' )
+				)
+			);
+		};
+		$gone = static fn( string $ref ): int => (int) $wpdb->get_var( $wpdb->prepare( 'SELECT gone FROM `' . $table . '` WHERE ref = %s', $ref ) );
+
+		delete_option( \Teeshoop\Core\Supply::OPTION_LAST_COMPLETE );
+		$put( 'ZZFOU11OLD', '1999-12-01 00:00:00' );
+		try {
+			\Teeshoop\Core\Supply::mark_gone( '2000-01-01 00:00:00' );
+			ts_eq( $gone( 'ZZFOU11OLD' ), 0, 'une seule marche complète a suffi à déclarer une référence disparue' );
+
+			// Vue par la première marche, sautée par la seconde.
+			$put( 'ZZFOU11SKIP', '2000-01-01 00:00:05' );
+			\Teeshoop\Core\Supply::mark_gone( '2000-01-02 00:00:00' );
+			ts_eq( $gone( 'ZZFOU11OLD' ), 1, 'absente de deux marches complètes, elle doit être déclarée disparue' );
+			ts_eq( $gone( 'ZZFOU11SKIP' ), 0, 'sautée par une seule marche, elle a été déclarée disparue' );
+		} finally {
+			$wpdb->query( $wpdb->prepare( 'DELETE FROM `' . $table . '` WHERE ref IN (%s, %s)', 'ZZFOU11OLD', 'ZZFOU11SKIP' ) );
+			null === $before ? delete_option( \Teeshoop\Core\Supply::OPTION_LAST_COMPLETE ) : update_option( \Teeshoop\Core\Supply::OPTION_LAST_COMPLETE, $before, false );
+		}
+	} );
 
 	ts_it( 'reads a 422 on a catalogue read as a refusal, not as an empty page to ask again', function () {
 		// FOU-03 : une date refusée (422) devenait une page vide, et la

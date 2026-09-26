@@ -632,7 +632,17 @@ final class Importer {
 				$hors_ligne->set_status( 'draft' );
 				$hors_ligne->update_meta_data( self::META_NO_PHOTO, '1' );
 				$hors_ligne->save();
-				$problems[] = 'Aucune photographie chez le fournisseur : la fiche reste hors ligne.';
+				/*
+				 * WHICH OF THE TWO (FOU-09). This sentence accused the supplier
+				 * whatever had happened: a missing TEESHOOP_SUPPLY_MEDIA_BASE or
+				 * one night's 502 read « Aucune photographie chez le
+				 * fournisseur » on a reference he photographs. The mapping says
+				 * whether he published one; `attachment()` has already said why
+				 * it was not copied.
+				 */
+				$problems[] = '' === (string) $mapped['front']
+					? 'Aucune photographie chez le fournisseur : la fiche reste hors ligne.'
+					: 'Photographie publiée par le fournisseur mais non copiée (raison ci-dessus) : la fiche reste hors ligne jusqu’à la passe qui la copiera.';
 				$why[]      = 'hors ligne, sans photo';
 				$changed    = true;
 			}
@@ -1123,10 +1133,11 @@ final class Importer {
 	/**
 	 * The featured image and the back shot, copied into the media library once.
 	 *
-	 * Keyed by the supplier's file name, which is versioned by the supplier
-	 * (`…-2019_01.jpg`) and therefore changes when the photo does. So a re-shoot
-	 * downloads a new file and an unchanged photo downloads nothing, on every
-	 * run, for ever.
+	 * Keyed by the path of the supplier's URL, which changes when the photo
+	 * does: the current supplier keeps the file name (`1500KC_15_FRONT.jpg`)
+	 * and versions the directories (`media-produit/79203/20/1/638898/…`). So a
+	 * re-shoot downloads a new file and an unchanged photo downloads nothing,
+	 * on every run, for ever.
 	 */
 	private static function images( int $product_id, string $public, array $mapped, array &$problems ): array {
 		$changed = false;
@@ -1269,29 +1280,61 @@ final class Importer {
 		if ( '' === $path ) {
 			return 0;
 		}
-		$file = basename( wp_parse_url( $path, PHP_URL_PATH ) ?? '' );
+		$key  = (string) ( wp_parse_url( $path, PHP_URL_PATH ) ?? '' );
+		$file = basename( $key );
 		if ( '' === $file ) {
 			return 0;
 		}
 
-		$existing = get_posts(
-			array(
-				'post_type'              => 'attachment',
-				'post_status'            => 'inherit',
-				'numberposts'            => 1,
-				'fields'                 => 'ids',
-				'meta_key'               => self::META_SOURCE, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-				'meta_value'             => $file,             // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
-				'no_found_rows'          => true,
-				'update_post_term_cache' => false,
-			)
-		);
-		if ( ! empty( $existing ) ) {
-			return (int) $existing[0];
+		/*
+		 * THE WHOLE PATH IS THE IDENTITY, NOT THE FILE NAME (FOU-10). Keyed by
+		 * the name alone, a re-shoot published under the same name in a new
+		 * directory found the old attachment, and the product kept the old
+		 * photograph for ever with nothing saying so. The host is left out: it
+		 * is rewritten by TEESHOOP_SUPPLY_MEDIA_BASE and is not the photo.
+		 */
+		$find = static function ( string $source ): int {
+			$ids = get_posts(
+				array(
+					'post_type'              => 'attachment',
+					'post_status'            => 'inherit',
+					'numberposts'            => 1,
+					'fields'                 => 'ids',
+					'meta_key'               => self::META_SOURCE, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+					'meta_value'             => $source,           // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+					'no_found_rows'          => true,
+					'update_post_term_cache' => false,
+				)
+			);
+			return empty( $ids ) ? 0 : (int) $ids[0];
+		};
+		$existing = $find( $key );
+		if ( $existing > 0 ) {
+			return $existing;
+		}
+		/*
+		 * An attachment copied before 26 September 2026 carries the bare file
+		 * name. It is the photograph that URL served when it was copied, so it
+		 * is adopted under the path once, rather than every photograph of the
+		 * catalogue being downloaded again; a later re-shoot then misses both
+		 * lookups and downloads.
+		 */
+		$legacy = $find( $file );
+		if ( $legacy > 0 ) {
+			update_post_meta( $legacy, self::META_SOURCE, $key );
+			return $legacy;
 		}
 
 		$url = self::fetchable( $path );
 		if ( '' === $url ) {
+			/*
+			 * NOT SILENT (FOU-09). This returned 0 with nothing on the report,
+			 * and the reference then went offline under a sentence blaming the
+			 * supplier.
+			 */
+			$problems[] = '' === SupplyHttp::media_base() && ! str_starts_with( $path, '/' )
+				? 'Photo non récupérée (' . $file . ') : TEESHOOP_SUPPLY_MEDIA_BASE n’est pas réglée dans wp-config.php, aucune photographie du fournisseur ne peut être copiée.'
+				: 'Photo refusée (' . $file . ') : son adresse ne désigne pas l’hôte des photographies configuré.';
 			return 0;
 		}
 
@@ -1349,7 +1392,7 @@ final class Importer {
 			return 0;
 		}
 
-		// Our name, the supplier's extension. `$file` stays the identity key in
+		// Our name, the supplier's extension. `$key` stays the identity in
 		// META_SOURCE below, so a re-shoot still downloads and an unchanged
 		// photograph still does not.
 		$ext      = strtolower( (string) pathinfo( $file, PATHINFO_EXTENSION ) );
@@ -1370,7 +1413,7 @@ final class Importer {
 		}
 
 		++$downloads;
-		update_post_meta( (int) $id, self::META_SOURCE, $file );
+		update_post_meta( (int) $id, self::META_SOURCE, $key );
 		// Real alt text, from the product's own name. An empty alt on a
 		// catalogue of 463 photographs is 463 accessibility failures.
 		update_post_meta( (int) $id, '_wp_attachment_image_alt', $title );

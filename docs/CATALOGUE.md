@@ -387,7 +387,10 @@ travail de la séance 05, et il faudra que l'un des deux l'emporte.
 
 **Rien n'est retiré de la boutique sur la foi d'une liste incomplète.** Si la passe de
 listage s'arrête en chemin, l'import le dit et ne dépublie rien : une référence qu'on n'a
-pas vue n'est pas une référence disparue.
+pas vue n'est pas une référence disparue. Une marche qui a perdu une écriture dans le
+dépôt n'est pas complète non plus, et une référence n'est déclarée disparue que si **deux
+marches complètes de suite** ne l'ont pas vue : la marche pagine par décalage, et une
+référence retirée pendant la marche en fait sauter une autre (FOU-11).
 
 **Les articles retirés du catalogue partent à la corbeille, pas à la poubelle.** Une
 variation peut être sur une commande non expédiée.
