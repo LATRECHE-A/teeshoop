@@ -3920,6 +3920,34 @@ Aucune de ces trois n'est une décision technique. Le moteur sait faire les troi
 
 *Votre réponse :*
 
+## Ce que la passe complète du 26 septembre a trouvé dans le calcul des commissions
+
+### Q76. Une commission peut-elle devenir définitive sur des coûts estimés ? (*Important*)
+
+La Bible pose quatre conditions pour qu'une commission soit définitivement
+acquise : la commande est payée, livrée depuis 30 jours, sans litige, **et ses
+coûts réels sont renseignés**.
+
+Les trois premières se vérifient. La quatrième, non : aucun écran ne permet
+aujourd'hui de saisir le coût réel d'une commande après production (la facture
+du textile, celle du film, le port réellement payé). Tous ces coûts restent donc
+« estimés », et **aucune commission ne peut devenir définitive**. L'écran le dit
+désormais tel quel, au lieu d'afficher une condition que personne ne peut lever.
+
+*La question :*
+
+1. **On construit la saisie des coûts réels** après production, poste par poste.
+   La condition reste, et elle devient atteignable. C'est un chantier : il faut
+   savoir qui saisit, à partir de quelles factures, et dans quel délai.
+2. **On retire la condition** : la commission devient définitive 30 jours après
+   livraison sans litige, sur les coûts estimés. Plus simple, mais un coût réel
+   plus élevé découvert ensuite ne réduirait plus une commission déjà acquise.
+
+*Si vous ne répondez pas, on partira sur :* la condition reste, les commissions
+restent provisoires, et l'écran dit pourquoi.
+
+*Votre réponse :*
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site

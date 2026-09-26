@@ -229,7 +229,7 @@ final class Commission {
 	 *   collected        float in [0, 1] from `accrue`.
 	 *   delivered_on     'YYYY-MM-DD' or '' when it has not been.
 	 *   today            'YYYY-MM-DD'.
-	 *   refund_pending   bool.
+	 *   claim_open       bool: a réclamation on the order is not yet decided.
 	 *   costs_real       bool: have the real costs been entered.
 	 *
 	 * Returns the state and the conditions still open, in French, so a screen can
@@ -263,11 +263,24 @@ final class Commission {
 			}
 		}
 
-		if ( ! empty( $facts['refund_pending'] ) ) {
-			$open[] = 'Remboursement en cours';
+		/*
+		 * THE LITIGE OF QUESTION 29 IS AN OPEN CLAIM, NOT A PAST REFUND (COU-09).
+		 * This read « Remboursement en cours » whenever any amount had ever been
+		 * refunded, so a partial refund closed in September kept the commission
+		 * provisional for ever. The refunded amount is already taken off the
+		 * margin and off what is due (COU-05); what can still move the money is
+		 * a claim nobody has decided.
+		 */
+		if ( ! empty( $facts['claim_open'] ) ) {
+			$open[] = 'Réclamation en cours';
 		}
+		/*
+		 * Said as what it is (COU-10): no screen records a real cost yet, so an
+		 * operator cannot lift this condition, and a label that reads like a
+		 * form to fill in sends them looking for one. Question 76.
+		 */
 		if ( empty( $facts['costs_real'] ) ) {
-			$open[] = 'Coûts réels non renseignés';
+			$open[] = 'Coûts réels non renseignés (leur saisie après production n’existe pas encore)';
 		}
 
 		return array(

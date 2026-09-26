@@ -123,7 +123,7 @@ describe( 'Commission: the four conditions of the acquisition rule', function ()
 		'collected'      => 1.0,
 		'delivered_on'   => '2026-07-01',
 		'today'          => '2026-09-30',
-		'refund_pending' => false,
+		'claim_open'     => false,
 		'costs_real'     => true,
 	);
 
@@ -142,7 +142,7 @@ describe( 'Commission: the four conditions of the acquisition rule', function ()
 		foreach ( array(
 			array( 'collected' => 0.5 ),
 			array( 'delivered_on' => '' ),
-			array( 'refund_pending' => true ),
+			array( 'claim_open' => true ),
 			array( 'costs_real' => false ),
 		) as $broken ) {
 			$s = Commission::state( $broken + $settled, $ts_com_config );

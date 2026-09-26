@@ -104,6 +104,13 @@ final class Costing {
 	/** Order meta: an authorised sale below the floor, as JSON. */
 	public const META_DEROGATION = '_teeshoop_derogation';
 
+	/**
+	 * How long a derogation may last, in days from the day it is granted.
+	 * Question 30: « La règle proposée d'une autorisation exceptionnelle
+	 * valable 7 jours peut être conservée. » (COU-08).
+	 */
+	public const DEROGATION_DAYS = 7;
+
 	/** Order meta: the date the order was delivered or closed. */
 	public const META_DELIVERED = '_teeshoop_livree_le';
 
@@ -709,7 +716,14 @@ final class Costing {
 			}
 			$qty       = max( 1, (int) $item->get_quantity() );
 			$pieces   += $qty;
-			$goods_ht += Money::from_eur( (string) $item->get_subtotal() );
+			/*
+			 * AFTER THE DISCOUNT, like the checkout (COU-12). WooCommerce decides
+			 * the franco on `contents_cost`, the line totals after coupons; this
+			 * summed the subtotals before them, so a 260 EUR basket with a 20 EUR
+			 * coupon was reported as shipped free while the customer paid the
+			 * carriage.
+			 */
+			$goods_ht += Money::from_eur( (string) $item->get_total() );
 
 			$product = $item->get_product();
 			$weight  = $product instanceof \WC_Product ? $product->get_weight() : '';
@@ -1043,7 +1057,9 @@ final class Costing {
 			$components[] = Cost::component(
 				'livraison',
 				(int) $parcel['carrier_ht'],
-				Cost::REAL,
+				// Estimated (COU-11): the grid is H-Q07-GRILLE-COLISSIMO, an assumption
+				// in the register, and question 07 names another carrier.
+				Cost::ESTIMATED,
 				sprintf(
 					/* translators: %s: a parcel weight bracket in grams. */
 					__( 'Grille Colissimo publique, tranche %s g', 'teeshoop' ),
@@ -1221,7 +1237,7 @@ final class Costing {
 				'collected'      => $accrued['collected'],
 				'delivered_on'   => self::delivered_on( $order ),
 				'today'          => Settings::today(),
-				'refund_pending' => 0 < (float) $order->get_total_refunded(),
+				'claim_open'     => Claim::has_open( $order ),
 				'costs_real'     => $cost['complete'] && ! $cost['estimated'],
 			),
 			$commission
@@ -1409,6 +1425,8 @@ final class Costing {
 					self::rules_table(),
 					get_option( OPTION_COSTING, array() ),
 					get_option( OPTION_COMMISSION, array() ),
+					// The packaging and the carrier grid price two lines of the report (COU-13).
+					Shipping::config(),
 					self::VERSION,
 				)
 			)
@@ -1483,6 +1501,21 @@ final class Costing {
 	}
 
 	/**
+	 * The last day a derogation granted on $on may cover, whatever it says.
+	 *
+	 * Enforced here as well as at the form (COU-08), so a record typed with
+	 * 2099-12-31 before the form checked it stops covering on day seven like
+	 * any other. An unreadable grant date covers nothing.
+	 */
+	public static function derogation_last_day( string $on ): string {
+		$day = \DateTimeImmutable::createFromFormat( '!Y-m-d', $on, new \DateTimeZone( 'UTC' ) );
+		if ( ! $day || $day->format( 'Y-m-d' ) !== $on ) {
+			return '';
+		}
+		return $day->modify( '+' . self::DEROGATION_DAYS . ' days' )->format( 'Y-m-d' );
+	}
+
+	/**
 	 * Whether a derogation still covers this order today.
 	 *
 	 * IT IS CHECKED AGAINST THE FLOOR IT WAS GRANTED ON, not only against its
@@ -1501,7 +1534,7 @@ final class Costing {
 		if ( null === $derogation || null === $verdict || null === $plan ) {
 			return false;
 		}
-		if ( $derogation['until'] < $today ) {
+		if ( $derogation['until'] < $today || self::derogation_last_day( (string) $derogation['on'] ) < $today ) {
 			return false;
 		}
 		if ( (int) $verdict['price_ht'] !== (int) $derogation['price_ht'] ) {

@@ -478,6 +478,27 @@ const emptyCost = (p: SupplierProfile, proc: DtfProcess): CostBreakdown => ({
   warnings: [],
 })
 
+/**
+ * The rate a roll of `billedLm` is billed at, and the next threshold above it.
+ *
+ * ONE rule for the displayed cost and for the threshold advisor (COU-15). They
+ * had one each: the cost took the last row reached and the advisor the cheapest,
+ * so on a ladder that mixes prepaid packages (1 lm at 8 EUR, 5 lm at 9 EUR) six
+ * metres showed 54 EUR while the advisor's saving was computed against 48. The
+ * cheapest applicable rate is what a buyer is charged: nobody picks the dearer
+ * row of a price list they qualify for.
+ */
+export function rollTier(
+  priceTiers: PriceTier[],
+  billedLm: number,
+): { tier: PriceTier; next: PriceTier | null } {
+  const tiers = [...priceTiers].sort((a, b) => a.minLm - b.minLm)
+  let tier = tiers[0] ?? { minLm: 0, eurPerLm: 0 }
+  for (const t of tiers) if (billedLm >= t.minLm && t.eurPerLm <= tier.eurPerLm) tier = t
+  const next = tiers.find((t) => t.minLm > billedLm) ?? null
+  return { tier, next }
+}
+
 function rollCost(
   p: SupplierProfile,
   proc: DtfProcess,
@@ -487,15 +508,7 @@ function rollCost(
   const out = emptyCost(p, proc)
   const minLm = proc.minOrderLm ?? p.minOrderLm
   const billedLm = r2(Math.max(lengthM, minLm))
-  const tiers = [...proc.priceTiers].sort((a, b) => a.minLm - b.minLm)
-  let tier = tiers[0] ?? { minLm: 0, eurPerLm: 0 }
-  let next: PriceTier | null = null
-  for (let i = 0; i < tiers.length; i++) {
-    if (billedLm >= tiers[i].minLm) {
-      tier = tiers[i]
-      next = tiers[i + 1] ?? null
-    }
-  }
+  const { tier, next } = rollTier(proc.priceTiers, billedLm)
   const rawPrint = tier.eurPerLm * billedLm
   const printEur = r2(Math.max(rawPrint, p.minOrderEur))
   if (billedLm > lengthM + 1e-9)
@@ -578,13 +591,7 @@ function finish(p: SupplierProfile, out: CostBreakdown, pieces: number): CostBre
  */
 function rollTotalAt(p: SupplierProfile, proc: DtfProcess, lm: number): number {
   const billed = r2(Math.max(lm, proc.minOrderLm ?? p.minOrderLm))
-  const tiers = [...proc.priceTiers].sort((a, b) => a.minLm - b.minLm)
-  // Take the CHEAPEST applicable rate, never merely the last matching row: some
-  // suppliers mix prepaid packages into the same ladder, making it non-monotonic
-  // (a higher minLm can carry a HIGHER €/lm), and "last match wins" overcharges.
-  let rate = tiers[0]?.eurPerLm ?? 0
-  for (const t of tiers) if (billed >= t.minLm) rate = Math.min(rate, t.eurPerLm)
-  const print = Math.max(rate * billed, p.minOrderEur)
+  const print = Math.max(rollTier(proc.priceTiers, billed).tier.eurPerLm * billed, p.minOrderEur)
   const free =
     (p.freeShipAtLm !== null && billed >= p.freeShipAtLm) ||
     (p.freeShipAtEur !== null && print >= p.freeShipAtEur)

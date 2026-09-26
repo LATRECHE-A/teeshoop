@@ -167,6 +167,16 @@ final class Claim {
 		return is_array( $rows ) ? $rows : array();
 	}
 
+	/** Whether a claim on this order is still waiting for its decision. */
+	public static function has_open( \WC_Order $order ): bool {
+		foreach ( self::all( $order ) as $claim ) {
+			if ( '' === (string) ( $claim['closed_at'] ?? '' ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Open a claim on this order.
 	 *

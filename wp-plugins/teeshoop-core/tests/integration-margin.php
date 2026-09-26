@@ -27,6 +27,8 @@ use Teeshoop\Core\Cart;
 use Teeshoop\Core\CostAdmin;
 use Teeshoop\Core\Product;
 use const Teeshoop\Core\OPTION_PRICE_RULES;
+use const Teeshoop\Core\OPTION_SHIPPING;
+use Teeshoop\Core\Claim;
 use Teeshoop\Core\Commission;
 use Teeshoop\Core\Cost;
 use Teeshoop\Core\Costing;
@@ -34,6 +36,7 @@ use Teeshoop\Core\Invoice;
 use Teeshoop\Core\Ledger;
 use Teeshoop\Core\Money;
 use Teeshoop\Core\Settings;
+use Teeshoop\Core\Shipping;
 use Teeshoop\Core\Vat;
 
 /**
@@ -461,6 +464,76 @@ function ts_margin_suite( int $product_id ): void {
 		$order->delete( true );
 	} );
 
+	ts_it( 'lets a derogation last seven days at most, and refuses one dated in the past', function () use ( $product_id ) {
+		/*
+		 * COU-08, question 30. The form pre-filled seven days and accepted any
+		 * date typed over it: 2099 was a permanent discount, yesterday was
+		 * recorded as authorised and read « ne couvre plus » on the next screen.
+		 */
+		$order  = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$report = Costing::compute( $order );
+		ts_assert( is_array( $report['plan'] ) && is_array( $report['verdict'] ), 'this order has no floor, so this proves nothing' );
+
+		// A record written before the form checked: granted ten days ago, « until 2099 ».
+		$old = array(
+			'reason'    => 'Client stratégique',
+			'approver'  => 'Le dirigeant',
+			'until'     => '2099-01-01',
+			'on'        => gmdate( 'Y-m-d', strtotime( Settings::today() . ' -10 days' ) ),
+			'price_ht'  => (int) $report['verdict']['price_ht'],
+			'floor_ht'  => (int) $report['plan']['floor_ht'],
+			'impact_ht' => 0,
+		);
+		ts_assert(
+			! Costing::derogation_covers( $old, $report['verdict'], $report['plan'], Settings::today() ),
+			'a derogation granted ten days ago still covered the order because it said 2099'
+		);
+		$fresh = array( 'on' => Settings::today() ) + $old;
+		ts_assert(
+			Costing::derogation_covers( $fresh, $report['verdict'], $report['plan'], Settings::today() ),
+			'a derogation granted today must cover its order'
+		);
+
+		// And the form refuses both dates before storing anything.
+		$admin = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
+		ts_assert( ! empty( $admin ), 'no administrator on the mirror to act as the operator' );
+		$previous = get_current_user_id();
+		wp_set_current_user( (int) $admin[0]->ID );
+		$redirect = static function ( $location ) {
+			throw new \RuntimeException( (string) $location );
+		};
+		add_filter( 'wp_redirect', $redirect, 1 );
+		$post = static function ( string $until ) use ( $order ): string {
+			$_POST    = array(
+				'commande' => (string) $order->get_id(),
+				'motif'    => 'Client stratégique',
+				'valideur' => 'Le dirigeant',
+				'jusquau'  => $until,
+				'_wpnonce' => wp_create_nonce( 'teeshoop_derogation' ),
+			);
+			$_REQUEST = $_POST;
+			try {
+				CostAdmin::handle_derogation();
+			} catch ( \RuntimeException $e ) {
+				return $e->getMessage();
+			}
+			return 'fell through';
+		};
+		try {
+			ts_assert( str_contains( $post( '2099-12-31' ), 'teeshoop=derogation-duree' ), 'a derogation until 2099 was accepted' );
+			ts_assert( str_contains( $post( gmdate( 'Y-m-d', strtotime( Settings::today() . ' -1 day' ) ) ), 'teeshoop=derogation-duree' ), 'a derogation ending yesterday was accepted' );
+			ts_eq( Costing::derogation( wc_get_order( $order->get_id() ) ), null, 'a refused derogation was stored anyway' );
+			ts_eq( 1, preg_match( '~teeshoop=derogation(&|$)~', $post( Costing::derogation_last_day( Settings::today() ) ) ), 'seven days, the rule itself, was refused' );
+			ts_assert( null !== Costing::derogation( wc_get_order( $order->get_id() ) ), 'seven days was not stored' );
+		} finally {
+			remove_filter( 'wp_redirect', $redirect, 1 );
+			$_POST    = array();
+			$_REQUEST = array();
+			wp_set_current_user( $previous );
+			$order->delete( true );
+		}
+	} );
+
 	// ── the scoped floors ────────────────────────────────────────────────────
 
 	ts_it( 'reads the six facts a rule can select an order on', function () use ( $product_id ) {
@@ -587,6 +660,30 @@ function ts_margin_suite( int $product_id ): void {
 
 		update_option( OPTION_PRICE_RULES, array() );
 		$order->delete( true );
+	} );
+
+	ts_it( 'marks every stored report stale when the packaging or the carrier grid changes', function () use ( $product_id ) {
+		/*
+		 * COU-13. Two lines of the report, « Emballage » and « Livraison
+		 * client », are priced from the shipping settings, and the stamp did not
+		 * hash them: raising the packaging per piece left every stored report
+		 * reading « à jour » on the old figure.
+		 */
+		$order  = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$report = Costing::refresh( $order );
+		ts_eq( Costing::staleness( wc_get_order( $order->get_id() ), $report ), '', 'a fresh report describes its own order' );
+
+		$before = get_option( OPTION_SHIPPING, null );
+		$config = Shipping::config();
+		ts_assert( array_key_exists( 'packaging_piece_ht', $config ), 'the shipping settings have no packaging cost, so this proves nothing' );
+		$config['packaging_piece_ht'] = (int) $config['packaging_piece_ht'] + 30;
+		update_option( OPTION_SHIPPING, $config );
+		try {
+			ts_eq( Costing::staleness( wc_get_order( $order->get_id() ), $report ), 'reglages', 'a report priced on the old packaging still read « à jour »' );
+		} finally {
+			null === $before ? delete_option( OPTION_SHIPPING ) : update_option( OPTION_SHIPPING, $before );
+			$order->delete( true );
+		}
 	} );
 
 	ts_it( 'reports no floor at all rather than dying, when a rule has no solution', function () use ( $product_id ) {
@@ -861,6 +958,41 @@ function ts_margin_suite( int $product_id ): void {
 			(int) $before['revenue']['total_ht'],
 			'the invoice is a document that was issued; a refund is a separate event'
 		);
+
+		$order->delete( true );
+	} );
+
+	ts_it( 'holds a commission open for an undecided claim, not for a refund already made', function () use ( $product_id ) {
+		/*
+		 * COU-09. The state read « Remboursement en cours » whenever anything had
+		 * ever been refunded, so a partial refund closed months ago kept the
+		 * commission provisional for ever. The litige of question 29 is a claim
+		 * nobody has decided.
+		 */
+		$order = ts_mg_order( $product_id, 12, ts_mg_sides() );
+		$order->update_meta_data( Costing::META_SALE_TYPE, 'premiere' );
+		$order->save();
+		$order->payment_complete( 'ts-marge-claim' );
+		$refund = wc_create_refund(
+			array(
+				'order_id' => $order->get_id(),
+				'amount'   => '1.00',
+				'reason'   => 'Geste commercial',
+			)
+		);
+		ts_assert( ! is_wp_error( $refund ), 'the refund could not be created' );
+
+		$open = static fn(): array => (array) Costing::compute( wc_get_order( $order->get_id() ) )['state']['open'];
+		ts_assert( ! in_array( 'Remboursement en cours', $open(), true ), 'a refund already made read as one in progress' );
+		ts_assert( ! in_array( 'Réclamation en cours', $open(), true ), 'no claim was opened' );
+
+		$opened = Claim::open( wc_get_order( $order->get_id() ), (string) array_key_first( Claim::motifs() ), 'Deux pièces arrivées tachées.' );
+		ts_assert( $opened['ok'], 'the claim could not be opened' );
+		ts_assert( in_array( 'Réclamation en cours', $open(), true ), 'an undecided claim did not hold the commission' );
+
+		$closed = Claim::close( wc_get_order( $order->get_id() ), (int) $opened['claim']['id'], (string) array_key_first( Claim::causes() ), 'Remplacées à nos frais.' );
+		ts_assert( $closed['ok'], 'the claim could not be closed' );
+		ts_assert( ! in_array( 'Réclamation en cours', $open(), true ), 'a decided claim still held the commission' );
 
 		$order->delete( true );
 	} );

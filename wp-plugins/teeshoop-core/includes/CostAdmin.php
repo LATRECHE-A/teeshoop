@@ -773,7 +773,7 @@ final class CostAdmin {
 		self::input_row( __( 'Prix d’une feuille', 'teeshoop' ), 'couts[film][sheet_ht]', Money::number( Money::to_eur( (int) $film['sheet_ht'] ), 2 ), 'EUR' );
 		self::input_row( __( 'Feuilles minimum facturées', 'teeshoop' ), 'couts[film][min_sheets]', (string) (int) $film['min_sheets'], '' );
 		self::input_row( $sheet ? __( 'Largeur de la feuille', 'teeshoop' ) : __( 'Laize du rouleau', 'teeshoop' ), 'couts[film][width_cm]', Money::number( (float) $film['width_cm'], 1 ), 'cm' );
-		self::input_row( $sheet ? __( 'Hauteur de la feuille', 'teeshoop' ) : __( 'Longueur maximale d’un fichier', 'teeshoop' ), 'couts[film][max_length_cm]', Money::number( (float) $film['max_length_cm'], 0 ), 'cm' );
+		self::input_row( $sheet ? __( 'Hauteur de la feuille', 'teeshoop' ) : __( 'Longueur maximale d’un fichier', 'teeshoop' ), 'couts[film][max_length_cm]', Money::number( (float) $film['max_length_cm'], 1 ), 'cm' );
 		self::input_row( __( 'Livraison du film, par commande', 'teeshoop' ), 'couts[film][delivery_ht]', Money::number( Money::to_eur( (int) $film['delivery_ht'] ), 2 ), 'EUR' );
 		self::input_row( __( 'Provision de perte', 'teeshoop' ), 'couts[film][waste_rate]', self::pct_out( (float) $film['waste_rate'] ), '%' );
 		self::input_row( __( 'Écart entre deux motifs', 'teeshoop' ), 'couts[film][gap_cm]', Money::number( (float) $film['gap_cm'], 2 ), 'cm' );
@@ -1260,6 +1260,11 @@ final class CostAdmin {
 		$said = array(
 			'derogation-sans-plancher' => __( 'Aucune dérogation n’a été enregistrée : cette commande n’a pas de prix plancher calculable, donc il n’y a aucun écart à autoriser. Corrigez les taux, recalculez, puis réessayez.', 'teeshoop' ),
 			'derogation-incomplete'    => __( 'Aucune dérogation n’a été enregistrée : il faut un motif, un valideur ET une date de validité. Trois sur quatre n’est pas une exception, c’est une note.', 'teeshoop' ),
+			'derogation-duree'         => sprintf(
+				/* translators: %d: the longest a derogation may last, in days. */
+				__( 'Aucune dérogation n’a été enregistrée : sa date de fin doit tomber entre aujourd’hui et dans %d jours. Au-delà, renouvelez-la à son échéance.', 'teeshoop' ),
+				Costing::DEROGATION_DAYS
+			),
 		);
 		if ( isset( $said[ $flag ] ) ) {
 			echo '<div class="notice notice-error inline"><p>' . esc_html( $said[ $flag ] ) . '</p></div>';
@@ -1665,9 +1670,10 @@ final class CostAdmin {
 			esc_attr( wp_get_current_user()->display_name )
 		);
 		printf(
-			'<label>%s<br><input type="date" name="jusquau" required value="%s"></label>',
+			'<label>%1$s<br><input type="date" name="jusquau" required min="%2$s" max="%3$s" value="%3$s"></label>',
 			esc_html__( 'Valable jusqu’au', 'teeshoop' ),
-			esc_attr( gmdate( 'Y-m-d', strtotime( Settings::today() . ' +7 days' ) ?: time() ) )
+			esc_attr( Settings::today() ),
+			esc_attr( Costing::derogation_last_day( Settings::today() ) )
 		);
 		submit_button( __( 'Enregistrer la dérogation', 'teeshoop' ), 'secondary', '', false );
 		echo '</p></form>';
@@ -1769,6 +1775,17 @@ final class CostAdmin {
 		 */
 		if ( '' === $reason || '' === $approver || '' === $until ) {
 			self::back( $order, 'derogation-incomplete' );
+		}
+
+		/*
+		 * SEVEN DAYS AT MOST, AND NOT IN THE PAST (COU-08, question 30). The
+		 * form pre-filled seven days and accepted any date typed over it: an
+		 * exception dated 2099 was a permanent discount, and one dated
+		 * yesterday was recorded, noted on the order as authorised, then shown
+		 * as « ne couvre plus » on the next screen.
+		 */
+		if ( $until < Settings::today() || $until > Costing::derogation_last_day( Settings::today() ) ) {
+			self::back( $order, 'derogation-duree' );
 		}
 
 		/*
