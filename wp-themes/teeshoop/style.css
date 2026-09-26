@@ -716,6 +716,8 @@ html {
 }
 
 .ts-facts__value {
+	/* A `dd`: without this the browser indents every value by 40 px. */
+	margin: 0;
 	font-size: var(--ts-text-lg);
 	font-family: var(--ts-font-display);
 	font-weight: 600;
@@ -2587,7 +2589,8 @@ a.ts-chip:hover {
 	.ts-facts__item {
 		flex-direction: column;
 		align-items: flex-start;
-		justify-content: flex-end;
+		/* Labels on one line across the four columns, whatever sits under them. */
+		justify-content: flex-start;
 		gap: var(--ts-space-1);
 		border-bottom: 0;
 		border-left: 1px solid var(--ts-line);

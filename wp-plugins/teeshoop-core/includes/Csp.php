@@ -296,8 +296,13 @@ final class Csp {
 		 * and its Worker is http, so adding it unconditionally would upgrade
 		 * every local request to a port nothing listens on and break development
 		 * while production stayed green: the worst shape a bug can have.
+		 *
+		 * AND ONLY WHEN THE POLICY IS ENFORCED. A report-only policy cannot
+		 * upgrade anything, and Chrome says so as a console ERROR on every page
+		 * of the shop (measured on production, 26/09/2026): noise in the one
+		 * place a real front-end fault shows up.
 		 */
-		if ( is_ssl() ) {
+		if ( is_ssl() && defined( 'TEESHOOP_CSP_ENFORCE' ) && TEESHOOP_CSP_ENFORCE ) {
 			$directives['upgrade-insecure-requests'] = array();
 		}
 

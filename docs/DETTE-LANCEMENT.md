@@ -1,12 +1,12 @@
 # Dette de lancement
 
-Relevé le 9 septembre 2026 par `node scripts/launch-gate.mjs --porte=publication --boutique=deploy:teeshoop-deploy:prod`.
+Relevé le 26 septembre 2026 par `node scripts/launch-gate.mjs --porte=publication --boutique=deploy:teeshoop-deploy:prod`.
 
-- **35 ligne(s) de dette.**
+- **36 ligne(s) de dette.**
 - Boutique interrogée : teeshoop-deploy (clé de déploiement, prod), jointe.
 - Conditions regardées : registre, tva (confirmation), médiation, identité, éditeur, tva (barème), cgv, textile nu, prix plancher, passerelle de paiement.
 - Conditions NON regardées : aucune.
-- Dont 2 que la porte de l'argent refuse, et qui bloquent donc encore la mise en vente.
+- Dont 3 que la porte de l'argent refuse, et qui bloquent donc encore la mise en vente.
 
 Ce relevé est une photographie de la boutique nommée ci-dessus, à la date ci-dessus. Il se
 régénère, et il faut le régénérer avant de conclure quoi que ce soit de son compte.
@@ -23,12 +23,13 @@ ou une passerelle de paiement mal configurée. Il n'y a pas de dérogation pour 
 
 ---
 
-## Ce que la porte de l'argent refuse encore (2)
+## Ce que la porte de l'argent refuse encore (3)
 
 Ces lignes ne sont pas de la dette : ce sont des refus. Tant qu'elles sont là, la boutique ne doit
 pas vendre, quoi que dise le reste de ce fichier. Chacune est détaillée plus bas, sous son
 propriétaire ; cet index existe pour être lu en premier.
 
+- Condition « textile-nu-fournisseur », inconnue de ce relevé (développeur) : Le dépôt du catalogue fournisseur est vide. Lancez « wp teeshoop catalogue synchroniser »…
 - Prix au-dessus de son plancher (développeur) : 3 colonne(s) publiée(s) sur 102 se vendent sous leur plancher : la boutique perd de…
 - Passerelle de paiement (développeur) : Aucun moyen de paiement n’est actif : la boutique ne peut rien encaisser. Activez une…
 
@@ -116,7 +117,7 @@ propriétaire ; cet index existe pour être lu en premier.
   - Constat : Aucun médiateur de la consommation n'est désigné ET rien ne refuse un particulier. Prises une par une les deux lignes sont des refus assumés ; ensemble elles sont une infraction à l'article L612-1 du code de la consommation, parce que l'exemption annoncée en réponse à la question 57 suppose un parcours qui refuse effectivement un consommateur. Répondre à l'une des deux suffit : désigner un médiateur, ou fermer le parcours grand public (question 62).
   - Pour lever : Adhérer à un médiateur de la consommation et publier ses coordonnées, OU fermer réellement le parcours grand public (question 62). L'une des deux suffit ; c'est l'associé qui choisit et le développeur qui applique. Article L612-1 du code de la consommation.
 
-## développeur (9)
+## développeur (10)
 
 - **Identité du site (article 6 III de la LCEN)**
   - Constat : Mention obligatoire du site absente : Nom ou raison sociale (article 6 III de la LCEN).
@@ -139,6 +140,9 @@ propriétaire ; cet index existe pour être lu en premier.
 - **Identité du site (article 6 III de la LCEN)**
   - Constat : Mention obligatoire du site absente : éditeur : Téléphone (article 6 III de la LCEN).
   - Pour lever : Renseigner la mention manquante du site : directeur de la publication, adresse de contact, et raison sociale, adresse et téléphone de l'hébergeur. La source pour o2switch est sa page contractuelle, désignée par ACCES-REQUIS.md.
+- **Condition « textile-nu-fournisseur », inconnue de ce relevé** · **refusée par la porte de l’argent**
+  - Constat : Le dépôt du catalogue fournisseur est vide. Lancez « wp teeshoop catalogue synchroniser » : sans lui, on ne peut pas dire si les textiles nus vendus existent encore.
+  - Pour lever : Cette condition est neuve et la table des propriétaires de scripts/launch-gate.mjs ne la connaît pas encore. La router vers son propriétaire réel, et compléter la table plutôt que de laisser une dette sans nom.
 - **Prix au-dessus de son plancher** · **refusée par la porte de l’argent**
   - Constat : 3 colonne(s) publiée(s) sur 102 se vendent sous leur plancher : la boutique perd de l’argent à chaque vente de ces lignes.
   - Pour lever : Mesurer la grille publiée contre son plancher de coût (« npm run verify:grille »), puis, si une colonne vend sous le sien, remonter son prix ou corriger le coût qui fait monter ce plancher. Une vente sous le plancher se fait à perte et rien ne le montre avant la clôture comptable.
