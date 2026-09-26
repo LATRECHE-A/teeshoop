@@ -24,6 +24,25 @@ describe('the key a limit is counted against', () => {
     expect(key).toBe('198.51.100.4')
     expect(callerKey(req({ 'x-forwarded-for': '203.0.113.7' }))).toBe('unknown')
   })
+
+  /*
+   * SEC-03. One subscriber holds a whole /64, and counting the full address
+   * gave them 2^64 budgets: a limit a script walks straight past.
+   */
+  it('counts an IPv6 caller by its /64, however the address is written', () => {
+    const key = (ip: string) => callerKey(req({ 'cf-connecting-ip': ip }))
+    const one = key('2001:db8:1:2::1')
+    expect(key('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe(one)
+    expect(key('2001:0DB8:0001:0002:ffff::')).toBe(one)
+    expect(key('2001:db8:1:3::1')).not.toBe(one)
+    expect(key('::1')).toBe('0:0:0:0::/64')
+    expect(key('64:ff9b::192.0.2.1')).toBe('64:ff9b:0:0::/64')
+    expect(key('::ffff:203.0.113.7')).toBe('203.0.113.7')
+    expect(key('203.0.113.7')).toBe('203.0.113.7')
+    // Unreadable is still one key, never a pass.
+    expect(key('zz::1')).toBe('zz::1')
+    expect(key('1:2:3:4:5:6:7:8:9')).toBe('1:2:3:4:5:6:7:8:9')
+  })
 })
 
 describe('rateLimited', () => {

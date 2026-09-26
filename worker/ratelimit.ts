@@ -45,9 +45,46 @@ export interface RateLimitEnv {
  * and CANNOT be spoofed by the client: an inbound header of that name is
  * overwritten at the edge. `X-Forwarded-For` can be, which is why it is not read
  * here and must never be added as a fallback.
+ *
+ * AN IPv6 CALLER IS ITS /64 (SEC-03). A subscriber is handed a whole /64, so
+ * counting the full address gave one machine 2^64 separate budgets of twenty
+ * uploads a minute: no limit at all. The /64 is what one line or one device
+ * holds; a /48 would lump together customers a carrier happens to route alike.
+ * An address that does not parse keeps its own text, which is still one key.
  */
 export function callerKey(request: Request): string {
-  return request.headers.get('cf-connecting-ip') ?? 'unknown'
+  const ip = request.headers.get('cf-connecting-ip')
+  if (!ip) return 'unknown'
+  return ip.includes(':') ? (v6Key(ip) ?? ip) : ip
+}
+
+/** `2001:db8:1:2::/64` for any address in that /64; the IPv4 of a mapped one. */
+function v6Key(ip: string): string | null {
+  const lower = ip.trim().toLowerCase()
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(lower)
+  if (mapped) return mapped[1]
+
+  const halves = lower.split('::')
+  if (halves.length > 2) return null
+  const groups = (part: string): string[] | null => {
+    if (part === '') return []
+    const out: string[] = []
+    for (const g of part.split(':')) {
+      // A dotted tail (`64:ff9b::192.0.2.1`) is the last two groups.
+      if (g.includes('.')) out.push('0', '0')
+      else if (/^[0-9a-f]{1,4}$/.test(g)) out.push(g)
+      else return null
+    }
+    return out
+  }
+  const head = groups(halves[0])
+  const tail = halves.length === 2 ? groups(halves[1]) : []
+  if (!head || !tail) return null
+  const count = head.length + tail.length
+  if (halves.length === 1 ? count !== 8 : count > 7) return null
+
+  const full = [...head, ...new Array(8 - count).fill('0'), ...tail]
+  return full.slice(0, 4).map((g) => parseInt(g, 16).toString(16)).join(':') + '::/64'
 }
 
 /**

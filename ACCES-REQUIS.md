@@ -4,7 +4,7 @@
 > Il est ordonné par ce qui bloque le plus tôt. Chaque ligne dit *pourquoi* l'accès
 > est nécessaire. Si la raison ne tient pas, l'accès ne doit pas être donné.
 >
-> Dernière mise à jour : 2 septembre 2026 (§6 octies, la séance 14 : déploiement) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
+> Dernière mise à jour : 26 septembre 2026 (§16, la passe complète : ce qui bloque la mise en ligne) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
 
 ---
 
@@ -1512,3 +1512,78 @@ ssh teeshoop "cd ~/public_html && wp option update teeshoop_paiement_mode_essai 
 ```
 
 Il fait lire au client, au panier et à la caisse, que rien ne sera prélevé.
+
+---
+
+## 16. La passe complète du 26 septembre 2026 : ce qui bloque la mise en ligne
+
+Le code de la passe complète est sur `main` et `passe-complete`, la CI est verte. Il
+ne part nulle part pour deux raisons, qui sont toutes les deux des accès.
+
+### 16.1 La boutique (préproduction puis production) : une adresse à autoriser
+
+**Mesuré le 26/09/2026 à 08 h 14 (UTC) :** le déploiement automatique d'une poussée
+sur `main` s'arrête sur « Le port 22 de l'hébergeur ne répond pas depuis cette
+machine ». L'exécutant `o2switch-autorise` a changé d'adresse : il sort maintenant
+par **`176.140.196.202`**, et c'est l'ancienne, `176.140.219.173`, qui est autorisée
+(§6 octies).
+
+Au choix :
+
+- **soit**, une fois : cPanel > Accès SSH > autoriser `176.140.196.202` (cinq
+  adresses au plus par compte) ;
+- **soit**, pour ne plus y revenir : créer un jeton d'API dans cPanel (Sécurité >
+  Gérer les jetons d'API), puis le poser dans GitHub. Le script de déploiement
+  autorise alors lui-même l'adresse du moment (`scripts/deployer.sh`, étape 2).
+
+  ```
+  gh secret set O2SWITCH_CPANEL_TOKEN
+  ```
+
+  La commande demande la valeur : la coller là, jamais dans une conversation.
+  `O2SWITCH_USER` est déjà posé.
+
+Ensuite : relancer le dernier déploiement (onglet Actions, ou
+`gh run rerun <numéro> --failed`), vérifier la préproduction, puis la production
+par `gh workflow run deploiement.yml --ref main -f cible=prod` et la confirmation
+`DEPLOYER-EN-PRODUCTION`.
+
+### 16.2 Le Worker (le studio, le détourage, l'AR, le dépôt des créations) : un jeton Cloudflare
+
+Plusieurs corrections de la passe vivent dans le Worker et n'ont d'effet qu'une fois
+celui-ci redéployé :
+
+- la preuve de création exigée pour enregistrer un modèle (page devis, 5 par compte) :
+  sans le Worker à jour, **l'enregistrement d'un modèle est refusé** ;
+- les surfaces mesurées par face qui accompagnent une création (le contrôle de
+  sous-facturation de la production en dépend) ;
+- les contrôles de conteneurs (SEC-02) et le comptage IPv6 par /64 (SEC-03) ;
+- la politique de sécurité du contenu du studio.
+
+Il faut un jeton d'API Cloudflare (modèle « Edit Cloudflare Workers », limité au
+compte du Worker), posé dans GitHub :
+
+```
+gh secret set CLOUDFLARE_API_TOKEN
+gh workflow run deploiement.yml --ref main -f cible=studio
+```
+
+**Déployer le Worker AVANT la boutique**, ou dans la même heure : la boutique à jour
+demande au Worker une preuve qu'un Worker ancien ne sait pas donner.
+
+### 16.3 Le quota du Worker (SEC-03) : une décision, pas un accès
+
+Le Worker est sur l'offre gratuite de Cloudflare, plafonnée à 100 000 requêtes par
+jour. Un script qui envoie un peu plus d'une requête par seconde l'épuise, et jusqu'à
+minuit UTC plus aucune création ne peut être déposée : plus aucune vente
+personnalisée. Le code compte maintenant une adresse IPv6 par son /64, ce qui ferme
+le contournement par rotation d'adresses, mais ne change rien au plafond global.
+Deux mesures, dans le tableau de bord Cloudflare :
+
+1. **Workers Paid** (5 USD par mois) : le plafond quotidien disparaît ;
+2. une **règle de limitation de débit** (Security > WAF > Rate limiting rules) sur
+   `/api/*`, en amont du Worker, pour qu'une requête refusée ne coûte pas une
+   invocation ; et une **notification d'usage** du Worker.
+
+Le balayage de rétention des créations (`POST /api/design/reap`) reste non planifié :
+il attend la durée de conservation de la question 33.
