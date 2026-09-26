@@ -1277,6 +1277,15 @@ final class Purchase {
 	 * `attribute_pa_couleur` sous forme de SLUG ; c'est ce que
 	 * `variation_of()` compare aussi, après avoir traduit le nom.
 	 *
+	 * ET LA MÊME RÉPONSE QUE `variation_of()` (FOU-05). La jointure des termes
+	 * par slug seul ramenait une ligne par taxonomie portant ce slug (« royal »
+	 * existe dans `pa_couleur` ET dans l'ancien `pa_color` de la production), et
+	 * aucun statut n'était filtré, donc une déclinaison à la corbeille doublait
+	 * sa case. Deux lignes font « ambigu », la case sortait de la vérification
+	 * du panier, et le client achetait sans que rien ait été demandé au
+	 * fournisseur. Les termes sont joints DANS leur taxonomie, et la corbeille
+	 * est exclue comme le fait `post_status => any`.
+	 *
 	 * @return array<string,array{sku:string,variation:?\WC_Product,ambigu:bool}>
 	 */
 	private static function variation_index( int $blank_id ): array {
@@ -1309,11 +1318,10 @@ final class Purchase {
 				   JOIN {$wpdb->postmeta} c  ON c.post_id = v.ID AND c.meta_key = %s
 				   JOIN {$wpdb->postmeta} t  ON t.post_id = v.ID AND t.meta_key = %s
 				   LEFT JOIN {$wpdb->postmeta} s ON s.post_id = v.ID AND s.meta_key = %s
-				   LEFT JOIN {$wpdb->terms} tc ON tc.slug = c.meta_value
-				   LEFT JOIN {$wpdb->term_taxonomy} xc ON xc.term_id = tc.term_id AND xc.taxonomy = %s
-				   LEFT JOIN {$wpdb->terms} tt ON tt.slug = t.meta_value
-				   LEFT JOIN {$wpdb->term_taxonomy} xt ON xt.term_id = tt.term_id AND xt.taxonomy = %s
+				   LEFT JOIN ( SELECT k.slug, k.name FROM {$wpdb->terms} k JOIN {$wpdb->term_taxonomy} kx ON kx.term_id = k.term_id AND kx.taxonomy = %s ) tc ON tc.slug = c.meta_value
+				   LEFT JOIN ( SELECT k.slug, k.name FROM {$wpdb->terms} k JOIN {$wpdb->term_taxonomy} kx ON kx.term_id = k.term_id AND kx.taxonomy = %s ) tt ON tt.slug = t.meta_value
 				  WHERE v.post_type = 'product_variation' AND v.post_parent = %d
+				    AND v.post_status NOT IN ( 'trash', 'auto-draft' )
 				  ORDER BY v.ID ASC",
 				$couleur,
 				$taille,

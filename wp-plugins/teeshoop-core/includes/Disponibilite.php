@@ -1693,11 +1693,13 @@ final class Disponibilite {
 	 *   fournisseur ne connaît plus ne doit surtout pas garder son dernier stock,
 	 *   sinon la boutique vend ce qu'elle ne peut plus acheter.
 	 *
-	 * `at` est le plus ANCIEN horodatage de la page et pas le plus récent :
-	 * `Cli` l'écrit tel quel sur chaque déclinaison vue, donc prendre le plus
-	 * récent ferait passer pour fraîche une observation qui ne l'est pas.
+	 * `at` est le plus ANCIEN horodatage de la page et pas le plus récent, pour
+	 * le résumé du balayage. Ce que `Cli` écrit sur chaque déclinaison est la
+	 * date de SA ligne, cinquième colonne : une seule date pour toute la page
+	 * (et c'était celle de la dernière page, pour toutes) mentait dans les deux
+	 * sens.
 	 *
-	 * @return array{ok:bool,error:string,at:string,total:int,rows:array<int,array{0:string,1:int,2:int,3:int}>,next:?int}
+	 * @return array{ok:bool,error:string,at:string,total:int,rows:array<int,array{0:string,1:int,2:int,3:int,4:string}>,next:?int}
 	 */
 	public static function stock_page( int $offset, int $limit = 4000 ): array {
 		global $wpdb;
@@ -1724,7 +1726,7 @@ final class Disponibilite {
 		// L'ordre est sur la clé primaire : une pagination par décalage sur un
 		// ordre instable saute des lignes et en répète d'autres dès qu'une
 		// écriture passe entre deux pages, et `sweep()` écrit en permanence.
-		$sql = "SELECT code, stock, stock_supplier, miss FROM {$table}"
+		$sql = "SELECT code, stock, stock_supplier, miss, checked_at FROM {$table}"
 			. ' WHERE stock IS NOT NULL OR miss = 1 ORDER BY code ASC LIMIT %d OFFSET %d';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1769,7 +1771,16 @@ final class Disponibilite {
 			$miss  = 1 === (int) $row->miss;
 			$stock = $miss ? 0 : max( 0, (int) $row->stock );
 			$maker = $miss || null === $row->stock_supplier ? 0 : max( 0, (int) $row->stock_supplier );
-			$out[] = array( (string) $row->code, $stock, 0, $maker );
+			/*
+			 * AND WHEN THIS ROW WAS OBSERVED, fifth, after the four the purchase
+			 * sweep reads by position. `Cli::stock_refresh()` dated every variation
+			 * it saw with ONE date, the oldest row of the LAST page: a row observed
+			 * five days ago looked fresh, and on a rotation that cannot see every
+			 * code within a day, the whole shop read « Délai à confirmer » (FOU-04).
+			 * An unreadable date falls back to the page's oldest, never to now.
+			 */
+			$vu    = false === strtotime( (string) $row->checked_at . ' UTC' ) ? $seconds : strtotime( (string) $row->checked_at . ' UTC' );
+			$out[] = array( (string) $row->code, $stock, 0, $maker, gmdate( 'c', $vu ) );
 		}
 
 		$next = ( $offset + count( $rows ) ) < $total ? $offset + count( $rows ) : null;

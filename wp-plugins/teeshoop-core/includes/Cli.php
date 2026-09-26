@@ -166,6 +166,15 @@ final class Cli {
 			if ( null === $run['next'] ) {
 				break;
 			}
+			/*
+			 * UN TOUR QUI N'AVANCE PAS ARRÊTE LA MARCHE. `sync()` rend `next` égal à
+			 * la page demandée quand elle arrive vide ou sans compte de pages, pour
+			 * qu'on la reprenne PLUS TARD ; cette boucle la redemandait aussitôt,
+			 * sans fin et sans pause (FOU-03).
+			 */
+			if ( (int) $run['next'] === $page && 0 === (int) $run['products'] ) {
+				\WP_CLI::error( sprintf( 'La page %d est revenue vide ou sans compte de pages : la marche s’arrête ici au lieu de la redemander sans fin. Relancez la commande plus tard, ou vérifiez la date passée à --depuis.', $page ) );
+			}
 			$page = (int) $run['next'];
 			if ( ! $quiet ) {
 				\WP_CLI::log( sprintf( '  page %d sur %d, %d produits déposés (%.0f s)', $page, (int) $run['total'], $written, microtime( true ) - $started ) );
@@ -386,6 +395,7 @@ final class Cli {
 		$offset  = 0;
 		$pages   = 0;
 		$seen    = array();
+		$dates   = array();
 		$moved   = 0;
 		$latest  = '';
 		$failure = '';
@@ -417,6 +427,8 @@ final class Cli {
 				 */
 				$qty = max( 0, (int) ( $row[ Catalogue::STOCK_INDEX + 1 ] ?? 0 ) );
 				$seen[] = $id;
+				// Its own observation date, grouped for the write (FOU-04).
+				$dates[ (string) ( $row[4] ?? $page['at'] ) ][] = $id;
 				if ( ( $current[ $id ] ?? null ) !== $qty ) {
 					$product = wc_get_product( $id );
 					if ( $product instanceof \WC_Product ) {
@@ -437,7 +449,12 @@ final class Cli {
 			$offset = (int) $next;
 		}
 
-		$stamped = '' !== $latest ? self::stamp_stock( array_unique( $seen ), $latest ) : 0;
+		$stamped = 0;
+		foreach ( $dates as $at => $ids ) {
+			if ( '' !== (string) $at ) {
+				$stamped += self::stamp_stock( array_unique( $ids ), (string) $at );
+			}
+		}
 
 		update_option(
 			'teeshoop_stock_sweep',

@@ -726,6 +726,54 @@ function ts_purchase_suite( int $product_id ): void {
 
 	ts_ac_stub();
 
+	ts_it( 'reads a 422 on a catalogue read as a refusal, not as an empty page to ask again', function () {
+		// FOU-03 : une date refusée (422) devenait une page vide, et la
+		// commande redemandait la même page sans fin.
+		$stub = static function ( $pre, $args, $url ) {
+			if ( false === strpos( (string) $url, '/api/products/products' ) ) {
+				return $pre;
+			}
+			return array(
+				'headers'  => array( 'content-type' => 'application/json' ),
+				'body'     => '{"errors":{"sinceUpdated":["Le format attendu est jj-mm-aaaa."]}}',
+				'response' => array(
+					'code'    => 422,
+					'message' => 'Unprocessable Content',
+				),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		};
+		add_filter( 'pre_http_request', $stub, PHP_INT_MAX, 3 );
+		$read = \Teeshoop\Core\SupplyHttp::get( '/api/products/products', array( 'page' => 1, 'sinceUpdated' => '31-02-2026' ) );
+		$run  = \Teeshoop\Core\Supply::sync( array( 'since' => '31-02-2026', 'page' => 1, 'budget' => 30 ) );
+		remove_filter( 'pre_http_request', $stub, PHP_INT_MAX );
+		ts_eq( $read['ok'], false, 'un 422 sur une lecture a été pris pour une réponse' );
+		ts_eq( $run['ok'], false, 'la marche a pris le refus pour une page vide à redemander' );
+	} );
+
+	ts_it( 'gives each stock row its own observation date, not the page’s', function () {
+		// FOU-04 : chaque déclinaison recevait la date de la dernière page.
+		global $wpdb;
+		$table = \Teeshoop\Core\Disponibilite::table();
+		$vieux = gmdate( 'Y-m-d H:i:s', time() - 5 * DAY_IN_SECONDS );
+		$frais = gmdate( 'Y-m-d H:i:s', time() - 60 );
+		foreach ( array( 'ZZFOU04AVIEUX' => $vieux, 'ZZFOU04BFRAIS' => $frais ) as $code => $quand ) {
+			$wpdb->replace( $table, array( 'code' => $code, 'stock' => 7, 'stock_supplier' => 0, 'miss' => 0, 'checked_at' => $quand ) );
+		}
+		$dates = array();
+		for ( $offset = 0; null !== $offset; ) {
+			$page = \Teeshoop\Core\Disponibilite::stock_page( $offset, 20000 );
+			foreach ( $page['rows'] as $row ) {
+				$dates[ $row[0] ] = $row[4] ?? '';
+			}
+			$offset = $page['next'];
+		}
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE code IN (%s, %s)", 'ZZFOU04AVIEUX', 'ZZFOU04BFRAIS' ) );
+		ts_eq( $dates['ZZFOU04AVIEUX'] ?? '', gmdate( 'c', strtotime( $vieux . ' UTC' ) ), 'l’observation ancienne a pris une autre date' );
+		ts_eq( $dates['ZZFOU04BFRAIS'] ?? '', gmdate( 'c', strtotime( $frais . ' UTC' ) ), 'l’observation fraîche a pris la date de la plus ancienne' );
+	} );
+
 	// ── the catalogue, imported by the shipped importer ──────────────────────
 
 	/*
@@ -773,6 +821,39 @@ function ts_purchase_suite( int $product_id ): void {
 		$big = ts_ac_variation( '180010007' );
 		ts_assert( $big instanceof \WC_Product, 'l’article 180010007 est illisible' );
 		ts_eq( (int) $big->get_meta( Catalogue::META_SUPPLY_CENTS, true ), 446, 'le prix d’achat du 2XL' );
+	} );
+
+	ts_it( 'resolves a colour whose slug also exists in another taxonomy, and ignores a trashed twin', function () {
+		/*
+		 * FOU-05. « royal » existe dans `pa_couleur` et dans l'ancien `pa_color`
+		 * de la production : la jointure par slug seul rendait deux lignes, la
+		 * case était « ambiguë » et sortait de la vérification du panier. Une
+		 * déclinaison à la corbeille faisait la même chose.
+		 */
+		$variation = ts_ac_variation( '180010004' );
+		$blank     = (int) $variation->get_parent_id();
+		// `get_post_meta` and not `get_meta`: WooCommerce keeps `attribute_*` as
+		// internal keys of a variation and `get_meta` does not return them.
+		$slug      = (string) get_post_meta( $variation->get_id(), 'attribute_' . \Teeshoop\Core\Taxonomy::taxonomy( 'couleur' ), true );
+		$taille    = (string) get_post_meta( $variation->get_id(), 'attribute_' . \Teeshoop\Core\Taxonomy::taxonomy( 'taille' ), true );
+		ts_assert( '' !== $slug && '' !== $taille, 'the fixture variation carries no attributes' );
+		$homonyme  = wp_insert_term( 'Homonyme ' . $slug, 'product_tag', array( 'slug' => $slug ) );
+
+		$jumeau = new \WC_Product_Variation();
+		$jumeau->set_parent_id( $blank );
+		$jumeau->save();
+		update_post_meta( $jumeau->get_id(), 'attribute_' . \Teeshoop\Core\Taxonomy::taxonomy( 'couleur' ), $slug );
+		update_post_meta( $jumeau->get_id(), 'attribute_' . \Teeshoop\Core\Taxonomy::taxonomy( 'taille' ), $taille );
+		wp_trash_post( $jumeau->get_id() );
+
+		$index = ( new \ReflectionMethod( Purchase::class, 'variation_index' ) )->invoke( null, $blank );
+		wp_delete_post( $jumeau->get_id(), true );
+		if ( ! is_wp_error( $homonyme ) ) {
+			wp_delete_term( (int) $homonyme['term_id'], 'product_tag' );
+		}
+		$case = $index[ $slug . "\x00" . $taille ] ?? array();
+		ts_eq( $case['ambigu'] ?? null, false, 'une case résolue par l’achat est marquée ambiguë et sort de la vérification' );
+		ts_eq( $case['id'] ?? 0, $variation->get_id(), 'la case ne désigne pas la déclinaison vivante' );
 	} );
 
 	ts_it( 'writes the supplier’s own stock date on every article it wrote', function () {

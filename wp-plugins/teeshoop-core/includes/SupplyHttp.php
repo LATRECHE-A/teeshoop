@@ -223,7 +223,7 @@ final class SupplyHttp {
 	 * @param string                        $what     Le nom de l'appel, pour le message.
 	 * @return array{ok:bool,body?:array<mixed>,error?:string,reason?:string,code?:int}
 	 */
-	private static function read( $response, string $what ): array {
+	private static function read( $response, string $what, bool $refusal_body = false ): array {
 		if ( is_wp_error( $response ) ) {
 			return array(
 				'ok'     => false,
@@ -273,8 +273,14 @@ final class SupplyHttp {
 		 * fournisseur a répondu 400 » sur l'écran où il doit décider s'il
 		 * recommande à la main. Le corps est donc décodé et l'appelant compose
 		 * la phrase.
+		 *
+		 * SUR LA COMMANDE SEULEMENT (`$refusal_body`). Pour une lecture, un 400 ou
+		 * un 422 est un refus comme un autre : accepté partout, le document
+		 * d'erreur d'une date refusée arrivait dans `Supply::sync()` comme une
+		 * page sans produits, et la marche redemandait cette page sans fin
+		 * (FOU-03, mille requêtes mesurées contre un transport bouchonné).
 		 */
-		if ( 200 !== $code && 201 !== $code && 422 !== $code && 400 !== $code ) {
+		if ( 200 !== $code && 201 !== $code && ! ( $refusal_body && ( 422 === $code || 400 === $code ) ) ) {
 			return array(
 				'ok'     => false,
 				'reason' => $code >= 500 ? 'upstream' : 'bad_request',
@@ -459,7 +465,8 @@ final class SupplyHttp {
 					'body'        => (string) wp_json_encode( $body ),
 				)
 			),
-			$path
+			$path,
+			true
 		);
 	}
 
