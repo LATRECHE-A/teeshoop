@@ -116,6 +116,20 @@ export const COPIE = {
     'Gabarit à l’échelle, peint avec la couleur mesurée sur la puce du fabricant.',
   apercuPhoto: 'Photographie de ce coloris par le fabricant.',
   apercuFace: (face: string): string => `Vue : ${face.toLowerCase()}`,
+  apercuTelecharger: 'Télécharger l’aperçu',
+  apercuTelechargerNom: (couleur: string): string => `Télécharger l’aperçu sur le coloris ${couleur}`,
+  /** Écrit SUR l'image téléchargée : elle circule sans la page qui l'expliquait. */
+  apercuMention: (produit: string, couleur: string): string =>
+    `${produit}, ${couleur}. Aperçu Teeshoop non contractuel : le bon à tirer fait foi.`,
+  apercuTelechargementRate:
+    'L’aperçu n’a pas pu être préparé pour le téléchargement. Votre création n’est pas touchée : réessayez, ou faites une capture de l’écran.',
+  /*
+   * LA RÉSOLUTION EST DITE EN CE QU'ELLE PERMET, PAS EN JARGON. « 96 ppp »
+   * seul ne dit rien à un acheteur ; la largeur jusqu'à laquelle son fichier
+   * reste net se mesure sur le canevas juste au-dessus.
+   */
+  resolutionFaible: (dpi: string, seuil: string, cm: string, plusGrande: boolean): string =>
+    `Votre image sera imprimée à ${dpi} pixels par pouce${plusGrande ? ' dans la plus grande taille' : ''}. En dessous de ${seuil}, le marquage risque d’être flou : gardez-la sous ${cm} cm de large, ou envoyez un fichier plus grand.`,
   /*
    * LE POURCENTAGE EST MESURÉ, PAS QUALIFIÉ. « Le contraste est faible » ne dit
    * rien qu'un client puisse peser ; « 78 % de votre visuel » se regarde sur

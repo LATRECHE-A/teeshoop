@@ -558,6 +558,37 @@ try {
   ok('le dépôt a bien eu lieu, sinon ce qui suit ne prouve rien', depots > avantDepot && envoye.length > 1000, `${envoye.length} octets`)
   ok('la position EXIF de la photo ne part pas avec la création', !envoye.includes('GPS-TEMOIN-TEESHOOP'))
   ok('le nom du fichier du client non plus', !envoye.includes('facture-dupont'))
+
+  // ── Télécharger l'aperçu : un vrai PNG, avec sa mention ─────────────────
+  const boutonApercu = page.locator('[data-teeshoop^="telecharger-"]').first()
+  await boutonApercu.waitFor({ timeout: 30000 })
+  const [telechargement] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), boutonApercu.click()])
+  const nomFichier = telechargement.suggestedFilename()
+  const chemin = await telechargement.path()
+  const octets = chemin ? readFileSync(chemin) : Buffer.alloc(0)
+  ok('« Télécharger l’aperçu » donne un PNG nommé d’après le produit', /^teeshoop-apercu-.+\.png$/.test(nomFichier) && octets.subarray(1, 4).toString() === 'PNG' && octets.length > 20000, `${nomFichier}, ${octets.length} octets`)
+
+  // ── Une image trop petite pour sa taille est signalée, une grande non ──
+  const pngDe = (cote) =>
+    page.evaluate(async (cote) => {
+      const c = document.createElement('canvas')
+      c.width = cote
+      c.height = cote
+      const g = c.getContext('2d')
+      g.fillStyle = '#1b4d3e'
+      g.fillRect(0, 0, cote, cote)
+      const b = await new Promise((r) => c.toBlob(r, 'image/png'))
+      return Array.from(new Uint8Array(await b.arrayBuffer()))
+    }, cote)
+  await page.locator('[data-teeshoop="revenir-creation"]').click()
+  await page.setInputFiles('input.tshop-ed__fichier', { name: 'grande.png', mimeType: 'image/png', buffer: Buffer.from(await pngDe(2000)) })
+  await page.waitForTimeout(2500)
+  ok('une image de 2 000 px posée à sa taille de départ n’est pas signalée', (await page.locator('[data-teeshoop="resolution-faible"]').count()) === 0)
+  await page.setInputFiles('input.tshop-ed__fichier', { name: 'petite.png', mimeType: 'image/png', buffer: Buffer.from(await pngDe(150)) })
+  const alerteFlou = page.locator('[data-teeshoop="resolution-faible"]')
+  const vue = await alerteFlou.waitFor({ timeout: 15000 }).then(() => true).catch(() => false)
+  const phrase = vue ? await alerteFlou.innerText() : ''
+  ok('une image de 150 px étirée sur la zone est signalée, avec la largeur où elle reste nette', vue && /pixels par pouce/.test(phrase) && /sous [0-9]+,[0-9] cm de large/.test(phrase), phrase.slice(0, 160))
 } catch (e) {
   ok('le parcours va au bout', false, String(e?.message ?? e).split('\n')[0])
 } finally {

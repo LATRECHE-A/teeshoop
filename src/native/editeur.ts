@@ -45,7 +45,10 @@
  */
 import type { Design, ImageLayer, Layer, Side, SizeId } from '@/lib/types'
 import { EditorEngine } from '@/editor/EditorEngine'
-import { addAsset, removeAsset, sweepAssets } from '@/state/assets'
+import { addAsset, getCachedAssetImage, removeAsset, sweepAssets } from '@/state/assets'
+import { printScaleK } from '@/lib/printScale'
+import { effectiveDpi, MIN_EFFECTIVE_DPI, sharpWidthIn } from '@/lib/printQuality'
+import { canvasToBlob, downloadBlob, slugify } from '@/lib/download'
 import { garmentHexOf, setShopPalette } from '@/content/garmentPalette'
 import { clampLayersToArea, getAreaSizeIn, renderMockup, renderPrintArea } from '@/lib/renderDesign'
 import { ensureInkProbes, layerInkSize } from '@/lib/ink'
@@ -2505,6 +2508,16 @@ class Instance implements Editeur {
       }
 
       carte.append(visuel, nom)
+      if (visuel instanceof HTMLCanvasElement) {
+        const telecharger = el('button', 'tshop-ed__outil tshop-ed__apercu-telecharger')
+        telecharger.type = 'button'
+        telecharger.textContent = COPIE.apercuTelecharger
+        telecharger.setAttribute('aria-label', COPIE.apercuTelechargerNom(couleur?.nom ?? ligne.couleur))
+        telecharger.setAttribute('data-teeshoop', `telecharger-${ligne.couleur}`)
+        const nomCouleur = couleur?.nom ?? ligne.couleur
+        telecharger.addEventListener('click', () => void this.telechargerApercu(ligne.couleur, face, nomCouleur, carte))
+        carte.append(telecharger)
+      }
       if (decorees.length > 1) {
         const quelle = el('p', 'tshop-ed__apercu-note')
         quelle.textContent = COPIE.apercuFace(COPIE.face(face))
@@ -2634,6 +2647,57 @@ class Instance implements Editeur {
     return vu ? fusionner(parts) : null
   }
 
+  /**
+   * La résolution d'une image trop peu définie pour sa taille, ou null.
+   *
+   * DANS LA PLUS GRANDE TAILLE DU PRODUIT, parce qu'un visuel gradué s'y
+   * étire : les mêmes pixels couvrent une largeur plus grande. Même règle que
+   * l'export du studio (`src/lib/printQuality.ts`). Null aussi tant que
+   * l'image n'est pas lue : « pas encore regardé » n'est pas « net ».
+   */
+  private resolution(calque: Layer): { dpi: number; nettesIn: number; plusGrande: boolean } | null {
+    if (calque.type !== 'image') return null
+    const img = getCachedAssetImage(calque.assetId, calque.useCutout ? 'cutout' : 'original')
+    if (!img || !img.complete || img.naturalWidth === 0) return null
+    const k = Math.max(1, ...this.ctx.tailles.map((t) => printScaleK(this.creation, t as SizeId)))
+    const dpi = effectiveDpi(img.naturalWidth, calque.wIn, k)
+    if (dpi >= MIN_EFFECTIVE_DPI) return null
+    return { dpi: Math.floor(dpi), nettesIn: sharpWidthIn(img.naturalWidth) / k, plusGrande: k > 1 }
+  }
+
+  /**
+   * L'aperçu d'un coloris, en PNG, avec sa mention écrite DANS l'image.
+   *
+   * Pour le faire valider en interne avant de commander, ce que font la
+   * plupart des configurateurs. L'image circulera sans la page qui
+   * l'expliquait, donc elle porte elle-même « non contractuel : le bon à tirer
+   * fait foi ».
+   */
+  private async telechargerApercu(couleur: string, face: Side, nom: string, carte: HTMLElement): Promise<void> {
+    try {
+      const image = await renderMockup({ ...this.creation, colorId: couleur }, face, 1200, this.tailleTarif())
+      const bande = 64
+      const toile = document.createElement('canvas')
+      toile.width = image.width
+      toile.height = image.height + bande
+      const g = toile.getContext('2d')
+      if (!g) throw new Error('pas de contexte 2d')
+      g.fillStyle = '#ffffff'
+      g.fillRect(0, 0, toile.width, toile.height)
+      g.drawImage(image, 0, 0)
+      g.fillStyle = '#3d3d3d'
+      g.font = '24px sans-serif'
+      g.textBaseline = 'middle'
+      g.fillText(COPIE.apercuMention(this.ctx.titre, nom), 28, image.height + bande / 2, toile.width - 56)
+      downloadBlob(await canvasToBlob(toile), `teeshoop-apercu-${slugify(this.ctx.titre)}-${slugify(nom)}.png`)
+    } catch {
+      if (carte.querySelector('[data-teeshoop="apercu-telechargement-rate"]')) return
+      const p = alerte(COPIE.apercuTelechargementRate)
+      p.setAttribute('data-teeshoop', 'apercu-telechargement-rate')
+      carte.append(p)
+    }
+  }
+
   /** L'avertissement de contraste de ce coloris, ou rien quand il se lit bien. */
   private lireContraste(id: string): HTMLElement | null {
     let verdict = this.lisibilite.get(id)
@@ -2676,11 +2740,13 @@ class Instance implements Editeur {
      * se redessine si la mesure a changé ; une seconde fois, rien ne change et
      * la boucle s'arrête.
      */
+    const flou = this.resolution(calque)
     if (calque.type === 'image') {
       void ensureInkProbes([calque]).then(() => {
         if (this.detruit || this.selection !== calque.id) return
         const apres = mesureDe(calque)
-        if (apres?.w !== mesure?.w || apres?.h !== mesure?.h) this.rendreOutils()
+        const flouApres = this.resolution(calque)
+        if (apres?.w !== mesure?.w || apres?.h !== mesure?.h || flouApres?.dpi !== flou?.dpi) this.rendreOutils()
       })
     }
     const taille = el('span', 'tshop-ed__mesure')
@@ -2707,6 +2773,17 @@ class Instance implements Editeur {
 
     if (mesure) zone.append(taille)
     zone.append(centrer, retirer)
+    if (flou) {
+      const p = el('p', 'tshop-ed__attention')
+      p.setAttribute('data-teeshoop', 'resolution-faible')
+      p.textContent = COPIE.resolutionFaible(
+        fmtNum(flou.dpi, 0),
+        fmtNum(MIN_EFFECTIVE_DPI, 0),
+        fmtNum(inToCm(flou.nettesIn), 1),
+        flou.plusGrande,
+      )
+      zone.append(p)
+    }
   }
 
   private rendrePrix(): void {
