@@ -3948,6 +3948,27 @@ restent provisoires, et l'écran dit pourquoi.
 
 *Votre réponse :*
 
+### Q77. Proposer un nom et un numéro différents sur chaque pièce ? (*Utile*)
+
+C'est la fonction la plus demandée par les clubs et les équipes chez les
+configurateurs concurrents : un même maillot, avec « DUPONT 10 » sur l'un et
+« MARTIN 7 » sur l'autre, saisis dans un tableau au moment de commander.
+
+L'outil sait la construire. Ce qu'il ne sait pas, c'est **le prix** : chaque
+nom est un transfert à part (film, découpe, pose), donc un coût par pièce que
+le tarif actuel ne contient pas. Il faudrait nous dire :
+
+1. un supplément par pièce personnalisée (par exemple « + X EUR HT par nom ou
+   numéro »), ou un tarif qui dépend de la longueur du nom ;
+2. les limites : nombre de caractères, polices et hauteurs proposées, dos
+   seulement ou aussi le devant ;
+3. si le bon à tirer doit montrer chaque nom (utile, mais long pour 50 pièces).
+
+*Si vous ne répondez pas, on partira sur :* rien n'est proposé en ligne ; ces
+commandes passent par le devis, comme aujourd'hui.
+
+*Votre réponse :*
+
 ---
 
 *Document généré à partir de l'analyse de « La Bible de Teeshoop », du site
