@@ -4,7 +4,52 @@
 > Il est ordonné par ce qui bloque le plus tôt. Chaque ligne dit *pourquoi* l'accès
 > est nécessaire. Si la raison ne tient pas, l'accès ne doit pas être donné.
 >
-> Dernière mise à jour : 26 septembre 2026 (§16, la passe complète : ce qui bloque la mise en ligne) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
+> Dernière mise à jour : 28 septembre 2026 (§0, le domaine a expiré) · voir aussi [QUESTIONS-ASSOCIE.md](QUESTIONS-ASSOCIE.md)
+
+---
+
+## §0. URGENT, 28 septembre 2026 : le domaine `teeshoop.com` a expiré
+
+**Le site et les courriels sont hors ligne pour tout le monde depuis le 27 septembre
+2026.** Mesuré le 28 à 10 h : `teeshoop.com` et `www.teeshoop.com` répondent
+« domaine inexistant » chez Google (8.8.8.8) comme chez Cloudflare (1.1.1.1). Le
+registre (RDAP Verisign) dit pourquoi :
+
+| Champ | Valeur |
+|---|---|
+| Registraire | **Scaleway SAS** (ex-Online.net) |
+| Expiration | **27/09/2026, 11 h 45 UTC** |
+| Statut | `client hold` (suspendu par le registraire), `client transfer prohibited` |
+| Serveurs de noms | `ns1.o2switch.net`, `ns2.o2switch.net` (inchangés) |
+
+Le serveur, lui, va bien : la boutique répond 200 quand on force l'adresse
+109.234.166.12. Rien n'est perdu côté hébergement. Mais tant que le domaine est
+suspendu, aucun client ne voit le site, **aucun courriel n'arrive ni ne part**
+(confirmations de commande, bons à tirer, SAV), et les liens déjà envoyés sont morts.
+
+**À faire, par le titulaire du compte Scaleway (pas par Claude) :** se connecter à
+la console Scaleway, section Domaines, et **renouveler `teeshoop.com`**. Un domaine
+en `.com` expiré reste renouvelable au prix normal pendant la période de grâce (de
+l'ordre de 30 jours chez la plupart des registraires), puis passe en rédemption,
+beaucoup plus chère, puis est libéré. Activer ensuite le **renouvellement
+automatique**. La résolution revient en quelques minutes à quelques heures après le
+renouvellement.
+
+### Et l'accès SSH de ce poste
+
+Depuis le 28 septembre, le port 22 d'o2switch ne répond plus à ce poste : son adresse
+publique a changé (**89.93.188.182** maintenant) et o2switch n'ouvre SSH qu'aux
+adresses inscrites. Le mot de passe cPanel donné le 26 ne fonctionne plus
+(`invalid_login`, il a sans doute été changé, comme conseillé), donc l'inscription
+n'a pas été faite. **Aucune livraison n'est possible d'ici tant que :**
+
+- cPanel > « Autorisation SSH » (ou `SshWhitelist/add`) inscrit `89.93.188.182`,
+  port 22 ; ou
+- le runner auto-hébergé (93.9.233.12, déjà inscrit) est rallumé, et la livraison
+  passe par `gh workflow run deploiement.yml`.
+
+Le commit `b3f55f7` (SAV client, bouton du catalogue, accueil) attend cette
+livraison ; la production tourne sur `7280a86`.
 
 ---
 
