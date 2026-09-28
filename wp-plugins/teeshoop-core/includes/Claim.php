@@ -231,6 +231,17 @@ final class Claim {
 		echo '<section class="ts-sav" id="teeshoop-sav" aria-labelledby="ts-sav-titre">';
 		echo '<h2 id="ts-sav-titre">' . esc_html__( 'Un problème avec cette commande ?', 'teeshoop' ) . '</h2>';
 
+		$retour = get_transient( 'teeshoop_sav_retour_' . get_current_user_id() );
+		if ( is_array( $retour ) && '' !== (string) ( $retour['texte'] ?? '' ) ) {
+			delete_transient( 'teeshoop_sav_retour_' . get_current_user_id() );
+			printf(
+				'<p class="ts-sav__retour ts-sav__retour--%1$s" role="%2$s">%3$s</p>',
+				! empty( $retour['ok'] ) ? 'ok' : 'erreur',
+				! empty( $retour['ok'] ) ? 'status' : 'alert',
+				esc_html( (string) $retour['texte'] )
+			);
+		}
+
 		if ( array() !== $mine ) {
 			echo '<ul class="ts-sav__liste">';
 			foreach ( $mine as $claim ) {
@@ -301,9 +312,24 @@ final class Claim {
 		$quantite    = isset( $_POST['quantite'] ) ? absint( wp_unslash( $_POST['quantite'] ) ) : 0;
 		$done        = self::open_for_customer( $order, $motif, $description, $quantite );
 
+		/*
+		 * NOT `wc_add_notice()`: WooCommerce loads it for front-end requests only,
+		 * and `admin-post.php` counts as admin. Every submission ended on
+		 * « Il y a eu une erreur critique », after the claim was written and both
+		 * e-mails queued, measured in a browser on 28 September 2026. The page
+		 * reads this message back itself, like the workshop's own flashes.
+		 */
+		$retour = 'teeshoop_sav_retour_' . get_current_user_id();
 		if ( $done['ok'] ) {
 			delete_transient( 'teeshoop_sav_brouillon_' . get_current_user_id() );
-			wc_add_notice( __( 'Votre demande est envoyée à l’atelier. Un courriel de confirmation vient de partir vers votre adresse.', 'teeshoop' ), 'success' );
+			set_transient(
+				$retour,
+				array(
+					'ok'    => true,
+					'texte' => __( 'Votre demande est envoyée à l’atelier. Un courriel de confirmation vient de partir vers votre adresse.', 'teeshoop' ),
+				),
+				2 * MINUTE_IN_SECONDS
+			);
 		} else {
 			// What was typed is kept for the page it comes back to.
 			set_transient(
@@ -316,7 +342,14 @@ final class Claim {
 				),
 				15 * MINUTE_IN_SECONDS
 			);
-			wc_add_notice( (string) $done['reason'], 'error' );
+			set_transient(
+				$retour,
+				array(
+					'ok'    => false,
+					'texte' => (string) $done['reason'],
+				),
+				2 * MINUTE_IN_SECONDS
+			);
 		}
 		wp_safe_redirect( $order->get_view_order_url() . '#teeshoop-sav' );
 		exit;

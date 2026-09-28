@@ -227,7 +227,7 @@ function ts_schema_suite(): void {
 			 * et des menus, qui n'existent qu'après `init` (voir Schema::steps()).
 			 */
 			$cli_only = array_values( array_map( static fn( array $s ): int => (int) $s['id'], array_filter( Schema::steps(), static fn( array $s ): bool => empty( $s['auto'] ) ) ) );
-			ts_eq( $cli_only, array( 7, 8, 9 ), 'seules les étapes qui écrivent des pages, des menus ou l’état des extensions attendent la ligne de commande' );
+			ts_eq( $cli_only, array( 7, 8, 9, 11 ), 'seules les étapes qui écrivent des pages, des menus, des fiches produit ou l’état des extensions attendent la ligne de commande' );
 		}
 	);
 
@@ -316,6 +316,64 @@ function ts_schema_suite(): void {
 			unlink( WP_PLUGIN_DIR . '/' . $fichier );
 			rmdir( $dossier );
 			wp_clean_plugins_cache( false );
+		}
+	);
+
+	ts_it(
+		'keeps WooCommerce usage tracking, and its tk_ai cookie, to the shop staff',
+		function (): void {
+			/*
+			 * With « usage tracking » on, WooCommerce wrote `tk_ai` on any
+			 * `admin_init`, admin-post.php included: « Tout refuser » itself left
+			 * a visitor with it (measured in production on 28 September 2026).
+			 */
+			$avant = get_option( 'woocommerce_allow_tracking', 'no' );
+			update_option( 'woocommerce_allow_tracking', 'yes' );
+			$qui = get_current_user_id();
+			try {
+				wp_set_current_user( 0 );
+				ts_eq( WC_Site_Tracking::is_tracking_enabled(), false, 'a visitor is tracked by WooCommerce usage tracking' );
+				$admin = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
+				ts_assert( ! empty( $admin ), 'no administrator on the mirror, so the staff half proves nothing' );
+				wp_set_current_user( (int) $admin[0]->ID );
+				ts_eq( WC_Site_Tracking::is_tracking_enabled(), true, 'the staff opt-in must still work for the staff' );
+			} finally {
+				wp_set_current_user( $qui );
+				update_option( 'woocommerce_allow_tracking', $avant );
+			}
+		}
+	);
+
+	ts_it(
+		'takes the old shop’s uncategorised products off sale, and nothing of ours',
+		function (): void {
+			/*
+			 * Two products of the old shop, with no family and their old price,
+			 * were still listed in production on 28 September 2026 and made the
+			 * catalogue say 427 under a text that says 425.
+			 */
+			$ancien = new WC_Product_Simple();
+			$ancien->set_name( 'ZZ T-shirt de l’ancienne boutique' );
+			$ancien->set_status( 'publish' );
+			$ancien->set_regular_price( '6.99' );
+			$ancien_id = (int) $ancien->save();
+
+			$notre = new WC_Product_Simple();
+			$notre->set_name( 'ZZ Vêtement importé, pas encore rangé' );
+			$notre->set_status( 'publish' );
+			$notre_id = (int) $notre->save();
+			update_post_meta( $notre_id, \Teeshoop\Core\Catalogue::META_REF, 'ZZREF11' );
+
+			try {
+				$dit = Schema::step_produits_anciens();
+				ts_eq( get_post_status( $ancien_id ), 'draft', 'the old product is still on sale : ' . $dit );
+				ts_eq( get_post_status( $notre_id ), 'publish', 'a product of ours was taken off sale' );
+				ts_assert( ! str_contains( $dit, 'importe' ) && str_contains( $dit, 'ancienne-boutique' ), 'the report does not name what it did : ' . $dit );
+				ts_eq( Schema::step_produits_anciens(), 'aucun produit de l’ancienne boutique en vente', 'a second pass must do nothing' );
+			} finally {
+				wp_delete_post( $ancien_id, true );
+				wp_delete_post( $notre_id, true );
+			}
 		}
 	);
 

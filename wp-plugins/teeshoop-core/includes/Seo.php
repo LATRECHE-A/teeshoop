@@ -54,7 +54,7 @@ declare( strict_types = 1 );
 
 namespace Teeshoop\Core;
 
-defined( 'ABSPATH' ) || exit;
+defined( 'ABSPATH' ) || defined( 'TEESHOOP_TEST' ) || exit;
 
 final class Seo {
 
@@ -110,6 +110,66 @@ final class Seo {
 
 		self::init_sitemap();
 
+		// After WooCommerce builds its collector, on `init` at priority 0.
+		add_action( 'init', array( self::class, 'take_over_woo_structured_data' ), 20 );
+	}
+
+	/**
+	 * WooCommerce's product JSON-LD, printed as JSON and not as HTML.
+	 *
+	 * The graph above works around it for unpriced references; a PRICED one
+	 * still went out through `WC_Structured_Data::output_structured_data()`,
+	 * whose `wc_esc_json( …, true )` HTML-escapes the JSON inside a `<script>`,
+	 * where entities are never decoded. With the title stored as `B&amp;C`, the
+	 * crawler and any agent reading the page got `B&amp;amp;C` as the product's
+	 * name, measured on 28 September 2026. Same data, same place, printed once
+	 * and cleanly by `clean_ld_json()`.
+	 */
+	public static function take_over_woo_structured_data(): void {
+		if ( ! function_exists( 'WC' ) || ! isset( WC()->structured_data ) ) {
+			return;
+		}
+		$woo = array( WC()->structured_data, 'output_structured_data' );
+		if ( false === has_action( 'wp_footer', $woo ) ) {
+			return;
+		}
+		remove_action( 'wp_footer', $woo, 10 );
+		add_action( 'wp_footer', array( self::class, 'woo_structured_data' ), 10 );
+	}
+
+	public static function woo_structured_data(): void {
+		ob_start();
+		WC()->structured_data->output_structured_data();
+		echo self::clean_ld_json( (string) ob_get_clean() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON_HEX_TAG, see clean_ld_json().
+	}
+
+	/**
+	 * One `<script type="application/ld+json">` block, with its HTML escaping
+	 * undone and every string decoded of entities, re-encoded as JSON. PURE.
+	 *
+	 * `JSON_HEX_TAG` writes `<` and `>` as `\u003C` and `\u003E`, so no value
+	 * can close the script element: that, and not HTML escaping, is the
+	 * protection a JSON island needs. Anything not of that exact shape is
+	 * returned untouched, rather than a block half understood being rewritten.
+	 */
+	public static function clean_ld_json( string $html ): string {
+		if ( 1 !== preg_match( '~^<script type="application/ld\+json">(.*)</script>$~s', trim( $html ), $m ) ) {
+			return $html;
+		}
+		$data = json_decode( html_entity_decode( $m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8' ), true );
+		if ( ! is_array( $data ) ) {
+			return $html;
+		}
+		array_walk_recursive(
+			$data,
+			static function ( &$value ): void {
+				if ( is_string( $value ) ) {
+					$value = html_entity_decode( $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+				}
+			}
+		);
+		$json = json_encode( $data, JSON_HEX_TAG | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		return false === $json ? $html : '<script type="application/ld+json">' . $json . '</script>';
 	}
 
 	/**

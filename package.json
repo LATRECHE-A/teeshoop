@@ -33,6 +33,7 @@
     "verify:csp": "node scripts/csp-verify.mjs",
     "verify:style": "node scripts/style-guard.mjs",
     "verify:wp-e2e": "node scripts/wp-e2e-verify.mjs",
+    "verify:sav": "node scripts/sav-verify.mjs",
     "verify:wp-catalogue": "node scripts/wp-catalogue-verify.mjs",
     "verify:invoice": "node scripts/invoice-verify.mjs",
     "verify:nest": "node scripts/nest-verify.mjs",

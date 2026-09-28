@@ -175,7 +175,58 @@ final class Schema {
 				'auto'  => true,
 				'run'   => array( self::class, 'step_fuseau' ),
 			),
+			// Même raison que 7 à 9 : des fiches, donc WooCommerce entièrement chargé.
+			array(
+				'id'    => 11,
+				'label' => 'Produits de l’ancienne boutique encore en vente, retirés du catalogue',
+				'auto'  => false,
+				'run'   => array( self::class, 'step_produits_anciens' ),
+			),
 		);
+	}
+
+	/**
+	 * Les produits de l'ancienne boutique encore en vente, en brouillon.
+	 *
+	 * Mesuré en production le 28/09/2026 par l'API Store : 427 références en
+	 * boutique, dont deux sans aucune famille, restées de l'ancienne boutique avec
+	 * leur prix (un t-shirt « Imperial » à 6,99 EUR, une veste softshell à
+	 * 35,79 EUR). Elles s'affichaient au catalogue sous une identité qui n'est
+	 * plus la boutique, à un prix que la règle de tarif n'a jamais produit, et
+	 * faisaient mentir la page : « 425 références » dans le texte, 427 au-dessus
+	 * de la grille.
+	 *
+	 * RECONNUES À CE QUI LEUR MANQUE : aucune catégorie hors celle que WordPress
+	 * donne par défaut, ET rien de ce que nos chemins écrivent (référence du
+	 * catalogue, article fournisseur, vêtement du studio). Une fiche que nous
+	 * avons créée n'est jamais touchée, rangée ou non. En brouillon, comme les
+	 * pages de l'étape 7 : le contenu reste en base.
+	 */
+	public static function step_produits_anciens(): string {
+		$defaut  = (int) get_option( 'default_product_cat', 0 );
+		$retires = array();
+		foreach ( get_posts( array( 'post_type' => 'product', 'post_status' => 'publish', 'numberposts' => -1, 'fields' => 'ids' ) ) as $id ) {
+			$id    = (int) $id;
+			$terms = wp_get_object_terms( $id, 'product_cat', array( 'fields' => 'ids' ) );
+			if ( is_wp_error( $terms ) || array() !== array_diff( array_map( 'intval', $terms ), array( $defaut ) ) ) {
+				continue;
+			}
+			if ( '' !== (string) get_post_meta( $id, Catalogue::META_REF, true )
+				|| '' !== (string) get_post_meta( $id, Catalogue::META_SUPPLY_SKU, true )
+				|| '' !== Product::garment_of( $id ) ) {
+				continue;
+			}
+			$produit = wc_get_product( $id );
+			if ( ! $produit instanceof \WC_Product ) {
+				continue;
+			}
+			$produit->set_status( 'draft' );
+			$produit->save();
+			$retires[] = $produit->get_slug();
+		}
+		return array() === $retires
+			? 'aucun produit de l’ancienne boutique en vente'
+			: 'en brouillon : ' . implode( ', ', $retires );
 	}
 
 	/**

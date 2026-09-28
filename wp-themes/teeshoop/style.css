@@ -4111,6 +4111,26 @@ a.ts-chip:hover {
 	border-top: 1px solid var(--ts-line);
 }
 
+/* Ce qui vient de se passer, dit en tête du bloc, jamais par la seule couleur. */
+.ts-sav__retour {
+	margin: 0 0 var(--ts-space-4);
+	padding: var(--ts-space-3) var(--ts-space-4);
+	border-inline-start: 3px solid;
+	max-width: 38rem;
+}
+
+.ts-sav__retour--ok {
+	border-inline-start-color: var(--ts-good);
+	background: var(--ts-good-wash);
+	color: var(--ts-good-ink);
+}
+
+.ts-sav__retour--erreur {
+	border-inline-start-color: var(--ts-bad);
+	background: var(--ts-bad-wash);
+	color: var(--ts-bad-ink);
+}
+
 .ts-sav__liste {
 	margin: 0 0 var(--ts-space-4);
 	padding-left: 1.2em;

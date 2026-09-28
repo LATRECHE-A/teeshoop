@@ -194,7 +194,32 @@ final class Consent {
 		add_filter( 'wc_order_attribution_allow_tracking', array( self::class, 'woocommerce_may_track' ) );
 		add_action( 'wp_enqueue_scripts', array( self::class, 'dequeue_woocommerce_attribution' ), 99 );
 
+		/*
+		 * FIRST IN THE DOCUMENT, NOT LAST. Rendered from `wp_footer`, the panel
+		 * came after the whole page: 49 presses of Tab to reach « Tout refuser »,
+		 * measured on 28 September 2026, for a question that is asked before
+		 * anything else. `wp_body_open` puts it at the top of the tab order; the
+		 * footer stays as the fallback for a template that does not fire it, and
+		 * `render()` prints once whichever runs first. It is fixed-position, so
+		 * the move changes nothing on screen.
+		 */
+		add_action( 'wp_body_open', array( self::class, 'render' ), 5 );
 		add_action( 'wp_footer', array( self::class, 'render' ), 20 );
+
+		/*
+		 * WOOCOMMERCE'S OWN TELEMETRY, KEPT TO THE PEOPLE WHO RUN THE SHOP. With
+		 * « usage tracking » on, WooCommerce writes a `tk_ai` identifier on any
+		 * `admin_init`, and `admin-post.php` fires it: the very form that records
+		 * « Tout refuser » left a visitor with an Automattic tracking cookie,
+		 * measured on 28 September 2026. It is the shop staff's opt-in, made in
+		 * the WooCommerce settings; a visitor never made it.
+		 */
+		add_filter( 'woocommerce_apply_user_tracking', array( self::class, 'staff_tracking_only' ) );
+	}
+
+	/** @param bool $track WooCommerce's answer so far. */
+	public static function staff_tracking_only( $track ): bool {
+		return (bool) $track && current_user_can( 'manage_woocommerce' );
 	}
 
 	// -----------------------------------------------------------------------
@@ -755,6 +780,10 @@ final class Consent {
 	 * the visitor it just paid to attract.
 	 */
 	public static function render(): void {
+		static $printed = false;
+		if ( $printed ) {
+			return;
+		}
 		$open = self::panel_requested();
 		if ( ! $open && ! self::pending() ) {
 			return;
@@ -764,6 +793,7 @@ final class Consent {
 		if ( empty( $categories ) ) {
 			return;
 		}
+		$printed = true;
 
 		$granted = self::choice() ?? array();
 		$back    = self::current_url();

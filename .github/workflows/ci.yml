@@ -646,6 +646,11 @@ jobs:
       - name: Rien n'est écrit chez le visiteur avant qu'il ait choisi
         run: node scripts/consent-verify.mjs http://localhost:8080
 
+      # Une vraie soumission, par admin-post.php : WP-CLI ne voit pas ce contexte,
+      # où WooCommerce ne charge pas ses fonctions de notice (28/09/2026).
+      - name: Le client signale un problème sur sa commande, et lit la réponse
+        run: node scripts/sav-verify.mjs
+
       # Ce que WordPress a écrit dans son journal pendant la suite. Seulement
       # quand quelque chose a échoué : un avis PHP au milieu d'un cas rouge est
       # souvent la vraie cause, et il n'apparaît nulle part dans la sortie de la
