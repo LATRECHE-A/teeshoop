@@ -234,7 +234,8 @@ final class Schema {
 			'rcs_ville'             => 'Bobigny',
 			'tva_intra'             => 'FR45930592985',
 			'directeur_publication' => 'SINGH Simran',
-			'contact_email'         => 'legales@teeshoop.fr',
+			// .com : le document de l'associé écrit .fr, domaine qui n'existe pas (question 56).
+			'contact_email'         => 'legales@teeshoop.com',
 			'contact_tel'           => '07 58 48 83 98',
 			'hebergeur_nom'         => 'o2switch',
 			'hebergeur_adresse'     => 'Chemin des Pardiaux',
