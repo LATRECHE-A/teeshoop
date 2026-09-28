@@ -4123,6 +4123,8 @@ a.ts-chip:hover {
 .ts-sav__champ label {
 	display: block;
 	margin-bottom: var(--ts-space-1);
+	font-family: var(--ts-font-display);
+	font-size: var(--ts-text-sm);
 	font-weight: var(--ts-weight-nav);
 }
 
