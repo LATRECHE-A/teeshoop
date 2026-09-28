@@ -50,8 +50,16 @@ const mdp = `Sav-${Date.now()}-verif`
 let donnees = null
 try {
   donnees = wp(`
+    $cree = 0;
     $p = wc_get_products( array( 'status' => 'publish', 'limit' => 1, 'return' => 'ids' ) );
-    if ( empty( $p ) ) { echo wp_json_encode( array( 'erreur' => 'aucun produit publié sur le miroir' ) ); return; }
+    if ( empty( $p ) ) {
+      $x = new WC_Product_Simple();
+      $x->set_name( 'ZZ Vêtement de vérification SAV' );
+      $x->set_status( 'publish' );
+      $x->set_regular_price( '10.00' );
+      $cree = (int) $x->save();
+      $p = array( $cree );
+    }
     $u = wp_insert_user( array( 'user_login' => 'zzsavverif' . time(), 'user_pass' => '${mdp}', 'user_email' => 'zzsavverif' . time() . '@example.test', 'role' => 'customer' ) );
     $o = wc_create_order();
     $o->add_product( wc_get_product( (int) $p[0] ), 3 );
@@ -60,7 +68,7 @@ try {
     $o->calculate_totals();
     $o->set_status( 'completed' );
     $o->save();
-    echo wp_json_encode( array( 'user' => (int) $u, 'login' => get_userdata( (int) $u )->user_login, 'order' => $o->get_id(), 'vue' => $o->get_view_order_url(), 'compte' => wc_get_page_permalink( 'myaccount' ) ) );
+    echo wp_json_encode( array( 'user' => (int) $u, 'login' => get_userdata( (int) $u )->user_login, 'order' => $o->get_id(), 'produit' => $cree, 'vue' => $o->get_view_order_url(), 'compte' => wc_get_page_permalink( 'myaccount' ) ) );
   `)
 } catch (e) {
   process.stdout.write(`sav-verify : le miroir ne répond pas (npm run wp:up ?) : ${String(e.message).split('\n')[0]}\n`)
@@ -124,6 +132,7 @@ try {
       $o = wc_get_order( ${donnees.order} ); if ( $o ) { $o->delete( true ); }
       global $wpdb; $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . \\Teeshoop\\Core\\Mail::table() . ' WHERE order_id = %d', ${donnees.order} ) );
       wp_delete_user( ${donnees.user} );
+      if ( ${donnees.produit} > 0 ) { wp_delete_post( ${donnees.produit}, true ); }
       echo wp_json_encode( array( 'ok' => true ) );
     `)
     ok('les données de vérification sont effacées', net.ok === true)
