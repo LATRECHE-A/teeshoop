@@ -227,7 +227,7 @@ function ts_schema_suite(): void {
 			 * et des menus, qui n'existent qu'après `init` (voir Schema::steps()).
 			 */
 			$cli_only = array_values( array_map( static fn( array $s ): int => (int) $s['id'], array_filter( Schema::steps(), static fn( array $s ): bool => empty( $s['auto'] ) ) ) );
-			ts_eq( $cli_only, array( 7, 8, 9, 11 ), 'seules les étapes qui écrivent des pages, des menus, des fiches produit ou l’état des extensions attendent la ligne de commande' );
+			ts_eq( $cli_only, array( 7, 8, 9, 11, 12 ), 'seules les étapes qui écrivent des pages, des menus, des fiches produit ou l’état des extensions attendent la ligne de commande' );
 		}
 	);
 
@@ -316,6 +316,22 @@ function ts_schema_suite(): void {
 			unlink( WP_PLUGIN_DIR . '/' . $fichier );
 			rmdir( $dossier );
 			wp_clean_plugins_cache( false );
+		}
+	);
+
+	ts_it(
+		'regenerates rewrite rules that lost the sitemap, so /wp-sitemap.xml answers',
+		function (): void {
+			/*
+			 * Production answered 404 on the sitemap robots.txt announces: its
+			 * rules dated from when Rank Math hid WordPress's own (28/09/2026).
+			 */
+			$regles = get_option( 'rewrite_rules' );
+			ts_assert( is_array( $regles ) && isset( $regles['^wp-sitemap\.xml$'] ), 'the mirror has no sitemap rule to lose, so this proves nothing' );
+			update_option( 'rewrite_rules', array_filter( $regles, static fn( $k ) => ! str_contains( (string) $k, 'wp-sitemap' ), ARRAY_FILTER_USE_KEY ) );
+			$dit = Schema::step_reecriture();
+			$apres = get_option( 'rewrite_rules' );
+			ts_assert( is_array( $apres ) && isset( $apres['^wp-sitemap\.xml$'] ), 'the sitemap rule was not regenerated : ' . $dit );
 		}
 	);
 

@@ -341,6 +341,7 @@ final class Compat {
 		add_filter( 'woocommerce_breadcrumb_defaults', array( self::class, 'breadcrumb' ) );
 		add_filter( 'woocommerce_product_add_to_cart_text', array( self::class, 'add_to_cart_text' ), 10, 2 );
 		add_filter( 'woocommerce_product_add_to_cart_description', array( self::class, 'add_to_cart_description' ), 10, 2 );
+		add_filter( 'woocommerce_get_privacy_policy_text', array( self::class, 'registration_privacy_text' ), 10, 2 );
 		add_filter( 'woocommerce_catalog_orderby', array( self::class, 'orderby_labels' ) );
 
 		/*
@@ -474,6 +475,24 @@ final class Compat {
 			return sprintf( __( 'Voir le vêtement « %s »', 'teeshoop' ), wp_strip_all_tags( $product->get_name() ) );
 		}
 		return $description;
+	}
+
+	/**
+	 * What the account form says about the data it takes, in words that say it.
+	 *
+	 * Production carried « Nous optimisons votre expérience et simplifions
+	 * l'accès à votre compte », set in the WooCommerce settings: the one sentence
+	 * of the buying path in the register of an advertisement, and it named no
+	 * purpose (28/09/2026). The purposes are the ones the privacy page lists.
+	 *
+	 * @param string $text WooCommerce's, with its `[privacy_policy]` placeholder.
+	 * @param string $type `registration` or `checkout`.
+	 */
+	public static function registration_privacy_text( $text, $type = '' ) {
+		if ( 'registration' !== $type ) {
+			return $text;
+		}
+		return __( 'Votre adresse e-mail et les informations de votre compte servent à gérer votre compte, vos commandes et vos devis. Le détail, et vos droits, sont dans notre [privacy_policy].', 'teeshoop' );
 	}
 
 	/** Whether any variation of this product can be put in a basket as it is. */

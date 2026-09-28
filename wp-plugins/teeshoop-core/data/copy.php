@@ -490,13 +490,13 @@ return array(
 		'intro'       => array(
 			'Trois familles au catalogue : t-shirts, polos et sweats, soit {NB_REFERENCES} références déclinées en coloris et en tailles.',
 			'Une commande démarre à {MINIMUM_PIECES} pièces, comptées sur le panier entier, vêtements et tailles mélangés.',
-			'Les dimensions imprimables sont publiées en centimètres sur chaque fiche, et le prix s\'affiche avant l\'ajout au panier.',
+			'Les dimensions imprimables sont publiées en centimètres sur chaque fiche, et le prix s’affiche avant l’ajout au panier.',
 		),
 		'sections'    => array(
 			array(
 				'h2'         => 'Ce que la fiche produit dit avant la commande',
 				'paragraphs' => array(
-					'L\'éditeur en ligne pose votre visuel sur le vêtement et vous le montre en 2D, en 3D et en réalité augmentée. Le prix apparaît avant l\'ajout au panier, sans formulaire à remplir d\'abord.',
+					'L’éditeur en ligne pose votre visuel sur le vêtement et vous le montre en 2D, en 3D et en réalité augmentée. Le prix apparaît avant l’ajout au panier, sans formulaire à remplir d’abord.',
 					'Chaque fiche publie les mêmes quatre choses, pour toutes les références :',
 				),
 				'list'       => array(
@@ -507,7 +507,7 @@ return array(
 				),
 				'after'      => array(
 					'Sur un t-shirt en taille {TAILLE_MESUREE}, la face avant mesure {ZONE_TSHIRT}. Vous savez donc si votre visuel y tient avant de commander, et pas après.',
-					'« Cœur », « A3 » ou « grand dos » sont du vocabulaire d\'atelier. Un nombre en centimètres, lui, se compare à un objet que vous avez sous la main. C\'est pour cette raison que la fiche donne un nombre et pas un nom de format, et que le bon à tirer le reprend.',
+					'« Cœur », « A3 » ou « grand dos » sont du vocabulaire d’atelier. Un nombre en centimètres, lui, se compare à un objet que vous avez sous la main. C’est pour cette raison que la fiche donne un nombre et pas un nom de format, et que le bon à tirer le reprend.',
 				),
 				'links'      => array(
 					array( 'label' => 'Le catalogue des t-shirts', 'key' => 'categorie:t-shirts' ),
@@ -516,27 +516,27 @@ return array(
 			array(
 				'h2'         => 'Ce qui est facturé, et ce qui fait baisser le prix',
 				'paragraphs' => array(
-					'Le prix comprend l\'impression. Quand vous comparez des devis, vérifiez si le marquage est dans le prix du vêtement ou sur une ligne à part : les deux chiffres ne se comparent pas directement.',
-					'La surface facturée est celle de l\'encre réellement posée sur le textile, pas celle du rectangle dans lequel le fichier a été déposé. Un logo exporté avec de larges marges transparentes n\'est donc pas facturé sur ses marges.',
+					'Le prix comprend l’impression. Quand vous comparez des devis, vérifiez si le marquage est dans le prix du vêtement ou sur une ligne à part : les deux chiffres ne se comparent pas directement.',
+					'La surface facturée est celle de l’encre réellement posée sur le textile, pas celle du rectangle dans lequel le fichier a été déposé. Un logo exporté avec de larges marges transparentes n’est donc pas facturé sur ses marges.',
 					'Le prix unitaire baisse ensuite par palier de quantité. Deux règles de quantité coexistent, et elles ne se comptent pas au même endroit :',
 				),
 				'list'       => array(
-					'le palier de quantité se lit sur une seule ligne de commande, c\'est-à-dire un même vêtement mis au panier en une fois, toutes tailles confondues',
+					'le palier de quantité se lit sur une seule ligne de commande, c’est-à-dire un même vêtement mis au panier en une fois, toutes tailles confondues',
 					'le minimum de commande se lit sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues',
 				),
 				'after'      => array(
-					'Trente pièces d\'un même vêtement comptent donc comme trente. Les mêmes trente réparties sur trois modèles comptent comme trois fois dix, et chaque ligne est remisée sur sa propre quantité, pas sur le total du panier.',
+					'Trente pièces d’un même vêtement comptent donc comme trente. Les mêmes trente réparties sur trois modèles comptent comme trois fois dix, et chaque ligne est remisée sur sa propre quantité, pas sur le total du panier.',
 					'Mélanger des modèles vous fait atteindre le minimum, jamais le palier. À nombre de pièces égal, regrouper la quantité sur un seul vêtement coûte moins cher que de la répartir sur trois.',
 				),
 				'links'      => array(
-					array( 'label' => 'Préparer un fichier d\'impression', 'key' => 'page:fichiers-impression' ),
+					array( 'label' => 'Préparer un fichier d’impression', 'key' => 'page:fichiers-impression' ),
 					array( 'label' => 'Commander une petite série', 'key' => 'page:petites-series' ),
 				),
 			),
 			array(
 				'h2'         => 'Le grammage et le coloris sont publiés, pas décrits',
 				'paragraphs' => array(
-					'Le grammage de chaque référence est publié et filtrable. Un t-shirt léger et un t-shirt épais ne se portent pas de la même façon et ne coûtent pas la même chose : deux devis peuvent porter sur deux grammages différents sans que ni l\'un ni l\'autre ne le dise.',
+					'Le grammage de chaque référence est publié et filtrable. Un t-shirt léger et un t-shirt épais ne se portent pas de la même façon et ne coûtent pas la même chose : deux devis peuvent porter sur deux grammages différents sans que ni l’un ni l’autre ne le dise.',
 					'Le catalogue compte {NB_COLORIS} noms de coloris, regroupés en {NB_FAMILLES_COULEUR} familles de couleur. La famille est mesurée sur le nuancier du fabricant et non déduite du nom : deux noms voisins désignent parfois deux teintes éloignées, et deux noms sans rapport tombent parfois dans la même famille. Vous filtrez donc sur une couleur constatée.',
 					'Côté volume, cela fait {NB_TSHIRTS} t-shirts, {NB_POLOS} polos et {NB_SWEATS} sweats à comparer, grammage par grammage.',
 				),
@@ -547,9 +547,9 @@ return array(
 			array(
 				'h2'         => 'Le DTF en autonomie, la broderie sur devis',
 				'paragraphs' => array(
-					'Sur ce site, la technique disponible en autonomie est le DTF, et lui seul. C\'est celle que l\'atelier opère, du fichier jusqu\'à la presse.',
-					'La broderie, le flocage et la sublimation existent et passent par un devis. La broderie se fait dans notre atelier en petite série, et au-delà de dix pièces chez un atelier partenaire. Nous ne publions de délai pour aucun des deux : le nôtre n\'a jamais été chronométré, et l\'autre ne nous appartient pas.',
-					'Le catalogue tient trois familles : t-shirts, polos et sweats. Une veste ou un tablier n\'y sont pas aujourd\'hui, et nous préférons ne pas ouvrir une fiche pour un vêtement que nous ne pouvons pas expédier.',
+					'Sur ce site, la technique disponible en autonomie est le DTF, et lui seul. C’est celle que l’atelier opère, du fichier jusqu’à la presse.',
+					'La broderie, le flocage et la sublimation existent et passent par un devis. La broderie se fait dans notre atelier en petite série, et au-delà de dix pièces chez un atelier partenaire. Nous ne publions de délai pour aucun des deux : le nôtre n’a jamais été chronométré, et l’autre ne nous appartient pas.',
+					'Le catalogue tient trois familles : t-shirts, polos et sweats. Une veste ou un tablier n’y sont pas aujourd’hui, et nous préférons ne pas ouvrir une fiche pour un vêtement que nous ne pouvons pas expédier.',
 				),
 				'links'      => array(
 					array( 'label' => 'Demander un devis', 'key' => 'page:devis' ),
@@ -558,41 +558,41 @@ return array(
 			array(
 				'h2'         => 'Du bon à tirer au colis',
 				'paragraphs' => array(
-					'Rien n\'est imprimé tant que vous n\'avez pas validé le bon à tirer. Il arrive par courriel, s\'ouvre dans le navigateur et se valide en ligne : le gérant ou le trésorier qui décide n\'a pas de compte à créer pour signer.',
-					'Le document reprend la référence, le coloris, la technique, la quantité, la surface imprimée en centimètres carrés et la hauteur du centre de la zone sous l\'encolure. C\'est ce qui part en production.',
-					'Une réserve, et elle est sérieuse : les couleurs d\'un écran ne sont pas celles d\'un textile imprimé. Jugez le placement et les dimensions sur l\'aperçu, pas la teinte exacte. Si quelque chose ne va pas, demandez la modification depuis la même page et une nouvelle version vous est envoyée.',
-					'L\'impression se fait ensuite dans notre atelier, en France. Comptez {DELAI_STANDARD} jours ouvrés entre votre validation et l\'expédition. Le colis part en Colissimo, pour la France métropolitaine.',
+					'Rien n’est imprimé tant que vous n’avez pas validé le bon à tirer. Il arrive par courriel, s’ouvre dans le navigateur et se valide en ligne : le gérant ou le trésorier qui décide n’a pas de compte à créer pour signer.',
+					'Le document reprend la référence, le coloris, la technique, la quantité, la surface imprimée en centimètres carrés et la hauteur du centre de la zone sous l’encolure. C’est ce qui part en production.',
+					'Une réserve, et elle est sérieuse : les couleurs d’un écran ne sont pas celles d’un textile imprimé. Jugez le placement et les dimensions sur l’aperçu, pas la teinte exacte. Si quelque chose ne va pas, demandez la modification depuis la même page et une nouvelle version vous est envoyée.',
+					'L’impression se fait ensuite dans notre atelier, en France. Comptez {DELAI_STANDARD} jours ouvrés entre votre validation et l’expédition. Le colis part en Colissimo, pour la France métropolitaine.',
 				),
 			),
 		),
 		'faq'         => array(
 			array(
 				'q' => 'Quel est le minimum de commande ?',
-				'a' => '{MINIMUM_PIECES} pièces, comptées sur le panier entier. Les vêtements et les tailles se mélangent pour les atteindre : des t-shirts et des sweats dans le même panier comptent ensemble. Nous n\'imprimons pas de pièce isolée, parce que le film et le calage de la presse se préparent par série et qu\'une pièce seule porterait à elle seule ce travail.',
+				'a' => '{MINIMUM_PIECES} pièces, comptées sur le panier entier. Les vêtements et les tailles se mélangent pour les atteindre : des t-shirts et des sweats dans le même panier comptent ensemble. Nous n’imprimons pas de pièce isolée, parce que le film et le calage de la presse se préparent par série et qu’une pièce seule porterait à elle seule ce travail.',
 			),
 			array(
-				'q' => 'Le prix baisse-t-il si j\'additionne plusieurs modèles ?',
-				'a' => 'Non, et c\'est le contraire. Le palier de quantité se calcule sur une seule ligne de commande, c\'est-à-dire sur un même vêtement mis au panier en une fois. Vingt t-shirts et dix polos dans le même panier ne font pas une quantité de trente : ils font vingt d\'un côté et dix de l\'autre, et chaque ligne est remisée sur son propre nombre. Seul le minimum de commande, lui, additionne tout le panier.',
+				'q' => 'Le prix baisse-t-il si j’additionne plusieurs modèles ?',
+				'a' => 'Non, et c’est le contraire. Le palier de quantité se calcule sur une seule ligne de commande, c’est-à-dire sur un même vêtement mis au panier en une fois. Vingt t-shirts et dix polos dans le même panier ne font pas une quantité de trente : ils font vingt d’un côté et dix de l’autre, et chaque ligne est remisée sur son propre nombre. Seul le minimum de commande, lui, additionne tout le panier.',
 			),
 			array(
 				'q' => 'Sous combien de temps la commande part-elle ?',
-				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l\'expédition, puis Colissimo pour la France métropolitaine. Le décompte démarre à votre validation : tant que le bon à tirer attend une réponse, la production n\'est pas lancée. Nous ne proposons pas de délai plus court, parce que nous ne le tiendrions pas.',
+				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l’expédition, puis Colissimo pour la France métropolitaine. Le décompte démarre à votre validation : tant que le bon à tirer attend une réponse, la production n’est pas lancée. Nous ne proposons pas de délai plus court, parce que nous ne le tiendrions pas.',
 			),
 			array(
 				'q' => 'Faites-vous de la broderie, et sur des vestes ?',
-				'a' => 'La broderie, oui, sur devis : en petite série chez nous, au-delà de dix pièces chez un atelier partenaire. Elle ne se commande pas en ligne et nous n\'annonçons pas de délai pour elle. Les vestes, non : le catalogue tient trois familles, t-shirts, polos et sweats.',
+				'a' => 'La broderie, oui, sur devis : en petite série chez nous, au-delà de dix pièces chez un atelier partenaire. Elle ne se commande pas en ligne et nous n’annonçons pas de délai pour elle. Les vestes, non : le catalogue tient trois familles, t-shirts, polos et sweats.',
 			),
 			array(
 				'q' => 'Mon logo a un fond blanc, est-ce que je paie cette surface ?',
-				'a' => 'Oui. En DTF le blanc est une encre : il est imprimé comme les autres couleurs, donc il est mesuré comme les autres couleurs. Un fichier au fond transparent, un PNG détouré par exemple, n\'est facturé que sur son encre et pas sur ses marges.',
+				'a' => 'Oui. En DTF le blanc est une encre : il est imprimé comme les autres couleurs, donc il est mesuré comme les autres couleurs. Un fichier au fond transparent, un PNG détouré par exemple, n’est facturé que sur son encre et pas sur ses marges.',
 			),
 			array(
-				'q' => 'Nous avons des tailles très différentes dans l\'équipe, comment commander ?',
-				'a' => 'Vous saisissez la quantité par taille sur une même ligne de commande, sans passer une commande par taille. Ces tailles comptent ensemble pour le palier de quantité, puisqu\'elles restent sur une seule ligne. La répartition figure ensuite sur le bon à tirer, ce qui est le bon moment pour la relire avant que la presse chauffe.',
+				'q' => 'Nous avons des tailles très différentes dans l’équipe, comment commander ?',
+				'a' => 'Vous saisissez la quantité par taille sur une même ligne de commande, sans passer une commande par taille. Ces tailles comptent ensemble pour le palier de quantité, puisqu’elles restent sur une seule ligne. La répartition figure ensuite sur le bon à tirer, ce qui est le bon moment pour la relire avant que la presse chauffe.',
 			),
 			array(
 				'q' => 'Est-ce fabriqué en France ?',
-				'a' => 'L\'impression est faite en France, dans notre atelier. Nous écrivons « imprimé en France » et pas « fabriqué en France », parce que c\'est l\'impression qui est chez nous : le textile nu, lui, vient du catalogue d\'un fabricant.',
+				'a' => 'L’impression est faite en France, dans notre atelier. Nous écrivons « imprimé en France » et pas « fabriqué en France », parce que c’est l’impression qui est chez nous : le textile nu, lui, vient du catalogue d’un fabricant.',
 			),
 		),
 	),
@@ -712,18 +712,18 @@ return array(
 
 	'page:clubs-sportifs' => array(
 		'title'       => 'Sweat et t-shirt personnalisés pour club de sport',
-		'description' => 'Sweats, t-shirts et polos imprimés en France pour clubs sportifs. Zone d\'impression en cm, minimum {MINIMUM_PIECES} pièces.',
+		'description' => 'Sweats, t-shirts et polos imprimés en France pour clubs sportifs. Zone d’impression en cm, minimum {MINIMUM_PIECES} pièces.',
 		'h1'          => 'Sweats, t-shirts et polos personnalisés pour clubs sportifs',
 		'intro'       => array(
 			'Nous imprimons des t-shirts, des polos et des sweats pour les clubs, en DTF, à partir de {MINIMUM_PIECES} pièces par commande.',
 			'Nous ne vendons ni maillots techniques ni shorts : ces vêtements ne sont pas au catalogue.',
-			'Le marquage est imprimé en France et les zones d\'impression sont publiées en centimètres sur chaque fiche produit.',
+			'Le marquage est imprimé en France et les zones d’impression sont publiées en centimètres sur chaque fiche produit.',
 		),
 		'sections'    => array(
 			array(
 				'h2'         => 'Ce que nous imprimons pour un club, et ce que nous ne vendons pas',
 				'paragraphs' => array(
-					'Le catalogue tient en t-shirts, polos et sweats, soit {NB_REFERENCES} références. Il n\'y a ni maillot de match, ni short, ni chaussette. Si vous équipez l\'équipe première pour jouer, ce n\'est pas ici, et autant le lire au premier paragraphe qu\'après avoir cherché dans le catalogue.',
+					'Le catalogue tient en t-shirts, polos et sweats, soit {NB_REFERENCES} références. Il n’y a ni maillot de match, ni short, ni chaussette. Si vous équipez l’équipe première pour jouer, ce n’est pas ici, et autant le lire au premier paragraphe qu’après avoir cherché dans le catalogue.',
 				),
 				'list'       => array(
 					'Au catalogue : {NB_TSHIRTS} t-shirts, {NB_POLOS} polos, {NB_SWEATS} sweats.',
@@ -731,7 +731,7 @@ return array(
 					'Commandable en ligne : le DTF. Sur devis : broderie, flocage, sublimation.',
 				),
 				'after'      => array(
-					'Ce qui reste couvre le vestiaire et le bord du terrain : le sweat de l\'encadrement, le t-shirt d\'une journée de tournoi, le polo des dirigeants, la série vendue au profit du club. Le prix comprend l\'impression, et la grille complète par quantité est publiée sur chaque fiche produit.',
+					'Ce qui reste couvre le vestiaire et le bord du terrain : le sweat de l’encadrement, le t-shirt d’une journée de tournoi, le polo des dirigeants, la série vendue au profit du club. Le prix comprend l’impression, et la grille complète par quantité est publiée sur chaque fiche produit.',
 				),
 				'links'      => array(
 					array( 'label' => 'Les sweats du catalogue', 'key' => 'categorie:sweats' ),
@@ -740,19 +740,19 @@ return array(
 			array(
 				'h2'         => 'Une seule technique se commande en ligne, le DTF',
 				'paragraphs' => array(
-					'Vous déposez votre fichier, l\'éditeur montre le vêtement en 2D, en 3D et en réalité augmentée, et le prix s\'affiche avant l\'ajout au panier. Le bon à tirer se valide ensuite en ligne, sans créer de compte : le trésorier ou le président valide sans que personne ait à lui ouvrir un accès.',
-					'Le flocage, la sublimation et la broderie existent, mais ils passent par un devis. La broderie se fait dans notre atelier en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n\'annonçons de délai dans aucun des deux cas.',
-					'Le grammage de chaque référence est publié et filtrable. Un sweat que l\'on garde sur le dos au bord du terrain en février et un t-shirt de tournoi de juin ne se choisissent pas au même chiffre.',
+					'Vous déposez votre fichier, l’éditeur montre le vêtement en 2D, en 3D et en réalité augmentée, et le prix s’affiche avant l’ajout au panier. Le bon à tirer se valide ensuite en ligne, sans créer de compte : le trésorier ou le président valide sans que personne ait à lui ouvrir un accès.',
+					'Le flocage, la sublimation et la broderie existent, mais ils passent par un devis. La broderie se fait dans notre atelier en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n’annonçons de délai dans aucun des deux cas.',
+					'Le grammage de chaque référence est publié et filtrable. Un sweat que l’on garde sur le dos au bord du terrain en février et un t-shirt de tournoi de juin ne se choisissent pas au même chiffre.',
 				),
 				'links'      => array(
 					array( 'label' => 'Demander un devis broderie ou flocage', 'key' => 'page:devis' ),
 				),
 			),
 			array(
-				'h2'         => 'Le blason est facturé à l\'encre, pas au fichier',
+				'h2'         => 'Le blason est facturé à l’encre, pas au fichier',
 				'paragraphs' => array(
-					'Chaque fiche publie sa zone d\'impression en centimètres. Sur un t-shirt taille {TAILLE_MESUREE}, face avant, elle fait {ZONE_TSHIRT}. Vous savez si le blason y tient avant de commander, sans ouvrir l\'éditeur et sans nous écrire.',
-					'Le marquage est calculé sur la surface d\'encre réellement imprimée, pas sur le rectangle dans lequel le fichier a été déposé. Un écusson rond enregistré au milieu d\'une grande image carrée est facturé sur l\'écusson : les marges transparentes ne comptent pas. Cela change le prix quand le logo du club vous arrive d\'un bénévole, avec beaucoup de vide autour du dessin.',
+					'Chaque fiche publie sa zone d’impression en centimètres. Sur un t-shirt taille {TAILLE_MESUREE}, face avant, elle fait {ZONE_TSHIRT}. Vous savez si le blason y tient avant de commander, sans ouvrir l’éditeur et sans nous écrire.',
+					'Le marquage est calculé sur la surface d’encre réellement imprimée, pas sur le rectangle dans lequel le fichier a été déposé. Un écusson rond enregistré au milieu d’une grande image carrée est facturé sur l’écusson : les marges transparentes ne comptent pas. Cela change le prix quand le logo du club vous arrive d’un bénévole, avec beaucoup de vide autour du dessin.',
 				),
 				'links'      => array(
 					array( 'label' => 'Préparer le fichier du blason', 'key' => 'page:fichiers-impression' ),
@@ -761,15 +761,15 @@ return array(
 			array(
 				'h2'         => 'Retrouver la couleur du club',
 				'paragraphs' => array(
-					'Un coloris arrive avec un nom, et un nom n\'est pas une couleur. Nous mesurons donc chaque coloris sur le nuancier du fabricant, jamais d\'après son nom : {NB_COLORIS} noms rangés en {NB_FAMILLES_COULEUR} familles mesurées. Deux bleus dont les noms se ressemblent restent des coloris distincts, et vous filtrez sur la famille pour les comparer côte à côte.',
-					'Ce que la mesure ne fait pas, dit d\'avance : elle est prise sur le nuancier du fabricant et non sur le tissu que vous recevrez, et un écran n\'est pas un vêtement. En revanche le nom du coloris figure sur votre commande, et c\'est lui que vous reprenez pour retrouver le même bleu, quand la personne qui avait passé la première commande n\'est plus au bureau.',
+					'Un coloris arrive avec un nom, et un nom n’est pas une couleur. Nous mesurons donc chaque coloris sur le nuancier du fabricant, jamais d’après son nom : {NB_COLORIS} noms rangés en {NB_FAMILLES_COULEUR} familles mesurées. Deux bleus dont les noms se ressemblent restent des coloris distincts, et vous filtrez sur la famille pour les comparer côte à côte.',
+					'Ce que la mesure ne fait pas, dit d’avance : elle est prise sur le nuancier du fabricant et non sur le tissu que vous recevrez, et un écran n’est pas un vêtement. En revanche le nom du coloris figure sur votre commande, et c’est lui que vous reprenez pour retrouver le même bleu, quand la personne qui avait passé la première commande n’est plus au bureau.',
 				),
 			),
 			array(
 				'h2'         => 'Le budget, écrit avant la saison',
 				'paragraphs' => array(
-					'Le prix baisse par palier de quantité, et le palier se calcule ligne par ligne, sur la quantité d\'une même référence. Vingt sweats et dix t-shirts dans le même panier ne comptent pas comme trente pièces : la remise regarde vingt d\'un côté, dix de l\'autre, et jamais le total du panier.',
-					'Le conseil d\'achat qui en découle : regrouper la quantité sur une même référence coûte moins cher que la répartir sur plusieurs modèles. Si l\'encadrement et les dirigeants peuvent porter le même sweat avec le même marquage, les deux quantités s\'ajoutent sur une seule ligne et peuvent passer un palier ; sur trois modèles différents, chacun reste seul dans la grille. Et sur une même référence, une commande groupée avant l\'assemblée ne coûte jamais plus cher que la même quantité étalée sur l\'année, le plus souvent moins.',
+					'Le prix baisse par palier de quantité, et le palier se calcule ligne par ligne, sur la quantité d’une même référence. Vingt sweats et dix t-shirts dans le même panier ne comptent pas comme trente pièces : la remise regarde vingt d’un côté, dix de l’autre, et jamais le total du panier.',
+					'Le conseil d’achat qui en découle : regrouper la quantité sur une même référence coûte moins cher que la répartir sur plusieurs modèles. Si l’encadrement et les dirigeants peuvent porter le même sweat avec le même marquage, les deux quantités s’ajoutent sur une seule ligne et peuvent passer un palier ; sur trois modèles différents, chacun reste seul dans la grille. Et sur une même référence, une commande groupée avant l’assemblée ne coûte jamais plus cher que la même quantité étalée sur l’année, le plus souvent moins.',
 				),
 				'list'       => array(
 					'Le palier de quantité se compte ligne par ligne, sur une même référence portant le même marquage.',
@@ -778,18 +778,18 @@ return array(
 				),
 				'after'      => array(
 					'Les deux règles vont donc dans des sens opposés : additionner des modèles différents vous fait atteindre le minimum, jamais le palier.',
-					'Une conséquence pratique : saisissez la quantité en une fois. Deux ajouts successifs du même sweat font deux lignes de panier, chacune avec son propre palier. Si cela vous arrive, reportez la quantité sur une seule ligne depuis le panier plutôt que d\'en garder deux.',
-					'La répartition des tailles se saisit ligne par ligne : vous entrez ce que chaque taille représente, vous n\'achetez pas un lot tout fait. Le chiffre que vous portez au vote est celui de la grille publiée sur la fiche, et c\'est celui que vous retrouvez au panier, la livraison en plus.',
+					'Une conséquence pratique : saisissez la quantité en une fois. Deux ajouts successifs du même sweat font deux lignes de panier, chacune avec son propre palier. Si cela vous arrive, reportez la quantité sur une seule ligne depuis le panier plutôt que d’en garder deux.',
+					'La répartition des tailles se saisit ligne par ligne : vous entrez ce que chaque taille représente, vous n’achetez pas un lot tout fait. Le chiffre que vous portez au vote est celui de la grille publiée sur la fiche, et c’est celui que vous retrouvez au panier, la livraison en plus.',
 				),
 				'links'      => array(
-					array( 'label' => 'Les commandes d\'association', 'key' => 'page:associations' ),
+					array( 'label' => 'Les commandes d’association', 'key' => 'page:associations' ),
 				),
 			),
 			array(
 				'h2'         => 'Le réassort quand un joueur arrive en novembre',
 				'paragraphs' => array(
-					'Le minimum de {MINIMUM_PIECES} pièces s\'applique aussi au réassort. Nous ne pouvons pas imprimer un sweat seul en cours de saison, et c\'est la contrainte la plus gênante pour un club qui recrute toute l\'année.',
-					'Elle se règle en septembre plutôt qu\'en novembre : ajoutez quelques pièces d\'avance à la commande de début de saison, sur la même référence et le même marquage. Elles montent la quantité de cette ligne et prennent donc son palier, alors qu\'un réassort reparti seul en novembre repart à la première colonne de la grille. Ces pièces d\'avance ne dorment pas au placard : c\'est le sweat de l\'arrivant de novembre.',
+					'Le minimum de {MINIMUM_PIECES} pièces s’applique aussi au réassort. Nous ne pouvons pas imprimer un sweat seul en cours de saison, et c’est la contrainte la plus gênante pour un club qui recrute toute l’année.',
+					'Elle se règle en septembre plutôt qu’en novembre : ajoutez quelques pièces d’avance à la commande de début de saison, sur la même référence et le même marquage. Elles montent la quantité de cette ligne et prennent donc son palier, alors qu’un réassort reparti seul en novembre repart à la première colonne de la grille. Ces pièces d’avance ne dorment pas au placard : c’est le sweat de l’arrivant de novembre.',
 				),
 				'links'      => array(
 					array( 'label' => 'Les petites séries', 'key' => 'page:petites-series' ),
@@ -798,7 +798,7 @@ return array(
 			array(
 				'h2'         => 'Le délai part de votre bon à tirer',
 				'paragraphs' => array(
-					'{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l\'expédition. Le compte ne démarre pas à la commande, il démarre quand vous avez validé. Un bon à tirer qui attend la prochaine réunion de bureau décale la date d\'autant, et c\'est la seule partie du délai qui vous appartient.',
+					'{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l’expédition. Le compte ne démarre pas à la commande, il démarre quand vous avez validé. Un bon à tirer qui attend la prochaine réunion de bureau décale la date d’autant, et c’est la seule partie du délai qui vous appartient.',
 					'Nous ne vendons pas de délai plus court. Le travail que contient une commande a été mesuré, une promesse plus courte ne tiendrait pas, donc nous ne la publions pas. La livraison se fait ensuite en Colissimo, France métropolitaine.',
 				),
 			),
@@ -810,23 +810,23 @@ return array(
 			),
 			array(
 				'q' => 'Quel est le minimum de commande ?',
-				'a' => '{MINIMUM_PIECES} pièces, comptées sur le panier entier, toutes références confondues : des t-shirts et des sweats commandés ensemble comptent ensemble. Le minimum s\'applique aussi à un réassort en cours de saison.',
+				'a' => '{MINIMUM_PIECES} pièces, comptées sur le panier entier, toutes références confondues : des t-shirts et des sweats commandés ensemble comptent ensemble. Le minimum s’applique aussi à un réassort en cours de saison.',
 			),
 			array(
-				'q' => 'Le prix baisse-t-il si j\'additionne les sweats et les t-shirts ?',
-				'a' => 'Non. Le palier de quantité se calcule sur la quantité d\'une même référence, ligne par ligne : vingt sweats et dix t-shirts ne comptent pas comme trente pièces, la remise regarde vingt d\'un côté et dix de l\'autre. Ce qui se compte sur le panier entier, c\'est le minimum de commande. Regrouper la quantité sur une même référence coûte donc moins cher que la répartir sur plusieurs modèles.',
+				'q' => 'Le prix baisse-t-il si j’additionne les sweats et les t-shirts ?',
+				'a' => 'Non. Le palier de quantité se calcule sur la quantité d’une même référence, ligne par ligne : vingt sweats et dix t-shirts ne comptent pas comme trente pièces, la remise regarde vingt d’un côté et dix de l’autre. Ce qui se compte sur le panier entier, c’est le minimum de commande. Regrouper la quantité sur une même référence coûte donc moins cher que la répartir sur plusieurs modèles.',
 			),
 			array(
-				'q' => 'Le blason du club tient-il sur le devant d\'un t-shirt ?',
-				'a' => 'La zone est publiée sur chaque fiche, en centimètres. Sur un t-shirt taille {TAILLE_MESUREE}, face avant, elle fait {ZONE_TSHIRT}. Le marquage étant facturé sur la surface d\'encre, les marges transparentes autour de l\'écusson ne sont pas comptées.',
+				'q' => 'Le blason du club tient-il sur le devant d’un t-shirt ?',
+				'a' => 'La zone est publiée sur chaque fiche, en centimètres. Sur un t-shirt taille {TAILLE_MESUREE}, face avant, elle fait {ZONE_TSHIRT}. Le marquage étant facturé sur la surface d’encre, les marges transparentes autour de l’écusson ne sont pas comptées.',
 			),
 			array(
 				'q' => 'Quel est le délai, et à partir de quand se compte-t-il ?',
-				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l\'expédition, puis la livraison en Colissimo, France métropolitaine. Il n\'existe pas d\'option plus courte : nous ne publions que le délai que nous tenons.',
+				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l’expédition, puis la livraison en Colissimo, France métropolitaine. Il n’existe pas d’option plus courte : nous ne publions que le délai que nous tenons.',
 			),
 			array(
 				'q' => 'Faites-vous la broderie du blason ?',
-				'a' => 'Elle passe par un devis. En petite série nous la réalisons ici ; au-delà de dix pièces elle part chez un atelier partenaire. Nous n\'annonçons de délai dans aucun des deux cas.',
+				'a' => 'Elle passe par un devis. En petite série nous la réalisons ici ; au-delà de dix pièces elle part chez un atelier partenaire. Nous n’annonçons de délai dans aucun des deux cas.',
 			),
 			array(
 				'q' => 'Comment être sûr de la couleur du club ?',
@@ -840,7 +840,7 @@ return array(
 		'description' => '{DELAI_STANDARD} jours ouvrés après validation du bon à tirer, plus le transport. Calculez vous-même votre date limite de commande.',
 		'h1'          => 'T-shirts personnalisés pour un événement : commencez par la date',
 		'intro'       => array(
-			'Notre délai est de {DELAI_STANDARD} jours ouvrés entre la validation de votre bon à tirer et l\'expédition, et il faut compter le transport en plus.',
+			'Notre délai est de {DELAI_STANDARD} jours ouvrés entre la validation de votre bon à tirer et l’expédition, et il faut compter le transport en plus.',
 			'Une commande part de {MINIMUM_PIECES} pièces, comptées sur le panier entier.',
 			'Cette page sert à faire le calcul vous-même avant de commander, y compris quand il donne non.',
 		),
@@ -848,43 +848,43 @@ return array(
 			array(
 				'h2'         => 'Calculez votre date limite de commande',
 				'paragraphs' => array(
-					'Le délai commence le jour où vous validez le bon à tirer, pas le jour où vous passez commande. Entre les deux il y a l\'épreuve que nous préparons et le temps que vous prenez pour la relire. Ce temps-là ne se déduit pas des {DELAI_STANDARD} jours ouvrés, il s\'y ajoute.',
+					'Le délai commence le jour où vous validez le bon à tirer, pas le jour où vous passez commande. Entre les deux il y a l’épreuve que nous préparons et le temps que vous prenez pour la relire. Ce temps-là ne se déduit pas des {DELAI_STANDARD} jours ouvrés, il s’y ajoute.',
 					'Prenez la date de votre événement et remontez le calendrier à rebours.',
 				),
 				'list'       => array(
-					'Le jour où vous voulez les vêtements en main. Ce n\'est pas le jour de l\'événement : un carton qui arrive le matin même ne laisse aucune reprise possible.',
-					'Le transport. Nous expédions en Colissimo, France métropolitaine, et La Poste annonce {DELAI_TRANSPORT} jours ouvrés. C\'est son chiffre et non le nôtre : une fois le colis remis, la date ne dépend plus de nous.',
-					'{DELAI_STANDARD} jours ouvrés d\'atelier. Ouvrés veut dire du lundi au vendredi, hors jours fériés : un jour férié dans l\'intervalle décale l\'expédition d\'autant.',
-					'Le temps du bon à tirer : le vôtre pour le relire, et celui de la personne qui doit l\'approuver si ce n\'est pas vous.',
-					'Ce qu\'il reste est votre date limite de commande. Si elle est derrière vous, la réponse est non.',
+					'Le jour où vous voulez les vêtements en main. Ce n’est pas le jour de l’événement : un carton qui arrive le matin même ne laisse aucune reprise possible.',
+					'Le transport. Nous expédions en Colissimo, France métropolitaine, et La Poste annonce {DELAI_TRANSPORT} jours ouvrés. C’est son chiffre et non le nôtre : une fois le colis remis, la date ne dépend plus de nous.',
+					'{DELAI_STANDARD} jours ouvrés d’atelier. Ouvrés veut dire du lundi au vendredi, hors jours fériés : un jour férié dans l’intervalle décale l’expédition d’autant.',
+					'Le temps du bon à tirer : le vôtre pour le relire, et celui de la personne qui doit l’approuver si ce n’est pas vous.',
+					'Ce qu’il reste est votre date limite de commande. Si elle est derrière vous, la réponse est non.',
 				),
 				'after'      => array(
-					'Une seule de ces durées est la nôtre. C\'est aussi la seule sur laquelle nous nous engageons.',
+					'Une seule de ces durées est la nôtre. C’est aussi la seule sur laquelle nous nous engageons.',
 				),
 			),
 			array(
 				'h2'         => 'Le bon à tirer décide du départ',
 				'paragraphs' => array(
 					'Vous commandez, nous préparons le bon à tirer, vous le validez en ligne, sans créer de compte. Rien ne part en production avant cette validation, et les {DELAI_STANDARD} jours ouvrés démarrent à ce moment-là.',
-					'C\'est la partie du calendrier que vous tenez entièrement. Chaque jour d\'attente sur un bon à tirer non validé décale l\'expédition d\'un jour. Quand la personne qui valide n\'est pas celle qui commande, un président d\'association ou un responsable de site, prévenez-la avant l\'envoi et pas le jour où le message arrive dans sa boîte.',
+					'C’est la partie du calendrier que vous tenez entièrement. Chaque jour d’attente sur un bon à tirer non validé décale l’expédition d’un jour. Quand la personne qui valide n’est pas celle qui commande, un président d’association ou un responsable de site, prévenez-la avant l’envoi et pas le jour où le message arrive dans sa boîte.',
 				),
 			),
 			array(
 				'h2'         => 'Le délai ne se raccourcit pas',
 				'paragraphs' => array(
 					'Aucun supplément ne raccourcit la fabrication. Le seul délai publié sur ce site est {DELAI_STANDARD} jours ouvrés après validation du bon à tirer, transport en plus.',
-					'Une date que l\'atelier ne tient pas, ce sont des t-shirts livrés le lendemain du salon. Si votre calcul tombe après votre date, ne commandez pas. Écrivez-nous la date, la quantité et le vêtement avant de payer, nous vérifierons le calcul avec vous.',
+					'Une date que l’atelier ne tient pas, ce sont des t-shirts livrés le lendemain du salon. Si votre calcul tombe après votre date, ne commandez pas. Écrivez-nous la date, la quantité et le vêtement avant de payer, nous vérifierons le calcul avec vous.',
 				),
 			),
 			array(
 				'h2'         => 'La quantité et la répartition des tailles',
 				'paragraphs' => array(
 					'La commande commence à {MINIMUM_PIECES} pièces. Elles se comptent sur le panier entier et non sur une ligne : vous pouvez les répartir sur plusieurs modèles, plusieurs coloris et plusieurs tailles, il faut seulement que le total soit atteint à la validation du panier.',
-					'Le palier de quantité, lui, ne se compte pas de la même façon : il s\'applique ligne par ligne, sur la quantité d\'une même référence. Des t-shirts et des polos ajoutés au même panier ne s\'additionnent donc pas pour faire baisser le prix unitaire : chaque ligne obtient le palier de sa propre quantité. Les tailles d\'une même ligne, elles, comptent ensemble, puisqu\'une ligne répartie du S au XXL reste une seule ligne à sa quantité totale.',
-					'Pour un événement, cela donne un conseil d\'achat clair : un même modèle pour tout le monde, décliné en tailles et en coloris, revient moins cher que le même nombre de pièces éclaté sur trois modèles différents.',
-					'La répartition des tailles se saisit ligne par ligne, au moment de la commande. Pour un événement, cela veut dire faire circuler la liste des inscrits avant et non pendant : ce temps de collecte s\'ajoute au délai.',
+					'Le palier de quantité, lui, ne se compte pas de la même façon : il s’applique ligne par ligne, sur la quantité d’une même référence. Des t-shirts et des polos ajoutés au même panier ne s’additionnent donc pas pour faire baisser le prix unitaire : chaque ligne obtient le palier de sa propre quantité. Les tailles d’une même ligne, elles, comptent ensemble, puisqu’une ligne répartie du S au XXL reste une seule ligne à sa quantité totale.',
+					'Pour un événement, cela donne un conseil d’achat clair : un même modèle pour tout le monde, décliné en tailles et en coloris, revient moins cher que le même nombre de pièces éclaté sur trois modèles différents.',
+					'La répartition des tailles se saisit ligne par ligne, au moment de la commande. Pour un événement, cela veut dire faire circuler la liste des inscrits avant et non pendant : ce temps de collecte s’ajoute au délai.',
 					'Commandez la totalité en une seule fois, pièces de réserve comprises. Un complément commandé après coup est une nouvelle commande, avec son propre bon à tirer et les mêmes {DELAI_STANDARD} jours ouvrés à partir de sa validation : refaites le calcul avant de compter dessus.',
-					'Au-delà de {SEUIL_DEVIS} pièces sur une même ligne, la boutique ne chiffre plus seule et la commande passe par un devis ; au-delà de {SEUIL_DEVIS_MONTANT} hors taxes sur la commande entière, elle y bascule également. Le devis ajoute une étape avant le bon à tirer et nous n\'annonçons pas de délai pour cette étape, donc demandez-le avant de bâtir votre calendrier.',
+					'Au-delà de {SEUIL_DEVIS} pièces sur une même ligne, la boutique ne chiffre plus seule et la commande passe par un devis ; au-delà de {SEUIL_DEVIS_MONTANT} hors taxes sur la commande entière, elle y bascule également. Le devis ajoute une étape avant le bon à tirer et nous n’annonçons pas de délai pour cette étape, donc demandez-le avant de bâtir votre calendrier.',
 				),
 				'links'      => array(
 					array( 'label' => 'Commander en petite série', 'key' => 'page:petites-series' ),
@@ -895,7 +895,7 @@ return array(
 				'h2'         => 'Choisir le vêtement : grammage et coloris',
 				'paragraphs' => array(
 					'Trois familles au catalogue, t-shirts, polos et sweats, pour {NB_REFERENCES} références.',
-					'Le grammage de chaque référence est publié et filtrable. C\'est le chiffre qui sépare un t-shirt léger d\'un t-shirt épais, et il ne se devine pas sur une photo de fiche produit.',
+					'Le grammage de chaque référence est publié et filtrable. C’est le chiffre qui sépare un t-shirt léger d’un t-shirt épais, et il ne se devine pas sur une photo de fiche produit.',
 					'{NB_COLORIS} noms de coloris sont regroupés en {NB_FAMILLES_COULEUR} familles de couleur mesurées sur le nuancier du fabricant, jamais déduites du nom commercial. Filtrer sur les bleus vous rend donc les bleus, y compris ceux que le fabricant a baptisés autrement.',
 				),
 				'links'      => array(
@@ -906,10 +906,10 @@ return array(
 			array(
 				'h2'         => 'Ce que le prix mesure',
 				'paragraphs' => array(
-					'Le prix comprend l\'impression. Il baisse par palier de quantité, sur la quantité d\'une même ligne, et la grille complète des paliers est publiée sur chaque fiche produit, avant que vous ayez rempli quoi que ce soit.',
-					'Il est calculé sur la surface d\'encre réellement imprimée, pas sur le rectangle du fichier que vous déposez. Un logo étroit exporté au milieu d\'un grand fichier transparent est facturé sur son encre, pas sur les marges vides qui l\'entourent.',
-					'Les zones d\'impression sont publiées en centimètres sur chaque fiche produit : {ZONE_TSHIRT} pour un t-shirt en taille {TAILLE_MESUREE}, face avant. Vous pouvez donc vérifier que le logo de votre association tient dans la zone avant de commander, au lieu de le découvrir sur le bon à tirer.',
-					'L\'éditeur en ligne montre le vêtement en 2D, en 3D et en réalité augmentée, et le prix s\'affiche avant l\'ajout au panier. Un trésorier qui doit faire approuver une dépense a donc l\'image et le montant sur le même écran.',
+					'Le prix comprend l’impression. Il baisse par palier de quantité, sur la quantité d’une même ligne, et la grille complète des paliers est publiée sur chaque fiche produit, avant que vous ayez rempli quoi que ce soit.',
+					'Il est calculé sur la surface d’encre réellement imprimée, pas sur le rectangle du fichier que vous déposez. Un logo étroit exporté au milieu d’un grand fichier transparent est facturé sur son encre, pas sur les marges vides qui l’entourent.',
+					'Les zones d’impression sont publiées en centimètres sur chaque fiche produit : {ZONE_TSHIRT} pour un t-shirt en taille {TAILLE_MESUREE}, face avant. Vous pouvez donc vérifier que le logo de votre association tient dans la zone avant de commander, au lieu de le découvrir sur le bon à tirer.',
+					'L’éditeur en ligne montre le vêtement en 2D, en 3D et en réalité augmentée, et le prix s’affiche avant l’ajout au panier. Un trésorier qui doit faire approuver une dépense a donc l’image et le montant sur le même écran.',
 				),
 				'links'      => array(
 					array( 'label' => 'Préparer un fichier imprimable', 'key' => 'page:fichiers-impression' ),
@@ -919,38 +919,38 @@ return array(
 				'h2'         => 'Le DTF en ligne, la broderie en devis',
 				'paragraphs' => array(
 					'La seule technique que vous pouvez commander seul sur ce site est le DTF, imprimé en France, dans notre atelier. Les {DELAI_STANDARD} jours ouvrés sont ceux de cet atelier.',
-					'La broderie, le flocage et la sublimation existent, mais passent par un devis. La broderie se fait chez nous en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n\'annonçons aucun délai pour elle dans un cas comme dans l\'autre. Si votre projet en contient, le calcul de date de cette page ne s\'y applique pas.',
+					'La broderie, le flocage et la sublimation existent, mais passent par un devis. La broderie se fait chez nous en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n’annonçons aucun délai pour elle dans un cas comme dans l’autre. Si votre projet en contient, le calcul de date de cette page ne s’y applique pas.',
 				),
 			),
 		),
 		'faq'         => array(
 			array(
 				'q' => 'Comment savoir si ma date est encore tenable ?',
-				'a' => 'Comptez {DELAI_STANDARD} jours ouvrés à partir du jour où vous validerez le bon à tirer, ajoutez le délai que le transporteur annonce pour votre adresse, puis comparez au jour où vous voulez les vêtements en main. Si vous tombez après, c\'est non, et il vaut mieux le savoir avant de payer.',
+				'a' => 'Comptez {DELAI_STANDARD} jours ouvrés à partir du jour où vous validerez le bon à tirer, ajoutez le délai que le transporteur annonce pour votre adresse, puis comparez au jour où vous voulez les vêtements en main. Si vous tombez après, c’est non, et il vaut mieux le savoir avant de payer.',
 			),
 			array(
 				'q' => 'Le délai part de ma commande ou de la validation du bon à tirer ?',
-				'a' => 'De la validation. Vous commandez, nous préparons l\'épreuve, vous la validez en ligne sans créer de compte, et les {DELAI_STANDARD} jours ouvrés commencent là. Rien n\'est imprimé avant.',
+				'a' => 'De la validation. Vous commandez, nous préparons l’épreuve, vous la validez en ligne sans créer de compte, et les {DELAI_STANDARD} jours ouvrés commencent là. Rien n’est imprimé avant.',
 			),
 			array(
 				'q' => 'Peut-on aller plus vite en payant un supplément ?',
 				'a' => 'Non. Aucune ligne de tarif ne raccourcit la fabrication. Le seul délai publié est {DELAI_STANDARD} jours ouvrés après validation du bon à tirer, transport en plus.',
 			),
 			array(
-				'q' => 'Nous n\'avons pas encore la répartition des tailles de l\'équipe.',
-				'a' => 'Elle se saisit ligne par ligne au moment de la commande, donc collectez-la avant. Ce temps s\'ajoute au délai au lieu de s\'en déduire, puisque les {DELAI_STANDARD} jours ouvrés ne partent qu\'à la validation du bon à tirer.',
+				'q' => 'Nous n’avons pas encore la répartition des tailles de l’équipe.',
+				'a' => 'Elle se saisit ligne par ligne au moment de la commande, donc collectez-la avant. Ce temps s’ajoute au délai au lieu de s’en déduire, puisque les {DELAI_STANDARD} jours ouvrés ne partent qu’à la validation du bon à tirer.',
 			),
 			array(
 				'q' => 'Peut-on commander moins de {MINIMUM_PIECES} pièces ?',
 				'a' => 'Non. Le panier commence à {MINIMUM_PIECES} pièces, toutes lignes confondues. Ces pièces peuvent être réparties sur plusieurs modèles, plusieurs coloris et plusieurs tailles.',
 			),
 			array(
-				'q' => 'Nos t-shirts et nos polos s\'additionnent-ils pour faire baisser le prix ?',
-				'a' => 'Non. Le minimum de commande se compte sur le panier entier, mais le palier de quantité se calcule ligne par ligne, sur la quantité d\'une même référence. Regrouper la quantité sur un seul modèle coûte donc moins cher que la répartir sur trois.',
+				'q' => 'Nos t-shirts et nos polos s’additionnent-ils pour faire baisser le prix ?',
+				'a' => 'Non. Le minimum de commande se compte sur le panier entier, mais le palier de quantité se calcule ligne par ligne, sur la quantité d’une même référence. Regrouper la quantité sur un seul modèle coûte donc moins cher que la répartir sur trois.',
 			),
 			array(
-				'q' => 'Nous voulons de la broderie sur les polos de l\'accueil.',
-				'a' => 'Cela passe par un devis. Nous n\'annonçons pas de délai pour la broderie, qu\'elle soit faite ici en petite série ou chez un atelier partenaire au-delà de dix pièces, donc le calcul de date de cette page ne couvre pas ce cas. Le DTF est la seule technique commandable seul en ligne.',
+				'q' => 'Nous voulons de la broderie sur les polos de l’accueil.',
+				'a' => 'Cela passe par un devis. Nous n’annonçons pas de délai pour la broderie, qu’elle soit faite ici en petite série ou chez un atelier partenaire au-delà de dix pièces, donc le calcul de date de cette page ne couvre pas ce cas. Le DTF est la seule technique commandable seul en ligne.',
 			),
 		),
 	),
@@ -962,13 +962,13 @@ return array(
 		'intro'       => array(
 			'Nous imprimons des polos, des t-shirts et des sweats pour les équipes en salle et au bar. Une commande part de {MINIMUM_PIECES} pièces, comptées sur le panier entier.',
 			'Nous ne faisons pas la tenue de cuisine : ni veste, ni tablier, ni toque. Ces vêtements ne sont pas au catalogue.',
-			'Le marquage est imprimé en France, et les dimensions d\'impression sont publiées en centimètres sur chaque fiche produit.',
+			'Le marquage est imprimé en France, et les dimensions d’impression sont publiées en centimètres sur chaque fiche produit.',
 		),
 		'sections'    => array(
 			array(
-				'h2'         => 'Ce que nous imprimons, et ce que nous n\'imprimons pas',
+				'h2'         => 'Ce que nous imprimons, et ce que nous n’imprimons pas',
 				'paragraphs' => array(
-					'Le catalogue tient en t-shirts, polos et sweats. Ce que nous n\'imprimons pas figure dans la même liste, pour que vous le lisiez maintenant et non au moment de valider le panier.',
+					'Le catalogue tient en t-shirts, polos et sweats. Ce que nous n’imprimons pas figure dans la même liste, pour que vous le lisiez maintenant et non au moment de valider le panier.',
 				),
 				'list'       => array(
 					'Au catalogue : {NB_REFERENCES} références, dont {NB_POLOS} polos, {NB_TSHIRTS} t-shirts et {NB_SWEATS} sweats.',
@@ -976,7 +976,7 @@ return array(
 					'Commandable en ligne : le DTF. Par devis : broderie, flocage, sublimation.',
 				),
 				'after'      => array(
-					'Ce qui reste couvre la salle et le bar, c\'est-à-dire les vêtements que vos clients voient. Le grammage de chaque référence est publié et filtrable : vous choisissez le poids de la maille avant de commander, au lieu de le découvrir en ouvrant le carton.',
+					'Ce qui reste couvre la salle et le bar, c’est-à-dire les vêtements que vos clients voient. Le grammage de chaque référence est publié et filtrable : vous choisissez le poids de la maille avant de commander, au lieu de le découvrir en ouvrant le carton.',
 				),
 				'links'      => array(
 					array( 'label' => 'Voir les polos au catalogue', 'key' => 'categorie:polos' ),
@@ -984,37 +984,37 @@ return array(
 				),
 			),
 			array(
-				'h2'         => 'Le réassort, quand un serveur part et qu\'un autre arrive',
+				'h2'         => 'Le réassort, quand un serveur part et qu’un autre arrive',
 				'paragraphs' => array(
-					'En salle, le sujet n\'est pas la première commande, c\'est la deuxième. Une équipe habillée le même jour se dépareille au premier départ, et le remplaçant hérite d\'un polo racheté de mémoire, dans un bleu qui n\'est pas tout à fait le bleu des autres.',
-					'Les {NB_COLORIS} noms de coloris sont publiés tels que le fabricant les écrit, et rangés en {NB_FAMILLES_COULEUR} familles de couleur : la famille affichée vient de la mesure du nuancier du fabricant, pas de l\'étiquette, et le filtre suit cette mesure. Pour recommander à l\'identique, ce sont la référence et ce nom de coloris qu\'il faut avoir notés.',
-					'Un réassort repasse par le même minimum que la première commande, en pièces comme en montant. Et comme le palier de quantité se calcule sur la quantité d\'une même référence, quelques pièces d\'avance commandées avec la série entrent dans le palier de la série ; commandées plus tard, elles repartent d\'une quantité plus faible et donc d\'une remise plus faible. Nous ne promettons pas non plus qu\'une référence restera au catalogue du fabricant, ce qui est une deuxième raison de prendre cette avance tout de suite.',
+					'En salle, le sujet n’est pas la première commande, c’est la deuxième. Une équipe habillée le même jour se dépareille au premier départ, et le remplaçant hérite d’un polo racheté de mémoire, dans un bleu qui n’est pas tout à fait le bleu des autres.',
+					'Les {NB_COLORIS} noms de coloris sont publiés tels que le fabricant les écrit, et rangés en {NB_FAMILLES_COULEUR} familles de couleur : la famille affichée vient de la mesure du nuancier du fabricant, pas de l’étiquette, et le filtre suit cette mesure. Pour recommander à l’identique, ce sont la référence et ce nom de coloris qu’il faut avoir notés.',
+					'Un réassort repasse par le même minimum que la première commande, en pièces comme en montant. Et comme le palier de quantité se calcule sur la quantité d’une même référence, quelques pièces d’avance commandées avec la série entrent dans le palier de la série ; commandées plus tard, elles repartent d’une quantité plus faible et donc d’une remise plus faible. Nous ne promettons pas non plus qu’une référence restera au catalogue du fabricant, ce qui est une deuxième raison de prendre cette avance tout de suite.',
 				),
 			),
 			array(
 				'h2'         => 'La répartition des tailles se saisit ligne par ligne',
 				'paragraphs' => array(
 					'Une brigade de salle ne se commande pas en une taille unique. La répartition se saisit ligne par ligne, une taille et une quantité par ligne, sans fichier à joindre ni tableau à recopier dans un e-mail.',
-					'Mélanger les tailles ne fait pas perdre le palier : les quantités saisies s\'additionnent en une seule ligne de panier, et c\'est cette quantité-là qui fixe le palier. Mélanger les modèles, en revanche, ne les additionne pas. Le palier de quantité se calcule référence par référence : des polos et des sweats commandés ensemble gardent chacun le leur, et la même quantité regroupée sur une seule référence revient moins cher qu\'éclatée sur trois modèles.',
-					'Ce qui se compte bien sur le panier entier, c\'est le minimum de commande : {MINIMUM_PIECES} pièces, toutes tailles et toutes références confondues. La grille complète des paliers est publiée sur chaque fiche produit, avant que vous ayez rempli quoi que ce soit.',
+					'Mélanger les tailles ne fait pas perdre le palier : les quantités saisies s’additionnent en une seule ligne de panier, et c’est cette quantité-là qui fixe le palier. Mélanger les modèles, en revanche, ne les additionne pas. Le palier de quantité se calcule référence par référence : des polos et des sweats commandés ensemble gardent chacun le leur, et la même quantité regroupée sur une seule référence revient moins cher qu’éclatée sur trois modèles.',
+					'Ce qui se compte bien sur le panier entier, c’est le minimum de commande : {MINIMUM_PIECES} pièces, toutes tailles et toutes références confondues. La grille complète des paliers est publiée sur chaque fiche produit, avant que vous ayez rempli quoi que ce soit.',
 				),
 			),
 			array(
-				'h2'         => 'Le prix, et ce qu\'il contient',
+				'h2'         => 'Le prix, et ce qu’il contient',
 				'paragraphs' => array(
-					'Le prix comprend l\'impression, et il s\'affiche avant l\'ajout au panier. Vous n\'avez pas à demander un devis pour savoir ce que coûte un polo marqué sur la poitrine gauche.',
-					'Le marquage est calculé sur la surface d\'encre réellement imprimée, pas sur le rectangle dans lequel le fichier a été déposé. Un logo exporté avec de larges marges transparentes coûte la même chose qu\'un logo détouré au plus près : c\'est l\'encre posée sur le vêtement qui est mesurée, et c\'est la même mesure qui part en production.',
-					'La commande commence à {MINIMUM_PIECES} pièces sur le panier entier : nous ne vendons pas à l\'unité, et c\'est écrit ici plutôt qu\'à l\'étape du paiement.',
+					'Le prix comprend l’impression, et il s’affiche avant l’ajout au panier. Vous n’avez pas à demander un devis pour savoir ce que coûte un polo marqué sur la poitrine gauche.',
+					'Le marquage est calculé sur la surface d’encre réellement imprimée, pas sur le rectangle dans lequel le fichier a été déposé. Un logo exporté avec de larges marges transparentes coûte la même chose qu’un logo détouré au plus près : c’est l’encre posée sur le vêtement qui est mesurée, et c’est la même mesure qui part en production.',
+					'La commande commence à {MINIMUM_PIECES} pièces sur le panier entier : nous ne vendons pas à l’unité, et c’est écrit ici plutôt qu’à l’étape du paiement.',
 				),
 				'links'      => array(
 					array( 'label' => 'Commander en petite série', 'key' => 'page:petites-series' ),
 				),
 			),
 			array(
-				'h2'         => 'Les dimensions d\'impression sont publiées en centimètres',
+				'h2'         => 'Les dimensions d’impression sont publiées en centimètres',
 				'paragraphs' => array(
-					'Sur un t-shirt en taille {TAILLE_MESUREE}, la zone imprimable de la face avant mesure {ZONE_TSHIRT}. Chaque fiche produit publie les siennes. Une zone annoncée en format de papier ne vous dit ni où le visuel tombe sous le col, ni jusqu\'où il descend sur la poitrine.',
-					'L\'éditeur en ligne montre le vêtement en 2D, en 3D et en réalité augmentée avant la commande, avec le prix affiché avant l\'ajout au panier. Le logo d\'un bar posé trop haut sur un polo se voit à l\'écran, pas à la livraison. Ce que vous placez à l\'écran est ce qui est mesuré pour le prix, et c\'est ce qui part en production.',
+					'Sur un t-shirt en taille {TAILLE_MESUREE}, la zone imprimable de la face avant mesure {ZONE_TSHIRT}. Chaque fiche produit publie les siennes. Une zone annoncée en format de papier ne vous dit ni où le visuel tombe sous le col, ni jusqu’où il descend sur la poitrine.',
+					'L’éditeur en ligne montre le vêtement en 2D, en 3D et en réalité augmentée avant la commande, avec le prix affiché avant l’ajout au panier. Le logo d’un bar posé trop haut sur un polo se voit à l’écran, pas à la livraison. Ce que vous placez à l’écran est ce qui est mesuré pour le prix, et c’est ce qui part en production.',
 				),
 				'links'      => array(
 					array( 'label' => 'Préparer votre fichier avant de commander', 'key' => 'page:fichiers-impression' ),
@@ -1023,16 +1023,16 @@ return array(
 			array(
 				'h2'         => 'Le bon à tirer, puis {DELAI_STANDARD} jours ouvrés',
 				'paragraphs' => array(
-					'Le bon à tirer se valide en ligne, sans créer de compte. Tant qu\'il n\'est pas validé, rien n\'est imprimé.',
-					'À partir de cette validation, comptez {DELAI_STANDARD} jours ouvrés avant l\'expédition, puis {DELAI_TRANSPORT} jours ouvrés d\'acheminement Colissimo, soit {DELAI_TOTAL} jours ouvrés en tout. Les {DELAI_TRANSPORT} jours sont ceux que La Poste annonce pour la France métropolitaine, et c\'est la seule partie du calendrier qui ne dépend ni de vous ni de nous.',
-					'Il n\'y a ni express ni urgence sur ce site. Si vous avez une date à tenir, remontez le calendrier à partir d\'elle : {DELAI_STANDARD} jours ouvrés après la validation du bon à tirer, plus l\'acheminement, plus le temps qu\'il vous faudra pour valider. Nous n\'affichons pas de délai plus court contre supplément, parce que nous ne le tiendrions pas.',
+					'Le bon à tirer se valide en ligne, sans créer de compte. Tant qu’il n’est pas validé, rien n’est imprimé.',
+					'À partir de cette validation, comptez {DELAI_STANDARD} jours ouvrés avant l’expédition, puis {DELAI_TRANSPORT} jours ouvrés d’acheminement Colissimo, soit {DELAI_TOTAL} jours ouvrés en tout. Les {DELAI_TRANSPORT} jours sont ceux que La Poste annonce pour la France métropolitaine, et c’est la seule partie du calendrier qui ne dépend ni de vous ni de nous.',
+					'Il n’y a ni express ni urgence sur ce site. Si vous avez une date à tenir, remontez le calendrier à partir d’elle : {DELAI_STANDARD} jours ouvrés après la validation du bon à tirer, plus l’acheminement, plus le temps qu’il vous faudra pour valider. Nous n’affichons pas de délai plus court contre supplément, parce que nous ne le tiendrions pas.',
 				),
 			),
 			array(
 				'h2'         => 'Broderie, flocage et sublimation passent par un devis',
 				'paragraphs' => array(
-					'Le DTF est la seule technique commandable en autonomie sur le site : c\'est celle dont les zones, les paliers de prix et le délai sont publiés ici.',
-					'La broderie, le flocage et la sublimation existent, mais par devis. La broderie se fait dans notre atelier en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n\'annonçons aucun délai pour elle dans un cas comme dans l\'autre. Pour un écusson brodé sur un polo de réception d\'hôtel, la réponse est un devis, pas un ajout au panier.',
+					'Le DTF est la seule technique commandable en autonomie sur le site : c’est celle dont les zones, les paliers de prix et le délai sont publiés ici.',
+					'La broderie, le flocage et la sublimation existent, mais par devis. La broderie se fait dans notre atelier en petite série et chez un atelier partenaire au-delà de dix pièces, et nous n’annonçons aucun délai pour elle dans un cas comme dans l’autre. Pour un écusson brodé sur un polo de réception d’hôtel, la réponse est un devis, pas un ajout au panier.',
 				),
 				'links'      => array(
 					array( 'label' => 'Demander un devis pour la broderie', 'key' => 'page:devis' ),
@@ -1046,27 +1046,27 @@ return array(
 			),
 			array(
 				'q' => 'Quel est le minimum de commande ?',
-				'a' => '{MINIMUM_PIECES} pièces, toutes tailles et toutes références confondues : des polos et des sweats sur la même commande comptent ensemble pour le minimum. Nous ne vendons pas à l\'unité.',
+				'a' => '{MINIMUM_PIECES} pièces, toutes tailles et toutes références confondues : des polos et des sweats sur la même commande comptent ensemble pour le minimum. Nous ne vendons pas à l’unité.',
 			),
 			array(
 				'q' => 'Commander plusieurs modèles à la fois fait-il baisser le prix unitaire ?',
-				'a' => 'Non, pas comme on l\'imagine souvent. Le palier de quantité se calcule sur la quantité d\'une même référence : regrouper la quantité sur un seul modèle revient moins cher que la répartir sur trois. Les tailles, elles, s\'additionnent : une même référence en plusieurs tailles reste une seule ligne de panier. Ce qui se compte sur le panier entier, c\'est le minimum de commande.',
+				'a' => 'Non, pas comme on l’imagine souvent. Le palier de quantité se calcule sur la quantité d’une même référence : regrouper la quantité sur un seul modèle revient moins cher que la répartir sur trois. Les tailles, elles, s’additionnent : une même référence en plusieurs tailles reste une seule ligne de panier. Ce qui se compte sur le panier entier, c’est le minimum de commande.',
 			),
 			array(
 				'q' => 'Sous quel délai la commande est-elle expédiée ?',
-				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l\'expédition, puis {DELAI_TRANSPORT} jours ouvrés d\'acheminement Colissimo : {DELAI_TOTAL} jours ouvrés en tout. Le compte à rebours part de votre validation du bon à tirer, pas de la commande. Il n\'y a ni express ni urgence, donc une ouverture se prépare en remontant le calendrier.',
+				'a' => '{DELAI_STANDARD} jours ouvrés entre la validation du bon à tirer et l’expédition, puis {DELAI_TRANSPORT} jours ouvrés d’acheminement Colissimo : {DELAI_TOTAL} jours ouvrés en tout. Le compte à rebours part de votre validation du bon à tirer, pas de la commande. Il n’y a ni express ni urgence, donc une ouverture se prépare en remontant le calendrier.',
 			),
 			array(
 				'q' => 'Pourrons-nous recommander exactement le même polo à la saison suivante ?',
-				'a' => 'Tant que le fabricant garde la référence à son catalogue, oui. Le coloris est publié sous le nom du fabricant : c\'est ce nom, avec la référence, qu\'il faut ressaisir à l\'identique. Le réassort repasse par le minimum de commande, en pièces comme en montant.',
+				'a' => 'Tant que le fabricant garde la référence à son catalogue, oui. Le coloris est publié sous le nom du fabricant : c’est ce nom, avec la référence, qu’il faut ressaisir à l’identique. Le réassort repasse par le minimum de commande, en pièces comme en montant.',
 			),
 			array(
-				'q' => 'Combien de lavages tient l\'impression ?',
-				'a' => 'Nous ne publions pas de nombre de lavages. Nous ne l\'avons pas mesuré sur nos vêtements, et nous ne reprenons pas le chiffre d\'un fournisseur de film comme s\'il était le nôtre. Ce que nous publions par référence, c\'est le grammage, filtrable au catalogue. Le jour où la mesure existera, le nombre sera écrit ici.',
+				'q' => 'Combien de lavages tient l’impression ?',
+				'a' => 'Nous ne publions pas de nombre de lavages. Nous ne l’avons pas mesuré sur nos vêtements, et nous ne reprenons pas le chiffre d’un fournisseur de film comme s’il était le nôtre. Ce que nous publions par référence, c’est le grammage, filtrable au catalogue. Le jour où la mesure existera, le nombre sera écrit ici.',
 			),
 			array(
 				'q' => 'Le logo est-il facturé sur sa taille réelle ou sur celle du fichier ?',
-				'a' => 'Sur l\'encre réellement imprimée. Les marges transparentes autour d\'un logo ne sont pas facturées, et un fichier exporté large ne coûte pas plus cher qu\'un fichier détouré. La surface qui sert au prix est celle qui part en production.',
+				'a' => 'Sur l’encre réellement imprimée. Les marges transparentes autour d’un logo ne sont pas facturées, et un fichier exporté large ne coûte pas plus cher qu’un fichier détouré. La surface qui sert au prix est celle qui part en production.',
 			),
 		),
 	),
@@ -1201,23 +1201,23 @@ return array(
 		'description' => 'Le format, le fond, la définition et la taille en centimètres. Ce que nous regardons dans votre fichier, et ce qui empêche une impression.',
 		'h1'          => 'Quel fichier envoyer pour une impression textile',
 		'intro'       => array(
-			'Le fichier d\'un logo existe rarement en une seule version : celui de la signature de mail n\'est pas celui des cartes de visite, et aucun des deux ne dit s\'il tiendra dans une zone d\'impression, ni ce qu\'il donnera une fois pressé sur du tissu.',
-			'Cette page prend les questions dans l\'ordre où elles se posent : le format du fichier, son fond, sa définition, puis sa taille en centimètres. Elle décrit ce que nous faisons de votre fichier en DTF, la seule technique commandable directement sur ce site ; la broderie, le flocage et la sublimation passent par un devis.',
-			'Un ordre de grandeur pour commencer : sur un t-shirt en taille {TAILLE_MESUREE}, la face avant offre {ZONE_TSHIRT}, et c\'est dans ce cadre que votre visuel doit entrer.',
+			'Le fichier d’un logo existe rarement en une seule version : celui de la signature de mail n’est pas celui des cartes de visite, et aucun des deux ne dit s’il tiendra dans une zone d’impression, ni ce qu’il donnera une fois pressé sur du tissu.',
+			'Cette page prend les questions dans l’ordre où elles se posent : le format du fichier, son fond, sa définition, puis sa taille en centimètres. Elle décrit ce que nous faisons de votre fichier en DTF, la seule technique commandable directement sur ce site ; la broderie, le flocage et la sublimation passent par un devis.',
+			'Un ordre de grandeur pour commencer : sur un t-shirt en taille {TAILLE_MESUREE}, la face avant offre {ZONE_TSHIRT}, et c’est dans ce cadre que votre visuel doit entrer.',
 		),
 		'sections'    => array(
 			array(
 				'h2'         => 'Le format : ce qui se dépose et ce qui ne se dépose pas',
 				'paragraphs' => array(
-					'L\'éditeur en ligne accepte les images : PNG, JPEG, SVG. Un PDF ou un fichier Illustrator ne s\'y dépose pas. Si c\'est le seul fichier dont vous disposez, la marche à suivre est juste en dessous.',
-					'Un fichier vectoriel (SVG, PDF, AI) n\'a pas de définition : il est décrit par des tracés, donc il s\'agrandit sans se dégrader. C\'est le meilleur point de départ. Un SVG déposé dans l\'éditeur est converti en image à partir de ces tracés, et non d\'un agrandissement.',
+					'L’éditeur en ligne accepte les images : PNG, JPEG, SVG. Un PDF ou un fichier Illustrator ne s’y dépose pas. Si c’est le seul fichier dont vous disposez, la marche à suivre est juste en dessous.',
+					'Un fichier vectoriel (SVG, PDF, AI) n’a pas de définition : il est décrit par des tracés, donc il s’agrandit sans se dégrader. C’est le meilleur point de départ. Un SVG déposé dans l’éditeur est converti en image à partir de ces tracés, et non d’un agrandissement.',
 					'Le JPEG est le moins bon des trois pour un logo. Il compresse en lissant les zones voisines, ce qui laisse un halo autour des lettres noires sur un fond uni, et il ne sait pas stocker de transparence : un JPEG a toujours un fond, même quand votre écran blanc vous le cache.',
 				),
 				'list'       => array(
-					'PNG à fond transparent : le format à demander si vous n\'en demandez qu\'un.',
-					'SVG : converti en image nette au moment de l\'import, à partir du tracé et non d\'un agrandissement.',
+					'PNG à fond transparent : le format à demander si vous n’en demandez qu’un.',
+					'SVG : converti en image nette au moment de l’import, à partir du tracé et non d’un agrandissement.',
 					'JPEG : accepté, mais sans transparence, et avec des halos possibles autour des lettres sur fond uni.',
-					'PDF, AI, EPS : à faire convertir en PNG à fond transparent avant de l\'envoyer.',
+					'PDF, AI, EPS : à faire convertir en PNG à fond transparent avant de l’envoyer.',
 				),
 				'after'      => array(
 					'Quand vous ne savez pas quoi demander à la personne qui a fabriqué le logo, une phrase suffit : le logo en PNG à fond transparent, exporté grand. Si vous ne savez plus à qui vous adresser, décrivez le fichier dont vous disposez dans une demande de devis : le formulaire pose la question.',
@@ -1227,59 +1227,59 @@ return array(
 				),
 			),
 			array(
-				'h2'         => 'Le carré blanc autour du logo s\'imprime',
+				'h2'         => 'Le carré blanc autour du logo s’imprime',
 				'paragraphs' => array(
-					'Cette erreur ne se voit pas à l\'écran. Un logo posé sur un fond blanc dans le fichier est imprimé avec ce fond : sur un vêtement foncé, un rectangle blanc apparaît autour du logo. Rien dans la chaîne ne l\'enlève, parce que rien ne peut deviner que ce blanc n\'était pas voulu.',
-					'Ouvrez le fichier et regardez ce qu\'il y a derrière le logo. Un damier gris et blanc signifie que le fond est transparent. Du blanc reste du blanc, et il sera déposé sur le tissu comme le reste du visuel.',
-					'Dans la bibliothèque d\'imports de l\'éditeur, un bouton « Détourer » retire l\'arrière-plan d\'une image sur votre appareil, sans que rien soit envoyé ailleurs. Il est conçu pour une photo, où le sujet se détache de son arrière-plan. Sur un logo au trait, la bonne réponse reste le fichier d\'origine à fond transparent.',
+					'Cette erreur ne se voit pas à l’écran. Un logo posé sur un fond blanc dans le fichier est imprimé avec ce fond : sur un vêtement foncé, un rectangle blanc apparaît autour du logo. Rien dans la chaîne ne l’enlève, parce que rien ne peut deviner que ce blanc n’était pas voulu.',
+					'Ouvrez le fichier et regardez ce qu’il y a derrière le logo. Un damier gris et blanc signifie que le fond est transparent. Du blanc reste du blanc, et il sera déposé sur le tissu comme le reste du visuel.',
+					'Dans la bibliothèque d’imports de l’éditeur, un bouton « Détourer » retire l’arrière-plan d’une image sur votre appareil, sans que rien soit envoyé ailleurs. Il est conçu pour une photo, où le sujet se détache de son arrière-plan. Sur un logo au trait, la bonne réponse reste le fichier d’origine à fond transparent.',
 				),
 			),
 			array(
 				'h2'         => 'La définition se juge à la taille imprimée',
 				'paragraphs' => array(
-					'Ce qui compte n\'est pas l\'allure du fichier à l\'écran, mais son nombre de pixels rapporté aux centimètres imprimés. Le même logo passe très bien en petit sur une poitrine et devient granuleux étalé sur toute une face avant : le fichier n\'a pas changé, la surface si.',
-					'L\'éditeur fait ce calcul pour vous. Dans « Partager & exporter », il compare les pixels de chaque visuel aux centimètres où vous venez de le poser, et signale ceux qui risquent d\'imprimer flou, en PPP (points par pouce) à cette taille. C\'est cette mesure qu\'il faut regarder, pas le poids du fichier.',
-					'Envoyer un fichier plus lourd ne rattrape pas tout : l\'éditeur travaille sur une copie ramenée à une taille de travail, et c\'est cette copie que la mesure regarde. Un fichier trop petit pour la taille voulue ne se répare pas, il se remplace : un agrandissement n\'ajoute pas le détail manquant, il ajoute du flou. C\'est un point à régler avant la commande, pas au bon à tirer.',
+					'Ce qui compte n’est pas l’allure du fichier à l’écran, mais son nombre de pixels rapporté aux centimètres imprimés. Le même logo passe très bien en petit sur une poitrine et devient granuleux étalé sur toute une face avant : le fichier n’a pas changé, la surface si.',
+					'L’éditeur fait ce calcul pour vous. Dans « Partager & exporter », il compare les pixels de chaque visuel aux centimètres où vous venez de le poser, et signale ceux qui risquent d’imprimer flou, en PPP (points par pouce) à cette taille. C’est cette mesure qu’il faut regarder, pas le poids du fichier.',
+					'Envoyer un fichier plus lourd ne rattrape pas tout : l’éditeur travaille sur une copie ramenée à une taille de travail, et c’est cette copie que la mesure regarde. Un fichier trop petit pour la taille voulue ne se répare pas, il se remplace : un agrandissement n’ajoute pas le détail manquant, il ajoute du flou. C’est un point à régler avant la commande, pas au bon à tirer.',
 				),
 			),
 			array(
-				'h2'         => 'Nous mesurons l\'encre, pas le cadre',
+				'h2'         => 'Nous mesurons l’encre, pas le cadre',
 				'paragraphs' => array(
-					'Un logo exporté en PNG traîne souvent une large marge transparente, parce que l\'export a gardé le format de la maquette. Quand le calcul part du rectangle du fichier, cette marge vide est achetée en film et refacturée. Ici, le prix est calculé sur la surface d\'encre réellement déposée.',
-					'Ce n\'est pas une nuance comptable : sur le même visuel, le rectangle du fichier et l\'encre réellement déposée ne mesurent pas la même chose.',
-					'Conséquence pratique : ne recadrez pas votre fichier au plus juste avant de l\'envoyer. Vous n\'y gagnerez rien sur le prix et vous risquez de rogner le bas d\'une lettre.',
+					'Un logo exporté en PNG traîne souvent une large marge transparente, parce que l’export a gardé le format de la maquette. Quand le calcul part du rectangle du fichier, cette marge vide est achetée en film et refacturée. Ici, le prix est calculé sur la surface d’encre réellement déposée.',
+					'Ce n’est pas une nuance comptable : sur le même visuel, le rectangle du fichier et l’encre réellement déposée ne mesurent pas la même chose.',
+					'Conséquence pratique : ne recadrez pas votre fichier au plus juste avant de l’envoyer. Vous n’y gagnerez rien sur le prix et vous risquez de rogner le bas d’une lettre.',
 				),
 			),
 			array(
 				'h2'         => 'La place du logo, en centimètres',
 				'paragraphs' => array(
-					'La zone imprimable est publiée sur chaque fiche produit, en centimètres. Vous pouvez donc mesurer votre visuel et savoir avant de commander s\'il tient, au lieu de le découvrir sur le bon à tirer.',
+					'La zone imprimable est publiée sur chaque fiche produit, en centimètres. Vous pouvez donc mesurer votre visuel et savoir avant de commander s’il tient, au lieu de le découvrir sur le bon à tirer.',
 					'Pour un t-shirt en taille {TAILLE_MESUREE}, la face avant mesure {ZONE_TSHIRT}.',
-					'Le vêtement change de taille, la zone aussi. Selon l\'option retenue, le marquage est mis à l\'échelle avec le vêtement, plus petit sur un S et plus grand sur un XL, ou pressé aux mêmes dimensions sur toutes les tailles. Quand la mise à l\'échelle est connue, le bon à tirer dit laquelle des deux s\'applique.',
-					'Sur ce bon à tirer, chaque face est chiffrée : la surface imprimée en cm², les dimensions du visuel, sa hauteur sous le bord de la zone et son décalage par rapport à l\'axe. Quand la face a une couture d\'encolure, le centre de la zone est aussi coté sous celle-ci ; une manche n\'en a pas, et le document le dit au lieu d\'inventer un repère. Un logo poitrine placé trop bas se corrige à ce moment-là, en une phrase, avant que la presse chauffe.',
+					'Le vêtement change de taille, la zone aussi. Selon l’option retenue, le marquage est mis à l’échelle avec le vêtement, plus petit sur un S et plus grand sur un XL, ou pressé aux mêmes dimensions sur toutes les tailles. Quand la mise à l’échelle est connue, le bon à tirer dit laquelle des deux s’applique.',
+					'Sur ce bon à tirer, chaque face est chiffrée : la surface imprimée en cm², les dimensions du visuel, sa hauteur sous le bord de la zone et son décalage par rapport à l’axe. Quand la face a une couture d’encolure, le centre de la zone est aussi coté sous celle-ci ; une manche n’en a pas, et le document le dit au lieu d’inventer un repère. Un logo poitrine placé trop bas se corrige à ce moment-là, en une phrase, avant que la presse chauffe.',
 				),
 				'links'      => array(
-					array( 'label' => 'Les t-shirts et leurs zones d\'impression', 'key' => 'categorie:t-shirts' ),
-					array( 'label' => 'Les sweats et leurs zones d\'impression', 'key' => 'categorie:sweats' ),
+					array( 'label' => 'Les t-shirts et leurs zones d’impression', 'key' => 'categorie:t-shirts' ),
+					array( 'label' => 'Les sweats et leurs zones d’impression', 'key' => 'categorie:sweats' ),
 				),
 			),
 			array(
 				'h2'         => 'Le DTF, en clair',
 				'paragraphs' => array(
 					'DTF veut dire Direct To Film. Le visuel est imprimé sur un film, puis transféré sur le vêtement sous presse à chaud. Sur un textile foncé, l’aperçu du studio est volontairement prudent : un visuel semi-transparent y laisse voir la couleur du vêtement au travers, et ce que vous recevrez ne sera jamais moins bon que ce que l’aperçu montre.',
-					'C\'est la seule technique commandable directement sur ce site. La broderie, le flocage et la sublimation existent et passent par un devis. La broderie se fait chez nous en petite série et chez un atelier partenaire au-delà de dix pièces : nous ne publions de délai pour aucun des deux.',
-					'Le DTF pose une matière sur le tissu, il ne le teint pas. Et l\'écran ne dit pas la couleur finale : sur le bon à tirer, jugez le placement et les dimensions, pas la teinte exacte.',
+					'C’est la seule technique commandable directement sur ce site. La broderie, le flocage et la sublimation existent et passent par un devis. La broderie se fait chez nous en petite série et chez un atelier partenaire au-delà de dix pièces : nous ne publions de délai pour aucun des deux.',
+					'Le DTF pose une matière sur le tissu, il ne le teint pas. Et l’écran ne dit pas la couleur finale : sur le bon à tirer, jugez le placement et les dimensions, pas la teinte exacte.',
 				),
 			),
 			array(
 				'h2'         => 'Ce qui se passe une fois le fichier envoyé',
 				'paragraphs' => array(
-					'Le prix s\'affiche avant l\'ajout au panier, impression comprise. Il baisse par paliers de quantité, et le palier se calcule sur la quantité d\'une même référence : ce sont les pièces de ce modèle, avec ce marquage, qui décident du tarif de cette ligne. La grille complète est publiée sur chaque fiche produit.',
-					'La conséquence est un conseil d\'achat et pas un détail de calcul : une même quantité regroupée sur une seule référence atteint un palier que la même quantité répartie sur trois modèles n\'atteint pas, puisque chaque référence compte pour elle seule. Quand le choix est ouvert, grouper coûte moins cher que répartir.',
-					'Le minimum de commande, lui, se compte sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues. C\'est la seule condition : aucun montant minimum ne s\'y ajoute.',
-					'La répartition des tailles se saisit ligne par ligne : vous n\'avez pas à prendre le même nombre de chaque taille pour atteindre la commande minimum.',
-					'Le bon à tirer se valide en ligne, sans créer de compte. L\'impression est faite en France, et l\'expédition part en Colissimo, en France métropolitaine.',
-					'À partir de la validation du bon à tirer, comptez {DELAI_STANDARD} jours ouvrés jusqu\'à l\'expédition. Aucun délai plus court n\'est proposé sur ce site : nous ne publions pas une date que l\'atelier ne tient pas.',
+					'Le prix s’affiche avant l’ajout au panier, impression comprise. Il baisse par paliers de quantité, et le palier se calcule sur la quantité d’une même référence : ce sont les pièces de ce modèle, avec ce marquage, qui décident du tarif de cette ligne. La grille complète est publiée sur chaque fiche produit.',
+					'La conséquence est un conseil d’achat et pas un détail de calcul : une même quantité regroupée sur une seule référence atteint un palier que la même quantité répartie sur trois modèles n’atteint pas, puisque chaque référence compte pour elle seule. Quand le choix est ouvert, grouper coûte moins cher que répartir.',
+					'Le minimum de commande, lui, se compte sur le panier entier : {MINIMUM_PIECES} pièces, toutes références confondues. C’est la seule condition : aucun montant minimum ne s’y ajoute.',
+					'La répartition des tailles se saisit ligne par ligne : vous n’avez pas à prendre le même nombre de chaque taille pour atteindre la commande minimum.',
+					'Le bon à tirer se valide en ligne, sans créer de compte. L’impression est faite en France, et l’expédition part en Colissimo, en France métropolitaine.',
+					'À partir de la validation du bon à tirer, comptez {DELAI_STANDARD} jours ouvrés jusqu’à l’expédition. Aucun délai plus court n’est proposé sur ce site : nous ne publions pas une date que l’atelier ne tient pas.',
 				),
 				'links'      => array(
 					array( 'label' => 'Commander en petite série', 'key' => 'page:petites-series' ),
@@ -1290,27 +1290,27 @@ return array(
 		'faq'         => array(
 			array(
 				'q' => 'Mon logo est en JPEG, est-ce que ça peut marcher ?',
-				'a' => 'Pour une photo, oui. Pour un logo sur fond uni, non : un JPEG ne stocke pas la transparence, donc le fond blanc du fichier est imprimé, et la compression laisse un halo autour des lettres. Demandez un PNG à fond transparent à la personne qui a fabriqué le logo : c\'est une exportation courante, pas un travail de création.',
+				'a' => 'Pour une photo, oui. Pour un logo sur fond uni, non : un JPEG ne stocke pas la transparence, donc le fond blanc du fichier est imprimé, et la compression laisse un halo autour des lettres. Demandez un PNG à fond transparent à la personne qui a fabriqué le logo : c’est une exportation courante, pas un travail de création.',
 			),
 			array(
-				'q' => 'Je n\'ai que le PDF de mes cartes de visite. Que faire ?',
-				'a' => 'Le PDF ne se dépose pas dans l\'éditeur en ligne, mais il contient souvent le logo en vectoriel, c\'est-à-dire la meilleure version qui existe. Demandez à celui qui l\'a produit un PNG à fond transparent, ou le fichier SVG. Si vous ne savez plus à qui vous adresser, décrivez le fichier dont vous disposez dans le formulaire de devis.',
+				'q' => 'Je n’ai que le PDF de mes cartes de visite. Que faire ?',
+				'a' => 'Le PDF ne se dépose pas dans l’éditeur en ligne, mais il contient souvent le logo en vectoriel, c’est-à-dire la meilleure version qui existe. Demandez à celui qui l’a produit un PNG à fond transparent, ou le fichier SVG. Si vous ne savez plus à qui vous adresser, décrivez le fichier dont vous disposez dans le formulaire de devis.',
 			),
 			array(
 				'q' => 'Comment savoir si mon fichier est assez net ?',
-				'a' => 'Posez-le dans l\'éditeur à la taille où il sera imprimé, puis ouvrez « Partager & exporter » : les visuels trop peu définis pour cette taille y sont signalés comme pouvant imprimer flou, avec les PPP obtenus. Un agrandissement ne rattrape rien puisqu\'il n\'ajoute aucun détail. Un fichier trop juste se remplace par une version plus grande, ou par le tracé vectoriel d\'origine.',
+				'a' => 'Posez-le dans l’éditeur à la taille où il sera imprimé, puis ouvrez « Partager & exporter » : les visuels trop peu définis pour cette taille y sont signalés comme pouvant imprimer flou, avec les PPP obtenus. Un agrandissement ne rattrape rien puisqu’il n’ajoute aucun détail. Un fichier trop juste se remplace par une version plus grande, ou par le tracé vectoriel d’origine.',
 			),
 			array(
-				'q' => 'Le DTF, qu\'est-ce que c\'est ?',
+				'q' => 'Le DTF, qu’est-ce que c’est ?',
 				'a' => 'Direct To Film : le visuel est imprimé sur un film, puis pressé à chaud sur le vêtement. C’est la seule technique commandable directement ici ; la broderie, le flocage et la sublimation passent par un devis. Sur un vêtement foncé, l’aperçu montre le rendu le plus prudent des deux possibles, jamais le plus flatteur.',
 			),
 			array(
 				'q' => 'Quelle taille et quelle position pour un logo poitrine ?',
-				'a' => 'La zone imprimable est publiée sur chaque fiche, en centimètres : {ZONE_TSHIRT} pour un t-shirt en taille {TAILLE_MESUREE}, face avant. Un logo poitrine n\'occupe qu\'une partie de la zone imprimable, et vous le placez vous-même dans l\'éditeur. Le bon à tirer redonne ensuite ses dimensions, sa hauteur sous le bord de la zone et son décalage par rapport à l\'axe, en centimètres.',
+				'a' => 'La zone imprimable est publiée sur chaque fiche, en centimètres : {ZONE_TSHIRT} pour un t-shirt en taille {TAILLE_MESUREE}, face avant. Un logo poitrine n’occupe qu’une partie de la zone imprimable, et vous le placez vous-même dans l’éditeur. Le bon à tirer redonne ensuite ses dimensions, sa hauteur sous le bord de la zone et son décalage par rapport à l’axe, en centimètres.',
 			),
 			array(
 				'q' => 'Les marges vides autour de mon logo me sont-elles facturées ?',
-				'a' => 'Non. Le prix est calculé sur la surface d\'encre réellement imprimée, pas sur le rectangle dans lequel le fichier a été déposé. Un PNG entouré de transparent coûte le prix du logo. Vous n\'avez donc pas à recadrer avant d\'envoyer.',
+				'a' => 'Non. Le prix est calculé sur la surface d’encre réellement imprimée, pas sur le rectangle dans lequel le fichier a été déposé. Un PNG entouré de transparent coûte le prix du logo. Vous n’avez donc pas à recadrer avant d’envoyer.',
 			),
 			array(
 				'q' => 'Le prix baisse-t-il si je commande plusieurs modèles à la fois ?',
@@ -1322,6 +1322,31 @@ return array(
 	'page:devis' => array(
 		'title'       => 'Demander un devis pour un projet textile',
 		'description' => 'Le vêtement, la quantité, la répartition des tailles et votre date. Nous revenons avec un chiffrage et le délai que l’atelier tient.',
+		'h1'          => '',
+		'intro'       => array(
+		),
+		'sections'    => array(
+		),
+	),
+
+	/*
+	 * Les deux pages légales n'avaient pas de description (IA-04, 28/09/2026) :
+	 * elles sont indexables, et un moteur ou un agent en fabriquait une avec le
+	 * premier paragraphe venu. Titre vide : celui de la page reste le bon.
+	 */
+	'page:cgv' => array(
+		'title'       => '',
+		'description' => 'Les conditions générales de vente de Teeshoop : commande, prix, bon à tirer, fabrication, livraison, garanties et réclamations pour le textile personnalisé.',
+		'h1'          => '',
+		'intro'       => array(
+		),
+		'sections'    => array(
+		),
+	),
+
+	'page:mentions-legales' => array(
+		'title'       => '',
+		'description' => 'Qui édite et héberge teeshoop.com, et comment nous joindre : l’identité de la société, ses immatriculations et ses coordonnées.',
 		'h1'          => '',
 		'intro'       => array(
 		),

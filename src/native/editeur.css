@@ -260,7 +260,8 @@
 .tshop-ed__outil {
 	font: inherit;
 	padding: 0.375rem 0.75rem;
-	min-height: 2.25rem;
+	/* 44 px au doigt (MOB-08, mesuré à 36 le 28/09/2026). */
+	min-height: 2.75rem;
 	background: var(--tshop-paper);
 	color: var(--tshop-ink);
 	border: 1px solid var(--tshop-line-strong);
@@ -350,8 +351,9 @@
 }
 
 .tshop-ed__pastille {
-	width: 2.25rem;
-	height: 2.25rem;
+	/* 44 px : le choix du coloris est le geste le plus fréquent de l'atelier (MOB-01). */
+	width: 2.75rem;
+	height: 2.75rem;
 	padding: 0;
 	border-radius: 50%;
 	border: 1px solid var(--tshop-line-strong);
@@ -384,7 +386,7 @@
 
 .tshop-ed__face {
 	font: inherit;
-	min-height: 2.5rem;
+	min-height: 2.75rem;
 	padding: 0.375rem 0.875rem;
 	color: var(--tshop-ink);
 	background: var(--tshop-paper);
@@ -541,6 +543,12 @@
 
 .tshop-ed__qte {
 	font: inherit;
+	/*
+	 * 16 PX, PAS 15 : sous 16, Safari sur iPhone zoome au premier appui dans la
+	 * case (MOB-02). La même règle tient déjà les quantités de la fiche produit
+	 * (`assets/product.css`).
+	 */
+	font-size: 1rem;
 	/* Les chiffres s'alignent en colonne : une grille de tailles est un tableau. */
 	font-variant-numeric: tabular-nums;
 	width: 100%;

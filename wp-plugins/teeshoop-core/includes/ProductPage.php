@@ -514,9 +514,13 @@ final class ProductPage {
 			return $html;
 		}
 		$atelier = 'pret' === Atelier::etat( $product->get_id() ) ? Atelier::url( $product->get_id() ) : '';
+		// Named after its product (IA-02): three links called « Personnaliser » on
+		// one page were one link to a screen reader's list and to an agent.
 		return sprintf(
-			'<a href="%s" class="button teeshoop-loop-cta">%s</a>',
+			'<a href="%s" class="button teeshoop-loop-cta" aria-label="%s">%s</a>',
 			esc_url( '' !== $atelier ? $atelier : $product->get_permalink() ),
+			/* translators: %s: product name. */
+			esc_attr( sprintf( __( 'Personnaliser « %s »', 'teeshoop' ), wp_strip_all_tags( $product->get_name() ) ) ),
 			esc_html__( 'Personnaliser', 'teeshoop' )
 		);
 	}

@@ -132,6 +132,18 @@
 .ts-table__scroll {
 	overflow-x: auto;
 	-webkit-overflow-scrolling: touch;
+	/*
+	 * UNE OMBRE AU BORD QUI CACHE ENCORE UNE COLONNE (MOB-11). À 375 px la
+	 * colonne « 25 pièces » était coupée net, sans rien qui dise qu'on peut
+	 * balayer. Les deux premiers dégradés suivent le contenu (`local`) et
+	 * recouvrent l'ombre quand on est au bout ; les deux derniers restent au bord.
+	 * Aucun script : rien à désynchroniser.
+	 */
+	background:
+		linear-gradient(to right, var(--ts-paper) 30%, transparent) left center / 2rem 100% no-repeat local,
+		linear-gradient(to left, var(--ts-paper) 30%, transparent) right center / 2rem 100% no-repeat local,
+		radial-gradient(farthest-side at 0 50%, var(--ts-line-strong), transparent) left center / 0.625rem 100% no-repeat scroll,
+		radial-gradient(farthest-side at 100% 50%, var(--ts-line-strong), transparent) right center / 0.625rem 100% no-repeat scroll;
 }
 
 .ts-table {
@@ -195,7 +207,8 @@
 .ts-table__off {
 	display: block;
 	color: var(--ts-good);
-	font-size: 0.6875rem;
+	/* 12 px au moins : 11 se lisait mal sur un téléphone (MOB-10). */
+	font-size: 0.75rem;
 	font-family: var(--ts-font-display);
 	font-weight: 600;
 }

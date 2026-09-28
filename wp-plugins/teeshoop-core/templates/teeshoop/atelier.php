@@ -110,6 +110,14 @@ wp_head();
 		<h1 class="ts-atelier__titre"><?php echo esc_html( $ts_h1 ); ?></h1>
 	</header>
 
+	<?php
+	/*
+	 * LE REPÈRE « CONTENU PRINCIPAL » DE LA PAGE OÙ L'ON ACHÈTE. Le gabarit se
+	 * passe du thème, donc de son `<main>`, et un lecteur d'écran qui saute de
+	 * repère en repère n'avait rien à atteindre ici (28/09/2026).
+	 */
+	?>
+	<main class="ts-atelier__contenu">
 	<?php if ( 'pret' === $ts_etat ) : ?>
 
 		<div class="ts-atelier__scene" id="<?php echo esc_attr( $ts_ancre ); ?>" tabindex="-1">
@@ -208,6 +216,7 @@ wp_head();
 		?>
 
 	<?php endif; ?>
+	</main>
 
 </div>
 

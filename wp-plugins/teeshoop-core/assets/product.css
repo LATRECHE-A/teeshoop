@@ -488,6 +488,8 @@
 .ts-devis select,
 .ts-devis textarea {
 	width: 100%;
+	/* 44 px, comme les autres champs de la boutique (MOB-09). */
+	min-height: 2.75rem;
 	padding: 0.5rem 0.625rem;
 	border: 1px solid var(--ts-line-strong);
 	border-radius: 3px;

@@ -174,12 +174,25 @@ final class LegalPage {
 	 * ONE WORDING FOR A GAP, so that a reader can tell at a glance that six
 	 * mentions are missing rather than reading six different euphemisms.
 	 */
-	private static function field( string $label, string $value ): string {
+	private static function field( string $label, string $value, string $href = '' ): string {
 		if ( '' !== trim( $value ) ) {
-			return '<dt>' . esc_html( $label ) . '</dt><dd>' . esc_html( $value ) . '</dd>';
+			$shown = '' !== $href ? '<a href="' . esc_url( $href, array( 'mailto', 'tel' ) ) . '">' . esc_html( $value ) . '</a>' : esc_html( $value );
+			return '<dt>' . esc_html( $label ) . '</dt><dd>' . $shown . '</dd>';
 		}
 		return '<dt>' . esc_html( $label ) . '</dt><dd class="ts-legal__gap">'
 			. esc_html__( 'non communiqué', 'teeshoop' ) . '</dd>';
+	}
+
+	/** « 07 58 48 83 98 » as « tel:+33758488398 », or '' when it is not a French number. */
+	public static function tel_href( string $tel ): string {
+		$digits = preg_replace( '/\D+/', '', $tel );
+		if ( 1 === preg_match( '/^0[1-9]\d{8}$/', (string) $digits ) ) {
+			return 'tel:+33' . substr( (string) $digits, 1 );
+		}
+		if ( 1 === preg_match( '/^33[1-9]\d{8}$/', (string) $digits ) ) {
+			return 'tel:+' . $digits;
+		}
+		return '';
 	}
 
 	// ── mentions légales ─────────────────────────────────────────────────────
@@ -236,8 +249,11 @@ final class LegalPage {
 			$out .= self::field( $label, (string) ( $identity[ $key ] ?? '' ) );
 		}
 		$out .= self::field( __( 'Directeur de la publication', 'teeshoop' ), Host::publication_director() );
-		$out .= self::field( __( 'Adresse de contact', 'teeshoop' ), Host::contact_email() );
-		$out .= self::field( __( 'Téléphone', 'teeshoop' ), Host::telephone() );
+		// Cliquables : sur un téléphone, écrire ou appeler en un geste (CNT-06).
+		$email = Host::contact_email();
+		$tel   = Host::telephone();
+		$out  .= self::field( __( 'Adresse de contact', 'teeshoop' ), $email, is_email( $email ) ? 'mailto:' . $email : '' );
+		$out  .= self::field( __( 'Téléphone', 'teeshoop' ), $tel, self::tel_href( $tel ) );
 		$out .= '</dl>';
 
 		$out .= self::h2( __( 'Hébergeur du site', 'teeshoop' ) );
@@ -358,9 +374,10 @@ final class LegalPage {
 		$before = array();
 		$after  = array();
 		foreach ( Terms::versions() as $v ) {
-			if ( '' !== $force && strcmp( $v, $force ) <= 0 ) {
+			// The version in force is neither: it is the text above (CNT-05).
+			if ( '' !== $force && strcmp( $v, $force ) < 0 ) {
 				$before[] = $v;
-			} else {
+			} elseif ( '' === $force || strcmp( $v, $force ) > 0 ) {
 				$after[] = $v;
 			}
 		}
@@ -374,7 +391,7 @@ final class LegalPage {
 			return '<ul class="ts-legal__list">' . implode( '', $links ) . '</ul>';
 		};
 
-		if ( count( $before ) > 1 ) {
+		if ( ! empty( $before ) ) {
 			$out .= self::h2( __( 'Versions précédentes', 'teeshoop' ) );
 			$out .= $list( $before );
 		}

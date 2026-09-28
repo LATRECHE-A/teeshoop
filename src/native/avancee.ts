@@ -275,6 +275,9 @@ class Avancee {
       choisir.type = 'button'
       choisir.setAttribute('aria-pressed', String(l.id === this.selection))
       choisir.textContent = nomDe(l)
+      // Ce que fait le bouton, et pas seulement le nom du fichier (IA-01) : c'est
+      // le seul chemin au clavier vers la position et la taille en centimètres.
+      choisir.setAttribute('aria-label', `Régler ${nomDe(l)} : position et taille`)
       choisir.addEventListener('click', () => {
         this.selection = this.selection === l.id ? null : l.id
         this.rendre()
@@ -283,6 +286,7 @@ class Avancee {
       const oter = el('button', 'tshop-ed__outil tshop-ed__outil--retirer')
       oter.type = 'button'
       oter.textContent = MOTS.supprimer
+      oter.setAttribute('aria-label', `${MOTS.supprimer} ${nomDe(l)}`)
       oter.addEventListener('click', () => this.supprimer(l.id))
       li.append(choisir, oter)
       liste.append(li)

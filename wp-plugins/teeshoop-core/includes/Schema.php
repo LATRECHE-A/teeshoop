@@ -182,7 +182,33 @@ final class Schema {
 				'auto'  => false,
 				'run'   => array( self::class, 'step_produits_anciens' ),
 			),
+			// Les règles de réécriture n'existent qu'après `init`.
+			array(
+				'id'    => 12,
+				'label' => 'Règles de réécriture régénérées : le plan du site répond',
+				'auto'  => false,
+				'run'   => array( self::class, 'step_reecriture' ),
+			),
 		);
+	}
+
+	/**
+	 * Les règles de réécriture, régénérées, pour que `/wp-sitemap.xml` réponde.
+	 *
+	 * Mesuré en production le 28/09/2026 : `robots.txt` annonce
+	 * `/wp-sitemap.xml`, qui répond 404, alors que `/?sitemap=index` est bien
+	 * reconnu (il redirige vers cette adresse). Les règles enregistrées dataient
+	 * du temps où Rank Math masquait le plan du site de WordPress ; l'étape 9 l'a
+	 * désactivé sans les régénérer. Régénération « douce » : la base seulement,
+	 * jamais le `.htaccess`, qui appartient à l'hébergement.
+	 */
+	public static function step_reecriture(): string {
+		flush_rewrite_rules( false );
+		$regles = get_option( 'rewrite_rules' );
+		$plan   = is_array( $regles ) && isset( $regles['^wp-sitemap\.xml$'] );
+		return $plan
+			? 'règles régénérées, le plan du site a sa règle'
+			: 'règles régénérées ; le plan du site de WordPress est désactivé sur cette installation (réglage « visibilité pour les moteurs » ou une extension)';
 	}
 
 	/**

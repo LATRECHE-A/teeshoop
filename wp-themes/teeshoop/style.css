@@ -387,6 +387,7 @@ html {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--ts-space-2);
+	min-height: 2.75rem;
 	margin: 0;
 	padding: var(--ts-space-2) var(--ts-space-3);
 	border: 1px solid var(--ts-line-strong);
@@ -473,6 +474,7 @@ html {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--ts-space-2);
+	min-height: 2.75rem;
 	padding: var(--ts-space-2) var(--ts-space-3);
 	border: 1px solid var(--ts-line-strong);
 	border-radius: var(--ts-radius);
@@ -1256,6 +1258,8 @@ ul.products li.product .price {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--ts-space-2);
+	/* 44 px au doigt : mesurées à 31 px sur tout le site le 28/09/2026 (MOB-03). */
+	min-height: 2.75rem;
 	padding: 0.3125rem var(--ts-space-3);
 	border: 1px solid var(--ts-line-strong);
 	border-radius: var(--ts-radius);
@@ -1875,6 +1879,7 @@ a.ts-chip:hover {
 .woocommerce input.button,
 .woocommerce #respond input#submit {
 	display: inline-block;
+	min-height: 2.75rem;
 	padding: 0.5rem 0.875rem;
 	border: 1px solid var(--ts-line-strong);
 	border-radius: var(--ts-radius);
@@ -3229,7 +3234,13 @@ a.ts-chip:hover {
 	background: var(--ts-paper);
 	color: var(--ts-ink);
 	font-family: var(--ts-font);
-	font-size: var(--ts-text);
+	/*
+	 * 16 PX AU MOINS : sous 16, Safari sur iPhone zoome la page au premier appui
+	 * dans le champ, et ne dézoome pas. --ts-text vaut 15 px ; mesuré sur la
+	 * connexion et l'inscription le 28/09/2026 (MOB-04). Même règle que les
+	 * quantités de la fiche produit.
+	 */
+	font-size: max(1rem, var(--ts-text));
 	line-height: 1.4;
 }
 
@@ -4180,4 +4191,31 @@ a.ts-chip:hover {
 	margin-top: var(--ts-space-1);
 	color: var(--ts-muted);
 	font-size: var(--ts-text-sm);
+}
+
+/*
+ * Le compte client au doigt (MOB-04). L'œil « afficher le mot de passe » mesurait
+ * 22 px et la case « Se souvenir de moi » 13 px ; les longs noms de marque des
+ * filtres étaient coupés net dans la colonne de 15rem (DSK-02).
+ */
+.woocommerce form .show-password-input {
+	min-width: 2.75rem;
+	min-height: 2.75rem;
+}
+
+.woocommerce-form__input-checkbox {
+	width: 1.25rem;
+	height: 1.25rem;
+}
+
+.woocommerce-form__label-for-checkbox {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ts-space-2);
+	min-height: 2.75rem;
+}
+
+.ts-facet__list .ts-chip {
+	max-width: 100%;
+	white-space: normal;
 }
