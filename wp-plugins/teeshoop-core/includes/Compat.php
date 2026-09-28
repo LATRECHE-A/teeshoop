@@ -340,6 +340,7 @@ final class Compat {
 		add_filter( 'the_content', array( self::class, 'translate_content' ), 5 );
 		add_filter( 'woocommerce_breadcrumb_defaults', array( self::class, 'breadcrumb' ) );
 		add_filter( 'woocommerce_product_add_to_cart_text', array( self::class, 'add_to_cart_text' ), 10, 2 );
+		add_filter( 'woocommerce_product_add_to_cart_description', array( self::class, 'add_to_cart_description' ), 10, 2 );
 		add_filter( 'woocommerce_catalog_orderby', array( self::class, 'orderby_labels' ) );
 
 		/*
@@ -448,9 +449,36 @@ final class Compat {
 	 */
 	public static function add_to_cart_text( $text, $product = null ) {
 		if ( $product instanceof \WC_Product && $product->is_type( 'variable' ) ) {
-			return __( 'Sélectionner les options', 'teeshoop' );
+			/*
+			 * NOT « OPTIONS » ON A GARMENT THAT CANNOT BE BOUGHT. The catalogue is
+			 * consultable without prices (question 41), so « Sélectionner les
+			 * options » led to a page with no option that buys anything. What the
+			 * button does there is show the garment.
+			 */
+			return self::sellable( $product )
+				? __( 'Sélectionner les options', 'teeshoop' )
+				: __( 'Voir le vêtement', 'teeshoop' );
 		}
 		return $text;
+	}
+
+	/**
+	 * The button's accessible name, kept containing its visible text (WCAG 2.5.3).
+	 *
+	 * @param string $description WooCommerce's own.
+	 * @param mixed  $product     the product being rendered.
+	 */
+	public static function add_to_cart_description( $description, $product = null ) {
+		if ( $product instanceof \WC_Product && $product->is_type( 'variable' ) && ! self::sellable( $product ) ) {
+			/* translators: %s: product name. */
+			return sprintf( __( 'Voir le vêtement « %s »', 'teeshoop' ), wp_strip_all_tags( $product->get_name() ) );
+		}
+		return $description;
+	}
+
+	/** Whether any variation of this product can be put in a basket as it is. */
+	private static function sellable( \WC_Product $product ): bool {
+		return $product->is_purchasable() && '' !== (string) $product->get_price();
 	}
 
 	/**

@@ -645,7 +645,30 @@ html {
  */
 .ts-zone-bloc {
 	margin-top: var(--ts-space-5);
+	display: grid;
+	gap: var(--ts-space-5);
+}
+
+.ts-zone-bloc > .ts-zone {
 	max-width: 34rem;
+	margin: 0;
+}
+
+.ts-zone-texte h3 {
+	margin: 0 0 var(--ts-space-3);
+}
+
+.ts-zone-texte p {
+	margin: 0 0 var(--ts-space-3);
+	max-width: 38rem;
+}
+
+@media (min-width: 900px) {
+	.ts-zone-bloc {
+		grid-template-columns: minmax(0, 34rem) minmax(0, 1fr);
+		align-items: center;
+		gap: var(--ts-space-6);
+	}
 }
 
 .ts-zone-bloc img,
@@ -4075,4 +4098,64 @@ a.ts-chip:hover {
 
 .ts-fams__link--typeonly .ts-fams__media {
 	background: var(--ts-accent-wash);
+}
+
+/*
+ * « Un problème avec cette commande ? », sous le tableau de la commande dans le
+ * compte client (Claim::customer_box). Mêmes champs que les formulaires de
+ * WooCommerce, pour qu'un client n'y voie pas un second site.
+ */
+.ts-sav {
+	margin-top: var(--ts-space-6);
+	padding-top: var(--ts-space-5);
+	border-top: 1px solid var(--ts-line);
+}
+
+.ts-sav__liste {
+	margin: 0 0 var(--ts-space-4);
+	padding-left: 1.2em;
+}
+
+.ts-sav__form {
+	max-width: 38rem;
+}
+
+.ts-sav__champ label {
+	display: block;
+	margin-bottom: var(--ts-space-1);
+	font-weight: var(--ts-weight-nav);
+}
+
+.ts-sav__form select,
+.ts-sav__form textarea,
+.ts-sav__form input[type="number"] {
+	width: 100%;
+	min-height: 2.75rem;
+	padding: 0.5rem 0.625rem;
+	border: 1px solid var(--ts-line-strong);
+	border-radius: 3px;
+	background: var(--ts-paper);
+	color: var(--ts-ink);
+	font-family: var(--ts-font);
+	font-size: var(--ts-text);
+	line-height: 1.4;
+}
+
+.ts-sav__form input[type="number"] {
+	max-width: 10rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.ts-sav__form select:focus-visible,
+.ts-sav__form textarea:focus-visible,
+.ts-sav__form input:focus-visible {
+	outline: var(--ts-focus-width) solid var(--ts-ink);
+	outline-offset: var(--ts-focus-offset);
+}
+
+.ts-sav__aide {
+	display: block;
+	margin-top: var(--ts-space-1);
+	color: var(--ts-muted);
+	font-size: var(--ts-text-sm);
 }

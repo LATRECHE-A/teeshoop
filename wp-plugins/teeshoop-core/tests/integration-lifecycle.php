@@ -1226,6 +1226,206 @@ function ts_lifecycle_suite( int $product_id, int $bare_id ): void {
 		$order->delete( true );
 	} );
 
+	ts_it( 'lets the customer who owns the order open a claim, confirms it to them, and alerts the workshop', function () use ( $product_id ) {
+		/*
+		 * A claim could only be opened by the workshop, from an e-mail somebody
+		 * had to copy. The customer's own page now opens the same dossier, the
+		 * confirmation goes to the ORDER's address, and a second click is not
+		 * a second alert.
+		 */
+		require_once ABSPATH . 'wp-admin/includes/user.php';
+		$customer = wp_insert_user(
+			array(
+				'user_login' => 'zzsav' . strtolower( wp_generate_password( 8, false ) ),
+				'user_pass'  => wp_generate_password( 24 ),
+				'user_email' => 'zzsav' . strtolower( wp_generate_password( 8, false ) ) . '@example.test',
+				'role'       => 'customer',
+			)
+		);
+		ts_assert( ! is_wp_error( $customer ), 'no customer could be created' );
+		$order = ts_lc_order( $product_id );
+		$order->set_customer_id( (int) $customer );
+		$order->save();
+		ts_lc_capture_http();
+		$previous = get_current_user_id();
+		try {
+			$done = Claim::open_for_customer( wc_get_order( $order->get_id() ), 'marquage', 'Le flocage se décolle sur deux pièces après un lavage.', 2 );
+			ts_assert( $done['ok'], 'refusée : ' . ( $done['reason'] ?? '' ) );
+			ts_eq( $done['claim']['source'], 'client', 'the claim does not say the customer opened it' );
+
+			$rows  = Mail::for_order( $order->get_id() );
+			$kinds = array_map( static fn( $r ) => (string) $r->kind, $rows );
+			ts_assert( in_array( Notify::KIND_CLAIM, $kinds, true ), 'the customer was not sent a confirmation' );
+			$ack = array_values( array_filter( $rows, static fn( $r ) => Notify::KIND_CLAIM === (string) $r->kind ) )[0];
+			ts_eq( (string) $ack->recipient, 'client@example.test', 'the confirmation went somewhere else than the order’s address' );
+			ts_assert(
+				array() !== array_filter( $rows, static fn( $r ) => Notify::KIND_WORKSHOP === (string) $r->kind && str_contains( (string) $r->subject, 'Réclamation du client' ) ),
+				'the workshop was not told'
+			);
+			$message = Notify::render( Notify::KIND_CLAIM, $order->get_id() );
+			ts_assert( $message['ok'] && str_contains( (string) $message['message']['text'], 'se décolle' ), 'the confirmation does not say what was reported' );
+
+			$again = Claim::open_for_customer( wc_get_order( $order->get_id() ), 'marquage', 'Un second envoi juste après le premier.', 0 );
+			ts_eq( $again['ok'], false, 'two requests in the same instant opened two dossiers' );
+
+			// The page shows the block to its owner only, and only on the order's page.
+			global $wp;
+			$kept_vars = $wp->query_vars;
+			$wp->query_vars['view-order'] = (string) $order->get_id();
+			wp_set_current_user( (int) $customer );
+			ob_start();
+			Claim::customer_box( wc_get_order( $order->get_id() ) );
+			$html = (string) ob_get_clean();
+			ts_assert( str_contains( $html, 'id="teeshoop-sav"' ), 'the owner does not see the block' );
+			ts_assert( str_contains( $html, 'En cours' ), 'the owner does not see where the claim stands' );
+
+			$other = wp_insert_user(
+				array(
+					'user_login' => 'zzsavautre' . strtolower( wp_generate_password( 8, false ) ),
+					'user_pass'  => wp_generate_password( 24 ),
+					'user_email' => 'zzsavautre' . strtolower( wp_generate_password( 8, false ) ) . '@example.test',
+					'role'       => 'customer',
+				)
+			);
+			wp_set_current_user( (int) $other );
+			ob_start();
+			Claim::customer_box( wc_get_order( $order->get_id() ) );
+			ts_eq( (string) ob_get_clean(), '', 'another customer sees the block of an order that is not theirs' );
+			$wp->query_vars = $kept_vars;
+
+			// And the handler refuses an order that is not theirs.
+			$die = static fn() => static function ( $message ) {
+				throw new \RuntimeException( 'die: ' . ( is_string( $message ) ? $message : '' ) );
+			};
+			add_filter( 'wp_die_handler', $die );
+			$_POST    = array(
+				'order_id'    => (string) $order->get_id(),
+				'motif'       => 'colis',
+				'description' => 'Une demande envoyée par quelqu’un d’autre.',
+				'_wpnonce'    => wp_create_nonce( Claim::ACTION_CLIENT . '_' . $order->get_id() ),
+			);
+			$_REQUEST = $_POST;
+			$refused  = '';
+			try {
+				Claim::handle_client();
+			} catch ( \RuntimeException $e ) {
+				$refused = $e->getMessage();
+			} finally {
+				remove_filter( 'wp_die_handler', $die );
+				$_POST    = array();
+				$_REQUEST = array();
+			}
+			ts_assert( str_contains( $refused, 'pas la vôtre' ), 'another customer could open a claim on this order: ' . $refused );
+			ts_eq( count( Claim::all( wc_get_order( $order->get_id() ) ) ), 1, 'a refused request wrote a claim' );
+			wp_delete_user( (int) $other );
+		} finally {
+			wp_set_current_user( $previous );
+			remove_all_filters( 'pre_http_request' );
+			$order->delete( true );
+			wp_delete_user( (int) $customer );
+		}
+	} );
+
+	ts_it( 'lets the customer who owns the order open a claim, confirms it to them, and alerts the workshop', function () use ( $product_id ) {
+		/*
+		 * A claim could only be opened by the workshop, from an e-mail somebody
+		 * had to copy. The customer's own page now opens the same dossier, the
+		 * confirmation goes to the ORDER's address, and a second click is not
+		 * a second alert.
+		 */
+		require_once ABSPATH . 'wp-admin/includes/user.php';
+		$customer = wp_insert_user(
+			array(
+				'user_login' => 'zzsav' . strtolower( wp_generate_password( 8, false ) ),
+				'user_pass'  => wp_generate_password( 24 ),
+				'user_email' => 'zzsav' . strtolower( wp_generate_password( 8, false ) ) . '@example.test',
+				'role'       => 'customer',
+			)
+		);
+		ts_assert( ! is_wp_error( $customer ), 'no customer could be created' );
+		$order = ts_lc_order( $product_id );
+		$order->set_customer_id( (int) $customer );
+		$order->save();
+		ts_lc_capture_http();
+		$previous = get_current_user_id();
+		try {
+			$done = Claim::open_for_customer( wc_get_order( $order->get_id() ), 'marquage', 'Le flocage se décolle sur deux pièces après un lavage.', 2 );
+			ts_assert( $done['ok'], 'refusée : ' . ( $done['reason'] ?? '' ) );
+			ts_eq( $done['claim']['source'], 'client', 'the claim does not say the customer opened it' );
+
+			$rows  = Mail::for_order( $order->get_id() );
+			$kinds = array_map( static fn( $r ) => (string) $r->kind, $rows );
+			ts_assert( in_array( Notify::KIND_CLAIM, $kinds, true ), 'the customer was not sent a confirmation' );
+			$ack = array_values( array_filter( $rows, static fn( $r ) => Notify::KIND_CLAIM === (string) $r->kind ) )[0];
+			ts_eq( (string) $ack->recipient, 'client@example.test', 'the confirmation went somewhere else than the order’s address' );
+			ts_assert(
+				array() !== array_filter( $rows, static fn( $r ) => Notify::KIND_WORKSHOP === (string) $r->kind && str_contains( (string) $r->subject, 'Réclamation du client' ) ),
+				'the workshop was not told'
+			);
+			$message = Notify::render( Notify::KIND_CLAIM, $order->get_id() );
+			ts_assert( $message['ok'] && str_contains( (string) $message['message']['text'], 'se décolle' ), 'the confirmation does not say what was reported' );
+
+			$again = Claim::open_for_customer( wc_get_order( $order->get_id() ), 'marquage', 'Un second envoi juste après le premier.', 0 );
+			ts_eq( $again['ok'], false, 'two requests in the same instant opened two dossiers' );
+
+			// The page shows the block to its owner only, and only on the order's page.
+			global $wp;
+			$kept_vars = $wp->query_vars;
+			$wp->query_vars['view-order'] = (string) $order->get_id();
+			wp_set_current_user( (int) $customer );
+			ob_start();
+			Claim::customer_box( wc_get_order( $order->get_id() ) );
+			$html = (string) ob_get_clean();
+			ts_assert( str_contains( $html, 'id="teeshoop-sav"' ), 'the owner does not see the block' );
+			ts_assert( str_contains( $html, 'En cours' ), 'the owner does not see where the claim stands' );
+
+			$other = wp_insert_user(
+				array(
+					'user_login' => 'zzsavautre' . strtolower( wp_generate_password( 8, false ) ),
+					'user_pass'  => wp_generate_password( 24 ),
+					'user_email' => 'zzsavautre' . strtolower( wp_generate_password( 8, false ) ) . '@example.test',
+					'role'       => 'customer',
+				)
+			);
+			wp_set_current_user( (int) $other );
+			ob_start();
+			Claim::customer_box( wc_get_order( $order->get_id() ) );
+			ts_eq( (string) ob_get_clean(), '', 'another customer sees the block of an order that is not theirs' );
+			$wp->query_vars = $kept_vars;
+
+			// And the handler refuses an order that is not theirs.
+			$die = static fn() => static function ( $message ) {
+				throw new \RuntimeException( 'die: ' . ( is_string( $message ) ? $message : '' ) );
+			};
+			add_filter( 'wp_die_handler', $die );
+			$_POST    = array(
+				'order_id'    => (string) $order->get_id(),
+				'motif'       => 'colis',
+				'description' => 'Une demande envoyée par quelqu’un d’autre.',
+				'_wpnonce'    => wp_create_nonce( Claim::ACTION_CLIENT . '_' . $order->get_id() ),
+			);
+			$_REQUEST = $_POST;
+			$refused  = '';
+			try {
+				Claim::handle_client();
+			} catch ( \RuntimeException $e ) {
+				$refused = $e->getMessage();
+			} finally {
+				remove_filter( 'wp_die_handler', $die );
+				$_POST    = array();
+				$_REQUEST = array();
+			}
+			ts_assert( str_contains( $refused, 'pas la vôtre' ), 'another customer could open a claim on this order: ' . $refused );
+			ts_eq( count( Claim::all( wc_get_order( $order->get_id() ) ) ), 1, 'a refused request wrote a claim' );
+			wp_delete_user( (int) $other );
+		} finally {
+			wp_set_current_user( $previous );
+			remove_all_filters( 'pre_http_request' );
+			$order->delete( true );
+			wp_delete_user( (int) $customer );
+		}
+	} );
+
 	ts_it( 'refuses a claim with no motif and one with no description', function () use ( $product_id ) {
 		// A dossier that cannot be counted or read six months later is not a
 		// dossier, and chapitre 5 asks for a cause, a cost and a solution on

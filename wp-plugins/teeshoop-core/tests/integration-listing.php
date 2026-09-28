@@ -113,6 +113,29 @@ function ts_listing_suite(): void {
 	 * opened page 3 of the new order. Both listing forms submit to page one.
 	 */
 	ts_it(
+		'says « Voir le vêtement » on a garment nothing can buy, and keeps its name containing it',
+		function () {
+			/*
+			 * « Sélectionner les options » on an unpriced catalogue garment led to
+			 * a page where no option buys anything. The accessible name must still
+			 * contain the visible words (WCAG 2.5.3).
+			 */
+			$unpriced = ts_listing_product( 'ZZ Vêtement sans prix', false );
+			$priced   = ts_listing_product( 'ZZ Vêtement avec prix', true );
+			try {
+				$a = wc_get_product( $unpriced );
+				$b = wc_get_product( $priced );
+				ts_eq( $a->add_to_cart_text(), 'Voir le vêtement', 'the button of an unpriced garment' );
+				ts_assert( str_contains( $a->add_to_cart_description(), 'Voir le vêtement' ), 'its accessible name no longer contains its visible text' );
+				ts_eq( $b->add_to_cart_text(), 'Sélectionner les options', 'a garment that can be bought keeps its choice of options' );
+			} finally {
+				ts_listing_delete( $unpriced );
+				ts_listing_delete( $priced );
+			}
+		}
+	);
+
+	ts_it(
 		'sends a sort or a filter chosen on page 3 back to the first page',
 		function () {
 			$kept                   = $_SERVER['REQUEST_URI'] ?? '';

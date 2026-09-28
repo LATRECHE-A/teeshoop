@@ -528,10 +528,27 @@ $ts_services = services(
 	 * comes from `Garments::areas()`, so the two drawings cannot disagree.
 	 */
 	$ts_figure = '' !== $ts_garment ? print_zone_figure( $ts_garment ) : '';
-	if ( '' !== $ts_figure ) {
-		echo '<div class="ts-zone-bloc">' . $ts_figure . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure().
-	}
-	?>
+	if ( '' !== $ts_figure ) :
+		/*
+		 * THE DRAWING WITH ITS READING, SIDE BY SIDE. Alone, the figure took a
+		 * third of a 1440 px page and left the rest of the row empty, the
+		 * widest hole on the home page. The column says what the drawing is
+		 * for; its numbers stay in the figure, from `Garments::areas()`.
+		 */
+		$ts_files = page_url( 'fichiers-impression' );
+		?>
+		<div class="ts-zone-bloc">
+			<?php echo $ts_figure; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built and escaped in print_zone_figure(). ?>
+			<div class="ts-zone-texte">
+				<h3><?php esc_html_e( 'Combien de place pour votre visuel', 'teeshoop' ); ?></h3>
+				<p><?php esc_html_e( 'La zone d’impression est la plus grande surface que nous imprimons sur une face. Votre visuel peut la remplir ou n’en occuper qu’une partie : un logo côté cœur prend quelques centimètres, un dos complet prend toute la zone.', 'teeshoop' ); ?></p>
+				<p><?php esc_html_e( 'Le prix suit la surface réellement encrée, mesurée dans l’atelier en ligne pendant que vous placez votre visuel. Un logo discret ne se paie pas comme un dos complet, et les marges transparentes de votre fichier ne comptent pas.', 'teeshoop' ); ?></p>
+				<?php if ( '' !== $ts_files ) : ?>
+					<p><a href="<?php echo esc_url( $ts_files ); ?>"><?php esc_html_e( 'Quel fichier envoyer pour une impression nette', 'teeshoop' ); ?></a></p>
+				<?php endif; ?>
+			</div>
+		</div>
+	<?php endif; ?>
 </section>
 
 <?php /* Who it is for, in the associate's own words. */ ?>

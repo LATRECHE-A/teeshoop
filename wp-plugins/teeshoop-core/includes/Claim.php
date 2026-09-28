@@ -43,6 +43,18 @@ final class Claim {
 	public const ACTION_OPEN  = 'teeshoop_sav_ouvrir';
 	public const ACTION_CLOSE = 'teeshoop_sav_decider';
 
+	/** The customer's own request, from their order page. */
+	public const ACTION_CLIENT = 'teeshoop_sav_client';
+
+	/** Claims still waiting that one order may carry from its customer. */
+	private const CLIENT_OPEN_MAX = 3;
+
+	/** Claims of any state one order may carry from its customer. */
+	private const CLIENT_TOTAL_MAX = 10;
+
+	/** Seconds between two requests from one customer. */
+	private const CLIENT_PAUSE = 30;
+
 	/** How long a description may be. Bounded because it is stored. */
 	private const TEXT_MAX = 4000;
 
@@ -155,6 +167,197 @@ final class Claim {
 		add_action( 'add_meta_boxes', array( self::class, 'meta_box' ) );
 		add_action( 'admin_post_' . self::ACTION_OPEN, array( self::class, 'handle_open' ) );
 		add_action( 'admin_post_' . self::ACTION_CLOSE, array( self::class, 'handle_close' ) );
+		/*
+		 * THE CUSTOMER'S DOOR TO THE SAME DOSSIER. Until 26 September 2026 a
+		 * claim could only be opened by the workshop, from an e-mail somebody
+		 * had to read and copy: a customer with a stained batch had no way in
+		 * from the shop. Logged-in customers only (`admin_post_`, never
+		 * `admin_post_nopriv_`): the order has to be theirs, and a form open
+		 * to anyone is a form that mails the workshop for anyone.
+		 */
+		add_action( 'woocommerce_order_details_after_order_table', array( self::class, 'customer_box' ) );
+		add_action( 'admin_post_' . self::ACTION_CLIENT, array( self::class, 'handle_client' ) );
+	}
+
+	/**
+	 * What the customer reads for each motif: the workshop's list, in the words
+	 * of somebody describing their parcel rather than filing it.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function motifs_client(): array {
+		return array(
+			'quantite' => 'Il manque des pièces, ou il y en a en trop',
+			'taille'   => 'Une taille ne correspond pas à ma commande',
+			'couleur'  => 'Un coloris ne correspond pas à ma commande',
+			'produit'  => 'Ce n’est pas le vêtement commandé',
+			'textile'  => 'Le vêtement présente un défaut',
+			'marquage' => 'Le marquage présente un défaut',
+			'position' => 'Le marquage n’est pas placé comme sur le bon à tirer',
+			'fichier'  => 'Le visuel imprimé n’est pas le bon',
+			'colis'    => 'Le colis est abîmé ou n’est pas arrivé',
+			'delai'    => 'La commande est en retard',
+			'autre'    => 'Autre chose',
+		);
+	}
+
+	/** Whether this order is at a stage where something can have gone wrong for its buyer. */
+	public static function claimable( \WC_Order $order ): bool {
+		return ! in_array( $order->get_status(), array( 'pending', 'failed', 'cancelled', 'refunded', 'checkout-draft', 'on-hold' ), true );
+	}
+
+	/** The claims this customer opened on this order. */
+	private static function from_customer( \WC_Order $order ): array {
+		return array_values( array_filter( self::all( $order ), static fn( $c ): bool => 'client' === ( $c['source'] ?? '' ) ) );
+	}
+
+	/**
+	 * The block under the order table: what was asked, and a way to ask.
+	 *
+	 * @param mixed $order The order WooCommerce is rendering.
+	 */
+	public static function customer_box( $order ): void {
+		if ( ! $order instanceof \WC_Order || ! is_user_logged_in() || (int) $order->get_customer_id() !== get_current_user_id() ) {
+			return;
+		}
+		// On the order's own page in the account, not on the thank-you page just after paying.
+		if ( ! function_exists( 'is_wc_endpoint_url' ) || ! is_wc_endpoint_url( 'view-order' ) || ! self::claimable( $order ) ) {
+			return;
+		}
+		$mine    = self::from_customer( $order );
+		$waiting = count( array_filter( $mine, static fn( $c ): bool => '' === (string) ( $c['closed_at'] ?? '' ) ) );
+		$phrases = self::motifs_client();
+
+		echo '<section class="ts-sav" id="teeshoop-sav" aria-labelledby="ts-sav-titre">';
+		echo '<h2 id="ts-sav-titre">' . esc_html__( 'Un problème avec cette commande ?', 'teeshoop' ) . '</h2>';
+
+		if ( array() !== $mine ) {
+			echo '<ul class="ts-sav__liste">';
+			foreach ( $mine as $claim ) {
+				$open = '' === (string) ( $claim['closed_at'] ?? '' );
+				printf(
+					'<li><strong>%1$s</strong>, %2$s. %3$s</li>',
+					esc_html( $phrases[ $claim['motif'] ] ?? (string) $claim['motif'] ),
+					esc_html( sprintf( /* translators: %s: a date. */ __( 'demande du %s', 'teeshoop' ), Lifecycle::human_date( (string) $claim['at'] ) ) ),
+					esc_html(
+						$open
+							? __( 'En cours : nous revenons vers vous par courriel.', 'teeshoop' )
+							: sprintf( /* translators: %s: a date. */ __( 'Traitée le %s : notre réponse vous a été envoyée par courriel.', 'teeshoop' ), Lifecycle::human_date( (string) $claim['closed_at'] ) )
+					)
+				);
+			}
+			echo '</ul>';
+		}
+
+		if ( $waiting >= self::CLIENT_OPEN_MAX || count( $mine ) >= self::CLIENT_TOTAL_MAX ) {
+			echo '<p>' . esc_html__( 'Vos demandes sont en cours de traitement. Pour ajouter quelque chose, répondez au courriel qui vous a confirmé leur réception.', 'teeshoop' ) . '</p>';
+			echo '</section>';
+			return;
+		}
+
+		$draft = get_transient( 'teeshoop_sav_brouillon_' . get_current_user_id() );
+		$draft = is_array( $draft ) && (int) ( $draft['order'] ?? 0 ) === $order->get_id() ? $draft : array();
+
+		echo '<p>' . esc_html__( 'Décrivez ce qui ne va pas : votre demande arrive directement à l’atelier, et vous recevez une confirmation par courriel. Si vous avez des photos, vous pourrez les envoyer en répondant à ce courriel.', 'teeshoop' ) . '</p>';
+		echo '<form class="ts-sav__form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( self::ACTION_CLIENT . '_' . $order->get_id() );
+		printf( '<input type="hidden" name="action" value="%s">', esc_attr( self::ACTION_CLIENT ) );
+		printf( '<input type="hidden" name="order_id" value="%d">', (int) $order->get_id() );
+
+		echo '<p class="ts-sav__champ"><label for="ts-sav-motif">' . esc_html__( 'Ce qui ne va pas', 'teeshoop' ) . '</label>';
+		echo '<select id="ts-sav-motif" name="motif" required>';
+		echo '<option value="">' . esc_html__( 'Choisissez', 'teeshoop' ) . '</option>';
+		foreach ( $phrases as $key => $label ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $key ), selected( (string) ( $draft['motif'] ?? '' ), $key, false ), esc_html( $label ) );
+		}
+		echo '</select></p>';
+
+		echo '<p class="ts-sav__champ"><label for="ts-sav-description">' . esc_html__( 'Ce que vous constatez', 'teeshoop' ) . '</label>';
+		printf(
+			'<textarea id="ts-sav-description" name="description" rows="5" minlength="10" maxlength="%d" required aria-describedby="ts-sav-aide">%s</textarea>',
+			(int) self::TEXT_MAX,
+			esc_textarea( (string) ( $draft['description'] ?? '' ) )
+		);
+		echo '<span class="ts-sav__aide" id="ts-sav-aide">' . esc_html__( 'Quels vêtements, quelles tailles, ce qui ne correspond pas. Dix caractères au moins.', 'teeshoop' ) . '</span></p>';
+
+		echo '<p class="ts-sav__champ"><label for="ts-sav-quantite">' . esc_html__( 'Nombre de pièces concernées (facultatif)', 'teeshoop' ) . '</label>';
+		printf( '<input id="ts-sav-quantite" name="quantite" type="number" min="0" inputmode="numeric" value="%s"></p>', esc_attr( (string) ( $draft['quantite'] ?? '' ) ) );
+
+		echo '<p><button type="submit" class="button">' . esc_html__( 'Envoyer ma demande', 'teeshoop' ) . '</button></p>';
+		echo '</form></section>';
+	}
+
+	/** The customer's request, checked in the order that refuses cheapest first. */
+	public static function handle_client(): void {
+		$order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
+		check_admin_referer( self::ACTION_CLIENT . '_' . $order_id );
+		$order = $order_id > 0 ? wc_get_order( $order_id ) : null;
+		if ( ! $order instanceof \WC_Order || (int) $order->get_customer_id() !== get_current_user_id() || 0 === get_current_user_id() ) {
+			wp_die( esc_html__( 'Cette commande n’est pas la vôtre.', 'teeshoop' ), '', array( 'response' => 403 ) );
+		}
+
+		$motif       = isset( $_POST['motif'] ) ? sanitize_key( wp_unslash( $_POST['motif'] ) ) : '';
+		$description = isset( $_POST['description'] ) ? sanitize_textarea_field( wp_unslash( $_POST['description'] ) ) : '';
+		$quantite    = isset( $_POST['quantite'] ) ? absint( wp_unslash( $_POST['quantite'] ) ) : 0;
+		$done        = self::open_for_customer( $order, $motif, $description, $quantite );
+
+		if ( $done['ok'] ) {
+			delete_transient( 'teeshoop_sav_brouillon_' . get_current_user_id() );
+			wc_add_notice( __( 'Votre demande est envoyée à l’atelier. Un courriel de confirmation vient de partir vers votre adresse.', 'teeshoop' ), 'success' );
+		} else {
+			// What was typed is kept for the page it comes back to.
+			set_transient(
+				'teeshoop_sav_brouillon_' . get_current_user_id(),
+				array(
+					'order'       => $order->get_id(),
+					'motif'       => $motif,
+					'description' => $description,
+					'quantite'    => $quantite > 0 ? $quantite : '',
+				),
+				15 * MINUTE_IN_SECONDS
+			);
+			wc_add_notice( (string) $done['reason'], 'error' );
+		}
+		wp_safe_redirect( $order->get_view_order_url() . '#teeshoop-sav' );
+		exit;
+	}
+
+	/**
+	 * Open a claim for the customer who owns the order, within the limits a
+	 * public-facing form needs, then confirm it to them.
+	 *
+	 * @return array{ok:bool,reason?:string,claim?:array,mail?:array}
+	 */
+	public static function open_for_customer( \WC_Order $order, string $motif, string $description, int $quantity ): array {
+		if ( ! self::claimable( $order ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => __( 'Cette commande n’est pas à une étape où une réclamation peut être ouverte. Écrivez-nous en indiquant son numéro.', 'teeshoop' ),
+			);
+		}
+		$mine    = self::from_customer( $order );
+		$waiting = count( array_filter( $mine, static fn( $c ): bool => '' === (string) ( $c['closed_at'] ?? '' ) ) );
+		if ( $waiting >= self::CLIENT_OPEN_MAX || count( $mine ) >= self::CLIENT_TOTAL_MAX ) {
+			return array(
+				'ok'     => false,
+				'reason' => __( 'Vos demandes sur cette commande sont déjà en cours de traitement. Répondez au courriel de confirmation pour ajouter quelque chose.', 'teeshoop' ),
+			);
+		}
+		$pause_key = 'teeshoop_sav_pause_' . (int) $order->get_customer_id();
+		if ( false !== get_transient( $pause_key ) ) {
+			return array(
+				'ok'     => false,
+				'reason' => __( 'Votre demande précédente vient de partir. Patientez quelques secondes avant d’en envoyer une autre.', 'teeshoop' ),
+			);
+		}
+
+		$done = self::open( $order, $motif, $description, $quantity, 'client' );
+		if ( ! $done['ok'] ) {
+			return $done;
+		}
+		set_transient( $pause_key, 1, self::CLIENT_PAUSE );
+		$done['mail'] = Notify::claim_received( $order, (array) $done['claim'] );
+		return $done;
 	}
 
 	/** @return array<int,array<string,mixed>> */
@@ -190,7 +393,7 @@ final class Claim {
 	 *
 	 * @return array{ok:bool,claim?:array,reason?:string}
 	 */
-	public static function open( \WC_Order $order, string $motif, string $description, int $quantity = 0 ): array {
+	public static function open( \WC_Order $order, string $motif, string $description, int $quantity = 0, string $source = 'atelier' ): array {
 		$description = trim( $description );
 		if ( ! isset( self::motifs()[ $motif ] ) ) {
 			return array(
@@ -224,6 +427,7 @@ final class Claim {
 			'cause'       => '',
 			'decision'    => '',
 			'closed_at'   => '',
+			'source'      => 'client' === $source ? 'client' : 'atelier',
 		);
 
 		$claims[] = $claim;
@@ -241,9 +445,10 @@ final class Claim {
 
 		Notify::workshop(
 			$order,
-			'Réclamation ouverte',
+			'client' === $source ? 'Réclamation du client' : 'Réclamation ouverte',
 			array(
 				sprintf( 'Motif : %s.', self::motifs()[ $motif ] ),
+				'client' === $source ? 'Envoyée par le client depuis sa page de commande. Il a reçu une confirmation et peut répondre avec des photos.' : '',
 				$description,
 			)
 		);
@@ -388,9 +593,10 @@ final class Claim {
 
 		echo '<div style="border:1px solid #dcdcde;padding:.8em;margin:.8em 0">';
 		printf(
-			'<p style="margin:0 0 .4em"><strong>%s</strong> <span style="color:#646970">%s</span></p>',
+			'<p style="margin:0 0 .4em"><strong>%s</strong> <span style="color:#646970">%s%s</span></p>',
 			esc_html( $motifs[ $claim['motif'] ] ?? (string) $claim['motif'] ),
-			esc_html( Lifecycle::human_date( (string) $claim['at'] ) )
+			esc_html( Lifecycle::human_date( (string) $claim['at'] ) ),
+			'client' === ( $claim['source'] ?? '' ) ? esc_html__( ', envoyée par le client', 'teeshoop' ) : ''
 		);
 		printf( '<p style="margin:.2em 0">%s</p>', nl2br( esc_html( (string) $claim['description'] ) ) );
 		if ( (int) $claim['quantity'] > 0 ) {

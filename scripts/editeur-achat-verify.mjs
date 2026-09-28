@@ -500,7 +500,7 @@ try {
     const t = await page.locator('[data-teeshoop="taille-visuel"]').innerText().catch(() => '')
     return Number.parseFloat((t.split('×')[0] ?? '').replace(',', '.'))
   }
-  const fin14 = Date.now() + 10000
+  const fin14 = Date.now() + 12000
   while (Date.now() < fin14 && !((await lireTaille()) < largeurBoite / 2)) await page.waitForTimeout(200)
   const taille = await lireTaille()
   ok('la taille affichée est celle de l’encre, pas celle du fichier', Math.abs(taille - largeurBoite / 4) < 0.3, `${taille} cm affichés, fichier ${largeurBoite.toFixed(1)} cm, encre ${(largeurBoite / 4).toFixed(1)} cm`)

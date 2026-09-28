@@ -46,6 +46,7 @@ final class Notify {
 	public const KIND_CHANGES  = 'bat-modifs';
 	public const KIND_SHIPPED  = 'expedition';
 	public const KIND_WORKSHOP = 'atelier';
+	public const KIND_CLAIM    = 'sav-recu';
 
 	/** Order meta: when the first money in was announced. See `on_paid`. */
 	public const META_ANNOUNCED = '_teeshoop_annonce';
@@ -107,6 +108,11 @@ final class Notify {
 
 	public static function shipped( \WC_Order $order ): array {
 		return Mail::send( self::message( self::spec_shipped( $order ), $order, self::KIND_SHIPPED ) );
+	}
+
+	/** The customer's own claim, confirmed to the address of the order. */
+	public static function claim_received( \WC_Order $order, array $claim ): array {
+		return Mail::send( self::message( self::spec_claim( $order, $claim ), $order, self::KIND_CLAIM ) );
 	}
 
 	/**
@@ -230,6 +236,32 @@ final class Notify {
 			'subject' => sprintf( 'Vos modifications sont bien arrivées, commande %s', $order->get_order_number() ),
 			'heading' => 'Modifications reçues',
 			'lines'   => $lines,
+		);
+	}
+
+	/*
+	 * THE CUSTOMER'S OWN WORDS GO BACK ONLY TO THE ORDER'S ADDRESS. Unlike the
+	 * quote form (SEC-07), the recipient here is the billing address of an
+	 * order the logged-in customer owns, so repeating what they wrote is a
+	 * receipt, not a relay.
+	 */
+	private static function spec_claim( \WC_Order $order, array $claim ): array {
+		$motif = Claim::motifs_client()[ (string) ( $claim['motif'] ?? '' ) ] ?? '';
+		$lines = array(
+			sprintf( 'Nous avons bien reçu votre demande du %s concernant la commande %s.', Lifecycle::human_date( (string) ( $claim['at'] ?? '' ) ), $order->get_order_number() ),
+			'' !== $motif ? sprintf( 'Ce que vous nous signalez : %s.', $motif ) : '',
+			'Ce que vous nous avez écrit : « ' . (string) ( $claim['description'] ?? '' ) . ' »',
+			'Si vous avez des photos du problème, répondez simplement à ce message en les joignant : elles nous aident à trancher vite.',
+			'Ne renvoyez rien avant que nous vous l’ayons demandé : nous vous indiquons la marche à suivre par courriel.',
+		);
+		return array(
+			'subject' => sprintf( 'Votre demande sur la commande %s est bien arrivée', $order->get_order_number() ),
+			'heading' => 'Demande reçue',
+			'lines'   => array_values( array_filter( $lines ) ),
+			'cta'     => array(
+				'label' => 'Voir votre commande',
+				'url'   => $order->get_view_order_url(),
+			),
 		);
 	}
 
@@ -388,7 +420,7 @@ final class Notify {
 	 * `Mail::retry` needs to tell them apart to know whether to keep trying.
 	 */
 	public static function rebuildable( string $kind ): bool {
-		return in_array( $kind, array( self::KIND_BAT, self::KIND_CONFIRM, self::KIND_SHIPPED, self::KIND_RECEIPT, self::KIND_CHANGES, self::KIND_WORKSHOP ), true );
+		return in_array( $kind, array( self::KIND_BAT, self::KIND_CONFIRM, self::KIND_SHIPPED, self::KIND_RECEIPT, self::KIND_CHANGES, self::KIND_WORKSHOP, self::KIND_CLAIM ), true );
 	}
 
 	public static function rebuild( string $kind, int $order_id, string $subject = '' ): array {
@@ -482,6 +514,20 @@ final class Notify {
 			return array(
 				'ok'      => true,
 				'message' => self::message( self::spec_shipped( $order ), $order, $kind ),
+			);
+		}
+
+		if ( self::KIND_CLAIM === $kind ) {
+			$mine = array_values( array_filter( Claim::all( $order ), static fn( $c ): bool => 'client' === ( $c['source'] ?? '' ) ) );
+			if ( array() === $mine ) {
+				return array(
+					'ok'     => false,
+					'reason' => 'Aucune demande du client sur cette commande : il n’y a pas d’accusé à renvoyer.',
+				);
+			}
+			return array(
+				'ok'      => true,
+				'message' => self::message( self::spec_claim( $order, (array) end( $mine ) ), $order, $kind ),
 			);
 		}
 
