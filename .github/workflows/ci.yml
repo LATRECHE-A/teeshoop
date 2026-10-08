@@ -102,7 +102,7 @@ jobs:
       # comportements possibles, et celle qui décide est celle que personne ne
       # regarde. `.nvmrc` est aussi ce que lisent `nvm`, `fnm` et `asdf`, donc
       # une machine neuve tombe sur la même.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -423,7 +423,7 @@ jobs:
       # Node pour le lanceur, et rien d'autre : `scripts/wp-suite-verify.mjs`
       # n'importe aucun paquet, donc pas de `npm ci` ici. Cela retire deux
       # minutes et une dépendance réseau d'un travail qui en a déjà assez.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 
@@ -699,7 +699,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
