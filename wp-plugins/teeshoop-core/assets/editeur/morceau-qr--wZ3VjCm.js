@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./morceau-browser-BJPI7-QU.js","./morceau-rolldown-runtime-Dd_uD5pT.js"])))=>i.map(i=>d[i]);
+import{i as e}from"./morceau-rolldown-runtime-Dd_uD5pT.js";import{_ as t}from"./editeur-D3Z1MsA1.js";async function n(n){return(await t(async()=>{let{default:t}=await import(`./morceau-browser-BJPI7-QU.js`).then(t=>e(t.default,1));return{default:t}},__vite__mapDeps([0,1]),import.meta.url)).default.toDataURL(n,{margin:4,width:512,errorCorrectionLevel:`M`,color:{dark:`#0c0f13`,light:`#ffffff`}})}export{n as makeQrDataUrl};
